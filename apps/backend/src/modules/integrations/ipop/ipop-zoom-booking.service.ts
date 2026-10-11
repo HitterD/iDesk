@@ -6,6 +6,7 @@ import { ZoomBooking } from '../../zoom-booking/entities/zoom-booking.entity';
 import { BookingStatus } from '../../zoom-booking/enums/booking-status.enum';
 import { User } from '../../users/entities/user.entity';
 import type { IpopZoomBookingQueryDto } from './dto/ipop-zoom-booking.dto';
+import { pickPublicBaseUrl } from '../../../shared/mail/app-url.util';
 
 /** Booking times are stored as WIB wall-clock (date + "HH:mm"), see ZoomBookingService. */
 const BOOKING_TIMEZONE = 'Asia/Jakarta';
@@ -99,7 +100,7 @@ export class IpopZoomBookingService {
     /** Confirmed bookings with a join link and at least one attendee iPop knows. */
     private async toViews(bookings: ZoomBooking[]): Promise<IpopZoomBookingView[]> {
         const usersByEmail = await this.internalParticipants(bookings);
-        const base = (this.config.get<string>('FRONTEND_URL') || '').split(',')[0].trim().replace(/\/$/, '');
+        const base = pickPublicBaseUrl(this.config.get<string>('FRONTEND_URL'));
         const views: IpopZoomBookingView[] = [];
         for (const booking of bookings) {
             if (booking.status !== BookingStatus.CONFIRMED || !booking.meeting?.joinUrl) continue;

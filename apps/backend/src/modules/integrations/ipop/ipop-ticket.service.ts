@@ -22,6 +22,7 @@ import { ATTACHMENT_EXTENSIONS, validateFileMagicBytes } from '../../../shared/c
 import { UPLOAD_ROOT } from '../../ticketing/presentation/interceptors/attachment-upload.interceptor';
 import { IpopCatalogService } from './ipop-catalog.service';
 import { IPOP_MAX_ATTACHMENT_BYTES, IpopAttachmentDto, IpopCreateTicketDto, IpopTicketQueryDto } from './dto/ipop-ticket.dto';
+import { pickPublicBaseUrl } from '../../../shared/mail/app-url.util';
 
 export const IPOP_SOURCE = 'IPOP';
 /** Ticket types a requester never sees in iDesk "My Tickets"; iPop mirrors that view. */
@@ -202,7 +203,7 @@ export class IpopTicketService {
 
     /** Public progress view (also the webhook payload). */
     toView(ticket: Ticket): IpopTicketView {
-        const base = (this.config.get<string>('FRONTEND_URL') || '').split(',')[0].trim().replace(/\/$/, '');
+        const base = pickPublicBaseUrl(this.config.get<string>('FRONTEND_URL'));
         return {
             ticketId: ticket.id,
             ticketNumber: ticket.ticketNumber,
