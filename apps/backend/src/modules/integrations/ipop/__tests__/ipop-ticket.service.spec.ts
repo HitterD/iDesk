@@ -9,7 +9,7 @@ afterAll(() => rmSync(TMP_UPLOADS, { recursive: true, force: true }));
 
 import { BadRequestException, UnprocessableEntityException } from '@nestjs/common';
 import { In, Not, QueryFailedError } from 'typeorm';
-import { IpopTicketService, isIpopVisible } from '../ipop-ticket.service';
+import { IpopTicketService, isIpopVisible, plainText, visitOf } from '../ipop-ticket.service';
 import { TicketPriority, TicketSource, TicketStatus, TicketType, HandlingTeam } from '../../../ticketing/entities/ticket.entity';
 
 const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
@@ -27,7 +27,7 @@ const dto = (over: Record<string, unknown> = {}) => ({
     title: 'Wifi lantai 2 mati', description: 'Tidak bisa konek', requester: { nik: '00000024' }, ...over,
 }) as any;
 
-function build(opts: { existing?: any; user?: any; createError?: Error } = {}) {
+function build(opts: { existing?: any; user?: any; createError?: Error; messages?: any[] } = {}) {
     const ticketRepo = {
         findOne: jest.fn()
             .mockResolvedValueOnce(opts.existing ?? null) // idempotency lookup
@@ -49,11 +49,12 @@ function build(opts: { existing?: any; user?: any; createError?: Error } = {}) {
             ? jest.fn().mockRejectedValue(opts.createError)
             : jest.fn().mockResolvedValue(ticket()),
     };
+    const messageRepo = { find: jest.fn().mockResolvedValue(opts.messages ?? []) };
     const service = new IpopTicketService(
-        ticketRepo as any, userRepo as any, catalog as any, ticketCreate as any,
+        ticketRepo as any, userRepo as any, messageRepo as any, catalog as any, ticketCreate as any,
         { get: (k: string) => (k === 'FRONTEND_URL' ? 'https://idesk.santos.co.id' : undefined) } as any,
     );
-    return { service, ticketRepo, userRepo, catalog, ticketCreate };
+    return { service, ticketRepo, userRepo, messageRepo, catalog, ticketCreate };
 }
 
 describe('IpopTicketService.create', () => {
@@ -169,5 +170,82 @@ describe('iPop visibility of iDesk-filed tickets', () => {
         ticketRepo.findOne.mockReset().mockResolvedValue(ticket({ externalSource: null, user: { employeeId: null } }));
 
         await expect(service.getByNumber('GEN-0001')).rejects.toThrow(/not|No ticket/i);
+    });
+});
+
+describe('IpopTicketService.getMessages', () => {
+    const msg = (over: Record<string, unknown> = {}) => ({
+        id: 'm-1', content: '<p>Sudah saya cek</p>', senderId: 'u-agent', sender: { fullName: 'Agent A', employeeId: '00000099' },
+        attachments: [], attachmentInfo: null, createdAt: new Date('2026-10-11T03:00:00Z'), ...over,
+    });
+
+    it('returns the public chat oldest first, as plain text, without internal notes', async () => {
+        const { service, ticketRepo, messageRepo } = build({
+            messages: [msg({ id: 'm-2', content: 'Siap', senderId: 'u-1', sender: { fullName: 'Budi' } }), msg()],
+        });
+        ticketRepo.findOne.mockReset().mockResolvedValue(ticket({ userId: 'u-1' }));
+
+        const result = await service.getMessages('GEN-0001');
+
+        expect(messageRepo.find.mock.calls[0][0].where).toEqual({ ticketId: 't-1', isInternal: false, isSystemMessage: false });
+        expect(result.messages.map((m) => m.id)).toEqual(['m-1', 'm-2']);
+        expect(result.messages[0]).toMatchObject({ sender: { name: 'Agent A' }, fromRequester: false, content: 'Sudah saya cek' });
+        expect(result.messages[1].fromRequester).toBe(true);
+        expect(result.url).toBe('https://idesk.santos.co.id/client/tickets/t-1');
+    });
+
+    it('never exposes the sender NIK', async () => {
+        const { service, ticketRepo } = build({ messages: [msg()] });
+        ticketRepo.findOne.mockReset().mockResolvedValue(ticket());
+
+        const json = JSON.stringify(await service.getMessages('GEN-0001'));
+
+        expect(json).not.toContain('00000099');
+        expect(json).not.toMatch(/nik|employeeId/i);
+    });
+
+    it('lists attachments by original name only', async () => {
+        const { service, ticketRepo } = build({
+            messages: [msg({ attachments: ['/uploads/tickets/x1.pdf'], attachmentInfo: [{ path: '/uploads/tickets/x1.pdf', name: 'reset-wifi.pdf', size: 1, mime: 'x' }] })],
+        });
+        ticketRepo.findOne.mockReset().mockResolvedValue(ticket());
+
+        const [m] = (await service.getMessages('GEN-0001')).messages;
+
+        expect(m.attachments).toEqual([{ name: 'reset-wifi.pdf' }]);
+    });
+
+    it('is 404 for tickets iPop may not see', async () => {
+        const { service, ticketRepo } = build();
+        ticketRepo.findOne.mockReset().mockResolvedValue(ticket({ externalSource: null, user: { employeeId: null } }));
+
+        await expect(service.getMessages('GEN-0001')).rejects.toThrow(/No ticket/);
+    });
+});
+
+describe('plainText', () => {
+    it('keeps line breaks and decodes entities', () => {
+        expect(plainText('<p>Halo&nbsp;Budi</p><p>Coba <b>restart</b><br>lalu cek &amp; kabari</p>')).toBe('Halo Budi\nCoba restart\nlalu cek & kabari');
+    });
+});
+
+describe('visitOf', () => {
+    const install = (over: Record<string, unknown> = {}) => ({
+        isHardwareInstallation: true, scheduledDate: new Date('2026-10-12T17:00:00Z'), scheduledTime: '09:00', hardwareType: 'PRINTER', ...over,
+    }) as any;
+
+    it('turns the WIB date + slot into a one-hour UTC visit', () => {
+        // 2026-10-12T17:00Z is 13 Oct 00:00 WIB: the visit is on the 13th, 09:00 WIB = 02:00Z.
+        expect(visitOf(install())).toEqual({ start: '2026-10-13T02:00:00.000Z', end: '2026-10-13T03:00:00.000Z', hardwareType: 'PRINTER' });
+    });
+
+    it('uses the end of a "09.00 - 11.00" range', () => {
+        expect(visitOf(install({ scheduledTime: '09.00 - 11.00' }))).toMatchObject({ start: '2026-10-13T02:00:00.000Z', end: '2026-10-13T04:00:00.000Z' });
+    });
+
+    it('is null for other tickets or without a slot', () => {
+        expect(visitOf(install({ isHardwareInstallation: false }))).toBeNull();
+        expect(visitOf(install({ scheduledDate: null }))).toBeNull();
+        expect(visitOf(install({ scheduledTime: null }))).toBeNull();
     });
 });

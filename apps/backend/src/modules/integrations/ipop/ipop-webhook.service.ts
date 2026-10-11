@@ -17,6 +17,7 @@ export type IpopWebhookEvent =
     | 'ticket.resolved'
     | 'ticket.closed'
     | 'ticket.message_created'
+    | 'ticket.visit_changed'
     | 'zoom_booking.created'
     | 'zoom_booking.updated'
     | 'zoom_booking.cancelled';
