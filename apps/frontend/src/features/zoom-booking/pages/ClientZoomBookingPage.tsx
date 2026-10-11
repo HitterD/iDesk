@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { format, parseISO, isFuture, isToday, isPast } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { CalendarPlus, Video, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
@@ -18,7 +19,9 @@ export function ClientZoomBookingPage() {
     const [mobileTab, setMobileTab] = useState<'form' | 'bookings'>('form');
     const [isFormVisible, setIsFormVisible] = useState(true);
     const [selectedDate, setSelectedDate] = useState<string>('');
-    const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
+    // Detail modal: a booking just created, or one opened by deep link (iPop calendar, /zoom-booking/:id).
+    const [searchParams] = useSearchParams();
+    const [detailBookingId, setDetailBookingId] = useState<string | null>(() => searchParams.get('booking'));
     const { data: bookings } = useMyBookings();
 
     const upcomingCount = useMemo(() => {
@@ -214,7 +217,7 @@ export function ClientZoomBookingPage() {
                     <SimpleBookingForm
                         selectedDate={selectedDate}
                         onDateChange={setSelectedDate}
-                        onBookingCreated={setCreatedBookingId}
+                        onBookingCreated={setDetailBookingId}
                     />
                 </section>
 
@@ -233,11 +236,11 @@ export function ClientZoomBookingPage() {
                 </section>
             </div>
 
-            {createdBookingId && (
+            {detailBookingId && (
                 <BookingDetailsModal
                     isOpen
-                    bookingId={createdBookingId}
-                    onClose={() => setCreatedBookingId(null)}
+                    bookingId={detailBookingId}
+                    onClose={() => setDetailBookingId(null)}
                 />
             )}
         </div>

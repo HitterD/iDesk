@@ -5,11 +5,11 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ZoomCalendarPage } from '../ZoomCalendarPage';
 
-const renderPage = () => {
+const renderPage = (url = '/zoom-calendar') => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return render(
         <QueryClientProvider client={queryClient}>
-            <MemoryRouter>
+            <MemoryRouter initialEntries={[url]}>
                 <ZoomCalendarPage />
             </MemoryRouter>
         </QueryClientProvider>,
@@ -88,15 +88,16 @@ vi.mock('../../hooks', async () => {
 });
 
 vi.mock('../../components/ZoomBookingModal', () => ({
-    ZoomBookingModal: ({ open, mode, zoomAccountId, preselectedDate, preselectedTime }: {
+    ZoomBookingModal: ({ open, mode, zoomAccountId, preselectedDate, preselectedTime, bookingId }: {
         open: boolean;
         mode: string;
         zoomAccountId?: string;
         preselectedDate?: string;
         preselectedTime?: string;
+        bookingId?: string;
     }) => open ? (
         <div data-testid="zoom-booking-modal">
-            {mode}:{zoomAccountId}:{preselectedDate}:{preselectedTime}
+            {mode}:{zoomAccountId}:{preselectedDate}:{preselectedTime}:{bookingId}
         </div>
     ) : null,
 }));
@@ -151,5 +152,11 @@ describe('ZoomCalendarPage booking actions', () => {
         // Subbar no longer exposes quick book entry points
         expect(screen.queryByRole('button', { name: /1 hour/i })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /custom/i })).not.toBeInTheDocument();
+    });
+
+    it('opens the booking detail from a ?booking= deep link (e.g. iPop calendar)', () => {
+        renderPage('/zoom-calendar?booking=b-42');
+
+        expect(screen.getByTestId('zoom-booking-modal')).toHaveTextContent(/^detail:.*:b-42$/);
     });
 });

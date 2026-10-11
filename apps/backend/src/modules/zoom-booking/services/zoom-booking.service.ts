@@ -1783,6 +1783,8 @@ export class ZoomBookingService {
         // Emit event for the primary booking
         this.eventEmitter.emit('zoom.booking.cancelled', {
             bookingDetails: { id: primaryBooking.id, title: primaryBooking.title },
+            bookingIds: bookingsToCancel.map((b) => b.id),
+            seriesId: primaryBooking.seriesId ?? null,
             cancelledBy: user,
             reason: dto.cancellationReason,
             ...(mode === 'owner' ? { cancelledByOwner: true } : {})
@@ -2000,6 +2002,7 @@ export class ZoomBookingService {
 
         this.eventEmitter.emit('zoom.booking.rescheduled', {
             bookingId,
+            bookingIds: bookingsToUpdate.map((b) => b.id),
             user,
         });
 

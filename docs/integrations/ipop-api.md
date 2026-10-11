@@ -13,6 +13,7 @@ requester's NIK (shared with iPop through HRIS) and appear with `origin: "IDESK"
 - Base URL: `https://idesk.santos.co.id/api/v1/integrations/ipop`
 - Format: JSON (UTF-8) in both directions
 - Rate limit: 120 requests per minute
+- Zoom bookings for the iPop calendar: section 7
 
 ## 1. Authentication (every request)
 
@@ -260,3 +261,100 @@ app.MapPost("/api/idesk/webhook", async (HttpRequest req, IConfiguration cfg) =>
 | `IPOP_CLIENT_ID` | e.g. `ipop` |
 | `IPOP_CLIENT_SECRET` | random, at least 32 chars, shared with iPop only |
 | `IPOP_WEBHOOK_URL` | iPop webhook URL; leave empty to disable callbacks |
+
+## 7. Zoom bookings -> iPop calendar
+
+Zoom meetings booked in iDesk are exposed read-only so iPop can put them on its users'
+calendars. Each entry carries the Zoom join link; booking, rescheduling and cancelling stay
+in iDesk (`url` opens the booking there).
+
+### 7.1 Calendar entry
+
+```json
+{
+  "bookingId": "0f6c2b1e-6a43-4b8e-9d3f-1b2a3c4d5e6f",
+  "seriesId": null,
+  "title": "Weekly sync",
+  "description": "Agenda Q4",
+  "start": "2026-10-12T02:00:00.000Z",
+  "end": "2026-10-12T03:30:00.000Z",
+  "timezone": "Asia/Jakarta",
+  "account": { "name": "Zoom 1" },
+  "zoom": {
+    "meetingId": "81234567890",
+    "joinUrl": "https://zoom.us/j/81234567890?pwd=...",
+    "passcode": "abc123"
+  },
+  "attendees": [
+    { "nik": "00000024", "name": "Budi", "role": "BOOKER" },
+    { "nik": "00000031", "name": "Sari Dewi", "role": "PARTICIPANT" }
+  ],
+  "updatedAt": "2026-10-11T01:00:00.000Z",
+  "url": "https://idesk.santos.co.id/zoom-booking/0f6c2b1e-6a43-4b8e-9d3f-1b2a3c4d5e6f"
+}
+```
+
+- `start` / `end` are UTC. iDesk books in WIB; `timezone` is given for display.
+- `attendees`: the booker and the invited participants that are iDesk users with a NIK.
+  Put the entry on the calendar of **each** NIK. Guests outside the company are not listed.
+- Recurring bookings: **one entry per occurrence**, each with its own `bookingId`; the
+  occurrences of one series share `seriesId`. A single occurrence can be moved or cancelled.
+- Only confirmed bookings with a Zoom link are shared. The host start link, host email and
+  recordings are never sent.
+- `url` opens the booking in iDesk (login first if needed), in the user's own portal.
+
+Suggested mapping to a calendar event: subject = `title`, start/end = `start`/`end`,
+location = `zoom.joinUrl`, body = `description` + meeting ID + passcode + "Kelola di iDesk: {url}".
+
+### 7.2 `GET /zoom-bookings?nik=...&from=YYYY-MM-DD&to=YYYY-MM-DD`
+
+Every booking in that date range (WIB, inclusive, at most 92 days) the user booked or is
+invited to, earliest first, max 500. Use it for the initial sync and to resync.
+
+Cancelled bookings are deleted in iDesk, so they are simply **absent** from this list:
+when resyncing, replace all iDesk entries of that user in the range with the result.
+
+`GET /zoom-bookings/{bookingId}`: one entry; `404` if it was cancelled or is not shared.
+
+### 7.3 Webhook events
+
+Same webhook URL, headers and retry as section 5, with `booking` instead of `ticket`:
+
+```json
+{
+  "id": "1d0b5a2c-....",
+  "event": "zoom_booking.created",
+  "occurredAt": "2026-10-11T01:00:02.000Z",
+  "booking": { "...": "same shape as 7.1" }
+}
+```
+
+| Event | When | `booking` | iPop action |
+|---|---|---|---|
+| `zoom_booking.created` | booked (or its Zoom link created after a retry) | full entry | add to each attendee's calendar |
+| `zoom_booking.updated` | rescheduled; one event per moved occurrence | full entry | update the entry by `bookingId` |
+| `zoom_booking.cancelled` | cancelled; one event per occurrence | `{ "bookingId", "seriesId" }` only | delete the entry by `bookingId` |
+
+Match entries by `bookingId`. Attendees are read when the event is sent: compare with the
+calendars that already hold the entry when applying `updated`.
+
+### 7.4 C# (.NET) handling (in the receiver of section 5)
+
+```csharp
+var booking = evt.GetProperty("booking");
+var bookingId = booking.GetProperty("bookingId").GetString()!;
+switch (evt.GetProperty("event").GetString())
+{
+    case "zoom_booking.created":
+    case "zoom_booking.updated":
+        foreach (var a in booking.GetProperty("attendees").EnumerateArray())
+        {
+            // TODO: upsert calendar entry (a.nik, bookingId): title, start, end (UTC),
+            // location = booking.zoom.joinUrl, link "Kelola di iDesk" = booking.url
+        }
+        break;
+    case "zoom_booking.cancelled":
+        // TODO: delete every calendar entry with this bookingId
+        break;
+}
+```

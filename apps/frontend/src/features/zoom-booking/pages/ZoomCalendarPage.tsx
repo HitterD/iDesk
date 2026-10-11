@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { format } from 'date-fns';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, Video } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -123,6 +124,14 @@ export function ZoomCalendarPage() {
 
     // Panel state
     const panel = useBookingPanel();
+
+    // Deep link (iPop calendar, /zoom-booking/:id): open that booking's detail once.
+    const [searchParams] = useSearchParams();
+    const linkedBookingId = searchParams.get('booking');
+    const { openDetail } = panel;
+    useEffect(() => {
+        if (linkedBookingId) openDetail(linkedBookingId);
+    }, [linkedBookingId, openDetail]);
 
     // Current time indicator (updates every minute)
     useEffect(() => {

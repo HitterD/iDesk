@@ -1,7 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ClientZoomBookingPage } from '../ClientZoomBookingPage';
+import { MemoryRouter } from 'react-router-dom';
+import { ClientZoomBookingPage as Page } from '../ClientZoomBookingPage';
+
+const ClientZoomBookingPage = ({ url = '/client/zoom-calendar' }: { url?: string }) => (
+    <MemoryRouter initialEntries={[url]}><Page /></MemoryRouter>
+);
 
 vi.mock('../../components', () => ({
     SimpleBookingForm: ({ onBookingCreated }: { onBookingCreated?: (id: string) => void }) => (
@@ -80,5 +85,10 @@ describe('ClientZoomBookingPage', () => {
         await user.click(openBtn);
         expect(screen.getByRole('button', { name: /Sembunyikan Form \(Mode Luas\)/i })).toBeInTheDocument();
     });
-});
 
+    it('opens the booking detail from a ?booking= deep link (e.g. iPop calendar)', () => {
+        render(<ClientZoomBookingPage url="/client/zoom-calendar?booking=b-42" />);
+
+        expect(screen.getByTestId('booking-details-modal')).toHaveTextContent('b-42');
+    });
+});
