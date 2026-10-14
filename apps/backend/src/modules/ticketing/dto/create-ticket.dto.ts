@@ -3,7 +3,6 @@ import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TicketPriority, TicketSource, TicketType } from '../entities/ticket.entity';
 import { Sanitize } from '../../../shared/core/validators/input-sanitizer';
-import { NoSqlInjection } from '../../../shared/core/validators/common.validators';
 
 export class CreateTicketDto {
     @ApiProperty({ example: 'Cannot login to system', minLength: 5, maxLength: 200 })
@@ -12,7 +11,6 @@ export class CreateTicketDto {
     @MinLength(5, { message: 'Title must be at least 5 characters' })
     @MaxLength(200, { message: 'Title cannot exceed 200 characters' })
     @Sanitize({ removeHtml: true })
-    @NoSqlInjection()
     title: string;
 
     @ApiProperty({ example: 'I am unable to login since this morning...', minLength: 3, maxLength: 5000 })
