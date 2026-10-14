@@ -41,6 +41,8 @@ self.addEventListener('push', function (event) {
         icon: data.icon,
         badge: data.badge,
         tag: data.tag,
+        // A chat toast replaces the ticket's previous one; still alert for the new message.
+        renotify: data.type === 'TICKET_CHAT',
         data: {
             url: data.url,
             type: data.type,

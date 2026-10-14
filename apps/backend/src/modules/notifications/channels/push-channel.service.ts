@@ -113,7 +113,8 @@ export class PushChannelService implements INotificationChannel {
                 body: payload.body,
                 icon: '/logo192.png',
                 badge: '/badge.png',
-                tag: payload.notificationId,
+                // Same tag replaces the toast already on screen (e.g. one per ticket chat).
+                tag: payload.data?.tag || payload.notificationId,
                 url: payload.data?.link || '/',
                 type: payload.data?.type,
                 ticketId: payload.data?.ticketId,

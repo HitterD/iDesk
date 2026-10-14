@@ -5,6 +5,7 @@ import api from '../lib/api';
 import { queryClient } from '../lib/queryClient';
 import { coordinateSession, SessionCoordinationUnavailableError } from '../lib/sessionCoordinator';
 import { toast } from 'sonner';
+import { releasePushSubscription } from '../lib/webPush';
 
 let receivingStorage = false;
 const clearSessionResources = () => {
@@ -180,6 +181,8 @@ export async function performLogout(): Promise<void> {
             const current = useAuth.getState();
             if (current.generation !== generation || current.sessionId !== sessionId) return;
             try {
+                // Before the cookie is cleared: the unsubscribe call needs the session.
+                await releasePushSubscription();
                 await api.post('/auth/logout');
             } catch {
                 console.error('Logout API failed');
