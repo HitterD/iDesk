@@ -27,6 +27,7 @@ describe('createUploadsFileHandler', () => {
         fs.mkdirSync(path.join(root, 'tickets', TICKET_ID), { recursive: true });
         fs.writeFileSync(path.join(root, 'tickets', TICKET_ID, 'abc-1.zip'), 'zip');
         fs.writeFileSync(path.join(root, 'tickets', TICKET_ID, 'abc-2.png'), 'png');
+        fs.writeFileSync(path.join(root, 'tickets', TICKET_ID, 'abc-3.mp4'), 'mp4');
         fs.writeFileSync(path.join(root, 'avatar.png'), 'public');
     });
 
@@ -78,6 +79,12 @@ describe('createUploadsFileHandler', () => {
         const { res } = await run(req(`/tickets/${TICKET_ID}/abc-2.png`));
         expect(res.attachment).not.toHaveBeenCalled();
         expect(res.sentFile).toBe(path.join(root, 'tickets', TICKET_ID, 'abc-2.png'));
+    });
+
+    it('keeps videos inline so the chat can play them', async () => {
+        const { res } = await run(req(`/tickets/${TICKET_ID}/abc-3.mp4`));
+        expect(res.attachment).not.toHaveBeenCalled();
+        expect(res.sentFile).toBe(path.join(root, 'tickets', TICKET_ID, 'abc-3.mp4'));
     });
 
     it('checks access for legacy flat URLs that resolve into a ticket folder', async () => {

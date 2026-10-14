@@ -11,6 +11,9 @@ const asUpload = (originalname: string, bytes: number[] | string): Express.Multe
 
 const ZIP = [0x50, 0x4b, 0x03, 0x04, 0x14, 0x00];
 const EXE = [0x4d, 0x5a, 0x90, 0x00];
+// ISO base media: 4-byte box size, then "ftyp" and a brand
+const FTYP = (brand: string) => [0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, ...Buffer.from(brand)];
+const EBML = [0x1a, 0x45, 0xdf, 0xa3, 0x9f];
 
 describe('validateFileMagicBytes', () => {
     it.each([
@@ -25,6 +28,10 @@ describe('validateFileMagicBytes', () => {
         ['photo.webp', [0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x45, 0x42, 0x50]],
         ['doc.pdf', '%PDF-1.7'],
         ['data.csv', 'a,b\n1,2\n'],
+        ['clip.mp4', FTYP('isom')],
+        ['iphone.MOV', FTYP('qt  ')],
+        ['legacy.mov', [0x00, 0x00, 0x00, 0x08, ...Buffer.from('wide')]],
+        ['screen.webm', EBML],
     ])('accepts %s whose content matches the extension', (name, bytes) => {
         expect(validateFileMagicBytes(asUpload(name, bytes))).toBe(true);
     });
@@ -34,6 +41,8 @@ describe('validateFileMagicBytes', () => {
         ['report.xlsx', EXE],
         ['notes.txt', EXE],
         ['photo.webp', [0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x41, 0x56, 0x45]],
+        ['clip.mp4', EXE],
+        ['screen.webm', FTYP('isom')],
     ])('rejects %s whose content does not match', (name, bytes) => {
         expect(validateFileMagicBytes(asUpload(name, bytes))).toBe(false);
     });

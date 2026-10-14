@@ -16,6 +16,13 @@ const ZIP = [0x50, 0x4b, 0x03, 0x04]; // also .docx/.xlsx/.pptx
 const ZIP_EMPTY = [0x50, 0x4b, 0x05, 0x06];
 const RAR = [0x52, 0x61, 0x72, 0x21, 0x1a, 0x07];
 const SEVEN_ZIP = [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c];
+const FTYP = [0x66, 0x74, 0x79, 0x70]; // "ftyp" at offset 4 in MP4/MOV, after the box size
+const EBML = [0x1a, 0x45, 0xdf, 0xa3]; // WebM/Matroska
+/** Older QuickTime files may open with one of these atoms instead of "ftyp". */
+const QUICKTIME_ATOMS = [FTYP, ...['moov', 'wide', 'mdat', 'free'].map((atom) => [...Buffer.from(atom)])];
+
+/** Video extensions; they get a larger size cap and are played inline in the chat. */
+export const VIDEO_EXTENSIONS: readonly string[] = ['.mp4', '.mov', '.webm'];
 
 const startsWith = (buf: Buffer, sig: number[], offset = 0) =>
     buf.length >= offset + sig.length && sig.every((byte, i) => buf[offset + i] === byte);
@@ -45,6 +52,9 @@ const CONTENT_CHECKS: Record<string, (buf: Buffer) => boolean> = {
     '.7z': (b) => startsWith(b, SEVEN_ZIP),
     '.txt': isText,
     '.csv': isText,
+    '.mp4': (b) => startsWith(b, FTYP, 4),
+    '.mov': (b) => QUICKTIME_ATOMS.some((atom) => startsWith(b, atom, 4)),
+    '.webm': (b) => startsWith(b, EBML),
 };
 
 /** Lower-case extensions (with dot) accepted for ticket attachments. */

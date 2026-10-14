@@ -5,12 +5,16 @@ import type * as multer from 'multer';
 import { extname, join, relative } from 'path';
 import { existsSync, mkdirSync, unlink } from 'fs';
 import type { Request } from 'express';
-import { ATTACHMENT_EXTENSIONS, validateFileMagicBytes } from '../../../../shared/core/validators/magic-bytes.validator';
+import { ATTACHMENT_EXTENSIONS, VIDEO_EXTENSIONS, validateFileMagicBytes } from '../../../../shared/core/validators/magic-bytes.validator';
 import type { AttachmentInfo } from '../../entities/ticket-message.entity';
 
 export const UPLOAD_ROOT = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
-/** Mirrored by frontend `FILE_SIZE_LIMITS.ATTACHMENT`; nginx client_max_body_size must fit MAX_FILES of these. */
-export const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
+const MB = 1024 * 1024;
+/** Mirrored by frontend `FILE_SIZE_LIMITS` (ATTACHMENT, VIDEO, ATTACHMENT_TOTAL). */
+export const MAX_ATTACHMENT_SIZE = 25 * MB;
+export const MAX_VIDEO_SIZE = 50 * MB;
+/** Kept under the edge nginx client_max_body_size (100M) with room for the multipart overhead. */
+export const MAX_ATTACHMENT_TOTAL_SIZE = 95 * MB;
 export const MAX_ATTACHMENT_FILES = 5;
 const MAX_NAME_LENGTH = 200;
 
@@ -52,7 +56,8 @@ const fileFilter = (
     cb(null, true);
 };
 
-const limits = { fileSize: MAX_ATTACHMENT_SIZE, files: MAX_ATTACHMENT_FILES };
+// multer has one cap for every file; the per-type caps are enforced in assertValidAttachments.
+const limits = { fileSize: MAX_VIDEO_SIZE, files: MAX_ATTACHMENT_FILES };
 
 /**
  * Drop-in replacement for `FilesInterceptor('files', 5, { storage })` with:
@@ -85,15 +90,35 @@ export function discardUploads(files: Express.Multer.File[] | undefined): void {
     }
 }
 
+const isVideo = (file: Express.Multer.File): boolean =>
+    VIDEO_EXTENSIONS.includes(extname(file.originalname).toLowerCase());
+
+/** Indonesian reason the upload must be refused, or null when every file is acceptable. */
+function findAttachmentProblem(files: Express.Multer.File[]): string | null {
+    const oversized = files.find((file) => file.size > (isVideo(file) ? MAX_VIDEO_SIZE : MAX_ATTACHMENT_SIZE));
+    if (oversized) {
+        const cap = (isVideo(oversized) ? MAX_VIDEO_SIZE : MAX_ATTACHMENT_SIZE) / MB;
+        return `File "${oversized.originalname}" melebihi batas ${cap} MB`;
+    }
+    const total = files.reduce((sum, file) => sum + file.size, 0);
+    if (total > MAX_ATTACHMENT_TOTAL_SIZE) {
+        return `Total lampiran melebihi ${MAX_ATTACHMENT_TOTAL_SIZE / MB} MB per kiriman`;
+    }
+    const invalid = files.find((file) => !validateFileMagicBytes(file));
+    if (invalid) return `File "${invalid.originalname}" rusak atau isinya tidak sesuai dengan ekstensinya`;
+    return null;
+}
+
 /**
- * Rejects the whole upload when any file's content does not match its extension
- * (e.g. an .exe renamed to .pdf), deleting every file of the request from disk.
+ * Rejects the whole upload when a file is over its type's size cap, the files
+ * together exceed the per-request total, or a file's content does not match its
+ * extension (e.g. an .exe renamed to .pdf). Every file of the request is deleted.
  */
 export function assertValidAttachments(files: Express.Multer.File[] | undefined): void {
-    const invalid = (files ?? []).find((file) => !validateFileMagicBytes(file));
-    if (!invalid) return;
+    const problem = findAttachmentProblem(files ?? []);
+    if (!problem) return;
     discardUploads(files);
-    throw new BadRequestException(`File "${invalid.originalname}" rusak atau isinya tidak sesuai dengan ekstensinya`);
+    throw new BadRequestException(problem);
 }
 
 export function toAttachmentInfo(file: Express.Multer.File): AttachmentInfo {
