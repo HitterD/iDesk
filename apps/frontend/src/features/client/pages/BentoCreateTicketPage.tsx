@@ -36,8 +36,10 @@ import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { lockBodyScroll, unlockBodyScroll } from '@/lib/scrollLock';
 import {
     ATTACHMENT_ACCEPT,
+    ATTACHMENT_TOTAL_ERROR,
     FILE_SIZE_LIMITS,
     MAX_ATTACHMENTS_PER_TICKET,
+    fitsAttachmentTotal,
     formatFileSize,
     validateAttachmentFile,
 } from '@/lib/file-validation';
@@ -620,6 +622,10 @@ export const BentoCreateTicketPage: React.FC = () => {
                 toast.error(`${file.name}: ${result.error}`);
                 continue;
             }
+            if (!fitsAttachmentTotal([...files, ...accepted, file])) {
+                toast.error(`${file.name}: ${ATTACHMENT_TOTAL_ERROR}`);
+                continue;
+            }
             accepted.push(file);
         }
 
@@ -1050,7 +1056,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                         </div>
 
                         <span className="text-[11px] text-muted-foreground font-medium">
-                            Maks. {MAX_ATTACHMENTS_PER_TICKET} file ({formatFileSize(FILE_SIZE_LIMITS.ATTACHMENT)}/file)
+                            Maks. {MAX_ATTACHMENTS_PER_TICKET} file ({formatFileSize(FILE_SIZE_LIMITS.ATTACHMENT)}/file, video {formatFileSize(FILE_SIZE_LIMITS.VIDEO)})
                         </span>
                     </div>
                 </div>

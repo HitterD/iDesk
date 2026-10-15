@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Download, Eye, ImageOff } from 'lucide-react';
 import { getAttachmentUrl, isImageUrl } from './utils';
 import { attachmentKind, extensionOf, type AttachmentInfo } from './attachmentKind';
-import { formatFileSize } from '@/lib/file-validation';
+import { formatFileSize, isVideoName } from '@/lib/file-validation';
 import { cn } from '@/lib/utils';
 
 interface MessageAttachmentsProps {
@@ -70,6 +70,48 @@ const ImageAttachment: React.FC<{
                 </span>
             </span>
         </button>
+    );
+};
+
+/**
+ * Inline player with a download link under it. Codecs the browser cannot decode
+ * (e.g. HEVC .mov from an iPhone on Windows) fire `error`, which swaps in the
+ * plain download card.
+ */
+const VideoAttachment: React.FC<{
+    fullUrl: string;
+    name: string;
+    size?: number;
+    isRequester: boolean;
+}> = ({ fullUrl, name, size, isRequester }) => {
+    const [failed, setFailed] = useState(false);
+
+    if (failed) {
+        return <FileAttachment fullUrl={fullUrl} name={name} size={size} isRequester={isRequester} />;
+    }
+    return (
+        <div className="w-full max-w-[320px] space-y-1">
+            <video
+                src={fullUrl}
+                controls
+                preload="metadata"
+                playsInline
+                aria-label={`Video ${name}`}
+                className="w-full max-h-[240px] rounded-lg bg-black"
+                onError={() => setFailed(true)}
+            />
+            <a
+                href={fullUrl}
+                download={name}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Download ${name}`}
+                className="flex items-center gap-1.5 text-[11px] opacity-70 hover:opacity-100"
+            >
+                <Download className="w-3 h-3 shrink-0" aria-hidden="true" />
+                <span className="truncate" title={name}>{size ? `${name} · ${formatFileSize(size)}` : name}</span>
+            </a>
+        </div>
     );
 };
 
@@ -147,6 +189,17 @@ export const MessageAttachments: React.FC<MessageAttachmentsProps> = ({ attachme
                             name={name}
                             isRequester={isRequester}
                             onImageClick={onImageClick}
+                        />
+                    );
+                }
+                if (isVideoName(url.split(/[?#]/)[0])) {
+                    return (
+                        <VideoAttachment
+                            key={idx}
+                            fullUrl={fullUrl}
+                            name={name}
+                            size={info?.size}
+                            isRequester={isRequester}
                         />
                     );
                 }

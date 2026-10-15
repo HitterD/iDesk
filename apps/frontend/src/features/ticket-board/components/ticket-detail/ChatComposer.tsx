@@ -4,7 +4,13 @@ import { toast } from 'sonner';
 import TextareaAutosize from 'react-textarea-autosize';
 import { CannedResponsePicker, SlashCommandAutocomplete, applyPlaceholders, SavedReply, TicketVariables } from '@/components/ui/CannedResponses';
 import { cn } from '@/lib/utils';
-import { ATTACHMENT_ACCEPT, MAX_ATTACHMENTS_PER_TICKET, validateAttachmentFile } from '@/lib/file-validation';
+import {
+    ATTACHMENT_ACCEPT,
+    ATTACHMENT_TOTAL_ERROR,
+    MAX_ATTACHMENTS_PER_TICKET,
+    fitsAttachmentTotal,
+    validateAttachmentFile,
+} from '@/lib/file-validation';
 import { AttachmentTray } from './AttachmentTray';
 import { ReplyPreview } from './QuoteBlock';
 import { ATTACHMENT_QUOTE, buildQuotedContent } from './messageThread';
@@ -222,6 +228,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         const room = Math.max(MAX_ATTACHMENTS_PER_TICKET - selectedFiles.length, 0);
         if (accepted.length > room) toast.error(`Maksimal ${MAX_ATTACHMENTS_PER_TICKET} file per pesan`);
         const toAdd = accepted.slice(0, room);
+        if (toAdd.length > 0 && !fitsAttachmentTotal([...selectedFiles, ...toAdd])) {
+            toast.error(ATTACHMENT_TOTAL_ERROR);
+            return;
+        }
         if (toAdd.length > 0) setSelectedFiles(prev => [...prev, ...toAdd]);
     };
 
@@ -271,7 +281,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                     <div className="text-center">
                         <Upload className="mx-auto mb-2 h-9 w-9 animate-bounce text-primary" />
                         <p className="text-sm font-semibold text-primary">Lepas file untuk melampirkan</p>
-                        <p className="text-xs text-primary/70">Gambar, PDF, Office, TXT/CSV, ZIP/RAR/7Z · maks. 25MB/file</p>
+                        <p className="text-xs text-primary/70">Gambar, video, PDF, Office, TXT/CSV, ZIP/RAR/7Z · maks. 25MB/file, video 50MB</p>
                     </div>
                 </div>
             )}

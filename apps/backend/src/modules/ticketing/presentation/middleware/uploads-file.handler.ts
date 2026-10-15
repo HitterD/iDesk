@@ -2,9 +2,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { NextFunction, Request, Response } from 'express';
 import { TICKET_UPLOAD_DIR, TicketAttachmentAccessService } from '../../services/ticket-attachment-access.service';
+import { VIDEO_EXTENSIONS } from '../../../../shared/core/validators/magic-bytes.validator';
 
-/** Shown inline (the chat renders them in <img>); every other ticket file is forced to download. */
-const INLINE_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+/** Shown inline (the chat renders them in <img>/<video>); every other ticket file is forced to download. */
+const INLINE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', ...VIDEO_EXTENSIONS]);
 
 type AttachmentAccessChecker = Pick<TicketAttachmentAccessService, 'authenticate' | 'authorize'>;
 
@@ -47,7 +48,7 @@ function findInTicketDirs(root: string, fileName: string): string | null {
  * GET/HEAD handler for `/uploads`. Non-ticket files are served as before. Ticket
  * chat attachments require a signed-in user who can open the ticket, are never
  * left to the static fallbacks (which would skip that check), and are sent with
- * `Content-Disposition: attachment` unless they are plain images.
+ * `Content-Disposition: attachment` unless they are plain images or videos.
  */
 export function createUploadsFileHandler(uploadRoot: string, access: AttachmentAccessChecker) {
     const root = path.resolve(uploadRoot);
@@ -104,7 +105,7 @@ export function createUploadsFileHandler(uploadRoot: string, access: AttachmentA
                 return;
             }
             const fileName = path.basename(filePath);
-            if (!INLINE_IMAGE_EXTENSIONS.has(path.extname(fileName).toLowerCase())) {
+            if (!INLINE_EXTENSIONS.has(path.extname(fileName).toLowerCase())) {
                 res.attachment(result.downloadName ?? fileName);
             }
             res.setHeader('X-Content-Type-Options', 'nosniff');

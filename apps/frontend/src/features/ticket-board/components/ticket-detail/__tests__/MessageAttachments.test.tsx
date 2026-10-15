@@ -5,6 +5,7 @@ import { MessageAttachments } from '../MessageAttachments';
 
 const XLSX_PATH = '/uploads/tickets/t-1/1730000000-123.xlsx';
 const PDF_PATH = '/uploads/tickets/t-1/1730000000-456.pdf';
+const MP4_PATH = '/uploads/tickets/t-1/1730000000-789.mp4';
 
 describe('MessageAttachments', () => {
     it('shows the original name, type and size when attachmentInfo is present', () => {
@@ -43,5 +44,29 @@ describe('MessageAttachments', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Preview SOP.pdf' }));
         expect(onPdfClick).toHaveBeenCalledWith(expect.stringContaining(PDF_PATH), 'SOP.pdf');
+    });
+
+    it('plays videos inline with a download link beside the player', () => {
+        render(
+            <MessageAttachments
+                attachments={[MP4_PATH]}
+                attachmentInfo={[{ path: MP4_PATH, name: 'Error layar.mp4', size: 2048, mime: 'video/mp4' }]}
+                onImageClick={vi.fn()}
+                isRequester={false}
+            />,
+        );
+
+        const video = screen.getByLabelText('Video Error layar.mp4');
+        expect(video.tagName).toBe('VIDEO');
+        expect(video).toHaveAttribute('src', expect.stringContaining(MP4_PATH));
+        expect(screen.getByRole('link', { name: 'Download Error layar.mp4' })).toBeInTheDocument();
+    });
+
+    it('falls back to a download card when the browser cannot play the video', () => {
+        render(<MessageAttachments attachments={[MP4_PATH]} onImageClick={vi.fn()} isRequester={false} />);
+
+        fireEvent.error(screen.getByLabelText('Video 1730000000-789.mp4'));
+        expect(screen.queryByLabelText('Video 1730000000-789.mp4')).not.toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Download 1730000000-789.mp4' })).toBeInTheDocument();
     });
 });
