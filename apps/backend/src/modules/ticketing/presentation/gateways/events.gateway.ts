@@ -239,6 +239,12 @@ export class EventsGateway
         return { status: 'ok', room: `ticket:${ticketId}` };
     }
 
+    /** True when any of the user's connected tabs has this ticket open (joined its room). */
+    async isViewingTicket(userId: string, ticketId: string): Promise<boolean> {
+        const sockets = await this.server.in(`user:${userId}`).fetchSockets();
+        return sockets.some((socket) => socket.rooms.has(`ticket:${ticketId}`));
+    }
+
     // Leave a ticket room
     @SubscribeMessage('leave:ticket')
     handleLeaveTicket(@ConnectedSocket() client: Socket, @MessageBody() ticketId: string) {

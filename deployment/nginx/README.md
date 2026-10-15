@@ -35,6 +35,7 @@ http://192.168.2.136:3080
 4. **Tab SSL:**
    - Pilih sertifikat SSL perusahaan Anda (Wildcard `*.santos.co.id` atau Let's Encrypt).
    - Centang **Force SSL** dan **HTTP/2 Support**.
+   - **Force SSL wajib ON**: notifikasi browser (Windows toast untuk chat tiket) hanya bisa aktif di HTTPS.
 5. **Tab Advanced:**
    - Salin isi dari file `deployment/nginx/npm-advanced-snippet.txt` dan tempelkan ke kotak teks.
 6. Klik **Save**.
@@ -56,3 +57,22 @@ http://192.168.2.136:3080
    ```bash
    sudo nginx -s reload
    ```
+
+---
+
+## Notifikasi Browser Wajib HTTPS
+
+Browser hanya mengizinkan notifikasi (Web Push / Windows toast) di koneksi aman. User yang membuka iDesk lewat `http://192.168.2.136:3080` atau `http://idesk.santos.co.id` tidak akan pernah menerima notifikasi chat. Di halaman itu iDesk menampilkan banner yang mengarahkan ke `https://idesk.santos.co.id`.
+
+- Pastikan `http://idesk.santos.co.id` di-redirect ke HTTPS (Force SSL di NPM, atau blok `listen 80` di `idesk.santos.co.id.conf`).
+- Sebaiknya port `3080` di `192.168.2.136` hanya bisa diakses dari host NPM (firewall), supaya user tidak terbiasa membuka lewat IP.
+
+### Kunci VAPID (sekali saja)
+
+Web Push butuh pasangan kunci VAPID di environment backend (Coolify):
+
+```bash
+cd apps/backend && node scripts/generate-vapid-keys.js
+```
+
+Tempel hasilnya ke env backend di Coolify: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (mis. `mailto:ict@santos.co.id`), lalu redeploy backend. Jangan pernah mengganti kunci setelah dipakai: semua browser harus mendaftar ulang.

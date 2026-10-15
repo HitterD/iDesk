@@ -59,6 +59,7 @@ import { TicketRepository } from './repositories/ticket.repository';
 import { TicketNotificationService } from './services/ticket-notification.service';
 import { TicketStatsService } from './services/ticket-stats.service';
 import { TicketNotificationListener } from './listeners/ticket-notification.listener';
+import { TicketChatPushListener } from './listeners/ticket-chat-push.listener';
 
 import { TicketReminder } from './entities/ticket-reminder.entity';
 import { TicketReminderService } from './services/ticket-reminder.service';
@@ -143,6 +144,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         TicketNotificationService,
         TicketStatsService,
         TicketNotificationListener,
+        TicketChatPushListener,
     ],
     exports: [
         TicketCreateService,

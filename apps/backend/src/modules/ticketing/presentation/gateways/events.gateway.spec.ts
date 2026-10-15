@@ -182,6 +182,20 @@ describe('EventsGateway presence', () => {
         expect(gateway.server.to).toHaveBeenNthCalledWith(2, 'ticket:t-1');
     });
 
+    it('reports whether any of the user\'s tabs has the ticket open', async () => {
+        const inRoom = jest.fn().mockReturnValue({
+            fetchSockets: jest.fn().mockResolvedValue([
+                { rooms: new Set(['user:user-1']) },
+                { rooms: new Set(['user:user-1', 'ticket:t-1']) },
+            ]),
+        });
+        gateway.server = { in: inRoom } as any;
+
+        await expect(gateway.isViewingTicket('user-1', 't-1')).resolves.toBe(true);
+        await expect(gateway.isViewingTicket('user-1', 't-2')).resolves.toBe(false);
+        expect(inRoom).toHaveBeenCalledWith('user:user-1');
+    });
+
     it('emits ticket events to the site and cross-site rooms, never globally', () => {
         gateway.emitToTicketAudience('site-1', 'tickets:listUpdated', { ticketId: 't-1' });
         gateway.emitToTicketAudience(null, 'tickets:listUpdated', { ticketId: 't-2' });

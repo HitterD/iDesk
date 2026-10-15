@@ -77,6 +77,10 @@ services:
       # Menu Hapus Data: nyalakan hanya saat go-live, lalu kembalikan ke false.
       ALLOW_DATA_WIPE: ${ALLOW_DATA_WIPE:-false}
       DATA_WIPE_ALLOWED_EMAILS: ${DATA_WIPE_ALLOWED_EMAILS:-}
+      # Web Push (Windows toast untuk chat tiket). Kosong = push nonaktif.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:ict@santos.co.id}
     volumes:
       - backend_uploads:/app/uploads
       # Backup pengaman pra-wipe (/app/backups/pre-wipe) harus selamat dari recreate container.

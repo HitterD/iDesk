@@ -6,6 +6,7 @@ import { LoadingScreen } from '../components/ui/LoadingScreen';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
 import { PresenceProvider } from '../components/layout/PresenceProvider';
 import { useDesktopNotifierSync } from '../hooks/useDesktopNotifierSync';
+import { NotificationPermissionGate } from '../components/notifications/NotificationPermissionGate';
 
 // Eagerly loaded (critical auth path only)
 import { BentoLoginPage } from '../features/auth/pages/BentoLoginPage';
@@ -172,165 +173,167 @@ export default function AppRoutes() {
 
     return (
         <PresenceProvider>
-            <Routes>
-                {/* Public Routes */}
-                <Route path="/login" element={<BentoLoginPage />} />
-                <Route path="/unauthorized" element={<UnauthorizedPage />} />
-                <Route path="/feedback/:token" element={<Suspense fallback={<PageLoader />}><BentoFeedbackPage /></Suspense>} />
-                <Route path="/tv/:token" element={<Suspense fallback={<PageLoader />}><BentoTvBoardPage /></Suspense>} />
-                <Route path="/devices/activate" element={<Suspense fallback={<PageLoader />}><DeviceActivationPage /></Suspense>} />
-                <Route path="/eform/:id" element={<EformLinkRedirect />} />
-                <Route path="/zoom-booking/:id" element={<ZoomBookingLinkRedirect />} />
+            <NotificationPermissionGate disabled={isPublicKiosk}>
+                <Routes>
+                    {/* Public Routes */}
+                    <Route path="/login" element={<BentoLoginPage />} />
+                    <Route path="/unauthorized" element={<UnauthorizedPage />} />
+                    <Route path="/feedback/:token" element={<Suspense fallback={<PageLoader />}><BentoFeedbackPage /></Suspense>} />
+                    <Route path="/tv/:token" element={<Suspense fallback={<PageLoader />}><BentoTvBoardPage /></Suspense>} />
+                    <Route path="/devices/activate" element={<Suspense fallback={<PageLoader />}><DeviceActivationPage /></Suspense>} />
+                    <Route path="/eform/:id" element={<EformLinkRedirect />} />
+                    <Route path="/zoom-booking/:id" element={<ZoomBookingLinkRedirect />} />
 
-                {/* Root Route - Global role-based redirect for all authenticated users */}
-                <Route path="/" element={<RoleBasedRedirect />} />
+                    {/* Root Route - Global role-based redirect for all authenticated users */}
+                    <Route path="/" element={<RoleBasedRedirect />} />
 
-                {/* Admin/Agent/Manager Routes - Lazy loaded portal */}
-                <Route
-                    element={
-                        <ProtectedRoute allowedRoles={['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'AGENT_ADMIN', 'MANAGER']}>
-                            <Suspense fallback={<PageLoader />}>
-                                <BentoLayout />
-                            </Suspense>
-                        </ProtectedRoute>
-                    }
-                >
-                    <Route path="dashboard" element={<LazyRoute component={BentoDashboardPage} featureName="Dashboard" requiredPageAccess="dashboard" />} />
-                    <Route path="dashboard/me" element={<LazyRoute component={AgentDashboardPage} featureName="Dashboard Saya" requiredPageAccess="my_dashboard" />} />
-                    <Route path="dashboard/agent/:id" element={<LazyRoute component={AgentDashboardPage} featureName="Dashboard Agent" allowedRoles={['ADMIN', 'MANAGER']} />} />
+                    {/* Admin/Agent/Manager Routes - Lazy loaded portal */}
+                    <Route
+                        element={
+                            <ProtectedRoute allowedRoles={['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'AGENT_ADMIN', 'MANAGER']}>
+                                <Suspense fallback={<PageLoader />}>
+                                    <BentoLayout />
+                                </Suspense>
+                            </ProtectedRoute>
+                        }
+                    >
+                        <Route path="dashboard" element={<LazyRoute component={BentoDashboardPage} featureName="Dashboard" requiredPageAccess="dashboard" />} />
+                        <Route path="dashboard/me" element={<LazyRoute component={AgentDashboardPage} featureName="Dashboard Saya" requiredPageAccess="my_dashboard" />} />
+                        <Route path="dashboard/agent/:id" element={<LazyRoute component={AgentDashboardPage} featureName="Dashboard Agent" allowedRoles={['ADMIN', 'MANAGER']} />} />
 
-                    <Route path="kanban" element={<LazyRoute component={BentoTicketKanban} featureName="Kanban Board" requiredPageAccess="tickets" />} />
-                    <Route path="tickets" element={<Navigate to="/tickets/list" replace />} />
-                    <Route path="tickets/list" element={<LazyRoute component={BentoTicketListPage} featureName="Ticket List" requiredPageAccess="tickets" />} />
-                    <Route path="tickets/oracle-k2" element={<LazyRoute component={BentoOracleK2TicketsPage} featureName="Oracle K2 Request" allowedRoles={['AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'ADMIN']} requiredPageAccess="oracle_k2_tickets" />} />
-                    <Route path="tickets/web-developer" element={<LazyRoute component={BentoWebDevTicketsPage} featureName="Web Developer Request" allowedRoles={['AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'ADMIN']} requiredPageAccess="web_dev_tickets" />} />
-                    <Route path="tickets/mobile-developer" element={<LazyRoute component={BentoMobileDevTicketsPage} featureName="Mobile Developer Request" allowedRoles={['AGENT_MOBILE_DEV', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'ADMIN']} requiredPageAccess="mobile_dev_tickets" />} />
-                    <Route path="tickets/queue/:slug" element={<LazyRoute component={DynamicTicketQueuePage} featureName="Ticket Queue" />} />
-                    <Route path="tickets/:id" element={<LazyRoute component={BentoTicketDetailPage} featureName="Ticket Detail" />} />
-                    <Route path="tickets/create" element={<LazyRoute component={BentoCreateTicketPage} featureName="Create Ticket" />} />
-                    <Route path="settings" element={<LazyRoute component={BentoSettingsPage} featureName="Settings" />} />
-                    <Route path="settings/:tab" element={<LazyRoute component={BentoSettingsPage} featureName="Settings" />} />
-                    <Route path="agents" element={<LazyRoute component={BentoAdminAgentsPage} featureName="Agent Management" allowedRoles={['ADMIN']} />} />
-                    <Route path="reports" element={<LazyRoute component={BentoReportsPage} featureName="Reports" requiredPageAccess="reports" />} />
-                    <Route path="sla" element={<LazyRoute component={BentoSlaSettingsPage} featureName="SLA Settings" allowedRoles={['ADMIN']} />} />
-                    <Route path="renewal" element={<LazyRoute component={RenewalHubPage} featureName="Renewal Hub" requiredPageAccess="renewal" />} />
-                    <Route path="notifications" element={<LazyRoute component={NotificationCenterPage} featureName="Notification Center" requiredPageAccess="notifications" />} />
-                    <Route path="notifications/history" element={<LazyRoute component={NotificationHistoryPage} featureName="Notification History" />} />
-                    <Route path="automation" element={<LazyRoute component={AutomationRulesPage} featureName="Automation Rules" allowedRoles={['ADMIN']} />} />
+                        <Route path="kanban" element={<LazyRoute component={BentoTicketKanban} featureName="Kanban Board" requiredPageAccess="tickets" />} />
+                        <Route path="tickets" element={<Navigate to="/tickets/list" replace />} />
+                        <Route path="tickets/list" element={<LazyRoute component={BentoTicketListPage} featureName="Ticket List" requiredPageAccess="tickets" />} />
+                        <Route path="tickets/oracle-k2" element={<LazyRoute component={BentoOracleK2TicketsPage} featureName="Oracle K2 Request" allowedRoles={['AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'ADMIN']} requiredPageAccess="oracle_k2_tickets" />} />
+                        <Route path="tickets/web-developer" element={<LazyRoute component={BentoWebDevTicketsPage} featureName="Web Developer Request" allowedRoles={['AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'ADMIN']} requiredPageAccess="web_dev_tickets" />} />
+                        <Route path="tickets/mobile-developer" element={<LazyRoute component={BentoMobileDevTicketsPage} featureName="Mobile Developer Request" allowedRoles={['AGENT_MOBILE_DEV', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'ADMIN']} requiredPageAccess="mobile_dev_tickets" />} />
+                        <Route path="tickets/queue/:slug" element={<LazyRoute component={DynamicTicketQueuePage} featureName="Ticket Queue" />} />
+                        <Route path="tickets/:id" element={<LazyRoute component={BentoTicketDetailPage} featureName="Ticket Detail" />} />
+                        <Route path="tickets/create" element={<LazyRoute component={BentoCreateTicketPage} featureName="Create Ticket" />} />
+                        <Route path="settings" element={<LazyRoute component={BentoSettingsPage} featureName="Settings" />} />
+                        <Route path="settings/:tab" element={<LazyRoute component={BentoSettingsPage} featureName="Settings" />} />
+                        <Route path="agents" element={<LazyRoute component={BentoAdminAgentsPage} featureName="Agent Management" allowedRoles={['ADMIN']} />} />
+                        <Route path="reports" element={<LazyRoute component={BentoReportsPage} featureName="Reports" requiredPageAccess="reports" />} />
+                        <Route path="sla" element={<LazyRoute component={BentoSlaSettingsPage} featureName="SLA Settings" allowedRoles={['ADMIN']} />} />
+                        <Route path="renewal" element={<LazyRoute component={RenewalHubPage} featureName="Renewal Hub" requiredPageAccess="renewal" />} />
+                        <Route path="notifications" element={<LazyRoute component={NotificationCenterPage} featureName="Notification Center" requiredPageAccess="notifications" />} />
+                        <Route path="notifications/history" element={<LazyRoute component={NotificationHistoryPage} featureName="Notification History" />} />
+                        <Route path="automation" element={<LazyRoute component={AutomationRulesPage} featureName="Automation Rules" allowedRoles={['ADMIN']} />} />
                 
-                    <Route path="kb" element={<LazyRoute component={BentoKnowledgeBasePage} featureName="Knowledge Base" requiredPageAccess="knowledge_base" />} />
-                    <Route path="kb/manage" element={<LazyRoute component={BentoManageArticlesPage} featureName="Manage Articles" requiredPageAccess="knowledge_base" />} />
-                    <Route path="kb/create" element={<LazyRoute component={BentoCreateArticlePage} featureName="Create Article" requiredPageAccess="knowledge_base" />} />
-                    <Route path="kb/articles/:id" element={<LazyRoute component={BentoArticleDetailPage} featureName="Article Detail" requiredPageAccess="knowledge_base" />} />
-                    <Route path="kb/articles/:id/edit" element={<LazyRoute component={BentoEditArticlePage} featureName="Edit Article" requiredPageAccess="knowledge_base" />} />
+                        <Route path="kb" element={<LazyRoute component={BentoKnowledgeBasePage} featureName="Knowledge Base" requiredPageAccess="knowledge_base" />} />
+                        <Route path="kb/manage" element={<LazyRoute component={BentoManageArticlesPage} featureName="Manage Articles" requiredPageAccess="knowledge_base" />} />
+                        <Route path="kb/create" element={<LazyRoute component={BentoCreateArticlePage} featureName="Create Article" requiredPageAccess="knowledge_base" />} />
+                        <Route path="kb/articles/:id" element={<LazyRoute component={BentoArticleDetailPage} featureName="Article Detail" requiredPageAccess="knowledge_base" />} />
+                        <Route path="kb/articles/:id/edit" element={<LazyRoute component={BentoEditArticlePage} featureName="Edit Article" requiredPageAccess="knowledge_base" />} />
 
-                    {/* Request Center */}
-                    <Route path="hardware-requests" element={<LazyRoute component={HardwareRequestsLayout} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />}>
-                        <Route index element={<LazyRoute component={HardwareRequestListPage} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />} />
-                        <Route path="dashboard" element={<LazyRoute component={HardwareDashboardPage} featureName="Hardware Dashboard" requiredPageAccess="hardware_requests" />} />
-                        <Route path="calendar" element={<LazyRoute component={InstallationCalendarPage} featureName="Installation Calendar" requiredPageAccess="hardware_requests" />} />
-                        <Route path="catalog" element={<LazyRoute component={CatalogAdminPage} featureName="Catalog Admin" requiredPageAccess="hardware_requests" />} />
+                        {/* Request Center */}
+                        <Route path="hardware-requests" element={<LazyRoute component={HardwareRequestsLayout} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />}>
+                            <Route index element={<LazyRoute component={HardwareRequestListPage} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />} />
+                            <Route path="dashboard" element={<LazyRoute component={HardwareDashboardPage} featureName="Hardware Dashboard" requiredPageAccess="hardware_requests" />} />
+                            <Route path="calendar" element={<LazyRoute component={InstallationCalendarPage} featureName="Installation Calendar" requiredPageAccess="hardware_requests" />} />
+                            <Route path="catalog" element={<LazyRoute component={CatalogAdminPage} featureName="Catalog Admin" requiredPageAccess="hardware_requests" />} />
+                        </Route>
+                        <Route path="hardware-requests/new" element={<LazyRoute component={HardwareRequestCreatePage} featureName="New Hardware Request" requiredPageAccess="hardware_requests" />} />
+                        <Route path="hardware-requests/:id" element={<LazyRoute component={HardwareRequestDetailPage} featureName="Hardware Request Detail" requiredPageAccess="hardware_requests" />} />
+                        <Route path="eform-access" element={<LazyRoute component={EformAccessListPage} featureName="E-Form Access" requiredPageAccess="eform_access" />} />
+                        <Route path="eform-access/new" element={<LazyRoute component={EformAccessCreatePage} featureName="New E-Form Access" requiredPageAccess="eform_access" />} />
+                        <Route path="eform-access/:id" element={<LazyRoute component={EformAccessDetailPage} featureName="E-Form Access Detail" requiredPageAccess="eform_access" />} />
+                        <Route path="eform-access/:id/approve" element={<LazyRoute component={EformApprovalPage} featureName="E-Form Approval" requiredPageAccess="eform_access" />} />
+                        <Route path="eform-access/:id/credentials" element={<LazyRoute component={EformCredentialPage} featureName="E-Form Credentials" requiredPageAccess="eform_access" />} />
+
+                        {/* Workload Feature Page (Admin, Manager, and Operational Support Agents) */}
+                        <Route path="workloads" element={<LazyRoute component={AdminWorkloadDashboard} featureName="Agent Workloads" allowedRoles={['ADMIN', 'MANAGER', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ADMIN', 'AGENT']} />} />
+                        <Route path="audit-logs" element={<LazyRoute component={AuditLogPage} featureName="Audit Logs" allowedRoles={['ADMIN']} />} />
+                        <Route path="system-health" element={<LazyRoute component={SystemHealthPage} featureName="System Health" allowedRoles={['ADMIN']} />} />
+                        <Route path="data-wipe" element={<LazyRoute component={DataWipePage} featureName="Data Wipe" allowedRoles={['ADMIN']} />} />
+
+                        {/* Zoom Booking Calendar */}
+                        <Route path="zoom-calendar" element={<LazyRoute component={ZoomCalendarPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
+                        <Route path="zoom-settings" element={<LazyRoute component={ZoomSettingsPage} featureName="Zoom Settings" allowedRoles={['ADMIN']} />} />
                     </Route>
-                    <Route path="hardware-requests/new" element={<LazyRoute component={HardwareRequestCreatePage} featureName="New Hardware Request" requiredPageAccess="hardware_requests" />} />
-                    <Route path="hardware-requests/:id" element={<LazyRoute component={HardwareRequestDetailPage} featureName="Hardware Request Detail" requiredPageAccess="hardware_requests" />} />
-                    <Route path="eform-access" element={<LazyRoute component={EformAccessListPage} featureName="E-Form Access" requiredPageAccess="eform_access" />} />
-                    <Route path="eform-access/new" element={<LazyRoute component={EformAccessCreatePage} featureName="New E-Form Access" requiredPageAccess="eform_access" />} />
-                    <Route path="eform-access/:id" element={<LazyRoute component={EformAccessDetailPage} featureName="E-Form Access Detail" requiredPageAccess="eform_access" />} />
-                    <Route path="eform-access/:id/approve" element={<LazyRoute component={EformApprovalPage} featureName="E-Form Approval" requiredPageAccess="eform_access" />} />
-                    <Route path="eform-access/:id/credentials" element={<LazyRoute component={EformCredentialPage} featureName="E-Form Credentials" requiredPageAccess="eform_access" />} />
 
-                    {/* Workload Feature Page (Admin, Manager, and Operational Support Agents) */}
-                    <Route path="workloads" element={<LazyRoute component={AdminWorkloadDashboard} featureName="Agent Workloads" allowedRoles={['ADMIN', 'MANAGER', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ADMIN', 'AGENT']} />} />
-                    <Route path="audit-logs" element={<LazyRoute component={AuditLogPage} featureName="Audit Logs" allowedRoles={['ADMIN']} />} />
-                    <Route path="system-health" element={<LazyRoute component={SystemHealthPage} featureName="System Health" allowedRoles={['ADMIN']} />} />
-                    <Route path="data-wipe" element={<LazyRoute component={DataWipePage} featureName="Data Wipe" allowedRoles={['ADMIN']} />} />
+                    {/* Manager Routes - Using BentoLayout */}
+                    <Route
+                        path="/manager"
+                        element={
+                            <ProtectedRoute allowedRoles={['MANAGER']}>
+                                <Suspense fallback={<PageLoader />}>
+                                    <BentoLayout />
+                                </Suspense>
+                            </ProtectedRoute>
+                        }
+                    >
+                        <Route index element={<Navigate to="/manager/dashboard" replace />} />
+                        <Route path="dashboard" element={<LazyRoute component={ManagerDashboard} featureName="Manager Dashboard" />} />
+                        <Route path="workloads" element={<LazyRoute component={AdminWorkloadDashboard} featureName="Admin Workload Dashboard" />} />
+                        <Route path="tickets" element={<LazyRoute component={ManagerTicketsPage} featureName="Manager Tickets" />} />
+                        <Route path="reports" element={<LazyRoute component={ManagerReportsPage} featureName="Manager Reports" requiredPageAccess="reports" />} />
+                        <Route path="kb" element={<LazyRoute component={BentoKnowledgeBasePage} featureName="Knowledge Base" requiredPageAccess="knowledge_base" />} />
+                        <Route path="kb/articles/:id" element={<LazyRoute component={BentoArticleDetailPage} featureName="Article Detail" requiredPageAccess="knowledge_base" />} />
 
-                    {/* Zoom Booking Calendar */}
-                    <Route path="zoom-calendar" element={<LazyRoute component={ZoomCalendarPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
-                    <Route path="zoom-settings" element={<LazyRoute component={ZoomSettingsPage} featureName="Zoom Settings" allowedRoles={['ADMIN']} />} />
-                </Route>
+                        {/* Request Center */}
+                        <Route path="hardware-requests" element={<LazyRoute component={HardwareRequestsLayout} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />}>
+                            <Route index element={<LazyRoute component={HardwareRequestListPage} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />} />
+                            <Route path="dashboard" element={<LazyRoute component={HardwareDashboardPage} featureName="Hardware Dashboard" requiredPageAccess="hardware_requests" />} />
+                            <Route path="calendar" element={<LazyRoute component={InstallationCalendarPage} featureName="Installation Calendar" requiredPageAccess="hardware_requests" />} />
+                            <Route path="catalog" element={<LazyRoute component={CatalogAdminPage} featureName="Catalog Admin" requiredPageAccess="hardware_requests" />} />
+                        </Route>
+                        <Route path="hardware-requests/new" element={<LazyRoute component={HardwareRequestCreatePage} featureName="New Hardware Request" requiredPageAccess="hardware_requests" />} />
+                        <Route path="hardware-requests/:id" element={<LazyRoute component={HardwareRequestDetailPage} featureName="Hardware Request Detail" requiredPageAccess="hardware_requests" />} />
+                        <Route path="eform-access" element={<LazyRoute component={EformAccessListPage} featureName="E-Form Access" requiredPageAccess="eform_access" />} />
+                        <Route path="eform-access/new" element={<LazyRoute component={EformAccessCreatePage} featureName="New E-Form Access" requiredPageAccess="eform_access" />} />
+                        <Route path="eform-access/:id" element={<LazyRoute component={EformAccessDetailPage} featureName="E-Form Access Detail" requiredPageAccess="eform_access" />} />
+                        <Route path="eform-access/:id/approve" element={<LazyRoute component={EformApprovalPage} featureName="E-Form Approval" requiredPageAccess="eform_access" />} />
+                        <Route path="eform-access/:id/credentials" element={<LazyRoute component={EformCredentialPage} featureName="E-Form Credentials" requiredPageAccess="eform_access" />} />
 
-                {/* Manager Routes - Using BentoLayout */}
-                <Route
-                    path="/manager"
-                    element={
-                        <ProtectedRoute allowedRoles={['MANAGER']}>
-                            <Suspense fallback={<PageLoader />}>
-                                <BentoLayout />
-                            </Suspense>
-                        </ProtectedRoute>
-                    }
-                >
-                    <Route index element={<Navigate to="/manager/dashboard" replace />} />
-                    <Route path="dashboard" element={<LazyRoute component={ManagerDashboard} featureName="Manager Dashboard" />} />
-                    <Route path="workloads" element={<LazyRoute component={AdminWorkloadDashboard} featureName="Admin Workload Dashboard" />} />
-                    <Route path="tickets" element={<LazyRoute component={ManagerTicketsPage} featureName="Manager Tickets" />} />
-                    <Route path="reports" element={<LazyRoute component={ManagerReportsPage} featureName="Manager Reports" requiredPageAccess="reports" />} />
-                    <Route path="kb" element={<LazyRoute component={BentoKnowledgeBasePage} featureName="Knowledge Base" requiredPageAccess="knowledge_base" />} />
-                    <Route path="kb/articles/:id" element={<LazyRoute component={BentoArticleDetailPage} featureName="Article Detail" requiredPageAccess="knowledge_base" />} />
-
-                    {/* Request Center */}
-                    <Route path="hardware-requests" element={<LazyRoute component={HardwareRequestsLayout} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />}>
-                        <Route index element={<LazyRoute component={HardwareRequestListPage} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />} />
-                        <Route path="dashboard" element={<LazyRoute component={HardwareDashboardPage} featureName="Hardware Dashboard" requiredPageAccess="hardware_requests" />} />
-                        <Route path="calendar" element={<LazyRoute component={InstallationCalendarPage} featureName="Installation Calendar" requiredPageAccess="hardware_requests" />} />
-                        <Route path="catalog" element={<LazyRoute component={CatalogAdminPage} featureName="Catalog Admin" requiredPageAccess="hardware_requests" />} />
+                        <Route path="zoom-calendar" element={<LazyRoute component={ZoomCalendarPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
+                        <Route path="renewal" element={<LazyRoute component={RenewalHubPage} featureName="Renewal Hub" requiredPageAccess="renewal" />} />
                     </Route>
-                    <Route path="hardware-requests/new" element={<LazyRoute component={HardwareRequestCreatePage} featureName="New Hardware Request" requiredPageAccess="hardware_requests" />} />
-                    <Route path="hardware-requests/:id" element={<LazyRoute component={HardwareRequestDetailPage} featureName="Hardware Request Detail" requiredPageAccess="hardware_requests" />} />
-                    <Route path="eform-access" element={<LazyRoute component={EformAccessListPage} featureName="E-Form Access" requiredPageAccess="eform_access" />} />
-                    <Route path="eform-access/new" element={<LazyRoute component={EformAccessCreatePage} featureName="New E-Form Access" requiredPageAccess="eform_access" />} />
-                    <Route path="eform-access/:id" element={<LazyRoute component={EformAccessDetailPage} featureName="E-Form Access Detail" requiredPageAccess="eform_access" />} />
-                    <Route path="eform-access/:id/approve" element={<LazyRoute component={EformApprovalPage} featureName="E-Form Approval" requiredPageAccess="eform_access" />} />
-                    <Route path="eform-access/:id/credentials" element={<LazyRoute component={EformCredentialPage} featureName="E-Form Credentials" requiredPageAccess="eform_access" />} />
 
-                    <Route path="zoom-calendar" element={<LazyRoute component={ZoomCalendarPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
-                    <Route path="renewal" element={<LazyRoute component={RenewalHubPage} featureName="Renewal Hub" requiredPageAccess="renewal" />} />
-                </Route>
+                    {/* Client Routes - Lazy loaded portal */}
+                    <Route
+                        path="/client"
+                        element={
+                            <ProtectedRoute allowedRoles={['USER']}>
+                                <Suspense fallback={<PageLoader />}>
+                                    <ClientLayout />
+                                </Suspense>
+                            </ProtectedRoute>
+                        }
+                    >
+                        <Route path="my-tickets" element={<LazyRoute component={BentoMyTicketsPage} featureName="My Tickets" />} />
+                        <Route path="create" element={<LazyRoute component={BentoCreateTicketPage} featureName="Create Ticket" />} />
+                        <Route path="tickets/:id" element={<LazyRoute component={ClientTicketDetailPage} featureName="Ticket Detail" />} />
+                        <Route path="notifications" element={<LazyRoute component={ClientNotificationCenter} featureName="Notifications" requiredPageAccess="notifications" />} />
+                        <Route path="notifications/history" element={<LazyRoute component={NotificationHistoryPage} featureName="Notification History" />} />
+                        <Route path="zoom-calendar" element={<LazyRoute component={ClientZoomBookingPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
+                        <Route path="kb" element={<LazyRoute component={ClientKnowledgeBasePage} featureName="Knowledge Base" requiredPageAccess="knowledge_base" />} />
+                        <Route path="kb/articles/:id" element={<LazyRoute component={ClientArticleDetailPage} featureName="Article Detail" requiredPageAccess="knowledge_base" />} />
 
-                {/* Client Routes - Lazy loaded portal */}
-                <Route
-                    path="/client"
-                    element={
-                        <ProtectedRoute allowedRoles={['USER']}>
-                            <Suspense fallback={<PageLoader />}>
-                                <ClientLayout />
-                            </Suspense>
-                        </ProtectedRoute>
-                    }
-                >
-                    <Route path="my-tickets" element={<LazyRoute component={BentoMyTicketsPage} featureName="My Tickets" />} />
-                    <Route path="create" element={<LazyRoute component={BentoCreateTicketPage} featureName="Create Ticket" />} />
-                    <Route path="tickets/:id" element={<LazyRoute component={ClientTicketDetailPage} featureName="Ticket Detail" />} />
-                    <Route path="notifications" element={<LazyRoute component={ClientNotificationCenter} featureName="Notifications" requiredPageAccess="notifications" />} />
-                    <Route path="notifications/history" element={<LazyRoute component={NotificationHistoryPage} featureName="Notification History" />} />
-                    <Route path="zoom-calendar" element={<LazyRoute component={ClientZoomBookingPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
-                    <Route path="kb" element={<LazyRoute component={ClientKnowledgeBasePage} featureName="Knowledge Base" requiredPageAccess="knowledge_base" />} />
-                    <Route path="kb/articles/:id" element={<LazyRoute component={ClientArticleDetailPage} featureName="Article Detail" requiredPageAccess="knowledge_base" />} />
+                        {/* Request Center */}
+                        <Route path="hardware-requests" element={<LazyRoute component={HardwareRequestsLayout} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />}>
+                            <Route index element={<LazyRoute component={HardwareRequestListPage} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />} />
+                            <Route path="dashboard" element={<LazyRoute component={HardwareDashboardPage} featureName="Hardware Dashboard" requiredPageAccess="hardware_requests" />} />
+                            <Route path="calendar" element={<LazyRoute component={InstallationCalendarPage} featureName="Installation Calendar" requiredPageAccess="hardware_requests" />} />
+                            <Route path="catalog" element={<LazyRoute component={CatalogAdminPage} featureName="Catalog Admin" requiredPageAccess="hardware_requests" />} />
+                        </Route>
+                        <Route path="hardware-requests/new" element={<LazyRoute component={HardwareRequestCreatePage} featureName="New Hardware Request" requiredPageAccess="hardware_requests" />} />
+                        <Route path="hardware-requests/:id" element={<LazyRoute component={HardwareRequestDetailPage} featureName="Hardware Request Detail" requiredPageAccess="hardware_requests" />} />
 
-                    {/* Request Center */}
-                    <Route path="hardware-requests" element={<LazyRoute component={HardwareRequestsLayout} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />}>
-                        <Route index element={<LazyRoute component={HardwareRequestListPage} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />} />
-                        <Route path="dashboard" element={<LazyRoute component={HardwareDashboardPage} featureName="Hardware Dashboard" requiredPageAccess="hardware_requests" />} />
-                        <Route path="calendar" element={<LazyRoute component={InstallationCalendarPage} featureName="Installation Calendar" requiredPageAccess="hardware_requests" />} />
-                        <Route path="catalog" element={<LazyRoute component={CatalogAdminPage} featureName="Catalog Admin" requiredPageAccess="hardware_requests" />} />
+                        <Route path="eform-access" element={<LazyRoute component={EformAccessListPage} featureName="E-Form Access" requiredPageAccess="eform_access" />} />
+                        <Route path="eform-access/new" element={<LazyRoute component={EformAccessCreatePage} featureName="New E-Form Access" requiredPageAccess="eform_access" />} />
+                        <Route path="eform-access/:id" element={<LazyRoute component={EformAccessDetailPage} featureName="E-Form Access Detail" requiredPageAccess="eform_access" />} />
+                        <Route path="eform-access/:id/approve" element={<LazyRoute component={EformApprovalPage} featureName="E-Form Approval" requiredPageAccess="eform_access" />} />
+                        <Route path="eform-access/:id/credentials" element={<LazyRoute component={EformCredentialPage} featureName="E-Form Credentials" requiredPageAccess="eform_access" />} />
+
+                        <Route path="profile" element={<LazyRoute component={ClientProfilePage} featureName="Profile" />} />
+                        <Route index element={<Navigate to="/client/my-tickets" replace />} />
                     </Route>
-                    <Route path="hardware-requests/new" element={<LazyRoute component={HardwareRequestCreatePage} featureName="New Hardware Request" requiredPageAccess="hardware_requests" />} />
-                    <Route path="hardware-requests/:id" element={<LazyRoute component={HardwareRequestDetailPage} featureName="Hardware Request Detail" requiredPageAccess="hardware_requests" />} />
 
-                    <Route path="eform-access" element={<LazyRoute component={EformAccessListPage} featureName="E-Form Access" requiredPageAccess="eform_access" />} />
-                    <Route path="eform-access/new" element={<LazyRoute component={EformAccessCreatePage} featureName="New E-Form Access" requiredPageAccess="eform_access" />} />
-                    <Route path="eform-access/:id" element={<LazyRoute component={EformAccessDetailPage} featureName="E-Form Access Detail" requiredPageAccess="eform_access" />} />
-                    <Route path="eform-access/:id/approve" element={<LazyRoute component={EformApprovalPage} featureName="E-Form Approval" requiredPageAccess="eform_access" />} />
-                    <Route path="eform-access/:id/credentials" element={<LazyRoute component={EformCredentialPage} featureName="E-Form Credentials" requiredPageAccess="eform_access" />} />
-
-                    <Route path="profile" element={<LazyRoute component={ClientProfilePage} featureName="Profile" />} />
-                    <Route index element={<Navigate to="/client/my-tickets" replace />} />
-                </Route>
-
-                {/* Fallback - role-aware redirect to correct portal */}
-                <Route path="*" element={<RoleBasedRedirect />} />
-            </Routes>
+                    {/* Fallback - role-aware redirect to correct portal */}
+                    <Route path="*" element={<RoleBasedRedirect />} />
+                </Routes>
+            </NotificationPermissionGate>
         </PresenceProvider>
     );
 }
