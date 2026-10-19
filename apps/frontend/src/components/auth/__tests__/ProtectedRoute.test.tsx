@@ -167,4 +167,30 @@ describe('ProtectedRoute', () => {
         renderPageAccessRoute('/dashboard/me');
         expect(screen.getByText('Unauthorized Page')).toBeInTheDocument();
     });
+
+    it('sends an agent following a client ticket link to the same ticket in the agent workspace', () => {
+        useAuth.setState({
+            user: { id: '1', email: 'a@x', fullName: 'Agent', role: 'AGENT_OPERATIONAL_SUPPORT' } as any,
+            isAuthenticated: true,
+            expiresAt: new Date(Date.now() + 3600000).toISOString(),
+        });
+        render(
+            <MemoryRouter initialEntries={['/client/tickets/23841455-c9a9-494c-952f-e68309dc9fca']}>
+                <Routes>
+                    <Route
+                        path="/client/tickets/:id"
+                        element={
+                            <ProtectedRoute allowedRoles={['USER']}>
+                                <div>Client Ticket</div>
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route path="/tickets/:id" element={<div>Agent Ticket</div>} />
+                    <Route path="/unauthorized" element={<div>Unauthorized Page</div>} />
+                </Routes>
+            </MemoryRouter>
+        );
+        expect(screen.getByText('Agent Ticket')).toBeInTheDocument();
+        expect(screen.queryByText('Unauthorized Page')).not.toBeInTheDocument();
+    });
 });

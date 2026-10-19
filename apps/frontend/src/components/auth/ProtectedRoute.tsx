@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../stores/useAuth';
 import { useHasPermission, useHasPageAccess } from '@/hooks/usePermissions';
 import { ShieldAlert } from 'lucide-react';
-import { getRoleHome } from '@/lib/roleHome';
+import { getRoleHome, portalEquivalent } from '@/lib/roleHome';
 import { restoreSession } from '@/hooks/useSessionRestore';
 
 interface ProtectedRouteProps {
@@ -103,7 +103,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
     // Role-based check (existing behavior - only if no requiredPageAccess)
     if (allowedRoles && !allowedRoles.includes(user.role)) {
-        return <Navigate to="/unauthorized" replace />;
+        const here = location.pathname + location.search + location.hash;
+        const other = portalEquivalent(here, user.role);
+        return <Navigate to={other && other !== here ? other : '/unauthorized'} replace />;
     }
 
     // Feature permission check (existing behavior)
