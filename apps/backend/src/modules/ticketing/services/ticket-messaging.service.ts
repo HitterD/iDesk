@@ -270,6 +270,8 @@ export class TicketMessagingService {
      */
     async markAsRead(ticketId: string, userId: string, role?: string, userSiteId: string | null = null): Promise<void> {
         const now = new Date();
+        // iPop clears this person's chat notifications for the ticket (listeners skip tickets iPop can't see).
+        this.eventEmitter.emit('ticket.read', { ticketId, userId });
         if (!role || role === UserRole.USER) {
             await this.touchReadMarkers(ticketId, { userLastReadAt: now });
             return;

@@ -11,6 +11,14 @@ const env: Record<string, string> = {
 };
 const config = { get: (k: string) => env[k] } as any;
 
+/** Users by id for the NIK lookup of chat recipients. */
+const USERS: Record<string, { id: string; employeeId: string | null; isActive: boolean }> = {
+    'u-requester': { id: 'u-requester', employeeId: '00000024', isActive: true },
+    'u-agent': { id: 'u-agent', employeeId: '00061058', isActive: true },
+    'u-nonik': { id: 'u-nonik', employeeId: null, isActive: true },
+};
+const users = { find: jest.fn(async ({ where }: any) => (where.id._value as string[]).map((id) => USERS[id]).filter(Boolean)) };
+
 const view = (over: Record<string, unknown> = {}) => ({
     ticketId: 't-1', ticketNumber: 'GEN-0001', externalRef: 'REF-1', status: 'TODO', priority: 'MEDIUM',
     module: 'it-support', category: 'NETWORK', title: 'Wifi', assignee: null, slaTarget: null,
@@ -60,7 +68,7 @@ describe('IpopTicketEventsListener.reportChanges', () => {
     const build = (lastSent: any) => {
         const webhooks = { enqueue: jest.fn(), isEnabled: () => true };
         const outbox = { findOne: jest.fn().mockResolvedValue(lastSent ? { payload: { ticket: lastSent } } : null) };
-        const listener = new IpopTicketEventsListener({} as any, webhooks as any, outbox as any);
+        const listener = new IpopTicketEventsListener({} as any, webhooks as any, outbox as any, users as any);
         return { listener, webhooks };
     };
 
@@ -123,7 +131,7 @@ describe('IpopTicketEventsListener ordering', () => {
             loadTicket: jest.fn(async () => ({ id: 't-1', externalSource: 'IPOP' })),
             toView: jest.fn(() => view({ assignee: assigned ? { name: 'Agent A' } : null })),
         };
-        const listener = new IpopTicketEventsListener(tickets as any, webhooks as any, outbox as any);
+        const listener = new IpopTicketEventsListener(tickets as any, webhooks as any, outbox as any, users as any);
 
         const created = listener.onCreated({ ticketId: 't-1' });
         assigned = true;
@@ -136,7 +144,7 @@ describe('IpopTicketEventsListener ordering', () => {
     it('ignores iDesk tickets whose requester has no NIK (no iPop user to link)', async () => {
         const webhooks = { isEnabled: () => true, enqueue: jest.fn() };
         const tickets = { loadTicket: jest.fn(async () => ({ id: 't-2', externalSource: null, ticketType: 'SERVICE', user: { employeeId: null } })), toView: jest.fn() };
-        const listener = new IpopTicketEventsListener(tickets as any, webhooks as any, { findOne: jest.fn() } as any);
+        const listener = new IpopTicketEventsListener(tickets as any, webhooks as any, { findOne: jest.fn() } as any, users as any);
 
         await listener.onCreated({ ticketId: 't-2' });
 
@@ -149,7 +157,7 @@ describe('IpopTicketEventsListener ordering', () => {
             loadTicket: jest.fn(async () => ({ id: 't-3', externalSource: null, ticketType: 'SERVICE', user: { employeeId: '00000024' } })),
             toView: jest.fn(() => view({ ticketId: 't-3', origin: 'IDESK', externalRef: null })),
         };
-        const listener = new IpopTicketEventsListener(tickets as any, webhooks as any, { findOne: jest.fn(async () => null) } as any);
+        const listener = new IpopTicketEventsListener(tickets as any, webhooks as any, { findOne: jest.fn(async () => null) } as any, users as any);
 
         await listener.onCreated({ ticketId: 't-3' });
 
@@ -161,8 +169,10 @@ describe('IpopTicketEventsListener.onReplied (chat notification)', () => {
     const replied = (over: Record<string, unknown> = {}, message: Record<string, unknown> = {}) => ({
         ticketId: 't-1',
         ticketOwnerId: 'u-requester',
+        ticketAssignedToId: 'u-agent',
         senderId: 'u-agent',
         senderName: 'Agent A',
+        senderRole: 'AGENT',
         message: {
             id: 'm-1', content: '<p>Sudah saya cek, <b>mohon</b> restart laptop&nbsp;Anda</p>',
             attachments: [], isInternal: false, isSystemMessage: false,
@@ -176,45 +186,86 @@ describe('IpopTicketEventsListener.onReplied (chat notification)', () => {
             loadTicket: jest.fn(async () => ({ id: 't-1', externalSource: 'IPOP' })),
             toView: jest.fn(() => view()),
         };
-        const outbox = { findOne: jest.fn(async () => ({ payload: { ticket: view() } })) };
-        return { listener: new IpopTicketEventsListener(tickets as any, webhooks as any, outbox as any), webhooks };
+        const qb: any = {
+            select: () => qb, where: () => qb, andWhere: () => qb,
+            getRawOne: jest.fn(async () => ({ at: null })),
+            getCount: jest.fn(async () => outbox.chatCount),
+        };
+        const outbox = { chatCount: 1, findOne: jest.fn(async () => ({ payload: { ticket: view() } })), createQueryBuilder: () => qb };
+        return { listener: new IpopTicketEventsListener(tickets as any, webhooks as any, outbox as any, users as any), webhooks, outbox };
     };
+    const chatCall = (webhooks: { enqueue: jest.Mock }) => webhooks.enqueue.mock.calls.find((c: any[]) => c[0] === 'ticket.message_created');
 
-    it('sends a plain-text preview of a public agent reply', async () => {
+    it('sends an agent reply to the requester (by NIK) with a plain-text preview', async () => {
         const { listener, webhooks } = build();
         await listener.onReplied(replied());
         expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.message_created', expect.anything(), {
             message: {
                 id: 'm-1',
                 sender: { name: 'Agent A' },
+                fromRequester: false,
                 preview: 'Sudah saya cek, mohon restart laptop Anda',
                 attachmentCount: 0,
+                attachments: [],
                 createdAt: '2026-10-11T03:00:00.000Z',
             },
+            recipients: [{ nik: '00000024' }],
         });
+    });
+
+    it('sends the requester reply to the assigned agent', async () => {
+        const { listener, webhooks } = build();
+        await listener.onReplied(replied({ senderId: 'u-requester', senderName: 'Christhin', senderRole: 'USER' }));
+        expect(chatCall(webhooks)?.[2]).toMatchObject({ message: { fromRequester: true, sender: { name: 'Christhin' } }, recipients: [{ nik: '00061058' }] });
+    });
+
+    it('treats staff who filed the ticket (requester side) like the requester: their reply goes to the agent', async () => {
+        const { listener, webhooks } = build();
+        await listener.onReplied(replied({ senderId: 'u-filer', senderName: 'Sekretaris', senderRole: 'USER' }));
+        expect(chatCall(webhooks)?.[2]).toMatchObject({ message: { fromRequester: true }, recipients: [{ nik: '00061058' }] });
+    });
+
+    it('reports a pending status change before a read event (its snapshot becomes the last one sent)', async () => {
+        const { listener, webhooks } = build();
+        (listener as any).tickets.toView.mockReturnValue(view({ status: 'IN_PROGRESS' }));
+        await listener.onRead({ ticketId: 't-1', userId: 'u-agent' });
+        expect(webhooks.enqueue.mock.calls.map((c: any[]) => c[0])).toEqual(['ticket.status_changed', 'ticket.read']);
+    });
+
+    it('sends nothing for a requester reply on an unassigned ticket, or to people without a NIK', async () => {
+        let ctx = build();
+        await ctx.listener.onReplied(replied({ senderId: 'u-requester', ticketAssignedToId: undefined }));
+        expect(chatCall(ctx.webhooks)).toBeUndefined();
+        ctx = build();
+        await ctx.listener.onReplied(replied({ ticketOwnerId: 'u-nonik' }));
+        expect(chatCall(ctx.webhooks)).toBeUndefined();
     });
 
     it('cuts long messages to 100 characters', async () => {
         const { listener, webhooks } = build();
         await listener.onReplied(replied({}, { content: 'a'.repeat(150) }));
-        const preview = webhooks.enqueue.mock.calls[0][2].message.preview;
-        expect(preview).toBe(`${'a'.repeat(99)}…`);
+        expect(chatCall(webhooks)![2].message.preview).toBe(`${'a'.repeat(99)}…`);
     });
 
-    it('describes an attachment-only message', async () => {
+    it('describes attachments by kind so iPop can show a photo, video or file', async () => {
         const { listener, webhooks } = build();
-        await listener.onReplied(replied({}, { content: '', attachments: ['/a.png', '/b.pdf'] }));
-        expect(webhooks.enqueue.mock.calls[0][2].message).toMatchObject({ preview: '📎 2 lampiran', attachmentCount: 2 });
+        await listener.onReplied(replied({}, {
+            content: '', attachments: ['/a.png', '/b.pdf'],
+            attachmentInfo: [{ name: 'layar.png', mime: 'image/png' }, { name: 'laporan.pdf', mime: 'application/pdf' }],
+        }));
+        expect(chatCall(webhooks)![2].message).toMatchObject({
+            preview: '📎 2 lampiran', attachmentCount: 2,
+            attachments: [{ name: 'layar.png', kind: 'image' }, { name: 'laporan.pdf', kind: 'file' }],
+        });
     });
 
     it.each([
         ['an internal note', replied({}, { isInternal: true })],
         ['a system message', replied({}, { isSystemMessage: true })],
-        ["the requester's own message", replied({ senderId: 'u-requester' })],
     ])('never sends %s', async (_label, event) => {
         const { listener, webhooks } = build();
         await listener.onReplied(event);
-        expect(webhooks.enqueue).not.toHaveBeenCalledWith('ticket.message_created', expect.anything(), expect.anything());
+        expect(chatCall(webhooks)).toBeUndefined();
     });
 
     it('reports the status change of the reply before the message', async () => {
@@ -223,5 +274,18 @@ describe('IpopTicketEventsListener.onReplied (chat notification)', () => {
         tickets.toView.mockReturnValue(view({ status: 'IN_PROGRESS' }));
         await listener.onReplied(replied());
         expect(webhooks.enqueue.mock.calls.map((c: any[]) => c[0])).toEqual(['ticket.status_changed', 'ticket.message_created']);
+    });
+
+    it('tells iPop who opened the ticket in iDesk', async () => {
+        const { listener, webhooks } = build();
+        await listener.onRead({ ticketId: 't-1', userId: 'u-agent' });
+        expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.read', expect.anything(), { reader: { nik: '00061058' } });
+    });
+
+    it('stays quiet on page views when no chat notification is waiting for that person', async () => {
+        const { listener, webhooks, outbox } = build();
+        outbox.chatCount = 0;
+        await listener.onRead({ ticketId: 't-1', userId: 'u-agent' });
+        expect(webhooks.enqueue).not.toHaveBeenCalledWith('ticket.read', expect.anything(), expect.anything());
     });
 });

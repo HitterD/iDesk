@@ -1,5 +1,6 @@
 import {
     BadRequestException,
+    ForbiddenException,
     Injectable,
     Logger,
     NotFoundException,
@@ -16,12 +17,14 @@ import { TicketMessage } from '../../ticketing/entities/ticket-message.entity';
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
 import { User } from '../../users/entities/user.entity';
 import { TicketCreateService } from '../../ticketing/services/ticket-create.service';
+import { TicketMessagingService } from '../../ticketing/services/ticket-messaging.service';
+import { isTicketRequesterSide } from '../../ticketing/utils/oracle-ticket-access.util';
 import { CreateTicketDto } from '../../ticketing/dto/create-ticket.dto';
 import type { AttachmentInfo } from '../../ticketing/entities/ticket-message.entity';
 import { ATTACHMENT_EXTENSIONS, validateFileMagicBytes } from '../../../shared/core/validators/magic-bytes.validator';
 import { UPLOAD_ROOT } from '../../ticketing/presentation/interceptors/attachment-upload.interceptor';
 import { IpopCatalogService } from './ipop-catalog.service';
-import { IPOP_MAX_ATTACHMENT_BYTES, IpopAttachmentDto, IpopCreateTicketDto, IpopTicketQueryDto } from './dto/ipop-ticket.dto';
+import { IPOP_MAX_ATTACHMENT_BYTES, IpopAttachmentDto, IpopCreateTicketDto, IpopReplyDto, IpopTicketQueryDto } from './dto/ipop-ticket.dto';
 import { pickPublicBaseUrl } from '../../../shared/mail/app-url.util';
 
 export const IPOP_SOURCE = 'IPOP';
@@ -94,6 +97,7 @@ export class IpopTicketService {
         private readonly catalog: IpopCatalogService,
         private readonly ticketCreate: TicketCreateService,
         private readonly config: ConfigService,
+        private readonly messaging: TicketMessagingService,
     ) {}
 
     async create(dto: IpopCreateTicketDto): Promise<IpopCreateResult> {
@@ -175,6 +179,26 @@ export class IpopTicketService {
                 createdAt: new Date(m.createdAt).toISOString(),
             })),
         };
+    }
+
+    /**
+     * Posts a public chat message as the person with this NIK, through iDesk's normal reply path (same
+     * events, SLA and notifications as typing it in iDesk). Only the ticket's requester side or its
+     * assigned agent may reply this way; anyone else gets 403.
+     */
+    async reply(ref: string, dto: IpopReplyDto): Promise<{ id: string; createdAt: string }> {
+        // Agents have no iPop copy of the ticket, so iPop may only know its iDesk id.
+        const where = UUID.test(ref) ? { id: ref } : { ticketNumber: ref };
+        const ticket = await this.ticketRepo.findOne({ where, relations: [...VIEW_RELATIONS, 'participants'] });
+        if (!ticket || !isIpopVisible(ticket)) throw new NotFoundException(`No ticket ${ref} visible to iPop`);
+        const user = await this.userRepo.findOne({ where: { employeeId: dto.nik } });
+        if (!user || user.isActive === false) throw new UnprocessableEntityException('No active iDesk account for this NIK');
+        const allowed = isTicketRequesterSide(user.id, ticket) || ticket.assignedToId === user.id;
+        if (!allowed) throw new ForbiddenException('Only the requester or the assigned agent can reply from iPop');
+        const content = dto.content.trim();
+        if (!content) throw new BadRequestException('Message cannot be empty');
+        const saved = await this.messaging.replyToTicket(ticket.id, user.id, content);
+        return { id: saved.id, createdAt: new Date(saved.createdAt).toISOString() };
     }
 
     async find(query: IpopTicketQueryDto): Promise<IpopTicketView[]> {
@@ -292,6 +316,7 @@ export class IpopTicketService {
 }
 
 const VIEW_RELATIONS = ['assignedTo', 'user'];
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_MESSAGES = 200;
 /** iDesk books installation slots in WIB (UTC+7, no DST). */
 const WIB_OFFSET_MS = 7 * 3_600_000;
