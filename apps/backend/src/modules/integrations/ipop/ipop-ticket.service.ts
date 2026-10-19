@@ -186,9 +186,11 @@ export class IpopTicketService {
      * events, SLA and notifications as typing it in iDesk). Only the ticket's requester side or its
      * assigned agent may reply this way; anyone else gets 403.
      */
-    async reply(ticketNumber: string, dto: IpopReplyDto): Promise<{ id: string; createdAt: string }> {
-        const ticket = await this.ticketRepo.findOne({ where: { ticketNumber }, relations: [...VIEW_RELATIONS, 'participants'] });
-        if (!ticket || !isIpopVisible(ticket)) throw new NotFoundException(`No ticket ${ticketNumber} visible to iPop`);
+    async reply(ref: string, dto: IpopReplyDto): Promise<{ id: string; createdAt: string }> {
+        // Agents have no iPop copy of the ticket, so iPop may only know its iDesk id.
+        const where = UUID.test(ref) ? { id: ref } : { ticketNumber: ref };
+        const ticket = await this.ticketRepo.findOne({ where, relations: [...VIEW_RELATIONS, 'participants'] });
+        if (!ticket || !isIpopVisible(ticket)) throw new NotFoundException(`No ticket ${ref} visible to iPop`);
         const user = await this.userRepo.findOne({ where: { employeeId: dto.nik } });
         if (!user || user.isActive === false) throw new UnprocessableEntityException('No active iDesk account for this NIK');
         const allowed = isTicketRequesterSide(user.id, ticket) || ticket.assignedToId === user.id;
@@ -314,6 +316,7 @@ export class IpopTicketService {
 }
 
 const VIEW_RELATIONS = ['assignedTo', 'user'];
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_MESSAGES = 200;
 /** iDesk books installation slots in WIB (UTC+7, no DST). */
 const WIB_OFFSET_MS = 7 * 3_600_000;

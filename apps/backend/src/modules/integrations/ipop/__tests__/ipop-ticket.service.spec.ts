@@ -270,6 +270,12 @@ describe('IpopTicketService.reply (from the iPop Notifier)', () => {
         expect(messaging.replyToTicket).toHaveBeenCalledWith('t-1', 'u-req', 'Sudah bisa, terima kasih');
     });
 
+    it('finds the ticket by its iDesk id too (agents have no iPop copy)', async () => {
+        const { service, ticketRepo } = setup(replyTicket(), { id: 'u-agent', isActive: true });
+        await service.reply('23841455-c9a9-494c-952f-e68309dc9fca', { nik: '00061058', content: 'ok' });
+        expect(ticketRepo.findOne.mock.calls[0][0].where).toEqual({ id: '23841455-c9a9-494c-952f-e68309dc9fca' });
+    });
+
     it('lets the assigned agent reply', async () => {
         const { service, messaging } = setup(replyTicket(), { id: 'u-agent', isActive: true });
         await service.reply('GEN-0001', { nik: '00061058', content: 'Siap, saya cek' });

@@ -70,13 +70,13 @@ export class IpopController {
         return this.tickets.getMessages(ticketNumber);
     }
 
-    @Post('tickets/:ticketNumber/messages')
+    @Post('tickets/:ref/messages')
     @HttpCode(201)
-    @ApiOperation({ summary: 'Reply to the public chat as the person with this NIK (requester side or assigned agent)' })
+    @ApiOperation({ summary: 'Reply to the public chat as the person with this NIK (requester side or assigned agent); ref = ticket number or iDesk ticket id' })
     @ApiResponse({ status: 403, description: 'That person is neither the requester side nor the assigned agent' })
     @ApiResponse({ status: 422, description: 'No active iDesk account for this NIK' })
-    reply(@Param('ticketNumber') ticketNumber: string, @Body() dto: IpopReplyDto): Promise<{ id: string; createdAt: string }> {
-        return this.tickets.reply(ticketNumber, dto);
+    reply(@Param('ref') ref: string, @Body() dto: IpopReplyDto): Promise<{ id: string; createdAt: string }> {
+        return this.tickets.reply(ref, dto);
     }
 
     @Get('zoom-bookings')

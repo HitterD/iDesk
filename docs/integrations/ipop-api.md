@@ -190,7 +190,7 @@ Mohon restart laptop Anda lalu coba lagi.",
 - Senders are given by name only, never by NIK.
 - `404` when the ticket does not exist or is not shared with iPop.
 
-### 4.2 `POST /tickets/{ticketNumber}/messages`
+### 4.2 `POST /tickets/{ticketNumber or ticketId}/messages`
 
 A text reply typed in the iPop Notifier (Windows toast), posted as the person with that NIK
 through iDesk's normal reply path: the same chat, events, SLA clock and notifications as a
