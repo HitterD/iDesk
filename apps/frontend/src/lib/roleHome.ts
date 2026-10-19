@@ -29,3 +29,19 @@ export function getRoleHome(role?: string | null): string {
     if (isAgentRole(role)) return MY_DASHBOARD_PATH;
     return CLIENT_HOME;
 }
+
+/**
+ * Deep links built for another portal (e.g. iPop's `/client/tickets/:id`) moved to the same page in the
+ * reader's own portal, so an agent following a requester link lands on the ticket instead of /unauthorized.
+ * Null when there is no equivalent page.
+ */
+export function portalEquivalent(path: string, role?: string | null): string | null {
+    const ticket = /^\/(?:client\/|manager\/)?tickets\/([0-9a-f-]{8,})(?=[/?#]|$)(.*)$/i.exec(path);
+    if (ticket) {
+        const [, id, rest] = ticket;
+        if (role === 'USER') return `/client/tickets/${id}${rest}`;
+        // Managers have no detail page of their own; they open tickets in the agent workspace.
+        return `/tickets/${id}${rest}`;
+    }
+    return null;
+}

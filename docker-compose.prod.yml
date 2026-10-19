@@ -81,6 +81,12 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:ict@santos.co.id}
+      # Sign in with iPop (OIDC). Secret kosong = tombol disembunyikan, fitur nonaktif.
+      IPOP_OIDC_ISSUER: ${IPOP_OIDC_ISSUER:-https://ipop.santos.co.id}
+      IPOP_OIDC_CLIENT_ID: ${IPOP_OIDC_CLIENT_ID:-idesk}
+      IPOP_OIDC_CLIENT_SECRET: ${IPOP_OIDC_CLIENT_SECRET:-}
+      IPOP_OIDC_REDIRECT_URI: ${IPOP_OIDC_REDIRECT_URI:-https://idesk.santos.co.id/api/v1/auth/oidc/callback}
+      IPOP_OIDC_PASSWORD_LOGIN: ${IPOP_OIDC_PASSWORD_LOGIN:-true}
     volumes:
       - backend_uploads:/app/uploads
       # Backup pengaman pra-wipe (/app/backups/pre-wipe) harus selamat dari recreate container.
