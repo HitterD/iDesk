@@ -29,6 +29,12 @@ RUN apk add --no-cache su-exec postgresql-client tar bash
 # Create application runtime directories and ensure node ownership
 RUN mkdir -p /app/reports /app/storage/nas-cache /app/uploads /app/backups/database /app/backups/files /app/backups/temp && chown -R node:node /app
 
+# Company TLS: ipop.santos.co.id (and other internal hosts) use certificates from the internal SJA-ROOT-CA, which
+# Node does not trust by default. Public certificate only; without it every call to iPop (Sign in with iPop, webhooks)
+# fails with UNABLE_TO_VERIFY_LEAF_SIGNATURE.
+COPY apps/backend/certs/sja-root-ca.pem /usr/local/share/ca-certificates/sja-root-ca.pem
+ENV NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/sja-root-ca.pem
+
 # Entrypoint script that ensures volume permissions then drops to node
 COPY apps/backend/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
