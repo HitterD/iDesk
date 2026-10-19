@@ -5,7 +5,7 @@ import type { Response } from 'express';
 import { IpopAuthGuard } from './ipop-auth.guard';
 import { IpopCatalogService, IpopModuleInfo } from './ipop-catalog.service';
 import { IpopMessagesView, IpopTicketService, IpopTicketView } from './ipop-ticket.service';
-import { IpopCreateTicketDto, IpopTicketQueryDto } from './dto/ipop-ticket.dto';
+import { IpopCreateTicketDto, IpopReplyDto, IpopTicketQueryDto } from './dto/ipop-ticket.dto';
 import { IpopZoomBookingService, IpopZoomBookingView } from './ipop-zoom-booking.service';
 import { IpopZoomBookingQueryDto } from './dto/ipop-zoom-booking.dto';
 import { IPOP_HEADERS } from './ipop-signature';
@@ -15,7 +15,8 @@ const IPOP_RATE_LIMIT = { limit: 120, ttl: 60_000 };
 
 /**
  * Server-to-server API for the iPop app (ipop.santos.co.id): create tickets in the
- * queue the user picked and read their progress and public chat. Replying stays in iDesk.
+ * queue the user picked, read their progress and public chat, and reply to that chat from the iPop
+ * Notifier (as the requester or the assigned agent).
  * Zoom bookings are exposed read-only so iPop can fill its users' calendars.
  * See docs/integrations/ipop-api.md.
  */
@@ -64,9 +65,18 @@ export class IpopController {
     }
 
     @Get('tickets/:ticketNumber/messages')
-    @ApiOperation({ summary: 'Public chat of a ticket as plain text (no internal notes), read-only' })
+    @ApiOperation({ summary: 'Public chat of a ticket as plain text (no internal notes)' })
     getMessages(@Param('ticketNumber') ticketNumber: string): Promise<IpopMessagesView> {
         return this.tickets.getMessages(ticketNumber);
+    }
+
+    @Post('tickets/:ticketNumber/messages')
+    @HttpCode(201)
+    @ApiOperation({ summary: 'Reply to the public chat as the person with this NIK (requester side or assigned agent)' })
+    @ApiResponse({ status: 403, description: 'That person is neither the requester side nor the assigned agent' })
+    @ApiResponse({ status: 422, description: 'No active iDesk account for this NIK' })
+    reply(@Param('ticketNumber') ticketNumber: string, @Body() dto: IpopReplyDto): Promise<{ id: string; createdAt: string }> {
+        return this.tickets.reply(ticketNumber, dto);
     }
 
     @Get('zoom-bookings')

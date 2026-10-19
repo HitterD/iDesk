@@ -161,3 +161,19 @@ export class IpopTicketQueryDto {
     @IsIn(['open', 'all'])
     state?: 'open' | 'all';
 }
+
+/** A chat reply typed in the iPop Notifier (Windows toast), sent as the person with this NIK. */
+export class IpopReplyDto {
+    @ApiProperty({ example: '00061058', description: 'HRIS NIK of the person replying' })
+    @IsString()
+    @IsNotEmpty()
+    @MaxLength(50)
+    nik: string;
+
+    @ApiProperty({ description: 'Plain-text message', minLength: 1, maxLength: 4000 })
+    @IsString()
+    @IsNotEmpty()
+    @MaxLength(4000)
+    @Sanitize()
+    content: string;
+}

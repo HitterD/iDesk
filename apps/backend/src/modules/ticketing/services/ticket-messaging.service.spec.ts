@@ -166,13 +166,20 @@ describe('TicketMessagingService Oracle scope', () => {
                 createQueryBuilder: jest.fn(() => qb),
                 findOne: jest.fn().mockResolvedValue(ticket),
             };
+            const emitter = { emit: jest.fn() };
             const service = new TicketMessagingService(
                 ticketRepo as never, {} as never, {} as never, {} as never,
-                {} as never, {} as never, {} as never, createTestSlaClock(),
+                {} as never, {} as never, emitter as never, createTestSlaClock(),
             );
-            return { service, ticketRepo, set };
+            return { service, ticketRepo, set, emitter };
         };
         const opsTicket = { id: 't-1', userId: 'owner', createdById: null, handlingTeam: 'OPS_SUPPORT', siteId: 'site-1' };
+
+        it('tells iPop who opened the ticket so their chat notifications clear', async () => {
+            const { service, emitter } = build(opsTicket);
+            await service.markAsRead('t-1', 'owner', UserRole.USER);
+            expect(emitter.emit).toHaveBeenCalledWith('ticket.read', { ticketId: 't-1', userId: 'owner' });
+        });
 
         it('marks the agent side for a handling agent and the user side for a USER', async () => {
             const { service, set } = build(opsTicket);

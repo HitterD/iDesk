@@ -7,7 +7,7 @@ const TMP_UPLOADS = mkdtempSync(join(tmpdir(), 'ipop-test-'));
 process.env.UPLOAD_DIR = TMP_UPLOADS;
 afterAll(() => rmSync(TMP_UPLOADS, { recursive: true, force: true }));
 
-import { BadRequestException, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { In, Not, QueryFailedError } from 'typeorm';
 import { IpopTicketService, isIpopVisible, plainText, visitOf } from '../ipop-ticket.service';
 import { TicketPriority, TicketSource, TicketStatus, TicketType, HandlingTeam } from '../../../ticketing/entities/ticket.entity';
@@ -50,11 +50,13 @@ function build(opts: { existing?: any; user?: any; createError?: Error; messages
             : jest.fn().mockResolvedValue(ticket()),
     };
     const messageRepo = { find: jest.fn().mockResolvedValue(opts.messages ?? []) };
+    const messaging = { replyToTicket: jest.fn().mockResolvedValue({ id: 'm-9', createdAt: new Date('2026-10-19T03:00:00Z') }) };
     const service = new IpopTicketService(
         ticketRepo as any, userRepo as any, messageRepo as any, catalog as any, ticketCreate as any,
         { get: (k: string) => (k === 'FRONTEND_URL' ? 'https://idesk.santos.co.id' : undefined) } as any,
+        messaging as any,
     );
-    return { service, ticketRepo, userRepo, messageRepo, catalog, ticketCreate };
+    return { service, ticketRepo, userRepo, messageRepo, catalog, ticketCreate, messaging };
 }
 
 describe('IpopTicketService.create', () => {
@@ -247,5 +249,45 @@ describe('visitOf', () => {
         expect(visitOf(install({ isHardwareInstallation: false }))).toBeNull();
         expect(visitOf(install({ scheduledDate: null }))).toBeNull();
         expect(visitOf(install({ scheduledTime: null }))).toBeNull();
+    });
+});
+
+describe('IpopTicketService.reply (from the iPop Notifier)', () => {
+    const replyTicket = (over: Record<string, unknown> = {}) => ticket({
+        userId: 'u-req', createdById: null, assignedToId: 'u-agent', participants: [],
+        user: { employeeId: '00000024' }, ...over,
+    });
+    const setup = (t: any, user: any) => {
+        const ctx = build({ user });
+        ctx.ticketRepo.findOne.mockReset().mockResolvedValue(t);
+        return ctx;
+    };
+
+    it('posts as the requester through the normal iDesk reply path', async () => {
+        const { service, messaging } = setup(replyTicket(), { id: 'u-req', isActive: true });
+        await expect(service.reply('GEN-0001', { nik: '00000024', content: '  Sudah bisa, terima kasih  ' }))
+            .resolves.toEqual({ id: 'm-9', createdAt: '2026-10-19T03:00:00.000Z' });
+        expect(messaging.replyToTicket).toHaveBeenCalledWith('t-1', 'u-req', 'Sudah bisa, terima kasih');
+    });
+
+    it('lets the assigned agent reply', async () => {
+        const { service, messaging } = setup(replyTicket(), { id: 'u-agent', isActive: true });
+        await service.reply('GEN-0001', { nik: '00061058', content: 'Siap, saya cek' });
+        expect(messaging.replyToTicket).toHaveBeenCalledWith('t-1', 'u-agent', 'Siap, saya cek');
+    });
+
+    it('refuses anyone else, even ICT staff not assigned to the ticket', async () => {
+        const { service, messaging } = setup(replyTicket(), { id: 'u-other', isActive: true });
+        await expect(service.reply('GEN-0001', { nik: '00099999', content: 'hi' })).rejects.toBeInstanceOf(ForbiddenException);
+        expect(messaging.replyToTicket).not.toHaveBeenCalled();
+    });
+
+    it('refuses unknown or inactive NIKs and tickets iPop cannot see', async () => {
+        let ctx = setup(replyTicket(), null);
+        await expect(ctx.service.reply('GEN-0001', { nik: 'x', content: 'hi' })).rejects.toBeInstanceOf(UnprocessableEntityException);
+        ctx = setup(replyTicket(), { id: 'u-req', isActive: false });
+        await expect(ctx.service.reply('GEN-0001', { nik: 'x', content: 'hi' })).rejects.toBeInstanceOf(UnprocessableEntityException);
+        ctx = setup(replyTicket({ externalSource: null, user: { employeeId: null } }), { id: 'u-req', isActive: true });
+        await expect(ctx.service.reply('GEN-0001', { nik: 'x', content: 'hi' })).rejects.toBeInstanceOf(NotFoundException);
     });
 });

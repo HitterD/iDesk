@@ -165,7 +165,8 @@ closed, remove it or mark it done.
 
 The public conversation of a ticket iPop may see, oldest first (the latest 200), as plain
 text. Internal notes and system messages are never included. Attachments are listed by
-name only; opening them, replying and adding files happen in iDesk (`url`).
+name only; opening them and adding files happen in iDesk (`url`). Text replies can be sent
+from iPop with section 4.2.
 
 ```json
 {
@@ -189,6 +190,23 @@ Mohon restart laptop Anda lalu coba lagi.",
 - Senders are given by name only, never by NIK.
 - `404` when the ticket does not exist or is not shared with iPop.
 
+### 4.2 `POST /tickets/{ticketNumber}/messages`
+
+A text reply typed in the iPop Notifier (Windows toast), posted as the person with that NIK
+through iDesk's normal reply path: the same chat, events, SLA clock and notifications as a
+message typed in iDesk.
+
+```json
+{ "nik": "00061058", "content": "Siap, saya cek sekarang." }
+```
+
+- Allowed for the ticket's requester side (requester, the staff who filed it, participants)
+  and the **assigned agent**. Anyone else: `403`.
+- `422` when the NIK has no active iDesk account; `404` when the ticket is not shared with iPop;
+  `400` for an empty message or a closed ticket.
+- Plain text only, at most 4000 characters. Files are added in iDesk.
+- Answer `201`: `{ "id": "…", "createdAt": "…" }`.
+
 ## 5. Webhook (iDesk -> iPop)
 
 iDesk POSTs to `IPOP_WEBHOOK_URL` (e.g. `https://ipop.santos.co.id/api/idesk/webhook`) with the
@@ -207,8 +225,8 @@ trusting the body, and answer `2xx` quickly.
 
 Events: `ticket.created`, `ticket.assigned` (`previousAssignee`), `ticket.status_changed`,
 `ticket.resolved`, `ticket.closed` (all three with `previousStatus`), `ticket.message_created`
-(`message`, section 5.1), `ticket.visit_changed` (`previousVisit`; the installation visit was
-moved, see `visit` in section 4).
+(`message` + `recipients`, section 5.1), `ticket.read` (`reader`, section 5.2),
+`ticket.visit_changed` (`previousVisit`; the installation visit was moved, see `visit` in section 4).
 They are sent for iDesk-filed tickets too (`ticket.origin = "IDESK"`): match those to the iPop
 user by `ticket.requester.nik`, and to your record by `ticket.ticketId` (no `externalRef`).
 
@@ -219,9 +237,16 @@ user by `ticket.requester.nik`, and to your record by `ticket.ticketId` (no `ext
 
 ### 5.1 New chat message: `ticket.message_created`
 
-Sent when someone **other than the requester** posts a public message on the ticket (usually
-the IT agent, also replies sent by email). Never sent for internal notes, system messages
-(status changes have their own events) or the requester's own messages.
+Sent for every public message, to **the other side** of the conversation:
+
+| Sender | `recipients` |
+|---|---|
+| ICT (anyone but the requester) | the requester |
+| the requester | the **assigned agent** (nothing when the ticket is unassigned) |
+
+Recipients are HRIS NIKs, the only key iPop matches on; people without a NIK are left out,
+and the event is not sent when nobody is left. The sender is never a recipient. Never sent
+for internal notes or system messages (status changes have their own events).
 
 ```json
 {
@@ -231,40 +256,36 @@ the IT agent, also replies sent by email). Never sent for internal notes, system
   "message": {
     "id": "5c1e0f7a-....",
     "sender": { "name": "Agent Name" },
+    "fromRequester": false,
     "preview": "Sudah saya cek, mohon restart laptop Anda lalu coba lagi",
-    "attachmentCount": 0,
+    "attachmentCount": 1,
+    "attachments": [ { "name": "layar.png", "kind": "image" } ],
     "createdAt": "2026-10-11T03:00:00.000Z"
   },
+  "recipients": [ { "nik": "00000024" } ],
   "ticket": { "...": "same shape as section 4" }
 }
 ```
 
 - `preview`: plain text (markup removed), at most 100 characters; longer messages end with `…`.
-  A message with only attachments has `preview` = `"📎 2 lampiran"`. The full text is
-  available through section 4.1; the attachments themselves only in iDesk.
-- Recipient: the iPop user with NIK `ticket.requester.nik`.
+  A message with only attachments has `preview` = `"📎 2 lampiran"`.
+- `attachments[].kind`: `image`, `video` or `file`, so iPop can say "📎 Foto" / "📎 Video" /
+  "📎 laporan.pdf". The files themselves stay in iDesk.
 - If a reply also moved the ticket (e.g. `TODO` -> `IN_PROGRESS`), the `ticket.status_changed`
   event for it is sent **before** `ticket.message_created`.
-- Several messages in a row produce one event each. Show **one notification per ticket**
-  (keyed by `ticket.ticketId`) and update it with the latest `preview` and a counter, instead
-  of stacking a notification per message.
+- Several messages in a row produce one event each. Show **one notification per ticket and
+  person**, updated with the latest message and a counter.
+- Recipients that are not the requester (the agent) have no iPop copy of the ticket: open
+  `ticket.url` through "Sign in with iPop" for them.
 
-**What the user sees in iPop:**
+### 5.2 Ticket opened in iDesk: `ticket.read`
 
+Sent when someone opens the ticket in iDesk, so iPop can clear that person's chat
+notifications for it.
+
+```json
+{ "id": "…", "event": "ticket.read", "occurredAt": "…", "reader": { "nik": "00061058" }, "ticket": { "...": "section 4" } }
 ```
-💬 New reply on 041026-INS-0001   (3)
-Wifi lantai 2 mati
-Agent Name: "Sudah saya cek, mohon restart laptop Anda lalu coba lagi"
-[ Open chat ]  [ Reply in iDesk ]
-```
-
-- `[ Open chat ]` (and clicking the notification) opens the ticket in iPop on its read-only
-  Messages section, filled from section 4.1.
-- `[ Reply in iDesk ]` opens `ticket.url` in a new tab. iPop has no reply box: replying,
-  adding files and opening attachments happen in iDesk.
-- If the user is not logged in to iDesk, iDesk shows its login page and returns to the
-  ticket afterwards.
-- Mark the notification as read when it is clicked. iDesk does not report read status back.
 
 ### C# (.NET) webhook receiver
 
