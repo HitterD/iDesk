@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('../../../../lib/api', () => ({
-  default: { post: vi.fn() },
+  default: { post: vi.fn(), get: vi.fn() },
 }));
 vi.mock('../../../../stores/useAuth', () => ({
   useAuth: () => ({ login: vi.fn() }),
@@ -13,7 +13,7 @@ vi.mock('../../../../stores/useAuth', () => ({
 import api from '../../../../lib/api';
 import { BentoLoginPage } from '../BentoLoginPage';
 
-const mockApi = api as unknown as { post: ReturnType<typeof vi.fn> };
+const mockApi = api as unknown as { post: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn> };
 
 describe('BentoLoginPage integration', () => {
   beforeEach(() => {
@@ -21,6 +21,8 @@ describe('BentoLoginPage integration', () => {
       request: async (_name: string, _options: unknown, callback: () => unknown) => callback(),
     }, configurable: true });
     mockApi.post.mockReset();
+    mockApi.get.mockReset();
+    mockApi.get.mockResolvedValue({ data: { enabled: false } });
     mockApi.post.mockImplementation((url: string) => {
       if (url === '/auth/refresh') {
         return Promise.reject(new Error('No refresh token'));
@@ -225,5 +227,37 @@ describe('BentoLoginPage integration', () => {
     expect(sjaLogo).toBeInTheDocument();
     expect(ideskLogo).toBeInTheDocument();
   });
-});
 
+  it('shows "Masuk dengan iPop" only when the backend enables it', async () => {
+    mockApi.get.mockResolvedValue({ data: { enabled: true } });
+    render(
+      <MemoryRouter>
+        <BentoLoginPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('button', { name: /masuk dengan ipop/i })).toBeInTheDocument();
+    expect(mockApi.get).toHaveBeenCalledWith('/auth/oidc/status', expect.anything());
+  });
+
+  it('hides "Masuk dengan iPop" when it is not configured', async () => {
+    render(
+      <MemoryRouter>
+        <BentoLoginPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(mockApi.get).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: /masuk dengan ipop/i })).not.toBeInTheDocument();
+  });
+
+  it('explains an unlinked iPop account from ?sso_error', async () => {
+    render(
+      <MemoryRouter initialEntries={['/login?sso_error=ipop_not_linked']}>
+        <BentoLoginPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText(/akun idesk belum terhubung/i)).toBeInTheDocument();
+  });
+});

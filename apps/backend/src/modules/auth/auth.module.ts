@@ -17,6 +17,8 @@ import { CredentialValidatorService } from './application/credential-validator.s
 import { HrisProvisioningService } from './application/hris-provisioning.service';
 import { AuthEventPublisher } from './application/auth-events';
 import { PasswordResetService } from './application/password-reset.service';
+import { IpopOidcClient } from './infrastructure/ipop-oidc.client';
+import { IpopAccountLinker } from './application/ipop-account-linker.service';
 import { AuthMetricsService } from './monitoring/auth-metrics.service';
 import { AUTH_EVENT } from './application/auth-events';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -85,6 +87,8 @@ assertRefreshSessionConfig();
         CredentialValidatorService,
         HrisProvisioningService,
         PasswordResetService,
+        IpopOidcClient,
+        IpopAccountLinker,
         AuthEventPublisher,
         AuthMetricsService,
         AuthMetricsListener,

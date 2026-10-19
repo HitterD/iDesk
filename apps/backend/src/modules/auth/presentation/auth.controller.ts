@@ -1,5 +1,6 @@
 import { Controller, Request, Post, UseGuards, Body, HttpCode, Res, Get, Query } from '@nestjs/common';
 import { Response } from 'express';
+import { JwtService } from '@nestjs/jwt';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../application/auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -23,6 +24,17 @@ import {
 } from './cookie-options';
 
 import { extractClientIp } from '../../../shared/security/client-ip';
+import { IpopGrantRejectedError, IpopOidcClient, newAuthorizationSecrets } from '../infrastructure/ipop-oidc.client';
+import { IpopAccountLinker } from '../application/ipop-account-linker.service';
+
+const OIDC_COOKIE_NAME = 'ipop_oidc';
+const OIDC_COOKIE_TTL_MS = 5 * 60 * 1000;
+
+/** Only same-origin relative paths; rejects //host, /\host and scheme URLs. */
+export function safeReturnTo(value: unknown): string {
+    if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return '/';
+    return value;
+}
 
 /** Only credential endpoints are throttled; the office network shares one proxy IP. */
 export const AUTH_RATE_LIMIT = { limit: 30, ttl: 60000 } as const;
@@ -33,6 +45,9 @@ export class AuthController {
     constructor(
         private authService: AuthService,
         private readonly passwordResetService: PasswordResetService,
+        private readonly ipopOidc: IpopOidcClient,
+        private readonly ipopLinker: IpopAccountLinker,
+        private readonly jwtService: JwtService,
     ) { }
 
     @Get('ip-debug')
@@ -307,6 +322,69 @@ export class AuthController {
             return res.redirect(target);
         } catch {
             return res.redirect('/login?error=sso_failed');
+        }
+    }
+
+    @Get('oidc/status')
+    @ApiOperation({ summary: 'Whether "Sign in with iPop" is configured (login page shows the button)' })
+    getOidcStatus() {
+        return { enabled: this.ipopOidc.isEnabled() };
+    }
+
+    /**
+     * "Sign in with iPop": keeps state, nonce and the PKCE verifier in a signed 5-minute HttpOnly cookie and sends the
+     * browser to iPop. A user already signed in to iPop comes straight back without being asked. Not throttled: no
+     * password is checked here and the whole office shares one NAT IP.
+     */
+    @Get('oidc/start')
+    @ApiOperation({ summary: 'Start Sign in with iPop (redirects to iPop)' })
+    async oidcStart(@Query('returnTo') returnTo: string, @Res() res: Response) {
+        if (!this.ipopOidc.isEnabled()) return res.redirect('/login?sso_error=ipop_disabled');
+        const secrets = newAuthorizationSecrets();
+        try {
+            const url = await this.ipopOidc.authorizationUrl(secrets);
+            const flow = this.jwtService.sign(
+                { typ: 'ipop-oidc', state: secrets.state, nonce: secrets.nonce, verifier: secrets.codeVerifier, returnTo: safeReturnTo(returnTo) },
+                { expiresIn: OIDC_COOKIE_TTL_MS / 1000 },
+            );
+            res.cookie(OIDC_COOKIE_NAME, flow, withCookieMaxAge(OIDC_COOKIE_TTL_MS));
+            return res.redirect(url);
+        } catch {
+            return res.redirect('/login?sso_error=ipop_unavailable');
+        }
+    }
+
+    @Get('oidc/callback')
+    @ApiOperation({ summary: 'Sign in with iPop callback (sets the normal iDesk session cookies)' })
+    async oidcCallback(@Query() query: Record<string, string>, @Request() req: any, @Res() res: Response) {
+        const fail = (code: string) => res.redirect(`/login?sso_error=${code}`);
+        const raw = req.cookies?.[OIDC_COOKIE_NAME];
+        res.clearCookie(OIDC_COOKIE_NAME, clearCookieOptions());
+
+        let flow: { typ?: string; state?: string; nonce?: string; verifier?: string; returnTo?: string };
+        try {
+            flow = this.jwtService.verify(raw || '');
+        } catch {
+            return fail('ipop_expired');
+        }
+        if (flow.typ !== 'ipop-oidc' || !flow.state || !flow.nonce || !flow.verifier) return fail('ipop_expired');
+        if (query.state !== flow.state) return fail('ipop_expired');
+        if (query.error) return fail(query.error === 'access_denied' ? 'ipop_denied' : 'ipop_failed');
+        if (!query.code) return fail('ipop_failed');
+
+        try {
+            const identity = await this.ipopOidc.exchangeCode(query.code, flow.verifier, flow.nonce);
+            const link = await this.ipopLinker.resolve(identity, req);
+            if (!link.ok) return fail(link.reason === 'ACCOUNT_DISABLED' ? 'account_disabled' : 'ipop_not_linked');
+
+            // iPop checked the password, so iDesk's "must change your iDesk password" step does not apply here.
+            const loginResult = await this.authService.login({ ...link.user, mustChangePassword: false }, req, true);
+            res.cookie(ACCESS_COOKIE_NAME, loginResult.access_token, withCookieMaxAge(this.parseExpiresIn(loginResult.expiresIn)));
+            res.cookie(REFRESH_COOKIE_NAME, loginResult.refresh_token, withCookieMaxAge(this.parseExpiresIn(loginResult.refreshExpiresIn)));
+            setCsrfCookie(res);
+            return res.redirect(safeReturnTo(flow.returnTo));
+        } catch (error) {
+            return fail(error instanceof IpopGrantRejectedError ? 'ipop_failed' : 'ipop_unavailable');
         }
     }
 

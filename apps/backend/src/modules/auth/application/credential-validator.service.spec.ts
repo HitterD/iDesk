@@ -4,6 +4,7 @@ import { HrisSyncService } from '../../hris-gateway/hris-sync.service';
 import { UsersService } from '../../users/users.service';
 import { HrisProvisioningService } from './hris-provisioning.service';
 import { CredentialValidatorService } from './credential-validator.service';
+import { IpopGrantRejectedError, IpopUnavailableError } from '../infrastructure/ipop-oidc.client';
 
 jest.mock('./password-verifier', () => ({
     DUMMY_PASSWORD_HASH: 'dummy',
@@ -145,6 +146,67 @@ describe('CredentialValidatorService', () => {
 
         await expect(service.validate('99999999', 'whatever')).resolves.toMatchObject({
             success: false, errorCode: 'USER_NOT_FOUND',
+        });
+    });
+
+    describe('NIK + iPop password', () => {
+        const ipop = { isPasswordLoginEnabled: jest.fn(), passwordGrant: jest.fn() } as any;
+        const linker = { resolve: jest.fn() } as any;
+        const withIpop = new CredentialValidatorService(users, audit, gateway, sync, provisioning, authEvents, ipop, linker);
+        const linked = { id: 'u1', email: 'a@santos.co.id', fullName: 'A', role: 'USER', mustChangePassword: true };
+
+        beforeEach(() => {
+            ipop.isPasswordLoginEnabled.mockReturnValue(true);
+            gateway.verifyPassword.mockResolvedValue({ valid: true, eligible: true, match: false });
+            users.findByEmployeeId.mockResolvedValue({ id: 'u1', password: 'localHash', isActive: true });
+            (verifyPassword as jest.Mock).mockResolvedValue(false);
+        });
+
+        it('is not asked when the HRIS/local password already works', async () => {
+            gateway.verifyPassword.mockResolvedValue({ valid: true, eligible: true, match: true });
+            users.findByEmployeeId.mockResolvedValue({ id: 'u1', email: 'a@santos.co.id', isActive: true });
+
+            await expect(withIpop.validate('00012345', 'pw')).resolves.toMatchObject({ success: true });
+            expect(ipop.passwordGrant).not.toHaveBeenCalled();
+        });
+
+        it('signs in with the iPop password after the iDesk check fails', async () => {
+            ipop.passwordGrant.mockResolvedValue({ sub: 's', nik: '00012345' });
+            linker.resolve.mockResolvedValue({ ok: true, user: linked, linked: false });
+
+            await expect(withIpop.validate('00012345', 'ipop-pw')).resolves.toEqual({
+                success: true, user: { ...linked, mustChangePassword: false },
+            });
+            expect(ipop.passwordGrant).toHaveBeenCalledWith('00012345', 'ipop-pw');
+        });
+
+        it('keeps the original error when iPop rejects the password', async () => {
+            ipop.passwordGrant.mockRejectedValue(new IpopGrantRejectedError('invalid_grant'));
+
+            await expect(withIpop.validate('00012345', 'nope')).resolves.toMatchObject({ success: false, errorCode: 'WRONG_PASSWORD' });
+        });
+
+        it('keeps the original error when iPop is unreachable', async () => {
+            ipop.passwordGrant.mockRejectedValue(new IpopUnavailableError('down'));
+
+            await expect(withIpop.validate('00012345', 'nope')).resolves.toMatchObject({ success: false, errorCode: 'WRONG_PASSWORD' });
+        });
+
+        it('does not sign in an account iPop knows but iDesk cannot match', async () => {
+            ipop.passwordGrant.mockResolvedValue({ sub: 's', nik: '00012345' });
+            linker.resolve.mockResolvedValue({ ok: false, reason: 'NOT_LINKED' });
+
+            await expect(withIpop.validate('00012345', 'ipop-pw')).resolves.toMatchObject({ success: false });
+        });
+
+        it('never asks iPop for email logins or disabled accounts', async () => {
+            users.findByEmail.mockResolvedValue(undefined);
+            await withIpop.validate('a@santos.co.id', 'pw');
+            users.findByEmployeeId.mockResolvedValue({ id: 'u1', password: 'localHash', isActive: false });
+            (verifyPassword as jest.Mock).mockResolvedValue(true);
+            await withIpop.validate('00012345', 'pw');
+
+            expect(ipop.passwordGrant).not.toHaveBeenCalled();
         });
     });
 });

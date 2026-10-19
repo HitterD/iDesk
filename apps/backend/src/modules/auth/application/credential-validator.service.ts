@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { Request } from 'express';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
@@ -11,6 +11,8 @@ import { toValidatedUser } from './auth-user.mapper';
 import { DUMMY_PASSWORD_HASH, verifyPassword } from './password-verifier';
 import { maskIdentifier } from '../../../shared/security/sensitive-data';
 import { AuthEventPublisher, AUTH_EVENT } from './auth-events';
+import { IpopGrantRejectedError, IpopOidcClient } from '../infrastructure/ipop-oidc.client';
+import { IpopAccountLinker } from './ipop-account-linker.service';
 
 @Injectable()
 export class CredentialValidatorService {
@@ -21,13 +23,40 @@ export class CredentialValidatorService {
         private readonly hrisSync: HrisSyncService,
         private readonly hrisProvisioning: HrisProvisioningService,
         private readonly authEvents: AuthEventPublisher,
+        @Optional() private readonly ipop?: IpopOidcClient,
+        @Optional() private readonly ipopLinker?: IpopAccountLinker,
     ) {}
 
     async validate(identifier: string, pass: string, request?: Request): Promise<LoginValidationResult> {
         const normalized = identifier.trim();
-        return normalized.includes('@')
-            ? this.validateEmail(normalized.toLowerCase(), pass, request)
-            : this.validateNik(normalized, pass, request);
+        if (normalized.includes('@')) return this.validateEmail(normalized.toLowerCase(), pass, request);
+        const local = await this.validateNik(normalized, pass, request);
+        if (local.success || local.errorCode === 'ACCOUNT_DISABLED') return local;
+        return (await this.validateNikWithIpop(normalized, pass, request)) ?? local;
+    }
+
+    /**
+     * NIK + iPop password, tried only after the HRIS/local check failed, so people still using their iDesk
+     * password never add failed attempts to their iPop account. Returns null when iPop is off, unreachable or
+     * refuses, and the caller keeps the original failure.
+     */
+    private async validateNikWithIpop(nik: string, pass: string, request?: Request): Promise<LoginValidationResult | null> {
+        if (!this.ipop?.isPasswordLoginEnabled() || !this.ipopLinker) return null;
+        let identity;
+        try {
+            identity = await this.ipop.passwordGrant(nik, pass);
+        } catch (error) {
+            if (!(error instanceof IpopGrantRejectedError)) {
+                this.authEvents.emit(AUTH_EVENT.LOGIN_FAILED, { method: 'nik', reason: 'IPOP_UNAVAILABLE', outcome: 'failed' });
+            }
+            return null;
+        }
+        // iPop issued the token for this NIK, so a different NIK in the token would mean a broken provider.
+        if (identity.nik !== nik) return null;
+        const link = await this.ipopLinker.resolve(identity, request);
+        if (!link.ok) return link.reason === 'ACCOUNT_DISABLED' ? { success: false, errorCode: 'ACCOUNT_DISABLED' } : null;
+        // The iDesk password was not used, so its "must change" flag does not apply to this sign-in.
+        return { success: true, user: { ...link.user, mustChangePassword: false } };
     }
 
     private async validateEmail(email: string, pass: string, request?: Request): Promise<LoginValidationResult> {

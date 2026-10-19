@@ -39,6 +39,17 @@ function getNextPath(search: string): string | null {
     } catch { return null; }
 }
 
+/** Messages for ?sso_error= set by the backend's Sign in with iPop callback. */
+const SSO_ERRORS: Record<string, LoginError> = {
+    ipop_not_linked: { type: 'error', message: 'Akun iDesk belum terhubung', details: 'Akun iPop Anda belum terhubung ke akun iDesk. Hubungi ICT (ext. 1604).' },
+    account_disabled: { type: 'error', message: 'Akun dinonaktifkan', details: 'Hubungi administrator.' },
+    ipop_denied: { type: 'warning', message: 'Masuk dengan iPop dibatalkan' },
+    ipop_expired: { type: 'warning', message: 'Sesi masuk iPop kedaluwarsa', details: 'Silakan coba lagi.' },
+    ipop_unavailable: { type: 'error', message: 'iPop tidak dapat dihubungi', details: 'Coba lagi nanti atau masuk dengan NIK dan password.' },
+    ipop_disabled: { type: 'warning', message: 'Masuk dengan iPop belum diaktifkan' },
+    ipop_failed: { type: 'error', message: 'Masuk dengan iPop gagal', details: 'Silakan coba lagi.' },
+};
+
 export const BentoLoginPage = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -63,6 +74,10 @@ export const BentoLoginPage = () => {
     const passwordRef = useRef<HTMLInputElement>(null);
 
     const nextPath = useMemo(() => getNextPath(location.search), [location.search]);
+    const [ipopEnabled, setIpopEnabled] = useState(false);
+    const ssoError = useMemo(() => {
+        try { const code = new URLSearchParams(location.search).get('sso_error'); return code ? (SSO_ERRORS[code] ?? SSO_ERRORS.ipop_failed) : null; } catch { return null; }
+    }, [location.search]);
     const expiredNotice = useMemo(() => {
         try { return new URLSearchParams(location.search).get('reason') === 'expired'; } catch { return false; }
     }, [location.search]);
@@ -152,6 +167,23 @@ export const BentoLoginPage = () => {
             active = false;
         };
     }, [expiredNotice, navigateByRole]);
+
+    useEffect(() => {
+        if (ssoError) setLoginError(ssoError);
+    }, [ssoError]);
+
+    useEffect(() => {
+        let active = true;
+        api.get('/auth/oidc/status', { skipToast: true, skipSessionRefresh: true } as any)
+            .then((res) => { if (active) setIpopEnabled(res.data?.enabled === true); })
+            .catch(() => {});
+        return () => { active = false; };
+    }, []);
+
+    const signInWithIpop = useCallback(() => {
+        const returnTo = encodeURIComponent(nextPath ?? '/');
+        window.location.assign(`${import.meta.env.VITE_API_URL || ''}/v1/auth/oidc/start?returnTo=${returnTo}`);
+    }, [nextPath]);
 
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -541,6 +573,25 @@ export const BentoLoginPage = () => {
                             </motion.div>
                         )}
                     </form>
+
+                    {ipopEnabled && !isSuccessTransition && (
+                        <div className="mt-4">
+                            <div className="flex items-center gap-3 mb-4 text-xs text-muted-foreground" aria-hidden>
+                                <div className="flex-1 h-px bg-border" />
+                                <span>atau</span>
+                                <div className="flex-1 h-px bg-border" />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={signInWithIpop}
+                                disabled={!isOnline}
+                                className="w-full h-12 rounded-lg border border-border bg-background/60 text-foreground font-semibold text-sm hover:bg-foreground/5 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            >
+                                <img src="/logos/ipop-mark.png" alt="" aria-hidden className="w-5 h-5 rounded" />
+                                Masuk dengan iPop
+                            </button>
+                        </div>
+                    )}
 
                     <AnimatePresence>
                         {!isSuccessTransition && (
