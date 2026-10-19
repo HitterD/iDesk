@@ -1,10 +1,10 @@
 # iDesk API for iPop
 
 iPop (`https://ipop.santos.co.id`) creates iDesk tickets and shows their progress.
-iPop is told when a new chat message arrives (a short preview, section 5.1) and can read
-the public conversation (section 4.1), but replying, adding attachments and reopening
-always happen in iDesk; every ticket carries a link to open it there. Internal notes
-never leave iDesk.
+iPop is told when a new chat message arrives (a short preview, section 5.1), can read the
+public conversation (section 4.1) and post text replies to it (section 4.2). Adding
+attachments and reopening happen in iDesk; every ticket carries a link to open it there.
+Internal notes never leave iDesk.
 
 iPop also sees tickets the user filed **directly in iDesk**. They are linked by the
 requester's NIK (shared with iPop through HRIS) and appear with `origin: "IDESK"` and
@@ -241,10 +241,10 @@ Sent for every public message, to **the other side** of the conversation:
 
 | Sender | `recipients` |
 |---|---|
-| ICT (anyone but the requester) | the requester |
-| the requester | the **assigned agent** (nothing when the ticket is unassigned) |
+| ICT (the handling team) | the requester |
+| the requester side (requester, the staff who filed it, participants) | the **assigned agent** (nothing when the ticket is unassigned) |
 
-Recipients are HRIS NIKs, the only key iPop matches on; people without a NIK are left out,
+Recipients are HRIS NIKs, the only key iPop matches on; people without a NIK or with a disabled account are left out,
 and the event is not sent when nobody is left. The sender is never a recipient. Never sent
 for internal notes or system messages (status changes have their own events).
 
@@ -312,9 +312,9 @@ app.MapPost("/api/idesk/webhook", async (HttpRequest req, IConfiguration cfg) =>
     {
         var ticket = evt.GetProperty("ticket");
         var msg = evt.GetProperty("message");
-        // TODO: upsert the notification for (requester NIK, ticketId): title from
-        // ticket.ticketNumber + ticket.title, body from msg.sender.name + msg.preview,
-        // link = ticket.url (opens iDesk), unread counter + 1.
+        // TODO: for each recipients[].nik (NOT ticket.requester.nik: a requester's message goes to the
+        // agent), upsert the notification for (nik, ticketId): title from ticket.ticketNumber +
+        // ticket.title, body from msg.sender.name + msg.preview, unread counter + 1.
     }
     return Results.Ok();
 });

@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { TicketStatus } from '../../ticketing/entities/ticket.entity';
 import type { TicketRepliedEvent } from '../../ticketing/events/ticket-replied.event';
+import { UserRole } from '../../users/enums/user-role.enum';
 import { User } from '../../users/entities/user.entity';
 import { WebhookOutbox } from './entities/webhook-outbox.entity';
 import { IpopTicketService, IpopTicketView, isIpopVisible } from './ipop-ticket.service';
@@ -74,7 +75,8 @@ export class IpopTicketEventsListener {
         await this.safely(event.ticketId, async (view) => {
             await this.reportChanges(view);
             if (!notify) return;
-            const fromRequester = event.senderId === event.ticketOwnerId;
+            // The requester side (requester, the staff who filed it, participants) — replyToTicket reports them as USER.
+            const fromRequester = event.senderId === event.ticketOwnerId || event.senderRole === UserRole.USER;
             const recipientIds = (fromRequester ? [event.ticketAssignedToId] : [event.ticketOwnerId])
                 .filter((id): id is string => !!id && id !== event.senderId);
             const recipients = await this.niksOf(recipientIds);
@@ -95,13 +97,36 @@ export class IpopTicketEventsListener {
         });
     }
 
-    /** Someone opened the ticket in iDesk: iPop clears that person's chat notifications for it. */
+    /**
+     * Someone opened the ticket in iDesk: iPop clears that person's chat notifications for it. Only when a chat
+     * notification was actually sent to them since their last read event, so page views and refreshes (every GET of
+     * the ticket marks it read) don't flood the outbox.
+     */
     @OnEvent('ticket.read', { async: true })
     async onRead(event: { ticketId: string; userId: string }): Promise<void> {
         await this.safely(event.ticketId, async (view) => {
             const [reader] = await this.niksOf([event.userId]);
-            if (reader) await this.webhooks.enqueue('ticket.read', view, { reader });
+            if (!reader || !(await this.hasUnclearedChat(event.ticketId, reader.nik))) return;
+            // Its snapshot becomes the "last sent" one: report any status/assignee change first, as onReplied does.
+            await this.reportChanges(view);
+            await this.webhooks.enqueue('ticket.read', view, { reader });
         });
+    }
+
+    /** A chat event to this NIK newer than the last read event for them on this ticket. */
+    private async hasUnclearedChat(ticketId: string, nik: string): Promise<boolean> {
+        const recipient = JSON.stringify([{ nik }]);
+        const reader = JSON.stringify({ nik });
+        const lastRead = await this.outboxRepo.createQueryBuilder('o')
+            .select('MAX(o.createdAt)', 'at')
+            .where('o.target = :target AND o.ticketId = :ticketId AND o.event = :event', { target: IPOP_TARGET, ticketId, event: 'ticket.read' })
+            .andWhere(`o.payload -> 'reader' @> CAST(:reader AS jsonb)`, { reader })
+            .getRawOne<{ at: Date | null }>();
+        const q = this.outboxRepo.createQueryBuilder('o')
+            .where('o.target = :target AND o.ticketId = :ticketId AND o.event = :event', { target: IPOP_TARGET, ticketId, event: 'ticket.message_created' })
+            .andWhere(`o.payload -> 'recipients' @> CAST(:recipient AS jsonb)`, { recipient });
+        if (lastRead?.at) q.andWhere('o.createdAt > :since', { since: lastRead.at });
+        return (await q.getCount()) > 0;
     }
 
     private async niksOf(userIds: string[]): Promise<{ nik: string }[]> {

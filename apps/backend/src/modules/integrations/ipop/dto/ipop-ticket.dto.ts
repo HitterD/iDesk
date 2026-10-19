@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
     ArrayMaxSize,
     IsArray,
@@ -165,6 +165,7 @@ export class IpopTicketQueryDto {
 /** A chat reply typed in the iPop Notifier (Windows toast), sent as the person with this NIK. */
 export class IpopReplyDto {
     @ApiProperty({ example: '00061058', description: 'HRIS NIK of the person replying' })
+    @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
     @IsString()
     @IsNotEmpty()
     @MaxLength(50)
