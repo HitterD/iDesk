@@ -12,10 +12,9 @@ account, and links from iPop / iPop Notifier open iDesk already signed in.
 | Email + iDesk password | Unchanged. |
 | "Open in iDesk" from iPop / Notifier | Link to `/api/v1/auth/oidc/start?returnTo=/tickets/4821`. |
 
-Account matching (`IpopAccountLinker`): by NIK (`users.employeeId`) first. An account **without** a NIK whose email
-equals the iPop email is linked once (`employeeId` set, `USER_UPDATE` audit row). No match → no new account; the login
-page shows "Akun iDesk belum terhubung — hubungi ICT". A different existing NIK is never overwritten (`NIK_CONFLICT`,
-logged as `LOGIN_FAILED`). Disabled accounts stay disabled.
+Account matching (`IpopAccountLinker`): **by HRIS NIK only** (`users.employeeId` = the `nik` claim). Email is optional and
+is never used to match or link accounts. No NIK match → no sign-in and no new account; the login page shows "Akun iDesk
+belum terhubung — hubungi ICT" (logged as `LOGIN_FAILED`). Disabled accounts stay disabled.
 
 Signing in through iPop skips iDesk's "must change password" dialog: iPop checked the password, and the iDesk one was
 not used.
@@ -66,8 +65,8 @@ iPop side (`appsettings.Local.json` on the iPop server, not in git):
 - [ ] `oidc/start?returnTo=/tickets/<id>` lands on that ticket.
 - [ ] NIK + iPop password in the form works; a wrong password shows the usual error.
 - [ ] NIK + old iDesk password and email + iDesk password still work.
-- [ ] Account without NIK but with the same email → linked once (audit row), next time matched by NIK.
-- [ ] No match → "Akun iDesk belum terhubung"; no account created.
+- [ ] Account with the same email but without the NIK → refused ("Akun iDesk belum terhubung"); nothing changed.
+- [ ] No NIK match → "Akun iDesk belum terhubung"; no account created.
 - [ ] `returnTo=//evil.example` → lands on `/`.
 - [ ] Callback with a tampered `state` or after 5 minutes → "Sesi masuk iPop kedaluwarsa".
 - [ ] `IPOP_OIDC_CLIENT_SECRET` empty → no button, `/auth/oidc/start` → `?sso_error=ipop_disabled`.

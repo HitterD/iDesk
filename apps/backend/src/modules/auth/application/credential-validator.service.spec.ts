@@ -172,7 +172,7 @@ describe('CredentialValidatorService', () => {
 
         it('signs in with the iPop password after the iDesk check fails', async () => {
             ipop.passwordGrant.mockResolvedValue({ sub: 's', nik: '00012345' });
-            linker.resolve.mockResolvedValue({ ok: true, user: linked, linked: false });
+            linker.resolve.mockResolvedValue({ ok: true, user: linked });
 
             await expect(withIpop.validate('00012345', 'ipop-pw')).resolves.toEqual({
                 success: true, user: { ...linked, mustChangePassword: false },

@@ -9,12 +9,12 @@ import { toValidatedUser } from './auth-user.mapper';
 import { ValidatedUser } from './auth-user.types';
 
 export type IpopLinkResult =
-    | { ok: true; user: ValidatedUser; linked: boolean }
-    | { ok: false; reason: 'NOT_LINKED' | 'ACCOUNT_DISABLED' | 'NIK_CONFLICT' };
+    | { ok: true; user: ValidatedUser }
+    | { ok: false; reason: 'NOT_LINKED' | 'ACCOUNT_DISABLED' };
 
 /**
- * Finds the iDesk account for an iPop identity. NIK (users.employeeId) is the key; an account without a NIK is
- * linked once by its email. Never creates an account and never overwrites a different NIK.
+ * Finds the iDesk account for an iPop identity by HRIS NIK (users.employeeId) only. Email is never used to match:
+ * an account without the NIK is not signed in, and no account is created or changed here.
  */
 @Injectable()
 export class IpopAccountLinker {
@@ -24,31 +24,13 @@ export class IpopAccountLinker {
     ) {}
 
     async resolve(identity: IpopIdentity, request?: Request): Promise<IpopLinkResult> {
-        const byNik = await this.usersService.findByEmployeeId(identity.nik);
-        if (byNik) {
-            if (byNik.isActive === false) return this.refuse(identity, 'ACCOUNT_DISABLED', request, byNik.id);
-            return { ok: true, user: toValidatedUser(byNik), linked: false };
-        }
-
-        const byEmail = identity.email ? await this.usersService.findByEmail(identity.email) : undefined;
-        if (!byEmail) return this.refuse(identity, 'NOT_LINKED', request);
-        if (byEmail.employeeId && byEmail.employeeId !== identity.nik) {
-            return this.refuse(identity, 'NIK_CONFLICT', request, byEmail.id);
-        }
-        if (byEmail.isActive === false) return this.refuse(identity, 'ACCOUNT_DISABLED', request, byEmail.id);
-
-        const updated = await this.usersService.update(byEmail.id, { employeeId: identity.nik });
-        await this.auditService.log({
-            userId: byEmail.id, action: AuditAction.USER_UPDATE, entityType: 'user', entityId: byEmail.id,
-            description: `Linked ${byEmail.fullName} to iPop by email (one-time NIK link)`,
-            oldValue: { employeeId: null },
-            newValue: { employeeId: maskIdentifier(identity.nik), source: 'ipop-oidc' },
-            request,
-        });
-        return { ok: true, user: toValidatedUser({ ...byEmail, ...updated, employeeId: identity.nik }), linked: true };
+        const user = await this.usersService.findByEmployeeId(identity.nik);
+        if (!user) return this.refuse(identity, 'NOT_LINKED', request);
+        if (user.isActive === false) return this.refuse(identity, 'ACCOUNT_DISABLED', request, user.id);
+        return { ok: true, user: toValidatedUser(user) };
     }
 
-    private refuse(identity: IpopIdentity, reason: 'NOT_LINKED' | 'ACCOUNT_DISABLED' | 'NIK_CONFLICT', request?: Request, userId = 'system'): IpopLinkResult {
+    private refuse(identity: IpopIdentity, reason: 'NOT_LINKED' | 'ACCOUNT_DISABLED', request?: Request, userId = 'system'): IpopLinkResult {
         this.auditService.logAsync({
             userId, action: AuditAction.LOGIN_FAILED, entityType: 'auth', entityId: userId === 'system' ? undefined : userId,
             description: `Sign in with iPop refused for NIK ${maskIdentifier(identity.nik)}: ${reason}`,
