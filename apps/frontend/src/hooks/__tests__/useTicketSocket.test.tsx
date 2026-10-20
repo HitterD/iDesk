@@ -267,6 +267,24 @@ describe('useTicketSocket', () => {
         expect(result.current.typingUsers).toEqual({});
     });
 
+    it('clears the list badge when the ticket is opened and marks the list stale on leaving', () => {
+        const wrapper = createWrapper();
+        queryClient.setQueryData(['tickets', { page: 1 }], {
+            data: [
+                { id: 'ticket-1', hasUnreadChat: true, unreadMessageCount: 2 },
+                { id: 'ticket-2', hasUnreadChat: true, unreadMessageCount: 1 },
+            ],
+        });
+        const { unmount } = renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper });
+
+        const list: any = queryClient.getQueryData(['tickets', { page: 1 }]);
+        expect(list.data[0]).toMatchObject({ hasUnreadChat: false, unreadMessageCount: 0 });
+        expect(list.data[1]).toMatchObject({ hasUnreadChat: true, unreadMessageCount: 1 });
+
+        unmount();
+        expect(queryClient.getQueryState(['tickets', { page: 1 }])?.isInvalidated).toBe(true);
+    });
+
     it('refetches the ticket after a reconnect so missed messages appear', () => {
         const wrapper = createWrapper();
         const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
@@ -318,6 +336,22 @@ describe('useTicketListSocket', () => {
         expect(invalidateSpy).toHaveBeenCalledTimes(2);
         expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['tickets'] });
         expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['dashboard-stats'] });
+    });
+
+    it('badges a ticket on a new message unless that ticket is open on screen', () => {
+        const wrapper = createWrapper();
+        queryClient.setQueryData(['tickets'], [
+            { id: 't-1', hasUnreadChat: false, unreadMessageCount: 0 },
+            { id: 't-2', hasUnreadChat: false, unreadMessageCount: 0 },
+        ]);
+        renderHook(() => { useTicketListSocket(); useTicketSocket({ ticketId: 't-2' }); }, { wrapper });
+
+        fire('ticket:newMessage', { ticketId: 't-1', message: { id: 'm1' } });
+        fire('ticket:newMessage', { ticketId: 't-2', message: { id: 'm2' } });
+
+        const list: any[] = queryClient.getQueryData(['tickets'])!;
+        expect(list[0]).toMatchObject({ hasUnreadChat: true, unreadMessageCount: 1 });
+        expect(list[1]).toMatchObject({ hasUnreadChat: false, unreadMessageCount: 0 });
     });
 
     it('drops pending invalidations on unmount', () => {
