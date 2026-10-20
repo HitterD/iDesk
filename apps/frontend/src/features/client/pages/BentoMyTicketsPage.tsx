@@ -12,18 +12,11 @@ import {
     ChevronsLeft,
     ChevronsRight,
     X,
-    Clock,
-    MessageSquare,
-    TrendingUp,
-    AlertTriangle,
-    Flame,
+    Layers,
     RotateCw,
-    Users,
     Lock,
 } from 'lucide-react';
 import api from '@/lib/api';
-import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
-import { UserAvatar } from '@/components/ui/UserAvatar';
 import { cn } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -31,27 +24,14 @@ import { useTicketListSocket } from '@/hooks/useTicketSocket';
 import { useSocket } from '@/lib/socket';
 import { toast } from 'sonner';
 import { useAuth } from '@/stores/useAuth';
-import { StatsCard } from '@/features/ticket-board/components/StatsCard';
-import { formatSmartDate } from '@/lib/utils/dateFormat';
-
-interface TicketItem {
-    id: string;
-    ticketNumber?: string;
-    title: string;
-    status: string;
-    priority: string;
-    category?: string;
-    ticketType?: string;
-    createdAt: string;
-    updatedAt: string;
-    hasUnreadChat?: boolean;
-    isParticipant?: boolean;
-    assignedTo?: {
-        id: string;
-        fullName: string;
-        avatarUrl?: string;
-    };
-}
+import { CLIENT_CREATE_TICKET_PATH, CREATE_TICKET_LABEL } from '@/components/layout/createTicketAction';
+import {
+    HelpBanner,
+    MyTicketRow,
+    MY_TICKETS_GRID,
+    StatCard,
+    type MyTicketItem as TicketItem,
+} from '../components/MyTicketsParts';
 
 interface PaginatedResponse {
     data: TicketItem[];
@@ -76,18 +56,10 @@ const STATUS_FILTERS = [
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 const SEARCH_DEBOUNCE_MS = 300;
 const QUERY_RETRY_DELAY_MS = 1_000;
-const MS_PER_HOUR = 60 * 60 * 1_000;
+const STAT_SKELETON_COUNT = 4;
+const ROW_SKELETON_COUNT = 5;
 
-function formatUpdatedAtRelative(updatedAt: string) {
-    const date = new Date(updatedAt);
-    if (Number.isNaN(date.getTime())) return 'Unknown';
-
-    const diffInHours = Math.floor((Date.now() - date.getTime()) / MS_PER_HOUR);
-    if (diffInHours <= 0) return 'Just now';
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-
-    return formatSmartDate(date);
-}
+const PAGER_BUTTON = 'p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer';
 
 export const BentoMyTicketsPage: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -218,31 +190,21 @@ export const BentoMyTicketsPage: React.FC = () => {
 
     if (isLoading && !response) {
         return (
-            <div className="space-y-6 pb-28 sm:pb-10">
-                {/* Header Skeleton */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 animate-pulse">
-                    <div className="space-y-2">
-                        <div className="h-8 w-44 bg-muted rounded-xl" />
-                        <div className="h-4 w-64 bg-muted/60 rounded" />
-                    </div>
-                    <div className="h-10 w-32 bg-muted rounded-xl" />
+            <div className="space-y-5 animate-pulse motion-reduce:animate-none" aria-busy="true">
+                <div className="space-y-2">
+                    <div className="h-8 w-44 bg-muted rounded-xl" />
+                    <div className="h-4 w-64 max-w-full bg-muted/60 rounded" />
                 </div>
-
-                {/* Stats Skeleton */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-4">
-                    {[1, 2, 3, 4].map((i) => (
-                        <div key={i} className="h-24 bg-card border border-border/70 rounded-2xl p-4 animate-pulse" />
+                <div className="h-20 bg-muted/50 rounded-2xl" />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+                    {Array.from({ length: STAT_SKELETON_COUNT }, (_, i) => (
+                        <div key={i} className="h-[76px] bg-card border border-border/70 rounded-2xl" />
                     ))}
                 </div>
-
-                {/* Table Skeleton */}
-                <div className="bg-card border border-border rounded-2xl p-6 space-y-4 animate-pulse">
-                    <div className="h-10 bg-muted rounded-xl" />
-                    <div className="space-y-3">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                            <div key={i} className="h-16 bg-muted/40 rounded-xl" />
-                        ))}
-                    </div>
+                <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+                    {Array.from({ length: ROW_SKELETON_COUNT }, (_, i) => (
+                        <div key={i} className="h-14 bg-muted/40 rounded-xl" />
+                    ))}
                 </div>
             </div>
         );
@@ -258,16 +220,24 @@ export const BentoMyTicketsPage: React.FC = () => {
         );
     }
 
+    const statsLoading = isStatsLoading && !statsData;
+    const statCards = [
+        { key: 'all', label: 'Total', tone: 'neutral', icon: Layers, value: statsData?.total ?? meta?.total ?? 0 },
+        { key: 'TODO', label: 'Open', tone: 'blue', icon: Inbox, value: statsData?.open ?? 0 },
+        { key: 'IN_PROGRESS', label: 'In Progress', tone: 'navy', icon: CircleDot, value: statsData?.inProgress ?? 0 },
+        { key: 'RESOLVED', label: 'Resolved', tone: 'green', icon: CheckCircle2, value: statsData?.resolved ?? 0 },
+    ] as const;
+
     return (
-        <div className="space-y-6 pb-28 sm:pb-10 animate-in motion-reduce:animate-none fade-in duration-200">
+        <div className="space-y-5 animate-in motion-reduce:animate-none fade-in duration-200">
             {/* Header Area */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-                <div>
+            <div className="flex items-start sm:items-center justify-between gap-3">
+                <div className="min-w-0">
                     <div className="flex items-center gap-2.5">
-                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">My Tickets</h1>
+                        <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight text-foreground">My Tickets</h1>
                         {isConnected ? (
-                            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="flex items-center gap-1.5 text-xs font-semibold text-[hsl(var(--ticket-green-ink))] bg-[hsl(var(--ticket-green)/0.12)] px-2 py-0.5 rounded-full">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--ticket-green))] animate-pulse motion-reduce:animate-none" />
                                 Live
                             </span>
                         ) : (
@@ -277,91 +247,51 @@ export const BentoMyTicketsPage: React.FC = () => {
                             </span>
                         )}
                     </div>
-                    <p className="text-muted-foreground text-xs sm:text-sm font-medium mt-0.5 sm:mt-1">
+                    <p className="text-muted-foreground text-xs sm:text-sm font-medium mt-1">
                         Pantau dan kelola tiket permintaan dukungan Anda
                     </p>
                 </div>
 
-                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                    <button
-                        type="button"
-                        onClick={() => {
-                            queryClient.invalidateQueries({ queryKey: ['tickets'] });
-                            refetch();
-                        }}
-                        className="p-2 sm:px-3 sm:py-2.5 bg-card border border-border hover:bg-muted/50 rounded-xl text-xs sm:text-sm font-semibold text-foreground transition-colors shadow-xs active:scale-[0.98] flex items-center gap-1.5 cursor-pointer"
-                        title="Segarkan daftar tiket"
-                    >
-                        <RotateCw className={cn("w-4 h-4", isFetching && "animate-spin text-primary")} aria-hidden="true" />
-                        <span className="hidden sm:inline">Refresh</span>
-                    </button>
-
-                    <Link
-                        to="/client/create"
-                        className="flex items-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-primary text-primary-foreground rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all duration-200 shadow-xs active:scale-[0.98]"
-                    >
-                        <Plus className="w-4 h-4" aria-hidden="true" />
-                        <span>New Ticket</span>
-                    </Link>
-                </div>
+                <button
+                    type="button"
+                    onClick={() => {
+                        queryClient.invalidateQueries({ queryKey: ['tickets'] });
+                        refetch();
+                    }}
+                    className="shrink-0 p-2.5 sm:px-3 sm:py-2 bg-card border border-border hover:bg-muted/60 rounded-xl text-sm font-semibold text-foreground transition-colors active:scale-[0.98] flex items-center gap-1.5 cursor-pointer"
+                    title="Segarkan daftar tiket"
+                    aria-label="Segarkan daftar tiket"
+                >
+                    <RotateCw className={cn('w-4 h-4', isFetching && 'animate-spin text-[hsl(var(--idesk-sapphire))]')} aria-hidden="true" />
+                    <span className="hidden sm:inline">Refresh</span>
+                </button>
             </div>
 
-            {/* Stats Cards - Bento Style identical to Agent page (Hidden on mobile for cleaner view) */}
-            <div className="hidden sm:grid sm:grid-cols-4 gap-2.5 sm:gap-3 lg:gap-4">
-                <StatsCard
-                    icon={TrendingUp}
-                    label="Total"
-                    value={statsData?.total ?? meta?.total ?? 0}
-                    color="text-primary"
-                    bgColor="bg-[hsl(var(--primary))]/10 dark:bg-[hsl(var(--primary))]/20"
-                    animationIndex={0}
-                    onClick={() => handleStatusChange('all')}
-                    isActive={statusFilter === 'all'}
-                    isLoading={isStatsLoading && !statsData}
-                />
-                <StatsCard
-                    icon={Inbox}
-                    label="Open"
-                    value={statsData?.open ?? 0}
-                    color="text-[hsl(var(--info-500))]"
-                    bgColor="bg-[hsl(var(--info-500))]/10"
-                    animationIndex={1}
-                    onClick={() => handleStatusChange('TODO')}
-                    isActive={statusFilter === 'TODO'}
-                    isLoading={isStatsLoading && !statsData}
-                />
-                <StatsCard
-                    icon={CircleDot}
-                    label="In Progress"
-                    value={statsData?.inProgress ?? 0}
-                    color="text-[hsl(var(--warning-500))]"
-                    bgColor="bg-[hsl(var(--warning-500))]/10"
-                    animationIndex={2}
-                    onClick={() => handleStatusChange('IN_PROGRESS')}
-                    isActive={statusFilter === 'IN_PROGRESS'}
-                    isLoading={isStatsLoading && !statsData}
-                />
-                <StatsCard
-                    icon={CheckCircle2}
-                    label="Resolved"
-                    value={statsData?.resolved ?? 0}
-                    color="text-[hsl(var(--success-500))]"
-                    bgColor="bg-[hsl(var(--success-500))]/10"
-                    animationIndex={3}
-                    onClick={() => handleStatusChange('RESOLVED')}
-                    isActive={statusFilter === 'RESOLVED'}
-                    isLoading={isStatsLoading && !statsData}
-                />
+            <HelpBanner />
+
+            {/* Tinted stat cards: fetched counts, each a status shortcut */}
+            <div role="group" aria-label="Ringkasan tiket" className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+                {statCards.map((card) => (
+                    <StatCard
+                        key={card.key}
+                        label={card.label}
+                        value={card.value}
+                        tone={card.tone}
+                        icon={card.icon}
+                        active={statusFilter === card.key}
+                        loading={statsLoading}
+                        onClick={() => handleStatusChange(card.key)}
+                    />
+                ))}
             </div>
 
             {/* Search & Filter Toolbar */}
             <div
-                className="flex flex-col lg:flex-row lg:items-center gap-3 p-2 bg-card rounded-2xl border border-border relative z-20 shadow-xs"
+                className="flex flex-col lg:flex-row lg:items-center gap-2.5"
                 role="search"
                 aria-label="Filter dan cari tiket"
             >
-                {/* Search Bar */}
-                <div className="relative flex-1 bg-muted/40 rounded-xl transition-all focus-within:ring-1 focus-within:ring-primary focus-within:bg-background border border-transparent focus-within:border-primary/50">
+                <div className="portal-search relative flex-1 min-w-0">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
                     <label htmlFor="client-ticket-search" className="sr-only">Cari tiket berdasarkan judul atau ID</label>
                     <input
@@ -371,81 +301,69 @@ export const BentoMyTicketsPage: React.FC = () => {
                         value={searchQuery}
                         onChange={(e) => handleSearchChange(e.target.value)}
                         autoComplete="off"
-                        className="w-full pl-10 pr-10 py-2.5 bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground text-sm font-medium"
+                        className="w-full h-10 pl-10 pr-10 bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground text-sm font-medium"
                     />
                     {searchQuery && (
                         <button
                             type="button"
                             onClick={() => handleSearchChange('')}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded-md transition-colors cursor-pointer"
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded-md transition-colors cursor-pointer"
                             aria-label="Hapus pencarian"
                         >
-                            <X className="w-4 h-4" />
+                            <X className="w-4 h-4" aria-hidden="true" />
                         </button>
                     )}
                 </div>
 
-                <div className="w-px h-8 bg-border hidden lg:block mx-1" />
-
-                {/* Status Segmented Buttons */}
-                <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto no-scrollbar pb-1 lg:pb-0" role="group" aria-label="Filter status tiket">
-                    {STATUS_FILTERS.map((filter, index) => {
-                        const Icon = filter.icon;
-                        const isSelected = statusFilter === filter.value;
-                        return (
-                            <button
-                                key={filter.value}
-                                ref={(el) => { filterRefs.current[index] = el; }}
-                                type="button"
-                                onClick={() => handleStatusChange(filter.value)}
-                                onKeyDown={(e) => handleFilterKeyDown(e, index)}
-                                aria-pressed={isSelected}
-                                className={cn(
-                                    "px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all duration-150 flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-[0.98] shrink-0",
-                                    isSelected
-                                        ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
-                                        : "bg-card border border-border hover:bg-muted/50 text-foreground"
-                                )}
-                            >
-                                {Icon && <Icon className="w-3.5 h-3.5" aria-hidden="true" />}
-                                <span>{filter.label}</span>
-                            </button>
-                        );
-                    })}
+                <div className="flex items-center gap-2 min-w-0">
+                    <div className="portal-seg" role="group" aria-label="Filter status tiket">
+                        {STATUS_FILTERS.map((filter, index) => {
+                            const Icon = filter.icon;
+                            const isSelected = statusFilter === filter.value;
+                            return (
+                                <button
+                                    key={filter.value}
+                                    ref={(el) => { filterRefs.current[index] = el; }}
+                                    type="button"
+                                    onClick={() => handleStatusChange(filter.value)}
+                                    onKeyDown={(e) => handleFilterKeyDown(e, index)}
+                                    aria-pressed={isSelected}
+                                    className={cn('portal-seg-btn', isSelected && 'is-active')}
+                                >
+                                    {Icon && <Icon className="w-3.5 h-3.5" aria-hidden="true" />}
+                                    <span>{filter.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
 
                     {hasActiveFilters && (
                         <button
                             type="button"
                             onClick={clearFilters}
-                            className="px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-xl transition-colors cursor-pointer shrink-0 ml-1 flex items-center gap-1"
+                            className="px-3 h-9 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-xl transition-colors cursor-pointer shrink-0 flex items-center gap-1"
                             title="Reset semua filter"
                         >
-                            <X className="w-3.5 h-3.5" />
+                            <X className="w-3.5 h-3.5" aria-hidden="true" />
                             <span>Reset</span>
                         </button>
                     )}
                 </div>
             </div>
 
-            {/* Tickets List Table Card */}
-            <div
-                className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl overflow-hidden relative shadow-xs"
-                role="region"
-                aria-label="Daftar tiket saya"
-            >
-                {/* Table Header (Desktop >= lg) */}
-                <div className="sticky top-0 z-10 hidden lg:grid items-center gap-4 px-4 py-3 bg-slate-50 dark:bg-slate-800/60 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-[hsl(var(--border))] lg:grid-cols-[minmax(280px,2.5fr)_120px_140px_160px_110px_40px]">
-                    <div>Ticket / ID</div>
-                    <div>Priority</div>
+            {/* Tickets List */}
+            <div className="portal-table" role="region" aria-label="Daftar tiket saya">
+                <div className={cn('portal-thead hidden lg:grid items-center gap-4 px-4', MY_TICKETS_GRID)}>
+                    <div>Tiket</div>
+                    <div>Prioritas</div>
                     <div>Status</div>
-                    <div>Assigned To</div>
-                    <div>Updated</div>
-                    <div className="text-right">Action</div>
+                    <div>Ditangani oleh</div>
+                    <div>Diperbarui</div>
+                    <div><span className="sr-only">Buka</span></div>
                 </div>
 
-                {/* List Content */}
                 {tickets.length === 0 ? (
-                    <div className="p-12 text-center" role="status">
+                    <div className="p-10 sm:p-12 text-center" role="status">
                         <div className="w-14 h-14 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4 text-muted-foreground">
                             <Inbox className="w-7 h-7" aria-hidden="true" />
                         </div>
@@ -461,232 +379,34 @@ export const BentoMyTicketsPage: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={clearFilters}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-border hover:bg-muted/50 rounded-xl text-xs font-bold text-foreground transition-all active:scale-[0.98] cursor-pointer"
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-border hover:bg-muted/60 rounded-xl text-xs font-bold text-foreground transition-colors active:scale-[0.98] cursor-pointer"
                             >
-                                <X className="w-4 h-4" />
+                                <X className="w-4 h-4" aria-hidden="true" />
                                 <span>Reset Filter</span>
                             </button>
                         ) : (
-                            <Link
-                                to="/client/create"
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all shadow-xs active:scale-[0.98]"
-                            >
-                                <Plus className="w-4 h-4" aria-hidden="true" />
-                                <span>Buat Tiket Baru</span>
+                            <Link to={CLIENT_CREATE_TICKET_PATH} className="idesk-cta">
+                                <Plus aria-hidden="true" />
+                                <span>{CREATE_TICKET_LABEL}</span>
                             </Link>
                         )}
                     </div>
                 ) : (
-                    <div>
-                        {tickets.map((ticket: TicketItem, index: number) => {
-                            const statusConfig = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.TODO;
-                            const StatusIcon = statusConfig.icon;
-                            const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
-                            const timeDisplay = formatUpdatedAtRelative(ticket.updatedAt);
-
-                            return (
-                                <Link
-                                    key={ticket.id}
-                                    to={`/client/tickets/${ticket.id}`}
-                                    className={cn(
-                                        "block transition-colors duration-150 group border-b border-border/80 last:border-0",
-                                        index % 2 === 0 ? "bg-white dark:bg-transparent" : "bg-[hsl(var(--background))] dark:bg-slate-800/40",
-                                        "hover:bg-slate-50 dark:hover:bg-[hsl(var(--muted))]/10"
-                                    )}
-                                    aria-label={`Lihat tiket #${ticket.ticketNumber || ticket.id.slice(0, 8)}: ${ticket.title}`}
-                                >
-                                    {/* ========================================= */}
-                                    {/* MOBILE CARD VIEW (< lg) */}
-                                    {/* ========================================= */}
-                                    <div className="block lg:hidden p-3.5 sm:p-4 space-y-2.5">
-                                        {/* Mobile Top Row */}
-                                        <div className="flex items-center justify-between gap-2">
-                                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                                                {/* Priority Dot */}
-                                                <span className={cn("w-2 h-2 rounded-full shrink-0", priorityConfig.dot || priorityConfig.barColor)} aria-hidden="true" />
-
-                                                {/* Ticket Number */}
-                                                <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                                                    #{ticket.ticketNumber || ticket.id.slice(0, 8)}
-                                                </span>
-
-                                                {/* Category Badge */}
-                                                {ticket.category && (
-                                                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                                                        {ticket.category}
-                                                    </span>
-                                                )}
-
-                                                {/* Joined Ticket Badge */}
-                                                {ticket.isParticipant && (
-                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary bg-primary/10 dark:bg-primary/20 px-1.5 py-0.5 rounded border border-primary/20 dark:border-primary/30">
-                                                        <Users className="w-3.5 h-3.5 text-primary" />
-                                                        Joined
-                                                    </span>
-                                                )}
-
-                                                {/* Priority Badge */}
-                                                {ticket.priority === 'CRITICAL' && (
-                                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-800/50" title={priorityConfig.label}>
-                                                        <Flame className="w-3 h-3" />
-                                                        Blocker
-                                                    </span>
-                                                )}
-                                                {ticket.priority === 'HIGH' && (
-                                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/40 px-1.5 py-0.5 rounded border border-orange-200 dark:border-orange-800/50" title={priorityConfig.label}>
-                                                        <AlertTriangle className="w-3 h-3" />
-                                                        Urgent
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            {/* Right: Updated Date */}
-                                            <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 font-medium shrink-0">
-                                                <Clock className="w-3.5 h-3.5 opacity-60" aria-hidden="true" />
-                                                <time dateTime={ticket.updatedAt}>{timeDisplay}</time>
-                                            </div>
-                                        </div>
-
-                                        {/* Mobile Middle Row: Title & Unread Badge */}
-                                        <div className="min-w-0">
-                                            <h3 className="font-semibold text-sm sm:text-base text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 leading-snug">
-                                                {ticket.title}
-                                            </h3>
-                                            {ticket.hasUnreadChat && (
-                                                <div className="mt-1.5">
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700/60 shadow-xs animate-pulse">
-                                                        <MessageSquare className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                                                        <span>Balasan Baru</span>
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Mobile Bottom Row: Status & Assignee */}
-                                        <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
-                                            {/* Status Badge */}
-                                            <div className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border", statusConfig.color)}>
-                                                {StatusIcon && <StatusIcon className="w-3.5 h-3.5" aria-hidden="true" />}
-                                                <span>{statusConfig.label}</span>
-                                            </div>
-
-                                            {/* Assignee & Chevron */}
-                                            <div className="flex items-center gap-2 min-w-0 justify-end">
-                                                {ticket.assignedTo ? (
-                                                    <div className="flex items-center gap-1.5 min-w-0 max-w-[140px]" title={`Teknisi: ${ticket.assignedTo.fullName}`}>
-                                                        <UserAvatar user={ticket.assignedTo} size="xs" />
-                                                        <span className="text-xs text-slate-700 dark:text-slate-300 font-semibold truncate">
-                                                            {ticket.assignedTo.fullName}
-                                                        </span>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-xs text-muted-foreground/70 italic">Menunggu Teknisi</span>
-                                                )}
-                                                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* ========================================= */}
-                                    {/* DESKTOP TABLE ROW (>= lg) */}
-                                    {/* ========================================= */}
-                                    <div className="hidden lg:grid items-center gap-4 px-4 py-3.5 lg:grid-cols-[minmax(280px,2.5fr)_120px_140px_160px_110px_40px]">
-                                        {/* Column 1: Ticket ID, Title & Category */}
-                                        <div className="flex items-start gap-3 min-w-0">
-                                            <div className={cn("w-2 h-2 rounded-full shrink-0 mt-2", priorityConfig.dot || priorityConfig.barColor)} aria-hidden="true" />
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-2 mb-0.5">
-                                                    <span className="font-mono text-xs font-semibold text-slate-500 dark:text-slate-400 bg-[hsl(var(--muted))] dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                                                        #{ticket.ticketNumber || ticket.id.slice(0, 8)}
-                                                    </span>
-                                                    {ticket.category && (
-                                                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                                                            {ticket.category}
-                                                        </span>
-                                                    )}
-                                                    {ticket.isParticipant && (
-                                                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary bg-primary/10 dark:bg-primary/20 px-2 py-0.5 rounded-md border border-primary/20 dark:border-primary/30 shadow-2xs">
-                                                            <Users className="w-3.5 h-3.5 text-primary" />
-                                                            Joined
-                                                        </span>
-                                                    )}
-                                                    {ticket.priority === 'CRITICAL' && (
-                                                        <span title="Critical Priority">
-                                                            <Flame className="w-3.5 h-3.5 text-red-500 animate-pulse" aria-hidden="true" />
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-2 min-w-0">
-                                                    <h3 className="font-semibold text-sm sm:text-base text-slate-800 dark:text-white group-hover:text-primary transition-colors truncate">
-                                                        {ticket.title}
-                                                    </h3>
-                                                    {ticket.hasUnreadChat && (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700/60 shadow-xs animate-pulse shrink-0">
-                                                            <MessageSquare className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                                                            <span>Balasan Baru</span>
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Column 2: Priority */}
-                                        <div>
-                                            <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border border-border/80 bg-background", priorityConfig.color)} title={priorityConfig.label}>
-                                                <span className={cn("w-1.5 h-1.5 rounded-full", priorityConfig.dot || priorityConfig.barColor)} aria-hidden="true" />
-                                                {priorityConfig.shortLabel || priorityConfig.label}
-                                            </span>
-                                        </div>
-
-                                        {/* Column 3: Status */}
-                                        <div>
-                                            <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border", statusConfig.color)}>
-                                                {StatusIcon && <StatusIcon className="w-3.5 h-3.5" aria-hidden="true" />}
-                                                {statusConfig.label}
-                                            </span>
-                                        </div>
-
-                                        {/* Column 4: Assigned To */}
-                                        <div className="min-w-0">
-                                            {ticket.assignedTo ? (
-                                                <div className="flex items-center gap-2 min-w-0">
-                                                    <UserAvatar user={ticket.assignedTo} size="xs" />
-                                                    <span className="text-xs font-semibold text-foreground truncate">
-                                                        {ticket.assignedTo.fullName}
-                                                    </span>
-                                                </div>
-                                            ) : (
-                                                <span className="text-xs text-muted-foreground/70 italic font-medium">Menunggu Teknisi</span>
-                                            )}
-                                        </div>
-
-                                        {/* Column 5: Updated */}
-                                        <div className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
-                                            <Clock className="w-3.5 h-3.5 opacity-60 shrink-0" aria-hidden="true" />
-                                            <time dateTime={ticket.updatedAt}>{timeDisplay}</time>
-                                        </div>
-
-                                        {/* Column 6: Action */}
-                                        <div className="flex justify-end">
-                                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-primary group-hover:translate-x-1 transition-all" aria-hidden="true" />
-                                        </div>
-                                    </div>
-                                </Link>
-                            );
-                        })}
+                    <div className="portal-rows">
+                        {tickets.map((ticket) => <MyTicketRow key={ticket.id} ticket={ticket} />)}
                     </div>
                 )}
 
                 {/* Pagination Footer */}
                 {meta && meta.total > 0 && (
-                    <div className="p-4 border-t border-[hsl(var(--border))] bg-slate-50/50 dark:bg-slate-900/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="portal-tfoot p-3.5 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
                             <label htmlFor="client-page-size">Menampilkan</label>
                             <select
                                 id="client-page-size"
                                 value={limit}
                                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                                className="px-2.5 py-1 min-h-[36px] rounded-lg bg-card border border-border text-foreground outline-none font-medium focus:ring-1 focus:ring-primary cursor-pointer shadow-xs"
+                                className="px-2.5 py-1 min-h-[36px] rounded-lg bg-card border border-border text-foreground font-medium cursor-pointer"
                             >
                                 {PAGE_SIZE_OPTIONS.map((size) => (
                                     <option key={size} value={size}>{size}</option>
@@ -697,43 +417,19 @@ export const BentoMyTicketsPage: React.FC = () => {
 
                         {meta.totalPages > 1 && (
                             <div className="flex items-center gap-1">
-                                <button
-                                    type="button"
-                                    onClick={() => setPage(1)}
-                                    disabled={!meta.hasPrevPage}
-                                    aria-label="Halaman pertama"
-                                    className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                >
+                                <button type="button" onClick={() => setPage(1)} disabled={!meta.hasPrevPage} aria-label="Halaman pertama" className={PAGER_BUTTON}>
                                     <ChevronsLeft className="w-4 h-4" aria-hidden="true" />
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setPage(page - 1)}
-                                    disabled={!meta.hasPrevPage}
-                                    aria-label="Halaman sebelumnya"
-                                    className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                >
+                                <button type="button" onClick={() => setPage(page - 1)} disabled={!meta.hasPrevPage} aria-label="Halaman sebelumnya" className={PAGER_BUTTON}>
                                     <ChevronLeft className="w-4 h-4" aria-hidden="true" />
                                 </button>
-                                <span className="px-3 py-1 bg-primary/10 text-primary font-bold text-xs rounded-lg tabular-nums">
+                                <span className="px-3 py-1 bg-[hsl(var(--idesk-selection))] text-[hsl(var(--idesk-sapphire))] font-bold text-xs rounded-lg tabular-nums">
                                     {meta.page} / {meta.totalPages}
                                 </span>
-                                <button
-                                    type="button"
-                                    onClick={() => setPage(page + 1)}
-                                    disabled={!meta.hasNextPage}
-                                    aria-label="Halaman berikutnya"
-                                    className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                >
+                                <button type="button" onClick={() => setPage(page + 1)} disabled={!meta.hasNextPage} aria-label="Halaman berikutnya" className={PAGER_BUTTON}>
                                     <ChevronRight className="w-4 h-4" aria-hidden="true" />
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setPage(meta.totalPages)}
-                                    disabled={!meta.hasNextPage}
-                                    aria-label="Halaman terakhir"
-                                    className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                >
+                                <button type="button" onClick={() => setPage(meta.totalPages)} disabled={!meta.hasNextPage} aria-label="Halaman terakhir" className={PAGER_BUTTON}>
                                     <ChevronsRight className="w-4 h-4" aria-hidden="true" />
                                 </button>
                             </div>
@@ -746,4 +442,3 @@ export const BentoMyTicketsPage: React.FC = () => {
 };
 
 export default BentoMyTicketsPage;
-

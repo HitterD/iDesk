@@ -456,6 +456,96 @@ textarea:focus {
   box-shadow: 0 8px 18px -6px hsl(var(--idesk-cta) / .8), 0 0 0 4px hsl(var(--card));
 }
 .idesk-bottom-nav .idesk-fab svg { width: 24px; height: 24px; padding: 0; background: none; }
+
+/* ---------- PR2 requester portal (ClientLayout / ClientTopbar): same chrome as a top band, no sidebar ---------- */
+.portal-sheet { border-radius: 22px 22px 0 0; }
+@media (max-width: 1023.98px) { .portal-sheet { border-radius: 18px 18px 0 0; } }
+.portal-tabs { gap: 2px; padding: 3px; border-radius: 12px; background: hsl(0 0% 100% / .08); }
+.portal-tab {
+  display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 11px; border-radius: 9px;
+  font-size: 13px; font-weight: 500; white-space: nowrap;
+  /* Full chrome foreground (not --idesk-chrome-muted) keeps >=4.5:1 on the .08 fill over #2D4A8C. */
+  color: hsl(var(--idesk-chrome-foreground) / .92);
+  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+}
+.portal-tab svg { width: 16px; height: 16px; flex: none; }
+.portal-tab:hover { background: hsl(0 0% 100% / .10); color: #fff; }
+.portal-tab.is-active { background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-sapphire)); font-weight: 600; box-shadow: 0 1px 2px rgb(0 0 0 / .18); }
+.dark .portal-tab.is-active { background: hsl(0 0% 100% / .16); color: #fff; }
+.portal-account {
+  display: flex; align-items: center; gap: 8px; flex: none; height: 40px; padding: 0 6px 0 4px; border-radius: 20px; cursor: pointer;
+  color: hsl(var(--idesk-chrome-foreground));
+  transition: background-color 150ms var(--ease-out);
+}
+.portal-account:hover, .portal-account[data-state="open"] { background: hsl(0 0% 100% / .10); }
+.portal-account-text { gap: 1px; min-width: 0; max-width: 11rem; text-align: left; line-height: 1.15; }
+.portal-account-text b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 600; }
+.portal-account-text small { font-size: 11px; color: hsl(var(--idesk-chrome-muted)); }
+.portal-account-caret { width: 14px; height: 14px; color: hsl(var(--idesk-chrome-muted)); }
+
+/* My Tickets: amber help banner with the service mascot. */
+.portal-help-banner {
+  display: flex; align-items: center; gap: 14px; padding: 12px 16px 12px 12px; border-radius: 18px;
+  background: linear-gradient(100deg, color-mix(in srgb, hsl(var(--idesk-cta)) 12%, hsl(var(--idesk-surface))), hsl(var(--idesk-surface)) 70%);
+  box-shadow: 0 1px 3px hsl(220 40% 20% / .08), inset 0 0 0 1px color-mix(in srgb, hsl(var(--idesk-cta)) 24%, transparent);
+  color: hsl(var(--idesk-text));
+}
+.portal-help-banner img { width: 56px; height: 56px; flex: none; object-fit: contain; }
+.portal-help-copy { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.portal-help-copy b { font-size: 15px; font-weight: 650; line-height: 1.25; }
+.portal-help-copy span { font-size: 13px; color: hsl(var(--idesk-text-secondary)); }
+.portal-help-banner:hover .portal-help-cta { filter: brightness(1.05); }
+.portal-help-banner:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
+@media (max-width: 639.98px) {
+  .portal-help-banner { flex-wrap: wrap; }
+  .portal-help-cta { width: 100%; justify-content: center; }
+}
+
+/* Soft tinted stat cards (tone set via .ticket-tone-*). */
+.portal-stat {
+  display: grid; gap: 10px; min-width: 0; padding: 12px 14px; border-radius: 16px; text-align: left; cursor: pointer;
+  background: color-mix(in srgb, hsl(var(--pill-hue)) 7%, hsl(var(--idesk-surface)));
+  box-shadow: 0 1px 3px hsl(220 40% 20% / .07), inset 0 0 0 1px color-mix(in srgb, hsl(var(--pill-hue)) 14%, transparent);
+  color: hsl(var(--idesk-text));
+  transition: box-shadow 180ms var(--ease-out), background-color 180ms var(--ease-out);
+}
+.portal-stat:hover { box-shadow: 0 4px 14px -6px hsl(220 40% 20% / .22), inset 0 0 0 1px color-mix(in srgb, hsl(var(--pill-hue)) 22%, transparent); }
+.portal-stat.is-active { box-shadow: 0 0 0 2px color-mix(in srgb, hsl(var(--pill-hue)) 60%, transparent), 0 4px 14px -6px hsl(220 40% 20% / .22); }
+.portal-stat:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
+.portal-stat-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.portal-stat-icon { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 9999px; color: hsl(var(--pill-ink)); background: color-mix(in srgb, hsl(var(--pill-hue)) 14%, transparent); }
+.portal-stat-icon svg { width: 14px; height: 14px; stroke-width: 2.2; }
+.portal-stat-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 550; color: hsl(var(--idesk-text-secondary)); }
+.portal-stat-value { font-size: 24px; font-weight: 650; line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.portal-stat.is-zero .portal-stat-value { color: hsl(var(--idesk-text-secondary)); }
+.portal-stat-skeleton { display: block; width: 44px; height: 24px; border-radius: 8px; background: hsl(var(--muted)); }
+
+/* Search field + status segment. */
+.portal-search { border-radius: 12px; background: hsl(var(--idesk-surface)); box-shadow: inset 0 0 0 1px hsl(var(--idesk-border)); transition: box-shadow 150ms var(--ease-out); }
+.portal-search:focus-within { box-shadow: inset 0 0 0 1px hsl(var(--idesk-sapphire)), 0 0 0 3px hsl(var(--idesk-sapphire) / .16); }
+.portal-seg { display: flex; gap: 2px; min-width: 0; max-width: 100%; padding: 3px; border-radius: 12px; background: hsl(var(--muted)); overflow-x: auto; scrollbar-width: none; }
+.portal-seg::-webkit-scrollbar { display: none; }
+.portal-seg-btn {
+  display: inline-flex; align-items: center; gap: 6px; flex: none; height: 34px; padding: 0 12px; border-radius: 9px; cursor: pointer;
+  font-size: 12.5px; font-weight: 500; white-space: nowrap; color: hsl(var(--idesk-text-secondary));
+  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+}
+.portal-seg-btn:hover { color: hsl(var(--idesk-text)); }
+.portal-seg-btn.is-active { background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-text)); font-weight: 600; box-shadow: 0 1px 2px hsl(220 40% 20% / .14); }
+.portal-seg-btn:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: -2px; }
+
+/* Ticket table: pastel rows on a surface panel; cards on mobile. */
+.portal-table { position: relative; overflow: hidden; border-radius: 18px; background: hsl(var(--idesk-surface)); box-shadow: 0 1px 3px hsl(220 40% 20% / .08), inset 0 0 0 1px hsl(var(--idesk-border) / .7); }
+.portal-thead { height: 38px; font-size: 11.5px; font-weight: 600; color: hsl(var(--idesk-text-secondary)); border-bottom: 1px solid hsl(var(--idesk-border) / .8); }
+.portal-row { display: block; border-bottom: 1px solid hsl(var(--idesk-border) / .6); transition: background-color 120ms var(--ease-out); }
+.portal-row:last-child { border-bottom: 0; }
+.portal-row:nth-child(even) { background: color-mix(in srgb, hsl(var(--ticket-blue)) 3%, hsl(var(--idesk-surface))); }
+.portal-row:hover { background: hsl(var(--idesk-selection) / .7); }
+.portal-row:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: -2px; }
+.portal-row:hover h3 { color: hsl(var(--idesk-sapphire)); }
+.portal-tag { padding: 1px 7px; border-radius: 6px; font-size: 11px; font-weight: 550; color: hsl(var(--idesk-text-secondary)); background: hsl(var(--muted)); }
+.portal-pic { max-width: 100%; padding-left: 4px; }
+.portal-tfoot { border-top: 1px solid hsl(var(--idesk-border) / .8); background: hsl(var(--idesk-surface-raised)); }
 }
 /* Unlayered on purpose: the untouched NotificationPopover / ActionCommandCenter triggers
    carry slate utility colours meant for a light topbar; recolour them for the sapphire chrome. */

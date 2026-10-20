@@ -34,11 +34,11 @@ interface PriorityDropdownProps {
     disabled?: boolean;
 }
 
-const PRIORITY_TONES: Record<string, TicketPillTone> = {
+export const PRIORITY_TONES: Record<string, TicketPillTone> = {
     LOW: 'neutral', MEDIUM: 'blue', HIGH: 'amber', CRITICAL: 'red',
     HARDWARE_INSTALLATION: 'amber', ORACLE_REQUEST: 'blue',
 };
-const STATUS_TONES: Record<string, TicketPillTone> = {
+export const STATUS_TONES: Record<string, TicketPillTone> = {
     TODO: 'blue', IN_PROGRESS: 'navy', WAITING_VENDOR: 'amber', RESOLVED: 'green',
     CLOSED: 'neutral', CANCELLED: 'red',
 };
