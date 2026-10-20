@@ -28,10 +28,16 @@ export class PaginationDto {
     @IsIn(['ASC', 'DESC'])
     sortOrder?: 'ASC' | 'DESC' = 'DESC';
 
-    @ApiPropertyOptional({ description: 'Filter by status' })
+    @ApiPropertyOptional({ description: 'Filter by status (comma-separated TicketStatus values)' })
     @IsOptional()
     @IsString()
     status?: string;
+
+    @ApiPropertyOptional({ description: 'Only overdue tickets' })
+    @IsOptional()
+    @Transform(({ value }) => value === 'true' || value === true)
+    @IsBoolean()
+    overdue?: boolean;
 
     @ApiPropertyOptional({ description: 'Filter by priority' })
     @IsOptional()

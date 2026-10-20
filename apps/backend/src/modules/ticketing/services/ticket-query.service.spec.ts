@@ -1,5 +1,6 @@
-import { TicketQueryService, toPrefixTsQuery } from './ticket-query.service';
+import { OVERDUE_SQL, TicketQueryService, toPrefixTsQuery } from './ticket-query.service';
 import { UserRole } from '../../users/enums/user-role.enum';
+import { BadRequestException } from '@nestjs/common';
 
 const OPS_SUPPORT_ONLY =
     '(ticket."handlingTeam" = :opsTeam OR ticket."handlingTeam" IS NULL)';
@@ -53,6 +54,39 @@ describe('TicketQueryService', () => {
         expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('ticket.category NOT IN (:...excludeCategories)', { excludeCategories: ['Hardware Request'] });
         expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('ticket.createdAt >= :startDate', { startDate: '2023-01-01' });
         expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('ticket.createdAt <= :endDate', { endDate: '2023-12-31' });
+    });
+
+    it.each([
+        ['RESOLVED,CLOSED', ['RESOLVED', 'CLOSED']],
+        ['TODO', ['TODO']],
+        [' TODO, IN_PROGRESS, ,WAITING_VENDOR ', ['TODO', 'IN_PROGRESS', 'WAITING_VENDOR']],
+    ])('filters status %s using IN', async (status, statuses) => {
+        await service.findAllPaginated('user1', UserRole.ADMIN, null, { status });
+
+        expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+            'ticket.status IN (:...statuses)', { statuses },
+        );
+    });
+
+    it('rejects an invalid status value', async () => {
+        await expect(service.findAllPaginated('user1', UserRole.ADMIN, null, {
+            status: 'RESOLVED,FOO',
+        })).rejects.toThrow(BadRequestException);
+    });
+
+    it('applies the exported overdue predicate when overdue is true', async () => {
+        await service.findAllPaginated('user1', UserRole.ADMIN, null, { overdue: true });
+
+        expect(OVERDUE_SQL).toBe(`ticket.status NOT IN ('RESOLVED', 'CLOSED', 'CANCELLED') AND ticket.status <> 'WAITING_VENDOR' AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW()`);
+        expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(OVERDUE_SQL);
+    });
+
+    it('does not add status or overdue filters when absent or false', async () => {
+        await service.findAllPaginated('user1', UserRole.ADMIN, null, { overdue: false });
+
+        const predicates = mockQueryBuilder.andWhere.mock.calls.map(([sql]: [string]) => sql);
+        expect(predicates.some((sql: string) => sql.includes('ticket.status'))).toBe(false);
+        expect(predicates.some((sql: string) => sql.includes('slaTarget'))).toBe(false);
     });
 
     it('does not filter out handling team for USER role', async () => {
