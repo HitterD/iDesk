@@ -59,6 +59,11 @@ const MODULE_ICON_STYLES: Record<string, { icon: LucideIcon; tone: NavTone }> = 
     Zap: { icon: Zap, tone: 'orange' },
 };
 const DEFAULT_MODULE_STYLE: { icon: LucideIcon; tone: NavTone } = { icon: Ticket, tone: 'blue' };
+/** Own-key lookup: module icon names are admin-supplied, so "constructor"/"toString" must not hit Object.prototype. */
+const getModuleIconStyle = (iconName: unknown) =>
+    typeof iconName === 'string' && Object.prototype.hasOwnProperty.call(MODULE_ICON_STYLES, iconName)
+        ? MODULE_ICON_STYLES[iconName]
+        : DEFAULT_MODULE_STYLE;
 
 export interface BentoSidebarProps {
     onNavigate?: () => void;
@@ -347,7 +352,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
                             key = 'mobile_dev_tickets';
                         }
 
-                        const style = MODULE_ICON_STYLES[mod.icon] ?? DEFAULT_MODULE_STYLE;
+                        const style = getModuleIconStyle(mod.icon);
 
                         return {
                             key,

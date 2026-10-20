@@ -9,8 +9,9 @@ vi.mock('@/lib/api', () => ({
     default: { get: vi.fn(() => Promise.resolve({ data: { tickets: [], users: [], articles: [], totalCount: 0, timing: 1 } })) },
 }));
 
+const authUser = vi.hoisted(() => ({ current: { id: 'agent-1', fullName: 'Ops Agent', role: 'AGENT' } }));
 vi.mock('@/stores/useAuth', () => ({
-    useAuth: () => ({ user: { id: 'agent-1', fullName: 'Ops Agent', role: 'AGENT' } }),
+    useAuth: () => ({ user: authUser.current }),
 }));
 
 // The topbar keeps these implementations untouched; stub them to isolate shell markup.
@@ -27,6 +28,7 @@ vi.mock('../../ui/ThemeToggle', () => ({
 describe('BentoTopbar', () => {
     beforeEach(() => {
         localStorage.clear();
+        authUser.current = { id: 'agent-1', fullName: 'Ops Agent', role: 'AGENT' };
     });
 
     const renderTopbar = () =>
@@ -43,6 +45,12 @@ describe('BentoTopbar', () => {
         const cta = screen.getByRole('link', { name: 'Buat Tiket Baru' });
         expect(cta).toHaveAttribute('href', '/tickets/create');
         expect(cta).toHaveClass('idesk-cta');
+    });
+
+    it('uses the same role-aware create path as the bottom nav for AGENT_ORACLE', () => {
+        authUser.current = { id: 'oracle-1', fullName: 'Oracle Agent', role: 'AGENT_ORACLE' };
+        renderTopbar();
+        expect(screen.getByRole('link', { name: 'Buat Tiket Baru' })).toHaveAttribute('href', '/tickets/create?type=oracle-request');
     });
 
     it('keeps the Ctrl+K search shortcut focusing the unified search', () => {
@@ -70,6 +78,20 @@ describe('BentoTopbar', () => {
 });
 
 describe('MobileBottomNav create action', () => {
+    beforeEach(() => {
+        authUser.current = { id: 'agent-1', fullName: 'Ops Agent', role: 'AGENT' };
+    });
+
+    it('pre-selects the Oracle request type for AGENT_ORACLE, matching the topbar', () => {
+        authUser.current = { id: 'oracle-1', fullName: 'Oracle Agent', role: 'AGENT_ORACLE' };
+        render(
+            <MemoryRouter initialEntries={['/tickets/oracle-k2']}>
+                <MobileBottomNav />
+            </MemoryRouter>,
+        );
+        expect(screen.getByRole('link', { name: 'Buat Tiket Baru' })).toHaveAttribute('href', '/tickets/create?type=oracle-request');
+    });
+
     it('shows a raised, text-labelled amber create action', () => {
         render(
             <MemoryRouter initialEntries={['/tickets/list']}>

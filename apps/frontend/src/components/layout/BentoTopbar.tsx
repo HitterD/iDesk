@@ -8,10 +8,7 @@ import { ThemeToggle } from '../ui/ThemeToggle';
 import api from '@/lib/api';
 import { useAuth } from '@/stores/useAuth';
 import { cn } from '@/lib/utils';
-
-/** Existing agent create-ticket route (routes/AppRoutes.tsx `tickets/create`). */
-const CREATE_TICKET_PATH = '/tickets/create';
-const CREATE_TICKET_LABEL = 'Buat Tiket Baru';
+import { CREATE_TICKET_LABEL, getCreateTicketPath } from './createTicketAction';
 
 interface UnifiedSearchResult {
     tickets: Array<{
@@ -389,7 +386,7 @@ export const BentoTopbar = () => {
             </div>
 
             <div className="idesk-topbar-actions flex items-center gap-1.5">
-                <Link to={CREATE_TICKET_PATH} className="idesk-cta mr-1.5">
+                <Link to={getCreateTicketPath(user?.role)} className="idesk-cta mr-1.5">
                     <Plus aria-hidden="true" />
                     <span>{CREATE_TICKET_LABEL}</span>
                 </Link>

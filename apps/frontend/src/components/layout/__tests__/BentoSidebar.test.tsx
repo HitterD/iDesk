@@ -224,6 +224,28 @@ describe('BentoSidebar', () => {
             expect(screen.queryByText('Secret Operations')).not.toBeInTheDocument();
         });
 
+        it('falls back to the default tile for admin-supplied icon names on Object.prototype', async () => {
+            ticketModules.current = [
+                { slug: 'it-support', name: 'IT Support Tickets' },
+                { slug: 'proto-ops', name: 'Proto Operations', icon: 'constructor' },
+                { slug: 'string-ops', name: 'String Operations', icon: 'toString' },
+            ];
+            renderSidebar('/dashboard');
+
+            const proto = await screen.findByRole('link', { name: 'Proto Operations' });
+            expect(proto.querySelector('[data-tone]')).toHaveAttribute('data-tone', 'blue');
+            expect(screen.getByRole('link', { name: 'String Operations' })).toHaveAttribute('href', '/tickets/queue/string-ops');
+        });
+
+        it('does not keep an opened group clipped, so the active tab curves can overflow', async () => {
+            renderSidebar('/tickets/list');
+            fireEvent.click(screen.getByText('Resources'));
+
+            const opened = await screen.findByTestId('nav-group-items-resources');
+            await waitFor(() => expect(opened.style.overflow).toBe('visible'));
+            await waitFor(() => expect(screen.getByTestId('nav-group-items-request_center').style.overflow).not.toBe('hidden'));
+        });
+
         it('still hides menus denied by the applied preset', () => {
             authUser.current = { id: 'agent-1', fullName: 'Ops Agent', role: 'AGENT' };
             pageAccess.current = { dashboard: true, tickets: true, notifications: true };

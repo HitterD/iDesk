@@ -280,8 +280,11 @@ textarea:focus {
   background:
     radial-gradient(1200px 500px at 85% -10%, hsl(0 0% 100% / .07), transparent 60%),
     linear-gradient(180deg, hsl(var(--idesk-chrome-raised)), hsl(var(--idesk-chrome)));
-  color: hsl(var(--idesk-chrome-foreground));
+  /* Text colour stays --foreground here: overlays (palette, toasts, panels) render outside the sheet.
+     Only .idesk-sidebar / .idesk-topbar / .idesk-shell-chrome opt into chrome text. */
+  color: hsl(var(--foreground));
 }
+.idesk-shell-chrome { color: hsl(var(--idesk-chrome-foreground)); }
 .idesk-sheet {
   background: hsl(var(--shell-sheet));
   color: hsl(var(--foreground));
@@ -328,7 +331,12 @@ textarea:focus {
   color: hsl(var(--idesk-chrome-muted));
 }
 .nav-collapse-btn:hover { background: hsl(var(--shell-fill)); color: #fff; }
-.nav-scroll { overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+.nav-scroll {
+  overflow-y: auto; overflow-x: hidden; scrollbar-width: none;
+  /* Room for the active tab's 14px joining curves. Top overlaps the empty brand margin;
+     no negative bottom margin, so scrolled items never paint over the footer border. */
+  padding-block: var(--shell-tab-radius); margin-top: calc(var(--shell-tab-radius) * -1 + 4px);
+}
 .nav-scroll::-webkit-scrollbar { display: none; }
 
 .nav-group { display: flex; flex-direction: column; margin-top: 12px; }
@@ -339,7 +347,7 @@ textarea:focus {
   color: hsl(var(--idesk-chrome-muted));
 }
 .nav-group-label:hover, .nav-group-label.has-active { color: #fff; }
-.nav-group-items { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+.nav-group-items { display: flex; flex-direction: column; gap: 2px; }
 
 .nav-item {
   position: relative; display: flex; align-items: center; gap: 10px;
@@ -412,6 +420,7 @@ textarea:focus {
   outline: 2px solid hsl(var(--idesk-chrome-foreground) / .85); outline-offset: 2px;
 }
 .idesk-bottom-nav :focus-visible { outline-color: hsl(var(--idesk-focus)); }
+.idesk-sidebar .nav-item.is-active:focus-visible { outline-color: hsl(var(--idesk-focus)); }
 
 /* Topbar sits on the chrome; utility icons inherit chrome colours. */
 .idesk-topbar { color: hsl(var(--idesk-chrome-foreground)); }
@@ -419,7 +428,7 @@ textarea:focus {
   background: hsl(0 0% 100% / .10); border: 1px solid hsl(0 0% 100% / .14);
   color: #fff;
 }
-.idesk-topbar-search::placeholder { color: hsl(var(--idesk-chrome-muted)); }
+.idesk-topbar-search::placeholder { color: hsl(var(--idesk-chrome-foreground) / .8); }
 .idesk-topbar-search:hover { background: hsl(0 0% 100% / .14); }
 .idesk-topbar-search:focus { background: hsl(0 0% 100% / .16); border-color: hsl(0 0% 100% / .32); outline: none; box-shadow: 0 0 0 3px hsl(0 0% 100% / .14); }
 .idesk-topbar-kbd { background: hsl(0 0% 100% / .14); border: 1px solid hsl(0 0% 100% / .18); color: hsl(var(--idesk-chrome-foreground)); }

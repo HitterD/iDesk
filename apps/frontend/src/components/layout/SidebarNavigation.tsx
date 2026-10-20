@@ -181,11 +181,13 @@ const ExpandedGroup: React.FC<GroupProps & { isExpanded: boolean; onToggle: () =
         <AnimatePresence initial={false}>
             {isExpanded && (
                 <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
+                    // Clip only while height animates; once open the active tab's joining curves must overflow.
+                    initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                    animate={{ height: 'auto', opacity: 1, overflow: 'hidden', transitionEnd: { overflow: 'visible' } }}
+                    exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
                     transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
                     className="nav-group-items"
+                    data-testid={`nav-group-items-${group.id}`}
                 >
                     {group.items.map((item) => (
                         <NavLink

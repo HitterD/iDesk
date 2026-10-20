@@ -111,7 +111,7 @@ export const BentoLayout = () => {
 
                 <div className="flex-1 flex flex-col min-w-0 print:block print:w-full">
                     {/* Mobile header */}
-                    <div className="lg:hidden flex items-center justify-between px-3 py-2.5 print:hidden">
+                    <div className="idesk-shell-chrome lg:hidden flex items-center justify-between px-3 py-2.5 print:hidden">
                         <button
                             className="p-2 text-white rounded-lg hover:bg-white/10 transition-colors touch-target"
                             onClick={() => setIsMobileMenuOpen(true)}
