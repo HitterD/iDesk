@@ -205,6 +205,35 @@ describe('TicketNotificationListener', () => {
         }));
     });
 
+    it('handleTicketAssignedEvent skips in-app and assignee email on self-assign but still emails the requester', async () => {
+        const event = new TicketAssignedEvent(
+            't-7', 'TK-2026-0007', 'agent-1', 'Budi Support', 'budi@example.com', 'Budi Support',
+            'Network Issue', 'IN_PROGRESS', 'requester@example.com', 'Ani User', 'agent-1',
+        );
+
+        await listener.handleTicketAssignedEvent(event);
+
+        expect(notificationService.notifyTicketAssigned).not.toHaveBeenCalled();
+        expect(mailDispatch.send).not.toHaveBeenCalledWith(expect.objectContaining({ to: 'budi@example.com' }));
+        expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({
+            to: 'requester@example.com',
+            subject: expect.stringContaining('Ticket Assigned: #TK-2026-0007 - Network Issue'),
+        }));
+    });
+
+    it('handleTicketAssignedEvent notifies the assignee in-app when assigned by someone else', async () => {
+        const event = new TicketAssignedEvent(
+            't-8', 'TK-2026-0008', 'agent-1', 'Budi Support', 'budi@example.com', 'Admin Lead',
+            'Network Issue', 'TODO', 'requester@example.com', 'Ani User', 'admin-1',
+        );
+
+        await listener.handleTicketAssignedEvent(event);
+
+        expect(notificationService.notifyTicketAssigned).toHaveBeenCalledWith('agent-1', 't-8', 'TK-2026-0008', 'Admin Lead');
+        expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'budi@example.com' }));
+        expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'requester@example.com' }));
+    });
+
     it('handleTicketUpdatedEvent sends email to Requester when updated by Agent', async () => {
         const ticket: any = {
             id: 't-6',

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Ticket, TicketType, HandlingTeam, TicketStatus, TICKET_DONE_STATUSES } from '../entities/ticket.entity';
@@ -9,7 +9,7 @@ import { CacheService, CacheKeys } from '../../../shared/core/cache';
 import { resolveTicketViewerAccess, TicketViewerAccess } from './ticket-oracle-access';
 import { applySiteFilter, siteScopeKey } from '../utils/site-access.util';
 import { applyServiceScopeFilter } from '../../../shared/core/utils/service-scope.util';
-import { TICKET_DONE_STATUSES_SQL, TICKET_INACTIVE_STATUSES_SQL } from '../utils/ticket-status-sql.util';
+import { TICKET_ACTIVE_STATUSES_SQL, TICKET_DONE_STATUSES_SQL, TICKET_INACTIVE_STATUSES_SQL } from '../utils/ticket-status-sql.util';
 import { addSlaMinutes, isBusinessHoursOnly, SlaClockService, SlaSnapshot } from './sla-clock.service';
 import { wibDateSql, wibStartOfMonth, wibStartOfToday, wibStartOfWeek } from '../../../shared/core/utils/wib-date.util';
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
@@ -34,6 +34,9 @@ export function effectiveQueue(queue: string | undefined, role: UserRole): strin
 const RESOLVED_AT_SQL = 'COALESCE(ticket."resolvedAt", ticket."updatedAt")';
 const CREATED_WIB_DATE = wibDateSql('ticket."createdAt"');
 const MS_PER_DAY = 86_400_000;
+
+// WAITING_VENDOR pauses the SLA clock, so it is never overdue.
+export const OVERDUE_SQL = `ticket.status NOT IN (${TICKET_INACTIVE_STATUSES_SQL}) AND ticket.status <> 'WAITING_VENDOR' AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW()`;
 
 /**
  * Prefix tsquery from free text (`printer lt 2` -> `printer:* & lt:* & 2:*`). Tokens are
@@ -229,6 +232,7 @@ export class TicketQueryService {
             endDate?: string;
             createdByMe?: boolean; // Requested/filed by the caller, across teams and sites
             assignedToMe?: boolean; // Assigned to the caller (filtered server-side so paging and totals stay right)
+            overdue?: boolean;
         } = {}
     ) {
         const {
@@ -249,6 +253,7 @@ export class TicketQueryService {
             endDate,
             createdByMe,
             assignedToMe,
+            overdue,
         } = options;
 
         const qb = this.ticketRepo
@@ -299,7 +304,14 @@ export class TicketQueryService {
 
         // Status filter
         if (status) {
-            qb.andWhere('ticket.status = :status', { status });
+            const statuses = status.split(',').map((value) => value.trim()).filter(Boolean);
+            if (!statuses.length || statuses.some((value) => !Object.values(TicketStatus).includes(value as TicketStatus))) {
+                throw new BadRequestException('Invalid ticket status');
+            }
+            qb.andWhere('ticket.status IN (:...statuses)', { statuses });
+        }
+        if (overdue) {
+            qb.andWhere(OVERDUE_SQL);
         }
 
         // Priority filter
@@ -865,8 +877,8 @@ export class TicketQueryService {
             .addSelect(`SUM(CASE WHEN ticket.status = 'IN_PROGRESS' THEN 1 ELSE 0 END)`, 'inProgress')
             .addSelect(`SUM(CASE WHEN ticket.status = 'WAITING_VENDOR' THEN 1 ELSE 0 END)`, 'waitingVendor')
             .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
-            // WAITING_VENDOR pauses the SLA clock (as in SlaCheckerService), so it is never overdue here.
-            .addSelect(`SUM(CASE WHEN ticket.status NOT IN (${TICKET_INACTIVE_STATUSES_SQL}) AND ticket.status <> 'WAITING_VENDOR' AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW() THEN 1 ELSE 0 END)`, 'overdue')
+            .addSelect(`SUM(CASE WHEN ${OVERDUE_SQL} THEN 1 ELSE 0 END)`, 'overdue')
+            .addSelect(`SUM(CASE WHEN ticket.priority = 'CRITICAL' AND ticket.status IN (${TICKET_ACTIVE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'activeCritical')
             .getRawOne();
 
         const total = parseInt(statusCounts.total) || 0;
@@ -875,6 +887,7 @@ export class TicketQueryService {
         const waitingVendor = parseInt(statusCounts.waitingVendor) || 0;
         const resolved = parseInt(statusCounts.resolved) || 0;
         const overdue = parseInt(statusCounts.overdue) || 0;
+        const activeCritical = parseInt(statusCounts.activeCritical) || 0;
         const slaCompliance = total > 0 ? Math.round(((total - overdue) / total) * 100) : 100;
 
         // 2. Priority counts - single query
@@ -1021,7 +1034,7 @@ export class TicketQueryService {
             waitingVendor,
             resolved,
             overdue,
-            critical: byPriority.CRITICAL,
+            critical: activeCritical,
             slaCompliance,
             byPriority,
             byCategory,

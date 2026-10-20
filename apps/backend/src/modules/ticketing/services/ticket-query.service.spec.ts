@@ -1,5 +1,6 @@
-import { TicketQueryService, toPrefixTsQuery } from './ticket-query.service';
+import { OVERDUE_SQL, TicketQueryService, toPrefixTsQuery } from './ticket-query.service';
 import { UserRole } from '../../users/enums/user-role.enum';
+import { BadRequestException } from '@nestjs/common';
 
 const OPS_SUPPORT_ONLY =
     '(ticket."handlingTeam" = :opsTeam OR ticket."handlingTeam" IS NULL)';
@@ -55,6 +56,39 @@ describe('TicketQueryService', () => {
         expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('ticket.createdAt <= :endDate', { endDate: '2023-12-31' });
     });
 
+    it.each([
+        ['RESOLVED,CLOSED', ['RESOLVED', 'CLOSED']],
+        ['TODO', ['TODO']],
+        [' TODO, IN_PROGRESS, ,WAITING_VENDOR ', ['TODO', 'IN_PROGRESS', 'WAITING_VENDOR']],
+    ])('filters status %s using IN', async (status, statuses) => {
+        await service.findAllPaginated('user1', UserRole.ADMIN, null, { status });
+
+        expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+            'ticket.status IN (:...statuses)', { statuses },
+        );
+    });
+
+    it('rejects an invalid status value', async () => {
+        await expect(service.findAllPaginated('user1', UserRole.ADMIN, null, {
+            status: 'RESOLVED,FOO',
+        })).rejects.toThrow(BadRequestException);
+    });
+
+    it('applies the exported overdue predicate when overdue is true', async () => {
+        await service.findAllPaginated('user1', UserRole.ADMIN, null, { overdue: true });
+
+        expect(OVERDUE_SQL).toBe(`ticket.status NOT IN ('RESOLVED', 'CLOSED', 'CANCELLED') AND ticket.status <> 'WAITING_VENDOR' AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW()`);
+        expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(OVERDUE_SQL);
+    });
+
+    it('does not add status or overdue filters when absent or false', async () => {
+        await service.findAllPaginated('user1', UserRole.ADMIN, null, { overdue: false });
+
+        const predicates = mockQueryBuilder.andWhere.mock.calls.map(([sql]: [string]) => sql);
+        expect(predicates.some((sql: string) => sql.includes('ticket.status'))).toBe(false);
+        expect(predicates.some((sql: string) => sql.includes('slaTarget'))).toBe(false);
+    });
+
     it('does not filter out handling team for USER role', async () => {
         await service.findAllPaginated('user-1', UserRole.USER, 'site-1');
 
@@ -91,6 +125,52 @@ describe('TicketQueryService', () => {
             ORACLE_ONLY,
             ORACLE_FILTER_PARAMS,
         );
+    });
+});
+
+describe('TicketQueryService dashboard stats', () => {
+    function createStatsQueryBuilder() {
+        return {
+            select: jest.fn().mockReturnThis(),
+            addSelect: jest.fn().mockReturnThis(),
+            andWhere: jest.fn().mockReturnThis(),
+            groupBy: jest.fn().mockReturnThis(),
+            addGroupBy: jest.fn().mockReturnThis(),
+            orderBy: jest.fn().mockReturnThis(),
+            setParameters: jest.fn().mockReturnThis(),
+            leftJoin: jest.fn().mockReturnThis(),
+            innerJoin: jest.fn().mockReturnThis(),
+            take: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockReturnThis(),
+            getRawOne: jest.fn().mockResolvedValue({}),
+            getRawMany: jest.fn().mockResolvedValue([]),
+            getMany: jest.fn().mockResolvedValue([]),
+        };
+    }
+
+    it('returns critical from activeCritical select, not byPriority', async () => {
+        const statusQb = createStatsQueryBuilder();
+        statusQb.getRawOne.mockResolvedValue({ total: '8', activeCritical: '2' });
+        const priorityQb = createStatsQueryBuilder();
+        priorityQb.getRawMany.mockResolvedValue([{ priority: 'CRITICAL', count: '5' }]);
+        const service = new TicketQueryService({} as any, {} as any, {} as any);
+        jest.spyOn(service as any, 'createFilteredTicketQb')
+            .mockImplementation(() => createStatsQueryBuilder())
+            .mockReturnValueOnce(statusQb)
+            .mockReturnValueOnce(priorityQb);
+
+        const result = await (service as any).computeDashboardStats(UserRole.ADMIN, null);
+
+        expect(result.critical).toBe(2);
+        expect(result.byPriority.CRITICAL).toBe(5);
+        expect(statusQb.addSelect).toHaveBeenCalledWith(
+            `SUM(CASE WHEN ticket.priority = 'CRITICAL' AND ticket.status IN ('TODO', 'IN_PROGRESS', 'WAITING_VENDOR') THEN 1 ELSE 0 END)`,
+            'activeCritical',
+        );
+        expect(statusQb.addSelect).toHaveBeenCalledWith(
+            `SUM(CASE WHEN ${OVERDUE_SQL} THEN 1 ELSE 0 END)`, 'overdue',
+        );
+        expect(priorityQb.andWhere).not.toHaveBeenCalled();
     });
 });
 

@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { TicketStatus, TicketPriority } from '../entities/ticket.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Sanitize } from '../../../shared/core/validators/input-sanitizer';
@@ -38,6 +38,23 @@ export class UpdateTicketStatusDto {
     @ApiProperty({ enum: TicketStatus })
     @IsEnum(TicketStatus)
     status: TicketStatus;
+
+    @ApiPropertyOptional({ description: 'Confirm taking the ticket over from its current PIC (requires reason)' })
+    @IsOptional()
+    @IsBoolean()
+    takeover?: boolean;
+
+    @ApiPropertyOptional({ description: 'ADMIN/MANAGER only: change status but keep the current PIC' })
+    @IsOptional()
+    @IsBoolean()
+    keepAssignee?: boolean;
+
+    @ApiPropertyOptional({ maxLength: 500 })
+    @IsOptional()
+    @IsString()
+    @MaxLength(500)
+    @Sanitize({ removeHtml: true })
+    reason?: string;
 }
 
 export class UpdateTicketPriorityDto {

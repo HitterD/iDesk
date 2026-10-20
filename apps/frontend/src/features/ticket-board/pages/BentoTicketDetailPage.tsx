@@ -25,6 +25,9 @@ import { toUploadPercent, validateFiles } from '@/lib/file-validation';
 import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 import { PDFPreviewModal, usePDFPreview } from '@/features/reports/components/PDFPreviewModal';
 import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
+import { isHandledByTakeoverDialog, useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
+import { ReassignConfirmDialog } from '../components/ReassignConfirmDialog';
+import { StatusChangeCancelledError } from '../components/ticket-detail/statusChangeCancelled';
 
 export const BentoTicketDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -182,6 +185,27 @@ export const BentoTicketDetailPage: React.FC = () => {
         }
     }, [ticket, id, queryClient]);
 
+    const statusTakeover = useStatusTakeover();
+    const { request: requestStatusTakeover } = statusTakeover;
+
+    // Status changes go through the PIC takeover confirmation (skipToast: its 409 opens a dialog).
+    const handleStatusChange = useCallback(async (status: string) => {
+        if (!ticket) return;
+        const send = async (takeover: TakeoverOptions) => {
+            try {
+                await api.patch(`/tickets/${id}/status`, { status, ...takeover }, { skipToast: true });
+            } catch (err) {
+                if (!isHandledByTakeoverDialog(err, takeover)) toast.error(getApiErrorMessage(err, 'Failed to update status'));
+                throw err;
+            }
+        };
+        const applied = await requestStatusTakeover(ticket, status, send);
+        if (!applied) throw new StatusChangeCancelledError();
+        queryClient.invalidateQueries({ queryKey: ['ticket', id] });
+        queryClient.invalidateQueries({ queryKey: ['tickets'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    }, [ticket, id, queryClient, requestStatusTakeover]);
+
     // Auto-save per-field handler
     const handleFieldChange = useCallback(async (
         field: 'assignee' | 'status' | 'priority' | 'category' | 'device',
@@ -193,17 +217,19 @@ export const BentoTicketDetailPage: React.FC = () => {
             await handleResolveTicket(reasonOrNote, files);
             return;
         }
+        if (field === 'status') {
+            await handleStatusChange(value);
+            return;
+        }
 
         const endpointMap = {
             assignee: `/tickets/${id}/assign`,
-            status: `/tickets/${id}/status`,
             priority: `/tickets/${id}/priority`,
             category: `/tickets/${id}/category`,
             device: `/tickets/${id}/device`,
         };
         const bodyMap = {
             assignee: { assigneeId: value || undefined, reason: reasonOrNote },
-            status: { status: value },
             priority: { priority: value },
             category: { category: value },
             device: { device: value },
@@ -212,14 +238,14 @@ export const BentoTicketDetailPage: React.FC = () => {
             await api.patch(endpointMap[field], bodyMap[field]);
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
-            if (field === 'status' || field === 'assignee') {
+            if (field === 'assignee') {
                 queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
             }
         } catch {
             toast.error(`Failed to update ${field}`);
             throw new Error(`Failed to update ${field}`);
         }
-    }, [id, queryClient, handleResolveTicket]);
+    }, [id, queryClient, handleResolveTicket, handleStatusChange]);
 
     const handleForwardTicket = useCallback(async (targetTeam: ForwardTargetTeam, reason: string) => {
         try {
@@ -633,12 +659,17 @@ export const BentoTicketDetailPage: React.FC = () => {
                         ticketNumber: ticket.ticketNumber,
                         title: ticket.title,
                         slaTarget: ticket.slaTarget,
+                        status: ticket.status,
+                        slaRemainingMinutes: ticket.slaRemainingMinutes,
                         priority: ticket.priority,
                     }}
                     onConfirm={handleExtendSla}
                     isLoading={extendSlaMutation.isPending}
                 />
             )}
+
+            {/* PIC takeover confirmation when starting a ticket handled by another agent */}
+            {statusTakeover.dialogProps && <ReassignConfirmDialog {...statusTakeover.dialogProps} />}
 
             {/* KB suggestion popup after visiting a fresh ticket */}
             <KbSuggestionDialog

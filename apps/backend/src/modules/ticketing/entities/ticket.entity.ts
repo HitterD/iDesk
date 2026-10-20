@@ -32,6 +32,8 @@ export enum TicketStatus {
 export const TICKET_DONE_STATUSES: TicketStatus[] = [TicketStatus.RESOLVED, TicketStatus.CLOSED];
 /** Statuses where no more work happens on the ticket. */
 export const TICKET_INACTIVE_STATUSES: TicketStatus[] = [...TICKET_DONE_STATUSES, TicketStatus.CANCELLED];
+/** Statuses where the ticket still needs work, including a paused vendor wait. */
+export const TICKET_ACTIVE_STATUSES: TicketStatus[] = [TicketStatus.TODO, TicketStatus.IN_PROGRESS, TicketStatus.WAITING_VENDOR];
 
 export enum TicketPriority {
     LOW = 'LOW',

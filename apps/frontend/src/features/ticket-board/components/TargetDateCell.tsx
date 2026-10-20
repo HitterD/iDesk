@@ -8,6 +8,7 @@ import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 export interface TargetDateCellProps {
     ticket?: {
         slaTarget?: string;
+        slaRemainingMinutes?: number | null;
         scheduledDate?: string;
         isHardwareInstallation?: boolean;
         status?: string;
@@ -16,6 +17,7 @@ export interface TargetDateCellProps {
         slaAdjustments?: SlaAdjustment[];
     };
     slaTarget?: string;
+    slaRemainingMinutes?: number | null;
     scheduledDate?: string;
     isHardwareInstallation?: boolean;
     status?: string;
@@ -69,6 +71,7 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
     priority,
     createdAt,
     slaAdjustments,
+    slaRemainingMinutes,
 }) => {
     const [countdown, setCountdown] = useState<string>('');
     const [isOverdue, setIsOverdue] = useState(false);
@@ -137,6 +140,7 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
 
     // Waiting vendor state (SLA paused)
     if (effectiveStatus === 'WAITING_VENDOR') {
+        const remaining = ticket?.slaRemainingMinutes ?? slaRemainingMinutes;
         return (
             <span
                 className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60 shadow-2xs"
@@ -144,7 +148,7 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
                 aria-label="SLA Timer Paused"
             >
                 <Hourglass className="w-3 h-3 text-amber-600 dark:text-amber-400 animate-pulse" aria-hidden="true" />
-                Paused
+                {remaining != null ? `Paused · sisa ${remaining <= 0 ? '0m' : formatCountdown(remaining * 60_000)}` : 'Paused'}
             </span>
         );
     }

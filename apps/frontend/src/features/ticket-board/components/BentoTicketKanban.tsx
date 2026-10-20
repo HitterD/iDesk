@@ -44,7 +44,10 @@ import { TicketQuickPreview } from '@/components/ui/TicketQuickPreview';
 import { KanbanBoardSkeleton } from './KanbanSkeleton';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { SiteSelector } from '@/components/site/SiteSelector';
+import { formatSlaDuration, MS_PER_MINUTE } from '@/lib/utils/slaDuration';
 import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
+import { isHandledByTakeoverDialog, useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
+import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 
 const CROSS_SITE_ROLES = ['ADMIN','MANAGER','AGENT_ORACLE'] as const;
 const isCrossSiteRole = (role?: string | null) => (CROSS_SITE_ROLES as readonly string[]).includes(role as string);
@@ -52,6 +55,13 @@ const isCrossSiteRole = (role?: string | null) => (CROSS_SITE_ROLES as readonly 
 
 // SLA warning threshold: 4 hours in milliseconds
 const SLA_WARNING_THRESHOLD_MS = 4 * 60 * 60 * 1000;
+
+/** Statuses never counted overdue: finished, or WAITING_VENDOR (SLA clock paused). */
+const NOT_OVERDUE_STATUSES: readonly string[] = ['RESOLVED', 'CLOSED', 'CANCELLED', 'WAITING_VENDOR'];
+
+/** Overdue for the quick filter and stat card — same rule as the list page's Overdue filter. */
+export const isCountedOverdue = (t: { status: string; isOverdue?: boolean }): boolean =>
+    Boolean(t.isOverdue) && !NOT_OVERDUE_STATUSES.includes(t.status);
 
 interface Message {
     id: string;
@@ -78,6 +88,7 @@ interface Ticket {
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
     isOverdue?: boolean;
     slaTarget?: string;
+    slaRemainingMinutes?: number | null;
     assignedTo?: { id: string; fullName: string; email?: string; avatarUrl?: string; role?: string };
     user?: { id?: string; fullName: string; avatarUrl?: string; department?: { name: string } };
     site?: { id: string; code: string; name: string };
@@ -124,7 +135,7 @@ const COLUMN_ACCENTS: Record<string, { dot: string; border: string; bg: string; 
 
 
 // Enhanced Linear-style Kanban card
-const EnhancedKanbanCard: React.FC<{
+export const EnhancedKanbanCard: React.FC<{
     ticket: Ticket;
     index: number;
     onSelect: () => void;
@@ -134,8 +145,9 @@ const EnhancedKanbanCard: React.FC<{
     const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
     const slaClock = useSlaClock();
     const now = new Date();
-    const clock = ticket.slaTarget ? slaCountdown(ticket.slaTarget, now, ticket.priority, slaClock) : null;
-    const isOverdue = ticket.isOverdue || (clock && clock.remainingMs <= 0 && ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED');
+    const isPaused = ticket.status === 'WAITING_VENDOR';
+    const clock = !isPaused && ticket.slaTarget ? slaCountdown(ticket.slaTarget, now, ticket.priority, slaClock) : null;
+    const isOverdue = !isPaused && (ticket.isOverdue || (clock && clock.remainingMs <= 0 && ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED'));
     const isApproaching = clock && !isOverdue && clock.remainingMs < 2 * 60 * 60 * 1000;
     const offHours = clock?.offHours ? offHoursLabel(clock, now, slaClock) : undefined;
     const PriorityIcon = priorityConfig.icon;
@@ -237,7 +249,11 @@ const EnhancedKanbanCard: React.FC<{
                     )}
 
                     {/* SLA / Target Date Pill if active */}
-                    {ticket.slaTarget && ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED' && (
+                    {isPaused ? (
+                        <div className="mb-2.5 text-[11px] font-medium text-muted-foreground">
+                            {ticket.slaRemainingMinutes != null ? `Dijeda · sisa ${formatSlaDuration(ticket.slaRemainingMinutes * MS_PER_MINUTE)}` : 'Dijeda'}
+                        </div>
+                    ) : ticket.slaTarget && ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED' && (
                         <div className="mb-2.5">
                             {isOverdue ? (
                                 <div className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-destructive/10 text-destructive border border-destructive/20">
@@ -745,9 +761,11 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
         },
     });
 
+    const statusTakeover = useStatusTakeover();
     const updateStatusMutation = useMutation({
-        mutationFn: async ({ id, status }: { id: string; status: string }) => {
-            await api.patch(`/tickets/${id}/status`, { status });
+        mutationFn: async ({ id, status, takeover }: { id: string; status: string; takeover?: TakeoverOptions }) => {
+            // skipToast: the takeover 409 opens a dialog instead; other errors are toasted in onError.
+            await api.patch(`/tickets/${id}/status`, { status, ...takeover }, { skipToast: true });
         },
         onMutate: async ({ id, status }) => {
             await queryClient.cancelQueries({ queryKey: ['tickets', 'kanban', effectiveQueue] });
@@ -763,9 +781,9 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
 
             return { previousTickets };
         },
-        onError: (_, __, context) => {
+        onError: (err, variables, context) => {
             queryClient.setQueryData(['tickets', 'kanban', effectiveQueue], context?.previousTickets);
-            toast.error('Gagal memperbarui status');
+            if (!isHandledByTakeoverDialog(err, variables.takeover)) toast.error(getApiErrorMessage(err, 'Gagal memperbarui status'));
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
@@ -854,7 +872,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
 
         // 2. Quick filter pills
         if (filter === 'my') result = result.filter(t => t.assignedTo?.id === user?.id);
-        if (filter === 'overdue') result = result.filter(t => t.isOverdue);
+        if (filter === 'overdue') result = result.filter(isCountedOverdue);
         if (filter === 'critical') result = result.filter(t => t.priority === 'CRITICAL');
 
         // 3. Site filter
@@ -887,7 +905,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                 if (t.status === 'IN_PROGRESS') acc.inProgress++;
                 const isDone = t.status === 'RESOLVED' || t.status === 'CLOSED';
                 if (isDone) acc.resolved++;
-                if (!isDone && t.status !== 'CANCELLED' && t.isOverdue) acc.overdue++;
+                if (isCountedOverdue(t)) acc.overdue++;
                 if (!isDone && t.status !== 'CANCELLED' && t.priority === 'CRITICAL') acc.critical++;
                 return acc;
             },
@@ -906,7 +924,16 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
         if (!destination) return;
         if (destination.droppableId === source.droppableId && destination.index === source.index) return;
         if (NON_SELECTABLE_STATUSES.includes(destination.droppableId)) return;
-        updateStatusMutation.mutate({ id: draggableId, status: destination.droppableId });
+        changeStatus(draggableId, destination.droppableId);
+    };
+
+    // A takeover confirmation opens before the optimistic move, so cancelling leaves the card in place.
+    const changeStatus = (id: string, status: string) => {
+        const ticket = tickets.find(t => t.id === id) ?? (selectedTicket?.id === id ? selectedTicket : undefined);
+        if (!ticket) return;
+        statusTakeover
+            .request(ticket, status, (takeover) => updateStatusMutation.mutateAsync({ id, status, takeover }))
+            .catch(() => undefined); // already reported by the mutation's onError
     };
 
     const handleQuickAssign = useCallback((ticketId: string) => {
@@ -1114,11 +1141,14 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                         onClose={() => setSelectedTicket(null)}
                         onOpenFull={() => navigate(`/tickets/${selectedTicket.id}`, { state: { from: '/kanban' } })}
                         onAssign={(id, reason) => assignMutation.mutate({ id: selectedTicket.id, assigneeId: id, reason })}
-                        onStatusChange={(status) => updateStatusMutation.mutate({ id: selectedTicket.id, status })}
+                        onStatusChange={(status) => changeStatus(selectedTicket.id, status)}
                         onPriorityChange={(priority) => updatePriorityMutation.mutate({ id: selectedTicket.id, priority })}
                     />
                 )}
             </div>
+
+            {/* PIC takeover confirmation when starting a ticket handled by another agent */}
+            {statusTakeover.dialogProps && <ReassignConfirmDialog {...statusTakeover.dialogProps} />}
         </div>
     );
 };

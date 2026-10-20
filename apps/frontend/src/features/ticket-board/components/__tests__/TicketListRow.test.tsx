@@ -1,8 +1,22 @@
+vi.mock('@/lib/slaCountdown', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/lib/slaCountdown')>(),
+    useSlaClock: () => null,
+}));
+
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TicketListRow, TicketRowData, Agent } from '../TicketListRow';
 import { MemoryRouter } from 'react-router-dom';
+
+vi.mock('@/components/ui/TicketQuickPreview', () => ({
+    TicketQuickPreview: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('../TicketDropdowns', async () => {
+    const actual = await vi.importActual('../TicketDropdowns');
+    return { ...actual, PriorityDropdown: () => <span>Prioritas</span> };
+});
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -57,6 +71,87 @@ const mockAgents: Agent[] = [
         site: { code: 'SPJ', name: 'Santos Premium Jaya' },
     },
 ];
+
+describe('TicketListRow paused SLA', () => {
+    it('passes remaining minutes to both mobile and desktop SLA cells', () => {
+        render(
+            <MemoryRouter>
+                <TicketListRow
+                    ticket={{ ...mockTicket, status: 'WAITING_VENDOR', slaTarget: '2026-10-20T05:00:00Z', slaRemainingMinutes: 120 }}
+                    index={0} showSiteColumn={true} canEdit={true} isSelected={false}
+                    agents={mockAgents} onSelect={vi.fn()} onUpdatePriority={vi.fn()}
+                    onUpdateStatus={vi.fn()} onAssign={vi.fn()}
+                />
+            </MemoryRouter>
+        );
+        expect(screen.getAllByText('Paused · sisa 2h 0m')).toHaveLength(2);
+    });
+
+    it('shows a WAITING_VENDOR ticket as paused, never overdue, even when the server flags it overdue', () => {
+        const { container } = render(
+            <MemoryRouter>
+                <TicketListRow
+                    ticket={{ ...mockTicket, status: 'WAITING_VENDOR', isOverdue: true, slaTarget: '2026-10-20T05:00:00Z', slaRemainingMinutes: 120 }}
+                    index={0} showSiteColumn={true} canEdit={true} isSelected={false}
+                    agents={mockAgents} onSelect={vi.fn()} onUpdatePriority={vi.fn()}
+                    onUpdateStatus={vi.fn()} onAssign={vi.fn()}
+                />
+            </MemoryRouter>
+        );
+        expect(screen.getAllByText('Paused · sisa 2h 0m')).toHaveLength(2);
+        expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
+        expect(container.querySelectorAll('.lucide-triangle-alert, .lucide-alert-triangle')).toHaveLength(0);
+        expect(container.firstElementChild?.className).not.toContain('error-500');
+    });
+
+    it('still shows overdue for an active non-paused ticket', () => {
+        render(
+            <MemoryRouter>
+                <TicketListRow
+                    ticket={{ ...mockTicket, status: 'IN_PROGRESS', isOverdue: true, slaTarget: '2026-10-20T05:00:00Z' }}
+                    index={0} showSiteColumn={true} canEdit={true} isSelected={false}
+                    agents={mockAgents} onSelect={vi.fn()} onUpdatePriority={vi.fn()}
+                    onUpdateStatus={vi.fn()} onAssign={vi.fn()}
+                />
+            </MemoryRouter>
+        );
+        expect(screen.getByText('Overdue')).toBeInTheDocument();
+    });
+});
+
+describe('TicketListRow critical indicators', () => {
+    it.each(['RESOLVED', 'CLOSED', 'CANCELLED'] as const)('hides flame for %s critical ticket', (status) => {
+        const { container } = renderCriticalTicket(status);
+        expect(container.querySelectorAll('.lucide-flame')).toHaveLength(0);
+        expect(screen.queryByText('Critical')).not.toBeInTheDocument();
+        expect(container.querySelectorAll('span.rounded-full[aria-hidden="true"].bg-red-500')).toHaveLength(0);
+    });
+
+    it.each(['TODO', 'IN_PROGRESS', 'WAITING_VENDOR'] as const)('shows flame for %s critical ticket', (status) => {
+        const { container } = renderCriticalTicket(status);
+        expect(container.querySelectorAll('.lucide-flame')).toHaveLength(2);
+        expect(screen.getByText('Critical')).toBeInTheDocument();
+    });
+});
+
+function renderCriticalTicket(status: TicketRowData['status']) {
+    return render(
+        <MemoryRouter>
+            <TicketListRow
+                ticket={{ ...mockTicket, priority: 'CRITICAL', status }}
+                index={0}
+                showSiteColumn={true}
+                canEdit={true}
+                isSelected={false}
+                agents={mockAgents}
+                onSelect={vi.fn()}
+                onUpdatePriority={vi.fn()}
+                onUpdateStatus={vi.fn()}
+                onAssign={vi.fn()}
+            />
+        </MemoryRouter>
+    );
+}
 
 describe('TicketListRow Assignee Popover', () => {
     it('renders assignee button and opens agent list and shows confirmation modal when reassigning', async () => {

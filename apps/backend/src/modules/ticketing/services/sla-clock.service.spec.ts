@@ -83,6 +83,26 @@ describe('SlaClockService', () => {
             expect(t.slaRemainingMinutes).toBe(0);
         });
 
+        it('release clears isOverdue when resumed target is in the future', async () => {
+            const now = wib('2026-10-05T10:00:00');
+            const t = ticket({ slaRemainingMinutes: 300, isOverdue: true });
+
+            await clock.release(t, now);
+
+            expect(t.slaTarget).toEqual(wib('2026-10-05T15:00:00'));
+            expect(t.isOverdue).toBe(false);
+        });
+
+        it('release keeps isOverdue when remaining is 0', async () => {
+            const now = wib('2026-10-05T10:00:00');
+            const t = ticket({ slaRemainingMinutes: 0, isOverdue: true });
+
+            await clock.release(t, now);
+
+            expect(t.slaTarget).toEqual(now);
+            expect(t.isOverdue).toBe(true);
+        });
+
         it('release is a no-op without a hold', async () => {
             const t = ticket({ slaTarget: wib('2026-10-02T12:00:00') });
             expect(await clock.release(t, wib('2026-10-05T10:00:00'))).toBe(false);

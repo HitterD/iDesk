@@ -1,11 +1,17 @@
 import React from 'react';
 import { Trash2, UserPlus, CheckCircle2, XCircle, MoreHorizontal, Check, GitMerge } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
+import { ReassignConfirmDialog } from './ReassignConfirmDialog';
 
 interface BulkActionsBarProps {
     selectedCount: number;
     onAssign: () => void;
-    onChangeStatus: (status: string) => void;
+    /**
+     * Must reject with the API error when the takeover dialog handles it
+     * (`isHandledByTakeoverDialog`), so a 409 can open the confirmation.
+     */
+    onChangeStatus: (status: string, takeover?: TakeoverOptions) => Promise<void>;
     onClear: () => void;
     onMerge?: () => void;
     isLoading?: boolean;
@@ -22,7 +28,15 @@ export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
     isLoading,
     onDelete,
 }) => {
+    const statusTakeover = useStatusTakeover();
+
     if (selectedCount === 0) return null;
+
+    const changeStatus = (status: string) => {
+        statusTakeover
+            .requestBulk((takeover) => onChangeStatus(status, takeover))
+            .catch(() => undefined); // other errors are reported by onChangeStatus
+    };
 
     return (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
@@ -60,7 +74,7 @@ export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
                     </button>
 
                     <button
-                        onClick={() => onChangeStatus('RESOLVED')}
+                        onClick={() => changeStatus('RESOLVED')}
                         disabled={isLoading}
                         className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-green-400 hover:text-green-300 hover:bg-green-900/30 rounded-lg transition-colors disabled:opacity-50"
                     >
@@ -69,7 +83,7 @@ export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
                     </button>
 
                     <button
-                        onClick={() => onChangeStatus('IN_PROGRESS')}
+                        onClick={() => changeStatus('IN_PROGRESS')}
                         disabled={isLoading}
                         className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-400 hover:text-blue-300 hover:bg-blue-900/30 rounded-lg transition-colors disabled:opacity-50"
                     >
@@ -99,6 +113,9 @@ export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
                     </button>
                 </div>
             </div>
+
+            {/* PIC takeover confirmation for tickets handled by other agents */}
+            {statusTakeover.dialogProps && <ReassignConfirmDialog {...statusTakeover.dialogProps} />}
         </div>
     );
 };

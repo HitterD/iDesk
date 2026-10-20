@@ -143,6 +143,7 @@ export class SlaClockService {
         const businessOnly = isBusinessHoursOnly(config);
         if (ticket.slaRemainingMinutes != null) {
             ticket.slaTarget = addSlaMinutes(now, ticket.slaRemainingMinutes, businessOnly, schedule);
+            if (ticket.slaTarget.getTime() > now.getTime()) ticket.isOverdue = false;
             ticket.slaRemainingMinutes = null;
         }
         if (ticket.firstResponseRemainingMinutes != null) {

@@ -8,6 +8,21 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
+/**
+ * Business fields of an object-bodied 4xx that clients may branch on (e.g. the
+ * takeover 409 `{ code, currentAssignee }` / bulk `{ code, tickets }`). Explicit
+ * allow-list so other bodies (login `errorCode`, renewal `existingId`) stay
+ * unforwarded. 5xx bodies are never forwarded.
+ */
+const FORWARDED_BODY_KEYS = ['code', 'currentAssignee', 'tickets'] as const;
+
+function businessFields(body: unknown, status: number): Record<string, unknown> {
+    if (status >= HttpStatus.INTERNAL_SERVER_ERROR || !body || typeof body !== 'object') return {};
+    return Object.fromEntries(
+        Object.entries(body).filter(([key]) => (FORWARDED_BODY_KEYS as readonly string[]).includes(key)),
+    );
+}
+
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
     private readonly logger = new Logger(HttpExceptionFilter.name);
@@ -58,6 +73,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
             : actualMessage;
 
         const errorResponse = {
+            ...businessFields(message, status),
             statusCode: status,
             timestamp: new Date().toISOString(),
             path: request?.url || 'unknown',

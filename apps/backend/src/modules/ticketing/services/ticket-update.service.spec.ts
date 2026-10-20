@@ -1,8 +1,10 @@
-import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { TicketUpdateService } from './ticket-update.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { Ticket, TicketStatus, TicketPriority, TicketType, HandlingTeam } from '../entities/ticket.entity';
 import { createTestSlaClock } from './sla-clock.testing';
+import { REASSIGN_CONFIRMATION_REQUIRED } from './status-takeover';
+import { AuditAction } from '../../audit/entities/audit-log.entity';
 
 describe('TicketUpdateService.assignTicket — Oracle/K2 enforcement', () => {
     let service: any;
@@ -327,5 +329,224 @@ describe('TicketUpdateService.bulkAssign', () => {
 
         await expect(service.bulkAssign(['t1'], 'missing-assignee', 'assigner-1'))
             .rejects.toBeInstanceOf(NotFoundException);
+    });
+});
+
+describe('TicketUpdateService — status takeover', () => {
+    const picA = { id: 'agent-a', fullName: 'Agent A', role: UserRole.AGENT_OPERATIONAL_SUPPORT, siteId: 'site-1' };
+    const agentB = { id: 'agent-b', fullName: 'Agent B', email: 'b@test.com', role: UserRole.AGENT_OPERATIONAL_SUPPORT, siteId: 'site-1' };
+    let ticket: any;
+    let manager: any;
+    let mockTicketRepo: any;
+    let mockQueryRunner: any;
+    let mockAuditService: any;
+    let mockWorkloadService: any;
+    let mockEventEmitter: any;
+    let mockPolicy: any;
+    let service: TicketUpdateService;
+
+    const makeTicket = (id = 'ticket-1') => ({
+        id, ticketNumber: `TKT-${id}`, title: 'Printer', status: TicketStatus.TODO, priority: TicketPriority.MEDIUM,
+        handlingTeam: HandlingTeam.OPS_SUPPORT, category: 'GENERAL', userId: 'owner-1', user: { id: 'owner-1' },
+        participants: [], siteId: 'site-1', assignedToId: picA.id, assignedTo: picA,
+    });
+
+    beforeEach(() => {
+        ticket = makeTicket();
+        manager = {
+            findOne: jest.fn((entity: unknown) => Promise.resolve(entity === Ticket ? ticket : agentB)),
+            save: jest.fn(async (_e: unknown, t: any) => ({ ...t })),
+            create: jest.fn((_e: unknown, data: any) => data),
+        };
+        mockTicketRepo = { find: jest.fn(async () => [ticket]) };
+        mockQueryRunner = {
+            connect: jest.fn(), startTransaction: jest.fn(), commitTransaction: jest.fn(),
+            rollbackTransaction: jest.fn(), release: jest.fn(), manager,
+        };
+        mockAuditService = { logAsync: jest.fn() };
+        mockWorkloadService = { recalculateAgentWorkload: jest.fn() };
+        mockEventEmitter = { emit: jest.fn() };
+        mockPolicy = {
+            toAssignable: jest.fn((t: any) => ({ handlingTeam: t.handlingTeam, ticketType: null, category: t.category })),
+            isUserEligible: jest.fn().mockResolvedValue(true),
+            describeModule: jest.fn().mockResolvedValue('Modul Printer'),
+        };
+        const siteRoom = { emit: jest.fn() };
+        service = new TicketUpdateService(
+            mockTicketRepo,
+            { create: jest.fn((m) => m), save: jest.fn(async (m) => m) } as any,
+            { findOne: jest.fn().mockResolvedValue(agentB) } as any,
+            {} as any,
+            { server: { to: jest.fn(() => siteRoom) }, notifyDashboardStatsUpdate: jest.fn(), notifyTicketListUpdate: jest.fn() } as any,
+            { createSurvey: jest.fn() } as any,
+            {} as any,
+            { onTicketChange: jest.fn() } as any,
+            mockEventEmitter,
+            null as any,
+            mockAuditService,
+            { transaction: jest.fn((cb: any) => cb(manager)), createQueryRunner: jest.fn(() => mockQueryRunner) } as any,
+            mockWorkloadService,
+            mockPolicy, createTestSlaClock(),
+        );
+    });
+
+    const assignedEvents = () => mockEventEmitter.emit.mock.calls.filter((c: any[]) => c[0] === 'ticket.assigned');
+
+    it('updateTicket takeover emits ticket.assigned marked as self-assigned (listener skips assignee-facing notices)', async () => {
+        await service.updateTicket('ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id, { takeover: true, reason: 'PIC cuti' });
+
+        expect(assignedEvents()).toHaveLength(1);
+        expect(assignedEvents()[0][1]).toMatchObject({ assigneeId: agentB.id, assignerId: agentB.id });
+        expect(mockAuditService.logAsync).toHaveBeenCalledWith(expect.objectContaining({ action: AuditAction.ASSIGN_TICKET }));
+    });
+
+    it('updateTicket takeover by an actor outside the module curated list is rejected with 403', async () => {
+        mockPolicy.isUserEligible.mockResolvedValue(false);
+
+        const result = service.updateTicket('ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id, { takeover: true, reason: 'PIC cuti' });
+
+        await expect(result).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(result).rejects.toThrow('Agent B tidak terdaftar sebagai agent yang dapat ditugaskan di Modul Printer');
+        expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('updateTicket unconfirmed start by an ineligible actor is rejected with 403 instead of asking to confirm', async () => {
+        mockPolicy.isUserEligible.mockResolvedValue(false);
+
+        await expect(service.updateTicket('ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id))
+            .rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('updateTicket start of an unassigned ticket by an ineligible actor changes status but leaves it unassigned', async () => {
+        ticket = { ...makeTicket(), assignedToId: null, assignedTo: null };
+        mockPolicy.isUserEligible.mockResolvedValue(false);
+
+        const saved = await service.updateTicket('ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id);
+
+        expect(saved.status).toBe(TicketStatus.IN_PROGRESS);
+        expect(saved.assignedToId).toBeNull();
+        expect(mockAuditService.logAsync).not.toHaveBeenCalledWith(expect.objectContaining({ action: AuditAction.ASSIGN_TICKET }));
+    });
+
+    it('updateTicket start of an unassigned ticket by an eligible actor assigns the actor', async () => {
+        ticket = { ...makeTicket(), assignedToId: null, assignedTo: null };
+
+        const saved = await service.updateTicket('ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id);
+
+        expect(saved.assignedToId).toBe(agentB.id);
+        expect(assignedEvents()).toHaveLength(1);
+        expect(assignedEvents()[0][1]).toMatchObject({ assigneeId: agentB.id, assignerId: agentB.id });
+    });
+
+    it('bulkUpdate leaves unassigned tickets of a module the actor is not listed in unassigned', async () => {
+        const unassigned = { ...makeTicket('ticket-5'), assignedToId: null, assignedTo: null };
+        mockTicketRepo.find.mockResolvedValue([unassigned]);
+        mockPolicy.isUserEligible.mockResolvedValue(false);
+
+        const result = await service.bulkUpdate(['ticket-5'], { status: TicketStatus.IN_PROGRESS }, agentB.id);
+
+        expect(result).toEqual({ updated: 1, failed: [] });
+        expect(unassigned.status).toBe(TicketStatus.IN_PROGRESS);
+        expect(unassigned.assignedToId).toBeNull();
+    });
+
+    it('bulkUpdate takeover fails tickets of a module the actor is not listed in, without asking to confirm', async () => {
+        mockPolicy.isUserEligible.mockResolvedValue(false);
+
+        await expect(service.bulkUpdate(['ticket-1'], { status: TicketStatus.IN_PROGRESS }, agentB.id))
+            .resolves.toEqual({ updated: 0, failed: ['ticket-1'] });
+        await expect(service.bulkUpdate(['ticket-1'], { status: TicketStatus.IN_PROGRESS, takeover: true, reason: 'PIC cuti' }, agentB.id))
+            .resolves.toEqual({ updated: 0, failed: ['ticket-1'] });
+        expect(ticket.assignedToId).toBe(picA.id);
+        expect(assignedEvents()).toHaveLength(0);
+    });
+
+    it('updateTicket IN_PROGRESS by non-PIC without takeover throws 409 and saves nothing', async () => {
+        const result = service.updateTicket('ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id);
+
+        await expect(result).rejects.toBeInstanceOf(ConflictException);
+        await expect(result).rejects.toMatchObject({
+            response: { code: REASSIGN_CONFIRMATION_REQUIRED, currentAssignee: { id: picA.id, fullName: picA.fullName } },
+        });
+        expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('updateTicket with takeover saves assignedToId=actor and status IN_PROGRESS in the same transaction', async () => {
+        const saved = await service.updateTicket(
+            'ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id, { takeover: true, reason: 'PIC cuti' },
+        );
+
+        expect(manager.save).toHaveBeenCalledTimes(1);
+        expect(manager.save.mock.calls[0][1]).toMatchObject({ status: TicketStatus.IN_PROGRESS, assignedToId: agentB.id });
+        expect(saved.assignedToId).toBe(agentB.id);
+        expect(mockAuditService.logAsync).toHaveBeenCalledWith(expect.objectContaining({
+            action: AuditAction.ASSIGN_TICKET,
+            newValue: expect.objectContaining({ reason: 'PIC cuti', via: 'status-takeover' }),
+        }));
+        const recalculated = mockWorkloadService.recalculateAgentWorkload.mock.calls.map((c: any[]) => c[1]);
+        expect(recalculated).toEqual(expect.arrayContaining([picA.id, agentB.id]));
+    });
+
+    it('updateTicket takeover records the reassignment in the system message', async () => {
+        const messageRepo = (service as any).messageRepo;
+        await service.updateTicket('ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id, { takeover: true, reason: 'PIC cuti' });
+
+        const content = messageRepo.create.mock.calls[0][0].content;
+        expect(content).toContain('Ticket reassigned to Agent B (was Agent A) (Alasan: PIC cuti) by Agent B');
+        expect(content.match(/by Agent B/g)).toHaveLength(1);
+    });
+
+    it('bulkUpdate IN_PROGRESS rejects with 409 listing conflicting tickets', async () => {
+        const mine = { ...makeTicket('ticket-2'), assignedToId: agentB.id, assignedTo: agentB };
+        mockTicketRepo.find.mockResolvedValue([ticket, mine]);
+
+        const result = service.bulkUpdate(['ticket-1', 'ticket-2'], { status: TicketStatus.IN_PROGRESS }, agentB.id);
+
+        await expect(result).rejects.toBeInstanceOf(ConflictException);
+        await expect(result).rejects.toMatchObject({
+            response: {
+                code: REASSIGN_CONFIRMATION_REQUIRED,
+                tickets: [{ id: 'ticket-1', ticketNumber: 'TKT-ticket-1', currentAssignee: { id: picA.id, fullName: picA.fullName } }],
+            },
+        });
+        expect(mockQueryRunner.startTransaction).not.toHaveBeenCalled();
+    });
+
+    it('bulkUpdate takeover fails tickets of a team the actor cannot handle instead of reassigning them', async () => {
+        const webDev = { ...makeTicket('ticket-3'), handlingTeam: HandlingTeam.WEB_DEV };
+        const unassignedWebDev = { ...makeTicket('ticket-4'), handlingTeam: HandlingTeam.WEB_DEV, assignedToId: null, assignedTo: null };
+        mockTicketRepo.find.mockResolvedValue([ticket, webDev, unassignedWebDev]);
+
+        const result = await service.bulkUpdate(
+            ['ticket-1', 'ticket-3', 'ticket-4'], { status: TicketStatus.IN_PROGRESS, takeover: true, reason: 'PIC cuti' }, agentB.id,
+        );
+
+        expect(result).toEqual({ updated: 1, failed: ['ticket-3', 'ticket-4'] });
+        expect(webDev.assignedToId).toBe(picA.id);
+        expect(unassignedWebDev.assignedToId).toBeNull();
+        expect(manager.save.mock.calls.map((c: any[]) => c[1].id)).toEqual(['ticket-1']);
+    });
+
+    it('bulkUpdate does not ask to confirm a takeover the actor could not perform', async () => {
+        const webDev = { ...makeTicket('ticket-3'), handlingTeam: HandlingTeam.WEB_DEV };
+        mockTicketRepo.find.mockResolvedValue([webDev]);
+
+        const result = await service.bulkUpdate(['ticket-3'], { status: TicketStatus.IN_PROGRESS }, agentB.id);
+
+        expect(result).toEqual({ updated: 0, failed: ['ticket-3'] });
+    });
+
+    it('bulkUpdate with takeover reassigns conflicting tickets to the actor', async () => {
+        const result = await service.bulkUpdate(
+            ['ticket-1'], { status: TicketStatus.IN_PROGRESS, takeover: true, reason: 'PIC cuti' }, agentB.id,
+        );
+
+        expect(result).toEqual({ updated: 1, failed: [] });
+        expect(manager.save.mock.calls[0][1]).toMatchObject({ status: TicketStatus.IN_PROGRESS, assignedToId: agentB.id });
+        expect(assignedEvents()).toHaveLength(1);
+        expect(assignedEvents()[0][1]).toMatchObject({ ticketId: 'ticket-1', assigneeId: agentB.id, assignerId: agentB.id });
+        expect(mockAuditService.logAsync).toHaveBeenCalledWith(expect.objectContaining({
+            newValue: expect.objectContaining({ via: 'status-takeover' }),
+        }));
     });
 });

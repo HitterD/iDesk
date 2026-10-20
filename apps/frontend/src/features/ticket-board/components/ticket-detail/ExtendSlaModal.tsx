@@ -15,6 +15,7 @@ import {
     MoreHorizontal,
     Send,
 } from 'lucide-react';
+import { formatSlaDuration, MS_PER_MINUTE } from '@/lib/utils/slaDuration';
 import { cn } from '@/lib/utils';
 import { SlaAdjustmentReasonCategory } from './types';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
@@ -29,6 +30,8 @@ export interface ExtendSlaModalProps {
         title: string;
         slaTarget?: string | null;
         priority?: string;
+        status?: string;
+        slaRemainingMinutes?: number | null;
     };
     onConfirm: (data: {
         reasonCategory: SlaAdjustmentReasonCategory;
@@ -83,6 +86,9 @@ const CATEGORY_OPTIONS: {
     },
 ];
 
+const DEFAULT_ADDED_MINUTES = 60;
+const MAX_ADDED_MINUTES = 10080;
+
 const PRESETS: { label: string; days: number }[] = [
     { label: '1 Minggu', days: 7 },
     { label: '2 Minggu', days: 14 },
@@ -96,6 +102,8 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
     onConfirm,
     isLoading = false,
 }) => {
+    const isPaused = ticket.status === 'WAITING_VENDOR';
+    const [addedMinutes, setAddedMinutes] = useState(DEFAULT_ADDED_MINUTES);
     const currentTargetDate = useMemo(() => {
         return ticket.slaTarget ? new Date(ticket.slaTarget) : new Date();
     }, [ticket.slaTarget]);
@@ -128,6 +136,7 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
             setSelectedPresetIndex(0);
             setSelectedCategory('WAITING_USER');
             setReasonText('');
+            setAddedMinutes(DEFAULT_ADDED_MINUTES);
         }
     }, [isOpen, currentTargetDate]);
 
@@ -154,7 +163,8 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
         !isBeyondMaxDate
     );
     const isReasonValid = reasonText.trim().length >= 5;
-    const canSubmit = isValidDate && isReasonValid && !isLoading;
+    const isValidMinutes = Number.isSafeInteger(addedMinutes) && addedMinutes > 0 && addedMinutes <= MAX_ADDED_MINUTES;
+    const canSubmit = (isPaused ? isValidMinutes : isValidDate) && isReasonValid && !isLoading;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -163,7 +173,7 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
         await onConfirm({
             reasonCategory: selectedCategory,
             reasonText: reasonText.trim(),
-            newTargetDate: selectedDate.toISOString(),
+            ...(isPaused ? { minutes: addedMinutes } : { newTargetDate: selectedDate.toISOString() }),
         });
     };
 
@@ -208,7 +218,19 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
 
                 {/* Form Body */}
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4 text-left">
-                    {/* 1. Target Deadline Baru */}
+                    {isPaused ? (
+                        <div className="space-y-2.5 text-xs">
+                            <label htmlFor="sla-added-minutes" className="font-semibold">Tambahan menit</label>
+                            <input
+                                id="sla-added-minutes" type="number" min={1} max={MAX_ADDED_MINUTES} step={1}
+                                value={Number.isNaN(addedMinutes) ? '' : addedMinutes}
+                                onChange={(event) => setAddedMinutes(event.target.valueAsNumber)}
+                                className="w-full rounded-xl border border-slate-200 dark:border-white/10 p-2 bg-transparent"
+                            />
+                            <p>Sisa sebelumnya: {ticket.slaRemainingMinutes != null ? formatSlaDuration(ticket.slaRemainingMinutes * MS_PER_MINUTE) : 'Belum tersedia'} (dijeda)</p>
+                            <p>Sisa baru: {ticket.slaRemainingMinutes != null && isValidMinutes ? formatSlaDuration((ticket.slaRemainingMinutes + addedMinutes) * MS_PER_MINUTE) : '—'} (dijeda)</p>
+                        </div>
+                    ) : (
                     <div className="space-y-2.5">
                         <div className="flex items-center justify-between">
                             <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
@@ -272,6 +294,8 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
                             </div>
                         </div>
                     </div>
+
+                    )}
 
                     {/* 2. Kategori Alasan Penundaan (Apple Compact Grid) */}
                     <div className="space-y-2">

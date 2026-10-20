@@ -3,6 +3,8 @@ import { toast } from 'sonner';
 import api from '@/lib/api';
 import { Ticket } from '../types/ticket.types';
 import { queryKeys } from '@/lib/queryKeys';
+import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
+import { isHandledByTakeoverDialog, type TakeoverOptions } from './useStatusTakeover';
 
 export const useTicketListMutations = (agents: any[]) => {
     const queryClient = useQueryClient();
@@ -102,11 +104,13 @@ export const useTicketListMutations = (agents: any[]) => {
             status,
             resolutionNote,
             files,
+            takeover,
         }: {
             ticketId: string;
             status: string;
             resolutionNote?: string;
             files?: File[];
+            takeover?: TakeoverOptions;
         }) => {
             if (status === 'RESOLVED') {
                 try {
@@ -131,7 +135,8 @@ export const useTicketListMutations = (agents: any[]) => {
                 }
             }
 
-            await api.patch(`/tickets/${ticketId}/status`, { status });
+            // skipToast: the takeover 409 opens a dialog instead; other errors are toasted in onError.
+            await api.patch(`/tickets/${ticketId}/status`, { status, ...takeover }, { skipToast: true });
         },
         onMutate: async ({ ticketId, status }) => {
             await queryClient.cancelQueries({ queryKey: queryKeys.tickets.all });
@@ -185,7 +190,9 @@ export const useTicketListMutations = (agents: any[]) => {
             if (context?.previousDetail !== undefined && context?.ticketId) {
                 queryClient.setQueryData(queryKeys.tickets.detail(context.ticketId), context.previousDetail);
             }
-            toast.error('Failed to update status');
+            if (!isHandledByTakeoverDialog(err, variables.takeover)) {
+                toast.error(getApiErrorMessage(err, 'Failed to update status'));
+            }
         },
         onSettled: (data, error, variables) => {
             queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all });

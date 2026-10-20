@@ -247,7 +247,13 @@ export class TicketNotificationListener {
     @OnEvent('ticket.assigned')
     async handleTicketAssignedEvent(event: TicketAssignedEvent) {
         this.logger.log(`Handling ticket.assigned event for ticket ${event.ticketId}`);
+        // Self-assign (takeover / start by status, manual self-assign): no "assigned to you" notices.
+        const isSelfAssign = Boolean(event.assignerId) && event.assignerId === event.assigneeId;
+        if (!isSelfAssign) await this.notifyAssignee(event);
+        await this.notifyRequesterOfAssignment(event);
+    }
 
+    private async notifyAssignee(event: TicketAssignedEvent): Promise<void> {
         // 1. In-App Notification
         try {
             await this.notificationService.notifyTicketAssigned(
@@ -291,7 +297,9 @@ export class TicketNotificationListener {
                 this.logger.error(`Failed to send assignment email to ${event.assigneeEmail}`, error);
             }
         }
+    }
 
+    private async notifyRequesterOfAssignment(event: TicketAssignedEvent): Promise<void> {
         // 3. Email Notification to Requester (Ticket Owner)
         if (event.ticketOwnerEmail && event.ticketOwnerEmail !== event.assigneeEmail) {
             try {

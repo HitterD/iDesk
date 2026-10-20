@@ -12,5 +12,7 @@ export class TicketAssignedEvent {
         public readonly ticketStatus: string,
         public readonly ticketOwnerEmail?: string,
         public readonly ticketOwnerName?: string,
+        /** Who made the assignment; equal to assigneeId on self-assign (takeover/auto-assign by status). */
+        public readonly assignerId?: string,
     ) { }
 }

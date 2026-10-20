@@ -24,6 +24,10 @@ import { validateTicketSiteAccess } from '../utils/site-access.util';
 import { ModuleAssignmentPolicyService } from './module-assignment-policy.service';
 import { computeResolutionDeadline, TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService } from './sla-clock.service';
+import {
+    AppliedTakeover, ModuleEligibility, TakeoverEffectDeps, TakeoverOptions, applyTakeoverDecision, decideBulkTakeovers,
+    describeReassignment, ineligibleAssigneeMessage, recordStatusTakeover, resolveStatusTakeover,
+} from './status-takeover';
 
 const AGENT_CLOSE_FORBIDDEN_MESSAGE = 'Status CLOSED hanya bisa diberikan oleh pemohon (konfirmasi) atau otomatis setelah batas waktu konfirmasi.';
 
@@ -55,16 +59,18 @@ export class TicketUpdateService {
         private readonly slaClock: SlaClockService,
     ) { }
 
-    async updateTicket(ticketId: string, updateData: Partial<Ticket>, userId: string): Promise<Ticket> {
+    async updateTicket(
+        ticketId: string, updateData: Partial<Ticket>, userId: string, takeoverOpts: TakeoverOptions = {},
+    ): Promise<Ticket> {
         // P1 fix: status transition, priority change, slaTarget recompute, and
         // ticket save were separate awaits. A crash mid-sequence left the
         // ticket in a half-mutated state. Now atomic via dataSource.transaction.
         // postUpdateActions (events, audit) stays outside so listeners fire on
         // commit, not before.
-        const { savedTicket, user, changes, oldStatus } = await this.dataSource.transaction(async (manager) => {
+        const { savedTicket, user, changes, oldStatus, takeover } = await this.dataSource.transaction(async (manager) => {
             const ticket = await manager.findOne(Ticket, {
                 where: { id: ticketId },
-                relations: ['user', 'participants'],
+                relations: ['user', 'participants', 'assignedTo'],
             });
             if (!ticket) {
                 throw new NotFoundException('Ticket not found');
@@ -89,10 +95,15 @@ export class TicketUpdateService {
 
             const changes: string[] = [];
             const oldStatus = ticket.status;
+            // Throws 409 before anything is written when a non-PIC starts the ticket unconfirmed.
+            const decision = updateData.status
+                ? await resolveStatusTakeover(ticket, updateData.status, oldStatus, user, takeoverOpts, this.moduleEligibilityOf(user))
+                : null;
 
             if (updateData.status && updateData.status !== ticket.status) {
                 await this.applyStatusTransition(ticket, oldStatus, updateData.status, changes, user, manager);
             }
+            const takeover = decision ? applyTakeoverDecision(ticket, user, decision, changes) : null;
 
             if (updateData.priority && updateData.priority !== ticket.priority) {
                 await this.applyPriorityChange(ticket, updateData.priority, changes, manager);
@@ -101,11 +112,28 @@ export class TicketUpdateService {
             // Apply updates
             Object.assign(ticket, updateData);
             const savedTicket = await manager.save(Ticket, ticket);
-            return { savedTicket, user, changes, oldStatus };
+            return { savedTicket, user, changes, oldStatus, takeover };
         });
 
         await this.postUpdateActions(savedTicket, user, changes, oldStatus, ticketId, userId);
+        if (takeover) {
+            await recordStatusTakeover(this.takeoverDeps, savedTicket, user, takeover.previous, takeover.reason);
+        }
         return savedTicket;
+    }
+
+    private get takeoverDeps(): TakeoverEffectDeps {
+        return { auditService: this.auditService, workloadService: this.workloadService, eventEmitter: this.eventEmitter, logger: this.logger };
+    }
+
+    /** Module curated-list check for `user` becoming PIC, shared with assignTicket's rule and message. */
+    private moduleEligibilityOf(user: User): ModuleEligibility {
+        return {
+            isEligible: (ticket) => this.assignmentPolicy.isUserEligible(this.assignmentPolicy.toAssignable(ticket), user.id),
+            denialMessage: async (ticket) => ineligibleAssigneeMessage(
+                user.fullName, await this.assignmentPolicy.describeModule(this.assignmentPolicy.toAssignable(ticket)),
+            ),
+        };
     }
 
     private async applyStatusTransition(
@@ -387,9 +415,7 @@ export class TicketUpdateService {
         const eligible = await this.assignmentPolicy.isUserEligible(assignable, assignee.id);
         if (!eligible) {
             const moduleName = await this.assignmentPolicy.describeModule(assignable);
-            throw new ForbiddenException(
-                `${assignee.fullName} tidak terdaftar sebagai agent yang dapat ditugaskan di ${moduleName}`,
-            );
+            throw new ForbiddenException(ineligibleAssigneeMessage(assignee.fullName, moduleName));
         }
 
         const assigner = await this.userRepo.findOne({ where: { id: userId } });
@@ -408,8 +434,7 @@ export class TicketUpdateService {
 
         const actionLabel = oldAssigneeId ? 'reassigned to' : 'assigned to';
         const wasOld = oldAssigneeId ? ` (was ${oldAssigneeName})` : '';
-        const reasonText = reason ? `. Alasan: ${reason}` : '';
-        const systemMessageContent = `System: Ticket ${actionLabel} ${assignee.fullName}${wasOld} by ${assigner.fullName}${reasonText}`;
+        const systemMessageContent = `System: ${describeReassignment(assignee.fullName, oldAssigneeId ? oldAssigneeName : null, assigner.fullName, reason)}`;
         const systemMessage = this.messageRepo.create({
             content: systemMessageContent,
             ticket: savedTicket,
@@ -461,6 +486,7 @@ export class TicketUpdateService {
                 ticket.status,
                 ticket.user?.email,
                 ticket.user?.fullName,
+                assigner.id,
             ),
         );
 
@@ -568,7 +594,7 @@ export class TicketUpdateService {
 
     async bulkUpdate(
         ticketIds: string[],
-        updateData: { status?: TicketStatus; priority?: string; assigneeId?: string; category?: string; reason?: string },
+        updateData: { status?: TicketStatus; priority?: string; assigneeId?: string; category?: string; reason?: string } & TakeoverOptions,
         userId: string,
     ): Promise<{ updated: number; failed: string[] }> {
         if (updateData.status === TicketStatus.CLOSED) {
@@ -612,6 +638,8 @@ export class TicketUpdateService {
             }
         }
 
+        const takeoverPlan = await decideBulkTakeovers(tickets, updateData, user, this.moduleEligibilityOf(user));
+        const takeovers = new Map<string, AppliedTakeover>();
         const updated: string[] = [];
         const failed: string[] = [];
 
@@ -625,7 +653,7 @@ export class TicketUpdateService {
                 try {
                     const changes: string[] = [];
 
-                    if (ticket.status === TicketStatus.CLOSED) {
+                    if (ticket.status === TicketStatus.CLOSED || takeoverPlan.denied.has(ticket.id)) {
                         failed.push(ticket.id);
                         continue;
                     }
@@ -638,6 +666,9 @@ export class TicketUpdateService {
                         changes.push(`Status: ${ticket.status} → ${updateData.status}`);
                         await this.applyBulkStatusSla(ticket, ticket.status, updateData.status);
                         ticket.status = updateData.status;
+                        const decision = takeoverPlan.decisions.get(ticket.id);
+                        const takeover = decision ? applyTakeoverDecision(ticket, user, decision, changes) : null;
+                        if (takeover) takeovers.set(ticket.id, takeover);
                     }
 
                     if (updateData.priority && updateData.priority !== ticket.priority) {
@@ -722,6 +753,11 @@ export class TicketUpdateService {
             }
 
             await this.cacheInvalidationService.onTicketChange('bulk');
+        }
+
+        for (const ticket of tickets) {
+            const takeover = updated.includes(ticket.id) ? takeovers.get(ticket.id) : undefined;
+            if (takeover) await recordStatusTakeover(this.takeoverDeps, ticket, user, takeover.previous, takeover.reason);
         }
 
         return { updated: updated.length, failed };

@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { TargetDateCell } from '../components/TargetDateCell';
 import { BulkActionsBar } from '../components/BulkActionsBar';
+import { isHandledByTakeoverDialog, type TakeoverOptions } from '../hooks/useStatusTakeover';
+import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 import { BulkAssignDialog } from '../components/BulkAssignDialog';
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
 import { MergeTicketsModal } from '../components/MergeTicketsModal';
@@ -145,17 +147,19 @@ export const DynamicTicketQueuePage: React.FC = () => {
         }
     };
 
-    const handleBulkStatusChange = async (status: string) => {
+    const handleBulkStatusChange = async (status: string, takeover?: TakeoverOptions) => {
         try {
             await api.patch('/tickets/bulk/update', {
                 ticketIds: selectedTicketIds,
                 status,
-            });
+                ...takeover,
+            }, { skipToast: true });
             queryClient.invalidateQueries({ queryKey: ['tickets', 'module', slug] });
             setSelectedTicketIds([]);
             toast.success(`Status ${selectedTicketIds.length} tiket berhasil diperbarui`);
-        } catch {
-            toast.error('Gagal memperbarui status tiket');
+        } catch (error) {
+            if (isHandledByTakeoverDialog(error, takeover)) throw error;
+            toast.error(getApiErrorMessage(error, 'Gagal memperbarui status tiket'));
         }
     };
 
