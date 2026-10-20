@@ -35,6 +35,7 @@ import { TicketQuickPreview } from '@/components/ui/TicketQuickPreview';
 import { isTerminalStatus } from './ticket-detail/constants';
 import { ResolveTicketModal } from './ticket-detail/ResolveTicketModal';
 import { getStaggeredDelay, StopPropagationWrapper } from '../utils/listUtils';
+import { useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
 
 export interface TicketRowData {
     id: string;
@@ -93,7 +94,7 @@ export interface Agent {
     site?: { code: string; name: string };
 }
 
-interface TicketListRowProps {
+export interface TicketListRowProps {
     ticket: TicketRowData;
     index: number;
     showSiteColumn: boolean;
@@ -102,7 +103,7 @@ interface TicketListRowProps {
     agents: Agent[];
     onSelect: (ticketId: string, selected: boolean) => void;
     onUpdatePriority: (ticketId: string, priority: string) => void;
-    onUpdateStatus: (ticketId: string, status: string, resolutionNote?: string, files?: File[]) => void;
+    onUpdateStatus: (ticketId: string, status: string, resolutionNote?: string, files?: File[], takeover?: TakeoverOptions) => Promise<void>;
     onAssign: (ticketId: string, assigneeId: string, reason?: string) => void;
     /** Optional: custom style for virtualized lists */
     style?: React.CSSProperties;
@@ -137,12 +138,16 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
     const showCriticalIndicator = isCritical && !isTerminalStatus(ticket.status);
     const showPriorityDot = !isCritical || showCriticalIndicator;
 
+    const statusTakeover = useStatusTakeover();
+
     const handleStatusChange = (newStatus: string) => {
         if (newStatus === 'RESOLVED') {
             setResolveModalOpen(true);
             return;
         }
-        onUpdateStatus(ticket.id, newStatus);
+        statusTakeover
+            .request(ticket, newStatus, (takeover) => onUpdateStatus(ticket.id, newStatus, undefined, undefined, takeover))
+            .catch(() => undefined); // already reported by the status mutation's onError
     };
 
     const handleAgentSelect = (agentId: string) => {
@@ -632,6 +637,9 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                 onConfirm={handleConfirmReassign}
             />
 
+            {/* PIC takeover confirmation when starting a ticket handled by another agent */}
+            {statusTakeover.dialogProps && <ReassignConfirmDialog {...statusTakeover.dialogProps} />}
+
             {/* Resolve Confirmation Modal with Explanation and Proof Attachments */}
             <ResolveTicketModal
                 isOpen={resolveModalOpen}
@@ -642,7 +650,8 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                     title: ticket.title,
                 }}
                 onConfirm={async (note, files) => {
-                    await onUpdateStatus(ticket.id, 'RESOLVED', note, files);
+                    // Failures are toasted by the status mutation; close like before.
+                    await onUpdateStatus(ticket.id, 'RESOLVED', note, files).catch(() => undefined);
                     setResolveModalOpen(false);
                 }}
             />

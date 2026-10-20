@@ -65,6 +65,8 @@ import { TicketListActiveFilters } from '../components/TicketListActiveFilters';
 import { TicketListPagination } from '../components/TicketListPagination';
 import { Ticket } from '../types/ticket.types';
 import { useTicketListMutations } from '../hooks/useTicketListMutations';
+import { isHandledByTakeoverDialog, type TakeoverOptions } from '../hooks/useStatusTakeover';
+import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 import { BentoTicketKanban } from '../components/BentoTicketKanban';
 import { ACTIVE_STATUS_FILTER, DONE_STATUS_FILTER } from '../constants/statusFilters';
 import { SiteSelector } from '@/components/site/SiteSelector';
@@ -257,8 +259,8 @@ export const BentoTicketListPage: React.FC = () => {
         [updatePriorityMutation]
     );
     const handleUpdateStatus = useCallback(
-        (ticketId: string, status: string, resolutionNote?: string, files?: File[]) =>
-            updateStatusMutation.mutate({ ticketId, status, resolutionNote, files }),
+        (ticketId: string, status: string, resolutionNote?: string, files?: File[], takeover?: TakeoverOptions) =>
+            updateStatusMutation.mutateAsync({ ticketId, status, resolutionNote, files, takeover }),
         [updateStatusMutation]
     );
     const handleAssign = useCallback(
@@ -372,16 +374,17 @@ export const BentoTicketListPage: React.FC = () => {
         }
     }, [selectedTickets, queryClient, clearSelection]);
 
-    const handleBulkStatusChange = useCallback(async (status: string) => {
+    const handleBulkStatusChange = useCallback(async (status: string, takeover?: TakeoverOptions) => {
         const ticketIds = Array.from(selectedTickets);
         try {
-            await api.patch('/tickets/bulk/update', { ticketIds, status });
+            await api.patch('/tickets/bulk/update', { ticketIds, status, ...takeover }, { skipToast: true });
             toast.success(`${ticketIds.length} tickets updated to ${status}`);
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
             clearSelection();
         } catch (error) {
-            toast.error('Failed to update tickets');
+            if (isHandledByTakeoverDialog(error, takeover)) throw error;
+            toast.error(getApiErrorMessage(error, 'Failed to update tickets'));
         }
     }, [selectedTickets, queryClient, clearSelection]);
 

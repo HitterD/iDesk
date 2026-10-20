@@ -33,13 +33,22 @@ export interface ReassignTicketInfo {
     } | null;
 }
 
-interface ReassignConfirmDialogProps {
+export interface TakeoverTicketSummary {
+    ticketNumber: string;
+    assigneeName: string;
+}
+
+export interface ReassignConfirmDialogProps {
     isOpen: boolean;
     onClose: () => void;
     ticket: ReassignTicketInfo | null;
     targetAgent: TargetAgentInfo | null; // null means unassign
     onConfirm: (reason: string) => Promise<void> | void;
     isLoading?: boolean;
+    /** Status takeover only: change the status but leave the current PIC in place (ADMIN/MANAGER). */
+    onKeepAssignee?: () => Promise<void> | void;
+    /** Bulk status takeover: every ticket that currently has another PIC. */
+    ticketsSummary?: TakeoverTicketSummary[];
 }
 
 const REASON_PRESETS = [
@@ -57,6 +66,8 @@ export const ReassignConfirmDialog: React.FC<ReassignConfirmDialogProps> = ({
     targetAgent,
     onConfirm,
     isLoading = false,
+    onKeepAssignee,
+    ticketsSummary,
 }) => {
     const [selectedPreset, setSelectedPreset] = useState<string>('overload');
     const [customReason, setCustomReason] = useState<string>('');
@@ -74,6 +85,8 @@ export const ReassignConfirmDialog: React.FC<ReassignConfirmDialogProps> = ({
 
     const isUnassign = !targetAgent || !targetAgent.id;
     const oldAgent = ticket.assignedTo;
+    const isBulk = Boolean(ticketsSummary?.length);
+    const oldAgentLabel = isBulk ? 'Beberapa PIC' : oldAgent?.fullName || 'Belum Ditugaskan';
 
     const handleConfirm = async () => {
         const presetObj = REASON_PRESETS.find((p) => p.id === selectedPreset);
@@ -98,6 +111,16 @@ export const ReassignConfirmDialog: React.FC<ReassignConfirmDialogProps> = ({
             await onConfirm(finalReason);
         } catch (err: any) {
             setError(err?.message || 'Gagal mengalihkan tiket');
+        }
+    };
+
+    const handleKeepAssignee = async () => {
+        if (!onKeepAssignee) return;
+        try {
+            setError(null);
+            await onKeepAssignee();
+        } catch (err: any) {
+            setError(err?.message || 'Gagal mengubah status tiket');
         }
     };
 
@@ -168,7 +191,7 @@ export const ReassignConfirmDialog: React.FC<ReassignConfirmDialogProps> = ({
                                     PIC Saat Ini
                                 </div>
                                 <div className="text-xs font-semibold text-foreground truncate">
-                                    {oldAgent?.fullName || 'Belum Ditugaskan'}
+                                    {oldAgentLabel}
                                 </div>
                             </div>
                         </div>
@@ -204,6 +227,18 @@ export const ReassignConfirmDialog: React.FC<ReassignConfirmDialogProps> = ({
                             )}
                         </div>
                     </div>
+
+                    {/* Bulk takeover: tickets currently handled by other agents */}
+                    {isBulk && (
+                        <ul className="max-h-32 overflow-y-auto rounded-xl border border-border/70 divide-y divide-border/60 text-xs">
+                            {ticketsSummary!.map((t) => (
+                                <li key={t.ticketNumber} className="flex items-center justify-between gap-3 px-3 py-1.5">
+                                    <span className="font-mono text-foreground">{t.ticketNumber}</span>
+                                    <span className="text-muted-foreground truncate">{t.assigneeName}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
 
                     {/* Presets */}
                     <div className="space-y-2">
@@ -303,6 +338,16 @@ export const ReassignConfirmDialog: React.FC<ReassignConfirmDialogProps> = ({
                     >
                         Batal
                     </button>
+                    {onKeepAssignee && (
+                        <button
+                            type="button"
+                            onClick={handleKeepAssignee}
+                            disabled={isLoading}
+                            className="px-4 py-2 text-xs font-semibold text-foreground hover:bg-muted border border-border rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                            Ubah status tanpa alihkan PIC
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={handleConfirm}

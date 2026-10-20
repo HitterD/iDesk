@@ -234,7 +234,12 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
             setResolveModalOpen(true);
             return;
         }
-        await handleStatusChange(value);
+        try {
+            await handleStatusChange(value);
+        } catch {
+            // Cancelled takeover or failed save (already reported): show the server status again.
+            setLocalStatus(ticket.status);
+        }
     };
 
     const handleConfirmResolve = async (note: string, files: File[]) => {

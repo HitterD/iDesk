@@ -39,6 +39,8 @@ import { TicketBoardErrorBoundary } from '../components/TicketBoardErrorBoundary
 import { TicketListPagination } from '../components/TicketListPagination';
 import { TicketListActiveFilters } from '../components/TicketListActiveFilters';
 import { useTicketListMutations } from '../hooks/useTicketListMutations';
+import { isHandledByTakeoverDialog, type TakeoverOptions } from '../hooks/useStatusTakeover';
+import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 import { BentoTicketKanban } from '../components/BentoTicketKanban';
 import { SiteSelector } from '@/components/site/SiteSelector';
 import type { Ticket } from '../hooks/useTickets';
@@ -282,15 +284,16 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
         }
     }, [selectedTickets, queryClient, clearSelection]);
 
-    const handleBulkStatusChange = useCallback(async (status: string) => {
+    const handleBulkStatusChange = useCallback(async (status: string, takeover?: TakeoverOptions) => {
         const ticketIds = Array.from(selectedTickets);
         try {
-            await api.patch('/tickets/bulk/update', { ticketIds, status });
+            await api.patch('/tickets/bulk/update', { ticketIds, status, ...takeover }, { skipToast: true });
             toast.success(`${ticketIds.length} tiket Oracle/K2 diperbarui`);
             queryClient.invalidateQueries({ queryKey: ['tickets', 'oracle-k2'] });
             clearSelection();
         } catch (error) {
-            toast.error('Gagal memperbarui tiket');
+            if (isHandledByTakeoverDialog(error, takeover)) throw error;
+            toast.error(getApiErrorMessage(error, 'Gagal memperbarui tiket'));
         }
     }, [selectedTickets, queryClient, clearSelection]);
 
@@ -323,8 +326,8 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
     );
 
     const handleUpdateStatus = useCallback(
-        (ticketId: string, status: string, resolutionNote?: string, files?: File[]) =>
-            updateStatusMutation.mutate({ ticketId, status, resolutionNote, files }),
+        (ticketId: string, status: string, resolutionNote?: string, files?: File[], takeover?: TakeoverOptions) =>
+            updateStatusMutation.mutateAsync({ ticketId, status, resolutionNote, files, takeover }),
         [updateStatusMutation]
     );
 

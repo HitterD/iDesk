@@ -46,6 +46,8 @@ import { UserAvatar } from '@/components/ui/UserAvatar';
 import { SiteSelector } from '@/components/site/SiteSelector';
 import { formatSlaDuration, MS_PER_MINUTE } from '@/lib/utils/slaDuration';
 import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
+import { isHandledByTakeoverDialog, useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
+import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 
 const CROSS_SITE_ROLES = ['ADMIN','MANAGER','AGENT_ORACLE'] as const;
 const isCrossSiteRole = (role?: string | null) => (CROSS_SITE_ROLES as readonly string[]).includes(role as string);
@@ -752,9 +754,11 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
         },
     });
 
+    const statusTakeover = useStatusTakeover();
     const updateStatusMutation = useMutation({
-        mutationFn: async ({ id, status }: { id: string; status: string }) => {
-            await api.patch(`/tickets/${id}/status`, { status });
+        mutationFn: async ({ id, status, takeover }: { id: string; status: string; takeover?: TakeoverOptions }) => {
+            // skipToast: the takeover 409 opens a dialog instead; other errors are toasted in onError.
+            await api.patch(`/tickets/${id}/status`, { status, ...takeover }, { skipToast: true });
         },
         onMutate: async ({ id, status }) => {
             await queryClient.cancelQueries({ queryKey: ['tickets', 'kanban', effectiveQueue] });
@@ -770,9 +774,9 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
 
             return { previousTickets };
         },
-        onError: (_, __, context) => {
+        onError: (err, variables, context) => {
             queryClient.setQueryData(['tickets', 'kanban', effectiveQueue], context?.previousTickets);
-            toast.error('Gagal memperbarui status');
+            if (!isHandledByTakeoverDialog(err, variables.takeover)) toast.error(getApiErrorMessage(err, 'Gagal memperbarui status'));
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
@@ -913,7 +917,16 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
         if (!destination) return;
         if (destination.droppableId === source.droppableId && destination.index === source.index) return;
         if (NON_SELECTABLE_STATUSES.includes(destination.droppableId)) return;
-        updateStatusMutation.mutate({ id: draggableId, status: destination.droppableId });
+        changeStatus(draggableId, destination.droppableId);
+    };
+
+    // A takeover confirmation opens before the optimistic move, so cancelling leaves the card in place.
+    const changeStatus = (id: string, status: string) => {
+        const ticket = tickets.find(t => t.id === id) ?? (selectedTicket?.id === id ? selectedTicket : undefined);
+        if (!ticket) return;
+        statusTakeover
+            .request(ticket, status, (takeover) => updateStatusMutation.mutateAsync({ id, status, takeover }))
+            .catch(() => undefined); // already reported by the mutation's onError
     };
 
     const handleQuickAssign = useCallback((ticketId: string) => {
@@ -1121,11 +1134,14 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                         onClose={() => setSelectedTicket(null)}
                         onOpenFull={() => navigate(`/tickets/${selectedTicket.id}`, { state: { from: '/kanban' } })}
                         onAssign={(id, reason) => assignMutation.mutate({ id: selectedTicket.id, assigneeId: id, reason })}
-                        onStatusChange={(status) => updateStatusMutation.mutate({ id: selectedTicket.id, status })}
+                        onStatusChange={(status) => changeStatus(selectedTicket.id, status)}
                         onPriorityChange={(priority) => updatePriorityMutation.mutate({ id: selectedTicket.id, priority })}
                     />
                 )}
             </div>
+
+            {/* PIC takeover confirmation when starting a ticket handled by another agent */}
+            {statusTakeover.dialogProps && <ReassignConfirmDialog {...statusTakeover.dialogProps} />}
         </div>
     );
 };

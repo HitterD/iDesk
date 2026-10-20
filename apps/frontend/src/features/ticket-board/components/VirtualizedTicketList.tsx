@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { TicketListRow, TicketRowData, type Agent } from './TicketListRow';
+import { TicketListRow, TicketRowData, type Agent, type TicketListRowProps } from './TicketListRow';
 import { Inbox, Search, X } from 'lucide-react';
 
 interface VirtualizedTicketListProps {
@@ -11,7 +11,7 @@ interface VirtualizedTicketListProps {
     agents: Agent[];
     onSelect: (ticketId: string, selected: boolean) => void;
     onUpdatePriority: (ticketId: string, priority: string) => void;
-    onUpdateStatus: (ticketId: string, status: string, resolutionNote?: string, files?: File[]) => void;
+    onUpdateStatus: TicketListRowProps['onUpdateStatus'];
     onAssign: (ticketId: string, assigneeId: string, reason?: string) => void;
     /** Optional callback to clear filters */
     onClearFilters?: () => void;
