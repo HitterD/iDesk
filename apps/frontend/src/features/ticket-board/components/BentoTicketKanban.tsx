@@ -44,6 +44,7 @@ import { TicketQuickPreview } from '@/components/ui/TicketQuickPreview';
 import { KanbanBoardSkeleton } from './KanbanSkeleton';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { SiteSelector } from '@/components/site/SiteSelector';
+import { formatSlaDuration, MS_PER_MINUTE } from '@/lib/utils/slaDuration';
 import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 
 const CROSS_SITE_ROLES = ['ADMIN','MANAGER','AGENT_ORACLE'] as const;
@@ -78,6 +79,7 @@ interface Ticket {
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
     isOverdue?: boolean;
     slaTarget?: string;
+    slaRemainingMinutes?: number | null;
     assignedTo?: { id: string; fullName: string; email?: string; avatarUrl?: string; role?: string };
     user?: { id?: string; fullName: string; avatarUrl?: string; department?: { name: string } };
     site?: { id: string; code: string; name: string };
@@ -124,7 +126,7 @@ const COLUMN_ACCENTS: Record<string, { dot: string; border: string; bg: string; 
 
 
 // Enhanced Linear-style Kanban card
-const EnhancedKanbanCard: React.FC<{
+export const EnhancedKanbanCard: React.FC<{
     ticket: Ticket;
     index: number;
     onSelect: () => void;
@@ -134,8 +136,9 @@ const EnhancedKanbanCard: React.FC<{
     const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
     const slaClock = useSlaClock();
     const now = new Date();
-    const clock = ticket.slaTarget ? slaCountdown(ticket.slaTarget, now, ticket.priority, slaClock) : null;
-    const isOverdue = ticket.isOverdue || (clock && clock.remainingMs <= 0 && ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED');
+    const isPaused = ticket.status === 'WAITING_VENDOR';
+    const clock = !isPaused && ticket.slaTarget ? slaCountdown(ticket.slaTarget, now, ticket.priority, slaClock) : null;
+    const isOverdue = !isPaused && (ticket.isOverdue || (clock && clock.remainingMs <= 0 && ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED'));
     const isApproaching = clock && !isOverdue && clock.remainingMs < 2 * 60 * 60 * 1000;
     const offHours = clock?.offHours ? offHoursLabel(clock, now, slaClock) : undefined;
     const PriorityIcon = priorityConfig.icon;
@@ -237,7 +240,11 @@ const EnhancedKanbanCard: React.FC<{
                     )}
 
                     {/* SLA / Target Date Pill if active */}
-                    {ticket.slaTarget && ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED' && (
+                    {isPaused ? (
+                        <div className="mb-2.5 text-[11px] font-medium text-muted-foreground">
+                            {ticket.slaRemainingMinutes != null ? `Dijeda · sisa ${formatSlaDuration(ticket.slaRemainingMinutes * MS_PER_MINUTE)}` : 'Dijeda'}
+                        </div>
+                    ) : ticket.slaTarget && ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED' && (
                         <div className="mb-2.5">
                             {isOverdue ? (
                                 <div className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-destructive/10 text-destructive border border-destructive/20">

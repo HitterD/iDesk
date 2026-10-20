@@ -1,5 +1,10 @@
+vi.mock('@/lib/slaCountdown', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/lib/slaCountdown')>(),
+    useSlaClock: () => null,
+}));
+
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { TargetDateCell } from '../TargetDateCell';
 
 describe('TargetDateCell', () => {

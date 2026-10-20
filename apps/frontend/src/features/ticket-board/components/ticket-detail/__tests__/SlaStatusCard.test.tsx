@@ -1,5 +1,10 @@
+vi.mock('@/lib/slaCountdown', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/lib/slaCountdown')>(),
+    useSlaClock: () => null,
+}));
+
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { SlaStatusCard } from '../SlaStatusCard';
 import type { TicketDetail } from '../types';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';

@@ -633,6 +633,8 @@ export const BentoTicketDetailPage: React.FC = () => {
                         ticketNumber: ticket.ticketNumber,
                         title: ticket.title,
                         slaTarget: ticket.slaTarget,
+                        status: ticket.status,
+                        slaRemainingMinutes: ticket.slaRemainingMinutes,
                         priority: ticket.priority,
                     }}
                     onConfirm={handleExtendSla}

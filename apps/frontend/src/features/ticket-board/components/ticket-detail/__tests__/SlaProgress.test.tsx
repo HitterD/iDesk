@@ -1,3 +1,8 @@
+vi.mock('@/lib/slaCountdown', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/lib/slaCountdown')>(),
+    useSlaClock: () => null,
+}));
+
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
@@ -41,12 +46,14 @@ describe('SlaProgress paused', () => {
         expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', expected);
     });
 
-    it('falls back to current progress without pause data, never to a target title', () => {
+    it('shows indeterminate paused progress without a pause timestamp', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-10-20T02:00:00Z'));
         render(<SlaProgress {...props} pausedAt={null} slaRemainingMinutes={null} />);
         expect(screen.getByText('Dijeda')).toBeInTheDocument();
-        expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '25');
+        expect(screen.getByRole('progressbar')).not.toHaveAttribute('aria-valuenow');
+        expect(screen.queryByText(/\d+%/)).not.toBeInTheDocument();
+        expect(screen.getByRole('progressbar').firstElementChild).toHaveStyle({ width: '0%' });
         expect(screen.queryByTitle(/Target:/)).not.toBeInTheDocument();
     });
 

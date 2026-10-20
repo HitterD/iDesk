@@ -2,6 +2,7 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { slaCountdown, useSlaClock } from '@/lib/slaCountdown';
+import { formatSlaDuration as formatDuration } from '@/lib/utils/slaDuration';
 import { isTerminalStatus } from './constants';
 
 const MS_PER_HOUR = 60 * 60 * 1000;
@@ -16,16 +17,6 @@ const TONE: Record<SlaTone, { bar: string; text: string }> = {
     overdue: { bar: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' },
     paused: { bar: 'bg-slate-400', text: 'text-slate-500 dark:text-slate-400' },
     done: { bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
-};
-
-const formatDuration = (ms: number): string => {
-    const totalMinutes = Math.max(0, Math.floor(ms / 60_000));
-    const days = Math.floor(totalMinutes / (24 * 60));
-    const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
-    const minutes = totalMinutes % 60;
-    if (days > 0) return `${days}h ${hours}j`;
-    if (hours > 0) return `${hours}j ${minutes}m`;
-    return `${minutes}m`;
 };
 
 interface SlaProgressProps {
@@ -69,13 +60,14 @@ export const SlaProgress: React.FC<SlaProgressProps> = ({ status, priority, crea
         }
     }
 
-    const percent = tone === 'done' || tone === 'overdue' ? 100 : Math.round(usedRatio * 100);
+    const indeterminate = isPaused && !pausedAt;
+    const percent = indeterminate ? undefined : tone === 'done' || tone === 'overdue' ? 100 : Math.round(usedRatio * 100);
 
     return (
         <div className="space-y-1.5" title={isPaused ? (pausedAt ? `Dijeda sejak ${formatDateTimeID(pausedAt)}` : 'Dijeda') : `Target: ${formatDateTimeID(slaTarget)}`}>
             <div className="flex items-baseline justify-between gap-2">
                 <span className={cn('text-sm font-semibold tabular-nums', TONE[tone].text)}>{label}</span>
-                <span className="text-[11px] tabular-nums text-slate-400">{percent}%</span>
+                {percent != null && <span className="text-[11px] tabular-nums text-slate-400">{percent}%</span>}
             </div>
             <div
                 className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
@@ -85,7 +77,7 @@ export const SlaProgress: React.FC<SlaProgressProps> = ({ status, priority, crea
                 aria-valuemin={0}
                 aria-valuemax={100}
             >
-                <div className={cn('h-full rounded-full transition-all', TONE[tone].bar)} style={{ width: `${percent}%` }} />
+                <div className={cn('h-full rounded-full transition-all', TONE[tone].bar)} style={{ width: `${percent ?? 0}%` }} />
             </div>
         </div>
     );

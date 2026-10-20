@@ -1,3 +1,8 @@
+vi.mock('@/lib/slaCountdown', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/lib/slaCountdown')>(),
+    useSlaClock: () => null,
+}));
+
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
