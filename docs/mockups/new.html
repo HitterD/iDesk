@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Tiket baru</title>
+<link rel="stylesheet" href="idesk.css?v=13">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=13"></script>
+<script src="mock-state.js?v=13"></script>
+<script src="shell.js?v=13"></script>
+</head>
+<body data-page="new" data-crumb="Tiket Baru" data-title="Pilih jenis bantuan">
+<script>
+const ic = (n) => `<i data-lucide="${n}"></i>`;
+const M = '../../apps/frontend/public/characters/';
+const q = isUser() ? '&as=user' : '';
+const svc = (href, img, title, desc, cta) => `<a class="svc has-mascot" href="${href === '#' ? '#' : href + q}"><b>${title}</b><img class="mascot" src="${M}${img}" alt=""><p>${desc}</p><span class="cta">${cta}${ic('arrow-right')}</span></a>`;
+mountShell(`
+<main class="content narrow">
+  <div class="head"><div><h2>Buat Tiket Baru</h2><p>Pilih jenis bantuan atau pengajuan yang Anda butuhkan</p></div></div>
+  <label class="field" style="max-width:420px">${ic('search')}<input placeholder="Cari jenis bantuan, misal: printer, VPN, Oracle"></label>
+
+  <section class="catalog-sec">
+    <h3>Bantuan &amp; kendala teknis</h3>
+    <p>Masalah harian, bug aplikasi, atau kendala perangkat kerja</p>
+    <div class="catalog">
+      ${svc('form.html?type=service', 'mascot-service.png', 'Service Ticket', 'Hardware, software, jaringan, dan kebutuhan IT umum.', 'Buat Service Ticket')}
+      ${svc('form.html?type=oracle', 'mascot-oracle.png', 'Oracle / K2', 'Sistem Oracle, role K2, transaksi modul, dan ERP.', 'Buat tiket Oracle')}
+      ${svc('form.html?type=web', 'mascot-webdev.png', 'Web Developer', 'Bug, fitur baru, integrasi, atau performa web portal.', 'Buat tiket Web Dev')}
+      ${svc('form.html?type=mobile', 'mascot-mobiledev.png', 'Mobile Developer', 'Crash aplikasi, update APK, notifikasi, fitur app.', 'Buat tiket Mobile Dev')}
+    </div>
+  </section>
+  <section class="catalog-sec">
+    <h3>Pengajuan layanan &amp; akses</h3>
+    <p>Pengadaan perangkat baru atau persetujuan hak akses</p>
+    <div class="catalog">
+      ${svc('#', 'mascot-hardware.png', 'Hardware &amp; Budget', 'Pembelian, upgrade, atau penggantian perangkat.', 'Buka form pengadaan')}
+      ${svc('#', 'mascot-access.png', 'Access Request', 'Akses WiFi, VPN, website, atau aplikasi dengan approval.', 'Ajukan form akses')}
+    </div>
+  </section>
+</main>`);
+iDeskMock.sessionNote(document.querySelector('main'));
+lucide.createIcons();
+</script>
+</body>
+</html>

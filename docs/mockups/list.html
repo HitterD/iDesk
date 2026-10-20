@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Daftar tiket</title>
+<link rel="stylesheet" href="idesk.css?v=13">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=13"></script>
+<script src="mock-state.js?v=13"></script>
+<script src="shell.js?v=13"></script>
+</head>
+<body data-crumb="Request Center" data-live="1">
+<!--
+THESIS: one quiet queue for every request type (IT Support, Oracle K2, Web, Mobile) — same counters, same table, same dropdown vocabulary; colour only marks state that needs a human.
+OWN-WORLD: macOS source list + unified toolbar, soft white rounded panels on #f5f5f7, sapphire as the only accent, state as 7px dots and 10% tints, popup buttons for every editable cell.
+STORY: the agent sees what needs them (attention counters tint softly), filters with one click, changes status or PIC inline from the row.
+FIRST VIEWPORT: sidebar · toolbar · title with queue tile and scope segments · 7 counters · filter bar of popup buttons · table.
+FORM: user-pinned Apple design language, softened per review round 2.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+-->
+<script>
+const QUEUES = {
+  'it-support': { title: 'IT Support Tickets', icon: 'ticket', c: 'var(--blue)', sub: 'Antrian IT Support untuk semua site Anda', prefix: '' },
+  oracle: { title: 'Oracle K2 Request', icon: 'database', c: 'var(--red)', sub: 'ERP, database, dan workflow K2', prefix: 'ORA' },
+  web: { title: 'Web Developer Request', icon: 'code-xml', c: 'var(--teal)', sub: 'Bug, fitur, dan integrasi web portal', prefix: 'WEB' },
+  mobile: { title: 'Mobile Developer Request', icon: 'smartphone', c: 'var(--sea)', sub: 'Aplikasi mobile, APK, dan notifikasi', prefix: 'MOB' },
+};
+const qkey = new URLSearchParams(location.search).get('queue') || 'it-support';
+const Q = Object.hasOwn(QUEUES, qkey) ? QUEUES[qkey] : QUEUES['it-support'];
+document.body.dataset.page = Object.hasOwn(QUEUES, qkey) ? qkey : 'it-support';
+document.body.dataset.title = Q.title;
+
+const STATS = [
+  { key: 'all', name: 'Total', icon: 'layers', c: 'var(--gray)', n: 162 },
+  { key: 'TODO', name: 'Open', icon: 'inbox', c: 'var(--blue)', n: 0 },
+  { key: 'IN_PROGRESS', name: 'In Progress', icon: 'circle-dot', c: 'var(--navy)', n: 7 },
+  { key: 'WAITING_VENDOR', name: 'Waiting Vendor', icon: 'hourglass', c: 'var(--orange)', ink: 'var(--ink-orange)', n: 9, attn: true },
+  { key: 'DONE', name: 'Resolved', icon: 'circle-check', c: 'var(--green)', n: 139 },
+  { key: 'overdue', name: 'Overdue', icon: 'triangle-alert', c: 'var(--red)', ink: 'var(--ink-red)', n: 1, attn: true },
+  { key: 'critical', name: 'Critical', icon: 'flame', c: 'var(--pink)', ink: 'var(--ink-red)', n: 1, attn: true },
+];
+const STATUS = { CANCELLED: ['Cancelled', 'var(--red)'], TODO: ['Open', 'var(--blue)'], IN_PROGRESS: ['In Progress', 'var(--navy)'], WAITING_VENDOR: ['Waiting Vendor', 'var(--orange)'], RESOLVED: ['Resolved', 'var(--green)'], CLOSED: ['Closed', 'var(--gray)'] };
+const PRI = { LOW: ['Low', 'var(--gray)'], MEDIUM: ['Normal', 'var(--blue)'], HIGH: ['Urgent', 'var(--orange)'], CRITICAL: ['Blocker', 'var(--red)'] };
+// Synthetic sample data
+let T = [
+  { id: '201026-HC-0003', t: 'Wifi di PC tidak muncul', p: 'MEDIUM', s: 'WAITING_VENDOR', req: ['Merda Della Sovira', 'HC Development · Pusat'], pic: 'RM Bagastyo Anggoro', sla: { paused: '5j 20m', used: 38 }, d: '20 Okt' },
+  { id: '201026-OPE-0001', t: 'E-KALOSI error saat login', p: 'MEDIUM', s: 'IN_PROGRESS', req: ['Tjan Siauw Hwa', 'Operation'], pic: 'Alphin Santoso H.', sla: { left: '2h 14j', used: 22 }, d: '20 Okt' },
+  { id: '191026-GA-0002', t: 'Email tidak bisa diakses', p: 'HIGH', s: 'IN_PROGRESS', req: ['Yanuar Ari Widodo', 'GA Management · Sepanjang'], pic: 'Alphin Santoso H.', sla: { left: '1h 11j', used: 64 }, d: '19 Okt' },
+  { id: '181026-PRO-0009', t: 'Printer label gudang mati total', p: 'CRITICAL', s: 'IN_PROGRESS', req: ['Nur Ayni', 'Production 1'], pic: 'Beny Saputra', sla: { over: '1j 40m' }, d: '18 Okt', overdue: true },
+  { id: '191026-LEA-0018', t: 'Kamera laptop HR57 tidak bisa digunakan saat zoom', p: 'MEDIUM', s: 'IN_PROGRESS', req: ['Shanon Maria', 'Learning & Engagement'], pic: 'Yudi Arta Trirensila', sla: { left: '2h 14j', used: 18 }, d: '19 Okt' },
+  { id: '191026-QC-0009', t: 'Kebutuhan kabel type A to B', p: 'MEDIUM', s: 'TODO', req: ['Yusuf Wijaya', 'QC AB Reguler'], pic: null, sla: { left: '2h 8j', used: 6 }, d: '19 Okt', src: 'via iPop' },
+  { id: '141026-HSE-0026', t: 'Kendala UPS ruang server HSE', p: 'LOW', s: 'WAITING_VENDOR', req: ['Agung Permadhi', 'HSE · Sepanjang'], pic: 'Alphin Santoso H.', sla: { paused: '1h 3j', used: 52 }, d: '14 Okt' },
+  { id: '131026-FIN-0007', t: 'Permintaan printer pengganti yang rusak', p: 'HIGH', s: 'WAITING_VENDOR', req: ['Maria Yuliani Br Purba', 'Finance'], pic: 'Alphin Santoso H.', sla: { paused: '40m', used: 91 }, d: '13 Okt' },
+  { id: '191026-PRO-0015', t: 'Komputer factory 32 not responding', p: 'HIGH', s: 'RESOLVED', req: ['Nur Ayni', 'Production 1'], pic: 'Beny Saputra', sla: { done: true }, d: '19 Okt' },
+  { id: '011026-PRO-0017', t: 'Excel tidak berfungsi', p: 'CRITICAL', s: 'CLOSED', req: ['Dwi Esti Ariyanti', 'Production 1'], pic: 'Yudi Arta Trirensila', sla: { done: true }, d: '01 Okt' },
+];
+const SITES = ['SPJ', 'SMG', 'JTB', 'SPJ', 'SPJ', 'JTB', 'SPJ', 'SMG', 'SPJ', 'JTB'];
+T = T.map((r, i) => ({ ...r, site: SITES[i] }));
+const HUES = ['var(--pink)', 'var(--blue)', 'var(--orange)', 'var(--teal)', 'var(--green)', 'var(--navy)', 'var(--red)', 'var(--brown)'];
+const hue = (n) => HUES[[...n].reduce((a, ch) => a + ch.charCodeAt(0), 0) % HUES.length];
+const av = (n, cls = '') => `<span class="avatar ${cls}" style="--c:${hue(n)}">${initials(n)}</span>`;
+const DONE = ['RESOLVED', 'CLOSED'], ACTIVE = ['TODO', 'IN_PROGRESS', 'WAITING_VENDOR'];
+let filter = 'all', priorityFilter = 'all', siteFilter = 'all', scope = 'all';
+const ic = (n) => `<i data-lucide="${n}"></i>`;
+const caret = '<i data-lucide="chevron-down" class="caret"></i>';
+
+iDeskShell(`
+<main class="content">
+  <div class="head">
+    <span class="tile ptile" style="--c:${Q.c}">${ic(Q.icon)}</span>
+    <div><h2>${Q.title}</h2><p>${Q.sub}</p></div>
+    <span class="spacer"></span>
+    <div class="seg" aria-label="Cakupan"><button class="on">Semua</button><button>Tugas Saya</button><button>Saya Buat</button></div>
+    <div class="seg view" aria-label="Tampilan"><button>${ic('columns-3')}Kanban</button><button class="on">${ic('rows-3')}Tabel</button></div>
+  </div>
+  <section class="stats" id="stats" aria-label="Ringkasan status"></section>
+  <div class="filters">
+    <label class="field">${ic('search')}<input id="q" placeholder="Cari judul, nomor tiket, atau pemohon"></label>
+    <button class="pop" id="filter-status"><span class="k">Status</span><span class="v" id="statusLabel">Semua</span>${caret}</button>
+    <button class="pop" id="filter-priority"><span class="k">Prioritas</span><span class="v">Semua</span>${caret}</button>
+    <button class="pop" id="filter-site"><span class="k">Site</span><span class="v">Semua</span>${caret}</button>
+    <button class="pop icon-pop" id="refresh-sample" aria-label="Muat ulang">${ic('refresh-cw')}</button>
+    <span id="chips" style="display:contents"></span>
+  </div>
+  <section class="table" aria-label="Daftar tiket">
+    <div class="thead"><span class="check" aria-hidden="true"></span><span>Tiket</span><span class="col-pri">Prioritas</span><span class="col-site">Site</span><span>Status</span><span class="col-req">Pemohon</span><span>PIC</span><span>SLA</span><span class="sort col-date">Dibuat${ic('arrow-down')}</span></div>
+    <div id="rows"></div>
+    <div class="empty-state" id="empty"><div class="ic">${ic('inbox')}</div><b>Tidak ada tiket yang cocok</b>Coba hapus filter atau ubah kata kunci pencarian.</div>
+    <div class="foot"><span id="showing"></span><div class="pager"><button aria-label="Sebelumnya">${ic('chevron-left')}</button><button class="on">1</button><button>2</button><button>3</button><button aria-label="Berikutnya">${ic('chevron-right')}</button></div></div>
+  </section>
+</main>`);
+
+function renderStats() {
+  document.getElementById('stats').innerHTML = STATS.map((stat) => {
+    const s = { ...stat, n: sampleCount(stat.key) };
+    const cls = ['stat', s.attn && s.n > 0 ? 'attn' : '', s.n === 0 ? 'zero' : '', filter === s.key ? 'on' : ''].join(' ');
+    return `<button class="${cls}" style="--c:${s.c};--ink:${s.ink || 'var(--text)'}" data-key="${s.key}" aria-pressed="${filter === s.key}">
+      <span class="top"><span class="ic">${ic(s.icon)}</span><span class="n">${s.n}</span></span><span class="name">${s.name}</span></button>`;
+  }).join('');
+}
+function slaCell(r) {
+  if (iDeskMock.isTerminal(r.s)) return `<span class="bub" style="--c:var(--green);--ink:var(--ink-green)">${ic('circle-check')}Selesai</span>`;
+  if (r.s === 'WAITING_VENDOR') return `<span class="bub" style="--c:var(--orange);--ink:var(--ink-orange)">${ic('pause')}Dijeda · ${r.sla.paused || r.sla.left || 'contoh'}</span>`;
+  if (r.sla.over && r.s !== 'WAITING_VENDOR') return `<span class="bub" style="--c:var(--red);--ink:var(--ink-red)">${ic('triangle-alert')}Lewat ${r.sla.over}</span>`;
+  const warn = r.sla.used > 55;
+  return `<span class="bub mono" style="--c:${warn ? 'var(--orange)' : 'var(--blue)'};--ink:${warn ? 'var(--ink-orange)' : 'var(--text-2)'}">${ic('timer')}${r.sla.left || r.sla.paused || '5j 20m · contoh'}</span>`;
+}
+function matches(r) {
+  if (filter === 'all') return true;
+  if (filter === 'DONE') return DONE.includes(r.s);
+  if (filter === 'overdue') return r.overdue && ACTIVE.includes(r.s) && r.s !== 'WAITING_VENDOR';
+  if (filter === 'critical') return r.p === 'CRITICAL' && ACTIVE.includes(r.s);
+  return r.s === filter;
+}
+function renderRows() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const rows = T.filter(matches).filter((r) => (priorityFilter === 'all' || r.p === priorityFilter) && (siteFilter === 'all' || r.site === siteFilter) && (scope === 'all' || (scope === 'mine' ? r.pic === iDeskMock.ACTOR : false))).filter((r) => !q || (r.t + r.id + r.req[0]).toLowerCase().includes(q));
+  document.getElementById('rows').innerHTML = rows.map((r) => {
+    const active = ACTIVE.includes(r.s);
+    const flag = active && (r.p === 'CRITICAL' || (r.overdue && r.s !== 'WAITING_VENDOR'));
+    const [pl, pc] = PRI[r.p]; const [sl, sc] = STATUS[r.s];
+    const id = Q.prefix ? r.id.replace(/-[A-Z]+-/, `-${Q.prefix}-`) : r.id;
+    const stop = 'onclick="event.stopPropagation()"';
+    const priInk = r.p === 'CRITICAL' ? 'var(--ink-red)' : r.p === 'HIGH' ? 'var(--ink-orange)' : 'var(--text-2)';
+    const priIcon = r.p === 'CRITICAL' && active ? ic('flame') : r.p === 'HIGH' || r.p === 'CRITICAL' ? ic('triangle-alert') : '<span class="dot"></span>';
+    const pic = r.pic
+      ? `<button class="bub pic" ${stop} aria-label="Ganti PIC">${av(r.pic)}<span class="v">${r.pic}</span>${caret}</button>`
+      : `<button class="bub pic empty" ${stop}>${ic('user-round-plus')}<span class="v">Tetapkan PIC</span>${caret}</button>`;
+    return `<div class="row ${flag ? 'flag' : ''}" data-record="${r.id}" role="row" tabindex="0" onclick="location.href='ticket.html'">
+      <span class="check" aria-hidden="true"></span>
+      <div class="tk"><div class="id">#${id}${r.src ? `<span class="src">${r.src}</span>` : ''}</div><div class="title">${r.t}</div></div>
+      <span class="col-pri"><button class="bub" data-edit="p" style="--c:${pc};--ink:${priInk}">${priIcon}<span class="v">${pl}</span>${active ? caret : ''}</button></span>
+      <span class="col-site"><span class="bub neutral mono">${r.site}</span></span>
+      <span class="col-st"><button class="bub" style="--c:${sc}" ${stop} aria-label="Ganti status"><span class="dot"></span><span class="v">${sl}</span>${caret}</button></span>
+      <div class="person col-req">${av(r.req[0])}<div style="min-width:0"><b>${r.req[0]}</b><small>${r.req[1]}</small></div></div>
+      <div class="col-pic">${pic}</div>
+      <div class="col-sla">${slaCell(r)}</div>
+      <span class="date col-date">${r.d}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('empty').classList.toggle('show', rows.length === 0);
+  document.getElementById('showing').textContent = `Menampilkan ${rows.length} dari ${T.length} tiket contoh`;
+  const s = STATS.find((x) => x.key === filter) || { name: STATUS[filter]?.[0] || filter };
+  document.getElementById('statusLabel').textContent = filter === 'all' ? 'Semua' : s.name;
+  document.querySelector('#filter-priority .v').textContent = priorityFilter === 'all' ? 'Semua' : PRI[priorityFilter][0];
+  document.querySelector('#filter-site .v').textContent = siteFilter === 'all' ? 'Semua' : siteFilter;
+  const hasFilters = filter !== 'all' || priorityFilter !== 'all' || siteFilter !== 'all' || q || scope !== 'all';
+  document.getElementById('chips').replaceChildren();
+  if (hasFilters) {
+    const chip = iDeskDropdown.node('button', 'chip', 'Reset filter');
+    chip.dataset.clear = ''; document.getElementById('chips').append(chip);
+  }
+  bindRows(rows);
+  lucide.createIcons();
+}
+function bindRows(rows) {
+  rows.forEach((record) => {
+    const row = document.querySelector('[data-record="' + record.id + '"]');
+    const commit = (updated) => { T = T.map((r) => r.id === updated.id ? updated : r); render(); };
+    const fields = [['p', '[data-edit="p"]', iDeskMock.priorities], ['s', '.col-st button', iDeskMock.editableStatuses], ['pic', '.col-pic button', iDeskMock.pics]];
+    fields.forEach(([key, selector, options]) => {
+      const button = row.querySelector(selector); button.id = 'edit-' + record.id + '-' + key;
+      iDeskMock.bindEditor(button, record, key, options, commit, key === 'pic' ? 'Cari PIC…' : undefined);
+    });
+    row.onkeydown = (event) => { if (event.target === row && event.key === 'Enter') location.href = 'ticket.html'; };
+  });
+}
+function sampleCount(key) {
+  if (key === 'all') return T.length;
+  if (key === 'DONE') return T.filter((r) => DONE.includes(r.s)).length;
+  if (key === 'critical') return T.filter((r) => r.p === 'CRITICAL' && ACTIVE.includes(r.s)).length;
+  if (key === 'overdue') return T.filter((r) => r.overdue && ['TODO', 'IN_PROGRESS'].includes(r.s)).length;
+  return T.filter((r) => r.s === key).length;
+}
+const render = () => { renderStats(); renderRows(); };
+document.getElementById('stats').addEventListener('click', (e) => {
+  const b = e.target.closest('.stat'); if (!b) return;
+  filter = filter === b.dataset.key && b.dataset.key !== 'all' ? 'all' : b.dataset.key; render();
+});
+document.getElementById('chips').addEventListener('click', (e) => { if (e.target.closest('[data-clear]')) { filter = priorityFilter = siteFilter = scope = 'all'; document.getElementById('q').value = ''; document.querySelectorAll('.head .seg:not(.view) button').forEach((b, i) => b.classList.toggle('on', i === 0)); render(); } });
+document.getElementById('q').addEventListener('input', renderRows);
+const allOption = { value: 'all', label: 'Semua' };
+iDeskDropdown.bind(document.getElementById('filter-status'), { title: 'Filter status', options: [allOption, ...iDeskMock.statuses], value: () => filter, onSelect: (v) => { filter = v; render(); } });
+iDeskDropdown.bind(document.getElementById('filter-priority'), { title: 'Filter prioritas', options: [allOption, ...iDeskMock.priorities], value: () => priorityFilter, onSelect: (v) => { priorityFilter = v; render(); } });
+iDeskDropdown.bind(document.getElementById('filter-site'), { title: 'Filter site', options: [allOption, ...iDeskMock.choices(['SPJ', 'SMG', 'JTB'])], value: () => siteFilter, onSelect: (v) => { siteFilter = v; render(); } });
+document.getElementById('refresh-sample').onclick = () => { render(); iDeskDropdown.notice('Tampilan contoh diperbarui. Tidak ada pengambilan data server.'); };
+document.querySelectorAll('.head .seg:not(.view) button').forEach((button, index) => {
+  button.onclick = () => {
+    scope = ['all', 'mine', 'created'][index];
+    button.parentElement.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === button)); render();
+    if (scope === 'created') iDeskDropdown.notice('Tidak ada tiket sampel yang dibuat actor demo.');
+  };
+});
+document.querySelectorAll('.view button').forEach((button) => { button.onclick = () => iDeskDropdown.notice('Prototype ini menampilkan tabel saja. Kanban belum dihubungkan.'); });
+document.querySelector('.pager').replaceChildren(iDeskDropdown.node('span', 'muted', 'Satu halaman data contoh'));
+iDeskMock.sessionNote(document.querySelector('main'));
+render();
+</script>
+</body>
+</html>

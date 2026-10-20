@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Detail tiket</title>
+<link rel="stylesheet" href="idesk.css?v=13">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=13"></script>
+<script src="mock-state.js?v=13"></script>
+<script src="shell.js?v=13"></script>
+</head>
+<body data-page="it-support" data-crumb="IT Support Tickets" data-title="Servis printer marketing">
+<script>
+// Agent view by default; ?as=user renders the requester portal version of the same ticket.
+const ic = (n) => `<i data-lucide="${n}"></i>`;
+const caret = '<i data-lucide="chevron-down" class="caret"></i>';
+const U = isUser();
+const orange = 'style="--c:var(--orange);--ink:var(--ink-orange)"';
+const requester = '<span class="avatar" style="--c:var(--orange)">NK</span>';
+const agentAv = '<span class="avatar" style="--c:var(--pink)">AS</span>';
+
+const actions = U
+  ? `<button class="btn keep">${ic('circle-check')}<span>Masalah sudah selesai</span></button>`
+  : `<button class="btn" aria-label="Teruskan">${ic('forward')}<span>Teruskan</span></button>
+     <button class="btn danger" aria-label="Batalkan">${ic('circle-x')}<span>Batalkan</span></button>
+     <button class="btn primary">${ic('circle-check')}<span>Resolve</span></button>`;
+
+const AGENT_ASIDE = `
+    <div class="panel">
+      <h3>Pemohon</h3>
+      <div class="person"><span class="avatar lg" style="--c:var(--orange)">NK</span><div style="min-width:0"><b>Nofie Kristihina Kullau</b><small>nofiekullau2@gmail.com · FGW</small></div></div>
+    </div>
+    <div class="panel">
+      <h3>Properti</h3>
+      <div class="prop"><span>PIC</span><button class="bub pic" style="width:auto">${agentAv}<span class="v">Alphin Santoso H.</span>${caret}</button></div>
+      <div class="prop"><span>Status</span><button class="bub" ${orange}><span class="dot"></span><span class="v">Waiting Vendor</span>${caret}</button></div>
+      <div class="prop"><span>Prioritas</span><button class="bub" ${orange}>${ic('triangle-alert')}<span class="v">Urgent</span>${caret}</button></div>
+      <div class="prop"><span>Kategori</span><button class="bub neutral"><span class="v">General</span>${caret}</button></div>
+      <div class="prop"><span>Perangkat</span><button class="bub neutral"><span class="v">Tidak ada</span>${caret}</button></div>
+    </div>
+    <div class="panel">
+      <h3>SLA</h3>
+      <div class="sla-big">
+        <div class="t"><b style="color:var(--ink-orange)">Dijeda · sisa 5j 20m</b><span class="muted">38% terpakai</span></div>
+        <div class="bar" style="--c:var(--orange);--p:38%"><i></i></div>
+      </div>
+      <div class="kvs">
+        <div><span>Dijeda sejak</span><b>20 Okt 2026, 10.52</b></div>
+        <div><span>Dibuat</span><b>20 Okt 2026, 10.29</b></div>
+        <div><span>Aktivitas terakhir</span><b>2 jam lalu</b></div>
+      </div>
+      <div class="actions"><button class="btn plain">${ic('calendar-plus')}Perpanjang SLA</button><button class="btn plain">${ic('bell')}Set Reminder</button></div>
+    </div>`;
+
+const USER_ASIDE = `
+    <div class="panel">
+      <h3>Ditangani oleh</h3>
+      <div class="person"><span class="avatar lg" style="--c:var(--pink)">AS</span><div style="min-width:0"><b>Alphin Santoso H.</b><small>IT Support Specialist</small></div></div>
+    </div>
+    <div class="panel">
+      <h3>Detail tiket</h3>
+      <div class="prop"><span>Status</span><span class="readonly"><span class="bub" ${orange}><span class="dot"></span>Waiting Vendor</span></span></div>
+      <div class="prop"><span>Prioritas</span><span class="readonly"><span class="bub" ${orange}>${ic('triangle-alert')}Urgent</span></span></div>
+      <div class="prop"><span>Kategori</span><span class="readonly">General</span></div>
+      <div class="prop"><span>Perangkat</span><span class="readonly">Tidak ada</span></div>
+    </div>
+    <div class="panel">
+      <h3>Perkiraan waktu</h3>
+      <div class="sla-big"><div class="t"><b style="color:var(--ink-orange)">Menunggu vendor</b><span class="muted">Kamis, 22 Okt</span></div></div>
+      <div class="kvs"><div><span>Diajukan</span><b>20 Okt 2026, 10.29</b></div><div><span>Aktivitas terakhir</span><b>2 jam lalu</b></div></div>
+    </div>`;
+
+mountShell(`
+<div class="detail">
+  <section class="convo" aria-label="Percakapan">
+    <div class="convo-head">
+      <div class="line1">
+        <a class="back" href="${U ? 'my-tickets.html' : 'list.html'}" aria-label="Kembali ke daftar">${ic('chevron-left')}</a>
+        <span class="idpill">#201026-FGW-0009 ${ic('copy')}</span>
+        <span class="bub" ${orange}><span class="dot"></span>Waiting Vendor</span>
+        <span class="bub" ${orange}>${ic('pause')}${U ? 'Menunggu vendor' : 'SLA dijeda · sisa 5j 20m'}</span>
+        <span class="bub" ${orange}>${ic('triangle-alert')}Urgent</span>
+      </div>
+      <div class="line1">
+        <h2>Servis printer marketing</h2>
+        <span class="spacer"></span>
+        ${actions}
+      </div>
+      <div class="seg" style="width:max-content"><button class="on">${ic('message-circle')}Percakapan</button><button>${ic('history')}Aktivitas</button></div>
+    </div>
+    <div class="stream">
+      <div class="msg ${U ? 'out' : ''}">
+        ${requester}
+        <div><div class="who"><b>${U ? 'Anda' : 'Nofie Kristihina Kullau'}</b>${U ? '' : '<span class="badge">Pemohon</span>'}20 Okt, 10.29</div>
+          <div class="bubble"><p><b>Servis printer</b></p><p>Kertas surat jalan sering nyangkut di printer (marketing 40), tulisan putus-putus dan tidak jelas (marketing 41).</p></div></div>
+      </div>
+      <div class="day">Hari ini</div>
+      <div class="sys"><span class="ic">${ic('user-round-cog')}</span>${U ? 'Tiket Anda sekarang ditangani Alphin Santoso H.' : 'PIC dialihkan dari Yudi Arta Trirensila ke Alphin Santoso H. · Alasan: Beban kerja penuh'}<small>${U ? '' : 'oleh Alphin Santoso H. · '}10.52</small></div>
+      <div class="event" style="--c:var(--orange)">
+        <div class="eh"><span class="ic">${ic('truck')}</span><div><b>Menunggu kunjungan vendor</b><small>${U ? 'Teknisi vendor akan datang ke lokasi Anda' : 'Ditambahkan ke jadwal vendor luar'}</small></div></div>
+        <div class="kv"><div><small>Jadwal vendor</small><b>Setiap hari Kamis</b></div><div><small>Perkiraan kunjungan</small><b>Kamis, 22 Okt 2026</b></div></div>
+        ${U ? '' : `<div class="note">${ic('pause')}SLA dijeda sampai vendor datang dan tiket dilanjutkan.</div>`}
+      </div>
+      <div class="msg ${U ? '' : 'out'}">
+        ${agentAv}
+        <div><div class="who">${U ? '<b>Alphin Santoso H.</b><span class="badge">IT Support</span>10.55' : '10.55 <b>Alphin Santoso H.</b>'}</div>
+          <div class="bubble"><p>Baik Bu, printer akan dicek vendor hari Kamis. Sementara silakan pakai printer marketing 42.</p></div></div>
+      </div>
+    </div>
+    <div class="composer">
+      <button class="icon-btn" aria-label="Lampirkan">${ic('plus')}</button>
+      <div class="box"><span>${U ? 'Balas ke IT Support…' : 'Balas ke pemohon…'}</span>${U ? '' : `<button class="icon-btn" aria-label="Balasan cepat">${ic('zap')}</button>`}</div>
+      <button class="send" aria-label="Kirim">${ic('arrow-up')}</button>
+    </div>
+  </section>
+
+  <aside class="inspector" aria-label="Info tiket">
+    ${U ? USER_ASIDE : AGENT_ASIDE}
+    <div class="panel">
+      <h3>Anggota tiket <span class="muted" style="font-weight:500">1</span><button class="btn plain act">${ic('user-plus')}Tambah</button></h3>
+      <div class="person">${requester}<div><b>Nofie Kristihina Kullau</b><small>Pembuat tiket</small></div></div>
+    </div>
+  </aside>
+</div>`);
+lucide.createIcons();
+</script>
+<script src="ticket-demo.js?v=13"></script>
+</body>
+</html>

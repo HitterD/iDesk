@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Form tiket</title>
+<link rel="stylesheet" href="idesk.css?v=13">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=13"></script>
+<script src="mock-state.js?v=13"></script>
+<script src="shell.js?v=13"></script>
+</head>
+<body data-page="new" data-crumb="Tiket Baru">
+<script>
+const TYPES = {
+  service: { title: 'Service Ticket', sub: 'Hardware, software, jaringan, dan kebutuhan IT umum', icon: 'ticket', c: 'var(--blue)', templates: ['Email bermasalah', 'Printer error', 'Sistem lambat', 'Tidak ada jaringan', 'Software error', 'Gagal login'], extra: true, subject: 'Koneksi internet bermasalah', body: 'Tidak ada koneksi WiFi maupun LAN. Area/Lantai: ' },
+  oracle: { title: 'Oracle / K2 Request', sub: 'ERP, database, dan workflow K2', icon: 'database', c: 'var(--red)', templates: ['Gagal login', 'Update role', 'System error'], subject: 'Lupa password / gagal login Oracle', body: 'Gagal login ke portal Oracle. Pesan error: ' },
+  web: { title: 'Web Developer Request', sub: 'Bug, fitur, integrasi, dan performa web', icon: 'code-xml', c: 'var(--teal)', templates: ['Bug halaman', 'Fitur baru', 'Integrasi'], subject: '', body: '' },
+  mobile: { title: 'Mobile Developer Request', sub: 'Aplikasi mobile, APK, dan notifikasi', icon: 'smartphone', c: 'var(--sea)', templates: ['App crash', 'Update APK', 'Notifikasi'], subject: '', body: '' },
+};
+const type = new URLSearchParams(location.search).get('type');
+const T = Object.hasOwn(TYPES, type) ? TYPES[type] : TYPES.service;
+document.body.dataset.title = T.title;
+const ic = (n) => `<i data-lucide="${n}"></i>`;
+const caret = '<i data-lucide="chevron-down" class="caret"></i>';
+const pri = (c, l, on) => `<button class="${on ? 'on' : ''}"><span class="dot" style="--c:${c}"></span>${l}</button>`;
+mountShell(`
+<main class="content">
+ <div class="form-wrap">
+  <div class="head">
+    <a class="back" href="new.html${isUser() ? '?as=user' : ''}" aria-label="Kembali">${ic('chevron-left')}</a>
+    <span class="tile ptile" style="--c:${T.c}">${ic(T.icon)}</span>
+    <div><h2>${T.title}</h2><p>${T.sub}</p></div>
+  </div>
+  <div class="templates"><span class="muted" style="font-size:12px;align-self:center;margin-right:2px">Mulai dari template:</span>${T.templates.map((t) => `<button class="tag">${t}</button>`).join('')}</div>
+
+  <div class="groupbox">
+    <div class="grow"><span class="lbl">Untuk siapa tiket ini?</span>
+      <div class="seg full"><button class="on">${ic('user-round')}Saya sendiri</button><button>${ic('users-round')}Orang lain</button></div></div>
+    <div class="grow"><label for="s">Judul <span class="req">*</span><small>${T.subject.length} / 200</small></label>
+      <input id="s" class="input" value="${T.subject}" placeholder="Ringkas masalahnya dalam satu kalimat"></div>
+    <div class="grow"><label for="d">Detail masalah <span class="req">*</span><small>${T.body.length} / 5000</small></label>
+      <div class="ta"><textarea id="d" placeholder="Apa yang terjadi, sejak kapan, dan apa yang sudah dicoba?">${T.body}</textarea>
+      <div class="tbar"><button class="tag" style="height:24px">${ic('paperclip')}Lampirkan</button><span>Tempel gambar (Ctrl+V) atau seret file ke sini</span><span class="spacer"></span><span>Maks. 5 file · 25 MB</span></div></div></div>
+  </div>
+
+  <div class="groupbox">
+    ${T.extra ? `<div class="grow"><div class="cols3">
+      <div><span class="lbl">Kategori</span><button class="pop lg"><span class="v muted">Pilih kategori</span>${caret}</button></div>
+      <div><span class="lbl">Perangkat</span><button class="pop lg"><span class="v muted">Opsional</span>${caret}</button></div>
+      <div><span class="lbl">Aplikasi</span><button class="pop lg"><span class="v muted">Opsional</span>${caret}</button></div>
+    </div></div>` : ''}
+    <div class="grow"><span class="lbl">Seberapa mendesak?</span>
+      <div class="seg full">${pri('var(--gray)', 'Low', false)}${pri('var(--blue)', 'Normal', !T.extra)}${pri('var(--orange)', 'Urgent', !!T.extra)}${pri('var(--red)', 'Blocker', false)}</div>
+      <small class="muted">Urgent: pekerjaan terganggu tapi masih ada cara lain. Blocker: pekerjaan berhenti total.</small></div>
+  </div>
+
+  <div class="submit-bar">
+    <span class="saved">${ic('circle-check')}Draf tersimpan 12.25</span>
+    <button class="btn plain" style="color:var(--text-3)">Hapus draf</button>
+    <span class="spacer"></span>
+    <span class="muted" style="font-size:12px"><kbd>Ctrl</kbd> <kbd>Enter</kbd></span>
+    <button class="btn primary lg">${ic('send')}Kirim tiket</button>
+  </div>
+ </div>
+</main>`);
+lucide.createIcons();
+</script>
+<script src="form-demo.js?v=13"></script>
+</body>
+</html>
