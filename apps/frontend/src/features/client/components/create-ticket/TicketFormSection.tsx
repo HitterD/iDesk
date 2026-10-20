@@ -15,23 +15,27 @@ export function TicketFormSection({ children, className }: { children: ReactNode
     return <div className={cn('ct-groupbox', className)}>{children}</div>;
 }
 
-/** One labelled row inside a TicketFormSection. */
+/** One labelled row inside a TicketFormSection. The label holds only the field name;
+ *  the required marker and live meta (counters, actions) sit beside it so the accessible name stays stable. */
 export function TicketFormRow({ label, htmlFor, labelId, required, meta, children }: {
     label: ReactNode; htmlFor?: string; labelId?: string; required?: boolean; meta?: ReactNode; children: ReactNode;
 }) {
-    const content = <>{label}{required && <span className="ct-req" aria-hidden="true">*</span>}{meta}</>;
     return (
         <div className="ct-row">
-            {htmlFor
-                ? <label htmlFor={htmlFor} id={labelId} className="ct-label">{content}</label>
-                : <span id={labelId} className="ct-label">{content}</span>}
+            <div className="ct-label">
+                {htmlFor
+                    ? <label htmlFor={htmlFor} id={labelId}>{label}</label>
+                    : <span id={labelId}>{label}</span>}
+                {required && <span className="ct-req" aria-hidden="true">*</span>}
+                {meta}
+            </div>
             {children}
         </div>
     );
 }
 
-export function TicketFormHeader({ title, subtitle, icon: Icon, tone, onBack, draftStatus }: {
-    title: string; subtitle: string; icon: ElementType; tone: FormTone; onBack: () => void; draftStatus?: ReactNode;
+export function TicketFormHeader({ title, subtitle, icon: Icon, tone, onBack }: {
+    title: string; subtitle: string; icon: ElementType; tone: FormTone; onBack: () => void;
 }) {
     return (
         <header className="ct-form-head">
@@ -43,7 +47,6 @@ export function TicketFormHeader({ title, subtitle, icon: Icon, tone, onBack, dr
                 <h1>{title}</h1>
                 <p>{subtitle}</p>
             </div>
-            {draftStatus}
         </header>
     );
 }
@@ -113,11 +116,13 @@ export function UrgencySegment({ value, onChange, legendId }: { value: string; o
     );
 }
 
-export function CriticalReasonField({ id, value, onChange }: { id: string; value: string; onChange: (value: string) => void }) {
+export function CriticalReasonField({ id, label, placeholder, value, onChange }: {
+    id: string; label: string; placeholder: string; value: string; onChange: (value: string) => void;
+}) {
     return (
-        <TicketFormRow label="Justifikasi Blocker (Critical)" htmlFor={id} required>
+        <TicketFormRow label={label} htmlFor={id} required>
             <textarea id={id} required rows={2} value={value} onChange={e => onChange(e.target.value)}
-                className="ct-input ct-critical" placeholder="Jelaskan mengapa masalah ini menjadi pemblokir (blocker) / berdampak kritis bagi operasional..." />
+                className="ct-input ct-critical" placeholder={placeholder} />
         </TicketFormRow>
     );
 }

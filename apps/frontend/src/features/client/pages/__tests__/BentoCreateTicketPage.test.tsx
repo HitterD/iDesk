@@ -185,6 +185,23 @@ describe('BentoCreateTicketPage forms', () => {
         expect(screen.getByText(/kurang 4 karakter/i)).toBeInTheDocument();
     });
 
+    it('keeps counters out of the field accessible names', () => {
+        renderPage('/client/create?type=service');
+        fireEvent.change(document.getElementById('service-ticket-title')!, { target: { value: 'Printer macet' } });
+        fireEvent.change(document.getElementById('service-ticket-description')!, { target: { value: 'pendek' } });
+        expect(screen.getByLabelText('Judul', { exact: true })).toHaveAttribute('id', 'service-ticket-title');
+        expect(screen.getByLabelText('Detail masalah', { exact: true })).toHaveAttribute('id', 'service-ticket-description');
+    });
+
+    it.each([
+        ['service', 'Justifikasi Blocker (Critical)', 'Jelaskan alasan urgensi prioritas blocker (critical)...'],
+        ['oracle-request', 'Justifikasi Tiket Blocker (Critical)', 'Jelaskan mengapa masalah ini menjadi pemblokir (blocker) / berdampak kritis bagi operasional...'],
+    ])('keeps the original %s critical justification wording', (type, label, placeholder) => {
+        renderPage(`/client/create?type=${type}`);
+        fireEvent.click(screen.getByRole('radio', { name: 'Blocker (Critical)' }));
+        expect(screen.getByLabelText(label, { exact: true })).toHaveAttribute('placeholder', placeholder);
+    });
+
     it('shows no error banner while a valid title is typed', () => {
         renderPage('/client/create?type=service');
         const title = document.getElementById('service-ticket-title') as HTMLInputElement;

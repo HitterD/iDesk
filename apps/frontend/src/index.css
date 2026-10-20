@@ -655,7 +655,7 @@ textarea:focus {
 }
 .ct-back svg { width: 18px; height: 18px; }
 .ct-back:hover { background: hsl(var(--muted)); color: hsl(var(--idesk-text)); }
-.ct-back:focus-visible, .ct-link:focus-visible, .ct-chip:focus-visible, .ct-seg-btn:focus-visible,
+.ct-back:focus-visible, .ct-chip:focus-visible, .ct-seg-btn:focus-visible,
 .ct-clear:focus-visible, .ct-add:focus-visible, .ct-tray button:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
 .ct-catalog-head, .ct-form-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .ct-catalog-head h1, .ct-form-head h1 { margin: 0; font-size: 22px; font-weight: 700; line-height: 1.2; letter-spacing: -.02em; text-wrap: balance; }
@@ -675,7 +675,6 @@ textarea:focus {
   transition: box-shadow 180ms var(--ease-out), transform 180ms var(--ease-out);
 }
 .ct-card:hover { transform: translateY(-1px); box-shadow: 0 8px 20px -10px hsl(220 40% 20% / .28), inset 0 0 0 1px hsl(var(--idesk-border) / .8); }
-.ct-card:has(.ct-link:focus-visible) { box-shadow: 0 0 0 2px hsl(var(--idesk-focus)), 0 8px 20px -10px hsl(220 40% 20% / .28); }
 .ct-card h3 { grid-column: 1; margin: 0; font-size: 14px; font-weight: 650; line-height: 1.3; letter-spacing: -.01em; }
 .ct-card p { grid-column: 1; margin: 4px 0 0; font-size: 12.5px; line-height: 1.45; color: hsl(var(--idesk-text-secondary));
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -688,7 +687,8 @@ textarea:focus {
 .ct-card:hover .ct-link svg { transform: translateX(2px); }
 /* Stretch the action over the whole card so the card is one hit target. */
 .ct-link::after { content: ''; position: absolute; inset: 0; border-radius: 16px; }
-.ct-link:focus-visible { outline: none; }
+/* Ring on the overlay: works without :has and stays painted in forced-colors. */
+.ct-link:focus-visible::after { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
 .ct-empty { margin-top: 24px; padding: 16px; border-radius: 14px; background: hsl(var(--muted)); font-size: 13px; color: hsl(var(--idesk-text-secondary)); }
 .ct-empty b { color: hsl(var(--idesk-text)); }
 

@@ -679,7 +679,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                     )}
                     <UrgencySegment legendId={`${ticketType}-urgency-label`} value={formData.priority} onChange={(p) => updateField('priority', p)} />
                     {formData.priority === 'CRITICAL' && (
-                        <CriticalReasonField id={config.criticalReasonId} value={formData.criticalReason} onChange={(v) => updateField('criticalReason', v)} />
+                        <CriticalReasonField id={config.criticalReasonId} label={config.criticalReasonLabel} placeholder={config.criticalReasonPlaceholder} value={formData.criticalReason} onChange={(v) => updateField('criticalReason', v)} />
                     )}
                 </TicketFormSection>
 

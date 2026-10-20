@@ -41,6 +41,11 @@ const MOBILE_DEV_TEMPLATES: readonly TicketTemplate[] = [
     { label: 'Push Notif', priority: 'MEDIUM', subject: 'Push Notification Tidak Masuk', description: 'Notifikasi tidak muncul pada device pengguna saat trigger [Nama Event].' },
 ];
 
+const CRITICAL_REASON_COPY = {
+    criticalReasonLabel: 'Justifikasi Tiket Blocker (Critical)',
+    criticalReasonPlaceholder: 'Jelaskan mengapa masalah ini menjadi pemblokir (blocker) / berdampak kritis bagi operasional...',
+} as const;
+
 const QUICK_TEMPLATES: readonly TicketTemplate[] = [
     { label: 'Email Issue', category: 'SOFTWARE', priority: 'HIGH', subject: 'Email tidak bisa diakses', description: 'Tidak dapat mengirim atau menerima email. Error message: ' },
     { label: 'Printer Fault', category: 'HARDWARE', priority: 'MEDIUM', subject: 'Printer rusak / tidak merespon', description: 'Printer tidak merespon saat print. Sudah direstart. Model printer: ' },
@@ -69,6 +74,8 @@ export interface TicketFormConfig {
     titleId: string;
     descriptionId: string;
     criticalReasonId: string;
+    criticalReasonLabel: string;
+    criticalReasonPlaceholder: string;
     titlePlaceholder: string;
     descriptionPlaceholder: string;
     submitLabel: string;
@@ -88,6 +95,8 @@ export const TICKET_FORM_CONFIG: Record<FormTicketType, TicketFormConfig> = {
         titleId: 'service-ticket-title',
         descriptionId: 'service-ticket-description',
         criticalReasonId: 'service-critical-reason',
+        criticalReasonLabel: 'Justifikasi Blocker (Critical)',
+        criticalReasonPlaceholder: 'Jelaskan alasan urgensi prioritas blocker (critical)...',
         titlePlaceholder: 'Ringkasan masalah (contoh: Monitor tidak menyala, Laptop lambat)...',
         descriptionPlaceholder: 'Jelaskan pesan error, lokasi, langkah yang sudah dicoba, atau paste screenshot langsung...',
         submitLabel: 'Kirim Service Ticket',
@@ -103,6 +112,7 @@ export const TICKET_FORM_CONFIG: Record<FormTicketType, TicketFormConfig> = {
         titleId: 'oracle-ticket-title',
         descriptionId: 'oracle-ticket-description',
         criticalReasonId: 'critical-reason',
+        ...CRITICAL_REASON_COPY,
         titlePlaceholder: 'Contoh: Lupa Password Oracle, Penambahan Role K2, Error Validasi AP...',
         descriptionPlaceholder: 'Tuliskan secara lengkap pesan error, nama modul, username user, atau detail form K2 yang membutuhkan update...',
         submitLabel: 'Kirim Tiket Oracle',
@@ -118,6 +128,7 @@ export const TICKET_FORM_CONFIG: Record<FormTicketType, TicketFormConfig> = {
         titleId: 'web-dev-ticket-title',
         descriptionId: 'web-dev-ticket-description',
         criticalReasonId: 'critical-reason',
+        ...CRITICAL_REASON_COPY,
         titlePlaceholder: 'Contoh: Bug Tombol Submit, Error API Endpoint, Permintaan Halaman Baru...',
         descriptionPlaceholder: 'Jelaskan URL/halaman web, langkah reproduksi error, console log jika ada, atau spesifikasi fitur yang diinginkan...',
         submitLabel: 'Kirim Tiket Web Dev',
@@ -133,6 +144,7 @@ export const TICKET_FORM_CONFIG: Record<FormTicketType, TicketFormConfig> = {
         titleId: 'mobile-dev-ticket-title',
         descriptionId: 'mobile-dev-ticket-description',
         criticalReasonId: 'critical-reason',
+        ...CRITICAL_REASON_COPY,
         titlePlaceholder: 'Contoh: App Force Close, Gagal Download APK, Push Notif Error...',
         descriptionPlaceholder: 'Jelaskan tipe perangkat (Android/iOS), versi OS, langkah terjadinya error, atau lampirkan screenshot log crash...',
         submitLabel: 'Kirim Tiket Mobile Dev',
