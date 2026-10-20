@@ -3,12 +3,12 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { BentoSidebar } from './BentoSidebar';
+import { ShellBrand } from './SidebarNavigation';
 import { BentoTopbar } from './BentoTopbar';
 import { MobileBottomNav } from './MobileBottomNav';
 import { cn } from '@/lib/utils';
 import { useKeyboardShortcuts, KeyboardShortcutsHelp } from '@/hooks/useKeyboardShortcuts';
 import { CommandPalette, useCommandPalette } from '@/components/ui/CommandPalette';
-import { Logo } from '@/components/ui/Logo';
 import { InAppNotificationToast } from '@/components/notifications/InAppNotificationToast';
 import { CriticalNotificationBanner } from '@/components/notifications/CriticalNotificationBanner';
 import { useAuth } from '@/stores/useAuth';
@@ -74,7 +74,7 @@ export const BentoLayout = () => {
                 Skip to main content
             </a>
 
-            <div className="flex h-screen premium-bg-container text-slate-800 dark:text-slate-100 font-sans overflow-hidden selection:bg-primary/30 transition-colors duration-300 print:h-auto print:overflow-visible print:block">
+            <div className="idesk-shell flex h-screen font-sans overflow-hidden selection:bg-primary/30 transition-colors duration-300 print:h-auto print:overflow-visible print:block">
                 {/* Mobile Overlay */}
                 {isMobileMenuOpen && (
                     <div
@@ -92,16 +92,16 @@ export const BentoLayout = () => {
                     className={cn(
                         "fixed lg:relative inset-y-0 left-0 z-[60] transition-transform duration-300 transform lg:translate-x-0 print:hidden",
                         isMobileMenuOpen
-                            ? "translate-x-0 w-[84vw] max-w-[320px] shadow-2xl rounded-r-3xl overflow-hidden"
+                            ? "idesk-shell translate-x-0 w-[84vw] max-w-[320px] shadow-2xl rounded-r-3xl overflow-hidden"
                             : "-translate-x-full lg:translate-x-0 hidden lg:block"
                     )}
                 >
-                    <div className="h-full bg-white dark:bg-slate-900 lg:bg-transparent lg:dark:bg-transparent flex flex-col">
+                    <div className="h-full flex flex-col">
                         <BentoSidebar onNavigate={() => setIsMobileMenuOpen(false)} />
                     </div>
                     {/* Mobile close button */}
                     <button
-                        className="absolute top-4 right-4 p-2 lg:hidden text-slate-500 hover:text-slate-800 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors z-[70] cursor-pointer"
+                        className="absolute top-4 right-3 p-2 lg:hidden text-[hsl(var(--idesk-chrome-muted))] hover:text-white rounded-xl hover:bg-white/10 transition-colors z-[70] cursor-pointer"
                         onClick={() => setIsMobileMenuOpen(false)}
                         aria-label="Close menu"
                     >
@@ -111,17 +111,17 @@ export const BentoLayout = () => {
 
                 <div className="flex-1 flex flex-col min-w-0 print:block print:w-full">
                     {/* Mobile header */}
-                    <div className="lg:hidden flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 print:hidden">
+                    <div className="lg:hidden flex items-center justify-between px-3 py-2.5 print:hidden">
                         <button
-                            className="p-2 text-slate-500 hover:text-slate-800 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors touch-target"
+                            className="p-2 text-white rounded-lg hover:bg-white/10 transition-colors touch-target"
                             onClick={() => setIsMobileMenuOpen(true)}
                             aria-label="Open menu"
                             aria-expanded={isMobileMenuOpen}
                         >
                             <Menu className="w-6 h-6" aria-hidden="true" />
                         </button>
-                        <Logo size="sm" variant="full" />
-                        <div className="w-10" /> {/* Spacer for centering */}
+                        <ShellBrand />
+                        <div className="w-10" aria-hidden="true" /> {/* Spacer for centering */}
                     </div>
 
                     <motion.div
@@ -133,7 +133,8 @@ export const BentoLayout = () => {
                         <BentoTopbar />
                     </motion.div>
 
-                    {/* Main content area - conditionally remove padding and scroll for full-screen pages */}
+                    {/* Main content area on the rounded sheet - conditionally remove padding and scroll for full-screen pages */}
+                    <div className="idesk-sheet flex-1 flex flex-col min-h-0 overflow-hidden print:block print:overflow-visible">
                     {(() => {
                         const isKanban = location.pathname === '/kanban';
                         const isZoomCalendar = location.pathname === '/zoom-calendar' || location.pathname === '/manager/zoom-calendar';
@@ -165,7 +166,7 @@ export const BentoLayout = () => {
                             return (
                                 <main
                                     id="main-content"
-                                    className="flex-1 overflow-hidden p-3 lg:px-6 lg:pt-2 lg:pb-3 flex flex-col min-h-0"
+                                    className="flex-1 overflow-hidden p-3 lg:px-3.5 lg:pt-3 lg:pb-3 flex flex-col min-h-0"
                                 >
                                     <AnimatePresence mode="wait">
                                         <motion.div
@@ -187,7 +188,7 @@ export const BentoLayout = () => {
                         return (
                             <main
                                 id="main-content"
-                                className="flex-1 overflow-y-auto p-4 lg:p-8 pt-2 pb-20 lg:pb-8 scroll-smooth scrollbar-custom print:h-auto print:overflow-visible print:p-0 print:m-0 print:block"
+                                className="flex-1 overflow-y-auto px-3 pt-3 pb-24 lg:px-3.5 lg:pt-3.5 lg:pb-6 scroll-smooth scrollbar-custom print:h-auto print:overflow-visible print:p-0 print:m-0 print:block"
                             >
                                 <AnimatePresence mode="wait">
                                     <motion.div
@@ -204,7 +205,7 @@ export const BentoLayout = () => {
                             </main>
                         );
                     })()}
-
+                    </div>
                 </div>
 
                 {/* Mobile Bottom Navigation */}

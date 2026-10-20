@@ -268,7 +268,189 @@ textarea:focus {
 .picker-trigger { cursor: pointer; justify-content: space-between; transition: background 150ms var(--ease-out); }
 .picker-trigger:hover:not(:disabled) { background: color-mix(in srgb, hsl(var(--pill-hue)) 15%, hsl(var(--idesk-surface))); }
 .picker-trigger:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ---------- PR2 sapphire agent shell (BentoLayout / BentoSidebar / BentoTopbar) ----------
+   One continuous chrome field behind sidebar + topbar; content sits on a rounded sheet.
+   Light mode keeps the chrome sapphire-dark; .dark swaps to the dark --idesk-chrome token. */
+.idesk-shell {
+  --shell-sheet: var(--idesk-canvas);
+  --shell-tab-radius: 14px;
+  --shell-line: 0 0% 100% / .10;
+  --shell-fill: 0 0% 100% / .10;
+  background:
+    radial-gradient(1200px 500px at 85% -10%, hsl(0 0% 100% / .07), transparent 60%),
+    linear-gradient(180deg, hsl(var(--idesk-chrome-raised)), hsl(var(--idesk-chrome)));
+  color: hsl(var(--idesk-chrome-foreground));
 }
+.idesk-sheet {
+  background: hsl(var(--shell-sheet));
+  color: hsl(var(--foreground));
+  border-radius: 22px 0 0 0;
+}
+@media (max-width: 1023.98px) { .idesk-sheet { border-radius: 18px 18px 0 0; } }
+
+/* Coloured square tiles: distinct per item, never purple. */
+.nav-tile {
+  --tile: var(--ticket-neutral);
+  display: grid; place-items: center; flex: none;
+  width: 22px; height: 22px; border-radius: 7px;
+  background: hsl(var(--tile)); color: #fff;
+  box-shadow: inset 0 0 0 .5px rgb(0 0 0 / .12), inset 0 1px 0 rgb(255 255 255 / .25), 0 1px 2px rgb(0 0 0 / .18);
+}
+.nav-tile svg { width: 13px; height: 13px; stroke-width: 2.2; }
+.nav-tile[data-size="primary"] { width: 26px; height: 26px; border-radius: 8px; }
+.nav-tile[data-size="primary"] svg { width: 15px; height: 15px; }
+.nav-tile[data-size="quiet"] { width: 20px; height: 20px; border-radius: 6px; filter: saturate(.85); }
+.nav-tile[data-size="quiet"] svg { width: 12px; height: 12px; }
+.nav-tile[data-size="collapsed"] { width: 30px; height: 30px; border-radius: 9px; }
+.nav-tile[data-size="collapsed"] svg { width: 16px; height: 16px; }
+.nav-tile[data-tone="gray"] { --tile: var(--ticket-neutral); }
+.nav-tile[data-tone="navy"] { --tile: 221.684 51.351% 36.275%; } /* fixed #2D4A8C: dark-mode sapphire is too light for white glyphs */
+.nav-tile[data-tone="blue"] { --tile: var(--ticket-blue); }
+.nav-tile[data-tone="red"] { --tile: var(--ticket-red); }
+.nav-tile[data-tone="teal"] { --tile: 189 61% 48%; }
+.nav-tile[data-tone="teal-deep"] { --tile: var(--ticket-teal); }
+.nav-tile[data-tone="orange"] { --tile: var(--ticket-amber); }
+.nav-tile[data-tone="mint"] { --tile: 171 100% 33%; }
+.nav-tile[data-tone="brown"] { --tile: 34 25% 50%; }
+.nav-tile[data-tone="green"] { --tile: var(--ticket-green); }
+.nav-tile[data-tone="slate"] { --tile: 215 16% 47%; }
+/* Navy tile needs separation from the sapphire chrome it sits on. */
+.nav-tile[data-tone="navy"] { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .22), 0 1px 2px rgb(0 0 0 / .18); }
+
+.idesk-sidebar { color: hsl(var(--idesk-chrome-foreground)); }
+.nav-brand { display: flex; align-items: center; gap: 10px; color: #fff; }
+.nav-brand-plate { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: #fff; flex: none; }
+.nav-brand-text b { display: block; font-size: 15px; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
+.nav-brand-text small { display: block; margin-top: 3px; font-size: 11px; color: hsl(var(--idesk-chrome-muted)); }
+.nav-collapse-btn {
+  place-items: center; width: 28px; height: 28px; border-radius: 8px; flex: none; cursor: pointer;
+  color: hsl(var(--idesk-chrome-muted));
+}
+.nav-collapse-btn:hover { background: hsl(var(--shell-fill)); color: #fff; }
+.nav-scroll { overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+.nav-scroll::-webkit-scrollbar { display: none; }
+
+.nav-group { display: flex; flex-direction: column; margin-top: 12px; }
+.nav-group-label {
+  display: flex; align-items: center; gap: 6px; width: calc(100% - 10px);
+  padding: 2px 10px 6px; cursor: pointer; border-radius: 8px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: hsl(var(--idesk-chrome-muted));
+}
+.nav-group-label:hover, .nav-group-label.has-active { color: #fff; }
+.nav-group-items { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+
+.nav-item {
+  position: relative; display: flex; align-items: center; gap: 10px;
+  width: calc(100% - 10px); margin-right: 10px; padding: 6px 8px;
+  border-radius: 12px; font-size: 13px; font-weight: 500; white-space: nowrap;
+  color: hsl(var(--idesk-chrome-foreground) / .92);
+  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+}
+.nav-item.is-primary { padding: 7px 8px; font-size: 13.5px; }
+.nav-group.is-quiet .nav-item { padding: 4px 8px; font-size: 12.5px; color: hsl(var(--idesk-chrome-muted)); }
+.nav-item:hover { background: hsl(var(--shell-fill)); color: #fff; }
+.nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nav-item-icon { justify-content: center; width: 48px; height: 44px; margin-right: 0; padding: 0; cursor: pointer; }
+
+/* Active item: a sheet-coloured tab that joins the content sheet on the right. */
+.nav-item.is-active,
+.nav-group.is-quiet .nav-item.is-active {
+  background: hsl(var(--shell-sheet)); color: hsl(var(--foreground)); font-weight: 600;
+  width: 100%; margin-right: 0; border-radius: var(--shell-tab-radius) 0 0 var(--shell-tab-radius);
+}
+.nav-item.is-active::before, .nav-item.is-active::after {
+  content: ""; position: absolute; right: 0; width: var(--shell-tab-radius); height: var(--shell-tab-radius);
+  background: transparent; pointer-events: none;
+}
+.nav-item.is-active::before { top: calc(var(--shell-tab-radius) * -1); border-bottom-right-radius: var(--shell-tab-radius); box-shadow: 5px 5px 0 5px hsl(var(--shell-sheet)); }
+.nav-item.is-active::after { bottom: calc(var(--shell-tab-radius) * -1); border-top-right-radius: var(--shell-tab-radius); box-shadow: 5px -5px 0 5px hsl(var(--shell-sheet)); }
+/* Mobile drawer has no adjoining sheet: active becomes a rounded pill. */
+@media (max-width: 1023.98px) {
+  .nav-item.is-active, .nav-group.is-quiet .nav-item.is-active { width: calc(100% - 10px); margin-right: 10px; border-radius: 12px; }
+  .nav-item.is-active::before, .nav-item.is-active::after { display: none; }
+}
+
+.nav-badge {
+  min-width: 20px; padding: 0 6px; border-radius: 10px; text-align: center;
+  font-size: 11px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums;
+  background: hsl(0 0% 100% / .16); color: #fff;
+}
+.nav-badge[data-placement="inline"] { margin-left: auto; }
+.nav-badge[data-variant="destructive"] { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); }
+.nav-item.is-active .nav-badge[data-variant="primary"] { background: hsl(var(--primary) / .14); color: hsl(var(--primary)); }
+.nav-badge[data-placement="corner"] {
+  position: absolute; top: 0; right: 4px; min-width: 18px; padding: 0 4px;
+  font-size: 10px; line-height: 14px; box-shadow: 0 0 0 2px hsl(var(--idesk-chrome)); pointer-events: none;
+}
+.nav-badge[data-placement="flyout"] { font-size: 10px; line-height: 16px; background: hsl(var(--primary) / .14); color: hsl(var(--primary)); }
+.nav-badge[data-placement="flyout"][data-variant="destructive"] { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); }
+
+.nav-flyout-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 10px; font-size: 13px; color: hsl(var(--foreground)); }
+.nav-flyout-item:hover { background: hsl(var(--muted)); }
+.nav-flyout-item.is-active { background: hsl(var(--idesk-selection)); font-weight: 600; }
+
+.nav-foot { border-top: 1px solid hsl(var(--shell-line)); margin-right: 10px; }
+.nav-foot .nav-item { width: 100%; margin-right: 0; }
+.nav-foot .nav-item.is-active { border-radius: 12px; }
+.nav-foot .nav-item.is-active::before, .nav-foot .nav-item.is-active::after { display: none; }
+.nav-profile { display: flex; align-items: center; gap: 4px; margin-top: 2px; padding: 6px 4px 6px 8px; border-radius: 12px; background: hsl(0 0% 100% / .07); }
+.nav-profile-link { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; border-radius: 10px; }
+.nav-profile-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 600; color: #fff; }
+.nav-profile-role { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; text-transform: capitalize; color: hsl(var(--idesk-chrome-muted)); }
+.nav-profile-link:hover .nav-profile-name { text-decoration: underline; text-underline-offset: 2px; }
+.nav-profile-avatar { display: flex; justify-content: center; padding: 2px; border-radius: 9999px; }
+.nav-logout {
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; flex: none; cursor: pointer;
+  color: hsl(var(--idesk-chrome-muted));
+}
+.nav-logout.is-compact { width: 40px; height: 40px; }
+.nav-logout:hover { background: hsl(4 86% 58% / .22); color: #fff; }
+
+.idesk-sidebar :focus-visible, .idesk-topbar :focus-visible, .idesk-bottom-nav :focus-visible {
+  outline: 2px solid hsl(var(--idesk-chrome-foreground) / .85); outline-offset: 2px;
+}
+.idesk-bottom-nav :focus-visible { outline-color: hsl(var(--idesk-focus)); }
+
+/* Topbar sits on the chrome; utility icons inherit chrome colours. */
+.idesk-topbar { color: hsl(var(--idesk-chrome-foreground)); }
+.idesk-topbar-search {
+  background: hsl(0 0% 100% / .10); border: 1px solid hsl(0 0% 100% / .14);
+  color: #fff;
+}
+.idesk-topbar-search::placeholder { color: hsl(var(--idesk-chrome-muted)); }
+.idesk-topbar-search:hover { background: hsl(0 0% 100% / .14); }
+.idesk-topbar-search:focus { background: hsl(0 0% 100% / .16); border-color: hsl(0 0% 100% / .32); outline: none; box-shadow: 0 0 0 3px hsl(0 0% 100% / .14); }
+.idesk-topbar-kbd { background: hsl(0 0% 100% / .14); border: 1px solid hsl(0 0% 100% / .18); color: hsl(var(--idesk-chrome-foreground)); }
+
+/* The one primary entry action: warm amber, labelled. */
+.idesk-cta {
+  display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px 0 12px;
+  border-radius: 12px; font-size: 13.5px; font-weight: 700; white-space: nowrap;
+  color: hsl(var(--idesk-cta-foreground));
+  background: linear-gradient(180deg, hsl(var(--idesk-cta-hover)), hsl(var(--idesk-cta)));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .45), 0 6px 16px -6px hsl(var(--idesk-cta) / .7), 0 0 0 1px rgb(0 0 0 / .08);
+  transition: filter 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+.idesk-cta:hover { filter: brightness(1.05); }
+.idesk-cta svg { width: 18px; height: 18px; stroke-width: 2.6; padding: 2px; border-radius: 9999px; background: rgb(255 255 255 / .55); }
+.idesk-cta:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* Mobile bottom navigation with a raised amber create action. */
+.idesk-bottom-nav { background: hsl(var(--card) / .94); backdrop-filter: saturate(180%) blur(20px); border-top: 1px solid hsl(var(--border)); }
+.idesk-bottom-nav .idesk-fab {
+  display: grid; place-items: center; width: 50px; height: 50px; padding: 0; border-radius: 9999px;
+  box-shadow: 0 8px 18px -6px hsl(var(--idesk-cta) / .8), 0 0 0 4px hsl(var(--card));
+}
+.idesk-bottom-nav .idesk-fab svg { width: 24px; height: 24px; padding: 0; background: none; }
+}
+/* Unlayered on purpose: the untouched NotificationPopover / ActionCommandCenter triggers
+   carry slate utility colours meant for a light topbar; recolour them for the sapphire chrome. */
+.idesk-topbar-actions > button, .idesk-topbar-actions > div > button { color: hsl(var(--idesk-chrome-foreground)); }
+.idesk-topbar-actions > button:hover, .idesk-topbar-actions > div > button:hover { background: hsl(0 0% 100% / .10); }
+.idesk-topbar-actions > button > svg, .idesk-topbar-actions > div > button > svg { color: currentColor; }
+.idesk-topbar-actions > button > span, .idesk-topbar-actions > div > button > span { border-color: hsl(var(--idesk-chrome-raised)); }
 /* Unlayered on purpose: these must beat shadcn Command/Popover utility classes
    (px-2 py-1.5, data-[disabled]:pointer-events-none, w-72, outline-none) and the
    unlayered .glass-card-elevated in glassmorphism.css. */

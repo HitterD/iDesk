@@ -5,10 +5,12 @@ import { MemoryRouter } from 'react-router-dom';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { BentoSidebar } from '../BentoSidebar';
 
+const ticketModules = vi.hoisted(() => ({ current: [] as Array<{ slug: string; name: string; icon?: string }> }));
 vi.mock('@/lib/api', () => ({
     default: {
         get: vi.fn((url: string) => {
             if (url.startsWith('/notifications/count')) return Promise.resolve({ data: { count: 5 } });
+            if (url.startsWith('/ticket-modules')) return Promise.resolve({ data: ticketModules.current });
             return Promise.resolve({ data: {} });
         }),
     },
@@ -26,29 +28,31 @@ vi.mock('@/features/request-center/api/eform-request.api', () => ({
     }),
 }));
 
+const pageAccess = vi.hoisted(() => ({
+    defaults: {
+        my_dashboard: true,
+        dashboard: true,
+        tickets: true,
+        oracle_k2_tickets: true,
+        hardware_requests: true,
+        eform_access: true,
+        zoom_calendar: true,
+        knowledge_base: true,
+        notifications: true,
+        reports: true,
+        renewal: true,
+        agents: true,
+        workloads: true,
+        automation: true,
+        audit_logs: true,
+        system_health: true,
+        settings: true,
+    } as Record<string, boolean>,
+    current: null as Record<string, boolean> | null,
+}));
 vi.mock('@/hooks/usePermissions', () => ({
     useMyPermissions: () => ({
-        data: {
-            pageAccess: {
-                my_dashboard: true,
-                dashboard: true,
-                tickets: true,
-                oracle_k2_tickets: true,
-                hardware_requests: true,
-                eform_access: true,
-                zoom_calendar: true,
-                knowledge_base: true,
-                notifications: true,
-                reports: true,
-                renewal: true,
-                agents: true,
-                workloads: true,
-                automation: true,
-                audit_logs: true,
-                system_health: true,
-                settings: true,
-            },
-        },
+        data: { pageAccess: pageAccess.current ?? pageAccess.defaults },
         isLoading: false,
     }),
 }));
@@ -68,6 +72,8 @@ describe('BentoSidebar', () => {
             defaultOptions: { queries: { retry: false } },
         });
         localStorage.clear();
+        pageAccess.current = null;
+        ticketModules.current = [];
         authUser.current = { id: 'admin-1', fullName: 'Bagas Developer', role: 'ADMIN' };
     });
 
@@ -200,5 +206,69 @@ describe('BentoSidebar', () => {
         renderSidebar('/tickets/mobile-developer');
         expect(screen.getByText('Mobile Developer Request')).toBeInTheDocument();
         expect(screen.getByTitle(/Collapse sidebar/i)).toBeInTheDocument();
+    });
+
+    describe('sapphire shell contract', () => {
+        it('renders an authorised custom ticket module route and hides a denied one', async () => {
+            authUser.current = { id: 'agent-1', fullName: 'Ops Agent', role: 'AGENT' };
+            pageAccess.current = { tickets: true, 'module_network-ops': true, 'module_secret-ops': false };
+            ticketModules.current = [
+                { slug: 'it-support', name: 'IT Support Tickets' },
+                { slug: 'network-ops', name: 'Network Operations', icon: 'Network' },
+                { slug: 'secret-ops', name: 'Secret Operations' },
+            ];
+            renderSidebar('/dashboard');
+
+            const moduleLink = await screen.findByRole('link', { name: 'Network Operations' });
+            expect(moduleLink).toHaveAttribute('href', '/tickets/queue/network-ops');
+            expect(screen.queryByText('Secret Operations')).not.toBeInTheDocument();
+        });
+
+        it('still hides menus denied by the applied preset', () => {
+            authUser.current = { id: 'agent-1', fullName: 'Ops Agent', role: 'AGENT' };
+            pageAccess.current = { dashboard: true, tickets: true, notifications: true };
+            renderSidebar('/dashboard');
+
+            expect(screen.getByText('IT Support Tickets')).toBeInTheDocument();
+            expect(screen.queryByText('Resources')).not.toBeInTheDocument();
+            expect(screen.queryByText('Administration')).not.toBeInTheDocument();
+            expect(screen.queryByText('Hardware Requests')).not.toBeInTheDocument();
+            expect(screen.queryByText('Reports')).not.toBeInTheDocument();
+        });
+
+        it('marks the active tab with aria-current and keeps distinct non-purple tiles', () => {
+            renderSidebar('/tickets/oracle-k2');
+
+            const active = screen.getByRole('link', { name: 'Oracle K2 Request' });
+            expect(active).toHaveAttribute('aria-current', 'page');
+            expect(active.querySelector('[data-tone]')).toHaveAttribute('data-tone', 'red');
+            expect(screen.getByRole('link', { name: 'IT Support Tickets' })).not.toHaveAttribute('aria-current');
+
+            const mobile = screen.getByRole('link', { name: 'Mobile Developer Request' });
+            expect(mobile.querySelector('[data-tone]')).toHaveAttribute('data-tone', 'teal-deep');
+
+            const tones = Array.from(document.querySelectorAll('[data-tone]')).map((el) => el.getAttribute('data-tone'));
+            expect(new Set(tones).size).toBeGreaterThan(5);
+            expect(tones.join(' ')).not.toMatch(/purple|violet|fuchsia/);
+            expect(document.body.innerHTML).not.toMatch(/purple|violet|fuchsia/);
+        });
+
+        it('keeps collapsed items accessibly named', () => {
+            renderSidebar('/dashboard');
+            fireEvent.click(screen.getByTitle(/Collapse sidebar/i));
+
+            expect(screen.getByRole('link', { name: 'Dashboard Tim' })).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Request Center' })).toBeInTheDocument();
+            expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+        });
+
+        it.each([false, true])('keeps profile and logout reachable bottom-left (collapsed=%s)', (collapsed) => {
+            renderSidebar('/dashboard');
+            if (collapsed) fireEvent.click(screen.getByTitle(/Collapse sidebar/i));
+
+            const profile = screen.getByRole('link', { name: /Bagas Developer/ });
+            expect(profile).toHaveAttribute('href', '/settings');
+            expect(screen.getByRole('button', { name: 'Logout' })).toBeInTheDocument();
+        });
     });
 });

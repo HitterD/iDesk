@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Ticket, FileText, Loader2, X, User, Clock, Tag } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Search, Ticket, FileText, Loader2, X, User, Clock, Tag, Plus } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { NotificationPopover } from '../notifications/NotificationPopover';
 import { ActionCommandCenter } from '../notifications/ActionCommandCenter';
@@ -8,6 +8,10 @@ import { ThemeToggle } from '../ui/ThemeToggle';
 import api from '@/lib/api';
 import { useAuth } from '@/stores/useAuth';
 import { cn } from '@/lib/utils';
+
+/** Existing agent create-ticket route (routes/AppRoutes.tsx `tickets/create`). */
+const CREATE_TICKET_PATH = '/tickets/create';
+const CREATE_TICKET_LABEL = 'Buat Tiket Baru';
 
 interface UnifiedSearchResult {
     tickets: Array<{
@@ -176,10 +180,10 @@ export const BentoTopbar = () => {
     let itemCounter = 0;
 
     return (
-        <header className="h-20 px-8 flex items-center justify-between bg-transparent">
+        <header className="idesk-topbar h-14 pl-3 pr-3.5 flex items-center justify-between gap-4 bg-transparent">
             <div className="flex-1 max-w-xl" ref={searchRef}>
                 <div className="relative group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-primary transition-colors z-10" />
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(var(--idesk-chrome-muted))] group-focus-within:text-white transition-colors z-10" aria-hidden="true" />
                     <input
                         ref={inputRef}
                         type="text"
@@ -194,7 +198,8 @@ export const BentoTopbar = () => {
                         }}
                         onFocus={() => setIsOpen(true)}
                         placeholder="Search tickets, articles..."
-                        className="w-full pl-12 pr-20 py-3 bg-card/90 dark:bg-card/70 backdrop-blur-sm border border-border rounded-2xl shadow-sm focus:ring-2 focus:ring-primary/20 focus:shadow-md focus:border-primary/40 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out placeholder:text-muted-foreground text-foreground font-sans"
+                        aria-label="Search tickets, articles"
+                        className="idesk-topbar-search w-full h-10 pl-10 pr-20 rounded-xl text-sm transition-[box-shadow,border-color,background-color] duration-200 ease-out font-sans"
                     />
                     {searchQuery ? (
                         <button
@@ -202,14 +207,14 @@ export const BentoTopbar = () => {
                                 setSearchQuery('');
                                 setIsOpen(false);
                             }}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1.5 rounded-md hover:bg-muted/50 transition-colors"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-[hsl(var(--idesk-chrome-muted))] hover:text-white p-1.5 rounded-md hover:bg-white/10 transition-colors"
                             aria-label="Clear search"
                         >
                             <X className="w-4 h-4" />
                         </button>
                     ) : (
                         <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none select-none">
-                            <kbd className="px-2 py-0.5 text-xs font-mono font-medium text-muted-foreground bg-muted border border-border rounded-md shadow-2xs">
+                            <kbd className="idesk-topbar-kbd px-2 py-0.5 text-xs font-mono font-medium rounded-md">
                                 {isMac ? '⌘K' : 'Ctrl+K'}
                             </kbd>
                         </div>
@@ -383,8 +388,12 @@ export const BentoTopbar = () => {
                 </div>
             </div>
 
-            <div className="flex items-center gap-3 ml-4">
-                <ThemeToggle />
+            <div className="idesk-topbar-actions flex items-center gap-1.5">
+                <Link to={CREATE_TICKET_PATH} className="idesk-cta mr-1.5">
+                    <Plus aria-hidden="true" />
+                    <span>{CREATE_TICKET_LABEL}</span>
+                </Link>
+                <ThemeToggle className="!bg-transparent hover:!bg-white/10 !text-white" />
                 <ActionCommandCenter />
                 <NotificationPopover />
             </div>
