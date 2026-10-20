@@ -5,6 +5,7 @@ import {
     AlertTriangle,
     MessageSquare,
     ChevronRight,
+    ChevronDown,
     Flame,
     CheckCircle2,
     Wrench,
@@ -13,15 +14,8 @@ import {
 } from 'lucide-react';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
+import { TicketPill } from '@/components/ui/ticket-pill';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { AgentSelectList } from './AgentSelectList';
 import { ReassignConfirmDialog, type TargetAgentInfo } from './ReassignConfirmDialog';
 import { useAuth } from '@/stores/useAuth';
@@ -138,7 +132,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
     const showCriticalIndicator = isCritical && !isTerminalStatus(ticket.status);
     const showPriorityDot = !isCritical || showCriticalIndicator;
     // WAITING_VENDOR pauses the SLA clock: show the paused pill, never overdue.
-    const showOverdue = ticket.isOverdue && ticket.status !== 'WAITING_VENDOR';
+    const showOverdue = ticket.isOverdue && ticket.status !== 'WAITING_VENDOR' && !isTerminalStatus(ticket.status);
 
     const statusTakeover = useStatusTakeover();
 
@@ -203,13 +197,9 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
     return (
         <div
             className={cn(
-                "transition-colors duration-150 cursor-pointer group animate-fade-in-up border-b border-border/80 last:border-0",
-                // Zebra striping for light mode
-                index % 2 === 0 ? "bg-white dark:bg-transparent" : "bg-[hsl(var(--background))] dark:bg-slate-800/40",
-                // Subtle hover effect
-                "hover:bg-slate-50 dark:hover:bg-[hsl(var(--muted))]/10 transition-colors relative z-0 hover:z-10",
-                showOverdue && "!bg-[hsl(var(--error-500))]/5 dark:!bg-[hsl(var(--error-500))]/10",
-                isSelected && "!bg-[hsl(var(--primary))]/10 dark:!bg-[hsl(var(--primary))]/10"
+                'queue-row cursor-pointer group relative',
+                (showOverdue || showCriticalIndicator) && 'queue-row-flagged',
+                isSelected && 'is-selected'
             )}
             style={rowStyle}
             onClick={handleRowClick}
@@ -221,9 +211,9 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
             {/* ========================================================================= */}
             {/* MOBILE CARD VIEW (< lg) - Compact, high-density, touch-first card layout */}
             {/* ========================================================================= */}
-            <div className="block lg:hidden p-3.5 sm:p-4 space-y-2.5">
+            <div className="queue-mobile-row p-3.5 sm:p-4 space-y-3 min-w-0">
                 {/* Mobile Top Row: Ticket ID, Badges, SLA & Date */}
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                         {/* Priority Dot */}
                         {showPriorityDot && (
@@ -238,9 +228,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
 
                         {/* Site Badge */}
                         {ticket.site && (
-                            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded">
-                                {ticket.site.code}
-                            </span>
+                            <TicketPill tone="neutral" className="font-mono">{ticket.site.code}</TicketPill>
                         )}
 
                         {/* Hardware Installation Badge */}
@@ -297,7 +285,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                                 <Calendar className="w-3 h-3 text-slate-500" />
                                 <span>{ticket.scheduledTime ? `${formatSmartDate(ticket.scheduledDate)}, ${ticket.scheduledTime}` : formatSmartDate(ticket.scheduledDate)}</span>
                             </span>
-                        ) : ticket.slaTarget && ticket.status !== 'RESOLVED' && !showOverdue ? (
+                        ) : (ticket.slaTarget || ticket.status === 'WAITING_VENDOR') && ticket.status !== 'RESOLVED' && !showOverdue ? (
                             <div className="text-xs">
                                 <TargetDateCell
                                     slaTarget={ticket.slaTarget}
@@ -328,7 +316,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                 </div>
 
                 {/* Mobile Bottom Row: Quick Status/Priority & People (Requester / Assignee) */}
-                <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
+                <div className="flex items-center justify-between flex-wrap gap-3 pt-2 border-t border-border/60">
                     {/* Left: Quick Status & Priority Controls */}
                     <div className="flex items-center gap-1.5 shrink-0">
                         <StopPropagationWrapper>
@@ -341,6 +329,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                         <StopPropagationWrapper>
                             <PriorityDropdown
                                 value={ticket.priority}
+                                showCriticalIndicator={showCriticalIndicator}
                                 onChange={(value) => onUpdatePriority(ticket.id, value)}
                                 disabled={!canEdit}
                             />
@@ -365,19 +354,16 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                                         <PopoverTrigger asChild>
                                             <button
                                                 type="button"
-                                                className={cn(
-                                                    "flex items-center gap-1 p-1 rounded-lg border text-xs transition-all cursor-pointer",
-                                                    ticket.assignedTo
-                                                        ? "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700"
-                                                        : "border-dashed border-slate-300 dark:border-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                                                )}
+                                                aria-label={`Ganti PIC: ${ticket.assignedTo?.fullName || 'Unassigned'}`}
+                                                className="ticket-pill ticket-tone-neutral picker-trigger min-h-9"
                                                 title={ticket.assignedTo ? `Assigned to ${ticket.assignedTo.fullName}` : "Assign agent"}
                                             >
                                                 {ticket.assignedTo ? (
                                                     <UserAvatar user={ticket.assignedTo} size="xs" />
                                                 ) : (
-                                                    <span className="text-[10px] px-1 italic">Assign</span>
+                                                    <span className="text-xs">Tetapkan PIC</span>
                                                 )}
+                                                <ChevronDown className="w-3 h-3 shrink-0" aria-hidden="true" />
                                             </button>
                                         </PopoverTrigger>
                                         <PopoverContent className="p-0 w-72 shadow-2xl border-border bg-card overflow-hidden rounded-xl" align="end">
@@ -405,14 +391,12 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
             {/* ========================================================================= */}
             <div
                 className={cn(
-                    "hidden lg:grid items-center gap-4 px-4 py-3",
-                    showSiteColumn
-                        ? "lg:grid-cols-[32px_minmax(280px,2fr)_112px_80px_144px_minmax(120px,1fr)_minmax(140px,1fr)_minmax(100px,1fr)_80px]"
-                        : "lg:grid-cols-[32px_minmax(280px,2fr)_112px_144px_minmax(120px,1fr)_minmax(140px,1fr)_minmax(100px,1fr)_80px]"
+                    'queue-grid queue-desktop-row',
+                    showSiteColumn ? 'queue-grid-sites' : 'queue-grid-default'
                 )}
             >
                 {/* Row Checkbox - Using StopPropagationWrapper */}
-                {canEdit && (
+                {canEdit ? (
                     <StopPropagationWrapper className={cn(
                         "flex w-8 shrink-0 items-center justify-center transition-opacity duration-200",
                         isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"
@@ -422,7 +406,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                             onChange={(checked) => onSelect(ticket.id, checked)}
                         />
                     </StopPropagationWrapper>
-                )}
+                ) : <span aria-hidden="true" />}
 
                 {/* Ticket Info with Quick Preview */}
                 <TicketQuickPreview ticket={ticket} side="right" align="start" disabled={false}>
@@ -493,6 +477,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                 <StopPropagationWrapper>
                     <PriorityDropdown
                         value={ticket.priority}
+                                showCriticalIndicator={showCriticalIndicator}
                         onChange={(value) => onUpdatePriority(ticket.id, value)}
                         disabled={!canEdit}
                     />
@@ -502,9 +487,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                 {showSiteColumn && (
                     <div>
                         {ticket.site ? (
-                            <Badge variant="outline" className="text-xs font-medium">
-                                {ticket.site.code}
-                            </Badge>
+                            <TicketPill tone="neutral" className="font-mono">{ticket.site.code}</TicketPill>
                         ) : (
                             <span className="text-sm text-slate-500 dark:text-slate-400">-</span>
                         )}
@@ -539,7 +522,8 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                             <PopoverTrigger asChild>
                                 <button
                                     type="button"
-                                    className="h-8 w-full min-w-[140px] flex items-center justify-between gap-1.5 px-2.5 text-xs border border-border/80 bg-background shadow-xs hover:border-primary/40 hover:bg-muted/40 focus:ring-1 focus:ring-primary/50 transition-all rounded-lg font-medium cursor-pointer"
+                                    aria-label={`Ganti PIC: ${ticket.assignedTo?.fullName || 'Unassigned'}`}
+                                    className="ticket-pill ticket-tone-neutral picker-trigger w-full"
                                 >
                                     {ticket.assignedTo ? (
                                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -547,8 +531,9 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                                             <span className="truncate text-xs font-semibold text-foreground">{ticket.assignedTo.fullName}</span>
                                         </div>
                                     ) : (
-                                        <span className="text-muted-foreground/70 text-xs flex-1 text-left italic">Unassigned</span>
+                                        <span className="text-muted-foreground text-xs flex-1 text-left">Unassigned</span>
                                     )}
+                                    <ChevronDown className="w-3 h-3 shrink-0" aria-hidden="true" />
                                 </button>
                             </PopoverTrigger>
                             <PopoverContent
@@ -567,7 +552,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                             </PopoverContent>
                         </Popover>
                     ) : (
-                        <div className="flex items-center gap-2 min-w-0">
+                        <TicketPill tone="neutral">
                             {ticket.assignedTo ? (
                                 <>
                                     <UserAvatar
@@ -581,7 +566,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                             ) : (
                                 <span className="text-xs text-muted-foreground/70 italic font-medium">Unassigned</span>
                             )}
-                        </div>
+                        </TicketPill>
                     )}
                 </StopPropagationWrapper>
 

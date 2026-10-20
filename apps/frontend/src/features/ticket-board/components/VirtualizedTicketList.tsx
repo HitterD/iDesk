@@ -135,7 +135,7 @@ export const VirtualizedTicketList: React.FC<VirtualizedTicketListProps> = ({
     // Standard rendering with keyboard navigation
     return (
         <div
-            className="divide-y divide-slate-100 dark:divide-slate-800"
+            className="queue-list min-w-0"
             role="listbox"
             aria-label="Ticket list"
             tabIndex={0}

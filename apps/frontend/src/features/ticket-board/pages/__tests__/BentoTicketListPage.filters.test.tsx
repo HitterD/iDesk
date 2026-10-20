@@ -101,7 +101,7 @@ describe('IT Support stat card filters', () => {
         expect(latestParams().has('overdue')).toBe(false);
         expect(latestParams().has('priority')).toBe(false);
         expect(screen.getAllByText(label, { exact: true })[0].closest('[role="button"]'))
-            .toHaveClass('border-primary/40');
+            .toHaveAttribute('aria-pressed', 'true');
     });
 
     it('switches Overdue to Critical and Critical to Overdue without leftover filters', async () => {

@@ -66,7 +66,9 @@ describe('BentoMobileDevTicketsPage', () => {
         );
 
         expect(screen.getByText('Mobile Developer Request')).toBeInTheDocument();
-        expect(screen.getByText('New Mobile Dev Request')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Buat Tiket Baru' })).toHaveClass('idesk-cta');
+        expect(screen.getByText('Ringkasan status, overdue, dan critical berdasarkan halaman yang dimuat; Total mengikuti server.')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Semua' })).toHaveAttribute('aria-pressed', 'true');
         expect(screen.getByTitle('Kanban Board')).toBeInTheDocument();
     });
 

@@ -32,6 +32,8 @@ interface PriorityDropdownProps {
     value: string;
     onChange: (value: string) => void;
     disabled?: boolean;
+    /** Queue rows suppress attention flames for terminal tickets without changing edit permissions. */
+    showCriticalIndicator?: boolean;
 }
 
 
@@ -42,10 +44,10 @@ const optionIcon = (Icon: ElementType | null, tone: TicketPillTone = 'neutral') 
         : <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-current" style={style} />;
 };
 
-export const PriorityDropdown = ({ value, onChange, disabled }: PriorityDropdownProps) => {
+export const PriorityDropdown = ({ value, onChange, disabled, showCriticalIndicator = true }: PriorityDropdownProps) => {
     const config = PRIORITY_CONFIG[value] || PRIORITY_CONFIG.MEDIUM;
     const tone = PRIORITY_TONES[value] || PRIORITY_TONES.MEDIUM;
-    const Icon = config.icon;
+    const Icon = value === 'CRITICAL' && !showCriticalIndicator ? null : config.icon;
     const icon = Icon ? <Icon aria-hidden="true" className="h-3 w-3 shrink-0" />
         : <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current shrink-0" />;
     if (disabled || config.isSystemLocked) {

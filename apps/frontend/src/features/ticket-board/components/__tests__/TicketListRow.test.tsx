@@ -13,10 +13,7 @@ vi.mock('@/components/ui/TicketQuickPreview', () => ({
     TicketQuickPreview: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock('../TicketDropdowns', async () => {
-    const actual = await vi.importActual('../TicketDropdowns');
-    return { ...actual, PriorityDropdown: () => <span>Prioritas</span> };
-});
+// Exercise the real priority/status bubbles, including terminal flame suppression.
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -71,6 +68,55 @@ const mockAgents: Agent[] = [
         site: { code: 'SPJ', name: 'Santos Premium Jaya' },
     },
 ];
+
+describe('TicketListRow queue presentation contract', () => {
+    const renderRow = (ticket: TicketRowData, canEdit = true) => render(
+        <MemoryRouter>
+            <TicketListRow ticket={ticket} index={0} showSiteColumn canEdit={canEdit}
+                isSelected={false} agents={mockAgents} onSelect={vi.fn()}
+                onUpdatePriority={vi.fn()} onUpdateStatus={vi.fn()} onAssign={vi.fn()} />
+        </MemoryRouter>
+    );
+
+    it('presents editable PIC as named bubbles with carets, keeping real photographs', () => {
+        const { container } = renderRow({ ...mockTicket,
+            user: { ...mockTicket.user, avatarUrl: '/requester.jpg' },
+            assignedTo: { ...mockTicket.assignedTo!, avatarUrl: '/agent.jpg' },
+        });
+        expect(screen.getAllByRole('button', { name: /Ganti PIC/ })).toHaveLength(2);
+        screen.getAllByRole('button', { name: /Ganti PIC/ }).forEach((button) => {
+            expect(button).toHaveClass('ticket-pill');
+            expect(button.querySelector('.lucide-chevron-down')).not.toBeNull();
+        });
+        expect(container.querySelector('img[src="/requester.jpg"]')).not.toBeNull();
+        expect(container.querySelector('img[src="/agent.jpg"]')).not.toBeNull();
+        screen.getAllByText('SPJ').forEach((site) => {
+            expect(site).toHaveClass('ticket-pill');
+            expect(site.closest('button')).toBeNull();
+            expect(site.querySelector('.lucide-chevron-down')).toBeNull();
+        });
+    });
+
+    it('shows paused SLA on mobile even without a target date', () => {
+        renderRow({ ...mockTicket, status: 'WAITING_VENDOR', slaTarget: undefined, slaRemainingMinutes: 90 });
+        expect(screen.getAllByText('Paused · sisa 1h 30m')).toHaveLength(2);
+        screen.getAllByLabelText('SLA Timer Paused').forEach((sla) => {
+            expect(sla).toHaveClass('ticket-pill');
+            expect(sla.closest('button')).toBeNull();
+        });
+    });
+
+    it.each(['RESOLVED', 'CLOSED', 'CANCELLED'] as const)('does not flag %s as overdue', (status) => {
+        const { container } = renderRow({ ...mockTicket, status, isOverdue: true });
+        expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
+        expect(container.firstElementChild).not.toHaveClass('queue-row-flagged');
+    });
+
+    it('flags an active critical ticket with a left stripe', () => {
+        const { container } = renderRow({ ...mockTicket, priority: 'CRITICAL' });
+        expect(container.firstElementChild).toHaveClass('queue-row-flagged');
+    });
+});
 
 describe('TicketListRow paused SLA', () => {
     it('passes remaining minutes to both mobile and desktop SLA cells', () => {
@@ -129,7 +175,7 @@ describe('TicketListRow critical indicators', () => {
 
     it.each(['TODO', 'IN_PROGRESS', 'WAITING_VENDOR'] as const)('shows flame for %s critical ticket', (status) => {
         const { container } = renderCriticalTicket(status);
-        expect(container.querySelectorAll('.lucide-flame')).toHaveLength(2);
+        expect(container.querySelectorAll('.lucide-flame').length).toBeGreaterThanOrEqual(2);
         expect(screen.getByText('Critical')).toBeInTheDocument();
     });
 });

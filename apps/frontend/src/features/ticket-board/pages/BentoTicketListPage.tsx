@@ -1,3 +1,5 @@
+import { Ticket as TicketIcon } from 'lucide-react';
+import { QueueHeader } from '../components/QueueHeader';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import {
@@ -504,111 +506,28 @@ export const BentoTicketListPage: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6 pb-28 sm:pb-10">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-                <div>
-                    <div className="flex items-center gap-2.5">
-                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">IT Support Tickets</h1>
-                        {isConnected && (
-                            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                Live
-                            </span>
-                        )}
-                    </div>
-                    <p className="text-muted-foreground text-xs sm:text-sm font-medium mt-0.5 sm:mt-1">View and manage all support requests</p>
-                </div>
-                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                    {/* New Ticket Button */}
-                    <button
-                        onClick={() => navigate('/tickets/create')}
-                        className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-primary text-primary-foreground rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-xs active:scale-[0.98]"
-                    >
-                        <Plus className="w-4 h-4" />
-                        <span>New Ticket</span>
-                    </button>
-
-                    {/* My Tasks Filter */}
-                    {canEdit && (
-                        <button
-                            onClick={() => {
-                                if (showAssignedToMe) {
-                                    setSearchParams({});
-                                } else {
-                                    setSearchParams({ filter: 'assigned_to_me' });
-                                }
-                            }}
-                            className={cn(
-                                "flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all duration-150 text-xs sm:text-sm font-semibold shadow-xs border active:scale-[0.98] cursor-pointer",
-                                showAssignedToMe
-                                    ? 'bg-primary text-primary-foreground border-primary'
-                                    : 'bg-card border-border hover:bg-muted/50 text-foreground'
-                            )}
-                        >
-                            <UserCheck className="w-4 h-4" />
-                            <span>My Tasks</span>
-                        </button>
-                    )}
-
-                    {/* Created By Me Filter */}
-                    {canEdit && (
-                        <button
-                            onClick={() => setSearchParams(showCreatedByMe ? {} : { filter: 'created_by_me' })}
-                            aria-pressed={showCreatedByMe}
-                            className={cn(
-                                "flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all duration-150 text-xs sm:text-sm font-semibold shadow-xs border active:scale-[0.98] cursor-pointer",
-                                showCreatedByMe
-                                    ? 'bg-primary text-primary-foreground border-primary'
-                                    : 'bg-card border-border hover:bg-muted/50 text-foreground'
-                            )}
-                        >
-                            <FilePen className="w-4 h-4" />
-                            <span>Tiket yang saya buat</span>
-                        </button>
-                    )}
-
-                    {/* View Toggle */}
-                    <div className="flex bg-card border border-border p-1 rounded-xl shadow-xs">
-                        <button
-                            onClick={() => {
-                                setSearchParams(prev => {
-                                    const next = new URLSearchParams(prev);
-                                    next.set('view', 'kanban');
-                                    return next;
-                                });
-                            }}
-                            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 text-muted-foreground hover:text-primary rounded-lg transition-colors cursor-pointer"
-                            title="Kanban Board"
-                        >
-                            <Columns3 className="w-4 h-4" />
-                            <span className="text-xs font-semibold hidden md:inline">Kanban</span>
-                        </button>
-                        <button
-                            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-primary/10 text-primary rounded-lg font-bold"
-                            title="Table View"
-                        >
-                            <TableProperties className="w-4 h-4" />
-                            <span className="text-xs font-semibold hidden md:inline">Table</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
+        <div className="queue-page space-y-4 pb-28 sm:pb-10 min-w-0">
+            <QueueHeader title="IT Support Tickets" description="Antrian IT Support untuk semua site Anda" icon={TicketIcon} tone="blue"
+                connected={isConnected} canEdit={canEdit}
+                scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
+                onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })}
+                onCreate={() => navigate('/tickets/create')}
+                onKanban={() => setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('view', 'kanban'); return next; })} />
 
             {/* Stats Cards - Horizontally scrollable snap strip on mobile, grid on tablet/desktop */}
-            <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1.5 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-4 lg:grid-cols-7 sm:gap-3 lg:gap-4 snap-x">
-                <StatsCard icon={TrendingUp} label="Total" value={stats.total} color="text-primary dark:text-blue-400" bgColor="bg-[hsl(var(--primary))]/10 dark:bg-[hsl(var(--primary))]/20" animationIndex={0} onClick={() => applyCardFilters('')} isActive={!statusFilter && !priorityFilter && !overdueFilter} />
-                <StatsCard icon={Inbox} label="Open" value={stats.open} color="text-[hsl(var(--info-500))]" bgColor="bg-[hsl(var(--info-500))]/10" animationIndex={1} onClick={() => applyCardFilters('TODO')} isActive={statusFilter === 'TODO' && !priorityFilter && !overdueFilter} />
-                <StatsCard icon={CircleDot} label="In Progress" value={stats.inProgress} color="text-[hsl(var(--warning-500))]" bgColor="bg-[hsl(var(--warning-500))]/10" animationIndex={2} onClick={() => applyCardFilters('IN_PROGRESS')} isActive={statusFilter === 'IN_PROGRESS' && !priorityFilter && !overdueFilter} />
-                <StatsCard icon={Hourglass} label="Waiting Vendor" value={stats.waitingVendor} color="text-amber-600 dark:text-amber-400" bgColor="bg-amber-500/10" animationIndex={3} onClick={() => applyCardFilters('WAITING_VENDOR')} isActive={statusFilter === 'WAITING_VENDOR' && !priorityFilter && !overdueFilter} />
-                <StatsCard icon={CheckCircle2} label="Resolved" value={stats.resolved} color="text-[hsl(var(--success-500))]" bgColor="bg-[hsl(var(--success-500))]/10" animationIndex={4} onClick={() => applyCardFilters(DONE_STATUS_FILTER)} isActive={statusFilter === DONE_STATUS_FILTER && !priorityFilter && !overdueFilter} />
-                <StatsCard icon={AlertTriangle} label="Overdue" value={stats.overdue} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={5} onClick={() => applyCardFilters('', '', !overdueFilter)} isActive={overdueFilter && !statusFilter && !priorityFilter} />
-                <StatsCard icon={Flame} label="Critical" value={stats.critical} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={6} onClick={() => applyCardFilters(ACTIVE_STATUS_FILTER, 'CRITICAL')} isActive={priorityFilter === 'CRITICAL' && statusFilter === ACTIVE_STATUS_FILTER && !overdueFilter} />
+            <div className="queue-stats queue-stats-7" aria-label="Ringkasan status">
+                <StatsCard icon={TrendingUp} tone="neutral" label="Total" value={stats.total} color="text-primary dark:text-blue-400" bgColor="bg-[hsl(var(--primary))]/10 dark:bg-[hsl(var(--primary))]/20" animationIndex={0} onClick={() => applyCardFilters('')} isActive={!statusFilter && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={Inbox} tone="blue" label="Open" value={stats.open} color="text-[hsl(var(--info-500))]" bgColor="bg-[hsl(var(--info-500))]/10" animationIndex={1} onClick={() => applyCardFilters('TODO')} isActive={statusFilter === 'TODO' && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={CircleDot} tone="navy" label="In Progress" value={stats.inProgress} color="text-[hsl(var(--warning-500))]" bgColor="bg-[hsl(var(--warning-500))]/10" animationIndex={2} onClick={() => applyCardFilters('IN_PROGRESS')} isActive={statusFilter === 'IN_PROGRESS' && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={Hourglass} tone="amber" label="Waiting Vendor" highlight value={stats.waitingVendor} color="text-amber-600 dark:text-amber-400" bgColor="bg-amber-500/10" animationIndex={3} onClick={() => applyCardFilters('WAITING_VENDOR')} isActive={statusFilter === 'WAITING_VENDOR' && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={CheckCircle2} tone="green" label="Resolved" value={stats.resolved} color="text-[hsl(var(--success-500))]" bgColor="bg-[hsl(var(--success-500))]/10" animationIndex={4} onClick={() => applyCardFilters(DONE_STATUS_FILTER)} isActive={statusFilter === DONE_STATUS_FILTER && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={AlertTriangle} tone="red" label="Overdue" value={stats.overdue} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={5} onClick={() => applyCardFilters('', '', !overdueFilter)} isActive={overdueFilter && !statusFilter && !priorityFilter} />
+                <StatsCard icon={Flame} tone="red" label="Critical" value={stats.critical} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={6} onClick={() => applyCardFilters(ACTIVE_STATUS_FILTER, 'CRITICAL')} isActive={priorityFilter === 'CRITICAL' && statusFilter === ACTIVE_STATUS_FILTER && !overdueFilter} />
             </div>
 
             {/* Search & Filters */}
             <div
-                className="flex flex-col lg:flex-row lg:items-center gap-3 p-2 bg-card rounded-2xl border border-border relative z-20 shadow-xs"
+                className="queue-filters"
                 role="search"
                 aria-label="Ticket search and filters"
             >
@@ -644,7 +563,7 @@ export const BentoTicketListPage: React.FC = () => {
 
 
                 {/* Primary Filters - Horizontal row */}
-                <div className="flex items-center gap-2 px-1 pb-1 lg:pb-0 shrink-0 overflow-x-auto no-scrollbar">
+                <div className="flex items-center flex-wrap gap-2 min-w-0">
                     <CustomDropdown
                         value={statusFilter}
                         onChange={(val) => setStatusFilter(val === "ALL" ? "" : val)}
@@ -730,7 +649,7 @@ export const BentoTicketListPage: React.FC = () => {
 
             {/* Tickets List Table */}
             <div
-                className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl overflow-hidden relative shadow-sm"
+                className="queue-table"
                 role="region"
                 aria-label="Tickets list"
                 aria-busy={isFetching}
@@ -755,16 +674,16 @@ export const BentoTicketListPage: React.FC = () => {
                         {/* Table Header */}
                         <div
                             className={cn(
-                                "sticky top-0 z-20 hidden lg:grid items-center gap-4 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-[hsl(var(--border))]",
+                                "queue-grid queue-thead",
                                 showSiteColumn
-                                    ? "lg:grid-cols-[32px_minmax(280px,2fr)_112px_80px_144px_minmax(120px,1fr)_minmax(140px,1fr)_minmax(100px,1fr)_80px]"
-                                    : "lg:grid-cols-[32px_minmax(280px,2fr)_112px_144px_minmax(120px,1fr)_minmax(140px,1fr)_minmax(100px,1fr)_80px]"
+                                    ? "queue-grid-sites"
+                                    : "queue-grid-default"
                             )}
                             role="row"
                             aria-label="Table headers"
                         >
                             {/* Checkbox column */}
-                            {canEdit && (
+                            {canEdit ? (
                                 <div className="w-8 shrink-0">
                                     <SelectCheckbox
                                         checked={isAllSelected}
@@ -772,7 +691,7 @@ export const BentoTicketListPage: React.FC = () => {
                                         onChange={handleSelectAll}
                                     />
                                 </div>
-                            )}
+                            ) : <span aria-hidden="true" />}
                             <SortableHeader
                                 label="Ticket"
                                 field="title"

@@ -8,6 +8,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { TargetDateCell } from '../TargetDateCell';
 
 describe('TargetDateCell', () => {
+    it.each(['TODO', 'RESOLVED', 'CLOSED', 'CANCELLED', 'WAITING_VENDOR'])('renders %s SLA as a readonly bubble without a caret', (status) => {
+        const { container } = render(<TargetDateCell status={status} slaTarget="2099-08-30T10:00:00Z" />);
+        expect(container.querySelector('.ticket-pill')).not.toBeNull();
+        expect(container.querySelector('button, .lucide-chevron-down')).toBeNull();
+    });
     it('renders DONE correctly when status is RESOLVED', () => {
         render(
             <TargetDateCell

@@ -66,7 +66,9 @@ describe('BentoOracleK2TicketsPage', () => {
         );
 
         expect(screen.getByText('Oracle K2 Request')).toBeInTheDocument();
-        expect(screen.getByText('New Oracle/K2 Request')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Buat Tiket Baru' })).toHaveClass('idesk-cta');
+        expect(screen.getByText('Ringkasan status, overdue, dan critical berdasarkan halaman yang dimuat; Total mengikuti server.')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Semua' })).toHaveAttribute('aria-pressed', 'true');
         expect(screen.getByTitle('Kanban Board')).toBeInTheDocument();
     });
 
