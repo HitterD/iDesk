@@ -246,6 +246,54 @@ textarea:focus {
   }
 }
 
+/* PR2 shared ticket controls; intentionally scoped, including portalled panels. */
+.ticket-tone-neutral { --pill-hue: var(--ticket-neutral); --pill-ink: var(--ticket-neutral-ink); }
+.ticket-tone-blue { --pill-hue: var(--ticket-blue); --pill-ink: var(--ticket-blue-ink); }
+.ticket-tone-navy { --pill-hue: var(--ticket-navy); --pill-ink: var(--ticket-navy-ink); }
+.ticket-tone-amber { --pill-hue: var(--ticket-amber); --pill-ink: var(--ticket-amber-ink); }
+.ticket-tone-green { --pill-hue: var(--ticket-green); --pill-ink: var(--ticket-green-ink); }
+.ticket-tone-red { --pill-hue: var(--ticket-red); --pill-ink: var(--ticket-red-ink); }
+.ticket-tone-teal { --pill-hue: var(--ticket-teal); --pill-ink: var(--ticket-teal-ink); }
+.ticket-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-width: 0; max-width: 100%; min-height: 26px; padding: 3px 10px;
+  border-radius: 9999px; border: 1px solid color-mix(in srgb, hsl(var(--pill-hue)) var(--ticket-border-tint), transparent);
+  background: color-mix(in srgb, hsl(var(--pill-hue)) var(--ticket-tint), hsl(var(--idesk-surface)));
+  color: hsl(var(--pill-ink)); font-size: 12px; font-weight: 550; line-height: 18px;
+  white-space: nowrap;
+}
+.picker-trigger { cursor: pointer; justify-content: space-between; transition: background 150ms var(--ease-out); }
+.picker-trigger:hover:not(:disabled) { background: color-mix(in srgb, hsl(var(--pill-hue)) 15%, hsl(var(--idesk-surface))); }
+.picker-trigger:disabled { opacity: .55; cursor: not-allowed; }
+.picker-trigger:focus-visible, .picker-panel :focus-visible, .agent-select-list :focus-visible {
+  outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px;
+}
+.glass-card-elevated.picker-panel {
+  display: flex; flex-direction: column; overflow: hidden;
+  width: max(272px, var(--radix-popover-trigger-width));
+  max-width: var(--radix-popover-content-available-width);
+  max-height: min(380px, var(--radix-popover-content-available-height));
+  border: 1px solid hsl(var(--idesk-border)); border-radius: 16px;
+  background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-text));
+  box-shadow: 0 14px 38px -12px hsl(220 55% 15% / .28);
+  backdrop-filter: none;
+}
+.picker-panel .picker-command { min-height: 0; background: transparent; color: inherit; border-radius: 10px; }
+.picker-panel .picker-list { flex: 1; min-height: 0; max-height: 310px; overflow-y: auto; overscroll-behavior: contain; }
+.picker-panel [cmdk-input-wrapper] { flex: none; border-color: hsl(var(--idesk-border)); }
+.picker-panel [cmdk-input]::placeholder { color: hsl(var(--idesk-text-secondary)); }
+.picker-option { min-height: 38px; gap: 10px; border-radius: 9px; padding: 9px; cursor: pointer; white-space: normal; }
+.picker-panel .picker-option[data-selected="true"], .agent-select-list .picker-option[data-selected="true"] {
+  background: hsl(var(--idesk-selection)); color: hsl(var(--idesk-text));
+}
+.picker-option[data-checked="true"] { color: hsl(var(--idesk-sapphire)); }
+.picker-description { color: hsl(var(--idesk-text-secondary)); font-size: 11px; overflow-wrap: anywhere; }
+.picker-panel .picker-option[data-disabled="true"] { cursor: not-allowed; opacity: .55; }
+/* cmdk emits data-disabled="false" too; override the legacy presence selector locally. */
+.picker-panel .picker-option[data-disabled="false"], .agent-select-list .picker-option[data-disabled="false"] { pointer-events: auto; opacity: 1; }
+.agent-select-list { background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-text)); }
+@media (pointer: coarse) { .picker-option, .picker-trigger { min-height: 44px; } }
+
 /* FullCalendar Dark Mode Fix */
 .dark .fc {
   --fc-border-color: #334155;

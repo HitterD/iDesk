@@ -1,5 +1,13 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+
+globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+} as unknown as typeof ResizeObserver;
+Element.prototype.scrollIntoView ??= () => {};
 import { describe, it, expect, vi } from 'vitest';
 import { AgentSelectList, Agent } from '../AgentSelectList';
 
@@ -35,6 +43,27 @@ const mockAgents: Agent[] = [
 ];
 
 describe('AgentSelectList', () => {
+    it('preserves duplicate-name identity, groups and avatars with keyboard selection', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        const duplicates = mockAgents.map((agent, i) => ({ ...agent, fullName: 'Nama Sama yang Sangat Panjang', avatarUrl: i === 0 ? '/avatar.png' : undefined }));
+        render(<AgentSelectList agents={duplicates} selectedId="agent-3" isAdmin={false} onSelect={onSelect} />);
+        const rows = screen.getAllByRole('option', { name: /Nama Sama/ });
+        expect(rows.map(row => row.getAttribute('data-checked'))).toEqual(['false', 'false', 'true', 'false']);
+        expect(document.querySelector('img')).toHaveAttribute('src', '/avatar.png');
+        const input = screen.getByRole('combobox', { name: 'Cari agent atau site…' });
+        await user.type(input, 'beny031185');
+        await user.keyboard('{ArrowDown}{Enter}');
+        expect(onSelect).toHaveBeenCalledWith('agent-2');
+    });
+
+    it('shows no results and keeps externally controlled search authoritative', () => {
+        const { rerender } = render(<AgentSelectList agents={mockAgents} isAdmin={true} onSelect={vi.fn()} searchQuery="zzzz" />);
+        expect(screen.getByText('Tidak ada agent ditemukan')).toBeVisible();
+        rerender(<AgentSelectList agents={mockAgents} isAdmin={true} onSelect={vi.fn()} searchQuery="SMG" />);
+        expect(screen.getByText('Agent SMG')).toBeVisible();
+        expect(screen.queryByText('Beny Saputra, S.Kom')).not.toBeInTheDocument();
+    });
     it('renders admin grouped site headers and scrollable agent items', () => {
         const onSelect = vi.fn();
         render(

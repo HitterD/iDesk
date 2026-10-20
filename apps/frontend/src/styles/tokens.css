@@ -9,6 +9,40 @@
        DESIGN SYSTEM V5 - Enhanced Tokens (Premium v3)
        ======================================== */
 
+        /* PR2 scoped tokens: HSL channels; existing global semantics remain unchanged. */
+        --idesk-sapphire: 221.684 51.351% 36.275%; /* #2D4A8C */
+        --idesk-chrome: 222 52% 28%;
+        --idesk-chrome-raised: var(--idesk-sapphire);
+        --idesk-chrome-foreground: 0 0% 100%;
+        --idesk-chrome-muted: 220 35% 80%;
+        --idesk-canvas: 240 11% 96%;
+        --idesk-surface: 0 0% 100%;
+        --idesk-surface-raised: 240 25% 98%;
+        --idesk-text: 240 3% 12%;
+        --idesk-text-secondary: 240 4% 39%;
+        --idesk-border: 220 15% 85%;
+        --idesk-focus: var(--idesk-sapphire);
+        --idesk-selection: 221 50% 94%;
+        --idesk-cta: 39 92% 52%;
+        --idesk-cta-hover: 39 96% 60%;
+        --idesk-cta-foreground: 39 100% 12%;
+        --ticket-tint: 9%;
+        --ticket-border-tint: 24%;
+        --ticket-neutral: 240 2% 56%;
+        --ticket-neutral-ink: 240 4% 39%;
+        --ticket-blue: 221 50% 48%;
+        --ticket-blue-ink: 221 54% 36%;
+        --ticket-navy: var(--idesk-sapphire);
+        --ticket-navy-ink: var(--idesk-sapphire);
+        --ticket-amber: 35 90% 50%;
+        --ticket-amber-ink: 33 100% 29%;
+        --ticket-green: 135 58% 44%;
+        --ticket-green-ink: 136 63% 27%;
+        --ticket-red: 4 86% 58%;
+        --ticket-red-ink: 4 75% 40%;
+        --ticket-teal: 178 81% 31%;
+        --ticket-teal-ink: 178 80% 24%;
+
         /* TYPOGRAPHY */
         --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
         --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
@@ -200,6 +234,27 @@
     }
 
     .dark {
+        --idesk-sapphire: 221 56% 63%;
+        --idesk-chrome: 223 44% 13%;
+        --idesk-chrome-raised: 221 44% 18%;
+        --idesk-chrome-muted: 220 30% 76%;
+        --idesk-canvas: 240 4% 9%;
+        --idesk-surface: 240 5% 13%;
+        --idesk-surface-raised: 240 4% 15%;
+        --idesk-text: 240 8% 95%;
+        --idesk-text-secondary: 240 5% 72%;
+        --idesk-border: 223 15% 30%;
+        --idesk-selection: 221 35% 24%;
+        --ticket-tint: 16%;
+        --ticket-border-tint: 38%;
+        --ticket-neutral-ink: 240 5% 76%;
+        --ticket-blue-ink: 220 78% 77%;
+        --ticket-navy-ink: 221 70% 78%;
+        --ticket-amber-ink: 36 100% 68%;
+        --ticket-green-ink: 136 59% 65%;
+        --ticket-red-ink: 4 100% 74%;
+        --ticket-teal-ink: 178 62% 65%;
+
         /* PREMIUM DARK — Deep Navy & Luminous */
         --background: 225 25% 8%;         /* #101520 deep navy */
         --foreground: 40 15% 90%;         /* #E8E4DE warm off-white */
