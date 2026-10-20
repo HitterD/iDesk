@@ -268,7 +268,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         <div
             ref={dropZoneRef}
             className={cn(
-                'sticky bottom-0 z-20 border-t border-slate-200/70 bg-white/85 px-3 pb-3 pt-2.5 backdrop-blur-xl safe-area-pb dark:border-slate-800/80 dark:bg-slate-900/85 sm:px-5',
+                'chat-composer relative z-20 safe-area-pb',
                 isDragging && 'ring-2 ring-inset ring-primary',
             )}
             onDragEnter={handleDragEnter}
@@ -375,19 +375,14 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                     />
                 </div>
 
-                <div className={cn(
-                    'flex min-w-0 flex-1 items-end rounded-[22px] border bg-white py-1 pl-4 pr-1 transition-shadow dark:bg-slate-800/80',
-                    isInternal
-                        ? 'border-amber-300 focus-within:ring-4 focus-within:ring-amber-500/15 dark:border-amber-700'
-                        : 'border-slate-200 focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10 dark:border-slate-700',
-                )}>
+                <div className={cn('chat-composer-box flex min-w-0 flex-1 items-end py-1 pl-4 pr-1', isInternal && 'is-internal')}>
                     <TextareaAutosize
                         ref={inputRef}
                         minRows={1}
                         maxRows={6}
                         placeholder={placeholderText}
                         aria-label={placeholderText}
-                        className="max-h-40 flex-1 resize-none bg-transparent py-1.5 text-[15px] leading-[1.4] text-slate-900 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-slate-500"
+                        className="max-h-40 flex-1 resize-none bg-transparent py-1.5 text-[15px] leading-[1.4] text-slate-900 outline-none placeholder:text-slate-500 dark:text-white dark:placeholder:text-slate-400"
                         onChange={handleInputChange}
                         onPaste={handlePaste}
                         onKeyDown={async e => {
@@ -418,8 +413,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                     title="Kirim (Enter) · Shift+Enter untuk baris baru"
                     className={cn(
                         iconButton,
-                        'mb-0.5 h-9 w-9 text-white shadow-sm',
-                        isInternal ? 'bg-amber-500 hover:bg-amber-600' : 'bg-primary hover:bg-primary/90',
+                        'mb-0.5 h-9 w-9 shadow-sm',
+                        isInternal ? 'bg-amber-600 text-white hover:bg-amber-700' : 'chat-send',
                     )}
                 >
                     {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.5} />}

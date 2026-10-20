@@ -68,6 +68,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     return (
         <div
             data-message-id={message.id}
+            data-direction={isOwn ? 'out' : 'in'}
             className={cn(
                 'group flex items-end gap-2 rounded-2xl transition-colors duration-700',
                 isOwn && 'flex-row-reverse',
@@ -76,15 +77,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             )}
         >
             <div className={AVATAR_SLOT}>
-                {isGroupEnd && !isOwn && (
+                {isGroupEnd && (
                     <UserAvatar user={message.sender} size="sm" className="h-8 w-8 rounded-full" />
                 )}
             </div>
 
             <div className={cn('flex min-w-0 max-w-[85%] flex-col sm:max-w-[65%] xl:max-w-[560px]', isOwn ? 'items-end' : 'items-start')}>
-                {isGroupStart && !isOwn && (
-                    <span className="mb-1 ml-3 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        {toDisplayName(message.sender?.fullName)}
+                {isGroupStart && (
+                    <span className={cn('chat-author mb-1 flex items-center gap-1.5', isOwn ? 'mr-3 flex-row-reverse' : 'ml-3')}>
+                        <b>{toDisplayName(message.sender?.fullName)}</b>
+                        <time dateTime={message.createdAt} title={formatDateTimeID(message.createdAt)}>{time}</time>
                     </span>
                 )}
 
@@ -98,8 +100,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             title={formatDateTimeID(message.createdAt)}
                             className={cn(
                                 'relative min-w-[72px] rounded-[20px] px-3.5 py-2 text-left',
-                                onAccent && 'bg-primary text-primary-foreground',
-                                !onAccent && !isInternal && 'bg-white text-slate-900 shadow-[0_1px_1px_rgba(15,23,42,0.06)] dark:bg-slate-800 dark:text-slate-100',
+                                onAccent && 'chat-bubble-out',
+                                !onAccent && !isInternal && 'chat-bubble-in',
                                 isInternal && 'bg-amber-50 text-amber-950 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-50 dark:ring-amber-900/70',
                                 isGroupEnd && (isOwn ? 'rounded-br-md' : 'rounded-bl-md'),
                             )}
@@ -135,7 +137,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             />
                             <span className={cn(
                                 'text-[11px] tabular-nums leading-none',
-                                onAccent ? 'text-primary-foreground/70' : 'text-slate-400 dark:text-slate-500',
+                                onAccent ? 'text-white/75' : 'text-slate-500 dark:text-slate-400',
                                 showText && !hasAttachments ? 'absolute bottom-2 right-3' : 'mt-1 block text-right',
                             )}>
                                 {time}

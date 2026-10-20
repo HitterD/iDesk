@@ -47,10 +47,10 @@ const STATUS_MAP: Record<string, { label: string; bg: string; text: string; bord
     },
     IN_PROGRESS: {
         label: 'Sedang Dikerjakan',
-        bg: 'bg-indigo-50 dark:bg-indigo-950/50',
-        text: 'text-indigo-700 dark:text-indigo-300',
-        border: 'border-indigo-200 dark:border-indigo-800/70',
-        dot: 'bg-indigo-500',
+        bg: 'bg-blue-50 dark:bg-blue-950/50',
+        text: 'text-blue-700 dark:text-blue-300',
+        border: 'border-blue-200 dark:border-blue-800/70',
+        dot: 'bg-blue-500',
         icon: PlayCircle,
     },
     PENDING: {
@@ -494,7 +494,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         return (
             <div className={cn("flex flex-col items-center my-3 px-2 text-slate-500 dark:text-slate-400", className)}>
                 <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                    <UserCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                    <UserCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
                     <span>Penugasan Teknisi:</span>
                     {from && from.toLowerCase() !== 'none' && from.toLowerCase() !== 'unassigned' && (
                         <>
@@ -502,7 +502,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                             <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
                         </>
                     )}
-                    <span className="font-semibold text-purple-700 dark:text-purple-300">
+                    <span className="font-semibold text-teal-700 dark:text-teal-300">
                         {to}
                     </span>
                 </div>
@@ -564,9 +564,9 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         return (
             <div className={cn("flex flex-col items-center my-3 px-2 text-slate-500 dark:text-slate-400", className)}>
                 <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                    <Share2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                    <Share2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
                     <span>Tiket Diteruskan ke:</span>
-                    <span className="font-semibold text-indigo-700 dark:text-indigo-300">
+                    <span className="font-semibold text-blue-700 dark:text-blue-300">
                         {target}
                     </span>
                 </div>

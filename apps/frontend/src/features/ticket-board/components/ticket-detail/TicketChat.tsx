@@ -168,6 +168,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
     }, []);
 
+    const isOwnTicket = Boolean(user?.id && ticket.user?.id === user.id);
     const isOwn = useCallback((message: ChatMessage) => Boolean(
         (message.sender?.id && user?.id && message.sender.id === user.id) ||
         (user?.fullName && message.sender?.fullName === user.fullName)
@@ -212,7 +213,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         <div className="relative flex h-full flex-col overflow-hidden">
 
             {/* ── Pinned issue bar (hidden on mobile for a cleaner view) ── */}
-            <div className="z-10 hidden shrink-0 items-center justify-between gap-3 border-b border-slate-200/70 bg-white/80 px-5 py-2 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/80 sm:flex">
+            <div className="z-10 hidden shrink-0 items-center justify-between gap-3 border-b border-[hsl(var(--idesk-border)/0.7)] px-5 py-2 sm:flex">
                 <button
                     type="button"
                     onClick={scrollToRootIssue}
@@ -295,10 +296,10 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             )}
 
             {/* ── Main Messages Stream ── */}
-            <div ref={streamRef} className="custom-scrollbar flex-1 overflow-y-auto bg-slate-50 px-3 py-4 dark:bg-[#0b0f17] sm:px-8 sm:py-6">
+            <div ref={streamRef} className="chat-stream custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5">
 
                 {/* Root issue card (genesis message) */}
-                <div ref={rootIssueRef} className="mb-2 max-w-3xl rounded-2xl bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:bg-slate-800/90 sm:p-5">
+                <div ref={rootIssueRef} className={cn('chat-bubble-in mb-2 max-w-3xl rounded-[18px] p-4 sm:p-5', isOwnTicket && 'ml-auto')}>
                     <div className="mb-3 flex items-center gap-3">
                         <UserAvatar user={ticket.user} size="sm" className="h-9 w-9 rounded-full" />
                         <div className="min-w-0 flex-1">
@@ -355,7 +356,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                             return (
                                 <React.Fragment key={message.id}>
                                     {separator}
-                                    <div className="my-3">
+                                    <div className="chat-system-event my-3" data-system-event={message.id}>
                                         <SystemMessageEvent
                                             content={message.content}
                                             createdAt={message.createdAt}
@@ -400,7 +401,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     })}
 
                     {typingUserNames.length > 0 && (
-                        <div className="mt-3 ml-10 flex w-fit items-center gap-2 rounded-[20px] bg-white px-3.5 py-2 text-xs text-slate-500 shadow-[0_1px_1px_rgba(15,23,42,0.06)] dark:bg-slate-800 dark:text-slate-400">
+                        <div className="chat-bubble-in mt-3 ml-10 flex w-fit items-center gap-2 rounded-[20px] px-3.5 py-2 text-xs">
                             <span className="flex gap-1">
                                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 delay-0" />
                                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 delay-100" />
@@ -417,7 +418,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             {isTicketClosed ? (
                 <div
                     role="status"
-                    className="sticky bottom-0 z-20 flex items-center justify-center gap-2 border-t border-slate-200/70 bg-white/85 p-3 text-xs font-medium text-slate-500 backdrop-blur-xl safe-area-pb dark:border-slate-800 dark:bg-slate-900/85 dark:text-slate-400 sm:p-4"
+                    className="chat-composer flex items-center justify-center gap-2 text-xs font-medium text-slate-600 safe-area-pb dark:text-slate-300"
                 >
                     <Lock className="h-3.5 w-3.5 shrink-0" />
                     <span>{CLOSED_TICKET_NOTICE}</span>

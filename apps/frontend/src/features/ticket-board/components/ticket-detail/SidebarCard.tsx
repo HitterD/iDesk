@@ -15,7 +15,7 @@ export const SidebarCard: React.FC<{
     children: React.ReactNode;
 }> = ({ title, icon: Icon, accessory, className, bodyClassName, children }) => (
     <section className={cn(
-        'rounded-2xl bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-slate-900/[0.05] dark:bg-slate-900 dark:ring-white/[0.06]',
+        'ticket-panel',
         className,
     )}>
         <div className="mb-3 flex min-h-6 items-center justify-between gap-2">
@@ -75,5 +75,5 @@ export const CardBadge: React.FC<{ tone?: 'neutral' | 'primary' | 'amber' | 'ros
 export const fieldTriggerClass =
     'h-8 w-auto max-w-[62%] gap-1.5 px-2 -mr-2 text-[13px] font-medium bg-transparent border-0 shadow-none rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer justify-end [&>svg]:opacity-40';
 
-/** Background + spacing for the sidebar panel that holds the cards. */
-export const sidebarPanelClass = 'space-y-3 p-4';
+/** Spacing for the stack of inspector panels; the container supplies outer padding. */
+export const sidebarPanelClass = 'space-y-3';

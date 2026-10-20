@@ -21,6 +21,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { TicketDetail } from './types';
 import { STATUS_CONFIG, isTerminalStatus } from './constants';
+import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
+import { formatSlaDuration } from '@/lib/utils/slaDuration';
+import { PriorityPill, StatusPill } from './TicketPropertyRows';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
@@ -45,6 +48,11 @@ interface TicketHeaderProps {
     isSidebarOpen?: boolean;
     onToggleSidebar?: () => void;
 }
+
+type SlaState = 'none' | 'normal' | 'paused' | 'overdue' | 'warning';
+const SLA_TONES: Record<SlaState, TicketPillTone> = { none: 'neutral', normal: 'blue', paused: 'amber', overdue: 'red', warning: 'amber' };
+const SLA_ICONS: Record<SlaState, React.ElementType> = { none: Clock, normal: Clock, paused: Pause, overdue: AlertCircle, warning: Clock };
+const ACTION_BTN = 'inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium transition-colors active:scale-[0.98] cursor-pointer';
 
 const formatTimeRemaining = (diffMs: number): string => {
     if (diffMs <= 0) return 'Overdue';
@@ -179,6 +187,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
     };
 
     const isTerminal = isTerminalStatus(ticket.status);
+    const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
     const isResolved = ticket.status === 'RESOLVED' || ticket.status === 'CLOSED';
     const slaTargetDate = ticket.slaTarget || ticket.targetResolutionDate;
     const slaClock = useSlaClock();
@@ -206,7 +215,9 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                 ? ` Sisa ${formatTimeRemaining(ticket.slaRemainingMinutes * 60_000)} jam kerja.`
                 : '';
             return {
-                resolutionTime: 'SLA Paused',
+                resolutionTime: ticket.slaRemainingMinutes != null
+                    ? `Dijeda · sisa ${formatSlaDuration(ticket.slaRemainingMinutes * 60_000)}`
+                    : 'Dijeda',
                 slaTooltip: `Target SLA ditunda sementara.${held}`,
                 slaStatus: 'paused' as const,
             };
@@ -257,7 +268,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
             return {
                 text: 'Responded',
                 tooltip: `Respon pertama telah dikirim pada ${formatDateTimeID(ticket.firstResponseAt)}`,
-                color: 'text-emerald-700 dark:text-emerald-400',
+                tone: 'green' as TicketPillTone,
                 isBreached: ticket.isFirstResponseBreached || false,
             };
         }
@@ -273,7 +284,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
             return {
                 text: 'Resp Overdue',
                 tooltip: `Target respon pertama telah terlewat (Target: ${formatDateTimeID(ticket.firstResponseTarget)})`,
-                color: 'text-rose-700 dark:text-rose-400',
+                tone: 'red' as TicketPillTone,
                 isBreached: true,
             };
         }
@@ -283,61 +294,15 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
         return {
             text: `Resp: ${remainingStr}`,
             tooltip: `Sisa waktu respon pertama: ${remainingStr} (Target: ${formatDateTimeID(ticket.firstResponseTarget)})${offHours}`,
-            color: 'text-amber-700 dark:text-amber-400',
+            tone: 'amber' as TicketPillTone,
             isBreached: false,
         };
     }, [ticket.priority, slaClock, ticket.firstResponseTarget, ticket.firstResponseAt, ticket.isFirstResponseBreached, isTerminal, currentTime]);
 
-    const getSlaColors = () => {
-        switch (slaStatus) {
-            case 'overdue':
-                return {
-                    bg: 'bg-rose-50/90 dark:bg-rose-950/40',
-                    text: 'text-rose-700 dark:text-rose-400',
-                    border: 'border-rose-200 dark:border-rose-900/60',
-                    icon: AlertCircle,
-                };
-            case 'warning':
-                return {
-                    bg: 'bg-amber-50/90 dark:bg-amber-950/40',
-                    text: 'text-amber-700 dark:text-amber-400',
-                    border: 'border-amber-200 dark:border-amber-900/60',
-                    icon: Clock,
-                };
-            case 'paused':
-                return {
-                    bg: 'bg-slate-100 dark:bg-slate-800',
-                    text: 'text-slate-600 dark:text-slate-400',
-                    border: 'border-slate-200 dark:border-slate-700',
-                    icon: Pause,
-                };
-            case 'none':
-                return {
-                    bg: 'bg-slate-50 dark:bg-slate-800/60',
-                    text: 'text-slate-500 dark:text-slate-400',
-                    border: 'border-slate-200 dark:border-slate-700',
-                    icon: Clock,
-                };
-            default:
-                if (isTerminal) {
-                    return {
-                        bg: 'bg-emerald-50/90 dark:bg-emerald-950/40',
-                        text: 'text-emerald-700 dark:text-emerald-400',
-                        border: 'border-emerald-200 dark:border-emerald-900/60',
-                        icon: CheckCircle2,
-                    };
-                }
-                return {
-                    bg: 'bg-primary/10 dark:bg-primary/20',
-                    text: 'text-primary',
-                    border: 'border-primary/20 dark:border-primary/30',
-                    icon: Clock,
-                };
-        }
-    };
-
-    const slaColors = getSlaColors();
-    const SlaIcon = slaColors.icon;
+    const slaTone: TicketPillTone = isTerminal
+        ? (isResolved ? 'green' : 'neutral')
+        : SLA_TONES[slaStatus];
+    const SlaIcon = isTerminal && isResolved ? CheckCircle2 : SLA_ICONS[slaStatus];
 
     const mergedParentTicketNumber = useMemo(() => {
         if (!ticket.description) return null;
@@ -366,130 +331,88 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                 </div>
             )}
 
-            <header className={cn(
-                "px-3.5 py-3 sm:px-6 sm:py-4 bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border-b border-slate-200/70 dark:border-slate-800/80 transition-all",
-                isTerminal && 'bg-slate-50/90 dark:bg-slate-900/80'
-            )}>
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
-                    <div className="flex flex-col gap-2 min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={handleBack}
-                                className="group -ml-1.5 inline-flex items-center gap-1 rounded-full px-1.5 py-1 text-[13px] font-medium text-primary hover:bg-primary/10 transition-colors active:scale-[0.97] cursor-pointer shrink-0"
-                                title={targetInfo.label}
-                            >
-                                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform shrink-0" />
-                                <span>{targetInfo.label}</span>
+            <header className="ticket-detail-head">
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={handleBack}
+                        className="ticket-detail-back -ml-1.5"
+                        title={targetInfo.label}
+                        aria-label={targetInfo.label}
+                    >
+                        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleCopyNumber}
+                        className="ticket-id-pill"
+                        title="Klik untuk salin nomor tiket"
+                        aria-label={`Salin nomor tiket #${ticketNumber}`}
+                    >
+                        <span>#{ticketNumber}</span>
+                        {copied ? <Check className="h-3 w-3 text-emerald-600" aria-hidden="true" /> : <Copy className="h-3 w-3" aria-hidden="true" />}
+                    </button>
+                    <StatusPill status={ticket.status} />
+                    <TicketPill tone={slaTone} title={slaTooltip}>
+                        <SlaIcon className={cn('h-3 w-3 shrink-0', slaStatus === 'overdue' && 'animate-pulse')} aria-hidden="true" />
+                        <span className="tabular-nums">{resolutionTime}</span>
+                    </TicketPill>
+                    {firstResponse && (
+                        <TicketPill tone={firstResponse.tone} title={firstResponse.tooltip}>
+                            <MessageSquare className="h-3 w-3 shrink-0" aria-hidden="true" />
+                            <span className="tabular-nums">{firstResponse.text}</span>
+                        </TicketPill>
+                    )}
+                    <PriorityPill priority={ticket.priority} short />
+                    <ExternalSourceBadge source={ticket.source} className="rounded-full py-1" />
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                    <h1 className="ticket-detail-title min-w-0">{ticket.title}</h1>
+                    <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                        {!isTerminal && onForward && (
+                            <button type="button" onClick={onForward} className={cn(ACTION_BTN, 'bg-muted text-foreground hover:bg-muted/70')} title="Teruskan tiket ke tim lain">
+                                <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden="true" />
+                                <span>Teruskan</span>
                             </button>
-
-                            <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
-
+                        )}
+                        {!isTerminal && onCancel && (
                             <button
                                 type="button"
-                                onClick={handleCopyNumber}
-                                className="group inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-mono font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer active:scale-[0.98]"
-                                title="Klik untuk salin nomor tiket"
+                                onClick={() => setShowCancelConfirm(true)}
+                                disabled={isCancelling}
+                                className={cn(ACTION_BTN, 'text-rose-700 hover:bg-rose-50 disabled:opacity-50 dark:text-rose-300 dark:hover:bg-rose-950/40')}
+                                title="Batalkan tiket ini"
                             >
-                                <span>#{ticket.ticketNumber || ticket.id.split('-')[0]}</span>
-                                {copied ? (
-                                    <Check className="w-3 h-3 text-emerald-600 animate-in zoom-in" />
-                                ) : (
-                                    <Copy className="w-3 h-3 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 transition-colors" />
+                                <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                                <span>Cancel Ticket</span>
+                            </button>
+                        )}
+                        {!isTerminal && onResolve && (
+                            <button
+                                type="button"
+                                onClick={() => setShowResolveConfirm(true)}
+                                className={cn(ACTION_BTN, 'bg-emerald-600 font-semibold text-white shadow-sm hover:bg-emerald-700')}
+                                title="Tandai tiket telah selesai (Resolved)"
+                            >
+                                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                                <span>Resolve</span>
+                            </button>
+                        )}
+                        {onToggleSidebar && (
+                            <button
+                                type="button"
+                                onClick={onToggleSidebar}
+                                className={cn(
+                                    'inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors cursor-pointer',
+                                    isSidebarOpen ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted'
                                 )}
+                                title={isSidebarOpen ? 'Sembunyikan Panel Properti Tiket' : 'Tampilkan Panel Properti Tiket'}
+                                aria-label={isSidebarOpen ? 'Sembunyikan Panel Properti Tiket' : 'Tampilkan Panel Properti Tiket'}
+                            >
+                                {isSidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
                             </button>
-                            <ExternalSourceBadge source={ticket.source} className="py-1 rounded-full" />
-
-                        </div>
-
-                        <h1 className="text-lg sm:text-[22px] font-semibold text-slate-900 dark:text-white tracking-[-0.01em] leading-tight break-words">
-                            {ticket.title}
-                        </h1>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0 self-start lg:self-center">
-                        <div
-                            className={cn(
-                                "inline-flex items-center gap-2 h-8 px-3 rounded-full bg-slate-100 dark:bg-slate-800 select-none text-xs transition-colors",
-                            )}
-                            title={slaTooltip}
-                        >
-                            <div className={cn("flex items-center gap-1.5 font-semibold tabular-nums transition-colors", slaColors.text)}>
-                                <SlaIcon className={cn("w-3.5 h-3.5 shrink-0", slaStatus === 'overdue' && "animate-pulse")} />
-                                <span>{resolutionTime}</span>
-                            </div>
-                            {firstResponse && (
-                                <>
-                                    <span className="text-slate-300 dark:text-slate-600 select-none">·</span>
-                                    <div
-                                        className={cn("flex items-center gap-1.5 font-medium tabular-nums", firstResponse.color)}
-                                        title={firstResponse.tooltip}
-                                    >
-                                        <MessageSquare className="w-3.5 h-3.5 shrink-0" />
-                                        <span>{firstResponse.text}</span>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-
-                        <div className="flex items-center gap-1.5">
-                            {!isTerminal && (
-                                <>
-                                    {onForward && (
-                                        <button
-                                            type="button"
-                                            onClick={onForward}
-                                            className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-[13px] font-medium transition-colors active:scale-[0.98] cursor-pointer bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
-                                            title="Teruskan tiket ke tim lain"
-                                        >
-                                            <ArrowLeftRight className="w-3.5 h-3.5" />
-                                            <span>Teruskan</span>
-                                        </button>
-                                    )}
-
-                                    {onCancel && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowCancelConfirm(true)}
-                                            disabled={isCancelling}
-                                            className="group inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-[13px] font-medium transition-colors active:scale-[0.98] cursor-pointer text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 disabled:opacity-50"
-                                            title="Batalkan tiket ini"
-                                        >
-                                            <XCircle className="w-3.5 h-3.5" />
-                                            <span>Cancel Ticket</span>
-                                        </button>
-                                    )}
-
-                                    {onResolve && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowResolveConfirm(true)}
-                                            className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-[13px] font-medium transition-colors active:scale-[0.98] cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm"
-                                            title="Tandai tiket telah selesai (Resolved)"
-                                        >
-                                            <CheckCircle2 className="w-3.5 h-3.5" />
-                                            <span>Resolve</span>
-                                        </button>
-                                    )}
-                                </>
-                            )}
-
-                            {onToggleSidebar && (
-                                <button
-                                    type="button"
-                                    onClick={onToggleSidebar}
-                                    className={cn(
-                                        "inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors active:scale-[0.98] cursor-pointer",
-                                        isSidebarOpen
-                                            ? "bg-slate-200/80 dark:bg-slate-700/80 text-slate-900 dark:text-white"
-                                            : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                                    )}
-                                    title={isSidebarOpen ? "Sembunyikan Panel Properti Tiket" : "Tampilkan Panel Properti Tiket"}
-                                >
-                                    {isSidebarOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
-                                </button>
-                            )}
-                        </div>
+                        )}
                     </div>
                 </div>
             </header>

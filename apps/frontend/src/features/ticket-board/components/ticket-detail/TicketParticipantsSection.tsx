@@ -151,7 +151,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
     const totalCount = 1 + participants.length;
 
     return (
-        <section className="rounded-2xl bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-slate-900/[0.05] dark:bg-slate-900 dark:ring-white/[0.06]">
+        <section className="ticket-panel">
             {/* Section Header */}
             <div className="mb-2 flex min-h-6 items-center justify-between gap-2">
                 <div className="flex items-center gap-2">

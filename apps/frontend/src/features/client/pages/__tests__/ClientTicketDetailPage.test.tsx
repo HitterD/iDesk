@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
@@ -47,6 +47,7 @@ const mockTicket = {
 
 // Per-test status override; the base fixture stays immutable.
 let currentStatus = mockTicket.status;
+let extraFields: Record<string, unknown> = {};
 
 vi.mock('@/lib/api', () => ({
     default: {
@@ -56,6 +57,7 @@ vi.mock('@/lib/api', () => ({
                     data: {
                         ...mockTicket,
                         status: currentStatus,
+                        ...extraFields,
                         resolutionDeadlineAt: '2026-08-20T10:00:00.000Z',
                     },
                 });
@@ -108,6 +110,7 @@ describe('ClientTicketDetailPage', () => {
 
     beforeEach(() => {
         currentStatus = mockTicket.status;
+        extraFields = {};
         window.HTMLElement.prototype.scrollIntoView = vi.fn();
         queryClient = new QueryClient({
             defaultOptions: {
@@ -194,5 +197,38 @@ describe('ClientTicketDetailPage', () => {
         expect(screen.getByText('Anggota tiket')).toBeInTheDocument();
         expect(screen.getByText('Properti tiket')).toBeInTheDocument();
         expect(screen.getByText('SLA')).toBeInTheDocument();
+    });
+
+    it('shows plain readonly badges to the requester with no editors or internal-note controls', async () => {
+        renderPage();
+        await screen.findAllByRole('heading', { name: 'Password terkunci' });
+        const inspector = screen.getAllByRole('complementary', { name: 'Info tiket' })[0];
+        expect(within(inspector).getByText('In Progress').closest('.ticket-pill')).toBeInTheDocument();
+        expect(within(inspector).getByText('Normal (Moderate)').closest('.ticket-pill')).toBeInTheDocument();
+        expect(document.querySelector('.picker-trigger')).not.toBeInTheDocument();
+        expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Internal Note' })).not.toBeInTheDocument();
+        expect(screen.getByRole('textbox', { name: 'Balas ke IT Support…' })).toBeInTheDocument();
+    });
+
+    it('keeps readonly status/SLA/priority bubbles in the requester header', async () => {
+        renderPage();
+        await screen.findAllByRole('heading', { name: 'Password terkunci' });
+        const header = document.querySelector('header') as HTMLElement;
+        expect(within(header).getByRole('button', { name: /Salin nomor tiket/ })).toHaveTextContent('#190826-GEN-0005');
+        expect(within(header).getByText('In Progress').closest('.ticket-pill')).toBeInTheDocument();
+        expect(within(header).getByText('Normal').closest('.ticket-pill')).toBeInTheDocument();
+        expect(header.querySelector('.picker-trigger')).not.toBeInTheDocument();
+    });
+
+    it('shows a paused SLA as "Dijeda" with pause date and no target date', async () => {
+        currentStatus = 'WAITING_VENDOR';
+        extraFields = { slaRemainingMinutes: 320, lastPausedAt: '2026-08-19T09:00:00.000Z' };
+        renderPage();
+        await screen.findAllByRole('heading', { name: 'Password terkunci' });
+        const inspector = screen.getAllByRole('complementary', { name: 'Info tiket' })[0];
+        expect(within(inspector).getByText('Dijeda · sisa 5j 20m')).toBeInTheDocument();
+        expect(within(inspector).getByText('Dijeda sejak')).toBeInTheDocument();
+        expect(within(inspector).queryByText('Target SLA')).not.toBeInTheDocument();
     });
 });

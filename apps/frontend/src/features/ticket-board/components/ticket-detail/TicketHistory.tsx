@@ -329,8 +329,8 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticket }) => {
             case 'ASSIGNMENT':
                 return {
                     icon: UserCheck,
-                    bg: 'bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 border-purple-500/20',
-                    dot: 'bg-purple-500',
+                    bg: 'bg-teal-500/10 text-teal-600 dark:bg-teal-500/20 dark:text-teal-400 border-teal-500/20',
+                    dot: 'bg-teal-500',
                     label: 'Penugasan',
                 };
             case 'PRIORITY':
@@ -364,8 +364,8 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticket }) => {
             case 'MERGE':
                 return {
                     icon: GitMerge,
-                    bg: 'bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400 border-indigo-500/20',
-                    dot: 'bg-indigo-500',
+                    bg: 'bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 border-blue-500/20',
+                    dot: 'bg-blue-500',
                     label: 'Merge',
                 };
             default:
@@ -544,8 +544,8 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticket }) => {
                                                         </>
                                                     )}
 
-                                                    <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-700 dark:text-purple-300 text-xs font-bold shadow-2xs">
-                                                        <UserCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                                                    <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-teal-500/10 border border-teal-500/20 text-teal-700 dark:text-teal-300 text-xs font-bold shadow-2xs">
+                                                        <UserCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
                                                         <span>{activity.assignmentChange.to}</span>
                                                     </div>
                                                 </div>
@@ -615,7 +615,7 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticket }) => {
 
                                             {/* Merge Callout */}
                                             {activity.mergeInfo && (
-                                                <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
+                                                <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-700 dark:text-blue-300 flex items-center gap-2">
                                                     <GitMerge className="w-4 h-4 shrink-0" />
                                                     <span>
                                                         {activity.mergeInfo.isIncoming

@@ -126,3 +126,28 @@ describe('TicketHeader Back Navigation', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/tickets/mobile-developer');
     });
 });
+
+describe('TicketHeader compact metadata bubbles', () => {
+    const renderHeader = (overrides: Record<string, any>) => render(
+        <MemoryRouter initialEntries={['/tickets/t-1']}>
+            <TicketHeader ticket={createMockTicket(overrides) as any} onResolve={vi.fn()} onCancel={vi.fn()} onForward={vi.fn()} />
+        </MemoryRouter>
+    );
+
+    it('shows readonly status and priority pills next to the copyable ticket number', () => {
+        renderHeader({ status: 'IN_PROGRESS', priority: 'HIGH', slaTarget: new Date(Date.now() + 86_400_000).toISOString() });
+        expect(screen.getByRole('button', { name: /Salin nomor tiket/ })).toHaveTextContent('#080926-GEN-0001');
+        const pills = Array.from(document.querySelectorAll('header .ticket-pill')).map(el => el.textContent);
+        expect(pills).toEqual(expect.arrayContaining(['In Progress', 'Urgent']));
+        expect(document.querySelector('header .picker-trigger')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Resolve/ })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Teruskan/ })).toBeInTheDocument();
+    });
+
+    it('shows paused SLA with remaining business time and no target date', () => {
+        renderHeader({ status: 'WAITING_VENDOR', slaTarget: '2026-10-20T05:00:00Z', slaRemainingMinutes: 320 });
+        const sla = screen.getByText(/Dijeda · sisa 5j 20m/);
+        expect(sla.closest('.ticket-pill')).toHaveClass('ticket-tone-amber');
+        expect(document.querySelector('header [title*="Target:"]')).not.toBeInTheDocument();
+    });
+});
