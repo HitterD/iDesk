@@ -272,7 +272,7 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
                     )}
 
                     {/* Show target time */}
-                    {ticket.slaTarget && !isResolved && (
+                    {ticket.slaTarget && !isResolved && !isPaused && (
                         <p className="text-xs text-slate-500">
                             Target: {formatDateTimeID(ticket.slaTarget)}
                         </p>
@@ -290,7 +290,7 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
                     {isPaused && (
                         <p className="text-xs text-orange-600 mt-1.5 flex items-center gap-1">
                             <Pause className="w-3 h-3" />
-                            Paused (Vendor)
+                            {ticket.lastPausedAt ? `Dijeda sejak ${formatDateTimeID(ticket.lastPausedAt)}` : 'Dijeda'}
                             {ticket.slaRemainingMinutes != null && ` — sisa ${formatDuration(ticket.slaRemainingMinutes * 60000)} jam kerja`}
                         </p>
                     )}
@@ -345,7 +345,7 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
                         )}
 
                         {/* Show target if not responded */}
-                        {!ticket.firstResponseAt && ticket.firstResponseTarget && (
+                        {!isPaused && !ticket.firstResponseAt && ticket.firstResponseTarget && (
                             <p className="text-xs text-slate-500 mt-1.5">
                                 Target: {formatDateTimeID(ticket.firstResponseTarget)}
                             </p>

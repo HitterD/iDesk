@@ -47,6 +47,7 @@ export interface TicketRowData {
     source: 'WEB' | 'TELEGRAM' | 'EMAIL' | 'IPOP';
     isOverdue: boolean;
     slaTarget?: string;
+    slaRemainingMinutes?: number | null;
     scheduledDate?: string;
     scheduledTime?: string;
     isHardwareInstallation?: boolean;
@@ -293,6 +294,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                             <div className="text-xs">
                                 <TargetDateCell
                                     slaTarget={ticket.slaTarget}
+                                    slaRemainingMinutes={ticket.slaRemainingMinutes}
                                     scheduledDate={ticket.scheduledDate}
                                     isHardwareInstallation={ticket.isHardwareInstallation}
                                     status={ticket.status}

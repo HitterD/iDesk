@@ -103,6 +103,17 @@ describe('TargetDateCell', () => {
         expect(screen.getByText('Paused')).toBeInTheDocument();
     });
 
+    it.each([120, 0])('shows paused remaining minutes from the list payload: %s', (remaining) => {
+        render(<TargetDateCell ticket={{ status: 'WAITING_VENDOR', slaRemainingMinutes: remaining }} />);
+        expect(screen.getByText(`Paused · sisa ${remaining === 120 ? '2h 0m' : '0m'}`)).toBeInTheDocument();
+        expect(screen.queryByTitle(/SLA Target:/)).not.toBeInTheDocument();
+    });
+
+    it('supports paused remaining minutes as a direct prop', () => {
+        render(<TargetDateCell status="WAITING_VENDOR" slaRemainingMinutes={120} />);
+        expect(screen.getByText('Paused · sisa 2h 0m')).toBeInTheDocument();
+    });
+
     it('accepts ticket object correctly and renders DONE when ticket.status is RESOLVED', () => {
         const mockTicket = {
             id: 't-1',

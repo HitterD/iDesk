@@ -34,26 +34,30 @@ interface SlaProgressProps {
     createdAt: string;
     slaStartedAt?: string | null;
     slaTarget?: string | null;
+    slaRemainingMinutes?: number | null;
+    pausedAt?: string | null;
 }
 
 /** Remaining SLA time as a label plus a bar of time used (start → target). */
-export const SlaProgress: React.FC<SlaProgressProps> = ({ status, priority, createdAt, slaStartedAt, slaTarget }) => {
+export const SlaProgress: React.FC<SlaProgressProps> = ({ status, priority, createdAt, slaStartedAt, slaTarget, slaRemainingMinutes, pausedAt }) => {
     const slaClock = useSlaClock();
     if (!slaTarget) return null;
 
     const now = new Date();
     const start = new Date(slaStartedAt || createdAt).getTime();
     const target = new Date(slaTarget).getTime();
-    const usedRatio = target > start ? Math.min(1, Math.max(0, (now.getTime() - start) / (target - start))) : 1;
+    const isPaused = PAUSED_STATUSES.includes(status);
+    const progressTime = isPaused && pausedAt ? new Date(pausedAt).getTime() : now.getTime();
+    const usedRatio = target > start ? Math.min(1, Math.max(0, (progressTime - start) / (target - start))) : 1;
 
     let tone: SlaTone;
     let label: string;
     if (isTerminalStatus(status)) {
         tone = 'done';
         label = 'Selesai';
-    } else if (PAUSED_STATUSES.includes(status)) {
+    } else if (isPaused) {
         tone = 'paused';
-        label = 'Dijeda';
+        label = slaRemainingMinutes != null ? `Dijeda · sisa ${formatDuration(slaRemainingMinutes * 60_000)}` : 'Dijeda';
     } else {
         const { remainingMs, offHours } = slaCountdown(slaTarget, now, priority, slaClock);
         if (remainingMs <= 0) {
@@ -68,7 +72,7 @@ export const SlaProgress: React.FC<SlaProgressProps> = ({ status, priority, crea
     const percent = tone === 'done' || tone === 'overdue' ? 100 : Math.round(usedRatio * 100);
 
     return (
-        <div className="space-y-1.5" title={`Target: ${formatDateTimeID(slaTarget)}`}>
+        <div className="space-y-1.5" title={isPaused ? (pausedAt ? `Dijeda sejak ${formatDateTimeID(pausedAt)}` : 'Dijeda') : `Target: ${formatDateTimeID(slaTarget)}`}>
             <div className="flex items-baseline justify-between gap-2">
                 <span className={cn('text-sm font-semibold tabular-nums', TONE[tone].text)}>{label}</span>
                 <span className="text-[11px] tabular-nums text-slate-400">{percent}%</span>

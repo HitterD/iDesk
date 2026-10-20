@@ -544,11 +544,17 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     createdAt={ticket.createdAt}
                     slaStartedAt={ticket.slaStartedAt}
                     slaTarget={ticket.slaTarget}
+                    slaRemainingMinutes={ticket.slaRemainingMinutes}
+                    pausedAt={ticket.lastPausedAt}
                 />
                 <div>
                     <InfoRow label="Dibuat">{formatDateTimeID(ticket.createdAt)}</InfoRow>
                     <InfoRow label="Aktivitas terakhir">{formatRelativeTime(ticket.updatedAt)}</InfoRow>
-                    {ticket.slaTarget && (
+                    {ticket.status === 'WAITING_VENDOR' ? (
+                        <InfoRow label="Dijeda sejak">
+                            {ticket.lastPausedAt ? formatDateTimeID(ticket.lastPausedAt) : '—'}
+                        </InfoRow>
+                    ) : ticket.slaTarget && (
                         <InfoRow label="Target SLA">
                             <span className="font-semibold text-primary">{formatDateTimeID(ticket.slaTarget)}</span>
                         </InfoRow>

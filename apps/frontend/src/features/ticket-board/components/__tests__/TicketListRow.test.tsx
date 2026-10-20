@@ -67,6 +67,22 @@ const mockAgents: Agent[] = [
     },
 ];
 
+describe('TicketListRow paused SLA', () => {
+    it('passes remaining minutes to both mobile and desktop SLA cells', () => {
+        render(
+            <MemoryRouter>
+                <TicketListRow
+                    ticket={{ ...mockTicket, status: 'WAITING_VENDOR', slaTarget: '2026-10-20T05:00:00Z', slaRemainingMinutes: 120 }}
+                    index={0} showSiteColumn={true} canEdit={true} isSelected={false}
+                    agents={mockAgents} onSelect={vi.fn()} onUpdatePriority={vi.fn()}
+                    onUpdateStatus={vi.fn()} onAssign={vi.fn()}
+                />
+            </MemoryRouter>
+        );
+        expect(screen.getAllByText('Paused · sisa 2h 0m')).toHaveLength(2);
+    });
+});
+
 describe('TicketListRow critical indicators', () => {
     it.each(['RESOLVED', 'CLOSED', 'CANCELLED'] as const)('hides flame for %s critical ticket', (status) => {
         const { container } = renderCriticalTicket(status);
