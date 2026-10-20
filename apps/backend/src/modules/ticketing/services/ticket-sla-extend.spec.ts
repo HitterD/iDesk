@@ -97,9 +97,62 @@ describe('TicketSlaExtendService', () => {
         await expect(service.extendSla('t1', dto, actor)).rejects.toThrow('SLA clock has not started');
     });
 
-    it('rejects a ticket in WAITING_VENDOR', async () => {
-        ticketRepo.findOne = jest.fn(async () => ({ ...baseTicket, status: TicketStatus.WAITING_VENDOR }));
-        await expect(service.extendSla('t1', dto, actor)).rejects.toThrow('SLA can only be extended');
+    it('extends a paused ticket by adding to slaRemainingMinutes', async () => {
+        ticketRepo.findOne.mockResolvedValue({ ...baseTicket, status: TicketStatus.WAITING_VENDOR,
+            slaRemainingMinutes: 120, siteId: 'site-1' });
+
+        const result = await service.extendSla('t1', dto, actor);
+
+        expect(result.ticket.slaRemainingMinutes).toBe(180);
+        expect(result.ticket.slaTarget).toEqual(baseTicket.slaTarget);
+        expect(result.adjustment).toMatchObject({ minutes: 60,
+            previousTarget: baseTicket.slaTarget, newTarget: baseTicket.slaTarget });
+        expect(adjustmentRepo.save).toHaveBeenCalledWith(expect.objectContaining({ minutes: 60 }));
+        expect(messageRepo.save).toHaveBeenCalledWith(expect.objectContaining({
+            content: expect.stringContaining('ditambah 60 menit (dijeda)'),
+        }));
+        expect(eventsGateway.server.to).toHaveBeenCalledWith('ticket:t1');
+        expect(eventsGateway.server.to).toHaveBeenCalledWith('site:site-1');
+        expect(eventsGateway.server.emit).toHaveBeenCalledWith('ticket:updated', { ticketId: 't1' });
+    });
+
+    it('rejects newTargetDate while paused', async () => {
+        ticketRepo.findOne.mockResolvedValue({ ...baseTicket, status: TicketStatus.WAITING_VENDOR,
+            slaRemainingMinutes: 120 });
+        await expect(service.extendSla('t1', { ...dto, newTargetDate: NOW.toISOString() }, actor))
+            .rejects.toThrow('SLA sedang dijeda; perpanjang dengan jumlah menit, bukan tanggal');
+        expect(ticketRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('requires a started clock even while paused', async () => {
+        ticketRepo.findOne.mockResolvedValue({ ...baseTicket, status: TicketStatus.WAITING_VENDOR,
+            slaRemainingMinutes: 120, slaStartedAt: null });
+        await expect(service.extendSla('t1', dto, actor)).rejects.toThrow('SLA clock has not started');
+    });
+
+    it('extends a held clock with no target without creating a deadline', async () => {
+        ticketRepo.findOne.mockResolvedValue({ ...baseTicket, status: TicketStatus.WAITING_VENDOR,
+            slaRemainingMinutes: 0, slaTarget: null });
+        const result = await service.extendSla('t1', dto, actor);
+        expect(result.ticket.slaRemainingMinutes).toBe(60);
+        expect(result.ticket.slaTarget).toBeNull();
+        expect(result.adjustment).toMatchObject({ previousTarget: null, newTarget: null, minutes: 60 });
+    });
+
+    it('rejects paused extensions projected beyond the 90-day ceiling', async () => {
+        ticketRepo.findOne.mockResolvedValue({ ...baseTicket, status: TicketStatus.WAITING_VENDOR,
+            slaRemainingMinutes: 120 });
+        slaClock.targetFor.mockResolvedValue(new Date(Date.now() + 91 * 24 * 60 * 60 * 1000));
+        await expect(service.extendSla('t1', dto, actor)).rejects.toThrow('tidak boleh melebihi 90 hari ke depan');
+        expect(slaClock.targetFor).toHaveBeenCalledWith(baseTicket.priority, expect.any(Date), 180);
+        expect(ticketRepo.save).not.toHaveBeenCalled();
+    });
+
+    it.each([0, -1, undefined])('rejects invalid paused extension minutes: %s', async (minutes) => {
+        ticketRepo.findOne.mockResolvedValue({ ...baseTicket, status: TicketStatus.WAITING_VENDOR,
+            slaRemainingMinutes: 120 });
+        await expect(service.extendSla('t1', { ...dto, minutes }, actor))
+            .rejects.toThrow('Harap tentukan menit perpanjangan atau tanggal deadline baru');
     });
 
     it('rejects a RESOLVED ticket', async () => {
