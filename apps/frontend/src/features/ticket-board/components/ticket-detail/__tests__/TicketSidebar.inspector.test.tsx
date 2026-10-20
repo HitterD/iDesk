@@ -84,6 +84,12 @@ describe('TicketSidebar inspector', () => {
         expect(screen.getByText('Resolved').closest('.ticket-pill')).toBeInTheDocument();
     });
 
+    it('shows a neutral readonly PIC label, not an action, when a locked ticket has no PIC', () => {
+        renderSidebar({ status: 'CLOSED', assignedTo: undefined });
+        expect(screen.getByText('Belum ada').closest('.ticket-pill')).toBeInTheDocument();
+        expect(screen.queryByText('Pilih teknisi')).not.toBeInTheDocument();
+    });
+
     it('locks the inspector for a requester-side viewer', () => {
         renderSidebar({ viewerAccess: 'requester' });
         expect(screen.queryByRole('button', { name: /^(PIC|Status|Prioritas|Kategori|Perangkat):/ })).not.toBeInTheDocument();

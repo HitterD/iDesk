@@ -74,7 +74,9 @@ export const AssigneeBubble: React.FC<{
     const content = agent
         ? <><UserAvatar user={agent} size="xs" className="h-5 w-5 text-[9px]" /><span className="min-w-0 truncate">{agentLabel(agent)}</span></>
         : <><UserPlus aria-hidden="true" className="h-3.5 w-3.5 shrink-0" /><span>Pilih teknisi</span></>;
-    if (locked) return <TicketPill tone="neutral" title={agent?.fullName}>{content}</TicketPill>;
+    if (locked) {
+        return <TicketPill tone="neutral" title={agent?.fullName}>{agent ? content : agentLabel(agent)}</TicketPill>;
+    }
     return (
         <Popover open={open && !disabled} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
