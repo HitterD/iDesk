@@ -1,7 +1,8 @@
-import { ArrayMaxSize, ArrayUnique, IsArray, IsBoolean, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
+import { ArrayMaxSize, ArrayUnique, IsArray, IsBoolean, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TicketStatus, TicketPriority } from '../entities/ticket.entity';
+import { Sanitize } from '../../../shared/core/validators/input-sanitizer';
 
 export class BulkUpdateTicketsDto {
     @ApiProperty({ type: [String], description: 'Array of ticket IDs to update' })
@@ -35,6 +36,8 @@ export class BulkUpdateTicketsDto {
     @ApiPropertyOptional({ maxLength: 500 })
     @IsOptional()
     @IsString()
+    @MaxLength(500)
+    @Sanitize({ removeHtml: true })
     reason?: string;
 
     @ApiPropertyOptional({ description: 'Confirm taking over tickets owned by another PIC (requires reason)' })

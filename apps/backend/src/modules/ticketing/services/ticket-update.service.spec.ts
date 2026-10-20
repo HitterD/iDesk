@@ -415,7 +415,8 @@ describe('TicketUpdateService — status takeover', () => {
         await service.updateTicket('ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id, { takeover: true, reason: 'PIC cuti' });
 
         const content = messageRepo.create.mock.calls[0][0].content;
-        expect(content).toContain('Ticket reassigned to Agent B (was Agent A) by Agent B. Alasan: PIC cuti');
+        expect(content).toContain('Ticket reassigned to Agent B (was Agent A) (Alasan: PIC cuti) by Agent B');
+        expect(content.match(/by Agent B/g)).toHaveLength(1);
     });
 
     it('bulkUpdate IN_PROGRESS rejects with 409 listing conflicting tickets', async () => {
@@ -432,6 +433,30 @@ describe('TicketUpdateService — status takeover', () => {
             },
         });
         expect(mockQueryRunner.startTransaction).not.toHaveBeenCalled();
+    });
+
+    it('bulkUpdate takeover fails tickets of a team the actor cannot handle instead of reassigning them', async () => {
+        const webDev = { ...makeTicket('ticket-3'), handlingTeam: HandlingTeam.WEB_DEV };
+        const unassignedWebDev = { ...makeTicket('ticket-4'), handlingTeam: HandlingTeam.WEB_DEV, assignedToId: null, assignedTo: null };
+        mockTicketRepo.find.mockResolvedValue([ticket, webDev, unassignedWebDev]);
+
+        const result = await service.bulkUpdate(
+            ['ticket-1', 'ticket-3', 'ticket-4'], { status: TicketStatus.IN_PROGRESS, takeover: true, reason: 'PIC cuti' }, agentB.id,
+        );
+
+        expect(result).toEqual({ updated: 1, failed: ['ticket-3', 'ticket-4'] });
+        expect(webDev.assignedToId).toBe(picA.id);
+        expect(unassignedWebDev.assignedToId).toBeNull();
+        expect(manager.save.mock.calls.map((c: any[]) => c[1].id)).toEqual(['ticket-1']);
+    });
+
+    it('bulkUpdate does not ask to confirm a takeover the actor could not perform', async () => {
+        const webDev = { ...makeTicket('ticket-3'), handlingTeam: HandlingTeam.WEB_DEV };
+        mockTicketRepo.find.mockResolvedValue([webDev]);
+
+        const result = await service.bulkUpdate(['ticket-3'], { status: TicketStatus.IN_PROGRESS }, agentB.id);
+
+        expect(result).toEqual({ updated: 0, failed: ['ticket-3'] });
     });
 
     it('bulkUpdate with takeover reassigns conflicting tickets to the actor', async () => {

@@ -9,6 +9,7 @@ import type { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import type { WorkloadService } from '../../workload/workload.service';
 import type { SiteActor } from '../../../shared/core/utils/site-scope.util';
+import { canAccessTicketObject } from '../utils/oracle-ticket-access.util';
 
 /**
  * Starting work on a ticket (→ IN_PROGRESS) is a claim of ownership. When
@@ -67,31 +68,47 @@ export function decideStatusTakeover(
     });
 }
 
+export interface BulkTakeoverPlan {
+    decisions: Map<string, TakeoverDecision>;
+    /** Tickets the actor would become PIC of but whose team they may not handle; the bulk loop fails them. */
+    denied: Set<string>;
+}
+
 /**
  * Bulk IN_PROGRESS runs the same PIC rule per ticket before the transaction;
  * unconfirmed conflicts are reported together as one 409. An explicit bulk
  * assignee already states who owns the tickets, so no takeover applies.
+ * Becoming PIC needs the same team/role access as manual assignment
+ * (single updates already enforce it via validateTicketAccess).
  */
 export function decideBulkTakeovers(
     tickets: Ticket[], update: { status?: TicketStatus; assigneeId?: string } & TakeoverOptions, actor: { id: string; role: string },
-): Map<string, TakeoverDecision> {
-    const decisions = new Map<string, TakeoverDecision>();
-    if (update.status !== TicketStatus.IN_PROGRESS || update.assigneeId) return decisions;
+): BulkTakeoverPlan {
+    const plan: BulkTakeoverPlan = { decisions: new Map(), denied: new Set() };
+    if (update.status !== TicketStatus.IN_PROGRESS || update.assigneeId) return plan;
 
     const conflicts: { id: string; ticketNumber: string; currentAssignee: AssigneeSummary }[] = [];
     for (const ticket of tickets) {
         if (TICKET_INACTIVE_STATUSES.includes(ticket.status)) continue; // the bulk loop rejects these anyway
+        const canHandle = canAccessTicketObject(actor, ticket);
         try {
-            decisions.set(ticket.id, decideStatusTakeover(ticket, update.status, ticket.status, actor, update));
+            const decision = decideStatusTakeover(ticket, update.status, ticket.status, actor, update);
+            if (!canHandle && makesActorPic(decision)) plan.denied.add(ticket.id);
+            else plan.decisions.set(ticket.id, decision);
         } catch (error) {
             if (!isConfirmationConflict(error)) throw error;
-            conflicts.push({ id: ticket.id, ticketNumber: ticket.ticketNumber, currentAssignee: currentAssigneeOf(ticket) });
+            if (!canHandle) plan.denied.add(ticket.id);
+            else conflicts.push({ id: ticket.id, ticketNumber: ticket.ticketNumber, currentAssignee: currentAssigneeOf(ticket) });
         }
     }
     if (conflicts.length > 0) {
         throw new ConflictException({ code: REASSIGN_CONFIRMATION_REQUIRED, message: REASSIGN_CONFIRMATION_MESSAGE, tickets: conflicts });
     }
-    return decisions;
+    return plan;
+}
+
+function makesActorPic(decision: TakeoverDecision): boolean {
+    return decision.kind === 'takeover' || decision.kind === 'autoAssign';
 }
 
 function currentAssigneeOf(ticket: TakeoverTicket): AssigneeSummary {
@@ -103,12 +120,19 @@ function isConfirmationConflict(error: unknown): boolean {
         && (error.getResponse() as { code?: string })?.code === REASSIGN_CONFIRMATION_REQUIRED;
 }
 
-/** Shared wording with manual assignment: "Ticket reassigned to B (was A) by B. Alasan: ...". */
+/**
+ * Shared wording with manual assignment: "Ticket reassigned to B (was A) by C. Alasan: ...".
+ * Pass `actorName: null` for a `changes` entry: the system message appends "by <actor>"
+ * after all changes, so the reason goes in parentheses instead.
+ */
 export function describeReassignment(
-    assigneeName: string, previousName: string | null, actorName: string, reason?: string | null,
+    assigneeName: string, previousName: string | null, actorName: string | null, reason?: string | null,
 ): string {
     const actionLabel = previousName ? 'reassigned to' : 'assigned to';
     const wasOld = previousName ? ` (was ${previousName})` : '';
+    if (actorName === null) {
+        return `Ticket ${actionLabel} ${assigneeName}${wasOld}${reason ? ` (Alasan: ${reason})` : ''}`;
+    }
     const reasonText = reason ? `. Alasan: ${reason}` : '';
     return `Ticket ${actionLabel} ${assigneeName}${wasOld} by ${actorName}${reasonText}`;
 }
@@ -125,7 +149,7 @@ export function applyTakeoverDecision(
     // Set both: TypeORM resolves a loaded relation over a differing FK column.
     ticket.assignedTo = actor;
     ticket.assignedToId = actor.id;
-    changes.push(describeReassignment(actor.fullName, previous?.fullName ?? null, actor.fullName, reason));
+    changes.push(describeReassignment(actor.fullName, previous?.fullName ?? null, null, reason));
     return { previous, reason };
 }
 

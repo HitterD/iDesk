@@ -629,7 +629,7 @@ export class TicketUpdateService {
             }
         }
 
-        const decisions = decideBulkTakeovers(tickets, updateData, user);
+        const takeoverPlan = decideBulkTakeovers(tickets, updateData, user);
         const takeovers = new Map<string, AppliedTakeover>();
         const updated: string[] = [];
         const failed: string[] = [];
@@ -644,7 +644,7 @@ export class TicketUpdateService {
                 try {
                     const changes: string[] = [];
 
-                    if (ticket.status === TicketStatus.CLOSED) {
+                    if (ticket.status === TicketStatus.CLOSED || takeoverPlan.denied.has(ticket.id)) {
                         failed.push(ticket.id);
                         continue;
                     }
@@ -657,7 +657,7 @@ export class TicketUpdateService {
                         changes.push(`Status: ${ticket.status} → ${updateData.status}`);
                         await this.applyBulkStatusSla(ticket, ticket.status, updateData.status);
                         ticket.status = updateData.status;
-                        const decision = decisions.get(ticket.id);
+                        const decision = takeoverPlan.decisions.get(ticket.id);
                         const takeover = decision ? applyTakeoverDecision(ticket, user, decision, changes) : null;
                         if (takeover) takeovers.set(ticket.id, takeover);
                     }
