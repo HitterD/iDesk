@@ -9,6 +9,7 @@ import {
     AlertTriangle,
     CheckCircle2,
     CircleDot,
+    Hourglass,
     MessageSquare,
     X,
     ChevronRight,
@@ -65,6 +66,7 @@ import { TicketListPagination } from '../components/TicketListPagination';
 import { Ticket } from '../types/ticket.types';
 import { useTicketListMutations } from '../hooks/useTicketListMutations';
 import { BentoTicketKanban } from '../components/BentoTicketKanban';
+import { ACTIVE_STATUS_FILTER, DONE_STATUS_FILTER } from '../constants/statusFilters';
 import { SiteSelector } from '@/components/site/SiteSelector';
 
 const CROSS_SITE_ROLES = ['ADMIN','MANAGER','AGENT_ORACLE'] as const;
@@ -117,6 +119,7 @@ export const BentoTicketListPage: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [priorityFilter, setPriorityFilter] = useState<string>('');
+    const [overdueFilter, setOverdueFilter] = useState(false);
     const [selectedSites, setSelectedSites] = useState<string[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 20;
@@ -175,7 +178,7 @@ export const BentoTicketListPage: React.FC = () => {
     // Reset to page 1 when filters change (before the query)
     useEffect(() => {
         setCurrentPage(1);
-    }, [debouncedSearch, statusFilter, priorityFilter, showAssignedToMe, showCreatedByMe, selectedSites]);
+    }, [debouncedSearch, statusFilter, priorityFilter, overdueFilter, showAssignedToMe, showCreatedByMe, selectedSites]);
 
     // Server-side paginated tickets query
     const { data: paginatedData, isLoading, isFetching } = useQuery<PaginatedResponse>({
@@ -184,6 +187,7 @@ export const BentoTicketListPage: React.FC = () => {
             limit: ITEMS_PER_PAGE,
             status: statusFilter || undefined,
             priority: priorityFilter || undefined,
+            overdue: overdueFilter || undefined,
             search: debouncedSearch || undefined,
             siteIds: selectedSites.length > 0 ? selectedSites : undefined,
             assignedToMe: showAssignedToMe || undefined,
@@ -198,6 +202,7 @@ export const BentoTicketListPage: React.FC = () => {
             params.append('excludeCategory', 'ICT_BUDGET,LOST_ITEM,ACCESS_REQUEST'); // Exclude Request Center categories
             if (statusFilter) params.append('status', statusFilter);
             if (priorityFilter) params.append('priority', priorityFilter);
+            if (overdueFilter) params.append('overdue', 'true');
             if (debouncedSearch) params.append('search', debouncedSearch);
             if (selectedSites.length > 0) {
                 selectedSites.forEach(siteId => params.append('siteIds', siteId));
@@ -218,6 +223,7 @@ export const BentoTicketListPage: React.FC = () => {
         total: number;
         open: number;
         inProgress: number;
+        waitingVendor: number;
         resolved: number;
         overdue: number;
         critical: number;
@@ -288,6 +294,7 @@ export const BentoTicketListPage: React.FC = () => {
         total: statsData?.total || 0,
         open: statsData?.open || 0,
         inProgress: statsData?.inProgress || 0,
+        waitingVendor: statsData?.waitingVendor || 0,
         resolved: statsData?.resolved || 0,
         overdue: statsData?.overdue || 0,
         critical: statsData?.critical || 0,
@@ -297,6 +304,7 @@ export const BentoTicketListPage: React.FC = () => {
         setSearchQuery('');
         setStatusFilter('');
         setPriorityFilter('');
+        setOverdueFilter(false);
         setSelectedSites([]);
         setSearchParams({});
         setCurrentPage(1);
@@ -456,7 +464,7 @@ export const BentoTicketListPage: React.FC = () => {
     }, [paginationInfo]);
 
     const currentView = searchParams.get('view') === 'kanban' ? 'kanban' : 'table';
-    const hasActiveFilters = Boolean(searchQuery || statusFilter || priorityFilter || showAssignedToMe || showCreatedByMe || selectedSites.length > 0);
+    const hasActiveFilters = Boolean(searchQuery || statusFilter || priorityFilter || overdueFilter || showAssignedToMe || showCreatedByMe || selectedSites.length > 0);
     const canEdit = user?.role === 'ADMIN' || Boolean(user?.role && user.role.startsWith('AGENT')) || user?.role === 'MANAGER';
     const showSiteColumn = isCrossSiteRole(user?.role);
 
@@ -579,13 +587,14 @@ export const BentoTicketListPage: React.FC = () => {
             </div>
 
             {/* Stats Cards - Horizontally scrollable snap strip on mobile, grid on tablet/desktop */}
-            <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1.5 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 lg:grid-cols-6 sm:gap-3 lg:gap-4 snap-x">
-                <StatsCard icon={TrendingUp} label="Total" value={stats.total} color="text-primary dark:text-blue-400" bgColor="bg-[hsl(var(--primary))]/10 dark:bg-[hsl(var(--primary))]/20" animationIndex={0} onClick={() => { setStatusFilter(''); setPriorityFilter(''); }} isActive={!statusFilter && !priorityFilter} />
+            <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1.5 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-4 lg:grid-cols-7 sm:gap-3 lg:gap-4 snap-x">
+                <StatsCard icon={TrendingUp} label="Total" value={stats.total} color="text-primary dark:text-blue-400" bgColor="bg-[hsl(var(--primary))]/10 dark:bg-[hsl(var(--primary))]/20" animationIndex={0} onClick={() => { setStatusFilter(''); setPriorityFilter(''); setOverdueFilter(false); }} isActive={!statusFilter && !priorityFilter && !overdueFilter} />
                 <StatsCard icon={Inbox} label="Open" value={stats.open} color="text-[hsl(var(--info-500))]" bgColor="bg-[hsl(var(--info-500))]/10" animationIndex={1} onClick={() => setStatusFilter('TODO')} isActive={statusFilter === 'TODO'} />
                 <StatsCard icon={CircleDot} label="In Progress" value={stats.inProgress} color="text-[hsl(var(--warning-500))]" bgColor="bg-[hsl(var(--warning-500))]/10" animationIndex={2} onClick={() => setStatusFilter('IN_PROGRESS')} isActive={statusFilter === 'IN_PROGRESS'} />
-                <StatsCard icon={CheckCircle2} label="Resolved" value={stats.resolved} color="text-[hsl(var(--success-500))]" bgColor="bg-[hsl(var(--success-500))]/10" animationIndex={3} onClick={() => setStatusFilter('RESOLVED')} isActive={statusFilter === 'RESOLVED'} />
-                <StatsCard icon={AlertTriangle} label="Overdue" value={stats.overdue} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={4} />
-                <StatsCard icon={Flame} label="Critical" value={stats.critical} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={5} onClick={() => setPriorityFilter('CRITICAL')} isActive={priorityFilter === 'CRITICAL'} />
+                <StatsCard icon={Hourglass} label="Waiting Vendor" value={stats.waitingVendor} color="text-amber-600 dark:text-amber-400" bgColor="bg-amber-500/10" animationIndex={3} onClick={() => setStatusFilter('WAITING_VENDOR')} isActive={statusFilter === 'WAITING_VENDOR'} />
+                <StatsCard icon={CheckCircle2} label="Resolved" value={stats.resolved} color="text-[hsl(var(--success-500))]" bgColor="bg-[hsl(var(--success-500))]/10" animationIndex={4} onClick={() => setStatusFilter(DONE_STATUS_FILTER)} isActive={statusFilter === DONE_STATUS_FILTER} />
+                <StatsCard icon={AlertTriangle} label="Overdue" value={stats.overdue} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={5} onClick={() => { setOverdueFilter(value => !value); setStatusFilter(''); }} isActive={overdueFilter} />
+                <StatsCard icon={Flame} label="Critical" value={stats.critical} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={6} onClick={() => { setPriorityFilter('CRITICAL'); setStatusFilter(ACTIVE_STATUS_FILTER); }} isActive={priorityFilter === 'CRITICAL' && statusFilter === ACTIVE_STATUS_FILTER} />
             </div>
 
             {/* Search & Filters */}
@@ -638,6 +647,8 @@ export const BentoTicketListPage: React.FC = () => {
                             { value: 'WAITING_VENDOR', label: 'Waiting Vendor' },
                             { value: 'RESOLVED', label: 'Resolved' },
                             { value: 'CLOSED', label: 'Closed' },
+                            { value: DONE_STATUS_FILTER, label: 'Selesai (Resolved + Closed)' },
+                            { value: ACTIVE_STATUS_FILTER, label: 'Aktif' },
                         ]}
                     />
 
@@ -693,6 +704,8 @@ export const BentoTicketListPage: React.FC = () => {
 
             {/* Active Filter Chips - P3 MEDIUM: Removable filter badges */}
             <TicketListActiveFilters
+                overdueFilter={overdueFilter}
+                setOverdueFilter={setOverdueFilter}
                 statusFilter={statusFilter}
                 setStatusFilter={setStatusFilter}
                 priorityFilter={priorityFilter}

@@ -4,6 +4,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TicketListRow, TicketRowData, Agent } from '../TicketListRow';
 import { MemoryRouter } from 'react-router-dom';
 
+vi.mock('@/components/ui/TicketQuickPreview', () => ({
+    TicketQuickPreview: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('../TicketDropdowns', async () => {
+    const actual = await vi.importActual('../TicketDropdowns');
+    return { ...actual, PriorityDropdown: () => <span>Prioritas</span> };
+});
+
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
     const actual = await vi.importActual('react-router-dom');
@@ -57,6 +66,40 @@ const mockAgents: Agent[] = [
         site: { code: 'SPJ', name: 'Santos Premium Jaya' },
     },
 ];
+
+describe('TicketListRow critical indicators', () => {
+    it.each(['RESOLVED', 'CLOSED', 'CANCELLED'] as const)('hides flame for %s critical ticket', (status) => {
+        const { container } = renderCriticalTicket(status);
+        expect(container.querySelectorAll('.lucide-flame')).toHaveLength(0);
+        expect(screen.queryByText('Critical')).not.toBeInTheDocument();
+        expect(container.querySelectorAll('span.rounded-full[aria-hidden="true"].bg-red-500')).toHaveLength(0);
+    });
+
+    it.each(['TODO', 'IN_PROGRESS', 'WAITING_VENDOR'] as const)('shows flame for %s critical ticket', (status) => {
+        const { container } = renderCriticalTicket(status);
+        expect(container.querySelectorAll('.lucide-flame')).toHaveLength(2);
+        expect(screen.getByText('Critical')).toBeInTheDocument();
+    });
+});
+
+function renderCriticalTicket(status: TicketRowData['status']) {
+    return render(
+        <MemoryRouter>
+            <TicketListRow
+                ticket={{ ...mockTicket, priority: 'CRITICAL', status }}
+                index={0}
+                showSiteColumn={true}
+                canEdit={true}
+                isSelected={false}
+                agents={mockAgents}
+                onSelect={vi.fn()}
+                onUpdatePriority={vi.fn()}
+                onUpdateStatus={vi.fn()}
+                onAssign={vi.fn()}
+            />
+        </MemoryRouter>
+    );
+}
 
 describe('TicketListRow Assignee Popover', () => {
     it('renders assignee button and opens agent list and shows confirmation modal when reassigning', async () => {

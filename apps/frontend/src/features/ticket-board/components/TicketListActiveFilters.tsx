@@ -1,8 +1,11 @@
-import React, { useMemo } from 'react';
+import React from 'react';
+import { statusFilterLabel } from '../constants/statusFilters';
 import { X, UserCheck } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
 interface TicketListActiveFiltersProps {
+    overdueFilter?: boolean;
+    setOverdueFilter?: (v: boolean) => void;
     statusFilter: string;
     setStatusFilter: (v: string) => void;
     priorityFilter: string;
@@ -17,6 +20,8 @@ interface TicketListActiveFiltersProps {
 }
 
 export const TicketListActiveFilters: React.FC<TicketListActiveFiltersProps> = ({
+    overdueFilter,
+    setOverdueFilter,
     statusFilter,
     setStatusFilter,
     priorityFilter,
@@ -29,7 +34,7 @@ export const TicketListActiveFilters: React.FC<TicketListActiveFiltersProps> = (
     setSelectedSites,
     clearFilters
 }) => {
-    const hasActiveFilters = Boolean(searchQuery || statusFilter || priorityFilter || showAssignedToMe || selectedSites.length > 0);
+    const hasActiveFilters = Boolean(searchQuery || statusFilter || priorityFilter || overdueFilter || showAssignedToMe || selectedSites.length > 0);
 
     if (!hasActiveFilters) return null;
 
@@ -38,11 +43,23 @@ export const TicketListActiveFilters: React.FC<TicketListActiveFiltersProps> = (
             <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Active filters:</span>
             {statusFilter && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium group">
-                    Status: {statusFilter === 'TODO' ? 'Open' : statusFilter === 'IN_PROGRESS' ? 'In Progress' : statusFilter === 'WAITING_VENDOR' ? 'Waiting Vendor' : statusFilter}
+                    Status: {statusFilterLabel(statusFilter)}
                     <button
                         onClick={() => setStatusFilter('')}
                         className="w-4 h-4 rounded-full bg-blue-200 dark:bg-blue-800 hover:bg-blue-300 dark:hover:bg-blue-700 flex items-center justify-center transition-colors"
                         aria-label="Remove status filter"
+                    >
+                        <X className="w-3 h-3" />
+                    </button>
+                </span>
+            )}
+            {overdueFilter && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-full text-xs font-medium group">
+                    Overdue
+                    <button
+                        onClick={() => setOverdueFilter?.(false)}
+                        className="w-4 h-4 rounded-full bg-red-200 dark:bg-red-800 hover:bg-red-300 dark:hover:bg-red-700 flex items-center justify-center transition-colors"
+                        aria-label="Hapus filter Overdue"
                     >
                         <X className="w-3 h-3" />
                     </button>

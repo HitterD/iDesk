@@ -32,6 +32,7 @@ import { PriorityDropdown, StatusDropdown } from './TicketDropdowns';
 import { TargetDateCell } from './TargetDateCell';
 import { SelectCheckbox } from './BulkActionsBar';
 import { TicketQuickPreview } from '@/components/ui/TicketQuickPreview';
+import { isTerminalStatus } from './ticket-detail/constants';
 import { ResolveTicketModal } from './ticket-detail/ResolveTicketModal';
 import { getStaggeredDelay, StopPropagationWrapper } from '../utils/listUtils';
 
@@ -131,6 +132,9 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
     const [resolveModalOpen, setResolveModalOpen] = useState(false);
     const [targetAgentToAssign, setTargetAgentToAssign] = useState<TargetAgentInfo | null>(null);
     const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
+    const isCritical = ticket.priority === 'CRITICAL';
+    const showCriticalIndicator = isCritical && !isTerminalStatus(ticket.status);
+    const showPriorityDot = !isCritical || showCriticalIndicator;
 
     const handleStatusChange = (newStatus: string) => {
         if (newStatus === 'RESOLVED') {
@@ -214,7 +218,9 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                         {/* Priority Dot */}
-                        <span className={cn("w-2 h-2 rounded-full shrink-0", priorityConfig.dot || priorityConfig.barColor)} aria-hidden="true" />
+                        {showPriorityDot && (
+                            <span className={cn("w-2 h-2 rounded-full shrink-0", priorityConfig.dot || priorityConfig.barColor)} aria-hidden="true" />
+                        )}
                         
                         {/* Ticket Number */}
                         <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700/80 shrink-0 whitespace-nowrap">
@@ -268,7 +274,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                                 Overdue
                             </span>
                         )}
-                        {ticket.priority === 'CRITICAL' && !ticket.isOverdue && (
+                        {showCriticalIndicator && !ticket.isOverdue && (
                             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-800/50">
                                 <Flame className="w-3 h-3" />
                                 Critical
@@ -412,7 +418,9 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                 {/* Ticket Info with Quick Preview */}
                 <TicketQuickPreview ticket={ticket} side="right" align="start" disabled={false}>
                     <div className="flex items-center gap-3 min-w-0">
-                        <div className={cn("w-2 h-2 rounded-full shrink-0 mt-1 self-start", priorityConfig.barColor)} aria-hidden="true" />
+                        {showPriorityDot && (
+                            <div className={cn("w-2 h-2 rounded-full shrink-0 mt-1 self-start", priorityConfig.barColor)} aria-hidden="true" />
+                        )}
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                                 <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700/80 shrink-0 whitespace-nowrap">
@@ -450,7 +458,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                                 {ticket.isOverdue && (
                                     <AlertTriangle className="w-3.5 h-3.5 text-[hsl(var(--error-500))] animate-pulse-red shrink-0" />
                                 )}
-                                {ticket.priority === 'CRITICAL' && (
+                                {showCriticalIndicator && (
                                     <Flame className="w-3.5 h-3.5 text-[hsl(var(--error-500))] animate-pulse-red shrink-0" />
                                 )}
                             </div>
