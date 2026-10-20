@@ -128,6 +128,52 @@ describe('TicketQueryService', () => {
     });
 });
 
+describe('TicketQueryService dashboard stats', () => {
+    function createStatsQueryBuilder() {
+        return {
+            select: jest.fn().mockReturnThis(),
+            addSelect: jest.fn().mockReturnThis(),
+            andWhere: jest.fn().mockReturnThis(),
+            groupBy: jest.fn().mockReturnThis(),
+            addGroupBy: jest.fn().mockReturnThis(),
+            orderBy: jest.fn().mockReturnThis(),
+            setParameters: jest.fn().mockReturnThis(),
+            leftJoin: jest.fn().mockReturnThis(),
+            innerJoin: jest.fn().mockReturnThis(),
+            take: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockReturnThis(),
+            getRawOne: jest.fn().mockResolvedValue({}),
+            getRawMany: jest.fn().mockResolvedValue([]),
+            getMany: jest.fn().mockResolvedValue([]),
+        };
+    }
+
+    it('returns critical from activeCritical select, not byPriority', async () => {
+        const statusQb = createStatsQueryBuilder();
+        statusQb.getRawOne.mockResolvedValue({ total: '8', activeCritical: '2' });
+        const priorityQb = createStatsQueryBuilder();
+        priorityQb.getRawMany.mockResolvedValue([{ priority: 'CRITICAL', count: '5' }]);
+        const service = new TicketQueryService({} as any, {} as any, {} as any);
+        jest.spyOn(service as any, 'createFilteredTicketQb')
+            .mockImplementation(() => createStatsQueryBuilder())
+            .mockReturnValueOnce(statusQb)
+            .mockReturnValueOnce(priorityQb);
+
+        const result = await (service as any).computeDashboardStats(UserRole.ADMIN, null);
+
+        expect(result.critical).toBe(2);
+        expect(result.byPriority.CRITICAL).toBe(5);
+        expect(statusQb.addSelect).toHaveBeenCalledWith(
+            `SUM(CASE WHEN ticket.priority = 'CRITICAL' AND ticket.status IN ('TODO', 'IN_PROGRESS', 'WAITING_VENDOR') THEN 1 ELSE 0 END)`,
+            'activeCritical',
+        );
+        expect(statusQb.addSelect).toHaveBeenCalledWith(
+            `SUM(CASE WHEN ${OVERDUE_SQL} THEN 1 ELSE 0 END)`, 'overdue',
+        );
+        expect(priorityQb.andWhere).not.toHaveBeenCalled();
+    });
+});
+
 describe('TicketQueryService.findOne', () => {
     // A GET must not write: saving here cascaded the requester-filtered messages
     // (internal notes -> ticketId NULL -> 500) and stamped an SLA target on tickets

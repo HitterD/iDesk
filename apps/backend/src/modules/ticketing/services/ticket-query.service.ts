@@ -9,7 +9,7 @@ import { CacheService, CacheKeys } from '../../../shared/core/cache';
 import { resolveTicketViewerAccess, TicketViewerAccess } from './ticket-oracle-access';
 import { applySiteFilter, siteScopeKey } from '../utils/site-access.util';
 import { applyServiceScopeFilter } from '../../../shared/core/utils/service-scope.util';
-import { TICKET_DONE_STATUSES_SQL, TICKET_INACTIVE_STATUSES_SQL } from '../utils/ticket-status-sql.util';
+import { TICKET_ACTIVE_STATUSES_SQL, TICKET_DONE_STATUSES_SQL, TICKET_INACTIVE_STATUSES_SQL } from '../utils/ticket-status-sql.util';
 import { addSlaMinutes, isBusinessHoursOnly, SlaClockService, SlaSnapshot } from './sla-clock.service';
 import { wibDateSql, wibStartOfMonth, wibStartOfToday, wibStartOfWeek } from '../../../shared/core/utils/wib-date.util';
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
@@ -878,6 +878,7 @@ export class TicketQueryService {
             .addSelect(`SUM(CASE WHEN ticket.status = 'WAITING_VENDOR' THEN 1 ELSE 0 END)`, 'waitingVendor')
             .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
             .addSelect(`SUM(CASE WHEN ${OVERDUE_SQL} THEN 1 ELSE 0 END)`, 'overdue')
+            .addSelect(`SUM(CASE WHEN ticket.priority = 'CRITICAL' AND ticket.status IN (${TICKET_ACTIVE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'activeCritical')
             .getRawOne();
 
         const total = parseInt(statusCounts.total) || 0;
@@ -886,6 +887,7 @@ export class TicketQueryService {
         const waitingVendor = parseInt(statusCounts.waitingVendor) || 0;
         const resolved = parseInt(statusCounts.resolved) || 0;
         const overdue = parseInt(statusCounts.overdue) || 0;
+        const activeCritical = parseInt(statusCounts.activeCritical) || 0;
         const slaCompliance = total > 0 ? Math.round(((total - overdue) / total) * 100) : 100;
 
         // 2. Priority counts - single query
@@ -1032,7 +1034,7 @@ export class TicketQueryService {
             waitingVendor,
             resolved,
             overdue,
-            critical: byPriority.CRITICAL,
+            critical: activeCritical,
             slaCompliance,
             byPriority,
             byCategory,
