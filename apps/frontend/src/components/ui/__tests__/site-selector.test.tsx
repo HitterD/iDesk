@@ -5,12 +5,6 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SiteSelector, SiteBadge } from '@/components/site/SiteSelector';
 
-globalThis.ResizeObserver ??= class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-} as unknown as typeof ResizeObserver;
-Element.prototype.scrollIntoView ??= () => {};
 const sites = [
     { id: 'spj', code: 'SPJ', name: 'Nama Sama', isActive: true },
     { id: 'smg', code: 'SMG', name: 'Nama Sama', isActive: true },
@@ -31,11 +25,12 @@ describe('SiteSelector', () => {
     it('preserves multiple IDs, toggles independently, selects all and resets without closing', async () => {
         const user = userEvent.setup();
         mount();
-        const trigger = screen.getByRole('button', { name: 'Filter Site' });
+        const trigger = screen.getByRole('button', { name: 'Filter Site: SPJ' });
         expect(trigger).toHaveClass('ticket-pill');
         await user.click(trigger);
         await user.click(screen.getByRole('option', { name: /SMG/ }));
         expect(screen.getByLabelText('Site IDs')).toHaveTextContent('spj,smg');
+        expect(trigger).toHaveAccessibleName('Filter Site: SPJ, SMG');
         expect(trigger).toHaveAttribute('aria-expanded', 'true');
         expect(screen.getByRole('option', { name: /SPJ/ })).toHaveAttribute('data-checked', 'true');
         expect(screen.getByRole('option', { name: /SMG/ })).toHaveAttribute('data-checked', 'true');
@@ -51,7 +46,7 @@ describe('SiteSelector', () => {
     it('keeps single mode, keyboard search and Escape focus', async () => {
         const user = userEvent.setup();
         mount('single');
-        const trigger = screen.getByRole('button', { name: 'Filter Site' });
+        const trigger = screen.getByRole('button', { name: /^Filter Site:/ });
         await user.click(trigger);
         await user.type(screen.getByRole('combobox', { name: 'Cari site…' }), 'SMG');
         await user.keyboard('{ArrowDown}{Enter}');
@@ -62,7 +57,7 @@ describe('SiteSelector', () => {
     it('does not open a disabled trigger and makes SiteBadge readonly soft teal, not purple', async () => {
         const user = userEvent.setup();
         mount('multi', true);
-        await user.click(screen.getByRole('button', { name: 'Filter Site' }));
+        await user.click(screen.getByRole('button', { name: /^Filter Site:/ }));
         expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
         render(<SiteBadge code="JTB" />);
         expect(screen.getByText('JTB')).toHaveClass('ticket-pill', 'ticket-tone-teal');

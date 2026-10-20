@@ -246,7 +246,10 @@ textarea:focus {
   }
 }
 
-/* PR2 shared ticket controls; intentionally scoped, including portalled panels. */
+/* PR2 shared ticket controls; intentionally scoped, including portalled panels.
+   Pill/tone/trigger base styles live in the components layer so call-site
+   utilities (min-h-9, px-1.5, text-[10px], ...) in the utilities layer win. */
+@layer components {
 .ticket-tone-neutral { --pill-hue: var(--ticket-neutral); --pill-ink: var(--ticket-neutral-ink); }
 .ticket-tone-blue { --pill-hue: var(--ticket-blue); --pill-ink: var(--ticket-blue-ink); }
 .ticket-tone-navy { --pill-hue: var(--ticket-navy); --pill-ink: var(--ticket-navy-ink); }
@@ -265,6 +268,10 @@ textarea:focus {
 .picker-trigger { cursor: pointer; justify-content: space-between; transition: background 150ms var(--ease-out); }
 .picker-trigger:hover:not(:disabled) { background: color-mix(in srgb, hsl(var(--pill-hue)) 15%, hsl(var(--idesk-surface))); }
 .picker-trigger:disabled { opacity: .55; cursor: not-allowed; }
+}
+/* Unlayered on purpose: these must beat shadcn Command/Popover utility classes
+   (px-2 py-1.5, data-[disabled]:pointer-events-none, w-72, outline-none) and the
+   unlayered .glass-card-elevated in glassmorphism.css. */
 .picker-trigger:focus-visible, .picker-panel :focus-visible, .agent-select-list :focus-visible {
   outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px;
 }

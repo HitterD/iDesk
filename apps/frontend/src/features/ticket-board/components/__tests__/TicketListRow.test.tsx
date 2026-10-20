@@ -9,14 +9,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TicketListRow, TicketRowData, Agent } from '../TicketListRow';
 import { MemoryRouter } from 'react-router-dom';
 
-// AgentSelectList now composes cmdk; jsdom lacks its layout APIs.
-globalThis.ResizeObserver ??= class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-} as unknown as typeof ResizeObserver;
-Element.prototype.scrollIntoView ??= () => {};
-
 vi.mock('@/components/ui/TicketQuickPreview', () => ({
     TicketQuickPreview: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));

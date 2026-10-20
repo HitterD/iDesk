@@ -124,7 +124,7 @@ export const SiteSelector = ({
     return (
         <Popover open={open && !disabled} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <button type="button" disabled={disabled} aria-label="Filter Site"
+                <button type="button" disabled={disabled} aria-label={`Filter Site: ${getSelectedLabel()}`}
                     className={cn('ticket-pill ticket-tone-neutral picker-trigger min-h-9 min-w-[140px]', className)}
                     onKeyDown={event => {
                         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setOpen(true); }

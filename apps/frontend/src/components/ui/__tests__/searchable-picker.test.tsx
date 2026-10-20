@@ -5,14 +5,6 @@ import userEvent from '@testing-library/user-event';
 import { SearchablePicker } from '../searchable-picker';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../dialog';
 
-// jsdom lacks the layout APIs used by cmdk and Radix (existing overlay test pattern).
-globalThis.ResizeObserver ??= class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-} as unknown as typeof ResizeObserver;
-Element.prototype.scrollIntoView ??= () => {};
-
 const options = [
     { value: 'agent-a', label: 'Nama Sama', description: 'satu@idesk.test' },
     { value: 'agent-b', label: 'Nama Sama', description: 'dua@idesk.test' },
@@ -95,6 +87,38 @@ describe('SearchablePicker', () => {
         expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
         await user.keyboard('{ArrowDown}{Enter}');
         expect(callback).toHaveBeenCalledWith('agent-b');
+    });
+
+    it('closes without calling onValueChange when the current value is re-selected', async () => {
+        const user = userEvent.setup();
+        const onValueChange = vi.fn();
+        render(<SearchablePicker value="agent-b" options={options}
+            onValueChange={onValueChange} label="Pilih PIC" searchPlaceholder="Cari PIC" />);
+        const trigger = screen.getByRole('button', { name: 'Pilih PIC' });
+        await user.click(trigger);
+        await user.click(screen.getByRole('option', { name: /dua@/ }));
+        expect(onValueChange).not.toHaveBeenCalled();
+        await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'false'));
+        await user.click(trigger);
+        await user.click(screen.getByRole('option', { name: /satu@/ }));
+        expect(onValueChange).toHaveBeenCalledExactlyOnceWith('agent-a');
+    });
+
+    it('filters on label/description keywords, not the raw option value', async () => {
+        const user = userEvent.setup();
+        render(<ControlledPicker />);
+        await user.click(screen.getByRole('button', { name: 'Pilih PIC' }));
+        await user.type(screen.getByRole('combobox', { name: 'Cari PIC' }), 'agent-');
+        expect(screen.queryAllByRole('option')).toHaveLength(0);
+        expect(screen.getByText('Tidak ditemukan. Coba kata lain.')).toBeVisible();
+    });
+
+    it('renders an optional presentation icon per option', async () => {
+        const user = userEvent.setup();
+        render(<SearchablePicker value="a" label="Pilih" onValueChange={() => {}}
+            options={[{ value: 'a', label: 'Satu', icon: <span data-testid="opt-icon" /> }]} />);
+        await user.click(screen.getByRole('button', { name: 'Pilih' }));
+        expect(within(screen.getByRole('option', { name: 'Satu' })).getByTestId('opt-icon')).toBeInTheDocument();
     });
 
     it('portals above a dialog, bounds the viewport and Escape leaves the dialog open', async () => {
