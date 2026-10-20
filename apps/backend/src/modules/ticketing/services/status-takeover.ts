@@ -1,8 +1,10 @@
 import { BadRequestException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
+import type { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import type { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { TICKET_AGENT_ROLES } from '../ticket-roles.constants';
+import { TicketAssignedEvent } from '../events/ticket-assigned.event';
 import type { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import type { WorkloadService } from '../../workload/workload.service';
@@ -210,14 +212,17 @@ export function applyTakeoverDecision(
 export interface TakeoverEffectDeps {
     auditService: AuditService;
     workloadService: WorkloadService;
+    eventEmitter: EventEmitter2;
     logger: Logger;
 }
 
 /**
  * Post-commit side-effects of a status-driven (re)assignment: audit, the
  * previous PIC's workload (the new PIC's is recalculated by the caller's
- * usual post-update path). No ticket.assigned event: the new PIC is always the
- * actor, who should not be notified "assigned to you" by themselves.
+ * usual post-update path), and the ticket.assigned domain event. The new PIC
+ * is always the actor, so the event carries assignerId === assigneeId and the
+ * notification listener skips the "assigned to you" notices (the requester is
+ * still told their ticket is being handled).
  */
 export async function recordStatusTakeover(
     deps: TakeoverEffectDeps, ticket: Ticket, actor: User, previous: AssigneeSummary | null, reason: string | null,
@@ -241,4 +246,11 @@ export async function recordStatusTakeover(
             deps.logger.error(`Failed to recalculate workload for previous PIC of ticket ${ticket.ticketNumber}: ${err.message}`);
         }
     }
+
+    deps.eventEmitter.emit('ticket.assigned', new TicketAssignedEvent(
+        ticket.id, ticket.ticketNumber || ticket.id.split('-')[0],
+        actor.id, actor.fullName, actor.email, actor.fullName,
+        ticket.title, ticket.status, ticket.user?.email, ticket.user?.fullName,
+        actor.id,
+    ));
 }

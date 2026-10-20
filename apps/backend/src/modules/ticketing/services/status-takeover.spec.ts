@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { TicketStatus } from '../entities/ticket.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
-import { decideStatusTakeover, resolveStatusTakeover, REASSIGN_CONFIRMATION_REQUIRED } from './status-takeover';
+import { decideStatusTakeover, recordStatusTakeover, resolveStatusTakeover, REASSIGN_CONFIRMATION_REQUIRED } from './status-takeover';
 
 describe('decideStatusTakeover', () => {
     const pic = { id: 'agent-a', fullName: 'Agent A' };
@@ -99,5 +99,26 @@ describe('resolveStatusTakeover — module eligibility', () => {
         await expect(resolveStatusTakeover(assigned, TicketStatus.IN_PROGRESS, TicketStatus.TODO,
             { id: 'admin-1', role: UserRole.ADMIN }, { keepAssignee: true }, elig)).resolves.toEqual({ kind: 'keep' });
         expect(elig.isEligible).not.toHaveBeenCalled();
+    });
+});
+
+describe('recordStatusTakeover', () => {
+    it('emits ticket.assigned with assignerId = actor so the requester is still notified', async () => {
+        const deps: any = {
+            auditService: { logAsync: jest.fn() }, workloadService: { recalculateAgentWorkload: jest.fn() },
+            eventEmitter: { emit: jest.fn() }, logger: { error: jest.fn() },
+        };
+        const actor: any = { id: 'agent-b', fullName: 'Agent B', email: 'b@test.com' };
+        const ticket: any = {
+            id: 't-1', ticketNumber: 'TKT-1', title: 'Printer', status: TicketStatus.IN_PROGRESS, siteId: 'site-1',
+            user: { email: 'req@test.com', fullName: 'Requester' },
+        };
+
+        await recordStatusTakeover(deps, ticket, actor, { id: 'agent-a', fullName: 'Agent A' }, 'PIC cuti');
+
+        expect(deps.eventEmitter.emit).toHaveBeenCalledWith('ticket.assigned', expect.objectContaining({
+            ticketId: 't-1', assigneeId: 'agent-b', assignerId: 'agent-b', ticketOwnerEmail: 'req@test.com',
+        }));
+        expect(deps.auditService.logAsync).toHaveBeenCalled();
     });
 });

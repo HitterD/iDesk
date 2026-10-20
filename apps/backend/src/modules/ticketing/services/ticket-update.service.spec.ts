@@ -392,10 +392,11 @@ describe('TicketUpdateService — status takeover', () => {
 
     const assignedEvents = () => mockEventEmitter.emit.mock.calls.filter((c: any[]) => c[0] === 'ticket.assigned');
 
-    it('updateTicket takeover does not notify the actor that they assigned themselves', async () => {
+    it('updateTicket takeover emits ticket.assigned marked as self-assigned (listener skips assignee-facing notices)', async () => {
         await service.updateTicket('ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id, { takeover: true, reason: 'PIC cuti' });
 
-        expect(assignedEvents()).toHaveLength(0);
+        expect(assignedEvents()).toHaveLength(1);
+        expect(assignedEvents()[0][1]).toMatchObject({ assigneeId: agentB.id, assignerId: agentB.id });
         expect(mockAuditService.logAsync).toHaveBeenCalledWith(expect.objectContaining({ action: AuditAction.ASSIGN_TICKET }));
     });
 
@@ -433,7 +434,8 @@ describe('TicketUpdateService — status takeover', () => {
         const saved = await service.updateTicket('ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id);
 
         expect(saved.assignedToId).toBe(agentB.id);
-        expect(assignedEvents()).toHaveLength(0);
+        expect(assignedEvents()).toHaveLength(1);
+        expect(assignedEvents()[0][1]).toMatchObject({ assigneeId: agentB.id, assignerId: agentB.id });
     });
 
     it('bulkUpdate leaves unassigned tickets of a module the actor is not listed in unassigned', async () => {
@@ -541,6 +543,8 @@ describe('TicketUpdateService — status takeover', () => {
 
         expect(result).toEqual({ updated: 1, failed: [] });
         expect(manager.save.mock.calls[0][1]).toMatchObject({ status: TicketStatus.IN_PROGRESS, assignedToId: agentB.id });
+        expect(assignedEvents()).toHaveLength(1);
+        expect(assignedEvents()[0][1]).toMatchObject({ ticketId: 'ticket-1', assigneeId: agentB.id, assignerId: agentB.id });
         expect(mockAuditService.logAsync).toHaveBeenCalledWith(expect.objectContaining({
             newValue: expect.objectContaining({ via: 'status-takeover' }),
         }));

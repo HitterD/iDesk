@@ -123,7 +123,7 @@ export class TicketUpdateService {
     }
 
     private get takeoverDeps(): TakeoverEffectDeps {
-        return { auditService: this.auditService, workloadService: this.workloadService, logger: this.logger };
+        return { auditService: this.auditService, workloadService: this.workloadService, eventEmitter: this.eventEmitter, logger: this.logger };
     }
 
     /** Module curated-list check for `user` becoming PIC, shared with assignTicket's rule and message. */
@@ -486,6 +486,7 @@ export class TicketUpdateService {
                 ticket.status,
                 ticket.user?.email,
                 ticket.user?.fullName,
+                assigner.id,
             ),
         );
 
