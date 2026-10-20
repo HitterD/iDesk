@@ -424,13 +424,16 @@ textarea:focus {
 
 /* Topbar sits on the chrome; utility icons inherit chrome colours. */
 .idesk-topbar { color: hsl(var(--idesk-chrome-foreground)); }
+/* Fill stays at .10 in every state so the .9 placeholder keeps >=4.5:1 on the lightest chrome
+   (#2D4A8C under the 7% radial highlight = 4.85:1); hover/focus are signalled by border and ring only. */
 .idesk-topbar-search {
-  background: hsl(0 0% 100% / .10); border: 1px solid hsl(0 0% 100% / .14);
+  --search-fill: 0 0% 100% / .10;
+  background: hsl(var(--search-fill)); border: 1px solid hsl(0 0% 100% / .14);
   color: #fff;
 }
-.idesk-topbar-search::placeholder { color: hsl(var(--idesk-chrome-foreground) / .8); }
-.idesk-topbar-search:hover { background: hsl(0 0% 100% / .14); }
-.idesk-topbar-search:focus { background: hsl(0 0% 100% / .16); border-color: hsl(0 0% 100% / .32); outline: none; box-shadow: 0 0 0 3px hsl(0 0% 100% / .14); }
+.idesk-topbar-search::placeholder { color: hsl(var(--idesk-chrome-foreground) / .9); }
+.idesk-topbar-search:hover { border-color: hsl(0 0% 100% / .28); }
+.idesk-topbar-search:focus { border-color: hsl(0 0% 100% / .45); outline: none; box-shadow: 0 0 0 3px hsl(0 0% 100% / .18); }
 .idesk-topbar-kbd { background: hsl(0 0% 100% / .14); border: 1px solid hsl(0 0% 100% / .18); color: hsl(var(--idesk-chrome-foreground)); }
 
 /* The one primary entry action: warm amber, labelled. */

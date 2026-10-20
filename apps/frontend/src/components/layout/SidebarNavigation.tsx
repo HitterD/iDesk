@@ -277,7 +277,7 @@ export interface SidebarNavigationProps {
 export const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
     entries, isCollapsed, isLoading, activePath, isGroupExpanded, onToggleGroup, getItemBadge, getGroupBadge, onNavigate,
 }) => (
-    <nav aria-label="Main navigation" className="nav-scroll flex-1 flex flex-col gap-0.5 min-h-0 py-1">
+    <nav aria-label="Main navigation" className="nav-scroll flex-1 flex flex-col gap-0.5 min-h-0">
         {isLoading ? (
             <div className="space-y-1" aria-hidden="true">
                 {SKELETON_ROWS.map(i => (
