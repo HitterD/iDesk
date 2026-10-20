@@ -1,4 +1,4 @@
-import { ArrayMaxSize, ArrayUnique, IsArray, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
+import { ArrayMaxSize, ArrayUnique, IsArray, IsBoolean, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TicketStatus, TicketPriority } from '../entities/ticket.entity';
@@ -36,6 +36,16 @@ export class BulkUpdateTicketsDto {
     @IsOptional()
     @IsString()
     reason?: string;
+
+    @ApiPropertyOptional({ description: 'Confirm taking over tickets owned by another PIC (requires reason)' })
+    @IsOptional()
+    @IsBoolean()
+    takeover?: boolean;
+
+    @ApiPropertyOptional({ description: 'ADMIN/MANAGER only: change status but keep the current PICs' })
+    @IsOptional()
+    @IsBoolean()
+    keepAssignee?: boolean;
 }
 
 export class BulkDeleteTicketsDto {

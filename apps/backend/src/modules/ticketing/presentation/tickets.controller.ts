@@ -71,17 +71,7 @@ import { TicketReminderService } from '../services/ticket-reminder.service';
 import { TicketResolutionService } from '../services/ticket-resolution.service';
 import { AgentRatingService } from '../services/agent-rating.service';
 import { DisputeResolutionDto, SubmitAgentRatingsDto } from '../dto/ticket-resolution.dto';
-
-const TICKET_AGENT_ROLES = [
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-    UserRole.AGENT,
-    UserRole.AGENT_ADMIN,
-    UserRole.AGENT_OPERATIONAL_SUPPORT,
-    UserRole.AGENT_ORACLE,
-    UserRole.AGENT_WEB_DEV,
-    UserRole.AGENT_MOBILE_DEV,
-] as const;
+import { TICKET_AGENT_ROLES } from '../ticket-roles.constants';
 
 @ApiTags('Tickets')
 @Controller('tickets')
@@ -508,7 +498,11 @@ export class TicketsController {
         @Body() dto: UpdateTicketStatusDto,
         @Request() req: any,
     ) {
-        return this.ticketUpdateService.updateTicket(id, { status: dto.status }, req.user.userId);
+        return this.ticketUpdateService.updateTicket(id, { status: dto.status }, req.user.userId, {
+            takeover: dto.takeover,
+            keepAssignee: dto.keepAssignee,
+            reason: dto.reason,
+        });
     }
 
     @Patch(':id/priority')
@@ -697,6 +691,8 @@ export class TicketsController {
                 assigneeId: dto.assigneeId,
                 category: dto.category,
                 reason: dto.reason,
+                takeover: dto.takeover,
+                keepAssignee: dto.keepAssignee,
             },
             req.user.userId,
         );

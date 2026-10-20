@@ -8,6 +8,18 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
+/** Keys Nest puts on every HttpException body; everything else is a deliberate business field. */
+const NEST_BODY_KEYS = new Set(['statusCode', 'message', 'error']);
+
+/**
+ * Extra fields of an object-bodied 4xx (e.g. `{ code, currentAssignee }`) so
+ * clients can branch on them. 5xx bodies are never forwarded.
+ */
+function businessFields(body: unknown, status: number): Record<string, unknown> {
+    if (status >= HttpStatus.INTERNAL_SERVER_ERROR || !body || typeof body !== 'object') return {};
+    return Object.fromEntries(Object.entries(body).filter(([key]) => !NEST_BODY_KEYS.has(key)));
+}
+
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
     private readonly logger = new Logger(HttpExceptionFilter.name);
@@ -58,6 +70,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
             : actualMessage;
 
         const errorResponse = {
+            ...businessFields(message, status),
             statusCode: status,
             timestamp: new Date().toISOString(),
             path: request?.url || 'unknown',
