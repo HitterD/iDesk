@@ -5,8 +5,6 @@ export const CREATE_TICKET_SHORT_LABEL = 'Tiket Baru';
 
 /** Existing route: routes/AppRoutes.tsx `tickets/create` (reads `?type=` via BentoCreateTicketPage). */
 const CREATE_TICKET_PATH = '/tickets/create';
-/** Existing route: routes/AppRoutes.tsx `/client` > `create`; the only create route a USER may open. */
-export const CLIENT_CREATE_TICKET_PATH = '/client/create';
 
 /** Roles whose create action pre-selects a ticket type. Mirrors the previous MobileBottomNav behaviour. */
 const ROLE_CREATE_TYPE: Readonly<Record<string, string>> = {

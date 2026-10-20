@@ -62,8 +62,10 @@ describe('ClientLayout requester shell', () => {
 
     it('keeps the preset-limited navigation in the portal segment', () => {
         renderPortal();
+        // Short labels in the segment; profile lives in the account menu, not the segment.
         const labels = within(portalNav()).getAllByRole('link').map((link) => link.textContent?.trim());
-        expect(labels).toEqual(['My Tickets', 'E-Form Access', 'Help Center', 'Profile']);
+        expect(labels).toEqual(['Tiket Saya', 'E-Form', 'Bantuan']);
+        expect(within(portalNav()).queryByRole('link', { name: /Profile|Akun/ })).not.toBeInTheDocument();
         expect(within(portalNav()).queryByText('Hardware Requests')).not.toBeInTheDocument();
         expect(within(portalNav()).queryByText('Zoom Calendar')).not.toBeInTheDocument();
     });
@@ -71,13 +73,23 @@ describe('ClientLayout requester shell', () => {
     it('shows every item while the preset is still loading', () => {
         permissions.current = undefined;
         renderPortal();
-        expect(within(portalNav()).getAllByRole('link')).toHaveLength(6);
+        expect(within(portalNav()).getAllByRole('link')).toHaveLength(5);
     });
 
     it('marks the selected route with aria-current', () => {
         renderPortal('/client/eform-access');
-        expect(within(portalNav()).getByRole('link', { name: 'E-Form Access' })).toHaveAttribute('aria-current', 'page');
-        expect(within(portalNav()).getByRole('link', { name: 'My Tickets' })).not.toHaveAttribute('aria-current');
+        expect(within(portalNav()).getByRole('link', { name: 'E-Form' })).toHaveAttribute('aria-current', 'page');
+        expect(within(portalNav()).getByRole('link', { name: 'Tiket Saya' })).not.toHaveAttribute('aria-current');
+    });
+
+    it('keeps inactive tab labels visible from xl and never sets an aria-label that hides them', () => {
+        renderPortal();
+        within(portalNav()).getAllByRole('link').forEach((link) => {
+            expect(link).not.toHaveAttribute('aria-label');
+            const label = link.querySelector('span');
+            if (link.getAttribute('aria-current') !== 'page') expect(label).toHaveClass('hidden', 'xl:inline');
+            else expect(label).not.toHaveClass('hidden');
+        });
     });
 
     it('renders the sapphire chrome and a rounded content sheet', () => {
@@ -113,7 +125,7 @@ describe('ClientLayout requester shell', () => {
         await user.click(account);
         const menu = await screen.findByRole('menu');
         expect(within(menu).getByText('rina@example.com')).toBeInTheDocument();
-        expect(within(menu).getByRole('menuitem', { name: /Profil/ })).toHaveAttribute('href', '/client/profile');
+        expect(within(menu).getByRole('menuitem', { name: 'Akun' })).toHaveAttribute('href', '/client/profile');
 
         await user.click(within(menu).getByRole('menuitem', { name: /Keluar/ }));
         expect(performLogout).toHaveBeenCalledTimes(1);
@@ -127,9 +139,13 @@ describe('ClientLayout requester shell', () => {
         expect(create).toHaveAttribute('href', '/client/create');
         expect(create).toHaveTextContent('Tiket Baru');
         expect(create.querySelector('.idesk-cta')).not.toBeNull();
-        expect(within(nav).getByRole('link', { name: 'My Tickets' })).toHaveAttribute('aria-current', 'page');
+        // Accessible name equals the visible label (WCAG 2.5.3).
+        expect(within(nav).getByRole('link', { name: 'Tiket Saya' })).toHaveAttribute('aria-current', 'page');
+        expect(within(nav).getByRole('link', { name: 'Akun' })).toHaveAttribute('href', '/client/profile');
+        within(nav).getAllByRole('link').filter((link) => link !== create)
+            .forEach((link) => expect(link).not.toHaveAttribute('aria-label'));
         // Bottom nav only uses authorised items.
-        expect(within(nav).queryByRole('link', { name: 'Hardware Requests' })).not.toBeInTheDocument();
+        expect(within(nav).queryByRole('link', { name: /Hardware/ })).not.toBeInTheDocument();
     });
 
     it('hides the bottom nav and keeps the full-height layout on ticket detail', () => {

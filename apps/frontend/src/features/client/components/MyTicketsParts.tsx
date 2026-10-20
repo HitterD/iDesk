@@ -2,10 +2,10 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, Clock, MessageSquare, Plus, Users } from 'lucide-react';
 import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
-import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
+import { TicketPill, PRIORITY_TONES, STATUS_TONES, type TicketPillTone } from '@/components/ui/ticket-pill';
 import { UserAvatar } from '@/components/ui/UserAvatar';
-import { PRIORITY_TONES, STATUS_TONES } from '@/features/ticket-board/components/TicketDropdowns';
-import { CLIENT_CREATE_TICKET_PATH, CREATE_TICKET_LABEL } from '@/components/layout/createTicketAction';
+import { CREATE_TICKET_LABEL } from '@/components/layout/createTicketAction';
+import { CLIENT_ROUTES } from '@/config/routes';
 import { formatSmartDate } from '@/lib/utils/dateFormat';
 import { cn } from '@/lib/utils';
 
@@ -50,7 +50,7 @@ export const MY_TICKETS_GRID = 'lg:grid-cols-[minmax(240px,3fr)_116px_148px_minm
 
 /** Approved requester help banner with the original service mascot. No response-time promise. */
 export const HelpBanner: React.FC = () => (
-    <Link to={CLIENT_CREATE_TICKET_PATH} className="portal-help-banner">
+    <Link to={CLIENT_ROUTES.CREATE_TICKET} className="portal-help-banner">
         <img src={MASCOT_SRC} alt="" width={56} height={56} />
         <span className="portal-help-copy">
             <b>Ada kendala IT?</b>

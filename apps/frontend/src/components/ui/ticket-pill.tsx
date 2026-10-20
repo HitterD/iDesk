@@ -6,6 +6,16 @@ export interface TicketPillProps extends HTMLAttributes<HTMLSpanElement> {
     tone: TicketPillTone;
 }
 
+/** Shared ticket value tones: agent pickers and requester readonly pills. */
+export const PRIORITY_TONES: Readonly<Record<string, TicketPillTone>> = {
+    LOW: 'neutral', MEDIUM: 'blue', HIGH: 'amber', CRITICAL: 'red',
+    HARDWARE_INSTALLATION: 'amber', ORACLE_REQUEST: 'blue',
+};
+export const STATUS_TONES: Readonly<Record<string, TicketPillTone>> = {
+    TODO: 'blue', IN_PROGRESS: 'navy', WAITING_VENDOR: 'amber', RESOLVED: 'green',
+    CLOSED: 'neutral', CANCELLED: 'red',
+};
+
 /** Readonly value. Editable values use a picker trigger instead. */
 export function TicketPill({ tone, className, children, ...spanProps }: TicketPillProps) {
     return <span {...spanProps} className={cn('ticket-pill', `ticket-tone-${tone}`, className)}>{children}</span>;

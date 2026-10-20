@@ -24,7 +24,8 @@ import { useTicketListSocket } from '@/hooks/useTicketSocket';
 import { useSocket } from '@/lib/socket';
 import { toast } from 'sonner';
 import { useAuth } from '@/stores/useAuth';
-import { CLIENT_CREATE_TICKET_PATH, CREATE_TICKET_LABEL } from '@/components/layout/createTicketAction';
+import { CREATE_TICKET_LABEL } from '@/components/layout/createTicketAction';
+import { CLIENT_ROUTES } from '@/config/routes';
 import {
     HelpBanner,
     MyTicketRow,
@@ -385,7 +386,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                                 <span>Reset Filter</span>
                             </button>
                         ) : (
-                            <Link to={CLIENT_CREATE_TICKET_PATH} className="idesk-cta">
+                            <Link to={CLIENT_ROUTES.CREATE_TICKET} className="idesk-cta">
                                 <Plus aria-hidden="true" />
                                 <span>{CREATE_TICKET_LABEL}</span>
                             </Link>

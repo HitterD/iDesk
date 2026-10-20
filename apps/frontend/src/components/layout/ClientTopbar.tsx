@@ -47,6 +47,8 @@ interface ClientTopbarProps {
 }
 
 const ACCOUNT_ROLE_LABEL = 'Pemohon';
+/** Same wording as the bottom-nav profile tab. */
+const ACCOUNT_MENU_LABEL = 'Akun';
 const FALLBACK_NAME = 'User';
 
 /** Sapphire top band for the requester portal: brand, navigation segment, utilities, create CTA, account menu. */
@@ -54,6 +56,7 @@ export const ClientTopbar: React.FC<ClientTopbarProps> = ({
     navItems, isActive, homePath, createPath, profilePath, user, onLogout,
 }) => {
     const name = user?.fullName || FALLBACK_NAME;
+    // Profile is reached through the account menu, so the segment lists sections only.
     const sectionItems = navItems.filter((item) => item.path !== profilePath);
 
     return (
@@ -63,7 +66,7 @@ export const ClientTopbar: React.FC<ClientTopbarProps> = ({
             </Link>
 
             <nav aria-label="Navigasi portal" className="portal-tabs hidden lg:flex mx-auto min-w-0">
-                {navItems.map((item) => {
+                {sectionItems.map((item) => {
                     const Icon = item.icon;
                     const active = isActive(item);
                     return (
@@ -71,13 +74,12 @@ export const ClientTopbar: React.FC<ClientTopbarProps> = ({
                             key={item.path}
                             to={item.path}
                             title={item.label}
-                            aria-label={item.label}
                             aria-current={active ? 'page' : undefined}
                             className={cn('portal-tab', active && 'is-active')}
                         >
                             <Icon aria-hidden="true" />
-                            {/* Inactive labels collapse to icons until there is room for all of them. */}
-                            <span className={active ? undefined : 'hidden 2xl:inline'}>{item.label}</span>
+                            {/* Inactive labels collapse to icons only between lg and xl; the title then names the link. */}
+                            <span className={active ? undefined : 'hidden xl:inline'}>{item.shortLabel ?? item.label}</span>
                         </Link>
                     );
                 })}
@@ -129,7 +131,7 @@ export const ClientTopbar: React.FC<ClientTopbarProps> = ({
                     <DropdownMenuItem asChild>
                         <Link to={profilePath}>
                             <UserRound aria-hidden="true" />
-                            Profil
+                            {ACCOUNT_MENU_LABEL}
                         </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem variant="destructive" onSelect={onLogout}>

@@ -2,7 +2,7 @@ import type { ElementType } from 'react';
 import { Filter } from 'lucide-react';
 import { STATUS_CONFIG, PRIORITY_CONFIG, NON_SELECTABLE_STATUSES } from '@/lib/constants/ticket.constants';
 import { SearchablePicker } from '@/components/ui/searchable-picker';
-import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
+import { TicketPill, PRIORITY_TONES, STATUS_TONES, type TicketPillTone } from '@/components/ui/ticket-pill';
 
 interface CustomDropdownProps {
     value: string;
@@ -34,14 +34,6 @@ interface PriorityDropdownProps {
     disabled?: boolean;
 }
 
-export const PRIORITY_TONES: Record<string, TicketPillTone> = {
-    LOW: 'neutral', MEDIUM: 'blue', HIGH: 'amber', CRITICAL: 'red',
-    HARDWARE_INSTALLATION: 'amber', ORACLE_REQUEST: 'blue',
-};
-export const STATUS_TONES: Record<string, TicketPillTone> = {
-    TODO: 'blue', IN_PROGRESS: 'navy', WAITING_VENDOR: 'amber', RESOLVED: 'green',
-    CLOSED: 'neutral', CANCELLED: 'red',
-};
 
 /** Option-row adornment: config icon (or dot) in the tone's ink colour. */
 const optionIcon = (Icon: ElementType | null, tone: TicketPillTone = 'neutral') => {

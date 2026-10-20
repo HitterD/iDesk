@@ -8,14 +8,14 @@ import { UserGuidebookModal } from '@/features/client/components/UserGuidebookMo
 import { useMyPermissions } from '@/hooks/usePermissions';
 import { ClientTopbar, type ClientNavItem } from './ClientTopbar';
 import { ClientBottomNav } from './ClientBottomNav';
-import { CLIENT_CREATE_TICKET_PATH } from './createTicketAction';
+import { CLIENT_ROUTES } from '@/config/routes';
 
-const CLIENT_HOME_PATH = '/client/my-tickets';
-const CLIENT_PROFILE_PATH = '/client/profile';
+const CLIENT_HOME_PATH = CLIENT_ROUTES.MY_TICKETS;
+const CLIENT_PROFILE_PATH = CLIENT_ROUTES.PROFILE;
 
 // All possible nav items — items with pageKey are filtered by preset pageAccess
 const ALL_NAV_ITEMS: ClientNavItem[] = [
-    { path: CLIENT_HOME_PATH, label: 'My Tickets', shortLabel: 'Tiket', icon: Ticket },
+    { path: CLIENT_HOME_PATH, label: 'My Tickets', shortLabel: 'Tiket Saya', icon: Ticket },
     { path: '/client/hardware-requests', label: 'Hardware Requests', shortLabel: 'Hardware', icon: MonitorSmartphone, pageKey: 'hardware_requests' },
     { path: '/client/eform-access', label: 'E-Form Access', shortLabel: 'E-Form', icon: FileText, pageKey: 'eform_access' },
     { path: '/client/zoom-calendar', label: 'Zoom Calendar', shortLabel: 'Zoom', icon: Video, pageKey: 'zoom_calendar' },
@@ -92,7 +92,7 @@ export const ClientLayout: React.FC = () => {
                     navItems={navItems}
                     isActive={isActive}
                     homePath={CLIENT_HOME_PATH}
-                    createPath={CLIENT_CREATE_TICKET_PATH}
+                    createPath={CLIENT_ROUTES.CREATE_TICKET}
                     profilePath={CLIENT_PROFILE_PATH}
                     user={user}
                     onLogout={handleLogout}
@@ -142,7 +142,7 @@ export const ClientLayout: React.FC = () => {
                 <ClientBottomNav
                     navItems={navItems}
                     isActive={isActive}
-                    createPath={CLIENT_CREATE_TICKET_PATH}
+                    createPath={CLIENT_ROUTES.CREATE_TICKET}
                     profilePath={CLIENT_PROFILE_PATH}
                 />
             )}

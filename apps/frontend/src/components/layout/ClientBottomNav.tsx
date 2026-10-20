@@ -32,7 +32,7 @@ export const ClientBottomNav: React.FC<ClientBottomNavProps> = ({ navItems, isAc
             <Link
                 key={item.path}
                 to={item.path}
-                aria-label={item.label}
+                title={item.label}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
                     'flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 rounded-xl transition-colors duration-150 touch-target',
