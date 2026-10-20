@@ -56,6 +56,13 @@ const isCrossSiteRole = (role?: string | null) => (CROSS_SITE_ROLES as readonly 
 // SLA warning threshold: 4 hours in milliseconds
 const SLA_WARNING_THRESHOLD_MS = 4 * 60 * 60 * 1000;
 
+/** Statuses never counted overdue: finished, or WAITING_VENDOR (SLA clock paused). */
+const NOT_OVERDUE_STATUSES: readonly string[] = ['RESOLVED', 'CLOSED', 'CANCELLED', 'WAITING_VENDOR'];
+
+/** Overdue for the quick filter and stat card — same rule as the list page's Overdue filter. */
+export const isCountedOverdue = (t: { status: string; isOverdue?: boolean }): boolean =>
+    Boolean(t.isOverdue) && !NOT_OVERDUE_STATUSES.includes(t.status);
+
 interface Message {
     id: string;
     content: string;
@@ -865,7 +872,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
 
         // 2. Quick filter pills
         if (filter === 'my') result = result.filter(t => t.assignedTo?.id === user?.id);
-        if (filter === 'overdue') result = result.filter(t => t.isOverdue);
+        if (filter === 'overdue') result = result.filter(isCountedOverdue);
         if (filter === 'critical') result = result.filter(t => t.priority === 'CRITICAL');
 
         // 3. Site filter
@@ -898,7 +905,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                 if (t.status === 'IN_PROGRESS') acc.inProgress++;
                 const isDone = t.status === 'RESOLVED' || t.status === 'CLOSED';
                 if (isDone) acc.resolved++;
-                if (!isDone && t.status !== 'CANCELLED' && t.isOverdue) acc.overdue++;
+                if (isCountedOverdue(t)) acc.overdue++;
                 if (!isDone && t.status !== 'CANCELLED' && t.priority === 'CRITICAL') acc.critical++;
                 return acc;
             },

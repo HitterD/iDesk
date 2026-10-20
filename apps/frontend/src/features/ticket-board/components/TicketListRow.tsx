@@ -137,6 +137,8 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
     const isCritical = ticket.priority === 'CRITICAL';
     const showCriticalIndicator = isCritical && !isTerminalStatus(ticket.status);
     const showPriorityDot = !isCritical || showCriticalIndicator;
+    // WAITING_VENDOR pauses the SLA clock: show the paused pill, never overdue.
+    const showOverdue = ticket.isOverdue && ticket.status !== 'WAITING_VENDOR';
 
     const statusTakeover = useStatusTakeover();
 
@@ -206,7 +208,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                 index % 2 === 0 ? "bg-white dark:bg-transparent" : "bg-[hsl(var(--background))] dark:bg-slate-800/40",
                 // Subtle hover effect
                 "hover:bg-slate-50 dark:hover:bg-[hsl(var(--muted))]/10 transition-colors relative z-0 hover:z-10",
-                ticket.isOverdue && "!bg-[hsl(var(--error-500))]/5 dark:!bg-[hsl(var(--error-500))]/10",
+                showOverdue && "!bg-[hsl(var(--error-500))]/5 dark:!bg-[hsl(var(--error-500))]/10",
                 isSelected && "!bg-[hsl(var(--primary))]/10 dark:!bg-[hsl(var(--primary))]/10"
             )}
             style={rowStyle}
@@ -274,13 +276,13 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                         )}
 
                         {/* Overdue / Critical Badge */}
-                        {ticket.isOverdue && (
+                        {showOverdue && (
                             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-800/50 animate-pulse">
                                 <AlertTriangle className="w-3 h-3" />
                                 Overdue
                             </span>
                         )}
-                        {showCriticalIndicator && !ticket.isOverdue && (
+                        {showCriticalIndicator && !showOverdue && (
                             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-800/50">
                                 <Flame className="w-3 h-3" />
                                 Critical
@@ -295,7 +297,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                                 <Calendar className="w-3 h-3 text-slate-500" />
                                 <span>{ticket.scheduledTime ? `${formatSmartDate(ticket.scheduledDate)}, ${ticket.scheduledTime}` : formatSmartDate(ticket.scheduledDate)}</span>
                             </span>
-                        ) : ticket.slaTarget && ticket.status !== 'RESOLVED' && !ticket.isOverdue ? (
+                        ) : ticket.slaTarget && ticket.status !== 'RESOLVED' && !showOverdue ? (
                             <div className="text-xs">
                                 <TargetDateCell
                                     slaTarget={ticket.slaTarget}
@@ -462,7 +464,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                                         Partisipan
                                     </span>
                                 )}
-                                {ticket.isOverdue && (
+                                {showOverdue && (
                                     <AlertTriangle className="w-3.5 h-3.5 text-[hsl(var(--error-500))] animate-pulse-red shrink-0" />
                                 )}
                                 {showCriticalIndicator && (

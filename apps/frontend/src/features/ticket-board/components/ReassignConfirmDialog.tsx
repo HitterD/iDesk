@@ -59,6 +59,13 @@ const REASON_PRESETS = [
     { id: 'other', label: 'Lainnya' },
 ];
 
+/** Current-PIC label for bulk takeover: the PIC's name when all conflicts share one, plural label otherwise. */
+const bulkAssigneeLabel = (summary?: TakeoverTicketSummary[]): string | null => {
+    if (!summary?.length) return null;
+    const names = new Set(summary.map((t) => t.assigneeName));
+    return names.size > 1 ? 'Beberapa PIC' : summary[0].assigneeName;
+};
+
 export const ReassignConfirmDialog: React.FC<ReassignConfirmDialogProps> = ({
     isOpen,
     onClose,
@@ -86,7 +93,7 @@ export const ReassignConfirmDialog: React.FC<ReassignConfirmDialogProps> = ({
     const isUnassign = !targetAgent || !targetAgent.id;
     const oldAgent = ticket.assignedTo;
     const isBulk = Boolean(ticketsSummary?.length);
-    const oldAgentLabel = isBulk ? 'Beberapa PIC' : oldAgent?.fullName || 'Belum Ditugaskan';
+    const oldAgentLabel = bulkAssigneeLabel(ticketsSummary) ?? (oldAgent?.fullName || 'Belum Ditugaskan');
 
     const handleConfirm = async () => {
         const presetObj = REASON_PRESETS.find((p) => p.id === selectedPreset);

@@ -149,4 +149,38 @@ describe('ReassignConfirmDialog', () => {
         expect(screen.getByText('201026-GEN-0001')).toBeInTheDocument();
         expect(screen.getByText('Agent B')).toBeInTheDocument();
     });
+
+    it('shows the single PIC name instead of "Beberapa PIC" when bulk has one conflict', () => {
+        const props = {
+            isOpen: true, onClose: vi.fn(), targetAgent: mockTargetAgent, onConfirm: vi.fn(),
+            ticket: { id: 'bulk', ticketNumber: '1 tiket', title: 'Ubah status massal' },
+        };
+        const { rerender } = render(
+            <ReassignConfirmDialog {...props} ticketsSummary={[{ ticketNumber: '201026-GEN-0001', assigneeName: 'Agent A' }]} />
+        );
+        expect(screen.queryByText('Beberapa PIC')).not.toBeInTheDocument();
+        expect(screen.getAllByText('Agent A').length).toBeGreaterThan(0);
+
+        rerender(
+            <ReassignConfirmDialog
+                {...props}
+                ticketsSummary={[
+                    { ticketNumber: '201026-GEN-0001', assigneeName: 'Agent A' },
+                    { ticketNumber: '201026-GEN-0002', assigneeName: 'Agent B' },
+                ]}
+            />
+        );
+        expect(screen.getByText('Beberapa PIC')).toBeInTheDocument();
+
+        rerender(
+            <ReassignConfirmDialog
+                {...props}
+                ticketsSummary={[
+                    { ticketNumber: '201026-GEN-0001', assigneeName: 'Agent A' },
+                    { ticketNumber: '201026-GEN-0003', assigneeName: 'Agent A' },
+                ]}
+            />
+        );
+        expect(screen.queryByText('Beberapa PIC')).not.toBeInTheDocument();
+    });
 });

@@ -86,6 +86,37 @@ describe('TicketListRow paused SLA', () => {
         );
         expect(screen.getAllByText('Paused · sisa 2h 0m')).toHaveLength(2);
     });
+
+    it('shows a WAITING_VENDOR ticket as paused, never overdue, even when the server flags it overdue', () => {
+        const { container } = render(
+            <MemoryRouter>
+                <TicketListRow
+                    ticket={{ ...mockTicket, status: 'WAITING_VENDOR', isOverdue: true, slaTarget: '2026-10-20T05:00:00Z', slaRemainingMinutes: 120 }}
+                    index={0} showSiteColumn={true} canEdit={true} isSelected={false}
+                    agents={mockAgents} onSelect={vi.fn()} onUpdatePriority={vi.fn()}
+                    onUpdateStatus={vi.fn()} onAssign={vi.fn()}
+                />
+            </MemoryRouter>
+        );
+        expect(screen.getAllByText('Paused · sisa 2h 0m')).toHaveLength(2);
+        expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
+        expect(container.querySelectorAll('.lucide-triangle-alert, .lucide-alert-triangle')).toHaveLength(0);
+        expect(container.firstElementChild?.className).not.toContain('error-500');
+    });
+
+    it('still shows overdue for an active non-paused ticket', () => {
+        render(
+            <MemoryRouter>
+                <TicketListRow
+                    ticket={{ ...mockTicket, status: 'IN_PROGRESS', isOverdue: true, slaTarget: '2026-10-20T05:00:00Z' }}
+                    index={0} showSiteColumn={true} canEdit={true} isSelected={false}
+                    agents={mockAgents} onSelect={vi.fn()} onUpdatePriority={vi.fn()}
+                    onUpdateStatus={vi.fn()} onAssign={vi.fn()}
+                />
+            </MemoryRouter>
+        );
+        expect(screen.getByText('Overdue')).toBeInTheDocument();
+    });
 });
 
 describe('TicketListRow critical indicators', () => {

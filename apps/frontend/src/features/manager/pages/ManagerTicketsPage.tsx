@@ -42,6 +42,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { StatsCard } from '@/features/ticket-board/components/StatsCard';
+import { ACTIVE_STATUS_FILTER } from '@/features/ticket-board/constants/statusFilters';
 import { TicketListPagination, PaginationInfo } from '@/features/ticket-board/components/TicketListPagination';
 import { ManagerTicketActivityModal } from '../components/ManagerTicketActivityModal';
 import { useTicketListSocket } from '@/hooks/useTicketSocket';
@@ -250,6 +251,13 @@ export const ManagerTicketsPage: React.FC = () => {
         selectedSites.length > 0
     );
 
+    // The Critical card counts active (unfinished) critical tickets only, so it filters the same set.
+    const isCriticalCardActive = priorityFilter === 'CRITICAL' && statusFilter === ACTIVE_STATUS_FILTER;
+    const toggleCriticalCard = () => {
+        setPriorityFilter(isCriticalCardActive ? 'all' : 'CRITICAL');
+        setStatusFilter(isCriticalCardActive ? 'all' : ACTIVE_STATUS_FILTER);
+    };
+
     // Stats calculations
     const stats = {
         total: statsData?.total ?? meta?.total ?? 0,
@@ -334,8 +342,8 @@ export const ManagerTicketsPage: React.FC = () => {
                     bgColor="bg-red-50 dark:bg-red-950/50"
                     animationIndex={1}
                     isLoading={statsLoading}
-                    onClick={() => setPriorityFilter(priorityFilter === 'CRITICAL' ? 'all' : 'CRITICAL')}
-                    isActive={priorityFilter === 'CRITICAL'}
+                    onClick={toggleCriticalCard}
+                    isActive={isCriticalCardActive}
                 />
 
                 <StatsCard
@@ -441,6 +449,12 @@ export const ManagerTicketsPage: React.FC = () => {
                             </SelectTrigger>
                             <SelectContent className="rounded-xl border-border/80">
                                 <SelectItem value="all">Semua Status</SelectItem>
+                                <SelectItem value={ACTIVE_STATUS_FILTER}>
+                                    <span className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-primary" />
+                                        Aktif
+                                    </span>
+                                </SelectItem>
                                 <SelectItem value="TODO">
                                     <span className="flex items-center gap-2">
                                         <span className="w-2 h-2 rounded-full bg-slate-400" />

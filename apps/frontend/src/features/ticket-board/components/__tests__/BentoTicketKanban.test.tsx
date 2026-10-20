@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { EnhancedKanbanCard } from '../BentoTicketKanban';
+import { EnhancedKanbanCard, isCountedOverdue } from '../BentoTicketKanban';
 
 vi.mock('@/lib/slaCountdown', async (importOriginal) => ({
     ...await importOriginal<typeof import('@/lib/slaCountdown')>(),
@@ -26,5 +26,20 @@ describe('Kanban paused SLA', () => {
         render(<EnhancedKanbanCard ticket={{ ...ticket, slaRemainingMinutes: remaining }} index={0} onSelect={vi.fn()} onQuickAssign={vi.fn()} onOpen={vi.fn()} />);
         expect(screen.getByText(remaining == null ? 'Dijeda' : `Dijeda · sisa ${remaining === 120 ? '2j 0m' : '0m'}`)).toBeInTheDocument();
         expect(screen.queryByText(/Target:|Due soon:|Overdue:/)).not.toBeInTheDocument();
+    });
+});
+
+describe('isCountedOverdue (overdue filter + stat)', () => {
+    it('excludes paused WAITING_VENDOR tickets even when flagged overdue', () => {
+        expect(isCountedOverdue({ status: 'WAITING_VENDOR', isOverdue: true })).toBe(false);
+    });
+
+    it.each(['TODO', 'IN_PROGRESS'] as const)('counts overdue %s tickets', (status) => {
+        expect(isCountedOverdue({ status, isOverdue: true })).toBe(true);
+        expect(isCountedOverdue({ status, isOverdue: false })).toBe(false);
+    });
+
+    it.each(['RESOLVED', 'CLOSED', 'CANCELLED'] as const)('excludes finished %s tickets', (status) => {
+        expect(isCountedOverdue({ status, isOverdue: true })).toBe(false);
     });
 });
