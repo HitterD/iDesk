@@ -300,6 +300,12 @@ export const BentoTicketListPage: React.FC = () => {
         critical: statsData?.critical || 0,
     }), [statsData]);
 
+    const applyCardFilters = (status: string, priority = '', overdue = false) => {
+        setStatusFilter(status);
+        setPriorityFilter(priority);
+        setOverdueFilter(overdue);
+    };
+
     const clearFilters = () => {
         setSearchQuery('');
         setStatusFilter('');
@@ -588,13 +594,13 @@ export const BentoTicketListPage: React.FC = () => {
 
             {/* Stats Cards - Horizontally scrollable snap strip on mobile, grid on tablet/desktop */}
             <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1.5 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-4 lg:grid-cols-7 sm:gap-3 lg:gap-4 snap-x">
-                <StatsCard icon={TrendingUp} label="Total" value={stats.total} color="text-primary dark:text-blue-400" bgColor="bg-[hsl(var(--primary))]/10 dark:bg-[hsl(var(--primary))]/20" animationIndex={0} onClick={() => { setStatusFilter(''); setPriorityFilter(''); setOverdueFilter(false); }} isActive={!statusFilter && !priorityFilter && !overdueFilter} />
-                <StatsCard icon={Inbox} label="Open" value={stats.open} color="text-[hsl(var(--info-500))]" bgColor="bg-[hsl(var(--info-500))]/10" animationIndex={1} onClick={() => setStatusFilter('TODO')} isActive={statusFilter === 'TODO'} />
-                <StatsCard icon={CircleDot} label="In Progress" value={stats.inProgress} color="text-[hsl(var(--warning-500))]" bgColor="bg-[hsl(var(--warning-500))]/10" animationIndex={2} onClick={() => setStatusFilter('IN_PROGRESS')} isActive={statusFilter === 'IN_PROGRESS'} />
-                <StatsCard icon={Hourglass} label="Waiting Vendor" value={stats.waitingVendor} color="text-amber-600 dark:text-amber-400" bgColor="bg-amber-500/10" animationIndex={3} onClick={() => setStatusFilter('WAITING_VENDOR')} isActive={statusFilter === 'WAITING_VENDOR'} />
-                <StatsCard icon={CheckCircle2} label="Resolved" value={stats.resolved} color="text-[hsl(var(--success-500))]" bgColor="bg-[hsl(var(--success-500))]/10" animationIndex={4} onClick={() => setStatusFilter(DONE_STATUS_FILTER)} isActive={statusFilter === DONE_STATUS_FILTER} />
-                <StatsCard icon={AlertTriangle} label="Overdue" value={stats.overdue} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={5} onClick={() => { setOverdueFilter(value => !value); setStatusFilter(''); }} isActive={overdueFilter} />
-                <StatsCard icon={Flame} label="Critical" value={stats.critical} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={6} onClick={() => { setPriorityFilter('CRITICAL'); setStatusFilter(ACTIVE_STATUS_FILTER); }} isActive={priorityFilter === 'CRITICAL' && statusFilter === ACTIVE_STATUS_FILTER} />
+                <StatsCard icon={TrendingUp} label="Total" value={stats.total} color="text-primary dark:text-blue-400" bgColor="bg-[hsl(var(--primary))]/10 dark:bg-[hsl(var(--primary))]/20" animationIndex={0} onClick={() => applyCardFilters('')} isActive={!statusFilter && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={Inbox} label="Open" value={stats.open} color="text-[hsl(var(--info-500))]" bgColor="bg-[hsl(var(--info-500))]/10" animationIndex={1} onClick={() => applyCardFilters('TODO')} isActive={statusFilter === 'TODO' && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={CircleDot} label="In Progress" value={stats.inProgress} color="text-[hsl(var(--warning-500))]" bgColor="bg-[hsl(var(--warning-500))]/10" animationIndex={2} onClick={() => applyCardFilters('IN_PROGRESS')} isActive={statusFilter === 'IN_PROGRESS' && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={Hourglass} label="Waiting Vendor" value={stats.waitingVendor} color="text-amber-600 dark:text-amber-400" bgColor="bg-amber-500/10" animationIndex={3} onClick={() => applyCardFilters('WAITING_VENDOR')} isActive={statusFilter === 'WAITING_VENDOR' && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={CheckCircle2} label="Resolved" value={stats.resolved} color="text-[hsl(var(--success-500))]" bgColor="bg-[hsl(var(--success-500))]/10" animationIndex={4} onClick={() => applyCardFilters(DONE_STATUS_FILTER)} isActive={statusFilter === DONE_STATUS_FILTER && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={AlertTriangle} label="Overdue" value={stats.overdue} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={5} onClick={() => applyCardFilters('', '', !overdueFilter)} isActive={overdueFilter && !statusFilter && !priorityFilter} />
+                <StatsCard icon={Flame} label="Critical" value={stats.critical} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={6} onClick={() => applyCardFilters(ACTIVE_STATUS_FILTER, 'CRITICAL')} isActive={priorityFilter === 'CRITICAL' && statusFilter === ACTIVE_STATUS_FILTER && !overdueFilter} />
             </div>
 
             {/* Search & Filters */}

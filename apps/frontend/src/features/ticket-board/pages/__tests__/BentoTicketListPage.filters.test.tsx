@@ -84,6 +84,39 @@ describe('IT Support stat card filters', () => {
         expect(latestParams().has('overdue')).toBe(false);
     });
 
+    it.each([
+        ['Open', 'TODO'],
+        ['In Progress', 'IN_PROGRESS'],
+        ['Waiting Vendor', 'WAITING_VENDOR'],
+        ['Resolved', 'RESOLVED,CLOSED'],
+    ])('selecting %s clears previous Critical and Overdue constraints', async (label, status) => {
+        renderPage();
+        await clickCard('Critical');
+        await clickCard(label);
+        await waitFor(() => expect(latestParams().get('status')).toBe(status));
+        expect(latestParams().has('priority')).toBe(false);
+        await clickCard('Overdue');
+        await clickCard(label);
+        await waitFor(() => expect(latestParams().get('status')).toBe(status));
+        expect(latestParams().has('overdue')).toBe(false);
+        expect(latestParams().has('priority')).toBe(false);
+        expect(screen.getAllByText(label, { exact: true })[0].closest('[role="button"]'))
+            .toHaveClass('border-primary/40');
+    });
+
+    it('switches Overdue to Critical and Critical to Overdue without leftover filters', async () => {
+        renderPage();
+        await clickCard('Overdue');
+        await clickCard('Critical');
+        await waitFor(() => expect(latestParams().get('priority')).toBe('CRITICAL'));
+        expect(latestParams().get('status')).toBe('TODO,IN_PROGRESS,WAITING_VENDOR');
+        expect(latestParams().has('overdue')).toBe(false);
+        await clickCard('Overdue');
+        await waitFor(() => expect(latestParams().get('overdue')).toBe('true'));
+        expect(latestParams().has('priority')).toBe(false);
+        expect(latestParams().has('status')).toBe(false);
+    });
+
     it('keeps the URL view toggle working after a composite filter', async () => {
         renderPage();
         await clickCard('Critical');
