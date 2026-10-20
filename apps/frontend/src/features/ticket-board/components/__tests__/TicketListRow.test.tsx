@@ -78,6 +78,32 @@ describe('TicketListRow queue presentation contract', () => {
         </MemoryRouter>
     );
 
+    it('selects a card row without navigating to the ticket', () => {
+        const onSelect = vi.fn();
+        render(<MemoryRouter><TicketListRow ticket={mockTicket} index={0} showSiteColumn canEdit
+            isSelected={false} agents={mockAgents} onSelect={onSelect}
+            onUpdatePriority={vi.fn()} onUpdateStatus={vi.fn()} onAssign={vi.fn()} /></MemoryRouter>);
+        mockNavigate.mockClear();
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Pilih tiket 190826-GEN-0005' }));
+        expect(onSelect).toHaveBeenCalledWith('ticket-1', true);
+        expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    it('keeps readonly roles free of selection and editor controls', () => {
+        renderRow(mockTicket, false);
+        expect(screen.queryByRole('checkbox')).toBeNull();
+        expect(screen.queryByRole('button', { name: /Ganti PIC|Prioritas:|Status:/ })).toBeNull();
+        expect(screen.getAllByText('Open')).toHaveLength(2);
+    });
+
+    it('locks only status for CLOSED while keeping permitted priority and PIC editors', () => {
+        renderRow({ ...mockTicket, status: 'CLOSED' });
+        expect(screen.queryByRole('button', { name: /Status:/ })).toBeNull();
+        expect(screen.getAllByRole('button', { name: /Prioritas:/ })).toHaveLength(2);
+        expect(screen.getAllByRole('button', { name: /Ganti PIC/ })).toHaveLength(2);
+        expect(screen.getAllByText('Closed')).toHaveLength(2);
+    });
+
     it('presents editable PIC as named bubbles with carets, keeping real photographs', () => {
         const { container } = renderRow({ ...mockTicket,
             user: { ...mockTicket.user, avatarUrl: '/requester.jpg' },

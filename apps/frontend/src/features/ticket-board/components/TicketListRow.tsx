@@ -215,6 +215,13 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                 {/* Mobile Top Row: Ticket ID, Badges, SLA & Date */}
                 <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                        {canEdit && <StopPropagationWrapper>
+                            <label className="inline-flex items-center justify-center size-9 cursor-pointer">
+                                <input type="checkbox" className="size-4 accent-primary"
+                                    aria-label={`Pilih tiket ${ticket.ticketNumber || ticket.id.slice(0, 8)}`}
+                                    checked={isSelected} onChange={(event) => onSelect(ticket.id, event.target.checked)} />
+                            </label>
+                        </StopPropagationWrapper>}
                         {/* Priority Dot */}
                         {showPriorityDot && (
                             <span className={cn("w-2 h-2 rounded-full shrink-0", priorityConfig.dot || priorityConfig.barColor)} aria-hidden="true" />

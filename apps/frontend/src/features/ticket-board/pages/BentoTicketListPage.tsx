@@ -1,3 +1,4 @@
+import { QueueCardToolbar } from '../components/QueueCardToolbar';
 import { Ticket as TicketIcon } from 'lucide-react';
 import { QueueHeader } from '../components/QueueHeader';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
@@ -664,6 +665,9 @@ export const BentoTicketListPage: React.FC = () => {
                         <span className="sr-only">Loading tickets...</span>
                     </div>
                 )}
+                <QueueCardToolbar sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort}
+                    canEdit={canEdit} ticketCount={filteredTickets.length} isAllSelected={isAllSelected}
+                    isIndeterminate={isIndeterminate} onSelectAll={handleSelectAll} />
                 {filteredTickets.length === 0 && !isFetching ? (
                     <div className="p-12 text-center" role="status" aria-live="polite">
                         <Inbox className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" aria-hidden="true" />

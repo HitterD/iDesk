@@ -529,6 +529,7 @@ textarea:focus {
 .queue-row-flagged::before { content: ''; position: absolute; left: 4px; top: 14px; bottom: 14px; width: 3px; border-radius: 3px; background: hsl(var(--ticket-red)); }
 .queue-grid { display: none; }
 .queue-mobile-row { display: block; }
+.queue-card-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 14px; border-bottom: 1px solid hsl(var(--idesk-border)); }
 .queue-mobile-row .ticket-pill { min-height: 36px; }
 @media (min-width: 640px) { .queue-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (min-width: 1280px) {
@@ -542,7 +543,7 @@ textarea:focus {
   .queue-thead { min-height: 38px; border-bottom: 1px solid hsl(var(--idesk-border)); color: hsl(var(--idesk-text-secondary)); font-size: 11.5px; font-weight: 500; }
   .queue-desktop-row { min-height: 64px; }
   .queue-desktop-row h3 { font-size: 13.5px; font-weight: 550; }
-  .queue-mobile-row { display: none; }
+  .queue-mobile-row, .queue-card-toolbar { display: none; }
 }
 
 /* Soft tinted stat cards (tone set via .ticket-tone-*). */

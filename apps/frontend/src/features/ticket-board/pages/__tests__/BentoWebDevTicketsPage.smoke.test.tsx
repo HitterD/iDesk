@@ -72,6 +72,23 @@ describe('BentoWebDevTicketsPage', () => {
         expect(screen.getByTitle('Kanban Board')).toBeInTheDocument();
     });
 
+    it('card sort and select-all/row selection drive the existing queue state', () => {
+        const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        render(<QueryClientProvider client={qc}><MemoryRouter><BentoWebDevTicketsPage /></MemoryRouter></QueryClientProvider>);
+        fireEvent.change(screen.getByLabelText('Urutkan tiket'), { target: { value: 'priority' } });
+        expect(useWebDevTicketsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ sortBy: 'priority', sortOrder: 'DESC' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Ubah arah urutan: menurun' }));
+        expect(useWebDevTicketsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ sortBy: 'priority', sortOrder: 'ASC' }));
+        const all = screen.getByRole('checkbox', { name: 'Pilih semua tiket di halaman ini' });
+        const row = screen.getByRole('checkbox', { name: 'Pilih tiket W-101' });
+        fireEvent.click(all);
+        expect(row).toBeChecked();
+        fireEvent.click(row);
+        expect(all).not.toBeChecked();
+        fireEvent.click(row);
+        expect(all).toBeChecked();
+    });
+
     it('renders Kanban board when ?view=kanban query param is set', async () => {
         const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
         render(
