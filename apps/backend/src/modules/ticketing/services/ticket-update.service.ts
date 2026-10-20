@@ -25,8 +25,8 @@ import { ModuleAssignmentPolicyService } from './module-assignment-policy.servic
 import { computeResolutionDeadline, TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService } from './sla-clock.service';
 import {
-    AppliedTakeover, TakeoverEffectDeps, TakeoverOptions, applyTakeoverDecision, decideBulkTakeovers,
-    decideStatusTakeover, describeReassignment, recordStatusTakeover,
+    AppliedTakeover, ModuleEligibility, TakeoverEffectDeps, TakeoverOptions, applyTakeoverDecision, decideBulkTakeovers,
+    describeReassignment, ineligibleAssigneeMessage, recordStatusTakeover, resolveStatusTakeover,
 } from './status-takeover';
 
 const AGENT_CLOSE_FORBIDDEN_MESSAGE = 'Status CLOSED hanya bisa diberikan oleh pemohon (konfirmasi) atau otomatis setelah batas waktu konfirmasi.';
@@ -97,7 +97,7 @@ export class TicketUpdateService {
             const oldStatus = ticket.status;
             // Throws 409 before anything is written when a non-PIC starts the ticket unconfirmed.
             const decision = updateData.status
-                ? decideStatusTakeover(ticket, updateData.status, oldStatus, user, takeoverOpts)
+                ? await resolveStatusTakeover(ticket, updateData.status, oldStatus, user, takeoverOpts, this.moduleEligibilityOf(user))
                 : null;
 
             if (updateData.status && updateData.status !== ticket.status) {
@@ -123,7 +123,17 @@ export class TicketUpdateService {
     }
 
     private get takeoverDeps(): TakeoverEffectDeps {
-        return { auditService: this.auditService, workloadService: this.workloadService, eventEmitter: this.eventEmitter, logger: this.logger };
+        return { auditService: this.auditService, workloadService: this.workloadService, logger: this.logger };
+    }
+
+    /** Module curated-list check for `user` becoming PIC, shared with assignTicket's rule and message. */
+    private moduleEligibilityOf(user: User): ModuleEligibility {
+        return {
+            isEligible: (ticket) => this.assignmentPolicy.isUserEligible(this.assignmentPolicy.toAssignable(ticket), user.id),
+            denialMessage: async (ticket) => ineligibleAssigneeMessage(
+                user.fullName, await this.assignmentPolicy.describeModule(this.assignmentPolicy.toAssignable(ticket)),
+            ),
+        };
     }
 
     private async applyStatusTransition(
@@ -405,9 +415,7 @@ export class TicketUpdateService {
         const eligible = await this.assignmentPolicy.isUserEligible(assignable, assignee.id);
         if (!eligible) {
             const moduleName = await this.assignmentPolicy.describeModule(assignable);
-            throw new ForbiddenException(
-                `${assignee.fullName} tidak terdaftar sebagai agent yang dapat ditugaskan di ${moduleName}`,
-            );
+            throw new ForbiddenException(ineligibleAssigneeMessage(assignee.fullName, moduleName));
         }
 
         const assigner = await this.userRepo.findOne({ where: { id: userId } });
@@ -629,7 +637,7 @@ export class TicketUpdateService {
             }
         }
 
-        const takeoverPlan = decideBulkTakeovers(tickets, updateData, user);
+        const takeoverPlan = await decideBulkTakeovers(tickets, updateData, user, this.moduleEligibilityOf(user));
         const takeovers = new Map<string, AppliedTakeover>();
         const updated: string[] = [];
         const failed: string[] = [];

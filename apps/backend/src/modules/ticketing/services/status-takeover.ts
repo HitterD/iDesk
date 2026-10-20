@@ -1,10 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
-import type { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import type { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { TICKET_AGENT_ROLES } from '../ticket-roles.constants';
-import { TicketAssignedEvent } from '../events/ticket-assigned.event';
 import type { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import type { WorkloadService } from '../../workload/workload.service';
@@ -68,43 +66,99 @@ export function decideStatusTakeover(
     });
 }
 
+/**
+ * A module's curated agent list binds status-driven ownership the same way it
+ * binds manual assignment (assignTicket). Implemented by the caller with the
+ * ModuleAssignmentPolicyService.
+ */
+export interface ModuleEligibility {
+    isEligible(ticket: Ticket): Promise<boolean>;
+    /** The 403 message assignTicket uses for an ineligible assignee. */
+    denialMessage(ticket: Ticket): Promise<string>;
+}
+
+export function ineligibleAssigneeMessage(assigneeName: string, moduleName: string): string {
+    return `${assigneeName} tidak terdaftar sebagai agent yang dapat ditugaskan di ${moduleName}`;
+}
+
+/**
+ * decideStatusTakeover plus module eligibility: an ineligible actor starting an
+ * unassigned ticket just changes its status; taking over (confirmed or not —
+ * asking to confirm something they may not do is pointless) is a 403.
+ */
+export async function resolveStatusTakeover(
+    ticket: Ticket, newStatus: TicketStatus, oldStatus: TicketStatus,
+    actor: { id: string; role: string }, opts: TakeoverOptions, eligibility: ModuleEligibility,
+): Promise<TakeoverDecision> {
+    let decision: TakeoverDecision;
+    try {
+        decision = decideStatusTakeover(ticket, newStatus, oldStatus, actor, opts);
+    } catch (error) {
+        if (isConfirmationConflict(error) && !(await eligibility.isEligible(ticket))) {
+            throw new ForbiddenException(await eligibility.denialMessage(ticket));
+        }
+        throw error;
+    }
+    if (!makesActorPic(decision) || await eligibility.isEligible(ticket)) return decision;
+    if (decision.kind === 'autoAssign') return NONE;
+    throw new ForbiddenException(await eligibility.denialMessage(ticket));
+}
+
 export interface BulkTakeoverPlan {
     decisions: Map<string, TakeoverDecision>;
-    /** Tickets the actor would become PIC of but whose team they may not handle; the bulk loop fails them. */
+    /** Tickets the actor would become PIC of but may not handle (team or module list); the bulk loop fails them. */
     denied: Set<string>;
 }
+
+type BulkConflict = { id: string; ticketNumber: string; currentAssignee: AssigneeSummary };
 
 /**
  * Bulk IN_PROGRESS runs the same PIC rule per ticket before the transaction;
  * unconfirmed conflicts are reported together as one 409. An explicit bulk
  * assignee already states who owns the tickets, so no takeover applies.
- * Becoming PIC needs the same team/role access as manual assignment
- * (single updates already enforce it via validateTicketAccess).
+ * Becoming PIC needs the same team/role access and module eligibility as
+ * manual assignment (single updates enforce it via validateTicketAccess and
+ * resolveStatusTakeover).
  */
-export function decideBulkTakeovers(
-    tickets: Ticket[], update: { status?: TicketStatus; assigneeId?: string } & TakeoverOptions, actor: { id: string; role: string },
-): BulkTakeoverPlan {
+export async function decideBulkTakeovers(
+    tickets: Ticket[], update: { status?: TicketStatus; assigneeId?: string } & TakeoverOptions,
+    actor: { id: string; role: string }, eligibility: ModuleEligibility,
+): Promise<BulkTakeoverPlan> {
     const plan: BulkTakeoverPlan = { decisions: new Map(), denied: new Set() };
     if (update.status !== TicketStatus.IN_PROGRESS || update.assigneeId) return plan;
 
-    const conflicts: { id: string; ticketNumber: string; currentAssignee: AssigneeSummary }[] = [];
+    const conflicts: BulkConflict[] = [];
     for (const ticket of tickets) {
         if (TICKET_INACTIVE_STATUSES.includes(ticket.status)) continue; // the bulk loop rejects these anyway
-        const canHandle = canAccessTicketObject(actor, ticket);
-        try {
-            const decision = decideStatusTakeover(ticket, update.status, ticket.status, actor, update);
-            if (!canHandle && makesActorPic(decision)) plan.denied.add(ticket.id);
-            else plan.decisions.set(ticket.id, decision);
-        } catch (error) {
-            if (!isConfirmationConflict(error)) throw error;
-            if (!canHandle) plan.denied.add(ticket.id);
-            else conflicts.push({ id: ticket.id, ticketNumber: ticket.ticketNumber, currentAssignee: currentAssigneeOf(ticket) });
-        }
+        const decision = decideOrConflict(ticket, update.status, actor, update);
+        const wouldBecomePic = decision === CONFLICT || makesActorPic(decision);
+        const canHandle = !wouldBecomePic
+            || (canAccessTicketObject(actor, ticket) && await eligibility.isEligible(ticket));
+
+        if (canHandle && decision === CONFLICT) conflicts.push({ id: ticket.id, ticketNumber: ticket.ticketNumber, currentAssignee: currentAssigneeOf(ticket) });
+        else if (canHandle) plan.decisions.set(ticket.id, decision as TakeoverDecision);
+        // Module-ineligible auto-assign still starts the ticket, just without a PIC (as single updates do).
+        else if (decision !== CONFLICT && decision.kind === 'autoAssign' && canAccessTicketObject(actor, ticket)) plan.decisions.set(ticket.id, NONE);
+        else plan.denied.add(ticket.id);
     }
     if (conflicts.length > 0) {
         throw new ConflictException({ code: REASSIGN_CONFIRMATION_REQUIRED, message: REASSIGN_CONFIRMATION_MESSAGE, tickets: conflicts });
     }
     return plan;
+}
+
+const CONFLICT = 'conflict' as const;
+
+/** The per-ticket decision, with an unconfirmed takeover reported as CONFLICT instead of thrown. */
+function decideOrConflict(
+    ticket: Ticket, status: TicketStatus, actor: { id: string; role: string }, opts: TakeoverOptions,
+): TakeoverDecision | typeof CONFLICT {
+    try {
+        return decideStatusTakeover(ticket, status, ticket.status, actor, opts);
+    } catch (error) {
+        if (!isConfirmationConflict(error)) throw error;
+        return CONFLICT;
+    }
 }
 
 function makesActorPic(decision: TakeoverDecision): boolean {
@@ -156,14 +210,14 @@ export function applyTakeoverDecision(
 export interface TakeoverEffectDeps {
     auditService: AuditService;
     workloadService: WorkloadService;
-    eventEmitter: EventEmitter2;
     logger: Logger;
 }
 
 /**
  * Post-commit side-effects of a status-driven (re)assignment: audit, the
  * previous PIC's workload (the new PIC's is recalculated by the caller's
- * usual post-update path), and the ticket.assigned domain event.
+ * usual post-update path). No ticket.assigned event: the new PIC is always the
+ * actor, who should not be notified "assigned to you" by themselves.
  */
 export async function recordStatusTakeover(
     deps: TakeoverEffectDeps, ticket: Ticket, actor: User, previous: AssigneeSummary | null, reason: string | null,
@@ -187,10 +241,4 @@ export async function recordStatusTakeover(
             deps.logger.error(`Failed to recalculate workload for previous PIC of ticket ${ticket.ticketNumber}: ${err.message}`);
         }
     }
-
-    deps.eventEmitter.emit('ticket.assigned', new TicketAssignedEvent(
-        ticket.id, ticket.ticketNumber || ticket.id.split('-')[0],
-        actor.id, actor.fullName, actor.email, actor.fullName,
-        ticket.title, ticket.status, ticket.user?.email, ticket.user?.fullName,
-    ));
 }

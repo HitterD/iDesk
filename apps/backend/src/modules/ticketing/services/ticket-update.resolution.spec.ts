@@ -55,7 +55,7 @@ describe('TicketUpdateService — resolution confirmation', () => {
                 })),
             } as any,
             { recalculateAgentWorkload: jest.fn() } as any,
-            {} as any, createTestSlaClock(),
+            { toAssignable: jest.fn((t: any) => t), isUserEligible: jest.fn().mockResolvedValue(true) } as any, createTestSlaClock(),
         );
     });
 

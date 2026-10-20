@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { TicketStatus } from '../entities/ticket.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
-import { decideStatusTakeover, REASSIGN_CONFIRMATION_REQUIRED } from './status-takeover';
+import { decideStatusTakeover, resolveStatusTakeover, REASSIGN_CONFIRMATION_REQUIRED } from './status-takeover';
 
 describe('decideStatusTakeover', () => {
     const pic = { id: 'agent-a', fullName: 'Agent A' };
@@ -62,5 +62,42 @@ describe('decideStatusTakeover', () => {
     it('throws 403 for AGENT with keepAssignee', () => {
         expect(() => start(assigned, { id: 'agent-b', role: UserRole.AGENT }, { keepAssignee: true }))
             .toThrow(ForbiddenException);
+    });
+});
+
+describe('resolveStatusTakeover — module eligibility', () => {
+    const pic = { id: 'agent-a', fullName: 'Agent A' };
+    const assigned: any = { assignedToId: pic.id, assignedTo: pic };
+    const unassigned: any = { assignedToId: null, assignedTo: null };
+    const agentB = { id: 'agent-b', role: UserRole.AGENT_OPERATIONAL_SUPPORT };
+    const eligibility = (eligible: boolean) => ({
+        isEligible: jest.fn().mockResolvedValue(eligible),
+        denialMessage: jest.fn().mockResolvedValue('Agent B tidak terdaftar sebagai agent yang dapat ditugaskan di Modul X'),
+    });
+    const start = (ticket: any, opts: any, elig: any) =>
+        resolveStatusTakeover(ticket, TicketStatus.IN_PROGRESS, TicketStatus.TODO, agentB, opts, elig);
+
+    it('downgrades autoAssign to none when the actor is not in the module list', async () => {
+        await expect(start(unassigned, {}, eligibility(false))).resolves.toEqual({ kind: 'none' });
+        await expect(start(unassigned, {}, eligibility(true))).resolves.toEqual({ kind: 'autoAssign' });
+    });
+
+    it('rejects a confirmed takeover by an ineligible actor with 403 and the assignTicket message', async () => {
+        const result = start(assigned, { takeover: true, reason: 'PIC cuti' }, eligibility(false));
+        await expect(result).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(result).rejects.toThrow('Agent B tidak terdaftar sebagai agent yang dapat ditugaskan di Modul X');
+    });
+
+    it('rejects an unconfirmed takeover by an ineligible actor with 403 instead of 409', async () => {
+        await expect(start(assigned, {}, eligibility(false))).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(start(assigned, {}, eligibility(true))).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('does not consult eligibility when the actor does not become PIC', async () => {
+        const elig = eligibility(false);
+        await expect(start(assigned, { keepAssignee: true }, elig)).rejects.toBeInstanceOf(ForbiddenException); // AGENT may not keep
+        await expect(resolveStatusTakeover(assigned, TicketStatus.IN_PROGRESS, TicketStatus.TODO,
+            { id: 'admin-1', role: UserRole.ADMIN }, { keepAssignee: true }, elig)).resolves.toEqual({ kind: 'keep' });
+        expect(elig.isEligible).not.toHaveBeenCalled();
     });
 });
