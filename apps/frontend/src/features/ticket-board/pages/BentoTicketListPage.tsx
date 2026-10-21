@@ -1,6 +1,8 @@
 import { QueueCardToolbar } from '../components/QueueCardToolbar';
 import { Ticket as TicketIcon } from 'lucide-react';
 import { QueueHeader } from '../components/QueueHeader';
+import { QueueFilterBar, PRIORITY_FILTER_OPTIONS } from '../components/QueueFilterBar';
+import { QueueTableHeader } from '../components/QueueTableHeader';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import {
@@ -8,13 +10,11 @@ import {
     TableProperties,
     UserCheck,
     FilePen,
-    Search,
     AlertTriangle,
     CheckCircle2,
     CircleDot,
     Hourglass,
     MessageSquare,
-    X,
     ChevronRight,
     ChevronLeft,
     ChevronsLeft,
@@ -55,8 +55,8 @@ import type { Ticket as ApiTicket } from '@/lib/api/types';
 import { StatsCard } from '../components/StatsCard';
 import { CustomDropdown, PriorityDropdown, StatusDropdown } from '../components/TicketDropdowns';
 import { TargetDateCell } from '../components/TargetDateCell';
-import { SortableHeader, SortField, SortOrder } from '../components/SortableHeader';
-import { BulkActionsBar, SelectCheckbox } from '../components/BulkActionsBar';
+import type { SortField, SortOrder } from '../components/SortableHeader';
+import { BulkActionsBar } from '../components/BulkActionsBar';
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
 import { MergeTicketsModal } from '../components/MergeTicketsModal';
 import { SecondaryFiltersMenu } from '../components/SecondaryFiltersMenu';
@@ -525,50 +525,16 @@ export const BentoTicketListPage: React.FC = () => {
             </div>
 
             {/* Search & Filters */}
-            <div
-                className="queue-filters"
-                role="search"
-                aria-label="Ticket search and filters"
-            >
-                <div className="relative flex-1 bg-muted/40 rounded-xl transition-all focus-within:ring-1 focus-within:ring-primary focus-within:bg-background border border-transparent focus-within:border-primary/50">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
-                    <input
-                        type="search"
-                        id="ticket-search"
-                        name="search"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search tickets by title, number, or requester..."
-                        aria-label="Search tickets"
-                        aria-describedby="search-hint"
-                        autoComplete="off"
-                        className="w-full pl-10 pr-10 py-2.5 bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground text-sm font-medium"
-                    />
-                    {searchQuery && (
-                        <button
-                            type="button"
-                            onClick={() => setSearchQuery('')}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground rounded transition-colors cursor-pointer"
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
-                    )}
-                    <span id="search-hint" className="sr-only">
-                        Type to search tickets. Results will update automatically.
-                    </span>
-                </div>
-
-                <div className="w-px h-8 bg-border hidden lg:block mx-1" />
+            <QueueFilterBar id="ticket-search" search={searchQuery} onSearch={setSearchQuery}>
 
 
-                {/* Primary Filters - Horizontal row */}
-                <div className="flex items-center flex-wrap gap-2 min-w-0">
+                
                     <CustomDropdown
                         value={statusFilter}
                         onChange={(val) => setStatusFilter(val === "ALL" ? "" : val)}
-                        placeholder="All Status"
+                        placeholder="Semua" filterKey="Status"
                         options={[
-                            { value: 'ALL', label: 'All Status' },
+                            { value: 'ALL', label: 'Semua' },
                             { value: 'TODO', label: 'Open' },
                             { value: 'IN_PROGRESS', label: 'In Progress' },
                             { value: 'WAITING_VENDOR', label: 'Waiting Vendor' },
@@ -582,15 +548,9 @@ export const BentoTicketListPage: React.FC = () => {
                     <CustomDropdown
                         value={priorityFilter}
                         onChange={(val) => setPriorityFilter(val === "ALL" ? "" : val)}
-                        placeholder="All Priority"
+                        placeholder="Semua" filterKey="Prioritas"
                         icon={AlertTriangle}
-                        options={[
-                            { value: 'ALL', label: 'All Priority' },
-                            { value: 'LOW', label: 'Low (Minor/Cosmetic)' },
-                            { value: 'MEDIUM', label: 'Normal (Moderate)' },
-                            { value: 'HIGH', label: 'Urgent (Major Impact)' },
-                            { value: 'CRITICAL', label: 'Blocker (Critical)' },
-                        ]}
+                        options={PRIORITY_FILTER_OPTIONS}
                     />
 
                     {/* Site Selector - cross-site roles only */}
@@ -599,11 +559,11 @@ export const BentoTicketListPage: React.FC = () => {
                             selectedSiteIds={selectedSites}
                             onSelectionChange={setSelectedSites}
                             mode="multi"
-                            className="h-10"
+                            variant="pop"
                         />
                     )}
 
-                    <div className="w-[1px] h-6 bg-border mx-1 hidden sm:block" />
+                    <span className="queue-filters-spacer" aria-hidden="true" />
 
                     {/* Secondary Filters Menu - Saved Filters, Export */}
                     <SecondaryFiltersMenu
@@ -625,9 +585,7 @@ export const BentoTicketListPage: React.FC = () => {
                         hasActiveFilters={hasActiveFilters}
                         onClearFilters={clearFilters}
                     />
-                </div>
-
-            </div>
+                </QueueFilterBar>
 
             {/* Active Filter Chips - P3 MEDIUM: Removable filter badges */}
             <TicketListActiveFilters
@@ -673,64 +631,9 @@ export const BentoTicketListPage: React.FC = () => {
                     </div>
                 ) : (
                     <>
-                        {/* Table Header */}
-                        <div
-                            className={cn(
-                                "queue-grid queue-thead",
-                                showSiteColumn
-                                    ? "queue-grid-sites"
-                                    : "queue-grid-default"
-                            )}
-                            role="row"
-                            aria-label="Table headers"
-                        >
-                            {/* Checkbox column */}
-                            {canEdit ? (
-                                <SelectCheckbox
-                                    cell
-                                    label="Pilih semua tiket yang tampil"
-                                    checked={isAllSelected}
-                                    indeterminate={isIndeterminate}
-                                    onChange={handleSelectAll}
-                                />
-                            ) : <span aria-hidden="true" />}
-                            <SortableHeader
-                                label="Ticket"
-                                field="title"
-                                currentSortBy={sortBy}
-                                currentSortOrder={sortOrder}
-                                onSort={handleSort}
-                                className=""
-                            />
-                            <SortableHeader
-                                label="Priority"
-                                field="priority"
-                                currentSortBy={sortBy}
-                                currentSortOrder={sortOrder}
-                                onSort={handleSort}
-                                className=""
-                            />
-                            {showSiteColumn && <div className="">Site</div>}
-                            <SortableHeader
-                                label="Status"
-                                field="status"
-                                currentSortBy={sortBy}
-                                currentSortOrder={sortOrder}
-                                onSort={handleSort}
-                                className=""
-                            />
-                            <div className="">Requester</div>
-                            <div className="">Assigned To</div>
-                            <div className="">Target Date</div>
-                            <SortableHeader
-                                label="Created"
-                                field="createdAt"
-                                currentSortBy={sortBy}
-                                currentSortOrder={sortOrder}
-                                onSort={handleSort}
-                                className=""
-                            />
-                        </div>
+                        <QueueTableHeader showSiteColumn={showSiteColumn} canEdit={canEdit}
+                            isAllSelected={isAllSelected} isIndeterminate={isIndeterminate} onSelectAll={handleSelectAll}
+                            sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
 
                         <VirtualizedTicketList
                             tickets={filteredTickets}
@@ -759,7 +662,7 @@ export const BentoTicketListPage: React.FC = () => {
                             {
                                 !paginationInfo.showPagination && filteredTickets.length > 0 && (
                                     <div className="text-center text-sm text-slate-400 mt-4">
-                                        Showing {filteredTickets.length} of {paginationInfo.totalItems || tickets.length} tickets
+                                        Menampilkan {filteredTickets.length} dari {paginationInfo.totalItems || tickets.length} tiket
                                     </div>
                                 )
                             }

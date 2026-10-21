@@ -21,6 +21,8 @@ interface SiteSelectorProps {
     mode?: 'single' | 'multi';
     className?: string;
     disabled?: boolean;
+    /** Mockup filter pop ("Site Semua"): no icon, key + value. Empty selection reads "Semua". */
+    variant?: 'default' | 'pop';
 }
 
 const SITE_TONES: Record<string, TicketPillTone> = {
@@ -33,6 +35,7 @@ export const SiteSelector = ({
     mode = 'multi',
     className,
     disabled = false,
+    variant = 'default',
 }: SiteSelectorProps) => {
     const [open, setOpen] = useState(false);
     const {
@@ -125,12 +128,18 @@ export const SiteSelector = ({
         <Popover open={open && !disabled} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <button type="button" disabled={disabled} aria-label={`Filter Site: ${getSelectedLabel()}`}
-                    className={cn('ticket-pill ticket-tone-neutral picker-trigger min-h-9 min-w-[140px]', className)}
+                    className={cn(variant === 'pop' ? 'ticket-pill ticket-tone-neutral picker-trigger queue-pop'
+                        : 'ticket-pill ticket-tone-neutral picker-trigger min-h-9 min-w-[140px]', className)}
                     onKeyDown={event => {
                         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setOpen(true); }
                     }}>
-                    <Building2 aria-hidden="true" className="h-4 w-4 shrink-0" />
-                    <span className="min-w-0 truncate">{getSelectedLabel()}</span>
+                    {variant === 'pop' ? <>
+                        <span className="queue-pop-k">Site</span>
+                        <span className="queue-pop-v">{selectedSiteIds.length === 0 ? 'Semua' : getSelectedLabel()}</span>
+                    </> : <>
+                        <Building2 aria-hidden="true" className="h-4 w-4 shrink-0" />
+                        <span className="min-w-0 truncate">{getSelectedLabel()}</span>
+                    </>}
                     <ChevronDown aria-hidden="true" className="h-3 w-3 shrink-0 opacity-60" />
                 </button>
             </PopoverTrigger>

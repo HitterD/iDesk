@@ -86,7 +86,7 @@ describe('BentoOracleK2TicketsPage', () => {
         expect(await screen.findByRole('region', { name: 'Kanban tiket' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Tampilan Kanban' })).toHaveAttribute('aria-current', 'page');
     });
-    it('"Tiket yang saya buat" asks the server for my tickets in this queue', () => {
+    it('"Saya Buat" asks the server for my tickets in this queue', () => {
         const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
         render(
             <QueryClientProvider client={qc}>
@@ -96,7 +96,7 @@ describe('BentoOracleK2TicketsPage', () => {
             </QueryClientProvider>
         );
 
-        const button = screen.getByRole('button', { name: /Tiket yang saya buat/ });
+        const button = screen.getByRole('button', { name: /Saya Buat/ });
         expect(button).toHaveAttribute('aria-pressed', 'false');
 
         fireEvent.click(button);
@@ -105,7 +105,7 @@ describe('BentoOracleK2TicketsPage', () => {
         expect(useOracleK2TicketsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ createdByMe: true, assignedToMe: false }));
     });
 
-    it('"My Tasks" is filtered on the server', () => {
+    it('"Tugas Saya" is filtered on the server', () => {
         const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
         render(
             <QueryClientProvider client={qc}>

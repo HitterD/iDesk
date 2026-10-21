@@ -1,5 +1,4 @@
 import type { ElementType } from 'react';
-import { UserCheck, FilePen } from 'lucide-react';
 import { SegmentedControl, type SegmentedOption } from '@/components/ui/segmented-control';
 import { QueueViewToggle, type QueueView } from './QueueViewToggle';
 
@@ -18,12 +17,14 @@ interface QueueHeaderProps {
     view?: QueueView;
     /** Table route when the Kanban is rendered standalone (/kanban). */
     tablePath?: string;
+    /** Subset of scopes this view supports (Kanban has no "Saya Buat" query). */
+    scopes?: readonly QueueScope[];
 }
 
 const SCOPE_OPTIONS: readonly SegmentedOption<QueueScope>[] = [
     { value: 'all', label: 'Semua' },
-    { value: 'assigned_to_me', label: 'My Tasks', icon: UserCheck },
-    { value: 'created_by_me', label: 'Tiket yang saya buat', icon: FilePen },
+    { value: 'assigned_to_me', label: 'Tugas Saya' },
+    { value: 'created_by_me', label: 'Saya Buat' },
 ];
 
 /**
@@ -31,7 +32,8 @@ const SCOPE_OPTIONS: readonly SegmentedOption<QueueScope>[] = [
  * No create action here: "Buat Tiket Baru" lives only in the topbar and the mobile bottom nav.
  */
 export function QueueHeader({ title, description, icon: Icon, tone, connected, canEdit, scope,
-    onScopeChange, view = 'table', tablePath }: QueueHeaderProps) {
+    onScopeChange, view = 'table', tablePath, scopes }: QueueHeaderProps) {
+    const scopeOptions = scopes ? SCOPE_OPTIONS.filter((option) => scopes.includes(option.value)) : SCOPE_OPTIONS;
     // Re-selecting an active personal scope returns to "Semua" (previous toggle behaviour).
     const handleScope = (next: QueueScope) => onScopeChange?.(next === scope && next !== 'all' ? 'all' : next);
     return (
@@ -47,7 +49,7 @@ export function QueueHeader({ title, description, icon: Icon, tone, connected, c
                 </div>
             </div>
             <div className="queue-header-actions">
-                {canEdit && scope && onScopeChange && <SegmentedControl aria-label="Cakupan tiket" options={SCOPE_OPTIONS} value={scope} onValueChange={handleScope} />}
+                {canEdit && scope && onScopeChange && <SegmentedControl aria-label="Cakupan tiket" options={scopeOptions} value={scope} onValueChange={handleScope} />}
                 <QueueViewToggle view={view} tablePath={tablePath} />
             </div>
         </header>

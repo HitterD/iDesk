@@ -1,16 +1,14 @@
 import React from 'react';
 import { Draggable, Droppable } from '@hello-pangea/dnd';
-import { format } from 'date-fns';
 import {
-    AlertTriangle, ChevronLeft, CircleCheck, Clock, Flame, Inbox, Lock, MessageSquare, Pause, UserRoundPlus,
+    ChevronLeft, Flame, Inbox, Lock, MessageSquare, UserRoundPlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TicketPill, PRIORITY_TONES, STATUS_TONES } from '@/components/ui/ticket-pill';
 import { TicketQuickPreview } from '@/components/ui/TicketQuickPreview';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { STATUS_CONFIG, PRIORITY_CONFIG, KANBAN_COLUMNS } from '@/lib/constants/ticket.constants';
-import { formatSlaDuration, MS_PER_MINUTE } from '@/lib/utils/slaDuration';
-import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
+import { TargetDateCell } from './TargetDateCell';
 import { TicketRowActions } from './TicketRowActions';
 
 export interface KanbanTicket {
@@ -36,40 +34,10 @@ export interface KanbanTicket {
 
 /** CLOSED is final (set by requester/system): read only, never draggable — same rule as before. */
 export const isKanbanLocked = (status: string): boolean => status === 'CLOSED';
-const APPROACHING_MS = 2 * 60 * 60 * 1000;
-const SLA_DATE_FORMAT = 'dd MMM HH:mm';
 const RESOLVED_LIMIT = 50;
 
-const SlaPill: React.FC<{ ticket: KanbanTicket }> = ({ ticket }) => {
-    const slaClock = useSlaClock();
-    const now = new Date();
-    if (ticket.status === 'WAITING_VENDOR') {
-        return (
-            <TicketPill tone="amber">
-                <Pause className="w-3 h-3 shrink-0" aria-hidden="true" />
-                {ticket.slaRemainingMinutes != null ? `Dijeda · sisa ${formatSlaDuration(ticket.slaRemainingMinutes * MS_PER_MINUTE)}` : 'Dijeda'}
-            </TicketPill>
-        );
-    }
-    if (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED') {
-        return <TicketPill tone="green"><CircleCheck className="w-3 h-3 shrink-0" aria-hidden="true" />Selesai</TicketPill>;
-    }
-    if (!ticket.slaTarget) return null;
-    const clock = slaCountdown(ticket.slaTarget, now, ticket.priority, slaClock);
-    const target = format(new Date(ticket.slaTarget), SLA_DATE_FORMAT);
-    const offHours = clock.offHours ? offHoursLabel(clock, now, slaClock) : undefined;
-    if (ticket.isOverdue || clock.remainingMs <= 0) {
-        return <TicketPill tone="red"><AlertTriangle className="w-3 h-3 shrink-0" aria-hidden="true" />Overdue: {target}</TicketPill>;
-    }
-    if (clock.remainingMs < APPROACHING_MS) {
-        return <TicketPill tone="amber" title={offHours}><Clock className="w-3 h-3 shrink-0" aria-hidden="true" />Due soon: {target}</TicketPill>;
-    }
-    return (
-        <TicketPill tone="blue" title={offHours} className="font-mono">
-            <Clock className="w-3 h-3 shrink-0" aria-hidden="true" />Target: {target}{offHours ? ' · dijeda' : ''}
-        </TicketPill>
-    );
-};
+/** Same SLA bubble as the Tabel view (mockup slaBub: countdown "2h 8j", "Lewat 1j 40m", "Dijeda · sisa …", "Selesai"). */
+const SlaPill: React.FC<{ ticket: KanbanTicket }> = ({ ticket }) => <TargetDateCell ticket={ticket} />;
 
 interface KanbanCardProps {
     ticket: KanbanTicket;
@@ -124,10 +92,9 @@ export const EnhancedKanbanCard: React.FC<KanbanCardProps> = ({ ticket, index, o
                         <div className="kanban-title">{ticket.title}</div>
                     </TicketQuickPreview>
                     {ticket.hasUnreadChat && (
-                        <TicketPill tone="amber" className="w-fit !min-h-5 !py-0 !px-2 !text-[11px]">
-                            <MessageSquare className="w-3 h-3" aria-hidden="true" />
-                            Pesan Baru{ticket.unreadMessageCount ? ` (${ticket.unreadMessageCount})` : ''}
-                        </TicketPill>
+                        <span className="queue-unread w-fit">
+                            <MessageSquare aria-hidden="true" />{ticket.unreadMessageCount ? `${ticket.unreadMessageCount} pesan baru` : 'Pesan baru'}
+                        </span>
                     )}
                     <div className="kanban-pills">
                         <TicketPill tone={PRIORITY_TONES[ticket.priority] || 'neutral'} title={priority.label}>

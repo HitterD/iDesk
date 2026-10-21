@@ -10,15 +10,29 @@ interface CustomDropdownProps {
     options: { value: string; label: string }[];
     icon?: ElementType;
     placeholder?: string;
+    /**
+     * Mockup filter pop (`.pop`): renders "<key> <value>" (e.g. "Status Semua") without an icon.
+     * The accessible name becomes "<key>: <value>".
+     */
+    filterKey?: string;
 }
 
 /** Short filter lists stay keyboard-navigable without a search field. */
 const SEARCH_OPTION_THRESHOLD = 8;
 
 export const CustomDropdown = ({ value, onChange, options, icon: Icon = Filter,
-    placeholder = 'Filter' }: CustomDropdownProps) => {
+    placeholder = 'Filter', filterKey }: CustomDropdownProps) => {
     const pickerValue = value === '' ? 'ALL' : value;
     const selectedLabel = options.find(option => option.value === pickerValue)?.label;
+    if (filterKey) {
+        const shown = selectedLabel ?? placeholder;
+        return <SearchablePicker value={pickerValue} options={options}
+            onValueChange={next => onChange(next === 'ALL' ? '' : next)}
+            label={`${filterKey}: ${shown}`} placeholder={placeholder}
+            searchPlaceholder={options.length > SEARCH_OPTION_THRESHOLD ? 'Cari…' : undefined}
+            triggerContent={<><span className="queue-pop-k">{filterKey}</span><span className="queue-pop-v">{shown}</span></>}
+            triggerClassName="queue-pop" />;
+    }
     return <SearchablePicker value={pickerValue} options={options}
         onValueChange={next => onChange(next === 'ALL' ? '' : next)}
         label={selectedLabel ? `${placeholder}: ${selectedLabel}` : placeholder}

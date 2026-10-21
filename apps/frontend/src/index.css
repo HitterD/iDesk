@@ -539,7 +539,7 @@ textarea:focus {
 .queue-stat:focus-visible, .queue-row:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: -2px; }
 .queue-stat.is-zero .portal-stat-value { color: hsl(var(--idesk-text-secondary)); }
 .queue-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; position: relative; z-index: 20; }
-.queue-filters > div:first-child { min-width: min(220px, 100%); }
+.queue-filters > :first-child { min-width: min(220px, 100%); }
 .queue-table { container-type: inline-size; position: relative; min-width: 0; overflow: hidden; border-radius: 18px; background: hsl(var(--idesk-surface)); border: 1px solid hsl(var(--idesk-border)); }
 .queue-row { border-bottom: 1px solid hsl(var(--idesk-border) / .6); transition: background-color var(--dur-1) var(--ease-out); }
 .queue-list > [role="option"]:nth-child(even) .queue-row { background: color-mix(in srgb, hsl(var(--ticket-blue)) 2%, hsl(var(--idesk-surface))); }
@@ -558,15 +558,15 @@ textarea:focus {
   .queue-stats-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
 @container (min-width: 1100px) {
-  .queue-grid { display: grid; align-items: center; column-gap: 10px; padding: 10px 14px; }
-  .queue-grid-sites { grid-template-columns: 26px minmax(100px, 2fr) 112px 48px 150px minmax(70px, 1fr) minmax(100px, 1.2fr) 160px 90px; }
-  .queue-grid-default { grid-template-columns: 26px minmax(150px, 2fr) 112px 150px minmax(70px, 1fr) minmax(100px, 1.2fr) 160px 90px; }
+  .queue-grid { display: grid; align-items: center; column-gap: 10px; padding: 0 16px; }
+  /* Mockup .thead/.row (<=1500px): Tiket · Prioritas · Site · Status · Pemohon · PIC · SLA. */
+  .queue-grid-sites { grid-template-columns: 26px minmax(200px, 2.4fr) 104px 60px 150px minmax(160px, 1.1fr) minmax(180px, 1.3fr) 160px; }
+  .queue-grid-default { grid-template-columns: 26px minmax(200px, 2.4fr) 104px 150px minmax(160px, 1.1fr) minmax(180px, 1.3fr) 160px; }
   /* Selection cell bleeds into the row padding and half the column gap: full row height,
      45px wide (14px pad + 26px column + 5px gap), so no near-miss falls through to the row. */
-  .queue-grid > .queue-select-cell { min-width: 0; margin: -10px -5px -10px -14px; padding: 0 5px 0 14px; }
-  .queue-thead { min-height: 38px; border-bottom: 1px solid hsl(var(--idesk-border)); color: hsl(var(--idesk-text-secondary)); font-size: 11.5px; font-weight: 500; }
-  .queue-desktop-row { min-height: 64px; }
-  .queue-desktop-row h3 { font-size: 13.5px; font-weight: 550; }
+  .queue-grid > .queue-select-cell { min-width: 0; margin: 0 -5px 0 -16px; padding: 0 5px 0 16px; }
+  .queue-thead { height: 36px; border-bottom: .5px solid hsl(var(--idesk-border)); color: hsl(var(--idesk-text-secondary) / .8); font-size: 11.5px; font-weight: 500; }
+  .queue-desktop-row { min-height: 60px; }
   .queue-mobile-row, .queue-card-toolbar { display: none; }
 }
 
@@ -581,11 +581,11 @@ textarea:focus {
 .portal-stat:hover { box-shadow: 0 4px 14px -6px hsl(220 40% 20% / .22), inset 0 0 0 1px color-mix(in srgb, hsl(var(--pill-hue)) 22%, transparent); }
 .portal-stat.is-active { box-shadow: 0 0 0 2px color-mix(in srgb, hsl(var(--pill-hue)) 60%, transparent), 0 4px 14px -6px hsl(220 40% 20% / .22); }
 .portal-stat:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
-.portal-stat-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.portal-stat-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .portal-stat-icon { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 9999px; color: hsl(var(--pill-ink)); background: color-mix(in srgb, hsl(var(--pill-hue)) 14%, transparent); }
 .portal-stat-icon svg { width: 14px; height: 14px; stroke-width: 2.2; }
-.portal-stat-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 550; color: hsl(var(--idesk-text-secondary)); }
-.portal-stat-value { font-size: 24px; font-weight: 650; line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.portal-stat-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: hsl(var(--idesk-text-secondary)); }
+.portal-stat-value { font-family: var(--font-display, inherit); font-size: 22px; font-weight: 650; line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .portal-stat.is-zero .portal-stat-value { color: hsl(var(--idesk-text-secondary)); }
 .portal-stat-skeleton { display: block; width: 44px; height: 24px; border-radius: 8px; background: hsl(var(--muted)); }
 
@@ -889,8 +889,8 @@ textarea.ct-input { padding: 10px 12px; line-height: 1.5; resize: vertical; }
 .queue-act-btn:focus-visible, .queue-hw-link:focus-visible, .queue-bulk-btn:focus-visible { outline: 0; box-shadow: 0 0 0 3px hsl(var(--idesk-sapphire) / .38); }
 /* Floats over the end of the title cell only, so PIC/SLA columns are never covered; never scaled on press. */
 .queue-row-acts {
-  position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; gap: 4px; padding-left: 22px;
-  background: linear-gradient(90deg, transparent, var(--row-bg) 18px); opacity: 0; pointer-events: none;
+  position: absolute; right: -6px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 4px; padding: 0 6px 0 28px;
+  height: 100%; background: linear-gradient(90deg, transparent, var(--row-bg) 24px); opacity: 0; pointer-events: none;
   transition: opacity var(--dur-2) var(--ease-out);
 }
 .queue-row:hover .queue-row-acts, .queue-row:focus-within .queue-row-acts, .queue-row-acts.is-open { opacity: 1; pointer-events: auto; }
@@ -936,6 +936,103 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   .queue-bulk-btn > span, .queue-bulk-count > span { display: none; }
   .queue-bulk-btn { width: 40px; padding: 0; }
   .queue-bulk-btn .caret { display: none; }
+}
+
+/* ---------- Round-2 fidelity: filter bar, table header, row cells (mockup .filters/.field/.pop/.thead/.tk/.person/.bub.pic) ---------- */
+.queue-field {
+  flex: 1; min-width: min(220px, 100%); height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 11px;
+  border-radius: 10px; background: hsl(var(--idesk-surface)); box-shadow: var(--queue-card-shadow); color: hsl(var(--idesk-text-secondary));
+  transition: box-shadow var(--dur-1) var(--ease-out);
+}
+.queue-field:focus-within { box-shadow: 0 0 0 3px hsl(var(--idesk-sapphire) / .38); }
+.queue-field > svg { width: 15px; height: 15px; flex: none; }
+.queue-field input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: hsl(var(--idesk-text)); font-size: 13px; }
+.queue-field input::placeholder { color: hsl(var(--idesk-text-secondary)); }
+.queue-field input::-webkit-search-cancel-button { display: none; }
+.queue-field-clear { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: hsl(var(--idesk-text-secondary)); }
+.queue-field-clear:hover { background: hsl(var(--muted)); color: hsl(var(--idesk-text)); }
+.queue-field-clear svg { width: 14px; height: 14px; }
+.queue-filters-spacer { display: none; }
+.ticket-pill.queue-pop, .queue-pop {
+  height: 30px; min-height: 30px; padding: 0 8px 0 10px; gap: 7px; border: 0; border-radius: 10px;
+  background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-text)); box-shadow: var(--queue-card-shadow);
+  font-size: 12.5px; font-weight: 500; white-space: nowrap; cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+.queue-pop:hover { background: hsl(var(--idesk-surface-raised)); }
+.queue-pop:focus-visible { outline: 0; box-shadow: 0 0 0 3px hsl(var(--idesk-sapphire) / .38); }
+.queue-pop-k { color: hsl(var(--idesk-text-secondary)); }
+.queue-pop-v { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.queue-pop > svg:last-child { width: 13px; height: 13px; margin-left: auto; color: hsl(var(--idesk-text-secondary)); opacity: 1; }
+.queue-pop-icon { width: 30px; padding: 0; justify-content: center; display: inline-grid; place-items: center; }
+.queue-pop-icon > svg, .queue-pop-icon > svg:last-child { width: 15px; height: 15px; margin: 0; color: hsl(var(--idesk-text-secondary)); }
+.queue-pop-dot { position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: hsl(var(--idesk-sapphire)); }
+.queue-sort { display: inline-flex; align-items: center; gap: 3px; color: inherit; font: inherit; cursor: pointer; border-radius: 6px; }
+.queue-sort svg { width: 12px; height: 12px; opacity: 0; transition: opacity var(--dur-1) var(--ease-out); }
+.queue-sort:hover svg, .queue-sort.is-active svg, .queue-sort:focus-visible svg { opacity: 1; }
+.queue-sort.is-active { color: hsl(var(--idesk-text-secondary)); }
+.queue-sort:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
+.queue-sort:active { transform: none; }
+.queue-thead-sla { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.queue-sort-created svg { opacity: 1; }
+.queue-title-cell { align-self: stretch; display: flex; align-items: center; }
+.queue-tk { min-width: 0; padding: 10px 0; }
+.queue-tk-id { display: flex; align-items: center; gap: 6px; min-width: 0; font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: hsl(var(--idesk-text-secondary) / .85); white-space: nowrap; }
+.queue-tk-id > span:first-child { flex: none; }
+.ticket-pill.queue-src, .queue-src {
+  display: inline-flex; align-items: center; gap: 3px; min-height: 0; height: 17px; padding: 0 6px; border: 0; border-radius: 6px;
+  font-family: var(--font-sans); font-size: 10.5px; font-weight: 500; line-height: 17px; color: hsl(var(--idesk-text-secondary)); background: hsl(var(--muted));
+}
+.queue-src svg { width: 11px; height: 11px; }
+.queue-unread {
+  display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 7px; border-radius: 9px; flex: none;
+  font-family: var(--font-sans); font-size: 10.5px; font-weight: 550; color: hsl(var(--idesk-sapphire));
+  background: color-mix(in srgb, hsl(var(--ticket-blue)) 12%, hsl(var(--idesk-surface)));
+}
+.queue-unread svg { width: 11px; height: 11px; }
+.queue-tk-title { margin-top: 2px; font-size: 13.5px; font-weight: 550; color: hsl(var(--idesk-text)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color var(--dur-1) var(--ease-out); }
+.queue-person { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.queue-person b { display: block; font-size: 12.5px; font-weight: 550; color: hsl(var(--idesk-text)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue-person small { display: block; font-size: 11px; color: hsl(var(--idesk-text-secondary) / .85); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ticket-pill.queue-pic, .queue-pic {
+  width: 100%; height: 30px; min-height: 30px; padding: 0 10px 0 3px; border-radius: 15px; gap: 6px; justify-content: flex-start;
+  background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-text)); border-color: hsl(var(--idesk-border));
+}
+.queue-pic > svg:last-child { margin-left: auto; }
+.ticket-pill.queue-pic-empty, .queue-pic-empty { border-style: dashed; padding-left: 10px; color: hsl(var(--idesk-text-secondary)); }
+
+
+/* Mockup .live (requester header) and the footer "Per halaman" pop. */
+.portal-live { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; line-height: 1; color: hsl(var(--ticket-green-ink)); }
+.portal-live i { width: 6px; height: 6px; border-radius: 50%; background: hsl(var(--ticket-green)); }
+.portal-live.is-off { color: hsl(var(--idesk-text-secondary)); }
+.portal-live.is-off i { background: hsl(var(--idesk-text-secondary) / .5); }
+.portal-page-size { position: relative; display: inline-flex; align-items: center; }
+.portal-page-size:focus-within { box-shadow: 0 0 0 3px hsl(var(--idesk-sapphire) / .38); }
+.portal-page-size > svg { width: 13px; height: 13px; color: hsl(var(--idesk-text-secondary)); pointer-events: none; }
+.portal-tfoot { background: transparent; border-top: .5px solid hsl(var(--idesk-border)); }
+/* Mockup 390 card (idesk.css @max-width 860 .row): id · ⋯ / title / status + SLA / PIC divider. */
+.queue-mcard { display: grid; gap: 6px; padding: 12px 14px 12px 16px; min-width: 0; }
+.queue-mcard-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; min-width: 0; }
+.queue-mcard-top .queue-tk-id { row-gap: 4px; padding-top: 2px; }
+.queue-mcard-check { min-width: 28px; min-height: 28px; margin: -6px 0 -6px -6px; }
+.queue-card-acts.queue-mcard-acts { position: static; flex: none; margin: -4px -6px 0 0; }
+.queue-mcard-title { white-space: normal; margin: 0; }
+.queue-mcard-mid { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.queue-mcard-pic { display: flex; padding-top: 8px; border-top: .5px solid hsl(var(--idesk-border)); min-width: 0; }
+.queue-flag { display: inline-flex; align-items: center; gap: 3px; height: 17px; padding: 0 6px; border-radius: 6px; font-family: var(--font-sans); font-size: 10.5px; font-weight: 600; color: hsl(var(--ticket-red-ink)); background: color-mix(in srgb, hsl(var(--ticket-red)) 10%, hsl(var(--idesk-surface))); }
+.queue-flag svg { width: 11px; height: 11px; }
+@media (max-width: 860px) {
+  .queue-page .queue-stats { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -14px; padding: 2px 14px 6px; scrollbar-width: none; }
+  .queue-page .queue-stats::-webkit-scrollbar { display: none; }
+  .queue-page .queue-stats > .queue-stat { flex: 0 0 122px; scroll-snap-align: start; }
+  .queue-filters .queue-field { min-width: 100%; }
+  .queue-filters .queue-pop-icon { display: none; }
+  .queue-mcard-pri { display: none; }
+  .queue-mcard-mid { flex-wrap: nowrap; }
+  .queue-page .queue-table { background: transparent; border: 0; overflow: visible; }
+  .queue-page .queue-table .queue-row { margin-bottom: 8px; border: 0; border-radius: 16px; background: hsl(var(--idesk-surface)) !important; box-shadow: var(--queue-card-shadow); }
+  .queue-page .queue-table .queue-row.is-selected { background: color-mix(in srgb, hsl(var(--idesk-sapphire)) 7%, hsl(var(--idesk-surface))) !important; }
 }
 
 /* ---------- Kanban (mockup kanban.html / idesk.css "Kanban") ---------- */
@@ -1067,6 +1164,8 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 /* Dialogs spring in over a blurred backdrop. */
 .idesk-dialog-overlay[data-state="open"] { animation: idesk-backdrop-in var(--dur-3) var(--ease-out); }
 .idesk-dialog-content[data-state="open"] { animation: idesk-dialog-in var(--dur-3) var(--ease-spring); }
+/* Unlayered on purpose: beats select-styles.css (unlayered global select chevron) for the mockup "Per halaman" pop. */
+.portal-page-size select { appearance: none; border: 0; outline: 0; background: none; color: hsl(var(--idesk-text)); font: inherit; font-weight: 600; padding: 0 2px 0 0; cursor: pointer; }
 /* Unlayered on purpose (beats the .inline-block utility): TicketQuickPreview wraps its trigger in an
    inline-block; inside the queue title cell it must shrink so the title truncates before Priority. */
 .queue-title-cell > .inline-block { display: block; min-width: 0; }

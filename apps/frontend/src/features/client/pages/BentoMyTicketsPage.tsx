@@ -14,8 +14,8 @@ import {
     X,
     Layers,
     RotateCw,
-    Lock,
     MousePointerClick,
+    ChevronDown,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -49,18 +49,21 @@ interface PaginatedResponse {
     };
 }
 
-const STATUS_FILTERS = [
-    { value: 'all', label: 'All Status', icon: null },
-    { value: 'TODO', label: 'Open', icon: Inbox },
-    { value: 'IN_PROGRESS', label: 'In Progress', icon: CircleDot },
-    { value: 'RESOLVED', label: 'Resolved', icon: CheckCircle2 },
-    { value: 'CLOSED', label: 'Closed', icon: Lock },
-] as const;
-const STATUS_FILTER_OPTIONS = STATUS_FILTERS.map(({ value, label, icon }) => ({
-    value: value as string, label: <span>{label}</span>, icon: icon ?? undefined,
-}));
+/**
+ * Mockup my-tickets groups (my-tickets-demo.js): "Dalam penanganan" = In Progress + Waiting Vendor,
+ * "Selesai" = Resolved + Closed. The paginated endpoint already accepts comma-separated statuses.
+ */
+const IN_HANDLING_FILTER = 'IN_PROGRESS,WAITING_VENDOR';
+const DONE_FILTER = 'RESOLVED,CLOSED';
+const STATUS_FILTER_OPTIONS = [
+    { value: 'all', label: 'Semua' },
+    { value: 'TODO', label: 'Open' },
+    { value: IN_HANDLING_FILTER, label: 'Dalam penanganan' },
+    { value: DONE_FILTER, label: 'Selesai' },
+    { value: 'CANCELLED', label: 'Dibatalkan' },
+];
 
-const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+const PAGE_SIZE_OPTIONS = [5, 10, 25, 50] as const;
 const SEARCH_DEBOUNCE_MS = 300;
 const QUERY_RETRY_DELAY_MS = 1_000;
 const STAT_SKELETON_COUNT = 4;
@@ -106,7 +109,7 @@ export const BentoMyTicketsPage: React.FC = () => {
 
     const debouncedSearch = useDebounce(searchQuery, SEARCH_DEBOUNCE_MS);
 
-    // Fetch user aggregate stats (Total, Open, In Progress, Resolved)
+    // Fetch user aggregate stats (Total, Open, Dalam penanganan, Selesai)
     const { data: statsData, isLoading: isStatsLoading } = useQuery<{
         total: number;
         open: number;
@@ -115,17 +118,19 @@ export const BentoMyTicketsPage: React.FC = () => {
     }>({
         queryKey: ['tickets', 'my-stats'],
         queryFn: async () => {
-            const [allRes, openRes, inProgRes, resRes, closedRes] = await Promise.all([
+            const [allRes, openRes, inProgRes, resRes, closedRes, vendorRes] = await Promise.all([
                 api.get('/tickets/paginated?limit=1'),
                 api.get('/tickets/paginated?limit=1&status=TODO'),
                 api.get('/tickets/paginated?limit=1&status=IN_PROGRESS'),
                 api.get('/tickets/paginated?limit=1&status=RESOLVED'),
                 api.get('/tickets/paginated?limit=1&status=CLOSED'),
+                api.get('/tickets/paginated?limit=1&status=WAITING_VENDOR'),
             ]);
             return {
                 total: allRes.data?.meta?.total ?? 0,
                 open: openRes.data?.meta?.total ?? 0,
-                inProgress: inProgRes.data?.meta?.total ?? 0,
+                // "Dalam penanganan": being worked on, including waiting for a vendor.
+                inProgress: (inProgRes.data?.meta?.total ?? 0) + (vendorRes.data?.meta?.total ?? 0),
                 // Awaiting confirmation (RESOLVED) plus final (CLOSED).
                 resolved: (resRes.data?.meta?.total ?? 0) + (closedRes.data?.meta?.total ?? 0),
             };
@@ -221,8 +226,8 @@ export const BentoMyTicketsPage: React.FC = () => {
     const statCards = [
         { key: 'all', label: 'Total', tone: 'neutral', icon: Layers, value: statsData?.total ?? meta?.total ?? 0 },
         { key: 'TODO', label: 'Open', tone: 'sky', icon: Inbox, value: statsData?.open ?? 0 },
-        { key: 'IN_PROGRESS', label: 'In Progress', tone: 'navy', icon: CircleDot, value: statsData?.inProgress ?? 0 },
-        { key: 'RESOLVED', label: 'Resolved', tone: 'green', icon: CheckCircle2, value: statsData?.resolved ?? 0 },
+        { key: IN_HANDLING_FILTER, label: 'Dalam penanganan', tone: 'navy', icon: CircleDot, value: statsData?.inProgress ?? 0 },
+        { key: DONE_FILTER, label: 'Selesai', tone: 'green', icon: CheckCircle2, value: statsData?.resolved ?? 0 },
     ] as const;
 
     return (
@@ -231,21 +236,14 @@ export const BentoMyTicketsPage: React.FC = () => {
             <div className="flex items-start sm:items-center justify-between gap-3">
                 <div className="min-w-0">
                     <div className="flex items-center gap-2.5">
-                        <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight text-foreground">My Tickets</h1>
-                        {isConnected ? (
-                            <span className="flex items-center gap-1.5 text-xs font-semibold text-[hsl(var(--ticket-green-ink))] bg-[hsl(var(--ticket-green)/0.12)] px-2 py-0.5 rounded-full">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--ticket-green))] animate-pulse motion-reduce:animate-none" />
-                                Live
-                            </span>
-                        ) : (
-                            <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50" />
-                                Connecting...
-                            </span>
-                        )}
+                        <h1 className="text-2xl font-bold tracking-tight text-foreground">Tiket Saya</h1>
+                        {/* Mockup `.live`: a green dot + "Live"; muted while the socket connects. */}
+                        <span className={cn('portal-live', !isConnected && 'is-off')}>
+                            <i aria-hidden="true" />{isConnected ? 'Live' : 'Menghubungkan…'}
+                        </span>
                     </div>
-                    <p className="text-muted-foreground text-xs sm:text-sm font-medium mt-1">
-                        Pantau dan kelola tiket permintaan dukungan Anda
+                    <p className="text-muted-foreground text-[13px] mt-1">
+                        Pantau tiket bantuan yang Anda ajukan
                     </p>
                 </div>
 
@@ -255,12 +253,13 @@ export const BentoMyTicketsPage: React.FC = () => {
                         queryClient.invalidateQueries({ queryKey: ['tickets'] });
                         refetch();
                     }}
-                    className="shrink-0 p-2.5 sm:px-3 sm:py-2 bg-card border border-border hover:bg-muted/60 rounded-xl text-sm font-semibold text-foreground transition-colors active:scale-[0.98] flex items-center gap-1.5 cursor-pointer"
-                    title="Segarkan daftar tiket"
-                    aria-label="Segarkan daftar tiket"
+                    className="idesk-btn is-soft shrink-0"
+                    title="Muat ulang"
+                    aria-label="Muat ulang"
+                    aria-busy={isFetching || undefined}
                 >
-                    <RotateCw className={cn('w-4 h-4', isFetching && 'animate-spin text-[hsl(var(--idesk-sapphire))]')} aria-hidden="true" />
-                    <span className="hidden sm:inline">Refresh</span>
+                    <RotateCw className={cn(isFetching && 'idesk-spin')} aria-hidden="true" />
+                    <span className="hidden sm:inline">Muat ulang</span>
                 </button>
             </div>
 
@@ -294,11 +293,11 @@ export const BentoMyTicketsPage: React.FC = () => {
                     <input
                         id="client-ticket-search"
                         type="search"
-                        placeholder="Search by title or ticket ID..."
+                        placeholder="Cari judul atau nomor tiket"
                         value={searchQuery}
                         onChange={(e) => handleSearchChange(e.target.value)}
                         autoComplete="off"
-                        className="w-full h-10 pl-10 pr-10 bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground text-sm font-medium"
+                        className="w-full h-8 pl-10 pr-10 bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground text-sm font-medium"
                     />
                     {searchQuery && (
                         <button
@@ -328,7 +327,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                             title="Reset semua filter"
                         >
                             <X className="w-3.5 h-3.5" aria-hidden="true" />
-                            <span>Reset</span>
+                            <span>Reset filter</span>
                         </button>
                     )}
                 </div>
@@ -383,25 +382,28 @@ export const BentoMyTicketsPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* Pagination Footer */}
+                {/* Pagination Footer (mockup .foot: "Menampilkan X dari Y hasil" + "Per halaman" pop) */}
                 {meta && meta.total > 0 && (
-                    <div className="portal-tfoot p-3.5 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-                            <label htmlFor="client-page-size">Menampilkan</label>
+                    <div className="portal-tfoot px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <span className="text-xs text-muted-foreground">
+                            Menampilkan {tickets.length} dari {meta.total} hasil
+                        </span>
+                        <div className="flex items-center gap-3">
+                        <label className="queue-pop portal-page-size" htmlFor="client-page-size">
+                            <span className="queue-pop-k">Per halaman</span>
                             <select
                                 id="client-page-size"
                                 value={limit}
                                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                                className="px-2.5 py-1 min-h-[36px] rounded-lg bg-card border border-border text-foreground font-medium cursor-pointer"
                             >
                                 {PAGE_SIZE_OPTIONS.map((size) => (
                                     <option key={size} value={size}>{size}</option>
                                 ))}
                             </select>
-                            <span>dari {meta.total} tiket</span>
-                        </div>
+                            <ChevronDown aria-hidden="true" />
+                        </label>
 
-                        {meta.totalPages > 1 && (
+                {meta.totalPages > 1 && (
                             <div className="flex items-center gap-1">
                                 <button type="button" onClick={() => setPage(1)} disabled={!meta.hasPrevPage} aria-label="Halaman pertama" className={PAGER_BUTTON}>
                                     <ChevronsLeft className="w-4 h-4" aria-hidden="true" />
@@ -420,6 +422,7 @@ export const BentoMyTicketsPage: React.FC = () => {
                                 </button>
                             </div>
                         )}
+                        </div>
                     </div>
                 )}
             </div>

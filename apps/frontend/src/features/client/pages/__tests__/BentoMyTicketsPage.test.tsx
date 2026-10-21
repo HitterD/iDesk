@@ -37,7 +37,7 @@ const mockTickets = [
 ];
 
 /** Per-status totals returned by the `limit=1` stats probes. */
-const STAT_TOTALS: Record<string, number> = { all: 17, TODO: 3, IN_PROGRESS: 5, RESOLVED: 4, CLOSED: 2 };
+const STAT_TOTALS: Record<string, number> = { all: 17, TODO: 3, IN_PROGRESS: 5, WAITING_VENDOR: 1, RESOLVED: 4, CLOSED: 2 };
 
 vi.mock('@/lib/api', () => ({
     default: {
@@ -121,7 +121,7 @@ describe('BentoMyTicketsPage', () => {
 
         // Wait for page to finish loading skeleton
         await waitFor(() => {
-            expect(screen.getByRole('heading', { name: 'My Tickets' })).toBeInTheDocument();
+            expect(screen.getByRole('heading', { name: 'Tiket Saya' })).toBeInTheDocument();
         });
 
         expect(screen.getByText('Live')).toBeInTheDocument();
@@ -129,8 +129,8 @@ describe('BentoMyTicketsPage', () => {
         // Stat cards & Filter buttons
         expect(screen.getByText('Total')).toBeInTheDocument();
         expect(screen.getAllByText('Open').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('In Progress').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('Resolved').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Dalam penanganan').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Selesai').length).toBeGreaterThan(0);
 
         // Wait for tickets to load (elements exist in both desktop and mobile view)
         await waitFor(() => {
@@ -139,7 +139,7 @@ describe('BentoMyTicketsPage', () => {
         });
 
         // Unread chat badge
-        expect(screen.getAllByText('Balasan Baru').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Pesan baru').length).toBeGreaterThan(0);
 
         // Ticket number
         expect(screen.getAllByText('#190826-GEN-0001').length).toBeGreaterThan(0);
@@ -154,13 +154,14 @@ describe('BentoMyTicketsPage', () => {
         renderPage();
         const stats = await screen.findByRole('group', { name: 'Ringkasan tiket' });
         await waitFor(() => {
-            expect(within(stats).getByRole('button', { name: /Total\s*17/ })).toBeInTheDocument();
+            expect(within(stats).getByRole('button', { name: /17\s*Total/ })).toBeInTheDocument();
         });
-        expect(within(stats).getByRole('button', { name: /Open\s*3/ })).toBeInTheDocument();
-        expect(within(stats).getByRole('button', { name: /In Progress\s*5/ })).toBeInTheDocument();
-        // Resolved = RESOLVED + CLOSED
-        expect(within(stats).getByRole('button', { name: /Resolved\s*6/ })).toBeInTheDocument();
-        expect(within(stats).getByRole('button', { name: /Total\s*17/ })).toHaveAttribute('aria-pressed', 'true');
+        expect(within(stats).getByRole('button', { name: /3\s*Open/ })).toBeInTheDocument();
+        // Dalam penanganan = IN_PROGRESS + WAITING_VENDOR (mockup grouping)
+        expect(within(stats).getByRole('button', { name: /6\s*Dalam penanganan/ })).toBeInTheDocument();
+        // Selesai = RESOLVED + CLOSED
+        expect(within(stats).getByRole('button', { name: /6\s*Selesai/ })).toBeInTheDocument();
+        expect(within(stats).getByRole('button', { name: /17\s*Total/ })).toHaveAttribute('aria-pressed', 'true');
     });
 
     it('keeps the search, status and page query parameters', async () => {
@@ -175,16 +176,16 @@ describe('BentoMyTicketsPage', () => {
         await waitFor(() => expect(listCalls().some((url) => url.includes('page=2&'))).toBe(true));
 
         const filters = screen.getByRole('group', { name: 'Filter status tiket' });
-        await user.click(within(filters).getByRole('button', { name: 'In Progress' }));
+        await user.click(within(filters).getByRole('button', { name: 'Dalam penanganan' }));
         await user.type(screen.getByRole('searchbox'), 'printer');
 
         await waitFor(() => {
             const last = new URLSearchParams(listCalls().at(-1)!.split('?')[1]);
             expect(Object.fromEntries(last)).toEqual({
-                page: '1', limit: '10', sortBy: 'createdAt', sortOrder: 'DESC', search: 'printer', status: 'IN_PROGRESS',
+                page: '1', limit: '10', sortBy: 'createdAt', sortOrder: 'DESC', search: 'printer', status: 'IN_PROGRESS,WAITING_VENDOR',
             });
         });
-        expect(within(filters).getByRole('button', { name: 'In Progress' })).toHaveAttribute('aria-pressed', 'true');
+        expect(within(filters).getByRole('button', { name: 'Dalam penanganan' })).toHaveAttribute('aria-pressed', 'true');
     });
 
     it('renders status, priority and PIC as read-only pills, not buttons', async () => {

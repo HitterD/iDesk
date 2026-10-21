@@ -4,17 +4,20 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DragDropContext, DropResult } from '@hello-pangea/dnd';
 import {
     MessageSquare,
-    UserCheck,
     Flame,
-    AlertTriangle,
     X,
     Maximize2,
-    Search,
     Hand,
     Ticket as TicketIcon,
     Database,
     Code2,
     Smartphone,
+    Layers,
+    Inbox,
+    CircleDot,
+    Hourglass,
+    CircleCheck,
+    TriangleAlert,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -37,6 +40,10 @@ import { KanbanBoardSkeleton } from './KanbanSkeleton';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { SiteSelector } from '@/components/site/SiteSelector';
 import { QueueHeader } from './QueueHeader';
+import { StatsCard } from './StatsCard';
+import type { TicketPillTone } from '@/components/ui/ticket-pill';
+import { QueueFilterBar, PRIORITY_FILTER_OPTIONS } from './QueueFilterBar';
+import { CustomDropdown } from './TicketDropdowns';
 import { EnhancedKanbanCard, KanbanBoardColumn, type KanbanTicket } from './KanbanBoardParts';
 import { isHandledByTakeoverDialog, useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
 import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
@@ -53,6 +60,19 @@ export const isCountedOverdue = (t: { status: string; isOverdue?: boolean }): bo
     Boolean(t.isOverdue) && !NOT_OVERDUE_STATUSES.includes(t.status);
 
 type Ticket = KanbanTicket;
+type KanbanFilter = 'all' | 'my' | 'overdue' | 'critical';
+type StatKey = 'all' | 'open' | 'inProgress' | 'waitingVendor' | 'resolved' | 'overdue' | 'critical';
+const KANBAN_STATS: readonly { key: StatKey; label: string; icon: React.ElementType; tone: TicketPillTone; status?: string; attention?: boolean }[] = [
+    { key: 'all', label: 'Total', icon: Layers, tone: 'neutral' },
+    { key: 'open', label: 'Open', icon: Inbox, tone: 'sky', status: 'TODO' },
+    { key: 'inProgress', label: 'In Progress', icon: CircleDot, tone: 'navy', status: 'IN_PROGRESS' },
+    { key: 'waitingVendor', label: 'Waiting Vendor', icon: Hourglass, tone: 'amber', status: 'WAITING_VENDOR', attention: true },
+    { key: 'resolved', label: 'Resolved', icon: CircleCheck, tone: 'green', status: 'RESOLVED,CLOSED' },
+    { key: 'overdue', label: 'Overdue', icon: TriangleAlert, tone: 'red', attention: true },
+    { key: 'critical', label: 'Critical', icon: Flame, tone: 'red', attention: true },
+];
+/** "Saya Buat" is a server-side scope the Kanban query does not support, so the board offers Semua / Tugas Saya. */
+const KANBAN_SCOPES = ['all', 'assigned_to_me'] as const;
 export { EnhancedKanbanCard };
 
 /** Landing highlight duration after a card changes column (matches --dur-3 with headroom). */
@@ -371,7 +391,10 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
 
     const [collapsedColumns, setCollapsedColumns] = useState<string[]>([]);
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
-    const [filter, setFilter] = useState<'all' | 'my' | 'overdue' | 'critical'>('all');
+    const [filter, setFilter] = useState<KanbanFilter>('all');
+    const [priorityFilter, setPriorityFilter] = useState('');
+    /** Stat-card status filter (mockup: the same counters as the Tabel view filter the board). */
+    const [statusFilter, setStatusFilter] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedSites, setSelectedSites] = useState<string[]>([]);
     const [landedId, setLandedId] = useState<string | null>(null);
@@ -525,6 +548,8 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
         if (filter === 'my') result = result.filter(t => t.assignedTo?.id === user?.id);
         if (filter === 'overdue') result = result.filter(isCountedOverdue);
         if (filter === 'critical') result = result.filter(t => t.priority === 'CRITICAL');
+        if (priorityFilter) result = result.filter(t => t.priority === priorityFilter);
+        if (statusFilter) result = result.filter(t => statusFilter.split(',').includes(t.status));
 
         // 3. Site filter
         if (selectedSites.length > 0) {
@@ -545,22 +570,23 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
         }
 
         return result;
-    }, [tickets, filter, user?.id, selectedSites, searchQuery]);
+    }, [tickets, filter, priorityFilter, statusFilter, user?.id, selectedSites, searchQuery]);
 
     // Compute live stats for top cards
     const stats = useMemo(() => {
         return tickets.reduce(
             (acc, t) => {
-                if (t.status !== 'CANCELLED') acc.total++;
-                if (t.status === 'TODO' || t.status === 'WAITING_VENDOR') acc.open++;
+                if (t.status !== 'CANCELLED') acc.all++;
+                if (t.status === 'TODO') acc.open++;
                 if (t.status === 'IN_PROGRESS') acc.inProgress++;
+                if (t.status === 'WAITING_VENDOR') acc.waitingVendor++;
                 const isDone = t.status === 'RESOLVED' || t.status === 'CLOSED';
                 if (isDone) acc.resolved++;
                 if (isCountedOverdue(t)) acc.overdue++;
                 if (!isDone && t.status !== 'CANCELLED' && t.priority === 'CRITICAL') acc.critical++;
                 return acc;
             },
-            { total: 0, open: 0, inProgress: 0, resolved: 0, overdue: 0, critical: 0 }
+            { all: 0, open: 0, inProgress: 0, waitingVendor: 0, resolved: 0, overdue: 0, critical: 0 } as Record<StatKey, number>
         );
     }, [tickets]);
 
@@ -598,100 +624,44 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
 
     return (
         <div className="queue-page h-full flex flex-col min-h-0 space-y-4">
+            {/* Same header as the Tabel view: scope segments + Kanban | Tabel in the same place. */}
             <QueueHeader title={config.title} description={config.description} icon={config.icon} tone={config.tone}
-                connected={isConnected} canEdit={false} view="kanban"
-                tablePath={propQueue ? undefined : config.tablePath} />
+                connected={isConnected} canEdit view="kanban" tablePath={propQueue ? undefined : config.tablePath}
+                scopes={KANBAN_SCOPES} scope={filter === 'my' ? 'assigned_to_me' : 'all'}
+                onScopeChange={(scope) => setFilter(scope === 'assigned_to_me' ? 'my' : 'all')} />
 
-            {/* Filter & Search Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2 bg-card rounded-2xl border border-border shrink-0 shadow-xs">
-                {/* Search Input */}
-                <div className="relative flex-1 max-w-md bg-muted/40 rounded-xl transition-all focus-within:ring-1 focus-within:ring-primary focus-within:bg-background border border-transparent focus-within:border-primary/50">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Cari tiket, pemohon, nomor, atau PIC..."
-                        className="w-full pl-9 pr-8 py-2 bg-transparent text-xs font-medium text-foreground placeholder:text-muted-foreground outline-none"
-                    />
-                    {searchQuery && (
-                        <button
-                            type="button"
-                            onClick={() => setSearchQuery('')}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground rounded"
-                        >
-                            <X className="w-3.5 h-3.5" />
-                        </button>
-                    )}
-                </div>
-
-                {/* Filter Pills */}
-                <div className="flex items-center gap-1.5 overflow-x-auto shrink-0 py-0.5">
-                    <button
-                        type="button"
-                        onClick={() => setFilter('all')}
-                        className={cn(
-                            "px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 transition-all cursor-pointer",
-                            filter === 'all'
-                                ? "bg-primary text-primary-foreground shadow-xs"
-                                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                        )}
-                    >
-                        Semua ({tickets.length})
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setFilter('my')}
-                        className={cn(
-                            "px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 cursor-pointer",
-                            filter === 'my'
-                                ? "bg-primary text-primary-foreground shadow-xs"
-                                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                        )}
-                    >
-                        <UserCheck className="w-3.5 h-3.5" />
-                        <span>Tugas Saya</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setFilter('overdue')}
-                        className={cn(
-                            "px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 cursor-pointer",
-                            filter === 'overdue'
-                                ? "bg-destructive text-destructive-foreground shadow-xs"
-                                : "text-destructive hover:bg-destructive/10"
-                        )}
-                    >
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        <span>Overdue ({stats.overdue})</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setFilter('critical')}
-                        className={cn(
-                            "px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 cursor-pointer",
-                            filter === 'critical'
-                                ? "bg-destructive text-destructive-foreground shadow-xs"
-                                : "text-destructive hover:bg-destructive/10"
-                        )}
-                    >
-                        <Flame className="w-3.5 h-3.5" />
-                        <span>Critical ({stats.critical})</span>
-                    </button>
-
-                    {/* Site Selector - cross-site roles */}
-                    {isAdmin && (
-                        <div className="ml-1 pl-1 border-l border-border">
-                            <SiteSelector
-                                selectedSiteIds={selectedSites}
-                                onSelectionChange={setSelectedSites}
-                                mode="multi"
-                                className="h-8 text-xs"
-                            />
-                        </div>
-                    )}
-                </div>
+            {/* Same counters as the Tabel view (computed from the loaded board). */}
+            <div className="queue-stats queue-stats-7" aria-label="Ringkasan status">
+                {KANBAN_STATS.map((card) => {
+                    const active = card.key === 'all'
+                        ? !statusFilter && filter !== 'overdue' && filter !== 'critical'
+                        : card.key === 'overdue' || card.key === 'critical' ? filter === card.key : statusFilter === card.status;
+                    const select = () => {
+                        if (card.key === 'all') { setStatusFilter(''); setFilter(filter === 'my' ? 'my' : 'all'); return; }
+                        if (card.key === 'overdue' || card.key === 'critical') { setStatusFilter(''); setFilter(active ? 'all' : card.key); return; }
+                        setStatusFilter(active ? '' : card.status ?? '');
+                    };
+                    return <StatsCard key={card.key} icon={card.icon} tone={card.tone} label={card.label} value={stats[card.key]}
+                        highlight={card.attention} color="" bgColor="" onClick={select} isActive={active} />;
+                })}
             </div>
+
+            {/* Toolbar (mockup kanban.html = list.html .filters): search + filter pops */}
+            <QueueFilterBar id="kanban-ticket-search" search={searchQuery} onSearch={setSearchQuery}>
+                <CustomDropdown value={priorityFilter} onChange={setPriorityFilter}
+                    placeholder="Semua" filterKey="Prioritas" options={PRIORITY_FILTER_OPTIONS} />
+                <CustomDropdown value={filter === 'overdue' || filter === 'critical' ? filter : ''}
+                    onChange={(value) => setFilter((value || 'all') as KanbanFilter)}
+                    placeholder="Semua" filterKey="Perhatian"
+                    options={[
+                        { value: 'ALL', label: 'Semua' },
+                        { value: 'overdue', label: `Overdue (${stats.overdue})` },
+                        { value: 'critical', label: `Critical (${stats.critical})` },
+                    ]} />
+                {isAdmin && (
+                    <SiteSelector selectedSiteIds={selectedSites} onSelectionChange={setSelectedSites} mode="multi" variant="pop" />
+                )}
+            </QueueFilterBar>
             {!isCrossSiteRole(user?.role) && !user?.siteId && (
                 <div className="mx-0 mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">Akun Anda belum terpasang ke site. Hubungi admin untuk menetapkan site agar tiket dapat ditampilkan.</div>
             )}

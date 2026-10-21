@@ -31,6 +31,8 @@ export interface SearchablePickerProps {
     /** Presentation-only adornments; labels and identity remain plain text/value. */
     triggerIcon?: ReactNode;
     displayValue?: string;
+    /** Replaces the default trigger content (e.g. mockup `.pop` "Status · Semua"); keeps the caret. */
+    triggerContent?: ReactNode;
 }
 
 function PickerOptions({ value, options, onValueChange }: Pick<SearchablePickerProps, 'value' | 'options' | 'onValueChange'>) {
@@ -51,7 +53,7 @@ function PickerOptions({ value, options, onValueChange }: Pick<SearchablePickerP
 }
 
 export function SearchablePicker({ value, options, onValueChange, label, placeholder = 'Pilih nilai',
-    searchPlaceholder, disabled, triggerClassName, triggerIcon, displayValue }: SearchablePickerProps) {
+    searchPlaceholder, disabled, triggerClassName, triggerIcon, displayValue, triggerContent }: SearchablePickerProps) {
     const [open, setOpen] = useState(false);
     const selected = options.find(option => option.value === value);
     // Re-selecting the committed value only closes (Radix Select parity): avoids redundant PATCH/takeover/resolve flows.
@@ -65,8 +67,10 @@ export function SearchablePicker({ value, options, onValueChange, label, placeho
                         event.preventDefault(); setOpen(true);
                     }
                 }}>
-                {triggerIcon}
-                <span className="min-w-0 truncate">{displayValue ?? selected?.label ?? placeholder}</span>
+                {triggerContent ?? <>
+                    {triggerIcon}
+                    <span className="min-w-0 truncate">{displayValue ?? selected?.label ?? placeholder}</span>
+                </>}
                 <ChevronDown aria-hidden="true" className="h-3 w-3 shrink-0 opacity-60" />
             </button>
         </PopoverTrigger>

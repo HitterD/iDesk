@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, AlertTriangle, CheckCircle2, Calendar, Target, Timer, Hourglass, History } from 'lucide-react';
+import { Clock, AlertTriangle, CheckCircle2, Calendar, Timer, Hourglass, History, Pause } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TicketPill } from '@/components/ui/ticket-pill';
 import { format } from 'date-fns';
@@ -31,17 +31,17 @@ export interface TargetDateCellProps {
  * Format remaining time as countdown string
  */
 function formatCountdown(remainingMs: number): string {
-    if (remainingMs <= 0) return 'Overdue';
+    if (remainingMs <= 0) return 'Lewat';
 
     const hours = Math.floor(remainingMs / (1000 * 60 * 60));
     const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
 
     if (hours > 24) {
         const days = Math.floor(hours / 24);
-        return `${days}d ${hours % 24}h`;
+        return `${days}h ${hours % 24}j`;
     }
     if (hours > 0) {
-        return `${hours}h ${minutes}m`;
+        return `${hours}j ${minutes}m`;
     }
     return `${minutes}m`;
 }
@@ -55,12 +55,12 @@ function formatOverdue(overdueMs: number): string {
 
     if (hours > 24) {
         const days = Math.floor(hours / 24);
-        return `${days}d late`;
+        return `Lewat ${days}h ${hours % 24}j`;
     }
     if (hours > 0) {
-        return `${hours}h late`;
+        return `Lewat ${hours}j ${minutes}m`;
     }
-    return `${minutes}m late`;
+    return `Lewat ${minutes}m`;
 }
 
 export const TargetDateCell: React.FC<TargetDateCellProps> = ({
@@ -130,10 +130,10 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
     if (effectiveStatus === 'RESOLVED' || effectiveStatus === 'CLOSED') {
         return (
             <TicketPill tone="green"
-                aria-label="Ticket resolved"
+                aria-label="Tiket selesai"
             >
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-                DONE
+                <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+                Selesai
             </TicketPill>
         );
     }
@@ -146,8 +146,8 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
                 title="SLA Timer di-pause selama menunggu vendor"
                 aria-label="SLA Timer Paused"
             >
-                <Hourglass className="w-3 h-3 text-amber-600 dark:text-amber-400 animate-pulse" aria-hidden="true" />
-                {remaining != null ? `Paused · sisa ${remaining <= 0 ? '0m' : formatCountdown(remaining * 60_000)}` : 'Paused'}
+                <Pause className="w-3 h-3" aria-hidden="true" />
+                {remaining != null ? `Dijeda · sisa ${remaining <= 0 ? '0m' : formatCountdown(remaining * 60_000)}` : 'Dijeda'}
             </TicketPill>
         );
     }
@@ -182,10 +182,10 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
     if (!targetDate) {
         return (
             <TicketPill tone="neutral"
-                aria-label="No target date set"
+                aria-label="Belum ada target SLA"
             >
                 <Clock className="w-3.5 h-3.5" aria-hidden="true" />
-                No SLA
+                Tanpa SLA
             </TicketPill>
         );
     }
@@ -197,8 +197,7 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
 
     const getIcon = () => {
         if (isOverdue) return AlertTriangle;
-        if (isApproaching) return Timer;
-        return Target;
+        return Timer;
     };
 
     const Icon = getIcon();
@@ -213,7 +212,7 @@ ${offHoursText}` : ''}`}
                 {offHoursText
                     ? <Hourglass className="w-3.5 h-3.5" aria-hidden="true" />
                     : <Icon className={cn("w-3.5 h-3.5", isOverdue && "animate-pulse")} aria-hidden="true" />}
-                <span className="font-mono">{countdown}</span>
+                <span className={isOverdue ? undefined : 'font-mono'}>{countdown}</span>
             </TicketPill>
 
             {isExtended && (

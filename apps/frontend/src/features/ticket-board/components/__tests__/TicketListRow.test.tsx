@@ -155,7 +155,7 @@ describe('TicketListRow queue presentation contract', () => {
 
     it('shows paused SLA on mobile even without a target date', () => {
         renderRow({ ...mockTicket, status: 'WAITING_VENDOR', slaTarget: undefined, slaRemainingMinutes: 90 });
-        expect(screen.getAllByText('Paused · sisa 1h 30m')).toHaveLength(2);
+        expect(screen.getAllByText('Dijeda · sisa 1j 30m')).toHaveLength(2);
         screen.getAllByLabelText('SLA Timer Paused').forEach((sla) => {
             expect(sla).toHaveClass('ticket-pill');
             expect(sla.closest('button')).toBeNull();
@@ -186,7 +186,7 @@ describe('TicketListRow paused SLA', () => {
                 />
             </MemoryRouter>
         );
-        expect(screen.getAllByText('Paused · sisa 2h 0m')).toHaveLength(2);
+        expect(screen.getAllByText('Dijeda · sisa 2j 0m')).toHaveLength(2);
     });
 
     it('shows a WAITING_VENDOR ticket as paused, never overdue, even when the server flags it overdue', () => {
@@ -200,7 +200,7 @@ describe('TicketListRow paused SLA', () => {
                 />
             </MemoryRouter>
         );
-        expect(screen.getAllByText('Paused · sisa 2h 0m')).toHaveLength(2);
+        expect(screen.getAllByText('Dijeda · sisa 2j 0m')).toHaveLength(2);
         expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
         expect(container.querySelectorAll('.lucide-triangle-alert, .lucide-alert-triangle')).toHaveLength(0);
         expect(container.firstElementChild?.className).not.toContain('error-500');
@@ -329,7 +329,7 @@ describe('TicketListRow Assignee Popover', () => {
         );
 
         // Find the Unassigned button
-        const unassignedButtons = screen.getAllByText('Unassigned');
+        const unassignedButtons = screen.getAllByText('Tetapkan PIC');
         expect(unassignedButtons.length).toBeGreaterThan(0);
 
         const button = unassignedButtons[0].closest('button');
@@ -367,7 +367,7 @@ describe('TicketListRow Assignee Popover', () => {
                 </MemoryRouter>
             );
 
-            const row = screen.getByRole('button', { name: /Open ticket 190826-GEN-0005/i });
+            const row = screen.getByRole('button', { name: /Buka tiket 190826-GEN-0005/i });
             fireEvent.keyDown(row, { key: ' ' });
             expect(mockNavigate).toHaveBeenCalledTimes(1);
             expect(mockNavigate).toHaveBeenCalledWith('/tickets/ticket-1', expect.any(Object));

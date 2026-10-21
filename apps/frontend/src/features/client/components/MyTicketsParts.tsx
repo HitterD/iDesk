@@ -1,11 +1,12 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, ChevronRight, Clock, MessageSquare, Users } from 'lucide-react';
+import { ArrowRight, ChevronRight, Users } from 'lucide-react';
 import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
 import { TicketPill, PRIORITY_TONES, STATUS_TONES, type TicketPillTone } from '@/components/ui/ticket-pill';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { CLIENT_ROUTES } from '@/config/routes';
-import { formatSmartDate } from '@/lib/utils/dateFormat';
+import { format, isThisYear, isYesterday } from 'date-fns';
+import { id } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
 export interface MyTicketItem {
@@ -33,15 +34,22 @@ const SHORT_ID_LENGTH = 8;
 const MASCOT_SRC = '/characters/mascot-service.png';
 const UNASSIGNED_LABEL = 'Menunggu Teknisi';
 
+const MS_PER_MINUTE = 60 * 1_000;
+const MINUTES_PER_HOUR = 60;
+
+/** Mockup copy: "Baru saja" · "10 menit lalu" · "3 jam lalu" · "Kemarin" · "19 Okt" (Indonesian months). */
 function formatUpdatedAtRelative(updatedAt: string) {
     const date = new Date(updatedAt);
-    if (Number.isNaN(date.getTime())) return 'Unknown';
+    if (Number.isNaN(date.getTime())) return '-';
 
-    const diffInHours = Math.floor((Date.now() - date.getTime()) / MS_PER_HOUR);
-    if (diffInHours <= 0) return 'Just now';
-    if (diffInHours < HOURS_PER_DAY) return `${diffInHours}h ago`;
-
-    return formatSmartDate(date);
+    const diffMs = Date.now() - date.getTime();
+    const minutes = Math.floor(diffMs / MS_PER_MINUTE);
+    if (minutes <= 0) return 'Baru saja';
+    if (minutes < MINUTES_PER_HOUR) return `${minutes} menit lalu`;
+    const hours = Math.floor(diffMs / MS_PER_HOUR);
+    if (hours < HOURS_PER_DAY) return `${hours} jam lalu`;
+    if (isYesterday(date)) return 'Kemarin';
+    return format(date, isThisYear(date) ? 'dd MMM' : 'dd MMM yy', { locale: id });
 }
 
 /** Shared grid template so the header and the desktop rows always line up. */
@@ -95,15 +103,16 @@ export const StatCard: React.FC<StatCardProps> = ({ label, value, tone, icon: Ic
         aria-busy={loading || undefined}
         className={cn('portal-stat', `ticket-tone-${tone}`, active && 'is-active', !loading && value === 0 && 'is-zero')}
     >
+        {/* Mockup .stat: icon top-left, number top-right, name below (same as agent queue cards). */}
         <span className="portal-stat-top">
             <span className="portal-stat-icon"><Icon aria-hidden="true" /></span>
-            <span className="portal-stat-label">{label}</span>
+            {loading ? (
+                <span className="portal-stat-skeleton" aria-hidden="true" />
+            ) : (
+                <span className="portal-stat-value">{value}</span>
+            )}
         </span>
-        {loading ? (
-            <span className="portal-stat-skeleton" aria-hidden="true" />
-        ) : (
-            <span className="portal-stat-value"> {value}</span>
-        )}
+        <span className="portal-stat-label">{label}</span>
     </button>
 );
 
@@ -122,7 +131,6 @@ const AssigneePill: React.FC<{ assignee: MyTicketItem['assignedTo'] }> = ({ assi
 /** One requester ticket: card below lg, table row at lg+. All values are readonly. */
 export const MyTicketRow: React.FC<{ ticket: MyTicketItem }> = ({ ticket }) => {
     const statusConfig = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.TODO;
-    const StatusIcon = statusConfig.icon;
     const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
     const PriorityIcon = priorityConfig.icon;
     const statusTone = STATUS_TONES[ticket.status] || 'neutral';
@@ -132,8 +140,8 @@ export const MyTicketRow: React.FC<{ ticket: MyTicketItem }> = ({ ticket }) => {
 
     const statusPill = (
         <TicketPill tone={statusTone}>
-            {StatusIcon ? <StatusIcon className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                : <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" aria-hidden="true" />}
+            {/* Mockup requester rows: status dot, not an icon. */}
+            <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" aria-hidden="true" />
             {statusConfig.label}
         </TicketPill>
     );
@@ -146,8 +154,8 @@ export const MyTicketRow: React.FC<{ ticket: MyTicketItem }> = ({ ticket }) => {
     );
     const meta = (
         <>
-            <span className="font-mono text-xs font-semibold text-muted-foreground">#{number}</span>
-            {ticket.category && <span className="portal-tag">{ticket.category}</span>}
+            <span>#{number}</span>
+            {ticket.category && <span className="queue-src">{ticket.category}</span>}
             {ticket.isParticipant && (
                 <TicketPill tone="navy" className="!min-h-5 !py-0 !px-2 !text-[11px]">
                     <Users className="w-3 h-3" aria-hidden="true" />
@@ -156,15 +164,12 @@ export const MyTicketRow: React.FC<{ ticket: MyTicketItem }> = ({ ticket }) => {
             )}
         </>
     );
+    // Mockup: small blue chip on the id line ("2 pesan baru"); production only knows unread yes/no.
     const unread = ticket.hasUnreadChat && (
-        <TicketPill tone="blue" className="!min-h-5 !py-0 !px-2 !text-[11px] shrink-0">
-            <MessageSquare className="w-3 h-3" aria-hidden="true" />
-            Balasan Baru
-        </TicketPill>
+        <span className="queue-unread">Pesan baru</span>
     );
     const updated = (
-        <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground shrink-0">
-            <Clock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+        <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
             <time dateTime={ticket.updatedAt}>{timeDisplay}</time>
         </span>
     );
@@ -179,13 +184,10 @@ export const MyTicketRow: React.FC<{ ticket: MyTicketItem }> = ({ ticket }) => {
             {/* Card (< lg) */}
             <div className="lg:hidden p-3.5 sm:p-4 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">{meta}</div>
+                    <div className="queue-tk-id flex-wrap">{meta}{unread}</div>
                     {updated}
                 </div>
-                <div className="min-w-0 space-y-1.5">
-                    <h3 className="font-semibold text-sm sm:text-base text-foreground line-clamp-2 leading-snug">{ticket.title}</h3>
-                    {unread}
-                </div>
+                <h3 className="queue-tk-title !whitespace-normal">{ticket.title}</h3>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5">{statusPill}{priorityPill}</div>
                     <div className="min-w-0 max-w-full"><AssigneePill assignee={ticket.assignedTo} /></div>
@@ -196,11 +198,8 @@ export const MyTicketRow: React.FC<{ ticket: MyTicketItem }> = ({ ticket }) => {
             {/* Table row (>= lg) */}
             <div className={cn('hidden lg:grid items-center gap-4 px-4 py-3', MY_TICKETS_GRID)}>
                 <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-1 min-w-0">{meta}</div>
-                    <div className="flex items-center gap-2 min-w-0">
-                        <h3 className="font-semibold text-sm text-foreground truncate">{ticket.title}</h3>
-                        {unread}
-                    </div>
+                    <div className="queue-tk-id">{meta}{unread}</div>
+                    <h3 className="queue-tk-title">{ticket.title}</h3>
                 </div>
                 <div>{priorityPill}</div>
                 <div>{statusPill}</div>
