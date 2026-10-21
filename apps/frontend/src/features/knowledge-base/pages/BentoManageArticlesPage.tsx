@@ -210,7 +210,7 @@ export const BentoManageArticlesPage = () => {
                 </div>
                 <Link
                     to="/kb/create"
-                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-[var(--radius-md)] text-sm font-semibold hover:bg-primary/90 transition-colors shadow-sm"
+                    className="idesk-btn is-primary"
                 >
                     <Plus className="w-4 h-4" />
                     New Article
@@ -313,7 +313,7 @@ export const BentoManageArticlesPage = () => {
                     </select>
                     <button
                         type="submit"
-                        className="px-4 py-2 bg-primary text-primary-foreground rounded-[var(--radius-md)] text-sm font-semibold hover:bg-primary/90 transition-colors shadow-sm"
+                        className="idesk-btn is-soft is-icon" aria-label="Terapkan filter"
                     >
                         <Filter className="w-4 h-4" />
                     </button>
@@ -333,7 +333,7 @@ export const BentoManageArticlesPage = () => {
                         <p className="text-muted-foreground font-medium mb-4">No articles found</p>
                         <Link
                             to="/kb/create"
-                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-[var(--radius-md)] text-sm font-semibold hover:bg-primary/90 transition-colors shadow-sm"
+                            className="idesk-text-link"
                         >
                             <Plus className="w-4 h-4" />
                             Create First Article

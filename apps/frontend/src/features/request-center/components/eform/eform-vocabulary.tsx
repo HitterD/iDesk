@@ -1,6 +1,8 @@
 import React from 'react';
 import { Clock, ShieldCheck, Database, CheckCircle2, Ban, FileEdit, Globe, Wifi, Usb, Mail, HardDrive } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import '@/features/dashboard/dashboard.css';
+import '@/components/resources/resources.css';
 
 /** Roles allowed to process and fulfill ICT requests */
 export const ICT_ROLES = ['ADMIN', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT'] as const;
@@ -105,21 +107,26 @@ export const EFORM_TYPES = (['VPN', 'WEBSITE', 'NETWORK', 'FLASHDISK', 'EMAIL', 
     ...TYPE_CONFIG[id],
 }));
 
-/** Status pill. Colour here is the request's position in the flow, nothing else. */
+/** Mockup bubble hue per status (eform.html ST). */
+const STATUS_BUB_HUE: Record<string, { c: string; ink?: string }> = {
+    [EFormStatus.PENDING_MANAGER]: { c: 'var(--dash-orange, #f2930d)', ink: 'var(--dash-ink-orange, #a85d00)' },
+    [EFormStatus.PENDING_ICT]: { c: 'var(--dash-blue, #3d63b8)' },
+    [EFormStatus.CONFIRMED]: { c: 'var(--dash-green, #2fb350)', ink: 'var(--dash-ink-green, #1c7a35)' },
+    [EFormStatus.REJECTED]: { c: 'var(--dash-red, #f04438)', ink: 'var(--dash-ink-red, #c4281c)' },
+    [EFormStatus.DRAFT]: { c: 'var(--dash-gray, #8e8e93)' },
+};
+
+/** Status pill (round-2 `.bub`). Colour here is the request's position in the flow, nothing else. */
 export const EformStatusBadge: React.FC<{ status: string; className?: string }> = ({
     status,
     className,
 }) => {
-    const { label, icon: Icon, badge } = getStatusConfig(status);
+    const { label } = getStatusConfig(status);
+    const hue = STATUS_BUB_HUE[status] ?? STATUS_BUB_HUE[EFormStatus.DRAFT];
+    const style = { '--c': hue.c, ...(hue.ink ? { '--ink': hue.ink } : {}) } as React.CSSProperties;
     return (
-        <span
-            className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold',
-                badge,
-                className,
-            )}
-        >
-            <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className={cn('dash-bub', className)} style={style}>
+            <span className="res-dot" aria-hidden="true" />
             {label}
         </span>
     );

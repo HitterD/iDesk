@@ -197,7 +197,7 @@ export function CreateWizard() {
                         <button
                             type="button"
                             onClick={next}
-                            className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs sm:text-sm font-bold transition-all shadow-xs active:scale-[0.98] cursor-pointer flex items-center gap-1.5"
+                            className="idesk-btn is-primary is-lg"
                         >
                             <span>Lanjut</span>
                             <ArrowRight className="size-4" />
@@ -208,7 +208,7 @@ export function CreateWizard() {
                                 type="button"
                                 disabled={saving}
                                 onClick={form.handleSubmit((v) => onSubmit(v as CreateFormValues, 'draft'))}
-                                className="px-4 py-2.5 rounded-xl border border-border bg-card hover:bg-muted/60 text-xs sm:text-sm font-semibold text-foreground transition-all shadow-xs active:scale-[0.98] cursor-pointer flex items-center gap-1.5"
+                                className="idesk-btn is-soft is-lg"
                             >
                                 <Save className="size-4" />
                                 <span>Simpan Draft</span>
@@ -217,7 +217,7 @@ export function CreateWizard() {
                                 type="button"
                                 disabled={saving}
                                 onClick={form.handleSubmit((v) => onSubmit(v as CreateFormValues, 'submit'))}
-                                className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs sm:text-sm font-bold transition-all shadow-xs active:scale-[0.98] cursor-pointer flex items-center gap-1.5"
+                                className="idesk-btn is-primary is-lg"
                             >
                                 <Send className="size-4" />
                                 <span>{saving ? 'Mengirim...' : 'Submit Request'}</span>
