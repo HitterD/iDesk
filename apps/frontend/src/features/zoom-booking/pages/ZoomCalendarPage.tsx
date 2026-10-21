@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { format } from 'date-fns';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Video } from 'lucide-react';
+import { CalendarPlus, ChevronDown, UserRoundCheck, Video } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { ResHead } from '@/components/resources/ResourceParts';
+import { ZoomAccountsPanel, ZoomUpcomingPanel } from '../components/ZoomResourceAside';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -24,19 +27,14 @@ import type { ProcessedBooking } from '../components/ZoomCalendarGrid';
 import { ZoomErrorBoundary } from '../components/ZoomErrorBoundary';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ZoomCalendarHeader, type ZoomCalendarDisplayMode } from '../components/ZoomCalendarHeader';
-import { ZoomCalendarSubBar } from '../components/ZoomCalendarSubBar';
-import { ZoomCalendarShell } from '../components/ZoomCalendarShell';
-import { ZoomAccountLegend } from '../components/ZoomAccountLegend';
 import { ZoomShortcutsModal } from '../components/ZoomShortcutsModal';
 import { ZoomBookingModal } from '../components/ZoomBookingModal';
 import { ZoomMonthView } from '../components/ZoomMonthView';
 import { ZoomAccountsMatrix } from '../components/ZoomAccountsMatrix';
-import { LayoutGrid, CalendarDays as CalendarDaysIcon, UserCheck } from 'lucide-react';
 import { ZoomWeekView } from '../components/ZoomWeekView';
 import { ZoomDayView } from '../components/ZoomDayView';
 import { ZoomMyBookingsView } from '../components/ZoomMyBookingsView';
 import { ZoomCalendarSkeletonView } from '../components/ZoomSkeletons';
-import { UpcomingMeetingsPanel } from '../components/UpcomingMeetingsPanel';
 import { useMostFreeAccount } from '../hooks/useMostFreeAccount';
 import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
 import { NotificationCategory } from '@/components/notifications/types/notification.types';
@@ -94,7 +92,7 @@ export function ZoomCalendarPage() {
     // Month display mode: classic calendar vs all-accounts matrix (see every
     // Zoom account's schedule at once). Local UI state; URL view stays 'month'.
     const [monthMode, setMonthMode] = useState<'calendar' | 'matrix'>('calendar');
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [onlyMine, setOnlyMine] = useState(false);
 
     const activeMode: ZoomCalendarDisplayMode = useMemo(() => {
         if (view === 'my-bookings') return 'my-bookings';
@@ -106,11 +104,9 @@ export function ZoomCalendarPage() {
         if (mode === 'calendar') {
             setView('month');
             setMonthMode('calendar');
-            setSidebarOpen(true);
         } else if (mode === 'matrix') {
             setView('month');
             setMonthMode('matrix');
-            setSidebarOpen(false); // Collapsed on matrix for expansive width
             if (accountScope !== 'gabungan') {
                 setAccountScope('gabungan');
             }
@@ -511,6 +507,8 @@ export function ZoomCalendarPage() {
                     canBook={canBook}
                     onSlotClick={handleSlotIndexClick}
                     onBookingClick={handleBookingClick}
+                    onlyMine={onlyMine}
+                    accountFilterId=""
                 />
             );
         } else if (view === 'day') {
@@ -553,103 +551,102 @@ export function ZoomCalendarPage() {
 
     // Empty state UI — rendered above the shell when no accounts configured.
     const emptyStateNode: React.ReactNode = showEmptyState ? (
-        <div data-testid="no-accounts-empty-state">
+        <div data-testid="no-accounts-empty-state" className="dash-panel zm-empty">
             <Video className="h-8 w-8" aria-hidden="true" />
-            <h2>Belum ada akun Zoom</h2>
-            <Button onClick={() => toast.info('Request Account')}>Request Account</Button>
+            <h2 className="text-base font-semibold">Belum ada akun Zoom</h2>
+            <Button variant="soft" onClick={() => toast.info('Request Account')}>Request Account</Button>
         </div>
     ) : null;
 
+    const accountLabel = accountScope === 'gabungan'
+        ? (activeFilterAccountIds.size > 0 && activeFilterAccountIds.size < safeAccounts.length
+            ? `${activeFilterAccountIds.size} dari ${safeAccounts.length} akun`
+            : `Semua Akun Zoom (${safeAccounts.length})`)
+        : (safeAccounts.find((a) => a.id === accountScope)?.name ?? 'Zoom');
+    const openSettings = () => { window.location.href = '/zoom-calendar/settings'; };
+
+    const filterControls = (
+        <>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <button type="button" className="queue-pop" aria-label={`Akun: ${accountLabel}`}>
+                        <span className="queue-pop-k">Akun</span><span className="queue-pop-v">{accountLabel}</span><ChevronDown aria-hidden="true" />
+                    </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" variant="compact" className="res-pop-menu" aria-label="Filter akun">
+                    <DropdownMenuRadioGroup value={accountScope} onValueChange={handleSelectAccount}>
+                        <DropdownMenuRadioItem value="gabungan">Semua Akun Zoom ({safeAccounts.length})</DropdownMenuRadioItem>
+                        {safeAccounts.map((a) => (
+                            <DropdownMenuRadioItem key={a.id} value={a.id}>
+                                <span className="res-dot mr-2" style={{ background: a.colorHex }} aria-hidden="true" />{a.name}
+                            </DropdownMenuRadioItem>
+                        ))}
+                    </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+            </DropdownMenu>
+            {view === 'week' && (
+                <button type="button" className={cn('queue-pop zm-mine', onlyMine && 'is-on')} aria-pressed={onlyMine}
+                    onClick={() => setOnlyMine((v) => !v)} title="Hanya tampilkan meeting milik Anda di kalender mingguan">
+                    <UserRoundCheck aria-hidden="true" /><span className="queue-pop-v">Hanya Meeting Saya</span>
+                </button>
+            )}
+        </>
+    );
+
     return (
         <ZoomErrorBoundary>
-            <div className="min-h-0 h-auto lg:h-[calc(100vh-2rem)] flex flex-col animate-fade-in-up pb-24 lg:pb-0">
+            <div className="res-page pb-24 lg:pb-0">
+                <ResHead icon={Video} tone="blue" title="Zoom Calendar"
+                    description={`Booking ruang meeting Zoom untuk ${safeAccounts.length || 'semua'} akun perusahaan`}
+                    titleAdornment={<span className="dash-live"><i />Live</span>}
+                    actions={canBook ? <Button variant="primary" onClick={openBookingAtCurrentContext}><CalendarPlus aria-hidden="true" />Book Meeting</Button> : undefined} />
                 {showEmptyState ? emptyStateNode : (
-                    <ZoomCalendarShell
-                        header={(
-                            <ZoomCalendarHeader
-                                view={view}
-                                currentDate={currentDate}
-                                selectedAccountId={selectedAccountId ?? 'all'}
-                                accounts={safeAccounts}
-                                meetingsPerAccount={meetingsPerAccount}
-                                onViewChange={setView}
-                                activeMode={activeMode}
-                                onModeChange={handleModeChange}
-                                isSidebarOpen={sidebarOpen}
-                                onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
-                                onPrev={navigatePrev}
-                                onNext={navigateNext}
-                                onToday={navigateToToday}
-                                onAccountChange={(id) => setSelectedAccountId(id === 'all' ? safeAccounts[0]?.id : id)}
-                                accountScope={accountScope}
-                                onAccountScopeChange={handleSelectAccount}
-                                searchQuery={searchQuery}
-                                onSearchChange={setSearchQuery}
-                                onNavigateToDate={navigateToDate}
-                                canBook={canBook}
-                                onBookMeeting={openBookingAtCurrentContext}
-                            />
-                        )}
-                        subBar={(
-                            <ZoomCalendarSubBar
-                                // The account legend replaces this bar on wide screens while the side panel is open.
-                                className={sidebarOpen ? 'lg:hidden' : undefined}
-                                accountScope={accountScope}
-                                activeAccountName={
-                                    (activeAccountId && safeAccounts.find((a) => a.id === activeAccountId)?.name) ||
-                                    safeAccounts[0]?.name ||
-                                    'Zoom'
-                                }
-                                activeAccountColor={
-                                    (activeAccountId &&
-                                        safeAccounts.find((a) => a.id === activeAccountId)?.colorHex) ||
-                                    safeAccounts[0]?.colorHex ||
-                                    '#3b82f6'
-                                }
-                                showAutoPickHint={accountScope === 'gabungan'}
-                                onOpenShortcuts={() => setShortcutsOpen(true)}
-                                onOpenSettings={() => { window.location.href = '/zoom-calendar/settings'; }}
-                                isLive
-                                lastSyncAt={null}
-                                accounts={safeAccounts.map((a) => ({
-                                    id: a.id,
-                                    name: a.name,
-                                    colorHex: a.colorHex ?? '#3b82f6',
-                                    meetingsCount: meetingsPerAccount.get(a.id) ?? 0,
-                                }))}
-                                activeFilterAccountIds={activeFilterAccountIds}
-                                onToggleAccountFilter={handleToggleAccountFilter}
-                                onSelectAccount={handleSelectAccount}
-                                onSelectAllAccounts={handleSelectAllAccounts}
-                                onSoloAccountFilter={handleSoloAccountFilter}
-                            />
-                        )}
-                        sidebar={sidebarOpen ? (
-                            <ZoomAccountLegend
-                                accounts={safeAccounts.map((a) => ({
-                                    id: a.id,
-                                    name: a.name,
-                                    colorHex: a.colorHex,
-                                    meetingsCount: meetingsPerAccount.get(a.id) ?? 0,
-                                }))}
-                                visibleAccountIds={activeFilterAccountIds}
-                                accountScope={accountScope}
-                                onToggleAccount={(id) => (
-                                    accountScope === 'gabungan' ? handleToggleAccountFilter(id) : handleSelectAccount(id)
-                                )}
-                                onShowOnly={(id) => (
-                                    accountScope === 'gabungan' ? handleSoloAccountFilter(id) : handleSelectAccount(id)
-                                )}
-                                onShowAll={() => handleSelectAccount('gabungan')}
-                                onOpenShortcuts={() => setShortcutsOpen(true)}
-                                onOpenSettings={() => { window.location.href = '/zoom-calendar/settings'; }}
-                            />
-                        ) : undefined}
-                        calendarContent={calendarContent()}
-                        topStrip={(
-                            <UpcomingMeetingsPanel compact className="rounded-none border-x-0 border-t-0 shadow-none" />
-                        )}
-                    />
+                    <>
+                        <ZoomCalendarHeader
+                            view={view}
+                            currentDate={currentDate}
+                            selectedAccountId={selectedAccountId ?? 'all'}
+                            accounts={safeAccounts}
+                            meetingsPerAccount={meetingsPerAccount}
+                            onViewChange={setView}
+                            activeMode={activeMode}
+                            onModeChange={handleModeChange}
+                            onPrev={navigatePrev}
+                            onNext={navigateNext}
+                            onToday={navigateToToday}
+                            onAccountChange={(id) => setSelectedAccountId(id === 'all' ? safeAccounts[0]?.id : id)}
+                            accountScope={accountScope}
+                            onAccountScopeChange={handleSelectAccount}
+                            searchQuery={searchQuery}
+                            onSearchChange={setSearchQuery}
+                            onNavigateToDate={navigateToDate}
+                            canBook={canBook}
+                            onBookMeeting={openBookingAtCurrentContext}
+                            filters={filterControls}
+                        />
+                        <div className="zm-legend" aria-label="Legenda">
+                            {safeAccounts.map((a) => <span key={a.id} style={{ ['--c' as string]: a.colorHex }}><i />{a.name}</span>)}
+                            <span><i className="is-mine" />Booking saya</span>
+                            <span><i className="is-blocked" />Diblokir</span>
+                        </div>
+                        <div className="res-grid-main zm-main">
+                            <section className="dash-panel zm-cal-panel" aria-label="Kalender Zoom">{calendarContent()}</section>
+                            <aside className="res-stack">
+                                <ZoomUpcomingPanel bookings={upcomingBookings} accounts={safeAccounts} onOpen={panel.openDetail} />
+                                <ZoomAccountsPanel
+                                    accounts={safeAccounts}
+                                    meetingsPerAccount={meetingsPerAccount}
+                                    visibleAccountIds={activeFilterAccountIds}
+                                    accountScope={accountScope}
+                                    onToggleAccount={(id) => (accountScope === 'gabungan' ? handleToggleAccountFilter(id) : handleSelectAccount(id))}
+                                    onShowOnly={(id) => (accountScope === 'gabungan' ? handleSoloAccountFilter(id) : handleSelectAccount(id))}
+                                    onShowAll={() => handleSelectAccount('gabungan')}
+                                    onOpenShortcuts={() => setShortcutsOpen(true)}
+                                    onOpenSettings={openSettings}
+                                />
+                            </aside>
+                        </div>
+                    </>
                 )}
                 <ZoomShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
                 <ZoomBookingModal

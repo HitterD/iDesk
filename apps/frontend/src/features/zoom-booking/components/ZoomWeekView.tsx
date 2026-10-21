@@ -27,6 +27,12 @@ interface ZoomWeekViewProps {
     accounts?: ZoomAccount[];
     onSlotClick: (day: CalendarDay, slotIndex: number) => void;
     onBookingClick: (booking: ProcessedBooking) => void;
+    /**
+     * Controlled filters (mockup zoom.html: "Akun" pop and "Hanya Meeting Saya" live in the page filter bar).
+     * When given, the view's own quick-filter toolbar is hidden.
+     */
+    onlyMine?: boolean;
+    accountFilterId?: string;
 }
 
 function getCurrentTimeOffset(timeLabels: string[], currentTime: Date): number | null {
@@ -62,10 +68,15 @@ export function ZoomWeekView({
     accounts = [],
     onSlotClick,
     onBookingClick,
+    onlyMine,
+    accountFilterId,
 }: ZoomWeekViewProps) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
-    const [filterOnlyMyBookings, setFilterOnlyMyBookings] = useState(false);
-    const [filterAccountId, setFilterAccountId] = useState<string>('');
+    const controlled = onlyMine !== undefined || accountFilterId !== undefined;
+    const [localOnlyMine, setFilterOnlyMyBookings] = useState(false);
+    const [localAccountId, setFilterAccountId] = useState<string>('');
+    const filterOnlyMyBookings = onlyMine ?? localOnlyMine;
+    const filterAccountId = accountFilterId ?? localAccountId;
 
     const weekDays = useMemo(() => {
         const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -155,14 +166,18 @@ export function ZoomWeekView({
         });
     };
 
+    /** Merged (Gabungan) slots carry only the account id; name it from the accounts list. */
+    const accountNameOf = (b: ProcessedBookingV2) =>
+        accounts.find((a) => a.id === b.accountId)?.name ?? b.accountName;
+
     const HEADER_HEIGHT = 64;
     const TIME_COL_WIDTH = 64;
     const numCols = weekDays.length;
 
     return (
         <div className="flex flex-col h-full min-h-0 select-none bg-background">
-            {/* Quick Filter Toolbar */}
-            <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 px-4 py-2 border-b border-border bg-card/60">
+            {/* Quick Filter Toolbar (only when the page does not own the filters) */}
+            {!controlled && <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 px-4 py-2 border-b border-border bg-card/60">
                 <div className="flex items-center gap-2">
                     <Button
                         type="button"
@@ -219,7 +234,7 @@ export function ZoomWeekView({
                         </span>
                     )}
                 </div>
-            </div>
+            </div>}
 
             {/* Scrollable Week Grid */}
             <div
@@ -227,7 +242,7 @@ export function ZoomWeekView({
                 data-testid="zoom-week-view"
                 className="relative flex-1 min-h-0 overflow-y-auto overflow-x-auto custom-scrollbar select-none bg-background"
             >
-                <div className="min-w-[1080px]">
+                <div className="min-w-[760px]">
                     {/* Day headers */}
                     <div
                         className="sticky top-0 z-20 grid border-b-2 border-border bg-card/95 backdrop-blur-xs shadow-2xs"
@@ -393,24 +408,13 @@ export function ZoomWeekView({
                                     const isCompact = heightPx < 55;
 
                                     cells.push(
-                                        <div
+                                        <button
+                                            type="button"
                                             key={booking.id}
-                                            className={cn(
-                                                "absolute rounded-xl cursor-pointer select-none p-1.5 border shadow-xs transition-all overflow-hidden flex flex-col justify-between group/card",
-                                                "hover:shadow-md hover:z-30 hover:scale-[1.01]",
-                                                booking.isMyBooking && "ring-2 ring-blue-500/50"
-                                            )}
-                                            style={{
-                                                top: topPx,
-                                                left: cellLeft,
-                                                width: cellWidth,
-                                                height: heightPx,
-                                                backgroundColor: `${accountColor}15`,
-                                                borderColor: `${accountColor}40`,
-                                                borderLeftWidth: '4px',
-                                                borderLeftColor: accountColor,
-                                            }}
+                                            className={cn('zm-bk', booking.isMyBooking && 'is-mine')}
+                                            style={{ top: topPx, left: cellLeft, width: cellWidth, height: heightPx, ['--c' as string]: accountColor }}
                                             title={`${booking.title}\n${booking.startTime} – ${booking.endTime}\nAkun: ${booking.accountName}\nBooked by: ${booking.bookedBy}`}
+                                            aria-label={`${booking.title}, ${booking.startTime}–${booking.endTime}, ${accountNameOf(booking)}`}
                                             onClick={() =>
                                                 onBookingClick({
                                                     id: booking.id,
@@ -428,32 +432,11 @@ export function ZoomWeekView({
                                                 } as ProcessedBooking)
                                             }
                                         >
-                                            {/* Header: Account badge + Start Time */}
-                                            <div className="flex items-center justify-between gap-1 min-w-0">
-                                                <span
-                                                    className="px-1.5 py-0.5 rounded text-[9px] font-extrabold text-white shrink-0 shadow-2xs leading-none"
-                                                    style={{ backgroundColor: accountColor }}
-                                                >
-                                                    {getShortAccountName(booking.accountName)}
-                                                </span>
-                                                <span className="text-[10px] font-mono font-bold text-foreground/80 shrink-0">
-                                                    {booking.startTime}
-                                                </span>
-                                            </div>
-
-                                            {/* Meeting Title */}
-                                            <div className="font-bold text-xs text-foreground truncate leading-tight mt-0.5">
-                                                {booking.title}
-                                            </div>
-
-                                            {/* Footer: Host & End Time */}
-                                            {!isCompact && (
-                                                <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-auto pt-1 border-t border-border/30">
-                                                    <span className="truncate font-medium">{booking.bookedBy}</span>
-                                                    <span className="font-mono text-[9px]">{booking.endTime}</span>
-                                                </div>
-                                            )}
-                                        </div>
+                                            <span className="zm-bk-acc">{getShortAccountName(accountNameOf(booking))}</span>
+                                            <small className="inline">{booking.startTime.replace(':', '.')}</small>
+                                            <b>{booking.title}</b>
+                                            {!isCompact && <small>{booking.bookedBy}</small>}
+                                        </button>
                                     );
                                 });
 
