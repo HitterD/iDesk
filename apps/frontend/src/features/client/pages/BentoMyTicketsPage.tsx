@@ -15,6 +15,7 @@ import {
     Layers,
     RotateCw,
     Lock,
+    MousePointerClick,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -31,6 +32,7 @@ import {
     HelpBanner,
     MyTicketRow,
     MY_TICKETS_GRID,
+    OPEN_HINT,
     StatCard,
     type MyTicketItem as TicketItem,
 } from '../components/MyTicketsParts';
@@ -333,6 +335,9 @@ export const BentoMyTicketsPage: React.FC = () => {
             </div>
 
             {/* Tickets List */}
+            {tickets.length > 0 && (
+                <p className="portal-open-hint"><MousePointerClick aria-hidden="true" />{OPEN_HINT}</p>
+            )}
             <div className="portal-table" role="region" aria-label="Daftar tiket saya">
                 <div className={cn('portal-thead hidden lg:grid items-center gap-4 px-4', MY_TICKETS_GRID)}>
                     <div>Tiket</div>

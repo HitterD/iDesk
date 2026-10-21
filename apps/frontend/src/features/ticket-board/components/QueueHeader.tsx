@@ -1,9 +1,9 @@
 import type { ElementType } from 'react';
-import { Columns3, TableProperties, UserCheck, FilePen } from 'lucide-react';
+import { UserCheck, FilePen } from 'lucide-react';
 import { SegmentedControl, type SegmentedOption } from '@/components/ui/segmented-control';
+import { QueueViewToggle, type QueueView } from './QueueViewToggle';
 
 type QueueScope = 'all' | 'assigned_to_me' | 'created_by_me';
-type QueueView = 'kanban' | 'table';
 interface QueueHeaderProps {
     title: string;
     description: string;
@@ -11,9 +11,13 @@ interface QueueHeaderProps {
     tone: 'blue' | 'red' | 'teal' | 'teal-deep';
     connected: boolean;
     canEdit: boolean;
-    scope: QueueScope;
-    onScopeChange: (scope: QueueScope) => void;
-    onKanban: () => void;
+    /** Scope segments render only when both are given (the Kanban view filters scope in its own bar). */
+    scope?: QueueScope;
+    onScopeChange?: (scope: QueueScope) => void;
+    /** Active view; the Kanban | Tabel toggle sits at the same place on both views. */
+    view?: QueueView;
+    /** Table route when the Kanban is rendered standalone (/kanban). */
+    tablePath?: string;
 }
 
 const SCOPE_OPTIONS: readonly SegmentedOption<QueueScope>[] = [
@@ -21,20 +25,15 @@ const SCOPE_OPTIONS: readonly SegmentedOption<QueueScope>[] = [
     { value: 'assigned_to_me', label: 'My Tasks', icon: UserCheck },
     { value: 'created_by_me', label: 'Tiket yang saya buat', icon: FilePen },
 ];
-const VIEW_OPTIONS: readonly SegmentedOption<QueueView>[] = [
-    { value: 'kanban', label: <span>Kanban</span>, icon: Columns3, title: 'Kanban Board' },
-    { value: 'table', label: <span>Tabel</span>, icon: TableProperties, title: 'Table View' },
-];
 
 /**
  * Presentation only: each queue retains its own filters, permissions and query scope.
  * No create action here: "Buat Tiket Baru" lives only in the topbar and the mobile bottom nav.
  */
 export function QueueHeader({ title, description, icon: Icon, tone, connected, canEdit, scope,
-    onScopeChange, onKanban }: QueueHeaderProps) {
+    onScopeChange, view = 'table', tablePath }: QueueHeaderProps) {
     // Re-selecting an active personal scope returns to "Semua" (previous toggle behaviour).
-    const handleScope = (next: QueueScope) => onScopeChange(next === scope && next !== 'all' ? 'all' : next);
-    const handleView = (next: QueueView) => { if (next === 'kanban') onKanban(); };
+    const handleScope = (next: QueueScope) => onScopeChange?.(next === scope && next !== 'all' ? 'all' : next);
     return (
         <header className="queue-header">
             <div className="flex items-center gap-3 min-w-0">
@@ -48,8 +47,8 @@ export function QueueHeader({ title, description, icon: Icon, tone, connected, c
                 </div>
             </div>
             <div className="queue-header-actions">
-                {canEdit && <SegmentedControl aria-label="Cakupan tiket" options={SCOPE_OPTIONS} value={scope} onValueChange={handleScope} />}
-                <SegmentedControl aria-label="Tampilan antrean" options={VIEW_OPTIONS} value="table" onValueChange={handleView} />
+                {canEdit && scope && onScopeChange && <SegmentedControl aria-label="Cakupan tiket" options={SCOPE_OPTIONS} value={scope} onValueChange={handleScope} />}
+                <QueueViewToggle view={view} tablePath={tablePath} />
             </div>
         </header>
     );

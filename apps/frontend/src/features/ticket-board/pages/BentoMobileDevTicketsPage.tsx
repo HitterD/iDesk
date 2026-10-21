@@ -406,8 +406,7 @@ export const BentoMobileDevTicketsPage: React.FC = () => {
                 <QueueHeader title="Mobile Developer Request" description="Aplikasi mobile, APK, dan notifikasi" icon={Smartphone} tone="teal-deep"
                     connected={isConnected} canEdit={canEdit}
                     scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
-                    onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })}
-                    onKanban={() => setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('view', 'kanban'); return next; })} />
+                    onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })} />
 
                 <p className="text-xs text-muted-foreground">Ringkasan status, overdue, dan critical berdasarkan halaman yang dimuat; Total mengikuti server.</p>
                 {/* Stats Cards */}

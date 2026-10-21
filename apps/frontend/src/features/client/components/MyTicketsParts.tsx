@@ -45,7 +45,18 @@ function formatUpdatedAtRelative(updatedAt: string) {
 }
 
 /** Shared grid template so the header and the desktop rows always line up. */
-export const MY_TICKETS_GRID = 'lg:grid-cols-[minmax(240px,3fr)_116px_148px_minmax(180px,1.3fr)_112px_28px]';
+export const MY_TICKETS_GRID = 'lg:grid-cols-[minmax(240px,3fr)_116px_148px_minmax(180px,1.3fr)_112px_128px]';
+
+/** Requester list hint (mockup my-tickets.html `.open-hint`). */
+export const OPEN_HINT = 'Klik tiket untuk melihat percakapan, status terbaru, dan membalas petugas IT.';
+
+/** Desktop pill / mobile full-width button that tells the row is openable. Replies win when unread. */
+const OpenCta: React.FC<{ unread: boolean; block?: boolean }> = ({ unread, block }) => (
+    <span className={cn('portal-open-cta', block && 'is-block')} aria-hidden="true">
+        <span>{unread ? 'Lihat & balas' : 'Lihat detail'}</span>
+        <ChevronRight aria-hidden="true" />
+    </span>
+);
 
 /** Text-link label for secondary create entry points; amber stays on the topbar CTA and mobile FAB only. */
 export const CREATE_TICKET_TEXT_LINK = 'Buat tiket';
@@ -162,7 +173,8 @@ export const MyTicketRow: React.FC<{ ticket: MyTicketItem }> = ({ ticket }) => {
         <Link
             to={`/client/tickets/${ticket.id}`}
             className="portal-row group"
-            aria-label={`Lihat tiket #${number}: ${ticket.title}`}
+            aria-label={`Buka tiket #${number}: ${ticket.title}`}
+            title="Klik untuk melihat percakapan & perkembangan tiket"
         >
             {/* Card (< lg) */}
             <div className="lg:hidden p-3.5 sm:p-4 space-y-2.5">
@@ -178,6 +190,7 @@ export const MyTicketRow: React.FC<{ ticket: MyTicketItem }> = ({ ticket }) => {
                     <div className="flex items-center gap-1.5">{statusPill}{priorityPill}</div>
                     <div className="min-w-0 max-w-full"><AssigneePill assignee={ticket.assignedTo} /></div>
                 </div>
+                <OpenCta unread={Boolean(ticket.hasUnreadChat)} block />
             </div>
 
             {/* Table row (>= lg) */}
@@ -193,7 +206,7 @@ export const MyTicketRow: React.FC<{ ticket: MyTicketItem }> = ({ ticket }) => {
                 <div>{statusPill}</div>
                 <div className="min-w-0"><AssigneePill assignee={ticket.assignedTo} /></div>
                 {updated}
-                <ChevronRight className="w-4 h-4 justify-self-end text-muted-foreground group-hover:text-[hsl(var(--idesk-sapphire))] group-hover:translate-x-0.5 transition-transform" aria-hidden="true" />
+                <OpenCta unread={Boolean(ticket.hasUnreadChat)} />
             </div>
         </Link>
     );

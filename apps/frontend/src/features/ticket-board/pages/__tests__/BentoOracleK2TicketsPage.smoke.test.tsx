@@ -83,7 +83,8 @@ describe('BentoOracleK2TicketsPage', () => {
             </QueryClientProvider>
         );
 
-        expect(await screen.findByText('Oracle / K2 Kanban')).toBeInTheDocument();
+        expect(await screen.findByRole('region', { name: 'Kanban tiket' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Tampilan Kanban' })).toHaveAttribute('aria-current', 'page');
     });
     it('"Tiket yang saya buat" asks the server for my tickets in this queue', () => {
         const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

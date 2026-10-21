@@ -4,11 +4,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
     AlertTriangle,
     MessageSquare,
-    ChevronRight,
     ChevronDown,
     Flame,
-    CheckCircle2,
-    Wrench,
+    MonitorSmartphone,
     Calendar,
     Users,
 } from 'lucide-react';
@@ -30,6 +28,7 @@ import { isTerminalStatus } from './ticket-detail/constants';
 import { ResolveTicketModal } from './ticket-detail/ResolveTicketModal';
 import { getStaggeredDelay, StopPropagationWrapper } from '../utils/listUtils';
 import { useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
+import { TicketRowActions } from './TicketRowActions';
 
 export interface TicketRowData {
     id: string;
@@ -135,7 +134,12 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
     const showOverdue = ticket.isOverdue && ticket.status !== 'WAITING_VENDOR' && !isTerminalStatus(ticket.status);
 
     const statusTakeover = useStatusTakeover();
-    const selectLabel = `Pilih tiket ${ticket.ticketNumber || ticket.id.slice(0, 8)}`;
+    const displayNumber = ticket.ticketNumber || ticket.id.slice(0, 8);
+    const selectLabel = `Pilih tiket ${displayNumber}`;
+    // Same rule as the previous hover "Mark as resolved" button.
+    const canQuickResolve = canEditStatus && ticket.status !== 'RESOLVED';
+    const hardwarePath = ticket.isHardwareInstallation && ticket.ictBudgetRequestId
+        ? `/hardware-requests/${ticket.ictBudgetRequestId}?highlight=installation` : null;
 
     const handleStatusChange = (newStatus: string) => {
         if (newStatus === 'RESOLVED') {
@@ -189,6 +193,24 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
         }
     };
 
+    const rowActions = {
+        number: displayNumber,
+        onOpen: handleRowClick,
+        onResolve: canQuickResolve ? () => setResolveModalOpen(true) : undefined,
+        onOpenHardware: hardwarePath ? () => navigate(hardwarePath) : undefined,
+    };
+    const hardwareLink = ticket.isHardwareInstallation && (hardwarePath ? (
+        <button type="button" className="queue-hw-link" title="Buka Hardware Request"
+            aria-label="Terkait Hardware Request (buka)"
+            onClick={(e) => { e.stopPropagation(); navigate(hardwarePath); }}>
+            <MonitorSmartphone aria-hidden="true" />Hardware
+        </button>
+    ) : (
+        <span className="queue-hw-link" title="Hardware Installation">
+            <MonitorSmartphone aria-hidden="true" />Hardware
+        </span>
+    ));
+
     // Combine custom style with staggered animation delay
     const rowStyle: React.CSSProperties = {
         ...style,
@@ -239,29 +261,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                             <TicketPill tone="neutral" className="font-mono">{ticket.site.code}</TicketPill>
                         )}
 
-                        {/* Hardware Installation Badge */}
-                        {ticket.isHardwareInstallation && (
-                            ticket.ictBudgetRequestId ? (
-                                <button
-                                    type="button"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        navigate(`/hardware-requests/${ticket.ictBudgetRequestId}?highlight=installation`);
-                                    }}
-                                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-sky-800 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/80 px-2 py-0.5 rounded-md border border-sky-200 dark:border-sky-800/60 shadow-2xs transition-colors cursor-pointer"
-                                    title="Terkait Hardware Request (Klik untuk buka)"
-                                >
-                                    <Wrench className="w-3 h-3 text-sky-600 dark:text-sky-400" />
-                                    <span>Hardware Installation</span>
-                                    <ChevronRight className="w-3 h-3 text-sky-500/70" />
-                                </button>
-                            ) : (
-                                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-sky-800 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 px-2 py-0.5 rounded-md border border-sky-200 dark:border-sky-800/60 shadow-2xs">
-                                    <Wrench className="w-3 h-3 text-sky-600 dark:text-sky-400" />
-                                    <span>Hardware Installation</span>
-                                </span>
-                            )
-                        )}
+                        {hardwareLink}
 
                         {/* Participant Badge */}
                         {ticket.isParticipant && (
@@ -309,10 +309,13 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                 </div>
 
                 {/* Mobile Middle Row: Title & Badges */}
-                <div className="min-w-0">
+                <div className="min-w-0 relative pr-11">
                     <h3 className="font-semibold text-sm sm:text-base text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 leading-snug">
                         {ticket.title}
                     </h3>
+                    <TicketRowActions layout="card" {...rowActions}
+                        onChangePic={canEdit ? () => setMobileAssignOpen(true) : undefined}
+                        selection={canEdit ? { selected: isSelected, onToggle: () => onSelect(ticket.id, !isSelected) } : undefined} />
                     {ticket.hasUnreadChat && (
                         <div className="mt-1.5">
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700/60 shadow-xs animate-pulse">
@@ -389,7 +392,6 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                             </StopPropagationWrapper>
                         </div>
 
-                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
                     </div>
                 </div>
             </div>
@@ -413,7 +415,8 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                     />
                 ) : <span aria-hidden="true" />}
 
-                {/* Ticket Info with Quick Preview */}
+                {/* Ticket Info with Quick Preview; row quick actions float over the end of this cell only */}
+                <div className="queue-title-cell">
                 <TicketQuickPreview ticket={ticket} side="right" align="start" disabled={false}>
                     <div className="flex items-center gap-3 min-w-0">
                         {showPriorityDot && (
@@ -425,28 +428,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                                     #{ticket.ticketNumber || ticket.id.slice(0, 8)}
                                 </span>
                                 <ExternalSourceBadge source={ticket.source} />
-                                {ticket.isHardwareInstallation && (
-                                    ticket.ictBudgetRequestId ? (
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                navigate(`/hardware-requests/${ticket.ictBudgetRequestId}?highlight=installation`);
-                                            }}
-                                            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-sky-800 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/80 px-2 py-0.5 rounded-md border border-sky-200 dark:border-sky-800/60 shadow-2xs transition-colors cursor-pointer group/hw shrink-0"
-                                            title="Terkait Hardware Request (Klik untuk buka)"
-                                        >
-                                            <Wrench className="w-3 h-3 text-sky-600 dark:text-sky-400" />
-                                            <span>Hardware Installation</span>
-                                            <ChevronRight className="w-3 h-3 text-sky-500/70 group-hover/hw:translate-x-0.5 transition-transform" />
-                                        </button>
-                                    ) : (
-                                        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-sky-800 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 px-2 py-0.5 rounded-md border border-sky-200 dark:border-sky-800/60 shadow-2xs shrink-0">
-                                            <Wrench className="w-3 h-3 text-sky-600 dark:text-sky-400" />
-                                            <span>Hardware Installation</span>
-                                        </span>
-                                    )
-                                )}
+                                {hardwareLink}
                                 {ticket.isParticipant && (
                                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800/60 shadow-2xs shrink-0">
                                         <Users className="w-3 h-3 text-blue-600 dark:text-blue-400" />
@@ -474,7 +456,9 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                         </div>
                     </div>
                 </TicketQuickPreview>
-
+                <TicketRowActions layout="row" {...rowActions}
+                    onChangePic={canEdit ? () => setDesktopAssignOpen(true) : undefined} />
+                </div>
 
 
 
@@ -591,21 +575,6 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                                 {ticket.messages.length}
                             </span>
                         )}
-                    </div>
-                    {/* Quick actions - visible on hover */}
-                    <div className="flex items-center gap-1">
-                        {canEditStatus && ticket.status !== 'RESOLVED' && (
-                            <StopPropagationWrapper>
-                                <button
-                                    onClick={() => setResolveModalOpen(true)}
-                                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-700 dark:text-green-300 hover:text-green-700 dark:hover:text-green-300 transition-colors duration-150 cursor-pointer"
-                                    title="Mark as resolved"
-                                >
-                                    <CheckCircle2 className="w-4 h-4" />
-                                </button>
-                            </StopPropagationWrapper>
-                        )}
-                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-primary group-hover:translate-x-1 transition-[color,transform] duration-150" aria-hidden="true" />
                     </div>
                 </div>
             </div>

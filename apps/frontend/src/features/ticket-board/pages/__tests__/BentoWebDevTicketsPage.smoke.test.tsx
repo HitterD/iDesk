@@ -101,7 +101,8 @@ describe('BentoWebDevTicketsPage', () => {
             </QueryClientProvider>
         );
 
-        expect(await screen.findByText('Web Developer Kanban')).toBeInTheDocument();
+        expect(await screen.findByRole('region', { name: 'Kanban tiket' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Tampilan Kanban' })).toHaveAttribute('aria-current', 'page');
     });
     it('"Tiket yang saya buat" asks the server for my tickets in this queue', () => {
         const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

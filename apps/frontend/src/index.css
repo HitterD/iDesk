@@ -870,6 +870,168 @@ textarea.ct-input { padding: 10px 12px; line-height: 1.5; resize: vertical; }
 @keyframes idesk-spin { to { transform: rotate(360deg); } }
 @media (pointer: coarse) { .idesk-btn { min-height: 40px; } .idesk-btn.is-icon { width: 40px; min-width: 40px; } }
 
+/* ---------- Round-2 queue actions (mockup idesk.css "Ticket list: row actions, hardware link, bulk bar") ---------- */
+:root { --queue-pop-shadow: 0 24px 70px -12px rgb(0 0 0 / .30), 0 0 0 .5px rgb(0 0 0 / .10); --queue-card-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 0 0 .5px rgb(0 0 0 / .07); --queue-card-shadow-2: 0 10px 30px -12px rgb(0 0 0 / .16), 0 0 0 .5px rgb(0 0 0 / .07); }
+.dark { --queue-pop-shadow: 0 24px 70px -12px rgb(0 0 0 / .75), 0 0 0 .5px rgb(255 255 255 / .12); --queue-card-shadow: 0 0 0 .5px rgb(255 255 255 / .07); --queue-card-shadow-2: 0 12px 32px -12px rgb(0 0 0 / .6), 0 0 0 .5px rgb(255 255 255 / .08); }
+.queue-view-toggle .portal-seg-btn { text-decoration: none; }
+@media (max-width: 860px) { .queue-view-toggle .portal-seg-btn > span { display: none; } }
+.queue-row { --row-bg: hsl(var(--idesk-surface)); }
+.queue-row:hover, .queue-row.is-selected { --row-bg: hsl(var(--idesk-selection)); }
+.queue-title-cell { position: relative; min-width: 0; }
+.queue-act-btn {
+  display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; cursor: pointer;
+  color: hsl(var(--idesk-text-secondary)); background: hsl(var(--idesk-surface)); box-shadow: var(--queue-card-shadow);
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.queue-act-btn svg { width: 16px; height: 16px; stroke-width: 1.9; }
+.queue-act-btn:hover { color: hsl(var(--idesk-text)); background: hsl(var(--idesk-surface-raised)); }
+.queue-act-btn.is-ok:hover { color: hsl(var(--ticket-green-ink)); background: color-mix(in srgb, hsl(var(--ticket-green)) 10%, hsl(var(--idesk-surface))); }
+.queue-act-btn:focus-visible, .queue-hw-link:focus-visible, .queue-bulk-btn:focus-visible { outline: 0; box-shadow: 0 0 0 3px hsl(var(--idesk-sapphire) / .38); }
+/* Floats over the end of the title cell only, so PIC/SLA columns are never covered; never scaled on press. */
+.queue-row-acts {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; gap: 4px; padding-left: 22px;
+  background: linear-gradient(90deg, transparent, var(--row-bg) 18px); opacity: 0; pointer-events: none;
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+.queue-row:hover .queue-row-acts, .queue-row:focus-within .queue-row-acts, .queue-row-acts.is-open { opacity: 1; pointer-events: auto; }
+.queue-card-acts { position: absolute; top: 0; right: 0; }
+.queue-card-acts .queue-act-btn { width: 36px; height: 36px; }
+@media (hover: none) { .queue-row-acts { opacity: 1; pointer-events: auto; } .queue-row-acts .is-ok { display: none; } }
+.queue-row .queue-act-btn:active, .queue-row .queue-hw-link:active, .kanban-card .queue-act-btn:active { transform: none; }
+.queue-hw-link {
+  height: 18px; display: inline-flex; align-items: center; gap: 4px; padding: 0 7px; border-radius: 9px; white-space: nowrap;
+  font-size: 10.5px; font-weight: 600; color: hsl(var(--ticket-amber-ink));
+  background: color-mix(in srgb, hsl(var(--ticket-amber)) 12%, hsl(var(--idesk-surface)));
+}
+button.queue-hw-link { cursor: pointer; }
+button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amber)) 20%, hsl(var(--idesk-surface))); }
+.queue-hw-link svg { width: 11px; height: 11px; stroke-width: 2.3; }
+
+/* Bulk bar: sticky, not fixed - the animated page wrapper is a containing block for fixed children. */
+.queue-bulk-bar {
+  position: sticky; bottom: 18px; z-index: 30; width: max-content; max-width: 100%; margin: 14px auto 0;
+  display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 16px;
+  background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-text)); box-shadow: var(--queue-pop-shadow);
+  animation: queue-bar-in var(--dur-3) var(--ease-spring);
+}
+.queue-bulk-count { display: inline-flex; align-items: center; gap: 8px; padding: 0 8px 0 2px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.queue-bulk-count b { min-width: 28px; height: 28px; padding: 0 8px; border-radius: 9px; display: grid; place-items: center; background: hsl(var(--idesk-sapphire)); color: #fff; font-variant-numeric: tabular-nums; }
+.queue-bulk-sep { width: 1px; height: 20px; margin: 0 4px; background: hsl(var(--idesk-border)); }
+.queue-bulk-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 10px;
+  font-size: 13px; font-weight: 550; white-space: nowrap; cursor: pointer; color: hsl(var(--idesk-text)); background: transparent;
+  transition: background-color var(--dur-1) var(--ease-out), opacity var(--dur-1) var(--ease-out);
+}
+.queue-bulk-btn svg { width: 16px; height: 16px; stroke-width: 1.9; flex: none; }
+.queue-bulk-btn .caret { width: 13px; height: 13px; color: hsl(var(--idesk-text-secondary)); }
+.queue-bulk-btn:hover { background: hsl(var(--muted)); }
+.queue-bulk-btn.is-danger { color: hsl(var(--ticket-red-ink)); background: color-mix(in srgb, hsl(var(--ticket-red)) 8%, hsl(var(--idesk-surface))); }
+.queue-bulk-btn.is-danger:hover { background: color-mix(in srgb, hsl(var(--ticket-red)) 14%, hsl(var(--idesk-surface))); }
+.queue-bulk-btn.is-icon { width: 32px; padding: 0; color: hsl(var(--idesk-text-secondary)); }
+.queue-bulk-btn:disabled { opacity: .5; cursor: not-allowed; }
+@keyframes queue-bar-in { from { opacity: 0; transform: translateY(24px) scale(.98); } }
+@media (pointer: coarse) { .queue-bulk-btn { min-height: 40px; } .queue-bulk-btn.is-icon { width: 40px; } }
+@media (max-width: 860px) {
+  .queue-bulk-bar { bottom: 84px; width: auto; justify-content: space-between; }
+  .queue-bulk-btn > span, .queue-bulk-count > span { display: none; }
+  .queue-bulk-btn { width: 40px; padding: 0; }
+  .queue-bulk-btn .caret { display: none; }
+}
+
+/* ---------- Kanban (mockup kanban.html / idesk.css "Kanban") ---------- */
+.kanban-board { display: grid; grid-template-columns: repeat(4, minmax(250px, 1fr)); gap: 12px; overflow-x: auto; padding-bottom: 6px; align-items: start; scrollbar-width: thin; }
+.kanban-col {
+  --col: var(--ticket-neutral);
+  border-radius: 20px; padding: 10px; display: grid; gap: 8px; min-width: 0; align-content: start;
+  background: color-mix(in srgb, hsl(var(--col)) 4%, hsl(var(--muted)));
+  transition: box-shadow var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.kanban-col[data-status="TODO"] { --col: var(--ticket-sky); }
+.kanban-col[data-status="IN_PROGRESS"] { --col: var(--ticket-navy); }
+.dark .kanban-col[data-status="IN_PROGRESS"] { --col: var(--ticket-navy-ink); }
+.kanban-col[data-status="WAITING_VENDOR"] { --col: var(--ticket-amber); }
+.kanban-col[data-status="RESOLVED"] { --col: var(--ticket-green); }
+.kanban-col.is-over { background: color-mix(in srgb, hsl(var(--col)) 9%, hsl(var(--muted))); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, hsl(var(--col)) 45%, transparent); }
+.kanban-head { display: flex; align-items: center; gap: 8px; padding: 2px 4px; font-size: 13px; color: hsl(var(--idesk-text)); }
+.kanban-head .dot { width: 8px; height: 8px; border-radius: 50%; background: hsl(var(--col)); flex: none; }
+.kanban-head b { font-weight: 650; }
+.kanban-count { margin-left: auto; min-width: 22px; height: 20px; padding: 0 7px; border-radius: 10px; display: grid; place-items: center; font-size: 11.5px; font-weight: 650; font-variant-numeric: tabular-nums; color: hsl(var(--idesk-text-secondary)); background: hsl(var(--idesk-surface)); box-shadow: var(--queue-card-shadow); }
+.kanban-head .kanban-collapse { width: 24px; height: 24px; border-radius: 8px; background: transparent; box-shadow: none; opacity: .6; }
+.kanban-head .kanban-collapse:hover, .kanban-head .kanban-collapse:focus-visible { opacity: 1; background: hsl(var(--idesk-surface)); }
+.kanban-head .kanban-collapse svg { width: 14px; height: 14px; }
+.kanban-col-collapsed { cursor: pointer; text-align: left; }
+.kanban-col-collapsed .kanban-head { flex-direction: column; writing-mode: vertical-rl; padding: 6px 0; }
+.kanban-list { display: grid; gap: 8px; min-height: 96px; align-content: start; }
+.kanban-card {
+  position: relative; display: grid; gap: 8px; padding: 11px 12px 10px; border-radius: 16px; cursor: grab; user-select: none;
+  background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-text)); box-shadow: var(--queue-card-shadow);
+  transition: box-shadow var(--dur-2) var(--ease-out), translate var(--dur-2) var(--ease-out), rotate var(--dur-3) var(--ease-spring), scale var(--dur-3) var(--ease-spring);
+}
+.kanban-card:hover { box-shadow: var(--queue-card-shadow-2); }
+.kanban-card:not(.is-dragging):hover { translate: 0 -1px; }
+.kanban-card.is-locked { cursor: pointer; }
+.kanban-card:focus-visible { outline: 0; box-shadow: 0 0 0 3px hsl(var(--idesk-sapphire) / .38), var(--queue-card-shadow); }
+/* Lifted ghost: the library owns `transform`, so lift uses the independent rotate/scale properties. */
+.kanban-card.is-dragging { cursor: grabbing; box-shadow: var(--queue-pop-shadow); rotate: 2deg; scale: 1.03; }
+.kanban-card.is-dropping { rotate: 0deg; scale: 1; box-shadow: var(--queue-card-shadow-2); }
+.kanban-card.is-landed { animation: kanban-land var(--dur-3) var(--ease-spring); }
+.kanban-id { display: flex; align-items: center; gap: 6px; min-height: 18px; padding-right: 32px; font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: hsl(var(--idesk-text-secondary)); }
+.kanban-id .src { font-family: var(--font-sans); font-size: 10.5px; color: hsl(var(--idesk-text-secondary)); background: hsl(var(--muted)); padding: 0 6px; border-radius: 6px; line-height: 17px; }
+.kanban-id > span:first-child { white-space: nowrap; flex: none; }
+.kanban-id .src { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kanban-lock { margin-left: auto; display: inline-flex; color: hsl(var(--idesk-text-secondary)); }
+.kanban-lock svg { width: 12px; height: 12px; }
+.kanban-title { font-size: 13.5px; font-weight: 600; line-height: 1.35; letter-spacing: -.006em; overflow-wrap: anywhere; }
+.kanban-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.kanban-pills .ticket-pill { min-height: 24px; padding: 1px 9px; font-size: 11.5px; }
+.kanban-foot { display: flex; align-items: center; gap: 8px; padding-top: 8px; border-top: .5px solid hsl(var(--idesk-border)); min-width: 0; }
+.kanban-pic { display: inline-flex; align-items: center; gap: 6px; min-width: 0; flex: 1; font-size: 12px; font-weight: 550; color: hsl(var(--idesk-text-secondary)); }
+.kanban-pic > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kanban-pic.is-empty svg { width: 14px; height: 14px; }
+.kanban-foot .ticket-pill { min-height: 24px; padding: 1px 8px; font-size: 11.5px; flex: none; }
+.kanban-card .card-acts { position: absolute; top: 6px; right: 6px; opacity: 0; pointer-events: none; transition: opacity var(--dur-2) var(--ease-out); }
+.kanban-card:hover .card-acts, .kanban-card:focus-within .card-acts, .kanban-card .card-acts:has(.is-open) { opacity: 1; pointer-events: auto; }
+.kanban-card .card-acts .queue-card-acts { position: static; }
+.kanban-card .card-acts .queue-act-btn { width: 28px; height: 28px; }
+@media (hover: none) { .kanban-card .card-acts { opacity: 1; pointer-events: auto; } .kanban-card .card-acts .queue-act-btn { width: 36px; height: 36px; } }
+.kanban-empty { display: grid; justify-items: center; gap: 6px; padding: 22px 8px; font-size: 12px; color: hsl(var(--idesk-text-secondary)); border: 1px dashed hsl(var(--idesk-border)); border-radius: 14px; }
+.kanban-empty svg { width: 16px; height: 16px; }
+/* Drop placeholder: the library reserves the space; paint it as the dashed landing slot. */
+.kanban-list [data-rfd-placeholder-context-id] { border-radius: 16px; border: 1.5px dashed hsl(var(--idesk-sapphire) / .45); background: hsl(var(--idesk-sapphire) / .06); }
+.kanban-hint { display: flex; align-items: center; gap: 6px; margin: 10px 2px 0; font-size: 12px; color: hsl(var(--idesk-text-secondary)); }
+.kanban-hint svg { width: 14px; height: 14px; }
+.kanban-note { font-size: 11px; font-weight: 600; text-align: center; padding: 8px; border-radius: 12px; color: hsl(var(--idesk-text-secondary)); background: hsl(var(--idesk-surface) / .6); }
+@keyframes kanban-land { from { box-shadow: 0 0 0 3px hsl(var(--idesk-sapphire) / .35), var(--queue-card-shadow-2); transform: scale(.97); } }
+@media (max-width: 860px) {
+  .kanban-board { grid-template-columns: repeat(4, 82vw); scroll-snap-type: x mandatory; }
+  .kanban-col { scroll-snap-align: start; }
+  .kanban-hint { display: none; }
+}
+
+/* ---------- Requester rows read as openable (mockup "Requester list: make every row read as openable") ---------- */
+.portal-open-hint { display: flex; align-items: center; gap: 6px; margin: 0 0 -2px 2px; font-size: 12px; color: hsl(var(--idesk-text-secondary)); }
+.portal-open-hint svg { width: 14px; height: 14px; color: hsl(var(--idesk-sapphire)); }
+.portal-row { position: relative; text-decoration: none; color: inherit; }
+.portal-row::after {
+  content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0;
+  background: hsl(var(--idesk-sapphire)); opacity: 0; transform: scaleY(.4);
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+}
+.portal-row:hover::after, .portal-row:focus-visible::after { opacity: 1; transform: scaleY(1); }
+.portal-row h3 { transition: color var(--dur-1) var(--ease-out); }
+.portal-row:hover h3, .portal-row:focus-visible h3 { color: hsl(var(--idesk-sapphire)); }
+.portal-open-cta {
+  justify-self: end; display: inline-flex; align-items: center; justify-content: center; gap: 2px; height: 30px; padding: 0 8px 0 12px;
+  border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap;
+  color: hsl(var(--idesk-sapphire)); background: hsl(var(--idesk-sapphire) / .09);
+  transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
+}
+.portal-open-cta svg { width: 15px; height: 15px; transition: transform var(--dur-2) var(--ease-spring); }
+.portal-row:hover .portal-open-cta, .portal-row:focus-visible .portal-open-cta { background: hsl(var(--idesk-sapphire)); color: #fff; }
+.portal-row:hover .portal-open-cta svg, .portal-row:focus-visible .portal-open-cta svg { transform: translateX(3px); }
+.portal-open-cta.is-block { display: flex; width: 100%; height: 36px; margin-top: 2px; }
+@media (max-width: 1023px) { .portal-open-hint { display: none; } .portal-row::after { top: 14px; bottom: 14px; } }
+
 }
 /* ---------- Round-2 shell motion (tokens in styles/tokens.css; zeroed by the reduced-motion block at the end) ----------
    Unlayered on purpose: must beat tailwindcss-animate's `animate-in` utility on Radix overlays. */
@@ -905,6 +1067,9 @@ textarea.ct-input { padding: 10px 12px; line-height: 1.5; resize: vertical; }
 /* Dialogs spring in over a blurred backdrop. */
 .idesk-dialog-overlay[data-state="open"] { animation: idesk-backdrop-in var(--dur-3) var(--ease-out); }
 .idesk-dialog-content[data-state="open"] { animation: idesk-dialog-in var(--dur-3) var(--ease-spring); }
+/* Unlayered on purpose (beats the .inline-block utility): TicketQuickPreview wraps its trigger in an
+   inline-block; inside the queue title cell it must shrink so the title truncates before Priority. */
+.queue-title-cell > .inline-block { display: block; min-width: 0; }
 /* Unlayered on purpose: the untouched NotificationPopover / ActionCommandCenter triggers
    carry slate utility colours meant for a light topbar; recolour them for the sapphire chrome. */
 .idesk-topbar-actions > button, .idesk-topbar-actions > div > button { color: hsl(var(--idesk-chrome-foreground)); }

@@ -1,6 +1,12 @@
 import React from 'react';
-import { Trash2, UserPlus, CheckCircle2, XCircle, MoreHorizontal, Check, GitMerge } from 'lucide-react';
+import { Trash2, UserRoundPlus, CircleCheck, CircleDot, X, Check, GitMerge, ChevronDown, PlayCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
 import { ReassignConfirmDialog } from './ReassignConfirmDialog';
 
@@ -19,6 +25,19 @@ interface BulkActionsBarProps {
     onDelete?: () => void;
 }
 
+/** Bulk statuses production already supports from the bar (same calls as before, now grouped under "Status"). */
+const BULK_STATUSES = [
+    { value: 'IN_PROGRESS', label: 'In Progress', icon: PlayCircle },
+    { value: 'RESOLVED', label: 'Resolved', icon: CircleCheck },
+] as const;
+const MIN_MERGE = 2;
+/** Escape clears the selection unless a dialog or menu owns the key. */
+const OVERLAY_OPEN = '[role="dialog"], [role="alertdialog"], [role="menu"]';
+
+/**
+ * Floating bulk bar (mockup `queue-actions.js` BULK_HTML): count badge, Status, PIC, Gabungkan, Hapus,
+ * close ✕ (Esc). Slides up with the motion tokens. Operations and confirmations are the production ones.
+ */
 export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
     selectedCount,
     onAssign,
@@ -29,94 +48,70 @@ export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
     onDelete,
 }) => {
     const statusTakeover = useStatusTakeover();
+    const visible = selectedCount > 0;
 
-    if (selectedCount === 0) return null;
+    React.useEffect(() => {
+        if (!visible) return undefined;
+        const onKey = (event: KeyboardEvent) => {
+            if (event.key === 'Escape' && !event.defaultPrevented && !document.querySelector(OVERLAY_OPEN)) onClear();
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [visible, onClear]);
+
+    if (!visible) return null;
 
     const changeStatus = (status: string) => {
         statusTakeover
             .requestBulk((takeover) => onChangeStatus(status, takeover))
             .catch(() => undefined); // other errors are reported by onChangeStatus
     };
+    const canMerge = selectedCount >= MIN_MERGE;
 
     return (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
-            <div className="flex items-center gap-3 px-4 py-3 bg-slate-900 dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-700">
-                {/* Selection count */}
-                <div className="flex items-center gap-2 pr-3 border-r border-slate-700">
-                    <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-                        <span className="text-sm font-bold text-primary">{selectedCount}</span>
-                    </div>
-                    <span className="text-sm text-slate-300">selected</span>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-2">
-                    {onMerge && selectedCount >= 2 && (
-                        <button
-                            type="button"
-                            onClick={onMerge}
-                            disabled={isLoading}
-                            className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-indigo-300 hover:text-white hover:bg-indigo-950/70 border border-indigo-500/40 rounded-xl transition-all shadow-2xs active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-                            title="Gabungkan tiket terpilih menjadi 1 tiket"
-                        >
-                            <GitMerge className="w-4 h-4 text-indigo-400" />
-                            <span className="hidden sm:inline">Merge Tiket</span>
+        <>
+            <div className="queue-bulk-bar" role="toolbar" aria-label="Aksi massal">
+                <span className="queue-bulk-count" aria-live="polite">
+                    <b>{selectedCount}</b><span>tiket dipilih</span>
+                </span>
+                <span className="queue-bulk-sep" aria-hidden="true" />
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <button type="button" className="queue-bulk-btn" disabled={isLoading} title="Ubah status">
+                            <CircleDot aria-hidden="true" /><span>Status</span><ChevronDown className="caret" aria-hidden="true" />
                         </button>
-                    )}
-
-                    <button
-                        onClick={onAssign}
-                        disabled={isLoading}
-                        className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                        <UserPlus className="w-4 h-4" />
-                        <span className="hidden sm:inline">Assign</span>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent side="top" align="start" variant="compact" aria-label="Ubah status">
+                        {BULK_STATUSES.map(({ value, label, icon: Icon }) => (
+                            <DropdownMenuItem key={value} onSelect={() => changeStatus(value)}><Icon />{label}</DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+                <button type="button" className="queue-bulk-btn" onClick={onAssign} disabled={isLoading} title="Tetapkan PIC">
+                    <UserRoundPlus aria-hidden="true" /><span>PIC</span>
+                </button>
+                {onMerge && (
+                    <button type="button" className="queue-bulk-btn" onClick={onMerge} disabled={isLoading || !canMerge}
+                        title={canMerge ? 'Gabungkan tiket terpilih menjadi 1 tiket' : 'Pilih minimal 2 tiket untuk digabungkan'}>
+                        <GitMerge aria-hidden="true" /><span>Gabungkan</span>
                     </button>
-
-                    <button
-                        onClick={() => changeStatus('RESOLVED')}
-                        disabled={isLoading}
-                        className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-green-400 hover:text-green-300 hover:bg-green-900/30 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span className="hidden sm:inline">Resolve</span>
-                    </button>
-
-                    <button
-                        onClick={() => changeStatus('IN_PROGRESS')}
-                        disabled={isLoading}
-                        className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-400 hover:text-blue-300 hover:bg-blue-900/30 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                        <MoreHorizontal className="w-4 h-4" />
-                        <span className="hidden sm:inline">In Progress</span>
-                    </button>
-                    {onDelete && (
-                        <button
-                            onClick={onDelete}
-                            disabled={isLoading}
-                            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                            <span className="hidden sm:inline">Hapus</span>
+                )}
+                {onDelete && (
+                    <>
+                        <span className="queue-bulk-sep" aria-hidden="true" />
+                        <button type="button" className="queue-bulk-btn is-danger" onClick={onDelete} disabled={isLoading} title="Hapus tiket terpilih">
+                            <Trash2 aria-hidden="true" /><span>Hapus</span>
                         </button>
-                    )}
-                </div>
-
-                {/* Clear selection */}
-                <div className="pl-3 border-l border-slate-700">
-                    <button
-                        onClick={onClear}
-                        className="flex items-center gap-1.5 px-2 py-1.5 text-sm text-slate-400 hover:text-red-400 transition-colors"
-                    >
-                        <XCircle className="w-4 h-4" />
-                        <span className="hidden sm:inline">Clear</span>
-                    </button>
-                </div>
+                    </>
+                )}
+                <button type="button" className="queue-bulk-btn is-icon" onClick={onClear} aria-label="Batal pilih" title="Batal pilih (Esc)">
+                    <X aria-hidden="true" />
+                </button>
             </div>
 
             {/* PIC takeover confirmation for tickets handled by other agents */}
             {statusTakeover.dialogProps && <ReassignConfirmDialog {...statusTakeover.dialogProps} />}
-        </div>
+        </>
     );
 };
 

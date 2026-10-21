@@ -202,6 +202,20 @@ describe('BentoMyTicketsPage', () => {
         expect(container.querySelector('.ticket-pill.ticket-tone-sky')).not.toBeNull();
     });
 
+    it('makes each row openable: accessible name, hint and Lihat detail / Lihat & balas', async () => {
+        renderPage();
+        await screen.findAllByText('Komputer tidak bisa menyala');
+
+        expect(screen.getByText('Klik tiket untuk melihat percakapan, status terbaru, dan membalas petugas IT.')).toBeInTheDocument();
+        const unread = screen.getByRole('link', { name: 'Buka tiket #190826-GEN-0001: Komputer tidak bisa menyala' });
+        expect(unread).toHaveAttribute('href', '/client/tickets/t-1');
+        // Desktop pill + mobile full-width button; decorative (the link carries the name).
+        expect(within(unread).getAllByText('Lihat & balas')).toHaveLength(2);
+        const read = screen.getByRole('link', { name: 'Buka tiket #190826-GEN-0002: Koneksi printer terputus' });
+        expect(within(read).getAllByText('Lihat detail')).toHaveLength(2);
+        expect(read.querySelector('.portal-open-cta.is-block')).not.toBeNull();
+    });
+
     it('shows the mascot help banner linking to the client create route, without a response-time promise', async () => {
         renderPage();
         await screen.findAllByText('Komputer tidak bisa menyala');

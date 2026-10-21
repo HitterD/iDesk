@@ -1,26 +1,20 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useSocket } from '@/lib/socket';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+import { DragDropContext, DropResult } from '@hello-pangea/dnd';
 import {
     MessageSquare,
-    Clock,
-    AlertTriangle,
     UserCheck,
-    Columns3,
-    TableProperties,
-    Inbox,
     Flame,
-    ChevronLeft,
-    ChevronRight,
-    Eye,
-    UserPlus,
+    AlertTriangle,
     X,
     Maximize2,
-    ArrowRight,
-    Ticket as TicketIcon,
     Search,
-    Filter,
+    Hand,
+    Ticket as TicketIcon,
+    Database,
+    Code2,
+    Smartphone,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -31,7 +25,7 @@ import { AgentSelectList, Agent } from './AgentSelectList';
 import { ReassignConfirmDialog, type TargetAgentInfo } from './ReassignConfirmDialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/stores/useAuth';
-import { STATUS_CONFIG, PRIORITY_CONFIG, KANBAN_COLUMNS, NON_SELECTABLE_STATUSES, STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
+import { STATUS_CONFIG, PRIORITY_CONFIG, KANBAN_COLUMNS, NON_SELECTABLE_STATUSES } from '@/lib/constants/ticket.constants';
 import {
     Select,
     SelectContent,
@@ -39,21 +33,17 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { TicketQuickPreview } from '@/components/ui/TicketQuickPreview';
 import { KanbanBoardSkeleton } from './KanbanSkeleton';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { SiteSelector } from '@/components/site/SiteSelector';
-import { formatSlaDuration, MS_PER_MINUTE } from '@/lib/utils/slaDuration';
-import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
+import { QueueHeader } from './QueueHeader';
+import { EnhancedKanbanCard, KanbanBoardColumn, type KanbanTicket } from './KanbanBoardParts';
 import { isHandledByTakeoverDialog, useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
 import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 
 const CROSS_SITE_ROLES = ['ADMIN','MANAGER','AGENT_ORACLE'] as const;
 const isCrossSiteRole = (role?: string | null) => (CROSS_SITE_ROLES as readonly string[]).includes(role as string);
 
-
-// SLA warning threshold: 4 hours in milliseconds
-const SLA_WARNING_THRESHOLD_MS = 4 * 60 * 60 * 1000;
 
 /** Statuses never counted overdue: finished, or WAITING_VENDOR (SLA clock paused). */
 const NOT_OVERDUE_STATUSES: readonly string[] = ['RESOLVED', 'CLOSED', 'CANCELLED', 'WAITING_VENDOR'];
@@ -62,346 +52,13 @@ const NOT_OVERDUE_STATUSES: readonly string[] = ['RESOLVED', 'CLOSED', 'CANCELLE
 export const isCountedOverdue = (t: { status: string; isOverdue?: boolean }): boolean =>
     Boolean(t.isOverdue) && !NOT_OVERDUE_STATUSES.includes(t.status);
 
-interface Message {
-    id: string;
-    content: string;
-    createdAt: string;
-    sender?: { id: string; fullName: string };
-}
+type Ticket = KanbanTicket;
+export { EnhancedKanbanCard };
 
-interface Attachment {
-    id: string;
-    fileName: string;
-    fileUrl: string;
-    fileType: string;
-    fileSize: number;
-}
-
-interface Ticket {
-    id: string;
-    ticketNumber?: string;
-    title: string;
-    description?: string;
-    category?: string;
-    status: 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
-    priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
-    isOverdue?: boolean;
-    slaTarget?: string;
-    slaRemainingMinutes?: number | null;
-    assignedTo?: { id: string; fullName: string; email?: string; avatarUrl?: string; role?: string };
-    user?: { id?: string; fullName: string; avatarUrl?: string; department?: { name: string } };
-    site?: { id: string; code: string; name: string };
-    messages?: Message[];
-    attachments?: Attachment[];
-    hasUnreadChat?: boolean;
-    unreadMessageCount?: number;
-    createdAt: string;
-}
-
-// Column accent indicator colors
-const COLUMN_ACCENTS: Record<string, { dot: string; border: string; bg: string; text: string }> = {
-    TODO: STATUS_TONE_CLASSES.TODO,
-    IN_PROGRESS: STATUS_TONE_CLASSES.IN_PROGRESS,
-    WAITING_VENDOR: {
-        dot: 'bg-amber-500',
-        border: 'border-amber-500/30',
-        bg: 'bg-amber-500/10',
-        text: 'text-amber-600 dark:text-amber-400',
-    },
-    RESOLVED: {
-        dot: 'bg-emerald-500',
-        border: 'border-emerald-500/30',
-        bg: 'bg-emerald-500/10',
-        text: 'text-emerald-600 dark:text-emerald-400',
-    },
-    CANCELLED: {
-        dot: 'bg-destructive',
-        border: 'border-destructive/30',
-        bg: 'bg-destructive/10',
-        text: 'text-destructive',
-    },
-};
-
-
-// Enhanced Linear-style Kanban card
-export const EnhancedKanbanCard: React.FC<{
-    ticket: Ticket;
-    index: number;
-    onSelect: () => void;
-    onQuickAssign: () => void;
-    onOpen: () => void;
-}> = ({ ticket, index, onSelect, onQuickAssign, onOpen }) => {
-    const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
-    const slaClock = useSlaClock();
-    const now = new Date();
-    const isPaused = ticket.status === 'WAITING_VENDOR';
-    const clock = !isPaused && ticket.slaTarget ? slaCountdown(ticket.slaTarget, now, ticket.priority, slaClock) : null;
-    const isOverdue = !isPaused && (ticket.isOverdue || (clock && clock.remainingMs <= 0 && ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED'));
-    const isApproaching = clock && !isOverdue && clock.remainingMs < 2 * 60 * 60 * 1000;
-    const offHours = clock?.offHours ? offHoursLabel(clock, now, slaClock) : undefined;
-    const PriorityIcon = priorityConfig.icon;
-
-    const cleanDescription = ticket.description
-        ? ticket.description.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim()
-        : '';
-
-    return (
-        <Draggable draggableId={ticket.id} index={index} isDragDisabled={ticket.status === 'CLOSED'}>
-            {(provided, snapshot) => (
-                <div
-                    ref={provided.innerRef}
-                    {...provided.draggableProps}
-                    {...provided.dragHandleProps}
-                    onClick={onOpen}
-                    style={{
-                        ...provided.draggableProps.style,
-                    }}
-                    className={cn(
-                        "rounded-xl border bg-card p-3 transition-all duration-150 group relative select-none cursor-pointer",
-                        "hover:shadow-md hover:border-primary/40",
-                        snapshot.isDragging
-                            ? "shadow-2xl ring-2 ring-primary border-primary scale-[1.02] z-50 bg-card/95 backdrop-blur-sm"
-                            : "border-border/90 shadow-xs",
-                        isOverdue && "!border-destructive/50 bg-destructive/5",
-                        ticket.priority === 'CRITICAL' && !isOverdue && "border-destructive/40"
-                    )}
-                >
-                    {/* Top Meta Row */}
-                    <div className="flex items-center justify-between gap-1.5 mb-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="font-mono text-[11px] font-bold text-muted-foreground bg-muted/80 px-1.5 py-0.5 rounded border border-border/50 truncate">
-                                #{ticket.ticketNumber || ticket.id.slice(0, 8)}
-                            </span>
-
-                            {ticket.category && (
-                                <span className="text-[10px] font-semibold text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded truncate max-w-[90px]">
-                                    {ticket.category.replace(/_/g, ' ')}
-                                </span>
-                            )}
-                        </div>
-
-                        {/* Priority Badge & Quick Action Buttons */}
-                        <div className="flex items-center gap-1 shrink-0">
-                            <span className={cn(
-                                "text-[10px] px-1.5 py-0.5 rounded font-semibold inline-flex items-center gap-1 border",
-                                priorityConfig.badgeColor || 'bg-muted text-muted-foreground border-border'
-                            )} title={priorityConfig.label}>
-                                {PriorityIcon && <PriorityIcon className="w-2.5 h-2.5" />}
-                                <span>{priorityConfig.shortLabel || priorityConfig.label}</span>
-                            </span>
-
-                            {/* Quick Actions (visible on hover) */}
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 ml-1">
-                                <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); onSelect(); }}
-                                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-                                    title="Detail & Pratinjau Cepat"
-                                >
-                                    <Eye className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); onQuickAssign(); }}
-                                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-                                    title="Tugaskan Agent"
-                                >
-                                    <UserPlus className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Ticket Title with Rich Hover Card / Tooltip */}
-                    <TicketQuickPreview ticket={ticket as any} side="right">
-                        <h4
-                            className="font-bold text-xs sm:text-sm text-foreground mb-1.5 line-clamp-2 group-hover:text-primary transition-colors leading-snug"
-                        >
-                            {ticket.title}
-                        </h4>
-                    </TicketQuickPreview>
-
-                    {ticket.hasUnreadChat && (
-                        <div className="mb-2">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700/60 shadow-2xs animate-pulse">
-                                <MessageSquare className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
-                                <span>Pesan Baru{ticket.unreadMessageCount ? ` (${ticket.unreadMessageCount})` : ''}</span>
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Ticket Description Snippet */}
-                    {cleanDescription && (
-                        <p className="text-[11px] sm:text-xs text-muted-foreground line-clamp-2 mb-2.5 leading-relaxed font-normal break-words">
-                            {cleanDescription}
-                        </p>
-                    )}
-
-                    {/* SLA / Target Date Pill if active */}
-                    {isPaused ? (
-                        <div className="mb-2.5 text-[11px] font-medium text-muted-foreground">
-                            {ticket.slaRemainingMinutes != null ? `Dijeda · sisa ${formatSlaDuration(ticket.slaRemainingMinutes * MS_PER_MINUTE)}` : 'Dijeda'}
-                        </div>
-                    ) : ticket.slaTarget && ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED' && (
-                        <div className="mb-2.5">
-                            {isOverdue ? (
-                                <div className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-destructive/10 text-destructive border border-destructive/20">
-                                    <AlertTriangle className="w-3 h-3 animate-pulse" />
-                                    <span>Overdue: {format(new Date(ticket.slaTarget), 'dd MMM HH:mm')}</span>
-                                </div>
-                            ) : isApproaching ? (
-                                <div title={offHours} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                                    <Clock className="w-3 h-3" />
-                                    <span>Due soon: {format(new Date(ticket.slaTarget), 'dd MMM HH:mm')}</span>
-                                </div>
-                            ) : (
-                                <div title={offHours} className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-                                    <Clock className="w-3 h-3" />
-                                    <span>Target: {format(new Date(ticket.slaTarget), 'dd MMM HH:mm')}{offHours ? ' · dijeda' : ''}</span>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Bottom Footer Row */}
-                    <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
-                        {/* Users: Requester -> Assignee */}
-                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                            <UserAvatar
-                                user={ticket.user}
-                                size="xs"
-                                className="ring-1 ring-border shrink-0"
-                            />
-
-                            <ArrowRight className="w-2.5 h-2.5 text-muted-foreground/60 shrink-0" />
-
-                            {ticket.assignedTo ? (
-                                <div className="flex items-center gap-1 min-w-0 max-w-[120px]" title={`PIC: ${ticket.assignedTo.fullName}`}>
-                                    <UserAvatar
-                                        user={ticket.assignedTo}
-                                        size="xs"
-                                        className="ring-1 ring-border shrink-0"
-                                    />
-                                    <span className="text-[11px] font-semibold text-foreground truncate">
-                                        {ticket.assignedTo.fullName}
-                                    </span>
-                                </div>
-                            ) : (
-                                <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                                    Unassigned
-                                </span>
-                            )}
-                        </div>
-
-                        {/* Messages Counter */}
-                        {ticket.messages && ticket.messages.length > 0 && (
-                            <span className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground shrink-0 ml-1">
-                                <MessageSquare className="w-3 h-3" />
-                                <span>{ticket.messages.length}</span>
-                            </span>
-                        )}
-                    </div>
-                </div>
-            )}
-        </Draggable>
-    );
-};
-
-// Kanban Column with independent vertical scroll
-const KanbanColumn: React.FC<{
-    column: typeof KANBAN_COLUMNS[number];
-    tickets: Ticket[];
-    isCollapsed: boolean;
-    onToggleCollapse: () => void;
-    onCardSelect: (ticket: Ticket) => void;
-    onQuickAssign: (ticketId: string) => void;
-    onCardOpen: (ticket: Ticket) => void;
-}> = ({ column, tickets, isCollapsed, onToggleCollapse, onCardSelect, onQuickAssign, onCardOpen }) => {
-    const accent = COLUMN_ACCENTS[column.id] || COLUMN_ACCENTS.TODO;
-
-    if (isCollapsed) {
-        return (
-            <div
-                onClick={onToggleCollapse}
-                className="w-12 h-full bg-card border border-border rounded-2xl flex flex-col items-center py-4 cursor-pointer hover:bg-muted/60 transition-colors shrink-0 select-none shadow-xs"
-                title={`Buka kolom ${column.title}`}
-            >
-                <div className={cn("w-2.5 h-2.5 rounded-full mb-3", accent.dot)} />
-                <span className="[writing-mode:vertical-rl] text-xs font-bold text-foreground rotate-180 tracking-wider">
-                    {column.title}
-                </span>
-                <span className="mt-auto bg-muted border border-border w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-mono font-bold text-muted-foreground">
-                    {tickets.length}
-                </span>
-            </div>
-        );
-    }
-
-    return (
-        <div className="flex-1 min-w-[290px] max-w-[370px] h-full flex flex-col rounded-2xl border border-border bg-card/60 dark:bg-card/40 shadow-xs overflow-hidden">
-            {/* Pinned Column Header */}
-            <div className="shrink-0 px-3.5 py-3 bg-card border-b border-border/80 flex items-center justify-between select-none">
-                <div className="flex items-center gap-2.5 min-w-0">
-                    <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", accent.dot)} />
-                    <h3 className="font-bold text-sm text-foreground truncate">{column.title}</h3>
-                    <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-mono text-xs font-bold border border-border/60">
-                        {tickets.length}
-                    </span>
-                </div>
-                <button
-                    type="button"
-                    onClick={onToggleCollapse}
-                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer"
-                    title="Ciutkan kolom"
-                >
-                    <ChevronLeft className="w-4 h-4" />
-                </button>
-            </div>
-
-            {/* Independent Scrollable Cards Container */}
-            <Droppable droppableId={column.id}>
-                {(provided, snapshot) => (
-                    <div
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                        className={cn(
-                            "flex-1 min-h-0 overflow-y-auto p-2 space-y-2.5 custom-scrollbar transition-colors",
-                            snapshot.isDraggingOver && "bg-primary/5 ring-2 ring-primary/30 ring-inset rounded-xl"
-                        )}
-                    >
-                        {tickets.map((ticket, index) => (
-                            <EnhancedKanbanCard
-                                key={ticket.id}
-                                ticket={ticket}
-                                index={index}
-                                onSelect={() => onCardSelect(ticket)}
-                                onQuickAssign={() => onQuickAssign(ticket.id)}
-                                onOpen={() => onCardOpen(ticket)}
-                            />
-                        ))}
-                        {provided.placeholder}
-
-                        {column.id === 'RESOLVED' && tickets.length >= 50 && (
-                            <div className="text-center p-2 text-[11px] font-semibold text-muted-foreground bg-muted/60 rounded-xl mt-2 border border-border/50">
-                                🔒 Menampilkan 50 tiket terselesaikan terbaru
-                            </div>
-                        )}
-
-                        {tickets.length === 0 && (
-                            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                                <div className="w-12 h-12 mb-2 rounded-2xl bg-muted/60 flex items-center justify-center border border-border/40">
-                                    <Inbox className="w-6 h-6 opacity-40" />
-                                </div>
-                                <span className="text-xs font-bold text-foreground mb-0.5">Tidak ada tiket</span>
-                                <span className="text-[11px] text-muted-foreground text-center">Tarik tiket ke sini untuk memindahkan status</span>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </Droppable>
-        </div>
-    );
-};
+/** Landing highlight duration after a card changes column (matches --dur-3 with headroom). */
+const LANDED_MS = 600;
+const COLLAPSED_COLUMN = '52px';
+const OPEN_COLUMN = 'minmax(250px, 1fr)';
 
 // Side Drawer Quick Preview Panel
 const TicketPreviewPanel: React.FC<{
@@ -655,37 +312,47 @@ export type KanbanQueue = 'it-support' | 'oracle' | 'web-dev' | 'mobile-dev';
 
 export interface BentoTicketKanbanProps {
     queue?: KanbanQueue;
+    /** @deprecated The Kanban | Tabel toggle is a link group now (QueueViewToggle); kept for API compatibility. */
     currentView?: 'table' | 'kanban';
+    /** @deprecated See `currentView`. */
     onToggleView?: (view: 'table' | 'kanban') => void;
     embedded?: boolean;
 }
 
+type QueueTone = 'blue' | 'red' | 'teal' | 'teal-deep';
+/** Same header as each queue's Tabel view (mockup: Kanban and Tabel share header, data and vocabulary). */
 const QUEUE_CONFIG: Record<KanbanQueue, {
     title: string;
     description: string;
+    icon: React.ElementType;
+    tone: QueueTone;
     tablePath: string;
     ticketType?: string;
 }> = {
     'it-support': {
-        title: 'IT Support Kanban',
-        description: 'Geser dan lepas kartu tiket untuk memperbarui status secara instan',
+        title: 'IT Support Tickets',
+        description: 'Antrian IT Support untuk semua site Anda',
+        icon: TicketIcon, tone: 'blue',
         tablePath: '/tickets/list',
     },
     oracle: {
-        title: 'Oracle / K2 Kanban',
-        description: 'Papan alur kerja tiket Oracle ERP & K2 Request',
+        title: 'Oracle K2 Request',
+        description: 'ERP, database, dan workflow K2',
+        icon: Database, tone: 'red',
         tablePath: '/tickets/oracle-k2',
         ticketType: 'ORACLE_REQUEST',
     },
     'web-dev': {
-        title: 'Web Developer Kanban',
-        description: 'Papan alur kerja tiket Web Development & Portal',
+        title: 'Web Developer Request',
+        description: 'Bug, fitur, dan integrasi web portal',
+        icon: Code2, tone: 'teal',
         tablePath: '/tickets/web-developer',
         ticketType: 'WEB_DEV_REQUEST',
     },
     'mobile-dev': {
-        title: 'Mobile Developer Kanban',
-        description: 'Papan alur kerja tiket Aplikasi Mobile iOS & Android',
+        title: 'Mobile Developer Request',
+        description: 'Aplikasi mobile, APK, dan notifikasi',
+        icon: Smartphone, tone: 'teal-deep',
         tablePath: '/tickets/mobile-developer',
         ticketType: 'MOBILE_DEV_REQUEST',
     },
@@ -693,9 +360,6 @@ const QUEUE_CONFIG: Record<KanbanQueue, {
 
 export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
     queue: propQueue,
-    currentView = 'kanban',
-    onToggleView,
-    embedded = false,
 }) => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -710,6 +374,9 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
     const [filter, setFilter] = useState<'all' | 'my' | 'overdue' | 'critical'>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedSites, setSelectedSites] = useState<string[]>([]);
+    const [landedId, setLandedId] = useState<string | null>(null);
+    const landedTimer = useRef<number | undefined>(undefined);
+    useEffect(() => () => window.clearTimeout(landedTimer.current), []);
 
     // The parent page's ticket socket invalidates ['tickets']; poll only while it is down.
     const { isConnected } = useSocket();
@@ -772,7 +439,12 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
             queryClient.invalidateQueries({ queryKey: ['tickets', 'mobile-dev'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         },
-        onSuccess: () => toast.success('Status tiket diperbarui'),
+        onSuccess: (_, { id }) => {
+            toast.success('Status tiket diperbarui');
+            setLandedId(id);
+            window.clearTimeout(landedTimer.current);
+            landedTimer.current = window.setTimeout(() => setLandedId(null), LANDED_MS);
+        },
     });
 
     const updatePriorityMutation = useMutation({
@@ -925,61 +597,10 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
     }
 
     return (
-        <div className="h-full flex flex-col min-h-0 space-y-4 select-none">
-            {/* Header & Controls */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-                <div>
-                    <div className="flex items-center gap-2.5">
-                        <h1 className="text-2xl font-extrabold tracking-tight text-foreground">{config.title}</h1>
-                        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            Live
-                        </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{config.description}</p>
-                </div>
-
-                <div className="flex items-center gap-2.5 shrink-0">
-                    {/* View Toggle */}
-                    <div className="flex bg-card p-1 rounded-xl border border-border shadow-xs">
-                        <button
-                            type="button"
-                            onClick={() => onToggleView ? onToggleView('kanban') : undefined}
-                            className={cn(
-                                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer",
-                                currentView === 'kanban'
-                                    ? "bg-primary/10 text-primary font-bold"
-                                    : "text-muted-foreground hover:text-foreground"
-                            )}
-                            title="Kanban Board"
-                        >
-                            <Columns3 className="w-3.5 h-3.5" />
-                            <span className="hidden md:inline">Kanban</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                if (onToggleView) {
-                                    onToggleView('table');
-                                } else {
-                                    navigate(config.tablePath);
-                                }
-                            }}
-                            className={cn(
-                                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer",
-                                currentView === 'table'
-                                    ? "bg-primary/10 text-primary font-bold"
-                                    : "text-muted-foreground hover:text-foreground"
-                            )}
-                            title="Table View"
-                        >
-                            <TableProperties className="w-3.5 h-3.5" />
-                            <span className="hidden md:inline">Table</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
+        <div className="queue-page h-full flex flex-col min-h-0 space-y-4">
+            <QueueHeader title={config.title} description={config.description} icon={config.icon} tone={config.tone}
+                connected={isConnected} canEdit={false} view="kanban"
+                tablePath={propQueue ? undefined : config.tablePath} />
 
             {/* Filter & Search Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2 bg-card rounded-2xl border border-border shrink-0 shadow-xs">
@@ -1010,7 +631,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                         type="button"
                         onClick={() => setFilter('all')}
                         className={cn(
-                            "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
+                            "px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 transition-all cursor-pointer",
                             filter === 'all'
                                 ? "bg-primary text-primary-foreground shadow-xs"
                                 : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -1022,7 +643,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                         type="button"
                         onClick={() => setFilter('my')}
                         className={cn(
-                            "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer",
+                            "px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 cursor-pointer",
                             filter === 'my'
                                 ? "bg-primary text-primary-foreground shadow-xs"
                                 : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -1035,7 +656,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                         type="button"
                         onClick={() => setFilter('overdue')}
                         className={cn(
-                            "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer",
+                            "px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 cursor-pointer",
                             filter === 'overdue'
                                 ? "bg-destructive text-destructive-foreground shadow-xs"
                                 : "text-destructive hover:bg-destructive/10"
@@ -1048,7 +669,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                         type="button"
                         onClick={() => setFilter('critical')}
                         className={cn(
-                            "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer",
+                            "px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 cursor-pointer",
                             filter === 'critical'
                                 ? "bg-destructive text-destructive-foreground shadow-xs"
                                 : "text-destructive hover:bg-destructive/10"
@@ -1075,10 +696,11 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                 <div className="mx-0 mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">Akun Anda belum terpasang ke site. Hubungi admin untuk menetapkan site agar tiket dapat ditampilkan.</div>
             )}
 
-            {/* Kanban Columns Board Area (Independent Vertical Scroll per Column) */}
-            <div className="flex-1 min-h-0 flex overflow-hidden">
+            {/* Kanban board (mockup kanban.html): Open / In Progress / Waiting Vendor / Resolved (+ Closed, read only) */}
+            <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
                 <DragDropContext onDragEnd={onDragEnd}>
-                    <div className="flex-1 min-h-0 flex gap-3.5 overflow-x-auto pb-1 items-stretch">
+                    <section className="kanban-board flex-1 min-w-0" aria-label="Kanban tiket"
+                        style={{ gridTemplateColumns: KANBAN_COLUMNS.map((c) => (collapsedColumns.includes(c.id) ? COLLAPSED_COLUMN : OPEN_COLUMN)).join(' ') }}>
                         {KANBAN_COLUMNS.map((column) => {
                             // CLOSED has no column of its own; it is shown (read-only) under Resolved.
                             let columnTickets = filteredTickets.filter(t => t.status === column.id || (column.id === 'RESOLVED' && t.status === 'CLOSED'));
@@ -1088,10 +710,11 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                             }
 
                             return (
-                                <KanbanColumn
+                                <KanbanBoardColumn
                                     key={column.id}
                                     column={column}
                                     tickets={columnTickets}
+                                    landedId={landedId}
                                     isCollapsed={collapsedColumns.includes(column.id)}
                                     onToggleCollapse={() => toggleColumn(column.id)}
                                     onCardSelect={setSelectedTicket}
@@ -1100,7 +723,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                                 />
                             );
                         })}
-                    </div>
+                    </section>
                 </DragDropContext>
 
                 {/* Right Quick Preview Drawer Panel */}
@@ -1116,6 +739,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                     />
                 )}
             </div>
+            <p className="kanban-hint"><Hand aria-hidden="true" />Seret kartu ke kolom lain untuk mengubah status, atau buka pratinjau cepat dari menu kartu. Tiket Closed hanya baca.</p>
 
             {/* PIC takeover confirmation when starting a ticket handled by another agent */}
             {statusTakeover.dialogProps && <ReassignConfirmDialog {...statusTakeover.dialogProps} />}

@@ -1,0 +1,40 @@
+# R2 Task 2 — Queues + Kanban + My Tickets (production frontend)
+
+Branch `HitterD/redesign-mockup`, commit `feat(tickets): round-2 queue actions, bulk bar, kanban and requester rows`.
+
+## Perubahan
+1. **Kanban | Tabel toggle** — `SegmentedControl` kini mendukung opsi `href` (render `<Link>`, `aria-current="page"`; klik biasa → thumb meluncur lalu navigasi setelah `--dur-2`; ctrl/meta-klik tetap link native). Komponen baru `QueueViewToggle.tsx` (label "Kanban"/"Tabel", ikon `Columns3`/`Rows3`, accessible name "Tampilan Kanban/Tabel", ikon saja ≤860px) mempertahankan semua query param (scope, filter) dan hanya men-set/hapus `?view=kanban`. Dipakai di `QueueHeader` (prop `onKanban` dihapus dari 4 halaman antrean). Kanban sekarang memakai `QueueHeader` yang sama (judul/ikon/tone antrean sama dengan Tabel, toggle di posisi yang sama); `/kanban` standalone memakai `tablePath`.
+2. **Row quick actions** — `TicketRowActions.tsx` (Radix DropdownMenu). Desktop: "Tandai selesai" (ikon, `aria-label="Tandai selesai #no"`) + "⋯" (`aria-label="Aksi lainnya #no"`) mengambang di ujung sel judul saja (`.queue-title-cell` relative; gradient ke `--row-bg`), fade-in saat hover/focus-within/menu terbuka, tidak di-scale. Quick resolve memakai aturan lama hover-resolve (`canEditStatus && status !== 'RESOLVED'`) dan `ResolveTicketModal` yang sama. Menu: Buka tiket, Tandai selesai, Buka Hardware Request (jika `ictBudgetRequestId`), Ganti PIC (membuka popover PIC existing → konfirmasi reassign tetap), Salin nomor tiket, + di kartu mobile "Pilih untuk aksi massal / Batal pilih". Mobile card: ⋯ selalu tampil (36px). Semua event di dalam menu di-stopPropagation → tidak pernah navigasi. Badge "Hardware Installation" → `.queue-hw-link` "Hardware" (amber, ikon `MonitorSmartphone`) per mockup; navigasi sama. Chevron/hover-resolve lama di kolom Created dihapus. Checkbox cell tidak diubah.
+3. **BulkActionsBar** — bar putih mengambang (sticky bottom 18px / 84px mobile, radius 16, `--queue-pop-shadow`, `queue-bar-in` dengan `--dur-3 --ease-spring`), `role="toolbar" aria-label="Aksi massal"`: badge jumlah + "tiket dipilih", **Status ▾** (menu: In Progress, Resolved — dua status bulk yang sudah ada), **PIC** (BulkAssignDialog existing), **Gabungkan** (MergeTicketsModal existing; disabled <2 dengan hint), **Hapus** (admin-only, BulkDeleteDialog existing), **✕ Batal pilih** + Esc (diabaikan saat dialog/menu terbuka). Takeover dialog (`requestBulk`) tetap. Mobile: ikon saja.
+4. **Kanban** — card/column dipindah ke `KanbanBoardParts.tsx` (BentoTicketKanban 1124→748 baris). Kolom Open (sky) / In Progress (navy) / Waiting Vendor / Resolved (+Closed) sebagai panel tint `color-mix(--col 4%)`, dot + count pill, tombol ciut subtle (collapse tetap ada). Kartu: `#id` mono + kategori, ⋯ (pojok, hover/focus; selalu di touch) berisi Buka/Pratinjau cepat/Ganti PIC/Salin, judul, pill prioritas + SLA (Dijeda/Overdue/Due soon/Target/Selesai), footer PIC + pill status. Closed: ikon gembok "Hanya baca", `isDragDisabled` (aturan sama: hanya CLOSED). Drag: tetap `@hello-pangea/dnd`; ghost = `rotate 2deg scale 1.03` + shadow pop (properti independen agar transform library utuh), kolom target `is-over` highlight, placeholder bergaris (`[data-rfd-placeholder-context-id]`), landing `kanban-land` setelah status sukses. Takeover dialog, preview panel, mutasi, filter, site selector tidak berubah. Hint "Seret kartu…".
+5. **My Tickets** — hint "Klik tiket untuk melihat percakapan, status terbaru, dan membalas petugas IT." (desktop, saat ada tiket), accessible name `Buka tiket #no: judul`, `.portal-open-cta` "Lihat detail ›" / "Lihat & balas ›" (jika `hasUnreadChat`; produksi hanya punya flag boolean, bukan jumlah), aksen kiri 3px + judul sapphire saat hover/focus, tombol full-width di bawah kartu mobile.
+6. **Sky vs navy** — diverifikasi computed: dark In Progress `rgb(168,189,240)` vs Open `rgb(122,198,255)`; light navy #2D4A8C vs sky ink #0B6BB8; kolom Kanban dot sky vs navy.
+
+CSS baru di `index.css` `@layer components` (blok "Round-2 queue actions", "Kanban", "Requester rows"); satu rule unlayered `.queue-title-cell > .inline-block` (harus mengalahkan utility `.inline-block` dari TicketQuickPreview agar judul ter-truncate).
+
+## Aksi mockup yang tidak didukung produksi (tidak ditambahkan)
+- **Bulk "Prioritas"** — tidak ada handler bulk priority di frontend (DTO backend `PATCH /tickets/bulk/update` menerima `priority`, tapi itu berarti menambah call baru → sesuai instruksi tidak ditambahkan). Perlu keputusan user.
+- **Bulk status Open / Waiting Vendor** — bar produksi hanya punya In Progress & Resolved; menu Status hanya berisi dua itu.
+- **Tombol status di kartu Kanban** (alternatif keyboard di mockup) — produksi tidak punya editor status inline di kartu; status kartu read-only pill, ubah via drag (termasuk keyboard DnD bawaan library: Space/Arrow) atau panel Pratinjau cepat.
+- **Header checkbox state mixed** sudah ada (indeterminate) — tidak berubah.
+- Menu Kanban tidak punya "Tandai selesai"/"Hardware" karena data/aturan kartu Kanban produksi tidak memuat itu (Resolve di Kanban = drag ke Resolved).
+
+## Test (serial, satu file per invocation)
+Baru: `BulkActionsBar.test.tsx` (4: muncul saat seleksi + ✕ clear, Esc clear, Gabungkan ≥2 & Hapus hanya jika diizinkan, menu Status = In Progress/Resolved). Ditambah: TicketListRow (+3: ⋯ berlabel & tidak navigasi, quick resolve hanya jika boleh, menu mobile Hardware + pilih bulk), BentoTicketKanban (+2: kartu CLOSED tidak draggable + gembok; kartu aktif draggable, ⋯ tidak membuka tiket), BentoMyTicketsPage (+1: accessible name, hint, Lihat detail/Lihat & balas, tombol mobile).
+Diubah: 3 smoke (Oracle/WebDev/MobileDev) — Kanban kini menampilkan judul antrean yang sama, jadi assert region "Kanban tiket" + link "Tampilan Kanban" `aria-current`.
+Hasil PASS: BulkActionsBar 4, TicketListRow 29, TicketListRow.memo 1, BentoTicketKanban 11, BentoTicketListPage.filters 10, Oracle 4, WebDev 5, MobileDev 4, BentoMyTicketsPage 6, useStatusTakeover 16, segmented-control 3, SelectCheckbox 2, StatsCard 2, ticket-tokens 3. `npx tsc -p tsconfig.app.json --noEmit` exit 0.
+
+## Browser (Playwright, stub `**/v1/**`, ADMIN + USER; notifikasi di-grant agar NotificationPermissionGate lewat)
+Screenshot `.superpowers/shots/r2t2-*.png`: list 1440 light (+menu, +bulk), list 1440 dark, list 390, kanban 1440 light/dark (+drag), kanban 390, my 1440 light/dark, my 390, pembanding mockup `r2t2-mock-kanban-1440-light.png`, `r2t2-mock-my-1440-light.png`.
+- Row actions: bounding box aksi berakhir x=535 < kolom Prioritas x=545 → tidak menutupi PIC/SLA. Menu ⋯ tidak mengubah URL.
+- Ditemukan & diperbaiki saat verifikasi: judul tidak ter-truncate (overflow ke Prioritas) karena wrapper `inline-block` TicketQuickPreview; nomor tiket kartu Kanban terbungkus; pill filter Kanban terbungkus di 390.
+- Drag keyboard: ghost miring, kolom target highlight, placeholder bergaris tampil; drop tidak menetap di sesi stub karena refetch stub mengembalikan status lama (bukan bug — mutasi/rollback asli).
+- Task 1 sanity: font body = stack SF/Inter ✓; satu "Buat Tiket Baru" (topbar) ✓; tab sidebar aktif & popover tampil normal. Requester portal membuka dialog "Panduan Penggunaan Portal" otomatis setiap load bersih (perilaku existing, bukan Task 1).
+- Console: hanya socket.io yang di-abort stub dan `127.0.0.1:19876/pending-redirect` (helper lokal, tidak terkait).
+
+## Concerns
+- Kanban sekarang berjudul "IT Support Tickets" (bukan "IT Support Kanban") demi header identik mockup; deskripsi drag lama hilang → diganti hint bawah.
+- `currentView`/`onToggleView` props Kanban dipertahankan tapi tidak dipakai (deprecated) agar pemanggil tetap kompatibel.
+- DynamicTicketQueuePage memakai BulkActionsBar baru (otomatis), tapi tabelnya masih `<table>` legacy tanpa row actions/toggle (halaman modul kustom tanpa Kanban) — tidak direstruktur.
+- Kanban mobile: kolom 82vw scroll-snap; pill filter tetap scroll horizontal.
+- Collapsed column pakai `writing-mode` vertikal sederhana; belum dibandingkan visual (mockup tidak punya collapse).

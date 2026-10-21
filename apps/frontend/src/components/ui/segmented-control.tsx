@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, type ElementType, type KeyboardEvent, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ElementType, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 export interface SegmentedOption<V extends string> {
@@ -7,6 +8,14 @@ export interface SegmentedOption<V extends string> {
     icon?: ElementType;
     /** Tooltip / accessible hint when the label collapses to an icon. */
     title?: string;
+    /** Accessible name override (e.g. when the visible label hides on mobile). */
+    ariaLabel?: string;
+    /**
+     * Renders the segment as a link (e.g. Kanban | Tabel). Plain clicks are reported through
+     * `onValueChange` with the default prevented, so the caller can let the thumb arrive before
+     * navigating; modified clicks (new tab/window) keep native link behaviour.
+     */
+    href?: string;
 }
 
 export interface SegmentedControlProps<V extends string> {
@@ -20,6 +29,7 @@ export interface SegmentedControlProps<V extends string> {
 }
 
 const ARROW_STEP: Readonly<Record<string, number>> = { ArrowRight: 1, ArrowLeft: -1 };
+const isModifiedClick = (event: MouseEvent) => event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0;
 
 /**
  * Pressed-button group with one thumb that slides behind the selected segment (mockup `motion.js`).
@@ -30,7 +40,7 @@ export function SegmentedControl<V extends string>({
 }: SegmentedControlProps<V>) {
     const groupRef = useRef<HTMLDivElement>(null);
     const thumbRef = useRef<HTMLSpanElement>(null);
-    const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+    const itemRefs = useRef<Array<HTMLElement | null>>([]);
     const placedRef = useRef(false);
     const selectedIndex = options.findIndex((option) => option.value === value);
 
@@ -39,7 +49,7 @@ export function SegmentedControl<V extends string>({
         const group = groupRef.current;
         if (!thumb || !group) return undefined;
         const place = (instant: boolean) => {
-            const on = buttonRefs.current[selectedIndex];
+            const on = itemRefs.current[selectedIndex];
             thumb.hidden = !on;
             if (!on) return;
             thumb.classList.toggle('is-instant', instant);
@@ -55,11 +65,11 @@ export function SegmentedControl<V extends string>({
         return () => observer.disconnect();
     }, [selectedIndex, options.length]);
 
-    const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const handleKeyDown = (event: KeyboardEvent<HTMLElement>, index: number) => {
         const step = ARROW_STEP[event.key];
         if (!step) return;
         event.preventDefault();
-        buttonRefs.current[(index + step + options.length) % options.length]?.focus();
+        itemRefs.current[(index + step + options.length) % options.length]?.focus();
     };
 
     return (
@@ -68,19 +78,46 @@ export function SegmentedControl<V extends string>({
             {options.map((option, index) => {
                 const Icon = option.icon;
                 const selected = index === selectedIndex;
+                const content = (
+                    <>
+                        {Icon && <Icon className="w-3.5 h-3.5" aria-hidden="true" />}
+                        {option.label}
+                    </>
+                );
+                const shared = {
+                    title: option.title,
+                    'aria-label': option.ariaLabel,
+                    className: cn('portal-seg-btn', selected && 'is-active'),
+                    onKeyDown: (event: KeyboardEvent<HTMLElement>) => handleKeyDown(event, index),
+                };
+                if (option.href) {
+                    return (
+                        <Link
+                            key={option.value}
+                            ref={(el) => { itemRefs.current[index] = el; }}
+                            to={option.href}
+                            aria-current={selected ? 'page' : undefined}
+                            {...shared}
+                            onClick={(event) => {
+                                if (isModifiedClick(event)) return;
+                                event.preventDefault();
+                                onValueChange(option.value);
+                            }}
+                        >
+                            {content}
+                        </Link>
+                    );
+                }
                 return (
                     <button
                         key={option.value}
-                        ref={(el) => { buttonRefs.current[index] = el; }}
+                        ref={(el) => { itemRefs.current[index] = el; }}
                         type="button"
-                        title={option.title}
                         aria-pressed={selected}
-                        className={cn('portal-seg-btn', selected && 'is-active')}
+                        {...shared}
                         onClick={() => onValueChange(option.value)}
-                        onKeyDown={(event) => handleKeyDown(event, index)}
                     >
-                        {Icon && <Icon className="w-3.5 h-3.5" aria-hidden="true" />}
-                        {option.label}
+                        {content}
                     </button>
                 );
             })}

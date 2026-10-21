@@ -4,7 +4,8 @@ vi.mock('@/lib/slaCountdown', async (importOriginal) => ({
 }));
 
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TicketListRow, TicketRowData, Agent } from '../TicketListRow';
 import { MemoryRouter } from 'react-router-dom';
@@ -408,3 +409,57 @@ describe('TicketListRow Assignee Popover', () => {
         });
     });
 });
+
+describe('TicketListRow quick actions (round 2)', () => {
+    const renderRow = (ticket: TicketRowData, canEdit = true, onSelect = vi.fn()) => render(
+        <MemoryRouter>
+            <TicketListRow ticket={ticket} index={0} showSiteColumn canEdit={canEdit}
+                isSelected={false} agents={mockAgents} onSelect={onSelect}
+                onUpdatePriority={vi.fn()} onUpdateStatus={vi.fn().mockResolvedValue(undefined)} onAssign={vi.fn()} />
+        </MemoryRouter>
+    );
+    beforeEach(() => mockNavigate.mockClear());
+
+    it('labels the ⋯ menu per ticket and opening it never navigates', async () => {
+        const user = userEvent.setup();
+        renderRow(mockTicket);
+        const triggers = screen.getAllByRole('button', { name: 'Aksi lainnya #190826-GEN-0005' });
+        // Mobile card (always visible) + desktop row (hover/focus).
+        expect(triggers).toHaveLength(2);
+        await user.click(triggers[1]);
+        const items = (await screen.findAllByRole('menuitem')).map((item) => item.textContent);
+        expect(items).toEqual(['Buka tiket', 'Tandai selesai', 'Ganti PIC', 'Salin nomor tiket']);
+        expect(mockNavigate).not.toHaveBeenCalled();
+        await user.click(screen.getByRole('menuitem', { name: 'Buka tiket' }));
+        expect(mockNavigate).toHaveBeenCalledWith('/tickets/ticket-1', expect.anything());
+    });
+
+    it('offers quick resolve only where the old hover resolve was allowed', () => {
+        const { unmount } = renderRow(mockTicket);
+        fireEvent.click(screen.getByRole('button', { name: 'Tandai selesai #190826-GEN-0005' }));
+        expect(mockNavigate).not.toHaveBeenCalled();
+        unmount();
+        renderRow({ ...mockTicket, status: 'RESOLVED' });
+        expect(screen.queryByRole('button', { name: /Tandai selesai/ })).not.toBeInTheDocument();
+        cleanupAndRender(() => renderRow({ ...mockTicket, status: 'CLOSED' }));
+        cleanupAndRender(() => renderRow(mockTicket, false));
+    });
+
+    it('lists hardware and bulk selection in the mobile card menu', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        renderRow({ ...mockTicket, isHardwareInstallation: true, ictBudgetRequestId: 'hr-9' }, true, onSelect);
+        await user.click(screen.getAllByRole('button', { name: 'Aksi lainnya #190826-GEN-0005' })[0]);
+        await user.click(await screen.findByRole('menuitem', { name: 'Pilih untuk aksi massal' }));
+        expect(onSelect).toHaveBeenCalledWith('ticket-1', true);
+        await user.click(screen.getAllByRole('button', { name: 'Aksi lainnya #190826-GEN-0005' })[0]);
+        await user.click(await screen.findByRole('menuitem', { name: 'Buka Hardware Request' }));
+        expect(mockNavigate).toHaveBeenCalledWith('/hardware-requests/hr-9?highlight=installation');
+    });
+});
+
+function cleanupAndRender(renderFn: () => void) {
+    cleanup();
+    renderFn();
+    expect(screen.queryByRole('button', { name: /Tandai selesai/ })).not.toBeInTheDocument();
+}

@@ -511,8 +511,7 @@ export const BentoTicketListPage: React.FC = () => {
             <QueueHeader title="IT Support Tickets" description="Antrian IT Support untuk semua site Anda" icon={TicketIcon} tone="blue"
                 connected={isConnected} canEdit={canEdit}
                 scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
-                onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })}
-                onKanban={() => setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('view', 'kanban'); return next; })} />
+                onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })} />
 
             {/* Stats Cards - Horizontally scrollable snap strip on mobile, grid on tablet/desktop */}
             <div className="queue-stats queue-stats-7" aria-label="Ringkasan status">
