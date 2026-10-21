@@ -24,10 +24,10 @@ const TABS: { id: DrawerTab; label: string; icon: React.ElementType }[] = [
 
 interface Props {
     r: HardwareRequest;
-    colSpan: number;
 }
 
-export function RequestRowDrawer({ r, colSpan }: Props) {
+/** Inline detail under a list row (round-2: rendered inside the grid row, not a table cell). */
+export function RequestRowDrawer({ r }: Props) {
     const [tab, setTab] = useState<DrawerTab>('detail');
     const basePath = useHardwareBasePath();
     const meta = getStatusMeta(r.status);
@@ -35,8 +35,7 @@ export function RequestRowDrawer({ r, colSpan }: Props) {
     const needsConfirmation = r.status === 'AWAITING_USER_CONFIRMATION' && r.requesterId === userId;
 
     return (
-        <tr>
-            <td colSpan={colSpan} className="p-0 border-b border-slate-200 dark:border-slate-700/80">
+        <div>
                 <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
@@ -46,7 +45,7 @@ export function RequestRowDrawer({ r, colSpan }: Props) {
                 >
                     {/* Drawer Container */}
                     <div
-                        className="mx-4 mb-4 mt-1 rounded-2xl border overflow-hidden"
+                        className="mt-1 rounded-2xl border overflow-hidden"
                         style={{
                             borderColor: `${meta.hex}30`,
                             background: 'hsl(var(--card))',
@@ -107,9 +106,9 @@ export function RequestRowDrawer({ r, colSpan }: Props) {
                             {/* Full detail link — pushed right */}
                             <Link
                                 to={`${basePath}/${r.id}`}
-                                className="ml-auto flex items-center gap-1.5 text-xs font-bold bg-primary text-white hover:bg-primary/90 shadow-sm hover:shadow-md transition-all px-3.5 py-1.5 rounded-lg"
+                                className="idesk-btn is-primary ml-auto my-1.5"
                             >
-                                Buka Full Detail
+                                Buka detail lengkap
                                 <ExternalLink className="size-3" />
                             </Link>
                         </div>
@@ -139,8 +138,7 @@ export function RequestRowDrawer({ r, colSpan }: Props) {
                         </AnimatePresence>
                     </div>
                 </motion.div>
-            </td>
-        </tr>
+        </div>
     );
 }
 

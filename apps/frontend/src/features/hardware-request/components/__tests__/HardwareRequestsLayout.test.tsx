@@ -18,7 +18,7 @@ describe('HardwareRequestsLayout', () => {
         </Routes>
       </MemoryRouter>
     );
-    expect(screen.getByRole('navigation', { name: /hardware requests navigation/i })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: /navigasi hardware request/i })).toBeInTheDocument();
     expect(screen.getByTestId('outlet-child')).toBeInTheDocument();
   });
 });

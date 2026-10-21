@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { AgingTable } from '../dashboard/AgingTable';
 import { MemoryRouter } from 'react-router-dom';
 
-test('renders aging buckets with counts and flags red >7 days', () => {
+test('renders aging buckets as bars and flags >7-day requests red', () => {
   render(
     <MemoryRouter>
       <AgingTable
@@ -15,6 +15,9 @@ test('renders aging buckets with counts and flags red >7 days', () => {
       />
     </MemoryRouter>,
   );
-  expect(screen.getByText(/> 7 hari/i).closest('tr')).toHaveClass('bg-rose-50');
+  expect(screen.getByText(/> 7 hari/i)).toBeInTheDocument();
+  expect(screen.getByText('10')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /HR-001/i })).toHaveAttribute('data-bucket', '>7');
+  expect(screen.getByRole('link', { name: /HR-001/i })).toHaveClass('is-overdue');
   expect(screen.getByRole('link', { name: /HR-001/i })).toHaveAttribute('href', '/hardware-requests/r1');
 });

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Users, Check, X, Search, Shield, Wrench, User } from 'lucide-react';
+import { Users, Check, X, Search, ChevronDown } from 'lucide-react';
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { fetchTechnicians, type TechnicianItem } from '../../api/installation.api';
 import { cn } from '@/lib/utils';
 
@@ -161,5 +162,35 @@ export function TechnicianFilter({
         )}
       </div>
     </div>
+  );
+}
+/** Mockup "Teknisi · Semua" pop: same technician query and multi-select as TechnicianFilter. */
+export function TechnicianPop({ selectedIds, onChange }: { selectedIds: string[]; onChange: (ids: string[]) => void }) {
+  const { data: technicians = [] } = useQuery<TechnicianItem[]>({
+    queryKey: ['hardware-requests', 'technicians', undefined],
+    queryFn: () => fetchTechnicians(undefined),
+    staleTime: 5 * 60_000,
+  });
+  const shown = selectedIds.length === 0 ? 'Semua'
+    : selectedIds.length === 1 ? (technicians.find((t) => t.id === selectedIds[0])?.fullName ?? '1 dipilih')
+      : `${selectedIds.length} dipilih`;
+  const toggle = (id: string) => onChange(selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id]);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" className="queue-pop" aria-label={`Teknisi: ${shown}`}>
+          <span className="queue-pop-k">Teknisi</span><span className="queue-pop-v max-w-[140px]">{shown}</span><ChevronDown aria-hidden="true" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" variant="compact" className="res-pop-menu max-h-80 overflow-y-auto" aria-label="Filter teknisi">
+        <DropdownMenuCheckboxItem checked={selectedIds.length === 0} onSelect={(e) => e.preventDefault()} onCheckedChange={() => onChange([])}>Semua</DropdownMenuCheckboxItem>
+        {technicians.map((t) => (
+          <DropdownMenuCheckboxItem key={t.id} checked={selectedIds.includes(t.id)} onSelect={(e) => e.preventDefault()} onCheckedChange={() => toggle(t.id)}>
+            <span className="truncate">{t.fullName}</span>
+            {t.role && <span className="ml-auto pl-3 text-[11px] text-muted-foreground">{formatRoleLabel(t.role)}</span>}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
