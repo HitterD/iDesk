@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Renewal Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=15">
+<link rel="stylesheet" href="pages.css?v=15">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=15"></script>
+<script src="mock-state.js?v=15"></script>
+<script src="shell.js?v=15"></script>
+<script src="motion.js?v=15"></script>
+<script src="pages.js?v=15"></script>
+</head>
+<body data-page="renewal" data-crumb="Management" data-title="Renewal Hub">
+<!-- Production source: apps/frontend/src/features/renewal/pages/RenewalHubPage.tsx (tabs Contracts / VPN Access / Sync Settings), RenewalDashboardPage.tsx,
+     components/ContractStats.tsx, ContractTable.tsx, ContractCalendar.tsx; features/vpn-access/pages/VpnAccessPage.tsx; features/google-sync -->
+<script>
+const { ic, caret, bub } = iDeskPages;
+const CST = { ACTIVE: ['Active', 'var(--green)', 'var(--ink-green)'], EXPIRING_SOON: ['Expiring Soon', 'var(--orange)', 'var(--ink-orange)'], EXPIRED: ['Expired', 'var(--red)', 'var(--ink-red)'], DRAFT: ['Draft', 'var(--gray)'] };
+// Synthetic sample data: [contract, PO, category, vendor, expiry, days left, value, status]
+const CONTRACTS = [
+  ['Lisensi Microsoft 365 E3', 'PO-2025-0412', 'Subscription', 'PT Solusi Awan', '04 Nov 2026', 14, 'Rp 412.000.000', 'EXPIRING_SOON'],
+  ['Maintenance UPS ruang server', 'PO-2025-0388', 'Maintenance', 'CV Daya Prima', '27 Okt 2026', 6, 'Rp 36.500.000', 'EXPIRING_SOON'],
+  ['FortiGate support & update', 'PO-2025-0291', 'Service', 'PT Jaringan Aman', '15 Feb 2027', 117, 'Rp 98.000.000', 'ACTIVE'],
+  ['Oracle Database Standard', 'PO-2024-1120', 'Software', 'PT Data Andalan', '30 Jun 2027', 252, 'Rp 640.000.000', 'ACTIVE'],
+  ['Sewa printer area produksi', 'PO-2025-0105', 'Hardware', 'PT Cetak Mandiri', '10 Okt 2026', -11, 'Rp 54.000.000', 'EXPIRED'],
+  ['Zoom Business 3 akun', '—', 'Subscription', 'Zoom Video Comm.', '—', null, '—', 'DRAFT'],
+];
+const VPN = [['Maria Yuliani Br Purba', 'maria.purba@idesk.local', 'Selesai', '20 Jan 2027'], ['Tjan Siauw Hwa', 'tjan.hwa@idesk.local', 'Selesai', '28 Okt 2026'], ['Agung Permadhi', 'agung.p@idesk.local', 'Proses', '—'], ['Dwi Esti Ariyanti', 'dwi.esti@idesk.local', 'Non Aktif', '01 Okt 2026']];
+let state = { status: 'all', q: '' };
+const daysBub = (d) => (d === null ? '' : d < 0 ? bub(`${Math.abs(d)}h lewat`, 'var(--red)', { icon: 'triangle-alert', ink: 'var(--ink-red)' }) : d <= 30 ? bub(`${d}h lagi`, 'var(--orange)', { icon: 'hourglass', ink: 'var(--ink-orange)' }) : `<span class="muted" style="font-size:12px">${d}h lagi</span>`);
+const COLS = '--cols:minmax(220px,1.6fr) minmax(150px,1fr) 170px 140px 130px 84px;--cols-m:minmax(0,1fr) auto';
+function render() {
+  const q = state.q.toLowerCase();
+  const rows = CONTRACTS.filter((c) => (state.status === 'all' || c[7] === state.status) && (!q || (c[0] + c[1] + c[3]).toLowerCase().includes(q)));
+  document.getElementById('cStats').innerHTML = [['all', 'Total Contracts', 'files', 'var(--gray)'], ['ACTIVE', 'Active', 'circle-check', 'var(--green)'], ['EXPIRING_SOON', 'Expiring Soon', 'hourglass', 'var(--orange)'], ['EXPIRED', 'Expired', 'circle-x', 'var(--red)'], ['DRAFT', 'Draft', 'file-pen', 'var(--gray)']].map(([k, n, i, c]) => { const v = CONTRACTS.filter((x) => k === 'all' || x[7] === k).length; const attn = ['EXPIRING_SOON', 'EXPIRED'].includes(k) && v > 0; return `<button class="stat${state.status === k ? ' on' : ''}${attn ? ' attn' : ''}" data-k="${k}" aria-pressed="${state.status === k}" style="--c:${c};--ink:${attn ? CST[k][2] : 'var(--text)'}"><span class="top"><span class="ic">${ic(i)}</span><span class="n">${v}</span></span><span class="name">${n}</span></button>`; }).join('');
+  document.getElementById('cRows').innerHTML = rows.map(([n, po, cat, v, exp, d, val, s]) => `<div class="row static">
+    <div class="tk"><div class="id">${po} · ${cat}</div><div class="title">${n}</div></div>
+    <span class="cell hide-m">${v}</span>
+    <div class="hide-m" style="display:grid;gap:3px;justify-items:start"><span class="cell">${exp}</span>${daysBub(d)}</div>
+    <span class="cell num hide-m" style="text-align:left">${val}</span>
+    <span>${bub(CST[s][0], CST[s][1], { ink: CST[s][2] })}</span>
+    <span class="act hide-m"><button class="icon-btn" aria-label="Lihat PDF" data-demo="Pratinjau PDF kontrak hanya contoh.">${ic('file-text')}</button><button class="icon-btn" aria-label="Edit" data-demo="Edit kontrak hanya contoh.">${ic('pencil')}</button></span></div>`).join('');
+  document.getElementById('cEmpty').classList.toggle('show', rows.length === 0);
+  document.querySelector('#cStatus .v').textContent = state.status === 'all' ? 'All Status' : CST[state.status][0];
+  iDeskPages.wireDemo(document.getElementById('cRows'));
+  lucide.createIcons();
+}
+const CONTRACTS_PANEL = `
+  <section class="stats five" id="cStats" aria-label="Ringkasan kontrak"></section>
+  <div class="filters">
+    <label class="field">${ic('search')}<input id="cQ" placeholder="Cari nomor PO, vendor, atau nama file..." aria-label="Cari kontrak"></label>
+    <button class="pop" id="cStatus"><span class="k">Status</span><span class="v">All Status</span>${caret}</button>
+    <div class="seg" data-tabs="cViews" aria-label="Tampilan"><button data-tab="table" class="on">${ic('table-2')}Tabel</button><button data-tab="cal">${ic('calendar')}Kalender</button></div>
+    <button class="btn" data-demo="Form kontrak manual belum dibuat di mockup.">${ic('file-plus-2')}Add Manual</button>
+    <button class="btn primary" data-demo="Upload PDF kontrak tidak tersedia di mockup; tidak ada file dikirim.">${ic('upload')}Upload PDF</button>
+  </div>
+  <div id="cViews">
+    <div class="tab-panel" data-panel="table">
+      <section class="table d" style="${COLS}" aria-label="Daftar kontrak">
+        <div class="thead"><span>Contract</span><span>Vendor</span><span>Expiry</span><span>Value</span><span>Status</span><span style="text-align:right">Actions</span></div>
+        <div id="cRows"></div>
+        <div class="empty-state" id="cEmpty"><div class="ic">${ic('file-search')}</div><b>No Contracts Found</b>Coba ubah filter, atau upload kontrak pertama Anda.</div>
+        <div class="foot"><span>Pengingat otomatis dikirim 30, 14, dan 7 hari sebelum berakhir</span><span class="muted">Data contoh</span></div>
+      </section>
+    </div>
+    <div class="tab-panel" data-panel="cal" hidden>
+      <section class="panel"><h3>Kontrak berakhir <small>Okt 2026 – Jun 2027</small></h3>
+        <div class="list">${CONTRACTS.filter((c) => c[5] !== null).sort((a, b) => a[5] - b[5]).map(([n, , , v, exp, d, , s]) => `<div class="li"><span class="pdot" style="--c:${CST[s][1]}"></span><div class="grow1"><b>${n}</b><small>${v}</small></div><span class="date">${exp}</span>${daysBub(d)}</div>`).join('')}</div></section>
+    </div>
+  </div>`;
+const VPN_PANEL = `
+  <section class="stats four" aria-label="Ringkasan VPN">${[['Total VPN', 4, 'shield-check', 'var(--navy)'], ['Selesai', 2, 'circle-check', 'var(--green)'], ['Expiring Soon', 1, 'hourglass', 'var(--orange)'], ['Non Aktif', 1, 'circle-slash', 'var(--gray)']].map(([n, v, i, c]) => `<div class="stat" style="--c:${c};--ink:var(--text)"><span class="top"><span class="ic">${ic(i)}</span><span class="n">${v}</span></span><span class="name">${n}</span></div>`).join('')}</section>
+  <section class="table d" style="--cols:minmax(200px,1.4fr) minmax(200px,1.3fr) 120px 130px;--cols-m:minmax(0,1fr) auto" aria-label="VPN access">
+    <div class="table-tools"><label class="field">${ic('search')}<input placeholder="Cari nama atau email..." aria-label="Cari VPN"></label></div>
+    <div class="thead"><span>Nama</span><span>Email User</span><span>Status Create</span><span>Berakhir</span></div>
+    ${VPN.map(([n, e, s, x]) => `<div class="row static"><span class="cell"><b>${n}</b></span><span class="cell hide-m">${e}</span><span>${bub(s, s === 'Selesai' ? 'var(--green)' : s === 'Proses' ? 'var(--blue)' : 'var(--gray)')}</span><span class="date hide-m" style="text-align:left">${x}</span></div>`).join('')}
+  </section>`;
+const SYNC_PANEL = `
+  <section class="panel" style="max-width:720px"><h3>Google Sheets Sync <span class="bub" style="--c:var(--green);--ink:var(--ink-green)"><span class="dot"></span>G-SYNC ON</span></h3>
+    <div class="setting"><div><b>Sinkronisasi kontrak</b><small>Tarik perubahan dari sheet “Kontrak ICT 2026” setiap 15 menit</small></div><button class="switch" aria-checked="true" aria-label="Sinkronisasi kontrak" data-say="Sinkronisasi kontrak"></button></div>
+    <div class="setting"><div><b>Sinkronisasi VPN access</b><small>Sheet “VPN Access” · kolom Status H-1 dan H+1</small></div><button class="switch" aria-checked="true" aria-label="Sinkronisasi VPN" data-say="Sinkronisasi VPN"></button></div>
+    <div class="setting"><div><b>Terakhir sinkron</b><small>21 Okt 2026, 12.30 WIB · 0 konflik</small></div><button class="btn" data-demo="Sinkronisasi manual tidak dijalankan di mockup.">${ic('refresh-cw')}Sinkron sekarang</button></div>
+  </section>`;
+
+iDeskPages.mount(`
+<main class="content page">
+  <div class="head">
+    <span class="tile ptile" style="--c:var(--orange)">${ic('calendar-clock')}</span>
+    <div><h2>Renewal Hub</h2><p>Kelola kontrak renewal dan pengingat masa berlaku</p></div>
+  </div>
+  <div class="seg page-tabs" data-tabs="rnPanels" aria-label="Renewal Hub"><button data-tab="contracts" class="on">${ic('files')}Contracts</button><button data-tab="vpn">${ic('shield-check')}VPN Access</button><button data-tab="sync">${ic('refresh-cw')}Sync Settings</button></div>
+  <div id="rnPanels">
+    <div class="tab-panel" data-panel="contracts">${CONTRACTS_PANEL}</div>
+    <div class="tab-panel" data-panel="vpn" hidden>${VPN_PANEL}</div>
+    <div class="tab-panel" data-panel="sync" hidden>${SYNC_PANEL}</div>
+  </div>
+</main>`);
+document.getElementById('cQ').addEventListener('input', (e) => { state = { ...state, q: e.target.value.trim() }; render(); });
+document.getElementById('cStats').addEventListener('click', (e) => { const b = e.target.closest('.stat'); if (b) { state = { ...state, status: state.status === b.dataset.k ? 'all' : b.dataset.k }; render(); } });
+iDeskDropdown.bind(document.getElementById('cStatus'), { title: 'Filter status', options: [{ value: 'all', label: 'All Status' }, ...Object.entries(CST).map(([value, [label, color]]) => ({ value, label, color }))], value: () => state.status, onSelect: (v) => { state = { ...state, status: v }; render(); } });
+render();
+</script>
+</body>
+</html>

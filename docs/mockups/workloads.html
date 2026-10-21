@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Workloads</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=15">
+<link rel="stylesheet" href="pages.css?v=15">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=15"></script>
+<script src="mock-state.js?v=15"></script>
+<script src="shell.js?v=15"></script>
+<script src="motion.js?v=15"></script>
+<script src="pages.js?v=15"></script>
+</head>
+<body data-page="workloads" data-crumb="Management" data-title="Workloads">
+<!-- Production source: apps/frontend/src/features/manager/pages/AdminWorkloadDashboard.tsx, components/PriorityWeightsDialog.tsx, AgentPersonalWorkloadCard.tsx -->
+<script>
+const { ic, caret, av, bub } = iDeskPages;
+const WEIGHTS = { CRITICAL: ['Blocker (Critical)', 8, 'var(--red)'], HIGH: ['Urgent (Major Impact)', 4, 'var(--orange)'], MEDIUM: ['Normal (Moderate)', 2, 'var(--blue)'], LOW: ['Low (Minor/Cosmetic)', 1, 'var(--gray)'] };
+const MAX_POINTS = 10;
+const level = (p) => (p === 0 ? ['Standby', 'var(--green)', 'Siap & prioritas utama menerima tiket baru berikutnya'] : p <= 3 ? ['Optimal', 'var(--blue)', 'Beban kerja seimbang dan dalam ritme penanganan ideal'] : p <= 6 ? ['Padat', 'var(--orange)', 'Beban cukup tinggi, fokus selesaikan tiket prioritas'] : ['Tinggi', 'var(--red)', 'Kapasitas maksimal, tiket baru dialihkan ke rekan lain']);
+// Synthetic sample data: name, email, role, points, appraisal, tickets [[id, priority]], last assignment
+const AGENTS = [
+  ['RM Bagastyo Anggoro', 'bagastyo@idesk.local', 'Ops Support', 6, 146, [['201026-HC-0003', 'MEDIUM'], ['191026-QC-0009', 'MEDIUM'], ['141026-HSE-0026', 'LOW']], '20 Okt, 10.52'],
+  ['Alphin Santoso H.', 'alphin@idesk.local', 'Agent', 10, 171, [['191026-GA-0002', 'HIGH'], ['131026-FIN-0007', 'HIGH'], ['201026-OPE-0001', 'MEDIUM']], '20 Okt, 11.10'],
+  ['Beny Saputra', 'beny@idesk.local', 'Agent', 8, 133, [['181026-PRO-0009', 'CRITICAL']], '18 Okt, 08.40'],
+  ['Yudi Arta Trirensila', 'yudi@idesk.local', 'Agent', 2, 118, [['191026-LEA-0018', 'MEDIUM']], '19 Okt, 14.02'],
+  ['Merdeka Putra', 'merdeka@idesk.local', 'Agent Admin', 0, 92, [], '17 Okt, 09.15'],
+];
+let state = { status: 'ALL', sort: 'POINTS_ASC', q: '' };
+const SORTS = { POINTS_ASC: 'Poin terendah', POINTS_DESC: 'Poin tertinggi', TICKETS_DESC: 'Tiket terbanyak', NAME_ASC: 'Nama A-Z' };
+const sorter = { POINTS_ASC: (a, b) => a[3] - b[3], POINTS_DESC: (a, b) => b[3] - a[3], TICKETS_DESC: (a, b) => b[5].length - a[5].length, NAME_ASC: (a, b) => a[0].localeCompare(b[0]) };
+const COLS = '--cols:minmax(220px,1.4fr) 110px minmax(200px,1.3fr) 90px minmax(180px,1.4fr) 120px;--cols-m:minmax(0,1fr) auto';
+function render() {
+  const q = state.q.toLowerCase();
+  const rows = AGENTS.filter((a) => (state.status === 'ALL' || (state.status === 'STANDBY' ? a[3] === 0 : a[3] > 0)) && (!q || (a[0] + a[1]).toLowerCase().includes(q))).sort(sorter[state.sort]);
+  document.getElementById('wlRows').innerHTML = rows.map(([n, e, role, pts, appr, tks, last]) => {
+    const [lv, lc, ld] = level(pts);
+    return `<div class="row static">
+      <div class="person">${av(n)}<div style="min-width:0"><b>${n}</b><small>${e}</small></div></div>
+      <span class="hide-m"><span class="bub neutral">${role}</span></span>
+      <div style="display:grid;gap:5px" class="wide-m" data-tip="${lv}: ${ld}"><span style="display:flex;align-items:center;gap:8px"><b style="font:650 15px var(--font-display);font-variant-numeric:tabular-nums">${pts}</b><span class="muted" style="font-size:11.5px">pts</span>${bub(lv, lc)}</span><span class="meter" style="--c:${lc}"><i style="--p:${Math.min(pts / MAX_POINTS, 1) * 100}%"></i></span></div>
+      <span class="cell num hide-m" style="text-align:left">${appr}</span>
+      <div class="hide-m" style="display:flex;gap:4px;flex-wrap:wrap">${tks.length ? tks.map(([id, p]) => `<a class="bub mono" href="ticket.html" style="--c:${WEIGHTS[p][2]};height:22px;font-size:10.5px" title="${WEIGHTS[p][0]} · ${WEIGHTS[p][1]} pts">${id}</a>`).join('') : '<span class="muted">Belum ada</span>'}</div>
+      <span class="date hide-m">${last}</span></div>`;
+  }).join('');
+  document.getElementById('wlEmpty').classList.toggle('show', rows.length === 0);
+  document.querySelectorAll('#wlStatus button').forEach((b) => b.classList.toggle('on', b.dataset.s === state.status));
+  document.querySelector('#wlSort .v').textContent = SORTS[state.sort];
+  lucide.createIcons();
+}
+const standby = AGENTS.filter((a) => a[3] === 0).length;
+iDeskPages.mount(`
+<main class="content page">
+  <div class="head">
+    <span class="tile ptile" style="--c:var(--navy)">${ic('gauge')}</span>
+    <div><h2>Workload Tim Agen</h2><p>Distribusi dan pemantauan beban kerja agen harian per site</p></div>
+    <span class="spacer"></span>
+    <div class="head-actions">
+      <div class="seg" role="group" aria-label="Site" id="wlSite"><button class="on">Semua</button><button>SPJ</button><button>SMG</button><button>JTB</button></div>
+      <button class="btn" id="weightsBtn">${ic('sliders-horizontal')}Pengaturan Bobot</button>
+      <button class="icon-btn" aria-label="Sinkronisasi ulang beban agen dari tiket aktif" data-demo="Sinkronisasi beban hanya contoh; tidak ada perhitungan ulang server." style="background:var(--surface);box-shadow:var(--shadow-1)">${ic('refresh-cw')}</button>
+    </div>
+  </div>
+  <section class="stats three" aria-label="Ringkasan beban">
+    <div class="stat" style="--c:var(--navy);--ink:var(--text)"><span class="top"><span class="ic">${ic('users')}</span><span class="n">${AGENTS.length}</span></span><span class="name">Total Agen Terdaftar</span></div>
+    <div class="stat" style="--c:var(--orange);--ink:var(--text)"><span class="top"><span class="ic">${ic('weight')}</span><span class="n">${AGENTS.reduce((a, b) => a + b[3], 0)}</span></span><span class="name">Total Akumulasi Poin</span></div>
+    <div class="stat" style="--c:var(--blue);--ink:var(--text)"><span class="top"><span class="ic">${ic('circle-dot')}</span><span class="n">${AGENTS.reduce((a, b) => a + b[5].length, 0)}</span></span><span class="name">Tiket Aktif Dalam Proses</span></div>
+  </section>
+  <section class="table d" style="${COLS}" aria-label="Distribusi beban">
+    <div class="table-tools">
+      <h3>Distribusi Beban Rekan Tim (${AGENTS.length} Agen)</h3><span class="muted">${standby} Standby • ${AGENTS.length - standby} Bertugas</span>
+    </div>
+    <div class="table-tools">
+      <label class="field">${ic('search')}<input id="wlQ" placeholder="Cari nama / email agen..." aria-label="Cari agen"></label>
+      <div class="seg" id="wlStatus" role="group" aria-label="Status"><button data-s="ALL" class="on">Semua (${AGENTS.length})</button><button data-s="STANDBY">Standby (${standby})</button><button data-s="ACTIVE">Bertugas (${AGENTS.length - standby})</button></div>
+      <button class="pop" id="wlSort"><span class="k">Urutkan</span><span class="v">Poin terendah</span>${caret}</button>
+    </div>
+    <div class="thead"><span>Agen Operasional</span><span>Peran</span><span>Beban Kerja &amp; Kapasitas</span><span>Evaluasi</span><span>Tiket Sedang Ditangani</span><span>Penugasan Terakhir</span></div>
+    <div id="wlRows"></div>
+    <div class="empty-state" id="wlEmpty"><div class="ic">${ic('user-search')}</div><b>Tidak ada agen yang cocok</b>Coba ubah filter atau kata kunci.</div>
+    <div class="foot"><span>Sistem mengalokasikan tiket baru ke agen dengan akumulasi bobot paling rendah.</span><span class="muted">Data contoh</span></div>
+  </section>
+</main>`);
+document.getElementById('wlQ').addEventListener('input', (e) => { state = { ...state, q: e.target.value.trim() }; render(); });
+document.getElementById('wlStatus').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { state = { ...state, status: b.dataset.s }; render(); } });
+document.getElementById('wlSite').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; document.querySelectorAll('#wlSite button').forEach((x) => x.classList.toggle('on', x === b)); iDeskDropdown.notice('Semua agen contoh berada di satu site; filter site hanya tampilan.'); });
+iDeskDropdown.bind(document.getElementById('wlSort'), { title: 'Urutkan', options: Object.entries(SORTS).map(([value, label]) => ({ value, label })), value: () => state.sort, onSelect: (v) => { state = { ...state, sort: v }; render(); } });
+document.getElementById('weightsBtn').onclick = () => iDeskDropdown.confirm({ title: 'Pengaturan Bobot Prioritas', description: `Bobot poin per tiket: ${Object.values(WEIGHTS).map(([l, w]) => `${l} = ${w}`).join(' · ')}. Sistem akan mengalokasikan tiket baru ke agen dengan akumulasi total bobot paling rendah. Mengubah bobot hanya untuk ADMIN; di mockup tidak ada yang disimpan.`, confirmLabel: 'Tutup' });
+render();
+</script>
+</body>
+</html>

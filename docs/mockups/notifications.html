@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Notifications</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=15">
+<link rel="stylesheet" href="pages.css?v=15">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=15"></script>
+<script src="mock-state.js?v=15"></script>
+<script src="shell.js?v=15"></script>
+<script src="motion.js?v=15"></script>
+<script src="pages.js?v=15"></script>
+</head>
+<body data-page="notifications" data-crumb="Management" data-title="Notifications">
+<!-- Production source: apps/frontend/src/features/notifications/pages/NotificationCenterPage.tsx -> components/notifications/NotificationCenter.tsx,
+     NotificationItem.tsx, constants/notification.constants.ts (CATEGORY_CONFIG), CriticalNotificationBanner -->
+<script>
+const { ic } = iDeskPages;
+const CAT = { tickets: ['Tickets', 'ticket', 'var(--blue)', 'Buka Tiket', 'ticket.html'], hardware: ['Hardware', 'monitor-smartphone', 'var(--orange)', 'Tinjau Request', 'hardware.html'], renewals: ['Renewals', 'calendar-clock', 'var(--brown)', 'Cek Kontrak', 'renewal.html'], zoom: ['Zoom', 'video', 'var(--teal)', 'Buka Zoom', 'zoom.html'], eform: ['E-Form', 'file-key-2', 'var(--mint)', 'Tinjau E-Form', 'eform.html'] };
+// Synthetic sample data: [id, category, title, body, time, day, unread, critical]
+let items = [
+  [1, 'tickets', 'SLA terlewati: Printer label gudang mati total', '#181026-PRO-0009 · Blocker · PIC Beny Saputra', '12.31', 'Hari ini', true, true],
+  [2, 'tickets', 'Balasan baru dari Yanuar Ari Widodo', '#191026-GA-0002 · “Sudah saya coba restart, masih sama.”', '12.06', 'Hari ini', true],
+  [3, 'eform', 'Pengajuan VPN menunggu persetujuan atasan', 'EF-2610-0041 · Maria Yuliani Br Purba', '11.40', 'Hari ini', true],
+  [4, 'hardware', 'Request perlu ditinjau', 'HR-2610-0029 · Webcam 1080p · 2 unit', '10.15', 'Hari ini', false],
+  [5, 'zoom', 'Meeting dimulai 30 menit lagi', 'Demo iDesk ke HSE · Zoom 3 · 13.30', '13.00', 'Hari ini', false],
+  [6, 'tickets', 'Tiket ditugaskan kepada Anda', '#191026-QC-0009 · Kebutuhan kabel type A to B', '16.20', 'Kemarin', false],
+  [7, 'renewals', 'Kontrak segera berakhir (14 hari)', 'Lisensi Microsoft 365 E3 · PT Solusi Awan', '09.00', 'Kemarin', false],
+];
+let state = { tab: 'all', read: 'all', q: '', select: false, picked: new Set() };
+const count = (cat, unreadOnly) => items.filter((i) => (cat === 'all' || i[1] === cat) && (!unreadOnly || i[6])).length;
+function visible() {
+  const q = state.q.toLowerCase();
+  return items.filter((i) => (state.tab === 'all' || i[1] === state.tab) && (state.read === 'all' || (state.read === 'unread' ? i[6] : !i[6])) && (!q || (i[2] + i[3]).toLowerCase().includes(q)));
+}
+function render() {
+  document.getElementById('nTabs').innerHTML = [['all', 'Semua', 'inbox', 'var(--accent)'], ...Object.entries(CAT).map(([k, [l, i, c]]) => [k, l, i, c])].map(([k, l, i, c]) => { const u = count(k, true); return `<button class="stat${state.tab === k ? ' on' : ''}${u === 0 ? ' zero' : ''}" data-k="${k}" aria-pressed="${state.tab === k}" style="--c:${c};--ink:var(--text)"><span class="top"><span class="ic">${ic(i)}</span><span class="n">${u}</span></span><span class="name">${l}</span><span class="sub">${count(k, false)} total</span></button>`; }).join('');
+  document.querySelectorAll('#nRead button').forEach((b) => { b.classList.toggle('on', b.dataset.r === state.read); const k = b.dataset.r; const total = count(state.tab, false), unread = count(state.tab, true); b.querySelector('.count').textContent = k === 'all' ? total : k === 'unread' ? unread : total - unread; });
+  const rows = visible();
+  const days = [...new Set(rows.map((r) => r[5]))];
+  document.getElementById('nList').innerHTML = days.map((d) => `<div class="day-label">${d}</div><section class="panel" style="padding:4px 16px"><div class="list">${rows.filter((r) => r[5] === d).map(([id, cat, t, body, time, , unread, crit]) => `
+    <div class="li notif${unread ? ' unread' : ''}" data-id="${id}">
+      ${state.select ? `<span class="check" data-pick role="checkbox" aria-checked="${state.picked.has(id)}" aria-label="Pilih notifikasi" tabindex="0" style="cursor:pointer"><span class="box" style="${state.picked.has(id) ? 'background:var(--accent);border-color:var(--accent);color:#fff' : ''}">${state.picked.has(id) ? ic('check') : ''}</span></span>` : ''}
+      <span class="ico" style="--c:${crit ? 'var(--red)' : CAT[cat][2]}">${ic(crit ? 'triangle-alert' : CAT[cat][1])}</span>
+      <div class="grow1"><b>${t}</b><small>${body}</small><small>${CAT[cat][0]} · ${time}</small></div>
+      <a class="btn plain hide-sm" href="${CAT[cat][4]}">${CAT[cat][3]}</a>
+      <span class="li-acts">${unread ? `<button class="icon-btn" data-mark="${id}" aria-label="Tandai dibaca">${ic('check')}</button>` : ''}<button class="icon-btn" data-del="${id}" aria-label="Hapus notifikasi">${ic('trash-2')}</button></span>
+    </div>`).join('')}</div></section>`).join('');
+  document.getElementById('nEmpty').classList.toggle('show', rows.length === 0);
+  document.getElementById('nEmptyTitle').textContent = state.q ? 'Tidak ada hasil' : 'Semua sudah dibaca!';
+  const crit = items.filter((i) => i[7] && i[6]).length;
+  document.getElementById('nCrit').hidden = crit === 0;
+  const bar = document.getElementById('nBulk'); bar.hidden = !state.select || state.picked.size === 0;
+  document.getElementById('nBulkCount').textContent = `${state.picked.size} dipilih`;
+  document.getElementById('nSelect').classList.toggle('primary', state.select);
+  lucide.createIcons();
+}
+const update = (fn) => { items = items.map(fn); render(); };
+iDeskPages.mount(`
+<main class="content page" style="max-width:1100px">
+  <div class="head">
+    <span class="tile ptile" style="--c:var(--red)">${ic('bell')}</span>
+    <div><h2>Notification Center</h2><p>Semua pemberitahuan tiket, hardware, renewal, Zoom, dan E-Form</p></div>
+    <span class="spacer"></span>
+    <div class="head-actions">
+      <button class="icon-btn" id="nSound" aria-label="Matikan suara notifikasi" aria-pressed="true" style="background:var(--surface);box-shadow:var(--shadow-1)">${ic('volume-2')}</button>
+      <button class="btn" id="nSelect">${ic('list-checks')}Pilih</button>
+      <button class="btn" id="nAll">${ic('check-check')}Tandai semua dibaca</button>
+      <button class="btn" data-demo="Tabel riwayat notifikasi lengkap belum dibuat di mockup.">${ic('history')}Riwayat Notifikasi</button>
+    </div>
+  </div>
+  <div class="status-banner crit" id="nCrit"><span class="ico">${ic('siren')}</span><div><b>1 notifikasi kritis belum dikonfirmasi</b><small>SLA tiket Blocker terlewati. Konfirmasi setelah Anda menindaklanjuti.</small></div><span class="spacer"></span><button class="btn" id="nAck">Konfirmasi</button></div>
+  <section class="stats six" id="nTabs" aria-label="Kategori notifikasi"></section>
+  <div class="filters">
+    <label class="field">${ic('search')}<input id="nQ" placeholder="Filter notifikasi…" aria-label="Filter notifikasi"></label>
+    <div class="seg" id="nRead" role="group" aria-label="Status baca"><button data-r="all" class="on">Semua <span class="count">0</span></button><button data-r="unread">Belum dibaca <span class="count">0</span></button><button data-r="read">Sudah dibaca <span class="count">0</span></button></div>
+  </div>
+  <div id="nList"></div>
+  <div class="empty-state" id="nEmpty"><div class="ic">${ic('inbox')}</div><b id="nEmptyTitle">Semua sudah dibaca!</b>Tidak ada notifikasi untuk filter ini.</div>
+  <div class="bulkbar" id="nBulk" hidden><span id="nBulkCount">0 dipilih</span><button class="btn" id="nBulkRead">${ic('check')}Tandai dibaca</button><button class="btn danger" id="nBulkDel">${ic('trash-2')}Hapus</button><button class="icon-btn" id="nBulkClear" aria-label="Batalkan pilihan">${ic('x')}</button></div>
+</main>`);
+document.getElementById('nTabs').addEventListener('click', (e) => { const b = e.target.closest('.stat'); if (b) { state = { ...state, tab: b.dataset.k }; render(); } });
+document.getElementById('nRead').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { state = { ...state, read: b.dataset.r }; render(); } });
+document.getElementById('nQ').addEventListener('input', (e) => { state = { ...state, q: e.target.value.trim() }; render(); });
+document.getElementById('nList').addEventListener('click', (e) => {
+  const mark = e.target.closest('[data-mark]'), del = e.target.closest('[data-del]'), pick = e.target.closest('[data-pick]');
+  if (mark) update((i) => (i[0] === Number(mark.dataset.mark) ? [...i.slice(0, 6), false, i[7]] : i));
+  else if (del) { items = items.filter((i) => i[0] !== Number(del.dataset.del)); iDeskDropdown.notice('Notifikasi contoh dihapus dari halaman ini saja.'); render(); }
+  else if (pick) { const id = Number(pick.closest('[data-id]').dataset.id); const next = new Set(state.picked); next.has(id) ? next.delete(id) : next.add(id); state = { ...state, picked: next }; render(); }
+});
+document.getElementById('nAll').onclick = () => { update((i) => [...i.slice(0, 6), false, i[7]]); iDeskDropdown.notice('Semua notifikasi contoh ditandai dibaca (lokal).'); };
+document.getElementById('nAck').onclick = () => { update((i) => (i[7] ? [...i.slice(0, 6), false, i[7]] : i)); iDeskDropdown.notice('Notifikasi kritis contoh dikonfirmasi (lokal).'); };
+document.getElementById('nSelect').onclick = () => { state = { ...state, select: !state.select, picked: new Set() }; render(); };
+document.getElementById('nBulkClear').onclick = () => { state = { ...state, picked: new Set() }; render(); };
+document.getElementById('nBulkRead').onclick = () => { const p = state.picked; state = { ...state, picked: new Set() }; update((i) => (p.has(i[0]) ? [...i.slice(0, 6), false, i[7]] : i)); };
+document.getElementById('nBulkDel').onclick = () => { const p = state.picked; items = items.filter((i) => !p.has(i[0])); state = { ...state, picked: new Set() }; render(); };
+const sound = document.getElementById('nSound');
+sound.onclick = () => { const on = sound.getAttribute('aria-pressed') !== 'true'; sound.setAttribute('aria-pressed', String(on)); sound.setAttribute('aria-label', on ? 'Matikan suara notifikasi' : 'Nyalakan suara notifikasi'); sound.innerHTML = ic(on ? 'volume-2' : 'volume-x'); lucide.createIcons(); iDeskDropdown.notice(`Suara notifikasi ${on ? 'dinyalakan' : 'dimatikan'} · contoh lokal.`); };
+render();
+</script>
+</body>
+</html>

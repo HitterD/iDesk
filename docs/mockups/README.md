@@ -11,6 +11,16 @@ Mockup statis untuk review UI, bukan aplikasi produksi. Buka melalui static serv
 - `new.html` — katalog jenis bantuan; `?as=user` mempertahankan navigasi pemohon.
 - `form.html?type=service` — form contoh; tipe lain: `oracle`, `web`, `mobile`. Tambahkan `&as=user` untuk portal pemohon.
 - `?theme=dark` / `?theme=light` dapat dipakai pada semua halaman.
+- `dashboard-me.html` — Dashboard Saya (AgentDashboardPage): KPI pribadi, perlu perhatian, tren ditugaskan vs diselesaikan, performa, workload & instalasi, rating. Periode 7/30/90 hari mengganti angka contoh.
+- `dashboard-team.html` — Dashboard Tim (BentoDashboardPage): total, aktivitas 7/14/30 hari, status/prioritas (donut), kategori, aktivitas live, agent terbaik.
+- `hardware.html` — Hardware Requests dengan tab Daftar Request / Overview / Jadwal Instalasi / HR Catalog (`?tab=dashboard|calendar|catalog`).
+- `eform.html` — E-Form Access: statistik, filter jenis, Tabel / Kalender & Timeline.
+- `zoom.html` — Zoom Calendar: minggu (3 akun), Matriks Semua Akun, Bookingan Saya, upcoming meetings.
+- `kb.html` + `kb-article.html` — Pusat Panduan (topik, pencarian, populer/terbaru) dan detail artikel (daftar isi, progres solusi, feedback).
+- `workloads.html`, `reports.html` (tab Monthly / Agent / Volume / Scheduled), `notifications.html`, `renewal.html` (Contracts / VPN Access / Sync Settings).
+- `agents.html`, `automation.html`, `audit-logs.html`, `system-health.html` (Vitals / Service Map / Storage), `settings.html` (tab Personal + Administration seperti BentoSettingsPage; `?tab=security` dsb.).
+- Semua halaman di atas memakai `pages.css` + `pages.js` (chart SVG/HTML dari token, tab dengan transisi arah, switch, tooltip chart, aksi `data-demo`). Hanya "Hapus Data" di sidebar yang sengaja tetap tautan mati.
+
 
 ## Interaksi yang berfungsi
 
@@ -21,7 +31,7 @@ Mockup statis untuk review UI, bukan aplikasi produksi. Buka melalui static serv
 - Inspector memperbarui label header/properti dan menambahkan catatan perubahan PIC lokal. Waktu SLA dan pesan historis tetap ilustrasi, bukan kalkulasi SLA produksi.
 - Form service: kategori/perangkat/aplikasi; semua form: urgensi, pemohon sendiri/orang lain, penghitung judul/detail, template cepat, validasi wajib, reset judul/detail/nama, dan pratinjau submit. Submit **tidak membuat tiket**, tidak menghasilkan nomor tiket, dan tidak mengirim data.
 - Portal pemohon: pencarian, statistik, filter status dan ukuran halaman. “Dalam penanganan” mencakup In Progress dan Waiting Vendor. Empat sampel tidak membutuhkan halaman lanjutan.
-- Menu profil: ganti tema, buka demo agent/pemohon, informasi prototype. Status Online/Sibuk/Tidak tersedia diberi label **demo**, hanya lokal. Tidak ada logout atau simulasi keamanan/auth.
+- Menu profil: ganti tema, buka demo agent/pemohon, informasi prototype. Pill ketersediaan "Online · demo" di topbar agent **dihapus** (tidak dibawa ke produksi). Tidak ada logout atau simulasi keamanan/auth.
 
 ## Keputusan round 2 (mengikat untuk produksi)
 

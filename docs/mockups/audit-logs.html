@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Audit Logs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=15">
+<link rel="stylesheet" href="pages.css?v=15">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=15"></script>
+<script src="mock-state.js?v=15"></script>
+<script src="shell.js?v=15"></script>
+<script src="motion.js?v=15"></script>
+<script src="pages.js?v=15"></script>
+</head>
+<body data-page="audit-logs" data-crumb="Administration" data-title="Audit Logs">
+<!-- Production source: apps/frontend/src/features/admin/pages/AuditLogPage.tsx, components/AuditExportButton, AuditTimelineView, AuditDateRangePicker -->
+<script>
+const { ic, caret, av, bub } = iDeskPages;
+const ACT = { TICKET_CREATED: ['Ticket Created', 'var(--green)'], TICKET_ASSIGNED: ['Ticket Assigned', 'var(--teal)'], STATUS_CHANGED: ['Status Changed', 'var(--navy)'], PRIORITY_CHANGED: ['Priority Changed', 'var(--orange)'], TICKET_REPLY: ['Ticket Reply', 'var(--blue)'], SETTINGS_CHANGED: ['Settings Changed', 'var(--red)'], USER_LOGIN: ['User Login', 'var(--gray)'], USER_UPDATED: ['User Updated', 'var(--brown)'], ARTICLE_UPDATED: ['Article Updated', 'var(--brown)'] };
+// Synthetic sample data: [time, user, action, entity, entityId, description, ip, before, after]
+const LOGS = [
+  ['21 Okt 2026, 12.38', 'RM Bagastyo Anggoro', 'STATUS_CHANGED', 'Ticket', '201026-HC-0003', 'Status IN_PROGRESS → WAITING_VENDOR', '10.10.4.21', '{ "status": "IN_PROGRESS" }', '{ "status": "WAITING_VENDOR", "slaPaused": true }'],
+  ['21 Okt 2026, 12.31', 'Sistem', 'PRIORITY_CHANGED', 'Ticket', '181026-PRO-0009', 'Rule “Naikkan prioritas saat SLA terlewati”', '—', '{ "priority": "HIGH" }', '{ "priority": "CRITICAL" }'],
+  ['21 Okt 2026, 11.10', 'Alphin Santoso H.', 'TICKET_ASSIGNED', 'Ticket', '191026-GA-0002', 'PIC Yudi Arta Trirensila → Alphin Santoso H. · Alasan: Beban kerja penuh', '10.10.4.37', '{ "assignee": "Yudi Arta Trirensila" }', '{ "assignee": "Alphin Santoso H." }'],
+  ['21 Okt 2026, 10.02', 'Sari Dewanti', 'SETTINGS_CHANGED', 'Settings', 'sla.business-hours', 'Jam kerja Jumat 08.00–16.30', '10.10.2.5', '{ "fri": "08:00-17:00" }', '{ "fri": "08:00-16:30" }'],
+  ['21 Okt 2026, 08.01', 'RM Bagastyo Anggoro', 'USER_LOGIN', 'User', 'bagastyo', 'Login berhasil', '10.10.4.21', '—', '—'],
+  ['20 Okt 2026, 16.44', 'Tim IT Helpdesk', 'ARTICLE_UPDATED', 'Article', 'kb-vpn-forticlient', 'Langkah 4 diperbarui', '10.10.4.12', '{ "version": 6 }', '{ "version": 7 }'],
+  ['20 Okt 2026, 10.29', 'Nofie Kristihina Kullau', 'TICKET_CREATED', 'Ticket', '201026-FGW-0009', 'Servis printer marketing', '10.10.9.80', '—', '{ "priority": "HIGH" }'],
+];
+let state = { q: '', action: 'all' };
+const COLS = '--cols:22px 150px minmax(170px,1fr) 150px minmax(170px,1fr) minmax(220px,1.8fr) 100px;--cols-m:22px minmax(0,1fr) auto';
+function render() {
+  const q = state.q.toLowerCase();
+  const rows = LOGS.filter((l) => (state.action === 'all' || l[2] === state.action) && (!q || (l[1] + l[4] + l[5]).toLowerCase().includes(q)));
+  document.getElementById('alRows').innerHTML = rows.map(([t, u, a, en, id, d, ip, b, af]) => `<div class="row" tabindex="0" aria-expanded="false">
+    <span>${ic('chevron-right').replace('<i', '<i class="chev"')}</span>
+    <span class="date" style="text-align:left">${t}</span>
+    <div class="person hide-m">${u === 'Sistem' ? `<span class="avatar" style="--c:var(--gray)">${ic('cpu')}</span>` : av(u)}<b>${u}</b></div>
+    <span>${bub(ACT[a][0], ACT[a][1])}</span>
+    <span class="cell hide-m"><b>${en}</b> <span class="mono muted">${id}</span></span>
+    <span class="cell hide-m">${d}</span>
+    <span class="cell mono hide-m" style="font-size:11.5px">${ip}</span>
+    <div class="row-detail"><div class="diff"><div><small>Sebelum</small>${b}</div><div><small>Sesudah</small>${af}</div></div></div></div>`).join('');
+  document.getElementById('alEmpty').classList.toggle('show', rows.length === 0);
+  document.getElementById('alShowing').textContent = `Menampilkan ${rows.length} dari ${LOGS.length} log contoh`;
+  document.querySelector('#alAct .v').textContent = state.action === 'all' ? 'Semua' : ACT[state.action][0];
+  lucide.createIcons();
+}
+const TIMELINE = `<section class="panel feed"><h3>Timeline · 21 Okt 2026</h3><div class="list">${LOGS.filter((l) => l[0].startsWith('21')).map(([t, u, a, , id, d]) => `<div class="li"><span class="ico" style="--c:${ACT[a][1]}">${ic('dot')}</span><div class="grow1"><b>${ACT[a][0]} · ${id}</b><small>${u} · ${d}</small></div><span class="t">${t.split(', ')[1]}</span></div>`).join('')}</div></section>`;
+iDeskPages.mount(`
+<main class="content page">
+  <div class="head">
+    <span class="tile ptile" style="--c:var(--slate)">${ic('shield')}</span>
+    <div><h2>Audit Logs</h2><p>Lacak semua aktivitas dan perubahan sistem</p></div>
+    <span class="spacer"></span>
+    <div class="head-actions"><button class="btn" data-demo="Data contoh tidak diambil ulang.">${ic('refresh-cw')}Refresh</button><button class="btn" data-demo="Export audit log (CSV) hanya contoh; tidak ada file diunduh.">${ic('download')}Export</button></div>
+  </div>
+  <div class="filters">
+    <label class="field">${ic('search')}<input id="alQ" placeholder="Cari user, entity ID, deskripsi..." aria-label="Cari audit log"></label>
+    <button class="pop" id="alAct"><span class="k">Action</span><span class="v">Semua</span>${caret}</button>
+    <button class="pop" data-demo="Pemilih rentang tanggal belum dibuat di mockup."><span class="k">Tanggal</span><span class="v">20 – 21 Okt 2026</span>${caret}</button>
+    <div class="seg" data-tabs="alViews" aria-label="Tampilan"><button data-tab="table" class="on">${ic('rows-3')}Tabel</button><button data-tab="timeline">${ic('git-commit-vertical')}Timeline</button></div>
+  </div>
+  <div id="alViews">
+    <div class="tab-panel" data-panel="table">
+      <section class="table d" style="${COLS}" aria-label="Audit log">
+        <div class="thead"><span></span><span>Timestamp</span><span>User</span><span>Action</span><span>Entity</span><span>Description</span><span>IP Address</span></div>
+        <div id="alRows"></div>
+        <div class="empty-state" id="alEmpty"><div class="ic">${ic('file-search')}</div><b>Tidak ada audit log</b>Coba ubah filter atau kata kunci.</div>
+        <div class="foot"><span id="alShowing"></span><span class="muted">Klik baris untuk melihat perubahan nilai</span></div>
+      </section>
+    </div>
+    <div class="tab-panel" data-panel="timeline" hidden>${TIMELINE}</div>
+  </div>
+</main>`);
+document.getElementById('alQ').addEventListener('input', (e) => { state = { ...state, q: e.target.value.trim() }; render(); });
+iDeskDropdown.bind(document.getElementById('alAct'), { title: 'Filter action', search: 'Cari action…', options: [{ value: 'all', label: 'Semua' }, ...Object.entries(ACT).map(([value, [label, color]]) => ({ value, label, color }))], value: () => state.action, onSelect: (v) => { state = { ...state, action: v }; render(); } });
+const toggleRow = (row) => { const open = !row.classList.contains('open'); row.classList.toggle('open', open); row.setAttribute('aria-expanded', String(open)); };
+document.getElementById('alRows').addEventListener('click', (e) => { const r = e.target.closest('.row'); if (r) toggleRow(r); });
+document.getElementById('alRows').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('row')) { e.preventDefault(); toggleRow(e.target); } });
+render();
+</script>
+</body>
+</html>

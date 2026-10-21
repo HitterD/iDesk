@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Reports</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=15">
+<link rel="stylesheet" href="pages.css?v=15">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=15"></script>
+<script src="mock-state.js?v=15"></script>
+<script src="shell.js?v=15"></script>
+<script src="motion.js?v=15"></script>
+<script src="pages.js?v=15"></script>
+</head>
+<body data-page="reports" data-crumb="Management" data-title="Reports">
+<!-- Production source: apps/frontend/src/features/reports/pages/BentoReportsPage.tsx, components/ReportsCharts.tsx,
+     components/scheduled/ScheduledReportsTab.tsx, reportTeams.ts -->
+<script>
+const { ic, caret, av, bub, columns, lines, donut, hbars } = iDeskPages;
+const TEAMS = ['Semua Tim', 'IT Support', 'Oracle / K2', 'Web Dev', 'Mobile Dev', 'Semua Tim Dev'];
+// Synthetic sample data
+const DAYS = Array.from({ length: 14 }, (_, i) => `${8 + i}/10`);
+const CREATED = [12, 15, 9, 17, 14, 5, 3, 14, 18, 11, 16, 20, 6, 4];
+const RESOLVED = [10, 14, 11, 15, 12, 6, 2, 12, 15, 13, 14, 17, 7, 3];
+const AGENTS = [['Alphin Santoso H.', 52, 48, 92, '3j 50m'], ['Beny Saputra', 45, 41, 91, '4j 05m'], ['Yudi Arta Trirensila', 41, 37, 90, '4j 22m'], ['RM Bagastyo Anggoro', 38, 33, 87, '4j 40m'], ['Merdeka Putra', 24, 21, 88, '5j 10m']];
+const SCHEDULED = [['Ringkasan bulanan ICT', 'Monthly Summary · PDF', 'Setiap tanggal 1, 08.00', 'manager@idesk.local', true, 'Berhasil · 1 Okt'], ['Performa agent mingguan', 'Agent Performance · PDF', 'Setiap Senin, 07.30', 'ict-lead@idesk.local', true, 'Berhasil · 19 Okt'], ['Volume tiket harian', 'Ticket Volume · Excel', 'Setiap hari, 17.30', 'ops@idesk.local', false, 'Dijeda']];
+const exportBtns = (k) => `<div class="head-actions" style="width:auto"><button class="btn" data-demo="Pratinjau PDF ${k} hanya contoh; tidak ada file dibuat.">${ic('eye')}Pratinjau PDF</button><button class="btn" data-demo="Unduh PDF ${k} hanya contoh; tidak ada file diunduh.">${ic('file-text')}PDF</button><button class="btn" data-demo="Unduh Excel ${k} hanya contoh; tidak ada file diunduh.">${ic('sheet')}Excel</button></div>`;
+const stat = (n, v, i, c, sub) => `<div class="stat" style="--c:${c};--ink:var(--text)"><span class="top"><span class="ic">${ic(i)}</span><span class="n">${v}</span></span><span class="name">${n}</span>${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
+
+const MONTHLY = `
+  <div class="filters"><button class="pop" id="rMonth"><span class="k">Bulan</span><span class="v">Oktober 2026</span>${caret}</button><span class="spacer" style="flex:1"></span>${exportBtns('ringkasan bulanan')}</div>
+  <section class="stats four" aria-label="Ringkasan bulanan">${stat('Total Tickets', 277, 'layers', 'var(--gray)')}${stat('Resolved', 214, 'circle-check', 'var(--green)', '77% resolution rate')}${stat('Open Tickets', 63, 'inbox', 'var(--blue)')}${stat('Avg Resolution Time', '4j 20m', 'timer', 'var(--navy)')}</section>
+  <div class="grid-main">
+    <section class="panel"><h3>Daily Ticket Trend</h3><p class="panel-sub">Tiket dibuat vs diselesaikan per hari</p>${lines({ labels: DAYS, sparse: true, label: 'Tren tiket harian', series: [{ name: 'Dibuat', c: 'var(--blue)', data: CREATED }, { name: 'Diselesaikan', c: 'var(--green)', data: RESOLVED }] })}</section>
+    <div class="stack">
+      <section class="panel"><h3>By Status</h3>${donut({ label: 'Per status', items: [{ label: 'Open', v: 23, c: 'var(--blue)' }, { label: 'In Progress', v: 31, c: 'var(--navy)' }, { label: 'Waiting Vendor', v: 9, c: 'var(--orange)' }, { label: 'Resolved', v: 214, c: 'var(--green)' }] })}</section>
+      <section class="panel"><h3>By Priority</h3>${hbars([{ label: 'Blocker', v: 6, c: 'var(--red)' }, { label: 'Urgent', v: 38, c: 'var(--orange)' }, { label: 'Normal', v: 181, c: 'var(--blue)' }, { label: 'Low', v: 52, c: 'var(--gray)' }])}</section>
+    </div>
+  </div>`;
+const AGENT = `
+  <div class="filters"><button class="pop" id="rRange"><span class="k">Periode</span><span class="v">8 – 21 Okt 2026</span>${caret}</button>
+    <div class="seg" role="group" aria-label="Quick Select" id="rQuick"><button>7 hari</button><button class="on">14 hari</button><button>30 hari</button><button>Bulan ini</button></div><span class="spacer" style="flex:1"></span>${exportBtns('performa agent')}</div>
+  <div class="grid-main">
+    <section class="table d" style="--cols:minmax(200px,1.6fr) 80px 80px 110px 100px;--cols-m:minmax(0,1fr) auto" aria-label="Agent Details">
+      <div class="table-tools"><h3>Agent Details</h3><span class="muted">Top performers ditandai</span></div>
+      <div class="thead"><span>Agent</span><span class="num hide-m">Assigned</span><span class="num hide-m">Resolved</span><span class="num">SLA %</span><span class="num hide-m">Avg Response</span></div>
+      ${AGENTS.map(([n, a, r, s, t], i) => `<div class="row static"><div class="person">${av(n)}<div style="min-width:0"><b>${n}</b><small>${i < 2 ? 'Top performer' : 'IT Support'}</small></div></div><span class="cell num hide-m">${a}</span><span class="cell num hide-m">${r}</span><span class="cell num">${s}%</span><span class="cell num hide-m">${t}</span></div>`).join('')}
+    </section>
+    <section class="panel"><h3>Resolution Rate by Agent</h3>${hbars(AGENTS.map(([n, a, r]) => ({ label: n.split(' ')[0], v: Math.round((r / a) * 100) })), { suffix: '%', max: 100 })}
+      <div class="note-line">${ic('lightbulb')}Performance insights: babak kedua periode naik 6% dibanding babak pertama.</div></section>
+  </div>`;
+const VOLUME = `
+  <div class="filters"><button class="pop"><span class="k">Periode</span><span class="v">8 – 21 Okt 2026</span>${caret}</button><span class="spacer" style="flex:1"></span>${exportBtns('volume tiket')}</div>
+  <section class="stats four" aria-label="Ringkasan volume">${stat('Total Created', 164, 'plus', 'var(--blue)')}${stat('Total Resolved', 151, 'circle-check', 'var(--green)')}${stat('Avg Daily', '11,7', 'chart-line', 'var(--navy)')}${stat('Peak Day', '19/10', 'calendar-arrow-up', 'var(--orange)', '20 tiket')}</section>
+  <section class="panel"><h3>Daily Volume</h3>${columns({ labels: DAYS, label: 'Volume tiket harian', series: [{ name: 'Dibuat', c: 'var(--blue)', data: CREATED }, { name: 'Diselesaikan', c: 'var(--green)', data: RESOLVED }] })}</section>`;
+const SCHED = `
+  <section class="table d" style="--cols:minmax(200px,1.5fr) minmax(170px,1fr) minmax(150px,1fr) 80px 150px;--cols-m:minmax(0,1fr) auto" aria-label="Scheduled Reports">
+    <div class="table-tools"><h3>Scheduled Reports</h3><span class="spacer" style="flex:1"></span><button class="btn" data-demo="Form jadwal laporan belum dibuat di mockup.">${ic('calendar-plus')}Jadwalkan laporan</button></div>
+    <div class="thead"><span>Nama</span><span class="hide-m">Jenis &amp; format</span><span class="hide-m">Jadwal</span><span>Aktif</span><span class="hide-m">Eksekusi terakhir</span></div>
+    ${SCHEDULED.map(([n, t, w, to, on, last]) => `<div class="row static"><div class="tk"><div class="title">${n}</div><div class="id" style="font-family:var(--font)">${to}</div></div><span class="cell hide-m">${t}</span><span class="cell hide-m">${w}</span><span><button class="switch" aria-checked="${on}" aria-label="Aktifkan ${n}" data-say="Jadwal “${n}”"></button></span><span class="hide-m">${on ? bub(last, 'var(--green)', { ink: 'var(--ink-green)' }) : bub(last, 'var(--gray)')}</span></div>`).join('')}
+  </section>`;
+
+iDeskPages.mount(`
+<main class="content page">
+  <div class="head">
+    <span class="tile ptile" style="--c:var(--green)">${ic('chart-column')}</span>
+    <div><h2>Reports &amp; Analytics</h2><p>Analisis performa, pantau metrik, dan ekspor data</p></div>
+    <span class="spacer"></span>
+    <button class="pop" id="rTeam" aria-label="Pilih tim"><span class="k">Tim ICT</span><span class="v">Semua Tim</span>${caret}</button>
+  </div>
+  <div class="seg page-tabs" data-tabs="rPanels" aria-label="Jenis laporan">
+    <button data-tab="monthly" class="on">${ic('calendar')}Monthly Summary</button><button data-tab="agent">${ic('users')}Agent Performance</button><button data-tab="volume">${ic('chart-column')}Ticket Volume</button><button data-tab="scheduled">${ic('clock')}Scheduled Reports</button>
+  </div>
+  <div id="rPanels">
+    <div class="tab-panel" data-panel="monthly">${MONTHLY}</div>
+    <div class="tab-panel" data-panel="agent" hidden>${AGENT}</div>
+    <div class="tab-panel" data-panel="volume" hidden>${VOLUME}</div>
+    <div class="tab-panel" data-panel="scheduled" hidden>${SCHED}</div>
+  </div>
+</main>`);
+let team = 'Semua Tim';
+iDeskDropdown.bind(document.getElementById('rTeam'), { title: 'Pilih tim', options: iDeskMock.choices(TEAMS), value: () => team, onSelect: (v) => { team = v; document.querySelector('#rTeam .v').textContent = v; iDeskDropdown.notice('Angka contoh sama untuk semua tim; filter tim hanya tampilan.'); } });
+iDeskDropdown.bind(document.getElementById('rMonth'), { title: 'Bulan', options: iDeskMock.choices(['Oktober 2026', 'September 2026', 'Agustus 2026']), value: 'Oktober 2026', onSelect: (v) => { document.querySelector('#rMonth .v').textContent = v; iDeskDropdown.notice('Data bulan lain tidak tersedia di contoh.'); } });
+document.getElementById('rRange').onclick = () => iDeskDropdown.notice('Pemilih rentang tanggal belum dibuat di mockup; gunakan Quick Select.');
+document.getElementById('rQuick').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; document.querySelectorAll('#rQuick button').forEach((x) => x.classList.toggle('on', x === b)); document.querySelector('#rRange .v').textContent = b.textContent === '14 hari' ? '8 – 21 Okt 2026' : `${b.textContent} terakhir (contoh)`; });
+</script>
+</body>
+</html>

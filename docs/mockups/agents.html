@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Agents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=15">
+<link rel="stylesheet" href="pages.css?v=15">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=15"></script>
+<script src="mock-state.js?v=15"></script>
+<script src="shell.js?v=15"></script>
+<script src="motion.js?v=15"></script>
+<script src="pages.js?v=15"></script>
+</head>
+<body data-page="agents" data-crumb="Administration" data-title="Agents">
+<!-- Production source: apps/frontend/src/features/admin/pages/BentoAdminAgentsPage.tsx, components/agent-management/AgentManagementHeader.tsx,
+     AgentFiltersToolbar.tsx, AgentStatsDashboard.tsx, UnifiedUserTable.tsx, AgentCard.tsx, agent-types.ts (role labels), PresetDropdown.tsx -->
+<script>
+const { ic, caret, av, bub } = iDeskPages;
+const ROLES = { ADMIN: 'Admin', MANAGER: 'Manager', AGENT_OPERATIONAL_SUPPORT: 'Ops Support', AGENT: 'Agent', AGENT_ADMIN: 'Agent Admin', AGENT_ORACLE: 'Agent Oracle', AGENT_WEB_DEV: 'Agent Web Dev', AGENT_MOBILE_DEV: 'Agent Mobile Dev', USER: 'User' };
+const PRESETS = ['Tanpa preset', 'IT Support Standar', 'Developer', 'Manager Site'];
+// Synthetic sample data: name, email, role, site, dept, presence, preset, open, inProgress, resolved month, sla
+let users = [
+  ['RM Bagastyo Anggoro', 'bagastyo@idesk.local', 'AGENT_OPERATIONAL_SUPPORT', 'SPJ', 'ICT', 'online', 'IT Support Standar', 1, 2, 33, 87],
+  ['Alphin Santoso H.', 'alphin@idesk.local', 'AGENT', 'SPJ', 'ICT', 'online', 'IT Support Standar', 0, 3, 48, 92],
+  ['Beny Saputra', 'beny@idesk.local', 'AGENT', 'JTB', 'ICT', 'away', 'IT Support Standar', 0, 1, 41, 91],
+  ['Yudi Arta Trirensila', 'yudi@idesk.local', 'AGENT', 'SMG', 'ICT', 'offline', 'IT Support Standar', 0, 1, 37, 90],
+  ['Rina Kartika', 'rina.k@idesk.local', 'AGENT_WEB_DEV', 'SPJ', 'ICT', 'online', 'Developer', 2, 1, 12, 95],
+  ['Hendra Wijaya', 'hendra.w@idesk.local', 'AGENT_ORACLE', 'SPJ', 'ICT', 'offline', 'Developer', 1, 2, 9, 84],
+  ['Sari Dewanti', 'sari.d@idesk.local', 'MANAGER', 'SPJ', 'ICT', 'online', 'Manager Site', 0, 0, 0, null],
+];
+const PRES = { online: ['Online', 'var(--green)'], away: ['Away', 'var(--orange)'], offline: ['Offline', 'var(--gray)'] };
+let state = { q: '', site: 'all', view: 'table' };
+const COLS = '--cols:minmax(220px,1.5fr) 150px 64px 92px 170px 64px 70px 70px;--cols-m:minmax(0,1fr) auto';
+function rowsVisible() { const q = state.q.toLowerCase(); return users.filter((u) => (state.site === 'all' || u[3] === state.site) && (!q || (u[0] + u[1]).toLowerCase().includes(q))); }
+function render() {
+  const rows = rowsVisible();
+  document.getElementById('aRows').innerHTML = rows.map((u, i) => `<div class="row static" data-i="${users.indexOf(u)}">
+    <div class="person">${av(u[0])}<div style="min-width:0"><b>${u[0]}</b><small>${u[1]}</small></div></div>
+    <span><button class="bub neutral" data-role><span class="v">${ROLES[u[2]]}</span>${caret}</button></span>
+    <span class="hide-m"><span class="bub neutral mono">${u[3]}</span></span>
+    <span class="hide-m">${bub(PRES[u[5]][0], PRES[u[5]][1])}</span>
+    <span class="hide-m"><button class="pop" data-preset style="height:26px"><span class="v">${u[6]}</span>${caret}</button></span>
+    <span class="cell num hide-m">${u[8]}</span><span class="cell num hide-m">${u[9]}</span>
+    <span class="act hide-m"><button class="icon-btn" aria-label="Edit ${u[0]}" data-demo="Form edit user belum dibuat di mockup.">${ic('pencil')}</button><button class="icon-btn" aria-label="Reset password ${u[0]}" data-demo="Reset password tidak dijalankan di mockup.">${ic('key-round')}</button></span></div>`).join('');
+  document.getElementById('aCards').innerHTML = rows.filter((u) => u[2] !== 'MANAGER').map((u) => `<div class="ccard lift"><div class="top">${av(u[0], 'lg')}<div><b>${u[0]}</b><small>${ROLES[u[2]]} · ${u[3]}</small></div>${bub(PRES[u[5]][0], PRES[u[5]][1])}</div>
+    <div class="kv4"><div><small>Open</small><b>${u[7]}</b></div><div><small>In Progress</small><b>${u[8]}</b></div><div><small>Month</small><b>${u[9]}</b></div><div><small>SLA %</small><b>${u[10] ?? '—'}</b></div></div>
+    <div class="meter" style="--c:${u[10] >= 90 ? 'var(--green)' : 'var(--orange)'}"><i style="--p:${u[10] || 0}%"></i></div>
+    <div class="foot2">${ic('layers')}${u[6]}<span style="margin-left:auto"><a class="text-link" href="dashboard-me.html" style="font-size:12px">Dashboard${ic('arrow-right')}</a></span></div></div>`).join('');
+  document.getElementById('aEmpty').classList.toggle('show', rows.length === 0);
+  document.getElementById('aShowing').textContent = `Menampilkan ${rows.length} dari ${users.length} user contoh`;
+  rows.forEach((u) => {
+    const row = document.querySelector(`[data-i="${users.indexOf(u)}"]`);
+    const idx = users.indexOf(u);
+    const roleBtn = row.querySelector('[data-role]'); roleBtn.id = `role-${idx}`;
+    iDeskDropdown.bind(roleBtn, { title: `Ubah role ${u[0]}`, options: Object.entries(ROLES).map(([value, label]) => ({ value, label })), value: u[2], onSelect: async (v) => {
+      if (v === u[2]) return;
+      const ok = await iDeskDropdown.confirm({ title: 'Ubah role user?', description: `${u[0]}: ${ROLES[u[2]]} → ${ROLES[v]}. Hak akses halaman ikut berubah. Di mockup perubahan hanya lokal.`, confirmLabel: 'Ubah role contoh' });
+      if (ok === null) return;
+      users = users.map((x, j) => (j === idx ? [...x.slice(0, 2), v, ...x.slice(3)] : x)); render();
+    } });
+    const pBtn = row.querySelector('[data-preset]'); pBtn.id = `preset-${idx}`;
+    iDeskDropdown.bind(pBtn, { title: 'Permission preset', options: iDeskMock.choices(PRESETS), value: u[6], onSelect: (v) => { users = users.map((x, j) => (j === idx ? [...x.slice(0, 6), v, ...x.slice(7)] : x)); render(); iDeskDropdown.notice(`Preset “${v}” diterapkan ke contoh lokal.`); } });
+  });
+  iDeskPages.wireDemo(document.getElementById('aRows'));
+  lucide.createIcons();
+}
+const agents = users.filter((u) => u[2] !== 'MANAGER' && u[2] !== 'USER');
+iDeskPages.mount(`
+<main class="content page">
+  <div class="head">
+    <span class="tile ptile" style="--c:var(--navy)">${ic('users')}</span>
+    <div><h2>Agent Management</h2><p>Kelola tim support berdasarkan site dan role</p></div>
+    <span class="spacer"></span>
+    <div class="head-actions">
+      <button class="btn" data-demo="Sinkronisasi user dari SJATR tidak dijalankan di mockup.">${ic('refresh-cw')}Sync SJATR</button>
+      <button class="btn" data-demo="Kelola permission preset belum dibuat di mockup.">${ic('layers')}Manage Presets</button>
+      <button class="btn" data-demo="Import user (Excel/CSV) tidak tersedia di mockup.">${ic('upload')}Import</button>
+      <button class="btn" data-demo="Export user hanya contoh; tidak ada file diunduh.">${ic('download')}Export</button>
+      <button class="btn primary" data-demo="Form tambah user belum dibuat di mockup.">${ic('user-plus')}Add User</button>
+    </div>
+  </div>
+  <section class="stats four" aria-label="Ringkasan agent">
+    <div class="stat" style="--c:var(--navy);--ink:var(--text)"><span class="top"><span class="ic">${ic('users')}</span><span class="n">${agents.length}</span></span><span class="name">Total Agents</span></div>
+    <div class="stat" style="--c:var(--blue);--ink:var(--text)"><span class="top"><span class="ic">${ic('circle-dot')}</span><span class="n">${agents.reduce((a, u) => a + u[8], 0)}</span></span><span class="name">Active (In Progress)</span></div>
+    <div class="stat" style="--c:var(--green);--ink:var(--text)"><span class="top"><span class="ic">${ic('circle-check')}</span><span class="n">${agents.reduce((a, u) => a + u[9], 0)}</span></span><span class="name">Resolved (Month)</span></div>
+    <div class="stat" style="--c:var(--teal);--ink:var(--text)"><span class="top"><span class="ic">${ic('gauge')}</span><span class="n">90%</span></span><span class="name">SLA Compliance</span></div>
+  </section>
+  <div class="filters">
+    <label class="field">${ic('search')}<input id="aQ" placeholder="Cari user berdasarkan nama atau email..." aria-label="Cari user"></label>
+    <button class="pop" id="aSite" aria-label="Filter site"><span class="k">Site</span><span class="v">Semua</span>${caret}</button>
+    <div class="seg" data-tabs="aViews" aria-label="Mode tampilan"><button data-tab="table" class="on">${ic('rows-3')}Tabel</button><button data-tab="grid">${ic('layout-grid')}Grid</button></div>
+  </div>
+  <div id="aViews">
+    <div class="tab-panel" data-panel="table">
+      <section class="table d" style="${COLS}" aria-label="Daftar user">
+        <div class="thead"><span>User</span><span>Role</span><span>Site</span><span>Presence</span><span>Preset</span><span class="num">Aktif</span><span class="num">Bulan</span><span style="text-align:right">Aksi</span></div>
+        <div id="aRows"></div>
+        <div class="empty-state" id="aEmpty"><div class="ic">${ic('user-search')}</div><b>Tidak ada user</b>Coba ubah filter atau kata kunci.</div>
+        <div class="foot"><span id="aShowing"></span><span class="muted">Hanya ADMIN yang dapat membuka halaman ini</span></div>
+      </section>
+    </div>
+    <div class="tab-panel" data-panel="grid" hidden><div class="cards" id="aCards"></div></div>
+  </div>
+</main>`);
+document.getElementById('aQ').addEventListener('input', (e) => { state = { ...state, q: e.target.value.trim() }; render(); });
+iDeskDropdown.bind(document.getElementById('aSite'), { title: 'Filter site', options: [{ value: 'all', label: 'Semua' }, ...iDeskMock.choices(['SPJ', 'SMG', 'JTB'])], value: () => state.site, onSelect: (v) => { state = { ...state, site: v }; document.querySelector('#aSite .v').textContent = v === 'all' ? 'Semua' : v; render(); } });
+render();
+</script>
+</body>
+</html>

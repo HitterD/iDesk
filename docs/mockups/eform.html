@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — E-Form Access</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=15">
+<link rel="stylesheet" href="pages.css?v=15">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=15"></script>
+<script src="mock-state.js?v=15"></script>
+<script src="shell.js?v=15"></script>
+<script src="motion.js?v=15"></script>
+<script src="pages.js?v=15"></script>
+</head>
+<body data-page="eform" data-crumb="Request Center" data-title="E-Form Access">
+<!-- Production source: apps/frontend/src/features/request-center/pages/EformAccessListPage.tsx, components/eform/eform-vocabulary.tsx, EformAccessCalendar.tsx -->
+<script>
+const { ic, caret, av, bub } = iDeskPages;
+const ST = { PENDING_MANAGER: ['Menunggu Atasan', 'var(--orange)', 'var(--ink-orange)'], PENDING_ICT: ['Diproses ICT', 'var(--blue)'], READY: ['Akses Siap', 'var(--green)', 'var(--ink-green)'], REJECTED: ['Ditolak', 'var(--red)', 'var(--ink-red)'], DRAFT: ['Draf', 'var(--gray)'] };
+const TYPES = { VPN: ['Akses VPN', 'shield-check'], WEBSITE: ['Akses Website', 'globe'], NETWORK: ['Akses Jaringan', 'wifi'], FLASHDISK: ['Akses Flashdisk', 'usb'], EMAIL: ['Request Email', 'mail'], SYNOLOGY_NAS: ['Synology NAS', 'hard-drive'] };
+// Synthetic sample data
+const ROWS = [
+  { id: 'EF-2610-0041', type: 'VPN', req: ['Maria Yuliani Br Purba', 'Finance'], s: 'PENDING_MANAGER', valid: '21 Okt – 20 Jan 2027', at: '21 Okt', bar: [0, 92] },
+  { id: 'EF-2610-0040', type: 'SYNOLOGY_NAS', req: ['Shanon Maria', 'Learning & Engagement'], s: 'PENDING_ICT', valid: 'Permanen', at: '20 Okt', bar: [0, 100] },
+  { id: 'EF-2610-0037', type: 'WEBSITE', req: ['Yusuf Wijaya', 'QC AB Reguler'], s: 'READY', valid: '18 Okt – 25 Okt', at: '18 Okt', soon: true, bar: [0, 24] },
+  { id: 'EF-2610-0035', type: 'FLASHDISK', req: ['Nur Ayni', 'Production 1'], s: 'READY', valid: '15 Okt – 15 Des', at: '15 Okt', bar: [0, 70] },
+  { id: 'EF-2610-0033', type: 'EMAIL', req: ['Tjan Siauw Hwa', 'Operation'], s: 'READY', valid: 'Permanen', at: '14 Okt', bar: [0, 100] },
+  { id: 'EF-2610-0030', type: 'NETWORK', req: ['Agung Permadhi', 'HSE'], s: 'REJECTED', valid: '—', at: '12 Okt', bar: null },
+];
+let state = { stat: 'all', type: 'all', q: '' };
+const STATS = [['all', 'Total', 'layers', 'var(--gray)'], ['PENDING_MANAGER', 'Menunggu Atasan', 'user-check', 'var(--orange)'], ['PENDING_ICT', 'Diproses ICT', 'loader', 'var(--blue)'], ['READY', 'Akses Siap', 'circle-check', 'var(--green)'], ['soon', 'Segera Berakhir', 'hourglass', 'var(--orange)'], ['REJECTED', 'Ditolak', 'circle-x', 'var(--red)']];
+const match = (r, k) => k === 'all' || (k === 'soon' ? r.soon : r.s === k);
+const COLS = '--cols:minmax(220px,1.4fr) minmax(190px,1.2fr) 150px minmax(140px,1fr) 80px 40px;--cols-m:minmax(0,1fr) auto';
+function render() {
+  const q = state.q.toLowerCase();
+  const rows = ROWS.filter((r) => match(r, state.stat) && (state.type === 'all' || r.type === state.type) && (!q || (r.id + r.req[0]).toLowerCase().includes(q)));
+  document.getElementById('efStats').innerHTML = STATS.map(([k, n, i, c]) => { const v = ROWS.filter((r) => match(r, k)).length; const attn = (k === 'PENDING_MANAGER' || k === 'soon') && v > 0; return `<button class="stat${state.stat === k ? ' on' : ''}${attn ? ' attn' : ''}${v === 0 ? ' zero' : ''}" data-k="${k}" aria-pressed="${state.stat === k}" style="--c:${c};--ink:${attn ? 'var(--ink-orange)' : 'var(--text)'}"><span class="top"><span class="ic">${ic(i)}</span><span class="n">${v}</span></span><span class="name">${n}</span></button>`; }).join('');
+  document.getElementById('efRows').innerHTML = rows.map((r) => { const [sl, sc, si] = ST[r.s]; return `<div class="row" tabindex="0" data-demo="Detail E-Form ${r.id} (pipeline persetujuan, tanda tangan, kredensial) belum dibuat di mockup.">
+    <div class="person"><span class="ico" style="width:32px;height:32px;border-radius:10px;display:grid;place-items:center;color:var(--mint);background:color-mix(in srgb,var(--mint) 12%,transparent)">${ic(TYPES[r.type][1])}</span><div style="min-width:0"><b>${TYPES[r.type][0]}</b><small class="mono">${r.id}</small></div></div>
+    <div class="person hide-m">${av(r.req[0])}<div style="min-width:0"><b>${r.req[0]}</b><small>${r.req[1]}</small></div></div>
+    <span>${bub(sl, sc, { ink: si })}</span>
+    <span class="cell hide-m">${r.soon ? bub(r.valid, 'var(--orange)', { icon: 'hourglass', ink: 'var(--ink-orange)' }) : r.valid}</span>
+    <span class="date hide-m">${r.at}</span>
+    <span class="hide-m" style="justify-self:end;color:var(--text-3)">${ic('chevron-right')}</span></div>`; }).join('');
+  document.getElementById('efEmpty').classList.toggle('show', rows.length === 0);
+  document.getElementById('efShowing').textContent = `Menampilkan ${rows.length} dari ${ROWS.length} pengajuan contoh`;
+  document.querySelector('#efType .v').textContent = state.type === 'all' ? 'Semua jenis' : TYPES[state.type][0];
+  iDeskPages.wireDemo(document.getElementById('efRows'));
+  lucide.createIcons();
+}
+const TIMELINE = `
+  <section class="panel"><h3>Masa berlaku akses <small>Oktober 2026 – Januari 2027</small></h3>
+    <div class="gantt">${ROWS.filter((r) => r.bar).map((r) => `<div class="gr"><span>${TYPES[r.type][0]} · ${r.req[0]}</span><div class="lane" data-tip="${TYPES[r.type][0]} · ${r.valid}"><i style="--l:${r.bar[0]}%;--w:${r.bar[1]}%;--c:${ST[r.s][1]}"></i><span class="today" style="--l:7%"></span></div></div>`).join('')}
+    <div class="scale"><span>Okt</span><span>Nov</span><span>Des</span><span>Jan</span></div></div>
+    <div class="note-line">${ic('info')}Garis merah adalah hari ini. Akses dengan masa berlaku &lt; 7 hari ditandai “Segera Berakhir”.</div>
+  </section>`;
+
+iDeskPages.mount(`
+<main class="content page">
+  <div class="head">
+    <span class="tile ptile" style="--c:var(--mint)">${ic('file-key-2')}</span>
+    <div><h2>E-Form Access</h2><p>Pengajuan akses VPN, website, dan jaringan beserta persetujuannya</p></div>
+    <span class="spacer"></span>
+    <div class="head-actions">
+      <button class="btn" data-demo="Unduh formulir resmi F-ICT-04 hanya contoh; tidak ada file yang diunduh.">${ic('download')}Unduh PDF F-ICT-04</button>
+      <button class="btn primary" data-demo="Form pengajuan akses (atasan, syarat & ketentuan, tanda tangan) belum dibuat di mockup.">${ic('file-plus-2')}Ajukan Akses</button>
+    </div>
+  </div>
+  <section class="stats six" id="efStats" aria-label="Ringkasan pengajuan"></section>
+  <div class="filters">
+    <label class="field">${ic('search')}<input id="efQ" placeholder="Cari nama pemohon atau ID permintaan" aria-label="Cari permintaan"></label>
+    <button class="pop" id="efType" aria-label="Saring jenis akses"><span class="k">Jenis</span><span class="v">Semua jenis</span>${caret}</button>
+    <div class="seg" data-tabs="efPanels" aria-label="Tampilan permintaan"><button data-tab="table" class="on">${ic('rows-3')}Tabel</button><button data-tab="timeline">${ic('calendar-range')}Kalender &amp; Timeline</button></div>
+  </div>
+  <div id="efPanels">
+    <div class="tab-panel" data-panel="table">
+      <section class="table d" style="${COLS}" aria-label="Daftar E-Form">
+        <div class="thead"><span>ID &amp; Jenis Akses</span><span>Pemohon</span><span>Status</span><span>Masa Berlaku</span><span>Diajukan</span><span></span></div>
+        <div id="efRows"></div>
+        <div class="empty-state" id="efEmpty"><div class="ic">${ic('search-x')}</div><b>Tidak ada yang cocok</b>Coba ubah filter atau kata kunci.</div>
+        <div class="foot"><span id="efShowing"></span><span class="muted">Diteruskan ke atasan pemohon, lalu diproses ICT</span></div>
+      </section>
+    </div>
+    <div class="tab-panel" data-panel="timeline" hidden>${TIMELINE}</div>
+  </div>
+</main>`);
+document.getElementById('efQ').addEventListener('input', (e) => { state = { ...state, q: e.target.value.trim() }; render(); });
+document.getElementById('efStats').addEventListener('click', (e) => { const b = e.target.closest('.stat'); if (!b) return; state = { ...state, stat: state.stat === b.dataset.k ? 'all' : b.dataset.k }; render(); });
+iDeskDropdown.bind(document.getElementById('efType'), { title: 'Saring jenis akses', options: [{ value: 'all', label: 'Semua jenis' }, ...Object.entries(TYPES).map(([value, [label, icon]]) => ({ value, label, icon }))], value: () => state.type, onSelect: (v) => { state = { ...state, type: v }; render(); } });
+render();
+</script>
+</body>
+</html>

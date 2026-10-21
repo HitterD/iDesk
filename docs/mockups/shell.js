@@ -3,29 +3,37 @@
 (function () {
   const NAV = {
     primary: [
-      ['dashboard-me', 'user-round', 'var(--gray)', 'Dashboard Saya'],
-      ['dashboard-team', 'layout-grid', 'var(--navy)', 'Dashboard Tim'],
+      ['dashboard-me', 'user-round', 'var(--gray)', 'Dashboard Saya', '', 'dashboard-me.html'],
+      ['dashboard-team', 'layout-grid', 'var(--navy)', 'Dashboard Tim', '', 'dashboard-team.html'],
     ],
     request: [
       ['it-support', 'ticket', 'var(--blue)', 'IT Support Tickets', '23', 'list.html?queue=it-support'],
       ['oracle', 'database', 'var(--red)', 'Oracle K2 Request', '4', 'list.html?queue=oracle'],
       ['web', 'code-xml', 'var(--teal)', 'Web Developer Request', '', 'list.html?queue=web'],
       ['mobile', 'smartphone', 'var(--sea)', 'Mobile Developer Request', '', 'list.html?queue=mobile'],
-      ['hardware', 'monitor-smartphone', 'var(--orange)', 'Hardware Requests', '2'],
-      ['eform', 'file-key-2', 'var(--mint)', 'E-Form Access'],
+      ['hardware', 'monitor-smartphone', 'var(--orange)', 'Hardware Requests', '2', 'hardware.html'],
+      ['eform', 'file-key-2', 'var(--mint)', 'E-Form Access', '', 'eform.html'],
     ],
     resources: [
-      ['zoom', 'video', 'var(--blue)', 'Zoom Calendar'],
-      ['kb', 'book-open', 'var(--brown)', 'Knowledge Base'],
+      ['zoom', 'video', 'var(--blue)', 'Zoom Calendar', '', 'zoom.html'],
+      ['kb', 'book-open', 'var(--brown)', 'Knowledge Base', '', 'kb.html'],
     ],
     management: [
-      ['workloads', 'gauge', 'var(--navy)', 'Workloads'],
-      ['reports', 'chart-column', 'var(--green)', 'Reports'],
-      ['notifications', 'bell', 'var(--red)', 'Notifications', '78!'],
-      ['renewal', 'calendar-clock', 'var(--orange)', 'Renewal Hub'],
+      ['workloads', 'gauge', 'var(--navy)', 'Workloads', '', 'workloads.html'],
+      ['reports', 'chart-column', 'var(--green)', 'Reports', '', 'reports.html'],
+      ['notifications', 'bell', 'var(--red)', 'Notifications', '78!', 'notifications.html'],
+      ['renewal', 'calendar-clock', 'var(--orange)', 'Renewal Hub', '', 'renewal.html'],
+    ],
+    admin: [
+      ['agents', 'users', 'var(--navy)', 'Agents', '', 'agents.html'],
+      ['automation', 'zap', 'var(--orange)', 'Automation', '', 'automation.html'],
+      ['audit-logs', 'shield', 'var(--slate)', 'Audit Logs', '', 'audit-logs.html'],
+      ['system-health', 'activity', 'var(--green)', 'System Health', '', 'system-health.html'],
+      ['data-wipe', 'trash-2', 'var(--red)', 'Hapus Data'],
     ],
   };
 
+  const TICKET_PAGES = ['it-support', 'oracle', 'web', 'mobile'];
   const item = ([key, icon, c, label, count, href], active) => {
     const cnt = !count ? '' : count.endsWith('!') ? `<span class="count alert">${count.slice(0, -1)}</span>` : `<span class="count">${count}</span>`;
     return `<a class="item${key === active ? ' active' : ''}" href="${href || '#'}"${key === active ? ' aria-current="page"' : ''}>
@@ -50,9 +58,10 @@
       ${group('', 'Request Center', NAV.request, active)}
       ${group('quiet', 'Resources', NAV.resources, active)}
       ${group('quiet', 'Management', NAV.management, active)}
+      ${group('quiet', 'Administration', NAV.admin, active)}
     </nav>
     <div class="side-foot">
-      <a class="item" href="#"><span class="tile" style="--c:var(--gray)"><i data-lucide="settings"></i></span><span class="label">Settings</span></a>
+      ${item(['settings', 'settings', 'var(--gray)', 'Settings', '', 'settings.html'], active)}
       <button class="me" aria-label="Profil RM Bagastyo Anggoro Indra">
         <span class="avatar me-av">RI</span>
         <span class="me-text"><b>RM Bagastyo Anggoro Indra</b><small>Agent Operational</small></span>
@@ -67,20 +76,19 @@
       <div class="crumbs"><small>${b.crumb || ''}</small><h1>${b.title || ''}${b.live ? ' <span class="live"><i></i>Live</span>' : ''}</h1></div>
       <button class="search" id="openPalette" aria-label="Cari"><i data-lucide="search"></i><span>Cari tiket, artikel, atau menu</span><kbd id="kbdHint">Ctrl K</kbd></button>
       <div class="tb-actions">
-        <button class="status-pill" id="availability" title="Status kerja demo"><i></i><span class="availability-label">Online · demo</span><i data-lucide="chevron-down" style="width:13px;height:13px;background:none;opacity:.7"></i></button>
         <a class="btn cta tb-new" href="new.html" title="Buat tiket baru"><i data-lucide="plus"></i><span>Buat Tiket Baru</span></a>
         <button class="icon-btn theme-btn" id="themeBtn" aria-label="Ganti tema"><i data-lucide="moon"></i></button>
-        <button class="icon-btn" aria-label="Notifikasi, 2 belum dibaca"><i data-lucide="bell"></i><span class="dot-badge">2</span></button>
+        <a class="icon-btn" href="notifications.html" aria-label="Notifikasi, 2 belum dibaca"><i data-lucide="bell"></i><span class="dot-badge">2</span></a>
       </div>
     </header>
     ${content}
   </div>
 </div>
 <nav class="tabbar" aria-label="Navigasi bawah">
-  <a href="#"><i data-lucide="user-round"></i>Saya</a>
-  <a href="list.html" class="${active !== 'new' ? 'on' : ''}"><i data-lucide="ticket"></i>Tiket</a>
+  <a href="dashboard-me.html" class="${active === 'dashboard-me' ? 'on' : ''}"><i data-lucide="user-round"></i>Saya</a>
+  <a href="list.html" class="${TICKET_PAGES.includes(active) ? 'on' : ''}"><i data-lucide="ticket"></i>Tiket</a>
   <a href="new.html" class="tab-new"><span class="fab"><i data-lucide="plus"></i></span>Tiket Baru</a>
-  <a href="#"><i data-lucide="bell"></i><span class="dot-badge">2</span>Notifikasi</a>
+  <a href="notifications.html" class="${active === 'notifications' ? 'on' : ''}"><i data-lucide="bell"></i><span class="dot-badge">2</span>Notifikasi</a>
   <button id="tabMore"><i data-lucide="grid-2x2"></i>Lainnya</button>
 </nav>
 <div class="scrim" id="scrim">
@@ -92,7 +100,8 @@
     </div>
     <div class="sec"><small>Menu</small>
       <a class="hit" href="list.html?queue=oracle"><i data-lucide="database"></i>Oracle K2 Request<small>Request Center</small></a>
-      <a class="hit" href="#"><i data-lucide="book-open"></i>Knowledge Base<small>Resources</small></a>
+      <a class="hit" href="kb.html"><i data-lucide="book-open"></i>Knowledge Base<small>Resources</small></a>
+      <a class="hit" href="dashboard-me.html"><i data-lucide="user-round"></i>Dashboard Saya<small>Dashboard</small></a>
     </div>
     <div class="hint"><span>↑↓ pilih</span><span>↵ buka</span><span>Esc tutup</span></div>
   </div>
@@ -177,17 +186,6 @@
         else if (value === 'agent') location.href = 'list.html';
         else if (value === 'user') location.href = 'my-tickets.html';
         else iDeskDropdown.notice('Demo navigasi saja. Tidak ada autentikasi, logout, atau panggilan backend.');
-      },
-    });
-    const status = document.getElementById('availability');
-    let availability = 'Online';
-    iDeskDropdown.bind(status, {
-      title: 'Ketersediaan · demo lokal', value: () => availability,
-      options: iDeskMock.choices(['Online', 'Sibuk', 'Tidak tersedia']),
-      onSelect: (value) => {
-        availability = value; status.querySelector('.availability-label').textContent = value + ' · demo';
-        status.querySelector('i').style.background = value === 'Online' ? 'var(--green)' : value === 'Sibuk' ? 'var(--orange)' : 'var(--gray)';
-        iDeskDropdown.notice('Status ketersediaan hanya contoh lokal, tidak dikirim ke server.');
       },
     });
     document.querySelectorAll('a[href="#"], button[aria-label^="Notifikasi"]').forEach((el) => {

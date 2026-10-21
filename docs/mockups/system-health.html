@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — System Health</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=15">
+<link rel="stylesheet" href="pages.css?v=15">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=15"></script>
+<script src="mock-state.js?v=15"></script>
+<script src="shell.js?v=15"></script>
+<script src="motion.js?v=15"></script>
+<script src="pages.js?v=15"></script>
+</head>
+<body data-page="system-health" data-crumb="Administration" data-title="System Health" data-live="1">
+<!-- Production source: apps/frontend/src/features/admin/pages/SystemHealthPage.tsx (tabs vitals / service-map / storage-forecasting),
+     components/system-health/EndToEndServiceMap.tsx, StorageForecastingTab.tsx, IncidentLogTable.tsx -->
+<script>
+const { ic, bub, lines, hbars } = iDeskPages;
+const OK = ['Operational', 'var(--green)', 'var(--ink-green)'], DEG = ['Degraded', 'var(--orange)', 'var(--ink-orange)'];
+// Synthetic sample data
+const CONNECTORS = [
+  ['PostgreSQL DB', 'database', OK, 'Query probe SELECT 1 · 3 ms', 'TypeORM primary pool 6 / 20'],
+  ['Redis & Bull', 'layers', OK, 'Ping 1 ms', 'Queue: wait 0 · act 2 · fail 0'],
+  ['Socket.IO /health', 'radio', OK, 'RTT 18 ms', '42 active clients'],
+  ['Synology NAS', 'hard-drive', DEG, 'Latency 410 ms', 'Free space 1,2 TB dari 8 TB'],
+  ['SJA Notification', 'bell-ring', OK, 'Hub latency 64 ms', 'Desktop WSS push hub · 17 PC paired'],
+];
+const VITALS = [['CPU Usage', 23, '%', 'var(--blue)', 'Load avg 0,82'], ['Memory (RAM)', 61, '%', 'var(--navy)', '9,8 / 16 GB · heap 412 MB'], ['Disk', 71, '%', 'var(--orange)', 'Used 5,7 / 8 TB'], ['Engine Uptime', null, '12h 4j', 'var(--green)', 'Node.js 22 · build 2026.10.3']];
+const HOURS = Array.from({ length: 12 }, (_, i) => `${String(i + 1).padStart(2, '0')}.00`);
+const LAT = [21, 19, 24, 22, 30, 26, 20, 18, 41, 28, 22, 19];
+const INCIDENTS = [['21 Okt, 09.12', 'Synology NAS', 'Latensi > 400 ms selama 6 menit', DEG], ['18 Okt, 22.40', 'Redis & Bull', 'Restart terjadwal · pulih otomatis', OK]];
+const vital = ([n, v, u, c, sub]) => `<div class="kpi"><span>${n}</span><span class="n">${v === null ? u : `${v}<small>${u}</small>`}</span>${v === null ? '' : `<div class="meter" style="--c:${c}"><i style="--p:${v}%"></i></div>`}<p>${sub}</p></div>`;
+const VITALS_PANEL = `
+  <section class="kpis">${VITALS.map(vital).join('')}</section>
+  <div class="grid-main">
+    <section class="panel"><h3>5 Core Connectors</h3>
+      <div class="list">${CONNECTORS.map(([n, i, [sl, sc, si], a, b]) => `<div class="li"><span class="ico" style="--c:${sc}">${ic(i)}</span><div class="grow1"><b>${n}</b><small>${a} · ${b}</small></div>${bub(sl, sc, { ink: si })}</div>`).join('')}</div></section>
+    <div class="stack">
+      <section class="panel"><h3>Latency API <small>12 jam terakhir · ms</small></h3>${lines({ labels: HOURS, sparse: true, label: 'Latency API per jam', series: [{ name: 'p95 latency (ms)', c: 'var(--accent)', data: LAT }] })}</section>
+      <section class="panel"><h3>Incident log</h3><div class="list">${INCIDENTS.map(([t, s, d, [sl, sc, si]]) => `<div class="li"><span class="pdot" style="--c:${sc}"></span><div class="grow1"><b>${s}</b><small>${d}</small></div><span class="t">${t}</span></div>`).join('')}</div></section>
+    </div>
+  </div>`;
+const MAP = [['Browser / Desktop App', 'monitor', OK, '42 sesi'], ['Nginx / Coolify', 'network', OK, '12 ms'], ['iDesk API (NestJS)', 'server', OK, '19 ms'], ['PostgreSQL', 'database', OK, '3 ms'], ['Socket.IO', 'radio', OK, '18 ms'], ['Redis & Bull', 'layers', OK, '1 ms'], ['Synology NAS', 'hard-drive', DEG, '410 ms'], ['SJA Notification', 'bell-ring', OK, '64 ms']];
+const MAP_PANEL = `<section class="panel"><h3>End-to-End Service Map</h3><p class="panel-sub">Alur permintaan dari klien sampai penyimpanan. Node kuning sedang melambat.</p>
+  <div class="svc-map">${MAP.map(([n, i, [sl, sc], l], k) => `<div class="node${k % 4 !== 3 ? ' to' : ''}" data-tip="${n}: ${sl} · ${l}"><span class="pdot" style="--c:${sc}"></span><div><b>${n}</b><small>${sl} · ${l}</small></div></div>`).join('')}</div></section>`;
+const STORAGE_PANEL = `<div class="grid2">
+  <section class="panel"><h3>Storage Analytics &amp; Forecasting</h3><p class="panel-sub">Perkiraan penuh dalam ±7 bulan pada laju saat ini (contoh)</p>
+    ${lines({ labels: ['Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt'], label: 'Pemakaian storage per bulan (TB)', series: [{ name: 'Terpakai (TB)', c: 'var(--orange)', data: [4.1, 4.4, 4.7, 5.0, 5.4, 5.7] }] })}</section>
+  <section class="panel"><h3>Pemakaian per modul</h3>${hbars([{ label: 'Lampiran tiket', v: 2.9, c: 'var(--accent)' }, { label: 'Backup DB', v: 1.6, c: 'var(--accent)' }, { label: 'Kontrak PDF', v: 0.7, c: 'var(--accent)' }, { label: 'Knowledge base', v: 0.3, c: 'var(--accent)' }, { label: 'Lainnya', v: 0.2, c: 'var(--accent)' }], { suffix: ' TB' })}
+    <div class="setting" style="margin-top:8px"><div><b>Synology Backup</b><small>Last backup run 21 Okt 2026, 02.00 · automated snapshots harian</small></div>${bub('Berhasil', 'var(--green)', { ink: 'var(--ink-green)' })}</div></section></div>`;
+
+iDeskPages.mount(`
+<main class="content page">
+  <div class="head">
+    <span class="tile ptile" style="--c:var(--green)">${ic('activity')}</span>
+    <div><h2>System Health &amp; Telemetry</h2><p>Observabilitas operasional, metrik infrastruktur, dan integritas layanan</p></div>
+    <span class="spacer"></span>
+    <div class="head-actions"><button class="btn" id="pause">${ic('pause')}Jeda stream</button><button class="btn" data-demo="Snapshot telemetri JSON hanya contoh; tidak ada file diunduh.">${ic('download')}Snapshot</button><button class="btn primary" id="diag">${ic('stethoscope')}Run Diagnostics</button></div>
+  </div>
+  <div class="status-banner"><span class="ico">${ic('check')}</span><div><b>Semua sistem stabil</b><small>1 layanan lambat (Synology NAS) · cadence 2s fast / 30s slow · data contoh</small></div></div>
+  <div class="seg page-tabs" data-tabs="shPanels" aria-label="System health"><button data-tab="vitals" class="on">${ic('heart-pulse')}Overview &amp; Vitals</button><button data-tab="map">${ic('network')}End-to-End Service Map</button><button data-tab="storage">${ic('hard-drive')}Storage Forecasting</button></div>
+  <div id="shPanels">
+    <div class="tab-panel" data-panel="vitals">${VITALS_PANEL}</div>
+    <div class="tab-panel" data-panel="map" hidden>${MAP_PANEL}</div>
+    <div class="tab-panel" data-panel="storage" hidden>${STORAGE_PANEL}</div>
+  </div>
+</main>`);
+const pause = document.getElementById('pause');
+pause.onclick = () => { const paused = pause.textContent.includes('Jeda'); pause.innerHTML = paused ? `${ic('play')}Lanjutkan stream` : `${ic('pause')}Jeda stream`; document.querySelector('.crumbs .live').textContent = paused ? 'Dijeda' : 'Demo'; lucide.createIcons(); };
+document.getElementById('diag').onclick = () => {
+  const host = document.querySelector('[data-panel="vitals"] .list');
+  const keep = host.innerHTML;
+  iDeskPages.skeletonList(host, CONNECTORS.length);
+  setTimeout(() => { host.innerHTML = keep; lucide.createIcons(); iDeskDropdown.notice('Diagnostik contoh selesai. Tidak ada probe ke server.'); }, 700);
+};
+</script>
+</body>
+</html>

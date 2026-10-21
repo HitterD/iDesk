@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=15">
+<link rel="stylesheet" href="pages.css?v=15">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=15"></script>
+<script src="mock-state.js?v=15"></script>
+<script src="shell.js?v=15"></script>
+<script src="motion.js?v=15"></script>
+<script src="pages.js?v=15"></script>
+</head>
+<body data-page="settings" data-crumb="Akun" data-title="Settings">
+<!-- Production source: apps/frontend/src/features/settings/pages/BentoSettingsPage.tsx (Personal + Administration tabs),
+     components/ProfileSettingsForm.tsx, SecuritySettingsForm.tsx, NotificationSettings.tsx, SoundSettingsPage.tsx, BusinessHoursSettings.tsx,
+     TicketModulesSettingsTab.tsx, admin/pages/BentoSlaSettingsPage.tsx, IpWhitelistSettings.tsx, MailSettingsPage.tsx, TvBoardSettings.tsx, WebhookIntegrationHub.tsx -->
+<script>
+const { ic, caret, bub } = iDeskPages;
+const PERSONAL = [['profile', 'user', 'var(--blue)', 'Profile'], ['quick-replies', 'zap', 'var(--orange)', 'Quick Reply'], ['security', 'lock', 'var(--red)', 'Security'], ['notifications', 'bell', 'var(--red)', 'Notifications'], ['sound', 'volume-2', 'var(--teal)', 'Sound Settings'], ['appearance', 'palette', 'var(--navy)', 'Appearance']];
+const ADMIN = [['ticket-modules', 'boxes', 'var(--blue)', 'Modul Tiket'], ['sla', 'clock', 'var(--green)', 'SLA Settings'], ['storage', 'hard-drive', 'var(--slate)', 'Storage'], ['ip-whitelist', 'shield', 'var(--red)', 'IP Whitelist'], ['zoom', 'video', 'var(--blue)', 'Zoom Settings'], ['mail', 'mail', 'var(--teal)', 'Email'], ['tv-board', 'monitor-play', 'var(--navy)', 'TV Board'], ['desktop-webhook', 'radio', 'var(--orange)', 'Desktop & Webhook Hub']];
+const tabBtn = ([k, i, c, l]) => `<button data-tab="${k}">${`<span class="tile" style="--c:${c}">${ic(i)}</span>`}${l}</button>`;
+const setting = (b, s, on, say) => `<div class="setting"><div><b>${b}</b><small>${s}</small></div><button class="switch" aria-checked="${on}" aria-label="${b}" data-say="${say || b}"></button></div>`;
+const h = (t, s) => `<h3 style="font-size:17px;margin-bottom:4px">${t}</h3><p class="panel-sub" style="margin:0 0 14px">${s}</p>`;
+const PANELS = {
+  profile: `${h('Profile Information', 'Data dikelola HRIS. Hubungi admin bila keliru.')}
+    <div class="formgrid">
+      <div><label for="pName">Nama Lengkap</label><input id="pName" class="input" value="RM Bagastyo Anggoro Indra" readonly></div>
+      <div><label for="pNip">ID Pegawai (NIP)</label><input id="pNip" class="input mono" value="SPJ-0419" readonly></div>
+      <div><label for="pMail">Alamat Email</label><div style="display:flex;gap:6px"><input id="pMail" class="input" value="bagastyo@idesk.local" readonly><button class="btn" data-demo="Ubah email memerlukan verifikasi di produksi; tidak tersedia di mockup.">Ubah</button></div></div>
+      <div><label for="pPhone">Nomor Telepon</label><input id="pPhone" class="input" placeholder="+62 812 3456"></div>
+      <div><span class="lbl">Departemen</span><button class="pop lg" id="pDept"><span class="v">ICT</span>${caret}</button></div>
+      <div><label for="pTitle">Jabatan</label><input id="pTitle" class="input" placeholder="mis. Senior Developer" value="Agent Operational"></div>
+    </div>
+    <div class="submit-bar" style="margin-top:16px"><span class="spacer"></span><button class="btn primary" data-demo="Profil contoh tidak disimpan ke server.">Simpan perubahan</button></div>`,
+  'quick-replies': `${h('Quick Reply', 'Balasan siap pakai di composer tiket (ikon petir).')}
+    <div class="list">${[['Sedang dicek', 'Baik, tiket sedang kami cek. Mohon ditunggu ya.'], ['Mohon restart', 'Silakan restart perangkat lalu kabari hasilnya.'], ['Jadwal vendor', 'Perangkat akan dicek vendor pada jadwal Kamis.']].map(([t, b]) => `<div class="li"><span class="ico" style="--c:var(--orange)">${ic('zap')}</span><div class="grow1"><b>${t}</b><small>${b}</small></div><button class="icon-btn" aria-label="Edit ${t}" data-demo="Edit quick reply hanya contoh.">${ic('pencil')}</button></div>`).join('')}</div>
+    <button class="btn" style="margin-top:10px" data-demo="Tambah quick reply hanya contoh.">${ic('plus')}Tambah balasan</button>`,
+  security: `${h('Security Settings', 'Pastikan akun Anda menggunakan kata sandi yang kuat dan aman.')}
+    <form id="sForm" onsubmit="return false"><input type="text" autocomplete="username" value="bagastyo" hidden aria-hidden="true"><div class="formgrid" style="max-width:460px;grid-template-columns:1fr">
+      <div><label for="sOld">Kata Sandi Saat Ini</label><input id="sOld" class="input" type="password" placeholder="Masukkan kata sandi lama Anda" autocomplete="off"></div>
+      <div><label for="sNew">Kata Sandi Baru</label><input id="sNew" class="input" type="password" placeholder="Masukkan kata sandi baru" autocomplete="off"><div class="strength" aria-hidden="true"><i></i><i></i><i></i></div><span class="hint" id="sHint">Minimal 8 karakter, kombinasi huruf besar, angka, dan simbol.</span></div>
+      <div><label for="sNew2">Konfirmasi Kata Sandi Baru</label><input id="sNew2" class="input" type="password" placeholder="Ulangi kata sandi baru" autocomplete="off"></div>
+    </div>
+    <div class="submit-bar" style="margin-top:16px;max-width:460px"><span class="spacer"></span><button class="btn primary" id="sSave" type="button">Ubah Kata Sandi</button></div></form>`,
+  notifications: `${h('Notification Preferences', 'Pilih cara Anda menerima notifikasi.')}
+    ${setting('In-App', 'Tampilkan notifikasi di aplikasi', true)}${setting('Email', 'Kirim ringkasan ke email kantor', true)}${setting('Push browser', 'Web Push di browser ini (butuh HTTPS)', false)}
+    ${setting('Digest Mode', 'Gabungkan notifikasi menjadi ringkasan berkala', false)}${setting('Quiet Hours', 'Jeda notifikasi 22.00–06.00', true)}
+    <div class="setting"><div><b>Action Reminders</b><small>Seberapa sering mengingatkan item yang tertunda</small></div><button class="pop" id="nFreq"><span class="v">Hourly</span>${caret}</button></div>`,
+  sound: `${h('Sound Settings', 'Suara untuk tiket baru, balasan, dan SLA kritis.')}
+    ${setting('Suara notifikasi', 'Mainkan suara saat notifikasi masuk', true)}${setting('Suara SLA kritis', 'Nada berbeda untuk tiket Blocker / SLA terlewati', true)}
+    <div class="setting"><div><b>Volume</b><small>70%</small></div><input type="range" min="0" max="100" value="70" aria-label="Volume" style="accent-color:var(--accent);width:180px"></div>`,
+  appearance: `${h('Theme Preference', 'Pilih tampilan yang nyaman untuk mata Anda.')}
+    <div class="theme-cards"><button class="theme-card" data-theme-pick="light"><span class="pv"></span><b>Light Mode</b><small>Bersih dan terang</small></button><button class="theme-card dark" data-theme-pick="dark"><span class="pv"></span><b>Dark Mode</b><small>Kontras tinggi, nyaman malam hari</small></button></div>`,
+  'ticket-modules': `${h('Modul Tiket', 'Atur modul request, PIC default, dan form dinamis per modul.')}
+    <div class="list">${[['IT Support Tickets', 'ticket', 'var(--blue)', 'Auto-assign beban terendah'], ['Oracle K2 Request', 'database', 'var(--red)', 'PIC: Hendra Wijaya'], ['Web Developer Request', 'code-xml', 'var(--teal)', 'PIC: Rina Kartika'], ['Mobile Developer Request', 'smartphone', 'var(--sea)', 'PIC belum ditetapkan']].map(([n, i, c, s]) => `<div class="li"><span class="tile" style="--c:${c};width:28px;height:28px;border-radius:8px">${ic(i)}</span><div class="grow1"><b>${n}</b><small>${s}</small></div><button class="switch" aria-checked="true" aria-label="Aktifkan ${n}" data-say="Modul ${n}"></button></div>`).join('')}</div>`,
+  sla: `${h('SLA Settings', 'Target respon dan penyelesaian per prioritas, dihitung dalam jam kerja.')}
+    <section class="table d" style="--cols:minmax(160px,1fr) 120px 140px;--cols-m:minmax(0,1fr) auto auto;box-shadow:none;background:var(--surface-2)"><div class="thead"><span>Prioritas</span><span class="num">Respon</span><span class="num">Penyelesaian</span></div>
+      ${[['Blocker', 'var(--red)', '15 mnt', '4 jam'], ['Urgent', 'var(--orange)', '30 mnt', '8 jam'], ['Normal', 'var(--blue)', '2 jam', '2 hari kerja'], ['Low', 'var(--gray)', '4 jam', '5 hari kerja']].map(([p, c, r, s]) => `<div class="row static" style="min-height:46px">${bub(p, c)}<span class="cell num">${r}</span><span class="cell num">${s}</span></div>`).join('')}</section>
+    <div class="setting" style="margin-top:8px"><div><b>Jam kerja</b><small>Senin–Kamis 08.00–17.00 · Jumat 08.00–16.30 · WIB</small></div><button class="btn" data-demo="Editor jam kerja hanya contoh.">Ubah</button></div>
+    ${setting('Jeda SLA saat Waiting Vendor', 'Timer berhenti selama tiket menunggu vendor', true)}`,
+  storage: `${h('Storage', 'Lokasi penyimpanan lampiran dan retensi file.')}
+    <div class="setting"><div><b>Penyimpanan utama</b><small>Synology NAS · /idesk/attachments · 1,2 TB tersisa</small></div>${bub('Terhubung', 'var(--green)', { ink: 'var(--ink-green)' })}</div>
+    ${setting('Retensi lampiran tiket tertutup', 'Hapus otomatis setelah 24 bulan', true)}${setting('Synology Backup harian', 'Snapshot 02.00 WIB, simpan 30 versi', true)}`,
+  'ip-whitelist': `${h('IP Whitelist', 'Batasi akses agent/admin ke jaringan tertentu.')}
+    <div class="list">${[['10.10.0.0/16', 'Jaringan kantor SPJ'], ['10.20.0.0/16', 'Jaringan kantor SMG'], ['103.28.14.22', 'Gateway VPN FortiGate']].map(([ip, d]) => `<div class="li"><span class="ico" style="--c:var(--red)">${ic('shield')}</span><div class="grow1"><b class="mono">${ip}</b><small>${d}</small></div><button class="icon-btn" aria-label="Hapus ${ip}" data-demo="Penghapusan IP memerlukan konfirmasi di produksi; mockup tidak mengubah apa pun.">${ic('trash-2')}</button></div>`).join('')}</div>
+    ${setting('Terapkan whitelist', 'Akses di luar daftar akan ditolak (hanya agent & admin)', false)}`,
+  zoom: `${h('Zoom Settings', 'Akun Zoom perusahaan yang dapat dibooking.')}
+    <div class="list">${[['Zoom 1', 'var(--blue)'], ['Zoom 2', 'var(--teal)'], ['Zoom 3', 'var(--orange)']].map(([n, c]) => `<div class="li"><span class="pdot" style="--c:${c}"></span><div class="grow1"><b>${n}</b><small>Licensed · maks. 300 peserta · durasi maks. 4 jam</small></div><button class="switch" aria-checked="true" aria-label="Aktifkan ${n}" data-say="Akun ${n}"></button></div>`).join('')}</div>`,
+  mail: `${h('Email', 'Server SMTP untuk notifikasi dan reply-by-email.')}
+    <div class="formgrid"><div><label for="mHost">SMTP host</label><input id="mHost" class="input" value="smtp.idesk.local"></div><div><label for="mPort">Port</label><input id="mPort" class="input" value="587"></div><div class="full"><label for="mFrom">Alamat pengirim</label><input id="mFrom" class="input" value="iDesk Helpdesk &lt;helpdesk@idesk.local&gt;"></div></div>
+    <div class="submit-bar" style="margin-top:14px"><button class="btn" data-demo="Email uji tidak dikirim dari mockup.">${ic('send')}Kirim email uji</button><span class="spacer"></span><button class="btn primary" data-demo="Konfigurasi contoh tidak disimpan.">Simpan</button></div>`,
+  'tv-board': `${h('TV Board', 'Tampilan antrian untuk layar TV ruang ICT.')}
+    ${setting('Tampilkan tiket Blocker di atas', 'Urutkan Blocker dan SLA terlewati paling atas', true)}${setting('Putar suara di TV', 'Bunyi saat ada tiket Blocker baru', false)}
+    <div class="setting"><div><b>Rotasi halaman</b><small>Ganti panel tiap 20 detik</small></div><button class="pop" id="tvRot"><span class="v">20 detik</span>${caret}</button></div>`,
+  'desktop-webhook': `${h('Desktop & Webhook Hub', 'Push ke aplikasi desktop dan webhook eksternal.')}
+    <div class="list">${[['Desktop WSS Push Hub', '17 PC paired · latency 64 ms', true], ['Webhook Teams #ict-alert', 'Tiket Blocker & SLA breach', true], ['Webhook n8n backup', 'Semua event tiket', false]].map(([n, s, on]) => `<div class="li"><span class="ico" style="--c:var(--orange)">${ic('radio')}</span><div class="grow1"><b>${n}</b><small>${s}</small></div><button class="switch" aria-checked="${on}" aria-label="${n}" data-say="${n}"></button></div>`).join('')}</div>`,
+};
+iDeskPages.mount(`
+<main class="content page">
+  <div class="head"><span class="tile ptile" style="--c:var(--gray)">${ic('settings')}</span><div><h2>Settings</h2><p>Kelola preferensi akun dan konfigurasi sistem</p></div></div>
+  <div class="settings-layout" style="display:grid;grid-template-columns:230px minmax(0,1fr);gap:16px;align-items:start">
+    <nav class="vtabs" data-tabs="setPanels" aria-label="Kategori pengaturan" aria-orientation="vertical"><h4>Personal</h4>${PERSONAL.map(tabBtn).join('')}<h4>Administration</h4>${ADMIN.map(tabBtn).join('')}</nav>
+    <section class="panel" id="setPanels" style="padding:20px 22px">${Object.entries(PANELS).map(([k, html]) => `<div class="tab-panel" data-panel="${k}" hidden>${html}</div>`).join('')}</section>
+  </div>
+</main>`);
+iDeskDropdown.bind(document.getElementById('pDept'), { title: 'Pilih Departemen', search: 'Cari departemen…', options: iDeskMock.choices(['ICT', 'Finance', 'HC Development', 'Operation', 'Production 1', 'QC AB Reguler', 'HSE', 'GA Management']), value: 'ICT', onSelect: (v) => { document.querySelector('#pDept .v').textContent = v; } });
+iDeskDropdown.bind(document.getElementById('nFreq'), { title: 'Frekuensi pengingat', options: iDeskMock.choices(['Real-time (No batching)', 'Hourly', 'Daily', 'Weekly']), value: 'Hourly', onSelect: (v) => { document.querySelector('#nFreq .v').textContent = v; } });
+iDeskDropdown.bind(document.getElementById('tvRot'), { title: 'Rotasi halaman', options: iDeskMock.choices(['10 detik', '20 detik', '30 detik', '60 detik']), value: '20 detik', onSelect: (v) => { document.querySelector('#tvRot .v').textContent = v; } });
+// Password strength is a local hint only; the value is never stored or sent.
+const STRENGTH = [['Lemah', 'var(--red)'], ['Sedang', 'var(--orange)'], ['Kuat', 'var(--green)']];
+document.getElementById('sNew').addEventListener('input', (e) => {
+  const v = e.target.value; const score = [v.length >= 8, /[A-Z]/.test(v) && /\d/.test(v), /[^A-Za-z0-9]/.test(v)].filter(Boolean).length;
+  document.querySelectorAll('.strength i').forEach((bar, i) => { bar.style.background = v && i < score ? STRENGTH[Math.max(score - 1, 0)][1] : ''; });
+  document.getElementById('sHint').textContent = v ? `Kekuatan: ${STRENGTH[Math.max(score - 1, 0)][0]}` : 'Minimal 8 karakter, kombinasi huruf besar, angka, dan simbol.';
+});
+document.getElementById('sSave').onclick = () => {
+  const a = document.getElementById('sNew').value, b = document.getElementById('sNew2').value;
+  iDeskDropdown.notice(!a ? 'Isi kata sandi baru terlebih dahulu.' : a !== b ? 'Konfirmasi kata sandi tidak sama. Ketik ulang kata sandi baru.' : 'Prototype: kata sandi tidak diubah dan tidak dikirim ke mana pun.');
+};
+const paintTheme = () => document.querySelectorAll('[data-theme-pick]').forEach((c) => { const on = c.dataset.themePick === document.documentElement.dataset.theme; c.classList.toggle('on', on); c.setAttribute('aria-pressed', String(on)); });
+document.querySelectorAll('[data-theme-pick]').forEach((c) => { c.onclick = () => { if (c.dataset.themePick !== document.documentElement.dataset.theme) document.getElementById('themeBtn').click(); paintTheme(); }; });
+document.getElementById('themeBtn').addEventListener('click', () => setTimeout(paintTheme));
+paintTheme();
+</script>
+</body>
+</html>
