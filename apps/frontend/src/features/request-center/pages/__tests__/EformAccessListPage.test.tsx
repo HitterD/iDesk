@@ -63,21 +63,19 @@ describe('EformAccessListPage', () => {
     expect(screen.getByText(/Pengajuan akses VPN, website, dan jaringan/i)).toBeInTheDocument();
 
     // Verify table headers
-    expect(screen.getByText('ID & Jenis Akses')).toBeInTheDocument();
-    expect(screen.getByText('Pemohon')).toBeInTheDocument();
-    expect(screen.getByText('Diajukan')).toBeInTheDocument();
-    expect(screen.getByText('Masa Berlaku')).toBeInTheDocument();
-    expect(screen.getByText('Status')).toBeInTheDocument();
-    expect(screen.getByText('Aksi')).toBeInTheDocument();
-
-    // Verify request row & card data rendered
+    // Verify request row data rendered (mockup grid header appears once rows load)
     const requesterNames = await screen.findAllByText('Bagas Pratama');
     expect(requesterNames.length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('IT Department').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Akses VPN').length).toBeGreaterThanOrEqual(1);
 
-    // Verify PDF button and Detail button rendered
-    expect(screen.getAllByText(/PDF F-ICT-04/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('ID & Jenis Akses')).toBeInTheDocument();
+    expect(screen.getByText('Pemohon')).toBeInTheDocument();
+    expect(screen.getByText('Diajukan')).toBeInTheDocument();
+    expect(screen.getByText('Masa Berlaku')).toBeInTheDocument();
+
+    // PDF download stays on confirmed rows; Detail link stays
+    expect(screen.getByRole('button', { name: /Unduh PDF F-ICT-04 Bagas Pratama/i })).toBeInTheDocument();
     expect(screen.getAllByText('Detail').length).toBeGreaterThanOrEqual(1);
   });
 

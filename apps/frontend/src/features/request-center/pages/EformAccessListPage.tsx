@@ -1,30 +1,19 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-    Plus,
-    Search,
-    Clock,
-    CheckCircle2,
-    ChevronRight,
-    FileText,
-    Database,
-    Ban,
-    Inbox,
-    Download,
-    CalendarDays,
-    List,
-    AlertTriangle,
+    ArrowRight, CalendarRange, ChevronDown, ChevronRight, CircleCheck, CircleX, Download, FileKey2, FilePlus2,
+    FileText, Hourglass, Inbox, Layers, Loader, Rows3, SearchX, UserCheck, X,
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { id as idLocale } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DashAvatar } from '@/features/dashboard/components/DashboardParts';
+import { ResBub, ResEmpty, ResHead, ResSearch, ResSkeletonRows, ResStat, ResTable, resVars, rowActivation } from '@/components/resources/ResourceParts';
 import { useAuth } from '@/stores/useAuth';
 import { useEformRequests, usePendingApprovals, downloadEformPdf, EFormRequest } from '../api/eform-request.api';
 
 import { EFormStatus } from '../components/eform/EformStatusPipeline';
 import {
-    EformStatusBadge,
-    EformTypeBadge,
     getStatusConfig,
     getTypeConfig,
     EFORM_TYPES,
@@ -46,54 +35,6 @@ const STATUS_FILTERS = [
         label: getStatusConfig(status).label,
     })),
 ];
-
-const SkeletonTableRow = () => (
-    <tr className="animate-pulse border-b border-border/60">
-        <td className="px-5 py-4">
-            <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl bg-muted shrink-0" />
-                <div className="space-y-1.5 min-w-0">
-                    <div className="h-3 w-16 rounded bg-muted" />
-                    <div className="h-4 w-28 rounded bg-muted" />
-                </div>
-            </div>
-        </td>
-        <td className="px-4 py-4">
-            <div className="space-y-1.5">
-                <div className="h-4 w-32 rounded bg-muted" />
-                <div className="h-3 w-20 rounded bg-muted" />
-            </div>
-        </td>
-        <td className="px-4 py-4 whitespace-nowrap">
-            <div className="h-4 w-24 rounded bg-muted" />
-        </td>
-        <td className="px-4 py-4 whitespace-nowrap">
-            <div className="h-4 w-24 rounded bg-muted" />
-        </td>
-        <td className="px-4 py-4 whitespace-nowrap">
-            <div className="h-6 w-28 rounded-full bg-muted" />
-        </td>
-        <td className="px-5 py-4 text-right whitespace-nowrap">
-            <div className="inline-block h-8 w-24 rounded-lg bg-muted" />
-        </td>
-    </tr>
-);
-
-const SkeletonMobileCard = () => (
-    <div className="animate-pulse rounded-2xl border border-border bg-card p-4 space-y-3 shadow-xs">
-        <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-                <div className="h-9 w-9 rounded-xl bg-muted shrink-0" />
-                <div className="space-y-1.5">
-                    <div className="h-3 w-16 bg-muted rounded" />
-                    <div className="h-4 w-28 bg-muted rounded" />
-                </div>
-            </div>
-            <div className="h-6 w-20 bg-muted rounded-full" />
-        </div>
-        <div className="h-8 bg-muted/60 rounded-xl" />
-    </div>
-);
 
 export const EformAccessListPage: React.FC = () => {
     const navigate = useNavigate();
@@ -179,295 +120,129 @@ export const EformAccessListPage: React.FC = () => {
         setTypeFilter('ALL');
     };
 
+    const typeLabel = typeFilter === 'ALL' ? 'Semua jenis' : getTypeConfig(typeFilter).label;
+    const statusLabel = STATUS_FILTERS.find((s) => s.value === statusFilter)?.label ?? 'Semua status';
+    const toggleStat = (value: string) => setStatusFilter(statusFilter === value ? 'ALL' : value);
+
     return (
-        <div className="space-y-6 animate-fade-in-up">
-            {/* Header */}
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                        <FileText className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">E-Form Access</h1>
-                        <p className="text-sm font-medium text-muted-foreground">
-                            Pengajuan akses VPN, website, dan jaringan beserta persetujuannya
-                        </p>
-                    </div>
-                </div>
-                <button
-                    onClick={handleCreateNew}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
-                >
-                    <Plus className="h-4 w-4" />
-                    Ajukan Akses
-                </button>
-            </div>
+        <div className="res-page">
+            <ResHead icon={FileKey2} tone="mint" title="E-Form Access"
+                description="Pengajuan akses VPN, website, dan jaringan beserta persetujuannya"
+                actions={<Button variant="primary" onClick={handleCreateNew}><FilePlus2 aria-hidden="true" />Ajukan Akses</Button>} />
 
-            {/* Counts — clickable status filters */}
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-                <CountTile
-                    label="Total"
-                    value={counts.total}
-                    icon={FileText}
-                    isActive={statusFilter === 'ALL'}
-                    onClick={() => setStatusFilter('ALL')}
-                />
-                <CountTile
-                    label="Menunggu Atasan"
-                    value={counts.pendingManager}
-                    icon={Clock}
-                    accent="text-amber-600 dark:text-amber-400"
-                    isActive={statusFilter === EFormStatus.PENDING_MANAGER}
-                    onClick={() => setStatusFilter(EFormStatus.PENDING_MANAGER)}
-                />
-                <CountTile
-                    label="Diproses ICT"
-                    value={counts.pendingIct}
-                    icon={Database}
-                    accent="text-primary"
-                    isActive={statusFilter === EFormStatus.PENDING_ICT}
-                    onClick={() => setStatusFilter(EFormStatus.PENDING_ICT)}
-                />
-                <CountTile
-                    label="Akses Siap"
-                    value={counts.confirmed}
-                    icon={CheckCircle2}
-                    accent="text-emerald-600 dark:text-emerald-400"
-                    isActive={statusFilter === EFormStatus.CONFIRMED}
-                    onClick={() => setStatusFilter(EFormStatus.CONFIRMED)}
-                />
-                <CountTile
-                    label="Segera Berakhir"
-                    value={counts.expiringSoon}
-                    icon={AlertTriangle}
-                    accent="text-amber-600 dark:text-amber-400"
-                    isActive={statusFilter === 'EXPIRING_SOON'}
-                    onClick={() => setStatusFilter(statusFilter === 'EXPIRING_SOON' ? 'ALL' : 'EXPIRING_SOON')}
-                />
-                <CountTile
-                    label="Ditolak"
-                    value={counts.rejected}
-                    icon={Ban}
-                    accent="text-destructive"
-                    isActive={statusFilter === EFormStatus.REJECTED}
-                    onClick={() => setStatusFilter(EFormStatus.REJECTED)}
-                />
-            </div>
+            <section className="res-stats is-six" aria-label="Ringkasan pengajuan">
+                <ResStat icon={Layers} tone="neutral" label="Total" value={counts.total} active={statusFilter === 'ALL'} onClick={() => setStatusFilter('ALL')} />
+                <ResStat icon={UserCheck} tone="amber" label="Menunggu Atasan" value={counts.pendingManager} attention={counts.pendingManager > 0} zero={counts.pendingManager === 0}
+                    active={statusFilter === EFormStatus.PENDING_MANAGER} onClick={() => toggleStat(EFormStatus.PENDING_MANAGER)} />
+                <ResStat icon={Loader} tone="blue" label="Diproses ICT" value={counts.pendingIct} zero={counts.pendingIct === 0}
+                    active={statusFilter === EFormStatus.PENDING_ICT} onClick={() => toggleStat(EFormStatus.PENDING_ICT)} />
+                <ResStat icon={CircleCheck} tone="green" label="Akses Siap" value={counts.confirmed} zero={counts.confirmed === 0}
+                    active={statusFilter === EFormStatus.CONFIRMED} onClick={() => toggleStat(EFormStatus.CONFIRMED)} />
+                <ResStat icon={Hourglass} tone="amber" label="Segera Berakhir" value={counts.expiringSoon} attention={counts.expiringSoon > 0} zero={counts.expiringSoon === 0}
+                    active={statusFilter === 'EXPIRING_SOON'} onClick={() => toggleStat('EXPIRING_SOON')} />
+                <ResStat icon={CircleX} tone="red" label="Ditolak" value={counts.rejected} zero={counts.rejected === 0}
+                    active={statusFilter === EFormStatus.REJECTED} onClick={() => toggleStat(EFormStatus.REJECTED)} />
+            </section>
 
-            {/* Tabs & View Switcher */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                {/* Tabs */}
-                <div role="tablist" aria-label="Tampilan permintaan" className="flex w-fit gap-1 rounded-xl border border-border bg-muted/50 p-1">
-                    <button
-                        role="tab"
-                        aria-selected={!isApprovalTab}
-                        onClick={() => setTab('my-requests')}
-                        className={cn(
-                            'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
-                            !isApprovalTab
-                                ? 'bg-card text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground',
-                        )}
-                    >
-                        <FileText className="h-4 w-4" />
-                        Permintaan Saya
-                    </button>
-                    <button
-                        role="tab"
-                        aria-selected={isApprovalTab}
-                        onClick={() => setTab('pending-approvals')}
-                        className={cn(
-                            'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
-                            isApprovalTab
-                                ? 'bg-card text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground',
-                        )}
-                    >
-                        <Inbox className="h-4 w-4" />
-                        Perlu Persetujuan
-                        {pendingApprovals.length > 0 && (
-                            <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-bold text-white">
-                                {pendingApprovals.length}
-                            </span>
-                        )}
-                    </button>
-                </div>
-
-                {/* View Switcher: Tabel vs Kalender */}
-                <div className="flex items-center gap-1 rounded-xl border border-border bg-muted/50 p-1">
-                    <button
-                        type="button"
-                        onClick={() => setViewMode('table')}
-                        className={cn(
-                            'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer',
-                            viewMode === 'table'
-                                ? 'bg-card text-foreground shadow-xs'
-                                : 'text-muted-foreground hover:text-foreground'
-                        )}
-                    >
-                        <List className="w-3.5 h-3.5" />
-                        <span>Tabel</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setViewMode('calendar')}
-                        className={cn(
-                            'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer',
-                            viewMode === 'calendar'
-                                ? 'bg-card text-foreground shadow-xs'
-                                : 'text-muted-foreground hover:text-foreground'
-                        )}
-                    >
-                        <CalendarDays className="w-3.5 h-3.5" />
-                        <span>Kalender & Timeline</span>
-                    </button>
-                </div>
+            <div className="res-filters">
+                <SegmentedControl aria-label="Daftar permintaan" className="dash-seg" value={tab} onValueChange={setTab}
+                    options={[
+                        { value: 'my-requests', label: 'Permintaan Saya', icon: FileText },
+                        { value: 'pending-approvals', icon: Inbox, label: <>Perlu Persetujuan{pendingApprovals.length > 0 && <span className="res-tab-count is-alert">{pendingApprovals.length}</span>}</> },
+                    ]} />
+                <span className="res-spacer" />
+                <SegmentedControl aria-label="Tampilan permintaan" className="dash-seg" value={viewMode} onValueChange={setViewMode}
+                    options={[{ value: 'table', label: 'Tabel', icon: Rows3 }, { value: 'calendar', label: 'Kalender & Timeline', icon: CalendarRange }]} />
             </div>
 
             {viewMode === 'calendar' ? (
-                <EformAccessCalendar
-                    requests={activeList}
-                    isLoading={isLoading}
-                    basePath={basePath}
-                    onOpenDetail={handleViewDetail}
-                />
+                <EformAccessCalendar requests={activeList} isLoading={isLoading} basePath={basePath} onOpenDetail={handleViewDetail} />
             ) : (
                 <>
-                    {/* Filters */}
-                    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row">
-                        <div className="relative flex-1">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                            <input
-                                type="search"
-                                aria-label="Cari permintaan"
-                                placeholder="Cari nama pemohon atau ID permintaan"
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="h-11 w-full rounded-xl border border-border bg-background pl-10 pr-4 text-sm font-medium text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            />
-                        </div>
-                        <select
-                            aria-label="Saring jenis akses"
-                            value={typeFilter}
-                            onChange={e => setTypeFilter(e.target.value)}
-                            className="h-11 cursor-pointer rounded-xl border border-border bg-background px-4 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-w-[170px]"
-                        >
-                            <option value="ALL">Semua jenis</option>
-                            {EFORM_TYPES.map(({ id, label }) => (
-                                <option key={id} value={id}>{label}</option>
-                            ))}
-                        </select>
-                        <select
-                            aria-label="Saring status"
-                            value={statusFilter}
-                            onChange={e => setStatusFilter(e.target.value)}
-                            className="h-11 cursor-pointer rounded-xl border border-border bg-background px-4 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-w-[190px]"
-                        >
-                            {STATUS_FILTERS.map(({ value, label }) => (
-                                <option key={value} value={value}>{label}</option>
-                            ))}
-                        </select>
+                    <div className="res-filters">
+                        <ResSearch id="eform-search" value={searchTerm} onChange={setSearchTerm} placeholder="Cari nama pemohon atau ID permintaan" label="Cari permintaan" />
+                        <FilterPop k="Jenis" shown={typeLabel} label="Saring jenis akses" value={typeFilter} onChange={setTypeFilter}
+                            options={[{ value: 'ALL', label: 'Semua jenis' }, ...EFORM_TYPES.map(({ id, label }) => ({ value: id, label }))]} />
+                        <FilterPop k="Status" shown={statusLabel} label="Saring status" value={statusFilter} onChange={setStatusFilter} options={STATUS_FILTERS} />
+                        {isFiltered && <button type="button" className="res-reset" onClick={resetFilters}><X aria-hidden="true" />Reset</button>}
                     </div>
 
-                    {/* Results: Mobile Cards (md:hidden) & Desktop Table (hidden md:block) */}
-                    <div className="md:hidden space-y-3">
-                        {isLoading ? (
-                            Array.from({ length: 4 }, (_, i) => <SkeletonMobileCard key={i} />)
-                        ) : filteredRequests.length === 0 ? (
-                            <div className="rounded-2xl border border-border bg-card p-6">
-                                <EmptyState
-                                    isFiltered={isFiltered}
-                                    isApprovalTab={isApprovalTab}
-                                    onReset={resetFilters}
-                                    onCreate={handleCreateNew}
-                                />
-                            </div>
-                        ) : (
-                            filteredRequests.map(req => (
-                                <EformMobileCard
-                                    key={req.id}
-                                    request={req}
-                                    isApprovalTab={isApprovalTab}
-                                    onOpen={() => handleViewDetail(req.id)}
-                                />
-                            ))
-                        )}
-                    </div>
-
-                    {/* Desktop Results Table */}
-                    <div className="hidden md:block overflow-hidden rounded-2xl border border-border bg-card shadow-2xs">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead>
-                                    <tr className="border-b border-border bg-muted/40 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                                        <th className="px-5 py-3.5">ID & Jenis Akses</th>
-                                        <th className="px-4 py-3.5">Pemohon</th>
-                                        <th className="px-4 py-3.5">Diajukan</th>
-                                        <th className="px-4 py-3.5">Masa Berlaku</th>
-                                        <th className="px-4 py-3.5">Status</th>
-                                        <th className="px-5 py-3.5 text-right">Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border/60">
-                                    {isLoading ? (
-                                        Array.from({ length: 5 }, (_, i) => <SkeletonTableRow key={i} />)
-                                    ) : filteredRequests.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={6} className="p-0">
-                                                <EmptyState
-                                                    isFiltered={isFiltered}
-                                                    isApprovalTab={isApprovalTab}
-                                                    onReset={resetFilters}
-                                                    onCreate={handleCreateNew}
-                                                />
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        filteredRequests.map(req => (
-                                            <EformListRow
-                                                key={req.id}
-                                                request={req}
-                                                isApprovalTab={isApprovalTab}
-                                                onOpen={() => handleViewDetail(req.id)}
-                                            />
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    <ResTable label="Daftar E-Form" cols={EFORM_COLS} colsMobile="minmax(0,1fr) auto"
+                        head={filteredRequests.length > 0 && !isLoading ? <><span>ID &amp; Jenis Akses</span><span>Pemohon</span><span>Status</span><span>Masa Berlaku</span><span className="is-right">Diajukan</span><span className="sr-only">Aksi</span></> : undefined}
+                        foot={!isLoading && activeList.length > 0 ? (
+                            <><span>Menampilkan {filteredRequests.length} dari {activeList.length} pengajuan</span><span className="res-muted">Diteruskan ke atasan pemohon, lalu diproses ICT</span></>
+                        ) : undefined}>
+                        {isLoading ? <ResSkeletonRows rows={5} /> : filteredRequests.length === 0 ? (
+                            <EmptyState isFiltered={isFiltered} isApprovalTab={isApprovalTab} onReset={resetFilters} onCreate={handleCreateNew} />
+                        ) : filteredRequests.map((req) => (
+                            <EformListRow key={req.id} request={req} isApprovalTab={isApprovalTab} onOpen={() => handleViewDetail(req.id)} />
+                        ))}
+                    </ResTable>
                 </>
             )}
         </div>
     );
 };
 
-interface CountTileProps {
+/** Mockup eform.html COLS: ID & Jenis · Pemohon · Status · Masa Berlaku · Diajukan · chevron/aksi. */
+const EFORM_COLS = 'minmax(220px,1.4fr) minmax(190px,1.2fr) 150px minmax(150px,1fr) 80px 130px';
+const TYPE_TINT = 'var(--res-mint)';
+
+interface FilterPopProps {
+    k: string;
+    shown: string;
     label: string;
-    value: number;
-    icon: React.ElementType;
-    accent?: string;
-    isActive: boolean;
-    onClick: () => void;
+    value: string;
+    onChange: (value: string) => void;
+    options: readonly { value: string; label: string }[];
 }
 
-const CountTile: React.FC<CountTileProps> = ({ label, value, icon: Icon, accent, isActive, onClick }) => (
-    <button
-        type="button"
-        onClick={onClick}
-        aria-pressed={isActive}
-        className={cn(
-            'flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
-            isActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40',
-        )}
-    >
-        <Icon className={cn('h-5 w-5 shrink-0', accent ?? 'text-muted-foreground')} aria-hidden="true" />
-        <div className="min-w-0">
-            <div className="text-2xl font-extrabold leading-none tracking-tight text-foreground">{value}</div>
-            <div className="mt-1 truncate text-xs font-semibold text-muted-foreground">{label}</div>
-        </div>
-    </button>
+const FilterPop: React.FC<FilterPopProps> = ({ k, shown, label, value, onChange, options }) => (
+    <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+            <button type="button" className="queue-pop" aria-label={`${label}: ${shown}`}>
+                <span className="queue-pop-k">{k}</span><span className="queue-pop-v">{shown}</span><ChevronDown aria-hidden="true" />
+            </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" variant="compact" className="res-pop-menu" aria-label={label}>
+            <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
+                {options.map((o) => <DropdownMenuRadioItem key={o.value} value={o.value}>{o.label}</DropdownMenuRadioItem>)}
+            </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+    </DropdownMenu>
 );
+
+/** Mockup status bubble hues (eform.html ST). */
+const STATUS_BUB: Record<string, { color: string; ink?: string }> = {
+    [EFormStatus.PENDING_MANAGER]: { color: 'var(--dash-orange)', ink: 'var(--dash-ink-orange)' },
+    [EFormStatus.PENDING_ICT]: { color: 'var(--dash-blue)' },
+    [EFormStatus.CONFIRMED]: { color: 'var(--dash-green)', ink: 'var(--dash-ink-green)' },
+    [EFormStatus.REJECTED]: { color: 'var(--dash-red)', ink: 'var(--dash-ink-red)' },
+    [EFormStatus.DRAFT]: { color: 'var(--dash-gray)' },
+};
+
+const EformStatusBub: React.FC<{ status: string }> = ({ status }) => {
+    const bub = STATUS_BUB[status] ?? STATUS_BUB[EFormStatus.DRAFT];
+    return <ResBub color={bub.color} ink={bub.ink}>{getStatusConfig(status).label}</ResBub>;
+};
+
+const VALIDITY_FMT: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
+const fmtDay = (value?: string | null) => {
+    if (!value) return null;
+    const [y, m, d] = value.split('-').map(Number);
+    if (!y || !m || !d) return value;
+    return new Date(y, m - 1, d).toLocaleDateString('id-ID', VALIDITY_FMT);
+};
+
+/** "21 Okt – 20 Jan" / "Permanen" / "—" from the real form dates. */
+const validityText = (request: EFormRequest) => {
+    const from = fmtDay(request.formData?.dariTanggal);
+    const to = fmtDay(request.formData?.sampaiTanggal);
+    if (from && to) return `${from} – ${to}`;
+    if (from) return `${from} – Permanen`;
+    if (request.status === EFormStatus.REJECTED) return '—';
+    return to ? `s/d ${to}` : 'Permanen';
+};
 
 interface EformListRowProps {
     request: EFormRequest;
@@ -478,192 +253,47 @@ interface EformListRowProps {
 const EformListRow: React.FC<EformListRowProps> = ({ request, isApprovalTab, onOpen }) => {
     const type = getTypeConfig(request.formType);
     const TypeIcon = type.icon;
-    const formattedDate = format(new Date(request.createdAt), 'd MMM yyyy', { locale: idLocale });
-    const dari = request.formData?.dariTanggal || '—';
-    const sampai = request.formData?.sampaiTanggal;
-    const exp = calculateExpirationStatus(sampai, request.status);
+    const submitted = new Date(request.createdAt).toLocaleDateString('id-ID', VALIDITY_FMT);
+    const exp = calculateExpirationStatus(request.formData?.sampaiTanggal, request.status);
+    const soon = Boolean(exp.isExpiringSoon || exp.isToday);
+    const expired = Boolean(exp.isExpired);
+    const name = request.requesterName || '—';
 
     return (
-        <tr
-            role="button"
-            tabIndex={0}
-            onClick={onOpen}
-            onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onOpen();
-                }
-            }}
-            className="group cursor-pointer transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-none focus-visible:bg-muted/50"
-        >
-            {/* ID & Jenis Akses */}
-            <td className="px-5 py-3.5">
-                <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                        <TypeIcon className="h-4 w-4" aria-hidden="true" />
-                    </div>
-                    <div className="min-w-0">
-                        <div className="font-mono text-[11px] font-semibold text-muted-foreground group-hover:text-primary transition-colors">
-                            #{request.id.slice(0, 8).toUpperCase()}
-                        </div>
-                        <div className="truncate text-sm font-bold text-foreground">
-                            {type.label}
-                        </div>
-                    </div>
-                </div>
-            </td>
-
-            {/* Pemohon */}
-            <td className="px-4 py-3.5">
-                <div className="min-w-[140px]">
-                    <div className="truncate text-sm font-bold text-foreground">
-                        {request.requesterName}
-                    </div>
-                    {request.requesterDepartment && (
-                        <div className="truncate text-xs font-medium text-muted-foreground">
-                            {request.requesterDepartment}
-                        </div>
-                    )}
-                </div>
-            </td>
-
-            {/* Tanggal Pengajuan */}
-            <td className="px-4 py-3.5 whitespace-nowrap text-xs font-semibold text-muted-foreground">
-                {formattedDate}
-            </td>
-
-            {/* Masa Berlaku */}
-            <td className="px-4 py-3.5">
-                <div className="space-y-1">
-                    <div className="text-xs font-semibold text-foreground whitespace-nowrap">
-                        {dari} {sampai ? `s/d ${sampai}` : (request.formType === 'WEBSITE' ? '— Permanen' : '')}
-                    </div>
-                    <div>
-                        <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.2 text-[10px] font-bold border', exp.badgeClass)}>
-                            {exp.label}
-                        </span>
-                    </div>
-                </div>
-            </td>
-
-            {/* Status */}
-            <td className="px-4 py-3.5 whitespace-nowrap">
-                <EformStatusBadge status={request.status} />
-            </td>
-
-            {/* Aksi */}
-            <td className="px-5 py-3.5 text-right whitespace-nowrap">
-                <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                    {request.status === EFormStatus.CONFIRMED && (
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                downloadEformPdf(request.id, `F-ICT-04-${request.requesterName.replace(/\s+/g, '_')}.pdf`);
-                            }}
-                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 transition-colors cursor-pointer"
-                            title="Unduh Formulir Resmi PDF"
-                        >
-                            <Download size={12} /> PDF F-ICT-04
-                        </button>
-                    )}
-                    <button
-                        type="button"
-                        onClick={onOpen}
-                        className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/10 transition-colors cursor-pointer"
-                    >
-                        {isApprovalTab ? 'Tinjau' : 'Detail'}
-                        <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                    </button>
-                </div>
-            </td>
-        </tr>
-    );
-};
-
-const EformMobileCard: React.FC<EformListRowProps> = ({ request, isApprovalTab, onOpen }) => {
-    const type = getTypeConfig(request.formType);
-    const TypeIcon = type.icon;
-    const formattedDate = format(new Date(request.createdAt), 'd MMM yyyy', { locale: idLocale });
-    const dari = request.formData?.dariTanggal || '—';
-    const sampai = request.formData?.sampaiTanggal;
-    const exp = calculateExpirationStatus(sampai, request.status);
-
-    return (
-        <div
-            onClick={onOpen}
-            className="group relative flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-xs transition-all hover:border-primary/40 active:scale-[0.99] cursor-pointer"
-        >
-            {/* Top row: Type Icon + ID + Status */}
-            <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                        <TypeIcon className="h-4 w-4" aria-hidden="true" />
-                    </div>
-                    <div className="min-w-0">
-                        <span className="font-mono text-[11px] font-bold text-muted-foreground group-hover:text-primary transition-colors">
-                            #{request.id.slice(0, 8).toUpperCase()}
-                        </span>
-                        <div className="truncate text-sm font-extrabold text-foreground">
-                            {type.label}
-                        </div>
-                    </div>
-                </div>
-                <EformStatusBadge status={request.status} />
+        <div className="res-row is-link" aria-label={`${type.label} ${shortId(request.id)}: ${name}`} {...rowActivation(onOpen)}>
+            <div className="queue-person">
+                <span className="res-type-ico" style={resVars({ '--c': TYPE_TINT })}><TypeIcon aria-hidden="true" /></span>
+                <div className="min-w-0"><b>{type.label}</b><small className="font-mono">{shortId(request.id)}</small></div>
             </div>
-
-            {/* Mid row: Requester Info & Masa Berlaku */}
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/60 text-xs">
-                <div className="min-w-0">
-                    <div className="font-bold text-foreground truncate">
-                        {request.requesterName}
-                    </div>
-                    {request.requesterDepartment && (
-                        <div className="text-muted-foreground text-[11px] truncate">
-                            {request.requesterDepartment}
-                        </div>
-                    )}
-                </div>
-                <div className="text-right shrink-0">
-                    <div className="text-[11px] text-muted-foreground font-medium">Diajukan: {formattedDate}</div>
-                    <div className="text-[11px] font-semibold text-foreground mt-0.5">
-                        {dari} {sampai ? `s/d ${sampai}` : ''}
-                    </div>
-                    <div className="mt-1">
-                        <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.2 text-[10px] font-bold border', exp.badgeClass)}>
-                            {exp.label}
-                        </span>
-                    </div>
-                </div>
+            <div className="queue-person res-hide-m">
+                <DashAvatar name={name} />
+                <div className="min-w-0"><b>{name}</b>{request.requesterDepartment && <small>{request.requesterDepartment}</small>}</div>
             </div>
-
-            {/* Bottom Row: Actions */}
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/60">
-                {request.status === EFormStatus.CONFIRMED ? (
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            downloadEformPdf(request.id, `F-ICT-04-${request.requesterName.replace(/\s+/g, '_')}.pdf`);
-                        }}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 transition-colors cursor-pointer"
-                    >
-                        <Download size={13} />
-                        <span>Unduh PDF F-ICT-04</span>
+            <span><EformStatusBub status={request.status} /></span>
+            <span className="res-cell res-hide-m">
+                {soon || expired ? (
+                    <ResBub icon={Hourglass} color={expired ? 'var(--dash-red)' : 'var(--dash-orange)'} ink={expired ? 'var(--dash-ink-red)' : 'var(--dash-ink-orange)'} title={exp.label}>
+                        {validityText(request)}
+                    </ResBub>
+                ) : validityText(request)}
+            </span>
+            <span className="res-date res-hide-m">{submitted}</span>
+            <span className="res-acts res-hide-m">
+                {request.status === EFormStatus.CONFIRMED && (
+                    <button type="button" className="res-icon-btn" title="Unduh PDF F-ICT-04" aria-label={`Unduh PDF F-ICT-04 ${name}`}
+                        onClick={(e) => { e.stopPropagation(); downloadEformPdf(request.id, `F-ICT-04-${name.replace(/\s+/g, '_')}.pdf`); }}>
+                        <Download aria-hidden="true" />
                     </button>
-                ) : (
-                    <span className="text-[11px] text-muted-foreground font-medium">
-                        {isApprovalTab ? 'Ketuk untuk tinjau & setujui' : 'Ketuk untuk lihat detail'}
-                    </span>
                 )}
-                <div className="flex items-center gap-1 text-xs font-bold text-primary group-hover:translate-x-0.5 transition-transform ml-auto">
-                    <span>{isApprovalTab ? 'Tinjau' : 'Detail'}</span>
-                    <ChevronRight size={14} />
-                </div>
-            </div>
+                <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-[hsl(var(--idesk-sapphire))]">
+                    {isApprovalTab ? 'Tinjau' : 'Detail'}<ChevronRight className="res-chev" aria-hidden="true" />
+                </span>
+            </span>
         </div>
     );
 };
+
+const shortId = (id: string) => `#${id.slice(0, 8).toUpperCase()}`;
 
 interface EmptyStateProps {
     isFiltered: boolean;
@@ -675,55 +305,18 @@ interface EmptyStateProps {
 const EmptyState: React.FC<EmptyStateProps> = ({ isFiltered, isApprovalTab, onReset, onCreate }) => {
     if (isFiltered) {
         return (
-            <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-16 text-center">
-                <Search className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
-                <div className="space-y-1">
-                    <h3 className="text-lg font-bold text-foreground">Tidak ada yang cocok</h3>
-                    <p className="text-sm text-muted-foreground">
-                        Tidak ada permintaan yang sesuai dengan pencarian atau saringan ini.
-                    </p>
-                </div>
-                <button
-                    onClick={onReset}
-                    className="rounded-xl border border-border bg-card px-4 py-2 text-sm font-bold text-foreground transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                    Hapus saringan
-                </button>
-            </div>
+            <ResEmpty icon={SearchX} title="Tidak ada yang cocok" cta={<Button variant="soft" onClick={onReset}>Hapus saringan</Button>}>
+                Coba ubah filter atau kata kunci.
+            </ResEmpty>
         );
     }
-
     if (isApprovalTab) {
-        return (
-            <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-16 text-center">
-                <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-                <div className="space-y-1">
-                    <h3 className="text-lg font-bold text-foreground">Semua sudah ditinjau</h3>
-                    <p className="text-sm text-muted-foreground">
-                        Tidak ada permintaan yang menunggu persetujuan Anda saat ini.
-                    </p>
-                </div>
-            </div>
-        );
+        return <ResEmpty icon={CircleCheck} title="Semua sudah ditinjau">Tidak ada permintaan yang menunggu persetujuan Anda saat ini.</ResEmpty>;
     }
-
     return (
-        <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-16 text-center">
-            <FileText className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
-            <div className="max-w-sm space-y-1">
-                <h3 className="text-lg font-bold text-foreground">Belum ada pengajuan</h3>
-                <p className="text-sm text-muted-foreground">
-                    Ajukan akses VPN, website, atau jaringan. Permintaan diteruskan ke atasan Anda,
-                    lalu ke tim ICT untuk disiapkan.
-                </p>
-            </div>
-            <button
-                onClick={onCreate}
-                className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-                <Plus className="h-4 w-4" />
-                Ajukan Akses
-            </button>
-        </div>
+        <ResEmpty icon={FileText} title="Belum ada pengajuan"
+            cta={<button type="button" className="idesk-text-link" onClick={onCreate}>Ajukan akses<ArrowRight aria-hidden="true" /></button>}>
+            Ajukan akses VPN, website, atau jaringan. Permintaan diteruskan ke atasan Anda, lalu ke tim ICT untuk disiapkan.
+        </ResEmpty>
     );
 };
