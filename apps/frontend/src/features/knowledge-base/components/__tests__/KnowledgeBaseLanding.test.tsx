@@ -105,11 +105,10 @@ describe('KnowledgeBaseLanding Component', () => {
 
     const searchBox = () => screen.getByRole('searchbox', { name: /cari artikel panduan/i }) as HTMLInputElement;
 
-    it('renders the Apple-style header, search and author actions', async () => {
+    it('renders the mockup hero (Pusat Panduan), search and author actions', async () => {
         renderComponent();
 
-        expect(screen.getByRole('heading', { level: 1, name: 'Ada yang bisa kami bantu?' })).toBeInTheDocument();
-        expect(screen.getByText('Pusat Panduan')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 1, name: 'Pusat Panduan' })).toBeInTheDocument();
         expect(screen.getByText(/Cari solusi mandiri/i)).toBeInTheDocument();
         expect(searchBox()).toBeInTheDocument();
         expect(screen.getByText('Buat Artikel')).toBeInTheDocument();
@@ -137,14 +136,14 @@ describe('KnowledgeBaseLanding Component', () => {
         expect(await screen.findByText('Panduan Setting WatchGuard VPN')).toBeInTheDocument();
     });
 
-    it('switches to results mode when a topic is picked, and back on reset', async () => {
+    it('switches to results mode when a topic is picked (topic pressed), and back on reset', async () => {
         renderComponent();
 
         const topics = await screen.findByRole('navigation', { name: /topik panduan/i });
         fireEvent.click(within(topics).getByRole('button', { name: 'Network' }));
 
         expect(screen.getByRole('heading', { name: 'Network' })).toBeInTheDocument();
-        expect(screen.queryByRole('navigation', { name: /topik panduan/i })).not.toBeInTheDocument();
+        expect(within(topics).getByRole('button', { name: 'Network' })).toHaveAttribute('aria-pressed', 'true');
         expect(screen.queryByText(mockFeatured.title)).not.toBeInTheDocument();
         await waitFor(() =>
             expect(api.get).toHaveBeenCalledWith('/kb/articles', expect.objectContaining({
@@ -153,7 +152,8 @@ describe('KnowledgeBaseLanding Component', () => {
         );
 
         fireEvent.click(screen.getByRole('button', { name: /kembali ke semua topik/i }));
-        expect(await screen.findByRole('navigation', { name: /topik panduan/i })).toBeInTheDocument();
+        expect(await screen.findByRole('heading', { name: 'Artikel populer' })).toBeInTheDocument();
+        expect(within(topics).getByRole('button', { name: 'Network' })).toHaveAttribute('aria-pressed', 'false');
     });
 
     it('shows a results heading with the count when searching', async () => {
@@ -178,7 +178,10 @@ describe('KnowledgeBaseLanding Component', () => {
         renderComponent();
 
         expect(screen.getByRole('heading', { name: 'Masih butuh bantuan?' })).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: /buat tiket/i })).toHaveAttribute('href', '/tickets/create');
+        const cta = screen.getByRole('link', { name: /buat tiket/i });
+        expect(cta).toHaveAttribute('href', '/tickets/create');
+        // Single amber CTA rule: the help card entry is a sapphire text link, not a button.
+        expect(cta).toHaveClass('idesk-text-link');
         expect(screen.getByText(/Rata-rata respon IT < 15 menit/i)).toBeInTheDocument();
     });
 });

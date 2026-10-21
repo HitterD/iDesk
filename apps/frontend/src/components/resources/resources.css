@@ -259,7 +259,7 @@ a.res-tag:focus-visible { outline: 0; box-shadow: var(--td-ring); }
 .kb-feedback small { color: var(--td-text-3); }
 .kb-feedback .idesk-btn.is-on { background: var(--td-accent-soft); color: hsl(var(--idesk-sapphire)); opacity: 1; }
 .kb-aside { position: sticky; top: 72px; }
-.kb-toc { display: grid; gap: 1px; max-height: min(380px, calc(100vh - 260px)); overflow-y: auto; scrollbar-width: thin; }
+.kb-toc { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; max-height: min(380px, calc(100vh - 260px)); overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
 .kb-toc button { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 6px 10px; border-radius: 9px; font-size: 12.5px; color: hsl(var(--idesk-text-secondary)); transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
 .kb-toc button:hover { background: var(--dash-hover); color: hsl(var(--idesk-text)); }
 .kb-toc button.is-sub { padding-left: 20px; }
@@ -309,7 +309,8 @@ a.res-tag:focus-visible { outline: 0; box-shadow: var(--td-ring); }
   .kb-aside { position: static; }
   .kb-doc { padding: 20px 18px; }
   .kb-title-row h1, .kb-hero h1 { font-size: 23px; }
-  .kb-title-row h1 { min-width: 0; }
+  .kb-title-row h1 { min-width: 0; flex-basis: 100%; }
+  .kb-title-acts { margin-top: 0; }
   .kb-topic { width: 78px; }
   .kb-by-right { margin-left: 0; }
   .res-agenda-day { grid-template-columns: 52px minmax(0, 1fr); }
