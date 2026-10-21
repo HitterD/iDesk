@@ -32,6 +32,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { ManagerTicketActivityModal } from '../components/ManagerTicketActivityModal';
+import { DashStat } from '@/features/dashboard/components/DashboardParts';
 
 interface DashboardStats {
     totalTickets: number;
@@ -82,7 +83,7 @@ const SITE_COLORS: Record<string, string> = {
     SPJ: '#3b82f6',
     SMG: '#22c55e',
     KRW: '#f97316',
-    JTB: '#8b5cf6',
+    JTB: '#0f8f8a', // teal: no purple in the round-2 palette
 };
 
 export const ManagerDashboard = () => {
@@ -173,7 +174,7 @@ export const ManagerDashboard = () => {
     }
 
     return (
-        <div className="space-y-6 animate-fade-in-up pb-10">
+        <div className="dash space-y-6 pb-10">
             {/* Header & Unified Action Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-5 rounded-2xl border border-border/80 shadow-xs">
                 <div>
@@ -204,66 +205,20 @@ export const ManagerDashboard = () => {
                 
                 {/* Left Column: The Big Picture */}
                 <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-6">
-                    {/* 2x2 Metrics Grid */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <Card className="rounded-2xl shadow-xs border-border/80 bg-card hover:border-border transition-all">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Tickets</CardTitle>
-                                <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                                    <Ticket className="h-4 w-4 text-slate-600 dark:text-slate-400" />
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-3xl font-extrabold tracking-tight text-foreground">{stats?.totalTickets || 0}</div>
-                                <p className="text-xs text-muted-foreground mt-1">+{stats?.ticketsToday || 0} hari ini</p>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="rounded-2xl shadow-xs border-border/80 bg-card hover:border-border transition-all">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Open Tickets</CardTitle>
-                                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center">
-                                    <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-3xl font-extrabold tracking-tight text-foreground">{stats?.openTickets?.total || 0}</div>
-                                <div className="flex gap-1.5 mt-2 flex-wrap">
-                                    {stats?.openTickets?.bySite && Object.entries(stats.openTickets.bySite).map(([code, count]) => (
-                                        <Badge key={code} style={{ backgroundColor: SITE_COLORS[code] }} className="text-xs px-2 py-0.5 font-bold shadow-2xs">
-                                            {code}: {count}
-                                        </Badge>
+                    {/* 2x2 Metrics Grid: shared dashboard stat cards */}
+                    <section className="dash-stats grid-cols-2" aria-label="Ringkasan tiket">
+                        <DashStat icon={Ticket} tone="neutral" label="Total Tickets" value={stats?.totalTickets || 0} sub={`+${stats?.ticketsToday || 0} hari ini`} />
+                        <DashStat icon={Clock} tone="sky" label="Open Tickets" value={stats?.openTickets?.total || 0}
+                            sub={stats?.openTickets?.bySite && Object.keys(stats.openTickets.bySite).length > 0 ? (
+                                <span className="inline-flex gap-1.5 flex-wrap">
+                                    {Object.entries(stats.openTickets.bySite).map(([code, count]) => (
+                                        <Badge key={code} style={{ backgroundColor: SITE_COLORS[code] }} className="text-xs px-2 py-0 font-bold shadow-2xs">{code}: {count}</Badge>
                                     ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="rounded-2xl shadow-xs border-red-200/80 dark:border-red-900/50 bg-red-50/40 dark:bg-red-950/20 hover:border-red-300 transition-all">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-red-600 dark:text-red-400">Critical</CardTitle>
-                                <div className="w-8 h-8 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
-                                    <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 animate-pulse" />
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-3xl font-extrabold tracking-tight text-red-600 dark:text-red-400">{stats?.criticalTickets || 0}</div>
-                                <p className="text-xs text-red-500/90 mt-1 font-medium">Butuh perhatian segera</p>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="rounded-2xl shadow-xs border-amber-200/80 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/20 hover:border-amber-300 transition-all">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">SLA Breach</CardTitle>
-                                <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
-                                    <TrendingUp className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-3xl font-extrabold tracking-tight text-amber-600 dark:text-amber-400">{stats?.slaBreach || 0}</div>
-                                <p className="text-xs text-amber-600/90 dark:text-amber-400/90 mt-1 font-medium">Melewati target SLA</p>
-                            </CardContent>
-                        </Card>
-                    </div>
+                                </span>
+                            ) : undefined} />
+                        <DashStat icon={AlertTriangle} tone="red" label="Critical" value={stats?.criticalTickets || 0} attention={(stats?.criticalTickets || 0) > 0} sub="Butuh perhatian segera" />
+                        <DashStat icon={TrendingUp} tone="amber" label="SLA Breach" value={stats?.slaBreach || 0} attention={(stats?.slaBreach || 0) > 0} sub="Melewati target SLA" />
+                    </section>
 
                     {/* Trend Chart */}
                     <Card className="rounded-2xl shadow-xs border-border/80 bg-card">

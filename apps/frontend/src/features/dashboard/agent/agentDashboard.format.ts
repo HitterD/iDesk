@@ -64,3 +64,18 @@ export function firstName(fullName: string): string {
     const name = tokens.find((t) => t.replace(/\./g, '').length > MAX_TITLE_LENGTH) ?? tokens[0] ?? '';
     return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
 }
+
+/** SLA target relative to now in the queue's compact units: "Lewat 1j 40m" / "Sisa 2h 8j". */
+export function formatSlaCompact(iso: string, now: Date = new Date()): { text: string; overdue: boolean } {
+    const diffMs = new Date(iso).getTime() - now.getTime();
+    const overdue = diffMs < 0;
+    // Whole elapsed minutes either side of the target (never round an overdue span up).
+    return { text: `${overdue ? 'Lewat' : 'Sisa'} ${formatDuration(Math.floor(Math.abs(diffMs) / MS_PER_MINUTE))}`, overdue };
+}
+
+/** "21 Okt 2026, 12.40" in WIB (page meta line). */
+export function formatWibStamp(iso: string): string {
+    return new Date(iso).toLocaleString('id-ID', {
+        timeZone: DASHBOARD_TIMEZONE, day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+}

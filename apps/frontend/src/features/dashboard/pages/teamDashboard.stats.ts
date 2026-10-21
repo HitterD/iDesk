@@ -1,0 +1,126 @@
+import type { Ticket } from '@/types/ticket.types';
+import { localIsoDate } from '../components/dashboardChart';
+
+export const TEAM_RANGES = [7, 14, 30] as const;
+export type TeamRange = (typeof TEAM_RANGES)[number];
+
+const TOP_AGENT_LIMIT = 5;
+const RECENT_LIMIT = 10;
+const DAYS_PER_WEEK = 7;
+const PERCENT = 100;
+const FULL_SLA = 100;
+
+/** CLOSED is a RESOLVED ticket the requester confirmed (or that auto-closed); both count as done. */
+export const isDoneStatus = (status: string): boolean => status === 'RESOLVED' || status === 'CLOSED';
+
+export interface TeamAgentStat { id: string; name: string; resolved: number; inProgress: number }
+export interface TeamDay { date: string; created: number; resolved: number }
+
+export interface TeamStats {
+    total: number;
+    open: number;
+    inProgress: number;
+    waitingVendor: number;
+    resolved: number;
+    overdue: number;
+    byPriority: { CRITICAL: number; HIGH: number; MEDIUM: number; LOW: number };
+    byCategory: { category: string; count: number }[];
+    todayTickets: number;
+    thisWeekTickets: number;
+    resolvedToday: number;
+    resolvedThisWeek: number;
+    days: TeamDay[];
+    topAgents: TeamAgentStat[];
+    recentTickets: Ticket[];
+    slaCompliance: number;
+    /** Percent change vs the previous week; null when last week had nothing to compare with. */
+    weekChange: { created: number | null; resolved: number | null };
+}
+
+/** Rounded percent change, null when there is no baseline. */
+export function percentChange(current: number, previous: number): number | null {
+    if (previous === 0) return null;
+    return Math.round(((current - previous) / previous) * PERCENT);
+}
+
+const countIn = (tickets: readonly Ticket[], from: Date, to: Date | null, field: 'createdAt' | 'updatedAt', done: boolean) =>
+    tickets.filter((t) => {
+        if (done && !isDoneStatus(t.status)) return false;
+        const d = new Date(t[field]);
+        return d >= from && (to === null || d < to);
+    }).length;
+
+function topAgents(tickets: readonly Ticket[]): TeamAgentStat[] {
+    const byAgent = new Map<string, TeamAgentStat>();
+    for (const t of tickets) {
+        if (!t.assignedTo) continue;
+        const cur = byAgent.get(t.assignedTo.id) ?? { id: t.assignedTo.id, name: t.assignedTo.fullName, resolved: 0, inProgress: 0 };
+        byAgent.set(t.assignedTo.id, {
+            ...cur,
+            resolved: cur.resolved + (isDoneStatus(t.status) ? 1 : 0),
+            inProgress: cur.inProgress + (t.status === 'IN_PROGRESS' ? 1 : 0),
+        });
+    }
+    return [...byAgent.values()].sort((a, b) => b.resolved - a.resolved).slice(0, TOP_AGENT_LIMIT);
+}
+
+function dailySeries(tickets: readonly Ticket[], today: Date, range: number): TeamDay[] {
+    return Array.from({ length: range }, (_, idx) => {
+        const date = new Date(today);
+        date.setDate(today.getDate() - (range - 1 - idx));
+        const next = new Date(date);
+        next.setDate(date.getDate() + 1);
+        return {
+            date: localIsoDate(date),
+            created: countIn(tickets, date, next, 'createdAt', false),
+            resolved: countIn(tickets, date, next, 'updatedAt', true),
+        };
+    });
+}
+
+/** Team dashboard numbers from the ticket list (same rules the page used before round 2). */
+export function computeTeamStats(tickets: readonly Ticket[], range: number, now: Date = new Date()): TeamStats {
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay());
+    const lastWeekStart = new Date(weekStart);
+    lastWeekStart.setDate(weekStart.getDate() - DAYS_PER_WEEK);
+
+    const byStatus = (s: string) => tickets.filter((t) => t.status === s).length;
+    const byPriority = (p: string) => tickets.filter((t) => t.priority === p).length;
+    const categories = new Map<string, number>();
+    for (const t of tickets) {
+        const cat = t.category || 'GENERAL';
+        categories.set(cat, (categories.get(cat) ?? 0) + 1);
+    }
+    const total = tickets.length;
+    const overdue = tickets.filter((t) => t.isOverdue).length;
+    const thisWeekTickets = countIn(tickets, weekStart, null, 'createdAt', false);
+    const resolvedThisWeek = countIn(tickets, weekStart, null, 'updatedAt', true);
+
+    return {
+        total,
+        open: byStatus('TODO'),
+        inProgress: byStatus('IN_PROGRESS'),
+        waitingVendor: byStatus('WAITING_VENDOR'),
+        resolved: tickets.filter((t) => isDoneStatus(t.status)).length,
+        overdue,
+        byPriority: { CRITICAL: byPriority('CRITICAL'), HIGH: byPriority('HIGH'), MEDIUM: byPriority('MEDIUM'), LOW: byPriority('LOW') },
+        byCategory: [...categories.entries()].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count),
+        todayTickets: countIn(tickets, today, null, 'createdAt', false),
+        thisWeekTickets,
+        resolvedToday: countIn(tickets, today, null, 'updatedAt', true),
+        resolvedThisWeek,
+        days: dailySeries(tickets, today, range),
+        topAgents: topAgents(tickets),
+        recentTickets: [...tickets].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, RECENT_LIMIT),
+        slaCompliance: total > 0 ? Math.round(((total - overdue) / total) * PERCENT) : FULL_SLA,
+        weekChange: {
+            created: percentChange(thisWeekTickets, countIn(tickets, lastWeekStart, weekStart, 'createdAt', false)),
+            resolved: percentChange(resolvedThisWeek, countIn(tickets, lastWeekStart, weekStart, 'updatedAt', true)),
+        },
+    };
+}
+
+/** Backend avgResolutionTime ("4h 20m", h = hours) in the mockup's Indonesian units ("4j 20m"). */
+export const toIndonesianDuration = (value: string | undefined): string => (value ? value.replace(/(\d+)h\b/g, '$1j') : '-');
