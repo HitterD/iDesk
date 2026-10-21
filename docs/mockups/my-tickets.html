@@ -7,12 +7,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
-<link rel="stylesheet" href="idesk.css?v=15">
+<link rel="stylesheet" href="idesk.css?v=19">
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
-<script src="dropdown.js?v=15"></script>
-<script src="mock-state.js?v=15"></script>
-<script src="shell.js?v=15"></script>
-<script src="motion.js?v=15"></script>
+<script src="dropdown.js?v=18"></script>
+<script src="mock-state.js?v=18"></script>
+<script src="shell.js?v=18"></script>
+<script src="motion.js?v=18"></script>
 </head>
 <body data-page="my">
 <script>
@@ -46,17 +46,18 @@ iDeskUserShell(`
     <label class="field">${ic('search')}<input placeholder="Cari judul atau nomor tiket"></label>
     <div class="seg"><button class="on">Semua</button><button>Open</button><button>In Progress</button><button>Selesai</button><button>Dibatalkan</button></div>
   </div>
+  <p class="open-hint">${ic('mouse-pointer-click')}Klik tiket untuk melihat percakapan, status terbaru, dan membalas petugas IT.</p>
   <section class="table">
     <div class="thead u"><span>Tiket</span><span class="col-pri">Prioritas</span><span>Status</span><span>Ditangani oleh</span><span>Diperbarui</span><span></span></div>
     ${T.map((r) => {
       const [sl, sc] = STATUS[r.s]; const [pl, pc] = PRI[r.p];
-      return `<a class="row u" href="ticket.html?as=user">
+      return `<a class="row u" href="ticket.html?as=user" aria-label="Buka tiket #${r.id}: ${r.t}" title="Klik untuk melihat percakapan &amp; perkembangan tiket">
         <div class="tk"><div class="id">#${r.id}<span class="src">${r.cat}</span>${r.unread ? `<span class="bub" style="--c:var(--blue);--ink:var(--accent);height:18px;padding:0 7px;font-size:10.5px">${r.unread} pesan baru</span>` : ''}</div><div class="title">${r.t}</div></div>
         <span class="col-pri"><span class="bub" style="--c:${pc};--ink:${r.p === 'HIGH' ? 'var(--ink-orange)' : 'var(--text-2)'}">${r.p === 'HIGH' ? ic('triangle-alert') : '<span class="dot"></span>'}${pl}</span></span>
         <span class="col-st"><span class="bub" style="--c:${sc}"><span class="dot"></span>${sl}</span></span>
         <div class="col-pic"><span class="bub pic" style="width:auto;max-width:100%">${av(r.pic)}<span class="v">${r.pic[0]}</span></span></div>
         <span class="col-sla date" style="text-align:left">${r.up}</span>
-        <span class="date">Buka ${ic('chevron-right')}</span>
+        <span class="open-cta" aria-hidden="true"><span>${r.unread ? 'Lihat &amp; balas' : 'Lihat detail'}</span>${ic('chevron-right')}</span>
       </a>`;
     }).join('')}
     <div class="foot"><span>Menampilkan 4 dari 4 tiket contoh</span><button class="pop"><span class="k">Per halaman</span><span class="v">10</span><i data-lucide="chevron-down" class="caret"></i></button></div>
@@ -64,6 +65,6 @@ iDeskUserShell(`
 </main>`);
 lucide.createIcons();
 </script>
-<script src="my-tickets-demo.js?v=15"></script>
+<script src="my-tickets-demo.js?v=18"></script>
 </body>
 </html>

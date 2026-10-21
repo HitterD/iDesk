@@ -985,3 +985,24 @@ button.idpill:hover { background: var(--fill-2); color: var(--text); }
   .spin { animation: none !important; }
   .sk { animation: none !important; }
 }
+
+/* Requester list: make every row read as openable */
+.open-hint { display: flex; align-items: center; gap: 6px; margin: 0 0 8px 2px; font-size: 12px; color: var(--text-3); }
+.open-hint svg.lucide { width: 14px; height: 14px; color: var(--accent); }
+.row.u { text-decoration: none; color: inherit; }
+.row.u::after { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); opacity: 0; transform: scaleY(.4); transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); }
+.row.u:hover::after, .row.u:focus-visible::after { opacity: 1; transform: scaleY(1); }
+.row.u .title { transition: color var(--dur-1) var(--ease-out); }
+.row.u:hover .title, .row.u:focus-visible .title { color: var(--accent); }
+.row.u:focus-visible { outline: 0; box-shadow: inset var(--ring); border-radius: 0; }
+.open-cta { justify-self: end; display: inline-flex; align-items: center; gap: 2px; height: 30px; padding: 0 8px 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out); }
+.open-cta svg.lucide { width: 15px; height: 15px; transition: transform var(--dur-2) var(--ease-spring); }
+.row.u:hover .open-cta, .row.u:focus-visible .open-cta { background: var(--accent); color: #fff; }
+.row.u:hover .open-cta svg.lucide, .row.u:focus-visible .open-cta svg.lucide { transform: translateX(3px); }
+.thead.u, .row.u { grid-template-columns: minmax(240px, 3fr) 104px 140px minmax(190px, 1.3fr) 110px 128px; }
+@media (max-width: 860px) {
+  .open-hint { display: none; }
+  .row.u { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "tk tk" "st sla" "pic pic" "cta cta"; }
+  .row.u > .open-cta { display: flex; grid-area: cta; justify-self: stretch; justify-content: center; height: 36px; margin-top: 2px; }
+  .row.u::after { top: 14px; bottom: 14px; }
+}
