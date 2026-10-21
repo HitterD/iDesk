@@ -94,9 +94,6 @@
       <a class="hit" href="list.html?queue=oracle"><i data-lucide="database"></i>Oracle K2 Request<small>Request Center</small></a>
       <a class="hit" href="#"><i data-lucide="book-open"></i>Knowledge Base<small>Resources</small></a>
     </div>
-    <div class="sec"><small>Perintah</small>
-      <a class="hit" href="new.html"><i data-lucide="plus"></i>Buat tiket baru<small>N</small></a>
-    </div>
     <div class="hint"><span>↑↓ pilih</span><span>↵ buka</span><span>Esc tutup</span></div>
   </div>
 </div>`);

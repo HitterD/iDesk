@@ -36,8 +36,11 @@
     const flip = below < Math.min(pop.scrollHeight, MAX_HEIGHT) && above > below;
     pop.style.maxHeight = `${Math.max(0, Math.min(MAX_HEIGHT, flip ? above : below))}px`;
     const box = pop.getBoundingClientRect();
-    pop.style.left = `${Math.max(vx + EDGE, Math.min(rect.left, vx + width - box.width - EDGE))}px`;
+    const left = Math.max(vx + EDGE, Math.min(rect.left, vx + width - box.width - EDGE));
+    pop.style.left = `${left}px`;
     pop.style.top = `${Math.max(vy + EDGE, Math.min(flip ? rect.top - GAP - box.height : rect.bottom + GAP, vy + height - box.height - EDGE))}px`;
+    // Grow out of the trigger: horizontal origin under the trigger centre, vertical origin on the trigger side.
+    pop.style.transformOrigin = `${Math.round(rect.left + Math.min(rect.width, box.width) / 2 - left)}px ${flip ? '100%' : '0'}`;
   }
   function focusOption(index) {
     if (!active.items.length) return;

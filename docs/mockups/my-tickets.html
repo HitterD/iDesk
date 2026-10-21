@@ -4,11 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>iDesk mockup — Tiket Saya (portal pemohon)</title>
-<link rel="stylesheet" href="idesk.css?v=13">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=14">
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
-<script src="dropdown.js?v=13"></script>
-<script src="mock-state.js?v=13"></script>
-<script src="shell.js?v=13"></script>
+<script src="dropdown.js?v=14"></script>
+<script src="mock-state.js?v=14"></script>
+<script src="shell.js?v=14"></script>
+<script src="motion.js?v=14"></script>
 </head>
 <body data-page="my">
 <script>
@@ -35,7 +39,7 @@ iDeskUserShell(`
   <a class="help-banner" href="new.html?as=user">
     <img src="../../apps/frontend/public/characters/mascot-service.png" alt="">
     <div><b>Ada kendala IT?</b><span>Laporkan masalah komputer, printer, jaringan, atau aplikasi. Tim IT akan segera membantu.</span></div>
-    <span class="btn cta">${ic('plus')}<span>Buat Tiket Baru</span></span>
+    <span class="link">Buat tiket${ic('arrow-right')}</span>
   </a>
   <section class="stats four">${STATS.map(([n, i, c, v], k) => `<button class="stat ${k === 0 ? 'on' : ''} ${v === 0 ? 'zero' : ''}" style="--c:${c};--ink:var(--text)"><span class="top"><span class="ic">${ic(i)}</span><span class="n">${v}</span></span><span class="name">${n}</span></button>`).join('')}</section>
   <div class="filters">
@@ -60,6 +64,6 @@ iDeskUserShell(`
 </main>`);
 lucide.createIcons();
 </script>
-<script src="my-tickets-demo.js?v=13"></script>
+<script src="my-tickets-demo.js?v=14"></script>
 </body>
 </html>

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Kanban tiket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=14">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=14"></script>
+<script src="mock-state.js?v=14"></script>
+<script src="shell.js?v=14"></script>
+<script src="motion.js?v=14"></script>
+</head>
+<body data-crumb="Request Center" data-live="1">
+<!--
+Kanban is a second view of the same queue as list.html: same header, counters, filters and record vocabulary.
+Columns are the four editor statuses. Resolved also holds Closed (terminal, read only, not draggable).
+-->
+<script src="queue.js?v=14"></script>
+<script>
+const { ic, caret, av, STATUS, slaBub, priParts, displayId } = iDeskQueue;
+const COLUMNS = [
+  { status: 'TODO', label: 'Open', c: 'var(--blue)', holds: ['TODO'] },
+  { status: 'IN_PROGRESS', label: 'In Progress', c: 'var(--navy)', holds: ['IN_PROGRESS'] },
+  { status: 'WAITING_VENDOR', label: 'Waiting Vendor', c: 'var(--orange)', holds: ['WAITING_VENDOR'] },
+  { status: 'RESOLVED', label: 'Resolved', c: 'var(--green)', holds: ['RESOLVED', 'CLOSED'] },
+];
+const SKELETON_CARDS = 2;
+const BOARD = `
+  <section class="board" id="board" aria-label="Kanban tiket">
+    ${COLUMNS.map((col) => `
+    <div class="kcol" data-status="${col.status}" style="--c:${col.c}" role="group" aria-labelledby="kh-${col.status}">
+      <div class="khead"><span class="dot"></span><b id="kh-${col.status}">${col.label}</b><span class="kcount" data-count></span></div>
+      <div class="klist" data-list></div>
+    </div>`).join('')}
+  </section>
+  <p class="board-hint muted">${ic('hand')}Seret kartu ke kolom lain untuk mengubah status, atau gunakan tombol status di kartu. Tiket terminal hanya baca.</p>`;
+
+let landed = null;
+function cardHtml(r) {
+  const pri = priParts(r); const [sl, sc] = STATUS[r.s];
+  const locked = iDeskMock.isTerminal(r.s);
+  const pic = r.pic ? `<span class="kpic" title="PIC: ${r.pic}">${av(r.pic, 'sm')}<span>${r.pic}</span></span>` : `<span class="kpic empty">${ic('user-round-plus')}<span>Belum ada PIC</span></span>`;
+  return `<article class="kcard${locked ? ' locked' : ''}${landed === r.id ? ' landed' : ''}" data-record="${r.id}" tabindex="0" aria-label="${displayId(r)}: ${r.t}">
+    <div class="kid mono">#${displayId(r)}${r.src ? `<span class="src">${r.src}</span>` : ''}${locked ? `<span class="klock" title="Hanya baca">${ic('lock')}</span>` : ''}</div>
+    <div class="ktitle">${r.t}</div>
+    <div class="kpills">
+      <span class="bub" style="--c:${pri.color};--ink:${pri.ink}">${pri.icon}${pri.label}</span>
+      ${slaBub(r)}
+    </div>
+    <div class="kfoot">${pic}<button class="bub kstatus" style="--c:${sc}" aria-label="Ganti status"><span class="dot"></span><span class="v">${sl}</span>${caret}</button></div>
+  </article>`;
+}
+function renderBoard(rows) {
+  COLUMNS.forEach((col) => {
+    const el = document.querySelector(`.kcol[data-status="${col.status}"]`);
+    const cards = rows.filter((r) => col.holds.includes(r.s));
+    el.querySelector('[data-list]').innerHTML = cards.length ? cards.map(cardHtml).join('') : `<div class="kempty">${ic('inbox')}Kosong</div>`;
+    el.querySelector('[data-count]').textContent = cards.length;
+    cards.forEach((r) => bindCard(r));
+  });
+  landed = null;
+}
+function skeleton() {
+  document.querySelectorAll('.kcol [data-list]').forEach((list) => {
+    list.innerHTML = Array.from({ length: SKELETON_CARDS }, () => '<div class="kcard skeleton-card" aria-hidden="true"><i class="sk w40"></i><i class="sk w90"></i><i class="sk w60"></i></div>').join('');
+  });
+}
+function bindCard(record) {
+  const card = document.querySelector(`.kcard[data-record="${record.id}"]`);
+  const button = card.querySelector('.kstatus'); button.id = 'kedit-' + record.id;
+  iDeskMock.bindEditor(button, record, 's', iDeskMock.editableStatuses, (u, reason) => { landed = u.id; iDeskQueue.commit(u, reason); });
+  card.onclick = (event) => { if (!event.target.closest('button') && !drag.justDropped) location.href = 'ticket.html'; };
+  card.onkeydown = (event) => { if (event.target === card && event.key === 'Enter') location.href = 'ticket.html'; };
+  if (!iDeskMock.isTerminal(record.s)) card.addEventListener('pointerdown', (event) => startPress(event, card, record));
+}
+
+// ---------- Pointer drag: lifted ghost follows the pointer, a placeholder opens where the card will land ----------
+const DRAG_THRESHOLD = 5, TOUCH_HOLD_MS = 260, EDGE_SCROLL = 48, EDGE_STEP = 14;
+const drag = { justDropped: false };
+function startPress(event, card, record) {
+  if (event.button !== 0 || event.target.closest('button')) return;
+  const origin = { x: event.clientX, y: event.clientY };
+  const touch = event.pointerType === 'touch';
+  let armed = !touch, holdTimer = touch ? setTimeout(() => { armed = true; card.classList.add('armed'); }, TOUCH_HOLD_MS) : null;
+  const move = (e) => {
+    const far = Math.hypot(e.clientX - origin.x, e.clientY - origin.y) > DRAG_THRESHOLD;
+    if (!drag.active && far && !armed) { cleanup(); return; } // touch scrolled before the hold: let the page scroll
+    if (!drag.active && far && armed) begin(card, record, origin);
+    if (drag.active) follow(e);
+  };
+  const up = () => { const was = drag.active; cleanup(); if (was) drop(); };
+  const blockScroll = (e) => { if (drag.active || armed) e.preventDefault(); };
+  function cleanup() {
+    clearTimeout(holdTimer); card.classList.remove('armed');
+    removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', cancel);
+    card.removeEventListener('touchmove', blockScroll);
+  }
+  const cancel = () => { const was = drag.active; cleanup(); if (was) abort(); };
+  addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', cancel);
+  if (touch) card.addEventListener('touchmove', blockScroll, { passive: false });
+}
+function begin(card, record, origin) {
+  const rect = card.getBoundingClientRect();
+  const ghost = card.cloneNode(true);
+  ghost.classList.add('kghost'); ghost.removeAttribute('tabindex'); ghost.setAttribute('aria-hidden', 'true');
+  ghost.style.width = rect.width + 'px'; ghost.style.left = rect.left + 'px'; ghost.style.top = rect.top + 'px';
+  document.body.append(ghost);
+  const holder = document.createElement('div');
+  holder.className = 'kplace'; holder.style.height = rect.height + 'px';
+  card.after(holder); card.classList.add('dragging');
+  Object.assign(drag, { active: true, card, record, ghost, holder, dx: origin.x - rect.left, dy: origin.y - rect.top, from: card.closest('.kcol') });
+  document.body.classList.add('is-dragging');
+  iDeskDropdown.close(false);
+}
+function follow(e) {
+  drag.ghost.style.transform = `translate(${e.clientX - drag.dx - parseFloat(drag.ghost.style.left)}px, ${e.clientY - drag.dy - parseFloat(drag.ghost.style.top)}px) rotate(2deg) scale(1.03)`;
+  const board = document.getElementById('board'), br = board.getBoundingClientRect();
+  if (e.clientX > br.right - EDGE_SCROLL) board.scrollLeft += EDGE_STEP;
+  else if (e.clientX < br.left + EDGE_SCROLL) board.scrollLeft -= EDGE_STEP;
+  drag.ghost.hidden = true;
+  const col = document.elementFromPoint(e.clientX, e.clientY)?.closest('.kcol');
+  drag.ghost.hidden = false;
+  document.querySelectorAll('.kcol').forEach((c) => c.classList.toggle('over', c === col));
+  if (!col) return;
+  const list = col.querySelector('[data-list]');
+  const after = [...list.querySelectorAll('.kcard:not(.dragging)')].find((c) => { const r = c.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; });
+  if (after) { if (drag.holder.nextElementSibling !== after) list.insertBefore(drag.holder, after); }
+  else if (list.lastElementChild !== drag.holder) list.append(drag.holder);
+  list.querySelector('.kempty')?.remove();
+}
+function settle(target, then) {
+  const r = target.getBoundingClientRect();
+  drag.ghost.classList.add('settling');
+  drag.ghost.style.transform = `translate(${r.left - parseFloat(drag.ghost.style.left)}px, ${r.top - parseFloat(drag.ghost.style.top)}px)`;
+  const done = () => { drag.ghost.remove(); then(); };
+  const ms = parseFloat(getComputedStyle(drag.ghost).transitionDuration) * 1000 || 0;
+  setTimeout(done, ms);
+}
+function finish() {
+  document.body.classList.remove('is-dragging');
+  document.querySelectorAll('.kcol.over').forEach((c) => c.classList.remove('over'));
+  drag.active = false; drag.justDropped = true; setTimeout(() => { drag.justDropped = false; }, 0);
+}
+function abort() {
+  const { card, holder } = drag;
+  settle(card, () => { holder.remove(); card.classList.remove('dragging'); finish(); });
+}
+function drop() {
+  const { card, holder, record } = drag;
+  const col = holder.closest('.kcol');
+  const target = col && COLUMNS.find((c) => c.status === col.dataset.status);
+  if (!target || target.holds.includes(record.s)) { abort(); return; }
+  settle(holder, async () => {
+    card.classList.remove('dragging'); holder.replaceWith(card); finish();
+    let changed = false;
+    await iDeskMock.change(record, 's', target.status, (u, reason) => { changed = true; landed = u.id; iDeskQueue.commit(u, reason); });
+    if (!changed) { iDeskQueue.render(); iDeskDropdown.notice('Perpindahan dibatalkan. Status contoh tidak berubah.'); }
+  });
+}
+
+iDeskQueue.mount({ view: 'kanban', body: BOARD, onRender: renderBoard, skeleton });
+</script>
+</body>
+</html>
