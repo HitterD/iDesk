@@ -121,65 +121,53 @@ describe('BentoSidebar', () => {
         expect(screen.queryByText('0')).not.toBeInTheDocument();
     });
 
-    it('handles smart multi-group accordion: keeps active group open while toggling secondary groups', async () => {
-        renderSidebar('/tickets/list');
+    it('expands every group by default when the user has no saved choice', () => {
+        renderSidebar('/dashboard');
 
-        // Initially Request Center is open because /tickets/list is active
-        expect(screen.getByText('E-Form Access')).toBeInTheDocument();
-
-        // 1. Click Resources group -> expands Resources WHILE keeping Request Center open!
-        const resourcesBtn = screen.getByText('Resources');
-        fireEvent.click(resourcesBtn);
-
-        await waitFor(() => {
-            expect(screen.getByText('Zoom Calendar')).toBeInTheDocument();
-            expect(screen.getByText('E-Form Access')).toBeInTheDocument(); // Request Center remains open
-        });
-
-        // 2. Click Management group -> expands Management, closes Resources, but keeps Request Center open!
-        const managementBtn = screen.getByText('Management');
-        fireEvent.click(managementBtn);
-
-        await waitFor(() => {
-            expect(screen.getByText('Reports')).toBeInTheDocument(); // Management is open
-            expect(screen.getByText('E-Form Access')).toBeInTheDocument(); // Request Center remains open
-            expect(screen.queryByText('Zoom Calendar')).not.toBeInTheDocument(); // Resources is closed
+        expect(screen.getByText('IT Support Tickets')).toBeInTheDocument();
+        expect(screen.getByText('Zoom Calendar')).toBeInTheDocument();
+        expect(screen.getByText('Reports')).toBeInTheDocument();
+        expect(screen.getByText('Agents')).toBeInTheDocument();
+        ['Request Center', 'Resources', 'Management', 'Administration'].forEach((label) => {
+            expect(screen.getByRole('button', { name: label })).toHaveAttribute('aria-expanded', 'true');
         });
     });
 
-    it('keeps Request Center permanently expanded on /dashboard while allowing max 1 other secondary group', async () => {
+    it('collapses groups independently and persists the choice', async () => {
         renderSidebar('/dashboard');
 
-        // On /dashboard, Request Center is open by default
-        expect(screen.getByText('IT Support Tickets')).toBeInTheDocument();
-        expect(screen.getByText('E-Form Access')).toBeInTheDocument();
+        fireEvent.click(screen.getByText('Resources'));
+        await waitFor(() => expect(screen.queryByText('Zoom Calendar')).not.toBeInTheDocument());
+        // Collapsing one group no longer closes the others.
+        expect(screen.getByText('Reports')).toBeInTheDocument();
+        expect(screen.getByText('Agents')).toBeInTheDocument();
+        expect(JSON.parse(localStorage.getItem('sidebar-expanded-groups-v2') ?? '{}')).toMatchObject({ resources: false });
 
-        // 1. Open Resources -> Resources opens, Request Center remains open (Total = 2)
-        const resourcesBtn = screen.getByText('Resources');
-        fireEvent.click(resourcesBtn);
+        fireEvent.click(screen.getByText('Resources'));
+        await waitFor(() => expect(screen.getByText('Zoom Calendar')).toBeInTheDocument());
+    });
 
-        await waitFor(() => {
-            expect(screen.getByText('Zoom Calendar')).toBeInTheDocument();
-            expect(screen.getByText('IT Support Tickets')).toBeInTheDocument();
-        });
+    it('respects a saved collapsed group while defaulting unsaved groups to open', () => {
+        localStorage.setItem('sidebar-expanded-groups-v2', JSON.stringify({ request_center: true, management: false }));
+        renderSidebar('/dashboard');
 
-        // 2. Open Administration -> Admin opens, Resources closes, Request Center remains open (Total = 2)
-        const adminBtn = screen.getByText('Administration');
-        fireEvent.click(adminBtn);
+        expect(screen.queryByText('Reports')).not.toBeInTheDocument();
+        expect(screen.getByText('Zoom Calendar')).toBeInTheDocument();
+        expect(screen.getByText('Agents')).toBeInTheDocument();
+    });
 
-        await waitFor(() => {
-            expect(screen.getByText('Agents')).toBeInTheDocument();
-            expect(screen.queryByText('Zoom Calendar')).not.toBeInTheDocument();
-            expect(screen.getByText('IT Support Tickets')).toBeInTheDocument();
-        });
+    it('re-opens a saved collapsed group when navigating to one of its routes, keeping other choices', () => {
+        localStorage.setItem('sidebar-expanded-groups-v2', JSON.stringify({ management: false, resources: false }));
+        renderSidebar('/reports');
 
-        // 3. Click Administration again -> Admin closes, leaving only Request Center (Total = 1)
-        fireEvent.click(adminBtn);
+        expect(screen.getByText('Reports')).toBeInTheDocument();
+        expect(screen.queryByText('Zoom Calendar')).not.toBeInTheDocument();
+    });
 
-        await waitFor(() => {
-            expect(screen.queryByText('Agents')).not.toBeInTheDocument();
-            expect(screen.getByText('IT Support Tickets')).toBeInTheDocument();
-        });
+    it('keeps Request Center permanently expanded', async () => {
+        renderSidebar('/dashboard');
+        fireEvent.click(screen.getByText('Request Center'));
+        await waitFor(() => expect(screen.getByText('IT Support Tickets')).toBeInTheDocument());
     });
 
     it('toggles collapse mode and renders icon-only sidebar with new logo', async () => {
@@ -239,6 +227,9 @@ describe('BentoSidebar', () => {
 
         it('does not keep an opened group clipped, so the active tab curves can overflow', async () => {
             renderSidebar('/tickets/list');
+            // Resources is open by default; close and re-open it so the height animation runs.
+            fireEvent.click(screen.getByText('Resources'));
+            await waitFor(() => expect(screen.queryByTestId('nav-group-items-resources')).toBeNull());
             fireEvent.click(screen.getByText('Resources'));
 
             const opened = await screen.findByTestId('nav-group-items-resources');

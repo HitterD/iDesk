@@ -58,7 +58,8 @@ const MODULE_ICON_STYLES: Record<string, { icon: LucideIcon; tone: NavTone }> = 
     Shield: { icon: Shield, tone: 'navy' },
     Zap: { icon: Zap, tone: 'orange' },
 };
-const DEFAULT_MODULE_STYLE: { icon: LucideIcon; tone: NavTone } = { icon: Ticket, tone: 'blue' };
+const EXPANDED_GROUPS_STORAGE_KEY = 'sidebar-expanded-groups-v2';
+const DEFAULT_MODULE_STYLE:{ icon: LucideIcon; tone: NavTone } = { icon: Ticket, tone: 'blue' };
 /** Own-key lookup: module icon names are admin-supplied, so "constructor"/"toString" must not hit Object.prototype. */
 const getModuleIconStyle = (iconName: unknown) =>
     typeof iconName === 'string' && Object.prototype.hasOwnProperty.call(MODULE_ICON_STYLES, iconName)
@@ -437,34 +438,29 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
         return activeGroup ? activeGroup.id : null;
     };
 
-    // Accordion state: remembers which groups are expanded.
-    // - request_center is ALWAYS open (true) by default and design requirement.
-    // - At most 1 other secondary group (resources, management, administration) can be open at a time (maximum 2 open collapsibles total).
+    // Group open/closed choices, persisted per group. Groups without a saved value are open;
+    // request_center is always open.
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
-        const saved = localStorage.getItem('sidebar-expanded-groups-v2');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                return { ...parsed, request_center: true };
-            } catch {
-                return { request_center: true };
-            }
+        const saved = localStorage.getItem(EXPANDED_GROUPS_STORAGE_KEY);
+        if (!saved) return { request_center: true };
+        try {
+            const parsed: unknown = JSON.parse(saved);
+            const choices = parsed && typeof parsed === 'object' ? parsed as Record<string, boolean> : {};
+            return { ...choices, request_center: true };
+        } catch {
+            return { request_center: true };
         }
-        return { request_center: true };
     });
 
     useEffect(() => {
-        localStorage.setItem('sidebar-expanded-groups-v2', JSON.stringify(expandedGroups));
+        localStorage.setItem(EXPANDED_GROUPS_STORAGE_KEY, JSON.stringify(expandedGroups));
     }, [expandedGroups]);
 
-    // Auto-expand group containing active route while preserving request_center open
+    // Re-open the group holding the active route; other groups keep the user's choice.
     useEffect(() => {
         const activeId = getActiveGroupId();
         if (activeId && activeId !== 'request_center') {
-            setExpandedGroups({
-                request_center: true,
-                [activeId]: true,
-            });
+            setExpandedGroups(prev => (prev[activeId] === false ? { ...prev, [activeId]: true } : prev));
         }
     }, [location.pathname]);
 
@@ -473,37 +469,16 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
         navigate('/login', { replace: true });
     };
 
-    // Dynamic 2-collapse accordion:
-    // - request_center ALWAYS stays open
-    // - Opening another secondary group opens it and closes any other secondary group
-    // - Clicking an already open secondary group toggles it closed
-    // - Clicking request_center preserves its open state
+    // Each secondary group toggles independently; request_center stays open.
     const toggleGroup = (groupId: string) => {
-        setExpandedGroups(prev => {
-            if (groupId === 'request_center') {
-                return { ...prev, request_center: true };
-            }
-
-            const isCurrentlyOpen = !!prev[groupId];
-            if (isCurrentlyOpen) {
-                return {
-                    request_center: true,
-                    [groupId]: false,
-                };
-            } else {
-                return {
-                    request_center: true,
-                    [groupId]: true,
-                };
-            }
-        });
+        if (groupId === 'request_center') return;
+        setExpandedGroups(prev => ({ ...prev, [groupId]: !(prev[groupId] ?? true) }));
     };
-
 
     const navigation = buildNavigation();
     const isNavLoading = permissionsLoading && !myPermissions && user?.role !== 'ADMIN';
     const isGroupExpanded = (groupId: string) =>
-        groupId === 'request_center' ? true : (expandedGroups[groupId] ?? false);
+        groupId === 'request_center' ? true : (expandedGroups[groupId] ?? true);
     const toggleLabel = isCollapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)';
 
     return (

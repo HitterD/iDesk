@@ -10,14 +10,18 @@ export interface TicketTypeCardProps {
     onSelect: () => void;
 }
 
-/** Compact catalogue card: the whole surface is the hit area via the stretched action link. */
+/**
+ * Compact catalogue card. The card owns the click so any press inside it selects the type,
+ * even when pointerdown and pointerup land on different children; the action button stays
+ * the keyboard/screen-reader entry and its click bubbles to the card (one call).
+ */
 export function TicketTypeCard({ title, description, mascotImg, mascotAlt, ctaLabel, onSelect }: TicketTypeCardProps) {
     return (
-        <article className="ct-card">
+        <article className="ct-card" onClick={onSelect}>
             <h3>{title}</h3>
             <img src={mascotImg} alt={mascotAlt} loading="lazy" draggable={false} />
             <p>{description}</p>
-            <button type="button" className="ct-link" aria-label={`Pilih ${title}`} onClick={onSelect}>
+            <button type="button" className="ct-link" aria-label={`Pilih ${title}`}>
                 {ctaLabel}
                 <ArrowRight aria-hidden="true" />
             </button>

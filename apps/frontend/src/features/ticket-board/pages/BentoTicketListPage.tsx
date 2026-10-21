@@ -688,13 +688,13 @@ export const BentoTicketListPage: React.FC = () => {
                         >
                             {/* Checkbox column */}
                             {canEdit ? (
-                                <div className="w-8 shrink-0">
-                                    <SelectCheckbox
-                                        checked={isAllSelected}
-                                        indeterminate={isIndeterminate}
-                                        onChange={handleSelectAll}
-                                    />
-                                </div>
+                                <SelectCheckbox
+                                    cell
+                                    label="Pilih semua tiket yang tampil"
+                                    checked={isAllSelected}
+                                    indeterminate={isIndeterminate}
+                                    onChange={handleSelectAll}
+                                />
                             ) : <span aria-hidden="true" />}
                             <SortableHeader
                                 label="Ticket"

@@ -80,7 +80,8 @@ describe('BentoWebDevTicketsPage', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Ubah arah urutan: menurun' }));
         expect(useWebDevTicketsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ sortBy: 'priority', sortOrder: 'ASC' }));
         const all = screen.getByRole('checkbox', { name: 'Pilih semua tiket di halaman ini' });
-        const row = screen.getByRole('checkbox', { name: 'Pilih tiket W-101' });
+        // Card and desktop layouts both render in jsdom; [0] is the card checkbox.
+        const row = screen.getAllByRole('checkbox', { name: 'Pilih tiket W-101' })[0];
         fireEvent.click(all);
         expect(row).toBeChecked();
         fireEvent.click(row);

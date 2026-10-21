@@ -81,7 +81,7 @@ const itemClass = (isActive: boolean, extra?: string) => cn('nav-item', isActive
 export const ShellBrand: React.FC<{ collapsed?: boolean; className?: string }> = ({ collapsed = false, className }) => (
     <span className={cn('nav-brand', className)}>
         <span className="nav-brand-plate">
-            <Logo size="sm" variant="icon" className="h-7 w-7" />
+            <Logo size="sm" variant="icon" className="h-8 w-8" />
         </span>
         {!collapsed && (
             <span className="nav-brand-text">

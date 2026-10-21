@@ -177,8 +177,11 @@ export const BentoTopbar = () => {
     let itemCounter = 0;
 
     return (
-        <header className="idesk-topbar h-14 pl-3 pr-3.5 flex items-center justify-between gap-4 bg-transparent">
-            <div className="flex-1 max-w-xl" ref={searchRef}>
+        // Three columns: equal flexible sides keep the search centred; the actions column never
+        // shrinks below its content, so on narrow desktops the search shifts left instead of overlapping.
+        <header className="idesk-topbar idesk-topbar-agent h-14 pl-3 pr-3.5 bg-transparent">
+            <span aria-hidden="true" />
+            <div className="idesk-topbar-search-slot" ref={searchRef} data-testid="topbar-search-slot">
                 <div className="relative group">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(var(--idesk-chrome-muted))] group-focus-within:text-white transition-colors z-10" aria-hidden="true" />
                     <input
@@ -385,7 +388,7 @@ export const BentoTopbar = () => {
                 </div>
             </div>
 
-            <div className="idesk-topbar-actions flex items-center gap-1.5">
+            <div className="idesk-topbar-actions flex items-center justify-self-end gap-1.5">
                 <Link to={getCreateTicketPath(user?.role)} className="idesk-cta mr-1.5">
                     <Plus aria-hidden="true" />
                     <span>{CREATE_TICKET_LABEL}</span>

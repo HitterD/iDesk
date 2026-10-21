@@ -126,13 +126,24 @@ interface SelectCheckboxProps {
     onChange: (checked: boolean) => void;
     indeterminate?: boolean;
     className?: string;
+    /** Accessible name for the input. */
+    label?: string;
+    /**
+     * Render as a whole queue-table cell: the full cell is the hit target and clicks never
+     * bubble to the row (which would open the ticket).
+     */
+    cell?: boolean;
 }
+
+const stopRowClick = (event: React.MouseEvent) => event.stopPropagation();
 
 export const SelectCheckbox: React.FC<SelectCheckboxProps> = ({
     checked,
     onChange,
     indeterminate,
     className,
+    label,
+    cell = false,
 }) => {
     const ref = React.useRef<HTMLInputElement>(null);
 
@@ -143,17 +154,26 @@ export const SelectCheckbox: React.FC<SelectCheckboxProps> = ({
     }, [indeterminate]);
 
     return (
-        <label className={cn("relative inline-flex items-center cursor-pointer group", className)}>
+        <label
+            className={cn(
+                cell ? "queue-select-cell group" : "relative inline-flex items-center cursor-pointer group",
+                className,
+            )}
+            onClick={cell ? stopRowClick : undefined}
+        >
             <input
                 ref={ref}
                 type="checkbox"
                 checked={checked}
+                aria-label={label}
                 onChange={(e) => onChange(e.target.checked)}
                 className="sr-only peer"
             />
             <div className={cn(
                 "w-5 h-5 rounded-md border-2 transition-[opacity,transform,colors] duration-200 ease-out flex items-center justify-center",
-                "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800",
+                cell
+                    ? "border-slate-300/80 dark:border-slate-600/80 bg-white dark:bg-slate-800"
+                    : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800",
                 "peer-checked:bg-primary peer-checked:border-primary",
                 "peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-focus-visible:ring-offset-2",
                 "group-hover:border-primary/50",

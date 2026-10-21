@@ -52,6 +52,10 @@ button:active, [role="button"]:active {
   transform: scale(0.97);
   transition: transform 100ms var(--ease-out);
 }
+/* Never scale a hit target that stretches over (or contains) other content: shrinking it moves
+   pointerup onto another element, so the browser fires click on the common ancestor instead.
+   Catalogue stretched link, AgentCard overlay action, and whole-row queue buttons. */
+.ct-link:active, [data-card-action]:active, .queue-row:active { transform: none; }
 
 /* Card hover improvements (Emil Kowalski) */
 .card-interactive {
@@ -322,10 +326,11 @@ textarea:focus {
 .nav-tile[data-tone="navy"] { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .22), 0 1px 2px rgb(0 0 0 / .18); }
 
 .idesk-sidebar { color: hsl(var(--idesk-chrome-foreground)); }
-.nav-brand { display: flex; align-items: center; gap: 10px; color: #fff; }
-.nav-brand-plate { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: #fff; flex: none; }
-.nav-brand-text b { display: block; font-size: 15px; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
-.nav-brand-text small { display: block; margin-top: 3px; font-size: 11px; color: hsl(var(--idesk-chrome-muted)); }
+.nav-brand { display: flex; align-items: center; gap: 10px; min-width: 0; color: #fff; }
+.nav-brand-plate { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: #fff; flex: none; }
+.nav-brand-text { min-width: 0; white-space: nowrap; }
+.nav-brand-text b { display: block; font-size: 16px; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
+.nav-brand-text small { display: block; margin-top: 4px; font-size: 11.5px; color: hsl(var(--idesk-chrome-muted)); }
 .nav-collapse-btn {
   place-items: center; width: 28px; height: 28px; border-radius: 8px; flex: none; cursor: pointer;
   color: hsl(var(--idesk-chrome-muted));
@@ -374,6 +379,13 @@ textarea:focus {
 }
 .nav-item.is-active::before { top: calc(var(--shell-tab-radius) * -1); border-bottom-right-radius: var(--shell-tab-radius); box-shadow: 5px 5px 0 5px hsl(var(--shell-sheet)); }
 .nav-item.is-active::after { bottom: calc(var(--shell-tab-radius) * -1); border-top-right-radius: var(--shell-tab-radius); box-shadow: 5px -5px 0 5px hsl(var(--shell-sheet)); }
+/* The first item sits beside the sheet's rounded top corner, where a top joining curve has
+   nothing to join and paints a notch under the brand. Drop that curve and square the corner
+   so the tab meets the sheet flush. */
+.nav-scroll > .nav-item.is-active:first-child::before { display: none; }
+@media (min-width: 1024px) {
+  .idesk-shell:has(.nav-scroll > .nav-item.is-active:first-child) .idesk-sheet { border-top-left-radius: 0; }
+}
 /* Mobile drawer has no adjoining sheet: active becomes a rounded pill. */
 @media (max-width: 1023.98px) {
   .nav-item.is-active, .nav-group.is-quiet .nav-item.is-active { width: calc(100% - 10px); margin-right: 10px; border-radius: 12px; }
@@ -424,6 +436,9 @@ textarea:focus {
 
 /* Topbar sits on the chrome; utility icons inherit chrome colours. */
 .idesk-topbar { color: hsl(var(--idesk-chrome-foreground)); }
+/* Agent topbar: search centred between equal flexible sides (mockup .search { margin: 0 auto }). */
+.idesk-topbar-agent { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr); align-items: center; column-gap: 16px; }
+.idesk-topbar-search-slot { width: min(520px, 40vw); min-width: 0; }
 /* Fill stays at .10 in every state so the .9 placeholder keeps >=4.5:1 on the lightest chrome
    (#2D4A8C under the 7% radial highlight = 4.85:1); hover/focus are signalled by border and ring only. */
 .idesk-topbar-search {
@@ -531,6 +546,9 @@ textarea:focus {
 .queue-mobile-row { display: block; }
 .queue-card-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 14px; border-bottom: 1px solid hsl(var(--idesk-border)); }
 .queue-mobile-row .ticket-pill { min-height: 36px; }
+/* Whole selection cell is the hit target, so a near-miss never opens the ticket. */
+.queue-select-cell { display: flex; align-items: center; justify-content: center; align-self: stretch; min-width: 40px; min-height: 40px; cursor: pointer; }
+.queue-select-cell:hover > div { border-color: hsl(var(--primary) / .6); }
 @media (min-width: 640px) { .queue-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (min-width: 1280px) {
   .queue-stats-7 { grid-template-columns: repeat(7, minmax(0, 1fr)); }
@@ -538,8 +556,11 @@ textarea:focus {
 }
 @container (min-width: 1100px) {
   .queue-grid { display: grid; align-items: center; column-gap: 10px; padding: 10px 14px; }
-  .queue-grid-sites { grid-template-columns: 24px minmax(100px, 2fr) 112px 48px 150px minmax(70px, 1fr) minmax(100px, 1.2fr) 160px 90px; }
-  .queue-grid-default { grid-template-columns: 24px minmax(150px, 2fr) 112px 150px minmax(70px, 1fr) minmax(100px, 1.2fr) 160px 90px; }
+  .queue-grid-sites { grid-template-columns: 26px minmax(100px, 2fr) 112px 48px 150px minmax(70px, 1fr) minmax(100px, 1.2fr) 160px 90px; }
+  .queue-grid-default { grid-template-columns: 26px minmax(150px, 2fr) 112px 150px minmax(70px, 1fr) minmax(100px, 1.2fr) 160px 90px; }
+  /* Selection cell bleeds into the row padding and half the column gap: full row height,
+     45px wide (14px pad + 26px column + 5px gap), so no near-miss falls through to the row. */
+  .queue-grid > .queue-select-cell { min-width: 0; margin: -10px -5px -10px -14px; padding: 0 5px 0 14px; }
   .queue-thead { min-height: 38px; border-bottom: 1px solid hsl(var(--idesk-border)); color: hsl(var(--idesk-text-secondary)); font-size: 11.5px; font-weight: 500; }
   .queue-desktop-row { min-height: 64px; }
   .queue-desktop-row h3 { font-size: 13.5px; font-weight: 550; }
@@ -674,7 +695,10 @@ textarea:focus {
   box-shadow: 0 1px 3px hsl(220 40% 20% / .08), inset 0 0 0 1px hsl(var(--idesk-border) / .55);
   transition: box-shadow 180ms var(--ease-out), transform 180ms var(--ease-out);
 }
+.ct-card { cursor: pointer; }
 .ct-card:hover { transform: translateY(-1px); box-shadow: 0 8px 20px -10px hsl(220 40% 20% / .28), inset 0 0 0 1px hsl(var(--idesk-border) / .8); }
+/* Press feedback without changing geometry, so the hit target never shrinks. */
+.ct-card:active { transform: none; box-shadow: 0 1px 2px hsl(220 40% 20% / .12), inset 0 0 0 1px hsl(var(--idesk-sapphire) / .35); }
 .ct-card h3 { grid-column: 1; margin: 0; font-size: 14px; font-weight: 650; line-height: 1.3; letter-spacing: -.01em; }
 .ct-card p { grid-column: 1; margin: 4px 0 0; font-size: 12.5px; line-height: 1.45; color: hsl(var(--idesk-text-secondary));
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

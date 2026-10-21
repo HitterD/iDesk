@@ -135,6 +135,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
     const showOverdue = ticket.isOverdue && ticket.status !== 'WAITING_VENDOR' && !isTerminalStatus(ticket.status);
 
     const statusTakeover = useStatusTakeover();
+    const selectLabel = `Pilih tiket ${ticket.ticketNumber || ticket.id.slice(0, 8)}`;
 
     const handleStatusChange = (newStatus: string) => {
         if (newStatus === 'RESOLVED') {
@@ -215,13 +216,13 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                 {/* Mobile Top Row: Ticket ID, Badges, SLA & Date */}
                 <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                        {canEdit && <StopPropagationWrapper>
-                            <label className="inline-flex items-center justify-center size-9 cursor-pointer">
-                                <input type="checkbox" className="size-4 accent-primary"
-                                    aria-label={`Pilih tiket ${ticket.ticketNumber || ticket.id.slice(0, 8)}`}
+                        {canEdit && (
+                            <label className="queue-select-cell -my-1.5 -ml-1.5" onClick={(event) => event.stopPropagation()}>
+                                <input type="checkbox" className="size-4 accent-primary cursor-pointer"
+                                    aria-label={selectLabel}
                                     checked={isSelected} onChange={(event) => onSelect(ticket.id, event.target.checked)} />
                             </label>
-                        </StopPropagationWrapper>}
+                        )}
                         {/* Priority Dot */}
                         {showPriorityDot && (
                             <span className={cn("w-2 h-2 rounded-full shrink-0", priorityConfig.dot || priorityConfig.barColor)} aria-hidden="true" />
@@ -404,15 +405,12 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
             >
                 {/* Row Checkbox - Using StopPropagationWrapper */}
                 {canEdit ? (
-                    <StopPropagationWrapper className={cn(
-                        "flex w-8 shrink-0 items-center justify-center transition-opacity duration-200",
-                        isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"
-                    )}>
-                        <SelectCheckbox
-                            checked={isSelected}
-                            onChange={(checked) => onSelect(ticket.id, checked)}
-                        />
-                    </StopPropagationWrapper>
+                    <SelectCheckbox
+                        cell
+                        label={selectLabel}
+                        checked={isSelected}
+                        onChange={(checked) => onSelect(ticket.id, checked)}
+                    />
                 ) : <span aria-hidden="true" />}
 
                 {/* Ticket Info with Quick Preview */}

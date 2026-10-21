@@ -84,9 +84,38 @@ describe('TicketListRow queue presentation contract', () => {
             isSelected={false} agents={mockAgents} onSelect={onSelect}
             onUpdatePriority={vi.fn()} onUpdateStatus={vi.fn()} onAssign={vi.fn()} /></MemoryRouter>);
         mockNavigate.mockClear();
-        fireEvent.click(screen.getByRole('checkbox', { name: 'Pilih tiket 190826-GEN-0005' }));
+        // Card and desktop layouts both render in jsdom (CSS hides one); [0] is the card.
+        fireEvent.click(screen.getAllByRole('checkbox', { name: 'Pilih tiket 190826-GEN-0005' })[0]);
         expect(onSelect).toHaveBeenCalledWith('ticket-1', true);
         expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    it.each([0, 1])('toggles selection from anywhere in checkbox cell %i without opening the ticket', (cellIndex) => {
+        const onSelect = vi.fn();
+        render(<MemoryRouter><TicketListRow ticket={mockTicket} index={0} showSiteColumn canEdit
+            isSelected={false} agents={mockAgents} onSelect={onSelect}
+            onUpdatePriority={vi.fn()} onUpdateStatus={vi.fn()} onAssign={vi.fn()} /></MemoryRouter>);
+        mockNavigate.mockClear();
+        // [0] = card layout, [1] = desktop table row; both cells are the whole hit target.
+        const checkbox = screen.getAllByRole('checkbox', { name: 'Pilih tiket 190826-GEN-0005' })[cellIndex];
+        const cell = checkbox.closest('.queue-select-cell');
+        expect(cell).not.toBeNull();
+        fireEvent.click(cell!);
+        expect(onSelect).toHaveBeenCalledWith('ticket-1', true);
+        expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    it('keeps the desktop row checkbox visible before hover', () => {
+        renderRow(mockTicket);
+        const cell = screen.getAllByRole('checkbox', { name: 'Pilih tiket 190826-GEN-0005' })[1].closest('.queue-select-cell');
+        expect(cell?.className ?? '').not.toMatch(/opacity-0/);
+    });
+
+    it('still opens the ticket when the row outside the checkbox cell is clicked', () => {
+        renderRow(mockTicket);
+        mockNavigate.mockClear();
+        fireEvent.click(screen.getAllByText('Password terkunci')[0]);
+        expect(mockNavigate).toHaveBeenCalledWith('/tickets/ticket-1', expect.any(Object));
     });
 
     it('keeps readonly roles free of selection and editor controls', () => {
