@@ -103,6 +103,8 @@ describe('AgentDashboardPage', () => {
             { id: 'b', ticketNumber: 'N-2', title: 'Soon one', status: 'TODO', priority: 'HIGH', slaTarget: soon, isOverdue: false },
             { id: 'c', ticketNumber: 'N-3', title: 'Vendor one', status: 'WAITING_VENDOR', priority: 'MEDIUM', slaTarget: past, isOverdue: false },
             { id: 'd', ticketNumber: 'N-4', title: 'No SLA one', status: 'TODO', priority: 'LOW', slaTarget: null, isOverdue: false },
+            // Stale flag after an SLA extension: the future target wins, no red "Sisa".
+            { id: 'e', ticketNumber: 'N-5', title: 'Extended one', status: 'IN_PROGRESS', priority: 'HIGH', slaTarget: soon, isOverdue: true },
         ] } }) });
         renderAt('/dashboard/me');
 
@@ -113,6 +115,10 @@ describe('AgentDashboardPage', () => {
         expect(row('Vendor one')).toHaveTextContent('Dijeda');
         expect(row('Vendor one')).not.toHaveTextContent('Lewat');
         expect(row('No SLA one')).toHaveTextContent('Tanpa SLA');
+        expect(row('Extended one')).toHaveTextContent(/Sisa 1j 1[01]m/);
+        const bubColor = (title: string) => (row(title).querySelector('.dash-bub') as HTMLElement).style.getPropertyValue('--c');
+        expect(bubColor('Extended one')).toBe('var(--dash-blue)');
+        expect(bubColor('Late one')).toBe('var(--dash-red)');
         expect(row('Late one')).toHaveAttribute('href', '/tickets/a');
         expect(within(list).getByRole('link', { name: /Lihat semua/ })).toHaveAttribute('href', '/tickets/list?filter=assigned_to_me');
     });

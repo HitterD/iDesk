@@ -176,6 +176,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                 isSidebarOpen={isSidebarOpen}
                 onToggleSidebar={handleToggleSidebar}
                 canSelfResolve={canSelfResolve}
+                canCancel={isRequester}
                 tabs={<DetailTabs value={mainTab} onChange={setMainTab} />}
             />
 

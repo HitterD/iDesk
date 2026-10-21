@@ -14,9 +14,10 @@ import { toDisplayName } from '../../ticket-board/components/ticket-detail/messa
 import { PriorityPill, PropertyRow, StatusPill } from '../../ticket-board/components/ticket-detail/TicketPropertyRows';
 
 const PAUSED_STATUS = 'WAITING_VENDOR';
-/** Mockup "Perkiraan waktu" aside: "Kamis, 22 Okt". */
+const COPIED_RESET_MS = 2000;
 /** "GENERAL" → "General", "ORACLE_REQUEST" → "Oracle Request" (mockup readonly value). */
 const categoryLabel = (value: string) => value.toLowerCase().split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+/** Mockup "Perkiraan waktu" aside: "Kamis, 22 Okt". */
 const TARGET_DAY = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long', day: 'numeric', month: 'short' });
 
 const AssignedAgentCard: React.FC<{ agent: TicketDetail['assignedTo'] }> = ({ agent }) => {
@@ -25,8 +26,8 @@ const AssignedAgentCard: React.FC<{ agent: TicketDetail['assignedTo'] }> = ({ ag
         if (!agent?.email) return;
         navigator.clipboard.writeText(agent.email);
         setCopiedEmail(true);
-        toast.success('Agent email copied to clipboard');
-        setTimeout(() => setCopiedEmail(false), 2000);
+        toast.success('Email teknisi disalin');
+        setTimeout(() => setCopiedEmail(false), COPIED_RESET_MS);
     };
 
     return (
@@ -68,7 +69,7 @@ const AssignedAgentCard: React.FC<{ agent: TicketDetail['assignedTo'] }> = ({ ag
 
 const HardwareSchedule: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => (
     <SidebarCard title="Instalasi hardware" bodyClassName="td-kvs">
-        <InfoRow label="Hardware Item">{ticket.hardwareType || 'N/A'}</InfoRow>
+        <InfoRow label="Perangkat">{ticket.hardwareType || '-'}</InfoRow>
         <InfoRow label="Tanggal">
             {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
         </InfoRow>

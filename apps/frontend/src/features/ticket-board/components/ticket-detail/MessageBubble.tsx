@@ -40,9 +40,12 @@ const LONG_PRESS_MS = 450;
 
 const useLongPress = () => {
     const [open, setOpen] = useState(false);
+    /** A touch press is in progress: suppress the native callout / text selection meanwhile. */
+    const [pressing, setPressing] = useState(false);
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const rowRef = useRef<HTMLDivElement>(null);
     const clear = () => { if (timer.current) clearTimeout(timer.current); };
+    const release = () => { clear(); setPressing(false); };
 
     useEffect(() => {
         if (!open) return undefined;
@@ -56,16 +59,20 @@ const useLongPress = () => {
 
     return {
         open,
+        pressing,
         rowRef,
         bind: {
             onPointerDown: (event: React.PointerEvent) => {
                 if (event.pointerType !== 'touch') return;
                 clear();
+                setPressing(true);
                 timer.current = setTimeout(() => setOpen(true), LONG_PRESS_MS);
             },
-            onPointerUp: clear,
-            onPointerCancel: clear,
-            onPointerMove: clear,
+            onPointerUp: release,
+            onPointerCancel: release,
+            onPointerMove: release,
+            // Android fires contextmenu on long-press; only swallow it while our own press is active.
+            onContextMenu: (event: React.MouseEvent) => { if (pressing) event.preventDefault(); },
         },
     };
 };
@@ -125,7 +132,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <div className="chat-msg-col">
                 <div className="chat-who">{isOutgoing ? [...who].reverse() : who}</div>
 
-                <div className="chat-bubble-wrap" {...press.bind}>
+                <div className={cn('chat-bubble-wrap', press.pressing && 'is-pressing')} {...press.bind}>
                     {isSticker ? (
                         <div className="chat-sticker" role="img" aria-label={`Sticker ${message.content}`} title={formatDateTimeID(message.createdAt)}>
                             {message.content}

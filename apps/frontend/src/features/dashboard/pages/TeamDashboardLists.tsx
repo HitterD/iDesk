@@ -3,13 +3,18 @@ import { Link } from 'react-router-dom';
 import { CircleCheck, ListTodo, Plus, TriangleAlert, UserRoundCog, Users } from 'lucide-react';
 import { PRIORITY_CONFIG, STATUS_CONFIG } from '@/lib/constants/ticket.constants';
 import type { Ticket } from '@/types/ticket.types';
-import { cssVars, DASH_COLORS, DashAvatar, DashEmpty } from '../components/DashboardParts';
+import { TicketPill, STATUS_TONES } from '@/components/ui/ticket-pill';
+import { cssVars, DASH_COLORS, DashAvatar, DashEmpty, PRIORITY_DOT } from '../components/DashboardParts';
 import { isDoneStatus, type TeamAgentStat } from './teamDashboard.stats';
 import { feedAge } from '../components/dashboardChart';
 
 export { feedAge };
 
 const FEED_LIMIT = 5;
+/** Production "Recent Tickets" tab showed the 8 newest tickets. */
+const RECENT_TICKETS_LIMIT = 8;
+
+const ticketNo = (t: Ticket) => t.ticketNumber || t.id.slice(0, 8);
 
 interface FeedItem { icon: React.ElementType; color: string; detail: string; at: string }
 
@@ -38,12 +43,34 @@ export const TeamFeed: React.FC<{ tickets: readonly Ticket[] }> = ({ tickets }) 
                     <li key={t.id}>
                         <Link to={`/tickets/${t.id}`} className="dash-li">
                             <span className="dash-ico" style={cssVars({ '--c': color })}><Icon aria-hidden="true" /></span>
-                            <div className="grow1"><b>{t.title}</b><small>#{t.ticketNumber || t.id.slice(0, 8)} · {detail}</small></div>
+                            <div className="grow1"><b>{t.title}</b><small>#{ticketNo(t)} · {detail}</small></div>
                             <span className="dash-t">{feedAge(at)}</span>
                         </Link>
                     </li>
                 );
             })}
+        </ul>
+    );
+};
+
+/** "Tiket terbaru": newest tickets by creation, mockup list row (priority dot, title, number · requester, status pill). */
+export const TeamRecentTickets: React.FC<{ tickets: readonly Ticket[] }> = ({ tickets }) => {
+    if (tickets.length === 0) return <DashEmpty icon={<ListTodo aria-hidden="true" />}>Belum ada tiket terbaru.</DashEmpty>;
+    return (
+        <ul className="dash-list">
+            {tickets.slice(0, RECENT_TICKETS_LIMIT).map((t) => (
+                <li key={t.id}>
+                    <Link to={`/tickets/${t.id}`} className="dash-li">
+                        <span className="dash-pdot" style={cssVars({ '--c': PRIORITY_DOT[t.priority] ?? DASH_COLORS.gray })}
+                            title={PRIORITY_CONFIG[t.priority]?.label ?? 'Prioritas'} />
+                        <div className="grow1">
+                            <b>{t.title}</b>
+                            <small>#{ticketNo(t)}{t.user?.fullName ? ` · ${t.user.fullName}` : ''}</small>
+                        </div>
+                        <TicketPill tone={STATUS_TONES[t.status] ?? 'neutral'}>{STATUS_CONFIG[t.status]?.label ?? t.status}</TicketPill>
+                    </Link>
+                </li>
+            ))}
         </ul>
     );
 };

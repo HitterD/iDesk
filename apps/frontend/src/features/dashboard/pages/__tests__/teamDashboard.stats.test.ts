@@ -48,6 +48,35 @@ describe('computeTeamStats', () => {
     });
 });
 
+describe('computeTeamStats weekly trend', () => {
+    // Monday 19 Oct 2026, 08:00: the week (from Sunday 18 Oct) is barely a day old.
+    const MONDAY_MORNING = new Date(2026, 9, 19, 8, 0);
+    const lastWeekFull = [11, 12, 13, 14, 15, 16, 17].flatMap((day) => [
+        ticket({ createdAt: at(day, 7) }),
+        ticket({ status: 'RESOLVED', createdAt: at(day, 7), updatedAt: at(day, 7) }),
+    ]);
+    const thisWeek = [
+        ticket({ createdAt: at(18, 7) }),
+        ticket({ status: 'RESOLVED', createdAt: at(18, 7), updatedAt: at(18, 7) }),
+        ticket({ createdAt: at(19, 7) }),
+        ticket({ status: 'RESOLVED', createdAt: at(19, 7), updatedAt: at(19, 7) }),
+    ];
+
+    it('compares the week so far with the same elapsed span of last week, not the full week', () => {
+        const s = computeTeamStats([...lastWeekFull, ...thisWeek], 7, MONDAY_MORNING);
+        // This week: Sun + Mon 07:00 = 4 created, 2 resolved. Last week Sun 00:00 → Mon 08:00: same 4 / 2.
+        expect(s.thisWeekTickets).toBe(4);
+        expect(s.resolvedThisWeek).toBe(2);
+        expect(s.weekChange).toEqual({ created: 0, resolved: 0 });
+    });
+
+    it('excludes last-week activity after the matching moment', () => {
+        const lateLastMonday = ticket({ createdAt: at(12, 9) });
+        const s = computeTeamStats([...lastWeekFull, ...thisWeek, lateLastMonday], 7, MONDAY_MORNING);
+        expect(s.weekChange.created).toBe(0);
+    });
+});
+
 describe('team dashboard copy helpers', () => {
     it('has no trend without a baseline', () => {
         expect(percentChange(5, 0)).toBeNull();

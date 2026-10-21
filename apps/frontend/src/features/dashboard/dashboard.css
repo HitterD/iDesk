@@ -40,6 +40,9 @@
 .dash-seg .seg-thumb { border-radius: 8px; }
 .dash-seg.is-sm .portal-seg-btn { height: 24px; padding: 0 10px; font-size: 12px; }
 .dash-panel > h3 .dash-seg { margin-left: auto; }
+/* Feed panel: the segment is the title (Aktivitas live | Tiket terbaru), live status sits right. */
+.dash-feed > h3 .dash-seg { margin-left: 0; }
+.dash-feed > h3 .dash-live { margin-left: auto; }
 
 /* Stat cards: one grammar with the queue stat cards (icon bubble, number top-right, name, sub) */
 .dash-stats { display: grid; gap: 12px; margin-bottom: 12px; }

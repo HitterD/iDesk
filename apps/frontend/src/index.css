@@ -1193,6 +1193,8 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .chat-lock svg { width: 11px; height: 11px; stroke-width: 2.3; }
 .chat-bubble-wrap { position: relative; display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; }
 .chat-msg.is-out .chat-bubble-wrap { align-items: flex-end; }
+/* Touch long-press in progress: no iOS callout / text selection competing with the tool pill. */
+.chat-bubble-wrap.is-pressing { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .chat-bubble { min-width: 0; max-width: 100%; border-radius: 18px; padding: 10px 14px; font-size: 13.5px; line-height: 1.45; overflow-wrap: anywhere; }
 .chat-bubble.chat-bubble-in { box-shadow: var(--queue-card-shadow); }
 .chat-bubble.is-internal { background: var(--td-amber-soft); color: hsl(var(--idesk-text)); box-shadow: inset 0 0 0 1px var(--td-amber-line); }

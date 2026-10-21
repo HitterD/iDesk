@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -106,5 +106,29 @@ describe('TicketChat round-2 actions', () => {
         expect(chip).toHaveClass('is-on', 'is-pop');
         await user.click(chip);
         expect(within(row('m-1')).queryByRole('button', { name: /Setuju ·/ })).not.toBeInTheDocument();
+    });
+    it('touch long-press opens the tool pill without the native callout or context menu', () => {
+        vi.useFakeTimers();
+        try {
+            renderChat();
+            const wrap = row('m-1').querySelector('.chat-bubble-wrap') as HTMLElement;
+            // jsdom has no PointerEvent init for pointerType; attach it to the dispatched event.
+            const touch = (type: string) => {
+                const event = new MouseEvent(type, { bubbles: true, cancelable: true });
+                Object.defineProperty(event, 'pointerType', { value: 'touch' });
+                act(() => { wrap.dispatchEvent(event); });
+            };
+            expect(fireEvent.contextMenu(wrap)).toBe(true); // not pressing: native menu untouched
+            touch('pointerdown');
+            expect(wrap).toHaveClass('is-pressing');
+            expect(fireEvent.contextMenu(wrap)).toBe(false); // prevented during the press
+            act(() => { vi.advanceTimersByTime(450); });
+            expect(row('m-1')).toHaveClass('tools-open');
+            touch('pointerup');
+            expect(wrap).not.toHaveClass('is-pressing');
+            expect(fireEvent.contextMenu(wrap)).toBe(true);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

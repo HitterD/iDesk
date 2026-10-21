@@ -51,6 +51,22 @@ const DateSeparator: React.FC<{ date: string }> = ({ date }) => (
     <div className="chat-day">{dateSeparatorLabel(date)}</div>
 );
 
+/**
+ * Announcement for the newest incoming bubble. Messages present on mount and the viewer's own
+ * sends are not announced; a keyed node per message lets repeat senders be read again.
+ */
+const useNewMessageAnnouncement = (latest: ChatMessage | undefined, isOwn: (m: ChatMessage) => boolean) => {
+    const lastSeenId = useRef(latest?.id);
+    const [announcement, setAnnouncement] = useState<{ id: string; text: string } | null>(null);
+    useEffect(() => {
+        if (!latest || latest.id === lastSeenId.current) return;
+        lastSeenId.current = latest.id;
+        if (isOwn(latest)) return;
+        setAnnouncement({ id: latest.id, text: `Pesan baru dari ${toDisplayName(latest.sender?.fullName) || 'IT Support'}` });
+    }, [latest, isOwn]);
+    return announcement;
+};
+
 export const TicketChat: React.FC<TicketChatProps> = ({
     ticket,
     isConnected,
@@ -219,6 +235,8 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         m.id !== genesisMessageId && !(isBubble(m) && m.isInternal && !canAddInternalNote)
     );
     const groupKey = (m: ChatMessage) => ({ senderId: m.sender?.id || m.sender?.fullName, isInternal: m.isInternal, createdAt: m.createdAt });
+    const latestBubble = [...visibleMessages].reverse().find(isBubble);
+    const announcement = useNewMessageAnnouncement(latestBubble, isOwn);
 
     return (
         <div className="relative flex h-full flex-col overflow-hidden">
@@ -307,7 +325,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             )}
 
             {/* ── Main Messages Stream ── */}
-            <div ref={streamRef} className="chat-stream custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-[18px]" aria-live="polite">
+            <div ref={streamRef} className="chat-stream custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-[18px]">
 
                 {/* Root issue (genesis report), drawn as the requester's first bubble */}
                 <div ref={rootIssueRef} data-root-issue className={cn('chat-msg', rootIsOutgoing && 'is-out')}>
@@ -418,6 +436,11 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     )}
                 </div>
                 <div ref={messagesEndRef} />
+            </div>
+
+            {/* Screen readers hear only "Pesan baru dari X"; bubbles, tool pills and the typing indicator stay silent. */}
+            <div className="sr-only" role="status" data-testid="chat-announcer">
+                {announcement && <p key={announcement.id}>{announcement.text}</p>}
             </div>
 
             {/* ── Input Area ── */}

@@ -50,11 +50,36 @@ describe('BentoDashboardPage (Dashboard Tim)', () => {
         renderPage();
         expect(await screen.findByRole('img', { name: /Tiket per status: Open 1, In Progress 1, Waiting 0, Resolved 1/ })).toBeInTheDocument();
         expect(screen.getByRole('img', { name: /Tiket per prioritas: Blocker \(Critical\) 1/ })).toBeInTheDocument();
+        expect(within(screen.getByRole('region', { name: 'Aktivitas tim' })).getByText('Printer mati')).toBeInTheDocument();
         expect(within(screen.getByRole('region', { name: 'Tiket per kategori' })).getByText('Hardware')).toBeInTheDocument();
-        expect(within(screen.getByRole('region', { name: 'Aktivitas live' })).getByText('Printer mati')).toBeInTheDocument();
         const top = screen.getByRole('region', { name: 'Agent terbaik' });
         expect(within(top).getByRole('link', { name: /Beny Saputra/ })).toHaveAttribute('href', '/dashboard/agent/ag');
         expect(screen.queryByText('MyRatingCard')).not.toBeInTheDocument();
+    });
+
+    it('feed panel switches Aktivitas live | Tiket terbaru (8 newest, mockup rows)', async () => {
+        const many = Array.from({ length: 10 }, (_, i) => ({
+            id: `r${i}`, ticketNumber: `R-${i}`, title: `Tiket ${i}`, status: i % 2 ? 'IN_PROGRESS' : 'TODO', priority: 'MEDIUM',
+            isOverdue: false, user: { id: 'u', fullName: 'Nur' }, createdAt: new Date(Date.now() - i * 60_000).toISOString(), updatedAt: now,
+        }));
+        api.get.mockImplementation((url: string) => Promise.resolve({ data: url === '/tickets' ? many : { avgResolutionTime: '1h' } }));
+        renderPage();
+        const feed = await screen.findByRole('region', { name: 'Aktivitas tim' });
+        const seg = within(feed).getByRole('group', { name: 'Tampilan feed' });
+        expect(within(seg).getByRole('button', { name: 'Aktivitas live' })).toHaveAttribute('aria-pressed', 'true');
+        // Live: 5 event lines with the derived detail.
+        expect(within(feed).getAllByRole('link')).toHaveLength(5);
+        expect(within(feed).getByText(/#R-0 · Tiket baru dari Nur/)).toBeInTheDocument();
+
+        fireEvent.click(within(seg).getByRole('button', { name: 'Tiket terbaru' }));
+        expect(within(seg).getByRole('button', { name: 'Tiket terbaru' })).toHaveAttribute('aria-pressed', 'true');
+        const rows = within(feed).getAllByRole('link');
+        expect(rows).toHaveLength(8);
+        expect(rows[0]).toHaveTextContent('Tiket 0');
+        expect(rows[0]).toHaveTextContent('#R-0 · Nur');
+        expect(rows[0]).toHaveAttribute('href', '/tickets/r0');
+        expect(rows[1].querySelector('.ticket-pill')).toHaveTextContent('In Progress');
+        expect(within(feed).queryByText('Tiket 8')).not.toBeInTheDocument();
     });
 
     it('switches the activity range 7/14/30 and only agents see their rating', async () => {

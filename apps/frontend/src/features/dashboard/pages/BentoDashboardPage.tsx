@@ -15,7 +15,7 @@ import {
 } from '../components/DashboardParts';
 import { computeTeamStats, TEAM_RANGES, toIndonesianDuration, type TeamRange } from './teamDashboard.stats';
 import { TeamActivityChart } from './TeamActivityChart';
-import { TeamFeed, TeamTopAgents } from './TeamDashboardLists';
+import { TeamFeed, TeamRecentTickets, TeamTopAgents } from './TeamDashboardLists';
 
 interface DashboardStats {
     avgResolutionTime: string;
@@ -28,6 +28,11 @@ const MS_PER_MINUTE = 60_000;
 const MINUTES_PER_HOUR = 60;
 const RANGE_OPTIONS = TEAM_RANGES.map((r) => ({ value: String(r) as `${TeamRange}`, label: `${r}h` }));
 const CATEGORY_CHART_COLOR = DASH_COLORS.accent;
+type FeedView = 'live' | 'recent';
+const FEED_OPTIONS: readonly { value: FeedView; label: string }[] = [
+    { value: 'live', label: 'Aktivitas live' },
+    { value: 'recent', label: 'Tiket terbaru' },
+];
 
 const isAgentRole = (role?: string) => role === 'AGENT' || Boolean(role?.startsWith('AGENT_'));
 
@@ -45,12 +50,16 @@ const categoryLabel = (cat: string) => {
     return words.charAt(0).toUpperCase() + words.slice(1);
 };
 
+/** Trend baseline: Sunday 00:00 → the same moment last week (see computeTeamStats weekChange). */
+const TREND_BASIS = 'dibanding periode yang sama minggu lalu';
+
 const WeekTrend: React.FC<{ change: number | null }> = ({ change }) => {
     if (change === null || change === 0) return null;
     const up = change > 0;
     const Icon = up ? TrendingUp : TrendingDown;
     return (
-        <span className="dash-trend" style={cssVars({ '--trend-ink': up ? DASH_COLORS.inkGreen : DASH_COLORS.inkRed })}>
+        <span className="dash-trend" title={`${up ? 'Naik' : 'Turun'} ${Math.abs(change)}% ${TREND_BASIS}`}
+            style={cssVars({ '--trend-ink': up ? DASH_COLORS.inkGreen : DASH_COLORS.inkRed })}>
             <Icon aria-hidden="true" />{up ? '+' : ''}{change}%
         </span>
     );
@@ -63,6 +72,7 @@ export const BentoDashboardPage = () => {
     const canOpenAgentDashboard = user?.role === 'ADMIN' || user?.role === 'MANAGER';
     const [range, setRange] = useState<TeamRange>(7);
     const [reloading, setReloading] = useState(false);
+    const [feedView, setFeedView] = useState<FeedView>('live');
 
     const handleNewTicket = useCallback((ticket: { id: string; ticketNumber?: string; title?: string }) => {
         if (user?.role === 'ADMIN' || user?.role === 'AGENT') {
@@ -157,7 +167,7 @@ export const BentoDashboardPage = () => {
                     sub={`${live.todayTickets} baru hari ini`} />
                 <DashStat icon={CircleCheck} tone="green" label="Resolved" value={live.resolved} zero={live.resolved === 0} to="/tickets/list?status=RESOLVED"
                     sub={live.weekChange.resolved
-                        ? <><WeekTrend change={live.weekChange.resolved} /> vs minggu lalu · {live.resolvedToday} hari ini</>
+                        ? <><WeekTrend change={live.weekChange.resolved} /> vs periode sama minggu lalu · {live.resolvedToday} hari ini</>
                         : `${live.resolvedToday} selesai hari ini`} />
                 <DashStat icon={TriangleAlert} tone="red" label="Overdue" value={live.overdue} attention={live.overdue > 0} zero={live.overdue === 0} to="/tickets/list?overdue=true"
                     sub={live.overdue > 0 ? 'Perlu tindakan' : 'Semua tepat waktu'} />
@@ -194,8 +204,11 @@ export const BentoDashboardPage = () => {
                         </ul>
                     )}
                 </DashPanel>
-                <DashPanel className="s4 dash-feed" label="Aktivitas live" title={<>Aktivitas live <DashLive connected={isConnected} /></>}>
-                    <TeamFeed tickets={live.recentTickets} />
+                <DashPanel className="s4 dash-feed" label="Aktivitas tim" title={<>
+                    <DashSeg small aria-label="Tampilan feed" options={FEED_OPTIONS} value={feedView} onChange={setFeedView} />
+                    <DashLive connected={isConnected} />
+                </>}>
+                    {feedView === 'live' ? <TeamFeed tickets={live.recentTickets} /> : <TeamRecentTickets tickets={live.recentTickets} />}
                 </DashPanel>
                 <DashPanel className="s4 is-wide-md" label="Agent terbaik" title={<>Agent terbaik <DashMore to="/agents">Semua agent</DashMore></>}>
                     <TeamTopAgents agents={live.topAgents} linkAgents={canOpenAgentDashboard} />

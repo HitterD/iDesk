@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { ClientTicketDetailPage } from '../ClientTicketDetailPage';
 
@@ -78,10 +79,10 @@ vi.mock('@/lib/api', () => ({
     },
 }));
 
+const OWNER = { id: 'user-1', role: 'USER', fullName: 'User SPJ' };
+let currentUser = OWNER;
 vi.mock('@/stores/useAuth', () => ({
-    useAuth: () => ({
-        user: { id: 'user-1', role: 'USER', fullName: 'User SPJ' },
-    }),
+    useAuth: () => ({ user: currentUser }),
 }));
 
 vi.mock('@/hooks/useTicketSocket', () => ({
@@ -111,6 +112,7 @@ describe('ClientTicketDetailPage', () => {
     beforeEach(() => {
         currentStatus = mockTicket.status;
         extraFields = {};
+        currentUser = OWNER;
         window.HTMLElement.prototype.scrollIntoView = vi.fn();
         queryClient = new QueryClient({
             defaultOptions: {
@@ -138,6 +140,17 @@ describe('ClientTicketDetailPage', () => {
         expect(primary).toHaveClass('idesk-btn', 'is-primary');
         expect(screen.getAllByRole('button', { name: /Batalkan/ }).length).toBeGreaterThan(0);
         expect(screen.queryByRole('region', { name: 'Konfirmasi penyelesaian tiket' })).not.toBeInTheDocument();
+    });
+
+    it('hides Batalkan (button and ⋯ item) from a participant who does not own the ticket', async () => {
+        currentUser = { id: 'user-2', role: 'USER', fullName: 'Rekan SPJ' };
+        extraFields = { participants: [{ userId: 'user-2', user: { id: 'user-2', fullName: 'Rekan SPJ' } }] };
+        renderPage();
+        await screen.findByRole('button', { name: 'Aksi lainnya' });
+        expect(screen.queryByRole('button', { name: /Batalkan/ })).not.toBeInTheDocument();
+        await userEvent.setup().click(screen.getByRole('button', { name: 'Aksi lainnya' }));
+        expect(await screen.findByRole('menuitem', { name: /Salin nomor tiket/ })).toBeInTheDocument();
+        expect(screen.queryByRole('menuitem', { name: /Batalkan tiket/ })).not.toBeInTheDocument();
     });
 
     it('shows the confirmation banner on a RESOLVED ticket', async () => {

@@ -72,6 +72,8 @@ interface ClientTicketHeaderProps {
     onToggleSidebar: () => void;
     /** Requester may close their own open ticket ("Tandai Selesai"). */
     canSelfResolve?: boolean;
+    /** Only the ticket owner may cancel (backend rejects other USER viewers: ticket-update.service cancelTicket). */
+    canCancel?: boolean;
     /** Percakapan / Aktivitas switch rendered as the header's last row. */
     tabs?: React.ReactNode;
 }
@@ -95,7 +97,7 @@ const MergedNotice: React.FC<{ parentNumber: string }> = ({ parentNumber }) => {
     );
 };
 
-export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, onCancel, isSidebarOpen, onToggleSidebar, canSelfResolve = false, tabs }) => {
+export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, onCancel, isSidebarOpen, onToggleSidebar, canSelfResolve = false, canCancel = false, tabs }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [copied, setCopied] = useState(false);
@@ -104,6 +106,7 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
 
     const isTerminal = isTerminalStatus(ticket.status);
     const showSelfResolve = canSelfResolve && !isTerminal;
+    const showCancel = canCancel && !isTerminal;
     const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
     const mergedParent = useMemo(() => ticket.description?.match(/\[MERGED INTO #([^\]]+)\]/)?.[1] ?? null, [ticket.description]);
 
@@ -148,9 +151,11 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
                     <div className="td-acts">
                         {!isTerminal && (
                             <>
-                                <Button variant="danger" className="td-act-wide" onClick={onCancel} title="Batalkan tiket ini">
-                                    <XCircle aria-hidden="true" /><span>Batalkan</span>
-                                </Button>
+                                {showCancel && (
+                                    <Button variant="danger" className="td-act-wide" onClick={onCancel} title="Batalkan tiket ini">
+                                        <XCircle aria-hidden="true" /><span>Batalkan</span>
+                                    </Button>
+                                )}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="subtle" size="icon" className="td-act-more" aria-label="Aksi lainnya" title="Aksi lainnya">
@@ -159,7 +164,7 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" variant="compact" aria-label="Aksi lainnya">
                                         <DropdownMenuItem onSelect={handleCopyNumber}><Copy />Salin nomor tiket</DropdownMenuItem>
-                                        <DropdownMenuItem variant="destructive" onSelect={onCancel}><XCircle />Batalkan tiket</DropdownMenuItem>
+                                        {showCancel && <DropdownMenuItem variant="destructive" onSelect={onCancel}><XCircle />Batalkan tiket</DropdownMenuItem>}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             </>

@@ -106,6 +106,37 @@ describe('TicketChat surface', () => {
         expect(screen.getByText('bukti.png')).toBeInTheDocument();
     });
 
+    it('announces only new incoming messages; the stream, tool pills and typing indicator are not live regions', () => {
+        const props = { isConnected: true, onSendMessage: vi.fn(() => Promise.resolve()), onImageClick: vi.fn() };
+        const view = (t: TicketDetail, typingUsers: Record<string, string> = {}) => (
+            <QueryClientProvider client={new QueryClient()}>
+                <TicketChat ticket={t} typingUsers={typingUsers} {...props} />
+            </QueryClientProvider>
+        );
+        const { rerender } = render(view(ticket));
+        const announcer = screen.getByTestId('chat-announcer');
+        expect(document.querySelector('.chat-stream')).not.toHaveAttribute('aria-live');
+        expect(document.querySelectorAll('[aria-live]:not([data-testid="chat-announcer"])').length).toBe(0);
+        // Existing history is not read out on open.
+        expect(announcer).toHaveTextContent('');
+
+        rerender(view(ticket, { 'user-1': 'SHANNON STEPHANIE LIMAWAN' }));
+        expect(screen.getByText(/sedang mengetik/)).toBeInTheDocument();
+        expect(announcer).toHaveTextContent('');
+
+        const incoming = { id: 'm-5', content: 'Sudah saya coba', createdAt: '2026-10-06T06:20:00Z', isSystemMessage: false,
+            attachments: [], sender: { id: 'user-1', fullName: 'SHANNON STEPHANIE LIMAWAN' } };
+        const withIncoming = { ...ticket, messages: [...(ticket.messages ?? []), incoming] } as TicketDetail;
+        rerender(view(withIncoming));
+        expect(announcer).toHaveTextContent('Pesan baru dari Shannon Stephanie Limawan');
+        expect(announcer).not.toHaveTextContent(/Balas|reaksi|Sudah saya coba/);
+
+        // The viewer's own send is not announced.
+        const own = { ...incoming, id: 'm-6', content: 'Oke', sender: { id: 'agent-1', fullName: 'RM BAGASTYO' } };
+        rerender(view({ ...withIncoming, messages: [...(withIncoming.messages ?? []), own] } as TicketDetail));
+        expect(announcer).toHaveTextContent('Pesan baru dari Shannon Stephanie Limawan');
+    });
+
     it('keeps the composer in its own fixed region below the scrolling stream', () => {
         renderChat();
         const composer = document.querySelector('.chat-composer');

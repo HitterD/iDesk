@@ -33,7 +33,11 @@ export interface TeamStats {
     topAgents: TeamAgentStat[];
     recentTickets: Ticket[];
     slaCompliance: number;
-    /** Percent change vs the previous week; null when last week had nothing to compare with. */
+    /**
+     * Percent change of this week so far (Sunday 00:00 → now) vs the same elapsed span of last week
+     * (last Sunday 00:00 → now − 7 days), so a Monday morning is not compared with a full week.
+     * Null when that span of last week had nothing to compare with.
+     */
     weekChange: { created: number | null; resolved: number | null };
 }
 
@@ -85,6 +89,9 @@ export function computeTeamStats(tickets: readonly Ticket[], range: number, now:
     weekStart.setDate(today.getDate() - today.getDay());
     const lastWeekStart = new Date(weekStart);
     lastWeekStart.setDate(weekStart.getDate() - DAYS_PER_WEEK);
+    // Same moment one week ago (calendar days, so DST-free local clocks line up).
+    const lastWeekSameMoment = new Date(now);
+    lastWeekSameMoment.setDate(now.getDate() - DAYS_PER_WEEK);
 
     const byStatus = (s: string) => tickets.filter((t) => t.status === s).length;
     const byPriority = (p: string) => tickets.filter((t) => t.priority === p).length;
@@ -116,8 +123,8 @@ export function computeTeamStats(tickets: readonly Ticket[], range: number, now:
         recentTickets: [...tickets].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, RECENT_LIMIT),
         slaCompliance: total > 0 ? Math.round(((total - overdue) / total) * PERCENT) : FULL_SLA,
         weekChange: {
-            created: percentChange(thisWeekTickets, countIn(tickets, lastWeekStart, weekStart, 'createdAt', false)),
-            resolved: percentChange(resolvedThisWeek, countIn(tickets, lastWeekStart, weekStart, 'updatedAt', true)),
+            created: percentChange(thisWeekTickets, countIn(tickets, lastWeekStart, lastWeekSameMoment, 'createdAt', false)),
+            resolved: percentChange(resolvedThisWeek, countIn(tickets, lastWeekStart, lastWeekSameMoment, 'updatedAt', true)),
         },
     };
 }

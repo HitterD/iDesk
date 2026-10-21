@@ -12,6 +12,10 @@ export const DASH_COLORS = {
     gray: 'var(--dash-gray)', navy: 'var(--dash-navy)', sky: 'var(--dash-sky)', accent: 'hsl(var(--idesk-sapphire))',
     inkRed: 'var(--dash-ink-red)', inkOrange: 'var(--dash-ink-orange)', inkGreen: 'var(--dash-ink-green)',
 } as const;
+/** Mockup PRI_DOT: Blocker red, Urgent orange, Normal blue, Low gray. */
+export const PRIORITY_DOT: Readonly<Record<string, string>> = {
+    CRITICAL: DASH_COLORS.red, HIGH: DASH_COLORS.orange, MEDIUM: DASH_COLORS.blue, LOW: DASH_COLORS.gray,
+};
 /** Literal hex for recharts SVG attributes (CSS vars are not resolved in every presentation attribute). */
 export const CHART_HEX = { blue: '#3d63b8', green: '#2fb350' } as const;
 

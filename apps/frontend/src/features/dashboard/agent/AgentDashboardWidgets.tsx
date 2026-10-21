@@ -7,15 +7,11 @@ import { PRIORITY_CONFIG, STATUS_CONFIG } from '@/lib/constants/ticket.constants
 import { formatDuration, formatSlaCompact, formatWibDateTime } from './agentDashboard.format';
 import type { AgentDashboardData, AgentTicketStats, InstallItem } from './agentDashboard.types';
 import {
-    cssVars, DASH_COLORS, DashBub, DashEmpty, DashMetric, DashMore, DashPanel, DashSkeletonList, DashStat,
+    cssVars, DASH_COLORS, DashBub, DashEmpty, DashMetric, DashMore, DashPanel, DashSkeletonList, DashStat, PRIORITY_DOT,
 } from '../components/DashboardParts';
 
 const ATTENTION_LIMIT = 6;
 
-/** Mockup PRI_DOT: Blocker red, Urgent orange, Normal blue, Low gray. */
-const PRIORITY_DOT: Readonly<Record<string, string>> = {
-    CRITICAL: DASH_COLORS.red, HIGH: DASH_COLORS.orange, MEDIUM: DASH_COLORS.blue, LOW: DASH_COLORS.gray,
-};
 
 /** Four stat cards: active, overdue, resolved, SLA (mockup `.stats.four`). */
 export const SummaryTiles: React.FC<{ stats: AgentTicketStats; ticketsHref?: string }> = ({ stats, ticketsHref }) => {
@@ -39,9 +35,10 @@ export const SummaryTiles: React.FC<{ stats: AgentTicketStats; ticketsHref?: str
 const SlaBub: React.FC<{ ticket: AgentTicketStats['activeTickets'][number] }> = ({ ticket }) => {
     if (ticket.status === 'WAITING_VENDOR') return <DashBub color={DASH_COLORS.orange} ink={DASH_COLORS.inkOrange} icon={Pause}>Dijeda</DashBub>;
     if (!ticket.slaTarget) return <DashBub color={DASH_COLORS.gray}>Tanpa SLA</DashBub>;
+    // The target time decides: a stale/extended `isOverdue` flag must not paint "Sisa …" red.
     const { text, overdue } = formatSlaCompact(ticket.slaTarget);
     const title = `Target SLA ${formatWibDateTime(ticket.slaTarget)} WIB`;
-    return overdue || ticket.isOverdue
+    return overdue
         ? <DashBub color={DASH_COLORS.red} ink={DASH_COLORS.inkRed} icon={TriangleAlert} title={title}>{text}</DashBub>
         : <DashBub color={DASH_COLORS.blue} icon={Timer} mono title={title}>{text}</DashBub>;
 };
