@@ -15,14 +15,32 @@
   const bub = (label, c, opts = {}) => `<span class="bub${opts.mono ? ' mono' : ''}" style="--c:${c}${opts.ink ? `;--ink:${opts.ink}` : ''}">${opts.icon ? ic(opts.icon) : '<span class="dot"></span>'}${label}</span>`;
   const niceMax = (v) => { const step = Math.pow(10, Math.floor(Math.log10(Math.max(v, 1)))); return Math.ceil(v / step) * step; };
 
-  function gridLines(max) {
-    return Array.from({ length: GRID_STEPS + 1 }, (_, i) => {
-      const v = Math.round((max / GRID_STEPS) * i);
-      return `<div class="gl${i === 0 ? ' base' : ''}" style="bottom:${(i / GRID_STEPS) * 100}%"><span>${v}</span></div>`;
+  function gridLines(max, steps = GRID_STEPS) {
+    return Array.from({ length: steps + 1 }, (_, i) => {
+      const v = Math.round((max / steps) * i);
+      return `<div class="gl${i === 0 ? ' base' : ''}" style="bottom:${(i / steps) * 100}%"><span>${v}</span></div>`;
     }).join('');
   }
-  function legend(series) {
-    return `<div class="chart-legend">${series.map((s) => `<span style="--c:${s.c}"><i></i>${s.name}</span>`).join('')}</div>`;
+  function legend(series, cls = '') {
+    return `<div class="chart-legend${cls}">${series.map((s) => `<span style="--c:${s.c}"><i></i>${s.name}</span>`).join('')}</div>`;
+  }
+  // Monotone cubic (Fritsch–Carlson) through evenly spaced points: smooth, passes every value, never overshoots.
+  function smoothPath(pts) {
+    if (pts.length < 3) return pts.map(([px, py], i) => `${i ? 'L' : 'M'}${px.toFixed(2)},${py.toFixed(2)}`).join(' ');
+    const h = pts[1][0] - pts[0][0];
+    const d = pts.slice(1).map(([, py], i) => (py - pts[i][1]) / h);
+    const m = pts.map((_, i) => (i === 0 ? d[0] : i === pts.length - 1 ? d[i - 1] : d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2));
+    d.forEach((di, i) => {
+      if (di === 0) { m[i] = 0; m[i + 1] = 0; return; }
+      const a = m[i] / di, b = m[i + 1] / di, s = a * a + b * b;
+      if (s > 9) { const t = 3 / Math.sqrt(s); m[i] = t * a * di; m[i + 1] = t * b * di; }
+    });
+    const f = (v) => v.toFixed(2);
+    return pts.map(([px, py], i) => {
+      if (!i) return `M${f(px)},${f(py)}`;
+      const [qx, qy] = pts[i - 1];
+      return `C${f(qx + h / 3)},${f(qy + (m[i - 1] * h) / 3)} ${f(px - h / 3)},${f(py - (m[i] * h) / 3)} ${f(px)},${f(py)}`;
+    }).join(' ');
   }
   function dataTable(labels, series, caption) {
     const head = `<tr><th>${caption}</th>${series.map((s) => `<th>${s.name}</th>`).join('')}</tr>`;
@@ -43,19 +61,21 @@
       ${dataTable(labels, series, 'Tanggal')}</figure>`;
   }
   // Lines with hover crosshair: one y-axis, 2px lines, light area under the first series.
-  function lines({ labels, series, label, sparse }) {
-    const max = niceMax(Math.max(...series.flatMap((s) => s.data)));
+  // Opt-in: smooth (monotone curves, soft grid, line swatches), ticks (y gridline steps) and max (y-axis top).
+  function lines({ labels, series, label, sparse, smooth = false, ticks = GRID_STEPS, max: fixedMax }) {
+    const max = fixedMax || niceMax(Math.max(...series.flatMap((s) => s.data)));
     const n = labels.length;
     const x = (i) => ((i + 0.5) / n) * 100;
     const y = (v) => 100 - (v / max) * 100;
-    const path = (d) => d.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(2)},${y(v).toFixed(2)}`).join(' ');
+    const path = (d) => (smooth ? smoothPath(d.map((v, i) => [x(i), y(v)]))
+      : d.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(2)},${y(v).toFixed(2)}`).join(' '));
     const svg = series.map((s, k) => `${k === 0 ? `<path class="area" style="--c:${s.c}" d="${path(s.data)} L${x(n - 1)},100 L${x(0)},100 Z"/>` : ''}<path style="--c:${s.c}" d="${path(s.data)}"/>`).join('');
     const hits = labels.map((l, i) => {
       const tip = `${l}\n${series.map((s) => `${s.name}: ${s.data[i]}`).join('\n')}`;
       return `<div class="hc" tabindex="0" data-tip="${tip}" aria-label="${tip.replace(/\n/g, ', ')}">${series.map((s) => `<i style="--c:${s.c};--v:${(s.data[i] / max) * 100}%"></i>`).join('')}</div>`;
     }).join('');
-    return `<figure class="chart" style="margin:0" aria-label="${label}">${legend(series)}
-      <div class="plot">${gridLines(max)}<svg class="lsvg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${svg}</svg><div class="hcols">${hits}</div></div>
+    return `<figure class="chart${smooth ? ' soft' : ''}" style="margin:0" aria-label="${label}">${legend(series, smooth ? ' line' : '')}
+      <div class="plot">${gridLines(max, ticks)}<svg class="lsvg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${svg}</svg><div class="hcols">${hits}</div></div>
       <div class="xl${sparse ? ' sparse' : ''}">${labels.map((l) => `<span>${l}</span>`).join('')}</div>
       ${dataTable(labels, series, 'Tanggal')}</figure>`;
   }
