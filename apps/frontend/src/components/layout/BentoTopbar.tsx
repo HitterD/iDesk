@@ -8,6 +8,7 @@ import { ThemeToggle } from '../ui/ThemeToggle';
 import api from '@/lib/api';
 import { useAuth } from '@/stores/useAuth';
 import { cn } from '@/lib/utils';
+import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { CREATE_TICKET_LABEL, getCreateTicketPath } from './createTicketAction';
 
 interface UnifiedSearchResult {
@@ -153,8 +154,8 @@ export const BentoTopbar = () => {
 
     const getStatusColor = (status?: string) => {
         switch (status) {
-            case 'TODO': return 'bg-muted text-muted-foreground';
-            case 'IN_PROGRESS': return 'bg-primary/10 text-primary';
+            case 'TODO': return STATUS_TONE_CLASSES.TODO.pill;
+            case 'IN_PROGRESS': return STATUS_TONE_CLASSES.IN_PROGRESS.pill;
             case 'WAITING_VENDOR': return 'bg-accent/15 text-accent';
             case 'RESOLVED': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';
             case 'CLOSED': return 'bg-slate-500/10 text-slate-600 dark:text-slate-300';

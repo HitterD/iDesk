@@ -89,7 +89,7 @@ describe('ticket dropdown contracts', () => {
         await user.click(screen.getByRole('option', { name: 'Waiting Vendor' }));
         expect(onChange).toHaveBeenCalledWith('WAITING_VENDOR');
         rerender(<StatusDropdown value="TODO" onChange={onChange} />);
-        expect(screen.getByRole('button')).toHaveClass('ticket-tone-blue');
+        expect(screen.getByRole('button')).toHaveClass('ticket-tone-sky');
         rerender(<StatusDropdown value="CLOSED" onChange={onChange} disabled />);
         expect(screen.queryByRole('button')).not.toBeInTheDocument();
         expect(screen.getByText('Closed').closest('span')).toHaveClass('ticket-pill');

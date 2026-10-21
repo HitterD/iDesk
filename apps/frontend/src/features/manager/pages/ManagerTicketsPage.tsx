@@ -48,7 +48,7 @@ import { ManagerTicketActivityModal } from '../components/ManagerTicketActivityM
 import { useTicketListSocket } from '@/hooks/useTicketSocket';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useSoundNotification } from '@/hooks/useSoundNotification';
-import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
+import { STATUS_CONFIG, PRIORITY_CONFIG, STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { formatDistanceToNow, format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -350,8 +350,8 @@ export const ManagerTicketsPage: React.FC = () => {
                     icon={CircleDot}
                     label="Open"
                     value={stats.open}
-                    color="text-blue-600 dark:text-blue-400"
-                    bgColor="bg-blue-50 dark:bg-blue-950/50"
+                    color={STATUS_TONE_CLASSES.TODO.text}
+                    bgColor={STATUS_TONE_CLASSES.TODO.bg}
                     animationIndex={2}
                     isLoading={statsLoading}
                     onClick={() => setStatusFilter(statusFilter === 'TODO' ? 'all' : 'TODO')}
@@ -362,8 +362,8 @@ export const ManagerTicketsPage: React.FC = () => {
                     icon={Clock}
                     label="In Progress"
                     value={stats.inProgress}
-                    color="text-indigo-600 dark:text-indigo-400"
-                    bgColor="bg-indigo-50 dark:bg-indigo-950/50"
+                    color={STATUS_TONE_CLASSES.IN_PROGRESS.text}
+                    bgColor={STATUS_TONE_CLASSES.IN_PROGRESS.bg}
                     animationIndex={3}
                     isLoading={statsLoading}
                     onClick={() => setStatusFilter(statusFilter === 'IN_PROGRESS' ? 'all' : 'IN_PROGRESS')}

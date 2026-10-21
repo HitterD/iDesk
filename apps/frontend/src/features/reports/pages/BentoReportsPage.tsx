@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 import { DATE_PRESETS, getDefaultDateRange } from '@/lib/constants/date-presets';
 import { cn } from '@/lib/utils';
+import { STATUS_CHART_HEX } from '@/lib/constants/ticket.constants';
 import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
 import { Sparkline } from '@/components/ui/Sparkline';
 import { format, parseISO } from 'date-fns';
@@ -112,8 +113,8 @@ const FilterSection: React.FC<{
         HIGH: '#F59E0B',
         MEDIUM: '#3B82F6',
         LOW: '#10B981',
-        TODO: '#94A3B8',
-        IN_PROGRESS: '#3B82F6',
+        TODO: STATUS_CHART_HEX.TODO,
+        IN_PROGRESS: STATUS_CHART_HEX.IN_PROGRESS,
         WAITING_VENDOR: '#F59E0B',
         RESOLVED: '#10B981',
         CLOSED: '#475569',

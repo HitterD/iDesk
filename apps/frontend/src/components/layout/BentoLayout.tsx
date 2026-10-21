@@ -13,7 +13,12 @@ import { InAppNotificationToast } from '@/components/notifications/InAppNotifica
 import { CriticalNotificationBanner } from '@/components/notifications/CriticalNotificationBanner';
 import { useAuth } from '@/stores/useAuth';
 
-// Page transition variants - optimized for performance (no blur)
+/** Mirrors tokens.css --ease-out / --dur-3 / --dur-1 (framer cannot read CSS variables). */
+const EASE_OUT = [0.22, 1, 0.36, 1] as const;
+const DUR_3_S = 0.28;
+const DUR_1_S = 0.12;
+
+// Page content fades and rises on every route change (round-2 motion inventory).
 const pageVariants: Variants = {
     initial: {
         opacity: 0,
@@ -23,15 +28,15 @@ const pageVariants: Variants = {
         opacity: 1,
         y: 0,
         transition: {
-            duration: 0.2,
-            ease: [0.23, 1, 0.32, 1]
+            duration: DUR_3_S,
+            ease: EASE_OUT
         }
     },
     exit: {
         opacity: 0,
         transition: {
-            duration: 0.12,
-            ease: [0.23, 1, 0.32, 1]
+            duration: DUR_1_S,
+            ease: EASE_OUT
         }
     }
 };

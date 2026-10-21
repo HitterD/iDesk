@@ -199,7 +199,7 @@ describe('BentoMyTicketsPage', () => {
         const texts = pills.map((pill) => pill.textContent);
         expect(texts).toEqual(expect.arrayContaining(['Open', 'Urgent', expect.stringMatching(/Yudi Arta Trirensila$/)]));
         pills.forEach((pill) => expect(pill.tagName).toBe('SPAN'));
-        expect(container.querySelector('.ticket-pill.ticket-tone-blue')).not.toBeNull();
+        expect(container.querySelector('.ticket-pill.ticket-tone-sky')).not.toBeNull();
     });
 
     it('shows the mascot help banner linking to the client create route, without a response-time promise', async () => {
@@ -209,7 +209,10 @@ describe('BentoMyTicketsPage', () => {
         const banner = screen.getByRole('link', { name: /Ada kendala IT\?/ });
         expect(banner).toHaveAttribute('href', '/client/create');
         expect(banner).toHaveTextContent('Laporkan masalah komputer, printer, jaringan, atau aplikasi ke tim IT.');
-        expect(banner).toHaveTextContent('Buat Tiket Baru');
+        // Text link only: amber stays on the topbar CTA and the mobile FAB.
+        expect(banner).toHaveTextContent('Buat tiket');
+        expect(banner).not.toHaveTextContent('Buat Tiket Baru');
+        expect(banner.querySelector('.idesk-cta')).toBeNull();
         expect(banner).not.toHaveTextContent(/segera|cepat|menit|jam/i);
         expect(banner.querySelector('img')).toHaveAttribute('src', '/characters/mascot-service.png');
     });

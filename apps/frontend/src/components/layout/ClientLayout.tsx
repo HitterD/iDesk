@@ -121,7 +121,10 @@ export const ClientLayout: React.FC = () => {
                                 transition={{ duration: 0.4, ease: ENTRANCE_EASE, delay: 0.08 }}
                                 className="w-full print:w-full print:block"
                             >
-                                {content}
+                                {/* Keyed so the content fades and rises on every route change (CSS, token-timed). */}
+                                <div key={location.pathname} className="idesk-page-enter print:animate-none">
+                                    {content}
+                                </div>
                             </motion.div>
                         </main>
 

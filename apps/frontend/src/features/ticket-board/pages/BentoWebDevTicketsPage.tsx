@@ -1,7 +1,7 @@
 import { QueueCardToolbar } from '../components/QueueCardToolbar';
 import { QueueHeader } from '../components/QueueHeader';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Search,
@@ -49,7 +49,6 @@ const CROSS_SITE_ROLES = ['ADMIN', 'MANAGER', 'AGENT_ORACLE'] as const;
 const isCrossSiteRole = (role?: string | null) => (CROSS_SITE_ROLES as readonly string[]).includes(role as string);
 
 export const BentoWebDevTicketsPage: React.FC = () => {
-    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [searchParams, setSearchParams] = useSearchParams();
     const { user } = useAuth();
@@ -408,7 +407,6 @@ export const BentoWebDevTicketsPage: React.FC = () => {
                     connected={isConnected} canEdit={canEdit}
                     scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
                     onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })}
-                    onCreate={() => navigate('/tickets/create?type=web-dev-request')}
                     onKanban={() => setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('view', 'kanban'); return next; })} />
 
                 <p className="text-xs text-muted-foreground">Ringkasan status, overdue, dan critical berdasarkan halaman yang dimuat; Total mengikuti server.</p>
@@ -426,7 +424,7 @@ export const BentoWebDevTicketsPage: React.FC = () => {
                     />
                     <StatsCard
                         icon={Inbox}
-                        tone="blue" label="Open"
+                        tone="sky" label="Open"
                         value={stats.open}
                         color="text-[hsl(var(--info-500))]"
                         bgColor="bg-[hsl(var(--info-500))]/10"

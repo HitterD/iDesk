@@ -24,6 +24,7 @@ import {
     FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { formatRelativeTime, formatDateTimeID } from '@/lib/utils/dateFormat';
 import { formatMessageTime, toDisplayName } from './messageThread';
 
@@ -39,18 +40,18 @@ interface SystemMessageEventProps {
 const STATUS_MAP: Record<string, { label: string; bg: string; text: string; border: string; dot: string; icon: React.ComponentType<{ className?: string }> }> = {
     TODO: {
         label: 'Baru (TODO)',
-        bg: 'bg-primary/10 dark:bg-primary/20',
-        text: 'text-primary',
-        border: 'border-primary/20 dark:border-primary/30',
-        dot: 'bg-primary',
+        bg: STATUS_TONE_CLASSES.TODO.bg,
+        text: STATUS_TONE_CLASSES.TODO.text,
+        border: STATUS_TONE_CLASSES.TODO.border,
+        dot: STATUS_TONE_CLASSES.TODO.dot,
         icon: Clock,
     },
     IN_PROGRESS: {
         label: 'Sedang Dikerjakan',
-        bg: 'bg-blue-50 dark:bg-blue-950/50',
-        text: 'text-blue-700 dark:text-blue-300',
-        border: 'border-blue-200 dark:border-blue-800/70',
-        dot: 'bg-blue-500',
+        bg: STATUS_TONE_CLASSES.IN_PROGRESS.bg,
+        text: STATUS_TONE_CLASSES.IN_PROGRESS.text,
+        border: STATUS_TONE_CLASSES.IN_PROGRESS.border,
+        dot: STATUS_TONE_CLASSES.IN_PROGRESS.dot,
         icon: PlayCircle,
     },
     PENDING: {

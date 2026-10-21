@@ -512,13 +512,12 @@ export const BentoTicketListPage: React.FC = () => {
                 connected={isConnected} canEdit={canEdit}
                 scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
                 onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })}
-                onCreate={() => navigate('/tickets/create')}
                 onKanban={() => setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('view', 'kanban'); return next; })} />
 
             {/* Stats Cards - Horizontally scrollable snap strip on mobile, grid on tablet/desktop */}
             <div className="queue-stats queue-stats-7" aria-label="Ringkasan status">
                 <StatsCard icon={TrendingUp} tone="neutral" label="Total" value={stats.total} color="text-primary dark:text-blue-400" bgColor="bg-[hsl(var(--primary))]/10 dark:bg-[hsl(var(--primary))]/20" animationIndex={0} onClick={() => applyCardFilters('')} isActive={!statusFilter && !priorityFilter && !overdueFilter} />
-                <StatsCard icon={Inbox} tone="blue" label="Open" value={stats.open} color="text-[hsl(var(--info-500))]" bgColor="bg-[hsl(var(--info-500))]/10" animationIndex={1} onClick={() => applyCardFilters('TODO')} isActive={statusFilter === 'TODO' && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={Inbox} tone="sky" label="Open" value={stats.open} color="text-[hsl(var(--info-500))]" bgColor="bg-[hsl(var(--info-500))]/10" animationIndex={1} onClick={() => applyCardFilters('TODO')} isActive={statusFilter === 'TODO' && !priorityFilter && !overdueFilter} />
                 <StatsCard icon={CircleDot} tone="navy" label="In Progress" value={stats.inProgress} color="text-[hsl(var(--warning-500))]" bgColor="bg-[hsl(var(--warning-500))]/10" animationIndex={2} onClick={() => applyCardFilters('IN_PROGRESS')} isActive={statusFilter === 'IN_PROGRESS' && !priorityFilter && !overdueFilter} />
                 <StatsCard icon={Hourglass} tone="amber" label="Waiting Vendor" highlight value={stats.waitingVendor} color="text-amber-600 dark:text-amber-400" bgColor="bg-amber-500/10" animationIndex={3} onClick={() => applyCardFilters('WAITING_VENDOR')} isActive={statusFilter === 'WAITING_VENDOR' && !priorityFilter && !overdueFilter} />
                 <StatsCard icon={CheckCircle2} tone="green" label="Resolved" value={stats.resolved} color="text-[hsl(var(--success-500))]" bgColor="bg-[hsl(var(--success-500))]/10" animationIndex={4} onClick={() => applyCardFilters(DONE_STATUS_FILTER)} isActive={statusFilter === DONE_STATUS_FILTER && !priorityFilter && !overdueFilter} />

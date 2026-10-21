@@ -1,7 +1,7 @@
 import type { HTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
-export type TicketPillTone = 'neutral' | 'blue' | 'navy' | 'amber' | 'green' | 'red' | 'teal';
+export type TicketPillTone = 'neutral' | 'blue' | 'sky' | 'navy' | 'amber' | 'green' | 'red' | 'teal';
 export interface TicketPillProps extends HTMLAttributes<HTMLSpanElement> {
     tone: TicketPillTone;
 }
@@ -11,8 +11,9 @@ export const PRIORITY_TONES: Readonly<Record<string, TicketPillTone>> = {
     LOW: 'neutral', MEDIUM: 'blue', HIGH: 'amber', CRITICAL: 'red',
     HARDWARE_INSTALLATION: 'amber', ORACLE_REQUEST: 'blue',
 };
+/** Open (sky) and In Progress (navy) must read differently wherever status is shown. */
 export const STATUS_TONES: Readonly<Record<string, TicketPillTone>> = {
-    TODO: 'blue', IN_PROGRESS: 'navy', WAITING_VENDOR: 'amber', RESOLVED: 'green',
+    TODO: 'sky', IN_PROGRESS: 'navy', WAITING_VENDOR: 'amber', RESOLVED: 'green',
     CLOSED: 'neutral', CANCELLED: 'red',
 };
 

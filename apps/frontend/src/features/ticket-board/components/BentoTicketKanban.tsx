@@ -18,7 +18,6 @@ import {
     X,
     Maximize2,
     ArrowRight,
-    Plus,
     Ticket as TicketIcon,
     Search,
     Filter,
@@ -32,7 +31,7 @@ import { AgentSelectList, Agent } from './AgentSelectList';
 import { ReassignConfirmDialog, type TargetAgentInfo } from './ReassignConfirmDialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/stores/useAuth';
-import { STATUS_CONFIG, PRIORITY_CONFIG, KANBAN_COLUMNS, NON_SELECTABLE_STATUSES } from '@/lib/constants/ticket.constants';
+import { STATUS_CONFIG, PRIORITY_CONFIG, KANBAN_COLUMNS, NON_SELECTABLE_STATUSES, STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import {
     Select,
     SelectContent,
@@ -101,18 +100,8 @@ interface Ticket {
 
 // Column accent indicator colors
 const COLUMN_ACCENTS: Record<string, { dot: string; border: string; bg: string; text: string }> = {
-    TODO: {
-        dot: 'bg-slate-500',
-        border: 'border-slate-500/30',
-        bg: 'bg-slate-500/10',
-        text: 'text-slate-700 dark:text-slate-300',
-    },
-    IN_PROGRESS: {
-        dot: 'bg-blue-500',
-        border: 'border-blue-500/30',
-        bg: 'bg-blue-500/10',
-        text: 'text-blue-600 dark:text-blue-400',
-    },
+    TODO: STATUS_TONE_CLASSES.TODO,
+    IN_PROGRESS: STATUS_TONE_CLASSES.IN_PROGRESS,
     WAITING_VENDOR: {
         dot: 'bg-amber-500',
         border: 'border-amber-500/30',
@@ -674,39 +663,29 @@ export interface BentoTicketKanbanProps {
 const QUEUE_CONFIG: Record<KanbanQueue, {
     title: string;
     description: string;
-    createPath: string;
-    createLabel: string;
     tablePath: string;
     ticketType?: string;
 }> = {
     'it-support': {
         title: 'IT Support Kanban',
         description: 'Geser dan lepas kartu tiket untuk memperbarui status secara instan',
-        createPath: '/tickets/create',
-        createLabel: 'New Ticket',
         tablePath: '/tickets/list',
     },
     oracle: {
         title: 'Oracle / K2 Kanban',
         description: 'Papan alur kerja tiket Oracle ERP & K2 Request',
-        createPath: '/tickets/create?type=oracle-request',
-        createLabel: 'New Oracle/K2 Request',
         tablePath: '/tickets/oracle-k2',
         ticketType: 'ORACLE_REQUEST',
     },
     'web-dev': {
         title: 'Web Developer Kanban',
         description: 'Papan alur kerja tiket Web Development & Portal',
-        createPath: '/tickets/create?type=web-dev-request',
-        createLabel: 'New Web Dev Request',
         tablePath: '/tickets/web-developer',
         ticketType: 'WEB_DEV_REQUEST',
     },
     'mobile-dev': {
         title: 'Mobile Developer Kanban',
         description: 'Papan alur kerja tiket Aplikasi Mobile iOS & Android',
-        createPath: '/tickets/create?type=mobile-dev-request',
-        createLabel: 'New Mobile Dev Request',
         tablePath: '/tickets/mobile-developer',
         ticketType: 'MOBILE_DEV_REQUEST',
     },
@@ -961,15 +940,6 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2.5 shrink-0">
-                    <button
-                        type="button"
-                        onClick={() => navigate(config.createPath)}
-                        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl font-bold text-xs hover:bg-primary/90 transition-all shadow-xs cursor-pointer"
-                    >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>{config.createLabel}</span>
-                    </button>
-
                     {/* View Toggle */}
                     <div className="flex bg-card p-1 rounded-xl border border-border shadow-xs">
                         <button

@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import {
     Inbox,
-    Plus,
+    ArrowRight,
     Search,
     CheckCircle2,
     CircleDot,
@@ -24,9 +24,10 @@ import { useTicketListSocket } from '@/hooks/useTicketSocket';
 import { useSocket } from '@/lib/socket';
 import { toast } from 'sonner';
 import { useAuth } from '@/stores/useAuth';
-import { CREATE_TICKET_LABEL } from '@/components/layout/createTicketAction';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { CLIENT_ROUTES } from '@/config/routes';
 import {
+    CREATE_TICKET_TEXT_LINK,
     HelpBanner,
     MyTicketRow,
     MY_TICKETS_GRID,
@@ -53,6 +54,9 @@ const STATUS_FILTERS = [
     { value: 'RESOLVED', label: 'Resolved', icon: CheckCircle2 },
     { value: 'CLOSED', label: 'Closed', icon: Lock },
 ] as const;
+const STATUS_FILTER_OPTIONS = STATUS_FILTERS.map(({ value, label, icon }) => ({
+    value: value as string, label: <span>{label}</span>, icon: icon ?? undefined,
+}));
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -67,7 +71,6 @@ export const BentoMyTicketsPage: React.FC = () => {
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
-    const filterRefs = useRef<Array<HTMLButtonElement | null>>([]);
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { user } = useAuth();
@@ -178,15 +181,6 @@ export const BentoMyTicketsPage: React.FC = () => {
         setPage(1);
     };
 
-    const handleFilterKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
-        const direction = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-        if (!direction) return;
-
-        e.preventDefault();
-        const nextIndex = (index + direction + STATUS_FILTERS.length) % STATUS_FILTERS.length;
-        filterRefs.current[nextIndex]?.focus();
-    };
-
     const hasActiveFilters = Boolean(searchQuery || statusFilter !== 'all');
 
     if (isLoading && !response) {
@@ -224,7 +218,7 @@ export const BentoMyTicketsPage: React.FC = () => {
     const statsLoading = isStatsLoading && !statsData;
     const statCards = [
         { key: 'all', label: 'Total', tone: 'neutral', icon: Layers, value: statsData?.total ?? meta?.total ?? 0 },
-        { key: 'TODO', label: 'Open', tone: 'blue', icon: Inbox, value: statsData?.open ?? 0 },
+        { key: 'TODO', label: 'Open', tone: 'sky', icon: Inbox, value: statsData?.open ?? 0 },
         { key: 'IN_PROGRESS', label: 'In Progress', tone: 'navy', icon: CircleDot, value: statsData?.inProgress ?? 0 },
         { key: 'RESOLVED', label: 'Resolved', tone: 'green', icon: CheckCircle2, value: statsData?.resolved ?? 0 },
     ] as const;
@@ -317,26 +311,12 @@ export const BentoMyTicketsPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2 min-w-0">
-                    <div className="portal-seg" role="group" aria-label="Filter status tiket">
-                        {STATUS_FILTERS.map((filter, index) => {
-                            const Icon = filter.icon;
-                            const isSelected = statusFilter === filter.value;
-                            return (
-                                <button
-                                    key={filter.value}
-                                    ref={(el) => { filterRefs.current[index] = el; }}
-                                    type="button"
-                                    onClick={() => handleStatusChange(filter.value)}
-                                    onKeyDown={(e) => handleFilterKeyDown(e, index)}
-                                    aria-pressed={isSelected}
-                                    className={cn('portal-seg-btn', isSelected && 'is-active')}
-                                >
-                                    {Icon && <Icon className="w-3.5 h-3.5" aria-hidden="true" />}
-                                    <span>{filter.label}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
+                    <SegmentedControl
+                        aria-label="Filter status tiket"
+                        options={STATUS_FILTER_OPTIONS}
+                        value={STATUS_FILTER_OPTIONS.some((option) => option.value === statusFilter) ? statusFilter : null}
+                        onValueChange={handleStatusChange}
+                    />
 
                     {hasActiveFilters && (
                         <button
@@ -386,9 +366,9 @@ export const BentoMyTicketsPage: React.FC = () => {
                                 <span>Reset Filter</span>
                             </button>
                         ) : (
-                            <Link to={CLIENT_ROUTES.CREATE_TICKET} className="idesk-cta">
-                                <Plus aria-hidden="true" />
-                                <span>{CREATE_TICKET_LABEL}</span>
+                            <Link to={CLIENT_ROUTES.CREATE_TICKET} className="idesk-text-link">
+                                {CREATE_TICKET_TEXT_LINK}
+                                <ArrowRight aria-hidden="true" />
                             </Link>
                         )}
                     </div>

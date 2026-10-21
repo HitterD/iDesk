@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import {
     TrendingUp,
     TrendingDown,
-    Plus,
     ListTodo,
     Users,
     ArrowRight,
@@ -20,6 +19,7 @@ import { toast } from 'sonner';
 import { DashboardSkeleton } from '../components/DashboardSkeleton';
 import { MyRatingCard } from '../components/MyRatingCard';
 import { cn } from '@/lib/utils';
+import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { ActivityFeed } from '@/components/ui/ActivityFeed';
 import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
 import type { Ticket as TicketType } from '@/types/ticket.types';
@@ -200,8 +200,8 @@ const StatCard: React.FC<{
 // Status Badge
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     const config: Record<string, { bg: string; text: string }> = {
-        TODO: { bg: 'bg-slate-100 dark:bg-slate-700', text: 'text-slate-600 dark:text-slate-300' },
-        IN_PROGRESS: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
+        TODO: { bg: STATUS_TONE_CLASSES.TODO.bg, text: STATUS_TONE_CLASSES.TODO.text },
+        IN_PROGRESS: { bg: STATUS_TONE_CLASSES.IN_PROGRESS.bg, text: STATUS_TONE_CLASSES.IN_PROGRESS.text },
         WAITING_VENDOR: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-600 dark:text-orange-400' },
         RESOLVED: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400' },
         CLOSED: { bg: 'bg-slate-200 dark:bg-slate-700', text: 'text-slate-600 dark:text-slate-300' },
@@ -481,8 +481,8 @@ export const BentoDashboardPage = () => {
     }
 
     const statusData = [
-        { label: 'Open', value: liveStats.open, color: 'hsl(var(--slate-400))' },
-        { label: 'In Progress', value: liveStats.inProgress, color: 'hsl(var(--chart-1))' },
+        { label: 'Open', value: liveStats.open, color: STATUS_TONE_CLASSES.TODO.stroke },
+        { label: 'In Progress', value: liveStats.inProgress, color: STATUS_TONE_CLASSES.IN_PROGRESS.stroke },
         { label: 'Waiting', value: liveStats.waitingVendor, color: 'hsl(var(--chart-3))' },
         { label: 'Resolved', value: liveStats.resolved, color: 'hsl(var(--success-500))' },
     ];
@@ -528,13 +528,6 @@ export const BentoDashboardPage = () => {
                         title="Refresh dashboard"
                     >
                         <RefreshCcw className="w-4 h-4" />
-                    </button>
-                    <button
-                        onClick={() => navigate('/tickets/create')}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all shadow-sm"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Create Ticket
                     </button>
                     <button
                         onClick={() => navigate('/tickets/list')}

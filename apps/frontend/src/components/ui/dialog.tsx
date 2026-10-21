@@ -19,7 +19,7 @@ const DialogOverlay = React.forwardRef<
     <DialogPrimitive.Overlay
         ref={ref}
         className={cn(
-            "fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm",
+            "idesk-dialog-overlay fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             "duration-300",
@@ -42,7 +42,7 @@ const DialogContent = React.forwardRef<
             ref={ref}
             className={cn(
                 // Base positioning
-                "fixed left-[50%] top-[50%] z-[100] translate-x-[-50%] translate-y-[-50%]",
+                "idesk-dialog-content fixed left-[50%] top-[50%] z-[100] translate-x-[-50%] translate-y-[-50%]",
                 // Layout
                 "grid w-full gap-4 p-6",
                 // Size variants

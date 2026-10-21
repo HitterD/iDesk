@@ -30,6 +30,7 @@ import { id as idLocale } from 'date-fns/locale';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { ManagerTicketActivityModal } from '../components/ManagerTicketActivityModal';
 
 interface DashboardStats {
@@ -135,9 +136,9 @@ export const ManagerDashboard = () => {
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'TODO':
-                return <Badge variant="outline">To Do</Badge>;
+                return <Badge variant="outline" className={STATUS_TONE_CLASSES.TODO.pill}>To Do</Badge>;
             case 'IN_PROGRESS':
-                return <Badge className="bg-blue-500">In Progress</Badge>;
+                return <Badge variant="outline" className={STATUS_TONE_CLASSES.IN_PROGRESS.pill}>In Progress</Badge>;
             case 'AWAITING':
                 return <Badge className="bg-yellow-500">Awaiting</Badge>;
             case 'RESOLVED':

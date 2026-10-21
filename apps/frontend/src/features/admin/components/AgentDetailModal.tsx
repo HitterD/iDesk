@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { X, User, Mail, Building, Ticket, CheckCircle, Clock, TrendingUp, AlertTriangle, Calendar, MessageSquare, ArrowUpRight, Activity, Phone, Briefcase, MapPin, LayoutDashboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { SITE_COLORS, getRoleConfig, getRoleLabel, type UserRoleKey } from './agent-management/agent-types';
@@ -185,8 +186,9 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'OPEN': return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
-            case 'IN_PROGRESS': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+            case 'OPEN':
+            case 'TODO': return STATUS_TONE_CLASSES.TODO.pill;
+            case 'IN_PROGRESS': return STATUS_TONE_CLASSES.IN_PROGRESS.pill;
             case 'RESOLVED': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
             case 'CLOSED': return 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400';
             case 'CLOSED': return 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400';

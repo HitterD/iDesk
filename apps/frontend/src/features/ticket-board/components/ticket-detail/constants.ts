@@ -1,8 +1,9 @@
 import { Inbox, CircleDot, Hourglass, AlertCircle, CheckCircle2, Lock } from 'lucide-react';
+import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 
 export const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-    TODO: { label: 'Open', color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300', icon: Inbox },
-    IN_PROGRESS: { label: 'In Progress', color: 'bg-primary/10 text-primary border-primary/20 dark:bg-primary/20 dark:text-primary dark:border-primary/30', icon: CircleDot },
+    TODO: { label: 'Open', color: STATUS_TONE_CLASSES.TODO.pill, icon: Inbox },
+    IN_PROGRESS: { label: 'In Progress', color: STATUS_TONE_CLASSES.IN_PROGRESS.pill, icon: CircleDot },
     WAITING_VENDOR: { label: 'Waiting Vendor', color: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400', icon: Hourglass },
     CANCELLED: { label: 'Cancelled', color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400', icon: AlertCircle },
     RESOLVED: { label: 'Resolved', color: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle2 },

@@ -1,10 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, Clock, MessageSquare, Plus, Users } from 'lucide-react';
+import { ArrowRight, ChevronRight, Clock, MessageSquare, Users } from 'lucide-react';
 import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
 import { TicketPill, PRIORITY_TONES, STATUS_TONES, type TicketPillTone } from '@/components/ui/ticket-pill';
 import { UserAvatar } from '@/components/ui/UserAvatar';
-import { CREATE_TICKET_LABEL } from '@/components/layout/createTicketAction';
 import { CLIENT_ROUTES } from '@/config/routes';
 import { formatSmartDate } from '@/lib/utils/dateFormat';
 import { cn } from '@/lib/utils';
@@ -48,6 +47,9 @@ function formatUpdatedAtRelative(updatedAt: string) {
 /** Shared grid template so the header and the desktop rows always line up. */
 export const MY_TICKETS_GRID = 'lg:grid-cols-[minmax(240px,3fr)_116px_148px_minmax(180px,1.3fr)_112px_28px]';
 
+/** Text-link label for secondary create entry points; amber stays on the topbar CTA and mobile FAB only. */
+export const CREATE_TICKET_TEXT_LINK = 'Buat tiket';
+
 /** Approved requester help banner with the original service mascot. No response-time promise. */
 export const HelpBanner: React.FC = () => (
     <Link to={CLIENT_ROUTES.CREATE_TICKET} className="portal-help-banner">
@@ -56,9 +58,9 @@ export const HelpBanner: React.FC = () => (
             <b>Ada kendala IT?</b>
             <span>Laporkan masalah komputer, printer, jaringan, atau aplikasi ke tim IT.</span>
         </span>
-        <span className="idesk-cta portal-help-cta">
-            <Plus aria-hidden="true" />
-            <span>{CREATE_TICKET_LABEL}</span>
+        <span className="idesk-text-link portal-help-cta">
+            {CREATE_TICKET_TEXT_LINK}
+            <ArrowRight aria-hidden="true" />
         </span>
     </Link>
 );
