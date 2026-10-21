@@ -7,12 +7,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
-<link rel="stylesheet" href="idesk.css?v=15">
+<link rel="stylesheet" href="idesk.css?v=17">
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
-<script src="dropdown.js?v=15"></script>
-<script src="mock-state.js?v=15"></script>
-<script src="shell.js?v=15"></script>
-<script src="motion.js?v=15"></script>
+<script src="dropdown.js?v=17"></script>
+<script src="mock-state.js?v=17"></script>
+<script src="shell.js?v=17"></script>
+<script src="motion.js?v=17"></script>
 </head>
 <body data-page="it-support" data-crumb="IT Support Tickets" data-title="Servis printer marketing">
 <script>
@@ -24,11 +24,25 @@ const orange = 'style="--c:var(--orange);--ink:var(--ink-orange)"';
 const requester = '<span class="avatar" style="--c:var(--orange)">NK</span>';
 const agentAv = '<span class="avatar" style="--c:var(--pink)">AS</span>';
 
+// Action hierarchy: destructive (soft red, confirms) · secondary · divider · one primary · panel toggle (tertiary).
+// Narrow header: secondary + destructive collapse into the "Lainnya" overflow menu.
+const panelBtn = `<button class="btn icon ghost act-panel" id="togglePanel" data-hint="Sembunyikan properti" aria-pressed="true" aria-controls="inspector">${ic('panel-right-close')}</button>`;
 const actions = U
-  ? `<button class="btn keep">${ic('circle-check')}<span>Masalah sudah selesai</span></button>`
-  : `<button class="btn" aria-label="Teruskan">${ic('forward')}<span>Teruskan</span></button>
-     <button class="btn danger" aria-label="Batalkan">${ic('circle-x')}<span>Batalkan</span></button>
-     <button class="btn primary">${ic('circle-check')}<span>Resolve</span></button>`;
+  ? `<div class="act-row head-acts">
+       <button class="btn danger act-wide" data-act="cancel" data-terminal-lock>${ic('circle-x')}<span>Batalkan</span></button>
+       <button class="btn icon ghost act-more" data-act="more" data-hint="Aksi lainnya" data-terminal-lock>${ic('ellipsis')}</button>
+       <span class="act-sep" aria-hidden="true"></span>
+       <button class="btn primary" data-act="self-resolve" data-terminal-lock>${ic('circle-check')}<span>Masalah sudah selesai</span></button>
+       ${panelBtn}
+     </div>`
+  : `<div class="act-row head-acts">
+       <button class="btn danger act-wide" data-act="cancel" data-terminal-lock>${ic('circle-x')}<span>Batalkan</span></button>
+       <button class="btn act-wide" data-act="forward" data-hint="Teruskan ke tim lain" data-terminal-lock>${ic('forward')}<span>Teruskan</span></button>
+       <button class="btn icon ghost act-more" data-act="more" data-hint="Aksi lainnya" data-terminal-lock>${ic('ellipsis')}</button>
+       <span class="act-sep" aria-hidden="true"></span>
+       <button class="btn primary" data-act="resolve" data-hint="Selesaikan dengan catatan solusi" data-terminal-lock>${ic('circle-check')}<span>Resolve</span></button>
+       ${panelBtn}
+     </div>`;
 
 const AGENT_ASIDE = `
     <div class="panel">
@@ -54,7 +68,8 @@ const AGENT_ASIDE = `
         <div><span>Dibuat</span><b>20 Okt 2026, 10.29</b></div>
         <div><span>Aktivitas terakhir</span><b>2 jam lalu</b></div>
       </div>
-      <div class="actions"><button class="btn plain">${ic('calendar-plus')}Perpanjang SLA</button><button class="btn plain">${ic('bell')}Set Reminder</button></div>
+      <div class="actions pair"><button class="btn" data-act="extend-sla">${ic('calendar-plus')}<span>Perpanjang SLA</span></button><button class="btn" data-act="reminder">${ic('bell')}<span>Set Reminder</span></button></div>
+      <p class="reminder-chip" id="reminderChip" hidden>${ic('bell-ring')}<span></span></p>
     </div>`;
 
 const USER_ASIDE = `
@@ -81,7 +96,7 @@ mountShell(`
     <div class="convo-head">
       <div class="line1">
         <a class="back" href="${U ? 'my-tickets.html' : 'list.html'}" aria-label="Kembali ke daftar">${ic('chevron-left')}</a>
-        <span class="idpill">#201026-FGW-0009 ${ic('copy')}</span>
+        <button class="idpill" data-act="copy-id" data-hint="Salin nomor tiket" aria-label="Salin nomor tiket #201026-FGW-0009">#201026-FGW-0009 ${ic('copy')}</button>
         <span class="bub" ${orange}><span class="dot"></span>Waiting Vendor</span>
         <span class="bub" ${orange}>${ic('pause')}${U ? 'Menunggu vendor' : 'SLA dijeda · sisa 5j 20m'}</span>
         <span class="bub" ${orange}>${ic('triangle-alert')}Urgent</span>
@@ -93,12 +108,8 @@ mountShell(`
       </div>
       <div class="seg" style="width:max-content"><button class="on">${ic('message-circle')}Percakapan</button><button>${ic('history')}Aktivitas</button></div>
     </div>
-    <div class="stream">
-      <div class="msg ${U ? 'out' : ''}">
-        ${requester}
-        <div><div class="who"><b>${U ? 'Anda' : 'Nofie Kristihina Kullau'}</b>${U ? '' : '<span class="badge">Pemohon</span>'}20 Okt, 10.29</div>
-          <div class="bubble"><p><b>Servis printer</b></p><p>Kertas surat jalan sering nyangkut di printer (marketing 40), tulisan putus-putus dan tidak jelas (marketing 41).</p></div></div>
-      </div>
+    <div class="stream" id="stream" aria-live="polite">
+      <div data-msg="m1"></div>
       <div class="day">Hari ini</div>
       <div class="sys"><span class="ic">${ic('user-round-cog')}</span>${U ? 'Tiket Anda sekarang ditangani Alphin Santoso H.' : 'PIC dialihkan dari Yudi Arta Trirensila ke Alphin Santoso H. · Alasan: Beban kerja penuh'}<small>${U ? '' : 'oleh Alphin Santoso H. · '}10.52</small></div>
       <div class="event" style="--c:var(--orange)">
@@ -106,29 +117,40 @@ mountShell(`
         <div class="kv"><div><small>Jadwal vendor</small><b>Setiap hari Kamis</b></div><div><small>Perkiraan kunjungan</small><b>Kamis, 22 Okt 2026</b></div></div>
         ${U ? '' : `<div class="note">${ic('pause')}SLA dijeda sampai vendor datang dan tiket dilanjutkan.</div>`}
       </div>
-      <div class="msg ${U ? '' : 'out'}">
-        ${agentAv}
-        <div><div class="who">${U ? '<b>Alphin Santoso H.</b><span class="badge">IT Support</span>10.55' : '10.55 <b>Alphin Santoso H.</b>'}</div>
-          <div class="bubble"><p>Baik Bu, printer akan dicek vendor hari Kamis. Sementara silakan pakai printer marketing 42.</p></div></div>
-      </div>
+      <div data-msg="m2"></div>
+      ${U ? '' : '<div data-msg="m3"></div>'}
     </div>
-    <div class="composer">
-      <button class="icon-btn" aria-label="Lampirkan">${ic('plus')}</button>
-      <div class="box"><span>${U ? 'Balas ke IT Support…' : 'Balas ke pemohon…'}</span>${U ? '' : `<button class="icon-btn" aria-label="Balasan cepat">${ic('zap')}</button>`}</div>
-      <button class="send" aria-label="Kirim">${ic('arrow-up')}</button>
+    <div class="drop-zone" id="dropZone" hidden>${ic('upload')}<span>Lepaskan file untuk dilampirkan</span><small class="muted">Maks. 5 file · contoh, tidak diunggah</small></div>
+    <div class="composer" id="composer">
+      ${U ? '' : `<div class="compose-top">
+        <div class="seg" role="group" aria-label="Jenis balasan" id="modeSeg"><button class="on" data-mode="public" aria-pressed="true">${ic('globe')}Public Reply</button><button data-mode="internal" aria-pressed="false">${ic('lock')}Internal Note</button></div>
+        <span class="compose-note" id="modeNote">${ic('eye')}<span>Terlihat oleh pemohon</span></span>
+      </div>`}
+      <div class="compose-ctx" id="composeCtx" hidden>${ic('reply')}<span class="t"></span><button class="file-x" id="ctxClear" data-hint="Batalkan" data-kbd="Esc" aria-label="Batalkan balasan">${ic('x')}</button></div>
+      <div class="tray" id="tray" hidden aria-label="Lampiran"></div>
+      <div class="compose-row">
+        <div class="box">
+          <button class="compose-tool" id="plusBtn" data-hint="Lampirkan & sticker">${ic('plus')}</button>
+          <textarea id="draft" rows="1" aria-label="${U ? 'Balas ke IT Support' : 'Balas ke pemohon'}" placeholder="${U ? 'Balas ke IT Support…' : 'Balas ke pemohon…'}"></textarea>
+          ${U ? '' : `<button class="compose-tool" id="cannedBtn" data-hint="Balasan cepat">${ic('zap')}</button>`}
+        </div>
+        <button class="send" id="sendBtn" data-hint="Kirim" data-kbd="⏎" aria-label="Kirim" disabled>${ic('arrow-up')}</button>
+      </div>
     </div>
   </section>
 
-  <aside class="inspector" aria-label="Info tiket">
+  <aside class="inspector" id="inspector" aria-label="Info tiket">
     ${U ? USER_ASIDE : AGENT_ASIDE}
     <div class="panel">
-      <h3>Anggota tiket <span class="muted" style="font-weight:500">1</span><button class="btn plain act">${ic('user-plus')}Tambah</button></h3>
-      <div class="person">${requester}<div><b>Nofie Kristihina Kullau</b><small>Pembuat tiket</small></div></div>
+      <h3>Anggota tiket <span class="muted" style="font-weight:500" id="memberCount">1</span><button class="btn ghost act" id="addMember" data-hint="Tambah anggota tiket">${ic('user-plus')}<span>Tambah</span></button></h3>
+      <div class="members" id="members"><div class="person">${requester}<div><b>Nofie Kristihina Kullau</b><small>Pembuat tiket</small></div></div></div>
     </div>
   </aside>
 </div>`);
 lucide.createIcons();
 </script>
-<script src="ticket-demo.js?v=15"></script>
+<script src="actions.js?v=17"></script>
+<script src="ticket-chat.js?v=17"></script>
+<script src="ticket-demo.js?v=17"></script>
 </body>
 </html>

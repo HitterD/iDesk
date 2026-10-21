@@ -32,7 +32,7 @@
     { id: '191026-LEA-0018', t: 'Kamera laptop HR57 tidak bisa digunakan saat zoom', p: 'MEDIUM', s: 'IN_PROGRESS', req: ['Shanon Maria', 'Learning & Engagement'], pic: 'Yudi Arta Trirensila', sla: { left: '2h 14j', used: 18 }, d: '19 Okt' },
     { id: '191026-QC-0009', t: 'Kebutuhan kabel type A to B', p: 'MEDIUM', s: 'TODO', req: ['Yusuf Wijaya', 'QC AB Reguler'], pic: null, sla: { left: '2h 8j', used: 6 }, d: '19 Okt', src: 'via iPop' },
     { id: '141026-HSE-0026', t: 'Kendala UPS ruang server HSE', p: 'LOW', s: 'WAITING_VENDOR', req: ['Agung Permadhi', 'HSE · Sepanjang'], pic: 'Alphin Santoso H.', sla: { paused: '1h 3j', used: 52 }, d: '14 Okt' },
-    { id: '131026-FIN-0007', t: 'Permintaan printer pengganti yang rusak', p: 'HIGH', s: 'WAITING_VENDOR', req: ['Maria Yuliani Br Purba', 'Finance'], pic: 'Alphin Santoso H.', sla: { paused: '40m', used: 91 }, d: '13 Okt' },
+    { id: '131026-FIN-0007', t: 'Permintaan printer pengganti yang rusak', p: 'HIGH', s: 'WAITING_VENDOR', req: ['Maria Yuliani Br Purba', 'Finance'], pic: 'Alphin Santoso H.', sla: { paused: '40m', used: 91 }, d: '13 Okt', hw: 'HR-2026-014' },
     { id: '191026-PRO-0015', t: 'Komputer factory 32 not responding', p: 'HIGH', s: 'RESOLVED', req: ['Nur Ayni', 'Production 1'], pic: 'Beny Saputra', sla: { done: true }, d: '19 Okt' },
     { id: '011026-PRO-0017', t: 'Excel tidak berfungsi', p: 'CRITICAL', s: 'CLOSED', req: ['Dwi Esti Ariyanti', 'Production 1'], pic: 'Yudi Arta Trirensila', sla: { done: true }, d: '01 Okt' },
   ].map((r, i) => ({ ...r, site: SITES[i] }));

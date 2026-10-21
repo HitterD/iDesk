@@ -7,12 +7,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
-<link rel="stylesheet" href="idesk.css?v=15">
+<link rel="stylesheet" href="idesk.css?v=17">
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
-<script src="dropdown.js?v=15"></script>
-<script src="mock-state.js?v=15"></script>
-<script src="shell.js?v=15"></script>
-<script src="motion.js?v=15"></script>
+<script src="dropdown.js?v=17"></script>
+<script src="mock-state.js?v=17"></script>
+<script src="shell.js?v=17"></script>
+<script src="motion.js?v=17"></script>
 </head>
 <body data-crumb="Request Center" data-live="1">
 <!--
@@ -23,17 +23,21 @@ FIRST VIEWPORT: sidebar · toolbar · title with queue tile and scope segments �
 FORM: user-pinned Apple design language, softened per review round 2.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
 -->
-<script src="queue.js?v=15"></script>
+<script src="queue.js?v=17"></script>
+<script src="actions.js?v=17"></script>
+<script src="queue-actions.js?v=17"></script>
 <script>
 const { ic, caret, av, ACTIVE, STATUS, slaBub, priParts, displayId } = iDeskQueue;
+const QA = iDeskQueueActions;
 const SKELETON_ROWS = 5;
 const TABLE = `
   <section class="table" aria-label="Daftar tiket">
-    <div class="thead"><span class="check"><span class="box"></span></span><span>Tiket</span><span class="col-pri">Prioritas</span><span class="col-site">Site</span><span>Status</span><span class="col-req">Pemohon</span><span>PIC</span><span>SLA</span><span class="sort col-date">Dibuat${ic('arrow-down')}</span></div>
+    <div class="thead"><span class="check" id="selectAll" role="checkbox" aria-checked="false" aria-label="Pilih semua tiket yang tampil" tabindex="0"><span class="box">${ic('check')}</span></span><span>Tiket</span><span class="col-pri">Prioritas</span><span class="col-site">Site</span><span>Status</span><span class="col-req">Pemohon</span><span>PIC</span><span>SLA</span><span class="sort col-date">Dibuat${ic('arrow-down')}</span></div>
     <div id="rows"></div>
     <div class="empty-state" id="empty"><div class="ic">${ic('inbox')}</div><b>Tidak ada tiket yang cocok</b>Coba hapus filter atau ubah kata kunci pencarian.</div>
     <div class="foot"><span id="showing"></span><span class="muted">Satu halaman data contoh</span></div>
-  </section>`;
+  </section>
+  ${QA.BULK_HTML}`;
 let selected = new Set();
 function rowHtml(r) {
   const active = ACTIVE.includes(r.s);
@@ -45,7 +49,7 @@ function rowHtml(r) {
   const on = selected.has(r.id);
   return `<div class="row ${flag ? 'flag' : ''}${on ? ' selected' : ''}" data-record="${r.id}" role="row" tabindex="0">
       <span class="check" data-select role="checkbox" aria-checked="${on}" aria-label="Pilih ${displayId(r)}" tabindex="-1"><span class="box">${ic('check')}</span></span>
-      <div class="tk"><div class="id">#${displayId(r)}${r.src ? `<span class="src">${r.src}</span>` : ''}</div><div class="title">${r.t}</div></div>
+      <div class="tk"><div class="id">#${displayId(r)}${r.src ? `<span class="src">${r.src}</span>` : ''}${QA.hwLinkHtml(r)}</div><div class="title">${r.t}</div>${QA.rowActionsHtml(r)}</div>
       <span class="col-pri"><button class="bub" data-edit="p" style="--c:${pri.color};--ink:${pri.ink}">${pri.icon}<span class="v">${pri.label}</span>${active ? caret : ''}</button></span>
       <span class="col-site"><span class="bub neutral mono">${r.site}</span></span>
       <span class="col-st"><button class="bub" style="--c:${sc}" aria-label="Ganti status"><span class="dot"></span><span class="v">${sl}</span>${caret}</button></span>
@@ -62,6 +66,10 @@ function renderRows(rows) {
   document.getElementById('empty').classList.toggle('show', rows.length === 0);
   document.getElementById('showing').textContent = `Menampilkan ${rows.length} dari ${iDeskQueue.count()} tiket contoh`;
   bindRows(rows);
+  visibleIds = rows.map((r) => r.id);
+  const alive = new Set(iDeskQueue.records().map((r) => r.id));
+  selected = new Set([...selected].filter((id) => alive.has(id)));
+  paintSelection();
 }
 function skeleton() {
   const host = document.getElementById('rows');
@@ -77,26 +85,47 @@ function bindRows(rows) {
       const button = row.querySelector(selector); button.id = 'edit-' + record.id + '-' + key;
       iDeskMock.bindEditor(button, record, key, options, iDeskQueue.commit, key === 'pic' ? 'Cari PIC…' : undefined);
     });
+    QA.bindRecordActions(row, record, { isOn: (id) => selected.has(id), toggle: (id) => setSelected(toggled(id)) });
     row.onclick = (event) => {
       if (event.target.closest('button')) return;
-      if (event.target.closest('[data-select]')) { toggleSelect(record.id, row); return; }
+      if (event.target.closest('[data-select]')) { toggleSelect(record.id); return; }
       location.href = 'ticket.html';
     };
     row.onkeydown = (event) => {
       if (event.target !== row) return;
       if (event.key === 'Enter') location.href = 'ticket.html';
-      if (event.key === ' ') { event.preventDefault(); toggleSelect(record.id, row); }
+      if (event.key === ' ') { event.preventDefault(); toggleSelect(record.id); }
     };
   });
 }
-function toggleSelect(id, row) {
-  const next = new Set(selected);
-  if (next.has(id)) next.delete(id); else next.add(id);
-  selected = next;
-  row.classList.toggle('selected', selected.has(id));
-  row.querySelector('[data-select]').setAttribute('aria-checked', String(selected.has(id)));
+let visibleIds = [];
+const toggled = (id) => { const next = new Set(selected); if (next.has(id)) next.delete(id); else next.add(id); return next; };
+function toggleSelect(id) { setSelected(toggled(id)); }
+function setSelected(next) { selected = next; paintSelection(); }
+function paintSelection() {
+  document.querySelectorAll('#rows .row[data-record]').forEach((row) => {
+    const on = selected.has(row.dataset.record);
+    row.classList.toggle('selected', on);
+    row.querySelector('[data-select]').setAttribute('aria-checked', String(on));
+  });
+  const shown = visibleIds.filter((id) => selected.has(id)).length;
+  const all = document.getElementById('selectAll');
+  all.setAttribute('aria-checked', shown === 0 ? 'false' : shown === visibleIds.length ? 'true' : 'mixed');
+  all.querySelector('.box').innerHTML = `<i data-lucide="${shown && shown < visibleIds.length ? 'minus' : 'check'}"></i>`;
+  lucide.createIcons();
+  paintBulk();
 }
+function toggleAll() {
+  const allOn = visibleIds.length && visibleIds.every((id) => selected.has(id));
+  setSelected(allOn ? new Set([...selected].filter((id) => !visibleIds.includes(id))) : new Set([...selected, ...visibleIds]));
+}
+let paintBulk = () => {};
 iDeskQueue.mount({ view: 'list', body: TABLE, onRender: renderRows, skeleton });
+paintBulk = QA.mountBulk({ getSelected: () => selected, setSelected });
+const selectAll = document.getElementById('selectAll');
+selectAll.onclick = toggleAll;
+selectAll.onkeydown = (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleAll(); } };
+paintSelection();
 </script>
 </body>
 </html>

@@ -7,19 +7,21 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
-<link rel="stylesheet" href="idesk.css?v=15">
+<link rel="stylesheet" href="idesk.css?v=17">
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
-<script src="dropdown.js?v=15"></script>
-<script src="mock-state.js?v=15"></script>
-<script src="shell.js?v=15"></script>
-<script src="motion.js?v=15"></script>
+<script src="dropdown.js?v=17"></script>
+<script src="mock-state.js?v=17"></script>
+<script src="shell.js?v=17"></script>
+<script src="motion.js?v=17"></script>
 </head>
 <body data-crumb="Request Center" data-live="1">
 <!--
 Kanban is a second view of the same queue as list.html: same header, counters, filters and record vocabulary.
 Columns are the four editor statuses. Resolved also holds Closed (terminal, read only, not draggable).
 -->
-<script src="queue.js?v=15"></script>
+<script src="queue.js?v=17"></script>
+<script src="actions.js?v=17"></script>
+<script src="queue-actions.js?v=17"></script>
 <script>
 const { ic, caret, av, STATUS, slaBub, priParts, displayId } = iDeskQueue;
 const COLUMNS = [
@@ -45,7 +47,8 @@ function cardHtml(r) {
   const locked = iDeskMock.isTerminal(r.s);
   const pic = r.pic ? `<span class="kpic" title="PIC: ${r.pic}">${av(r.pic, 'sm')}<span>${r.pic}</span></span>` : `<span class="kpic empty">${ic('user-round-plus')}<span>Belum ada PIC</span></span>`;
   return `<article class="kcard${locked ? ' locked' : ''}${landed === r.id ? ' landed' : ''}" data-record="${r.id}" tabindex="0" aria-label="${displayId(r)}: ${r.t}">
-    <div class="kid mono">#${displayId(r)}${r.src ? `<span class="src">${r.src}</span>` : ''}${locked ? `<span class="klock" title="Hanya baca">${ic('lock')}</span>` : ''}</div>
+    <div class="kid mono">#${displayId(r)}${r.src ? `<span class="src">${r.src}</span>` : ''}${iDeskQueueActions.hwLinkHtml(r)}${locked ? `<span class="klock" title="Hanya baca">${ic('lock')}</span>` : ''}</div>
+    <span class="card-acts"><button class="btn icon" data-row-act="more" id="kmore-${r.id}" data-hint="Aksi lainnya">${ic('ellipsis')}</button></span>
     <div class="ktitle">${r.t}</div>
     <div class="kpills">
       <span class="bub" style="--c:${pri.color};--ink:${pri.ink}">${pri.icon}${pri.label}</span>
@@ -73,6 +76,7 @@ function bindCard(record) {
   const card = document.querySelector(`.kcard[data-record="${record.id}"]`);
   const button = card.querySelector('.kstatus'); button.id = 'kedit-' + record.id;
   iDeskMock.bindEditor(button, record, 's', iDeskMock.editableStatuses, (u, reason) => { landed = u.id; iDeskQueue.commit(u, reason); });
+  iDeskQueueActions.bindRecordActions(card, record);
   card.onclick = (event) => { if (!event.target.closest('button') && !drag.justDropped) location.href = 'ticket.html'; };
   card.onkeydown = (event) => { if (event.target === card && event.key === 'Enter') location.href = 'ticket.html'; };
   if (!iDeskMock.isTerminal(record.s)) card.addEventListener('pointerdown', (event) => startPress(event, card, record));

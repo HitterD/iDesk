@@ -1,7 +1,7 @@
 // Shared body-mounted prototype controls. No network or ticket persistence.
 (function () {
   'use strict';
-  const EDGE = 12, GAP = 8, MENU_WIDTH = 272, MAX_HEIGHT = 380;
+  const EDGE = 12, GAP = 8, MENU_WIDTH = 272, MAX_HEIGHT = 380, BUSY_MS = 650;
   let active = null, sequence = 0;
   function node(tag, cls, text) {
     const el = document.createElement(tag);
@@ -64,6 +64,7 @@
     const selected = opt.value === current, button = node('button', 'dd-option');
     button.type = 'button'; button.tabIndex = -1;
     button.setAttribute('role', config.actions ? 'menuitem' : 'menuitemradio');
+    if (opt.tone) button.classList.add(opt.tone);
     if (!config.actions) button.setAttribute('aria-checked', String(selected));
     if (opt.icon) button.append(icon(opt.icon));
     else if (opt.color) { const dot = node('span', 'dd-dot'); dot.style.backgroundColor = opt.color; button.append(dot); }
@@ -128,31 +129,49 @@
     input.oninput = () => input.setCustomValidity('');
     return input;
   }
-  function confirm({ title, description, reason = false, confirmLabel = 'Konfirmasi' }) {
+  // Loading state for any button: spinner + label, disabled, aria-busy. Returns a restore function.
+  function busy(button, label) {
+    const before = [...button.childNodes], wasDisabled = button.disabled;
+    const spinner = icon('loader-circle'); spinner.classList.add('spin');
+    button.replaceChildren(spinner, node('span', '', label));
+    button.disabled = true; button.setAttribute('aria-busy', 'true');
+    window.lucide?.createIcons();
+    return () => { button.replaceChildren(...before); button.disabled = wasDisabled; button.removeAttribute('aria-busy'); };
+  }
+  // body(form) may append extra fields and returns a reader: () => value, or null after it reported invalid input.
+  // danger styles the confirm as destructive; busyLabel shows a short loading state before closing.
+  function confirm({ title, description, reason = false, confirmLabel = 'Konfirmasi', cancelLabel = 'Batal', danger = false, body = null, busyLabel = '' }) {
     close(false);
     const previous = document.activeElement, dialog = node('dialog', 'demo-dialog');
     const form = node('form'), titleEl = node('h2', '', title), desc = node('p', '', description);
     titleEl.id = `dialog-title-${++sequence}`; desc.id = `dialog-desc-${sequence}`;
     dialog.setAttribute('aria-labelledby', titleEl.id); dialog.setAttribute('aria-describedby', desc.id);
     form.append(titleEl, desc); const input = reason ? reasonField(form) : null;
+    const read = body ? body(form) : null;
     const note = node('small', 'demo-note', 'Prototype saja. Tidak mengubah tiket, akun, atau layanan produksi.');
-    const actions = node('div', 'demo-dialog-actions'), cancel = node('button', 'btn', 'Batal'), submit = node('button', 'btn primary', confirmLabel);
+    const actions = node('div', 'demo-dialog-actions'), cancel = node('button', 'btn', cancelLabel), submit = node('button', danger ? 'btn danger solid' : 'btn primary', confirmLabel);
     cancel.type = 'button'; submit.type = 'submit'; actions.append(cancel, submit); form.append(note, actions); dialog.append(form);
-    document.body.append(dialog);
+    document.body.append(dialog); window.lucide?.createIcons();
     return new Promise((resolve) => {
+      let pending = false;
       const finish = (value) => { dialog.close(); dialog.remove(); restore(previous); resolve(value); };
-      cancel.onclick = () => finish(null);
-      dialog.addEventListener('cancel', (event) => { event.preventDefault(); finish(null); });
+      cancel.onclick = () => { if (!pending) finish(null); };
+      dialog.addEventListener('cancel', (event) => { event.preventDefault(); if (!pending) finish(null); });
       dialog.onclick = (event) => {
         const rect = dialog.getBoundingClientRect();
-        if (event.target === dialog && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) finish(null);
+        if (!pending && event.target === dialog && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) finish(null);
       };
       form.onsubmit = (event) => {
         event.preventDefault();
+        if (pending) return;
         if (input && input.value.trim().length < 3) { input.setCustomValidity('Tulis alasan minimal 3 karakter.'); input.reportValidity(); return; }
-        finish(input ? input.value.trim() : true);
+        let value = input ? input.value.trim() : true;
+        if (read) { value = read(); if (value === null) return; }
+        if (!busyLabel) { finish(value); return; }
+        pending = true; cancel.disabled = true; busy(submit, busyLabel);
+        setTimeout(() => finish(value), BUSY_MS);
       };
-      dialog.showModal(); (input || cancel).focus();
+      dialog.showModal(); (input || form.querySelector('[data-autofocus]') || cancel).focus();
     });
   }
   function notice(message) {
@@ -170,5 +189,5 @@
   addEventListener('resize', position); addEventListener('scroll', position, true);
   window.visualViewport?.addEventListener('resize', position);
   window.visualViewport?.addEventListener('scroll', position);
-  window.iDeskDropdown = { bind, close, confirm, notice, node, icon };
+  window.iDeskDropdown = { bind, open, close, confirm, busy, notice, node, icon };
 })();
