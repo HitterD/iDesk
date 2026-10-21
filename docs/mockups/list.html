@@ -7,12 +7,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
-<link rel="stylesheet" href="idesk.css?v=17">
+<link rel="stylesheet" href="idesk.css?v=20">
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
-<script src="dropdown.js?v=17"></script>
-<script src="mock-state.js?v=17"></script>
-<script src="shell.js?v=17"></script>
-<script src="motion.js?v=17"></script>
+<script src="dropdown.js?v=20"></script>
+<script src="mock-state.js?v=20"></script>
+<script src="shell.js?v=20"></script>
+<script src="motion.js?v=20"></script>
 </head>
 <body data-crumb="Request Center" data-live="1">
 <!--
@@ -23,9 +23,9 @@ FIRST VIEWPORT: sidebar · toolbar · title with queue tile and scope segments �
 FORM: user-pinned Apple design language, softened per review round 2.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
 -->
-<script src="queue.js?v=17"></script>
-<script src="actions.js?v=17"></script>
-<script src="queue-actions.js?v=17"></script>
+<script src="queue.js?v=20"></script>
+<script src="actions.js?v=20"></script>
+<script src="queue-actions.js?v=20"></script>
 <script>
 const { ic, caret, av, ACTIVE, STATUS, slaBub, priParts, displayId } = iDeskQueue;
 const QA = iDeskQueueActions;
@@ -42,7 +42,7 @@ let selected = new Set();
 function rowHtml(r) {
   const active = ACTIVE.includes(r.s);
   const flag = active && (r.p === 'CRITICAL' || (r.overdue && r.s !== 'WAITING_VENDOR'));
-  const pri = priParts(r); const [sl, sc] = STATUS[r.s];
+  const pri = priParts(r); const [sl, sc, si] = STATUS[r.s];
   const pic = r.pic
     ? `<button class="bub pic" aria-label="Ganti PIC">${av(r.pic)}<span class="v">${r.pic}</span>${caret}</button>`
     : `<button class="bub pic empty">${ic('user-round-plus')}<span class="v">Tetapkan PIC</span>${caret}</button>`;
@@ -52,7 +52,7 @@ function rowHtml(r) {
       <div class="tk"><div class="id">#${displayId(r)}${r.src ? `<span class="src">${r.src}</span>` : ''}${QA.hwLinkHtml(r)}</div><div class="title">${r.t}</div>${QA.rowActionsHtml(r)}</div>
       <span class="col-pri"><button class="bub" data-edit="p" style="--c:${pri.color};--ink:${pri.ink}">${pri.icon}<span class="v">${pri.label}</span>${active ? caret : ''}</button></span>
       <span class="col-site"><span class="bub neutral mono">${r.site}</span></span>
-      <span class="col-st"><button class="bub" style="--c:${sc}" aria-label="Ganti status"><span class="dot"></span><span class="v">${sl}</span>${caret}</button></span>
+      <span class="col-st"><button class="bub" style="--c:${sc}${si ? `;--ink:${si}` : ''}" aria-label="Ganti status"><span class="dot"></span><span class="v">${sl}</span>${caret}</button></span>
       <div class="person col-req">${av(r.req[0])}<div style="min-width:0"><b>${r.req[0]}</b><small>${r.req[1]}</small></div></div>
       <div class="col-pic">${pic}</div>
       <div class="col-sla">${slaBub(r)}</div>

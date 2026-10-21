@@ -13,14 +13,14 @@
   const Q = QUEUES[key];
   const STATS = [
     { key: 'all', name: 'Total', icon: 'layers', c: 'var(--gray)' },
-    { key: 'TODO', name: 'Open', icon: 'inbox', c: 'var(--blue)' },
+    { key: 'TODO', name: 'Open', icon: 'inbox', c: 'var(--sky)' },
     { key: 'IN_PROGRESS', name: 'In Progress', icon: 'circle-dot', c: 'var(--navy)' },
     { key: 'WAITING_VENDOR', name: 'Waiting Vendor', icon: 'hourglass', c: 'var(--orange)', ink: 'var(--ink-orange)', attn: true },
     { key: 'DONE', name: 'Resolved', icon: 'circle-check', c: 'var(--green)' },
     { key: 'overdue', name: 'Overdue', icon: 'triangle-alert', c: 'var(--red)', ink: 'var(--ink-red)', attn: true },
     { key: 'critical', name: 'Critical', icon: 'flame', c: 'var(--pink)', ink: 'var(--ink-red)', attn: true },
   ];
-  const STATUS = { CANCELLED: ['Cancelled', 'var(--red)'], TODO: ['Open', 'var(--blue)'], IN_PROGRESS: ['In Progress', 'var(--navy)'], WAITING_VENDOR: ['Waiting Vendor', 'var(--orange)'], RESOLVED: ['Resolved', 'var(--green)'], CLOSED: ['Closed', 'var(--gray)'] };
+  const STATUS = { CANCELLED: ['Cancelled', 'var(--red)'], TODO: ['Open', 'var(--sky)', 'var(--ink-sky)'], IN_PROGRESS: ['In Progress', 'var(--navy)', 'var(--ink-navy)'], WAITING_VENDOR: ['Waiting Vendor', 'var(--orange)'], RESOLVED: ['Resolved', 'var(--green)'], CLOSED: ['Closed', 'var(--gray)'] };
   const PRI = { LOW: ['Low', 'var(--gray)'], MEDIUM: ['Normal', 'var(--blue)'], HIGH: ['Urgent', 'var(--orange)'], CRITICAL: ['Blocker', 'var(--red)'] };
   const SITES = ['SPJ', 'SMG', 'JTB', 'SPJ', 'SPJ', 'JTB', 'SPJ', 'SMG', 'SPJ', 'JTB'];
   // Synthetic sample data

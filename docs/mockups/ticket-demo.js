@@ -23,7 +23,7 @@
   function paintBadge(el, option) {
     el.replaceChildren(D.node('span', 'dot'), D.node('span', 'v', option.label));
     el.style.setProperty('--c', option.color);
-    el.style.removeProperty('--ink');
+    if (option.ink) el.style.setProperty('--ink', option.ink); else el.style.removeProperty('--ink');
   }
   function commit(updated, reason) {
     const previous = record; record = updated;
@@ -52,8 +52,8 @@
       const button = props[index]; button.id = 'inspector-' + key;
       button.querySelector('.v').textContent = options.find((opt) => opt.value === record[key])?.label || record[key];
       if (key === 'pic') button.querySelector('.avatar').textContent = initials(record.pic);
-      const color = options.find((opt) => opt.value === record[key])?.color;
-      if (color) { button.style.setProperty('--c', color); button.style.removeProperty('--ink'); }
+      const opt = options.find((o) => o.value === record[key]); const color = opt?.color;
+      if (color) { button.style.setProperty('--c', color); if (opt.ink) button.style.setProperty('--ink', opt.ink); else button.style.removeProperty('--ink'); }
       M.bindEditor(button, record, key, options, commit, search);
     });
   }

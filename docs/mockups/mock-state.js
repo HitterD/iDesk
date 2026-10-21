@@ -4,10 +4,10 @@
   const ACTOR = 'RM Bagastyo Anggoro';
   const TERMINAL = ['RESOLVED', 'CLOSED', 'CANCELLED'];
   const statuses = [
-    ['TODO', 'Open', 'var(--blue)'], ['IN_PROGRESS', 'In Progress', 'var(--navy)'],
+    ['TODO', 'Open', 'var(--sky)', 'var(--ink-sky)'], ['IN_PROGRESS', 'In Progress', 'var(--navy)', 'var(--ink-navy)'],
     ['WAITING_VENDOR', 'Waiting Vendor', 'var(--orange)'], ['RESOLVED', 'Resolved', 'var(--green)'],
     ['CLOSED', 'Closed', 'var(--gray)'], ['CANCELLED', 'Cancelled', 'var(--red)'],
-  ].map(([value, label, color]) => ({ value, label, color }));
+  ].map(([value, label, color, ink]) => ({ value, label, color, ink }));
   const priorities = [
     ['LOW', 'Low', 'var(--gray)'], ['MEDIUM', 'Normal', 'var(--blue)'],
     ['HIGH', 'Urgent', 'var(--orange)'], ['CRITICAL', 'Blocker', 'var(--red)'],

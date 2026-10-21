@@ -7,25 +7,25 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
-<link rel="stylesheet" href="idesk.css?v=17">
+<link rel="stylesheet" href="idesk.css?v=20">
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
-<script src="dropdown.js?v=17"></script>
-<script src="mock-state.js?v=17"></script>
-<script src="shell.js?v=17"></script>
-<script src="motion.js?v=17"></script>
+<script src="dropdown.js?v=20"></script>
+<script src="mock-state.js?v=20"></script>
+<script src="shell.js?v=20"></script>
+<script src="motion.js?v=20"></script>
 </head>
 <body data-crumb="Request Center" data-live="1">
 <!--
 Kanban is a second view of the same queue as list.html: same header, counters, filters and record vocabulary.
 Columns are the four editor statuses. Resolved also holds Closed (terminal, read only, not draggable).
 -->
-<script src="queue.js?v=17"></script>
-<script src="actions.js?v=17"></script>
-<script src="queue-actions.js?v=17"></script>
+<script src="queue.js?v=20"></script>
+<script src="actions.js?v=20"></script>
+<script src="queue-actions.js?v=20"></script>
 <script>
 const { ic, caret, av, STATUS, slaBub, priParts, displayId } = iDeskQueue;
 const COLUMNS = [
-  { status: 'TODO', label: 'Open', c: 'var(--blue)', holds: ['TODO'] },
+  { status: 'TODO', label: 'Open', c: 'var(--sky)', holds: ['TODO'] },
   { status: 'IN_PROGRESS', label: 'In Progress', c: 'var(--navy)', holds: ['IN_PROGRESS'] },
   { status: 'WAITING_VENDOR', label: 'Waiting Vendor', c: 'var(--orange)', holds: ['WAITING_VENDOR'] },
   { status: 'RESOLVED', label: 'Resolved', c: 'var(--green)', holds: ['RESOLVED', 'CLOSED'] },
@@ -43,7 +43,7 @@ const BOARD = `
 
 let landed = null;
 function cardHtml(r) {
-  const pri = priParts(r); const [sl, sc] = STATUS[r.s];
+  const pri = priParts(r); const [sl, sc, si] = STATUS[r.s];
   const locked = iDeskMock.isTerminal(r.s);
   const pic = r.pic ? `<span class="kpic" title="PIC: ${r.pic}">${av(r.pic, 'sm')}<span>${r.pic}</span></span>` : `<span class="kpic empty">${ic('user-round-plus')}<span>Belum ada PIC</span></span>`;
   return `<article class="kcard${locked ? ' locked' : ''}${landed === r.id ? ' landed' : ''}" data-record="${r.id}" tabindex="0" aria-label="${displayId(r)}: ${r.t}">
@@ -54,7 +54,7 @@ function cardHtml(r) {
       <span class="bub" style="--c:${pri.color};--ink:${pri.ink}">${pri.icon}${pri.label}</span>
       ${slaBub(r)}
     </div>
-    <div class="kfoot">${pic}<button class="bub kstatus" style="--c:${sc}" aria-label="Ganti status"><span class="dot"></span><span class="v">${sl}</span>${caret}</button></div>
+    <div class="kfoot">${pic}<button class="bub kstatus" style="--c:${sc}${si ? `;--ink:${si}` : ''}" aria-label="Ganti status"><span class="dot"></span><span class="v">${sl}</span>${caret}</button></div>
   </article>`;
 }
 function renderBoard(rows) {
