@@ -89,20 +89,20 @@ describe('SelfResolveButton', () => {
         const onResolved = vi.fn();
         renderWithClient(<SelfResolveButton ticketId="t-2" onResolved={onResolved} />);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Tandai Selesai' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Masalah sudah selesai' }));
         expect(screen.getByRole('alertdialog')).toBeInTheDocument();
-        expect(screen.getByText(/Apakah masalah Anda benar-benar sudah selesai\?/)).toBeInTheDocument();
+        expect(screen.getByText(/akan ditutup dan tidak dapat dibalas lagi/)).toBeInTheDocument();
         expect(mockedApi.post).not.toHaveBeenCalled();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Ya, sudah selesai' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Ya, tutup tiket' }));
         await waitFor(() => expect(onResolved).toHaveBeenCalled());
         expect(mockedApi.post).toHaveBeenCalledWith('/tickets/t-2/self-resolve', {}, { skipToast: true });
     });
 
     it('does nothing when the dialog is cancelled', () => {
         renderWithClient(<SelfResolveButton ticketId="t-2" />);
-        fireEvent.click(screen.getByRole('button', { name: 'Tandai Selesai' }));
-        fireEvent.click(screen.getAllByRole('button', { name: 'Batal' })[0]);
+        fireEvent.click(screen.getByRole('button', { name: 'Masalah sudah selesai' }));
+        fireEvent.click(screen.getAllByRole('button', { name: 'Belum' })[0]);
         expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
         expect(mockedApi.post).not.toHaveBeenCalled();
     });

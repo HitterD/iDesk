@@ -128,14 +128,6 @@ export const ClientLayout: React.FC = () => {
                             </motion.div>
                         </main>
 
-                        {/* Footer (desktop; the bottom nav occupies this space on mobile) */}
-                        <footer className="hidden lg:block border-t border-border py-6 mt-auto shrink-0 print:hidden">
-                            <div className="max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
-                                <p className="text-center text-sm text-muted-foreground">
-                                    © {new Date().getFullYear()} iDesk Enterprise Platform. Need help? Contact IT Support.
-                                </p>
-                            </div>
-                        </footer>
                     </div>
                 )}
             </div>

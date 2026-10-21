@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { XCircle, MessageSquare, History, SlidersHorizontal } from 'lucide-react';
+import { XCircle } from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/stores/useAuth';
@@ -10,6 +10,7 @@ import { TicketChat } from '../../ticket-board/components/ticket-detail/TicketCh
 import { TicketHistory } from '../../ticket-board/components/ticket-detail/TicketHistory';
 import { ImageLightbox } from '../../ticket-board/components/ticket-detail/ImageLightbox';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
+import { Button } from '@/components/ui/button';
 import { TicketDetail } from '../../ticket-board/components/ticket-detail/types';
 import { KbSuggestionDialog } from '../../ticket-board/components/KbSuggestionDialog';
 import { SELF_RESOLVABLE_STATUSES, isTerminalStatus } from '../../ticket-board/components/ticket-detail/constants';
@@ -18,7 +19,7 @@ import { AgentRatingForm } from '../components/resolution/AgentRatingForm';
 import { getApiErrorMessage } from '../components/resolution/resolutionApi';
 import { ClientTicketHeader } from '../components/ClientTicketHeader';
 import { ClientTicketInspector } from '../components/ClientTicketInspector';
-import { cn } from '@/lib/utils';
+import { DetailTabs, type DetailTab } from '../../ticket-board/components/ticket-detail/DetailTabs';
 import { toUploadPercent, validateFiles } from '@/lib/file-validation';
 import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
 
@@ -35,7 +36,7 @@ export const ClientTicketDetailPage: React.FC = () => {
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
-    const [mainTab, setMainTab] = useState<'chat' | 'activity' | 'properties'>('chat');
+    const [mainTab, setMainTab] = useState<DetailTab>('chat');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [suggestionsOpen, setSuggestionsOpen] = useState(false);
 
@@ -90,12 +91,12 @@ export const ClientTicketDetailPage: React.FC = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
-            toast.success('Ticket cancelled successfully');
+            toast.success('Tiket berhasil dibatalkan');
             setIsCancelDialogOpen(false);
             setCancelReason('');
         },
         onError: () => {
-            toast.error('Failed to cancel ticket');
+            toast.error('Gagal membatalkan tiket');
         },
     });
 
@@ -159,7 +160,6 @@ export const ClientTicketDetailPage: React.FC = () => {
     const isClosed = isTerminalStatus(ticket.status);
     const isRequester = Boolean(user?.id) && ticket.user?.id === user?.id;
     const canSelfResolve = isRequester && SELF_RESOLVABLE_STATUSES.includes(ticket.status);
-    const messageCount = ticket.messages?.filter(m => !m.isSystemMessage).length || 0;
 
     const handleToggleSidebar = () => {
         setIsSidebarOpen(prev => !prev);
@@ -176,6 +176,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                 isSidebarOpen={isSidebarOpen}
                 onToggleSidebar={handleToggleSidebar}
                 canSelfResolve={canSelfResolve}
+                tabs={<DetailTabs value={mainTab} onChange={setMainTab} />}
             />
 
                 {/* Conversation / Activity / Mobile Details */}
@@ -188,101 +189,6 @@ export const ClientTicketDetailPage: React.FC = () => {
 
                     {/* Optional per-agent rating once the ticket is closed */}
                     {isRequester && ticket.status === 'CLOSED' && <AgentRatingForm ticketId={ticket.id} />}
-
-                    {/* Navigation Tabs Header */}
-                    <div className="flex items-center justify-between border-b border-[hsl(var(--idesk-border)/0.7)] px-3 sm:px-[18px] shrink-0">
-                        {/* Desktop Tabs (>= lg) */}
-                        <div className="hidden lg:flex gap-6">
-                            <button
-                                type="button"
-                                onClick={() => setMainTab('chat')}
-                                className={cn(
-                                    "py-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2",
-                                    mainTab === 'chat'
-                                        ? "border-primary text-primary"
-                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                                <span>Conversation</span>
-                                <span className={cn(
-                                    "px-2 py-0.5 rounded-full text-[10px] font-bold",
-                                    mainTab === 'chat'
-                                        ? "bg-primary/10 dark:bg-primary/20 text-primary"
-                                        : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                                )}>
-                                    {messageCount}
-                                </span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setMainTab('activity')}
-                                className={cn(
-                                    "py-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2",
-                                    mainTab === 'activity'
-                                        ? "border-primary text-primary"
-                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                <History className="w-3.5 h-3.5" />
-                                <span>Activity Logs</span>
-                            </button>
-                        </div>
-
-                        {/* Mobile Tabs (< lg) */}
-                        <div className="flex lg:hidden items-center justify-around w-full gap-1">
-                            <button
-                                type="button"
-                                onClick={() => setMainTab('chat')}
-                                className={cn(
-                                    "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
-                                    mainTab === 'chat'
-                                        ? "border-primary text-primary"
-                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                                <span>Chat</span>
-                                <span className={cn(
-                                    "px-1.5 py-0.2 rounded-full text-[10px] font-bold",
-                                    mainTab === 'chat'
-                                        ? "bg-primary/10 dark:bg-primary/20 text-primary"
-                                        : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                                )}>
-                                    {messageCount}
-                                </span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setMainTab('properties')}
-                                className={cn(
-                                    "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
-                                    mainTab === 'properties'
-                                        ? "border-primary text-primary"
-                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                <SlidersHorizontal className="w-3.5 h-3.5" />
-                                <span>Properties</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setMainTab('activity')}
-                                className={cn(
-                                    "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
-                                    mainTab === 'activity'
-                                        ? "border-primary text-primary"
-                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                <History className="w-3.5 h-3.5" />
-                                <span>Logs</span>
-                            </button>
-                        </div>
-                    </div>
 
                     {/* Tab Content */}
                     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -297,19 +203,14 @@ export const ClientTicketDetailPage: React.FC = () => {
                                 onTypingStop={sendTypingStop}
                                 showCannedResponses={false}
                             />
-                        ) : mainTab === 'properties' ? (
+                        ) : mainTab === 'details' ? (
                             <div className="chat-stream flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 space-y-3 pb-20">
                                 <ClientTicketInspector ticket={ticket} />
                                 {!isClosed && (
-                                    <div className="ticket-panel flex justify-center">
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsCancelDialogOpen(true)}
-                                            className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-800 transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                                        >
-                                            <XCircle className="w-4 h-4" />
-                                            Cancel Ticket
-                                        </button>
+                                    <div className="ticket-panel">
+                                        <Button variant="danger" className="w-full" onClick={() => setIsCancelDialogOpen(true)}>
+                                            <XCircle aria-hidden="true" /><span>Batalkan tiket</span>
+                                        </Button>
                                     </div>
                                 )}
                             </div>
@@ -344,14 +245,14 @@ export const ClientTicketDetailPage: React.FC = () => {
                 onCancel={() => { setIsCancelDialogOpen(false); setCancelReason(''); }}
                 onConfirm={() => cancelMutation.mutate(cancelReason.trim() || undefined)}
                 isLoading={cancelMutation.isPending}
-                title="Cancel Ticket"
-                description="Are you sure you want to cancel this ticket? This action cannot be undone."
-                confirmText="Yes, Cancel Ticket"
-                cancelText="No, Keep It"
+                title="Batalkan tiket ini?"
+                description={`Tiket #${ticket.ticketNumber || ticket.id.split('-')[0]} yang dibatalkan tidak dapat diproses kembali.`}
+                confirmText="Batalkan tiket"
+                cancelText="Kembali"
                 variant="destructive"
             >
                 <label htmlFor="cancel-reason" className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                    Reason <span className="text-slate-400">(optional)</span>
+                    Alasan pembatalan <span className="text-slate-400">(opsional)</span>
                 </label>
                 <textarea
                     id="cancel-reason"
@@ -360,7 +261,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                     maxLength={CANCEL_REASON_MAX}
                     rows={2}
                     disabled={cancelMutation.isPending}
-                    placeholder="Tell the IT team why you no longer need this ticket..."
+                    placeholder="Contoh: kendala sudah teratasi sendiri"
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary resize-none disabled:opacity-50"
                 />
             </ConfirmationDialog>

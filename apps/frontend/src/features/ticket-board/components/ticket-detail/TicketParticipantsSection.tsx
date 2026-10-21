@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import {
-    Users,
     UserPlus,
     Trash2,
     Search,
@@ -14,6 +13,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toDisplayName } from './messageThread';
@@ -153,30 +153,19 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
     return (
         <section className="ticket-panel">
             {/* Section Header */}
-            <div className="mb-2 flex min-h-6 items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <Users className="h-3.5 w-3.5" aria-hidden="true" />
-                    </span>
-                    <h3 className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
-                        Anggota tiket
-                    </h3>
-                    <span className="text-[13px] tabular-nums text-slate-400 dark:text-slate-500">
-                        {totalCount}
-                    </span>
-                </div>
+            <div className="td-panel-h mb-2.5 flex items-center gap-2">
+                <h3 className="m-0 text-[13px] font-[650]">Anggota tiket</h3>
+                <span className="text-[13px] font-medium tabular-nums text-[var(--td-text-3)]">{totalCount}</span>
+                <span className="flex-1" />
 
                 {/* Add Participant Button / Popover */}
                 {canAddUsers && !isClosed && (
                     <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
                         <PopoverTrigger asChild>
-                            <button
-                                type="button"
-                                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[13px] font-medium text-primary bg-primary/10 hover:bg-primary/15 transition-colors cursor-pointer"
-                            >
-                                <UserPlus className="w-3.5 h-3.5" />
+                            <Button variant="subtle" aria-label="Tambah anggota tiket" title="Tambah anggota tiket">
+                                <UserPlus aria-hidden="true" />
                                 <span>Tambah</span>
-                            </button>
+                            </Button>
                         </PopoverTrigger>
                         <PopoverContent
                             align="end"
@@ -304,9 +293,9 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
             </div>
 
             {/* Participants List */}
-            <div className="max-h-64 overflow-y-auto custom-scrollbar divide-y divide-slate-100 dark:divide-slate-800">
+            <div className="td-members max-h-64 overflow-y-auto custom-scrollbar">
                 {/* 1. Ticket Creator */}
-                <div className="flex items-center justify-between py-1.5">
+                <div className="td-person">
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <UserAvatar
                             user={{
@@ -318,13 +307,10 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                         />
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
-                                <p className="text-[13px] font-semibold text-foreground truncate">{toDisplayName(creator.fullName)}</p>
-                                <span className="px-1.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[11px] font-medium rounded-full">
-                                    Pembuat
-                                </span>
+                                <p className="text-[12.5px] font-[550] text-foreground truncate">{toDisplayName(creator.fullName)}</p>
                             </div>
-                            <p className="text-xs text-muted-foreground truncate">
-                                {creator.department?.name || creator.email || 'Requester'}
+                            <p className="text-[11px] text-[var(--td-text-3)] truncate">
+                                Pembuat tiket{creator.department?.name ? ` · ${creator.department.name}` : ''}
                             </p>
                         </div>
                     </div>
@@ -340,7 +326,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                     return (
                         <div
                             key={p.id}
-                            className="group flex items-center justify-between py-1.5"
+                            className="td-person group"
                         >
                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                 <UserAvatar
@@ -353,7 +339,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                                 />
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-1.5">
-                                        <p className="text-[13px] font-semibold text-foreground truncate">{toDisplayName(displayName)}</p>
+                                        <p className="text-[12.5px] font-[550] text-foreground truncate">{toDisplayName(displayName)}</p>
                                         <span className="px-1.5 bg-primary/10 text-primary text-[11px] font-medium rounded-full">
                                             Anggota
                                         </span>

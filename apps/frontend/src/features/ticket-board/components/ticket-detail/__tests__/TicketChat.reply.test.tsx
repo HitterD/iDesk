@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { toast } from 'sonner';
@@ -68,6 +68,8 @@ const renderChat = (onSendMessage = vi.fn(() => Promise.resolve())) => {
     return onSendMessage;
 };
 
+const row = (id: string) => document.querySelector(`[data-message-id="${id}"]`) as HTMLElement;
+
 describe('TicketChat replies', () => {
     beforeAll(() => {
         Element.prototype.scrollIntoView = vi.fn();
@@ -103,11 +105,10 @@ describe('TicketChat replies', () => {
 
     it('sends a reply in the stored quote format and clears the preview', async () => {
         const onSend = renderChat();
-        fireEvent.click(document.querySelector('[data-message-id="m-1"] button[title="More actions"]')!);
-        fireEvent.click(screen.getByRole('button', { name: 'Reply' }));
+        fireEvent.click(within(row('m-1')).getByRole('button', { name: 'Balas' }));
         expect(screen.getByText('Membalas Shannon Stephanie Limawan')).toBeInTheDocument();
 
-        const input = screen.getByRole('textbox', { name: 'Balas ke requester…' });
+        const input = screen.getByRole('textbox', { name: 'Balas ke pemohon…' });
         fireEvent.change(input, { target: { value: 'siap' } });
         fireEvent.keyDown(input, { key: 'Enter' });
 
@@ -118,9 +119,8 @@ describe('TicketChat replies', () => {
 
     it('cancels a reply with Escape', () => {
         renderChat();
-        fireEvent.click(document.querySelector('[data-message-id="m-1"] button[title="More actions"]')!);
-        fireEvent.click(screen.getByRole('button', { name: 'Reply' }));
-        fireEvent.keyDown(screen.getByRole('textbox', { name: 'Balas ke requester…' }), { key: 'Escape' });
+        fireEvent.click(within(row('m-1')).getByRole('button', { name: 'Balas' }));
+        fireEvent.keyDown(screen.getByRole('textbox', { name: 'Balas ke pemohon…' }), { key: 'Escape' });
         expect(screen.queryByText('Membalas Shannon Stephanie Limawan')).not.toBeInTheDocument();
     });
 });

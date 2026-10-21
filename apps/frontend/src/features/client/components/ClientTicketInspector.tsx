@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { Activity, AlertCircle, Check, Clock, Copy, MapPin, Monitor, SlidersHorizontal, Tag, UserCheck, UserX, Wrench } from 'lucide-react';
+import { AlertCircle, Check, Copy, UserX } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/stores/useAuth';
-import { TicketPill } from '@/components/ui/ticket-pill';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { PresenceDot } from '@/components/ui/PresenceDot';
 import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
@@ -15,6 +14,10 @@ import { toDisplayName } from '../../ticket-board/components/ticket-detail/messa
 import { PriorityPill, PropertyRow, StatusPill } from '../../ticket-board/components/ticket-detail/TicketPropertyRows';
 
 const PAUSED_STATUS = 'WAITING_VENDOR';
+/** Mockup "Perkiraan waktu" aside: "Kamis, 22 Okt". */
+/** "GENERAL" → "General", "ORACLE_REQUEST" → "Oracle Request" (mockup readonly value). */
+const categoryLabel = (value: string) => value.toLowerCase().split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+const TARGET_DAY = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long', day: 'numeric', month: 'short' });
 
 const AssignedAgentCard: React.FC<{ agent: TicketDetail['assignedTo'] }> = ({ agent }) => {
     const [copiedEmail, setCopiedEmail] = useState(false);
@@ -27,41 +30,36 @@ const AssignedAgentCard: React.FC<{ agent: TicketDetail['assignedTo'] }> = ({ ag
     };
 
     return (
-        <SidebarCard title="Teknisi" icon={UserCheck} bodyClassName="space-y-2">
+        <SidebarCard title="Ditangani oleh">
             {agent ? (
-                <>
-                    <div className="flex items-center gap-3">
-                        <div className="relative shrink-0">
-                            <UserAvatar user={agent} size="md" className="h-10 w-10 rounded-full" />
-                            <PresenceDot userId={agent.id} userName={agent.fullName} ringed className="absolute -bottom-0.5 -right-0.5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <h4 className="truncate text-sm font-semibold text-slate-900 dark:text-white">{toDisplayName(agent.fullName)}</h4>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">IT Support Specialist</p>
-                        </div>
+                <div className="td-person">
+                    <div className="relative shrink-0">
+                        <UserAvatar user={agent} size="sm" className="h-9 w-9 rounded-full" />
+                        <PresenceDot userId={agent.id} userName={agent.fullName} ringed className="absolute -bottom-0.5 -right-0.5" />
                     </div>
-                    {agent.email && (
-                        <div>
-                            <InfoRow label="Email">
-                                <span className="inline-flex max-w-full items-center gap-1">
-                                    <span className="truncate">{agent.email}</span>
-                                    <button type="button" onClick={handleCopyEmail} className="shrink-0 cursor-pointer p-0.5 transition-colors hover:text-primary"
-                                        title="Salin email teknisi" aria-label="Salin email teknisi">
-                                        {copiedEmail ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-slate-500" />}
-                                    </button>
-                                </span>
-                            </InfoRow>
-                            {agent.site?.name && <InfoRow label="Site" icon={MapPin}>{agent.site.name}</InfoRow>}
-                        </div>
-                    )}
-                </>
+                    <div className="min-w-0 flex-1">
+                        <b>{toDisplayName(agent.fullName)}</b>
+                        <small>
+                            <span className="truncate">IT Support Specialist{agent.site?.name ? ` · ${agent.site.name}` : ''}</span>
+                        </small>
+                        {agent.email && (
+                            <small>
+                                <span className="truncate">{agent.email}</span>
+                                <button type="button" onClick={handleCopyEmail} className="shrink-0 cursor-pointer p-0.5 transition-colors hover:text-primary"
+                                    title="Salin email teknisi" aria-label="Salin email teknisi">
+                                    {copiedEmail ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                                </button>
+                            </small>
+                        )}
+                    </div>
+                </div>
             ) : (
-                <div className="space-y-1 py-2 text-center">
-                    <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-muted text-slate-500">
-                        <UserX className="h-4 w-4" aria-hidden="true" />
+                <div className="td-person">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-slate-500"><UserX className="h-4 w-4" aria-hidden="true" /></span>
+                    <div className="min-w-0 flex-1">
+                        <b>Menunggu teknisi</b>
+                        <small><span className="truncate">Tiket Anda dalam antrean penugasan tim IT Support</span></small>
                     </div>
-                    <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Menunggu teknisi</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Tiket Anda dalam antrean penugasan tim IT Support</p>
                 </div>
             )}
         </SidebarCard>
@@ -69,7 +67,7 @@ const AssignedAgentCard: React.FC<{ agent: TicketDetail['assignedTo'] }> = ({ ag
 };
 
 const HardwareSchedule: React.FC<{ ticket: TicketDetail }> = ({ ticket }) => (
-    <SidebarCard title="Instalasi hardware" icon={Wrench} bodyClassName="text-xs">
+    <SidebarCard title="Instalasi hardware" bodyClassName="td-kvs">
         <InfoRow label="Hardware Item">{ticket.hardwareType || 'N/A'}</InfoRow>
         <InfoRow label="Tanggal">
             {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
@@ -90,25 +88,12 @@ export const ClientTicketInspector: React.FC<{ ticket: TicketDetail }> = ({ tick
         <div className={sidebarPanelClass}>
             <AssignedAgentCard agent={ticket.assignedTo} />
 
-            <TicketParticipantsSection
-                ticketId={ticket.id}
-                creator={ticket.user}
-                participants={ticket.participants}
-                canManageUsers={canManageParticipants}
-                canAddUsers={canAddParticipants}
-                isClosed={isClosed}
-            />
-
-            <SidebarCard title="Properti tiket" icon={SlidersHorizontal} bodyClassName="space-y-2">
+            <SidebarCard title="Detail tiket" bodyClassName="space-y-2">
                 <div>
-                    <PropertyRow icon={Activity} label="Status"><StatusPill status={ticket.status} /></PropertyRow>
-                    <PropertyRow icon={AlertCircle} label="Prioritas"><PriorityPill priority={ticket.priority} /></PropertyRow>
-                    {ticket.category && (
-                        <PropertyRow icon={Tag} label="Kategori"><TicketPill tone="neutral">{ticket.category.replace(/_/g, ' ')}</TicketPill></PropertyRow>
-                    )}
-                    {ticket.device && (
-                        <PropertyRow icon={Monitor} label="Perangkat"><TicketPill tone="neutral">{ticket.device}</TicketPill></PropertyRow>
-                    )}
+                    <PropertyRow label="Status"><StatusPill status={ticket.status} /></PropertyRow>
+                    <PropertyRow label="Prioritas"><PriorityPill priority={ticket.priority} short /></PropertyRow>
+                    <PropertyRow label="Kategori"><span className="td-readonly">{ticket.category ? categoryLabel(ticket.category) : 'Tidak ada'}</span></PropertyRow>
+                    <PropertyRow label="Perangkat"><span className="td-readonly">{ticket.device || 'Tidak ada'}</span></PropertyRow>
                 </div>
                 {ticket.priority === 'CRITICAL' && ticket.criticalReason && (
                     <div className="rounded-xl bg-rose-50 p-3 text-xs dark:bg-rose-950/30">
@@ -121,8 +106,10 @@ export const ClientTicketInspector: React.FC<{ ticket: TicketDetail }> = ({ tick
                 )}
             </SidebarCard>
 
-            <SidebarCard title="SLA" icon={Clock} bodyClassName="space-y-3">
+            <SidebarCard title="Perkiraan waktu">
                 <SlaProgress
+                    variant="requester"
+                    aside={ticket.slaTarget && !isPaused && !isClosed ? TARGET_DAY.format(new Date(ticket.slaTarget)) : undefined}
                     status={ticket.status}
                     priority={ticket.priority}
                     createdAt={ticket.createdAt}
@@ -131,16 +118,25 @@ export const ClientTicketInspector: React.FC<{ ticket: TicketDetail }> = ({ tick
                     slaRemainingMinutes={ticket.slaRemainingMinutes}
                     pausedAt={ticket.lastPausedAt}
                 />
-                <div>
-                    <InfoRow label="Dibuat">{formatDateTimeID(ticket.createdAt)}</InfoRow>
-                    <InfoRow label="Aktivitas terakhir">{formatRelativeTime(ticket.updatedAt)}</InfoRow>
+                <div className="td-kvs">
                     {isPaused ? (
                         <InfoRow label="Dijeda sejak">{ticket.lastPausedAt ? formatDateTimeID(ticket.lastPausedAt) : '—'}</InfoRow>
                     ) : ticket.slaTarget && (
-                        <InfoRow label="Target SLA"><span className="font-semibold text-primary">{formatDateTimeID(ticket.slaTarget)}</span></InfoRow>
+                        <InfoRow label="Target SLA">{formatDateTimeID(ticket.slaTarget)}</InfoRow>
                     )}
+                    <InfoRow label="Diajukan">{formatDateTimeID(ticket.createdAt)}</InfoRow>
+                    <InfoRow label="Aktivitas terakhir">{formatRelativeTime(ticket.updatedAt)}</InfoRow>
                 </div>
             </SidebarCard>
+
+            <TicketParticipantsSection
+                ticketId={ticket.id}
+                creator={ticket.user}
+                participants={ticket.participants}
+                canManageUsers={canManageParticipants}
+                canAddUsers={canAddParticipants}
+                isClosed={isClosed}
+            />
 
             {ticket.isHardwareInstallation && <HardwareSchedule ticket={ticket} />}
         </div>

@@ -39,7 +39,7 @@ SLA Timer di-pause selama menunggu vendor.`;
             />
         );
 
-        expect(screen.getByText('Status: Menunggu Kunjungan Vendor')).toBeInTheDocument();
+        expect(screen.getByText('Menunggu kunjungan vendor')).toBeInTheDocument();
         expect(screen.getByText('Tiket ini menunggu kunjungan vendor.')).toBeInTheDocument();
         expect(screen.getByText('Setiap hari Kamis')).toBeInTheDocument();
         expect(screen.getByText('Kamis, 3 September 2026')).toBeInTheDocument();

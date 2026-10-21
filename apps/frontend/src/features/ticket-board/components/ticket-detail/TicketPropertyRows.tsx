@@ -23,16 +23,16 @@ const SEARCH_OPTION_THRESHOLD = 8;
 
 type AttributeOption = { id: string; value: string };
 
+/** Mockup `.prop`: plain label left, value right. `icon` is accepted for callers but not drawn. */
 export const PropertyRow: React.FC<{
-    icon: React.ElementType;
+    icon?: React.ElementType;
     label: string;
     saving?: boolean;
     saved?: boolean;
     children: React.ReactNode;
-}> = ({ icon: Icon, label, saving = false, saved = false, children }) => (
+}> = ({ label, saving = false, saved = false, children }) => (
     <div className="ticket-prop">
         <span className="ticket-prop-label">
-            <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             {label}
             {saving && <Loader2 className="h-3 w-3 animate-spin text-primary" aria-label="Menyimpan" />}
             {!saving && saved && <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" aria-label="Tersimpan" />}
@@ -41,11 +41,10 @@ export const PropertyRow: React.FC<{
     </div>
 );
 
-/** Readonly status bubble (requester inspector, header). */
+/** Readonly status bubble (requester inspector, header): mockup `.bub` with a status dot. */
 export const StatusPill: React.FC<{ status: string }> = ({ status }) => {
     const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.TODO;
-    const Icon = cfg.icon;
-    return <TicketPill tone={STATUS_TONES[status] || 'neutral'}><Icon aria-hidden="true" className="h-3 w-3 shrink-0" />{cfg.label}</TicketPill>;
+    return <TicketPill tone={STATUS_TONES[status] || 'neutral'}><span aria-hidden="true" className="td-pill-dot" />{cfg.label}</TicketPill>;
 };
 
 /** Readonly priority bubble; `short` uses the compact label (header). */

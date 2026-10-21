@@ -12,7 +12,6 @@ import {
     Building,
     Wrench,
     Copy,
-    Clock,
     Check,
     ChevronDown,
     CalendarPlus,
@@ -20,8 +19,7 @@ import {
     ChevronUp,
     ArrowRight,
     Bell,
-    User,
-    SlidersHorizontal,
+    BellRing,
     Lock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -43,6 +41,7 @@ import { SidebarCard, InfoRow, CardBadge, sidebarPanelClass } from './SidebarCar
 import { SlaProgress } from './SlaProgress';
 import { toDisplayName } from './messageThread';
 import { useAuth } from '@/stores/useAuth';
+import { Button } from '@/components/ui/button';
 
 interface TicketSidebarProps {
     ticket: TicketDetail;
@@ -254,57 +253,42 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
         )[0];
     }, [reminders]);
 
+    const openReminder = () => {
+        if (onSetReminder) onSetReminder();
+        else setReminderModalOpen(true);
+    };
+
     return (
         <div className={cn(sidebarPanelClass, "select-none")}>
 
-            {/* Requester */}
-            <SidebarCard title="Requester" icon={User}>
-                <div className="flex items-center gap-3">
+            {/* Pemohon */}
+            <SidebarCard title="Pemohon">
+                <div className="td-person">
                     <div className="relative shrink-0">
-                        <UserAvatar user={ticket.user} size="md" className="w-10 h-10 rounded-full" />
+                        <UserAvatar user={ticket.user} size="sm" className="h-9 w-9 rounded-full" />
                         <PresenceDot userId={ticket.user.id} userName={ticket.user.fullName} ringed className="absolute -bottom-0.5 -right-0.5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                            {toDisplayName(ticket.user.fullName)}
-                        </h4>
-                        <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-                            <span className="truncate">{ticket.user.email}</span>
-                            <button
-                                type="button"
-                                onClick={handleCopyEmail}
-                                className="p-0.5 hover:text-primary transition-colors shrink-0 cursor-pointer"
-                                title="Salin email"
-                                aria-label="Salin email"
-                            >
-                                {copiedEmail ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                            </button>
-                        </div>
-                        <p className="flex items-center gap-1 truncate text-xs text-slate-500 dark:text-slate-400">
-                            <Building className="w-3 h-3 shrink-0" />
+                        <b>{toDisplayName(ticket.user.fullName)}</b>
+                        <small>
                             <span className="truncate">
-                                {[ticket.user.department?.name, ticket.user.site?.name].filter(Boolean).join(' · ') || 'Tanpa departemen'}
+                                {[ticket.user.email, ticket.user.department?.name, ticket.user.site?.name].filter(Boolean).join(' · ') || 'Tanpa departemen'}
                             </span>
-                        </p>
+                            {ticket.user.email && (
+                                <button type="button" onClick={handleCopyEmail} className="shrink-0 cursor-pointer p-0.5 transition-colors hover:text-primary"
+                                    title="Salin email" aria-label="Salin email">
+                                    {copiedEmail ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                                </button>
+                            )}
+                        </small>
                     </div>
                 </div>
             </SidebarCard>
 
-            {/* 3. Ticket Participants (All Tickets / Multi-user Group) */}
-            <TicketParticipantsSection
-                ticketId={ticket.id}
-                creator={ticket.user}
-                participants={ticket.participants}
-                canManageUsers={canManageParticipants}
-                canAddUsers={canAddParticipants}
-                isClosed={isClosed}
-            />
-
             {/* Ticket properties */}
             <SidebarCard
-                title="Properti tiket"
-                icon={SlidersHorizontal}
-                                accessory={isLocked ? (
+                title="Properti"
+                accessory={isLocked ? (
                     <CardBadge tone="amber"><Lock className="w-3 h-3" />Terkunci</CardBadge>
                 ) : undefined}
             >
@@ -347,8 +331,6 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
             {/* SLA & Tracking */}
             <SidebarCard
                 title="SLA"
-                icon={Clock}
-                bodyClassName="space-y-3"
                 accessory={
                     <div className="flex items-center gap-1.5">
                         {ticket.slaAdjustments && ticket.slaAdjustments.length > 0 && (
@@ -378,89 +360,41 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     slaRemainingMinutes={ticket.slaRemainingMinutes}
                     pausedAt={ticket.lastPausedAt}
                 />
-                <div>
-                    <InfoRow label="Dibuat">{formatDateTimeID(ticket.createdAt)}</InfoRow>
-                    <InfoRow label="Aktivitas terakhir">{formatRelativeTime(ticket.updatedAt)}</InfoRow>
+                <div className="td-kvs">
                     {ticket.status === 'WAITING_VENDOR' ? (
                         <InfoRow label="Dijeda sejak">
                             {ticket.lastPausedAt ? formatDateTimeID(ticket.lastPausedAt) : '—'}
                         </InfoRow>
                     ) : ticket.slaTarget && (
-                        <InfoRow label="Target SLA">
-                            <span className="font-semibold text-primary">{formatDateTimeID(ticket.slaTarget)}</span>
-                        </InfoRow>
+                        <InfoRow label="Target SLA">{formatDateTimeID(ticket.slaTarget)}</InfoRow>
                     )}
+                    <InfoRow label="Dibuat">{formatDateTimeID(ticket.createdAt)}</InfoRow>
+                    <InfoRow label="Aktivitas terakhir">{formatRelativeTime(ticket.updatedAt)}</InfoRow>
                 </div>
 
-                    {/* Scheduled Reminder Hint Card */}
-                    {nextReminder && (
-                        <div
-                            onClick={() => {
-                                if (onSetReminder) onSetReminder();
-                                else setReminderModalOpen(true);
-                            }}
-                            className="group p-2.5 rounded-xl bg-primary/5 hover:bg-primary/10 dark:bg-primary/10 dark:hover:bg-primary/15 transition-colors cursor-pointer space-y-1"
-                            title="Klik untuk melihat atau mengubah jadwal pengingat email"
-                        >
-                            <div className="flex items-center justify-between">
-                                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-primary">
-                                    <Bell className="w-3.5 h-3.5 text-primary fill-primary/20" />
-                                    <span>Pengingat Terjadwal</span>
-                                </span>
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">
-                                    {formatDistanceToNow(new Date(nextReminder.remindAt), { addSuffix: true, locale: idLocale })}
-                                </span>
-                            </div>
-                            <div className="flex items-center justify-between text-xs">
-                                <span className="font-bold text-slate-800 dark:text-slate-200">
-                                    {formatDateTimeID(nextReminder.remindAt)}
-                                </span>
-                                <span className="text-[10px] font-semibold text-primary group-hover:underline">
-                                    Ubah →
-                                </span>
-                            </div>
-                            {nextReminder.note && (
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400 italic truncate pt-0.5 border-t border-primary/15">
-                                    "{nextReminder.note}"
-                                </p>
+                    {/* Actions: Perpanjang SLA & Set Reminder (mockup .actions.pair, secondary) */}
+                    {!isLocked && (
+                        <div className="td-pair">
+                            {onExtendSla && (isAdmin || user?.role?.startsWith('AGENT')) && (
+                                <Button variant="soft" onClick={onExtendSla} title="Perpanjang target SLA">
+                                    <CalendarPlus aria-hidden="true" /><span>Perpanjang SLA</span>
+                                </Button>
                             )}
+                            <Button variant="soft" onClick={openReminder} title="Atur pengingat email untuk agent">
+                                <Bell aria-hidden="true" /><span>{nextReminder ? 'Ubah Reminder' : 'Set Reminder'}</span>
+                            </Button>
                         </div>
                     )}
 
-                    {/* Actions: Perpanjang SLA & Atur Pengingat */}
-                    {!isLocked && (
-                        <div>
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
-                                {onExtendSla && (isAdmin || user?.role?.startsWith('AGENT')) && (
-                                    <button
-                                        type="button"
-                                        onClick={onExtendSla}
-                                        className="inline-flex items-center gap-1.5 text-[13px] font-medium text-primary hover:underline cursor-pointer"
-                                        title="Perpanjang target SLA"
-                                    >
-                                        <CalendarPlus className="w-3.5 h-3.5" />
-                                        <span>Perpanjang SLA</span>
-                                    </button>
-                                )}
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (onSetReminder) onSetReminder();
-                                        else setReminderModalOpen(true);
-                                    }}
-                                    className={cn(
-                                        "inline-flex items-center gap-1.5 text-[13px] font-medium text-primary hover:underline cursor-pointer"
-                                    )}
-                                    title="Atur pengingat email untuk agent"
-                                >
-                                    <Bell className={cn("w-3.5 h-3.5", nextReminder && "fill-primary")} />
-                                    <span>{nextReminder ? 'Ubah Reminder' : 'Set Reminder'}</span>
-                                    {nextReminder && (
-                                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                                    )}
-                                </button>
-                            </div>
-                        </div>
+                    {/* Scheduled reminder (mockup .reminder-chip) */}
+                    {nextReminder && (
+                        <button type="button" onClick={openReminder} className="td-reminder-chip"
+                            title={nextReminder.note ? `"${nextReminder.note}"` : 'Lihat atau ubah jadwal pengingat email'}>
+                            <BellRing aria-hidden="true" />
+                            <span className="min-w-0 truncate">
+                                Reminder: {formatDateTimeID(nextReminder.remindAt)} · {formatDistanceToNow(new Date(nextReminder.remindAt), { addSuffix: true, locale: idLocale })}
+                            </span>
+                        </button>
                     )}
 
                     {/* Expandable History Accordion */}
@@ -497,6 +431,16 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                         </div>
                     )}
             </SidebarCard>
+
+            {/* 3. Ticket Participants (All Tickets / Multi-user Group) */}
+            <TicketParticipantsSection
+                ticketId={ticket.id}
+                creator={ticket.user}
+                participants={ticket.participants}
+                canManageUsers={canManageParticipants}
+                canAddUsers={canAddParticipants}
+                isClosed={isClosed}
+            />
 
             {/* 4. Hardware Installation Schedule (if applicable) */}
             {ticket.isHardwareInstallation && (

@@ -94,7 +94,7 @@ describe('TicketChat surface', () => {
 
     it('keeps the draft and queued files when sending is rejected', async () => {
         const onSend = renderChat(vi.fn(() => Promise.reject(new Error('Tiket sudah ditutup'))));
-        const input = screen.getByRole('textbox', { name: 'Balas ke requester…' }) as HTMLTextAreaElement;
+        const input = screen.getByRole('textbox', { name: 'Balas ke pemohon…' }) as HTMLTextAreaElement;
         fireEvent.change(input, { target: { value: 'coba lagi' } });
         const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
         fireEvent.change(fileInput, { target: { files: [new File(['x'], 'bukti.png', { type: 'image/png' })] } });

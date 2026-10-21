@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, Clock, Copy, PanelRightClose, PanelRightOpen, Pause, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Check, CheckCircle2, ChevronLeft, Clock, Copy, Ellipsis, PanelRightClose, PanelRightOpen, Pause, XCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
 import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 import { formatSlaDuration } from '@/lib/utils/slaDuration';
 import type { TicketDetail } from '../../ticket-board/components/ticket-detail/types';
-import { STATUS_CONFIG, isTerminalStatus } from '../../ticket-board/components/ticket-detail/constants';
+import { isTerminalStatus } from '../../ticket-board/components/ticket-detail/constants';
 import { PriorityPill, StatusPill } from '../../ticket-board/components/ticket-detail/TicketPropertyRows';
 import { SelfResolveButton } from './resolution/SelfResolveButton';
 
@@ -42,23 +44,24 @@ const useRequesterSla = (ticket: TicketDetail) => {
     }, []);
 
     return useMemo((): { state: SlaState; label: string; tooltip?: string } => {
-        if (isTerminalStatus(ticket.status)) return { state: 'resolved', label: 'Done' };
+        if (isTerminalStatus(ticket.status)) return { state: 'resolved', label: 'Selesai' };
         if (ticket.status === 'WAITING_VENDOR') {
             return {
                 state: 'paused',
-                label: ticket.slaRemainingMinutes != null
+                label: 'Menunggu vendor',
+                tooltip: ticket.slaRemainingMinutes != null
                     ? `Dijeda · sisa ${formatSlaDuration(ticket.slaRemainingMinutes * MS_PER_MINUTE)}`
                     : 'Dijeda',
             };
         }
-        if (!ticket.slaTarget) return { state: 'none', label: 'No SLA' };
+        if (!ticket.slaTarget) return { state: 'none', label: 'Tanpa SLA' };
         const countdown = slaCountdown(ticket.slaTarget, now, ticket.priority, slaClock);
         const diff = countdown.remainingMs;
         if (countdown.offHours) {
-            return { state: 'paused', label: `${formatTimeRemaining(diff)} (dijeda)`, tooltip: offHoursLabel(countdown, now, slaClock) };
+            return { state: 'paused', label: `SLA: ${formatTimeRemaining(diff)} (dijeda)`, tooltip: offHoursLabel(countdown, now, slaClock) };
         }
-        if (diff <= 0) return { state: 'overdue', label: 'Overdue' };
-        return { state: diff < WARNING_MS ? 'warning' : 'ok', label: formatTimeRemaining(diff) };
+        if (diff <= 0) return { state: 'overdue', label: 'Lewat target' };
+        return { state: diff < WARNING_MS ? 'warning' : 'ok', label: `SLA: ${formatTimeRemaining(diff)}` };
     }, [ticket.status, ticket.slaTarget, ticket.priority, ticket.slaRemainingMinutes, now, slaClock]);
 };
 
@@ -69,6 +72,8 @@ interface ClientTicketHeaderProps {
     onToggleSidebar: () => void;
     /** Requester may close their own open ticket ("Tandai Selesai"). */
     canSelfResolve?: boolean;
+    /** Percakapan / Aktivitas switch rendered as the header's last row. */
+    tabs?: React.ReactNode;
 }
 
 const MergedNotice: React.FC<{ parentNumber: string }> = ({ parentNumber }) => {
@@ -90,17 +95,15 @@ const MergedNotice: React.FC<{ parentNumber: string }> = ({ parentNumber }) => {
     );
 };
 
-export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, onCancel, isSidebarOpen, onToggleSidebar, canSelfResolve = false }) => {
+export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, onCancel, isSidebarOpen, onToggleSidebar, canSelfResolve = false, tabs }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [copied, setCopied] = useState(false);
     const sla = useRequesterSla(ticket);
     const SlaIcon = SLA_ICONS[sla.state];
 
-    // CLOSED is the confirmed/final form of RESOLVED; both render as "done".
-    const isResolved = ticket.status === 'RESOLVED' || ticket.status === 'CLOSED';
     const isTerminal = isTerminalStatus(ticket.status);
-    const terminalLabel = isResolved ? (STATUS_CONFIG[ticket.status] || STATUS_CONFIG.TODO).label : 'Cancelled';
+    const showSelfResolve = canSelfResolve && !isTerminal;
     const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
     const mergedParent = useMemo(() => ticket.description?.match(/\[MERGED INTO #([^\]]+)\]/)?.[1] ?? null, [ticket.description]);
 
@@ -114,7 +117,7 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
         const num = ticket.ticketNumber || ticket.id;
         navigator.clipboard.writeText(num);
         setCopied(true);
-        toast.success(`Copied ticket #${num}`);
+        toast.success(`Nomor tiket #${num} disalin`);
         setTimeout(() => setCopied(false), 2000);
     };
 
@@ -122,53 +125,61 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
         <>
             {mergedParent && <MergedNotice parentNumber={mergedParent} />}
             <header className="ticket-detail-head">
-                <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" onClick={handleBack} className="ticket-detail-back -ml-1.5" title="Kembali" aria-label="Kembali">
-                        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                <div className="td-line">
+                    <button type="button" onClick={handleBack} className="ticket-detail-back" title="Kembali ke daftar" aria-label="Kembali ke daftar">
+                        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                     </button>
-                    <button type="button" onClick={handleCopyNumber} className="ticket-id-pill" title="Klik untuk salin nomor tiket"
+                    <button type="button" onClick={handleCopyNumber} className="ticket-id-pill" title="Salin nomor tiket"
                         aria-label={`Salin nomor tiket #${ticketNumber}`}>
                         <span>#{ticketNumber}</span>
-                        {copied ? <Check className="h-3 w-3 text-emerald-600" aria-hidden="true" /> : <Copy className="h-3 w-3" aria-hidden="true" />}
+                        {copied ? <Check className="text-emerald-600" aria-hidden="true" /> : <Copy aria-hidden="true" />}
                     </button>
                     <StatusPill status={ticket.status} />
                     <TicketPill tone={SLA_TONES[sla.state]} title={sla.tooltip}>
                         <SlaIcon className={cn('h-3 w-3 shrink-0', sla.state === 'overdue' && 'animate-pulse')} aria-hidden="true" />
-                        <span className="tabular-nums">SLA: {sla.label}</span>
+                        <span className="tabular-nums">{sla.label}</span>
                     </TicketPill>
                     <PriorityPill priority={ticket.priority} short />
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                <div className="td-line">
                     <h1 className="ticket-detail-title min-w-0">{ticket.title}</h1>
-                    <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                        {canSelfResolve && !isTerminal && <SelfResolveButton ticketId={ticket.id} className="h-8 rounded-full" />}
-                        {isTerminal ? (
-                            <TicketPill tone={isResolved ? 'green' : 'red'}>
-                                {isResolved ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5" aria-hidden="true" />}
-                                {terminalLabel}
-                            </TicketPill>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={onCancel}
-                                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium text-rose-700 transition-colors hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950/40"
-                            >
-                                <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
-                                <span>Cancel Ticket</span>
-                            </button>
+                    <span className="td-spacer" />
+                    <div className="td-acts">
+                        {!isTerminal && (
+                            <>
+                                <Button variant="danger" className="td-act-wide" onClick={onCancel} title="Batalkan tiket ini">
+                                    <XCircle aria-hidden="true" /><span>Batalkan</span>
+                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="subtle" size="icon" className="td-act-more" aria-label="Aksi lainnya" title="Aksi lainnya">
+                                            <Ellipsis aria-hidden="true" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" variant="compact" aria-label="Aksi lainnya">
+                                        <DropdownMenuItem onSelect={handleCopyNumber}><Copy />Salin nomor tiket</DropdownMenuItem>
+                                        <DropdownMenuItem variant="destructive" onSelect={onCancel}><XCircle />Batalkan tiket</DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </>
                         )}
-                        <button
-                            type="button"
+                        {!isTerminal && showSelfResolve && <span className="td-act-sep" aria-hidden="true" />}
+                        {showSelfResolve && <SelfResolveButton ticketId={ticket.id} ticketNumber={ticketNumber} />}
+                        <Button
+                            variant="subtle"
+                            size="icon"
+                            className="td-act-panel hidden lg:inline-flex"
                             onClick={onToggleSidebar}
-                            className="hidden h-8 w-8 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted lg:inline-flex"
-                            title={isSidebarOpen ? 'Hide Ticket Properties' : 'Show Ticket Properties'}
-                            aria-label={isSidebarOpen ? 'Hide Ticket Properties' : 'Show Ticket Properties'}
+                            aria-pressed={isSidebarOpen}
+                            title={isSidebarOpen ? 'Sembunyikan properti' : 'Tampilkan properti'}
+                            aria-label={isSidebarOpen ? 'Sembunyikan properti' : 'Tampilkan properti'}
                         >
-                            {isSidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-                        </button>
+                            {isSidebarOpen ? <PanelRightClose aria-hidden="true" /> : <PanelRightOpen aria-hidden="true" />}
+                        </Button>
                     </div>
                 </div>
+                {tabs}
             </header>
         </>
     );

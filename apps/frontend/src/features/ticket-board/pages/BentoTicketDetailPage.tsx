@@ -18,8 +18,8 @@ import { SetTicketReminderModal } from '../components/ticket-detail/SetTicketRem
 import { TicketDetailSkeleton } from '../components/TicketDetailSkeleton';
 import { KbSuggestionDialog } from '../components/KbSuggestionDialog';
 import { useTicketShortcuts } from '@/hooks/useTicketShortcuts';
-import { MessageSquare, History, SlidersHorizontal, Info, AlertTriangle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { AlertTriangle } from 'lucide-react';
+import { DetailTabs, type DetailTab } from '../components/ticket-detail/DetailTabs';
 import { TicketAttributes } from '../types';
 import { toUploadPercent, validateFiles } from '@/lib/file-validation';
 import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
@@ -38,7 +38,7 @@ export const BentoTicketDetailPage: React.FC = () => {
     const [forwardOpen, setForwardOpen] = useState(false);
     const [extendSlaOpen, setExtendSlaOpen] = useState(false);
     const [reminderOpen, setReminderOpen] = useState(false);
-    const [mainTab, setMainTab] = useState<'chat' | 'details' | 'activity'>('chat');
+    const [mainTab, setMainTab] = useState<DetailTab>('chat');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [suggestionsOpen, setSuggestionsOpen] = useState(false);
     const chatInputRef = useRef<HTMLTextAreaElement>(null);
@@ -389,7 +389,6 @@ export const BentoTicketDetailPage: React.FC = () => {
     const isRequesterView = ticket.viewerAccess === 'requester';
     const canAct = !isClosed && !isRequesterView;
     const canExtendSla = canAct && (isAdmin || Boolean(user?.role?.startsWith('AGENT')));
-    const messageCount = ticket.messages?.filter(m => !m.isSystemMessage).length || 0;
 
     const handleToggleSidebar = () => {
         if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -415,6 +414,7 @@ export const BentoTicketDetailPage: React.FC = () => {
                 onSetReminder={canAct ? () => setReminderOpen(true) : undefined}
                 isSidebarOpen={isSidebarOpen || mainTab === 'details'}
                 onToggleSidebar={handleToggleSidebar}
+                tabs={<DetailTabs value={mainTab} onChange={setMainTab} />}
             />
 
             {/* Critical Priority Banner Alert for Agents */}
@@ -444,101 +444,6 @@ export const BentoTicketDetailPage: React.FC = () => {
 
                 {/* Conversation / Activity / Mobile Details */}
                 <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
-
-                    {/* Navigation Tabs Header */}
-                    <div className="flex items-center justify-between border-b border-[hsl(var(--idesk-border)/0.7)] px-3 sm:px-[18px] shrink-0">
-                        {/* Desktop Tabs (>= lg) */}
-                        <div className="hidden lg:flex gap-6">
-                            <button
-                                type="button"
-                                onClick={() => setMainTab('chat')}
-                                className={cn(
-                                    "py-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2",
-                                    mainTab === 'chat'
-                                        ? "border-primary text-primary"
-                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                                <span>Conversation</span>
-                                <span className={cn(
-                                    "px-2 py-0.5 rounded-full text-[10px] font-bold",
-                                    mainTab === 'chat'
-                                        ? "bg-primary/10 text-primary"
-                                        : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                                )}>
-                                    {messageCount}
-                                </span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setMainTab('activity')}
-                                className={cn(
-                                    "py-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2",
-                                    mainTab === 'activity'
-                                        ? "border-primary text-primary"
-                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                <History className="w-3.5 h-3.5" />
-                                <span>Activity Logs</span>
-                            </button>
-                        </div>
-
-                        {/* Mobile Tabs (< lg) */}
-                        <div className="flex lg:hidden items-center justify-around w-full gap-1">
-                            <button
-                                type="button"
-                                onClick={() => setMainTab('chat')}
-                                className={cn(
-                                    "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
-                                    mainTab === 'chat'
-                                        ? "border-primary text-primary"
-                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                                <span>Chat</span>
-                                <span className={cn(
-                                    "px-1.5 py-0.2 rounded-full text-[10px] font-bold",
-                                    mainTab === 'chat'
-                                        ? "bg-primary/10 text-primary"
-                                        : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                                )}>
-                                    {messageCount}
-                                </span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setMainTab('details')}
-                                className={cn(
-                                    "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
-                                    mainTab === 'details'
-                                        ? "border-primary text-primary"
-                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                <SlidersHorizontal className="w-3.5 h-3.5" />
-                                <span>Properties</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setMainTab('activity')}
-                                className={cn(
-                                    "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
-                                    mainTab === 'activity'
-                                        ? "border-primary text-primary"
-                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                <History className="w-3.5 h-3.5" />
-                                <span>Logs</span>
-                            </button>
-                        </div>
-                    </div>
 
                     {/* Tab Content */}
                     <div className="flex-1 flex flex-col min-h-0 overflow-hidden" ref={chatSectionRef}>

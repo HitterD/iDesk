@@ -13,6 +13,8 @@ import {
     UserPlus,
     UserMinus,
     Share2,
+    Truck,
+    UserRoundCog,
     Calendar,
     Hourglass,
     Info,
@@ -34,6 +36,8 @@ interface SystemMessageEventProps {
     attachments?: string[];
     onImageClick?: (url: string) => void;
     className?: string;
+    /** Requester copy hides staff-only details (SLA pause note, actor). */
+    audience?: 'staff' | 'requester';
 }
 
 // Config for status badges with Indonesian labels & tailored colors
@@ -109,6 +113,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
     attachments = [],
     onImageClick,
     className,
+    audience = 'staff',
 }) => {
     // 0. Detect Resolution Statement Notice
     const isResolvedStatement =
@@ -314,7 +319,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                             <div className="flex items-center gap-1.5 min-w-0">
                                 <UserIcon className="w-3 h-3 text-slate-400 shrink-0" />
                                 <span className="truncate">
-                                    Diperpanjang oleh <strong className="text-slate-600 dark:text-slate-300 font-medium">{toDisplayName(actor)}</strong>
+                                    Diperpanjang oleh <strong className="font-medium">{toDisplayName(actor)}</strong>
                                 </span>
                             </div>
                         ) : (
@@ -343,87 +348,33 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         const isSlaPaused = content.includes('SLA Timer di-pause') || content.includes('pause');
 
         return (
-            <div className={cn("w-full flex justify-center my-3.5 px-2", className)}>
-                <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/[0.04] dark:ring-white/[0.06] overflow-hidden text-left">
-                    {/* Header Banner */}
-                    <div className="px-4 pt-3.5 pb-1 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center shrink-0">
-                                <Store className="w-4 h-4" />
-                            </div>
-                            <div>
-                                <h4 className="text-[13px] font-semibold text-slate-900 dark:text-white">
-                                    Status: Menunggu Kunjungan Vendor
-                                </h4>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    Tiket diteruskan ke jadwal penanganan vendor luar
-                                </p>
-                            </div>
-                        </div>
-                        <span className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0">
-                            {formatRelativeTime(createdAt)}
-                        </span>
-                    </div>
-
-                    {/* Content Details */}
-                    <div className="px-4 pt-2 pb-3.5 space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
-                        {descriptionMatch && (
-                            <div className="flex items-start gap-2 text-slate-600 dark:text-slate-400 pb-1">
-                                <Info className="w-3.5 h-3.5 text-orange-500 shrink-0 mt-0.5" />
-                                <span className="font-medium text-slate-800 dark:text-slate-200">{descriptionMatch[1].trim()}</span>
-                            </div>
-                        )}
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                            {scheduleMatch && (
-                                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-100/70 dark:bg-white/[0.04]">
-                                    <Calendar className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                                    <div>
-                                        <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Jadwal Vendor</div>
-                                        <div className="font-semibold text-slate-800 dark:text-slate-100">{scheduleMatch[1].trim()}</div>
-                                    </div>
-                                </div>
+            <div className={cn('chat-event', className)}>
+                <div className="chat-event-h">
+                    <span className="chat-event-ic"><Truck aria-hidden="true" /></span>
+                    <div className="min-w-0">
+                        <b>Menunggu kunjungan vendor</b>
+                        <small>
+                            {audience === 'requester' ? 'Teknisi vendor akan datang ke lokasi Anda' : 'Ditambahkan ke jadwal vendor luar'}
+                            {actorMatch && audience !== 'requester' && (
+                                <> · oleh <strong className="font-medium">{toDisplayName(actorMatch[1].trim())}</strong></>
                             )}
-
-                            {visitMatch && (
-                                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-100/70 dark:bg-white/[0.04]">
-                                    <Hourglass className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                                    <div>
-                                        <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Perkiraan Kunjungan</div>
-                                        <div className="font-bold text-orange-600 dark:text-orange-400">{visitMatch[1].trim()}</div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {waitMatch && (
-                            <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 px-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                                <span>Estimasi waktu tunggu: <strong className="text-slate-700 dark:text-slate-300">{waitMatch[1].trim()}</strong></span>
-                            </div>
-                        )}
-
-                        {isSlaPaused && (
-                            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 font-medium text-xs">
-                                <Pause className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                                <span>Perhitungan waktu SLA di-pause sementara menunggu kehadiran vendor.</span>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Card Footer */}
-                    <div className="px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 text-[11px] text-slate-500 dark:text-slate-400">
-                        {actorMatch ? (
-                            <div className="flex items-center gap-1.5">
-                                <UserIcon className="w-3 h-3 text-slate-400" />
-                                <span>Diubah oleh <strong className="font-medium text-slate-700 dark:text-slate-200">{toDisplayName(actorMatch[1].trim())}</strong></span>
-                            </div>
-                        ) : (
-                            <span>Notifikasi Sistem</span>
-                        )}
-                        <span>{formatDateTimeID(createdAt)}</span>
+                            {' · '}{formatMessageTime(createdAt)}
+                        </small>
                     </div>
                 </div>
+                {descriptionMatch && <p className="chat-event-note m-0"><Info aria-hidden="true" />{descriptionMatch[1].trim()}</p>}
+                {(scheduleMatch || visitMatch) && (
+                    <div className="chat-event-kv">
+                        {scheduleMatch && <div><small>Jadwal vendor</small><b>{scheduleMatch[1].trim()}</b></div>}
+                        {visitMatch && <div><small>Perkiraan kunjungan</small><b>{visitMatch[1].trim()}</b></div>}
+                    </div>
+                )}
+                {waitMatch && (
+                    <p className="chat-event-note m-0"><Hourglass aria-hidden="true" />Estimasi waktu tunggu: <strong className="font-semibold">{waitMatch[1].trim()}</strong></p>
+                )}
+                {isSlaPaused && audience !== 'requester' && (
+                    <p className="chat-event-note m-0"><Pause aria-hidden="true" />Perhitungan waktu SLA di-pause sampai vendor datang dan tiket dilanjutkan.</p>
+                )}
             </div>
         );
     }
@@ -443,9 +394,9 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         const ToIcon = toConfig.icon;
 
         return (
-            <div className={cn("flex flex-col items-center my-3 px-2 text-slate-500 dark:text-slate-400", className)}>
+            <div className={cn("chat-sys", className)}>
+                <span className="chat-sys-ic"><ToIcon aria-hidden="true" /></span>
                 <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed">
-                    <ToIcon className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
                     <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Status:</span>
 
                     {/* From Badge */}
@@ -470,52 +421,52 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                 </div>
 
                 {/* Subtitle / Actor Info */}
-                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                <small className="flex items-center gap-1">
                     {actor && (
                         <>
-                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-medium">{toDisplayName(actor)}</strong></span>
+                            <span>oleh <strong className="font-medium">{toDisplayName(actor)}</strong></span>
                             <span>·</span>
                         </>
                     )}
                     <span>{formatMessageTime(createdAt)}</span>
-                </div>
+                </small>
             </div>
         );
     }
 
-    // 3. Parse Assignment Change (e.g. "System: Ticket assigned to BAGAS by ANDREW ALFONSO SETIAWAN")
-    const assignMatch = cleanContent.match(/Ticket assigned to (.+?)(?:\s*\(was\s*(.+?)\))?(?:\s+by\s+([^,.]+))?$/i) ||
+    // 3. Parse Assignment Change, e.g. "Ticket reassigned to B (was A) by C. Alasan: ..." (status-takeover.ts)
+    const assignMatch = cleanContent.match(/Ticket (?:re)?assigned to (.+?)(?:\s*\(was\s*(.+?)\))?(?:\s+by\s+(.+?))?(?:\.?\s*\(?Alasan:\s*(.+?)\)?)?$/i) ||
         cleanContent.match(/Assigned to:\s*([^,.]+)(?:\s+by\s+([^,.]+))?/i);
 
     if (assignMatch) {
         const to = assignMatch[1].trim();
-        const from = assignMatch[2]?.trim();
+        const rawFrom = assignMatch[2]?.trim();
+        const from = rawFrom && !['none', 'unassigned'].includes(rawFrom.toLowerCase()) ? rawFrom : undefined;
         const actor = assignMatch[3]?.trim();
+        const reason = assignMatch[4]?.trim();
+        const requesterView = audience === 'requester';
 
         return (
-            <div className={cn("flex flex-col items-center my-3 px-2 text-slate-500 dark:text-slate-400", className)}>
-                <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                    <UserCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
-                    <span>Penugasan Teknisi:</span>
-                    {from && from.toLowerCase() !== 'none' && from.toLowerCase() !== 'unassigned' && (
-                        <>
-                            <span className="line-through text-slate-400 dark:text-slate-500 text-[11px]">{from}</span>
-                            <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
-                        </>
+            <div className={cn("chat-sys", className)}>
+                <span className="chat-sys-ic"><UserRoundCog aria-hidden="true" /></span>
+                <span>
+                    {requesterView ? (
+                        <>Tiket Anda sekarang ditangani <b>{toDisplayName(to)}</b></>
+                    ) : from ? (
+                        <>PIC dialihkan dari {toDisplayName(from)} ke <b>{toDisplayName(to)}</b>{reason && <> · Alasan: {reason}</>}</>
+                    ) : (
+                        <>Penugasan Teknisi: <b>{to}</b>{reason && <> · Alasan: {reason}</>}</>
                     )}
-                    <span className="font-semibold text-teal-700 dark:text-teal-300">
-                        {to}
-                    </span>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                    {actor && (
+                </span>
+                <small className="flex items-center gap-1">
+                    {actor && !requesterView && (
                         <>
-                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-medium">{toDisplayName(actor)}</strong></span>
+                            <span>oleh <strong className="font-medium">{toDisplayName(actor)}</strong></span>
                             <span>·</span>
                         </>
                     )}
                     <span>{formatMessageTime(createdAt)}</span>
-                </div>
+                </small>
             </div>
         );
     }
@@ -531,9 +482,9 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         const toCfg = PRIORITY_MAP[toP] || { label: toP, bg: 'bg-amber-100 dark:bg-amber-950/60', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-300 dark:border-amber-800' };
 
         return (
-            <div className={cn("flex flex-col items-center my-3 px-2 text-slate-500 dark:text-slate-400", className)}>
+            <div className={cn("chat-sys", className)}>
+                <span className="chat-sys-ic"><AlertCircle aria-hidden="true" /></span>
                 <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed">
-                    <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                     <span className="font-medium text-slate-500 dark:text-slate-400">Prioritas:</span>
                     <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-medium opacity-70", fromCfg.bg, fromCfg.text)}>
                         {fromCfg.label}
@@ -543,15 +494,15 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                         {toCfg.label}
                     </span>
                 </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                <small className="flex items-center gap-1">
                     {actor && (
                         <>
-                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-medium">{toDisplayName(actor)}</strong></span>
+                            <span>oleh <strong className="font-medium">{toDisplayName(actor)}</strong></span>
                             <span>·</span>
                         </>
                     )}
                     <span>{formatMessageTime(createdAt)}</span>
-                </div>
+                </small>
             </div>
         );
     }
@@ -563,23 +514,21 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         const actor = forwardMatch[2]?.trim();
 
         return (
-            <div className={cn("flex flex-col items-center my-3 px-2 text-slate-500 dark:text-slate-400", className)}>
-                <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                    <Share2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+            <div className={cn("chat-sys", className)}>
+                <span className="chat-sys-ic"><Share2 aria-hidden="true" /></span>
+                <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed">
                     <span>Tiket Diteruskan ke:</span>
-                    <span className="font-semibold text-blue-700 dark:text-blue-300">
-                        {target}
-                    </span>
+                    <b>{target}</b>
                 </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                <small className="flex items-center gap-1">
                     {actor && (
                         <>
-                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-medium">{toDisplayName(actor)}</strong></span>
+                            <span>oleh <strong className="font-medium">{toDisplayName(actor)}</strong></span>
                             <span>·</span>
                         </>
                     )}
                     <span>{formatMessageTime(createdAt)}</span>
-                </div>
+                </small>
             </div>
         );
     }
@@ -608,7 +557,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
 
     return (
         <div className={cn("flex justify-center my-2 px-2", className)}>
-            <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+            <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed">
                 {isAdd ? (
                     <UserPlus className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                 ) : isRemove ? (

@@ -198,8 +198,8 @@ export const BentoTopbar = () => {
                             setIsOpen(true);
                         }}
                         onFocus={() => setIsOpen(true)}
-                        placeholder="Search tickets, articles..."
-                        aria-label="Search tickets, articles"
+                        placeholder="Cari tiket, artikel, atau menu"
+                        aria-label="Cari tiket, artikel, atau menu"
                         className="idesk-topbar-search w-full h-10 pl-10 pr-20 rounded-xl text-sm transition-[box-shadow,border-color,background-color] duration-200 ease-out font-sans"
                     />
                     {searchQuery ? (

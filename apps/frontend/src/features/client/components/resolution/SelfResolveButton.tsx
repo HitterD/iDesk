@@ -4,20 +4,20 @@ import { CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { getApiErrorMessage, invalidateTicketQueries } from './resolutionApi';
 
 interface SelfResolveButtonProps {
     ticketId: string;
+    /** Display number for the confirmation copy. */
+    ticketNumber?: string;
     className?: string;
-    /** Hide the text label (compact mobile header). */
-    iconOnly?: boolean;
     /** Called after the ticket was closed by the requester. */
     onResolved?: () => void;
 }
 
-/** Lets the requester close their own open ticket ("Tandai Selesai"). */
-export const SelfResolveButton: React.FC<SelfResolveButtonProps> = ({ ticketId, className, iconOnly, onResolved }) => {
+/** Mockup ticket.html?as=user: the single primary action "Masalah sudah selesai". */
+export const SelfResolveButton: React.FC<SelfResolveButtonProps> = ({ ticketId, ticketNumber, className, onResolved }) => {
     const queryClient = useQueryClient();
     const [isOpen, setIsOpen] = useState(false);
 
@@ -35,29 +35,19 @@ export const SelfResolveButton: React.FC<SelfResolveButtonProps> = ({ ticketId, 
 
     return (
         <>
-            <button
-                type="button"
-                onClick={() => setIsOpen(true)}
-                title="Tandai Selesai"
-                aria-label="Tandai Selesai"
-                className={cn(
-                    'inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-900/50 text-xs font-semibold transition-colors cursor-pointer',
-                    iconOnly ? 'p-1.5' : 'px-3 py-1.5',
-                    className,
-                )}
-            >
-                <CheckCircle2 className={iconOnly ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
-                {!iconOnly && <span>Tandai Selesai</span>}
-            </button>
+            <Button variant="primary" onClick={() => setIsOpen(true)} className={className} title="Tutup tiket karena masalah sudah selesai">
+                <CheckCircle2 aria-hidden="true" />
+                <span>Masalah sudah selesai</span>
+            </Button>
             <ConfirmationDialog
                 isOpen={isOpen}
                 onCancel={() => setIsOpen(false)}
                 onConfirm={() => selfResolveMutation.mutate()}
                 isLoading={selfResolveMutation.isPending}
-                title="Tandai Selesai"
-                description="Apakah masalah Anda benar-benar sudah selesai? Tiket akan ditutup dan tidak dapat dibalas lagi."
-                confirmText="Ya, sudah selesai"
-                cancelText="Batal"
+                title="Masalah sudah selesai?"
+                description={`Tiket${ticketNumber ? ` #${ticketNumber}` : ''} akan ditutup dan tidak dapat dibalas lagi. Anda bisa membuat tiket baru jika kendala muncul lagi.`}
+                confirmText="Ya, tutup tiket"
+                cancelText="Belum"
                 variant="success"
             />
         </>

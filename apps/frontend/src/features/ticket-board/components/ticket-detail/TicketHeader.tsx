@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ExternalSourceBadge } from '@/components/ui/ExternalSourceBadge';
 import { cn } from '@/lib/utils';
 import {
-    ArrowLeft,
+    ChevronLeft,
     CheckCircle2,
     XCircle,
     Clock,
@@ -14,8 +14,9 @@ import {
     Check,
     PanelRightOpen,
     PanelRightClose,
-    ArrowLeftRight,
     ArrowRight,
+    Ellipsis,
+    Forward,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -28,7 +29,8 @@ import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ResolveTicketModal } from './ResolveTicketModal';
-import { useAuth } from '@/stores/useAuth';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface TicketHeaderProps {
     ticket: TicketDetail & {
@@ -47,12 +49,13 @@ interface TicketHeaderProps {
     onSetReminder?: () => void;
     isSidebarOpen?: boolean;
     onToggleSidebar?: () => void;
+    /** Percakapan / Aktivitas switch, rendered as the header's last row (mockup .convo-head .seg). */
+    tabs?: React.ReactNode;
 }
 
 type SlaState = 'none' | 'normal' | 'paused' | 'overdue' | 'warning';
 const SLA_TONES: Record<SlaState, TicketPillTone> = { none: 'neutral', normal: 'blue', paused: 'amber', overdue: 'red', warning: 'amber' };
 const SLA_ICONS: Record<SlaState, React.ElementType> = { none: Clock, normal: Clock, paused: Pause, overdue: AlertCircle, warning: Clock };
-const ACTION_BTN = 'inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium transition-colors active:scale-[0.98] cursor-pointer';
 
 const formatTimeRemaining = (diffMs: number): string => {
     if (diffMs <= 0) return 'Overdue';
@@ -75,6 +78,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
     onForward,
     onToggleSidebar,
     isSidebarOpen = true,
+    tabs,
 }) => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -82,7 +86,6 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
     const [showResolveConfirm, setShowResolveConfirm] = useState(false);
     const [currentTime, setCurrentTime] = useState<Date>(new Date());
-    const { user } = useAuth();
 
     // Update current time every minute for live SLA updates
     useEffect(() => {
@@ -187,6 +190,9 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
     };
 
     const isTerminal = isTerminalStatus(ticket.status);
+    const canCancel = !isTerminal && Boolean(onCancel);
+    const canForward = !isTerminal && Boolean(onForward);
+    const canResolve = !isTerminal && Boolean(onResolve);
     const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
     const isResolved = ticket.status === 'RESOLVED' || ticket.status === 'CLOSED';
     const slaTargetDate = ticket.slaTarget || ticket.targetResolutionDate;
@@ -216,8 +222,8 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                 : '';
             return {
                 resolutionTime: ticket.slaRemainingMinutes != null
-                    ? `Dijeda · sisa ${formatSlaDuration(ticket.slaRemainingMinutes * 60_000)}`
-                    : 'Dijeda',
+                    ? `SLA dijeda · sisa ${formatSlaDuration(ticket.slaRemainingMinutes * 60_000)}`
+                    : 'SLA dijeda',
                 slaTooltip: `Target SLA ditunda sementara.${held}`,
                 slaStatus: 'paused' as const,
             };
@@ -332,25 +338,25 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
             )}
 
             <header className="ticket-detail-head">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="td-line">
                     <button
                         type="button"
                         onClick={handleBack}
-                        className="ticket-detail-back -ml-1.5"
+                        className="ticket-detail-back"
                         title={targetInfo.label}
                         aria-label={targetInfo.label}
                     >
-                        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                     </button>
                     <button
                         type="button"
                         onClick={handleCopyNumber}
                         className="ticket-id-pill"
-                        title="Klik untuk salin nomor tiket"
+                        title="Salin nomor tiket"
                         aria-label={`Salin nomor tiket #${ticketNumber}`}
                     >
                         <span>#{ticketNumber}</span>
-                        {copied ? <Check className="h-3 w-3 text-emerald-600" aria-hidden="true" /> : <Copy className="h-3 w-3" aria-hidden="true" />}
+                        {copied ? <Check className="text-emerald-600" aria-hidden="true" /> : <Copy aria-hidden="true" />}
                     </button>
                     <StatusPill status={ticket.status} />
                     <TicketPill tone={slaTone} title={slaTooltip}>
@@ -367,61 +373,68 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                     <ExternalSourceBadge source={ticket.source} className="rounded-full py-1" />
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                <div className="td-line">
                     <h1 className="ticket-detail-title min-w-0">{ticket.title}</h1>
-                    <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                        {!isTerminal && onForward && (
-                            <button type="button" onClick={onForward} className={cn(ACTION_BTN, 'bg-muted text-foreground hover:bg-muted/70')} title="Teruskan tiket ke tim lain">
-                                <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden="true" />
-                                <span>Teruskan</span>
-                            </button>
+                    <span className="td-spacer" />
+                    <div className="td-acts">
+                        {canCancel && (
+                            <Button variant="danger" className="td-act-wide" onClick={() => setShowCancelConfirm(true)} disabled={isCancelling}
+                                title="Batalkan tiket ini">
+                                <XCircle aria-hidden="true" /><span>Batalkan</span>
+                            </Button>
                         )}
-                        {!isTerminal && onCancel && (
-                            <button
-                                type="button"
-                                onClick={() => setShowCancelConfirm(true)}
-                                disabled={isCancelling}
-                                className={cn(ACTION_BTN, 'text-rose-700 hover:bg-rose-50 disabled:opacity-50 dark:text-rose-300 dark:hover:bg-rose-950/40')}
-                                title="Batalkan tiket ini"
-                            >
-                                <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
-                                <span>Cancel Ticket</span>
-                            </button>
+                        {canForward && (
+                            <Button variant="soft" className="td-act-wide" onClick={onForward} title="Teruskan ke tim lain">
+                                <Forward aria-hidden="true" /><span>Teruskan</span>
+                            </Button>
                         )}
-                        {!isTerminal && onResolve && (
-                            <button
-                                type="button"
-                                onClick={() => setShowResolveConfirm(true)}
-                                className={cn(ACTION_BTN, 'bg-emerald-600 font-semibold text-white shadow-sm hover:bg-emerald-700')}
-                                title="Tandai tiket telah selesai (Resolved)"
-                            >
-                                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                                <span>Resolve</span>
-                            </button>
+                        {(canCancel || canForward) && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="subtle" size="icon" className="td-act-more" aria-label="Aksi lainnya" title="Aksi lainnya">
+                                        <Ellipsis aria-hidden="true" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" variant="compact" aria-label="Aksi lainnya">
+                                    {canForward && <DropdownMenuItem onSelect={() => onForward?.()}><Forward />Teruskan ke tim lain</DropdownMenuItem>}
+                                    <DropdownMenuItem onSelect={handleCopyNumber}><Copy />Salin nomor tiket</DropdownMenuItem>
+                                    {canCancel && (
+                                        <DropdownMenuItem variant="destructive" onSelect={() => setShowCancelConfirm(true)}>
+                                            <XCircle />Batalkan tiket
+                                        </DropdownMenuItem>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
+                        {(canCancel || canForward) && canResolve && <span className="td-act-sep" aria-hidden="true" />}
+                        {canResolve && (
+                            <Button variant="primary" onClick={() => setShowResolveConfirm(true)} title="Selesaikan dengan catatan solusi">
+                                <CheckCircle2 aria-hidden="true" /><span>Resolve</span>
+                            </Button>
                         )}
                         {onToggleSidebar && (
-                            <button
-                                type="button"
+                            <Button
+                                variant="subtle"
+                                size="icon"
+                                className="td-act-panel"
                                 onClick={onToggleSidebar}
-                                className={cn(
-                                    'inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors cursor-pointer',
-                                    isSidebarOpen ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted'
-                                )}
-                                title={isSidebarOpen ? 'Sembunyikan Panel Properti Tiket' : 'Tampilkan Panel Properti Tiket'}
-                                aria-label={isSidebarOpen ? 'Sembunyikan Panel Properti Tiket' : 'Tampilkan Panel Properti Tiket'}
+                                aria-pressed={isSidebarOpen}
+                                title={isSidebarOpen ? 'Sembunyikan properti' : 'Tampilkan properti'}
+                                aria-label={isSidebarOpen ? 'Sembunyikan properti' : 'Tampilkan properti'}
                             >
-                                {isSidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-                            </button>
+                                {isSidebarOpen ? <PanelRightClose aria-hidden="true" /> : <PanelRightOpen aria-hidden="true" />}
+                            </Button>
                         )}
                     </div>
                 </div>
+                {tabs}
             </header>
 
             <ConfirmationDialog
                 isOpen={showCancelConfirm}
-                title="Batalkan Tiket Ini?"
-                description={`Apakah Anda yakin ingin membatalkan tiket #${ticket.ticketNumber || ticket.id.split('-')[0]}? Tiket yang dibatalkan tidak dapat diproses kembali.`}
-                confirmText="Ya, Batalkan Tiket"
+                title="Batalkan tiket ini?"
+                description={`Tiket #${ticketNumber} yang dibatalkan tidak dapat diproses kembali.`}
+                confirmText="Batalkan tiket"
                 cancelText="Kembali"
                 variant="destructive"
                 onConfirm={confirmCancel}

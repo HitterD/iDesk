@@ -13,22 +13,13 @@ export const SidebarCard: React.FC<{
     className?: string;
     bodyClassName?: string;
     children: React.ReactNode;
-}> = ({ title, icon: Icon, accessory, className, bodyClassName, children }) => (
-    <section className={cn(
-        'ticket-panel',
-        className,
-    )}>
-        <div className="mb-3 flex min-h-6 items-center justify-between gap-2">
-            <h3 className="flex items-center gap-2 text-[13px] font-semibold text-slate-900 dark:text-slate-100">
-                {Icon && (
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-                    </span>
-                )}
-                {title}
-            </h3>
-            {accessory}
-        </div>
+}> = ({ title, accessory, className, bodyClassName, children }) => (
+    <section className={cn('ticket-panel', className)}>
+        {/* Mockup `.panel h3`: plain title, optional accessory at the right (`icon` is accepted but no longer drawn). */}
+        <h3 className="td-panel-h">
+            {title}
+            {accessory && <span className="td-panel-acc">{accessory}</span>}
+        </h3>
         <div className={bodyClassName}>{children}</div>
     </section>
 );
@@ -41,14 +32,14 @@ export const InfoRow: React.FC<{
     className?: string;
 }> = ({ label, icon: Icon, children, className }) => (
     <div className={cn(
-        'flex min-h-9 items-center justify-between gap-3 py-1.5 text-[13px] [&+&]:border-t [&+&]:border-slate-100 dark:[&+&]:border-slate-800',
+        'td-kv flex items-center justify-between gap-3 py-[7px] text-[12.5px] border-t-[0.5px] border-[var(--td-line)]',
         className,
     )}>
-        <span className="flex shrink-0 items-center gap-1.5 text-slate-500 dark:text-slate-400">
+        <span className="flex shrink-0 items-center gap-1.5 text-[hsl(var(--idesk-text-secondary))]">
             {Icon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
             {label}
         </span>
-        <span className="min-w-0 truncate text-right font-medium text-slate-900 dark:text-slate-100">{children}</span>
+        <span className="min-w-0 truncate text-right font-[550] text-[hsl(var(--idesk-text))]">{children}</span>
     </div>
 );
 

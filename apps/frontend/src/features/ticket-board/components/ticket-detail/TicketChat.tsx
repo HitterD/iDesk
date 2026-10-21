@@ -48,11 +48,7 @@ const isResolutionStatement = (content?: string) =>
     Boolean(content?.includes('Tiket Dinyatakan Selesai') || content?.includes('Tiket Diselesaikan (Resolved)'));
 
 const DateSeparator: React.FC<{ date: string }> = ({ date }) => (
-    <div className="my-5 flex justify-center first:mt-1">
-        <span className="px-3 text-[11px] font-medium text-slate-400 dark:text-slate-500">
-            {dateSeparatorLabel(date)}
-        </span>
-    </div>
+    <div className="chat-day">{dateSeparatorLabel(date)}</div>
 );
 
 export const TicketChat: React.FC<TicketChatProps> = ({
@@ -169,10 +165,25 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     }, []);
 
     const isOwnTicket = Boolean(user?.id && ticket.user?.id === user.id);
+    /** Staff handling the ticket: staff messages sit right (mockup). Requester views: own messages sit right. */
+    const isAgentView = isStaff && ticket.viewerAccess !== 'requester';
+    const rootIsOutgoing = !isAgentView && isOwnTicket;
     const isOwn = useCallback((message: ChatMessage) => Boolean(
         (message.sender?.id && user?.id && message.sender.id === user.id) ||
         (user?.fullName && message.sender?.fullName === user.fullName)
     ), [user?.id, user?.fullName]);
+
+    const isStaffSender = (message: ChatMessage) => {
+        const role = message.sender?.role;
+        if (role) return role !== 'USER';
+        return isOwn(message) && isStaff;
+    };
+    const isOutgoing = (message: ChatMessage) => (isAgentView ? isStaffSender(message) : isOwn(message));
+    const roleLabel = (message: ChatMessage) => {
+        if (isOwn(message)) return undefined;
+        if (isAgentView) return message.sender?.id && message.sender.id === ticket.user?.id ? 'Pemohon' : undefined;
+        return isStaffSender(message) ? 'IT Support' : undefined;
+    };
 
     const jumpToQuoted = (message: ChatMessage) => {
         const quote = parseQuote(message.content);
@@ -296,52 +307,43 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             )}
 
             {/* ── Main Messages Stream ── */}
-            <div ref={streamRef} className="chat-stream custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5">
+            <div ref={streamRef} className="chat-stream custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-[18px]" aria-live="polite">
 
-                {/* Root issue card (genesis message) */}
-                <div ref={rootIssueRef} className={cn('chat-bubble-in mb-2 max-w-3xl rounded-[18px] p-4 sm:p-5', isOwnTicket && 'ml-auto')}>
-                    <div className="mb-3 flex items-center gap-3">
-                        <UserAvatar user={ticket.user} size="sm" className="h-9 w-9 rounded-full" />
-                        <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                                <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-white">
-                                    {toDisplayName(ticket.user.fullName)}
-                                </h3>
-                                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-                                    Pembuat tiket
-                                </span>
-                            </div>
-                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                                {formatDateTimeID(ticket.createdAt)} · {formatRelativeTime(ticket.createdAt)}
-                            </p>
-                        </div>
-                        <span className="hidden items-center gap-1.5 text-xs text-slate-400 sm:flex">
-                            <FileText className="h-3.5 w-3.5" strokeWidth={1.75} />
-                            Laporan awal
-                        </span>
+                {/* Root issue (genesis report), drawn as the requester's first bubble */}
+                <div ref={rootIssueRef} data-root-issue className={cn('chat-msg', rootIsOutgoing && 'is-out')}>
+                    <div className="chat-msg-av">
+                        <UserAvatar user={ticket.user} size="xs" className="h-7 w-7 rounded-full text-[10.5px]" />
                     </div>
-
-                    <h4 className="mb-1.5 hidden text-[15px] font-semibold text-slate-900 dark:text-white sm:block">
-                        {ticket.title}
-                    </h4>
-                    <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">
-                        {ticket.description || <span className="italic text-slate-400">Tidak ada deskripsi tambahan.</span>}
-                    </p>
-
-                    {initialAttachments.length > 0 && (
-                        <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-700/60">
-                            <p className="mb-2 text-xs font-medium text-slate-500 dark:text-slate-400">
-                                Lampiran ({initialAttachments.length})
-                            </p>
-                            <MessageAttachments
-                                attachments={initialAttachments}
-                                attachmentInfo={initialMessage?.attachmentInfo}
-                                onImageClick={onImageClick}
-                                onPdfClick={(url, filename) => pdfPreview.openPreview(url, filename, 'PDF Attachment')}
-                                isRequester={false}
-                            />
+                    <div className="chat-msg-col">
+                        <div className="chat-who">
+                            {(() => {
+                                const parts = [
+                                    <b key="n">{isOwnTicket && !isAgentView ? 'Anda' : toDisplayName(ticket.user.fullName)}</b>,
+                                    isAgentView && <span key="r" className="chat-role">Pemohon</span>,
+                                    <time key="t" dateTime={ticket.createdAt} title={formatDateTimeID(ticket.createdAt)}>{formatDateTimeID(ticket.createdAt)}</time>,
+                                    <span key="l" className="inline-flex items-center gap-1"><FileText className="h-3 w-3" aria-hidden="true" />Laporan awal</span>,
+                                ].filter(Boolean);
+                                return rootIsOutgoing ? parts.reverse() : parts;
+                            })()}
                         </div>
-                    )}
+                        <div className={cn('chat-bubble', rootIsOutgoing ? 'chat-bubble-out' : 'chat-bubble-in')}>
+                            <p><b>{ticket.title}</b></p>
+                            <p className="whitespace-pre-wrap">
+                                {ticket.description || <span className="italic opacity-70">Tidak ada deskripsi tambahan.</span>}
+                            </p>
+                            {initialAttachments.length > 0 && (
+                                <div className="mt-2">
+                                    <MessageAttachments
+                                        attachments={initialAttachments}
+                                        attachmentInfo={initialMessage?.attachmentInfo}
+                                        onImageClick={onImageClick}
+                                        onPdfClick={(url, filename) => pdfPreview.openPreview(url, filename, 'PDF Attachment')}
+                                        isRequester={!rootIsOutgoing}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Chat messages */}
@@ -356,8 +358,9 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                             return (
                                 <React.Fragment key={message.id}>
                                     {separator}
-                                    <div className="chat-system-event my-3" data-system-event={message.id}>
+                                    <div className="chat-system-event" data-system-event={message.id}>
                                         <SystemMessageEvent
+                                            audience={isAgentView ? 'staff' : 'requester'}
                                             content={message.content}
                                             createdAt={message.createdAt}
                                             attachments={message.attachments}
@@ -377,6 +380,9 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                 <MessageBubble
                                     message={message}
                                     isOwn={isOwn(message)}
+                                    isOutgoing={isOutgoing(message)}
+                                    roleLabel={roleLabel(message)}
+                                    ownLabel={isAgentView ? undefined : 'Anda'}
                                     isSticker={STICKERS.includes(message.content?.trim() || '')}
                                     isGroupStart={isGroupStart || newDay}
                                     isGroupEnd={isGroupEnd}
@@ -401,7 +407,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     })}
 
                     {typingUserNames.length > 0 && (
-                        <div className="chat-bubble-in mt-3 ml-10 flex w-fit items-center gap-2 rounded-[20px] px-3.5 py-2 text-xs">
+                        <div className="chat-bubble chat-bubble-in mt-3 ml-10 flex w-fit items-center gap-2 rounded-[20px] px-3.5 py-2 text-xs">
                             <span className="flex gap-1">
                                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 delay-0" />
                                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 delay-100" />
@@ -428,7 +434,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     inputRef={messageInputRef}
                     isStaff={isStaff}
                     canAddInternalNote={canAddInternalNote}
-                    showCannedResponses={showCannedResponses !== false}
+                    showCannedResponses={showCannedResponses !== false && isAgentView}
                     ticketVariables={ticketVariables}
                     replyTo={replyTo}
                     onCancelReply={() => setReplyTo(null)}
