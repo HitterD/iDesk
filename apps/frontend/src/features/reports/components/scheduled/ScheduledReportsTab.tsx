@@ -8,7 +8,7 @@ import api from '@/lib/api';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { MgStat, MgSwitch } from '@/components/management/MgmtParts';
-import { ResBub, ResEmpty, ResSearch, ResSkeletonRows, ResTable } from '@/components/resources/ResourceParts';
+import { ResBub, ResEmpty, ResSearch, ResSkeletonRows, ResRow, ResTable } from '@/components/resources/ResourceParts';
 import { DashSeg } from '@/features/dashboard/components/DashboardParts';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import {
@@ -285,7 +285,7 @@ export const ScheduledReportsTab: React.FC<ScheduledReportsTabProps> = ({
                     const isTriggering = triggeringId === cfg.id;
                     const teamLabel = reportTeamLabel(cfg.targetTeam ?? (cfg.targetAgentCategory === 'REGULAR' ? 'OPS_SUPPORT' : cfg.targetAgentCategory === 'ORACLE' ? 'ORACLE_DEV' : null));
                     return (
-                        <div key={cfg.id} className="res-row is-static">
+                        <ResRow key={cfg.id} className="is-static">
                             <div className="res-tk">
                                 <span className="res-tk-title">{cfg.name}</span>
                                 <span className="res-tk-id" style={{ fontFamily: 'var(--font-sans)' }}>{typeInfo.label} · {SCHEDULE_LABEL[cfg.schedule] ?? cfg.schedule}, {cfg.sendTime}</span>
@@ -318,7 +318,7 @@ export const ScheduledReportsTab: React.FC<ScheduledReportsTabProps> = ({
                                     </>
                                 )}
                             </span>
-                        </div>
+                        </ResRow>
                     );
                 })}
             </ResTable>

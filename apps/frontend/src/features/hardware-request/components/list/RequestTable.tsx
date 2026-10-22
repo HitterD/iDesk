@@ -5,7 +5,7 @@ import { isTerminal } from '../../utils/status.util';
 import { daysSince, agingTone } from '../../utils/aging.util';
 import { RequestRowDrawer } from './RequestRowDrawer';
 import { DashAvatar } from '@/features/dashboard/components/DashboardParts';
-import { ResBub, ResTable } from '@/components/resources/ResourceParts';
+import { ResBub, ResRow, ResTable } from '@/components/resources/ResourceParts';
 import type { HardwareRequest } from '../../types';
 import { cn } from '@/lib/utils';
 
@@ -42,7 +42,7 @@ export function RequestTable({ rows, foot }: { rows: HardwareRequest[]; foot?: R
                 return (
                     <Fragment key={r.id}>
                         {/* Mouse users may click anywhere on the row; keyboard/AT use the disclosure button in the first cell. */}
-                        <div className={cn('res-row is-link', isOpen && 'is-open')} onClick={toggle}>
+                        <ResRow className={cn('is-link', isOpen && 'is-open')} onClick={toggle}>
                             <button type="button" className="res-tk res-row-toggle" aria-expanded={isOpen} aria-controls={detailId}
                                 onClick={(e) => { e.stopPropagation(); toggle(); }}>
                                 <span className="res-tk-id">{r.requestNumber}</span>
@@ -57,11 +57,13 @@ export function RequestTable({ rows, foot }: { rows: HardwareRequest[]; foot?: R
                             <span><StatusBadge status={r.status} /></span>
                             <span className="res-hide-m"><AgeCell r={r} /></span>
                             <span className="res-date res-hide-m">{new Date(r.updatedAt).toLocaleDateString('id-ID', UPDATED_FMT)}</span>
-                        </div>
+                        </ResRow>
                         {isOpen && (
-                            <section id={detailId} className="res-row-detail res-row-drawer" aria-label={`Detail ${r.requestNumber}`}>
-                                <RequestRowDrawer r={r} />
-                            </section>
+                            <div role="row" className="res-row-detail res-row-drawer">
+                                <div role="cell" aria-colspan={7}>
+                                    <section id={detailId} aria-label={`Detail ${r.requestNumber}`}><RequestRowDrawer r={r} /></section>
+                                </div>
+                            </div>
                         )}
                     </Fragment>
                 );

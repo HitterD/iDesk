@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { DashAvatar, DashBub, DashSeg, DASH_COLORS, PRIORITY_DOT, cssVars } from '@/features/dashboard/components/DashboardParts';
 import '@/components/management/management.css';
-import { ResEmpty, ResSearch, ResSkeletonRows, ResTable } from '@/components/resources/ResourceParts';
+import { ResEmpty, ResSearch, ResSkeletonRows, ResRow, ResTable } from '@/components/resources/ResourceParts';
 import type { AgentWorkloadDto } from '@/lib/api/workload.api';
 import { agentDashboardPath } from '@/lib/roleHome';
 
@@ -161,7 +161,7 @@ export const WorkloadTable: React.FC<WorkloadTableProps> = ({
                 const isNext = points === metrics.minPoints && metrics.totalAgents > 1;
                 const pct = Math.min(points / FULL_POINTS, 1) * 100;
                 return (
-                    <div key={agent.agentId} className="res-row is-static" data-me={isMe || undefined}>
+                    <ResRow key={agent.agentId} className="is-static" data-me={isMe || undefined}>
                         <div className="queue-person">
                             <DashAvatar name={agent.agentName || '?'} />
                             <div className="min-w-0">
@@ -203,7 +203,7 @@ export const WorkloadTable: React.FC<WorkloadTableProps> = ({
                                 )}
                             </div>
                         )}
-                    </div>
+                    </ResRow>
                 );
             })}
         </ResTable>

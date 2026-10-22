@@ -2,7 +2,7 @@ import React from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { BarChart3, CalendarArrowUp, ChartLine, CircleCheck, Clock3, Inbox, Layers, Lightbulb, Plus, Timer, Users } from 'lucide-react';
 import { MgStat } from '@/components/management/MgmtParts';
-import { ResEmpty, ResSkeletonRows, ResTable } from '@/components/resources/ResourceParts';
+import { ResEmpty, ResSkeletonRows, ResRow, ResTable } from '@/components/resources/ResourceParts';
 import { DashAvatar, DashDonut, DashPanel, DashSeg, CHART_HEX, DashChartTable, DashEmpty, DashLegend, DashTooltip, type ChartSeries } from '@/features/dashboard/components/DashboardParts';
 import { columnAxis, daySlashLabel } from '@/features/dashboard/components/dashboardChart';
 import {
@@ -100,7 +100,7 @@ export const AgentTab: React.FC<AgentTabProps> = ({ agents, loading, startDate, 
                         tools={<><h3>Agent Details</h3><span className="res-muted">Top performers ditandai</span></>}
                         head={<><span>Agent</span><span className="is-right">Assigned</span><span className="is-right">Resolved</span><span className="is-right">Resolution %</span><span className="is-right">SLA %</span><span className="is-right">Avg Response</span></>}>
                         {loading ? <ResSkeletonRows rows={5} /> : agents.map((a) => (
-                            <div key={a.agentId} className="res-row is-static">
+                            <ResRow key={a.agentId} className="is-static">
                                 <div className="queue-person">
                                     <DashAvatar name={a.agentName || '?'} />
                                     <div className="min-w-0"><b>{a.agentName}</b>{top.has(a.agentId) && <small>Top performer</small>}</div>
@@ -110,7 +110,7 @@ export const AgentTab: React.FC<AgentTabProps> = ({ agents, loading, startDate, 
                                 <span className="res-cell is-num text-right res-hide-m">{nf.format(a.resolutionRate ?? 0)}%</span>
                                 <span className="res-cell is-num text-right">{nf.format(a.slaComplianceRate ?? 0)}%</span>
                                 <span className="res-cell is-num text-right res-hide-m">{minutesLabel(a.avgResponseTimeMinutes)}</span>
-                            </div>
+                            </ResRow>
                         ))}
                     </ResTable>
                     <DashPanel title="Resolution Rate by Agent">

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { DashAvatar } from '@/features/dashboard/components/DashboardParts';
-import { ResBub, ResEmpty, ResHead, ResSearch, ResSkeletonRows, ResStat, ResTable, resVars } from '@/components/resources/ResourceParts';
+import { ResBub, ResEmpty, ResHead, ResSearch, ResSkeletonRows, ResStat, ResRow, ResTable, resVars } from '@/components/resources/ResourceParts';
 import { useAuth } from '@/stores/useAuth';
 import { useEformRequests, usePendingApprovals, downloadEformPdf, EFormRequest } from '../api/eform-request.api';
 
@@ -262,7 +262,7 @@ const EformListRow: React.FC<EformListRowProps> = ({ request, isApprovalTab, hre
 
     return (
         // Mouse users may click anywhere on the row; keyboard/AT use the real link in the first cell.
-        <div className="res-row is-link" onClick={onOpen}>
+        <ResRow className="is-link" onClick={onOpen}>
             <Link to={href} className="queue-person res-row-toggle" onClick={(e) => e.stopPropagation()}
                 aria-label={`${isApprovalTab ? 'Tinjau' : 'Detail'} ${type.label} ${shortId(request.id)}: ${name}`}>
                 <span className="res-type-ico" style={resVars({ '--c': TYPE_TINT })}><TypeIcon aria-hidden="true" /></span>
@@ -292,7 +292,7 @@ const EformListRow: React.FC<EformListRowProps> = ({ request, isApprovalTab, hre
                     {isApprovalTab ? 'Tinjau' : 'Detail'}<ChevronRight className="res-chev" aria-hidden="true" />
                 </span>
             </span>
-        </div>
+        </ResRow>
     );
 };
 

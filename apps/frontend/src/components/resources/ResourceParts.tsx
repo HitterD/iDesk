@@ -80,13 +80,33 @@ interface ResTableProps {
 
 const DEFAULT_COLS_MOBILE = 'minmax(0,1fr) auto';
 
+function semanticCells(children: React.ReactNode, role: 'cell' | 'columnheader'): React.ReactNode {
+    return React.Children.map(children, (child) => {
+        if (!React.isValidElement<React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode }>(child)) return child;
+        if (child.type === React.Fragment) return semanticCells(child.props.children, role);
+        if ((child.type === 'span' || child.type === 'div') && !child.props.role) {
+            return React.cloneElement(child, { role });
+        }
+        return <span role={role} className={child.props.className}>{child}</span>;
+    });
+}
+
+/** All resource rows keep controls inside cells, never replacing a row with a button. */
+export const ResRow: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ children, className, ...props }) => (
+    <div {...props} className={cn('res-row', className)} role="row">{semanticCells(children, 'cell')}</div>
+);
+
 /** Mockup `.table.d`: rows share the header's grid columns; rows become cards on mobile. */
 export const ResTable: React.FC<ResTableProps> = ({ label, cols, colsMobile = DEFAULT_COLS_MOBILE, head, tools, subTools, children, foot, className }) => (
     <section className={cn('res-table', className)} aria-label={label} style={resVars({ '--cols': cols, '--cols-m': colsMobile })}>
         {tools && <div className="res-tools">{tools}</div>}
         {subTools && <div className="res-tools">{subTools}</div>}
-        {head && <div className="res-thead" role="presentation">{head}</div>}
-        <div className="res-rows">{children}</div>
+        <div className="res-table-scroll">
+            <div role={head ? 'table' : undefined} aria-label={head ? label : undefined} className="res-table-grid">
+                {head && <div role="rowgroup"><div className="res-thead" role="row">{semanticCells(head, 'columnheader')}</div></div>}
+                <div className="res-rows" role={head ? 'rowgroup' : undefined}>{children}</div>
+            </div>
+        </div>
         {foot && <div className="res-foot">{foot}</div>}
     </section>
 );

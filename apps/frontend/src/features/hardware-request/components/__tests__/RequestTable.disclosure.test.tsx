@@ -21,6 +21,10 @@ describe('RequestTable disclosure', () => {
         expect(screen.queryByRole('link', { name: /HR-2610-0031/ })).not.toBeInTheDocument();
         const toggle = screen.getByRole('button', { name: /HR-2610-0031/ });
         expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        const table = screen.getByRole('table', { name: 'Daftar hardware request' });
+        expect(within(table).getAllByRole('columnheader')).toHaveLength(7);
+        expect(within(table).getAllByRole('cell')).toHaveLength(7);
+        expect(toggle.closest('[role="cell"]')).not.toBeNull();
 
         fireEvent.click(toggle);
         expect(toggle).toHaveAttribute('aria-expanded', 'true');

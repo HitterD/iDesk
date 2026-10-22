@@ -47,6 +47,8 @@
 
 /* Data tables (mockup .table.d): per-table columns through --cols / --cols-m */
 .res-table { position: relative; min-width: 0; border-radius: 20px; background: hsl(var(--idesk-surface)); box-shadow: var(--dash-shadow-1); overflow: clip; }
+.res-table-scroll { min-width: 0; max-width: 100%; overflow-x: auto; }
+.res-table-grid { min-width: max-content; }
 .res-thead, .res-row { display: grid; grid-template-columns: var(--cols); align-items: center; column-gap: 10px; padding: 0 16px; }
 .res-thead { height: 36px; font-size: 11.5px; font-weight: 500; color: var(--td-text-3); border-bottom: .5px solid var(--td-line); }
 .res-thead .is-right { text-align: right; }
@@ -296,7 +298,9 @@ a.res-tag:focus-visible { outline: 0; box-shadow: var(--td-ring); }
   .res-kpi-n { font-size: 26px; }
   .res-thead { display: none; }
   .res-table { background: transparent; box-shadow: none; display: grid; gap: 8px; overflow: visible; }
-  .res-table > .res-rows { display: grid; gap: 8px; }
+  .res-table-scroll { overflow: visible; }
+  .res-table-grid { min-width: 0; }
+  .res-table .res-rows { display: grid; gap: 8px; }
   .res-row { grid-template-columns: var(--cols-m, minmax(0, 1fr) auto); row-gap: 6px; padding: 12px 14px 12px 16px; min-height: 0; background: hsl(var(--idesk-surface)); border-radius: 16px; box-shadow: var(--dash-shadow-1); border: 0; }
   .res-row .res-hide-m { display: none !important; }
   .res-row > .res-wide-m { grid-column: 1 / -1; }

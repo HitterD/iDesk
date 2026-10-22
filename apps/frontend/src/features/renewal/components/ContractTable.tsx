@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FileText, FileSearch, FilePlus2, Upload, Pencil, Trash2, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown, Hourglass, TriangleAlert } from 'lucide-react';
-import { ResBub, ResEmpty, ResSkeletonRows, ResTable } from '@/components/resources/ResourceParts';
+import { ResBub, ResEmpty, ResSkeletonRows, ResRow, ResTable } from '@/components/resources/ResourceParts';
 import { RenewalContract, ContractStatus } from '../types/renewal.types';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -218,7 +218,7 @@ export const ContractTable: React.FC<ContractTableProps> = ({
                 const status = statusConfig[contract.status];
                 const expiry = getDaysUntilExpiry(contract.endDate);
                 return (
-                    <div key={contract.id} className={cn('res-row is-static', contract.isAcknowledged && 'opacity-75', selectedIds.has(contract.id) && 'is-open')}>
+                    <ResRow key={contract.id} className={cn('is-static', contract.isAcknowledged && 'opacity-75', selectedIds.has(contract.id) && 'is-open')}>
                         {selectable && (
                             <span><Checkbox checked={selectedIds.has(contract.id)} onCheckedChange={() => handleSelectOne(contract.id)} aria-label={`Select contract ${contract.poNumber}`} /></span>
                         )}
@@ -243,9 +243,9 @@ export const ContractTable: React.FC<ContractTableProps> = ({
                             </button>
                             <button type="button" className="res-icon-btn" onClick={() => onView(contract)} title="View PDF" aria-label={`Lihat PDF ${contract.poNumber ?? ''}`}><FileText aria-hidden="true" /></button>
                             <button type="button" className="res-icon-btn" onClick={() => onEdit(contract)} title="Edit" aria-label={`Edit ${contract.poNumber ?? ''}`}><Pencil aria-hidden="true" /></button>
-                            <button type="button" className="res-icon-btn is-danger res-hide-m" onClick={() => onDelete(contract.id)} title="Delete" aria-label={`Hapus ${contract.poNumber ?? ''}`}><Trash2 aria-hidden="true" /></button>
+                            <button type="button" className="res-icon-btn is-danger" onClick={() => onDelete(contract.id)} title="Delete" aria-label={`Hapus ${contract.poNumber ?? ''}`}><Trash2 aria-hidden="true" /></button>
                         </span>
-                    </div>
+                    </ResRow>
                 );
             })}
         </ResTable>

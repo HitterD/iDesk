@@ -1276,7 +1276,7 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .td-grid-pop button { width: 40px; height: 40px; border-radius: 10px; font-size: 20px; line-height: 1; display: grid; place-items: center; cursor: pointer; transition: background-color var(--dur-1) var(--ease-out), transform var(--dur-2) var(--ease-spring); }
 .td-grid-pop button:hover, .td-grid-pop button:focus-visible { background: var(--td-fill); outline: 0; transform: scale(1.12); }
 .td-grid-pop button.is-on { background: var(--td-accent-soft); }
-.td-sticker-menu { width: min(312px, calc(100vw - 32px)); max-width: 100%; }
+.td-sticker-menu { width: min(312px, calc(100vw - 48px)); }
 .td-sticker-menu .td-grid-pop { grid-template-columns: repeat(auto-fit, minmax(40px, 1fr)); }
 .td-sticker-menu .td-grid-pop button { justify-self: center; }
 .td-pop-title { padding: 2px 4px 8px; font-size: 11px; font-weight: 650; color: hsl(var(--idesk-text-secondary)); }

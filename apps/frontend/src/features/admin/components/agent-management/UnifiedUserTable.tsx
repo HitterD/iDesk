@@ -5,7 +5,7 @@ import { PermissionPreset } from './agent-types';
 import { getRoleLabel, highlightText, formatLastActive } from './agent-utils';
 import { PresenceDot, PresenceBadge } from '@/components/ui/PresenceDot';
 import { DashAvatar } from '@/features/dashboard/components/DashboardParts';
-import { ResBub, ResTable } from '@/components/resources/ResourceParts';
+import { ResBub, ResRow, ResTable } from '@/components/resources/ResourceParts';
 import '@/components/management/management.css';
 
 /** Mockup agents.html `.table.d` columns: user, role, site, status, presence, preset, actions, select. */
@@ -48,7 +48,7 @@ export const UnifiedUserTable: React.FC<{
             {users.map((user) => {
                 const active = user.isActive !== false;
                 return (
-                    <div key={user.id} className="res-row is-static">
+                    <ResRow key={user.id} className="is-static">
                         <div className="queue-person">
                             <span className="relative flex-none">
                                 <DashAvatar name={user.fullName || '?'} />
@@ -83,7 +83,7 @@ export const UnifiedUserTable: React.FC<{
                         <span className="res-acts res-wide-m" role="group" aria-label={`Aksi ${user.fullName}`}>
                             <button type="button" onClick={() => onEdit(user)} className="res-icon-btn" title="Edit" aria-label={`Edit ${user.fullName}`}><Pencil aria-hidden="true" /></button>
                             <button type="button" onClick={() => onResetPassword(user)} className="res-icon-btn" title="Reset Password" aria-label={`Reset password for ${user.fullName}`}><KeyRound aria-hidden="true" /></button>
-                            <button type="button" onClick={() => onDelete(user)} className="res-icon-btn is-danger res-hide-m" title="Delete" aria-label={`Delete ${user.fullName}`}><Trash2 aria-hidden="true" /></button>
+                            <button type="button" onClick={() => onDelete(user)} className="res-icon-btn is-danger" title="Delete" aria-label={`Delete ${user.fullName}`}><Trash2 aria-hidden="true" /></button>
                         </span>
                         <span className="flex justify-center">
                             <button type="button" onClick={() => onToggleSelection(user.id)} role="checkbox" aria-checked={selectedIds.has(user.id)}
@@ -91,7 +91,7 @@ export const UnifiedUserTable: React.FC<{
                                 {selectedIds.has(user.id) ? <CheckSquare className="text-[hsl(var(--idesk-sapphire))]" aria-hidden="true" /> : <Square aria-hidden="true" />}
                             </button>
                         </span>
-                    </div>
+                    </ResRow>
                 );
             })}
         </ResTable>

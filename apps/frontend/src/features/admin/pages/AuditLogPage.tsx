@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { Shield, RefreshCw, Calendar, X, ChevronRight, Rows3, GitCommitVertical, FileSearch, Cpu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
-import { ResBub, ResEmpty, ResHead, ResPager, ResSearch, ResSkeletonRows, ResTable } from '@/components/resources/ResourceParts';
+import { ResBub, ResEmpty, ResHead, ResPager, ResSearch, ResSkeletonRows, ResRow, ResTable } from '@/components/resources/ResourceParts';
 import { DashAvatar } from '@/features/dashboard/components/DashboardParts';
 import '@/components/management/management.css';
 import api from '@/lib/api';
@@ -212,7 +212,7 @@ export const AuditLogPage: React.FC = () => {
                         return (
                             <React.Fragment key={log.id}>
                                 {/* Mouse: anywhere on the row toggles; keyboard/AT: the disclosure button in the first cell. */}
-                                <div className={cn('res-row is-link', open && 'is-open')} onClick={() => toggleExpand(log.id)}>
+                                <ResRow className={cn('is-link', open && 'is-open')} onClick={() => toggleExpand(log.id)}>
                                     <button type="button" className="res-row-toggle grid place-items-center" aria-expanded={open} aria-controls={detailId}
                                         aria-label={`${open ? 'Tutup' : 'Buka'} detail log ${cfg?.label ?? log.action}`}
                                         onClick={(e) => { e.stopPropagation(); toggleExpand(log.id); }}>
@@ -232,9 +232,11 @@ export const AuditLogPage: React.FC = () => {
                                     </span>
                                     <span className="res-cell res-hide-m" title={log.description ?? undefined}>{log.description || '—'}</span>
                                     <span className="res-cell is-mono res-hide-m">{log.ipAddress || '—'}</span>
-                                </div>
+                                </ResRow>
                                 {open && (
-                                    <section id={detailId} className="res-row-detail res-row-drawer pt-3" aria-label={`Detail ${cfg?.label ?? log.action}`}>
+                                    <div role="row" className="res-row-detail res-row-drawer pt-3">
+                                        <div role="cell" aria-colspan={7}>
+                                        <section id={detailId} aria-label={`Detail ${cfg?.label ?? log.action}`}>
                                         {hasDiff && (
                                             <div className="mg-diff mb-2">
                                                 <div><small>Sebelum</small>{fmtJson(log.oldValue)}</div>
@@ -242,7 +244,9 @@ export const AuditLogPage: React.FC = () => {
                                             </div>
                                         )}
                                         <p className="m-0 text-xs text-[hsl(var(--idesk-text-secondary))]"><b className="text-[hsl(var(--idesk-text))]">Full Description:</b> {log.description || 'No description provided.'}</p>
-                                    </section>
+                                        </section>
+                                        </div>
+                                    </div>
                                 )}
                             </React.Fragment>
                         );

@@ -1,4 +1,5 @@
 import React from 'react';
+import { ResRow } from '@/components/resources/ResourceParts';
 import { Pencil, Trash2, Laptop, Monitor, Tv, Headphones, Network, Code2, Box } from 'lucide-react';
 import type { HardwareCatalog, ItemCategory } from '../../types';
 
@@ -36,7 +37,7 @@ export function CatalogTable({ items, onEdit, onToggleActive, onDelete }: Props)
       {items.map((i) => {
         const Icon = CATEGORY_ICONS[i.category] || Box;
         return (
-          <div key={i.id} className="res-row">
+          <ResRow key={i.id}>
             <span className="res-cell is-num res-hide-m">{i.displayOrder}</span>
             <span className="res-cell is-mono res-hide-m">{i.code}</span>
             <span className="res-cell"><b className="font-semibold">{i.name}</b><span className="res-muted block text-[11px] md:hidden">{i.code} · {i.category}</span></span>
@@ -51,7 +52,7 @@ export function CatalogTable({ items, onEdit, onToggleActive, onDelete }: Props)
               <button type="button" className="res-icon-btn" onClick={() => onEdit(i)} aria-label={`Edit ${i.name}`} title="Edit item"><Pencil aria-hidden="true" /></button>
               <button type="button" className="res-icon-btn is-danger" onClick={() => onDelete(i)} aria-label={`Hapus ${i.name}`} title="Hapus item"><Trash2 aria-hidden="true" /></button>
             </span>
-          </div>
+          </ResRow>
         );
       })}
     </>
