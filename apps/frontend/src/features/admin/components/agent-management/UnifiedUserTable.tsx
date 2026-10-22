@@ -76,7 +76,7 @@ export const UnifiedUserTable: React.FC<{
                             <PresenceBadge userId={user.id} />
                             <span className="block mt-0.5 res-muted truncate">{formatLastActive(user.lastActiveAt)}</span>
                         </span>
-                        <span className="res-hide-m">
+                        <span className="res-wide-m">
                             <PresetDropdown user={user} presets={presets} onApplyPreset={onApplyPreset} isApplying={applyingPresetUserId === user.id}
                                 bulkCount={selectedIds.has(user.id) ? selectedIds.size : 0} />
                         </span>
