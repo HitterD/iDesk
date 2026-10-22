@@ -389,13 +389,13 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                             </Button>
                         )}
                         {(canCancel || canForward) && (
-                            <DropdownMenu>
+                            <DropdownMenu modal={false}>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="subtle" size="icon" className="td-act-more" aria-label="Aksi lainnya" title="Aksi lainnya">
                                         <Ellipsis aria-hidden="true" />
                                     </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" variant="compact" aria-label="Aksi lainnya">
+                                <DropdownMenuContent align="end" variant="compact" className="ticket-action-menu" aria-label="Aksi lainnya">
                                     {canForward && <DropdownMenuItem onSelect={() => onForward?.()}><Forward />Teruskan ke tim lain</DropdownMenuItem>}
                                     <DropdownMenuItem onSelect={handleCopyNumber}><Copy />Salin nomor tiket</DropdownMenuItem>
                                     {onToggleSidebar && <DropdownMenuItem onSelect={onToggleSidebar}><PanelRightOpen />Properti tiket</DropdownMenuItem>}

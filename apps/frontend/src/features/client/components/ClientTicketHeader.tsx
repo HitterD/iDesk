@@ -156,13 +156,13 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
                                         <XCircle aria-hidden="true" /><span>Batalkan</span>
                                     </Button>
                                 )}
-                                <DropdownMenu>
+                                <DropdownMenu modal={false}>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="subtle" size="icon" className="td-act-more" aria-label="Aksi lainnya" title="Aksi lainnya">
                                             <Ellipsis aria-hidden="true" />
                                         </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" variant="compact" aria-label="Aksi lainnya">
+                                    <DropdownMenuContent align="end" variant="compact" className="ticket-action-menu" aria-label="Aksi lainnya">
                                         <DropdownMenuItem onSelect={handleCopyNumber}><Copy />Salin nomor tiket</DropdownMenuItem>
                                         <DropdownMenuItem onSelect={onToggleSidebar}><PanelRightOpen />Properti tiket</DropdownMenuItem>
                                         {showCancel && <DropdownMenuItem variant="destructive" onSelect={onCancel}><XCircle />Batalkan tiket</DropdownMenuItem>}

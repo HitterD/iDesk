@@ -26,5 +26,11 @@ describe('Ticket action dialog lifecycle', () => {
             expect(trigger).toHaveFocus();
             expect(document.body.style.pointerEvents).not.toBe('none');
         }
+        for (let cycle = 0; cycle < 10; cycle += 1) {
+            fireEvent.click(screen.getByRole('button', { name: 'Teruskan', exact: true }));
+            fireEvent.keyDown(document, { key: 'Escape' });
+            await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+            expect(document.body.style.pointerEvents).not.toBe('none');
+        }
     });
 });

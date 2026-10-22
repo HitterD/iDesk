@@ -1,4 +1,6 @@
 /* Ticket workflows only; legacy overlays elsewhere retain their own visual language. */
+/* Complete menu teardown before the action dialog takes ownership of focus/pointer locks. */
+.ticket-action-menu[data-state="closed"] { animation: none !important; }
 .ticket-action-dialog {
     position: fixed;
     left: 50%;
