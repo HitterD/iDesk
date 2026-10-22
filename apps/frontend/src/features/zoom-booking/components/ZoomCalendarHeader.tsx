@@ -43,7 +43,7 @@ interface ZoomCalendarHeaderProps {
 }
 
 /** Segments: mockup Minggu | Matriks Semua Akun | Bookingan Saya, plus production month view. */
-type Segment = 'week' | 'month' | 'matrix' | 'my-bookings';
+type Segment = 'day' | 'week' | 'month' | 'matrix' | 'my-bookings';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
 
 function getHeaderTitle(view: CalendarView, date: Date): string {
@@ -68,6 +68,7 @@ function getHeaderTitle(view: CalendarView, date: Date): string {
 const segmentOf = (view: CalendarView, mode?: ZoomCalendarDisplayMode): Segment => {
     if (mode === 'my-bookings' || view === 'my-bookings') return 'my-bookings';
     if (mode === 'matrix') return 'matrix';
+    if (view === 'day') return 'day';
     return view === 'month' ? 'month' : 'week';
 };
 
@@ -88,6 +89,8 @@ export function ZoomCalendarHeader({
     };
 
     const options: SegmentedOption<Segment>[] = [
+        // Day view (reached by double-clicking a month day) gets its own segment so it is never shown as "Minggu".
+        ...(view === 'day' ? [{ value: 'day' as const, label: 'Hari', icon: CalendarDays }] : []),
         { value: 'week', label: 'Minggu', icon: CalendarDays },
         { value: 'month', label: 'Bulan', icon: CalendarRange },
         { value: 'matrix', label: 'Matriks Semua Akun', icon: Grid3x3 },

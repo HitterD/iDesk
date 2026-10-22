@@ -63,7 +63,7 @@ vi.mock('../../hooks', async () => {
             return { data: [], isLoading: false };
         },
         useZoomMergedCalendar: () => ({ data: [], isLoading: false }),
-        useZoomSocket: () => undefined,
+        useZoomSocket: () => ({ isConnected: true, subscribeToAccount: vi.fn(), unsubscribeFromAccount: vi.fn() }),
         useSyncMeetings: () => ({ mutateAsync: mocks.syncMeetings }),
         usePublicZoomSettings: () => ({
             data: {
@@ -158,5 +158,19 @@ describe('ZoomCalendarPage booking actions', () => {
         renderPage('/zoom-calendar?booking=b-42');
 
         expect(screen.getByTestId('zoom-booking-modal')).toHaveTextContent(/^detail:.*:b-42$/);
+    });
+});
+
+describe('ZoomCalendarPage settings entry', () => {
+    it('shows the Zoom settings button only to ADMIN', async () => {
+        const { useAuth } = await import('@/stores/useAuth');
+        useAuth.setState({ user: { id: 'u', fullName: 'Agent', role: 'AGENT' } as never });
+        const { unmount } = renderPage();
+        expect(screen.queryByRole('button', { name: 'Pengaturan Zoom' })).not.toBeInTheDocument();
+        unmount();
+
+        useAuth.setState({ user: { id: 'a', fullName: 'Admin', role: 'ADMIN' } as never });
+        renderPage();
+        expect(screen.getByRole('button', { name: 'Pengaturan Zoom' })).toBeInTheDocument();
     });
 });

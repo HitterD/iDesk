@@ -350,7 +350,7 @@ function HelpCard({ createTicketPath }: { createTicketPath: string }) {
             <h2>Masih butuh bantuan?</h2>
             <p>Tim IT Helpdesk siap membantu. Buat tiket dan kami akan menindaklanjuti.</p>
             <Link to={createTicketPath} className="idesk-text-link">Buat tiket<ArrowRight aria-hidden="true" /></Link>
-            <small>Rata-rata respon IT &lt; 15 menit · Operasional 08:00–17:00 WIB</small>
+            <small>Operasional Senin–Jumat, 08:00–17:00 WIB</small>
         </section>
     );
 }

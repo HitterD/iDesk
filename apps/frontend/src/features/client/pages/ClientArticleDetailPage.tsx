@@ -333,7 +333,7 @@ export const ClientArticleDetailPage: React.FC = () => {
                 <h2 className="text-xl font-bold text-foreground">Artikel Tidak Ditemukan</h2>
                 <p className="text-sm text-muted-foreground">Artikel yang Anda cari mungkin telah dipindahkan atau dinonaktifkan.</p>
                 <Link
-                    to="/kb"
+                    to="/client/kb"
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shadow-2xs"
                 >
                     <ArrowLeft className="w-4 h-4" /> Kembali ke Knowledge Base

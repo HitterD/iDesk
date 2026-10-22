@@ -5,7 +5,7 @@ import { isTerminal } from '../../utils/status.util';
 import { daysSince, agingTone } from '../../utils/aging.util';
 import { RequestRowDrawer } from './RequestRowDrawer';
 import { DashAvatar } from '@/features/dashboard/components/DashboardParts';
-import { ResBub, ResTable, rowActivation } from '@/components/resources/ResourceParts';
+import { ResBub, ResTable } from '@/components/resources/ResourceParts';
 import type { HardwareRequest } from '../../types';
 import { cn } from '@/lib/utils';
 
@@ -37,15 +37,17 @@ export function RequestTable({ rows, foot }: { rows: HardwareRequest[]; foot?: R
                 const isOpen = openId === r.id;
                 const name = r.requester?.fullName ?? '—';
                 const sub = r.recipient?.fullName && r.recipient.id !== r.requesterId ? `Untuk ${r.recipient.fullName}` : r.requester?.email;
+                const toggle = () => setOpenId(isOpen ? null : r.id);
+                const detailId = `hr-detail-${r.id}`;
                 return (
                     <Fragment key={r.id}>
-                        <div className={cn('res-row is-link', isOpen && 'is-open')} aria-expanded={isOpen}
-                            aria-label={`${r.requestNumber}: ${r.justification}`}
-                            {...rowActivation(() => setOpenId(isOpen ? null : r.id))}>
-                            <div className="res-tk">
+                        {/* Mouse users may click anywhere on the row; keyboard/AT use the disclosure button in the first cell. */}
+                        <div className={cn('res-row is-link', isOpen && 'is-open')} onClick={toggle}>
+                            <button type="button" className="res-tk res-row-toggle" aria-expanded={isOpen} aria-controls={detailId}
+                                onClick={(e) => { e.stopPropagation(); toggle(); }}>
                                 <span className="res-tk-id">{r.requestNumber}</span>
                                 <span className="res-tk-title" title={r.justification}>{r.justification || '—'}</span>
-                            </div>
+                            </button>
                             <div className="queue-person res-hide-m">
                                 <DashAvatar name={name} />
                                 <div className="min-w-0"><b>{name}</b>{sub && <small>{sub}</small>}</div>
@@ -55,12 +57,12 @@ export function RequestTable({ rows, foot }: { rows: HardwareRequest[]; foot?: R
                             <span><StatusBadge status={r.status} /></span>
                             <span className="res-hide-m"><AgeCell r={r} /></span>
                             <span className="res-date res-hide-m">{new Date(r.updatedAt).toLocaleDateString('id-ID', UPDATED_FMT)}</span>
-                            {isOpen && (
-                                <div className="res-row-detail" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} role="presentation">
-                                    <RequestRowDrawer r={r} />
-                                </div>
-                            )}
                         </div>
+                        {isOpen && (
+                            <section id={detailId} className="res-row-detail res-row-drawer" aria-label={`Detail ${r.requestNumber}`}>
+                                <RequestRowDrawer r={r} />
+                            </section>
+                        )}
                     </Fragment>
                 );
             })}

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
     ArrowRight, CalendarRange, ChevronDown, ChevronRight, CircleCheck, CircleX, Download, FileKey2, FilePlus2,
     FileText, Hourglass, Inbox, Layers, Loader, Rows3, SearchX, UserCheck, X,
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { DashAvatar } from '@/features/dashboard/components/DashboardParts';
-import { ResBub, ResEmpty, ResHead, ResSearch, ResSkeletonRows, ResStat, ResTable, resVars, rowActivation } from '@/components/resources/ResourceParts';
+import { ResBub, ResEmpty, ResHead, ResSearch, ResSkeletonRows, ResStat, ResTable, resVars } from '@/components/resources/ResourceParts';
 import { useAuth } from '@/stores/useAuth';
 import { useEformRequests, usePendingApprovals, downloadEformPdf, EFormRequest } from '../api/eform-request.api';
 
@@ -167,7 +167,7 @@ export const EformAccessListPage: React.FC = () => {
                         {isFiltered && <button type="button" className="res-reset" onClick={resetFilters}><X aria-hidden="true" />Reset</button>}
                     </div>
 
-                    <ResTable label="Daftar E-Form" cols={EFORM_COLS} colsMobile="minmax(0,1fr) auto"
+                    <ResTable label="Daftar E-Form" cols={EFORM_COLS} colsMobile="minmax(0,1fr) auto auto"
                         head={filteredRequests.length > 0 && !isLoading ? <><span>ID &amp; Jenis Akses</span><span>Pemohon</span><span>Status</span><span>Masa Berlaku</span><span className="is-right">Diajukan</span><span className="sr-only">Aksi</span></> : undefined}
                         foot={!isLoading && activeList.length > 0 ? (
                             <><span>Menampilkan {filteredRequests.length} dari {activeList.length} pengajuan</span><span className="res-muted">Diteruskan ke atasan pemohon, lalu diproses ICT</span></>
@@ -175,7 +175,7 @@ export const EformAccessListPage: React.FC = () => {
                         {isLoading ? <ResSkeletonRows rows={5} /> : filteredRequests.length === 0 ? (
                             <EmptyState isFiltered={isFiltered} isApprovalTab={isApprovalTab} onReset={resetFilters} onCreate={handleCreateNew} />
                         ) : filteredRequests.map((req) => (
-                            <EformListRow key={req.id} request={req} isApprovalTab={isApprovalTab} onOpen={() => handleViewDetail(req.id)} />
+                            <EformListRow key={req.id} request={req} isApprovalTab={isApprovalTab} href={`${basePath}/eform-access/${req.id}`} onOpen={() => handleViewDetail(req.id)} />
                         ))}
                     </ResTable>
                 </>
@@ -247,10 +247,11 @@ const validityText = (request: EFormRequest) => {
 interface EformListRowProps {
     request: EFormRequest;
     isApprovalTab: boolean;
+    href: string;
     onOpen: () => void;
 }
 
-const EformListRow: React.FC<EformListRowProps> = ({ request, isApprovalTab, onOpen }) => {
+const EformListRow: React.FC<EformListRowProps> = ({ request, isApprovalTab, href, onOpen }) => {
     const type = getTypeConfig(request.formType);
     const TypeIcon = type.icon;
     const submitted = new Date(request.createdAt).toLocaleDateString('id-ID', VALIDITY_FMT);
@@ -260,11 +261,13 @@ const EformListRow: React.FC<EformListRowProps> = ({ request, isApprovalTab, onO
     const name = request.requesterName || '—';
 
     return (
-        <div className="res-row is-link" aria-label={`${type.label} ${shortId(request.id)}: ${name}`} {...rowActivation(onOpen)}>
-            <div className="queue-person">
+        // Mouse users may click anywhere on the row; keyboard/AT use the real link in the first cell.
+        <div className="res-row is-link" onClick={onOpen}>
+            <Link to={href} className="queue-person res-row-toggle" onClick={(e) => e.stopPropagation()}
+                aria-label={`${isApprovalTab ? 'Tinjau' : 'Detail'} ${type.label} ${shortId(request.id)}: ${name}`}>
                 <span className="res-type-ico" style={resVars({ '--c': TYPE_TINT })}><TypeIcon aria-hidden="true" /></span>
                 <div className="min-w-0"><b>{type.label}</b><small className="font-mono">{shortId(request.id)}</small></div>
-            </div>
+            </Link>
             <div className="queue-person res-hide-m">
                 <DashAvatar name={name} />
                 <div className="min-w-0"><b>{name}</b>{request.requesterDepartment && <small>{request.requesterDepartment}</small>}</div>
@@ -278,14 +281,14 @@ const EformListRow: React.FC<EformListRowProps> = ({ request, isApprovalTab, onO
                 ) : validityText(request)}
             </span>
             <span className="res-date res-hide-m">{submitted}</span>
-            <span className="res-acts res-hide-m">
+            <span className="res-acts">
                 {request.status === EFormStatus.CONFIRMED && (
                     <button type="button" className="res-icon-btn" title="Unduh PDF F-ICT-04" aria-label={`Unduh PDF F-ICT-04 ${name}`}
                         onClick={(e) => { e.stopPropagation(); downloadEformPdf(request.id, `F-ICT-04-${name.replace(/\s+/g, '_')}.pdf`); }}>
                         <Download aria-hidden="true" />
                     </button>
                 )}
-                <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-[hsl(var(--idesk-sapphire))]">
+                <span className="res-hide-m inline-flex items-center gap-0.5 text-xs font-semibold text-[hsl(var(--idesk-sapphire))]" aria-hidden="true">
                     {isApprovalTab ? 'Tinjau' : 'Detail'}<ChevronRight className="res-chev" aria-hidden="true" />
                 </span>
             </span>

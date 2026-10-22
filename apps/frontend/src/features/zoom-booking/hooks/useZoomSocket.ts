@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { createElement } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { io, Socket } from 'socket.io-client';
@@ -25,6 +25,7 @@ const ic = (Cmp: typeof CalendarPlus) => createElement(Cmp, { className: 'h-4 w-
 export function useZoomSocket(accountId?: string) {
     const queryClient = useQueryClient();
     const socketRef = useRef<Socket | null>(null);
+    const [isConnected, setIsConnected] = useState(false);
 
     // Handle calendar update
     const handleCalendarUpdate = useCallback((data: { accountId: string; action: string }) => {
@@ -102,6 +103,7 @@ export function useZoomSocket(accountId?: string) {
 
         const handleConnect = () => {
             console.log('[Zoom Socket] Connected', { accountId });
+            setIsConnected(true);
 
             // Subscribe to specific account if provided
             if (accountId) {
@@ -111,6 +113,7 @@ export function useZoomSocket(accountId?: string) {
 
         const handleDisconnect = () => {
             console.log('[Zoom Socket] Disconnected');
+            setIsConnected(false);
         };
 
         socket.on('connect', handleConnect);
@@ -155,6 +158,6 @@ export function useZoomSocket(accountId?: string) {
     return {
         subscribeToAccount,
         unsubscribeFromAccount,
-        isConnected: socketRef.current?.connected ?? false,
+        isConnected,
     };
 }

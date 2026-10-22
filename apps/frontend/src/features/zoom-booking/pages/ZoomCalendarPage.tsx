@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { format } from 'date-fns';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '@/stores/useAuth';
 import { CalendarPlus, ChevronDown, UserRoundCheck, Video } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ResHead } from '@/components/resources/ResourceParts';
+import { DashLive } from '@/features/dashboard/components/DashboardParts';
 import { ZoomAccountsPanel, ZoomUpcomingPanel } from '../components/ZoomResourceAside';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -67,6 +69,9 @@ function generateTimeLabels(
 }
 
 export function ZoomCalendarPage() {
+    const navigate = useNavigate();
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'ADMIN';
     useMarkNotificationsRead(ZOOM_NOTIFICATIONS);
     const { hasAccess: canBook } = useHasPageAccess('zoom_calendar');
     const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>();
@@ -139,7 +144,7 @@ export function ZoomCalendarPage() {
     const { data: accounts, isLoading: accountsLoading } = useZoomAccounts();
     const { data: settings } = usePublicZoomSettings();
     const syncMeetings = useSyncMeetings();
-    const { data: upcomingBookings = [] } = useMyUpcomingBookings();
+    const { data: upcomingBookings = [], isLoading: upcomingLoading } = useMyUpcomingBookings();
     const safeAccounts = accounts ?? [];
     const activeAccountId =
         accountScope !== 'gabungan' && safeAccounts.some((account) => account.id === accountScope)
@@ -151,7 +156,7 @@ export function ZoomCalendarPage() {
     // invalidates the merged calendar query immediately (no manual refresh).
     const useGabungan = accountScope === 'gabungan';
     const socketAccountId = useGabungan ? undefined : activeAccountId;
-    useZoomSocket(socketAccountId);
+    const { isConnected: socketConnected } = useZoomSocket(socketAccountId);
 
     // Multi-select account filter for Mode Gabungan
     const [activeFilterAccountIds, setActiveFilterAccountIds] = useState<Set<string>>(() => new Set());
@@ -554,7 +559,7 @@ export function ZoomCalendarPage() {
         <div data-testid="no-accounts-empty-state" className="dash-panel zm-empty">
             <Video className="h-8 w-8" aria-hidden="true" />
             <h2 className="text-base font-semibold">Belum ada akun Zoom</h2>
-            <Button variant="soft" onClick={() => toast.info('Request Account')}>Request Account</Button>
+            <p className="text-sm text-muted-foreground">Akun Zoom perusahaan belum dikonfigurasi. Hubungi admin ICT untuk menambahkannya di Pengaturan Zoom.</p>
         </div>
     ) : null;
 
@@ -563,7 +568,8 @@ export function ZoomCalendarPage() {
             ? `${activeFilterAccountIds.size} dari ${safeAccounts.length} akun`
             : `Semua Akun Zoom (${safeAccounts.length})`)
         : (safeAccounts.find((a) => a.id === accountScope)?.name ?? 'Zoom');
-    const openSettings = () => { window.location.href = '/zoom-calendar/settings'; };
+    // /zoom-settings is ADMIN-only (AppRoutes); other roles get no settings entry.
+    const openSettings = isAdmin ? () => navigate('/zoom-settings') : undefined;
 
     const filterControls = (
         <>
@@ -598,7 +604,7 @@ export function ZoomCalendarPage() {
             <div className="res-page pb-24 lg:pb-0">
                 <ResHead icon={Video} tone="blue" title="Zoom Calendar"
                     description={`Booking ruang meeting Zoom untuk ${safeAccounts.length || 'semua'} akun perusahaan`}
-                    titleAdornment={<span className="dash-live"><i />Live</span>}
+                    titleAdornment={<DashLive connected={socketConnected} />}
                     actions={canBook ? <Button variant="primary" onClick={openBookingAtCurrentContext}><CalendarPlus aria-hidden="true" />Book Meeting</Button> : undefined} />
                 {showEmptyState ? emptyStateNode : (
                     <>
@@ -632,7 +638,7 @@ export function ZoomCalendarPage() {
                         <div className="res-grid-main zm-main">
                             <section className="dash-panel zm-cal-panel" aria-label="Kalender Zoom">{calendarContent()}</section>
                             <aside className="res-stack">
-                                <ZoomUpcomingPanel bookings={upcomingBookings} accounts={safeAccounts} onOpen={panel.openDetail} />
+                                <ZoomUpcomingPanel bookings={upcomingBookings} accounts={safeAccounts} onOpen={panel.openDetail} isLoading={upcomingLoading} />
                                 <ZoomAccountsPanel
                                     accounts={safeAccounts}
                                     meetingsPerAccount={meetingsPerAccount}

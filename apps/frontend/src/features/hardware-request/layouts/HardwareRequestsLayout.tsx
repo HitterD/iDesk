@@ -4,6 +4,8 @@ import { ResHead } from '@/components/resources/ResourceParts';
 import { HardwareRequestsTabs, activeHardwareTab } from '../components/common/HardwareRequestsTabs';
 import { useHardwareRole } from '../hooks/usePermissions';
 import { useHardwareBasePath } from '../hooks/useHardwareBasePath';
+import { useHardwareSocketConnected } from '../hooks/useHardwareRequestRealtime';
+import { DashLive } from '@/features/dashboard/components/DashboardParts';
 
 /** Mockup hardware.html: one page head + segmented tabs above every tab panel. */
 export function HardwareRequestsLayout() {
@@ -11,6 +13,7 @@ export function HardwareRequestsLayout() {
   const basePath = useHardwareBasePath();
   const { pathname } = useLocation();
   const onList = activeHardwareTab(pathname, basePath) === 'list';
+  const connected = useHardwareSocketConnected();
 
   return (
     <div className="res-page">
@@ -19,7 +22,7 @@ export function HardwareRequestsLayout() {
         tone="orange"
         title="Hardware Requests"
         description="Pengadaan, instalasi, dan katalog perangkat ICT"
-        titleAdornment={<span className="dash-live"><i />Live</span>}
+        titleAdornment={<DashLive connected={connected} />}
         actions={role === 'USER' && onList ? (
           <Link to={`${basePath}/new`} className="idesk-btn is-primary"><Plus aria-hidden="true" />Request Baru</Link>
         ) : undefined}

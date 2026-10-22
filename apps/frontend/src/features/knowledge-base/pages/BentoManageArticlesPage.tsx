@@ -117,13 +117,13 @@ export const BentoManageArticlesPage = () => {
             return status;
         },
         onSuccess: (status) => {
-            toast.success(`Article ${status === 'published' ? 'published' : status === 'archived' ? 'archived' : 'saved as draft'}`);
+            toast.success(`Artikel ${status === 'published' ? 'diterbitkan' : status === 'archived' ? 'diarsipkan' : 'disimpan sebagai draf'}`);
             queryClient.invalidateQueries({ queryKey: ['kb-articles'] });
             queryClient.invalidateQueries({ queryKey: ['kb-stats'] });
             setOpenDropdown(null);
         },
         onError: () => {
-            toast.error('Failed to update status');
+            toast.error('Gagal memperbarui status');
         },
     });
 
@@ -155,7 +155,7 @@ export const BentoManageArticlesPage = () => {
             await api.delete(`/kb/articles/${id}`);
         },
         onSuccess: () => {
-            toast.success('Article deleted');
+            toast.success('Artikel dihapus');
             queryClient.invalidateQueries({ queryKey: ['kb-articles'] });
             queryClient.invalidateQueries({ queryKey: ['kb-stats'] });
             setDeleteConfirmOpen(false);
@@ -163,7 +163,7 @@ export const BentoManageArticlesPage = () => {
             setOpenDropdown(null);
         },
         onError: () => {
-            toast.error('Failed to delete article');
+            toast.error('Gagal menghapus artikel');
         },
     });
 
@@ -202,10 +202,10 @@ export const BentoManageArticlesPage = () => {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-foreground tracking-tight">
-                        Manage Articles
+                        Kelola Artikel
                     </h1>
                     <p className="text-muted-foreground mt-1 text-sm">
-                        Create, edit, and manage knowledge base articles
+                        Buat, ubah, dan kelola artikel Knowledge Base
                     </p>
                 </div>
                 <Link
@@ -213,7 +213,7 @@ export const BentoManageArticlesPage = () => {
                     className="idesk-btn is-primary"
                 >
                     <Plus className="w-4 h-4" />
-                    New Article
+                    Buat Artikel
                 </Link>
             </div>
 
@@ -229,7 +229,7 @@ export const BentoManageArticlesPage = () => {
                                 <p className="text-2xl font-bold text-foreground font-mono">
                                     {stats.totalArticles}
                                 </p>
-                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Articles</p>
+                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total artikel</p>
                             </div>
                         </div>
                     </div>
@@ -242,7 +242,7 @@ export const BentoManageArticlesPage = () => {
                                 <p className="text-2xl font-bold text-foreground font-mono">
                                     {stats.byStatus.published}
                                 </p>
-                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Published</p>
+                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Terbit</p>
                             </div>
                         </div>
                     </div>
@@ -255,7 +255,7 @@ export const BentoManageArticlesPage = () => {
                                 <p className="text-2xl font-bold text-foreground font-mono">
                                     {stats.totalViews}
                                 </p>
-                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Views</p>
+                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total dilihat</p>
                             </div>
                         </div>
                     </div>
@@ -268,7 +268,7 @@ export const BentoManageArticlesPage = () => {
                                 <p className="text-2xl font-bold text-foreground font-mono">
                                     {stats.byStatus.draft}
                                 </p>
-                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Drafts</p>
+                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Draf</p>
                             </div>
                         </div>
                     </div>
@@ -284,7 +284,7 @@ export const BentoManageArticlesPage = () => {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search articles..."
+                            placeholder="Cari artikel..." aria-label="Cari artikel"
                             className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-[var(--radius-md)] text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
                         />
                     </div>
@@ -293,18 +293,18 @@ export const BentoManageArticlesPage = () => {
                         onChange={(e) => setStatusFilter(e.target.value)}
                         className="px-3 py-2 bg-background border border-border rounded-[var(--radius-md)] text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
                     >
-                        <option value="">All Status</option>
-                        <option value="draft">Draft</option>
-                        <option value="pending_review">Pending Review</option>
-                        <option value="published">Published</option>
-                        <option value="archived">Archived</option>
+                        <option value="">Semua status</option>
+                        <option value="draft">Draf</option>
+                        <option value="pending_review">Menunggu review</option>
+                        <option value="published">Terbit</option>
+                        <option value="archived">Diarsipkan</option>
                     </select>
                     <select
                         value={categoryFilter}
                         onChange={(e) => setCategoryFilter(e.target.value)}
                         className="px-3 py-2 bg-background border border-border rounded-[var(--radius-md)] text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
                     >
-                        <option value="">All Categories</option>
+                        <option value="">Semua kategori</option>
                         {categories.map((cat) => (
                             <option key={cat} value={cat}>
                                 {cat}
@@ -325,18 +325,18 @@ export const BentoManageArticlesPage = () => {
                 {articlesLoading ? (
                     <div className="p-12 text-center text-muted-foreground flex items-center justify-center gap-3">
                         <Loader2 className="w-5 h-5 animate-spin" />
-                        Loading articles...
+                        Memuat artikel…
                     </div>
                 ) : articles.length === 0 ? (
                     <div className="p-12 text-center">
                         <FileText className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-                        <p className="text-muted-foreground font-medium mb-4">No articles found</p>
+                        <p className="text-muted-foreground font-medium mb-4">Belum ada artikel</p>
                         <Link
                             to="/kb/create"
                             className="idesk-text-link"
                         >
                             <Plus className="w-4 h-4" />
-                            Create First Article
+                            Buat artikel pertama
                         </Link>
                     </div>
                 ) : (
@@ -345,25 +345,25 @@ export const BentoManageArticlesPage = () => {
                             <thead className="bg-muted/30 border-b border-border">
                                 <tr>
                                     <th className="text-left px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider w-16">
-                                        Image
+                                        Gambar
                                     </th>
                                     <th className="text-left px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                                        Title & Author
+                                        Judul & Penulis
                                     </th>
                                     <th className="text-left px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                                        Category
+                                        Kategori
                                     </th>
                                     <th className="text-left px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">
                                         Status
                                     </th>
                                     <th className="text-left px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                                        Last Updated
+                                        Diperbarui
                                     </th>
                                     <th className="text-left px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                                        Views
+                                        Dilihat
                                     </th>
                                     <th className="text-right px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                                        Actions
+                                        Aksi
                                     </th>
                                 </tr>
                             </thead>
@@ -439,7 +439,7 @@ export const BentoManageArticlesPage = () => {
                                                 }
                                                 className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-[var(--radius-md)] transition-colors"
                                             >
-                                                <MoreVertical className="w-4 h-4" />
+                                                <MoreVertical className="w-4 h-4" aria-hidden="true" /><span className="sr-only">Aksi lainnya</span>
                                             </button>
                                             
                                             {/* Dropdown Menu (Inline) */}
@@ -455,14 +455,14 @@ export const BentoManageArticlesPage = () => {
                                                             className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted text-xs font-medium text-foreground transition-colors w-full"
                                                         >
                                                             <Eye className="w-3.5 h-3.5 text-muted-foreground" />
-                                                            View Article
+                                                            Lihat artikel
                                                         </Link>
                                                         <Link
                                                             to={`/kb/articles/${article.id}/edit`}
                                                             className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted text-xs font-medium text-foreground transition-colors w-full"
                                                         >
                                                             <Edit className="w-3.5 h-3.5 text-muted-foreground" />
-                                                            Edit Article
+                                                            Ubah artikel
                                                         </Link>
                                                         
                                                         {article.status === 'pending_review' ? (
@@ -485,7 +485,7 @@ export const BentoManageArticlesPage = () => {
                                                                 className="flex items-center gap-2 px-3 py-1.5 hover:bg-success/10 text-xs font-medium text-success transition-colors w-full text-left"
                                                             >
                                                                 <Send className="w-3.5 h-3.5" />
-                                                                Publish Article
+                                                                Terbitkan artikel
                                                             </button>
                                                         )}
 
@@ -511,7 +511,7 @@ export const BentoManageArticlesPage = () => {
                                                                 className="flex items-center gap-2 px-3 py-1.5 hover:bg-amber-50 text-xs font-medium text-amber-600 transition-colors w-full text-left"
                                                             >
                                                                 <RotateCcw className="w-3.5 h-3.5" />
-                                                                Unpublish
+                                                                Batalkan terbit
                                                             </button>
                                                         )}
 
@@ -524,7 +524,7 @@ export const BentoManageArticlesPage = () => {
                                                                 className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted text-xs font-medium text-muted-foreground transition-colors w-full text-left"
                                                             >
                                                                 <Archive className="w-3.5 h-3.5" />
-                                                                Archive Article
+                                                                Arsipkan artikel
                                                             </button>
                                                         )}
 
@@ -562,7 +562,7 @@ export const BentoManageArticlesPage = () => {
                                                             className="flex items-center gap-2 px-3 py-1.5 hover:bg-destructive/10 text-xs font-medium text-destructive transition-colors w-full text-left"
                                                         >
                                                             <Trash2 className="w-3.5 h-3.5" />
-                                                            Delete Article
+                                                            Hapus artikel
                                                         </button>
                                                     </div>
                                                 </>
@@ -584,9 +584,9 @@ export const BentoManageArticlesPage = () => {
                     setArticleToDelete(null);
                 }}
                 onConfirm={handleDeleteConfirm}
-                title="Delete Article"
-                message="Are you sure you want to delete this article? This action cannot be undone."
-                confirmText="Delete"
+                title="Hapus artikel?"
+                message="Artikel dihapus permanen. Tindakan ini tidak dapat dibatalkan."
+                confirmText="Hapus"
                 variant="danger"
                 isLoading={deleteMutation.isPending}
             />

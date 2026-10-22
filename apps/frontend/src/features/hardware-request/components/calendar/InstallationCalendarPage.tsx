@@ -3,7 +3,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { addDays, endOfWeek, format, isSameDay, isToday, parseISO, startOfWeek } from 'date-fns';
+import { addDays, endOfDay, endOfWeek, format, isSameDay, isToday, parseISO, startOfDay, startOfWeek } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -167,6 +167,12 @@ export function InstallationCalendarPage() {
     ? { from: weekStart.toISOString(), to: endOfWeek(weekStart, WEEK_OPTS).toISOString() }
     : fcRange;
   const { events, reschedule } = useInstallationCalendar({ ...range, technicianIds });
+  // Stats and the projection are anchored on today (today..today+6), independent of the navigated range.
+  const [ahead] = useState(() => {
+    const start = startOfDay(new Date());
+    return { from: start.toISOString(), to: endOfDay(addDays(start, WEEK_DAYS - 1)).toISOString() };
+  });
+  const { events: aheadEvents } = useInstallationCalendar({ ...ahead, technicianIds });
 
   const { data: unscheduled = [] } = useQuery<UnscheduledRequest[]>({
     queryKey: ['hardware-requests', 'unscheduled'],
@@ -177,21 +183,21 @@ export function InstallationCalendarPage() {
   const stats = useMemo(() => {
     const today = new Date();
     return {
-      scheduled: events.length,
-      today: events.filter((e: CalendarEventData) => isSameDay(parseISO(e.scheduledAt), today)).length,
-      rescheduleRequested: events.filter((e: CalendarEventData) => e.status === 'RESCHEDULE_REQUESTED').length,
+      scheduled: aheadEvents.length,
+      today: aheadEvents.filter((e: CalendarEventData) => isSameDay(parseISO(e.scheduledAt), today)).length,
+      rescheduleRequested: aheadEvents.filter((e: CalendarEventData) => e.status === 'RESCHEDULE_REQUESTED').length,
     };
-  }, [events]);
+  }, [aheadEvents]);
 
   const weekLoad = useMemo(() => Array.from({ length: WEEK_DAYS }, (_, i) => {
-    const day = addDays(weekStart, i);
+    const day = addDays(startOfDay(new Date()), i);
     return {
       key: day.toISOString(),
       label: format(day, 'EEE d', { locale: idLocale }),
-      value: events.filter((e: CalendarEventData) => isSameDay(parseISO(e.scheduledAt), day)).length,
+      value: aheadEvents.filter((e: CalendarEventData) => isSameDay(parseISO(e.scheduledAt), day)).length,
       color: isToday(day) ? DASH_COLORS.accent : undefined,
     };
-  }), [events, weekStart]);
+  }), [aheadEvents]);
 
   const drawerEvents = useMemo(
     () =>
@@ -223,7 +229,8 @@ export function InstallationCalendarPage() {
     setDrawerEventId(eventId);
     setDrawerOpen(true);
   };
-  const weekLabel = `${format(weekStart, 'd')} – ${format(endOfWeek(weekStart, WEEK_OPTS), 'd MMM yyyy', { locale: idLocale })}`;
+  const weekEnd = endOfWeek(weekStart, WEEK_OPTS);
+  const weekLabel = `${format(weekStart, weekStart.getMonth() === weekEnd.getMonth() ? 'd' : 'd MMM', { locale: idLocale })} – ${format(weekEnd, 'd MMM yyyy', { locale: idLocale })}`;
 
   return (
     <FeatureErrorBoundary>
@@ -285,11 +292,9 @@ export function InstallationCalendarPage() {
         </section>
 
         <div className="res-stack">
-          {mode === 'agenda' && (
-            <DashPanel title="Proyeksi 7 hari" label="Proyeksi 7 hari">
-              <HBars items={weekLoad} />
-            </DashPanel>
-          )}
+          <DashPanel title="Proyeksi 7 hari ke depan" label="Proyeksi 7 hari ke depan">
+            <HBars items={weekLoad} />
+          </DashPanel>
           <SidebarAgenda />
         </div>
       </div>

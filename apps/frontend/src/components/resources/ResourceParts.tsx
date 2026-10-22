@@ -183,14 +183,3 @@ export const ResBub: React.FC<ResBubProps> = ({ color, ink, icon: Icon, mono, pl
         <span className="min-w-0 truncate">{children}</span>
     </span>
 );
-
-/** Row activation by click or Enter/Space (rows are not buttons: they contain buttons). */
-export const rowActivation = (onOpen: () => void) => ({
-    role: 'link' as const,
-    tabIndex: 0,
-    onClick: onOpen,
-    onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
-        if (event.target !== event.currentTarget) return;
-        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(); }
-    },
-});

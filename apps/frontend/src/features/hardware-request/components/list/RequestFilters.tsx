@@ -20,6 +20,10 @@ const STATUSES: RequestStatus[] = [
 
 const CATS: ItemCategory[] = ['LAPTOP', 'DESKTOP', 'MONITOR', 'ACCESSORY', 'NETWORK', 'SOFTWARE', 'OTHER'];
 const SEARCH_DEBOUNCE_MS = 300;
+const CATEGORY_LABELS: Record<ItemCategory, string> = {
+    LAPTOP: 'Laptop', DESKTOP: 'Desktop', MONITOR: 'Monitor', ACCESSORY: 'Aksesoris',
+    NETWORK: 'Jaringan', SOFTWARE: 'Software', OTHER: 'Lainnya',
+};
 const SCOPE_OPTIONS = [{ value: 'all' as const, label: 'Semua' }, { value: 'my' as const, label: 'Milik Saya' }];
 
 interface RequestFiltersProps {
@@ -69,6 +73,13 @@ function MultiPop<V extends string>({ k, options, selected, labelOf, colorOf, on
 /** Mockup hardware.html `.filters`: search field, Status pop, refresh icon (+ production scope, category, view). */
 export function RequestFilters({ value, onChange, scopeVisible, view = 'table', onViewChange, onRefresh, isRefreshing }: RequestFiltersProps) {
     const [searchTerm, setSearchTerm] = useState(value.search ?? '');
+    // An external reset (e.g. "Reset filter" in the empty state) clears the input too.
+    const externalSearch = value.search ?? '';
+    const lastExternal = useRef(externalSearch);
+    useEffect(() => {
+        if (lastExternal.current !== externalSearch && externalSearch === '') setSearchTerm('');
+        lastExternal.current = externalSearch;
+    }, [externalSearch]);
 
     const onChangeRef = useRef(onChange);
     onChangeRef.current = onChange;
@@ -107,7 +118,7 @@ export function RequestFilters({ value, onChange, scopeVisible, view = 'table', 
             )}
             <MultiPop k="Status" options={STATUSES} selected={value.status ?? []} labelOf={(s) => STATUS_BUB[s].label}
                 colorOf={(s) => STATUS_BUB[s].color} onToggle={(s) => toggle('status', s)} />
-            <MultiPop k="Kategori" options={CATS} selected={value.category ?? []} labelOf={(c) => c} onToggle={(c) => toggle('category', c)} />
+            <MultiPop k="Kategori" options={CATS} selected={value.category ?? []} labelOf={(c) => CATEGORY_LABELS[c]} onToggle={(c) => toggle('category', c)} />
             {hasFilters && (
                 <button type="button" className="res-reset" onClick={clearAll} title="Reset semua filter"><X aria-hidden="true" />Reset</button>
             )}

@@ -1,7 +1,7 @@
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { Check, Keyboard, Settings } from 'lucide-react';
-import { DashEmpty, DashPanel, cssVars } from '@/features/dashboard/components/DashboardParts';
+import { DashEmpty, DashPanel, DashSkeletonList, cssVars } from '@/features/dashboard/components/DashboardParts';
 import { cn } from '@/lib/utils';
 import type { ZoomAccount, ZoomBooking } from '../types';
 import { formatZoomAccountName } from '../utils';
@@ -17,12 +17,12 @@ const dayLabel = (dateStr: string) => {
 };
 
 /** Mockup zoom.html aside: "Upcoming Meetings" (own upcoming bookings, NEXT on the first). */
-export function ZoomUpcomingPanel({ bookings, accounts, onOpen }: { bookings: ZoomBooking[]; accounts: ZoomAccount[]; onOpen: (id: string) => void }) {
+export function ZoomUpcomingPanel({ bookings, accounts, onOpen, isLoading }: { bookings: ZoomBooking[]; accounts: ZoomAccount[]; onOpen: (id: string) => void; isLoading?: boolean }) {
     const colorOf = (b: ZoomBooking) => accounts.find((a) => a.id === b.zoomAccountId)?.colorHex ?? b.zoomAccount?.colorHex ?? DEFAULT_COLOR;
     const nameOf = (b: ZoomBooking) => formatZoomAccountName(b.zoomAccount?.name ?? accounts.find((a) => a.id === b.zoomAccountId)?.name ?? 'Zoom');
     return (
         <DashPanel title="Upcoming Meetings">
-            {bookings.length === 0 ? <DashEmpty>Belum ada meeting mendatang.</DashEmpty> : (
+            {isLoading ? <DashSkeletonList rows={3} /> : bookings.length === 0 ? <DashEmpty>Belum ada meeting mendatang.</DashEmpty> : (
                 <div className="dash-list">
                     {bookings.slice(0, MAX_UPCOMING).map((b, i) => (
                         <button key={b.id} type="button" className="dash-li" onClick={() => onOpen(b.id)}>
@@ -62,7 +62,7 @@ export function ZoomAccountsPanel({ accounts, meetingsPerAccount, visibleAccount
             <>
                 Akun Zoom
                 <span className="ml-auto inline-flex gap-1">
-                    <button type="button" className="res-icon-btn" onClick={onOpenShortcuts} aria-label="Keyboard shortcuts" title="Keyboard Shortcuts (?)"><Keyboard aria-hidden="true" /></button>
+                    <button type="button" className="res-icon-btn" onClick={onOpenShortcuts} aria-label="Pintasan keyboard" title="Pintasan keyboard (?)"><Keyboard aria-hidden="true" /></button>
                     {onOpenSettings && <button type="button" className="res-icon-btn" onClick={onOpenSettings} aria-label="Pengaturan Zoom" title="Pengaturan Zoom"><Settings aria-hidden="true" /></button>}
                 </span>
             </>

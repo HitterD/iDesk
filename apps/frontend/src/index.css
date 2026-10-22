@@ -48,6 +48,10 @@ button:active, [role="button"]:active {
 .ct-link:active, [data-card-action]:active, [data-stretched]:active, .queue-row:active, .portal-row:active,
 .portal-help-banner:active, .queue-row button:active, .queue-row [role="button"]:active,
 .portal-row button:active, .queue-select-cell:active { transform: none; }
+/* Round-2 resource pages: full-width list rows, account rows, TOC items, topics, booking cards,
+   switches and buttons inside resource rows (unlayered so they beat the global press rule). */
+button.dash-li:active, .zm-acc > button:active, .zm-bk:active, .kb-toc button:active, .kb-topic:active,
+.res-switch:active, .res-row button:active, .res-row-toggle:active, .kb-art:active { transform: none; }
 
 /* Card hover improvements (Emil Kowalski) */
 .card-interactive {

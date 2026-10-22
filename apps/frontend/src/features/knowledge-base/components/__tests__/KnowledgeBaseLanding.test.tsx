@@ -182,6 +182,8 @@ describe('KnowledgeBaseLanding Component', () => {
         expect(cta).toHaveAttribute('href', '/tickets/create');
         // Single amber CTA rule: the help card entry is a sapphire text link, not a button.
         expect(cta).toHaveClass('idesk-text-link');
-        expect(screen.getByText(/Rata-rata respon IT < 15 menit/i)).toBeInTheDocument();
+        expect(screen.getByText('Operasional Senin–Jumat, 08:00–17:00 WIB')).toBeInTheDocument();
+        // No response-time promise without an SLA policy behind it.
+        expect(screen.queryByText(/15 menit/i)).not.toBeInTheDocument();
     });
 });
