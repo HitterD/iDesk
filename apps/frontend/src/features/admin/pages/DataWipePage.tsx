@@ -7,6 +7,8 @@ import { WipePreviewTable } from '../components/data-wipe/WipePreviewTable';
 import { WipeResultSummary } from '../components/data-wipe/WipeResultSummary';
 import { WipeConfirmDialog, WIPE_CONFIRM_PHRASE } from '../components/data-wipe/WipeConfirmDialog';
 import { WipeDomain, useDataWipe } from '../hooks/useDataWipe';
+import { ResHead } from '@/components/resources/ResourceParts';
+import '@/components/management/management.css';
 
 /**
  * Danger zone: permanently clears ticketing, e-form and hardware-request data
@@ -77,28 +79,20 @@ export const DataWipePage: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6 animate-fade-in-up">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                        Hapus Data Transaksional
-                    </h1>
-                    <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
-                        Mengosongkan data tiketing, e-form, dan hardware request untuk go-live produksi
-                    </p>
-                </div>
-            </div>
+        <div className="res-page mg-page is-narrow space-y-4">
+            <ResHead icon={ShieldAlert} tone="red" title="Hapus Data Transaksional"
+                description="Mengosongkan data tiketing, e-form, dan hardware request untuk go-live produksi" />
 
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-5 dark:border-red-500/30 dark:bg-red-950/30">
+            <div className="rounded-2xl border border-bad/30 bg-bad/10 p-5">
                 <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-500 text-white">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-bad text-white">
                         <ShieldAlert className="h-6 w-6" aria-hidden="true" />
                     </div>
                     <div className="min-w-0 flex-1 space-y-2">
-                        <h2 className="text-base font-black tracking-tight text-red-900 dark:text-red-200">
+                        <h2 className="text-base font-black tracking-tight text-bad-ink">
                             Tindakan ini permanen
                         </h2>
-                        <ul className="space-y-1 text-sm leading-relaxed text-red-800 dark:text-red-300/90">
+                        <ul className="space-y-1 text-sm leading-relaxed text-bad-ink">
                             <li>
                                 Data yang terhapus tidak dapat dikembalikan melalui aplikasi. Backup
                                 pengaman dibuat otomatis dan wajib berhasil sebelum penghapusan dimulai.
@@ -139,8 +133,8 @@ export const DataWipePage: React.FC = () => {
                             onClick={handlePreview}
                             disabled={domains.length === 0 || busy}
                             className={cn(
-                                'flex min-h-[44px] items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors',
-                                'hover:bg-slate-50 dark:bg-[hsl(var(--card))] dark:text-slate-200 dark:hover:bg-slate-800/50',
+                                'flex min-h-[44px] items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-ink shadow-sm transition-colors',
+                                'hover:bg-fill dark:bg-surface',
                                 'disabled:cursor-not-allowed disabled:opacity-50',
                             )}
                         >
@@ -153,7 +147,7 @@ export const DataWipePage: React.FC = () => {
                         </button>
 
                         {domains.length === 0 && (
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                            <p className="text-xs text-ink-2">
                                 Pilih minimal satu domain data terlebih dahulu.
                             </p>
                         )}
@@ -164,7 +158,7 @@ export const DataWipePage: React.FC = () => {
                     <section className="space-y-3">
                         <StepHeading step={3} title="Konfirmasi penghapusan" />
                         {!preview && (
-                            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                            <div className="flex items-center gap-2 text-xs text-ink-2">
                                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                                 <span>Tombol penghapusan aktif setelah pratinjau dijalankan.</span>
                             </div>
@@ -174,15 +168,15 @@ export const DataWipePage: React.FC = () => {
                             onClick={() => setConfirmOpen(true)}
                             disabled={!preview || !previewHasData || busy}
                             className={cn(
-                                'flex min-h-[44px] items-center gap-2 rounded-xl bg-red-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors',
-                                'hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50',
+                                'flex min-h-[44px] items-center gap-2 rounded-xl bg-bad px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors',
+                                'hover:bg-bad/90 disabled:cursor-not-allowed disabled:opacity-50',
                             )}
                         >
                             <Trash2 className="h-4 w-4" aria-hidden="true" />
                             Hapus Data Permanen
                         </button>
                         {preview && !previewHasData && (
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                            <p className="text-xs text-ink-2">
                                 Tidak ada data, lampiran, atau counter yang perlu dibersihkan pada domain terpilih.
                             </p>
                         )}
@@ -208,12 +202,12 @@ const StepHeading: React.FC<{ step: number; title: string; hint?: string }> = ({
     hint,
 }) => (
     <div className="flex items-center gap-3">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900 font-mono text-xs font-black text-white dark:bg-slate-100 dark:text-slate-900">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-code font-mono text-xs font-black text-white">
             {step}
         </span>
         <div className="flex flex-wrap items-baseline gap-2">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">{title}</h3>
-            {hint && <span className="text-xs text-slate-500 dark:text-slate-400">{hint}</span>}
+            <h3 className="text-sm font-bold text-ink">{title}</h3>
+            {hint && <span className="text-xs text-ink-2">{hint}</span>}
         </div>
     </div>
 );

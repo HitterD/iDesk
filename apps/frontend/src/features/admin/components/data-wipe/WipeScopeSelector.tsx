@@ -63,11 +63,11 @@ export const WipeScopeSelector: React.FC<WipeScopeSelectorProps> = ({
                         onClick={() => toggle(key)}
                         className={cn(
                             'group relative text-left rounded-2xl border p-4 transition-all duration-150',
-                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40',
+                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bad/40',
                             'disabled:opacity-50 disabled:cursor-not-allowed',
                             isSelected
-                                ? 'border-red-400 bg-red-50 dark:border-red-500/50 dark:bg-red-950/30 shadow-xs'
-                                : 'border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:border-slate-300 dark:hover:border-slate-600',
+                                ? 'border-bad bg-bad/10 shadow-xs'
+                                : 'border-line bg-surface hover:border-line-strong',
                         )}
                     >
                         <div className="flex items-start gap-3">
@@ -75,22 +75,22 @@ export const WipeScopeSelector: React.FC<WipeScopeSelectorProps> = ({
                                 className={cn(
                                     'w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors',
                                     isSelected
-                                        ? 'bg-red-500 text-white'
-                                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+                                        ? 'bg-bad text-white'
+                                        : 'bg-fill text-ink-2',
                                 )}
                             >
                                 <Icon className="w-5 h-5" />
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                    <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+                                    <h4 className="font-bold text-sm text-ink">
                                         {WIPE_DOMAIN_LABELS[key]}
                                     </h4>
                                     {isSelected && (
-                                        <Check className="w-4 h-4 text-red-500 shrink-0" aria-hidden="true" />
+                                        <Check className="w-4 h-4 text-bad shrink-0" aria-hidden="true" />
                                     )}
                                 </div>
-                                <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                                <p className="mt-1 text-xs leading-relaxed text-ink-2">
                                     {detail}
                                 </p>
                             </div>

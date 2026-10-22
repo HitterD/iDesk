@@ -1,29 +1,9 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-    Ticket,
-    Search,
-    RefreshCw,
-    Eye,
-    AlertTriangle,
-    Clock,
-    CheckCircle2,
-    Filter,
-    Flame,
-    TrendingUp,
-    Inbox,
-    CircleDot,
-    X,
-    Building2,
-    Radio,
-    ChevronUp,
-    ChevronDown,
-    User as UserIcon,
-} from 'lucide-react';
+import { Ticket, Search, RefreshCw, Eye, AlertTriangle, Clock, CheckCircle2, Filter, Flame, TrendingUp, Inbox, CircleDot, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { SiteSelector } from '@/components/site/SiteSelector';
 import { UserAvatar } from '@/components/ui/UserAvatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -54,6 +34,9 @@ import { id as idLocale } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
+import { ResHead } from '@/components/resources/ResourceParts';
+import '@/components/management/management.css';
+import '@/features/admin/components/system-health/system-health.css';
 
 interface TicketItem {
     id: string;
@@ -269,62 +252,36 @@ export const ManagerTicketsPage: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6 animate-fade-in-up pb-10">
+        <div className="res-page mg-page space-y-4 pb-10">
             {/* Page Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className="px-2.5 py-0.5 text-xs font-semibold text-primary border-primary/30 bg-primary/5">
-                            <Building2 className="w-3.5 h-3.5 mr-1" />
-                            Manager Portal
-                        </Badge>
-                        {isConnected ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/60">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                Live Real-Time
-                            </span>
-                        ) : (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800/60">
-                                <Radio className="w-3 h-3 animate-spin" />
-                                Connecting...
-                            </span>
-                        )}
-                    </div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2.5">
-                        <Ticket className="w-7 h-7 text-primary" />
-                        Ticket Overview
-                    </h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                        Monitor, filter, dan kelola seluruh tiket dari semua cabang secara terpusat
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-2">
+            <ResHead icon={Ticket} tone="navy" title="Ticket Overview" description="Monitor, filter, dan kelola seluruh tiket dari semua cabang secara terpusat"
+                titleAdornment={isConnected ? (
+                    <span className="hl-live"><i />Live</span>
+                ) : (
+                    <span className="hl-live is-warn"><i />Menghubungkan…</span>
+                )}
+                actions={
                     <Button
-                        variant="outline"
-                        size="sm"
+                        variant="soft"
                         onClick={() => {
                             refetch();
                             queryClient.invalidateQueries({ queryKey: ['manager-tickets-stats'] });
                             toast.success('Data tiket diperbarui');
                         }}
                         disabled={isFetching}
-                        className="rounded-xl border-border/80 bg-card hover:bg-muted shadow-xs transition-all duration-150 cursor-pointer"
                     >
-                        <RefreshCw className={cn("w-4 h-4 mr-2", isFetching && "animate-spin text-primary")} />
+                        <RefreshCw aria-hidden="true" className={cn(isFetching && "animate-spin")} />
                         Refresh
                     </Button>
-                </div>
-            </div>
-
+                } />
             {/* Bento KPI Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
                 <StatsCard
                     icon={Inbox}
                     label="Total Tiket"
                     value={stats.total}
-                    color="text-slate-700 dark:text-slate-200"
-                    bgColor="bg-slate-100 dark:bg-slate-800"
+                    color="text-ink"
+                    bgColor="bg-fill"
                     animationIndex={0}
                     isLoading={statsLoading}
                     onClick={() => {
@@ -338,8 +295,8 @@ export const ManagerTicketsPage: React.FC = () => {
                     icon={Flame}
                     label="Critical"
                     value={stats.critical}
-                    color="text-red-600 dark:text-red-400"
-                    bgColor="bg-red-50 dark:bg-red-950/50"
+                    color="text-bad-ink"
+                    bgColor="bg-bad/10"
                     animationIndex={1}
                     isLoading={statsLoading}
                     onClick={toggleCriticalCard}
@@ -374,8 +331,8 @@ export const ManagerTicketsPage: React.FC = () => {
                     icon={CheckCircle2}
                     label="Resolved"
                     value={stats.resolved}
-                    color="text-emerald-600 dark:text-emerald-400"
-                    bgColor="bg-emerald-50 dark:bg-emerald-950/50"
+                    color="text-ok-ink"
+                    bgColor="bg-ok/10"
                     animationIndex={4}
                     isLoading={statsLoading}
                     onClick={() => setStatusFilter(statusFilter === 'RESOLVED' ? 'all' : 'RESOLVED')}
@@ -386,8 +343,8 @@ export const ManagerTicketsPage: React.FC = () => {
                     icon={TrendingUp}
                     label="SLA Overdue"
                     value={stats.overdue}
-                    color="text-amber-600 dark:text-amber-400"
-                    bgColor="bg-amber-50 dark:bg-amber-950/50"
+                    color="text-warn-ink"
+                    bgColor="bg-warn/10"
                     animationIndex={5}
                     isLoading={statsLoading}
                 />
@@ -457,37 +414,37 @@ export const ManagerTicketsPage: React.FC = () => {
                                 </SelectItem>
                                 <SelectItem value="TODO">
                                     <span className="flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full bg-slate-400" />
+                                        <span className="w-2 h-2 rounded-full bg-ink-3" />
                                         To Do / Open
                                     </span>
                                 </SelectItem>
                                 <SelectItem value="IN_PROGRESS">
                                     <span className="flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                                        <span className="w-2 h-2 rounded-full bg-brand" />
                                         In Progress
                                     </span>
                                 </SelectItem>
                                 <SelectItem value="WAITING_VENDOR">
                                     <span className="flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full bg-orange-500" />
+                                        <span className="w-2 h-2 rounded-full bg-warn" />
                                         Waiting Vendor
                                     </span>
                                 </SelectItem>
                                 <SelectItem value="RESOLVED">
                                     <span className="flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                        <span className="w-2 h-2 rounded-full bg-ok" />
                                         Resolved
                                     </span>
                                 </SelectItem>
                                 <SelectItem value="CLOSED">
                                     <span className="flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full bg-slate-500" />
+                                        <span className="w-2 h-2 rounded-full bg-ink-3" />
                                         Closed
                                     </span>
                                 </SelectItem>
                                 <SelectItem value="CANCELLED">
                                     <span className="flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full bg-red-500" />
+                                        <span className="w-2 h-2 rounded-full bg-bad" />
                                         Cancelled
                                     </span>
                                 </SelectItem>
@@ -504,26 +461,26 @@ export const ManagerTicketsPage: React.FC = () => {
                             <SelectContent className="rounded-xl border-border/80">
                                 <SelectItem value="all">Semua Prioritas</SelectItem>
                                 <SelectItem value="CRITICAL">
-                                    <span className="flex items-center gap-2 text-red-600 font-semibold">
-                                        <Flame className="w-3.5 h-3.5 text-red-500" />
+                                    <span className="flex items-center gap-2 text-bad-ink font-semibold">
+                                        <Flame className="w-3.5 h-3.5 text-bad" />
                                         Critical
                                     </span>
                                 </SelectItem>
                                 <SelectItem value="HIGH">
-                                    <span className="flex items-center gap-2 text-orange-600 font-semibold">
-                                        <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
+                                    <span className="flex items-center gap-2 text-warn-ink font-semibold">
+                                        <AlertTriangle className="w-3.5 h-3.5 text-warn" />
                                         High
                                     </span>
                                 </SelectItem>
                                 <SelectItem value="MEDIUM">
-                                    <span className="flex items-center gap-2 text-yellow-600 font-semibold">
-                                        <span className="w-2 h-2 rounded-full bg-yellow-500" />
+                                    <span className="flex items-center gap-2 text-warn-ink font-semibold">
+                                        <span className="w-2 h-2 rounded-full bg-warn" />
                                         Medium
                                     </span>
                                 </SelectItem>
                                 <SelectItem value="LOW">
-                                    <span className="flex items-center gap-2 text-slate-600 font-semibold">
-                                        <span className="w-2 h-2 rounded-full bg-slate-400" />
+                                    <span className="flex items-center gap-2 text-ink-2 font-semibold">
+                                        <span className="w-2 h-2 rounded-full bg-ink-3" />
                                         Low
                                     </span>
                                 </SelectItem>
@@ -647,10 +604,10 @@ export const ManagerTicketsPage: React.FC = () => {
                                             </p>
                                             {hasActiveFilters && (
                                                 <Button
-                                                    variant="outline"
+                                                    variant="soft"
                                                     size="sm"
                                                     onClick={clearAllFilters}
-                                                    className="mt-4 rounded-xl text-xs"
+                                                    className="mt-4"
                                                 >
                                                     Reset Filter
                                                 </Button>
@@ -662,12 +619,12 @@ export const ManagerTicketsPage: React.FC = () => {
                                 tickets.map((ticket) => {
                                     const statusCfg = STATUS_CONFIG[ticket.status] || {
                                         label: ticket.status,
-                                        color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+                                        color: 'bg-fill text-ink-2',
                                     };
                                     const priorityCfg = PRIORITY_CONFIG[ticket.priority] || {
                                         label: ticket.priority,
-                                        badgeColor: 'bg-slate-100 text-slate-600',
-                                        dot: 'bg-slate-400',
+                                        badgeColor: 'bg-fill text-ink-2',
+                                        dot: 'bg-ink-3',
                                     };
 
                                     const requesterName = ticket.user?.fullName || ticket.requester?.fullName || '-';
@@ -728,8 +685,8 @@ export const ManagerTicketsPage: React.FC = () => {
                                                     "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold shadow-2xs",
                                                     priorityCfg.badgeColor
                                                 )} title={priorityCfg.label}>
-                                                    {ticket.priority === 'CRITICAL' && <Flame className="w-3.5 h-3.5 text-red-500 animate-pulse" />}
-                                                    {ticket.priority === 'HIGH' && <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />}
+                                                    {ticket.priority === 'CRITICAL' && <Flame className="w-3.5 h-3.5 text-bad animate-pulse" />}
+                                                    {ticket.priority === 'HIGH' && <AlertTriangle className="w-3.5 h-3.5 text-warn" />}
                                                     {priorityCfg.shortLabel || priorityCfg.label}
                                                 </span>
                                             </TableCell>
@@ -778,10 +735,10 @@ export const ManagerTicketsPage: React.FC = () => {
                                             {/* Action Detail */}
                                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                                 <Button
-                                                    variant="ghost"
+                                                    variant="subtle"
                                                     size="sm"
                                                     onClick={() => setSelectedTicketId(ticket.id)}
-                                                    className="h-8 w-8 p-0 rounded-lg hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
+                                                    className="w-8 p-0 cursor-pointer"
                                                     title="Lihat Log Aktivitas Tiket"
                                                     aria-label="Lihat Log Aktivitas Tiket"
                                                 >
