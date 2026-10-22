@@ -1047,7 +1047,11 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .portal-page-size > svg { width: 13px; height: 13px; color: hsl(var(--idesk-text-secondary)); pointer-events: none; }
 .portal-tfoot { background: transparent; border-top: .5px solid hsl(var(--idesk-border)); }
 /* Mockup 390 card (idesk.css @max-width 860 .row): id · ⋯ / title / status + SLA / PIC divider. */
-.queue-mcard { display: grid; gap: 6px; padding: 12px 14px 12px 16px; min-width: 0; }
+.queue-mobile-row.queue-mcard { display: grid; gap: 6px; padding: 12px 14px 12px 16px; min-width: 0; }
+/* Keep card visibility paired with the desktop grid; later card styles must not reveal both. */
+@container (min-width: 1100px) {
+  .queue-mobile-row.queue-mcard { display: none; }
+}
 .queue-mcard-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; min-width: 0; }
 .queue-mcard-top .queue-tk-id { row-gap: 4px; padding-top: 2px; }
 .queue-mcard-check { min-width: 28px; min-height: 28px; margin: -6px 0 -6px -6px; }
