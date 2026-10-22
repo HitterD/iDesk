@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { LayoutGrid, Layers, Inbox, CircleCheck, TriangleAlert, Gauge, RefreshCw, ServerCrash, TrendingUp, TrendingDown, Users } from 'lucide-react';
@@ -155,7 +155,7 @@ export const BentoDashboardPage = () => {
                 </div>
                 <span className="dash-spacer" />
                 <div className="dash-head-actions">
-                    <Button variant="soft" onClick={() => navigate('/tickets/list')}><Users aria-hidden="true" />Tugas Saya</Button>
+                    <Button variant="soft" asChild><Link to="/tickets/list?filter=assigned_to_me"><Users aria-hidden="true" />Tugas Saya</Link></Button>
                     <Button variant="soft" onClick={handleRefresh} loading={reloading}>{!reloading && <RefreshCw aria-hidden="true" />}Muat ulang</Button>
                 </div>
             </header>

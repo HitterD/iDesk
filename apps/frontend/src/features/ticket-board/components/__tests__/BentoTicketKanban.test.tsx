@@ -1,9 +1,25 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { Draggable } from '@hello-pangea/dnd';
 import { describe, expect, it, vi } from 'vitest';
-import { EnhancedKanbanCard, isCountedOverdue } from '../BentoTicketKanban';
+import { BentoTicketKanban, EnhancedKanbanCard, isCountedOverdue } from '../BentoTicketKanban';
+
+vi.mock('@/lib/api', () => ({ default: { get: vi.fn(async () => ({ data: [] })) } }));
+vi.mock('@/lib/socket', () => ({ useSocket: () => ({ isConnected: true }) }));
+vi.mock('@/stores/useAuth', () => ({ useAuth: () => ({ user: { id: 'me', role: 'AGENT' } }) }));
+vi.mock('../../hooks/useStatusTakeover', () => ({ useStatusTakeover: () => ({}), isHandledByTakeoverDialog: () => false }));
+
+it.each(['Overdue', 'Critical'])('keeps personal scope when applying %s attention', async (attention) => {
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter><BentoTicketKanban /></MemoryRouter>
+    </QueryClientProvider>);
+    const personal = await screen.findByRole('button', { name: 'Tugas Saya' });
+    fireEvent.click(personal);
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(attention) }));
+    expect(personal).toHaveAttribute('aria-pressed', 'true');
+});
 
 vi.mock('@/lib/slaCountdown', async (importOriginal) => ({
     ...await importOriginal<typeof import('@/lib/slaCountdown')>(),

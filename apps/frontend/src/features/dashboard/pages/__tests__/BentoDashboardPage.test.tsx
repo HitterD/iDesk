@@ -35,6 +35,11 @@ describe('BentoDashboardPage (Dashboard Tim)', () => {
         api.get.mockImplementation((url: string) => Promise.resolve({ data: url === '/tickets' ? tickets : { avgResolutionTime: '4h 20m' } }));
     });
 
+    it('links Tugas Saya to the personal ticket scope', async () => {
+        renderPage();
+        expect(await screen.findByRole('link', { name: 'Tugas Saya' })).toHaveAttribute('href', '/tickets/list?filter=assigned_to_me');
+    });
+
     it('shows the five stat cards with real counts and mockup copy', async () => {
         renderPage();
         const stats = await screen.findByRole('region', { name: 'Ringkasan tiket' });

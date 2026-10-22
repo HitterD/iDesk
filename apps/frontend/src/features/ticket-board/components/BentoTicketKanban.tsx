@@ -60,7 +60,7 @@ export const isCountedOverdue = (t: { status: string; isOverdue?: boolean }): bo
     Boolean(t.isOverdue) && !NOT_OVERDUE_STATUSES.includes(t.status);
 
 type Ticket = KanbanTicket;
-type KanbanFilter = 'all' | 'my' | 'overdue' | 'critical';
+type KanbanAttention = '' | 'overdue' | 'critical';
 type StatKey = 'all' | 'open' | 'inProgress' | 'waitingVendor' | 'resolved' | 'overdue' | 'critical';
 const KANBAN_STATS: readonly { key: StatKey; label: string; icon: React.ElementType; tone: TicketPillTone; status?: string; attention?: boolean }[] = [
     { key: 'all', label: 'Total', icon: Layers, tone: 'neutral' },
@@ -391,7 +391,8 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
 
     const [collapsedColumns, setCollapsedColumns] = useState<string[]>([]);
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
-    const [filter, setFilter] = useState<KanbanFilter>('all');
+    const [scope, setScope] = useState<'all' | 'assigned_to_me'>('all');
+    const [attention, setAttention] = useState<KanbanAttention>('');
     const [priorityFilter, setPriorityFilter] = useState('');
     /** Stat-card status filter (mockup: the same counters as the Tabel view filter the board). */
     const [statusFilter, setStatusFilter] = useState<string>('');
@@ -545,9 +546,9 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
         result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
         // 2. Quick filter pills
-        if (filter === 'my') result = result.filter(t => t.assignedTo?.id === user?.id);
-        if (filter === 'overdue') result = result.filter(isCountedOverdue);
-        if (filter === 'critical') result = result.filter(t => t.priority === 'CRITICAL');
+        if (scope === 'assigned_to_me') result = result.filter(t => t.assignedTo?.id === user?.id);
+        if (attention === 'overdue') result = result.filter(isCountedOverdue);
+        if (attention === 'critical') result = result.filter(t => t.priority === 'CRITICAL');
         if (priorityFilter) result = result.filter(t => t.priority === priorityFilter);
         if (statusFilter) result = result.filter(t => statusFilter.split(',').includes(t.status));
 
@@ -570,7 +571,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
         }
 
         return result;
-    }, [tickets, filter, priorityFilter, statusFilter, user?.id, selectedSites, searchQuery]);
+    }, [tickets, scope, attention, priorityFilter, statusFilter, user?.id, selectedSites, searchQuery]);
 
     // Compute live stats for top cards
     const stats = useMemo(() => {
@@ -627,18 +628,18 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
             {/* Same header as the Tabel view: scope segments + Kanban | Tabel in the same place. */}
             <QueueHeader title={config.title} description={config.description} icon={config.icon} tone={config.tone}
                 connected={isConnected} canEdit view="kanban" tablePath={propQueue ? undefined : config.tablePath}
-                scopes={KANBAN_SCOPES} scope={filter === 'my' ? 'assigned_to_me' : 'all'}
-                onScopeChange={(scope) => setFilter(scope === 'assigned_to_me' ? 'my' : 'all')} />
+                scopes={KANBAN_SCOPES} scope={scope}
+                onScopeChange={(value) => setScope(value === 'assigned_to_me' ? 'assigned_to_me' : 'all')} />
 
             {/* Same counters as the Tabel view (computed from the loaded board). */}
             <div className="queue-stats queue-stats-7" aria-label="Ringkasan status">
                 {KANBAN_STATS.map((card) => {
                     const active = card.key === 'all'
-                        ? !statusFilter && filter !== 'overdue' && filter !== 'critical'
-                        : card.key === 'overdue' || card.key === 'critical' ? filter === card.key : statusFilter === card.status;
+                        ? !statusFilter && !attention
+                        : card.key === 'overdue' || card.key === 'critical' ? attention === card.key : statusFilter === card.status;
                     const select = () => {
-                        if (card.key === 'all') { setStatusFilter(''); setFilter(filter === 'my' ? 'my' : 'all'); return; }
-                        if (card.key === 'overdue' || card.key === 'critical') { setStatusFilter(''); setFilter(active ? 'all' : card.key); return; }
+                        if (card.key === 'all') { setStatusFilter(''); setAttention(''); return; }
+                        if (card.key === 'overdue' || card.key === 'critical') { setStatusFilter(''); setAttention(active ? '' : card.key); return; }
                         setStatusFilter(active ? '' : card.status ?? '');
                     };
                     return <StatsCard key={card.key} icon={card.icon} tone={card.tone} label={card.label} value={stats[card.key]}
@@ -650,8 +651,8 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
             <QueueFilterBar id="kanban-ticket-search" search={searchQuery} onSearch={setSearchQuery}>
                 <CustomDropdown value={priorityFilter} onChange={setPriorityFilter}
                     placeholder="Semua" filterKey="Prioritas" options={PRIORITY_FILTER_OPTIONS} />
-                <CustomDropdown value={filter === 'overdue' || filter === 'critical' ? filter : ''}
-                    onChange={(value) => setFilter((value || 'all') as KanbanFilter)}
+                <CustomDropdown value={attention}
+                    onChange={(value) => setAttention(value === 'overdue' || value === 'critical' ? value : '')}
                     placeholder="Semua" filterKey="Perhatian"
                     options={[
                         { value: 'ALL', label: 'Semua' },
