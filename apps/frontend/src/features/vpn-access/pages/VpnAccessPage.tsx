@@ -1,5 +1,8 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { ResSearch } from '@/components/resources/ResourceParts';
+import { MgStat } from '@/components/management/MgmtParts';
 import {
     Shield,
     Plus,
@@ -19,7 +22,10 @@ import {
     ChevronLeft,
     ChevronRight,
     ChevronsLeft,
-    ChevronsRight
+    ChevronsRight,
+    ShieldCheck,
+    Hourglass,
+    CircleSlash,
 } from 'lucide-react';
 import {
     useReactTable,
@@ -307,125 +313,21 @@ export default function VpnAccessPage() {
     });
 
     return (
-        <div className="space-y-6">
-            <div className="mb-8">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-                            <Shield className="w-8 h-8 text-primary" />
-                            VPN Access Management
-                        </h1>
-                        <p className="text-slate-500 dark:text-slate-400 mt-1">
-                            Kelola rekam jejak akses VPN tersinkronisasi Spreadsheet
-                        </p>
-                    </div>
-                    <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => {
-                            setSelectedVpn(null);
-                            setShowModal(true);
-                        }}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
-                    >
-                        <Plus className="w-5 h-5" />
-                        Tambah VPN Access
-                    </motion.button>
-                </div>
-            </div>
+        <div>
+            <section className="res-stats is-four" aria-label="Ringkasan VPN">
+                <MgStat icon={ShieldCheck} tone="navy" label="Total VPN" value={stats?.total || 0} />
+                <MgStat icon={CheckCircle2} tone="green" label="Selesai" value={stats?.active || 0} />
+                <MgStat icon={Hourglass} tone="amber" label="Expiring Soon" value={stats?.expiringSoon || 0} attention={(stats?.expiringSoon || 0) > 0} />
+                <MgStat icon={CircleSlash} tone="neutral" label="Non Aktif" value={stats?.expired || 0} />
+            </section>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl p-5 shadow-sm overflow-hidden relative group"
-                >
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500/50"></div>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total VPN</p>
-                            <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{stats?.total || 0}</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
-                            <Wifi className="w-5 h-5 text-blue-500" />
-                        </div>
-                    </div>
-                </motion.div>
-
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl p-5 shadow-sm overflow-hidden relative group"
-                >
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[hsl(var(--success-500))]/50"></div>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Selesai</p>
-                            <p className="text-2xl font-bold text-[hsl(var(--success-600))] dark:text-[hsl(var(--success-500))] mt-1">{stats?.active || 0}</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-xl bg-[hsl(var(--success-50))] dark:bg-[hsl(var(--success-900))]/20 flex items-center justify-center">
-                            <CheckCircle2 className="w-5 h-5 text-[hsl(var(--success-600))] dark:text-[hsl(var(--success-500))]" />
-                        </div>
-                    </div>
-                </motion.div>
-
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl p-5 shadow-sm overflow-hidden relative group"
-                >
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[hsl(var(--warning-500))]/50"></div>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Expiring Soon</p>
-                            <p className="text-2xl font-bold text-[hsl(var(--warning-600))] dark:text-[hsl(var(--warning-500))] mt-1">{stats?.expiringSoon || 0}</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-xl bg-[hsl(var(--warning-50))] dark:bg-[hsl(var(--warning-900))]/20 flex items-center justify-center">
-                            <AlertTriangle className="w-5 h-5 text-[hsl(var(--warning-600))] dark:text-[hsl(var(--warning-500))]" />
-                        </div>
-                    </div>
-                </motion.div>
-
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                    className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl p-5 shadow-sm overflow-hidden relative group"
-                >
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[hsl(var(--error-500))]/50"></div>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Non Aktif</p>
-                            <p className="text-2xl font-bold text-[hsl(var(--error-600))] dark:text-[hsl(var(--error-500))] mt-1">{stats?.expired || 0}</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-xl bg-[hsl(var(--error-50))] dark:bg-[hsl(var(--error-900))]/20 flex items-center justify-center">
-                            <XCircle className="w-5 h-5 text-[hsl(var(--error-600))] dark:text-[hsl(var(--error-500))]" />
-                        </div>
-                    </div>
-                </motion.div>
-            </div>
-
-            <div className="flex flex-col md:flex-row gap-4 mb-6">
-                <div className="relative flex-1">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input
-                            type="text"
-                            placeholder="Cari nama atau email..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-11 pr-4 py-2.5 bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm"
-                        />
-                    </div>
-                    <div className="flex gap-2">
+            <div className="res-filters">
+                    <ResSearch id="vpn-search" value={searchQuery} onChange={setSearchQuery} placeholder="Cari nama atau email..." label="Cari VPN" />
+                    <div className="contents">
                         <DropdownMenu.Root>
                             <DropdownMenu.Trigger asChild>
-                                <button
-                                    className="flex items-center justify-between gap-2 px-3 py-2.5 bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[hsl(var(--background))] transition-colors min-w-[140px] shadow-sm whitespace-nowrap"
-                                >
-                                    <span className="truncate">{filters.statusCreateVpn || 'Semua Status'}</span>
-                                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                                <button type="button" className="queue-pop" aria-label={`Status: ${filters.statusCreateVpn || 'Semua Status'}`}>
+                                    <span className="queue-pop-k">Status</span><span className="queue-pop-v">{filters.statusCreateVpn || 'Semua'}</span><ChevronDown aria-hidden="true" />
                                 </button>
                             </DropdownMenu.Trigger>
                             <DropdownMenu.Portal>
@@ -452,11 +354,8 @@ export default function VpnAccessPage() {
 
                         <DropdownMenu.Root>
                             <DropdownMenu.Trigger asChild>
-                                <button
-                                    className="flex items-center justify-between gap-2 px-3 py-2.5 bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[hsl(var(--background))] transition-colors min-w-[140px] shadow-sm whitespace-nowrap"
-                                >
-                                    <span className="truncate">{filters.area || 'Semua Area'}</span>
-                                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                                <button type="button" className="queue-pop" aria-label={`Area: ${filters.area || 'Semua Area'}`}>
+                                    <span className="queue-pop-k">Area</span><span className="queue-pop-v">{filters.area || 'Semua'}</span><ChevronDown aria-hidden="true" />
                                 </button>
                             </DropdownMenu.Trigger>
                             <DropdownMenu.Portal>
@@ -482,13 +381,9 @@ export default function VpnAccessPage() {
                         </DropdownMenu.Root>
                         <DropdownMenu.Root>
                             <DropdownMenu.Trigger asChild>
-                                <motion.button
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    className="flex items-center gap-2 px-3 py-2.5 bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[hsl(var(--background))] transition-colors shadow-sm"
-                                >
-                                <Columns className="w-5 h-5" /> View
-                            </motion.button>
+                                <button type="button" className="queue-pop" aria-label="Atur kolom">
+                                    <Columns aria-hidden="true" className="w-3.5 h-3.5" /><span className="queue-pop-v">Kolom</span>
+                                </button>
                         </DropdownMenu.Trigger>
                         <DropdownMenu.Portal>
                             <DropdownMenu.Content className="z-50 min-w-[200px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl shadow-xl p-2 animate-in fade-in slide-in-from-top-2">
@@ -514,15 +409,9 @@ export default function VpnAccessPage() {
                             </DropdownMenu.Content>
                         </DropdownMenu.Portal>
                     </DropdownMenu.Root>
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => refetch()}
-                        className="px-3 py-2.5 bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[hsl(var(--background))] transition-colors shadow-sm"
-                        title="Refresh Data"
-                    >
-                        <RefreshCw className="w-5 h-5" />
-                    </motion.button>
+                    <span className="res-spacer" />
+                    <Button variant="soft" size="icon" onClick={() => refetch()} title="Refresh Data" aria-label="Refresh Data"><RefreshCw aria-hidden="true" /></Button>
+                    <Button variant="primary" onClick={() => { setSelectedVpn(null); setShowModal(true); }}><Plus aria-hidden="true" />Tambah VPN Access</Button>
                 </div>
             </div>
 
@@ -553,15 +442,15 @@ export default function VpnAccessPage() {
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl overflow-hidden shadow-sm flex flex-col"
+                className="res-table flex flex-col"
             >
                 <div className="overflow-x-auto min-h-[400px]">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             {table.getHeaderGroups().map(headerGroup => (
-                                <tr key={headerGroup.id} className="bg-slate-50/80 dark:bg-[hsl(var(--background))] border-b border-[hsl(var(--border))] sticky top-0 z-10">
+                                <tr key={headerGroup.id} className="bg-[hsl(var(--idesk-surface))] border-b border-[var(--td-line)] sticky top-0 z-10">
                                     {headerGroup.headers.map(header => (
-                                        <th key={header.id} className="py-4 px-4 text-xs tracking-wider uppercase font-bold text-slate-500 whitespace-nowrap" style={{ width: header.getSize() }}>
+                                        <th key={header.id} className="py-2.5 px-4 text-[11.5px] font-medium text-[var(--td-text-3)] whitespace-nowrap" style={{ width: header.getSize() }}>
                                             {header.isPlaceholder
                                                 ? null
                                                 : flexRender(
@@ -573,7 +462,7 @@ export default function VpnAccessPage() {
                                 </tr>
                             ))}
                         </thead>
-                        <tbody className="divide-y divide-[hsl(var(--border))]">
+                        <tbody className="divide-y divide-[var(--td-line)]">
                             {isLoading ? (
                                 [...Array(10)].map((_, i) => (
                                     <tr key={`skeleton-${i}`} className="animate-pulse">
@@ -593,9 +482,9 @@ export default function VpnAccessPage() {
                                 </tr>
                             ) : (
                                 table.getRowModel().rows.map(row => (
-                                    <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-[hsl(var(--background))] transition-colors group relative">
+                                    <tr key={row.id} className="hover:bg-[var(--res-surface-2)] transition-colors group relative">
                                         {row.getVisibleCells().map(cell => (
-                                            <td key={cell.id} className="py-3.5 px-4 align-middle">
+                                            <td key={cell.id} className="py-3 px-4 align-middle text-[12.5px]">
                                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                             </td>
                                         ))}
@@ -607,7 +496,7 @@ export default function VpnAccessPage() {
                 </div>
 
                 {/* Pagination Controls */}
-                <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-[hsl(var(--border))] bg-slate-50/50 dark:bg-[hsl(var(--background))] gap-4">
+                <div className="res-foot">
                     <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400 w-full sm:w-auto overflow-x-auto">
                         <div className="flex items-center gap-2 whitespace-nowrap">
                             <span>Tampilkan</span>

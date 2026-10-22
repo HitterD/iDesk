@@ -14,7 +14,7 @@ type CssVars = React.CSSProperties & Record<`--${string}`, string>;
 export const resVars = (vars: Record<`--${string}`, string>): CssVars => vars as CssVars;
 
 /** Mockup tile hues for the page head (`.head .ptile`). */
-export type ResTileTone = 'orange' | 'mint' | 'blue' | 'navy' | 'green' | 'brown' | 'teal';
+export type ResTileTone = 'orange' | 'mint' | 'blue' | 'navy' | 'green' | 'brown' | 'teal' | 'red' | 'gray' | 'slate';
 
 interface ResHeadProps {
     icon: React.ElementType;

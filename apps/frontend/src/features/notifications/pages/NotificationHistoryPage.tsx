@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/stores/useAuth';
 import { cn } from '@/lib/utils';
+import { ResHead } from '@/components/resources/ResourceParts';
 import { useNotificationCenter } from '../../notifications/hooks/useNotificationCenter';
 import { NotificationCategory } from '../../../components/notifications/types/notification.types';
 
@@ -110,7 +111,7 @@ export const NotificationHistoryPage: React.FC = () => {
             return { label: 'iPop', color: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20' };
         }
         if (text.includes('hris') || text.includes('cuti') || text.includes('lembur')) {
-            return { label: 'HRIS', color: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20' };
+            return { label: 'HRIS', color: 'bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-500/20' };
         }
         return { label: 'iDesk', color: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20' };
     };
@@ -131,36 +132,13 @@ export const NotificationHistoryPage: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-300">
-            {/* User Identity Banner */}
-            <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3.5">
-                    <div className="w-11 h-11 rounded-xl bg-[#2D4A8C] text-white flex items-center justify-center font-bold text-base shadow-xs">
-                        <Bell size={20} />
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-xl font-bold tracking-tight text-[hsl(var(--foreground))]">
-                                Notification History
-                            </h1>
-                            <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-[#E8A830]/15 text-[#E8A830] border border-[#E8A830]/30">
-                                SJA v2.0
-                            </span>
-                        </div>
-                        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-                            Arsip & log resmi seluruh notifikasi sistem internal PT Santos Jaya Abadi
-                        </p>
-                    </div>
-                </div>
-
-                {/* User Identity Chip */}
-                <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-[hsl(var(--muted)/0.5)] border border-[hsl(var(--border))] text-xs font-mono">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="font-bold text-[hsl(var(--foreground))]">
+        <div className="res-page space-y-6">
+            <ResHead icon={Bell} tone="red" title="Notification History" description="Arsip & log resmi seluruh notifikasi sistem internal PT Santos Jaya Abadi"
+                actions={(
+                    <span className="queue-pop font-mono" title="Pengguna">
                         {user?.employeeId || '00061058'} - {(user?.fullName || 'RM BAGASTYO ANGGORO INDRASTOTO').toUpperCase()}
                     </span>
-                </div>
-            </div>
+                )} />
 
             {/* Bento App Counter Ribbons */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -188,9 +166,9 @@ export const NotificationHistoryPage: React.FC = () => {
                 <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-3.5 shadow-xs flex items-center justify-between">
                     <div>
                         <div className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">HRIS Portal</div>
-                        <div className="text-lg font-bold text-purple-600 mt-0.5">{appCounts.hris} Notif</div>
+                        <div className="text-lg font-bold text-teal-600 mt-0.5">{appCounts.hris} Notif</div>
                     </div>
-                    <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-teal-500" />
                 </div>
             </div>
 

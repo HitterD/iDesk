@@ -395,7 +395,7 @@ fetch('http://127.0.0.1:19876/notify', {
                                         onClick={() => handleSendScenario('reply', pref.mode)}
                                         className="text-xs flex items-start gap-2.5 p-2 rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
                                     >
-                                        <MessageSquare className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />
+                                        <MessageSquare className="h-4 w-4 text-[#2d4a8c] dark:text-[#a9bdf0] shrink-0 mt-0.5" />
                                         <div>
                                             <p className="font-semibold text-slate-800 dark:text-slate-200">4. Balasan Pesan Tiket</p>
                                             <p className="text-[11px] text-slate-500 leading-tight">Event TICKET_REPLY / User Chat</p>
@@ -475,7 +475,7 @@ fetch('http://127.0.0.1:19876/notify', {
                                     </div>
                                 </div>
                                 <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-start gap-3">
-                                    <Layers className="h-4 w-4 text-purple-600 mt-0.5 shrink-0" />
+                                    <Layers className="h-4 w-4 text-[#2d4a8c] dark:text-[#a9bdf0] mt-0.5 shrink-0" />
                                     <div>
                                         <p className="font-medium text-xs text-slate-900 dark:text-slate-100">Mode Fleksibel</p>
                                         <p className="text-[11px] text-slate-500 mt-0.5">Mendukung pilihan mode Windows Toast, Popup Window detail, atau keduanya sekaligus.</p>

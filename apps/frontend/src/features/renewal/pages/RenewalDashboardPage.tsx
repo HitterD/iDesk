@@ -1,6 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { downloadBlob } from '@/lib/utils/downloadBlob';
-import { Search, Filter, CalendarClock, RefreshCw, Upload, FileText, ChevronLeft, ChevronRight, Download, Calendar, LayoutGrid, Table2, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Search, RefreshCw, Upload, FilePlus2, Download, Calendar, Table2, ChevronDown, Check } from 'lucide-react';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { ResPager } from '@/components/resources/ResourceParts';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { ContractStats } from '../components/ContractStats';
@@ -28,6 +30,22 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
+/** Radio menu in the shared popover style for the Status / Kategori / Per halaman pops. */
+const PopMenu: React.FC<{ value: string; labels: Readonly<Record<string, string>>; onChange: (v: string) => void; label: string; side?: 'top' | 'bottom' }> = ({ value, labels, onChange, label, side }) => (
+    <DropdownMenu.Portal>
+        <DropdownMenu.Content side={side} align="start" sideOffset={6} aria-label={label}
+            className="z-50 min-w-[180px] rounded-xl bg-[hsl(var(--idesk-surface))] p-1 shadow-[var(--queue-pop-shadow)]">
+            <DropdownMenu.RadioGroup value={value} onValueChange={onChange}>
+                {Object.entries(labels).map(([k, l]) => (
+                    <DropdownMenu.RadioItem key={k || 'all'} value={k} className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-[13px] outline-none cursor-pointer data-[highlighted]:bg-[var(--dash-hover)]">
+                        {l}<DropdownMenu.ItemIndicator><Check className="w-3.5 h-3.5 text-[hsl(var(--idesk-sapphire))]" aria-hidden="true" /></DropdownMenu.ItemIndicator>
+                    </DropdownMenu.RadioItem>
+                ))}
+            </DropdownMenu.RadioGroup>
+        </DropdownMenu.Content>
+    </DropdownMenu.Portal>
+);
 
 export const RenewalDashboardPage = () => {
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -168,49 +186,17 @@ export const RenewalDashboardPage = () => {
         toast.success(`Exported ${contracts.length} contracts`);
     };
 
-    return (
-        <div className="space-y-6 animate-fade-in-up">
-            {/* Compact Actions Row - Header is now in RenewalHubPage */}
-            <div className="flex flex-wrap items-center justify-end gap-3">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExport}
-                    disabled={contracts.length === 0}
-                    className="border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm font-semibold h-10 px-4"
-                >
-                    <Download className="w-4 h-4 mr-2" />
-                    Export CSV
-                </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRefresh}
-                    className="border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm font-semibold h-10 px-4"
-                >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Refresh
-                </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsManualModalOpen(true)}
-                    className="border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm font-semibold h-10 px-4"
-                >
-                    <FileText className="w-4 h-4 mr-2" />
-                    Add Manual
-                </Button>
-                <Button
-                    size="sm"
-                    onClick={() => setIsUploadModalOpen(true)}
-                    className="bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm h-10 px-5"
-                >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload PDF
-                </Button>
-            </div>
+    const STATUS_LABEL: Readonly<Record<string, string>> = {
+        '': 'All Status', [ContractStatus.ACTIVE]: 'Active', [ContractStatus.EXPIRING_SOON]: 'Expiring Soon', [ContractStatus.EXPIRED]: 'Expired', [ContractStatus.DRAFT]: 'Draft',
+    };
+    const CATEGORY_LABEL: Readonly<Record<string, string>> = {
+        '': 'All Categories', [ContractCategory.SOFTWARE]: 'Software', [ContractCategory.HARDWARE]: 'Hardware', [ContractCategory.SERVICE]: 'Service',
+        [ContractCategory.SUBSCRIPTION]: 'Subscription', [ContractCategory.MAINTENANCE]: 'Maintenance', [ContractCategory.OTHER]: 'Other',
+    };
 
-            {/* Stats Cards - Now Clickable */}
+    return (
+        <div>
+            {/* Stats Cards - clickable filters */}
             <ContractStats
                 stats={stats}
                 isLoading={statsLoading}
@@ -218,86 +204,38 @@ export const RenewalDashboardPage = () => {
                 activeStatus={statusFilter}
             />
 
-            {/* Filters */}
-            <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                    <input
-                        type="text"
-                        placeholder="Search by PO number, vendor, or filename..."
-                        value={searchInput}
-                        onChange={(e) => setSearchInput(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3 bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out font-medium"
-                    />
-                    {searchInput !== debouncedSearch && (
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                        </div>
-                    )}
-                </div>
-                <div className="relative group shrink-0">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
-                        <Filter className="w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                    </div>
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value as ContractStatus | '')}
-                        className="appearance-none pl-12 pr-10 py-3 w-full md:w-auto bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary min-w-[180px] transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out cursor-pointer font-medium hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                    >
-                        <option value="">All Status</option>
-                        <option value={ContractStatus.ACTIVE}>Active</option>
-                        <option value={ContractStatus.EXPIRING_SOON}>Expiring Soon</option>
-                        <option value={ContractStatus.EXPIRED}>Expired</option>
-                        <option value={ContractStatus.DRAFT}>Draft</option>
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <ChevronDown className="w-4 h-4 text-slate-400" />
-                    </div>
-                </div>
-                {/* Category Filter */}
-                <div className="relative group shrink-0">
-                    <select
-                        value={categoryFilter}
-                        onChange={(e) => setCategoryFilter(e.target.value as ContractCategory | '')}
-                        className="appearance-none pl-4 pr-10 py-3 w-full md:w-auto bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary min-w-[160px] cursor-pointer font-medium transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                    >
-                        <option value="">All Categories</option>
-                        <option value={ContractCategory.SOFTWARE}>Software</option>
-                        <option value={ContractCategory.HARDWARE}>Hardware</option>
-                        <option value={ContractCategory.SERVICE}>Service</option>
-                        <option value={ContractCategory.SUBSCRIPTION}>Subscription</option>
-                        <option value={ContractCategory.MAINTENANCE}>Maintenance</option>
-                        <option value={ContractCategory.OTHER}>Other</option>
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <ChevronDown className="w-4 h-4 text-slate-400" />
-                    </div>
-                </div>
-                {/* View Mode Toggle */}
-                <div className="flex items-center p-1.5 bg-slate-50 dark:bg-slate-800/50 border border-[hsl(var(--border))] rounded-xl shrink-0">
-                    <button
-                        onClick={() => setViewMode('table')}
-                        className={`flex items-center justify-center p-2 rounded-lg transition-[opacity,transform,colors] duration-200 ease-out ${
-                            viewMode === 'table'
-                                ? 'bg-white dark:bg-[hsl(var(--card))] text-primary shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
-                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                        }`}
-                        title="Table View"
-                    >
-                        <Table2 className="w-4 h-4" />
-                    </button>
-                    <button
-                        onClick={() => setViewMode('calendar')}
-                        className={`flex items-center justify-center p-2 rounded-lg transition-[opacity,transform,colors] duration-200 ease-out ${
-                            viewMode === 'calendar'
-                                ? 'bg-white dark:bg-[hsl(var(--card))] text-primary shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
-                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                        }`}
-                        title="Calendar View"
-                    >
-                        <Calendar className="w-4 h-4" />
-                    </button>
-                </div>
+            {/* Filters + actions (mockup .filters) */}
+            <div className="res-filters">
+                <label className="queue-field flex-1" htmlFor="contract-search">
+                    <Search aria-hidden="true" />
+                    <input id="contract-search" type="search" value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
+                        placeholder="Cari nomor PO, vendor, atau nama file..." aria-label="Cari kontrak" />
+                    {searchInput !== debouncedSearch && <span role="status" aria-label="Mencari" className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />}
+                </label>
+                <DropdownMenu.Root>
+                    <DropdownMenu.Trigger asChild>
+                        <button type="button" className="queue-pop" aria-label={`Status: ${STATUS_LABEL[statusFilter]}`}>
+                            <span className="queue-pop-k">Status</span><span className="queue-pop-v">{STATUS_LABEL[statusFilter]}</span><ChevronDown aria-hidden="true" />
+                        </button>
+                    </DropdownMenu.Trigger>
+                    <PopMenu value={statusFilter} labels={STATUS_LABEL} onChange={(v) => setStatusFilter(v as ContractStatus | '')} label="Filter status" />
+                </DropdownMenu.Root>
+                <DropdownMenu.Root>
+                    <DropdownMenu.Trigger asChild>
+                        <button type="button" className="queue-pop" aria-label={`Kategori: ${CATEGORY_LABEL[categoryFilter]}`}>
+                            <span className="queue-pop-k">Kategori</span><span className="queue-pop-v">{CATEGORY_LABEL[categoryFilter]}</span><ChevronDown aria-hidden="true" />
+                        </button>
+                    </DropdownMenu.Trigger>
+                    <PopMenu value={categoryFilter} labels={CATEGORY_LABEL} onChange={(v) => setCategoryFilter(v as ContractCategory | '')} label="Filter kategori" />
+                </DropdownMenu.Root>
+                <SegmentedControl aria-label="Tampilan" className="dash-seg" value={viewMode} onValueChange={setViewMode} options={[
+                    { value: 'table', label: 'Tabel', icon: Table2, ariaLabel: 'Table View' },
+                    { value: 'calendar', label: 'Kalender', icon: Calendar, ariaLabel: 'Calendar View' },
+                ]} />
+                <Button variant="soft" size="icon" onClick={handleRefresh} aria-label="Refresh" title="Refresh"><RefreshCw aria-hidden="true" /></Button>
+                <Button variant="soft" size="icon" onClick={handleExport} disabled={contracts.length === 0} aria-label="Export CSV" title="Export CSV"><Download aria-hidden="true" /></Button>
+                <Button variant="soft" onClick={() => setIsManualModalOpen(true)}><FilePlus2 aria-hidden="true" />Add Manual</Button>
+                <Button variant="primary" onClick={() => setIsUploadModalOpen(true)}><Upload aria-hidden="true" />Upload PDF</Button>
             </div>
 
             {/* Contracts View - Table or Calendar */}
@@ -314,85 +252,31 @@ export const RenewalDashboardPage = () => {
                     onAddManual={() => setIsManualModalOpen(true)}
                 />
             ) : (
-                <ContractCalendar
-                    contracts={contracts}
-                    onContractClick={(contract) => setPreviewContract(contract)}
-                    isLoading={contractsLoading}
-                />
+                <div className="dash-panel">
+                    <ContractCalendar
+                        contracts={contracts}
+                        onContractClick={(contract) => setPreviewContract(contract)}
+                        isLoading={contractsLoading}
+                    />
+                </div>
             )}
 
             {/* Pagination */}
             {totalItems > 0 && (
-                <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-[hsl(var(--border))] bg-slate-50 dark:bg-slate-800/30 gap-4 mt-4 rounded-b-2xl">
-                    <div className="flex items-center gap-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-full sm:w-auto overflow-x-auto">
-                        <div className="flex items-center gap-2 whitespace-nowrap">
-                            <span>Tampilkan</span>
-                            <DropdownMenu.Root>
-                                <DropdownMenu.Trigger asChild>
-                                    <button className="flex items-center justify-between gap-2 px-3 py-1.5 bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 min-w-[70px]">
-                                        <span>{pageSize}</span>
-                                        <ChevronDown className="w-4 h-4 text-slate-400" />
-                                    </button>
-                                </DropdownMenu.Trigger>
-                                <DropdownMenu.Portal>
-                                    <DropdownMenu.Content side="top" className="z-50 min-w-[70px] bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl shadow-xl py-1.5 animate-in fade-in slide-in-from-bottom-2">
-                                        {PAGE_SIZE_OPTIONS.map(size => (
-                                            <DropdownMenu.Item
-                                                key={size}
-                                                onSelect={() => {
-                                                    setPageSize(size);
-                                                    setCurrentPage(1);
-                                                }}
-                                                className="px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer outline-none flex items-center justify-between font-medium"
-                                            >
-                                                {size}
-                                                {pageSize === size && <CheckCircle2 className="w-4 h-4 text-primary" />}
-                                            </DropdownMenu.Item>
-                                        ))}
-                                    </DropdownMenu.Content>
-                                </DropdownMenu.Portal>
-                            </DropdownMenu.Root>
-                            <span>baris</span>
-                        </div>
-                        <span className="hidden sm:block h-4 w-px bg-slate-200 dark:bg-slate-700 shrink-0" />
-                        <div className="flex items-center gap-2 whitespace-nowrap">
-                            <span>Halaman {currentPage} dari {Math.max(1, totalPages)}</span>
-                            <span className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-2" />
-                            <span>Total {totalItems} data</span>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                            onClick={() => setCurrentPage(1)}
-                            disabled={currentPage === 1}
-                            className="flex items-center justify-center w-8 h-8 rounded-lg border border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors disabled:cursor-not-allowed shadow-sm"
-                        >
-                            <ChevronLeft className="w-4 h-4" />
-                            <ChevronLeft className="w-4 h-4 -ml-2" />
-                        </button>
-                        <button
-                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                            disabled={currentPage === 1}
-                            className="flex items-center justify-center w-8 h-8 rounded-lg border border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors disabled:cursor-not-allowed shadow-sm"
-                        >
-                            <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                            disabled={currentPage === totalPages}
-                            className="flex items-center justify-center w-8 h-8 rounded-lg border border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors disabled:cursor-not-allowed shadow-sm"
-                        >
-                            <ChevronRight className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={() => setCurrentPage(totalPages)}
-                            disabled={currentPage === totalPages}
-                            className="flex items-center justify-center w-8 h-8 rounded-lg border border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors disabled:cursor-not-allowed shadow-sm"
-                        >
-                            <ChevronRight className="w-4 h-4" />
-                            <ChevronRight className="w-4 h-4 -ml-2" />
-                        </button>
-                    </div>
+                <div className="res-foot mt-3 rounded-2xl" style={{ borderTop: 0 }}>
+                    <span className="flex items-center gap-2 flex-wrap">
+                        <DropdownMenu.Root>
+                            <DropdownMenu.Trigger asChild>
+                                <button type="button" className="queue-pop" aria-label={`Per halaman: ${pageSize}`}>
+                                    <span className="queue-pop-k">Per halaman</span><span className="queue-pop-v">{pageSize}</span><ChevronDown aria-hidden="true" />
+                                </button>
+                            </DropdownMenu.Trigger>
+                            <PopMenu value={String(pageSize)} labels={Object.fromEntries(PAGE_SIZE_OPTIONS.map((n) => [String(n), String(n)]))}
+                                onChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }} label="Per halaman" side="top" />
+                        </DropdownMenu.Root>
+                        <span>Halaman {currentPage} dari {Math.max(1, totalPages)} · Total {totalItems} data</span>
+                    </span>
+                    <ResPager page={currentPage} totalPages={Math.max(1, totalPages)} onChange={setCurrentPage} />
                 </div>
             )}
 

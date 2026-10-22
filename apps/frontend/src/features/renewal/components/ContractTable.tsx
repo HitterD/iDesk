@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { FileText, Trash2, Edit2, ExternalLink, Calendar, Building2, CheckCircle, Clock, ArrowUpDown, ArrowUp, ArrowDown, DollarSign } from 'lucide-react';
+import { FileText, FileSearch, FilePlus2, Upload, Pencil, Trash2, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown, Hourglass, TriangleAlert } from 'lucide-react';
+import { ResBub, ResEmpty, ResSkeletonRows, ResTable } from '@/components/resources/ResourceParts';
 import { RenewalContract, ContractStatus } from '../types/renewal.types';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -22,11 +23,25 @@ interface ContractTableProps {
 type SortField = 'endDate' | 'vendorName' | 'contractValue' | 'status';
 type SortDirection = 'asc' | 'desc';
 
-const statusConfig: Record<ContractStatus, { label: string; color: string; priority: number }> = {
-    [ContractStatus.EXPIRED]: { label: 'Expired', color: 'bg-[hsl(var(--error-50))] text-[hsl(var(--error-600))] dark:bg-[hsl(var(--error-900))]/20 dark:text-[hsl(var(--error-400))] border border-[hsl(var(--error-200))] dark:border-[hsl(var(--error-800))]', priority: 0 },
-    [ContractStatus.EXPIRING_SOON]: { label: 'Expiring Soon', color: 'bg-[hsl(var(--warning-50))] text-[hsl(var(--warning-600))] dark:bg-[hsl(var(--warning-900))]/20 dark:text-[hsl(var(--warning-400))] border border-[hsl(var(--warning-200))] dark:border-[hsl(var(--warning-800))]', priority: 1 },
-    [ContractStatus.ACTIVE]: { label: 'Active', color: 'bg-[hsl(var(--success-50))] text-[hsl(var(--success-600))] dark:bg-[hsl(var(--success-900))]/20 dark:text-[hsl(var(--success-400))] border border-[hsl(var(--success-200))] dark:border-[hsl(var(--success-800))]', priority: 2 },
-    [ContractStatus.DRAFT]: { label: 'Draft', color: 'bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700', priority: 3 },
+const statusConfig: Record<ContractStatus, { label: string; hue: string; ink?: string; priority: number }> = {
+    [ContractStatus.EXPIRED]: { label: 'Expired', hue: 'var(--dash-red)', ink: 'var(--dash-ink-red)', priority: 0 },
+    [ContractStatus.EXPIRING_SOON]: { label: 'Expiring Soon', hue: 'var(--dash-orange)', ink: 'var(--dash-ink-orange)', priority: 1 },
+    [ContractStatus.ACTIVE]: { label: 'Active', hue: 'var(--dash-green)', ink: 'var(--dash-ink-green)', priority: 2 },
+    [ContractStatus.DRAFT]: { label: 'Draft', hue: 'var(--dash-gray)', priority: 3 },
+};
+/** Mockup renewal.html columns: contract, vendor, expiry, value, status, actions. */
+const CONTRACT_COLS = 'minmax(220px,1.6fr) minmax(150px,1fr) 150px 140px 130px 132px';
+const CATEGORY_LABEL: Readonly<Record<string, string>> = {
+    SOFTWARE: 'Software', HARDWARE: 'Hardware', SERVICE: 'Service', SUBSCRIPTION: 'Subscription', MAINTENANCE: 'Maintenance', OTHER: 'Other',
+};
+const EXPIRY_WARN_DAYS = 30;
+
+/** Mockup days bubble: "Nh lewat" red, "Nh lagi" orange within 30 days, muted text otherwise. */
+const ExpiryBub: React.FC<{ days: number }> = ({ days }) => {
+    if (days < 0) return <ResBub color="var(--dash-red)" ink="var(--dash-ink-red)" icon={TriangleAlert}>{Math.abs(days)}h lewat</ResBub>;
+    if (days === 0) return <ResBub color="var(--dash-red)" ink="var(--dash-ink-red)" icon={TriangleAlert}>Berakhir hari ini</ResBub>;
+    if (days <= EXPIRY_WARN_DAYS) return <ResBub color="var(--dash-orange)" ink="var(--dash-ink-orange)" icon={Hourglass}>{days}h lagi</ResBub>;
+    return <span className="res-muted text-xs">{days}h lagi</span>;
 };
 
 const formatDate = (dateStr: string | null) => {
@@ -36,13 +51,6 @@ const formatDate = (dateStr: string | null) => {
         month: 'short',
         year: 'numeric',
     });
-};
-
-const formatFileSize = (bytes: number | null) => {
-    if (!bytes) return '-';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 const formatCurrency = (value: number | null) => {
@@ -132,10 +140,10 @@ export const ContractTable: React.FC<ContractTableProps> = ({
     });
 
     const SortIcon = ({ field }: { field: SortField }) => {
-        if (sortField !== field) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-50" />;
+        if (sortField !== field) return <ArrowUpDown className="w-3 h-3 opacity-50" aria-hidden="true" />;
         return sortDirection === 'asc'
-            ? <ArrowUp className="w-3 h-3 ml-1" />
-            : <ArrowDown className="w-3 h-3 ml-1" />;
+            ? <ArrowUp className="w-3 h-3" aria-hidden="true" />
+            : <ArrowDown className="w-3 h-3" aria-hidden="true" />;
     };
 
     // Selection handlers
@@ -163,266 +171,83 @@ export const ContractTable: React.FC<ContractTableProps> = ({
     };
 
     if (isLoading) {
-        return (
-            <div className="bg-white dark:bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] overflow-hidden">
-                <div className="animate-pulse p-6 space-y-4">
-                    {[...Array(5)].map((_, i) => (
-                        <div key={i} className="h-12 bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
-                    ))}
-                </div>
-            </div>
-        );
+        return <div className="res-table"><ResSkeletonRows rows={5} /></div>;
     }
 
     if (contracts.length === 0) {
         return (
-            <div className="bg-white dark:bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-12">
-                <div className="max-w-md mx-auto text-center">
-                    {/* Floating animated icon */}
-                    <div className="w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 animate-bounce border border-primary/20">
-                        <FileText className="w-10 h-10 text-primary" />
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No Contracts Found</h3>
-                    <p className="text-slate-500 dark:text-slate-400 mb-6 font-medium">Get started by uploading your first contract or adding one manually.</p>
-
-                    {/* CTA Buttons - Clear Primary/Secondary */}
-                    {(onUpload || onAddManual) && (
-                        <div className="flex flex-col sm:flex-row gap-3 justify-center mb-8">
-                            {onUpload && (
-                                <Button
-                                    onClick={onUpload}
-                                    className="bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-colors duration-150 rounded-xl"
-                                >
-                                    <FileText className="w-4 h-4 mr-2" />
-                                    Upload PDF Contract
-                                </Button>
-                            )}
-                            {onAddManual && (
-                                <Button
-                                    variant="outline"
-                                    onClick={onAddManual}
-                                    className="border-[hsl(var(--border))] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors duration-150 rounded-xl font-bold"
-                                >
-                                    <Edit2 className="w-4 h-4 mr-2" />
-                                    Add Manually
-                                </Button>
-                            )}
+            <div className="res-table">
+                <ResEmpty icon={FileSearch} title="No Contracts Found"
+                    cta={(onUpload || onAddManual) ? (
+                        <div className="flex flex-wrap justify-center gap-2">
+                            {onAddManual && <Button variant="soft" onClick={onAddManual}><FilePlus2 aria-hidden="true" />Add Manual</Button>}
+                            {onUpload && <Button variant="primary" onClick={onUpload}><Upload aria-hidden="true" />Upload PDF</Button>}
                         </div>
-                    )}
-
-                    {/* Quick Setup Guide */}
-                    <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 text-left border border-[hsl(var(--border))]">
-                        <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">✨ Quick Setup Guide</h4>
-                        <div className="space-y-3 text-sm text-slate-500 dark:text-slate-400 font-medium">
-                            <div className="flex items-center gap-3">
-                                <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">1</span>
-                                Upload your contract PDF or add details manually
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">2</span>
-                                Review and confirm extracted data
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">3</span>
-                                Get automated reminders before expiry
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                    ) : undefined}>
+                    Coba ubah filter, atau upload kontrak pertama Anda.
+                </ResEmpty>
             </div>
         );
     }
 
+    const sortHead = (field: SortField, label: string) => (
+        <button type="button" className="inline-flex items-center gap-1 hover:text-[hsl(var(--idesk-text))]" onClick={() => handleSort(field)}
+            aria-label={`Urutkan ${label}`} aria-pressed={sortField === field}>
+            {label}<SortIcon field={field} />
+        </button>
+    );
+    const selectable = Boolean(onSelectionChange);
+
     return (
-        <div className="bg-white dark:bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] shadow-sm overflow-hidden flex flex-col">
-            <div className="overflow-x-auto flex-1">
-                <table className="w-full table-fixed text-left">
-                    <thead className="bg-slate-50/80 dark:bg-[hsl(var(--background))] sticky top-0 z-10 border-b border-[hsl(var(--border))]">
-                        <tr>
-                            {onSelectionChange && (
-                                <th className="px-5 py-4 w-12 sm:w-16">
-                                    <Checkbox
-                                        checked={isAllSelected || (isSomeSelected ? 'indeterminate' : false)}
-                                        onCheckedChange={handleSelectAll}
-                                        aria-label="Select all"
-                                        className="dark:border-slate-500"
-                                    />
-                                </th>
-                            )}
-                            <th className="px-5 py-4 w-[30%] text-xs font-bold text-slate-500 uppercase tracking-wider">Contract</th>
-                            <th
-                                className="px-5 py-4 w-[20%] text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-primary transition-colors"
-                                onClick={() => handleSort('vendorName')}
-                            >
-                                <div className="flex items-center">
-                                    Vendor <SortIcon field="vendorName" />
-                                </div>
-                            </th>
-                            <th
-                                className="px-5 py-4 w-[15%] text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-primary transition-colors"
-                                onClick={() => handleSort('endDate')}
-                            >
-                                <div className="flex items-center">
-                                    Expiry <SortIcon field="endDate" />
-                                </div>
-                            </th>
-                            <th
-                                className="px-5 py-4 w-[15%] text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-primary transition-colors hidden lg:table-cell"
-                                onClick={() => handleSort('contractValue')}
-                            >
-                                <div className="flex items-center">
-                                    Value <SortIcon field="contractValue" />
-                                </div>
-                            </th>
-                            <th
-                                className="px-5 py-4 w-[15%] text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-primary transition-colors"
-                                onClick={() => handleSort('status')}
-                            >
-                                <div className="flex items-center">
-                                    Status <SortIcon field="status" />
-                                </div>
-                            </th>
-                            <th className="px-5 py-4 w-28 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[hsl(var(--border))]">
-                        {sortedContracts.map((contract) => {
-                            const status = statusConfig[contract.status];
-                            const expiryInfo = getDaysUntilExpiry(contract.endDate);
-                            return (
-                                <tr key={contract.id} className={cn(
-                                    "hover:bg-slate-50 dark:hover:bg-[hsl(var(--background))] transition-colors group",
-                                    contract.status === ContractStatus.EXPIRING_SOON && "animate-contract-warning",
-                                    contract.status === ContractStatus.EXPIRED && "animate-contract-expired",
-                                    contract.isAcknowledged && "opacity-75 grayscale-[50%]",
-                                    selectedIds.has(contract.id) && "bg-primary/5 dark:bg-primary/10"
-                                )}>
-                                    {onSelectionChange && (
-                                        <td className="px-5 py-4">
-                                            <Checkbox
-                                                checked={selectedIds.has(contract.id)}
-                                                onCheckedChange={() => handleSelectOne(contract.id)}
-                                                aria-label={`Select contract ${contract.poNumber}`}
-                                                className="opacity-0 group-hover:opacity-100 data-[state=checked]:opacity-100 transition-opacity dark:border-slate-500"
-                                            />
-                                        </td>
-                                    )}
-                                    <td className="px-5 py-4">
-                                        <div className="flex items-start gap-4">
-                                            <div className={cn(
-                                                "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 border",
-                                                contract.isAcknowledged
-                                                    ? "bg-[hsl(var(--success-50))] border-[hsl(var(--success-200))] dark:bg-[hsl(var(--success-900))]/10 dark:border-[hsl(var(--success-800))]"
-                                                    : "bg-[hsl(var(--error-50))] border-[hsl(var(--error-200))] dark:bg-[hsl(var(--error-900))]/10 dark:border-[hsl(var(--error-800))]"
-                                            )}>
-                                                {contract.isAcknowledged
-                                                    ? <CheckCircle className="w-5 h-5 text-[hsl(var(--success-600))] dark:text-[hsl(var(--success-500))]" />
-                                                    : <FileText className="w-5 h-5 text-[hsl(var(--error-600))] dark:text-[hsl(var(--error-500))]" />
-                                                }
-                                            </div>
-                                            <div className="min-w-0">
-                                                <p className="text-sm font-bold text-slate-900 dark:text-white truncate max-w-[200px]">
-                                                    {contract.poNumber || 'No PO Number'}
-                                                </p>
-                                                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate max-w-[200px]">
-                                                    {contract.originalFileName}
-                                                </p>
-                                                <p className="text-xs font-medium text-slate-400 dark:text-slate-500">{formatFileSize(contract.fileSize)}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-5 py-4">
-                                        <div className="flex items-center gap-2 truncate">
-                                            <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
-                                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">
-                                                {contract.vendorName || '-'}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-5 py-4">
-                                        <div className="space-y-1.5">
-                                            <div className="flex items-center gap-2">
-                                                <Calendar className="w-4 h-4 text-slate-400" />
-                                                <span className={`text-sm font-bold ${contract.status === ContractStatus.EXPIRED ? 'text-[hsl(var(--error-600))] dark:text-[hsl(var(--error-400))]' :
-                                                    contract.status === ContractStatus.EXPIRING_SOON ? 'text-[hsl(var(--warning-600))] dark:text-[hsl(var(--warning-500))]' :
-                                                        'text-slate-700 dark:text-slate-300'
-                                                    }`}>
-                                                    {formatDate(contract.endDate)}
-                                                </span>
-                                            </div>
-                                            {expiryInfo && (
-                                                <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold tracking-wide uppercase", expiryInfo.color)}>
-                                                    <Clock className="w-3 h-3" />
-                                                    {expiryInfo.label}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-5 py-4 hidden lg:table-cell">
-                                        <div className="flex items-center gap-2 truncate">
-                                            <DollarSign className="w-4 h-4 text-slate-400 shrink-0" />
-                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate">
-                                                {formatCurrency(contract.contractValue)}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-5 py-4">
-                                        <span className={cn("inline-flex px-2.5 py-1 rounded-md text-xs font-bold", status.color)}>
-                                            {status.label}
-                                        </span>
-                                    </td>
-                                    <td className="px-5 py-4">
-                                        <div className="flex items-center justify-end gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleAcknowledge(contract)}
-                                                className={cn(
-                                                    "text-slate-500 h-8 w-8 p-0 rounded-lg",
-                                                    contract.isAcknowledged
-                                                        ? "hover:text-[hsl(var(--warning-600))]"
-                                                        : "hover:text-[hsl(var(--success-600))]"
-                                                )}
-                                                title={contract.isAcknowledged ? "Mark as unacknowledged" : "Acknowledge (stop reminders)"}
-                                                disabled={acknowledgeMutation.isPending || unacknowledgeMutation.isPending}
-                                            >
-                                                <CheckCircle className={cn("w-4 h-4", contract.isAcknowledged && "fill-[hsl(var(--success-500))] text-[hsl(var(--success-500))]/20")} />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => onView(contract)}
-                                                className="text-slate-500 hover:text-primary h-8 w-8 p-0 rounded-lg"
-                                                title="View PDF"
-                                            >
-                                                <ExternalLink className="w-4 h-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => onEdit(contract)}
-                                                className="text-slate-500 hover:text-primary h-8 w-8 p-0 rounded-lg"
-                                                title="Edit"
-                                            >
-                                                <Edit2 className="w-4 h-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => onDelete(contract.id)}
-                                                className="text-slate-500 hover:text-[hsl(var(--error-600))] h-8 w-8 p-0 rounded-lg"
-                                                title="Delete"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <ResTable label="Daftar kontrak" cols={selectable ? `40px ${CONTRACT_COLS}` : CONTRACT_COLS} colsMobile={selectable ? '32px minmax(0,1fr) auto' : 'minmax(0,1fr) auto'}
+            head={(
+                <>
+                    {selectable && (
+                        <span><Checkbox checked={isAllSelected || (isSomeSelected ? 'indeterminate' : false)} onCheckedChange={handleSelectAll} aria-label="Select all" /></span>
+                    )}
+                    <span>Contract</span>
+                    <span>{sortHead('vendorName', 'Vendor')}</span>
+                    <span>{sortHead('endDate', 'Expiry')}</span>
+                    <span>{sortHead('contractValue', 'Value')}</span>
+                    <span>{sortHead('status', 'Status')}</span>
+                    <span className="is-right">Actions</span>
+                </>
+            )}
+            foot={<><span>Pengingat otomatis dikirim 60, 30, 7, dan 1 hari sebelum berakhir</span><span className="res-muted">{contracts.length} kontrak</span></>}>
+            {sortedContracts.map((contract) => {
+                const status = statusConfig[contract.status];
+                const expiry = getDaysUntilExpiry(contract.endDate);
+                return (
+                    <div key={contract.id} className={cn('res-row is-static', contract.isAcknowledged && 'opacity-75', selectedIds.has(contract.id) && 'is-open')}>
+                        {selectable && (
+                            <span><Checkbox checked={selectedIds.has(contract.id)} onCheckedChange={() => handleSelectOne(contract.id)} aria-label={`Select contract ${contract.poNumber}`} /></span>
+                        )}
+                        <div className="res-tk">
+                            <span className="res-tk-id">{contract.poNumber || 'No PO Number'}{contract.category ? ` · ${CATEGORY_LABEL[contract.category] ?? contract.category}` : ''}</span>
+                            <span className="res-tk-title" title={contract.description || contract.originalFileName}>{contract.description || contract.originalFileName}</span>
+                        </div>
+                        <span className="res-cell res-hide-m">{contract.vendorName || '—'}</span>
+                        <div className="res-hide-m grid gap-[3px] justify-items-start">
+                            <span className="res-cell">{formatDate(contract.endDate)}</span>
+                            {expiry && <ExpiryBub days={expiry.days} />}
+                        </div>
+                        <span className="res-cell is-num res-hide-m">{formatCurrency(contract.contractValue)}</span>
+                        <span><ResBub color={status.hue} ink={status.ink}>{status.label}</ResBub></span>
+                        <span className="res-acts">
+                            <button type="button" className="res-icon-btn res-hide-m" onClick={() => handleAcknowledge(contract)}
+                                disabled={acknowledgeMutation.isPending || unacknowledgeMutation.isPending}
+                                title={contract.isAcknowledged ? 'Mark as unacknowledged' : 'Acknowledge (stop reminders)'}
+                                aria-label={contract.isAcknowledged ? `Batalkan acknowledge ${contract.poNumber ?? ''}` : `Acknowledge ${contract.poNumber ?? ''}`}
+                                aria-pressed={contract.isAcknowledged}>
+                                <CheckCircle className={cn(contract.isAcknowledged && 'text-[var(--dash-ink-green)]')} aria-hidden="true" />
+                            </button>
+                            <button type="button" className="res-icon-btn" onClick={() => onView(contract)} title="View PDF" aria-label={`Lihat PDF ${contract.poNumber ?? ''}`}><FileText aria-hidden="true" /></button>
+                            <button type="button" className="res-icon-btn res-hide-m" onClick={() => onEdit(contract)} title="Edit" aria-label={`Edit ${contract.poNumber ?? ''}`}><Pencil aria-hidden="true" /></button>
+                            <button type="button" className="res-icon-btn is-danger res-hide-m" onClick={() => onDelete(contract.id)} title="Delete" aria-label={`Hapus ${contract.poNumber ?? ''}`}><Trash2 aria-hidden="true" /></button>
+                        </span>
+                    </div>
+                );
+            })}
+        </ResTable>
     );
 };
