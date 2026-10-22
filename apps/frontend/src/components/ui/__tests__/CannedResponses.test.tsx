@@ -175,7 +175,7 @@ describe('CannedResponsesManager', () => {
   it('renders list of templates with actions', () => {
     renderWithQueryClient(<CannedResponsesManager />);
 
-    expect(screen.getByText('Kustom Quick Reply Profil')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Quick Reply' })).toBeInTheDocument();
     expect(screen.getByText('Greeting')).toBeInTheDocument();
     expect(screen.getAllByText('/hi').length).toBeGreaterThan(0);
     expect(screen.getByText('Ticket Escalated')).toBeInTheDocument();

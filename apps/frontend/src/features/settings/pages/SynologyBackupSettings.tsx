@@ -19,28 +19,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import {
-    HardDrive,
-    Server,
-    Play,
-    RefreshCw,
-    CheckCircle,
-    XCircle,
-    Clock,
-    Trash2,
-    Plus,
-    TestTube,
-    Folder,
-    ArrowUp,
-    Check,
-    Pencil,
-    RotateCcw,
-    AlertTriangle,
-    Upload,
-    Database,
-    FileText,
-    ShieldAlert,
-} from 'lucide-react';
+import { HardDrive, Server, Play, RefreshCw, CheckCircle, XCircle, Clock, Trash2, Plus, TestTube, Folder, ArrowUp, Check, Pencil, RotateCcw, AlertTriangle, Upload, Database, FileText, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -522,11 +501,11 @@ export default function SynologyBackupSettings() {
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'SUCCESS':
-                return <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white"><CheckCircle className="h-3 w-3 mr-1" />Success</Badge>;
+                return <Badge className="bg-ok hover:bg-ok/90 text-white"><CheckCircle className="h-3 w-3 mr-1" />Success</Badge>;
             case 'FAILED':
-                return <Badge className="bg-rose-500 hover:bg-rose-600 text-white"><XCircle className="h-3 w-3 mr-1" />Failed</Badge>;
+                return <Badge className="bg-bad hover:bg-bad/90 text-white"><XCircle className="h-3 w-3 mr-1" />Failed</Badge>;
             case 'RUNNING':
-                return <Badge className="bg-blue-500 hover:bg-blue-600 text-white"><RefreshCw className="h-3 w-3 mr-1 animate-spin" />Running</Badge>;
+                return <Badge className="bg-brand hover:bg-brand/90 text-white"><RefreshCw className="h-3 w-3 mr-1 animate-spin" />Running</Badge>;
             default:
                 return <Badge variant="secondary">{status}</Badge>;
         }
@@ -546,29 +525,29 @@ export default function SynologyBackupSettings() {
         <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Synology NAS Backup & Restore</h2>
+                    <h2 className="text-lg font-semibold text-ink">Synology NAS Backup & Restore</h2>
                     <p className="text-sm text-muted-foreground">Konfigurasi pencadangan otomatis dan pemulihan data database (RS1221)</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button
-                        variant="outline"
+                        variant="soft"
                         onClick={handleSyncUploads}
                         disabled={syncingUploads}
-                        className="border-blue-500/30 text-blue-700 dark:text-blue-400 hover:bg-blue-500/10 shadow-xs"
+                        className="text-brand"
                         title="Sinkronisasikan seluruh file lampiran tiket dan avatar ke Synology NAS sekarang"
                     >
-                        <RefreshCw className={`h-4 w-4 mr-2 ${syncingUploads ? 'animate-spin text-blue-600' : 'text-blue-600'}`} />
+                        <RefreshCw className={`h-4 w-4 mr-2 ${syncingUploads ? 'animate-spin text-brand' : 'text-brand'}`} />
                         {syncingUploads ? 'Menyinkronkan File...' : 'Sync File ke Synology'}
                     </Button>
                     <Button
-                        variant="outline"
+                        variant="soft"
                         onClick={openRestoreHub}
-                        className="border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 shadow-xs"
+                        className="text-warn-ink"
                     >
                         <RotateCcw className="h-4 w-4 mr-2" />
                         Restore Database
                     </Button>
-                    <Button onClick={openNewForm} className="shadow-sm">
+                    <Button variant="primary" onClick={openNewForm}>
                         <Plus className="h-4 w-4 mr-2" />
                         Add Configuration
                     </Button>
@@ -578,7 +557,7 @@ export default function SynologyBackupSettings() {
             {/* Config Form (Create / Edit) */}
             {showForm && (
                 <Card className="border-primary/20 shadow-md">
-                    <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-border/40 pb-4">
+                    <CardHeader className="bg-fill border-b border-border/40 pb-4">
                         <CardTitle className="flex items-center justify-between text-base">
                             <span className="flex items-center gap-2">
                                 <Server className="h-5 w-5 text-primary" />
@@ -617,7 +596,7 @@ export default function SynologyBackupSettings() {
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="FULL">
-                                            <span className="font-semibold text-blue-700 dark:text-blue-400">Full Backup (Database & Chat + Semua File) — Rekomendasi</span>
+                                            <span className="font-semibold text-brand">Full Backup (Database & Chat + Semua File) — Rekomendasi</span>
                                         </SelectItem>
                                         <SelectItem value="DATABASE">Database Only (.sql.gz - Riwayat Chat & Tabel DB)</SelectItem>
                                         <SelectItem value="FILES">Files Only (.tar.gz - Uploads / Lampiran / Media)</SelectItem>
@@ -684,13 +663,13 @@ export default function SynologyBackupSettings() {
                                     />
                                     <Button
                                         type="button"
-                                        variant="outline"
+                                        variant="soft"
                                         onClick={openFolderBrowser}
                                         disabled={browsing}
                                         title="Browse folder di Synology NAS"
                                         className="shrink-0"
                                     >
-                                        <Folder className="h-4 w-4 mr-1.5 text-amber-500" />
+                                        <Folder className="h-4 w-4 mr-1.5 text-warn" />
                                         Browse
                                     </Button>
                                 </div>
@@ -718,15 +697,15 @@ export default function SynologyBackupSettings() {
                         </div>
 
                         {/* Synology Structured Storage Info Callout */}
-                        <div className="rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/60 p-4 text-xs text-blue-950 dark:text-blue-200 space-y-1.5">
-                            <div className="font-semibold flex items-center gap-2 text-blue-800 dark:text-blue-300">
-                                <Server className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                        <div className="rounded-xl bg-brand/10 border border-brand/30 p-4 text-xs text-brand space-y-1.5">
+                            <div className="font-semibold flex items-center gap-2 text-brand">
+                                <Server className="h-4 w-4 shrink-0 text-brand" />
                                 Penyimpanan Otomatis ke Synology NAS
                             </div>
-                            <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                            <p className="text-ink-2 leading-relaxed">
                                 Data otomatis dikelompokkan ke subfolder terstruktur pada Synology NAS:
-                                <code className="mx-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 font-mono text-[11px]">{formData.destinationPath || '/iDesk-Backups'}/database/</code> untuk dump riwayat chat & basis data,
-                                dan <code className="mx-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 font-mono text-[11px]">{formData.destinationPath || '/iDesk-Backups'}/attachments/</code> untuk lampiran tiket.
+                                <code className="mx-1 px-1.5 py-0.5 rounded bg-brand/15 text-brand font-mono text-[11px]">{formData.destinationPath || '/iDesk-Backups'}/database/</code> untuk dump riwayat chat & basis data,
+                                dan <code className="mx-1 px-1.5 py-0.5 rounded bg-brand/15 text-brand font-mono text-[11px]">{formData.destinationPath || '/iDesk-Backups'}/attachments/</code> untuk lampiran tiket.
                                 Setiap lampiran baru yang di-upload oleh pengguna akan langsung di-mirror ke Synology di latar belakang secara asinkron.
                             </p>
                         </div>
@@ -734,10 +713,10 @@ export default function SynologyBackupSettings() {
                         <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-border/40">
                             <Button
                                 type="button"
-                                variant="outline"
+                                variant="soft"
                                 onClick={handleTestConnection}
                                 disabled={testing}
-                                className="border-slate-300 dark:border-slate-700"
+                               
                             >
                                 <TestTube className="h-4 w-4 mr-2 text-primary" />
                                 {testing ? 'Testing...' : 'Test Connection'}
@@ -745,7 +724,7 @@ export default function SynologyBackupSettings() {
                             <div className="flex gap-2">
                                 <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="soft"
                                     onClick={() => {
                                         setShowForm(false);
                                         setEditingConfigId(null);
@@ -753,7 +732,7 @@ export default function SynologyBackupSettings() {
                                 >
                                     Batal
                                 </Button>
-                                <Button onClick={handleSaveConfig} className="shadow-sm">
+                                <Button variant="primary" onClick={handleSaveConfig}>
                                     {editingConfigId ? 'Simpan Perubahan' : 'Create Configuration'}
                                 </Button>
                             </div>
@@ -798,26 +777,26 @@ export default function SynologyBackupSettings() {
                                         <TableCell className="font-medium">{config.name}</TableCell>
                                         <TableCell>
                                             {config.backupType === 'FULL' ? (
-                                                <Badge className="bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800 font-mono text-[11px]">
+                                                <Badge className="bg-brand/15 text-brand border-brand/30 font-mono text-[11px]">
                                                     FULL (DB + Files)
                                                 </Badge>
                                             ) : config.backupType === 'DATABASE' ? (
-                                                <Badge variant="outline" className="font-mono text-xs border-slate-300 text-slate-700 dark:text-slate-300">
+                                                <Badge variant="outline" className="font-mono text-xs border-line-strong text-ink">
                                                     DATABASE
                                                 </Badge>
                                             ) : (
-                                                <Badge variant="outline" className="font-mono text-xs border-amber-300 text-amber-700 dark:text-amber-300">
+                                                <Badge variant="outline" className="font-mono text-xs border-warn/30 text-warn-ink">
                                                     FILES
                                                 </Badge>
                                             )}
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-col gap-1 items-start">
-                                                <span className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                                <span className="font-mono text-xs font-semibold text-ink">
                                                     {config.synologyHost}:{config.synologyPort}
                                                 </span>
-                                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-md">
-                                                    <Folder className="h-3 w-3 shrink-0 text-blue-600 dark:text-blue-400" />
+                                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-brand bg-brand/10 border border-brand/30 px-2 py-0.5 rounded-md">
+                                                    <Folder className="h-3 w-3 shrink-0 text-brand" />
                                                     {config.destinationFolder || '/iDesk-Backups'}
                                                 </span>
                                             </div>
@@ -839,9 +818,9 @@ export default function SynologyBackupSettings() {
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-1.5">
                                                 <Button
-                                                    variant="outline"
+                                                    variant="soft"
                                                     size="sm"
-                                                    className="h-8 gap-1 border-primary/40 hover:bg-primary/10 text-primary font-medium shadow-xs"
+                                                    className="text-primary"
                                                     onClick={() => handleExecuteBackup(config.id)}
                                                     disabled={executing === config.id}
                                                 >
@@ -849,18 +828,18 @@ export default function SynologyBackupSettings() {
                                                     {executing === config.id ? 'Running...' : 'Run Now'}
                                                 </Button>
                                                 <Button
-                                                    variant="outline"
+                                                    variant="soft"
                                                     size="icon"
-                                                    className="h-8 w-8 text-slate-600 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700"
+                                                    className="w-8 text-ink-2"
                                                     onClick={() => openEditForm(config)}
                                                     title="Edit Konfigurasi"
                                                 >
                                                     <Pencil className="h-3.5 w-3.5" />
                                                 </Button>
                                                 <Button
-                                                    variant="ghost"
+                                                    variant="subtle"
                                                     size="icon"
-                                                    className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                                                    className="w-8 text-destructive"
                                                     onClick={() => handleDeleteConfig(config.id)}
                                                     title="Hapus Konfigurasi"
                                                 >
@@ -927,9 +906,9 @@ export default function SynologyBackupSettings() {
                                         <TableCell className="text-right">
                                             {item.status === 'SUCCESS' && (
                                                 <Button
-                                                    variant="outline"
+                                                    variant="soft"
                                                     size="sm"
-                                                    className="h-7 text-xs gap-1 border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
+                                                    className="text-warn-ink"
                                                     onClick={() => openRestoreFromHistory(item)}
                                                 >
                                                     <RotateCcw className="h-3 w-3" />
@@ -950,7 +929,7 @@ export default function SynologyBackupSettings() {
                 <DialogContent className="max-w-2xl">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <Folder className="h-5 w-5 text-amber-500" />
+                            <Folder className="h-5 w-5 text-warn" />
                             {browserMode === 'destination' ? 'Pilih Destination Folder' : 'Pilih File Backup di Synology NAS'}
                         </DialogTitle>
                         <DialogDescription>
@@ -962,10 +941,10 @@ export default function SynologyBackupSettings() {
 
                     <div className="space-y-3">
                         {/* Current path + up button */}
-                        <div className="flex items-center gap-2 rounded-lg border bg-slate-50 dark:bg-slate-800/50 px-3 py-2">
+                        <div className="flex items-center gap-2 rounded-lg border bg-fill px-3 py-2">
                             <Button
                                 type="button"
-                                variant="ghost"
+                                variant="subtle"
                                 size="sm"
                                 onClick={handleNavigateUp}
                                 disabled={currentBrowsePath === '/' || browsing}
@@ -979,7 +958,7 @@ export default function SynologyBackupSettings() {
                         </div>
 
                         {/* List */}
-                        <div className="border rounded-lg min-h-[260px] max-h-[360px] overflow-auto bg-white dark:bg-slate-950">
+                        <div className="border rounded-lg min-h-[260px] max-h-[360px] overflow-auto bg-surface">
                             {browsing ? (
                                 <div className="flex items-center justify-center h-40">
                                     <RefreshCw className="h-5 w-5 animate-spin mr-2 text-primary" />
@@ -999,13 +978,13 @@ export default function SynologyBackupSettings() {
                                                 type="button"
                                                 onClick={() => handleItemClick(item)}
                                                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
-                                                    isSelected ? 'bg-amber-50 dark:bg-amber-950/40 border-l-4 border-amber-500' : 'hover:bg-slate-50 dark:hover:bg-slate-900'
+                                                    isSelected ? 'bg-warn/10 border-l-4 border-warn' : 'hover:bg-fill'
                                                 }`}
                                             >
                                                 {item.isDir ? (
-                                                    <Folder className="h-4 w-4 text-blue-500 shrink-0" />
+                                                    <Folder className="h-4 w-4 text-brand shrink-0" />
                                                 ) : (
-                                                    <Database className="h-4 w-4 text-emerald-500 shrink-0" />
+                                                    <Database className="h-4 w-4 text-ok shrink-0" />
                                                 )}
                                                 <span className="font-medium text-sm truncate flex-1">{item.name}</span>
                                                 {item.size ? (
@@ -1029,10 +1008,10 @@ export default function SynologyBackupSettings() {
                     </div>
 
                     <DialogFooter className="gap-2">
-                        <Button type="button" variant="outline" onClick={handleCloseBrowser}>
+                        <Button type="button" variant="soft" onClick={handleCloseBrowser}>
                             Batal
                         </Button>
-                        <Button type="button" onClick={handleSelectPath} disabled={browsing}>
+                        <Button variant="primary" type="button" onClick={handleSelectPath} disabled={browsing}>
                             <Check className="h-4 w-4 mr-1.5" />
                             {browserMode === 'destination'
                                 ? `Pilih Folder Ini (${currentBrowsePath})`
@@ -1049,7 +1028,7 @@ export default function SynologyBackupSettings() {
                 <DialogContent className="max-w-2xl">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-base">
-                            <RotateCcw className="h-5 w-5 text-amber-500" />
+                            <RotateCcw className="h-5 w-5 text-warn" />
                             Pusat Pemulihan Database (Restore Hub)
                         </DialogTitle>
                         <DialogDescription>
@@ -1058,13 +1037,13 @@ export default function SynologyBackupSettings() {
                     </DialogHeader>
 
                     {/* Tab Navigation */}
-                    <div className="grid grid-cols-3 gap-1 bg-slate-100 dark:bg-slate-800/70 p-1 rounded-lg">
+                    <div className="grid grid-cols-3 gap-1 bg-fill p-1 rounded-lg">
                         <button
                             type="button"
                             onClick={() => setRestoreHubTab('history')}
                             className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-medium transition-all ${
                                 restoreHubTab === 'history'
-                                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                                    ? 'bg-surface text-ink shadow-xs'
                                     : 'text-muted-foreground hover:text-foreground'
                             }`}
                         >
@@ -1076,7 +1055,7 @@ export default function SynologyBackupSettings() {
                             onClick={() => setRestoreHubTab('nas')}
                             className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-medium transition-all ${
                                 restoreHubTab === 'nas'
-                                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                                    ? 'bg-surface text-ink shadow-xs'
                                     : 'text-muted-foreground hover:text-foreground'
                             }`}
                         >
@@ -1088,7 +1067,7 @@ export default function SynologyBackupSettings() {
                             onClick={() => setRestoreHubTab('upload')}
                             className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-medium transition-all ${
                                 restoreHubTab === 'upload'
-                                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                                    ? 'bg-surface text-ink shadow-xs'
                                     : 'text-muted-foreground hover:text-foreground'
                             }`}
                         >
@@ -1104,7 +1083,7 @@ export default function SynologyBackupSettings() {
                                 Pilih salah satu backup sukses terbaru yang tersimpan dalam sistem:
                             </p>
                             {successfulHistories.length === 0 ? (
-                                <div className="p-6 text-center border rounded-lg bg-slate-50 dark:bg-slate-900 text-sm text-muted-foreground">
+                                <div className="p-6 text-center border rounded-lg bg-fill text-sm text-muted-foreground">
                                     Belum ada catatan backup database yang berstatus sukses.
                                 </div>
                             ) : (
@@ -1112,10 +1091,10 @@ export default function SynologyBackupSettings() {
                                     {successfulHistories.map((h) => (
                                         <div
                                             key={h.id}
-                                            className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+                                            className="flex items-center justify-between p-3 hover:bg-fill transition-colors"
                                         >
                                             <div>
-                                                <div className="font-semibold text-xs text-slate-800 dark:text-slate-200">
+                                                <div className="font-semibold text-xs text-ink">
                                                     {new Date(h.startedAt).toLocaleString('id-ID')}
                                                 </div>
                                                 <div className="text-[11px] text-muted-foreground">
@@ -1124,8 +1103,8 @@ export default function SynologyBackupSettings() {
                                             </div>
                                             <Button
                                                 size="sm"
-                                                variant="outline"
-                                                className="border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 gap-1 text-xs"
+                                                variant="soft"
+                                                className="text-warn-ink"
                                                 onClick={() => {
                                                     setShowRestoreHub(false);
                                                     openRestoreFromHistory(h);
@@ -1163,20 +1142,20 @@ export default function SynologyBackupSettings() {
                                 </Select>
                             </div>
 
-                            <div className="p-4 border rounded-lg bg-slate-50 dark:bg-slate-900 flex items-center justify-between">
+                            <div className="p-4 border rounded-lg bg-fill flex items-center justify-between">
                                 <div>
                                     <div className="font-medium text-xs">Jelajahi File di NAS</div>
                                     <div className="text-[11px] text-muted-foreground">
                                         Buka file browser untuk memilih file .sql.gz di folder NAS
                                     </div>
                                 </div>
-                                <Button
+                                <Button variant="primary"
                                     size="sm"
                                     onClick={openNasFileBrowserForRestore}
                                     disabled={!activeRestoreConfigId}
-                                    className="gap-1.5"
+                                   
                                 >
-                                    <Folder className="h-4 w-4 text-amber-400" />
+                                    <Folder className="h-4 w-4 text-warn" />
                                     Browse File NAS
                                 </Button>
                             </div>
@@ -1186,7 +1165,7 @@ export default function SynologyBackupSettings() {
                     {/* Tab 3: Upload File Manual */}
                     {restoreHubTab === 'upload' && (
                         <div className="space-y-4 pt-1">
-                            <div className="border-2 border-dashed rounded-lg p-6 text-center space-y-3 bg-slate-50/50 dark:bg-slate-900/50">
+                            <div className="border-2 border-dashed rounded-lg p-6 text-center space-y-3 bg-fill">
                                 <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
                                 <div>
                                     <label
@@ -1211,7 +1190,7 @@ export default function SynologyBackupSettings() {
                                     }}
                                 />
                                 {uploadedFile && (
-                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs">
+                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-ok/10 border border-ok/30 text-ok-ink text-xs">
                                         <FileText className="h-4 w-4" />
                                         <span>{uploadedFile.name} ({formatBytes(uploadedFile.size)})</span>
                                     </div>
@@ -1219,7 +1198,7 @@ export default function SynologyBackupSettings() {
                             </div>
 
                             <div className="flex justify-end">
-                                <Button
+                                <Button variant="primary"
                                     disabled={!uploadedFile}
                                     onClick={() => {
                                         setShowRestoreHub(false);
@@ -1227,7 +1206,7 @@ export default function SynologyBackupSettings() {
                                         setConfirmInputText('');
                                         setShowRestoreConfirm(true);
                                     }}
-                                    className="gap-1.5"
+                                   
                                 >
                                     <RotateCcw className="h-4 w-4" />
                                     Lanjut ke Konfirmasi Restore
@@ -1240,9 +1219,9 @@ export default function SynologyBackupSettings() {
 
             {/* Safety Confirmation Dialog */}
             <Dialog open={showRestoreConfirm} onOpenChange={setShowRestoreConfirm}>
-                <DialogContent className="max-w-lg border-rose-500/30">
+                <DialogContent className="max-w-lg border-bad/30">
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                        <DialogTitle className="flex items-center gap-2 text-bad-ink">
                             <ShieldAlert className="h-5 w-5" />
                             Konfirmasi Pemulihan Database
                         </DialogTitle>
@@ -1253,7 +1232,7 @@ export default function SynologyBackupSettings() {
 
                     <div className="space-y-4 pt-2">
                         {/* Warning Box */}
-                        <div className="p-3.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-300 space-y-1.5">
+                        <div className="p-3.5 rounded-lg bg-bad/10 border border-bad/30 text-xs text-bad-ink space-y-1.5">
                             <div className="font-semibold flex items-center gap-1.5">
                                 <AlertTriangle className="h-4 w-4" />
                                 PERHATIAN TINGGI
@@ -1264,7 +1243,7 @@ export default function SynologyBackupSettings() {
                         </div>
 
                         {/* Details */}
-                        <div className="border rounded-lg p-3 bg-slate-50 dark:bg-slate-900 text-xs space-y-1.5">
+                        <div className="border rounded-lg p-3 bg-fill text-xs space-y-1.5">
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">Sumber Backup:</span>
                                 <span className="font-medium capitalize">{restoreType}</span>
@@ -1302,7 +1281,7 @@ export default function SynologyBackupSettings() {
                                 id="create-snapshot"
                                 checked={createSnapshot}
                                 onChange={(e) => setCreateSnapshot(e.target.checked)}
-                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                className="h-4 w-4 rounded border-line-strong text-primary focus:ring-primary"
                             />
                             <label htmlFor="create-snapshot" className="text-xs font-medium cursor-pointer">
                                 Buat snapshot backup otomatis sebelum me-restore (Disarankan)
@@ -1312,7 +1291,7 @@ export default function SynologyBackupSettings() {
                         {/* Verification Input */}
                         <div className="space-y-1.5 pt-2">
                             <Label className="text-xs text-muted-foreground">
-                                Ketik <span className="font-bold text-slate-800 dark:text-slate-100 font-mono">RESTORE</span> untuk mengaktifkan tombol:
+                                Ketik <span className="font-bold text-ink font-mono">RESTORE</span> untuk mengaktifkan tombol:
                             </Label>
                             <Input
                                 value={confirmInputText}
@@ -1326,7 +1305,7 @@ export default function SynologyBackupSettings() {
                     <DialogFooter className="gap-2 pt-3 border-t border-border/40">
                         <Button
                             type="button"
-                            variant="outline"
+                            variant="soft"
                             onClick={() => {
                                 setShowRestoreConfirm(false);
                                 setConfirmInputText('');
@@ -1336,10 +1315,10 @@ export default function SynologyBackupSettings() {
                             Batal
                         </Button>
                         <Button
-                            variant="destructive"
+                            variant="danger-solid"
                             onClick={handleConfirmRestore}
                             disabled={confirmInputText !== 'RESTORE' || restoring}
-                            className="gap-1.5 shadow-sm"
+                           
                         >
                             {restoring ? (
                                 <>

@@ -1,24 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    Terminal, 
-    Send, 
-    Check, 
-    Copy, 
-    Download, 
-    Radio, 
-    Sparkles, 
-    ExternalLink, 
-    Layers, 
-    FileText, 
-    AlertCircle, 
-    Laptop, 
-    CheckCircle2, 
-    RefreshCw,
-    Code2,
-    Sliders
-} from 'lucide-react';
+import { Send, Check, Copy, Download, FileText, RefreshCw, Code2, Sliders } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { SetHead } from './SettingsParts';
 
 type DisplayMode = 'both' | 'toast' | 'popup';
 type PriorityLevel = 'normal' | 'high' | 'urgent';
@@ -287,69 +271,39 @@ await fetch('http://127.0.0.1:19876/notify', {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
-            {/* 1. Header Banner */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 border border-blue-900/50 p-6 text-white shadow-xl">
-                <div className="pointer-events-none absolute -right-8 -top-8 h-48 w-48 rounded-full bg-blue-600/20 blur-3xl" />
-                
-                <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                    <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/20 px-3 py-1 text-xs font-semibold text-blue-300 border border-blue-400/30">
-                                <Sparkles className="h-3.5 w-3.5" /> SJA Desktop Suite
-                            </span>
-                            <span className="text-xs text-slate-400">Port 19876</span>
-                        </div>
-                        <h2 className="text-xl sm:text-2xl font-black tracking-tight">
-                            Desktop Notifier & Webhook Integration Hub
-                        </h2>
-                        <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-                            Pusat konfigurasi dan integrasi notifikasi desktop Windows native (WhatsApp Toast & Modern Popup Display). 
-                            Kirim notifikasi instan dari web portal internal Santos (ERP, Kertas Kerja, Intranet) langsung ke layar komputer staf.
-                        </p>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={checkLocalStatus}
-                            disabled={isCheckingHealth}
-                            className="bg-slate-800/80 hover:bg-slate-700 text-slate-200 border-slate-700 text-xs h-10 px-3.5"
-                        >
-                            <RefreshCw className={`h-3.5 w-3.5 mr-2 ${isCheckingHealth ? 'animate-spin' : ''}`} />
+            {/* 1. Header (mockup settings.html h()) */}
+            <div>
+                <SetHead title="Desktop & Webhook Hub" sub="Push ke aplikasi desktop (SJA Notifier, Windows toast & popup) dan webhook dari portal internal (ERP, Kertas Kerja, Intranet)."
+                    actions={<>
+                        <Button variant="soft" onClick={checkLocalStatus} disabled={isCheckingHealth}>
+                            <RefreshCw aria-hidden="true" className={isCheckingHealth ? 'animate-spin' : undefined} />
                             Cek Koneksi Notifier
                         </Button>
-
-                        <a
-                            href={downloadUrl}
-                            download="SJANotifier-Setup.zip"
-                            className="inline-flex items-center justify-center font-medium rounded-xl text-xs h-10 px-4 bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
-                        >
-                            <Download className="h-4 w-4 mr-2" />
+                        <a href={downloadUrl} download="SJANotifier-Setup.zip" className="idesk-btn is-primary">
+                            <Download aria-hidden="true" />
                             Unduh Installer (.zip)
                         </a>
-                    </div>
-                </div>
-
+                    </>} />
                 {/* Status Bar */}
-                <div className="mt-6 pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="mg-setting flex-wrap text-xs">
                     <div className="flex items-center gap-2.5">
-                        <span className="text-slate-400">Status Notifier di Komputer Ini:</span>
+                        <span className="text-ink-3">Status Notifier di Komputer Ini:</span>
                         {isLocalActive === true ? (
-                            <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-400">
-                                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-ping" />
-                                🟢 Terhubung (Port 19876 Aktif)
+                            <span className="inline-flex items-center gap-1.5 font-semibold text-ok-ink">
+                                <span className="h-2 w-2 rounded-full bg-ok" aria-hidden="true" />
+                                Terhubung (Port 19876 Aktif)
                             </span>
                         ) : isLocalActive === false ? (
-                            <span className="font-semibold text-amber-400 flex items-center gap-1">
-                                ⚪ Belum Aktif di Komputer Ini
+                            <span className="font-semibold text-warn-ink flex items-center gap-1.5">
+                                <span className="h-2 w-2 rounded-full bg-warn" aria-hidden="true" />
+                                Belum Aktif di Komputer Ini
                             </span>
                         ) : (
-                            <span className="text-slate-400">Memeriksa...</span>
+                            <span className="text-ink-3">Memeriksa...</span>
                         )}
                     </div>
 
-                    <div className="flex items-center gap-3 text-slate-400">
+                    <div className="flex items-center gap-3 text-ink-3">
                         <span>Model Display: <strong>Toast WhatsApp & Popup Modern</strong></span>
                         <span>•</span>
                         <span>CORS: <strong>Enabled (*)</strong></span>
@@ -360,20 +314,20 @@ await fetch('http://127.0.0.1:19876/notify', {
             {/* 2. Interactive Webhook Playground & Live Tester */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Left: Form Builder (7 cols) */}
-                <div className="lg:col-span-7 bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm space-y-5">
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/80">
+                <div className="lg:col-span-7 bg-surface rounded-2xl border border-line p-5 shadow-sm space-y-5">
+                    <div className="flex items-center justify-between pb-3 border-b border-line">
                         <div className="flex items-center gap-2">
-                            <Sliders className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                            <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">
+                            <Sliders className="h-4 w-4 text-brand" />
+                            <h3 className="font-bold text-sm text-ink">
                                 Webhook Payload Builder & Tester
                             </h3>
                         </div>
-                        <span className="text-[11px] text-slate-400">Uji langsung ke desktop</span>
+                        <span className="text-[11px] text-ink-3">Uji langsung ke desktop</span>
                     </div>
 
                     {/* Template Presets */}
                     <div className="space-y-2">
-                        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        <label className="text-xs font-semibold text-ink-2">
                             Pilih Template Preset:
                         </label>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -384,8 +338,8 @@ await fetch('http://127.0.0.1:19876/notify', {
                                     onClick={() => applyTemplate(tpl)}
                                     className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
                                         selectedTemplate === tpl.id
-                                            ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold shadow-sm'
-                                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-700 dark:text-slate-300'
+                                            ? 'border-brand bg-brand/10 text-brand font-bold shadow-sm'
+                                            : 'border-line hover:border-line-strong text-ink'
                                     }`}
                                 >
                                     {tpl.label}
@@ -397,55 +351,55 @@ await fetch('http://127.0.0.1:19876/notify', {
                     {/* Input Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                         <div className="space-y-1.5">
-                            <label className="font-semibold text-slate-700 dark:text-slate-300">Nama Aplikasi (App):</label>
+                            <label className="font-semibold text-ink">Nama Aplikasi (App):</label>
                             <input
                                 type="text"
                                 value={app}
                                 onChange={(e) => setApp(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-slate-800 dark:text-slate-200"
+                                className="w-full rounded-xl border border-line bg-fill px-3 py-2 text-ink"
                                 placeholder="Santos ERP / iDesk"
                             />
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="font-semibold text-slate-700 dark:text-slate-300">Pengirim (From):</label>
+                            <label className="font-semibold text-ink">Pengirim (From):</label>
                             <input
                                 type="text"
                                 value={from}
                                 onChange={(e) => setFrom(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-slate-800 dark:text-slate-200"
+                                className="w-full rounded-xl border border-line bg-fill px-3 py-2 text-ink"
                                 placeholder="Nama & Departemen"
                             />
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="font-semibold text-slate-700 dark:text-slate-300">Penerima (To):</label>
+                            <label className="font-semibold text-ink">Penerima (To):</label>
                             <input
                                 type="text"
                                 value={to}
                                 onChange={(e) => setTo(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-slate-800 dark:text-slate-200"
+                                className="w-full rounded-xl border border-line bg-fill px-3 py-2 text-ink"
                                 placeholder="Penerima / Tim"
                             />
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="font-semibold text-slate-700 dark:text-slate-300">Subjek / Topik:</label>
+                            <label className="font-semibold text-ink">Subjek / Topik:</label>
                             <input
                                 type="text"
                                 value={subject}
                                 onChange={(e) => setSubject(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-slate-800 dark:text-slate-200"
+                                className="w-full rounded-xl border border-line bg-fill px-3 py-2 text-ink"
                                 placeholder="Judul Topik"
                             />
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="font-semibold text-slate-700 dark:text-slate-300">Model Tampilan (Display Mode):</label>
+                            <label className="font-semibold text-ink">Model Tampilan (Display Mode):</label>
                             <select
                                 value={display}
                                 onChange={(e) => setDisplay(e.target.value as DisplayMode)}
-                                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-slate-800 dark:text-slate-200 font-medium"
+                                className="w-full rounded-xl border border-line bg-fill px-3 py-2 text-ink font-medium"
                             >
                                 <option value="both">Both (Toast WhatsApp + Popup Display)</option>
                                 <option value="toast">Toast Saja (Pojok Kanan Bawah)</option>
@@ -454,11 +408,11 @@ await fetch('http://127.0.0.1:19876/notify', {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="font-semibold text-slate-700 dark:text-slate-300">Tingkat Prioritas (Priority):</label>
+                            <label className="font-semibold text-ink">Tingkat Prioritas (Priority):</label>
                             <select
                                 value={priority}
                                 onChange={(e) => setPriority(e.target.value as PriorityLevel)}
-                                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-slate-800 dark:text-slate-200 font-medium"
+                                className="w-full rounded-xl border border-line bg-fill px-3 py-2 text-ink font-medium"
                             >
                                 <option value="normal">Normal (Informasi Biasa)</option>
                                 <option value="high">High (Perlu Perhatian)</option>
@@ -468,42 +422,42 @@ await fetch('http://127.0.0.1:19876/notify', {
                     </div>
 
                     <div className="space-y-1.5 text-xs">
-                        <label className="font-semibold text-slate-700 dark:text-slate-300">Target URL (Redirect saat diklik):</label>
+                        <label className="font-semibold text-ink">Target URL (Redirect saat diklik):</label>
                         <input
                             type="text"
                             value={targetUrl}
                             onChange={(e) => setTargetUrl(e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-slate-800 dark:text-slate-200"
+                            className="w-full rounded-xl border border-line bg-fill px-3 py-2 text-ink"
                             placeholder="https://..."
                         />
                     </div>
 
                     <div className="space-y-1.5 text-xs">
-                        <label className="font-semibold text-slate-700 dark:text-slate-300">Isi Pesan (Message Body):</label>
+                        <label className="font-semibold text-ink">Isi Pesan (Message Body):</label>
                         <textarea
                             rows={3}
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 text-slate-800 dark:text-slate-200 leading-relaxed font-sans"
+                            className="w-full rounded-xl border border-line bg-fill p-3 text-ink leading-relaxed font-sans"
                             placeholder="Tulis pesan lengkap..."
                         />
                     </div>
 
                     <div className="flex items-center justify-between pt-2">
-                        <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 dark:text-slate-300">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs text-ink">
                             <input
                                 type="checkbox"
                                 checked={hasAttachment}
                                 onChange={(e) => setHasAttachment(e.target.checked)}
-                                className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                                className="rounded text-brand focus:ring-brand h-4 w-4"
                             />
                             Sertakan Contoh Lampiran File (tambahan.xlsx)
                         </label>
 
-                        <Button
+                        <Button variant="primary"
                             onClick={handleSendTestWebhook}
                             disabled={isSending}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-10 px-5 rounded-xl shadow-md shadow-blue-500/20"
+                           
                         >
                             <Send className={`h-3.5 w-3.5 mr-2 ${isSending ? 'animate-spin' : ''}`} />
                             {isSending ? 'Mengirim...' : '🚀 Kirim ke SJA Notifier'}
@@ -512,20 +466,20 @@ await fetch('http://127.0.0.1:19876/notify', {
                 </div>
 
                 {/* Right: Code Generator (5 cols) */}
-                <div className="lg:col-span-5 bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-sm flex flex-col justify-between text-slate-200">
+                <div className="lg:col-span-5 bg-code rounded-2xl border border-line-strong p-5 shadow-sm flex flex-col justify-between text-code-ink">
                     <div className="space-y-4">
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                        <div className="flex items-center justify-between pb-3 border-b border-line-strong">
                             <div className="flex items-center gap-2">
-                                <Code2 className="h-4 w-4 text-blue-400" />
+                                <Code2 className="h-4 w-4 text-brand" />
                                 <h3 className="font-bold text-sm text-white">
                                     Snippet Integrasi Web
                                 </h3>
                             </div>
                             <button
                                 onClick={handleCopyCode}
-                                className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                                className="inline-flex items-center gap-1.5 text-xs text-brand hover:text-brand font-medium transition-colors"
                             >
-                                {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                                {copied ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
                                 {copied ? 'Tersalin' : 'Salin'}
                             </button>
                         </div>
@@ -544,8 +498,8 @@ await fetch('http://127.0.0.1:19876/notify', {
                                     onClick={() => setCodeLang(tab.key as any)}
                                     className={`px-2.5 py-1 rounded-lg transition-colors ${
                                         codeLang === tab.key
-                                            ? 'bg-blue-600 text-white font-bold'
-                                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                                            ? 'bg-brand text-white font-bold'
+                                            : 'bg-code text-ink-3 hover:text-white'
                                     }`}
                                 >
                                     {tab.label}
@@ -554,12 +508,12 @@ await fetch('http://127.0.0.1:19876/notify', {
                         </div>
 
                         {/* Code Display */}
-                        <div className="relative rounded-xl bg-slate-950 p-4 font-mono text-[11px] leading-relaxed text-slate-300 overflow-x-auto max-h-[340px] border border-slate-800/80">
+                        <div className="relative rounded-xl bg-code p-4 font-mono text-[11px] leading-relaxed text-ink-3 overflow-x-auto max-h-[340px] border border-line-strong">
                             <pre>{getGeneratedCode()}</pre>
                         </div>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+                    <div className="mt-4 pt-3 border-t border-line-strong text-[11px] text-ink-3 flex items-center justify-between">
                         <span>Endpoint: <code>POST /notify</code></span>
                         <span>CORS: <code>* (Allowed)</code></span>
                     </div>
@@ -567,14 +521,14 @@ await fetch('http://127.0.0.1:19876/notify', {
             </div>
 
             {/* 3. Specification Table */}
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 p-5 space-y-4">
-                <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <div className="rounded-2xl border border-line bg-surface p-5 space-y-4">
+                <h4 className="font-bold text-sm text-ink flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-brand" />
                     Spesifikasi Parameter Webhook (Payload JSON Reference)
                 </h4>
                 <div className="overflow-x-auto">
                     <table className="w-full text-xs text-left">
-                        <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 font-semibold border-b border-slate-200 dark:border-slate-700">
+                        <thead className="bg-fill text-ink-2 font-semibold border-b border-line">
                             <tr>
                                 <th className="py-2.5 px-3">Field</th>
                                 <th className="py-2.5 px-3">Tipe</th>
@@ -582,51 +536,51 @@ await fetch('http://127.0.0.1:19876/notify', {
                                 <th className="py-2.5 px-3">Keterangan</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                        <tbody className="divide-y divide-line text-ink">
                             <tr>
-                                <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">app</td>
+                                <td className="py-2.5 px-3 font-mono font-bold text-brand">app</td>
                                 <td className="py-2.5 px-3 font-mono">string</td>
                                 <td className="py-2.5 px-3">Ya</td>
                                 <td className="py-2.5 px-3">Nama aplikasi pengirim (contoh: "Santos ERP", "Web Kertas Kerja", "iDesk").</td>
                             </tr>
                             <tr>
-                                <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">title</td>
+                                <td className="py-2.5 px-3 font-mono font-bold text-brand">title</td>
                                 <td className="py-2.5 px-3 font-mono">string</td>
                                 <td className="py-2.5 px-3">Ya</td>
                                 <td className="py-2.5 px-3">Judul notifikasi atau nama pengirim yang tampil tebal (mirip WhatsApp).</td>
                             </tr>
                             <tr>
-                                <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">message</td>
+                                <td className="py-2.5 px-3 font-mono font-bold text-brand">message</td>
                                 <td className="py-2.5 px-3 font-mono">string</td>
                                 <td className="py-2.5 px-3">Ya</td>
                                 <td className="py-2.5 px-3">Isi pesan atau ringkasan kendala/permohonan.</td>
                             </tr>
                             <tr>
-                                <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">url</td>
+                                <td className="py-2.5 px-3 font-mono font-bold text-brand">url</td>
                                 <td className="py-2.5 px-3 font-mono">string</td>
                                 <td className="py-2.5 px-3">Opsional</td>
                                 <td className="py-2.5 px-3">Link web yang langsung dibuka browser saat notifikasi atau tombol aksi diklik.</td>
                             </tr>
                             <tr>
-                                <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">display</td>
+                                <td className="py-2.5 px-3 font-mono font-bold text-brand">display</td>
                                 <td className="py-2.5 px-3 font-mono">string</td>
                                 <td className="py-2.5 px-3">Opsional</td>
                                 <td className="py-2.5 px-3">Pilihan tampilan: <code>"both"</code> (Toast + Popup), <code>"toast"</code>, atau <code>"popup"</code>.</td>
                             </tr>
                             <tr>
-                                <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">priority</td>
+                                <td className="py-2.5 px-3 font-mono font-bold text-brand">priority</td>
                                 <td className="py-2.5 px-3 font-mono">string</td>
                                 <td className="py-2.5 px-3">Opsional</td>
                                 <td className="py-2.5 px-3"><code>"normal"</code>, <code>"high"</code>, atau <code>"urgent"</code>.</td>
                             </tr>
                             <tr>
-                                <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">metadata</td>
+                                <td className="py-2.5 px-3 font-mono font-bold text-brand">metadata</td>
                                 <td className="py-2.5 px-3 font-mono">object</td>
                                 <td className="py-2.5 px-3">Opsional</td>
                                 <td className="py-2.5 px-3">Objek berisi <code>from</code>, <code>to</code>, <code>subject</code>, <code>category</code> untuk tabel informasi di Jendela Popup Display.</td>
                             </tr>
                             <tr>
-                                <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">attachments</td>
+                                <td className="py-2.5 px-3 font-mono font-bold text-brand">attachments</td>
                                 <td className="py-2.5 px-3 font-mono">array</td>
                                 <td className="py-2.5 px-3">Opsional</td>
                                 <td className="py-2.5 px-3">Array file lampiran <code>[ &#123; name, size, url &#125; ]</code> yang dapat diunduh langsung dari jendela popup.</td>

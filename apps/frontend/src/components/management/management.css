@@ -199,7 +199,8 @@ button.mg-node.is-on { box-shadow: 0 0 0 2px hsl(var(--idesk-sapphire) / .55); }
   .settings-tab[value=security] .settings-tab-icon, .settings-tab[value=notifications] .settings-tab-icon { background: hsl(var(--ticket-red) / .12); color: hsl(var(--ticket-red-ink)); }
   .settings-content { min-width: 0; padding: 20px 22px; }
   .settings-tab-panel { outline: none; animation: idesk-page-enter var(--dur-2) var(--ease-out); }
-  .settings-section-title { margin-bottom: 16px; font-size: 17px; font-weight: 600; color: hsl(var(--idesk-text)); }
+  .settings-section-title { margin: 0 0 4px; font: 650 17px/1.25 var(--font-display); color: hsl(var(--idesk-text)); }
+  .settings-group { margin: 0 0 4px; padding: 0 10px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; font-weight: 700; color: var(--td-text-3); }
   @media (max-width: 860px) {
     .settings-layout { grid-template-columns: minmax(0, 1fr); }
     .settings-nav { gap: 12px; }

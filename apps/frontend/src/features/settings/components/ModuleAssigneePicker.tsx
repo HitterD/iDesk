@@ -20,21 +20,21 @@ interface ModuleAssigneePickerProps {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  ADMIN: 'bg-red-500/10 text-red-600 border-red-200 dark:border-red-800',
-  AGENT_ORACLE: 'bg-purple-500/10 text-purple-600 border-purple-200 dark:border-purple-800',
-  AGENT_WEB_DEV: 'bg-sky-500/10 text-sky-600 border-sky-200 dark:border-sky-800',
-  AGENT_MOBILE_DEV: 'bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-800',
-  AGENT_OPERATIONAL_SUPPORT: 'bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-800',
-  AGENT: 'bg-cyan-500/10 text-cyan-600 border-cyan-200 dark:border-cyan-800',
-  AGENT_ADMIN: 'bg-indigo-500/10 text-indigo-600 border-indigo-200 dark:border-indigo-800',
-  MANAGER: 'bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800',
+  ADMIN: 'bg-bad/10 text-bad-ink border-bad/30',
+  AGENT_ORACLE: 'bg-brand/10 text-brand border-brand/30',
+  AGENT_WEB_DEV: 'bg-brand/10 text-brand border-brand/30',
+  AGENT_MOBILE_DEV: 'bg-ok/10 text-ok-ink border-ok/30',
+  AGENT_OPERATIONAL_SUPPORT: 'bg-brand/10 text-brand border-brand/30',
+  AGENT: 'bg-aqua/10 text-aqua-ink border-aqua/30',
+  AGENT_ADMIN: 'bg-brand/10 text-brand border-brand/30',
+  MANAGER: 'bg-warn/10 text-warn-ink border-warn/30',
 };
 
 const SITE_COLORS: Record<string, string> = {
-  SPJ: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
-  SMG: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
-  KRW: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
-  JTB: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
+  SPJ: 'bg-brand/10 text-brand border-brand/20',
+  SMG: 'bg-ok/10 text-ok-ink border-ok/20',
+  KRW: 'bg-warn/10 text-warn-ink border-warn/20',
+  JTB: 'bg-brand/10 text-brand border-brand/20',
 };
 
 export const ModuleAssigneePicker: React.FC<ModuleAssigneePickerProps> = ({
@@ -90,24 +90,24 @@ export const ModuleAssigneePicker: React.FC<ModuleAssigneePickerProps> = ({
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
+    <div className="rounded-2xl border border-line bg-surface overflow-hidden">
       {/* Search header */}
-      <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 px-3 py-2 bg-slate-50/60 dark:bg-slate-800/40">
+      <div className="flex items-center gap-2 border-b border-line px-3 py-2 bg-fill">
         <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-3" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={placeholder}
             disabled={disabled}
-            className="w-full pl-8 pr-8 py-1.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+            className="w-full pl-8 pr-8 py-1.5 text-sm rounded-xl border border-line bg-surface text-ink placeholder:text-ink-3 focus:outline-none focus:ring-1 focus:ring-brand disabled:opacity-60"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-ink-3 hover:text-ink-2"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -117,7 +117,7 @@ export const ModuleAssigneePicker: React.FC<ModuleAssigneePickerProps> = ({
           type="button"
           onClick={selectAllVisible}
           disabled={disabled || filtered.length === 0}
-          className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+          className="idesk-btn is-soft"
         >
           Pilih tampilan
         </button>
@@ -125,11 +125,11 @@ export const ModuleAssigneePicker: React.FC<ModuleAssigneePickerProps> = ({
           type="button"
           onClick={clearAll}
           disabled={disabled || selectedIds.length === 0}
-          className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+          className="idesk-btn is-soft"
         >
           Bersihkan
         </button>
-        <div className="text-[11px] text-slate-500 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+        <div className="text-[11px] text-ink-2 px-1.5 py-0.5 rounded bg-fill border border-line">
           {selectedIds.length} dipilih
         </div>
       </div>
@@ -137,24 +137,24 @@ export const ModuleAssigneePicker: React.FC<ModuleAssigneePickerProps> = ({
       {/* List */}
       <div className="max-h-64 overflow-auto p-1.5">
         {isLoading ? (
-          <div className="p-4 text-sm text-slate-500">Memuat daftar agent…</div>
+          <div className="p-4 text-sm text-ink-2">Memuat daftar agent…</div>
         ) : filtered.length === 0 ? (
-          <div className="p-4 text-sm text-slate-500 flex items-center gap-2">
+          <div className="p-4 text-sm text-ink-2 flex items-center gap-2">
             <Users className="w-4 h-4" /> Tidak ada agent yang cocok.
           </div>
         ) : (
           <div className="space-y-1">
             {filtered.map((agent) => {
               const checked = selectedSet.has(agent.id);
-              const roleColor = ROLE_COLORS[agent.role] || 'bg-slate-500/10 text-slate-600 border-slate-200';
-              const siteColor = (agent.site?.code && SITE_COLORS[agent.site.code]) || 'bg-slate-500/10 text-slate-600 border-slate-200';
+              const roleColor = ROLE_COLORS[agent.role] || 'bg-ink-3/10 text-ink-2 border-line';
+              const siteColor = (agent.site?.code && SITE_COLORS[agent.site.code]) || 'bg-ink-3/10 text-ink-2 border-line';
               return (
                 <label
                   key={agent.id}
                   className={`flex items-center gap-3 px-3 py-2 rounded-xl border cursor-pointer transition-all ${
                     checked
-                      ? 'bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800'
-                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                      ? 'bg-ok/10 border-ok/30'
+                      : 'bg-surface border-line hover:bg-fill'
                   } ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   <input
@@ -162,14 +162,14 @@ export const ModuleAssigneePicker: React.FC<ModuleAssigneePickerProps> = ({
                     checked={checked}
                     onChange={() => toggle(agent.id)}
                     disabled={disabled}
-                    className="accent-emerald-600 w-4 h-4"
+                    className="accent-ok w-4 h-4"
                   />
-                  <div className="w-8 h-8 rounded-full bg-slate-900/5 dark:bg-white/10 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-code/5 flex items-center justify-center text-xs font-bold text-ink-2 flex-shrink-0">
                     {agent.fullName?.[0]?.toUpperCase() || '?'}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-slate-800 dark:text-white truncate">
+                      <span className="text-sm font-semibold text-ink truncate">
                         {agent.fullName}
                       </span>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${roleColor}`}>
@@ -181,9 +181,9 @@ export const ModuleAssigneePicker: React.FC<ModuleAssigneePickerProps> = ({
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-slate-500 truncate">{agent.email}</div>
+                    <div className="text-[11px] text-ink-2 truncate">{agent.email}</div>
                   </div>
-                  {checked && <Check className="w-4 h-4 text-emerald-600" />}
+                  {checked && <Check className="w-4 h-4 text-ok-ink" />}
                 </label>
               );
             })}
@@ -192,7 +192,7 @@ export const ModuleAssigneePicker: React.FC<ModuleAssigneePickerProps> = ({
       </div>
 
       {selectedIds.length > 0 && (
-        <div className="px-3 py-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 text-[11px] text-slate-500">
+        <div className="px-3 py-2 border-t border-line bg-fill text-[11px] text-ink-2">
           Daftar ini akan membatasi siapa saja yang boleh di-assign (manual & auto). Kosongkan untuk kembali ke role.
         </div>
       )}
