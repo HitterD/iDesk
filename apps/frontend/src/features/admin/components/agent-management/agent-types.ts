@@ -46,7 +46,7 @@ export const SITE_COLORS: Record<string, string> = {
     SPJ: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     SMG: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
     KRW: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    JTB: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+    JTB: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
 };
 
 export type UserRoleKey =
@@ -84,9 +84,9 @@ export const ROLE_CONFIG: Record<UserRoleKey, RoleConfigEntry> = {
         label: 'Admin',
         pluralLabel: 'Administrators',
         description: 'Akses penuh sistem',
-        color: 'text-purple-600',
-        bgColor: 'bg-purple-100 dark:bg-purple-900/30',
-        badgeColor: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
+        color: 'text-[#2d4a8c] dark:text-[#a9bdf0]',
+        bgColor: 'bg-[#2d4a8c]/10 dark:bg-[#2d4a8c]/30',
+        badgeColor: 'bg-[#2d4a8c]/10 text-[#2d4a8c] dark:bg-[#2d4a8c]/30 dark:text-[#a9bdf0]',
     },
     MANAGER: {
         icon: Crown,
@@ -111,9 +111,9 @@ export const ROLE_CONFIG: Record<UserRoleKey, RoleConfigEntry> = {
         label: 'Agent Admin',
         pluralLabel: 'Agent Admins',
         description: 'Petugas admin operasional',
-        color: 'text-indigo-600',
-        bgColor: 'bg-indigo-100 dark:bg-indigo-900/30',
-        badgeColor: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400',
+        color: 'text-sky-700',
+        bgColor: 'bg-sky-100 dark:bg-sky-900/30',
+        badgeColor: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
     },
     AGENT_ORACLE: {
         icon: Eye,
@@ -188,8 +188,8 @@ export const getRoleLabel = (role: string | undefined): string => {
 // Generate consistent color based on name
 export const getAvatarColor = (name: string): string => {
     const colors = [
-        'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-amber-500',
-        'bg-rose-500', 'bg-cyan-500', 'bg-indigo-500', 'bg-teal-500'
+        'bg-blue-500', 'bg-green-500', 'bg-[#2d4a8c]', 'bg-amber-500',
+        'bg-rose-500', 'bg-cyan-500', 'bg-sky-600', 'bg-teal-500'
     ];
     if (!name) return colors[0];
     const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);

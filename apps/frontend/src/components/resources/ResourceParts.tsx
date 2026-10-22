@@ -71,6 +71,8 @@ interface ResTableProps {
     colsMobile?: string;
     head?: React.ReactNode;
     tools?: React.ReactNode;
+    /** Second toolbar row under `tools` (mockup: title row, then search/filter row). */
+    subTools?: React.ReactNode;
     children: React.ReactNode;
     foot?: React.ReactNode;
     className?: string;
@@ -79,9 +81,10 @@ interface ResTableProps {
 const DEFAULT_COLS_MOBILE = 'minmax(0,1fr) auto';
 
 /** Mockup `.table.d`: rows share the header's grid columns; rows become cards on mobile. */
-export const ResTable: React.FC<ResTableProps> = ({ label, cols, colsMobile = DEFAULT_COLS_MOBILE, head, tools, children, foot, className }) => (
+export const ResTable: React.FC<ResTableProps> = ({ label, cols, colsMobile = DEFAULT_COLS_MOBILE, head, tools, subTools, children, foot, className }) => (
     <section className={cn('res-table', className)} aria-label={label} style={resVars({ '--cols': cols, '--cols-m': colsMobile })}>
         {tools && <div className="res-tools">{tools}</div>}
+        {subTools && <div className="res-tools">{subTools}</div>}
         {head && <div className="res-thead" role="presentation">{head}</div>}
         <div className="res-rows">{children}</div>
         {foot && <div className="res-foot">{foot}</div>}

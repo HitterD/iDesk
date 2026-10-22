@@ -52,6 +52,10 @@ button:active, [role="button"]:active {
    switches and buttons inside resource rows (unlayered so they beat the global press rule). */
 button.dash-li:active, .zm-acc > button:active, .zm-bk:active, .kb-toc button:active, .kb-topic:active,
 .res-switch:active, .res-row button:active, .res-row-toggle:active, .kb-art:active { transform: none; }
+/* Round-2 management/admin pages: notification rows, service-map nodes, settings vertical tabs,
+   theme cards, card-grid overlays and every control inside a data row. */
+.res-row a:active, .res-row [role="button"]:active, .mg-notif button:active, .mg-notif-main:active, button.mg-node:active,
+.mg-vtabs > a:active, .mg-vtabs > button:active, .mg-theme-card:active, .mg-ccard button:active, .mg-ccard [role="button"]:active { transform: none; }
 
 /* Card hover improvements (Emil Kowalski) */
 .card-interactive {

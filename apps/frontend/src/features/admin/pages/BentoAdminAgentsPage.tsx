@@ -613,12 +613,10 @@ export const BentoAdminAgentsPage: React.FC = () => {
     });
 
     return (
-        <div className="space-y-6 animate-fade-in-up overflow-x-hidden">
+        <div className="res-page mg-page mg-agents">
             {/* Header */}
             <AgentManagementHeader
                 selectedCount={selectedUserIds.size}
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
                 onBulkRoleChange={() => setIsBulkRoleChangeOpen(true)}
                 onBulkSiteChange={() => setIsBulkSiteChangeOpen(true)}
                 onBulkPreset={() => setIsBulkPresetOpen(true)}
@@ -633,6 +631,13 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 isSyncing={syncSjatrMutation.isPending}
                 onManagePresets={() => setIsPresetManageOpen(true)}
                 onAddUser={() => setIsAddUserModalOpen(true)}
+            />
+
+            {/* Stats Dashboard */}
+            <AgentStatsDashboard
+                dashboardStats={dashboardStats}
+                statsFilter={statsFilter}
+                onStatsFilterChange={setStatsFilter}
             />
 
             {/* Unified Filters Toolbar */}
@@ -650,13 +655,8 @@ export const BentoAdminAgentsPage: React.FC = () => {
                 selectedRole={selectedRole}
                 onRoleChange={(role) => { setSelectedRole(role); setCurrentPage(1); }}
                 paginationMeta={paginationMeta}
-            />
-
-            {/* Stats Dashboard */}
-            <AgentStatsDashboard
-                dashboardStats={dashboardStats}
-                statsFilter={statsFilter}
-                onStatsFilterChange={setStatsFilter}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
             />
 
             {/* P1-1 + P3-1: Agent Performance - Conditional Grid/Table View */}
