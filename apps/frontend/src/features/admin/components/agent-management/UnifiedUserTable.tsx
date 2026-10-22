@@ -80,9 +80,9 @@ export const UnifiedUserTable: React.FC<{
                             <PresetDropdown user={user} presets={presets} onApplyPreset={onApplyPreset} isApplying={applyingPresetUserId === user.id}
                                 bulkCount={selectedIds.has(user.id) ? selectedIds.size : 0} />
                         </span>
-                        <span className="res-acts">
+                        <span className="res-acts res-wide-m" role="group" aria-label={`Aksi ${user.fullName}`}>
                             <button type="button" onClick={() => onEdit(user)} className="res-icon-btn" title="Edit" aria-label={`Edit ${user.fullName}`}><Pencil aria-hidden="true" /></button>
-                            <button type="button" onClick={() => onResetPassword(user)} className="res-icon-btn res-hide-m" title="Reset Password" aria-label={`Reset password for ${user.fullName}`}><KeyRound aria-hidden="true" /></button>
+                            <button type="button" onClick={() => onResetPassword(user)} className="res-icon-btn" title="Reset Password" aria-label={`Reset password for ${user.fullName}`}><KeyRound aria-hidden="true" /></button>
                             <button type="button" onClick={() => onDelete(user)} className="res-icon-btn is-danger res-hide-m" title="Delete" aria-label={`Delete ${user.fullName}`}><Trash2 aria-hidden="true" /></button>
                         </span>
                         <span className="flex justify-center">

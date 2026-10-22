@@ -305,7 +305,7 @@ export const ScheduledReportsTab: React.FC<ScheduledReportsTabProps> = ({
                                     </ResBub>
                                 ) : !cfg.isActive ? <ResBub color="var(--dash-gray)">Dijeda</ResBub> : <span className="res-muted">Never executed</span>}
                             </span>
-                            <span className="res-acts res-hide-m">
+                            <span className="res-acts res-wide-m" role="group" aria-label={`Aksi ${cfg.name}`}>
                                 <button type="button" className="res-icon-btn" onClick={() => setHistoryModalConfig(cfg)} title="View Execution History" aria-label={`Riwayat eksekusi ${cfg.name}`}><History aria-hidden="true" /></button>
                                 {canManage && (
                                     <>

@@ -233,8 +233,8 @@ export const ContractTable: React.FC<ContractTableProps> = ({
                         </div>
                         <span className="res-cell is-num res-hide-m">{formatCurrency(contract.contractValue)}</span>
                         <span><ResBub color={status.hue} ink={status.ink}>{status.label}</ResBub></span>
-                        <span className="res-acts">
-                            <button type="button" className="res-icon-btn res-hide-m" onClick={() => handleAcknowledge(contract)}
+                        <span className="res-acts res-wide-m" role="group" aria-label={`Aksi ${contract.poNumber ?? 'kontrak'}`}>
+                            <button type="button" className="res-icon-btn" onClick={() => handleAcknowledge(contract)}
                                 disabled={acknowledgeMutation.isPending || unacknowledgeMutation.isPending}
                                 title={contract.isAcknowledged ? 'Mark as unacknowledged' : 'Acknowledge (stop reminders)'}
                                 aria-label={contract.isAcknowledged ? `Batalkan acknowledge ${contract.poNumber ?? ''}` : `Acknowledge ${contract.poNumber ?? ''}`}
@@ -242,7 +242,7 @@ export const ContractTable: React.FC<ContractTableProps> = ({
                                 <CheckCircle className={cn(contract.isAcknowledged && 'text-[var(--dash-ink-green)]')} aria-hidden="true" />
                             </button>
                             <button type="button" className="res-icon-btn" onClick={() => onView(contract)} title="View PDF" aria-label={`Lihat PDF ${contract.poNumber ?? ''}`}><FileText aria-hidden="true" /></button>
-                            <button type="button" className="res-icon-btn res-hide-m" onClick={() => onEdit(contract)} title="Edit" aria-label={`Edit ${contract.poNumber ?? ''}`}><Pencil aria-hidden="true" /></button>
+                            <button type="button" className="res-icon-btn" onClick={() => onEdit(contract)} title="Edit" aria-label={`Edit ${contract.poNumber ?? ''}`}><Pencil aria-hidden="true" /></button>
                             <button type="button" className="res-icon-btn is-danger res-hide-m" onClick={() => onDelete(contract.id)} title="Delete" aria-label={`Hapus ${contract.poNumber ?? ''}`}><Trash2 aria-hidden="true" /></button>
                         </span>
                     </div>
