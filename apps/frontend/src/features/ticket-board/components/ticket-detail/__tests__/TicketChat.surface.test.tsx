@@ -62,6 +62,16 @@ describe('TicketChat surface', () => {
     });
     beforeEach(() => { vi.clearAllMocks(); currentUser = AGENT; });
 
+    it('uses a viewport-constrained sticker surface and preserves sending', async () => {
+        const onSend = renderChat();
+        fireEvent.click(screen.getByRole('button', { name: 'Lampiran & sticker' }));
+        fireEvent.click(await screen.findByRole('menuitem', { name: 'Sticker' }));
+        const picker = screen.getByRole('dialog', { name: 'Sticker' });
+        expect(picker).toHaveClass('td-sticker-menu');
+        fireEvent.click(within(picker).getAllByRole('button', { name: /^Sticker / })[0]);
+        await waitFor(() => expect(onSend).toHaveBeenCalled());
+    });
+
     it('aligns the agent\'s own messages outgoing and keeps author identity on both sides', () => {
         renderChat();
         expect(row('m-2')).toHaveAttribute('data-direction', 'out');

@@ -75,7 +75,7 @@ const PlusMenuPanel: React.FC<{
 }> = ({ view, canAttach, fileCount, onAttach, onShowStickers, onSticker, onClose }) => {
     if (view === 'stickers') {
         return (
-            <div className="td-menu" role="dialog" aria-label="Sticker">
+            <div className="td-menu td-sticker-menu" role="dialog" aria-label="Sticker">
                 <div className="td-pop-title flex items-center justify-between">
                     <span>Sticker</span>
                     <button type="button" onClick={onClose} aria-label="Tutup" className="chat-ctx-x h-6 w-6"><X aria-hidden="true" /></button>
