@@ -9,10 +9,11 @@ interface TicketActionDialogProps {
     title: string;
     busy?: boolean;
     children: React.ReactNode;
+    onEscapeKeyDown?: (event: KeyboardEvent) => void;
 }
 
 /** Ticket-only modal shell: trapped focus, restored trigger, and a reachable mobile footer. */
-export function TicketActionDialog({ open, onClose, title, busy = false, children }: TicketActionDialogProps) {
+export function TicketActionDialog({ open, onClose, title, busy = false, children, onEscapeKeyDown }: TicketActionDialogProps) {
     const triggerRef = React.useRef<HTMLElement | null>(null);
     return (
         <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen && !busy) onClose(); }}>
@@ -26,7 +27,10 @@ export function TicketActionDialog({ open, onClose, title, busy = false, childre
                         event.preventDefault();
                         triggerRef.current?.focus();
                     }}
-                    onEscapeKeyDown={(event) => { if (busy) event.preventDefault(); }}
+                    onEscapeKeyDown={(event) => {
+                        onEscapeKeyDown?.(event);
+                        if (busy) event.preventDefault();
+                    }}
                     onPointerDownOutside={(event) => { if (busy) event.preventDefault(); }}
                     onKeyDown={(event) => event.stopPropagation()}
                 >

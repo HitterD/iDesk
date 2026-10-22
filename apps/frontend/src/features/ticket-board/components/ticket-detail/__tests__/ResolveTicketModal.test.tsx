@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { ResolveTicketModal } from '../ResolveTicketModal';
 
@@ -140,4 +140,24 @@ describe('ResolveTicketModal Component', () => {
         expect(onClose).not.toHaveBeenCalled();
     });
 
+    it('Escape dismisses preview only, preserving draft and files, then dismisses resolve', async () => {
+        vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:preview'), revokeObjectURL: vi.fn() });
+        const onClose = vi.fn();
+        const { container } = render(<ResolveTicketModal isOpen onClose={onClose} ticket={mockTicket} onConfirm={vi.fn()} />);
+        const note = screen.getByRole('textbox');
+        fireEvent.change(note, { target: { value: 'Draft solusi tetap ada' } });
+        const file = new File(['image'], 'bukti.png', { type: 'image/png' });
+        const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+        fireEvent.change(input, { target: { files: [file] } });
+        fireEvent.click(screen.getByRole('button', { name: 'Lihat lampiran bukti.png' }));
+        expect(screen.getByRole('button', { name: 'Tutup pratinjau lampiran' })).toBeInTheDocument();
+        fireEvent.keyDown(document, { key: 'Escape' });
+        await waitFor(() => expect(screen.queryByRole('button', { name: 'Tutup pratinjau lampiran' })).not.toBeInTheDocument());
+        expect(onClose).not.toHaveBeenCalled();
+        expect(note).toHaveValue('Draft solusi tetap ada');
+        expect(screen.getByRole('button', { name: 'Lihat lampiran bukti.png' })).toBeInTheDocument();
+        fireEvent.keyDown(document, { key: 'Escape' });
+        expect(onClose).toHaveBeenCalledOnce();
+        vi.unstubAllGlobals();
+    });
 });

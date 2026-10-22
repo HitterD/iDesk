@@ -162,6 +162,15 @@ describe('ClientTicketDetailPage', () => {
         expect(screen.queryByRole('button', { name: 'Masalah sudah selesai' })).not.toBeInTheDocument();
     });
 
+    it('does not expose owner or agent actions to a nonowner requester', async () => {
+        currentUser = { ...OWNER, id: 'other-user' };
+        renderPage();
+        await screen.findAllByRole('heading', { name: 'Password terkunci' });
+        for (const name of ['Batalkan', 'Masalah sudah selesai', 'Selesaikan', 'Teruskan', 'Perpanjang SLA', 'Atur pengingat']) {
+            expect(screen.queryByRole('button', { name, exact: true })).not.toBeInTheDocument();
+        }
+    });
+
     it('locks a CLOSED ticket: no chat input, no cancel, rating form shown', async () => {
         currentStatus = 'CLOSED';
         renderPage();

@@ -196,7 +196,13 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
 
     return createPortal(
         <>
-            <TicketActionDialog open={isOpen} onClose={onClose} title="Selesaikan tiket" busy={isLoading}>
+            <TicketActionDialog open={isOpen} onClose={onClose} title="Selesaikan tiket" busy={isLoading}
+                onEscapeKeyDown={(event) => {
+                    if (activeLightboxUrl) {
+                        event.preventDefault();
+                        setActiveLightboxUrl(null);
+                    }
+                }}>
                 <div className="ticket-action-inner" onKeyDown={handleModalKeyDown}>
                     {/* Header Banner */}
                     <div className=" p-4 sm:p-5 border-b border-slate-200/80 dark:border-slate-800 flex items-start justify-between gap-3">
