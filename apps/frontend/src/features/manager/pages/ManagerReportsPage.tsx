@@ -25,6 +25,7 @@ import {
     AlertTriangle,
 } from 'lucide-react';
 import { SiteSelector } from '@/components/site/SiteSelector';
+import { ResHead } from '@/components/resources/ResourceParts';
 import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { toast } from 'sonner';
@@ -182,31 +183,14 @@ export const ManagerReportsPage = () => {
     };
 
     return (
-        <div className="space-y-6 animate-fade-in-up pb-10">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-5 rounded-2xl border border-border/80 shadow-xs">
-                <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className="px-2.5 py-0.5 text-xs font-semibold text-primary border-primary/30 bg-primary/5">
-                            <Building2 className="w-3.5 h-3.5 mr-1" />
-                            Manager Portal
-                        </Badge>
-                    </div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2.5">
-                        <FileText className="w-7 h-7 text-primary" />
-                        Manager Reports
-                    </h1>
-                    <p className="text-muted-foreground text-sm mt-0.5">
-                        Generate dan export laporan kinerja site, SLA compliance, dan performa agent
-                    </p>
-                </div>
-            </div>
+        <div className="res-page space-y-0 pb-10">
+            <ResHead icon={FileText} tone="green" title="Manager Reports" description="Generate dan export laporan kinerja site, SLA compliance, dan performa agent" />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column - Report Configuration */}
                 <div className="lg:col-span-2 space-y-6">
                     {/* Report Type */}
-                    <Card className="rounded-2xl border-border/80 bg-card shadow-xs">
+                    <Card className="dash-panel !p-0 border-0">
                         <CardHeader>
                             <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                                 <PieChart className="w-5 h-5 text-primary" />
@@ -237,7 +221,7 @@ export const ManagerReportsPage = () => {
                     </Card>
 
                     {/* Team Selection */}
-                    <Card className="rounded-2xl border-border/80 bg-card shadow-xs">
+                    <Card className="dash-panel !p-0 border-0">
                         <CardHeader>
                             <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                                 <Users className="w-5 h-5 text-primary" />
@@ -265,7 +249,7 @@ export const ManagerReportsPage = () => {
                     </Card>
 
                     {/* Site Selection */}
-                    <Card className="rounded-2xl border-border/80 bg-card shadow-xs">
+                    <Card className="dash-panel !p-0 border-0">
                         <CardHeader>
                             <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                                 <Building2 className="w-5 h-5 text-primary" />
@@ -287,7 +271,7 @@ export const ManagerReportsPage = () => {
                     </Card>
 
                     {/* Date Range */}
-                    <Card className="rounded-2xl border-border/80 bg-card shadow-xs">
+                    <Card className="dash-panel !p-0 border-0">
                         <CardHeader>
                             <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                                 <Calendar className="w-5 h-5 text-primary" />
@@ -342,7 +326,7 @@ export const ManagerReportsPage = () => {
                     </Card>
 
                     {/* Report Sections */}
-                    <Card className="rounded-2xl border-border/80 bg-card shadow-xs">
+                    <Card className="dash-panel !p-0 border-0">
                         <CardHeader>
                             <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                                 <BarChart3 className="w-5 h-5 text-primary" />
@@ -383,7 +367,7 @@ export const ManagerReportsPage = () => {
                 {/* Right Column - Export Options & Summary */}
                 <div className="space-y-6">
                     {/* Export Format */}
-                    <Card className="rounded-2xl border-border/80 bg-card shadow-xs">
+                    <Card className="dash-panel !p-0 border-0">
                         <CardHeader>
                             <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                                 <Download className="w-5 h-5 text-primary" />
@@ -414,7 +398,7 @@ export const ManagerReportsPage = () => {
                     </Card>
 
                     {/* Summary */}
-                    <Card className="rounded-2xl border-border/80 bg-card shadow-xs">
+                    <Card className="dash-panel !p-0 border-0">
                         <CardHeader>
                             <CardTitle className="text-base font-bold text-foreground">Ringkasan Laporan</CardTitle>
                         </CardHeader>
@@ -448,21 +432,14 @@ export const ManagerReportsPage = () => {
 
                     {/* Generate Button */}
                     <Button
-                        className="w-full h-12 rounded-xl text-base font-bold shadow-sm active:scale-[0.98] transition-all cursor-pointer"
+                        variant="primary"
+                        size="lg"
+                        className="w-full"
                         onClick={handleGenerateReport}
                         disabled={isGenerating || selectedSections.length === 0}
+                        loading={isGenerating}
                     >
-                        {isGenerating ? (
-                            <>
-                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                                Memproses Laporan...
-                            </>
-                        ) : (
-                            <>
-                                <Download className="w-5 h-5 mr-2" />
-                                Generate & Download Laporan
-                            </>
-                        )}
+                        {isGenerating ? 'Memproses Laporan...' : <><Download aria-hidden="true" />Generate & Download Laporan</>}
                     </Button>
 
                     {selectedSections.length === 0 && (

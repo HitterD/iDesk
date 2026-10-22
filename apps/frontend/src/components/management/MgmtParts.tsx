@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import type { TicketPillTone } from '@/components/ui/ticket-pill';
 import { SegmentedControl, type SegmentedOption } from '@/components/ui/segmented-control';
@@ -20,8 +20,15 @@ interface MgTabsProps<V extends string> {
 
 /** Mockup `.seg.page-tabs`: segmented tabs with the sliding thumb; scrolls horizontally on narrow screens. */
 export function MgTabs<V extends string>({ options, value, onChange, label }: MgTabsProps<V>) {
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        // Keep the selected tab visible when the row scrolls horizontally (390px), without moving the page.
+        const box = ref.current;
+        const on = box?.querySelector<HTMLElement>('.portal-seg-btn.is-active');
+        if (box && on) box.scrollLeft = Math.max(0, on.offsetLeft - (box.clientWidth - on.offsetWidth) / 2);
+    }, [value]);
     return (
-        <div className="mg-tabs-scroll">
+        <div ref={ref} className="mg-tabs-scroll">
             <SegmentedControl aria-label={label} className="dash-seg res-tabs" options={options} value={value} onValueChange={onChange} />
         </div>
     );
