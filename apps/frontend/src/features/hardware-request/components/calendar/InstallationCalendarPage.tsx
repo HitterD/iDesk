@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -140,6 +140,29 @@ function WeekAgenda({ weekStart, events, onOpen }: { weekStart: Date; events: Ca
   );
 }
 
+export function useOperationalDay() {
+  const [today, setToday] = useState(() => startOfDay(new Date()));
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const refresh = () => {
+      clearTimeout(timer);
+      const now = new Date();
+      const day = startOfDay(now);
+      setToday((previous) => previous.getTime() === day.getTime() ? previous : day);
+      timer = setTimeout(refresh, addDays(day, 1).getTime() - now.getTime());
+    };
+    refresh();
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
+  return today;
+}
+
 export function InstallationCalendarPage() {
   const { isIctRole, isIctStaff } = usePermissions();
   const [mode, setMode] = useState<CalendarMode>('agenda');
@@ -168,10 +191,10 @@ export function InstallationCalendarPage() {
     : fcRange;
   const { events, reschedule } = useInstallationCalendar({ ...range, technicianIds });
   // Stats and the projection are anchored on today (today..today+6), independent of the navigated range.
-  const [ahead] = useState(() => {
-    const start = startOfDay(new Date());
-    return { from: start.toISOString(), to: endOfDay(addDays(start, WEEK_DAYS - 1)).toISOString() };
-  });
+  const today = useOperationalDay();
+  const ahead = useMemo(() => ({
+    from: today.toISOString(), to: endOfDay(addDays(today, WEEK_DAYS - 1)).toISOString(),
+  }), [today]);
   const { events: aheadEvents } = useInstallationCalendar({ ...ahead, technicianIds });
 
   const { data: unscheduled = [] } = useQuery<UnscheduledRequest[]>({
@@ -181,23 +204,22 @@ export function InstallationCalendarPage() {
   });
 
   const stats = useMemo(() => {
-    const today = new Date();
     return {
       scheduled: aheadEvents.length,
       today: aheadEvents.filter((e: CalendarEventData) => isSameDay(parseISO(e.scheduledAt), today)).length,
       rescheduleRequested: aheadEvents.filter((e: CalendarEventData) => e.status === 'RESCHEDULE_REQUESTED').length,
     };
-  }, [aheadEvents]);
+  }, [aheadEvents, today]);
 
   const weekLoad = useMemo(() => Array.from({ length: WEEK_DAYS }, (_, i) => {
-    const day = addDays(startOfDay(new Date()), i);
+    const day = addDays(today, i);
     return {
       key: day.toISOString(),
       label: format(day, 'EEE d', { locale: idLocale }),
       value: aheadEvents.filter((e: CalendarEventData) => isSameDay(parseISO(e.scheduledAt), day)).length,
-      color: isToday(day) ? DASH_COLORS.accent : undefined,
+      color: isSameDay(day, today) ? DASH_COLORS.accent : undefined,
     };
-  }), [aheadEvents]);
+  }), [aheadEvents, today]);
 
   const drawerEvents = useMemo(
     () =>
