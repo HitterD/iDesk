@@ -37,6 +37,9 @@ interface ChatComposerProps {
 }
 
 const MAX_MESSAGE_LENGTH = 5000;
+/** Counter turns amber / red at these fractions of the limit (same thresholds as before the redesign). */
+const COUNTER_WARN_RATIO = 0.7;
+const COUNTER_OVER_RATIO = 0.9;
 const TYPING_IDLE_MS = 2000;
 const SLASH_PATTERN = /(^|\s)\/([a-zA-Z0-9_-]*)$/;
 
@@ -213,9 +216,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         }, 0);
     };
 
-    /** Queues files that pass the type/size checks, up to the per-message limit. */
-    const addFiles = (incoming: File[]) => {
-        if (isSending || incoming.length === 0) return;
+    /** Queues files that pass the type/size checks, up to the per-message limit; returns how many were queued. */
+    const addFiles = (incoming: File[]): number => {
+        if (isSending || incoming.length === 0) return 0;
         const accepted = incoming.filter(file => {
             const result = validateAttachmentFile(file);
             if (!result.valid) toast.error(`${file.name}: ${result.error}`);
@@ -226,9 +229,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         const toAdd = accepted.slice(0, room);
         if (toAdd.length > 0 && !fitsAttachmentTotal([...selectedFiles, ...toAdd])) {
             toast.error(ATTACHMENT_TOTAL_ERROR);
-            return;
+            return 0;
         }
         if (toAdd.length > 0) setSelectedFiles(prev => [...prev, ...toAdd]);
+        return toAdd.length;
     };
 
     // Paste handler — captures screenshots from clipboard
@@ -239,7 +243,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             .filter((f): f is File => f !== null);
         if (files.length === 0) return;
         e.preventDefault();
-        addFiles(files);
+        const added = addFiles(files);
+        if (added > 0) toast.success(`${added} screenshot ditempel`);
     };
 
     const handleFileSelect = (files: FileList | null) => {
@@ -401,14 +406,21 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                 </button>
             </div>
 
-            {messageLength > MAX_MESSAGE_LENGTH * 0.7 && (
-                <p className={cn(
-                    'text-right text-[11px] tabular-nums',
-                    messageLength > MAX_MESSAGE_LENGTH * 0.9 ? 'font-semibold text-rose-500' : 'text-amber-500',
-                )}>
-                    {messageLength.toLocaleString()}/{MAX_MESSAGE_LENGTH.toLocaleString()}
-                </p>
-            )}
+            <div className={cn('chat-compose-foot', messageLength === 0 && 'is-idle')}>
+                {/* Hidden on touch devices (CSS), where these shortcuts do not apply. */}
+                <span className="chat-compose-hint">
+                    <kbd>Enter</kbd> kirim · <kbd>Shift+Enter</kbd> baris baru · <kbd>Ctrl+V</kbd> tempel gambar
+                </span>
+                {messageLength > 0 && (
+                    <span className={cn(
+                        'chat-compose-count',
+                        messageLength > MAX_MESSAGE_LENGTH * COUNTER_OVER_RATIO ? 'is-over'
+                            : messageLength > MAX_MESSAGE_LENGTH * COUNTER_WARN_RATIO && 'is-warn',
+                    )}>
+                        {messageLength.toLocaleString()}/{MAX_MESSAGE_LENGTH.toLocaleString()}
+                    </span>
+                )}
+            </div>
         </div>
     );
 };

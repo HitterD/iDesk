@@ -197,6 +197,8 @@ describe('ClientTicketDetailPage', () => {
 
         // Tabs
         expect(screen.getByRole('button', { name: 'Percakapan' })).toHaveAttribute('aria-pressed', 'true');
+        // Message count badge on the conversation tab (non-system messages, as before the redesign).
+        expect(within(screen.getByRole('button', { name: 'Percakapan' })).getByTestId('chat-tab-count')).toHaveTextContent('1');
         expect(screen.getByRole('button', { name: 'Aktivitas' })).toBeInTheDocument();
 
         // Chat genesis report & messages

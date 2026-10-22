@@ -1173,6 +1173,9 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .td-tabs.portal-seg { width: max-content; padding: 2px; border-radius: 10px; background: var(--td-fill); }
 .td-tabs .portal-seg-btn, .td-compose-seg .portal-seg-btn { height: 26px; padding: 0 12px; border-radius: 8px; }
 .td-tabs .seg-thumb, .td-compose-seg .seg-thumb { border-radius: 8px; }
+/* Message count on the "Percakapan" segment (main had a pill next to the tab label). */
+.td-tab-count { margin-left: 6px; min-width: 18px; height: 16px; padding: 0 5px; border-radius: 999px; display: inline-grid; place-items: center; font-size: 10.5px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; background: var(--td-fill-2); color: hsl(var(--idesk-text-secondary)); }
+.portal-seg-btn.is-active .td-tab-count { background: var(--td-accent-soft); color: hsl(var(--idesk-sapphire)); }
 @media (max-width: 860px) {
   .ticket-detail-head .ticket-detail-title { font-size: 18px; flex: 1 1 100%; }
   .td-acts .idesk-btn:not(.is-primary) > span { display: none; }
@@ -1305,6 +1308,17 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .td-menu-danger { color: hsl(var(--ticket-red-ink)); }
 .td-menu-danger svg { color: currentColor; }
 @media (max-width: 860px) { .chat-compose-note { display: none; } }
+/* Composer helper row: keyboard hints (pointer devices only) + character counter. */
+.chat-compose-foot { display: flex; align-items: center; gap: 10px; min-height: 14px; margin-top: -2px; padding: 0 6px; font-size: 11px; line-height: 14px; color: var(--td-text-3); }
+.chat-compose-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-compose-hint kbd { font: inherit; font-weight: 600; color: hsl(var(--idesk-text-secondary)); }
+.chat-compose-count { margin-left: auto; flex: none; font-variant-numeric: tabular-nums; }
+.chat-compose-count.is-warn { color: hsl(var(--ticket-amber-ink)); }
+.chat-compose-count.is-over { color: hsl(var(--ticket-red-ink)); font-weight: 650; }
+@media (hover: none), (pointer: coarse) {
+  .chat-compose-hint { display: none; }
+  .chat-compose-foot.is-idle { display: none; }
+}
 
 /* Inspector */
 .ticket-panel > .td-panel-h { margin: 0 0 10px; font-size: 13px; font-weight: 650; display: flex; align-items: center; gap: 8px; min-height: 20px; }

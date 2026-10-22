@@ -241,8 +241,8 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     return (
         <div className="relative flex h-full flex-col overflow-hidden">
 
-            {/* ── Pinned issue bar (hidden on mobile for a cleaner view) ── */}
-            <div className="z-10 hidden shrink-0 items-center justify-between gap-3 border-b border-[hsl(var(--idesk-border)/0.7)] px-5 py-2 sm:flex">
+            {/* ── Pinned issue bar: one compact row on mobile (title + jump + status dot + details toggle) ── */}
+            <div data-pinned-bar className="z-10 flex shrink-0 items-center justify-between gap-2 border-b border-[hsl(var(--idesk-border)/0.7)] px-3 py-1.5 sm:gap-3 sm:px-5 sm:py-2">
                 <button
                     type="button"
                     onClick={scrollToRootIssue}
@@ -262,7 +262,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                 </span>
                             )}
                         </div>
-                        <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                        <p className="hidden truncate text-xs text-slate-500 dark:text-slate-400 sm:block">
                             {ticket.description || 'Tidak ada deskripsi'}
                         </p>
                     </div>
@@ -276,8 +276,10 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                         )}
                         title={isConnected ? 'Terhubung real-time' : 'Offline'}
                     >
-                        <Wifi className="h-3.5 w-3.5" aria-hidden="true" />
-                        {isConnected ? 'Live' : 'Offline'}
+                        {/* Mobile: a small status dot; sm+: icon + label. */}
+                        <span className={cn('h-2 w-2 rounded-full sm:hidden', isConnected ? 'bg-emerald-500' : 'bg-slate-400')} aria-hidden="true" />
+                        <Wifi className="hidden h-3.5 w-3.5 sm:block" aria-hidden="true" />
+                        <span className="sr-only sm:not-sr-only">{isConnected ? 'Live' : 'Offline'}</span>
                     </span>
 
                     <button
@@ -294,8 +296,8 @@ export const TicketChat: React.FC<TicketChatProps> = ({
 
             {/* Expanded Pinned Drawer */}
             {isPinnedExpanded && (
-                <div className="custom-scrollbar z-10 hidden max-h-60 shrink-0 space-y-3 overflow-y-auto border-b border-slate-200/70 bg-white p-5 shadow-sm animate-in slide-in-from-top-2 duration-200 dark:border-slate-800 dark:bg-slate-900 sm:block">
-                    <div className="flex items-center justify-between text-xs text-slate-500">
+                <div data-pinned-drawer className="custom-scrollbar z-10 max-h-[40vh] shrink-0 space-y-3 overflow-y-auto border-b border-slate-200/70 bg-white p-3 shadow-sm animate-in slide-in-from-top-2 duration-200 dark:border-slate-800 dark:bg-slate-900 sm:max-h-60 sm:p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
                         <span>
                             Dilaporkan oleh <strong className="font-semibold text-slate-900 dark:text-white">{toDisplayName(ticket.user.fullName)}</strong>
                             {' · '}{formatDateTimeID(ticket.createdAt)} ({formatRelativeTime(ticket.createdAt)})

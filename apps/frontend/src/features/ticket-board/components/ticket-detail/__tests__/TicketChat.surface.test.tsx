@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TicketChat } from '../TicketChat';
+import { toast } from 'sonner';
 import type { TicketDetail } from '../types';
 
 const AGENT = { id: 'agent-1', role: 'AGENT', fullName: 'RM BAGASTYO' };
@@ -144,5 +145,37 @@ describe('TicketChat surface', () => {
         expect(composer?.querySelector('.chat-composer-box')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Kirim' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Lampiran & sticker' })).toBeInTheDocument();
+    });
+
+    it('keeps the pinned bar, jump action, connection state and details drawer on every width', () => {
+        renderChat();
+        const bar = document.querySelector('[data-pinned-bar]') as HTMLElement;
+        // No sm-only hiding: the bar is a flex row at every breakpoint.
+        expect(bar.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+        expect(within(bar).getByTitle('Lompat ke laporan awal')).toBeInTheDocument();
+        expect(within(bar).getByTitle('Terhubung real-time')).toHaveTextContent('Live');
+        fireEvent.click(within(bar).getByRole('button', { name: 'Tampilkan detail' }));
+        const drawer = document.querySelector('[data-pinned-drawer]') as HTMLElement;
+        expect(drawer.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+        expect(within(drawer).getByText(/Dilaporkan oleh/)).toBeInTheDocument();
+    });
+
+    it('shows the keyboard shortcut hint and the character counter in the composer helper row', () => {
+        renderChat();
+        const foot = document.querySelector('.chat-compose-foot') as HTMLElement;
+        expect(foot.querySelector('.chat-compose-hint')).toHaveTextContent('Enter kirim · Shift+Enter baris baru · Ctrl+V tempel gambar');
+        expect(screen.getByRole('button', { name: 'Kirim' })).toHaveAttribute('title', expect.stringContaining('Shift+Enter'));
+        const input = screen.getByRole('textbox', { name: 'Balas ke pemohon…' });
+        fireEvent.change(input, { target: { value: 'halo' } });
+        expect(foot.querySelector('.chat-compose-count')).toHaveTextContent(/^4\/5[.,]000$/);
+    });
+
+    it('confirms a pasted screenshot with a toast and queues it', () => {
+        renderChat();
+        const input = screen.getByRole('textbox', { name: 'Balas ke pemohon…' });
+        const shot = new File(['x'], 'image.png', { type: 'image/png' });
+        fireEvent.paste(input, { clipboardData: { items: [{ type: 'image/png', getAsFile: () => shot }] } });
+        expect(toast.success).toHaveBeenCalledWith('1 screenshot ditempel');
+        expect(screen.getByText('image.png')).toBeInTheDocument();
     });
 });

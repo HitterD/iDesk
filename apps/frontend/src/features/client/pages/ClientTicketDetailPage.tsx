@@ -19,7 +19,7 @@ import { AgentRatingForm } from '../components/resolution/AgentRatingForm';
 import { getApiErrorMessage } from '../components/resolution/resolutionApi';
 import { ClientTicketHeader } from '../components/ClientTicketHeader';
 import { ClientTicketInspector } from '../components/ClientTicketInspector';
-import { DetailTabs, type DetailTab } from '../../ticket-board/components/ticket-detail/DetailTabs';
+import { DetailTabs, countChatMessages, type DetailTab } from '../../ticket-board/components/ticket-detail/DetailTabs';
 import { toUploadPercent, validateFiles } from '@/lib/file-validation';
 import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
 
@@ -177,7 +177,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                 onToggleSidebar={handleToggleSidebar}
                 canSelfResolve={canSelfResolve}
                 canCancel={isRequester}
-                tabs={<DetailTabs value={mainTab} onChange={setMainTab} />}
+                tabs={<DetailTabs value={mainTab} onChange={setMainTab} messageCount={countChatMessages(ticket.messages)} />}
             />
 
                 {/* Conversation / Activity / Mobile Details */}

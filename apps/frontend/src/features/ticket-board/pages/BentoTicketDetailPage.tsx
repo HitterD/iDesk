@@ -19,7 +19,7 @@ import { TicketDetailSkeleton } from '../components/TicketDetailSkeleton';
 import { KbSuggestionDialog } from '../components/KbSuggestionDialog';
 import { useTicketShortcuts } from '@/hooks/useTicketShortcuts';
 import { AlertTriangle } from 'lucide-react';
-import { DetailTabs, type DetailTab } from '../components/ticket-detail/DetailTabs';
+import { DetailTabs, countChatMessages, type DetailTab } from '../components/ticket-detail/DetailTabs';
 import { TicketAttributes } from '../types';
 import { toUploadPercent, validateFiles } from '@/lib/file-validation';
 import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
@@ -414,7 +414,7 @@ export const BentoTicketDetailPage: React.FC = () => {
                 onSetReminder={canAct ? () => setReminderOpen(true) : undefined}
                 isSidebarOpen={isSidebarOpen || mainTab === 'details'}
                 onToggleSidebar={handleToggleSidebar}
-                tabs={<DetailTabs value={mainTab} onChange={setMainTab} />}
+                tabs={<DetailTabs value={mainTab} onChange={setMainTab} messageCount={countChatMessages(ticket.messages)} />}
             />
 
             {/* Critical Priority Banner Alert for Agents */}
