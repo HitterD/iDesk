@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 interface AuditDateRangePickerProps {
     startDate: string;
@@ -106,39 +107,23 @@ export function AuditDateRangePicker({
 
     return (
         <div ref={containerRef} className="relative">
-            {/* Trigger Button */}
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className={`
-                    flex items-center gap-2 px-3 py-2 min-w-[220px]
-                    bg-white dark:bg-[hsl(var(--card))]
-                    border border-[hsl(var(--border))]
-                    rounded-lg text-xs font-medium
-                    hover:border-primary/40 transition-colors
-                    ${isOpen ? 'ring-2 ring-primary/20 border-primary/40' : ''}
-                `}
-            >
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                <span className={`flex-1 text-left ${hasValue ? 'text-slate-800 dark:text-white' : 'text-slate-500 font-medium'}`}>
-                    {hasValue ? (
-                        <>
-                            {formatDisplayDate(startDate)}
-                            <span className="text-slate-400 mx-1">→</span>
-                            {formatDisplayDate(endDate)}
-                        </>
-                    ) : (
-                        'Select date range'
-                    )}
-                </span>
+            {/* Trigger + clear are siblings (a button inside a button is invalid HTML). */}
+            <span className="inline-flex items-center gap-1">
+                <button
+                    type="button"
+                    onClick={() => setIsOpen(!isOpen)}
+                    className={`queue-pop ${isOpen ? 'is-open' : ''}`}
+                    aria-expanded={isOpen}
+                    aria-label={`Tanggal: ${hasValue ? `${formatDisplayDate(startDate)} – ${formatDisplayDate(endDate)}` : 'Semua'}`}
+                >
+                    <span className="queue-pop-k">Tanggal</span>
+                    <span className="queue-pop-v">{hasValue ? <>{formatDisplayDate(startDate)} – {formatDisplayDate(endDate)}</> : 'Semua'}</span>
+                    <ChevronDown aria-hidden="true" />
+                </button>
                 {hasValue && (
-                    <button
-                        onClick={handleClear}
-                        className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700/50 rounded transition-colors"
-                    >
-                        <X className="w-3 h-3 text-slate-400" />
-                    </button>
+                    <button type="button" onClick={handleClear} className="res-icon-btn" aria-label="Hapus rentang tanggal"><X aria-hidden="true" /></button>
                 )}
-            </button>
+            </span>
 
             <AnimatePresence>
                 {isOpen && (

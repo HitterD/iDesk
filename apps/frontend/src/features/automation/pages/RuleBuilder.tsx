@@ -33,10 +33,10 @@ import {
 
 const TRIGGER_OPTIONS = [
     { value: TriggerType.TICKET_CREATED, label: 'Ticket Created', icon: Plus, color: 'text-green-500 bg-green-100 dark:bg-green-900/30' },
-    { value: TriggerType.STATUS_CHANGED, label: 'Status Changed', icon: ArrowRight, color: 'text-purple-500 bg-purple-100 dark:bg-purple-900/30' },
+    { value: TriggerType.STATUS_CHANGED, label: 'Status Changed', icon: ArrowRight, color: 'text-[#2d4a8c] dark:text-[#a9bdf0] bg-[#2d4a8c]/10 dark:bg-[#2d4a8c]/30' },
     { value: TriggerType.PRIORITY_CHANGED, label: 'Priority Changed', icon: AlertTriangle, color: 'text-orange-500 bg-orange-100 dark:bg-orange-900/30' },
     { value: TriggerType.ASSIGNMENT_CHANGED, label: 'Assignment Changed', icon: User, color: 'text-cyan-500 bg-cyan-100 dark:bg-cyan-900/30' },
-    { value: TriggerType.MESSAGE_RECEIVED, label: 'Message Received', icon: MessageSquare, color: 'text-indigo-500 bg-indigo-100 dark:bg-indigo-900/30' },
+    { value: TriggerType.MESSAGE_RECEIVED, label: 'Message Received', icon: MessageSquare, color: 'text-blue-500 bg-blue-100 dark:bg-blue-900/30' },
     { value: TriggerType.SLA_BREACH_IMMINENT, label: 'SLA Warning', icon: Clock, color: 'text-amber-500 bg-amber-100 dark:bg-amber-900/30' },
     { value: TriggerType.SLA_BREACHED, label: 'SLA Breached', icon: AlertTriangle, color: 'text-red-500 bg-red-100 dark:bg-red-900/30' },
 ];
@@ -263,7 +263,7 @@ export const RuleBuilder = ({ rule, onClose, onSave }: RuleBuilderProps) => {
             </div>
 
             {/* IF - Conditions Section */}
-            <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800">
+            <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold">2</div>
@@ -309,10 +309,10 @@ export const RuleBuilder = ({ rule, onClose, onSave }: RuleBuilderProps) => {
             </div>
 
             {/* THEN - Actions Section */}
-            <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-900/20 dark:to-violet-900/20 border border-purple-200 dark:border-purple-800">
+            <div className="p-4 rounded-xl bg-[#2d4a8c]/5 dark:bg-[#2d4a8c]/20 border border-[#2d4a8c]/20">
                 <div className="flex items-center gap-2 mb-3">
-                    <div className="w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center text-xs font-bold">3</div>
-                    <span className="font-semibold text-purple-700 dark:text-purple-400">THEN</span>
+                    <div className="w-6 h-6 rounded-full bg-[#2d4a8c] text-white flex items-center justify-center text-xs font-bold">3</div>
+                    <span className="font-semibold text-[#2d4a8c] dark:text-[#a9bdf0]">THEN</span>
                     <span className="text-sm text-slate-500 dark:text-slate-400">(Actions)</span>
                 </div>
 
@@ -330,7 +330,7 @@ export const RuleBuilder = ({ rule, onClose, onSave }: RuleBuilderProps) => {
 
                 <button
                     onClick={addAction}
-                    className="mt-3 flex items-center gap-2 text-purple-600 dark:text-purple-400 hover:text-purple-700 text-sm font-medium"
+                    className="mt-3 flex items-center gap-2 text-[#2d4a8c] dark:text-[#a9bdf0] hover:opacity-80 text-sm font-medium"
                 >
                     <Plus className="w-4 h-4" />
                     Add Action
@@ -557,10 +557,10 @@ const ActionRow = ({
     const ActionIcon = actionInfo?.icon || Zap;
 
     return (
-        <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-purple-100 dark:border-purple-800">
+        <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-[#2d4a8c]/15">
             <div className="flex items-start gap-3">
                 {/* Action Type Icon */}
-                <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
+                <div className="w-10 h-10 rounded-lg bg-[#2d4a8c]/10 dark:bg-[#2d4a8c]/30 flex items-center justify-center text-[#2d4a8c] dark:text-[#a9bdf0] shrink-0">
                     <ActionIcon className="w-5 h-5" />
                 </div>
 
