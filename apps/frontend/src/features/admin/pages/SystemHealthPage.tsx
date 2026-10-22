@@ -44,6 +44,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { ResHead } from '@/components/resources/ResourceParts';
+import '@/components/management/management.css';
 import { cn } from '@/lib/utils';
 import { useHealthSocket, DetailedHealthStatus, ServiceStatus } from '../hooks/useHealthSocket';
 import { Sparkline } from '@/components/ui/Sparkline';
@@ -432,95 +435,32 @@ export const SystemHealthPage: React.FC = () => {
     }, [services]);
 
     return (
-        <div className="space-y-6 animate-fade-in-up pb-10 max-w-[1540px] mx-auto">
-            {/* Header & Controls */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
-                <div>
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/20">
-                            <Activity className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <h1 className="text-2xl lg:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                                System Health & Telemetry
-                            </h1>
-                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-0.5">
-                                Real-time operational observability, infrastructure metrics, and service integrity
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Real-time Control Toolbar */}
-                <div className="flex flex-wrap items-center gap-2.5">
-                    <TelemetryLiveBadge
-                        isConnected={isConnected}
-                        isSubscribed={isSubscribed}
-                        isStale={isStale}
-                        isPaused={isPaused}
-                        pingLatency={pingLatency}
-                        lastUpdate={lastUpdate}
-                    />
-
-                    {/* Pause / Resume button */}
-                    <button
-                        onClick={togglePause}
-                        title={isPaused ? "Resume real-time telemetry stream" : "Pause telemetry stream"}
-                        className={cn(
-                            "flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition-all shadow-sm",
-                            isPaused
-                                ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
-                                : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
-                        )}
-                    >
-                        {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
-                        <span>{isPaused ? "Resume" : "Pause"}</span>
-                    </button>
-
-                    {/* Run Diagnostics / Force Refresh */}
-                    <button
-                        onClick={handleRunDiagnostics}
-                        disabled={isInitialLoading || isDiagnosing}
-                        title="Force instantaneous full-tier probe"
-                        className="flex items-center gap-2 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition-all disabled:opacity-50"
-                    >
-                        <RefreshCw className={cn("w-3.5 h-3.5 text-blue-500", (isInitialLoading || isDiagnosing || isFetching) && "animate-spin")} />
-                        <span>Run Diagnostics</span>
-                    </button>
-
-                    {/* Export JSON Report */}
-                    <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm overflow-hidden">
-                        <button
-                            onClick={handleCopyReport}
-                            title="Copy diagnostic snapshot to clipboard"
-                            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-r border-slate-200 dark:border-slate-700"
-                        >
-                            {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                            <span>{copied ? "Copied" : "Copy JSON"}</span>
-                        </button>
-                        <button
-                            onClick={handleDownloadReport}
-                            title="Download JSON telemetry snapshot"
-                            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-                        >
-                            <Download className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
-                </div>
-            </div>
+        <div className="res-page mg-page health-page">
+            <ResHead icon={Activity} tone="green" title="System Health & Telemetry"
+                description="Observabilitas operasional, metrik infrastruktur, dan integritas layanan"
+                actions={<>
+                    <TelemetryLiveBadge isConnected={isConnected} isSubscribed={isSubscribed} isStale={isStale}
+                        isPaused={isPaused} pingLatency={pingLatency} lastUpdate={lastUpdate} />
+                    <Button variant="soft" onClick={togglePause}>
+                        {isPaused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
+                        {isPaused ? 'Lanjutkan stream' : 'Jeda stream'}
+                    </Button>
+                    <Button variant="soft" onClick={handleDownloadReport}><Download aria-hidden="true" />Snapshot</Button>
+                    <Button variant="subtle" onClick={handleCopyReport} aria-label="Salin snapshot JSON">
+                        {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                    </Button>
+                    <Button variant="primary" onClick={handleRunDiagnostics} disabled={isInitialLoading || isDiagnosing} loading={isDiagnosing}>
+                        <RefreshCw aria-hidden="true" />Run Diagnostics
+                    </Button>
+                </>} />
 
             {/* Primary Navigation Tabs: Overview & Vitals vs End-to-End Service Map vs Storage Analytics */}
-            <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 overflow-x-auto custom-scrollbar">
+            <div className="health-tabs">
                 <button
                     type="button"
                     onClick={() => setActiveTab('vitals')}
                     data-testid="tab-vitals"
-                    className={cn(
-                        "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border shrink-0",
-                        activeTab === 'vitals'
-                            ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent shadow-xs"
-                            : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
-                    )}
+                    className={cn("health-tab", activeTab === 'vitals' && "is-active")}
                 >
                     <Activity className="w-4 h-4 text-primary" />
                     <span>Overview & Vitals</span>
@@ -530,44 +470,28 @@ export const SystemHealthPage: React.FC = () => {
                     type="button"
                     onClick={() => setActiveTab('service-map')}
                     data-testid="tab-service-map"
-                    className={cn(
-                        "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border shrink-0",
-                        activeTab === 'service-map'
-                            ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent shadow-xs"
-                            : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
-                    )}
+                    className={cn("health-tab", activeTab === 'service-map' && "is-active")}
                 >
                     <Layers className="w-4 h-4 text-primary" />
                     <span>End-to-End Service Map</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-primary/10 text-primary">
-                        Datadog APM
-                    </span>
                 </button>
 
                 <button
                     type="button"
                     onClick={() => setActiveTab('storage-forecasting')}
                     data-testid="tab-storage-forecasting"
-                    className={cn(
-                        "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border shrink-0",
-                        activeTab === 'storage-forecasting'
-                            ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent shadow-xs"
-                            : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
-                    )}
+                    className={cn("health-tab", activeTab === 'storage-forecasting' && "is-active")}
                 >
                     <HardDrive className="w-4 h-4 text-primary" />
-                    <span>Storage Analytics & Forecasting</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-primary/10 text-primary">
-                        Datadog Capacity
-                    </span>
+                    <span>Storage Forecasting</span>
                 </button>
             </div>
 
             {isInitialLoading ? (
                 <div className="bg-[hsl(var(--card))] rounded-2xl p-16 border border-[hsl(var(--border))] flex flex-col items-center justify-center gap-3 text-slate-400">
                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                    <p className="font-semibold text-slate-600 dark:text-slate-300">Connecting to system telemetry stream...</p>
-                    <p className="text-xs text-slate-400">Probing infrastructure services and metrics</p>
+                    <p className="font-semibold text-slate-600 dark:text-slate-300">Menghubungkan stream telemetri…</p>
+                    <p className="text-xs text-slate-400">Memeriksa layanan infrastruktur dan metrik</p>
                 </div>
             ) : activeTab === 'service-map' ? (
                 <EndToEndServiceMap health={health} realTraces={realTraces} incidents={incidents} />
@@ -1332,7 +1256,7 @@ export const SystemHealthPage: React.FC = () => {
                                     <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
                                         <span className="text-xs text-slate-400">Node.js Engine</span>
                                         <span className="text-xs font-mono text-slate-800 dark:text-slate-100">
-                                            {health?.system?.nodeVersion || process.version || 'v24.x'}
+                                            {health?.system?.nodeVersion || 'Tidak tersedia'}
                                         </span>
                                     </div>
 
