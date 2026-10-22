@@ -6,7 +6,11 @@ import { Draggable } from '@hello-pangea/dnd';
 import { describe, expect, it, vi } from 'vitest';
 import { BentoTicketKanban, EnhancedKanbanCard, isCountedOverdue } from '../BentoTicketKanban';
 
-vi.mock('@/lib/api', () => ({ default: { get: vi.fn(async () => ({ data: [] })) } }));
+vi.mock('@/lib/api', () => ({ default: { get: vi.fn(async (url: string) => ({ data: url === '/tickets' ? [
+    { id: 'mine-attention', ticketNumber: 'MY-1', title: 'Mine attention', status: 'TODO', priority: 'CRITICAL', isOverdue: true, assignedTo: { id: 'me', fullName: 'Me' }, createdAt: '2026-10-20T01:00:00Z' },
+    { id: 'other-attention', ticketNumber: 'OTHER-1', title: 'Other attention', status: 'TODO', priority: 'CRITICAL', isOverdue: true, assignedTo: { id: 'other', fullName: 'Other' }, createdAt: '2026-10-20T01:00:00Z' },
+    { id: 'mine-normal', ticketNumber: 'MY-2', title: 'Mine normal', status: 'TODO', priority: 'MEDIUM', isOverdue: false, assignedTo: { id: 'me', fullName: 'Me' }, createdAt: '2026-10-20T01:00:00Z' },
+] : [] })) } }));
 vi.mock('@/lib/socket', () => ({ useSocket: () => ({ isConnected: true }) }));
 vi.mock('@/stores/useAuth', () => ({ useAuth: () => ({ user: { id: 'me', role: 'AGENT' } }) }));
 vi.mock('../../hooks/useStatusTakeover', () => ({ useStatusTakeover: () => ({}), isHandledByTakeoverDialog: () => false }));
@@ -19,6 +23,9 @@ it.each(['Overdue', 'Critical'])('keeps personal scope when applying %s attentio
     fireEvent.click(personal);
     fireEvent.click(screen.getByRole('button', { name: new RegExp(attention) }));
     expect(personal).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('article', { name: 'MY-1: Mine attention' })).toBeInTheDocument();
+    expect(screen.queryByRole('article', { name: 'OTHER-1: Other attention' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('article', { name: 'MY-2: Mine normal' })).not.toBeInTheDocument();
 });
 
 vi.mock('@/lib/slaCountdown', async (importOriginal) => ({
@@ -29,7 +36,8 @@ vi.mock('@/components/ui/TicketQuickPreview', () => ({
     TicketQuickPreview: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock('@hello-pangea/dnd', () => ({
-    DragDropContext: vi.fn(), Droppable: vi.fn(),
+    DragDropContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    Droppable: ({ children }: { children: Function }) => children({ innerRef: vi.fn(), droppableProps: {}, placeholder: null }, { isDraggingOver: false }),
     Draggable: vi.fn(({ children }: { children: Function }) => children({ innerRef: vi.fn(), draggableProps: {}, dragHandleProps: {} }, { isDragging: false })),
 }));
 
