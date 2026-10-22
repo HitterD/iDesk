@@ -56,6 +56,9 @@ button.dash-li:active, .zm-acc > button:active, .zm-bk:active, .kb-toc button:ac
    theme cards, card-grid overlays and every control inside a data row. */
 .res-row a:active, .res-row [role="button"]:active, .mg-notif button:active, .mg-notif-main:active, button.mg-node:active,
 .mg-vtabs > a:active, .mg-vtabs > button:active, .mg-theme-card:active, .mg-ccard button:active, .mg-ccard [role="button"]:active { transform: none; }
+/* Round-2 system health / settings: stretched KPI card button (Disk -> forecasting), settings rows' switches,
+   storage guide rows and the profile avatar trigger. */
+button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .set-avatar:active { transform: none; }
 
 /* Card hover improvements (Emil Kowalski) */
 .card-interactive {
