@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button';
+import { TicketActionDialog } from './TicketActionDialog';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     Clock,
@@ -140,7 +142,6 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
         }
     }, [isOpen, currentTargetDate]);
 
-    if (!isOpen) return null;
 
     const handleApplyPreset = (preset: (typeof PRESETS)[0], index: number) => {
         setSelectedPresetIndex(index);
@@ -178,13 +179,8 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 dark:bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
-            <div
-                className="w-full max-w-lg flex flex-col bg-white dark:bg-[#1c1c1e] border border-slate-200/80 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="extend-sla-title"
-            >
+        <TicketActionDialog open={isOpen} onClose={onClose} title="Perpanjang SLA" busy={isLoading}>
+            <div className="ticket-action-inner">
                 {/* Header (Apple Sheet Style) */}
                 <div className="px-5 py-3.5 border-b border-slate-100 dark:border-white/10 flex items-center justify-between gap-3 bg-slate-50/50 dark:bg-white/[0.02]">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -205,15 +201,14 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
                             </p>
                         </div>
                     </div>
-                    <button
+                    <Button variant="soft"
                         type="button"
                         onClick={onClose}
                         disabled={isLoading}
-                        className="w-7 h-7 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
                         title="Tutup"
                     >
                         <X className="w-4 h-4" />
-                    </button>
+                    </Button>
                 </div>
 
                 {/* Form Body */}
@@ -245,6 +240,7 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
                             {PRESETS.map((preset, idx) => (
                                 <button
                                     key={preset.label}
+                                    aria-pressed={selectedPresetIndex === idx}
                                     type="button"
                                     onClick={() => handleApplyPreset(preset, idx)}
                                     className={cn(
@@ -311,6 +307,7 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
                                 return (
                                     <button
                                         key={cat.id}
+                                        aria-pressed={isSelected}
                                         type="button"
                                         onClick={() => setSelectedCategory(cat.id)}
                                         className={cn(
@@ -373,6 +370,8 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
                         </div>
 
                         <textarea
+                                id="ticket-sla-reason"
+                                aria-label="Rincian hambatan"
                             value={reasonText}
                             onChange={(e) => setReasonText(e.target.value)}
                             maxLength={1000}
@@ -396,19 +395,17 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
 
                 {/* Footer Actions */}
                 <div className="px-5 py-3 border-t border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02] flex items-center justify-end gap-2.5">
-                    <button
+                    <Button variant="soft"
                         type="button"
                         onClick={onClose}
                         disabled={isLoading}
-                        className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
                     >
                         Batal
-                    </button>
-                    <button
+                    </Button>
+                    <Button variant="primary" aria-busy={isLoading}
                         type="button"
                         onClick={handleSubmit}
                         disabled={!canSubmit}
-                        className="inline-flex items-center gap-1.5 px-4.5 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold shadow-xs active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                     >
                         {isLoading ? (
                             <>
@@ -421,10 +418,10 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
                                 <span>Perpanjang SLA</span>
                             </>
                         )}
-                    </button>
+                    </Button>
                 </div>
             </div>
-        </div>
+        </TicketActionDialog>
     );
 };
 

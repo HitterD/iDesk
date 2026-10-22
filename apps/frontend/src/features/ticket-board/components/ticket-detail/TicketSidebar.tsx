@@ -381,7 +381,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                                 </Button>
                             )}
                             <Button variant="soft" onClick={openReminder} title="Atur pengingat email untuk agent">
-                                <Bell aria-hidden="true" /><span>{nextReminder ? 'Ubah Reminder' : 'Set Reminder'}</span>
+                                <Bell aria-hidden="true" /><span>{nextReminder ? 'Ubah pengingat' : 'Atur pengingat'}</span>
                             </Button>
                         </div>
                     )}

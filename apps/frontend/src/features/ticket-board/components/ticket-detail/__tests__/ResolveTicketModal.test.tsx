@@ -32,7 +32,7 @@ describe('ResolveTicketModal Component', () => {
             />
         );
 
-        expect(screen.getByText('Selesaikan Tiket (Resolve)')).toBeInTheDocument();
+        expect(screen.getByRole('dialog', { name: 'Selesaikan tiket' })).toBeInTheDocument();
         expect(screen.getByText('Printer Epson L3110 Paper Jam')).toBeInTheDocument();
         expect(screen.getByText(/Tindakan & Penjelasan Solusi/i)).toBeInTheDocument();
         expect(screen.getByText(/Template Solusi Cepat:/i)).toBeInTheDocument();
@@ -69,7 +69,7 @@ describe('ResolveTicketModal Component', () => {
         const textarea = screen.getByPlaceholderText(/Jelaskan tindakan teknis atau solusi/i);
         fireEvent.change(textarea, { target: { value: 'Roller printer telah dibersihkan dan kalibrasi selesai.' } });
 
-        const submitBtn = screen.getByText('Ya, Selesaikan Tiket');
+        const submitBtn = screen.getByRole('button', { name: 'Selesaikan tiket' });
         fireEvent.click(submitBtn);
 
         expect(mockConfirm).toHaveBeenCalledWith('Roller printer telah dibersihkan dan kalibrasi selesai.', []);
@@ -123,9 +123,21 @@ describe('ResolveTicketModal Component', () => {
             />
         );
 
-        const cancelBtn = screen.getByText('Kembali');
+        const cancelBtn = screen.getByRole('button', { name: 'Batal' });
         fireEvent.click(cancelBtn);
 
         expect(mockClose).toHaveBeenCalled();
     });
+    it('labels the resolution field and prevents cancellation or submission while loading', () => {
+        const onClose = vi.fn();
+        const onConfirm = vi.fn();
+        render(<ResolveTicketModal isOpen onClose={onClose} ticket={mockTicket} onConfirm={onConfirm} isLoading />);
+        expect(screen.getByRole('textbox', { name: /Tindakan & Penjelasan Solusi/ })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Batal' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Tutup dialog' })).toBeDisabled();
+        fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter', ctrlKey: true });
+        expect(onConfirm).not.toHaveBeenCalled();
+        expect(onClose).not.toHaveBeenCalled();
+    });
+
 });

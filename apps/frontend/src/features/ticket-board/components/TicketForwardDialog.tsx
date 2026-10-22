@@ -1,5 +1,7 @@
+import { Button } from '@/components/ui/button';
+import { TicketActionDialog } from './ticket-detail/TicketActionDialog';
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+
 import {
     ArrowRight,
     X,
@@ -147,7 +149,7 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
         }
     }, [isOpen, ticket]);
 
-    if (!isOpen || !ticket) return null;
+    if (!ticket) return null;
 
     const currentTeam = ticket.handlingTeam || 'OPS_SUPPORT';
 
@@ -191,20 +193,9 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
         }
     };
 
-    return createPortal(
-        <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-300"
-            onClick={() => {
-                if (!isLoading) onClose();
-            }}
-        >
-            <div
-                className="relative w-full max-w-2xl overflow-hidden bg-card text-card-foreground border border-border/80 shadow-2xl rounded-[2rem] animate-in zoom-in-95 duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* Outer shell (Double-Bezel) */}
-                <div className="p-1.5 bg-black/[0.03] dark:bg-white/[0.03] ring-1 ring-black/5 dark:ring-white/10 rounded-[calc(2rem-0.375rem)]">
-                    <div className="bg-card rounded-[calc(2rem-0.75rem)] border border-border/60 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.06)] overflow-hidden">
+    return (
+        <TicketActionDialog open={isOpen} onClose={onClose} title="Teruskan tiket" busy={isLoading}>
+            <div className="ticket-action-inner">
                         {/* Header */}
                         <div
                             className={cn(
@@ -218,21 +209,21 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
                                 </div>
                                 <div>
                                     <h3 className="text-base font-bold text-foreground">
-                                        Teruskan Tiket ke Tim Lain
+                                        Teruskan tiket
                                     </h3>
                                     <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
                                         #{ticket.ticketNumber || ticket.id.slice(0, 8)} — {ticket.title || 'Support Request'}
                                     </p>
                                 </div>
                             </div>
-                            <button
+                            <Button variant="soft"
                                 type="button"
+                                aria-label="Tutup dialog"
                                 onClick={onClose}
                                 disabled={isLoading}
-                                className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-all duration-300 active:scale-95 disabled:opacity-50 cursor-pointer"
                             >
                                 <X className="w-4 h-4" strokeWidth={1.5} />
-                            </button>
+                            </Button>
                         </div>
 
                         {/* Content */}
@@ -297,6 +288,7 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
                                                 key={opt.value}
                                                 type="button"
                                                 onClick={() => handleSelectTeam(opt.value)}
+                                                aria-pressed={isSelected}
                                                 className={cn(
                                                     'relative p-3 rounded-2xl text-left transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] cursor-pointer border flex flex-col justify-between',
                                                     'hover:-translate-y-0.5 active:scale-[0.98]',
@@ -363,6 +355,7 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
                                         return (
                                             <button
                                                 key={preset.id}
+                                                aria-pressed={isSelected}
                                                 type="button"
                                                 onClick={() => {
                                                     setSelectedPreset(preset.id);
@@ -398,6 +391,8 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
                                     </span>
                                 </label>
                                 <textarea
+                                    id="ticket-forward-note"
+                                    aria-label="Keterangan tambahan"
                                     value={customReason}
                                     onChange={(e) => {
                                         setCustomReason(e.target.value.slice(0, 500));
@@ -429,7 +424,7 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
                             <div className="p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300 text-[11px] flex items-start gap-2">
                                 <Info className="w-4 h-4 shrink-0 mt-0.5" strokeWidth={1.5} />
                                 <div className="space-y-0.5">
-                                    <p className="font-semibold">Auditable Handover</p>
+                                    <p className="font-semibold">Riwayat penerusan</p>
                                     <p className="opacity-90 leading-relaxed">
                                         Penerusan tiket dan alasan ini akan ditulis ke timeline riwayat tiket dan dapat dilihat kedua tim.
                                     </p>
@@ -445,31 +440,27 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({
                             )}
                             style={{ transitionDelay: entered ? '140ms' : '0ms' }}
                         >
-                            <button
+                            <Button variant="soft"
                                 type="button"
                                 onClick={onClose}
                                 disabled={isLoading}
-                                className="px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted border border-border rounded-full transition-colors disabled:opacity-50 cursor-pointer active:scale-[0.98]"
                             >
                                 Batal
-                            </button>
-                            <button
+                            </Button>
+                            <Button variant="primary"
                                 type="button"
                                 onClick={handleConfirm}
+                                loading={isLoading}
                                 disabled={isLoading || (selectedPreset === 'other' && !customReason.trim())}
-                                className="group inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary/90 rounded-full shadow-xs transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
                             >
                                 {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                                 <span>Teruskan Tiket</span>
                                 <span className="w-6 h-6 rounded-full bg-white/15 flex items-center justify-center transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-[1px] group-hover:scale-105">
                                     <ArrowUpRight className="w-3.5 h-3.5" strokeWidth={1.5} />
                                 </span>
-                            </button>
+                            </Button>
                         </div>
-                    </div>
-                </div>
             </div>
-        </div>,
-        document.body
+        </TicketActionDialog>
     );
 };

@@ -398,6 +398,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                                 <DropdownMenuContent align="end" variant="compact" aria-label="Aksi lainnya">
                                     {canForward && <DropdownMenuItem onSelect={() => onForward?.()}><Forward />Teruskan ke tim lain</DropdownMenuItem>}
                                     <DropdownMenuItem onSelect={handleCopyNumber}><Copy />Salin nomor tiket</DropdownMenuItem>
+                                    {onToggleSidebar && <DropdownMenuItem onSelect={onToggleSidebar}><PanelRightOpen />Properti tiket</DropdownMenuItem>}
                                     {canCancel && (
                                         <DropdownMenuItem variant="destructive" onSelect={() => setShowCancelConfirm(true)}>
                                             <XCircle />Batalkan tiket
@@ -409,7 +410,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                         {(canCancel || canForward) && canResolve && <span className="td-act-sep" aria-hidden="true" />}
                         {canResolve && (
                             <Button variant="primary" onClick={() => setShowResolveConfirm(true)} title="Selesaikan dengan catatan solusi">
-                                <CheckCircle2 aria-hidden="true" /><span>Resolve</span>
+                                <CheckCircle2 aria-hidden="true" /><span>Selesaikan</span>
                             </Button>
                         )}
                         {onToggleSidebar && (

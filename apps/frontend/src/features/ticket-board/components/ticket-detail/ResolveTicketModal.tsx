@@ -1,13 +1,13 @@
+import { Button } from '@/components/ui/button';
+import { TicketActionDialog } from './TicketActionDialog';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
     CheckCircle2,
     X,
-    Upload,
-    Image as ImageIcon,
+    
     FileText,
     Sparkles,
-    Trash2,
     ZoomIn,
     Loader2,
     Paperclip,
@@ -91,7 +91,6 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
         };
     }, [filePreviewMap]);
 
-    if (!isOpen) return null;
 
     const addFiles = (newFiles: FileList | File[]) => {
         const incoming = Array.from(newFiles);
@@ -197,40 +196,31 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
 
     return createPortal(
         <>
-            {/* Modal Backdrop */}
-            <div
-                className="fixed inset-0 z-[9999] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200"
-                onClick={onClose}
-                onKeyDown={handleModalKeyDown}
-            >
-                <div
-                    className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden my-auto animate-in zoom-in-95 duration-200"
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={handleModalKeyDown}
-                >
+            <TicketActionDialog open={isOpen} onClose={onClose} title="Selesaikan tiket" busy={isLoading}>
+                <div className="ticket-action-inner" onKeyDown={handleModalKeyDown}>
                     {/* Header Banner */}
-                    <div className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent dark:from-emerald-950/40 p-4 sm:p-5 border-b border-slate-200/80 dark:border-slate-800 flex items-start justify-between gap-3">
+                    <div className=" p-4 sm:p-5 border-b border-slate-200/80 dark:border-slate-800 flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0 mt-0.5">
+                            <div className="w-10 h-10 rounded-xl bg-primary/10 text-white flex items-center justify-center shadow-md shadow-primary-500/20 shrink-0 mt-0.5">
                                 <CheckCircle2 className="w-5 h-5" />
                             </div>
                             <div>
                                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                    Selesaikan Tiket (Resolve)
+                                    Selesaikan tiket
                                 </h3>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
                                     #{ticket.ticketNumber || ticket.id.slice(0, 8)} · <span className="text-slate-700 dark:text-slate-200 font-semibold">{ticket.title}</span>
                                 </p>
                             </div>
                         </div>
-                        <button
+                        <Button variant="soft"
                             type="button"
+                            aria-label="Tutup dialog"
                             onClick={onClose}
                             disabled={isLoading}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                         >
                             <X className="w-4 h-4" />
-                        </button>
+                        </Button>
                     </div>
 
                     {/* Form Body */}
@@ -238,7 +228,7 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                         {/* Quick Solution Templates */}
                         <div>
                             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
-                                <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                <Sparkles className="w-3.5 h-3.5 text-primary dark:text-primary" />
                                 <span>Template Solusi Cepat:</span>
                             </div>
                             <div className="flex flex-wrap gap-1.5">
@@ -247,7 +237,7 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                                         key={i}
                                         type="button"
                                         onClick={() => setResolutionNote(tmpl)}
-                                        className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800/90 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300 transition-all cursor-pointer text-left"
+                                        className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800/90 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 hover:bg-primary/10 hover:text-primary transition-all cursor-pointer text-left"
                                     >
                                         {tmpl.length > 38 ? `${tmpl.slice(0, 38)}…` : tmpl}
                                     </button>
@@ -257,7 +247,7 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
 
                         {/* Textarea: Tindakan & Solusi */}
                         <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5">
+                            <label htmlFor="ticket-resolution-note" className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5">
                                 Tindakan &amp; Penjelasan Solusi <span className="text-rose-500">*</span>
                             </label>
                             <div
@@ -267,12 +257,13 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                                 className={cn(
                                     "relative rounded-xl border bg-slate-50/70 dark:bg-slate-800/50 p-2.5 transition-all",
                                     isDragging
-                                        ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/30 dark:bg-emerald-950/20"
-                                        : "border-slate-300 dark:border-slate-700 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20"
+                                        ? "border-primary ring-2 ring-primary/20"
+                                        : "border-slate-300 dark:border-slate-700 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
                                 )}
                             >
                                 <textarea
                                     ref={textareaRef}
+                                    id="ticket-resolution-note"
                                     value={resolutionNote}
                                     onChange={(e) => setResolutionNote(e.target.value)}
                                     onKeyDown={(e) => {
@@ -291,14 +282,14 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                                 {/* Composer Bottom Bar */}
                                 <div className="flex items-center justify-between pt-2 mt-1 border-t border-slate-200/70 dark:border-slate-700/60">
                                     <div className="flex items-center gap-2">
-                                        <button
+                                        <Button variant="soft"
                                             type="button"
                                             onClick={() => fileInputRef.current?.click()}
-                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 hover:text-emerald-600 transition-colors cursor-pointer shadow-2xs"
+                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 hover:text-primary transition-colors cursor-pointer shadow-2xs"
                                         >
                                             <Paperclip className="w-3.5 h-3.5" />
                                             <span>Lampirkan Bukti ({files.length}/{MAX_ATTACHMENTS})</span>
-                                        </button>
+                                        </Button>
                                     </div>
                                     <span className="text-[10px] text-slate-400 font-mono">
                                         {resolutionNote.length} karakter
@@ -355,7 +346,7 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <div className="h-20 w-full rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 flex flex-col items-center justify-center text-emerald-600 dark:text-emerald-400 mb-1.5">
+                                                    <div className="h-20 w-full rounded-lg bg-primary/10 dark:bg-primary/10 border border-primary/20 dark:border-primary/20 flex flex-col items-center justify-center text-primary dark:text-primary mb-1.5">
                                                         <FileText className="w-6 h-6 mb-1" />
                                                         <span className="text-[10px] font-bold uppercase">PDF Dokumen</span>
                                                     </div>
@@ -371,14 +362,14 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                                                 </div>
 
                                                 {/* Delete Button */}
-                                                <button
+                                                <Button variant="soft"
                                                     type="button"
                                                     onClick={() => removeFile(idx)}
                                                     className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center opacity-90 hover:opacity-100 shadow-sm cursor-pointer"
                                                     title="Hapus"
                                                 >
                                                     <X className="w-3 h-3" />
-                                                </button>
+                                                </Button>
                                             </div>
                                         );
                                     })}
@@ -396,18 +387,16 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                                 <span>untuk kirim</span>
                             </div>
                             <div className="flex items-center gap-2 ml-auto">
-                                <button
+                                <Button variant="soft"
                                     type="button"
                                     onClick={onClose}
                                     disabled={isLoading}
-                                    className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
                                 >
-                                    Kembali
-                                </button>
-                                <button
+                                    Batal
+                                </Button>
+                                <Button variant="primary" aria-busy={isLoading}
                                     type="submit"
                                     disabled={isLoading}
-                                    className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-98 rounded-xl shadow-md shadow-emerald-600/25 transition-all cursor-pointer disabled:opacity-50"
                                 >
                                     {isLoading ? (
                                         <>
@@ -417,20 +406,20 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                                     ) : (
                                         <>
                                             <CheckCircle2 className="w-4 h-4" />
-                                            <span>Ya, Selesaikan Tiket</span>
+                                            <span>Selesaikan tiket</span>
                                         </>
                                     )}
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     </form>
                 </div>
-            </div>
+            </TicketActionDialog>
 
             {/* Lightbox Zoom Modal */}
             {activeLightboxUrl && (
                 <div
-                    className="fixed inset-0 z-60 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150"
+                    className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150"
                     onClick={() => setActiveLightboxUrl(null)}
                 >
                     <div
@@ -439,13 +428,13 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                     >
                         <div className="flex items-center justify-between p-3 bg-slate-950/80 border-b border-white/10 text-white text-xs">
                             <span className="truncate font-semibold">{activeLightboxName}</span>
-                            <button
+                            <Button variant="soft"
                                 type="button"
                                 onClick={() => setActiveLightboxUrl(null)}
                                 className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
                             >
                                 <X className="w-4 h-4" />
-                            </button>
+                            </Button>
                         </div>
                         <div className="p-2 flex items-center justify-center overflow-auto max-h-[calc(90vh-60px)]">
                             <img

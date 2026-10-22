@@ -164,6 +164,7 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" variant="compact" aria-label="Aksi lainnya">
                                         <DropdownMenuItem onSelect={handleCopyNumber}><Copy />Salin nomor tiket</DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={onToggleSidebar}><PanelRightOpen />Properti tiket</DropdownMenuItem>
                                         {showCancel && <DropdownMenuItem variant="destructive" onSelect={onCancel}><XCircle />Batalkan tiket</DropdownMenuItem>}
                                     </DropdownMenuContent>
                                 </DropdownMenu>

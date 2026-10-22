@@ -140,7 +140,7 @@ describe('TicketHeader compact metadata bubbles', () => {
         const pills = Array.from(document.querySelectorAll('header .ticket-pill')).map(el => el.textContent);
         expect(pills).toEqual(expect.arrayContaining(['In Progress', 'Urgent']));
         expect(document.querySelector('header .picker-trigger')).not.toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /Resolve/ })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Selesaikan/ })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Teruskan/ })).toBeInTheDocument();
     });
 
@@ -159,7 +159,7 @@ describe('TicketHeader compact metadata bubbles', () => {
         );
         expect(screen.getByRole('button', { name: 'Batalkan' })).toHaveClass('is-danger');
         expect(screen.getByRole('button', { name: 'Teruskan' })).toHaveClass('is-soft');
-        expect(screen.getByRole('button', { name: 'Resolve' })).toHaveClass('is-primary');
+        expect(screen.getByRole('button', { name: 'Selesaikan' })).toHaveClass('is-primary');
         expect(document.querySelectorAll('header .is-primary')).toHaveLength(1);
         expect(screen.getByRole('button', { name: 'Sembunyikan properti' })).toHaveAttribute('aria-pressed', 'true');
         expect(screen.getByRole('button', { name: 'Aksi lainnya' })).toBeInTheDocument();

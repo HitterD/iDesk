@@ -170,21 +170,21 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                         <PopoverContent
                             align="end"
                             sideOffset={8}
-                            className="w-80 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150"
+                            className="w-[min(320px,calc(100vw-24px))] p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150"
                         >
                             <div className="space-y-2.5">
                                 <div className="flex items-center justify-between pb-1 border-b border-border">
                                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-white">
                                         <UserPlus className="w-4 h-4 text-primary" />
-                                        <span>Undang User ke Tiket</span>
+                                        <span>Tambah anggota tiket</span>
                                     </div>
-                                    <button
+                                    <Button variant="soft"
                                         type="button"
+                                        aria-label="Tutup pemilih anggota"
                                         onClick={() => setPopoverOpen(false)}
-                                        className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
                                     >
                                         <X className="w-3.5 h-3.5" />
-                                    </button>
+                                    </Button>
                                 </div>
 
                                 {/* Search Input */}
@@ -192,6 +192,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                                     <input
                                         type="text"
+                                        aria-label="Cari anggota tiket"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         placeholder="Cari nama, email, departemen..."
@@ -219,6 +220,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                                                     key={u.id}
                                                     type="button"
                                                     onClick={() => toggleSelectUser(u.id)}
+                                                    aria-pressed={isSelected}
                                                     className={cn(
                                                         'w-full flex items-center justify-between p-2 rounded-lg text-left text-xs transition-colors cursor-pointer border',
                                                         isSelected
@@ -264,18 +266,16 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                                         {selectedUserIds.length} dipilih
                                     </span>
                                     <div className="flex items-center gap-1.5">
-                                        <button
+                                        <Button variant="soft"
                                             type="button"
                                             onClick={() => setPopoverOpen(false)}
-                                            className="px-2.5 py-1 text-xs font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                                         >
                                             Batal
-                                        </button>
-                                        <button
+                                        </Button>
+                                        <Button variant="primary"
                                             type="button"
                                             disabled={selectedUserIds.length === 0 || addParticipantsMutation.isPending}
                                             onClick={handleAddSelected}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer"
                                         >
                                             {addParticipantsMutation.isPending ? (
                                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -283,7 +283,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                                                 <UserPlus className="w-3.5 h-3.5" />
                                             )}
                                             <span>Tambahkan</span>
-                                        </button>
+                                        </Button>
                                     </div>
                                 </div>
                             </div>

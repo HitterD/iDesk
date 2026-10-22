@@ -1,6 +1,8 @@
+import { Button } from '@/components/ui/button';
+import { TicketActionDialog } from './TicketActionDialog';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { createPortal } from 'react-dom';
+
 import {
     Bell,
     Calendar,
@@ -98,7 +100,7 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
             const res = await api.get(`/tickets/${ticketId}/reminders`);
             setReminders(res.data || []);
         } catch (err) {
-            // Non-blocking error for reminder list fetch
+            setError('Daftar pengingat gagal dimuat. Tutup dan buka kembali untuk mencoba lagi.');
         } finally {
             setFetchingReminders(false);
         }
@@ -123,7 +125,6 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
         return selectedDate && !isNaN(selectedDate.getTime()) && !isPast(selectedDate);
     }, [selectedDate]);
 
-    if (!isOpen) return null;
 
     const handleApplyPreset = (presetId: PresetKey) => {
         setActivePreset(presetId);
@@ -212,22 +213,9 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
         }
     };
 
-    return createPortal(
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 dark:bg-black/60 backdrop-blur-md animate-in fade-in duration-200"
-            onClick={(e) => {
-                if (e.target === e.currentTarget && !loading) {
-                    onClose();
-                }
-            }}
-        >
-            <div
-                className="w-full max-w-lg flex flex-col bg-white dark:bg-[#1c1c1e] border border-slate-200/80 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh]"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="ticket-reminder-title"
-                onClick={(e) => e.stopPropagation()}
-            >
+    return (
+        <TicketActionDialog open={isOpen} onClose={onClose} title="Atur pengingat" busy={loading}>
+            <div className="ticket-action-inner">
                 {/* Header (Apple Sheet Style) */}
                 <div className="px-5 py-3.5 border-b border-slate-100 dark:border-white/10 flex items-center justify-between gap-3 bg-slate-50/50 dark:bg-white/[0.02]">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -248,15 +236,14 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
                             </p>
                         </div>
                     </div>
-                    <button
+                    <Button variant="soft"
                         type="button"
                         onClick={onClose}
                         disabled={loading}
-                        className="w-7 h-7 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
                         title="Tutup"
                     >
                         <X className="w-4 h-4" />
-                    </button>
+                    </Button>
                 </div>
 
                 {/* Form Wrapping Scrollable Body and Footer */}
@@ -305,6 +292,7 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
                                 {PRESET_OPTIONS.map((preset) => (
                                     <button
                                         key={preset.id}
+                                        aria-pressed={activePreset === preset.id}
                                         type="button"
                                         onClick={() => handleApplyPreset(preset.id)}
                                         className={cn(
@@ -351,6 +339,8 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
                                 <span className="text-[10px] font-mono text-slate-400">{note.length} / 500</span>
                             </div>
                             <textarea
+                                id="ticket-reminder-note"
+                                aria-label="Catatan pengingat"
                                 value={note}
                                 onChange={(e) => {
                                     setNote(e.target.value.slice(0, 500));
@@ -421,7 +411,7 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
                                                 </div>
 
                                                 {!r.isSent && (
-                                                    <button
+                                                    <Button variant="soft"
                                                         type="button"
                                                         onClick={() => handleDeleteReminder(r.id)}
                                                         disabled={deletingId === r.id}
@@ -433,7 +423,7 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
                                                         ) : (
                                                             <Trash2 className="w-3.5 h-3.5" />
                                                         )}
-                                                    </button>
+                                                    </Button>
                                                 )}
                                             </div>
                                         );
@@ -449,18 +439,16 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
                             Otomatis dikirim via Email & Notifikasi
                         </p>
                         <div className="flex items-center gap-2 ml-auto">
-                            <button
+                            <Button variant="soft"
                                 type="button"
                                 onClick={onClose}
                                 disabled={loading}
-                                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
                             >
                                 Tutup
-                            </button>
-                            <button
+                            </Button>
+                            <Button variant="primary" aria-busy={loading}
                                 type="submit"
                                 disabled={loading || !isRemindDateValid}
-                                className="px-4 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-xs cursor-pointer active:scale-[0.98] inline-flex items-center gap-1.5 disabled:opacity-50"
                             >
                                 {loading ? (
                                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -468,12 +456,11 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
                                     <Send className="w-3.5 h-3.5" />
                                 )}
                                 <span>Jadwalkan Pengingat</span>
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 </form>
             </div>
-        </div>,
-        document.body
+        </TicketActionDialog>
     );
 };
