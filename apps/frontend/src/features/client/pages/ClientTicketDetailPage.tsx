@@ -242,6 +242,7 @@ export const ClientTicketDetailPage: React.FC = () => {
 
             {/* Cancel Confirmation Dialog */}
             <ConfirmationDialog
+                appearance="ticket"
                 isOpen={isCancelDialogOpen}
                 onCancel={() => { setIsCancelDialogOpen(false); setCancelReason(''); }}
                 onConfirm={() => cancelMutation.mutate(cancelReason.trim() || undefined)}

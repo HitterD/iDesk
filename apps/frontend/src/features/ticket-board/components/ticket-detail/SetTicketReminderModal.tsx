@@ -1,3 +1,4 @@
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { Button } from '@/components/ui/button';
 import { TicketActionDialog } from './TicketActionDialog';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -77,6 +78,7 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
     onReminderCreated,
 }) => {
     const queryClient = useQueryClient();
+    const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
     const [activePreset, setActivePreset] = useState<PresetKey | null>('tomorrow_morning');
     const [selectedDate, setSelectedDate] = useState<Date>(() => {
@@ -192,6 +194,7 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
             setDeletingId(reminderId);
             await api.delete(`/tickets/${ticketId}/reminders/${reminderId}`);
             toast.success('Pengingat berhasil dibatalkan');
+            setDeleteTarget(null);
             setReminders((prev) => prev.filter((r) => r.id !== reminderId));
             queryClient.invalidateQueries({ queryKey: ['ticket-reminders', ticketId] });
             if (onReminderCreated) {
@@ -413,7 +416,7 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
                                                 {!r.isSent && (
                                                     <Button variant="soft"
                                                         type="button"
-                                                        onClick={() => handleDeleteReminder(r.id)}
+                                                        onClick={() => setDeleteTarget(r.id)}
                                                         disabled={deletingId === r.id}
                                                         className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50"
                                                         title="Batalkan pengingat"
@@ -461,6 +464,11 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
                     </div>
                 </form>
             </div>
+            <ConfirmationDialog appearance="ticket" isOpen={Boolean(deleteTarget)} title="Batalkan pengingat?"
+                description="Pengingat ini tidak akan dikirim. Pengingat lainnya tetap aktif."
+                confirmText="Batalkan pengingat" cancelText="Kembali" variant="destructive"
+                isLoading={deletingId !== null} onCancel={() => setDeleteTarget(null)}
+                onConfirm={() => { if (deleteTarget) void handleDeleteReminder(deleteTarget); }} />
         </TicketActionDialog>
     );
 };

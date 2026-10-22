@@ -40,6 +40,7 @@ export const SelfResolveButton: React.FC<SelfResolveButtonProps> = ({ ticketId, 
                 <span>Masalah sudah selesai</span>
             </Button>
             <ConfirmationDialog
+                appearance="ticket"
                 isOpen={isOpen}
                 onCancel={() => setIsOpen(false)}
                 onConfirm={() => selfResolveMutation.mutate()}

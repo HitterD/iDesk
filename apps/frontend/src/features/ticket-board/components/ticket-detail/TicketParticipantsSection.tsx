@@ -1,3 +1,4 @@
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import React, { useState, useMemo } from 'react';
 import {
     UserPlus,
@@ -55,6 +56,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
     isClosed = false,
 }) => {
     const queryClient = useQueryClient();
+    const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
     const [popoverOpen, setPopoverOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -126,6 +128,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
         },
         onSuccess: () => {
             toast.success('Partisipan berhasil dikeluarkan');
+            setRemoveTarget(null);
             queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
         },
         onError: (err: any) => {
@@ -354,9 +357,9 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                             {canManageUsers && !isClosed && (
                                 <button
                                     type="button"
-                                    onClick={() => removeParticipantMutation.mutate(p.userId)}
+                                    onClick={() => setRemoveTarget({ id: p.userId, name: displayName })}
                                     disabled={isRemoving}
-                                    className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded transition-all cursor-pointer ml-1"
+                                    className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded transition-all cursor-pointer ml-1"
                                     title="Keluarkan dari tiket (Khusus Oracle Agent / Admin)"
                                 >
                                     {isRemoving ? (
@@ -370,6 +373,12 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                     );
                 })}
             </div>
+            <ConfirmationDialog appearance="ticket" isOpen={Boolean(removeTarget)} title="Keluarkan anggota?"
+                description={`${removeTarget?.name || 'Anggota'} akan dikeluarkan dari tiket ini.`}
+                confirmText="Keluarkan anggota" cancelText="Kembali" variant="destructive"
+                isLoading={removeParticipantMutation.isPending}
+                onCancel={() => setRemoveTarget(null)}
+                onConfirm={() => { if (removeTarget && canManageUsers && !isClosed) removeParticipantMutation.mutate(removeTarget.id); }} />
         </section>
     );
 };

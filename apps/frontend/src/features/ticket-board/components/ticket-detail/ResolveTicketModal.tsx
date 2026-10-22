@@ -328,7 +328,7 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                                                 className="group relative rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 p-2 overflow-hidden shadow-2xs flex flex-col justify-between"
                                             >
                                                 {isImage && previewUrl ? (
-                                                    <div
+                                                    <button type="button" aria-label={`Lihat lampiran ${file.name}`}
                                                         className="relative h-20 w-full rounded-lg overflow-hidden bg-slate-200 dark:bg-slate-900 cursor-pointer mb-1.5"
                                                         onClick={() => {
                                                             setActiveLightboxUrl(previewUrl);
@@ -344,7 +344,7 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                                                             <ZoomIn className="w-3.5 h-3.5" />
                                                             <span>Lihat</span>
                                                         </div>
-                                                    </div>
+                                                    </button>
                                                 ) : (
                                                     <div className="h-20 w-full rounded-lg bg-primary/10 dark:bg-primary/10 border border-primary/20 dark:border-primary/20 flex flex-col items-center justify-center text-primary dark:text-primary mb-1.5">
                                                         <FileText className="w-6 h-6 mb-1" />
@@ -414,9 +414,8 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                         </div>
                     </form>
                 </div>
-            </TicketActionDialog>
 
-            {/* Lightbox Zoom Modal */}
+            {/* Keep preview inside the trapped dialog so pointer and keyboard access remain available. */}
             {activeLightboxUrl && (
                 <div
                     className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150"
@@ -430,6 +429,7 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                             <span className="truncate font-semibold">{activeLightboxName}</span>
                             <Button variant="soft"
                                 type="button"
+                                aria-label="Tutup pratinjau lampiran"
                                 onClick={() => setActiveLightboxUrl(null)}
                                 className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
                             >
@@ -446,6 +446,7 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({
                     </div>
                 </div>
             )}
+            </TicketActionDialog>
         </>,
         document.body
     );

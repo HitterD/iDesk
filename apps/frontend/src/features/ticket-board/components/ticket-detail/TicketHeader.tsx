@@ -432,6 +432,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
             </header>
 
             <ConfirmationDialog
+                appearance="ticket"
                 isOpen={showCancelConfirm}
                 title="Batalkan tiket ini?"
                 description={`Tiket #${ticketNumber} yang dibatalkan tidak dapat diproses kembali.`}

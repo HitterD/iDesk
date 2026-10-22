@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
+import { Button } from './button';
 import { AlertTriangle, Trash2, Loader2, X, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
@@ -18,6 +19,8 @@ interface ConfirmationDialogProps {
     confirmDisabled?: boolean;
     /** Extra input rendered between the description and the action row. */
     children?: React.ReactNode;
+    /** Opt-in ticket action styling; other confirmation surfaces stay unchanged. */
+    appearance?: 'default' | 'ticket';
 }
 
 const variantConfig = {
@@ -67,6 +70,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
     isLoading = false,
     confirmDisabled = false,
     children,
+    appearance = 'default',
 }) => {
     const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -90,6 +94,27 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
     const config = variantConfig[variant];
     const Icon = config.icon;
     const dismiss = () => { if (!isLoading) onCancel(); };
+
+    if (appearance === 'ticket') {
+        return (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-3" onClick={dismiss}>
+                <div ref={dialogRef} role="alertdialog" aria-modal="true" aria-labelledby="confirmation-title" aria-describedby="confirmation-description"
+                    className="w-full max-w-md max-h-[calc(100dvh-24px)] overflow-y-auto rounded-[18px] border border-[hsl(var(--idesk-border))] bg-[hsl(var(--idesk-surface))] text-[hsl(var(--idesk-text))] shadow-xl"
+                    onClick={(event) => event.stopPropagation()}>
+                    <div className="p-5 space-y-2">
+                        <h3 id="confirmation-title" className="text-base font-semibold">{title}</h3>
+                        <p id="confirmation-description" className="text-[13px] text-[hsl(var(--idesk-text-secondary))]">{description}</p>
+                        {children}
+                    </div>
+                    <div className="flex justify-end gap-2 border-t border-[hsl(var(--idesk-border))] p-4">
+                        <Button variant="soft" type="button" onClick={dismiss} disabled={isLoading}>{cancelText}</Button>
+                        <Button variant={variant === 'destructive' ? 'danger-solid' : 'primary'} type="button" onClick={onConfirm}
+                            loading={isLoading} disabled={confirmDisabled}>{isLoading ? 'Menyimpan…' : confirmText}</Button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div
