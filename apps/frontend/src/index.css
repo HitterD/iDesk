@@ -203,6 +203,30 @@ textarea:focus {
   }
 }
 
+/* Round-2 semantic colour utilities (mockup idesk.css --text/--fill/--line/--green/--orange/--red/--accent).
+   Inline so they follow .dark without a dark: twin: text-ink / bg-fill / border-line / text-ok-ink / bg-bad/10 … */
+@theme inline {
+  --color-ink: hsl(var(--idesk-text));
+  --color-ink-2: hsl(var(--idesk-text-secondary));
+  --color-ink-3: var(--td-text-3);
+  --color-surface: hsl(var(--idesk-surface));
+  --color-fill: var(--td-fill);
+  --color-fill-2: var(--td-fill-2);
+  --color-line: var(--td-line);
+  --color-line-strong: var(--td-line-strong);
+  --color-brand: hsl(var(--idesk-sapphire));
+  --color-ok: hsl(var(--ticket-green));
+  --color-ok-ink: hsl(var(--ticket-green-ink));
+  --color-warn: hsl(var(--ticket-amber));
+  --color-warn-ink: hsl(var(--ticket-amber-ink));
+  --color-bad: hsl(var(--ticket-red));
+  --color-bad-ink: hsl(var(--ticket-red-ink));
+  --color-aqua: hsl(var(--ticket-teal));
+  --color-aqua-ink: hsl(var(--ticket-teal-ink));
+  --color-code: hsl(240 6% 11%);
+  --color-code-ink: hsl(240 8% 90%);
+}
+
 /*
   The default border color has changed to `currentcolor` in Tailwind CSS v4,
   so we've added these compatibility styles to make sure everything still

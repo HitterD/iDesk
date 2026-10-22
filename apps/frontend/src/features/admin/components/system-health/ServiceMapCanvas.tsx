@@ -85,7 +85,7 @@ export const ServiceMapCanvas: React.FC<ServiceMapCanvasProps> = ({
     }, [nodes, activeTrace]);
 
     return (
-        <div className="relative w-full rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-gradient-to-b from-slate-50/70 to-slate-100/40 dark:from-slate-950/70 dark:to-slate-900/40 p-5 sm:p-7 overflow-x-auto min-h-[490px] custom-scrollbar select-none shadow-xs">
+        <div className="relative w-full rounded-2xl bg-[var(--res-surface-2)] p-5 sm:p-7 overflow-x-auto min-h-[490px] custom-scrollbar select-none shadow-xs">
             {/* Background SVG Canvas for Bezier Connection Curves (Datadog Style) */}
             <svg
                 className="absolute inset-0 pointer-events-none w-full h-full z-0 overflow-visible"
@@ -93,14 +93,14 @@ export const ServiceMapCanvas: React.FC<ServiceMapCanvasProps> = ({
             >
                 <defs>
                     <linearGradient id="healthyFlowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#6366f1" stopOpacity="0.85" />
-                        <stop offset="50%" stopColor="#06b6d4" stopOpacity="0.9" />
-                        <stop offset="100%" stopColor="#10b981" stopOpacity="0.9" />
+                        <stop offset="0%" stopColor="hsl(var(--idesk-sapphire))" stopOpacity="0.85" />
+                        <stop offset="50%" stopColor="hsl(var(--ticket-teal))" stopOpacity="0.9" />
+                        <stop offset="100%" stopColor="hsl(var(--ticket-green))" stopOpacity="0.9" />
                     </linearGradient>
 
                     <linearGradient id="errorFlowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.9" />
-                        <stop offset="100%" stopColor="#e11d48" stopOpacity="0.9" />
+                        <stop offset="0%" stopColor="hsl(var(--ticket-red))" stopOpacity="0.9" />
+                        <stop offset="100%" stopColor="hsl(var(--ticket-red-ink))" stopOpacity="0.9" />
                     </linearGradient>
 
                     {/* Particle Glow Filters */}
@@ -155,7 +155,7 @@ export const ServiceMapCanvas: React.FC<ServiceMapCanvasProps> = ({
                             <path
                                 d={pathD}
                                 fill="none"
-                                stroke={isError ? "rgba(244, 63, 94, 0.3)" : "rgba(148, 163, 184, 0.25)"}
+                                stroke={isError ? "hsl(var(--ticket-red) / .3)" : "var(--td-line-strong)"}
                                 strokeWidth={isError ? 3 : 2}
                                 strokeLinecap="round"
                             />
@@ -174,7 +174,7 @@ export const ServiceMapCanvas: React.FC<ServiceMapCanvasProps> = ({
                             {/* Real-Time Glowing Traveling Packet Particle (SVG animateMotion) */}
                             <circle
                                 r={isError ? 4.5 : 3.5}
-                                fill={isError ? "#ff2a55" : "#06b6d4"}
+                                fill={isError ? "hsl(var(--ticket-red))" : "hsl(var(--ticket-teal))"}
                                 filter={isError ? "url(#errorPacketGlow)" : "url(#packetGlow)"}
                             >
                                 <animateMotion
@@ -200,11 +200,11 @@ export const ServiceMapCanvas: React.FC<ServiceMapCanvasProps> = ({
                     return (
                         <div key={tier} className="flex flex-col">
                             {/* Tier Column Header */}
-                            <div className="mb-4 pb-2 border-b border-slate-200/80 dark:border-slate-800">
-                                <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-wide uppercase">
+                            <div className="mb-4 pb-2 border-b border-line">
+                                <h3 className="text-xs font-bold text-ink tracking-wide uppercase">
                                     {title}
                                 </h3>
-                                <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                                <p className="text-[10px] text-ink-3 truncate">
                                     {subtitle}
                                 </p>
                             </div>
