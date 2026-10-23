@@ -30,9 +30,8 @@ function SortHead({ field, label, sortBy, sortOrder, onSort, className }: {
 }
 
 /**
- * Mockup `.thead`: Tiket · Prioritas · Site · Status · Pemohon · PIC · SLA (sentence case).
- * The Created column is gone (its date lives in the quick preview and export); the "Dibuat" sort
- * stays reachable at the end of the header, as the mockup's `.sort` "Dibuat ↓".
+ * Mockup `.thead`: Tiket · Prioritas · Site · Status · Pemohon · PIC · SLA · Dibuat.
+ * Keep the created-date sort in its own column, aligned with each row's date.
  */
 export function QueueTableHeader({ showSiteColumn, canEdit, isAllSelected, isIndeterminate, onSelectAll, sortBy, sortOrder, onSort }: QueueTableHeaderProps) {
     const sort = { sortBy, sortOrder, onSort };
@@ -48,10 +47,8 @@ export function QueueTableHeader({ showSiteColumn, canEdit, isAllSelected, isInd
             <SortHead field="status" label="Status" {...sort} />
             <span>Pemohon</span>
             <span>PIC</span>
-            <span className="queue-thead-sla">
-                <span>SLA</span>
-                <SortHead field="createdAt" label={SORT_LABELS.createdAt ?? 'Dibuat'} {...sort} className="queue-sort-created" />
-            </span>
+            <span>SLA</span>
+            <SortHead field="createdAt" label={SORT_LABELS.createdAt ?? 'Dibuat'} {...sort} className="queue-sort-created" />
         </div>
     );
 }

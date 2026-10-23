@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { format, isValid } from 'date-fns';
+import { id as indonesia } from 'date-fns/locale';
 import { ExternalSourceBadge } from '@/components/ui/ExternalSourceBadge';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -131,6 +133,8 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
 
     const statusTakeover = useStatusTakeover();
     const displayNumber = ticket.ticketNumber || ticket.id.slice(0, 8);
+    const createdDate = ticket.createdAt ? new Date(ticket.createdAt) : null;
+    const validCreatedDate = createdDate && isValid(createdDate) ? createdDate : null;
     const messageCount = ticket.messages?.length ?? 0;
     const selectLabel = `Pilih tiket ${displayNumber}`;
     // Same rule as the previous hover "Mark as resolved" button.
@@ -451,10 +455,16 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                     )}
                 </StopPropagationWrapper>
 
-                {/* SLA (mockup carries the target here; created date lives in the quick preview and export) */}
+                {/* SLA and created date occupy separate columns, matching the header. */}
                 <div className="min-w-0">
                     <TargetDateCell ticket={ticket} />
                 </div>
+                {validCreatedDate ? (
+                    <time className="queue-created-date" dateTime={ticket.createdAt}
+                        title={format(validCreatedDate, 'd MMMM yyyy, HH:mm', { locale: indonesia })}>
+                        {format(validCreatedDate, 'd MMM', { locale: indonesia })}
+                    </time>
+                ) : <span className="queue-created-date">-</span>}
             </div>
 
             {/* Reassign / Transfer PIC Confirmation Modal */}

@@ -88,7 +88,7 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
 
     // Determine target date: either explicit slaTarget or derived from createdAt + priority
     let targetDate = ticket?.slaTarget ?? slaTarget;
-    if (!targetDate && effectiveCreatedAt && effectivePriority && effectivePriority !== 'HARDWARE_INSTALLATION') {
+    if (!targetDate && effectiveCreatedAt && Number.isFinite(Date.parse(effectiveCreatedAt)) && effectivePriority && effectivePriority !== 'HARDWARE_INSTALLATION') {
         const DEFAULT_MINUTES: Record<string, number> = {
             CRITICAL: 120,
             HIGH: 240,

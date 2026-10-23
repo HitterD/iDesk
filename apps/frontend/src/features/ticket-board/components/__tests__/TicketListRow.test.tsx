@@ -79,6 +79,29 @@ describe('TicketListRow queue presentation contract', () => {
         </MemoryRouter>
     );
 
+    it.each([true, false])('shows the real created date in its own desktop cell (site column: %s)', (showSiteColumn) => {
+        const { container } = render(<MemoryRouter><TicketListRow
+            ticket={{ ...mockTicket, createdAt: '2026-10-20T09:30:00+07:00' }} index={0}
+            showSiteColumn={showSiteColumn} canEdit isSelected={false} agents={mockAgents}
+            onSelect={vi.fn()} onUpdatePriority={vi.fn()} onUpdateStatus={vi.fn()} onAssign={vi.fn()} />
+        </MemoryRouter>);
+        const desktop = container.querySelector('.queue-desktop-row')!;
+        const date = desktop.querySelector('time');
+        expect(date).toHaveTextContent('20 Okt');
+        expect(date).toHaveAttribute('dateTime', '2026-10-20T09:30:00+07:00');
+        expect(date?.getAttribute('title')).toMatch(/20 Oktober 2026.*09:30/);
+        expect(desktop.lastElementChild).toBe(date);
+        expect(desktop.children).toHaveLength(showSiteColumn ? 9 : 8);
+    });
+
+    it.each(['', 'not-a-date', undefined, null])('shows a dash for unavailable created date %s', (createdAt) => {
+        const { container } = renderRow({ ...mockTicket, createdAt } as TicketRowData);
+        const date = container.querySelector('.queue-desktop-row > .queue-created-date');
+        expect(date).toHaveTextContent('-');
+        expect(date).not.toHaveAttribute('dateTime');
+        expect(container.querySelector('.queue-desktop-row time')).toBeNull();
+    });
+
     it('selects a card row without navigating to the ticket', () => {
         const onSelect = vi.fn();
         render(<MemoryRouter><TicketListRow ticket={mockTicket} index={0} showSiteColumn canEdit

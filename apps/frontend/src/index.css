@@ -593,10 +593,10 @@ textarea:focus {
   .queue-stats-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
 @container (min-width: 1100px) {
-  .queue-grid { display: grid; align-items: center; column-gap: 10px; padding: 0 16px; }
-  /* Mockup .thead/.row (<=1500px): Tiket · Prioritas · Site · Status · Pemohon · PIC · SLA. */
-  .queue-grid-sites { grid-template-columns: 26px minmax(200px, 2.4fr) 104px 60px 150px minmax(160px, 1.1fr) minmax(180px, 1.3fr) 160px; }
-  .queue-grid-default { grid-template-columns: 26px minmax(200px, 2.4fr) 104px 150px minmax(160px, 1.1fr) minmax(180px, 1.3fr) 160px; }
+  .queue-grid { display: grid; align-items: center; column-gap: 8px; padding: 0 16px; }
+  /* Shared header/row tracks fit the 1100px table, including the final created date. */
+  .queue-grid-sites { grid-template-columns: 26px minmax(160px, 2.4fr) 104px 50px 150px minmax(110px, 1.1fr) minmax(160px, 1.3fr) 160px 60px; }
+  .queue-grid-default { grid-template-columns: 26px minmax(160px, 2.4fr) 104px 150px minmax(110px, 1.1fr) minmax(160px, 1.3fr) 160px 60px; }
   /* Selection cell bleeds into the row padding and half the column gap: full row height,
      45px wide (14px pad + 26px column + 5px gap), so no near-miss falls through to the row. */
   .queue-grid > .queue-select-cell { min-width: 0; margin: 0 -5px 0 -16px; padding: 0 5px 0 16px; }
@@ -1008,7 +1008,8 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .queue-sort.is-active { color: hsl(var(--idesk-text-secondary)); }
 .queue-sort:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
 .queue-sort:active { transform: none; }
-.queue-thead-sla { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.queue-sort-created { justify-self: end; white-space: nowrap; }
+.queue-created-date { color: hsl(var(--idesk-text-secondary) / .85); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .queue-sort-created svg { opacity: 1; }
 .queue-title-cell { align-self: stretch; display: flex; align-items: center; }
 .queue-tk { min-width: 0; padding: 10px 0; }

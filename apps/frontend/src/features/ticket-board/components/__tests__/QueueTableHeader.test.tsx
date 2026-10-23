@@ -9,7 +9,15 @@ describe('QueueTableHeader (mockup columns)', () => {
             onSelectAll={vi.fn()} sortBy="createdAt" sortOrder="DESC" onSort={onSort} />,
     );
 
-    it('uses the mockup sentence-case columns with no separate Created / Target Date column', () => {
+    it.each([true, false])('aligns the created-date header in a separate final column (site: %s)', (showSiteColumn) => {
+        render(<QueueTableHeader showSiteColumn={showSiteColumn} canEdit isAllSelected={false} isIndeterminate={false}
+            onSelectAll={vi.fn()} sortBy="createdAt" sortOrder="DESC" onSort={vi.fn()} />);
+        const row = screen.getByRole('row', { name: 'Kolom tabel' });
+        expect(row.lastElementChild).toBe(screen.getByRole('button', { name: 'Urutkan menurut Dibuat, menurun' }));
+        expect(row.children).toHaveLength(showSiteColumn ? 9 : 8);
+    });
+
+    it('uses the mockup sentence-case columns including the created date', () => {
         renderHeader();
         const row = screen.getByRole('row', { name: 'Kolom tabel' });
         expect(row).toHaveTextContent(/^Tiket.*Prioritas.*Site.*Status.*Pemohon.*PIC.*SLA.*Dibuat$/);
