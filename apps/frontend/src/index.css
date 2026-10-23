@@ -41,6 +41,12 @@ button:active, [role="button"]:active {
   transform: scale(0.96);
   transition: transform var(--dur-1) var(--ease-out);
 }
+/* ...and springs back on release. Without a resting transition the press eases in but snaps out.
+   Layered so a button's own transition utility still wins; skips inline transforms (framer-motion, dnd-kit)
+   that must follow the pointer frame by frame. */
+@layer base {
+  button:not([style*="transform"]) { transition: transform var(--dur-2) var(--ease-spring), scale var(--dur-2) var(--ease-spring), translate var(--dur-2) var(--ease-spring); }
+}
 /* Never scale a hit target that stretches over (or contains) other content: shrinking it moves
    pointerup onto another element, so the browser fires click on the common ancestor instead
    (UAT-1 B1). Catalogue stretched link, AgentCard overlay action, whole-row queue/portal rows,
