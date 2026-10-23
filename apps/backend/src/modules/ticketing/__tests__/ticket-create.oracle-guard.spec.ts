@@ -21,13 +21,6 @@ describe('Ticket Creation Oracle Guard', () => {
             }),
         };
 
-        const mockQb = {
-            where: jest.fn().mockReturnThis(),
-            orderBy: jest.fn().mockReturnThis(),
-            setLock: jest.fn().mockReturnThis(),
-            getOne: jest.fn().mockResolvedValue(null),
-        };
-
         const mockManager = {
             count: jest.fn(async () => 0),
             create: jest.fn((_, dto) => dto),
@@ -35,7 +28,8 @@ describe('Ticket Creation Oracle Guard', () => {
                 const target = t || entityClass;
                 return { id: 't-created', category: 'Oracle', ...target };
             }),
-            createQueryBuilder: jest.fn(() => mockQb),
+            // Ticket numbering: advisory lock, then MAX of today's sequence (none yet).
+            query: jest.fn(async () => []),
         };
 
         ticketRepo = {
@@ -117,12 +111,7 @@ describe('Ticket Creation Oracle Guard', () => {
         auditService.logAsync.mockImplementation(() => { order.push('audit'); });
         ticketRepo.manager.transaction.mockImplementation(async (cb: (m: unknown) => Promise<unknown>) =>
             cb({
-                createQueryBuilder: () => ({
-                    where: jest.fn().mockReturnThis(),
-                    orderBy: jest.fn().mockReturnThis(),
-                    setLock: jest.fn().mockReturnThis(),
-                    getOne: jest.fn().mockResolvedValue(null),
-                }),
+                query: jest.fn(async () => []),
                 create: jest.fn((_, dto) => dto),
                 save: jest.fn(async (_e: unknown, t?: unknown) => {
                     const target = (t || _e) as Record<string, unknown>;

@@ -1,56 +1,35 @@
-import { generateNextTicketNumber, lastDailySequence, formatTicketNumber }
-    from './ticket-number-generator';
-import { EntityManager } from 'typeorm';
+import { generateNextTicketNumber, formatTicketNumber } from './ticket-number-generator';
 
 describe('ticket-number-generator (PROD-19 shared, locked generator)', () => {
-    function makeManager(): { manager: any; qb: any; setLockSpy: jest.Mock } {
-        const qb: any = {};
-        qb.createQueryBuilder = undefined;
-        const setLockSpy = jest.fn(() => qb);
-        qb.where = jest.fn(() => qb);
-        qb.orderBy = jest.fn(() => qb);
-        qb.setLock = setLockSpy;
-        qb.getOne = jest.fn().mockResolvedValue(null);
-        const builder = () => qb;
-        const manager: any = {
-            createQueryBuilder: jest.fn(builder),
-        };
-        return { manager, qb, setLockSpy };
+    const day = new Date(2026, 8, 2, 10, 0);
+
+    function makeManager(maxSeq: string | null) {
+        const query = jest.fn(async (sql: string, _params?: unknown[]) => (sql.includes('MAX(') ? [{ maxSeq }] : []));
+        return { manager: { query } as any, query };
     }
 
-    it('takes a pessimistic_write lock on the latest ticket of today', async () => {
-        const { manager, setLockSpy } = makeManager();
-        await generateNextTicketNumber(manager, 'GEN', new Date(2026, 8, 2, 10, 0));
-        expect(setLockSpy).toHaveBeenCalledWith('pessimistic_write');
-        expect(manager.createQueryBuilder).toHaveBeenCalled();
+    it('takes the day advisory lock before reading the sequence', async () => {
+        const { manager, query } = makeManager(null);
+        await generateNextTicketNumber(manager, 'GEN', day);
+
+        expect(query.mock.calls[0]).toEqual(['SELECT pg_advisory_xact_lock(hashtext($1))', ['ticket-number:020926']]);
+        expect(query.mock.calls[1][0]).toContain('MAX(');
+        expect(query.mock.calls[1][1]).toEqual(['020926-%']);
     });
 
     it('returns 0001 when there is no ticket today', async () => {
-        const { manager } = makeManager();
-        const number = await generateNextTicketNumber(manager, 'GEN', new Date(2026, 8, 2, 10, 0));
-        expect(number).toBe('020926-GEN-0001');
+        expect(await generateNextTicketNumber(makeManager(null).manager, 'GEN', day)).toBe('020926-GEN-0001');
     });
 
-    it('increments past the latest ticket number of today', async () => {
-        const { manager, qb } = makeManager();
-        qb.getOne.mockResolvedValue({ ticketNumber: '020926-GEN-0012' });
-        const number = await generateNextTicketNumber(manager, 'GEN', new Date(2026, 8, 2, 10, 0));
-        expect(number).toBe('020926-GEN-0013');
+    it('continues the shared daily sequence under the caller division', async () => {
+        expect(await generateNextTicketNumber(makeManager('12').manager, 'FIN', day)).toBe('020926-FIN-0013');
     });
 
-    it('filters to tickets of today, not the whole table', async () => {
-        const { manager } = makeManager();
-        await generateNextTicketNumber(manager, 'GEN', new Date(2026, 8, 2, 10, 0));
-        const whereArg = (manager.createQueryBuilder as jest.Mock).mock.calls[0][0];
-        // The builder parameters are not inspectable here; verify by looking at
-        // the where call the implementation makes (see qb.where mock).
-        expect(whereArg).toBeDefined();
-    });
+    it('reads the tickets table directly, so soft-deleted tickets still hold their number', async () => {
+        const { manager, query } = makeManager('11');
+        await generateNextTicketNumber(manager, 'FIN', day);
 
-    it('lastDailySequence tolerates malformed ticket numbers', () => {
-        expect(lastDailySequence('010101-GEN-0007')).toBe(7);
-        expect(lastDailySequence('GARBAGE')).toBe(0);
-        expect(lastDailySequence(null)).toBe(0);
+        expect(query.mock.calls[1][0]).not.toMatch(/deletedAt/);
     });
 
     it('formatTicketNumber pads the sequence to 4 digits', () => {
