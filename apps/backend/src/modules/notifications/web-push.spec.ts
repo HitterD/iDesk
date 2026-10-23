@@ -75,6 +75,18 @@ describe('PushSubscriptionController', () => {
     });
 });
 
+describe('PushSubscriptionController test push', () => {
+    it('sends a test toast to the signed-in user and reports why it did not arrive', async () => {
+        const push = { send: jest.fn(async () => ({ success: false, error: 'No active push subscriptions for user' })) };
+        const controller = new PushSubscriptionController(push as never);
+
+        await expect(controller.sendTest({ user: { userId: 'user-1' } })).resolves.toEqual({
+            delivered: false, error: 'No active push subscriptions for user',
+        });
+        expect(push.send).toHaveBeenCalledWith(expect.objectContaining({ recipient: 'user-1', title: 'Notifikasi uji' }));
+    });
+});
+
 describe('NotificationPushService', () => {
     const flush = () => new Promise((resolve) => setImmediate(resolve));
     const base = { id: 'n-1', userId: 'u-1', title: 'Tiket baru', message: 'Printer macet', link: '/tickets/t-1', ticketId: 't-1', requiresAcknowledge: false };

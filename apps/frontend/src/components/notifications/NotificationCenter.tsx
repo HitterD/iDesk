@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    Bell, CalendarClock, Check, CheckCheck, FileKey2, History, Inbox, ListChecks, MonitorSmartphone,
+    Bell, CalendarClock, Check, CheckCheck, ChevronDown, FileKey2, History, Inbox, ListChecks, MonitorDown, MonitorSmartphone,
     Search, Settings, Siren, Ticket, Trash2, Video, Volume2, VolumeX, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { NotificationCategory } from './types/notification.types';
 import { useNotificationCenter } from '../../features/notifications/hooks/useNotificationCenter';
 import { NotificationItem } from './NotificationItem';
 import { DesktopAppDownloadBanner } from './DesktopAppDownloadBanner';
+import { BrowserNotificationStatus } from './BrowserNotificationStatus';
 import { groupNotificationsByDate } from './utils/notification.utils';
 
 export const NotificationCenter: React.FC = () => {
@@ -89,9 +90,9 @@ export const NotificationCenter: React.FC = () => {
     };
     const tabCards: readonly { key: typeof activeTab; label: string; icon: React.ElementType; tone: TicketPillTone; cat?: NotificationCategory }[] = [
         { key: 'all', label: 'Semua', icon: Inbox, tone: 'navy' },
-        { key: 'tickets', label: 'Tickets', icon: Ticket, tone: 'blue', cat: NotificationCategory.CATEGORY_TICKET },
+        { key: 'tickets', label: 'Tiket', icon: Ticket, tone: 'blue', cat: NotificationCategory.CATEGORY_TICKET },
         { key: 'hardware', label: 'Hardware', icon: MonitorSmartphone, tone: 'amber', cat: NotificationCategory.CATEGORY_HARDWARE },
-        { key: 'renewals', label: 'Renewals', icon: CalendarClock, tone: 'neutral', cat: NotificationCategory.CATEGORY_RENEWAL },
+        { key: 'renewals', label: 'Renewal', icon: CalendarClock, tone: 'neutral', cat: NotificationCategory.CATEGORY_RENEWAL },
         { key: 'zoom', label: 'Zoom', icon: Video, tone: 'teal', cat: NotificationCategory.CATEGORY_ZOOM },
         { key: 'eform', label: 'E-Form', icon: FileKey2, tone: 'green', cat: NotificationCategory.CATEGORY_EFORM },
     ];
@@ -108,7 +109,7 @@ export const NotificationCenter: React.FC = () => {
                             {soundEnabled ? <Volume2 aria-hidden="true" /> : <VolumeX aria-hidden="true" />}
                         </Button>
                         <Button variant="soft" size="icon" asChild>
-                            <Link to="/admin/settings" aria-label="Pengaturan notifikasi" title="Pengaturan notifikasi"><Settings aria-hidden="true" /></Link>
+                            <Link to="/settings/notifications" aria-label="Pengaturan notifikasi" title="Pengaturan notifikasi"><Settings aria-hidden="true" /></Link>
                         </Button>
                         <Button variant={isSelectionMode ? 'primary' : 'soft'} aria-pressed={isSelectionMode}
                             onClick={() => (isSelectionMode ? exitSelection() : setIsSelectionMode(true))}>
@@ -118,7 +119,7 @@ export const NotificationCenter: React.FC = () => {
                             {!markAllAsReadMutation.isPending && <CheckCheck aria-hidden="true" />}Tandai semua dibaca
                         </Button>
                         <Button variant="soft" asChild>
-                            <Link to="/notifications/history" title="Buka Tabel Riwayat Notifikasi Lengkap (Format Santos)"><History aria-hidden="true" />Riwayat Notifikasi</Link>
+                            <Link to="/notifications/history" title="Buka riwayat notifikasi lengkap"><History aria-hidden="true" />Riwayat Notifikasi</Link>
                         </Button>
                     </>
                 )} />
@@ -130,8 +131,16 @@ export const NotificationCenter: React.FC = () => {
                 </MgBanner>
             )}
 
-            {/* Desktop App Tray / Toast Banner */}
-            <DesktopAppDownloadBanner showAdminTools={true} />
+            {/* Browser notifications first: they work for everyone; the desktop app is an optional extra. */}
+            <BrowserNotificationStatus />
+            <details className="nc-desktop">
+                <summary>
+                    <MonitorDown aria-hidden="true" />
+                    <span><b>SJA Desktop Notifier</b><small>Aplikasi Windows, opsional</small></span>
+                    <ChevronDown className="nc-desktop-chevron" aria-hidden="true" />
+                </summary>
+                <DesktopAppDownloadBanner showAdminTools={true} />
+            </details>
 
             <section className="res-stats is-six" aria-label="Kategori notifikasi">
                 {tabCards.map((c) => {

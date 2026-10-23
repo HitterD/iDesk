@@ -157,6 +157,23 @@ export class PushSubscriptionController {
     }
 
     /**
+     * Sends a test toast to every browser this user subscribed, so they can see it works without a real event.
+     * Throttled with the user's other pushes (10 per minute).
+     */
+    @Post('test')
+    @HttpCode(HttpStatus.OK)
+    async sendTest(@Req() req: any) {
+        const result = await this.pushChannelService.send({
+            notificationId: `test-${Date.now()}`,
+            recipient: req.user.userId,
+            title: 'Notifikasi uji',
+            body: 'Notifikasi browser iDesk aktif di perangkat ini.',
+            data: { link: '/notifications', type: 'PUSH_TEST' },
+        });
+        return { delivered: result.success, error: result.success ? null : result.error ?? null };
+    }
+
+    /**
      * Parse device name from user agent
      */
     private parseDeviceName(userAgent?: string): string {

@@ -80,6 +80,17 @@ export async function ensurePushSubscription(): Promise<boolean> {
     }
 }
 
+/** True when this browser (not just some device of the account) holds a push subscription. */
+export async function hasLocalPushSubscription(): Promise<boolean> {
+    if (getNotificationSupport() !== 'granted') return false;
+    try {
+        const registration = await navigator.serviceWorker.getRegistration(SERVICE_WORKER_URL);
+        return Boolean(await registration?.pushManager.getSubscription());
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Detaches this browser from the account being signed out, so the next person on
  * the same PC does not receive their toasts. Must run while the session is valid.

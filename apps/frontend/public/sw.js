@@ -3,6 +3,8 @@
 
 const ICON = '/idesk-icon.png';
 const SLA_TYPES = ['SLA_WARNING', 'SLA_BREACHED'];
+/** "Kirim uji" is clicked from a focused iDesk tab, and must still show. */
+const TEST_TYPE = 'PUSH_TEST';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
@@ -22,7 +24,8 @@ async function showPush(data) {
     // A tab the user is looking at already shows this as an in-app toast; a second OS toast is noise.
     // (Allowed with userVisibleOnly: the browser only insists on a notification when no page is visible.)
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    if (windows.some((client) => client.visibilityState === 'visible' && client.focused)) return;
+    const focused = windows.some((client) => client.visibilityState === 'visible' && client.focused);
+    if (focused && payload.type !== TEST_TYPE) return;
 
     const tag = payload.tag || payload.notificationId || undefined;
     return self.registration.showNotification(payload.title || 'iDesk', {
