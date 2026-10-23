@@ -34,8 +34,10 @@ describe('ResolveTicketModal Component', () => {
 
         expect(screen.getByRole('dialog', { name: 'Selesaikan tiket' })).toBeInTheDocument();
         expect(screen.getByText('Printer Epson L3110 Paper Jam')).toBeInTheDocument();
-        expect(screen.getByText(/Tindakan & Penjelasan Solusi/i)).toBeInTheDocument();
-        expect(screen.getByText(/Template Solusi Cepat:/i)).toBeInTheDocument();
+        expect(screen.getByRole('textbox', { name: /Solusi/ })).toBeInTheDocument();
+        expect(screen.getByRole('combobox', { name: /Gunakan template/ })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Lampirkan' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Selesaikan tiket' })).toHaveClass('ticket-action-complete');
     });
 
     it('populates textarea when a quick template chip is clicked', () => {
@@ -48,11 +50,34 @@ describe('ResolveTicketModal Component', () => {
             />
         );
 
-        const templateBtn = screen.getByText(/Masalah berhasil diperbaiki/i);
-        fireEvent.click(templateBtn);
+        fireEvent.change(screen.getByRole('combobox', { name: /Gunakan template/ }), {
+            target: { value: 'Masalah berhasil diperbaiki dan telah dites berjalan normal.' },
+        });
 
         const textarea = screen.getByPlaceholderText(/Jelaskan tindakan teknis atau solusi/i) as HTMLTextAreaElement;
         expect(textarea.value).toContain('Masalah berhasil diperbaiki');
+    });
+
+    it('keeps production attachment-only submission and removable file list', () => {
+        const onConfirm = vi.fn();
+        render(<ResolveTicketModal isOpen ticket={mockTicket} onClose={vi.fn()} onConfirm={onConfirm} />);
+        const file = new File(['pdf'], 'bukti.pdf', { type: 'application/pdf' });
+        fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [file] } });
+        expect(screen.getByRole('list', { name: 'Lampiran terpilih' })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Selesaikan tiket' }));
+        expect(onConfirm).toHaveBeenCalledWith('Tiket telah diselesaikan.', [file]);
+        fireEvent.click(screen.getByRole('button', { name: 'Hapus bukti.pdf' }));
+        expect(screen.queryByRole('list', { name: 'Lampiran terpilih' })).not.toBeInTheDocument();
+    });
+
+    it('preserves draft and displays failed submission without closing', async () => {
+        const onClose = vi.fn();
+        render(<ResolveTicketModal isOpen ticket={mockTicket} onClose={onClose} onConfirm={vi.fn().mockRejectedValue(new Error('Upload gagal'))} />);
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Solusi tersimpan di draft' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Selesaikan tiket' }));
+        expect(await screen.findByRole('alert')).toHaveTextContent('Upload gagal');
+        expect(screen.getByRole('textbox')).toHaveValue('Solusi tersimpan di draft');
+        expect(onClose).not.toHaveBeenCalled();
     });
 
     it('calls onConfirm with written notes on submit', () => {
@@ -132,7 +157,7 @@ describe('ResolveTicketModal Component', () => {
         const onClose = vi.fn();
         const onConfirm = vi.fn();
         render(<ResolveTicketModal isOpen onClose={onClose} ticket={mockTicket} onConfirm={onConfirm} isLoading />);
-        expect(screen.getByRole('textbox', { name: /Tindakan & Penjelasan Solusi/ })).toBeInTheDocument();
+        expect(screen.getByRole('textbox', { name: /Solusi/ })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Batal' })).toBeDisabled();
         expect(screen.getByRole('button', { name: 'Tutup dialog' })).toBeDisabled();
         fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter', ctrlKey: true });

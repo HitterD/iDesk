@@ -384,7 +384,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                             </Button>
                         )}
                         {canForward && (
-                            <Button variant="soft" className="td-act-wide" onClick={onForward} title="Teruskan ke tim lain">
+                            <Button variant="soft" className="td-act-wide ticket-action-forward" onClick={onForward} title="Teruskan ke tim lain">
                                 <Forward aria-hidden="true" /><span>Teruskan</span>
                             </Button>
                         )}
@@ -396,7 +396,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" variant="compact" className="ticket-action-menu" aria-label="Aksi lainnya">
-                                    {canForward && <DropdownMenuItem onSelect={() => onForward?.()}><Forward />Teruskan ke tim lain</DropdownMenuItem>}
+                                    {canForward && <DropdownMenuItem className="ticket-action-forward-menu" onSelect={() => onForward?.()}><Forward />Teruskan ke tim lain</DropdownMenuItem>}
                                     <DropdownMenuItem onSelect={handleCopyNumber}><Copy />Salin nomor tiket</DropdownMenuItem>
                                     {onToggleSidebar && <DropdownMenuItem onSelect={onToggleSidebar}><PanelRightOpen />Properti tiket</DropdownMenuItem>}
                                     {canCancel && (
@@ -409,7 +409,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                         )}
                         {(canCancel || canForward) && canResolve && <span className="td-act-sep" aria-hidden="true" />}
                         {canResolve && (
-                            <Button variant="primary" onClick={() => setShowResolveConfirm(true)} title="Selesaikan dengan catatan solusi">
+                            <Button variant="primary" className="ticket-action-complete" onClick={() => setShowResolveConfirm(true)} title="Selesaikan dengan catatan solusi">
                                 <CheckCircle2 aria-hidden="true" /><span>Selesaikan</span>
                             </Button>
                         )}

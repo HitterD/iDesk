@@ -376,11 +376,11 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     {!isLocked && (
                         <div className="td-pair">
                             {onExtendSla && (isAdmin || user?.role?.startsWith('AGENT')) && (
-                                <Button variant="soft" onClick={onExtendSla} title="Perpanjang target SLA">
+                                <Button variant="soft" className="ticket-action-sla" onClick={onExtendSla} title="Perpanjang target SLA">
                                     <CalendarPlus aria-hidden="true" /><span>Perpanjang SLA</span>
                                 </Button>
                             )}
-                            <Button variant="soft" onClick={openReminder} title="Atur pengingat email untuk agent">
+                            <Button variant="soft" className="ticket-action-reminder" onClick={openReminder} title="Atur pengingat email untuk agent">
                                 <Bell aria-hidden="true" /><span>{nextReminder ? 'Ubah pengingat' : 'Atur pengingat'}</span>
                             </Button>
                         </div>

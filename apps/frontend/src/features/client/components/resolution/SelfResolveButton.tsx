@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import '@/features/ticket-board/components/ticket-detail/ticket-actions.css';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -35,7 +36,7 @@ export const SelfResolveButton: React.FC<SelfResolveButtonProps> = ({ ticketId, 
 
     return (
         <>
-            <Button variant="primary" onClick={() => setIsOpen(true)} className={className} title="Tutup tiket karena masalah sudah selesai">
+            <Button variant="primary" onClick={() => setIsOpen(true)} className={`ticket-action-complete ${className || ''}`} title="Tutup tiket karena masalah sudah selesai">
                 <CheckCircle2 aria-hidden="true" />
                 <span>Masalah sudah selesai</span>
             </Button>

@@ -108,7 +108,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
                     </div>
                     <div className="flex justify-end gap-2 border-t border-[hsl(var(--idesk-border))] p-4">
                         <Button variant="soft" type="button" onClick={dismiss} disabled={isLoading}>{cancelText}</Button>
-                        <Button variant={variant === 'destructive' ? 'danger-solid' : 'primary'} type="button" onClick={onConfirm}
+                        <Button variant={variant === 'destructive' ? 'danger-solid' : 'primary'} className={variant === 'success' ? 'ticket-action-complete' : undefined} type="button" onClick={onConfirm}
                             loading={isLoading} disabled={confirmDisabled}>{isLoading ? 'Menyimpan…' : confirmText}</Button>
                     </div>
                 </div>

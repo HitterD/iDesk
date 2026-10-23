@@ -449,7 +449,7 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
                             >
                                 Tutup
                             </Button>
-                            <Button variant="primary" aria-busy={loading}
+                            <Button variant="primary" className="ticket-action-reminder" aria-busy={loading}
                                 type="submit"
                                 disabled={loading || !isRemindDateValid}
                             >

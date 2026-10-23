@@ -165,7 +165,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                 {canAddUsers && !isClosed && (
                     <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
                         <PopoverTrigger asChild>
-                            <Button variant="subtle" aria-label="Tambah anggota tiket" title="Tambah anggota tiket">
+                            <Button variant="subtle" className="ticket-action-member" aria-label="Tambah anggota tiket" title="Tambah anggota tiket">
                                 <UserPlus aria-hidden="true" />
                                 <span>Tambah</span>
                             </Button>
@@ -275,7 +275,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                                         >
                                             Batal
                                         </Button>
-                                        <Button variant="primary"
+                                        <Button variant="primary" className="ticket-action-member"
                                             type="button"
                                             disabled={selectedUserIds.length === 0 || addParticipantsMutation.isPending}
                                             onClick={handleAddSelected}

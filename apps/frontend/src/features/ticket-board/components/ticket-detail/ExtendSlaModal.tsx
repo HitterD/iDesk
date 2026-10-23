@@ -402,7 +402,7 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({
                     >
                         Batal
                     </Button>
-                    <Button variant="primary" aria-busy={isLoading}
+                    <Button variant="primary" className="ticket-action-sla" aria-busy={isLoading}
                         type="button"
                         onClick={handleSubmit}
                         disabled={!canSubmit}
