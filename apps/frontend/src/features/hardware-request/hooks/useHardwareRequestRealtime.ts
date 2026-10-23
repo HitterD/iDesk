@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { SOCKET_URL } from '@/lib/socket';
@@ -67,4 +67,19 @@ export function useHardwareGlobalRealtime() {
             clearTimeout(t); 
         };
     }, [qc]);
+}
+
+/** Connection state of the shared hardware-requests socket (drives the head "Live" indicator). */
+export function useHardwareSocketConnected(): boolean {
+    const [connected, setConnected] = useState(() => getSocket().connected);
+    useEffect(() => {
+        const s = getSocket();
+        const on = () => setConnected(true);
+        const off = () => setConnected(false);
+        s.on('connect', on);
+        s.on('disconnect', off);
+        setConnected(s.connected);
+        return () => { s.off('connect', on); s.off('disconnect', off); };
+    }, []);
+    return connected;
 }

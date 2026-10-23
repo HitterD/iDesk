@@ -1,22 +1,13 @@
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
+import { Button } from '@/components/ui/button';
+import { TicketActionDialog } from './TicketActionDialog';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { createPortal } from 'react-dom';
-import {
-    Bell,
-    Calendar,
-    Clock,
-    X,
-    Loader2,
-    AlertCircle,
-    Trash2,
-    CheckCircle2,
-    UserCheck,
-    AlertTriangle,
-    Send,
-} from 'lucide-react';
-import { format, isPast, formatDistanceToNow } from 'date-fns';
+
+import { X, Loader2, Trash2 } from 'lucide-react';
+import { format, isPast } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { toDisplayName } from './messageThread';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { ModernDateTimePicker } from '@/components/ui/ModernDateTimePicker';
@@ -70,11 +61,11 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
     onClose,
     ticketId,
     ticketNumber,
-    ticketTitle,
     assignedAgent,
     onReminderCreated,
 }) => {
     const queryClient = useQueryClient();
+    const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
     const [activePreset, setActivePreset] = useState<PresetKey | null>('tomorrow_morning');
     const [selectedDate, setSelectedDate] = useState<Date>(() => {
@@ -98,7 +89,7 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
             const res = await api.get(`/tickets/${ticketId}/reminders`);
             setReminders(res.data || []);
         } catch (err) {
-            // Non-blocking error for reminder list fetch
+            setError('Daftar pengingat gagal dimuat. Tutup dan buka kembali untuk mencoba lagi.');
         } finally {
             setFetchingReminders(false);
         }
@@ -123,7 +114,6 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
         return selectedDate && !isNaN(selectedDate.getTime()) && !isPast(selectedDate);
     }, [selectedDate]);
 
-    if (!isOpen) return null;
 
     const handleApplyPreset = (presetId: PresetKey) => {
         setActivePreset(presetId);
@@ -159,7 +149,8 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
     const handleCreateReminder = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!isRemindDateValid) {
+        if (loading) return;
+        if (!isRemindDateValid || selectedDate <= new Date()) {
             setError('Waktu pengingat harus berada di masa mendatang.');
             return;
         }
@@ -191,6 +182,7 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
             setDeletingId(reminderId);
             await api.delete(`/tickets/${ticketId}/reminders/${reminderId}`);
             toast.success('Pengingat berhasil dibatalkan');
+            setDeleteTarget(null);
             setReminders((prev) => prev.filter((r) => r.id !== reminderId));
             queryClient.invalidateQueries({ queryKey: ['ticket-reminders', ticketId] });
             if (onReminderCreated) {
@@ -206,274 +198,68 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
     const formatDisplayTime = (isoString: string) => {
         try {
             const d = new Date(isoString);
-            return format(d, 'EEEE, d MMM yyyy · HH:mm', { locale: idLocale }) + ' WIB';
+            return format(d, 'EEEE, d MMM yyyy Â· HH:mm', { locale: idLocale }) + ' WIB';
         } catch {
             return isoString;
         }
     };
 
-    return createPortal(
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 dark:bg-black/60 backdrop-blur-md animate-in fade-in duration-200"
-            onClick={(e) => {
-                if (e.target === e.currentTarget && !loading) {
-                    onClose();
-                }
-            }}
-        >
-            <div
-                className="w-full max-w-lg flex flex-col bg-white dark:bg-[#1c1c1e] border border-slate-200/80 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh]"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="ticket-reminder-title"
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* Header (Apple Sheet Style) */}
-                <div className="px-5 py-3.5 border-b border-slate-100 dark:border-white/10 flex items-center justify-between gap-3 bg-slate-50/50 dark:bg-white/[0.02]">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                            <Bell className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                                <h2 id="ticket-reminder-title" className="text-sm font-semibold text-slate-900 dark:text-white tracking-tight">
-                                    Atur Pengingat Tiket
-                                </h2>
-                                <span className="font-mono text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400">
-                                    #{ticketNumber || ticketId.slice(0, 8)}
-                                </span>
-                            </div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                                {ticketTitle || 'Ticket'}
-                            </p>
-                        </div>
+    return (
+        <TicketActionDialog open={isOpen} onClose={onClose} title="Atur pengingat" busy={loading}>
+            <form onSubmit={handleCreateReminder} className="ticket-action-inner ticket-action-simple">
+                <header className="ticket-action-header">
+                    <div><h2>Atur pengingat</h2><p>#{ticketNumber || ticketId.slice(0, 8)}</p></div>
+                    <Button variant="subtle" type="button" aria-label="Tutup" onClick={onClose} disabled={loading}><X /></Button>
+                </header>
+                <div className="ticket-action-body">
+                    <p className="ticket-action-current">{assignedAgent?.email
+                        ? `Penerima: ${toDisplayName(assignedAgent.fullName || 'Agent')}`
+                        : 'Penerima: agent aktif saat jadwal tiba (belum ditugaskan).'}</p>
+                    <div className="ticket-action-field">
+                        <label>Jadwal pengingat</label>
+                        <ModernDateTimePicker value={selectedDate} onChange={handleDateTimeChange} minDate={new Date()} disabled={loading} />
+                        <label htmlFor="reminder-preset" className="ticket-action-help">Pilihan cepat</label>
+                        <select id="reminder-preset" value={activePreset ?? ''} disabled={loading}
+                            onChange={event => { if (event.target.value) handleApplyPreset(event.target.value as PresetKey); }}>
+                            <option value="">Tanggal khusus</option>
+                            {PRESET_OPTIONS.map(preset => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+                        </select>
                     </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={loading}
-                        className="w-7 h-7 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
-                        title="Tutup"
-                    >
-                        <X className="w-4 h-4" />
-                    </button>
+                    <div className="ticket-action-field">
+                        <label htmlFor="ticket-reminder-note">Catatan <span>(opsional)</span></label>
+                        <textarea id="ticket-reminder-note" aria-label="Catatan pengingat" value={note} disabled={loading}
+                            onChange={event => { setNote(event.target.value.slice(0, 500)); setError(null); }}
+                            maxLength={500} rows={3} placeholder="Tambahkan catatan tindak lanjut…" />
+                    </div>
+                    {error && <p role="alert" className="ticket-action-help">{error}</p>}
+                    <section className="ticket-action-field">
+                        <h3>Pengingat terjadwal ({reminders.length})</h3>
+                        {fetchingReminders ? <p role="status">Memuat pengingat…</p> : reminders.length === 0
+                            ? <p className="ticket-action-help">Belum ada pengingat.</p>
+                            : <ul className="ticket-action-reminders">{reminders.map(reminder => <li key={reminder.id}>
+                                <div><strong>{formatDisplayTime(reminder.remindAt)}</strong>
+                                    <small>{reminder.isSent ? 'Terkirim' : 'Terjadwal'} · {toDisplayName(reminder.createdBy?.fullName || 'User')}</small>
+                                    {reminder.note && <p>{reminder.note}</p>}
+                                </div>
+                                {!reminder.isSent && <Button variant="subtle" type="button" aria-label="Batalkan pengingat"
+                                    disabled={deletingId !== null || loading} onClick={() => setDeleteTarget(reminder.id)}>
+                                    {deletingId === reminder.id ? <Loader2 className="animate-spin" /> : <Trash2 />}
+                                </Button>}
+                            </li>)}</ul>}
+                    </section>
                 </div>
-
-                {/* Form Wrapping Scrollable Body and Footer */}
-                <form onSubmit={handleCreateReminder} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                    {/* Scrollable Body */}
-                    <div className="flex-1 overflow-y-auto p-5 space-y-4 text-left custom-scrollbar">
-                        {/* 1. Subtle Agent Recipient Info */}
-                        {assignedAgent && assignedAgent.email ? (
-                            <div className="px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/5 flex items-center justify-between text-xs">
-                                <div className="flex items-center gap-2 min-w-0">
-                                    <div className="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                                        <UserCheck className="w-3.5 h-3.5" />
-                                    </div>
-                                    <div className="min-w-0 flex items-center gap-1.5">
-                                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Penerima:</span>
-                                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
-                                            {assignedAgent.fullName || 'Agent'}
-                                        </span>
-                                    </div>
-                                </div>
-                                <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400 truncate bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-md">
-                                    {assignedAgent.email}
-                                </span>
-                            </div>
-                        ) : (
-                            <div className="px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-center gap-2">
-                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                                <p className="text-[11px] leading-tight">
-                                    Belum ada agent ter-assign. Email pengingat otomatis dikirim ke agent aktif saat jadwal tiba.
-                                </p>
-                            </div>
-                        )}
-
-                        {/* 2. Jadwal Pengingat */}
-                        <div className="space-y-2.5">
-                            <div className="flex items-center justify-between">
-                                <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
-                                    <Calendar className="w-3.5 h-3.5 text-primary" />
-                                    Jadwal Pengingat
-                                </label>
-                                <span className="text-[10px] text-slate-400">WIB</span>
-                            </div>
-
-                            {/* Apple Segmented Capsule Bar */}
-                            <div className="p-1 bg-slate-100/90 dark:bg-white/5 rounded-2xl grid grid-cols-4 gap-1 border border-slate-200/60 dark:border-white/5">
-                                {PRESET_OPTIONS.map((preset) => (
-                                    <button
-                                        key={preset.id}
-                                        type="button"
-                                        onClick={() => handleApplyPreset(preset.id)}
-                                        className={cn(
-                                            "py-1.5 px-2 text-center text-xs font-medium rounded-xl transition-all cursor-pointer whitespace-nowrap active:scale-[0.97]",
-                                            activePreset === preset.id
-                                                ? "bg-white dark:bg-[#2c2c2e] text-slate-900 dark:text-white shadow-xs font-semibold"
-                                                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/40 dark:hover:bg-white/5"
-                                        )}
-                                    >
-                                        {preset.label}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* Modern Date & Time Picker */}
-                            <ModernDateTimePicker
-                                value={selectedDate}
-                                onChange={handleDateTimeChange}
-                                minDate={new Date()}
-                                placeholder="Pilih Tanggal & Waktu Pengingat"
-                            />
-
-                            {/* Target Summary Row */}
-                            <div className="px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/5 flex items-center justify-between text-xs">
-                                <div className="flex items-center gap-2 min-w-0">
-                                    <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
-                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Jadwal Kirim:</span>
-                                    <span className="font-semibold text-primary truncate">
-                                        {format(selectedDate, 'EEEE, d MMM yyyy · HH:mm', { locale: idLocale })} WIB
-                                    </span>
-                                </div>
-                                <span className="text-[10px] font-mono text-primary bg-primary/10 px-2 py-0.5 rounded-full shrink-0">
-                                    {formatDistanceToNow(selectedDate, { addSuffix: true, locale: idLocale })}
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* 3. Catatan / Memo */}
-                        <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                                <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                                    Catatan / Memo <span className="text-slate-400 font-normal normal-case">(opsional)</span>
-                                </label>
-                                <span className="text-[10px] font-mono text-slate-400">{note.length} / 500</span>
-                            </div>
-                            <textarea
-                                value={note}
-                                onChange={(e) => {
-                                    setNote(e.target.value.slice(0, 500));
-                                    if (error) setError(null);
-                                }}
-                                maxLength={500}
-                                rows={2}
-                                placeholder="Tuliskan catatan tindak lanjut yang akan disertakan dalam email..."
-                                className="w-full px-3 py-2 rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.03] text-slate-900 dark:text-white text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none leading-relaxed"
-                            />
-                        </div>
-
-                        {error && (
-                            <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-2 animate-in fade-in duration-200">
-                                <AlertCircle className="w-4 h-4 shrink-0" />
-                                <span>{error}</span>
-                            </div>
-                        )}
-
-                        {/* 4. Active / Scheduled Reminders List */}
-                        <div className="pt-3 border-t border-slate-100 dark:border-white/10 space-y-2">
-                            <div className="flex items-center justify-between">
-                                <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
-                                    <Clock className="w-3.5 h-3.5 text-primary" />
-                                    <span>Pengingat Terjadwal ({reminders.length})</span>
-                                </label>
-                                {fetchingReminders && <Loader2 className="w-3 h-3 animate-spin text-slate-400" />}
-                            </div>
-
-                            {reminders.length === 0 && !fetchingReminders ? (
-                                <p className="text-[11px] text-slate-400 dark:text-slate-500 italic">
-                                    Belum ada pengingat lain yang aktif untuk tiket ini.
-                                </p>
-                            ) : (
-                                <div className="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-0.5">
-                                    {reminders.map((r) => {
-                                        const reminderDate = new Date(r.remindAt);
-                                        return (
-                                            <div
-                                                key={r.id}
-                                                className="px-3 py-2 rounded-xl border border-slate-200/70 dark:border-white/5 bg-slate-50/60 dark:bg-white/[0.02] flex items-center justify-between gap-2.5 text-xs"
-                                            >
-                                                <div className="min-w-0 flex-1 space-y-0.5">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                                            {formatDisplayTime(r.remindAt)}
-                                                        </span>
-                                                        {r.isSent ? (
-                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                                                                <CheckCircle2 className="w-3 h-3" /> Terkirim
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-primary/10 text-primary">
-                                                                <Clock className="w-3 h-3" /> Terjadwal
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    {r.note && (
-                                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                                                            "{r.note}"
-                                                        </p>
-                                                    )}
-                                                    <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
-                                                        <span>Oleh: {r.createdBy?.fullName || 'User'}</span>
-                                                        <span>•</span>
-                                                        <span>{formatDistanceToNow(reminderDate, { addSuffix: true, locale: idLocale })}</span>
-                                                    </div>
-                                                </div>
-
-                                                {!r.isSent && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleDeleteReminder(r.id)}
-                                                        disabled={deletingId === r.id}
-                                                        className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50"
-                                                        title="Batalkan pengingat"
-                                                    >
-                                                        {deletingId === r.id ? (
-                                                            <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500" />
-                                                        ) : (
-                                                            <Trash2 className="w-3.5 h-3.5" />
-                                                        )}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Footer Actions */}
-                    <div className="px-5 py-3 border-t border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02] flex items-center justify-between gap-2.5">
-                        <p className="text-[11px] text-slate-400 truncate hidden sm:block">
-                            Otomatis dikirim via Email & Notifikasi
-                        </p>
-                        <div className="flex items-center gap-2 ml-auto">
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                disabled={loading}
-                                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
-                            >
-                                Tutup
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={loading || !isRemindDateValid}
-                                className="px-4 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-xs cursor-pointer active:scale-[0.98] inline-flex items-center gap-1.5 disabled:opacity-50"
-                            >
-                                {loading ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                    <Send className="w-3.5 h-3.5" />
-                                )}
-                                <span>Jadwalkan Pengingat</span>
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>,
-        document.body
+                <footer className="ticket-action-footer"><div>
+                    <Button variant="soft" type="button" onClick={onClose} disabled={loading}>Tutup</Button>
+                    <Button variant="primary" className="ticket-action-reminder" aria-busy={loading} type="submit" disabled={loading || !isRemindDateValid}>
+                        {loading && <Loader2 className="animate-spin" />}Jadwalkan pengingat
+                    </Button>
+                </div></footer>
+            </form>
+            <ConfirmationDialog appearance="ticket" isOpen={Boolean(deleteTarget)} title="Batalkan pengingat?"
+                description="Pengingat ini tidak akan dikirim. Pengingat lainnya tetap aktif."
+                confirmText="Batalkan pengingat" cancelText="Kembali" variant="destructive"
+                isLoading={deletingId !== null} onCancel={() => setDeleteTarget(null)}
+                onConfirm={() => { if (deleteTarget) void handleDeleteReminder(deleteTarget); }} />
+        </TicketActionDialog>
     );
 };

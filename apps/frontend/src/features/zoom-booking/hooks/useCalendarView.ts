@@ -75,7 +75,8 @@ export function useCalendarView(): CalendarViewState {
         readInitialScope(searchParams),
     );
 
-    const view = (searchParams.get('view') as CalendarView) || 'month';
+    // Mockup zoom.html opens on the week view (Minggu).
+    const view = (searchParams.get('view') as CalendarView) || 'week';
     const currentDate = parseDateParam(searchParams.get('date'));
 
     const updateParams = useCallback((newView: CalendarView, newDate: Date) => {

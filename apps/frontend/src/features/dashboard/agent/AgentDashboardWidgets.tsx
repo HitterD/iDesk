@@ -1,222 +1,120 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Award, CalendarClock, CheckCircle2, ChevronRight, PartyPopper, Star, Wrench } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import {
+    Award, CalendarClock, ChevronRight, CircleCheck, Gauge, Inbox, Pause, PartyPopper, Star, Timer, TriangleAlert, Wrench,
+} from 'lucide-react';
 import { PRIORITY_CONFIG, STATUS_CONFIG } from '@/lib/constants/ticket.constants';
-import { formatDuration, formatSlaRelative, formatWibDateTime } from './agentDashboard.format';
+import { formatDuration, formatSlaCompact, formatWibDateTime } from './agentDashboard.format';
 import type { AgentDashboardData, AgentTicketStats, InstallItem } from './agentDashboard.types';
+import {
+    cssVars, DASH_COLORS, DashBub, DashEmpty, DashMetric, DashMore, DashPanel, DashSkeletonList, DashStat, PRIORITY_DOT,
+} from '../components/DashboardParts';
 
-const SLA_GOOD_PERCENT = 90;
-const SLA_WARN_PERCENT = 70;
-const RING_SIZE_PX = 64;
-const RING_STROKE_PX = 7;
 const ATTENTION_LIMIT = 6;
 
-/** Soft, borderless surface (Apple-style); a hairline ring keeps it visible in dark mode. */
-export const SURFACE = 'bg-card rounded-3xl shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.10)] ring-1 ring-black/[0.03] dark:ring-white/[0.06]';
-export const SECTION_TITLE = 'text-[17px] font-semibold text-foreground tracking-tight';
-const EYEBROW = 'text-[13px] font-medium text-muted-foreground';
-const BIG_NUMBER = 'text-[34px] leading-none font-semibold tracking-tight tabular-nums';
 
-export const EmptyNote: React.FC<{ icon?: React.ReactNode; children: React.ReactNode }> = ({ icon, children }) => (
-    <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-        {icon}
-        <p className="text-sm text-muted-foreground max-w-xs">{children}</p>
-    </div>
-);
-
-const slaTone = (sla: number | null) =>
-    sla === null ? 'text-muted-foreground/30' : sla >= SLA_GOOD_PERCENT ? 'text-emerald-500' : sla >= SLA_WARN_PERCENT ? 'text-amber-500' : 'text-rose-500';
-
-const SlaRing: React.FC<{ value: number | null }> = ({ value }) => {
-    const r = (RING_SIZE_PX - RING_STROKE_PX) / 2;
-    const circumference = 2 * Math.PI * r;
-    const offset = circumference * (1 - (value ?? 0) / 100);
+/** Four stat cards: active, overdue, resolved, SLA (mockup `.stats.four`). */
+export const SummaryTiles: React.FC<{ stats: AgentTicketStats; ticketsHref?: string }> = ({ stats, ticketsHref }) => {
+    const activeParts = [`${stats.todo} open`, `${stats.inProgress} dikerjakan`];
+    if (stats.waitingVendor > 0) activeParts.push(`${stats.waitingVendor} tunggu vendor`);
     return (
-        <svg width={RING_SIZE_PX} height={RING_SIZE_PX} className="-rotate-90 shrink-0" aria-hidden="true">
-            <circle cx="50%" cy="50%" r={r} fill="none" strokeWidth={RING_STROKE_PX} className="stroke-muted" />
-            <circle
-                cx="50%" cy="50%" r={r} fill="none" strokeWidth={RING_STROKE_PX} strokeLinecap="round"
-                stroke="currentColor" strokeDasharray={circumference} strokeDashoffset={offset}
-                className={cn('transition-[stroke-dashoffset] duration-700', slaTone(value))}
-            />
-        </svg>
+        <section className="dash-stats is-four" aria-label="Ringkasan">
+            <DashStat icon={Inbox} tone="blue" label="Tiket aktif" value={stats.active} zero={stats.active === 0} sub={activeParts.join(' · ')} to={ticketsHref} />
+            <DashStat icon={TriangleAlert} tone="red" label="Lewat SLA" value={stats.overdue} attention={stats.overdue > 0} zero={stats.overdue === 0}
+                sub={stats.overdue > 0 ? 'Segera tindak lanjuti' : 'Semua tiket masih tepat waktu'} to={ticketsHref} />
+            <DashStat icon={CircleCheck} tone="green" label="Selesai hari ini" value={stats.resolvedToday} zero={stats.resolvedToday === 0}
+                sub={`${stats.resolvedThisWeek} minggu ini · ${stats.resolvedThisMonth} bulan ini`} to={ticketsHref} />
+            <DashStat icon={Gauge} tone="navy" label="Kepatuhan SLA" value={stats.slaCompliance === null ? '—' : `${stats.slaCompliance}%`}
+                zero={stats.slaCompliance === null}
+                sub={stats.slaCompliance === null ? 'Belum ada tiket selesai untuk dihitung' : `${stats.periodDays} hari terakhir`} />
+        </section>
     );
 };
 
-const Tile: React.FC<{ label: string; children: React.ReactNode; className?: string }> = ({ label, children, className }) => (
-    <div className={cn(SURFACE, 'p-5 flex flex-col gap-3 min-h-[132px]', className)}>
-        <p className={EYEBROW}>{label}</p>
-        {children}
-    </div>
-);
-
-const Chip: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <span className="text-xs text-muted-foreground bg-foreground/[0.06] rounded-full px-2 py-0.5 tabular-nums">{children}</span>
-);
-
-/** Four summary tiles: active, overdue, resolved, SLA. */
-export const SummaryTiles: React.FC<{ stats: AgentTicketStats }> = ({ stats }) => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Tile label="Tiket aktif">
-            <p className={cn(BIG_NUMBER, 'text-foreground')}>{stats.active}</p>
-            <div className="flex flex-wrap gap-1.5">
-                <Chip>{stats.todo} open</Chip>
-                <Chip>{stats.inProgress} dikerjakan</Chip>
-                {stats.waitingVendor > 0 && <Chip>{stats.waitingVendor} tunggu vendor</Chip>}
-            </div>
-        </Tile>
-        <Tile
-            label="Lewat SLA"
-            className={stats.overdue > 0 ? 'bg-rose-50 dark:bg-rose-500/10' : 'bg-emerald-50 dark:bg-emerald-500/10'}
-        >
-            <p className={cn(BIG_NUMBER, stats.overdue > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400')}>
-                {stats.overdue}
-            </p>
-            <p className="text-xs text-muted-foreground">
-                {stats.overdue > 0 ? 'Segera tindak lanjuti tiket ini' : 'Semua tiket masih tepat waktu'}
-            </p>
-        </Tile>
-        <Tile label="Selesai hari ini">
-            <p className={cn(BIG_NUMBER, 'text-foreground')}>{stats.resolvedToday}</p>
-            <p className="text-xs text-muted-foreground tabular-nums">
-                {stats.resolvedThisWeek} minggu ini · {stats.resolvedThisMonth} bulan ini
-            </p>
-        </Tile>
-        <Tile label={`Kepatuhan SLA · ${stats.periodDays} hari`}>
-            <div className="flex items-center gap-4">
-                <SlaRing value={stats.slaCompliance} />
-                {stats.slaCompliance === null ? (
-                    <p className="text-xs text-muted-foreground">Belum ada tiket selesai untuk dihitung</p>
-                ) : (
-                    <p className={cn(BIG_NUMBER, 'text-foreground')}>{stats.slaCompliance}<span className="text-xl">%</span></p>
-                )}
-            </div>
-        </Tile>
-    </div>
-);
-
-const SlaBadge: React.FC<{ slaTarget: string | null }> = ({ slaTarget }) => {
-    if (!slaTarget) return <span className="text-xs text-muted-foreground">Tanpa SLA</span>;
-    const { text, overdue } = formatSlaRelative(slaTarget);
-    return (
-        <span
-            title={`Target SLA ${formatWibDateTime(slaTarget)} WIB`}
-            className={cn(
-                'text-xs font-medium whitespace-nowrap rounded-full px-2.5 py-1 tabular-nums',
-                overdue ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300' : 'bg-foreground/[0.06] text-muted-foreground',
-            )}
-        >{text}</span>
-    );
+/** Mockup attention SLA bubble: red overdue, orange paused (waiting vendor), blue countdown. */
+const SlaBub: React.FC<{ ticket: AgentTicketStats['activeTickets'][number] }> = ({ ticket }) => {
+    if (ticket.status === 'WAITING_VENDOR') return <DashBub color={DASH_COLORS.orange} ink={DASH_COLORS.inkOrange} icon={Pause}>Dijeda</DashBub>;
+    if (!ticket.slaTarget) return <DashBub color={DASH_COLORS.gray}>Tanpa SLA</DashBub>;
+    // The target time decides: a stale/extended `isOverdue` flag must not paint "Sisa …" red.
+    const { text, overdue } = formatSlaCompact(ticket.slaTarget);
+    const title = `Target SLA ${formatWibDateTime(ticket.slaTarget)} WIB`;
+    return overdue
+        ? <DashBub color={DASH_COLORS.red} ink={DASH_COLORS.inkRed} icon={TriangleAlert} title={title}>{text}</DashBub>
+        : <DashBub color={DASH_COLORS.blue} icon={Timer} mono title={title}>{text}</DashBub>;
 };
 
 /** Active tickets, nearest SLA first: what to work on next. */
-export const AttentionList: React.FC<{ stats: AgentTicketStats; viewAllHref?: string }> = ({ stats, viewAllHref }) => {
+export const AttentionList: React.FC<{ stats: AgentTicketStats; viewAllHref?: string; isRefreshing?: boolean }> = ({ stats, viewAllHref, isRefreshing }) => {
     const tickets = stats.activeTickets.slice(0, ATTENTION_LIMIT);
     return (
-        <section className={cn(SURFACE, 'p-5 md:p-6')} aria-label="Perlu perhatian">
-            <div className="flex items-center justify-between mb-2">
-                <h2 className={SECTION_TITLE}>Perlu perhatian</h2>
-                {viewAllHref && stats.active > 0 && (
-                    <Link to={viewAllHref} className="text-sm font-medium text-primary hover:underline flex items-center gap-0.5">
-                        Lihat semua <ChevronRight className="w-4 h-4" />
-                    </Link>
-                )}
-            </div>
-            {tickets.length === 0 ? (
-                <EmptyNote icon={<PartyPopper className="w-8 h-8 text-emerald-500" />}>Tidak ada tiket aktif. Semua beres!</EmptyNote>
+        <DashPanel title={<>Perlu perhatian {viewAllHref && stats.active > 0 && <DashMore to={viewAllHref}>Lihat semua</DashMore>}</>} label="Perlu perhatian">
+            {isRefreshing ? <DashSkeletonList rows={Math.max(tickets.length, 1)} /> : tickets.length === 0 ? (
+                <DashEmpty icon={<PartyPopper aria-hidden="true" />}>Tidak ada tiket aktif. Semua beres!</DashEmpty>
             ) : (
-                <ul className="divide-y divide-border/50">
+                <ul className="dash-list dash-attn">
                     {tickets.map((t) => (
                         <li key={t.id}>
-                            <Link to={`/tickets/${t.id}`} className="group flex items-center gap-3 py-3 -mx-2 px-2 rounded-xl hover:bg-muted/50 transition-colors">
-                                <span className={cn('w-2 h-2 rounded-full shrink-0', PRIORITY_CONFIG[t.priority]?.dot ?? 'bg-slate-400')} title={PRIORITY_CONFIG[t.priority]?.label} />
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-medium text-foreground truncate">{t.title}</p>
-                                    <p className="text-xs text-muted-foreground truncate">
-                                        {t.ticketNumber ?? '-'} · {STATUS_CONFIG[t.status]?.label ?? t.status}
-                                    </p>
+                            <Link to={`/tickets/${t.id}`} className="dash-li">
+                                <span className="dash-pdot" style={cssVars({ '--c': PRIORITY_DOT[t.priority] ?? DASH_COLORS.gray })} title={PRIORITY_CONFIG[t.priority]?.label ?? 'Prioritas'} />
+                                <div className="grow1">
+                                    <b>{t.title}</b>
+                                    <small className="mono">#{t.ticketNumber ?? '-'} · {STATUS_CONFIG[t.status]?.label ?? t.status}</small>
                                 </div>
-                                <SlaBadge slaTarget={t.slaTarget} />
-                                <ChevronRight className="w-4 h-4 text-muted-foreground/50 group-hover:text-muted-foreground shrink-0" />
+                                <SlaBub ticket={t} />
+                                <ChevronRight aria-hidden="true" />
                             </Link>
                         </li>
                     ))}
                 </ul>
             )}
-        </section>
+        </DashPanel>
     );
 };
 
-const MetricRow: React.FC<{ icon: React.ReactNode; label: string; value: React.ReactNode; hint?: string }> = ({ icon, label, value, hint }) => (
-    <div className="flex items-center gap-3 py-3">
-        <span className="w-9 h-9 rounded-xl bg-foreground/[0.06] flex items-center justify-center text-muted-foreground shrink-0">{icon}</span>
-        <div className="flex-1 min-w-0">
-            <p className="text-sm text-foreground">{label}</p>
-            {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-        </div>
-        <span className="text-lg font-semibold text-foreground tabular-nums">{value}</span>
-    </div>
-);
-
-/** Period performance: resolve time, total resolved, appraisal (+ rating when viewing someone else). */
+/** Period performance: total resolved, resolve time, appraisal (+ rating when viewing someone else). */
 export const PerformanceCard: React.FC<{ data: AgentDashboardData; showRating: boolean }> = ({ data, showRating }) => {
     const { stats } = data;
     return (
-        <section className={cn(SURFACE, 'p-5 md:p-6')} aria-label={showRating ? 'Rating & Appraisal' : 'Performa'}>
-            <h2 className={SECTION_TITLE}>Performa {stats.periodDays} hari</h2>
-            <div className="divide-y divide-border/50 mt-1">
-                <MetricRow
-                    icon={<CheckCircle2 className="w-4 h-4" />}
-                    label="Total selesai"
-                    value={stats.resolvedInPeriod}
-                />
-                <MetricRow
-                    icon={<CalendarClock className="w-4 h-4" />}
-                    label="Rata-rata penyelesaian"
-                    value={stats.avgResolveMinutes === null ? '—' : formatDuration(stats.avgResolveMinutes)}
-                    hint={stats.avgResolveMinutes === null ? 'Belum ada tiket selesai' : undefined}
-                />
-                <MetricRow icon={<Award className="w-4 h-4" />} label="Poin appraisal" value={data.agent.appraisalPoints} />
-                {showRating && (
-                    <MetricRow
-                        icon={<Star className="w-4 h-4 fill-amber-400 text-amber-400" />}
-                        label="Rating"
-                        value={data.rating.average?.toFixed(1) ?? '—'}
-                        hint={data.rating.count > 0 ? `dari ${data.rating.count} penilaian` : 'Belum ada penilaian'}
-                    />
-                )}
-            </div>
-        </section>
+        <DashPanel title={`Performa ${stats.periodDays} hari`} label={showRating ? 'Rating & Appraisal' : 'Performa'}>
+            <DashMetric icon={CircleCheck} color={DASH_COLORS.green} label="Total selesai" value={stats.resolvedInPeriod} />
+            <DashMetric icon={CalendarClock} color={DASH_COLORS.blue} label="Rata-rata penyelesaian"
+                value={stats.avgResolveMinutes === null ? '—' : formatDuration(stats.avgResolveMinutes)}
+                hint={stats.avgResolveMinutes === null ? 'Belum ada tiket selesai' : undefined} />
+            <DashMetric icon={Award} color={DASH_COLORS.orange} label="Poin appraisal" value={data.agent.appraisalPoints} />
+            {showRating && (
+                <DashMetric icon={Star} color={DASH_COLORS.orange} label="Rating"
+                    value={data.rating.average?.toFixed(1) ?? '—'}
+                    hint={data.rating.count > 0 ? `dari ${data.rating.count} penilaian` : 'Belum ada penilaian'} />
+            )}
+        </DashPanel>
     );
 };
 
-const InstallRow: React.FC<{ item: InstallItem }> = ({ item }) => (
-    <li>
-        <Link to={`/tickets/${item.id}`} className="flex items-center gap-3 py-2.5 -mx-2 px-2 rounded-xl hover:bg-muted/50">
-            <span className={cn(
-                'text-[11px] font-semibold px-2 py-0.5 rounded-full',
-                item.day === 'today' ? 'bg-primary/10 text-primary' : 'bg-foreground/[0.06] text-muted-foreground',
-            )}>{item.day === 'today' ? 'Hari ini' : 'Besok'}</span>
-            <span className="text-sm text-foreground truncate flex-1">{item.title}</span>
-            <span className="text-xs text-muted-foreground tabular-nums">{item.scheduledTime ?? '—'}</span>
-        </Link>
-    </li>
-);
+const InstallRow: React.FC<{ item: InstallItem }> = ({ item }) => {
+    const today = item.day === 'today';
+    return (
+        <li>
+            <Link to={`/tickets/${item.id}`} className="dash-li">
+                <DashBub className="is-when" color={today ? DASH_COLORS.accent : DASH_COLORS.gray} ink={today ? DASH_COLORS.accent : 'hsl(var(--idesk-text-secondary))'}>
+                    {today ? 'Hari ini' : 'Besok'}
+                </DashBub>
+                <div className="grow1"><b>{item.title}</b></div>
+                <span className="dash-date">{item.scheduledTime ?? '—'}</span>
+            </Link>
+        </li>
+    );
+};
 
 export const SupportCard: React.FC<{ support: NonNullable<AgentDashboardData['support']> }> = ({ support }) => (
-    <section className={cn(SURFACE, 'p-5 md:p-6')} aria-label="Workload & Instalasi">
-        <h2 className={SECTION_TITLE}>Workload & Instalasi</h2>
-        <MetricRow icon={<Wrench className="w-4 h-4" />} label="Poin workload hari ini" value={support.workloadPointsToday} />
-        <p className={cn(EYEBROW, 'mt-2')}>Jadwal instalasi hari ini & besok</p>
+    <DashPanel title="Workload & Instalasi">
+        <DashMetric icon={Wrench} color={DASH_COLORS.navy} label="Poin workload hari ini" value={support.workloadPointsToday} />
+        <p className="dash-sub-head">Jadwal instalasi hari ini &amp; besok</p>
         {support.installs.length === 0 ? (
-            <EmptyNote>Tidak ada jadwal instalasi.</EmptyNote>
+            <DashEmpty>Tidak ada jadwal instalasi.</DashEmpty>
         ) : (
-            <ul className="divide-y divide-border/50 mt-1">
-                {support.installs.map((i) => <InstallRow key={i.id} item={i} />)}
-            </ul>
+            <ul className="dash-list">{support.installs.map((i) => <InstallRow key={i.id} item={i} />)}</ul>
         )}
-    </section>
+    </DashPanel>
 );
 
 const AGING_BUCKETS: { key: keyof AgentTicketStats['aging']; label: string }[] = [
@@ -226,45 +124,48 @@ const AGING_BUCKETS: { key: keyof AgentTicketStats['aging']; label: string }[] =
     { key: 'gt14', label: '> 14 hari' },
 ];
 
-const BarRow: React.FC<{ label: string; count: number; max: number; className?: string }> = ({ label, count, max, className }) => (
-    <div className="flex items-center gap-3">
-        <span className="text-xs text-muted-foreground w-24 truncate" title={label}>{label}</span>
-        <div className="flex-1 bg-muted h-1.5 rounded-full overflow-hidden">
-            <div className={cn('h-full rounded-full', className ?? 'bg-primary')} style={{ width: `${max ? (count / max) * 100 : 0}%` }} />
-        </div>
-        <span className="text-xs font-semibold text-foreground w-6 text-right tabular-nums">{count}</span>
+/** Status bar colours: sky Open, navy In Progress (round-2 status inks). */
+const STATUS_BAR: Readonly<Record<string, string>> = {
+    TODO: DASH_COLORS.sky, IN_PROGRESS: DASH_COLORS.navy, WAITING_VENDOR: DASH_COLORS.orange, RESOLVED: DASH_COLORS.green, CLOSED: DASH_COLORS.gray,
+};
+
+const BarRow: React.FC<{ label: string; count: number; max: number; color?: string }> = ({ label, count, max, color }) => (
+    <div className="dash-hb" title={`${label}: ${count}`}>
+        <span>{label}</span>
+        <span className="dash-track"><i style={cssVars({ '--p': `${max ? (count / max) * 100 : 0}%`, '--c': color ?? DASH_COLORS.accent })} /></span>
+        <b>{count}</b>
     </div>
 );
 
 const BreakdownColumn: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-    <div className="flex flex-col gap-2.5">
-        <h3 className="text-sm font-semibold text-foreground mb-1">{title}</h3>
-        {children}
-    </div>
+    <div><h4>{title}</h4><div className="dash-hbars">{children}</div></div>
 );
 
+/** Dev agents only: status / module / age of the active tickets (not in the mockup; kept in its grid style). */
 export const DevBreakdownCard: React.FC<{ stats: AgentTicketStats }> = ({ stats }) => {
     const statusRows = Object.entries(stats.byStatus);
     const maxStatus = Math.max(0, ...statusRows.map(([, n]) => n));
     const maxCategory = Math.max(0, ...stats.byCategory.map((c) => c.count));
     const maxAging = Math.max(0, ...AGING_BUCKETS.map((b) => stats.aging[b.key]));
     return (
-        <section className={cn(SURFACE, 'p-5 md:p-6 grid grid-cols-1 md:grid-cols-3 gap-6')} aria-label="Rincian tiket">
-            <BreakdownColumn title="Per status">
-                {statusRows.length === 0 ? <EmptyNote>Belum ada tiket.</EmptyNote> : statusRows.map(([status, n]) => (
-                    <BarRow key={status} label={STATUS_CONFIG[status]?.label ?? status} count={n} max={maxStatus} className={STATUS_CONFIG[status]?.columnColor} />
-                ))}
-            </BreakdownColumn>
-            <BreakdownColumn title="Per modul">
-                {stats.byCategory.length === 0 ? <EmptyNote>Belum ada tiket.</EmptyNote> : stats.byCategory.map((c) => (
-                    <BarRow key={c.category} label={c.category} count={c.count} max={maxCategory} />
-                ))}
-            </BreakdownColumn>
-            <BreakdownColumn title="Umur Tiket Aktif">
-                {AGING_BUCKETS.map((b) => (
-                    <BarRow key={b.key} label={b.label} count={stats.aging[b.key]} max={maxAging} className={b.key === 'gt14' ? 'bg-rose-500' : undefined} />
-                ))}
-            </BreakdownColumn>
-        </section>
+        <DashPanel title="Rincian tiket">
+            <div className="dash-breakdown">
+                <BreakdownColumn title="Per status">
+                    {statusRows.length === 0 ? <DashEmpty>Belum ada tiket.</DashEmpty> : statusRows.map(([status, n]) => (
+                        <BarRow key={status} label={STATUS_CONFIG[status]?.label ?? status} count={n} max={maxStatus} color={STATUS_BAR[status]} />
+                    ))}
+                </BreakdownColumn>
+                <BreakdownColumn title="Per modul">
+                    {stats.byCategory.length === 0 ? <DashEmpty>Belum ada tiket.</DashEmpty> : stats.byCategory.map((c) => (
+                        <BarRow key={c.category} label={c.category} count={c.count} max={maxCategory} />
+                    ))}
+                </BreakdownColumn>
+                <BreakdownColumn title="Umur Tiket Aktif">
+                    {AGING_BUCKETS.map((b) => (
+                        <BarRow key={b.key} label={b.label} count={stats.aging[b.key]} max={maxAging} color={b.key === 'gt14' ? DASH_COLORS.red : undefined} />
+                    ))}
+                </BreakdownColumn>
+            </div>
+        </DashPanel>
     );
 };

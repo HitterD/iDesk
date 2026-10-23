@@ -3,7 +3,7 @@ import { BrowserRouter as Router } from 'react-router-dom';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { Toaster } from 'sonner';
 import { ScreenReaderProvider } from './components/ui/ScreenReaderAnnounce';
-import { LazyMotion } from 'framer-motion';
+import { LazyMotion, MotionConfig } from 'framer-motion';
 import { queryClient } from './lib/queryClient';
 import AppRoutes from './routes/AppRoutes';
 import { useReloadOnAppUpdate } from './hooks/useReloadOnAppUpdate';
@@ -21,6 +21,8 @@ function App() {
         <QueryClientProvider client={queryClient}>
             <ScreenReaderProvider>
                 <LazyMotion features={loadFramerFeatures}>
+                    {/* Framer motion honours prefers-reduced-motion like the CSS tokens do. */}
+                    <MotionConfig reducedMotion="user">
                     <Router>
                         <AppUpdateWatcher />
                         <ErrorBoundary>
@@ -28,6 +30,7 @@ function App() {
                             <AppRoutes />
                         </ErrorBoundary>
                     </Router>
+                    </MotionConfig>
                 </LazyMotion>
             </ScreenReaderProvider>
         </QueryClientProvider>

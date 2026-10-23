@@ -1,8 +1,8 @@
-import React from 'react';
-import { Lock } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Lock, Reply, SmilePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
-import { MessageReactions } from '@/components/ui/ChatReactions';
+import { MessageReactions, ReactionPicker, type Reaction } from '@/components/ui/ChatReactions';
 import { MessageAttachments } from './MessageAttachments';
 import { MessageActionMenu } from './MessageActionMenu';
 import { QuoteSnippet } from './QuoteBlock';
@@ -11,17 +11,21 @@ import { formatMessageTime, parseQuote, PHOTO_ONLY_PATTERN, toDisplayName } from
 import type { TicketDetail } from './types';
 
 type ChatMessage = NonNullable<TicketDetail['messages']>[number];
-type Reaction = { emoji: string; count: number; users: string[]; hasReacted: boolean };
 
 interface MessageBubbleProps {
     message: ChatMessage;
     isOwn: boolean;
+    /** Sits on the viewer's side (right): staff messages for agents, own messages for requesters. */
+    isOutgoing: boolean;
     isSticker: boolean;
-    /** First bubble of a run from one sender: shows the name. */
+    /** First bubble of a run from one sender: shows the avatar and name. */
     isGroupStart: boolean;
-    /** Last bubble of a run: shows the avatar and the bubble tail. */
     isGroupEnd: boolean;
     isHighlighted: boolean;
+    /** Small badge after the name, e.g. "Pemohon" (agent view) or "IT Support" (requester view). */
+    roleLabel?: string;
+    /** Name shown for the viewer's own messages (requester view: "Anda"). */
+    ownLabel?: string;
     reactions: Reaction[];
     onAddReaction: (emoji: string) => void;
     onRemoveReaction: (emoji: string) => void;
@@ -31,15 +35,57 @@ interface MessageBubbleProps {
     onPdfClick: (url: string, filename: string) => void;
 }
 
-const AVATAR_SLOT = 'w-8 shrink-0';
+/** Touch: press and hold a bubble to reveal its tool pill (mockup ticket-chat.js LONG_PRESS_MS). */
+const LONG_PRESS_MS = 450;
+
+const useLongPress = () => {
+    const [open, setOpen] = useState(false);
+    /** A touch press is in progress: suppress the native callout / text selection meanwhile. */
+    const [pressing, setPressing] = useState(false);
+    const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const rowRef = useRef<HTMLDivElement>(null);
+    const clear = () => { if (timer.current) clearTimeout(timer.current); };
+    const release = () => { clear(); setPressing(false); };
+
+    useEffect(() => {
+        if (!open) return undefined;
+        const close = (event: PointerEvent) => {
+            if (!rowRef.current?.contains(event.target as Node)) setOpen(false);
+        };
+        document.addEventListener('pointerdown', close);
+        return () => document.removeEventListener('pointerdown', close);
+    }, [open]);
+    useEffect(() => clear, []);
+
+    return {
+        open,
+        pressing,
+        rowRef,
+        bind: {
+            onPointerDown: (event: React.PointerEvent) => {
+                if (event.pointerType !== 'touch') return;
+                clear();
+                setPressing(true);
+                timer.current = setTimeout(() => setOpen(true), LONG_PRESS_MS);
+            },
+            onPointerUp: release,
+            onPointerCancel: release,
+            onPointerMove: release,
+            // Android fires contextmenu on long-press; only swallow it while our own press is active.
+            onContextMenu: (event: React.MouseEvent) => { if (pressing) event.preventDefault(); },
+        },
+    };
+};
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
     message,
     isOwn,
+    isOutgoing,
     isSticker,
     isGroupStart,
-    isGroupEnd,
     isHighlighted,
+    roleLabel,
+    ownLabel,
     reactions,
     onAddReaction,
     onRemoveReaction,
@@ -52,80 +98,65 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     const quote = parseQuote(message.content);
     const text = quote ? quote.body : message.content;
     const showText = Boolean(text) && !PHOTO_ONLY_PATTERN.test(text.trim());
-    const hasAttachments = (message.attachments?.length ?? 0) > 0;
     // Attachment-only bubbles stay neutral so file cards read the same for both sides.
-    const onAccent = isOwn && !isInternal && showText;
+    const onAccent = isOutgoing && !isInternal && showText;
     const time = formatMessageTime(message.createdAt);
-    const hasReactions = reactions.length > 0;
-    const reactionProps = {
-        reactions,
-        onAddReaction,
-        onRemoveReaction,
-        align: isOwn ? 'right' as const : 'left' as const,
-        addButtonClassName: 'opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity',
-    };
+    const name = isOwn && ownLabel ? ownLabel : toDisplayName(message.sender?.fullName);
+    const press = useLongPress();
+    const menuAlign = isOutgoing ? 'end' : 'start';
+
+    const who = [
+        isGroupStart && <b key="name">{name}</b>,
+        isGroupStart && roleLabel && <span key="role" className="chat-role">{roleLabel}</span>,
+        isInternal && <span key="lock" className="chat-lock"><Lock aria-hidden="true" />Internal</span>,
+        <time key="time" dateTime={message.createdAt} title={formatDateTimeID(message.createdAt)}>{time}</time>,
+    ].filter(Boolean);
 
     return (
         <div
+            ref={press.rowRef}
             data-message-id={message.id}
+            data-direction={isOutgoing ? 'out' : 'in'}
             className={cn(
-                'group flex items-end gap-2 rounded-2xl transition-colors duration-700',
-                isOwn && 'flex-row-reverse',
-                isGroupStart ? 'mt-3' : 'mt-0.5',
+                'chat-msg rounded-2xl transition-colors duration-700',
+                isOutgoing && 'is-out',
+                isGroupStart ? 'mt-3.5' : 'mt-1.5',
+                press.open && 'tools-open',
                 isHighlighted && 'bg-primary/10 dark:bg-primary/15',
             )}
         >
-            <div className={AVATAR_SLOT}>
-                {isGroupEnd && !isOwn && (
-                    <UserAvatar user={message.sender} size="sm" className="h-8 w-8 rounded-full" />
-                )}
+            <div className="chat-msg-av">
+                {isGroupStart && <UserAvatar user={message.sender} size="xs" className="h-7 w-7 rounded-full text-[10.5px]" />}
             </div>
 
-            <div className={cn('flex min-w-0 max-w-[85%] flex-col sm:max-w-[65%] xl:max-w-[560px]', isOwn ? 'items-end' : 'items-start')}>
-                {isGroupStart && !isOwn && (
-                    <span className="mb-1 ml-3 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        {toDisplayName(message.sender?.fullName)}
-                    </span>
-                )}
+            <div className="chat-msg-col">
+                <div className="chat-who">{isOutgoing ? [...who].reverse() : who}</div>
 
-                <div className={cn('relative flex items-center gap-1', isOwn && 'flex-row-reverse')}>
+                <div className={cn('chat-bubble-wrap', press.pressing && 'is-pressing')} {...press.bind}>
                     {isSticker ? (
-                        <div className="select-none p-1 text-5xl leading-none" title={formatDateTimeID(message.createdAt)}>
+                        <div className="chat-sticker" role="img" aria-label={`Sticker ${message.content}`} title={formatDateTimeID(message.createdAt)}>
                             {message.content}
                         </div>
                     ) : (
                         <div
                             title={formatDateTimeID(message.createdAt)}
                             className={cn(
-                                'relative min-w-[72px] rounded-[20px] px-3.5 py-2 text-left',
-                                onAccent && 'bg-primary text-primary-foreground',
-                                !onAccent && !isInternal && 'bg-white text-slate-900 shadow-[0_1px_1px_rgba(15,23,42,0.06)] dark:bg-slate-800 dark:text-slate-100',
-                                isInternal && 'bg-amber-50 text-amber-950 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-50 dark:ring-amber-900/70',
-                                isGroupEnd && (isOwn ? 'rounded-br-md' : 'rounded-bl-md'),
+                                'chat-bubble',
+                                onAccent && 'chat-bubble-out',
+                                !onAccent && !isInternal && 'chat-bubble-in',
+                                isInternal && 'is-internal',
                             )}
                         >
-                            {isInternal && (
-                                <p className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400">
-                                    <Lock className="h-3 w-3" aria-hidden="true" />
-                                    Catatan internal
-                                </p>
-                            )}
                             {quote && (
                                 <QuoteSnippet
                                     sender={quote.sender}
                                     quote={quote.quote}
                                     onAccent={onAccent}
                                     onClick={onQuoteClick}
-                                    className="mb-1.5 mt-0.5"
+                                    className="mb-1.5"
                                 />
                             )}
-                            {showText && (
-                                <p className="whitespace-pre-wrap break-words text-[15px] leading-[1.4]">
-                                    {text}
-                                    {/* Reserves room so the time never overlaps the last line of text. */}
-                                    {!hasAttachments && <span aria-hidden="true" className="inline-block w-10" />}
-                                </p>
-                            )}
+                            {showText && <p className="whitespace-pre-wrap">{text}</p>}
                             <MessageAttachments
                                 attachments={message.attachments}
                                 attachmentInfo={message.attachmentInfo}
@@ -133,31 +164,31 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 onPdfClick={onPdfClick}
                                 isRequester={!onAccent}
                             />
-                            <span className={cn(
-                                'text-[11px] tabular-nums leading-none',
-                                onAccent ? 'text-primary-foreground/70' : 'text-slate-400 dark:text-slate-500',
-                                showText && !hasAttachments ? 'absolute bottom-2 right-3' : 'mt-1 block text-right',
-                            )}>
-                                {time}
-                            </span>
                         </div>
                     )}
 
-                    <MessageActionMenu
-                        messageId={message.id}
-                        messageContent={text || ''}
-                        isOwn={isOwn}
-                        isInternal={isInternal}
-                        onReply={onReply}
-                        className="shrink-0"
-                    />
-                    {/* Without reactions the add button sits beside the bubble so it takes no row of its own. */}
-                    {!hasReactions && <MessageReactions {...reactionProps} className="my-0 shrink-0" />}
+                    <div className="chat-tools" role="toolbar" aria-label="Aksi pesan">
+                        <ReactionPicker reactions={reactions} onAddReaction={onAddReaction} onRemoveReaction={onRemoveReaction} align={menuAlign}>
+                            <button type="button" aria-label="Tambah reaksi" title="Tambah reaksi">
+                                <SmilePlus aria-hidden="true" />
+                            </button>
+                        </ReactionPicker>
+                        <button type="button" aria-label="Balas" title="Balas" onClick={() => onReply(text || '')}>
+                            <Reply aria-hidden="true" />
+                        </button>
+                        <MessageActionMenu
+                            messageId={message.id}
+                            messageContent={text || ''}
+                            isOwn={isOwn}
+                            isInternal={isInternal}
+                            isSticker={isSticker}
+                            onReply={onReply}
+                            align={menuAlign}
+                        />
+                    </div>
                 </div>
 
-                {hasReactions && (
-                    <MessageReactions {...reactionProps} className={cn('my-1', isOwn && 'justify-end')} />
-                )}
+                <MessageReactions reactions={reactions} onAddReaction={onAddReaction} onRemoveReaction={onRemoveReaction} />
             </div>
         </div>
     );

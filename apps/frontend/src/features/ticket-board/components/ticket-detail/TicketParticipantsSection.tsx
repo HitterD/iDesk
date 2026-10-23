@@ -1,21 +1,17 @@
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import React, { useState, useMemo } from 'react';
 import {
-    Users,
     UserPlus,
     Trash2,
-    Search,
     Loader2,
-    Check,
     X,
-    Shield,
-    Sparkles,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/ui/UserAvatar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { TicketActionDialog } from './TicketActionDialog';
 import { toDisplayName } from './messageThread';
 import type { TicketParticipant } from './types';
 
@@ -55,13 +51,14 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
     isClosed = false,
 }) => {
     const queryClient = useQueryClient();
+    const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
     const [popoverOpen, setPopoverOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
     const [removingUserId, setRemovingUserId] = useState<string | null>(null);
 
     // Fetch active users for adding to ticket
-    const { data: activeUsers = [], isLoading: isLoadingUsers } = useQuery<ActiveUser[]>({
+    const { data: activeUsers = [], isLoading: isLoadingUsers, isError: usersError, refetch: refetchUsers } = useQuery<ActiveUser[]>({
         queryKey: ['users', 'active-for-participants'],
         queryFn: async () => {
             const res = await api.get('/users/approvers');
@@ -91,6 +88,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
         return availableUsers
             .filter(
                 (u) =>
+                    toDisplayName(u.fullName || '').toLowerCase().includes(q) ||
                     u.fullName?.toLowerCase().includes(q) ||
                     u.email?.toLowerCase().includes(q) ||
                     u.department?.name?.toLowerCase().includes(q)
@@ -126,6 +124,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
         },
         onSuccess: () => {
             toast.success('Partisipan berhasil dikeluarkan');
+            setRemoveTarget(null);
             queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
         },
         onError: (err: any) => {
@@ -144,169 +143,67 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
     };
 
     const handleAddSelected = () => {
-        if (selectedUserIds.length === 0) return;
-        addParticipantsMutation.mutate(selectedUserIds);
+        const validIds = selectedUserIds.filter(id => availableUsers.some(user => user.id === id));
+        if (!canAddUsers || isClosed || addParticipantsMutation.isPending || validIds.length === 0) return;
+        addParticipantsMutation.mutate(validIds);
     };
 
     const totalCount = 1 + participants.length;
 
     return (
-        <section className="rounded-2xl bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-slate-900/[0.05] dark:bg-slate-900 dark:ring-white/[0.06]">
+        <section className="ticket-panel">
             {/* Section Header */}
-            <div className="mb-2 flex min-h-6 items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <Users className="h-3.5 w-3.5" aria-hidden="true" />
-                    </span>
-                    <h3 className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
-                        Anggota tiket
-                    </h3>
-                    <span className="text-[13px] tabular-nums text-slate-400 dark:text-slate-500">
-                        {totalCount}
-                    </span>
-                </div>
+            <div className="td-panel-h mb-2.5 flex items-center gap-2">
+                <h3 className="m-0 text-[13px] font-[650]">Anggota tiket</h3>
+                <span className="text-[13px] font-medium tabular-nums text-[var(--td-text-3)]">{totalCount}</span>
+                <span className="flex-1" />
 
                 {/* Add Participant Button / Popover */}
                 {canAddUsers && !isClosed && (
-                    <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-                        <PopoverTrigger asChild>
-                            <button
-                                type="button"
-                                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[13px] font-medium text-primary bg-primary/10 hover:bg-primary/15 transition-colors cursor-pointer"
-                            >
-                                <UserPlus className="w-3.5 h-3.5" />
-                                <span>Tambah</span>
-                            </button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                            align="end"
-                            sideOffset={8}
-                            className="w-80 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150"
-                        >
-                            <div className="space-y-2.5">
-                                <div className="flex items-center justify-between pb-1 border-b border-border">
-                                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-white">
-                                        <UserPlus className="w-4 h-4 text-primary" />
-                                        <span>Undang User ke Tiket</span>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setPopoverOpen(false)}
-                                        className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
-                                    >
-                                        <X className="w-3.5 h-3.5" />
-                                    </button>
+                    <>
+                        <Button variant="subtle" className="ticket-action-member" aria-label="Tambah anggota tiket" title="Tambah anggota tiket"
+                            onClick={() => { setSearchQuery(''); setSelectedUserIds([]); setPopoverOpen(true); }}>
+                            <UserPlus aria-hidden="true" /><span>Tambah</span>
+                        </Button>
+                        <TicketActionDialog open={popoverOpen} onClose={() => setPopoverOpen(false)} title="Tambah anggota tiket" busy={addParticipantsMutation.isPending}>
+                            <form className="ticket-action-inner ticket-action-simple" onSubmit={event => { event.preventDefault(); handleAddSelected(); }}>
+                                <header className="ticket-action-header">
+                                    <div><h2>Tambah anggota tiket</h2><p>Cari dan pilih anggota untuk bergabung.</p></div>
+                                    <Button variant="subtle" type="button" aria-label="Tutup pemilih anggota" disabled={addParticipantsMutation.isPending} onClick={() => setPopoverOpen(false)}><X /></Button>
+                                </header>
+                                <div className="ticket-action-body">
+                                    <input type="search" aria-label="Cari anggota tiket" value={searchQuery} disabled={addParticipantsMutation.isPending}
+                                        onChange={event => setSearchQuery(event.target.value)} placeholder="Cari nama, email, departemen…" className="w-full" autoFocus />
+                                    {isLoadingUsers ? <p role="status" className="ticket-action-help">Memuat daftar user...</p>
+                                        : usersError ? <div role="alert"><p>Daftar anggota gagal dimuat.</p><Button variant="soft" type="button" onClick={() => void refetchUsers()}>Coba lagi</Button></div>
+                                        : filteredUsers.length === 0 ? <p className="ticket-action-help">{searchQuery ? 'Tidak ada user yang cocok' : 'Semua user aktif sudah bergabung'}</p>
+                                        : <div className="ticket-action-member-list">{filteredUsers.map(user => {
+                                            const displayName = toDisplayName(user.fullName);
+                                            const duplicate = availableUsers.some(other => other.id !== user.id && toDisplayName(other.fullName) === displayName);
+                                            return <label key={user.id} className="ticket-action-member-row">
+                                                <UserAvatar user={{ ...user, fullName: displayName }} size="sm" />
+                                                <span><b>{displayName}</b><small>{user.department?.name || user.email}{duplicate && user.department?.name ? ` · ${user.email}` : ''}{duplicate ? ` · ${user.id}` : ''}</small></span>
+                                                <input type="checkbox" checked={selectedUserIds.includes(user.id)} disabled={addParticipantsMutation.isPending}
+                                                    onChange={() => toggleSelectUser(user.id)} />
+                                            </label>;
+                                        })}</div>}
                                 </div>
-
-                                {/* Search Input */}
-                                <div className="relative">
-                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                                    <input
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        placeholder="Cari nama, email, departemen..."
-                                        className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-100 dark:bg-slate-800 border-none rounded-lg outline-none text-foreground placeholder:text-muted-foreground"
-                                        autoFocus
-                                    />
-                                </div>
-
-                                {/* Users List */}
-                                <div className="max-h-52 overflow-y-auto space-y-1 pr-0.5 custom-scrollbar">
-                                    {isLoadingUsers ? (
-                                        <div className="py-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-                                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                                            <span>Memuat daftar user...</span>
-                                        </div>
-                                    ) : filteredUsers.length === 0 ? (
-                                        <div className="py-6 text-center text-xs text-muted-foreground">
-                                            {searchQuery ? 'Tidak ada user yang cocok' : 'Semua user aktif sudah bergabung'}
-                                        </div>
-                                    ) : (
-                                        filteredUsers.map((u) => {
-                                            const isSelected = selectedUserIds.includes(u.id);
-                                            return (
-                                                <button
-                                                    key={u.id}
-                                                    type="button"
-                                                    onClick={() => toggleSelectUser(u.id)}
-                                                    className={cn(
-                                                        'w-full flex items-center justify-between p-2 rounded-lg text-left text-xs transition-colors cursor-pointer border',
-                                                        isSelected
-                                                            ? 'bg-primary/10 border-primary/30 text-primary'
-                                                            : 'bg-card hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent text-foreground'
-                                                    )}
-                                                >
-                                                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                        <UserAvatar
-                                                            user={{
-                                                                id: u.id,
-                                                                fullName: u.fullName,
-                                                                avatarUrl: u.avatarUrl,
-                                                            }}
-                                                            size="xs"
-                                                        />
-                                                        <div className="min-w-0 flex-1">
-                                                            <p className="font-semibold truncate">{u.fullName}</p>
-                                                            <p className="text-xs text-muted-foreground truncate">
-                                                                {u.department?.name || u.email}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <div
-                                                        className={cn(
-                                                            'w-4 h-4 rounded flex items-center justify-center transition-colors ml-2 shrink-0',
-                                                            isSelected
-                                                                ? 'bg-primary text-primary-foreground'
-                                                                : 'border border-slate-300 dark:border-slate-600'
-                                                        )}
-                                                    >
-                                                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                                                    </div>
-                                                </button>
-                                            );
-                                        })
-                                    )}
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="pt-2 border-t border-border flex items-center justify-between gap-2">
-                                    <span className="text-[11px] text-muted-foreground font-medium">
-                                        {selectedUserIds.length} dipilih
-                                    </span>
-                                    <div className="flex items-center gap-1.5">
-                                        <button
-                                            type="button"
-                                            onClick={() => setPopoverOpen(false)}
-                                            className="px-2.5 py-1 text-xs font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                        >
-                                            Batal
-                                        </button>
-                                        <button
-                                            type="button"
-                                            disabled={selectedUserIds.length === 0 || addParticipantsMutation.isPending}
-                                            onClick={handleAddSelected}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer"
-                                        >
-                                            {addParticipantsMutation.isPending ? (
-                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                            ) : (
-                                                <UserPlus className="w-3.5 h-3.5" />
-                                            )}
-                                            <span>Tambahkan</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </PopoverContent>
-                    </Popover>
+                                <footer className="ticket-action-footer"><p aria-live="polite">{selectedUserIds.filter(id => availableUsers.some(user => user.id === id)).length} dipilih</p><div>
+                                    <Button variant="soft" type="button" onClick={() => setPopoverOpen(false)} disabled={addParticipantsMutation.isPending}>Batal</Button>
+                                    <Button variant="primary" className="ticket-action-member" type="submit" disabled={usersError || !selectedUserIds.some(id => availableUsers.some(user => user.id === id)) || addParticipantsMutation.isPending}>
+                                        {addParticipantsMutation.isPending && <Loader2 className="animate-spin" />}Tambahkan
+                                    </Button>
+                                </div></footer>
+                            </form>
+                        </TicketActionDialog>
+                    </>
                 )}
             </div>
 
             {/* Participants List */}
-            <div className="max-h-64 overflow-y-auto custom-scrollbar divide-y divide-slate-100 dark:divide-slate-800">
+            <div className="td-members max-h-64 overflow-y-auto custom-scrollbar">
                 {/* 1. Ticket Creator */}
-                <div className="flex items-center justify-between py-1.5">
+                <div className="td-person">
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <UserAvatar
                             user={{
@@ -318,13 +215,10 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                         />
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
-                                <p className="text-[13px] font-semibold text-foreground truncate">{toDisplayName(creator.fullName)}</p>
-                                <span className="px-1.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[11px] font-medium rounded-full">
-                                    Pembuat
-                                </span>
+                                <p className="text-[12.5px] font-[550] text-foreground truncate">{toDisplayName(creator.fullName)}</p>
                             </div>
-                            <p className="text-xs text-muted-foreground truncate">
-                                {creator.department?.name || creator.email || 'Requester'}
+                            <p className="text-[11px] text-[var(--td-text-3)] truncate">
+                                Pembuat tiket{creator.department?.name ? ` Â· ${creator.department.name}` : ''}
                             </p>
                         </div>
                     </div>
@@ -340,7 +234,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                     return (
                         <div
                             key={p.id}
-                            className="group flex items-center justify-between py-1.5"
+                            className="td-person group"
                         >
                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                 <UserAvatar
@@ -353,7 +247,7 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                                 />
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-1.5">
-                                        <p className="text-[13px] font-semibold text-foreground truncate">{toDisplayName(displayName)}</p>
+                                        <p className="text-[12.5px] font-[550] text-foreground truncate">{toDisplayName(displayName)}</p>
                                         <span className="px-1.5 bg-primary/10 text-primary text-[11px] font-medium rounded-full">
                                             Anggota
                                         </span>
@@ -368,9 +262,9 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                             {canManageUsers && !isClosed && (
                                 <button
                                     type="button"
-                                    onClick={() => removeParticipantMutation.mutate(p.userId)}
+                                    onClick={() => setRemoveTarget({ id: p.userId, name: displayName })}
                                     disabled={isRemoving}
-                                    className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded transition-all cursor-pointer ml-1"
+                                    className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded transition-all cursor-pointer ml-1"
                                     title="Keluarkan dari tiket (Khusus Oracle Agent / Admin)"
                                 >
                                     {isRemoving ? (
@@ -384,6 +278,12 @@ export const TicketParticipantsSection: React.FC<TicketParticipantsSectionProps>
                     );
                 })}
             </div>
+            <ConfirmationDialog appearance="ticket" isOpen={Boolean(removeTarget)} title="Keluarkan anggota?"
+                description={`${removeTarget?.name || 'Anggota'} akan dikeluarkan dari tiket ini.`}
+                confirmText="Keluarkan anggota" cancelText="Kembali" variant="destructive"
+                isLoading={removeParticipantMutation.isPending}
+                onCancel={() => setRemoveTarget(null)}
+                onConfirm={() => { if (removeTarget && canManageUsers && !isClosed) removeParticipantMutation.mutate(removeTarget.id); }} />
         </section>
     );
 };

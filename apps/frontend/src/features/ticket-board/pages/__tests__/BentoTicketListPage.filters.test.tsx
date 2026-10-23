@@ -43,6 +43,17 @@ describe('IT Support stat card filters', () => {
                 : [] }));
     });
 
+    it('keeps card sorting available for an empty queue and disables select all', async () => {
+        renderPage();
+        const sort = await screen.findByLabelText('Urutkan tiket');
+        expect(screen.getByRole('checkbox', { name: 'Pilih semua tiket di halaman ini' })).toBeDisabled();
+        fireEvent.change(sort, { target: { value: 'priority' } });
+        await waitFor(() => expect(latestParams().get('sortBy')).toBe('priority'));
+        expect(latestParams().get('sortOrder')).toBe('DESC');
+        fireEvent.click(screen.getByRole('button', { name: 'Ubah arah urutan: menurun' }));
+        await waitFor(() => expect(latestParams().get('sortOrder')).toBe('ASC'));
+    });
+
     it('requests completed and vendor status lists and labels the composite chip', async () => {
         renderPage();
         await clickCard('Resolved');
@@ -101,7 +112,7 @@ describe('IT Support stat card filters', () => {
         expect(latestParams().has('overdue')).toBe(false);
         expect(latestParams().has('priority')).toBe(false);
         expect(screen.getAllByText(label, { exact: true })[0].closest('[role="button"]'))
-            .toHaveClass('border-primary/40');
+            .toHaveAttribute('aria-pressed', 'true');
     });
 
     it('switches Overdue to Critical and Critical to Overdue without leftover filters', async () => {

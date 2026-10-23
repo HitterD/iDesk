@@ -1,30 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-    Clock,
-    Plus,
-    FileSpreadsheet,
-    Users,
-    BarChart3,
-    Play,
-    History,
-    Pencil,
-    Trash2,
-    Search,
-    Building2,
-    Calendar,
-    CheckCircle2,
-    AlertCircle,
-    Loader2,
-    Filter,
-    ArrowUpRight,
-    Mail,
-    Send
+    Clock, Plus, FileSpreadsheet, Users, BarChart3, Play, History, Pencil, Trash2,
+    Calendar, CalendarPlus, AlertCircle, Loader2, Mail, Send,
 } from 'lucide-react';
 import api from '@/lib/api';
-import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { MgStat, MgSwitch } from '@/components/management/MgmtParts';
+import { ResBub, ResEmpty, ResSearch, ResSkeletonRows, ResRow, ResTable } from '@/components/resources/ResourceParts';
+import { DashSeg } from '@/features/dashboard/components/DashboardParts';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import {
     ScheduledReportConfig,
@@ -41,6 +26,9 @@ interface ScheduledReportsTabProps {
     canManage: boolean;
     currentSiteId?: string;
 }
+
+/** Mockup reports.html Scheduled: name, type & team, schedule, site, recipients, switch, last run, actions. */
+const SCHED_COLS = 'minmax(200px,1.5fr) minmax(150px,1fr) minmax(150px,1fr) 70px 80px 56px 150px 128px';
 
 export const ScheduledReportsTab: React.FC<ScheduledReportsTabProps> = ({
     canManage,
@@ -235,7 +223,7 @@ export const ScheduledReportsTab: React.FC<ScheduledReportsTabProps> = ({
                 return {
                     label: 'Agent Performance',
                     icon: Users,
-                    color: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 border-purple-200 dark:border-purple-800/80',
+                    color: 'text-[#2d4a8c] dark:text-[#a9bdf0] bg-[#2d4a8c]/8 dark:bg-[#2d4a8c]/25 border-[#2d4a8c]/20',
                 };
             case 'TICKET_VOLUME':
                 return {
@@ -252,351 +240,88 @@ export const ScheduledReportsTab: React.FC<ScheduledReportsTabProps> = ({
         }
     };
 
+    const SCHEDULE_LABEL: Record<string, string> = { DAILY: 'Setiap hari', WEEKLY: 'Setiap Senin', MONTHLY: 'Setiap tanggal 1' };
+
     return (
-        <div className="space-y-6 animate-fade-in">
-            {/* Top Metric Strip */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {/* Active Schedules Overview */}
-                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
-                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">
-                        <span>Active Schedules</span>
-                        <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                            <Clock className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-3">
-                        <div className="text-2xl font-extrabold text-slate-900 dark:text-white">
-                            {activeCount} <span className="text-sm font-normal text-slate-400">/ {totalCount} total</span>
-                        </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            Automated recurring report jobs
-                        </p>
-                    </div>
-                </div>
+        <div>
+            <section className="res-stats is-four" aria-label="Ringkasan jadwal">
+                <MgStat icon={Clock} tone="blue" label="Active Schedules" value={<>{activeCount}<small className="text-sm font-medium text-[var(--td-text-3)]"> / {totalCount}</small></>} sub="Automated recurring report jobs" />
+                <MgStat icon={Calendar} tone="sky" label="Daily Schedules" value={dailyCount} zero={dailyCount === 0} sub="Dispatched every day" />
+                <MgStat icon={Send} tone="navy" label="Weekly Schedules" value={weeklyCount} zero={weeklyCount === 0} sub="Dispatched Mondays" />
+                <MgStat icon={Mail} tone="green" label="Monthly Schedules" value={monthlyCount} zero={monthlyCount === 0} sub="Dispatched 1st of month" />
+            </section>
 
-                {/* Daily Cadence */}
-                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
-                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">
-                        <span>Daily Schedules</span>
-                        <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                            <Calendar className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-3">
-                        <div className="text-2xl font-extrabold text-blue-600 dark:text-blue-400">
-                            {dailyCount}
-                        </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            Dispatched every day
-                        </p>
-                    </div>
-                </div>
-
-                {/* Weekly Cadence */}
-                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
-                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">
-                        <span>Weekly Schedules</span>
-                        <div className="w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
-                            <Send className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-3">
-                        <div className="text-2xl font-extrabold text-purple-600 dark:text-purple-400">
-                            {weeklyCount}
-                        </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            Dispatched Mondays
-                        </p>
-                    </div>
-                </div>
-
-                {/* Monthly Cadence */}
-                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
-                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">
-                        <span>Monthly Schedules</span>
-                        <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                            <Mail className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-3">
-                        <div className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
-                            {monthlyCount}
-                        </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            Dispatched 1st of month
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Toolbar: Search, Filters & Actions */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-                {/* Search Bar */}
-                <div className="relative flex-1 min-w-[240px]">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search schedules by name, site, or report type..."
-                        className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/80 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                    />
-                </div>
-
-                {/* Filter Pills */}
-                <div className="flex flex-wrap items-center gap-2">
-                    {/* Status Filter */}
-                    <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                        {(['ALL', 'ACTIVE', 'PAUSED'] as const).map((st) => (
-                            <button
-                                key={st}
-                                onClick={() => setStatusFilter(st)}
-                                className={cn(
-                                    "px-3 py-1 text-xs rounded-lg font-semibold transition-all",
-                                    statusFilter === st
-                                        ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
-                                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                {st === 'ALL' ? 'All Status' : st === 'ACTIVE' ? 'Active' : 'Paused'}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Create Button */}
-                    {canManage && (
-                        <button
-                            onClick={handleOpenCreate}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white font-semibold text-xs hover:bg-primary/90 transition-all shadow-sm active:scale-[0.98] shrink-0"
-                        >
-                            <Plus className="w-4 h-4" />
-                            <span>New Schedule</span>
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            {/* Scheduled Reports List / Table */}
-            {isLoading ? (
-                <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center gap-3">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                    <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                        Loading scheduled reports...
-                    </span>
-                </div>
-            ) : isError ? (
-                <div className="p-6 rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 flex items-center gap-3 text-sm">
-                    <AlertCircle className="w-5 h-5 shrink-0" />
-                    <span>Failed to load scheduled reports. Please refresh the page.</span>
-                </div>
-            ) : filteredConfigs.length === 0 ? (
-                <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
-                    <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3">
-                        <Clock className="w-6 h-6" />
-                    </div>
-                    <h4 className="text-base font-bold text-slate-800 dark:text-white">
-                        {searchQuery || statusFilter !== 'ALL'
-                            ? 'No schedules match your filters'
-                            : 'No Scheduled Reports Configured'}
-                    </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1 mb-4">
+            <ResTable label="Scheduled Reports" cols={SCHED_COLS} colsMobile="minmax(0,1fr) auto"
+                tools={(
+                    <>
+                        <h3>Scheduled Reports</h3>
+                        <span className="res-spacer" />
+                        {canManage && <Button variant="soft" onClick={handleOpenCreate}><CalendarPlus aria-hidden="true" />New Schedule</Button>}
+                    </>
+                )}
+                subTools={(
+                    <>
+                        <ResSearch id="sched-search" value={searchQuery} onChange={setSearchQuery} placeholder="Search schedules by name, site, or report type..." label="Cari jadwal" />
+                        <DashSeg aria-label="Status jadwal" value={statusFilter} onChange={setStatusFilter} options={[
+                            { value: 'ALL', label: 'All Status' }, { value: 'ACTIVE', label: 'Active' }, { value: 'PAUSED', label: 'Paused' },
+                        ]} />
+                    </>
+                )}
+                head={!isLoading && !isError && filteredConfigs.length > 0 ? (
+                    <><span>Nama</span><span>Jenis &amp; tim</span><span>Jadwal</span><span>Site</span><span>Penerima</span><span>Aktif</span><span>Eksekusi terakhir</span><span className="is-right">Aksi</span></>
+                ) : undefined}>
+                {isLoading ? <ResSkeletonRows rows={3} /> : isError ? (
+                    <ResEmpty icon={AlertCircle} title="Gagal memuat">Failed to load scheduled reports. Please refresh the page.</ResEmpty>
+                ) : filteredConfigs.length === 0 ? (
+                    <ResEmpty icon={Clock} title={searchQuery || statusFilter !== 'ALL' ? 'No schedules match your filters' : 'No Scheduled Reports Configured'}
+                        cta={canManage && !searchQuery && statusFilter === 'ALL' ? <Button variant="primary" onClick={handleOpenCreate}><Plus aria-hidden="true" />Create First Schedule</Button> : undefined}>
                         {searchQuery || statusFilter !== 'ALL'
                             ? 'Try changing or clearing your search keywords or status filter.'
                             : 'Set up recurring email reports to keep management and site agents updated automatically.'}
-                    </p>
-                    {canManage && !searchQuery && statusFilter === 'ALL' && (
-                        <button
-                            onClick={handleOpenCreate}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white font-semibold text-xs hover:bg-primary/90 transition-all shadow-sm"
-                        >
-                            <Plus className="w-4 h-4" />
-                            <span>Create First Schedule</span>
-                        </button>
-                    )}
-                </div>
-            ) : (
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
-                            <thead>
-                                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/90 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">
-                                    <th className="px-6 py-3.5">Report & Name</th>
-                                    <th className="px-4 py-3.5">Site</th>
-                                    <th className="px-4 py-3.5">Frequency & Time</th>
-                                    <th className="px-4 py-3.5">Recipients</th>
-                                    <th className="px-4 py-3.5">Last Dispatched</th>
-                                    <th className="px-4 py-3.5">Status</th>
-                                    <th className="px-6 py-3.5 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 bg-white dark:bg-slate-900">
-                                {filteredConfigs.map((cfg) => {
-                                    const typeInfo = getReportTypeBadge(cfg.reportType);
-                                    const TypeIcon = typeInfo.icon;
-                                    const siteInfo = siteMap.get(cfg.siteId);
-                                    const isTriggering = triggeringId === cfg.id;
-
-                                    return (
-                                        <tr
-                                            key={cfg.id}
-                                            className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition-colors group bg-white dark:bg-slate-900"
-                                        >
-                                            {/* Report & Name */}
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-start gap-3">
-                                                    <div className={cn(
-                                                        "w-8 h-8 rounded-xl flex items-center justify-center border shrink-0 mt-0.5",
-                                                        typeInfo.color
-                                                    )}>
-                                                        <TypeIcon className="w-4 h-4" />
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-bold text-slate-900 dark:text-white text-sm">
-                                                            {cfg.name}
-                                                        </div>
-                                                        <div className="flex items-center gap-1.5 mt-0.5">
-                                                            <span className={cn(
-                                                                "px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border",
-                                                                typeInfo.color
-                                                            )}>
-                                                                {typeInfo.label}
-                                                            </span>
-                                                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
-                                                                {reportTeamLabel(cfg.targetTeam ?? (cfg.targetAgentCategory === 'REGULAR' ? 'OPS_SUPPORT' : cfg.targetAgentCategory === 'ORACLE' ? 'ORACLE_DEV' : null))}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-
-                                            {/* Site */}
-                                            <td className="px-4 py-4 whitespace-nowrap">
-                                                <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium">
-                                                    <Building2 className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                                                    <span>{siteInfo ? `${siteInfo.code} — ${siteInfo.name}` : cfg.site?.name || 'Site Isolated'}</span>
-                                                </div>
-                                            </td>
-
-                                            {/* Frequency & Time */}
-                                            <td className="px-4 py-4 whitespace-nowrap">
-                                                <div className="space-y-0.5">
-                                                    <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                                                        <Clock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                                                        <span>{cfg.schedule} at <strong className="font-mono text-slate-900 dark:text-white">{cfg.sendTime}</strong></span>
-                                                    </div>
-                                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 block pl-5">
-                                                        WIB (Asia/Jakarta)
-                                                    </span>
-                                                </div>
-                                            </td>
-
-                                            {/* Recipients */}
-                                            <td className="px-4 py-4 whitespace-nowrap">
-                                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium">
-                                                    <Users className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                                                    <span>{cfg.recipientUserIds.length} agent{cfg.recipientUserIds.length !== 1 ? 's' : ''}</span>
-                                                </div>
-                                            </td>
-
-                                            {/* Last Dispatched */}
-                                            <td className="px-4 py-4 whitespace-nowrap">
-                                                {cfg.lastRunAt ? (
-                                                    <div className="space-y-0.5">
-                                                        <div className="text-slate-800 dark:text-slate-200 font-medium flex items-center gap-1.5">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                                                            <span>{format(new Date(cfg.lastRunAt), 'dd MMM yyyy, HH:mm')}</span>
-                                                        </div>
-                                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 block pl-3">
-                                                            {formatDistanceToNow(new Date(cfg.lastRunAt), { addSuffix: true, locale: idLocale })}
-                                                        </span>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-slate-400 dark:text-slate-500 italic">Never executed</span>
-                                                )}
-                                            </td>
-
-                                            {/* Status Switch */}
-                                            <td className="px-4 py-4 whitespace-nowrap">
-                                                <div className="flex items-center gap-2">
-                                                    <Switch
-                                                        checked={cfg.isActive}
-                                                        onCheckedChange={(checked) => {
-                                                            if (!canManage) return;
-                                                            toggleMutation.mutate({ id: cfg.id, isActive: checked });
-                                                        }}
-                                                        disabled={!canManage || toggleMutation.isPending}
-                                                        aria-label="Toggle active status"
-                                                    />
-                                                    <span
-                                                        className={cn(
-                                                            "text-[11px] font-bold uppercase tracking-wider",
-                                                            cfg.isActive
-                                                                ? "text-emerald-600 dark:text-emerald-400"
-                                                                : "text-slate-400 dark:text-slate-500"
-                                                        )}
-                                                    >
-                                                        {cfg.isActive ? 'Active' : 'Paused'}
-                                                    </span>
-                                                </div>
-                                            </td>
-
-                                            {/* Actions */}
-                                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                <div className="flex items-center justify-end gap-1.5">
-                                                    {/* History */}
-                                                    <button
-                                                        onClick={() => setHistoryModalConfig(cfg)}
-                                                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition-colors"
-                                                        title="View Execution History"
-                                                    >
-                                                        <History className="w-3.5 h-3.5" />
-                                                    </button>
-
-                                                    {canManage && (
-                                                        <>
-                                                            {/* Trigger Now */}
-                                                            <button
-                                                                onClick={() => triggerMutation.mutate(cfg.id)}
-                                                                disabled={isTriggering || triggerMutation.isPending}
-                                                                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-primary hover:bg-primary/10 hover:border-primary/40 dark:hover:bg-primary/20 transition-colors disabled:opacity-50"
-                                                                title="Trigger & Dispatch Now"
-                                                            >
-                                                                {isTriggering ? (
-                                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                                ) : (
-                                                                    <Play className="w-3.5 h-3.5" />
-                                                                )}
-                                                            </button>
-
-                                                            {/* Edit */}
-                                                            <button
-                                                                onClick={() => handleOpenEdit(cfg)}
-                                                                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition-colors"
-                                                                title="Edit Schedule"
-                                                            >
-                                                                <Pencil className="w-3.5 h-3.5" />
-                                                            </button>
-
-                                                            {/* Delete */}
-                                                            <button
-                                                                onClick={() => setConfigToDelete(cfg)}
-                                                                className="p-1.5 rounded-lg border border-red-200 dark:border-red-900/60 bg-white dark:bg-slate-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
-                                                                title="Delete Schedule"
-                                                            >
-                                                                <Trash2 className="w-3.5 h-3.5" />
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
+                    </ResEmpty>
+                ) : filteredConfigs.map((cfg) => {
+                    const typeInfo = getReportTypeBadge(cfg.reportType);
+                    const siteInfo = siteMap.get(cfg.siteId);
+                    const isTriggering = triggeringId === cfg.id;
+                    const teamLabel = reportTeamLabel(cfg.targetTeam ?? (cfg.targetAgentCategory === 'REGULAR' ? 'OPS_SUPPORT' : cfg.targetAgentCategory === 'ORACLE' ? 'ORACLE_DEV' : null));
+                    return (
+                        <ResRow key={cfg.id} className="is-static">
+                            <div className="res-tk">
+                                <span className="res-tk-title">{cfg.name}</span>
+                                <span className="res-tk-id" style={{ fontFamily: 'var(--font-sans)' }}>{typeInfo.label} · {SCHEDULE_LABEL[cfg.schedule] ?? cfg.schedule}, {cfg.sendTime}</span>
+                            </div>
+                            <span className="res-cell res-hide-m">{typeInfo.label} · {teamLabel}</span>
+                            <span className="res-cell res-hide-m" title="WIB (Asia/Jakarta)">{SCHEDULE_LABEL[cfg.schedule] ?? cfg.schedule}, <span className="font-mono">{cfg.sendTime}</span> WIB</span>
+                            <span className="res-hide-m">{siteInfo || cfg.site ? <ResBub color="var(--dash-gray)" mono plain title={siteInfo?.name ?? cfg.site?.name}>{siteInfo?.code ?? cfg.site?.code ?? cfg.site?.name}</ResBub> : <span className="res-muted">Site Isolated</span>}</span>
+                            <span className="res-cell res-hide-m">{cfg.recipientUserIds.length} agent{cfg.recipientUserIds.length !== 1 ? 's' : ''}</span>
+                            <span>
+                                <MgSwitch checked={cfg.isActive} label={`Aktifkan ${cfg.name}`} disabled={!canManage || toggleMutation.isPending}
+                                    onChange={(checked) => { if (canManage) toggleMutation.mutate({ id: cfg.id, isActive: checked }); }} />
+                            </span>
+                            <span className="res-hide-m">
+                                {cfg.lastRunAt ? (
+                                    <ResBub color="var(--dash-green)" ink="var(--dash-ink-green)" title={formatDistanceToNow(new Date(cfg.lastRunAt), { addSuffix: true, locale: idLocale })}>
+                                        {format(new Date(cfg.lastRunAt), 'd MMM yyyy, HH.mm', { locale: idLocale })}
+                                    </ResBub>
+                                ) : !cfg.isActive ? <ResBub color="var(--dash-gray)">Dijeda</ResBub> : <span className="res-muted">Never executed</span>}
+                            </span>
+                            <span className="res-acts res-wide-m" role="group" aria-label={`Aksi ${cfg.name}`}>
+                                <button type="button" className="res-icon-btn" onClick={() => setHistoryModalConfig(cfg)} title="View Execution History" aria-label={`Riwayat eksekusi ${cfg.name}`}><History aria-hidden="true" /></button>
+                                {canManage && (
+                                    <>
+                                        <button type="button" className="res-icon-btn" onClick={() => triggerMutation.mutate(cfg.id)} disabled={isTriggering || triggerMutation.isPending}
+                                            title="Trigger & Dispatch Now" aria-label={`Kirim sekarang ${cfg.name}`} aria-busy={isTriggering || undefined}>
+                                            {isTriggering ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Play aria-hidden="true" />}
+                                        </button>
+                                        <button type="button" className="res-icon-btn" onClick={() => handleOpenEdit(cfg)} title="Edit Schedule" aria-label={`Edit ${cfg.name}`}><Pencil aria-hidden="true" /></button>
+                                        <button type="button" className="res-icon-btn is-danger" onClick={() => setConfigToDelete(cfg)} title="Delete Schedule" aria-label={`Hapus ${cfg.name}`}><Trash2 aria-hidden="true" /></button>
+                                    </>
+                                )}
+                            </span>
+                        </ResRow>
+                    );
+                })}
+            </ResTable>
 
             {/* Create / Edit Modal */}
             <ScheduledReportModal

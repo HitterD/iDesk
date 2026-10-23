@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { ChevronDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { User } from '@/types/admin.types';
-import { ROLE_CONFIG, ROLE_ORDER, getRoleConfig, getRoleLabel } from './agent-types';
+import { ROLE_CONFIG, ROLE_ORDER, getRoleLabel } from './agent-types';
 import { scopeOfRole } from '@/lib/constants/service-scope';
 
 const DROPDOWN_H = 320;
@@ -28,7 +28,6 @@ export const RoleDropdown: React.FC<RoleDropdownProps> = ({
     const badgeRef = useRef<HTMLButtonElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    const currentRoleConfig = getRoleConfig(user.role);
 
     const handleOpen = () => {
         if (!open && badgeRef.current) {
@@ -101,14 +100,11 @@ export const RoleDropdown: React.FC<RoleDropdownProps> = ({
                     aria-expanded={open}
                     aria-label={`Role for ${user.fullName}: ${getRoleLabel(user.role)}`}
                     className={cn(
-                        "inline-flex items-center gap-1.5 px-2.5 py-1.5 min-h-[44px] rounded-lg text-xs font-bold cursor-pointer select-none",
-                        "transition-all duration-150 btn-feedback hover:brightness-95 hover:ring-2 hover:ring-primary/30",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                        currentRoleConfig.badgeColor
+                        "dash-bub is-btn mg-role-bub cursor-pointer select-none"
                     )}
                     title={`Role: ${getRoleLabel(user.role)}`}
                 >
-                    <span className="max-w-[110px] truncate leading-none uppercase">
+                    <span className="max-w-[110px] truncate leading-none">
                         {getRoleLabel(user.role)}
                     </span>
                     <ChevronDown className={cn("w-3 h-3 flex-shrink-0 opacity-70 transition-transform duration-200 motion-reduce:transition-none", open && "rotate-180")} aria-hidden="true" />

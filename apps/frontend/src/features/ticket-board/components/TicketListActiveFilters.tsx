@@ -103,11 +103,11 @@ export const TicketListActiveFilters: React.FC<TicketListActiveFiltersProps> = (
                 </span>
             )}
             {selectedSites.length > 0 && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs font-medium group">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 rounded-full text-xs font-medium group">
                     Sites: {selectedSites.length}
                     <button
                         onClick={() => setSelectedSites([])}
-                        className="w-4 h-4 rounded-full bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 flex items-center justify-center transition-colors"
+                        className="w-4 h-4 rounded-full bg-teal-100 dark:bg-teal-900 hover:bg-teal-200 dark:hover:bg-teal-800 flex items-center justify-center transition-colors"
                         aria-label="Clear site filter"
                     >
                         <X className="w-3 h-3" />

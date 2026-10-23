@@ -8,6 +8,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { TargetDateCell } from '../TargetDateCell';
 
 describe('TargetDateCell', () => {
+    it.each(['TODO', 'RESOLVED', 'CLOSED', 'CANCELLED', 'WAITING_VENDOR'])('renders %s SLA as a readonly bubble without a caret', (status) => {
+        const { container } = render(<TargetDateCell status={status} slaTarget="2099-08-30T10:00:00Z" />);
+        expect(container.querySelector('.ticket-pill')).not.toBeNull();
+        expect(container.querySelector('button, .lucide-chevron-down')).toBeNull();
+    });
     it('renders DONE correctly when status is RESOLVED', () => {
         render(
             <TargetDateCell
@@ -16,7 +21,7 @@ describe('TargetDateCell', () => {
             />
         );
 
-        expect(screen.getByText('DONE')).toBeInTheDocument();
+        expect(screen.getByText('Selesai')).toBeInTheDocument();
     });
 
     it('renders countdown correctly when status is TODO', () => {
@@ -50,7 +55,7 @@ describe('TargetDateCell', () => {
             />
         );
 
-        expect(screen.getByText('DONE')).toBeInTheDocument();
+        expect(screen.getByText('Selesai')).toBeInTheDocument();
     });
 
     it('handles status transition from RESOLVED to TODO without hook count errors', () => {
@@ -62,7 +67,7 @@ describe('TargetDateCell', () => {
             />
         );
 
-        expect(screen.getByText('DONE')).toBeInTheDocument();
+        expect(screen.getByText('Selesai')).toBeInTheDocument();
 
         // Rerender as TODO — should NOT trigger hook mismatch
         rerender(
@@ -94,7 +99,7 @@ describe('TargetDateCell', () => {
             />
         );
 
-        expect(screen.getByText('No SLA')).toBeInTheDocument();
+        expect(screen.getByText('Tanpa SLA')).toBeInTheDocument();
     });
 
     it('renders Paused when status is WAITING_VENDOR', () => {
@@ -105,18 +110,18 @@ describe('TargetDateCell', () => {
             />
         );
 
-        expect(screen.getByText('Paused')).toBeInTheDocument();
+        expect(screen.getByText('Dijeda')).toBeInTheDocument();
     });
 
     it.each([120, 0])('shows paused remaining minutes from the list payload: %s', (remaining) => {
         render(<TargetDateCell ticket={{ status: 'WAITING_VENDOR', slaRemainingMinutes: remaining }} />);
-        expect(screen.getByText(`Paused · sisa ${remaining === 120 ? '2h 0m' : '0m'}`)).toBeInTheDocument();
+        expect(screen.getByText(`Dijeda · sisa ${remaining === 120 ? '2j 0m' : '0m'}`)).toBeInTheDocument();
         expect(screen.queryByTitle(/SLA Target:/)).not.toBeInTheDocument();
     });
 
     it('supports paused remaining minutes as a direct prop', () => {
         render(<TargetDateCell status="WAITING_VENDOR" slaRemainingMinutes={120} />);
-        expect(screen.getByText('Paused · sisa 2h 0m')).toBeInTheDocument();
+        expect(screen.getByText('Dijeda · sisa 2j 0m')).toBeInTheDocument();
     });
 
     it('accepts ticket object correctly and renders DONE when ticket.status is RESOLVED', () => {
@@ -128,6 +133,6 @@ describe('TargetDateCell', () => {
 
         render(<TargetDateCell ticket={mockTicket as any} />);
 
-        expect(screen.getByText('DONE')).toBeInTheDocument();
+        expect(screen.getByText('Selesai')).toBeInTheDocument();
     });
 });

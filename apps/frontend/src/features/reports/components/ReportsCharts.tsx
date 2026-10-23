@@ -17,6 +17,7 @@ import {
     AreaChart,
 } from 'recharts';
 import { cn } from '@/lib/utils';
+import { STATUS_CHART_HEX } from '@/lib/constants/ticket.constants';
 
 // Color palette for charts
 const CHART_COLORS = {
@@ -39,8 +40,8 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-    TODO: '#94A3B8',
-    IN_PROGRESS: '#3B82F6',
+    TODO: STATUS_CHART_HEX.TODO,
+    IN_PROGRESS: STATUS_CHART_HEX.IN_PROGRESS,
     WAITING_VENDOR: '#F59E0B',
     RESOLVED: '#10B981',
     CLOSED: '#475569',

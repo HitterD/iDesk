@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Dashboard Tim</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=20">
+<link rel="stylesheet" href="pages.css?v=20">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=20"></script>
+<script src="mock-state.js?v=20"></script>
+<script src="shell.js?v=20"></script>
+<script src="motion.js?v=20"></script>
+<script src="pages.js?v=20"></script>
+</head>
+<body data-page="dashboard-team" data-crumb="Dashboard" data-title="Dashboard Tim" data-live="1">
+<!-- Production source: apps/frontend/src/features/dashboard/pages/BentoDashboardPage.tsx (+ components/ui/ActivityFeed) -->
+<script>
+const { ic, av, bub, columns, donut } = iDeskPages;
+const RANGES = [7, 14, 30];
+// Synthetic sample data
+const ACTIVITY = {
+  7: { created: [14, 18, 11, 16, 20, 6, 4], resolved: [12, 15, 13, 14, 17, 7, 3] },
+  14: { created: [12, 15, 9, 17, 14, 5, 3, 14, 18, 11, 16, 20, 6, 4], resolved: [10, 14, 11, 15, 12, 6, 2, 12, 15, 13, 14, 17, 7, 3] },
+  30: { created: Array.from({ length: 30 }, (_, i) => [12, 15, 9, 17, 14, 5, 3][i % 7] + (i % 3)), resolved: Array.from({ length: 30 }, (_, i) => [10, 14, 11, 15, 12, 6, 2][i % 7] + (i % 2)) },
+};
+const STATUS = [
+  { label: 'Open', v: 23, c: 'var(--sky)' }, { label: 'In Progress', v: 31, c: 'var(--navy)' },
+  { label: 'Waiting', v: 9, c: 'var(--orange)' }, { label: 'Resolved', v: 214, c: 'var(--green)' },
+];
+const PRIORITY = [
+  { label: 'Blocker (Critical)', v: 6, c: 'var(--red)' }, { label: 'Urgent (Major Impact)', v: 38, c: 'var(--orange)' },
+  { label: 'Normal (Moderate)', v: 181, c: 'var(--blue)' }, { label: 'Low (Minor/Cosmetic)', v: 52, c: 'var(--gray)' },
+];
+const CATEGORY = [['Hardware', 96], ['Software', 71], ['Jaringan', 48], ['Akses', 37], ['General', 25]];
+const FEED = [
+  ['circle-check', 'var(--green)', 'Komputer factory 32 not responding', 'Diselesaikan oleh Beny Saputra', '2 mnt'],
+  ['message-circle', 'var(--blue)', 'Email tidak bisa diakses', 'Balasan baru dari Yanuar Ari Widodo', '6 mnt'],
+  ['user-round-cog', 'var(--navy)', 'Kamera laptop HR57 tidak bisa digunakan saat zoom', 'Ditugaskan ke Yudi Arta Trirensila', '18 mnt'],
+  ['plus', 'var(--blue)', 'Kebutuhan kabel type A to B', 'Tiket baru via iPop · QC AB Reguler', '32 mnt'],
+  ['triangle-alert', 'var(--red)', 'Printer label gudang mati total', 'SLA terlewati · Blocker', '1 jam'],
+];
+const AGENTS = [['Alphin Santoso H.', 48, 4], ['Beny Saputra', 41, 3], ['Yudi Arta Trirensila', 37, 2], ['RM Bagastyo Anggoro', 33, 2], ['Merdeka Putra', 21, 1]];
+const dayLabels = (n) => Array.from({ length: n }, (_, i) => { const d = new Date(2026, 9, 21 - (n - 1 - i)); return `${d.getDate()}/${d.getMonth() + 1}`; });
+const activity = (n) => columns({ labels: dayLabels(n), sparse: n > 14, label: `Tiket dibuat vs diselesaikan ${n} hari terakhir`,
+  series: [{ name: 'Dibuat', c: 'var(--blue)', data: ACTIVITY[n].created }, { name: 'Diselesaikan', c: 'var(--green)', data: ACTIVITY[n].resolved }] });
+const catMax = Math.max(...CATEGORY.map((c) => c[1]));
+
+iDeskPages.mount(`
+<main class="content page dash">
+  <div class="head">
+    <span class="tile ptile" style="--c:var(--navy)">${ic('layout-grid')}</span>
+    <div><h2>Dashboard Tim</h2><p>Ringkasan performa iDesk untuk semua site Anda</p></div>
+    <span class="spacer"></span>
+    <button class="btn" id="reload">${ic('refresh-cw')}Muat ulang</button>
+  </div>
+
+  <section class="stats five" aria-label="Ringkasan tiket">
+    <a class="stat" href="list.html" style="--c:var(--gray);--ink:var(--text)"><span class="top"><span class="ic">${ic('layers')}</span><span class="n">277</span></span><span class="name">Total tiket</span><span class="sub">64 minggu ini</span></a>
+    <a class="stat" href="list.html" style="--c:var(--blue);--ink:var(--text)"><span class="top"><span class="ic">${ic('inbox')}</span><span class="n">63</span></span><span class="name">Open &amp; aktif</span><span class="sub">11 baru hari ini</span></a>
+    <a class="stat" href="list.html" style="--c:var(--green);--ink:var(--text)"><span class="top"><span class="ic">${ic('circle-check')}</span><span class="n">214</span></span><span class="name">Resolved</span><span class="sub"><span class="trend" style="--ink:var(--ink-green)">${ic('trending-up')}+8%</span> vs minggu lalu</span></a>
+    <a class="stat attn" href="list.html" style="--c:var(--red);--ink:var(--ink-red)"><span class="top"><span class="ic">${ic('triangle-alert')}</span><span class="n">4</span></span><span class="name">Overdue</span><span class="sub">Perlu tindakan</span></a>
+    <div class="stat" style="--c:var(--navy);--ink:var(--text)"><span class="top"><span class="ic">${ic('gauge')}</span><span class="n">91%</span></span><span class="name">Kepatuhan SLA</span><span class="sub">Rata-rata selesai 4j 20m</span></div>
+  </section>
+
+  <div class="dgrid">
+    <section class="panel s8 fill" aria-label="Aktivitas tiket">
+      <h3>Aktivitas tiket <span class="live"><i></i>Demo</span>
+        <div class="seg" id="range" role="group" aria-label="Rentang">${RANGES.map((r) => `<button data-n="${r}" class="${r === 7 ? 'on' : ''}" aria-pressed="${r === 7}">${r}h</button>`).join('')}</div></h3>
+      <p class="panel-sub" id="rangeSub">Tiket dibuat vs diselesaikan (7 hari terakhir)</p>
+      <div id="activity" class="chart-host">${activity(7)}</div>
+    </section>
+    <div class="stack s4">
+      <section class="panel" aria-label="Per status"><h3>Per status</h3>${donut({ items: STATUS, label: 'Tiket per status' })}</section>
+      <section class="panel" aria-label="Per prioritas"><h3>Per prioritas</h3>${donut({ items: PRIORITY, label: 'Tiket per prioritas' })}</section>
+    </div>
+  </div>
+
+  <div class="dgrid">
+    <section class="panel s4" aria-label="Tiket per kategori">
+      <h3>Tiket per kategori <a class="link-more" href="reports.html">Laporan${ic('chevron-right')}</a></h3>
+      <div class="list">${CATEGORY.map(([c, n]) => `<a class="li cat-li" href="list.html"><span><span>${c}</span><b>${n}</b></span><span class="meter"><i style="--p:${(n / catMax) * 100}%;--c:var(--accent)"></i></span></a>`).join('')}</div>
+    </section>
+    <section class="panel s4 feed" aria-label="Aktivitas live">
+      <h3>Aktivitas live <span class="live"><i></i>Demo</span></h3>
+      <div class="list">${FEED.map(([i, c, t, d, w]) => `<a class="li" href="ticket.html"><span class="ico" style="--c:${c}">${ic(i)}</span><div class="grow1"><b>${t}</b><small>${d}</small></div><span class="t">${w}</span></a>`).join('')}</div>
+    </section>
+    <section class="panel s4 wide-md" aria-label="Agent terbaik">
+      <h3>Agent terbaik <a class="link-more" href="agents.html">Semua agent${ic('chevron-right')}</a></h3>
+      <div class="list">${AGENTS.map(([n, r, p], i) => `<a class="li" href="dashboard-me.html"><span class="rank">${i + 1}</span>${av(n)}<div class="grow1"><b>${n}</b><small><span style="color:var(--ink-green);font-weight:650">${r}</span> selesai · <span style="color:var(--accent);font-weight:650">${p}</span> dikerjakan</small></div></a>`).join('')}</div>
+    </section>
+  </div>
+</main>`);
+
+const range = document.getElementById('range');
+range.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-n]'); if (!b) return;
+  range.querySelectorAll('button').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
+  document.getElementById('activity').innerHTML = activity(Number(b.dataset.n));
+  document.getElementById('rangeSub').textContent = `Tiket dibuat vs diselesaikan (${b.dataset.n} hari terakhir)`;
+});
+document.getElementById('reload').onclick = () => {
+  document.getElementById('activity').innerHTML = '<div style="display:grid;gap:10px;padding:20px 0"><i class="sk w90"></i><i class="sk w70"></i><i class="sk w60"></i><i class="sk w50"></i></div>';
+  setTimeout(() => { document.getElementById('activity').innerHTML = activity(Number(range.querySelector('.on').dataset.n)); iDeskDropdown.notice('Tampilan contoh diperbarui. Tidak ada pengambilan data server.'); }, 520);
+};
+</script>
+</body>
+</html>

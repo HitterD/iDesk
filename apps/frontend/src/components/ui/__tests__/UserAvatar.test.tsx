@@ -5,7 +5,9 @@ vi.mock('@/stores/useAuth', () => ({
     useAuth: () => ({ user: null }),
 }));
 
-const { UserAvatar } = await import('../UserAvatar');
+const { UserAvatar, AVATAR_GRADIENTS } = await import('../UserAvatar');
+
+const FORBIDDEN_HUES = /(purple|violet|fuchsia|pink|indigo)-/;
 
 describe('UserAvatar', () => {
     it('shows the profile photo when the user has one', () => {
@@ -28,5 +30,19 @@ describe('UserAvatar', () => {
         rerender(<UserAvatar user={{ fullName: 'User SPJ', avatarUrl: '/uploads/avatars/new.png' }} />);
 
         expect(screen.getByRole('img').getAttribute('src')).toContain('/uploads/avatars/new.png');
+    });
+
+    it('uses a fallback palette without purple-family hues', () => {
+        expect(AVATAR_GRADIENTS).toHaveLength(8);
+        AVATAR_GRADIENTS.forEach((gradient) => expect(gradient).not.toMatch(FORBIDDEN_HUES));
+    });
+
+    it('never renders a purple-family fallback for any initial', () => {
+        const names = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((c) => `${c}ser Name`);
+        names.forEach((fullName) => {
+            const { container, unmount } = render(<UserAvatar user={{ fullName }} />);
+            expect((container.firstChild as HTMLElement).className).not.toMatch(FORBIDDEN_HUES);
+            unmount();
+        });
     });
 });

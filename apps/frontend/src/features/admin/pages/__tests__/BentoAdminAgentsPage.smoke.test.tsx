@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import api from '@/lib/api';
 import { BentoAdminAgentsPage } from '../BentoAdminAgentsPage';
 
@@ -33,9 +34,11 @@ describe('BentoAdminAgentsPage (characterization)', () => {
     const renderPage = () => {
         const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
         return render(
-            <QueryClientProvider client={qc}>
-                <BentoAdminAgentsPage />
-            </QueryClientProvider>
+            <MemoryRouter>
+                <QueryClientProvider client={qc}>
+                    <BentoAdminAgentsPage />
+                </QueryClientProvider>
+            </MemoryRouter>
         );
     };
 
@@ -54,7 +57,7 @@ describe('BentoAdminAgentsPage (characterization)', () => {
 
     it('renders empty state when no users', async () => {
         renderPage();
-        expect(await screen.findByText('No Users Found')).toBeInTheDocument();
+        expect(await screen.findByText('Tidak ada user')).toBeInTheDocument();
     });
 
     it('renders performance panel when agents exist', async () => {

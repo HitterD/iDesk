@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ZoomMonthView } from '../ZoomMonthView';
@@ -8,6 +8,11 @@ vi.mock('../../hooks/useZoomSettings', () => ({
     useZoomSettings: () => ({ data: { workingDays: [1, 2, 3, 4, 5] } }),
     isWorkingDay: (date: Date, days: number[]) => days.includes(date.getDay()),
 }));
+
+// jsdom has no layout, so a measuring ResizeObserver (the global no-op polyfill in test/setup.ts)
+// would read clientHeight 0 and shrink the month to one row. These cases assert the unmeasured default.
+beforeEach(() => { vi.stubGlobal('ResizeObserver', undefined); });
+afterEach(() => { vi.unstubAllGlobals(); });
 
 const DATE = '2026-09-09'; // Wednesday
 

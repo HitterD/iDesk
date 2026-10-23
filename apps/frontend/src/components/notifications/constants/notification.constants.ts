@@ -79,10 +79,10 @@ export const CATEGORY_CONFIG: Record<NotificationCategory, { label: string; icon
     [NotificationCategory.CATEGORY_HARDWARE]: {
         label: 'Hardware',
         icon: Wrench,
-        color: 'text-purple-600',
-        bgColor: 'bg-purple-50',
-        darkColor: 'text-purple-400',
-        darkBgColor: 'bg-purple-500/10',
+        color: 'text-orange-600',
+        bgColor: 'bg-orange-50',
+        darkColor: 'text-orange-400',
+        darkBgColor: 'bg-orange-500/10',
     },
     [NotificationCategory.CATEGORY_ZOOM]: {
         label: 'Zoom',

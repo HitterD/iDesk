@@ -11,7 +11,6 @@ import {
     Ticket as TicketIcon,
     Search,
     RefreshCw,
-    Plus,
     Clock,
     CheckCircle2,
     AlertCircle,
@@ -220,14 +219,6 @@ export const DynamicTicketQueuePage: React.FC = () => {
                         title="Refresh"
                     >
                         <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-                    </button>
-
-                    <button
-                        onClick={() => navigate('/tickets/create')}
-                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-md shadow-blue-500/20 hover:shadow-lg transition-all"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Buat Tiket
                     </button>
                 </div>
             </div>

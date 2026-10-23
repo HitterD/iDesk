@@ -126,3 +126,66 @@ describe('TicketHeader Back Navigation', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/tickets/mobile-developer');
     });
 });
+
+describe('TicketHeader compact metadata bubbles', () => {
+    const renderHeader = (overrides: Record<string, any>) => render(
+        <MemoryRouter initialEntries={['/tickets/t-1']}>
+            <TicketHeader ticket={createMockTicket(overrides) as any} onResolve={vi.fn()} onCancel={vi.fn()} onForward={vi.fn()} />
+        </MemoryRouter>
+    );
+
+    it('shows readonly status and priority pills next to the copyable ticket number', () => {
+        renderHeader({ status: 'IN_PROGRESS', priority: 'HIGH', slaTarget: new Date(Date.now() + 86_400_000).toISOString() });
+        expect(screen.getByRole('button', { name: /Salin nomor tiket/ })).toHaveTextContent('#080926-GEN-0001');
+        const pills = Array.from(document.querySelectorAll('header .ticket-pill')).map(el => el.textContent);
+        expect(pills).toEqual(expect.arrayContaining(['In Progress', 'Urgent']));
+        expect(document.querySelector('header .picker-trigger')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Selesaikan/ })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Teruskan/ })).toBeInTheDocument();
+    });
+
+    it('shows paused SLA with remaining business time and no target date', () => {
+        renderHeader({ status: 'WAITING_VENDOR', slaTarget: '2026-10-20T05:00:00Z', slaRemainingMinutes: 320 });
+        const sla = screen.getByText('SLA dijeda · sisa 5j 20m');
+        expect(sla.closest('.ticket-pill')).toHaveClass('ticket-tone-amber');
+        expect(document.querySelector('header [title*="Target:"]')).not.toBeInTheDocument();
+    });
+
+    it('groups actions per mockup: Batalkan (soft danger) · Teruskan (soft) | Resolve (only primary) · panel toggle', () => {
+        render(
+            <MemoryRouter initialEntries={['/tickets/t-1']}>
+                <TicketHeader ticket={createMockTicket({}) as any} onResolve={vi.fn()} onCancel={vi.fn()} onForward={vi.fn()} onToggleSidebar={vi.fn()} isSidebarOpen />
+            </MemoryRouter>
+        );
+        expect(screen.getByRole('button', { name: 'Batalkan' })).toHaveClass('is-danger');
+        expect(screen.getByRole('button', { name: 'Teruskan' })).toHaveClass('is-soft');
+        expect(screen.getByRole('button', { name: 'Selesaikan' })).toHaveClass('is-primary');
+        expect(document.querySelectorAll('header .is-primary')).toHaveLength(1);
+        expect(screen.getByRole('button', { name: 'Sembunyikan properti' })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByRole('button', { name: 'Aksi lainnya' })).toBeInTheDocument();
+    });
+
+    it('Batalkan opens the existing confirmation before cancelling', () => {
+        const onCancel = vi.fn();
+        render(
+            <MemoryRouter initialEntries={['/tickets/t-1']}>
+                <TicketHeader ticket={createMockTicket({}) as any} onCancel={onCancel} />
+            </MemoryRouter>
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'Batalkan' }));
+        expect(onCancel).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'Batalkan tiket' }));
+        expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('hides every action on a terminal ticket', () => {
+        render(
+            <MemoryRouter initialEntries={['/tickets/t-1']}>
+                <TicketHeader ticket={createMockTicket({ status: 'RESOLVED' }) as any} onResolve={vi.fn()} onCancel={vi.fn()} onForward={vi.fn()} />
+            </MemoryRouter>
+        );
+        for (const name of ['Batalkan', 'Teruskan', 'Resolve', 'Aksi lainnya']) {
+            expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+        }
+    });
+});

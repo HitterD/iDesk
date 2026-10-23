@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Aksi tiket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=20">
+<link rel="stylesheet" href="ticket-actions.css">
+<script src="ticket-actions.js" defer></script>
+</head>
+<body class="ta-page">
+<!-- Approved local extension. Operate: neutral utility forms, sapphire actions, incumbent SF/Inter tokens.
+     Exactly two native dialogs; mobile bottom sheets. No backend, upload or ticket mutation. -->
+<main class="ta-stage">
+  <nav class="ta-nav" aria-label="Navigasi mockup"><a href="ticket.html">Kembali ke detail tiket</a><button type="button" class="ta-button" id="theme">Tema gelap</button></nav>
+  <section class="ta-ticket" aria-labelledby="ticket-title">
+    <p class="ta-number">#201026-FGW-0009</p>
+    <h1 id="ticket-title">Servis printer marketing</h1>
+    <p class="ta-muted">Waiting Vendor · IT Support / Ops Support</p>
+    <div class="ta-launch"><button class="ta-button ta-forward" data-open="forward">Teruskan tiket</button><button class="ta-button ta-resolve" data-open="resolve">Selesaikan tiket</button></div>
+    <section class="ta-specimens" aria-labelledby="specimen-title">
+      <h2 id="specimen-title">Warna aksi</h2>
+      <p class="ta-muted">Sampel visual saja · hanya dua dialog di atas yang interaktif. Batal menutup dialog tetap netral.</p>
+      <div class="ta-samples">
+        <button class="ta-button ta-resolve" type="button" aria-disabled="true">Selesaikan tiket</button>
+        <button class="ta-button ta-forward" type="button" aria-disabled="true">Teruskan tiket</button>
+        <button class="ta-button ta-destructive" type="button" aria-disabled="true">Batalkan tiket</button>
+        <button class="ta-button ta-destructive" type="button" aria-disabled="true">Hapus tiket</button>
+        <button class="ta-button ta-reminder" type="button" aria-disabled="true">Set reminder</button>
+        <button class="ta-button ta-extend" type="button" aria-disabled="true">Perpanjang SLA</button>
+        <button class="ta-button" type="button" aria-disabled="true">Tambah anggota</button>
+      </div>
+      <div class="ta-samples ta-state-samples" aria-label="Sampel state tombol">
+        <span>State</span><button class="ta-button ta-primary ta-resolve" type="button" aria-disabled="true">Selesaikan tiket</button>
+        <button class="ta-button ta-primary ta-resolve" type="button" disabled>Selesaikan tiket</button>
+        <button class="ta-button ta-primary ta-resolve" type="button" aria-busy="true" aria-disabled="true">Menyelesaikan…</button>
+        <button class="ta-button ta-primary" type="button" aria-busy="true" aria-disabled="true">Meneruskan…</button>
+      </div>
+    </section>
+    <p class="ta-disclaimer">Prototype untuk review desain. Tidak ada perubahan tiket, upload, atau pengiriman data.</p>
+  </section>
+</main>
+<dialog class="ta-dialog" id="resolve" aria-labelledby="resolve-title" aria-describedby="resolve-ticket">
+  <form class="ta-form" novalidate>
+    <header class="ta-header"><h2 id="resolve-title">Selesaikan tiket</h2><p id="resolve-ticket"><span class="ta-number">#201026-FGW-0009</span> · Servis printer marketing</p></header>
+    <div class="ta-body">
+      <div class="ta-field"><label for="solution">Solusi <span class="ta-muted">(wajib)</span></label><textarea id="solution" name="solution" rows="5" required autofocus placeholder="Jelaskan tindakan dan hasil pengecekan…" aria-describedby="solution-error"></textarea><p class="ta-error" id="solution-error" hidden></p></div>
+      <div class="ta-field"><label for="template">Gunakan template <span class="ta-muted">(opsional)</span></label><select id="template"><option value="">Pilih template solusi…</option></select></div>
+      <div class="ta-attachments"><button class="ta-button" type="button" id="attach">Lampirkan</button><input id="files" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" hidden><p class="ta-help" id="file-help">Maks. 5 file · 10 MB/file<br>JPEG, PNG, WebP, GIF, atau PDF. Tidak diunggah.</p><ul class="ta-files" id="file-list" aria-label="Lampiran terpilih"></ul><p class="ta-error" id="file-error" role="alert" hidden></p></div>
+      <p class="ta-preview" role="status" tabindex="-1" hidden></p>
+    </div>
+    <footer class="ta-footer"><p>Prototype · tidak disimpan</p><div><button class="ta-button" type="button" data-cancel>Batal</button><button class="ta-button ta-primary ta-resolve" type="submit">Selesaikan tiket</button></div></footer>
+  </form>
+</dialog>
+<dialog class="ta-dialog" id="forward" aria-labelledby="forward-title" aria-describedby="forward-ticket">
+  <form class="ta-form" novalidate>
+    <header class="ta-header"><h2 id="forward-title">Teruskan tiket</h2><p id="forward-ticket"><span class="ta-number">#201026-FGW-0009</span> · Servis printer marketing</p></header>
+    <div class="ta-body">
+      <p class="ta-current">Tim saat ini: <strong>IT Support / Ops Support</strong></p>
+      <fieldset class="ta-teams"><legend>Tim tujuan <span class="ta-muted">(wajib)</span></legend></fieldset>
+      <div class="ta-field"><label for="reason">Alasan <span class="ta-muted">(wajib)</span></label><select id="reason" name="reason" required></select></div>
+      <div class="ta-field"><label for="notes">Catatan tambahan <span class="ta-muted" id="notes-required">(opsional)</span></label><textarea id="notes" name="notes" rows="3" placeholder="Tambahkan konteks untuk tim tujuan…" aria-describedby="forward-error"></textarea><p class="ta-error" id="forward-error" hidden></p></div>
+      <p class="ta-preview" role="status" tabindex="-1" hidden></p>
+    </div>
+    <footer class="ta-footer"><p>Prototype · tidak disimpan</p><div><button class="ta-button" type="button" data-cancel>Batal</button><button class="ta-button ta-primary" type="submit">Teruskan tiket</button></div></footer>
+  </form>
+</dialog>
+</body>
+</html>

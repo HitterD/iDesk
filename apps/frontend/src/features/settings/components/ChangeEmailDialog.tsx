@@ -149,14 +149,14 @@ export const ChangeEmailDialog: React.FC<ChangeEmailDialogProps> = ({
                     <DialogFooter className="px-6 py-4 bg-muted/20 border-t border-border/80 flex items-center justify-end gap-2">
                         <Button
                             type="button"
-                            variant="outline"
-                            className="rounded-xl text-xs font-bold"
+                            variant="soft"
+                           
                             onClick={() => onOpenChange(false)}
                             disabled={mutation.isPending}
                         >
                             Batal
                         </Button>
-                        <Button type="submit" className="rounded-xl text-xs font-bold" disabled={!canSubmit}>
+                        <Button variant="primary" type="submit" disabled={!canSubmit}>
                             {mutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                             Ubah Email
                         </Button>

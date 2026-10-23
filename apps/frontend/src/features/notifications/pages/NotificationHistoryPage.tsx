@@ -1,13 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-    RefreshCw, Mail, Check, Trash2, Search, Filter,
-    ChevronLeft, ChevronRight, ExternalLink, Shield,
-    MessageSquare, CheckSquare, Square, Bell, Layers, Clock,
-    Download
-} from 'lucide-react';
+import { RefreshCw, Mail, Check, Trash2, Search, Filter, ChevronLeft, ChevronRight, ExternalLink, CheckSquare, Square, Bell, Download } from 'lucide-react';
 import { useAuth } from '@/stores/useAuth';
 import { cn } from '@/lib/utils';
+import { ResHead } from '@/components/resources/ResourceParts';
 import { useNotificationCenter } from '../../notifications/hooks/useNotificationCenter';
 import { NotificationCategory } from '../../../components/notifications/types/notification.types';
 
@@ -104,15 +100,15 @@ export const NotificationHistoryPage: React.FC = () => {
     const getAppPill = (title: string, message: string) => {
         const text = `${title} ${message}`.toLowerCase();
         if (text.includes('ppaset') || text.includes('aset') || text.includes('hardware')) {
-            return { label: 'PPAset', color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20' };
+            return { label: 'PPAset', color: 'bg-ok/10 text-ok-ink border-ok/20' };
         }
         if (text.includes('ipop') || text.includes('purchase order') || text.includes('po')) {
-            return { label: 'iPop', color: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20' };
+            return { label: 'iPop', color: 'bg-brand/10 text-brand border-brand/20' };
         }
         if (text.includes('hris') || text.includes('cuti') || text.includes('lembur')) {
-            return { label: 'HRIS', color: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20' };
+            return { label: 'HRIS', color: 'bg-aqua/10 text-aqua-ink border-aqua/20' };
         }
-        return { label: 'iDesk', color: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20' };
+        return { label: 'iDesk', color: 'bg-brand/10 text-brand border-brand/20' };
     };
 
     const formatDate = (isoString: string) => {
@@ -131,78 +127,55 @@ export const NotificationHistoryPage: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-300">
-            {/* User Identity Banner */}
-            <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3.5">
-                    <div className="w-11 h-11 rounded-xl bg-[#2D4A8C] text-white flex items-center justify-center font-bold text-base shadow-xs">
-                        <Bell size={20} />
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-xl font-bold tracking-tight text-[hsl(var(--foreground))]">
-                                Notification History
-                            </h1>
-                            <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-[#E8A830]/15 text-[#E8A830] border border-[#E8A830]/30">
-                                SJA v2.0
-                            </span>
-                        </div>
-                        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-                            Arsip & log resmi seluruh notifikasi sistem internal PT Santos Jaya Abadi
-                        </p>
-                    </div>
-                </div>
-
-                {/* User Identity Chip */}
-                <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-[hsl(var(--muted)/0.5)] border border-[hsl(var(--border))] text-xs font-mono">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="font-bold text-[hsl(var(--foreground))]">
+        <div className="res-page space-y-6">
+            <ResHead icon={Bell} tone="red" title="Notification History" description="Arsip & log resmi seluruh notifikasi sistem internal PT Santos Jaya Abadi"
+                actions={(
+                    <span className="queue-pop font-mono" title="Pengguna">
                         {user?.employeeId || '00061058'} - {(user?.fullName || 'RM BAGASTYO ANGGORO INDRASTOTO').toUpperCase()}
                     </span>
-                </div>
-            </div>
+                )} />
 
             {/* Bento App Counter Ribbons */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-3.5 shadow-xs flex items-center justify-between">
+                <div className="bg-surface rounded-2xl border border-line p-3.5 shadow-xs flex items-center justify-between">
                     <div>
                         <div className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">iDesk Service</div>
                         <div className="text-lg font-bold text-[#2D4A8C] mt-0.5">{appCounts.idesk} Notif</div>
                     </div>
-                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-brand" />
                 </div>
-                <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-3.5 shadow-xs flex items-center justify-between">
+                <div className="bg-surface rounded-2xl border border-line p-3.5 shadow-xs flex items-center justify-between">
                     <div>
                         <div className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">PPAset Approval</div>
-                        <div className="text-lg font-bold text-emerald-600 mt-0.5">{appCounts.ppaset} Notif</div>
+                        <div className="text-lg font-bold text-ok-ink mt-0.5">{appCounts.ppaset} Notif</div>
                     </div>
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-ok" />
                 </div>
-                <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-3.5 shadow-xs flex items-center justify-between">
+                <div className="bg-surface rounded-2xl border border-line p-3.5 shadow-xs flex items-center justify-between">
                     <div>
                         <div className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">iPop Procurement</div>
-                        <div className="text-lg font-bold text-indigo-600 mt-0.5">{appCounts.ipop} Notif</div>
+                        <div className="text-lg font-bold text-brand mt-0.5">{appCounts.ipop} Notif</div>
                     </div>
-                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-brand" />
                 </div>
-                <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-3.5 shadow-xs flex items-center justify-between">
+                <div className="bg-surface rounded-2xl border border-line p-3.5 shadow-xs flex items-center justify-between">
                     <div>
                         <div className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">HRIS Portal</div>
-                        <div className="text-lg font-bold text-purple-600 mt-0.5">{appCounts.hris} Notif</div>
+                        <div className="text-lg font-bold text-aqua-ink mt-0.5">{appCounts.hris} Notif</div>
                     </div>
-                    <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-aqua" />
                 </div>
             </div>
 
             {/* Action Toolbar */}
-            <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-4 shadow-xs space-y-3.5">
+            <div className="bg-surface rounded-2xl border border-line p-4 shadow-xs space-y-3.5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     {/* Left Action Buttons */}
                     <div className="flex flex-wrap items-center gap-2">
                         <button
                             type="button"
                             onClick={() => window.location.reload()}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition active:scale-[0.98] cursor-pointer"
+                            className="idesk-btn is-primary"
                         >
                             <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} />
                             <span>Refresh</span>
@@ -212,7 +185,7 @@ export const NotificationHistoryPage: React.FC = () => {
                             type="button"
                             disabled={selectedIds.size === 0}
                             onClick={handleBulkMarkAsRead}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[hsl(var(--muted)/0.6)] hover:bg-[hsl(var(--muted))] text-[hsl(var(--foreground))] text-xs font-semibold border border-[hsl(var(--border))] transition disabled:opacity-40 cursor-pointer"
+                            className="idesk-btn is-soft"
                         >
                             <Check size={13} />
                             <span>Tandai Dibaca</span>
@@ -222,7 +195,7 @@ export const NotificationHistoryPage: React.FC = () => {
                             type="button"
                             disabled={selectedIds.size === 0}
                             onClick={handleBulkDelete}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold border border-rose-500/20 transition disabled:opacity-40 cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-bad/10 hover:bg-bad/20 text-bad-ink text-xs font-semibold border border-bad/20 transition disabled:opacity-40 cursor-pointer"
                         >
                             <Trash2 size={13} />
                             <span>Hapus</span>
@@ -231,7 +204,7 @@ export const NotificationHistoryPage: React.FC = () => {
                         <button
                             type="button"
                             onClick={handleExportCsv}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[hsl(var(--card))] hover:bg-[hsl(var(--muted)/0.5)] text-[#2D4A8C] text-xs font-semibold border border-[hsl(var(--border))] transition cursor-pointer"
+                            className="idesk-btn is-soft"
                             title="Unduh seluruh riwayat notifikasi ke file CSV"
                         >
                             <Download size={13} />
@@ -246,14 +219,14 @@ export const NotificationHistoryPage: React.FC = () => {
                     {/* Right Status Tabs, App Filter & Search */}
                     <div className="flex flex-wrap items-center gap-2.5">
                         {/* Status Filter Tabs */}
-                        <div className="flex items-center gap-1 bg-[hsl(var(--muted)/0.5)] p-1 rounded-xl border border-[hsl(var(--border))] text-xs font-semibold">
+                        <div className="flex items-center gap-1 bg-[hsl(var(--muted)/0.5)] p-1 rounded-xl border border-line text-xs font-semibold">
                             <button
                                 type="button"
                                 onClick={() => setReadFilter('all')}
                                 className={cn(
                                     "px-2.5 py-1 rounded-lg transition cursor-pointer",
                                     readFilter === 'all'
-                                        ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-xs font-bold"
+                                        ? "bg-surface text-[hsl(var(--foreground))] shadow-xs font-bold"
                                         : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
                                 )}
                             >
@@ -265,7 +238,7 @@ export const NotificationHistoryPage: React.FC = () => {
                                 className={cn(
                                     "px-2.5 py-1 rounded-lg transition cursor-pointer",
                                     readFilter === 'unread'
-                                        ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-xs font-bold"
+                                        ? "bg-surface text-[hsl(var(--foreground))] shadow-xs font-bold"
                                         : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
                                 )}
                             >
@@ -277,7 +250,7 @@ export const NotificationHistoryPage: React.FC = () => {
                                 className={cn(
                                     "px-2.5 py-1 rounded-lg transition cursor-pointer",
                                     readFilter === 'read'
-                                        ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-xs font-bold"
+                                        ? "bg-surface text-[hsl(var(--foreground))] shadow-xs font-bold"
                                         : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
                                 )}
                             >
@@ -290,7 +263,7 @@ export const NotificationHistoryPage: React.FC = () => {
                             <select
                                 value={selectedAppFilter}
                                 onChange={(e) => setSelectedAppFilter(e.target.value)}
-                                className="px-2.5 py-1.5 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-xs font-medium text-[hsl(var(--foreground))] outline-none focus:border-[#2D4A8C]"
+                                className="px-2.5 py-1.5 rounded-xl border border-line bg-surface text-xs font-medium text-[hsl(var(--foreground))] outline-none focus:border-[#2D4A8C]"
                             >
                                 <option value="ALL">Semua Aplikasi</option>
                                 <option value="iDesk">iDesk</option>
@@ -308,7 +281,7 @@ export const NotificationHistoryPage: React.FC = () => {
                                 placeholder="Cari notifikasi..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-xs text-[hsl(var(--foreground))] outline-none focus:border-[#2D4A8C]"
+                                className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-line bg-surface text-xs text-[hsl(var(--foreground))] outline-none focus:border-[#2D4A8C]"
                             />
                         </div>
                     </div>
@@ -316,7 +289,7 @@ export const NotificationHistoryPage: React.FC = () => {
             </div>
 
             {/* Notification History Data Table (Legacy Grid -> Bento Enterprise Table) */}
-            <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] overflow-hidden shadow-xs">
+            <div className="bg-surface rounded-2xl border border-line overflow-hidden shadow-xs">
                 {isLoading ? (
                     <div className="p-16 text-center text-xs text-[hsl(var(--muted-foreground))] space-y-2">
                         <RefreshCw size={24} className="animate-spin mx-auto text-[#2D4A8C]" />
@@ -339,9 +312,9 @@ export const NotificationHistoryPage: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={handleSelectAll}
-                                            className="text-slate-400 hover:text-white transition cursor-pointer"
+                                            className="text-ink-3 hover:text-white transition cursor-pointer"
                                         >
-                                            {isAllSelected ? <CheckSquare size={16} className="text-emerald-400" /> : <Square size={16} />}
+                                            {isAllSelected ? <CheckSquare size={16} className="text-ok" /> : <Square size={16} />}
                                         </button>
                                     </th>
                                     <th className="p-3.5 w-12 text-center">Status</th>
@@ -386,7 +359,7 @@ export const NotificationHistoryPage: React.FC = () => {
                                                 >
                                                     <Mail
                                                         size={16}
-                                                        className={notif.isRead ? "text-slate-400" : "text-amber-500 fill-amber-500/20"}
+                                                        className={notif.isRead ? "text-ink-3" : "text-warn fill-warn/20"}
                                                     />
                                                 </button>
                                             </td>
@@ -438,7 +411,7 @@ export const NotificationHistoryPage: React.FC = () => {
                 )}
 
                 {/* Footer Pagination */}
-                <div className="p-4 border-t border-[hsl(var(--border))] flex items-center justify-between text-xs text-[hsl(var(--muted-foreground))]">
+                <div className="p-4 border-t border-line flex items-center justify-between text-xs text-[hsl(var(--muted-foreground))]">
                     <span>
                         Menampilkan {filteredNotifications.length} dari {total} total notifikasi
                     </span>
@@ -448,7 +421,7 @@ export const NotificationHistoryPage: React.FC = () => {
                             type="button"
                             disabled={currentPage <= 1}
                             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                            className="p-1.5 rounded-lg border border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))] disabled:opacity-40 transition cursor-pointer"
+                            className="p-1.5 rounded-lg border border-line hover:bg-[hsl(var(--muted))] disabled:opacity-40 transition cursor-pointer"
                         >
                             <ChevronLeft size={14} />
                         </button>
@@ -459,7 +432,7 @@ export const NotificationHistoryPage: React.FC = () => {
                             type="button"
                             disabled={currentPage >= totalPages}
                             onClick={() => setCurrentPage((p) => p + 1)}
-                            className="p-1.5 rounded-lg border border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))] disabled:opacity-40 transition cursor-pointer"
+                            className="p-1.5 rounded-lg border border-line hover:bg-[hsl(var(--muted))] disabled:opacity-40 transition cursor-pointer"
                         >
                             <ChevronRight size={14} />
                         </button>

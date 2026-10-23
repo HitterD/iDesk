@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
+import type { TicketPillTone } from '@/components/ui/ticket-pill';
 
 interface StatsCardProps {
     icon: React.ElementType;
@@ -8,6 +9,8 @@ interface StatsCardProps {
     color: string;
     bgColor: string;
     highlight?: boolean;
+    /** Optional queue tone; legacy callers keep their color/bgColor styling. */
+    tone?: TicketPillTone;
     /** Index for staggered animation (0-5 typically) */
     animationIndex?: number;
     /** Click handler for filtering */
@@ -86,7 +89,8 @@ export const StatsCard: React.FC<StatsCardProps> = ({
     value,
     color,
     bgColor,
-    highlight: _highlight,
+    highlight,
+    tone,
     animationIndex = 0,
     onClick,
     isActive,
@@ -94,6 +98,24 @@ export const StatsCard: React.FC<StatsCardProps> = ({
 }) => {
     if (isLoading) {
         return <StatsCardSkeleton animationIndex={animationIndex} />;
+    }
+
+    if (tone) {
+        return (
+            <div className={cn('queue-stat', `ticket-tone-${tone}`, isActive && 'is-active',
+                highlight && Number(value) > 0 && 'is-attention', Number(value) === 0 && 'is-zero')}
+                role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
+                aria-pressed={onClick ? Boolean(isActive) : undefined} onClick={onClick}
+                onKeyDown={onClick ? (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick(); }
+                } : undefined}>
+                <div className="flex items-center justify-between gap-2">
+                    <span className="portal-stat-icon"><Icon aria-hidden="true" /></span>
+                    <span className="portal-stat-value"><AnimatedNumber value={value} /></span>
+                </div>
+                <span className="portal-stat-label">{label}</span>
+            </div>
+        );
     }
 
     return (

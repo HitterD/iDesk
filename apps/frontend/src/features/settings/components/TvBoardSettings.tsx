@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Copy, Play, RefreshCw, Trash2, Tv, Upload, Volume2 } from 'lucide-react';
+import { Copy, Play, RefreshCw, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { resolveAudioUrl } from '@/lib/media';
+import { SetHead } from './SettingsParts';
 
 interface Site {
     id: string;
@@ -236,33 +237,28 @@ export function TvBoardSettings() {
     };
 
     if (loading) {
-        return <p className="text-slate-400">Memuat...</p>;
+        return <p className="text-ink-3">Memuat...</p>;
     }
 
     return (
         <div className="space-y-4 max-w-3xl">
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
-                <Tv className="w-6 h-6" /> TV Board
-            </h2>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
-                Generate link kanban tiket per site untuk ditayangkan di layar TV. Ringtone otomatis berbunyi per divisi saat ada tiket masuk, saat tiket mulai dikerjakan, dan pada jam pulang. Setiap slot memiliki suara default bawaan yang bisa Anda uji dengar atau timpa dengan file audio sendiri.
-            </p>
+            <SetHead title="TV Board" sub="Tampilan antrian kanban per site untuk layar TV. Ringtone berbunyi per divisi saat tiket masuk, mulai dikerjakan, dan jam pulang; tiap slot punya suara default yang bisa diuji atau ditimpa." />
             {sites.map((site) => (
-                <div key={site.id} className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
+                <div key={site.id} className="p-4 bg-surface rounded-xl border border-line shadow-xs">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="font-semibold text-slate-800 dark:text-white">{site.code} — {site.name}</p>
+                            <p className="font-semibold text-ink">{site.code} — {site.name}</p>
                             {site.tvToken ? (
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 truncate max-w-md">{boardUrl(site.tvToken)}</p>
+                                <p className="text-xs text-ink-2 mt-1 truncate max-w-md">{boardUrl(site.tvToken)}</p>
                             ) : (
-                                <p className="text-xs text-slate-400 mt-1">Belum ada link</p>
+                                <p className="text-xs text-ink-3 mt-1">Belum ada link</p>
                             )}
                         </div>
                         <div className="flex items-center gap-2">
                             {site.tvToken && (
                                 <button
                                     onClick={() => handleCopy(site.tvToken!)}
-                                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+                                    className="p-2 rounded-lg hover:bg-fill"
                                     title="Copy link"
                                 >
                                     <Copy className="w-4 h-4" />
@@ -271,7 +267,7 @@ export function TvBoardSettings() {
                             <button
                                 onClick={() => handleGenerate(site.id)}
                                 disabled={busyId === site.id}
-                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+                                className="p-2 rounded-lg hover:bg-fill"
                                 title="Generate/regenerate"
                             >
                                 <RefreshCw className={`w-4 h-4 ${busyId === site.id ? 'animate-spin' : ''}`} />
@@ -280,7 +276,7 @@ export function TvBoardSettings() {
                                 <button
                                     onClick={() => handleRevoke(site.id)}
                                     disabled={busyId === site.id}
-                                    className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600"
+                                    className="p-2 rounded-lg hover:bg-bad/10 text-bad-ink"
                                     title="Revoke"
                                 >
                                     <Trash2 className="w-4 h-4" />
@@ -295,34 +291,34 @@ export function TvBoardSettings() {
                             checked={Boolean(site.tvShowsDevTickets)}
                             disabled={busyId === site.id}
                             onChange={(e) => handleShowsDevTickets(site.id, e.target.checked)}
-                            className="mt-0.5 h-4 w-4 accent-blue-600"
+                            className="mt-0.5 h-4 w-4 accent-brand"
                         />
                         <span>
-                            <span className="block text-sm font-medium text-slate-700 dark:text-slate-200">Site ini menampilkan tiket tim Dev semua site</span>
-                            <span className="block text-xs text-slate-500 dark:text-slate-400">
+                            <span className="block text-sm font-medium text-ink">Site ini menampilkan tiket tim Dev semua site</span>
+                            <span className="block text-xs text-ink-2">
                                 Tiket Oracle/K2, Web Dev, dan Mobile Dev dari semua site muncul di board ini (beserta label site asal). Board site lain hanya menampilkan tiket Support miliknya.
                             </span>
                         </span>
                     </label>
 
                     <label className="mt-3 flex items-center gap-3">
-                        <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Tema tampilan</span>
+                        <span className="text-sm font-medium text-ink">Tema tampilan</span>
                         <select
                             data-testid={`tv-theme-${site.id}`}
                             value={site.tvTheme ?? 'light'}
                             disabled={busyId === site.id}
                             onChange={(e) => handleTheme(site.id, e.target.value as 'light' | 'dark')}
-                            className="rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-sm text-slate-700 dark:text-slate-200"
+                            className="rounded-lg border border-line bg-surface px-2 py-1 text-sm text-ink"
                         >
                             <option value="light">Terang (Light)</option>
                             <option value="dark">Gelap (Dark)</option>
                         </select>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">Default untuk layar TV; tiap layar bisa mengganti sendiri lewat tombol di board.</span>
+                        <span className="text-xs text-ink-2">Default untuk layar TV; tiap layar bisa mengganti sendiri lewat tombol di board.</span>
                     </label>
 
-                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 space-y-2.5">
+                    <div className="mt-4 pt-4 border-t border-line space-y-2.5">
                         <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Pengaturan Suara Notifikasi Per Divisi</span>
+                            <span className="text-xs font-bold uppercase tracking-wider text-ink-3">Pengaturan Suara Notifikasi Per Divisi</span>
                         </div>
                         {RINGTONE_SLOTS.map(({ slot, field, label, defaultUrl, defaultLabel }) => {
                             const ownUrl = site[field] as string | null;
@@ -333,32 +329,32 @@ export function TvBoardSettings() {
                             const activeUrl = url || defaultUrl;
 
                             return (
-                                <div key={slot} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200 w-36 shrink-0">{label}</span>
+                                <div key={slot} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-fill transition-colors">
+                                    <span className="text-sm font-medium text-ink w-36 shrink-0">{label}</span>
                                     {url ? (
                                         <div className="flex items-center gap-2 truncate flex-1 min-w-0">
-                                            <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold shrink-0">
+                                            <span className="px-1.5 py-0.5 rounded bg-brand/15 text-brand text-[10px] font-bold shrink-0">
                                                 {inheritsGeneral ? 'Kustom umum' : 'Kustom'}
                                             </span>
-                                            <span className="text-xs text-slate-600 dark:text-slate-300 truncate" title={url}>
+                                            <span className="text-xs text-ink-2 truncate" title={url}>
                                                 {url}
                                             </span>
                                         </div>
                                     ) : (
-                                        <span className="text-xs text-slate-400 dark:text-slate-500 truncate flex-1 italic">
+                                        <span className="text-xs text-ink-3 truncate flex-1 italic">
                                             {defaultLabel}
                                         </span>
                                     )}
                                     <div className="flex items-center gap-1 shrink-0">
                                         <button
                                             onClick={() => handlePreview(activeUrl)}
-                                            className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-blue-600 dark:text-blue-400 transition-colors"
+                                            className="p-2 rounded-lg hover:bg-fill-2 text-brand transition-colors"
                                             title={url ? "Uji dengar ringtone kustom" : "Uji dengar suara bawaan (default)"}
                                         >
                                             <Play className="w-4 h-4" />
                                         </button>
                                         <label
-                                            className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 cursor-pointer text-slate-600 dark:text-slate-300 transition-colors"
+                                            className="p-2 rounded-lg hover:bg-fill-2 cursor-pointer text-ink-2 transition-colors"
                                             title="Unggah ringtone kustom"
                                         >
                                             <Upload className="w-4 h-4" />
@@ -377,7 +373,7 @@ export function TvBoardSettings() {
                                             <button
                                                 onClick={() => handleClearRingtone(site.id, clearSlot)}
                                                 disabled={busyId === site.id}
-                                                className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 transition-colors"
+                                                className="p-2 rounded-lg hover:bg-bad/10 text-bad-ink transition-colors"
                                                 title={inheritsGeneral
                                                     ? 'Hapus kustom umum (berlaku untuk semua divisi yang belum punya suara sendiri)'
                                                     : 'Hapus kustom (kembali ke bawaan)'}
@@ -391,12 +387,12 @@ export function TvBoardSettings() {
                         })}
 
                         <div className="flex items-center justify-between gap-3 pt-2">
-                            <span className="text-sm font-medium text-slate-700 dark:text-slate-200 w-36 shrink-0">Jam pulang</span>
+                            <span className="text-sm font-medium text-ink w-36 shrink-0">Jam pulang</span>
                             <input
                                 type="time"
                                 defaultValue={site.closingTime ?? ''}
                                 onBlur={(e) => handleClosingTime(site.id, e.target.value)}
-                                className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-transparent text-sm text-slate-700 dark:text-slate-200"
+                                className="px-3 py-1.5 rounded-lg border border-line bg-transparent text-sm text-ink"
                             />
                         </div>
                     </div>

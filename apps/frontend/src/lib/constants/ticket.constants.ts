@@ -22,6 +22,33 @@ export const TICKET_PRIORITY = {
     ORACLE_REQUEST: 'ORACLE_REQUEST',
 } as const;
 
+/**
+ * Open = sky, In Progress = navy (tokens.css `--ticket-sky*` / `--ticket-navy*`). The inks flip for dark
+ * mode inside the tokens, so these classes need no `dark:` variants. Literal strings on purpose:
+ * Tailwind only generates classes it can read verbatim in source.
+ */
+export const STATUS_TONE_CLASSES = {
+    TODO: {
+        pill: 'bg-[hsl(var(--ticket-sky)/0.10)] text-[hsl(var(--ticket-sky-ink))] border-[hsl(var(--ticket-sky)/0.25)]',
+        bg: 'bg-[hsl(var(--ticket-sky)/0.12)]',
+        text: 'text-[hsl(var(--ticket-sky-ink))]',
+        border: 'border-[hsl(var(--ticket-sky)/0.30)]',
+        dot: 'bg-[hsl(var(--ticket-sky))]',
+        /** For SVG strokes/fills that accept CSS colour strings. */
+        stroke: 'hsl(var(--ticket-sky))',
+    },
+    IN_PROGRESS: {
+        pill: 'bg-[hsl(var(--ticket-navy)/0.10)] text-[hsl(var(--ticket-navy-ink))] border-[hsl(var(--ticket-navy)/0.25)]',
+        bg: 'bg-[hsl(var(--ticket-navy)/0.12)]',
+        text: 'text-[hsl(var(--ticket-navy-ink))]',
+        border: 'border-[hsl(var(--ticket-navy)/0.30)]',
+        dot: 'bg-[hsl(var(--ticket-navy))]',
+        stroke: 'hsl(var(--ticket-navy))',
+    },
+} as const;
+/** Fixed hex for chart libraries that cannot resolve CSS variables (exports, canvas). */
+export const STATUS_CHART_HEX = { TODO: '#1A8FE0', IN_PROGRESS: '#2D4A8C' } as const;
+
 interface StatusConfig {
     label: string;
     color: string;
@@ -46,19 +73,19 @@ interface PriorityConfig {
 export const STATUS_CONFIG: Record<string, StatusConfig> = {
     TODO: {
         label: 'Open',
-        color: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+        color: STATUS_TONE_CLASSES.TODO.pill,
         icon: Inbox,
-        bgColor: 'bg-slate-100 dark:bg-slate-800',
-        textColor: 'text-slate-700 dark:text-slate-300',
-        columnColor: 'bg-slate-400',
+        bgColor: STATUS_TONE_CLASSES.TODO.bg,
+        textColor: STATUS_TONE_CLASSES.TODO.text,
+        columnColor: STATUS_TONE_CLASSES.TODO.dot,
     },
     IN_PROGRESS: {
         label: 'In Progress',
-        color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
+        color: STATUS_TONE_CLASSES.IN_PROGRESS.pill,
         icon: CircleDot,
-        bgColor: 'bg-blue-100 dark:bg-blue-900/30',
-        textColor: 'text-blue-600 dark:text-blue-400',
-        columnColor: 'bg-blue-500',
+        bgColor: STATUS_TONE_CLASSES.IN_PROGRESS.bg,
+        textColor: STATUS_TONE_CLASSES.IN_PROGRESS.text,
+        columnColor: STATUS_TONE_CLASSES.IN_PROGRESS.dot,
     },
     WAITING_VENDOR: {
         label: 'Waiting Vendor',

@@ -1,11 +1,15 @@
 import React from 'react';
-import { Edit2, Key, Trash2, CheckSquare, Square } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Pencil, KeyRound, Trash2, CheckSquare, Square } from 'lucide-react';
 import { User } from '@/types/admin.types';
 import { PermissionPreset } from './agent-types';
-import { SITE_COLORS, getRoleConfig, getRoleLabel, highlightText, formatLastActive } from './agent-utils';
+import { getRoleLabel, highlightText, formatLastActive } from './agent-utils';
 import { PresenceDot, PresenceBadge } from '@/components/ui/PresenceDot';
-import { UserAvatar } from '@/components/ui/UserAvatar';
+import { DashAvatar } from '@/features/dashboard/components/DashboardParts';
+import { ResBub, ResRow, ResTable } from '@/components/resources/ResourceParts';
+import '@/components/management/management.css';
+
+/** Mockup agents.html `.table.d` columns: user, role, site, status, presence, preset, actions, select. */
+const USER_COLS = 'minmax(220px,1.5fr) 150px 64px 92px 120px 170px 104px 40px';
 import { PresetDropdown } from './PresetDropdown';
 import { RoleDropdown } from './RoleDropdown';
 
@@ -27,130 +31,69 @@ export const UnifiedUserTable: React.FC<{
     const allSelected = users.length > 0 && users.every(u => selectedIds.has(u.id));
 
     return (
-        <div className="bg-white dark:bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] overflow-x-auto">
-            <table className="w-full min-w-[930px] text-left">
-                <thead className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-[hsl(var(--border))]">
-                    <tr>
-                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[220px]">User</th>
-                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[130px]">Role</th>
-                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[60px]">Site</th>
-                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[80px]">Status</th>
-                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[140px]">Preset</th>
-                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[130px]">Presence</th>
-                        <th scope="col" className="px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase w-[90px]">Actions</th>
-                        <th scope="col" className="px-2 py-3 w-10">
-                            <button
-                                type="button"
-                                onClick={onSelectAll}
-                                role="checkbox"
-                                aria-checked={allSelected}
-                                aria-label={allSelected ? 'Deselect all users' : 'Select all users'}
-                                className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                            >
-                                {allSelected
-                                    ? <CheckSquare className="w-4 h-4 text-primary" aria-hidden="true" />
-                                    : <Square className="w-4 h-4 text-slate-400" aria-hidden="true" />}
+        <ResTable label="Daftar user" cols={USER_COLS} colsMobile="minmax(0,1fr) auto auto"
+            head={(
+                <>
+                    <span>User</span><span>Role</span><span>Site</span><span>Status</span><span>Presence</span><span>Preset</span>
+                    <span className="is-right">Aksi</span>
+                    <span className="flex justify-center">
+                        <button type="button" onClick={onSelectAll} role="checkbox" aria-checked={allSelected}
+                            aria-label={allSelected ? 'Deselect all users' : 'Select all users'} className="res-icon-btn">
+                            {allSelected ? <CheckSquare className="text-[hsl(var(--idesk-sapphire))]" aria-hidden="true" /> : <Square aria-hidden="true" />}
+                        </button>
+                    </span>
+                </>
+            )}
+            foot={<><span>Menampilkan {users.length} user</span><span className="res-muted">Hanya ADMIN yang dapat membuka halaman ini</span></>}>
+            {users.map((user) => {
+                const active = user.isActive !== false;
+                return (
+                    <ResRow key={user.id} className="is-static">
+                        <div className="queue-person">
+                            <span className="relative flex-none">
+                                <DashAvatar name={user.fullName || '?'} />
+                                {/* The Presence column states this in words for screen readers. */}
+                                <PresenceDot userId={user.id} size="sm" ringed decorative className="absolute -bottom-0.5 -right-0.5" />
+                            </span>
+                            <div className="min-w-0">
+                                <b>{highlightText(user.fullName, searchQuery)}</b>
+                                <small>{highlightText(user.email, searchQuery)}</small>
+                            </div>
+                        </div>
+                        <span>
+                            {onApplyRole ? (
+                                <RoleDropdown user={user} onApplyRole={onApplyRole} isApplying={applyingRoleUserId === user.id}
+                                    bulkCount={selectedIds.has(user.id) ? selectedIds.size : 0} />
+                            ) : (
+                                <ResBub color="var(--dash-gray)" plain>{getRoleLabel(user.role)}</ResBub>
+                            )}
+                        </span>
+                        <span className="res-hide-m">{user.site ? <ResBub color="var(--dash-gray)" mono plain>{user.site.code}</ResBub> : <span className="res-muted">—</span>}</span>
+                        <span className="res-hide-m">
+                            <ResBub color={active ? 'var(--dash-green)' : 'var(--dash-red)'} ink={active ? 'var(--dash-ink-green)' : 'var(--dash-ink-red)'}>{active ? 'Active' : 'Inactive'}</ResBub>
+                        </span>
+                        <span className="res-hide-m text-xs min-w-0">
+                            <PresenceBadge userId={user.id} />
+                            <span className="block mt-0.5 res-muted truncate">{formatLastActive(user.lastActiveAt)}</span>
+                        </span>
+                        <span className="res-wide-m">
+                            <PresetDropdown user={user} presets={presets} onApplyPreset={onApplyPreset} isApplying={applyingPresetUserId === user.id}
+                                bulkCount={selectedIds.has(user.id) ? selectedIds.size : 0} />
+                        </span>
+                        <span className="res-acts res-wide-m" role="group" aria-label={`Aksi ${user.fullName}`}>
+                            <button type="button" onClick={() => onEdit(user)} className="res-icon-btn" title="Edit" aria-label={`Edit ${user.fullName}`}><Pencil aria-hidden="true" /></button>
+                            <button type="button" onClick={() => onResetPassword(user)} className="res-icon-btn" title="Reset Password" aria-label={`Reset password for ${user.fullName}`}><KeyRound aria-hidden="true" /></button>
+                            <button type="button" onClick={() => onDelete(user)} className="res-icon-btn is-danger" title="Delete" aria-label={`Delete ${user.fullName}`}><Trash2 aria-hidden="true" /></button>
+                        </span>
+                        <span className="flex justify-center">
+                            <button type="button" onClick={() => onToggleSelection(user.id)} role="checkbox" aria-checked={selectedIds.has(user.id)}
+                                aria-label={`Select ${user.fullName}`} className="res-icon-btn">
+                                {selectedIds.has(user.id) ? <CheckSquare className="text-[hsl(var(--idesk-sapphire))]" aria-hidden="true" /> : <Square aria-hidden="true" />}
                             </button>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-[hsl(var(--border))]">
-                    {users.map((user) => (
-                        <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                            <td className="px-3 py-3">
-                                <div className="flex items-center gap-2">
-                                    <div className="relative flex-shrink-0">
-                                        <UserAvatar user={user} size="sm" className="text-sm" />
-                                        {/* The Presence column states this in words for screen readers. */}
-                                        <PresenceDot userId={user.id} size="sm" ringed decorative className="absolute -bottom-0.5 -right-0.5" />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="font-medium text-slate-800 dark:text-white truncate max-w-[160px]">
-                                            {highlightText(user.fullName, searchQuery)}
-                                        </p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[160px]">
-                                            {highlightText(user.email, searchQuery)}
-                                        </p>
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-3 py-3">
-                                {onApplyRole ? (
-                                    <RoleDropdown
-                                        user={user}
-                                        onApplyRole={onApplyRole}
-                                        isApplying={applyingRoleUserId === user.id}
-                                        bulkCount={selectedIds.has(user.id) ? selectedIds.size : 0}
-                                    />
-                                ) : (
-                                    <span className={cn("px-2 py-1 rounded-lg text-xs font-bold", getRoleConfig(user.role).badgeColor)}>
-                                        {getRoleLabel(user.role)}
-                                    </span>
-                                )}
-                            </td>
-                            <td className="px-3 py-3">
-                                {user.site ? (
-                                    <span className={cn("px-2 py-1 rounded-lg text-xs font-bold", SITE_COLORS[user.site.code] || 'bg-slate-100 text-slate-600')}>
-                                        {user.site.code}
-                                    </span>
-                                ) : <span className="text-slate-400 text-xs">—</span>}
-                            </td>
-                            <td className="px-3 py-3">
-                                <span className={cn(
-                                    "px-2 py-1 rounded-lg text-xs font-bold",
-                                    user.isActive !== false
-                                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                        : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                                )}>
-                                    {user.isActive !== false ? 'Active' : 'Inactive'}
-                                </span>
-                            </td>
-                            <td className="px-3 py-3">
-                                <PresetDropdown
-                                    user={user}
-                                    presets={presets}
-                                    onApplyPreset={onApplyPreset}
-                                    isApplying={applyingPresetUserId === user.id}
-                                    bulkCount={selectedIds.has(user.id) ? selectedIds.size : 0}
-                                />
-                            </td>
-                            <td className="px-3 py-3 text-xs">
-                                <PresenceBadge userId={user.id} />
-                                <span className="block mt-0.5 text-slate-400">
-                                    {formatLastActive(user.lastActiveAt)}
-                                </span>
-                            </td>
-                            <td className="px-3 py-3">
-                                <div className="flex items-center gap-1">
-                                    <button type="button" onClick={() => onEdit(user)} className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Edit" aria-label={`Edit ${user.fullName}`}>
-                                        <Edit2 className="w-4 h-4 text-slate-500" aria-hidden="true" />
-                                    </button>
-                                    <button type="button" onClick={() => onResetPassword(user)} className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Reset Password" aria-label={`Reset password for ${user.fullName}`}>
-                                        <Key className="w-4 h-4 text-slate-500" aria-hidden="true" />
-                                    </button>
-                                    <button type="button" onClick={() => onDelete(user)} className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Delete" aria-label={`Delete ${user.fullName}`}>
-                                        <Trash2 className="w-4 h-4" aria-hidden="true" />
-                                    </button>
-                                </div>
-                            </td>
-                            <td className="px-2 py-3">
-                                <button
-                                    type="button"
-                                    onClick={() => onToggleSelection(user.id)}
-                                    role="checkbox"
-                                    aria-checked={selectedIds.has(user.id)}
-                                    aria-label={`Select ${user.fullName}`}
-                                    className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                                >
-                                    {selectedIds.has(user.id)
-                                        ? <CheckSquare className="w-4 h-4 text-primary" aria-hidden="true" />
-                                        : <Square className="w-4 h-4 text-slate-400" aria-hidden="true" />}
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
+                        </span>
+                    </ResRow>
+                );
+            })}
+        </ResTable>
     );
 };

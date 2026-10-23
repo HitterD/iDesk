@@ -9,9 +9,47 @@
        DESIGN SYSTEM V5 - Enhanced Tokens (Premium v3)
        ======================================== */
 
-        /* TYPOGRAPHY */
-        --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-        --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+        /* PR2 scoped tokens: HSL channels; existing global semantics remain unchanged. */
+        --idesk-sapphire: 221.684 51.351% 36.275%; /* #2D4A8C */
+        --idesk-chrome: 222 52% 28%;
+        --idesk-chrome-raised: var(--idesk-sapphire);
+        --idesk-chrome-foreground: 0 0% 100%;
+        --idesk-chrome-muted: 220 35% 80%;
+        --idesk-canvas: 240 11% 96%;
+        --idesk-surface: 0 0% 100%;
+        --idesk-surface-raised: 240 25% 98%;
+        --idesk-text: 240 3% 12%;
+        --idesk-text-secondary: 240 4% 39%;
+        --idesk-border: 220 15% 85%;
+        --idesk-focus: var(--idesk-sapphire);
+        --idesk-selection: 221 50% 94%;
+        --idesk-cta: 39 92% 52%;
+        --idesk-cta-hover: 39 96% 60%;
+        --idesk-cta-foreground: 39 100% 12%;
+        --ticket-tint: 9%;
+        --ticket-border-tint: 24%;
+        --ticket-neutral: 240 2% 56%;
+        --ticket-neutral-ink: 240 4% 39%;
+        --ticket-blue: 221 50% 48%;
+        --ticket-blue-ink: 221 54% 36%;
+        --ticket-navy: var(--idesk-sapphire);
+        --ticket-navy-ink: var(--idesk-sapphire);
+        /* Open = sky, In Progress = navy: the two status inks must read differently everywhere. */
+        --ticket-sky: 204.5 79% 49%;       /* #1A8FE0 */
+        --ticket-sky-ink: 206.7 89% 38%;   /* #0B6BB8 */
+        --ticket-amber: 35 90% 50%;
+        --ticket-amber-ink: 33 100% 29%;
+        --ticket-green: 135 58% 44%;
+        --ticket-green-ink: 136 63% 27%;
+        --ticket-red: 4 86% 58%;
+        --ticket-red-ink: 4 75% 40%;
+        --ticket-teal: 178 81% 31%;
+        --ticket-teal-ink: 178 80% 24%;
+
+        /* TYPOGRAPHY — SF Pro on Apple devices (system font, never self-hosted), Inter elsewhere (index.html). */
+        --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", system-ui, sans-serif;
+        --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+        --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", "Cascadia Mono", monospace;
 
         /* PREMIUM PALETTE — Warm Ivory & Sapphire */
         --background: 40 20% 97%;        /* #F8F6F3 warm ivory */
@@ -186,10 +224,17 @@
         --ease-in-out-cubic: cubic-bezier(0.4, 0, 0.2, 1);
         --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
         --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
-        --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
         --duration-fast: 150ms;
         --duration-normal: 300ms;
         --duration-slow: 500ms;
+
+        /* MOTION (round 2): exponential ease-out for state changes, a soft spring for things that land.
+           Every new transition/animation reads these; the reduced-motion block at the end of index.css zeroes them. */
+        --ease-out: cubic-bezier(.22, 1, .36, 1);
+        --ease-spring: cubic-bezier(.34, 1.36, .64, 1);
+        --dur-1: 120ms;
+        --dur-2: 200ms;
+        --dur-3: 280ms;
 
         /* BACKGROUND COMPOSITION (login page) */
         --grid-line: rgba(0, 0, 0, 0.045);
@@ -200,6 +245,29 @@
     }
 
     .dark {
+        --idesk-sapphire: 221 56% 63%;
+        --idesk-chrome: 223 44% 13%;
+        --idesk-chrome-raised: 221 44% 18%;
+        --idesk-chrome-muted: 220 30% 76%;
+        --idesk-canvas: 240 4% 9%;
+        --idesk-surface: 240 5% 13%;
+        --idesk-surface-raised: 240 4% 15%;
+        --idesk-text: 240 8% 95%;
+        --idesk-text-secondary: 240 5% 72%;
+        --idesk-border: 223 15% 30%;
+        --idesk-selection: 221 35% 24%;
+        --ticket-tint: 16%;
+        --ticket-border-tint: 38%;
+        --ticket-neutral-ink: 240 5% 76%;
+        --ticket-blue-ink: 220 78% 77%;
+        --ticket-navy-ink: 223 70% 80%;    /* #A9BDF0 */
+        --ticket-sky: 206 100% 65%;        /* #4FB3FF */
+        --ticket-sky-ink: 206 100% 74%;    /* #7CC6FF */
+        --ticket-amber-ink: 36 100% 68%;
+        --ticket-green-ink: 136 59% 65%;
+        --ticket-red-ink: 4 100% 74%;
+        --ticket-teal-ink: 178 62% 65%;
+
         /* PREMIUM DARK — Deep Navy & Luminous */
         --background: 225 25% 8%;         /* #101520 deep navy */
         --foreground: 40 15% 90%;         /* #E8E4DE warm off-white */
@@ -259,6 +327,7 @@
     }
 
     body {
+        font-feature-settings: "cv11", "ss01"; /* Inter alternates; ignored by SF Pro */
         color: hsl(var(--foreground));
         background-color: hsl(var(--background));
         background-image:

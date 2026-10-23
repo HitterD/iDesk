@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, GripVertical, Settings2, Save } from 'lucide-react';
+import { Plus, Trash2, Settings2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
 export interface CustomFieldConfig {
@@ -102,16 +102,16 @@ export const DynamicFormBuilderModal = ({ isOpen, onClose, accessType, onSave }:
 
                 <div className="space-y-4 my-4">
                     {fields.length === 0 ? (
-                        <div className="text-center py-8 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
-                            <p className="text-sm text-slate-500 mb-4">Belum ada field kustom untuk tiket tipe ini.</p>
-                            <Button onClick={handleAddField} variant="outline" size="sm">
+                        <div className="text-center py-8 bg-fill rounded-xl border border-dashed border-line">
+                            <p className="text-sm text-ink-2 mb-4">Belum ada field kustom untuk tiket tipe ini.</p>
+                            <Button onClick={handleAddField} variant="soft" size="sm">
                                 <Plus className="w-4 h-4 mr-2" /> Tambah Field Pertama
                             </Button>
                         </div>
                     ) : (
                         <div className="space-y-3">
                             {fields.map((field, index) => (
-                                <div key={index} className="flex flex-col md:flex-row gap-4 p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl relative group">
+                                <div key={index} className="flex flex-col md:flex-row gap-4 p-4 bg-fill border border-line rounded-xl relative group">
                                     <div className="flex-1 space-y-3">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             <div className="space-y-1.5">
@@ -140,11 +140,11 @@ export const DynamicFormBuilderModal = ({ isOpen, onClose, accessType, onSave }:
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             <div className="space-y-1.5">
-                                                <Label className="text-xs text-slate-500">Unique ID (Database Key)</Label>
+                                                <Label className="text-xs text-ink-2">Unique ID (Database Key)</Label>
                                                 <Input
                                                     value={field.id}
                                                     onChange={(e) => handleFieldChange(index, 'id', e.target.value)}
-                                                    className="h-8 text-xs font-mono bg-slate-100 dark:bg-slate-950"
+                                                    className="h-8 text-xs font-mono bg-fill"
                                                 />
                                             </div>
                                             <div className="flex items-center gap-4 justify-end mt-4">
@@ -156,10 +156,10 @@ export const DynamicFormBuilderModal = ({ isOpen, onClose, accessType, onSave }:
                                                     <Label className="text-xs cursor-pointer">Wajib Diisi (Required)</Label>
                                                 </div>
                                                 <Button
-                                                    variant="ghost"
+                                                    variant="subtle"
                                                     size="icon"
                                                     onClick={() => handleRemoveField(index)}
-                                                    className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                                                    className="w-8 text-bad"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>
@@ -169,7 +169,7 @@ export const DynamicFormBuilderModal = ({ isOpen, onClose, accessType, onSave }:
                                 </div>
                             ))}
 
-                            <Button onClick={handleAddField} variant="outline" className="w-full border-dashed">
+                            <Button onClick={handleAddField} variant="soft" className="w-full">
                                 <Plus className="w-4 h-4 mr-2" /> Tambah Kolom Input
                             </Button>
                         </div>
@@ -177,8 +177,8 @@ export const DynamicFormBuilderModal = ({ isOpen, onClose, accessType, onSave }:
                 </div>
 
                 <DialogFooter>
-                    <Button variant="ghost" onClick={onClose}>Batal</Button>
-                    <Button onClick={handleSave} disabled={loading} className="gap-2">
+                    <Button variant="subtle" onClick={onClose}>Batal</Button>
+                    <Button variant="primary" onClick={handleSave} disabled={loading}>
                         {loading ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
                         Simpan Blueprint
                     </Button>

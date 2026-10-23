@@ -5,7 +5,6 @@ import {
   Search,
   Ticket,
   BookOpen,
-  Plus,
   Settings,
   Users,
   BarChart3,
@@ -131,15 +130,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
 
     // Quick actions
     const actionItems: CommandItem[] = [
-      {
-        id: 'action-new-ticket',
-        title: 'Create New Ticket',
-        description: 'Open a new support ticket',
-        icon: Plus,
-        action: () => { navigate('/tickets/create'); onClose(); },
-        category: 'action',
-        keywords: ['new', 'create', 'ticket', 'add'],
-      },
       {
         id: 'action-new-article',
         title: 'Write New Article',

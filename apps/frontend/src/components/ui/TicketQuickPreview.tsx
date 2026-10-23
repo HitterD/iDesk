@@ -23,6 +23,7 @@ import {
     Building2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 
@@ -64,8 +65,8 @@ interface TicketQuickPreviewProps {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-    TODO: { label: 'Open', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800/60', icon: CircleDot },
-    IN_PROGRESS: { label: 'In Progress', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800/60', icon: Clock },
+    TODO: { label: 'Open', color: STATUS_TONE_CLASSES.TODO.pill, icon: CircleDot },
+    IN_PROGRESS: { label: 'In Progress', color: STATUS_TONE_CLASSES.IN_PROGRESS.pill, icon: Clock },
     WAITING_VENDOR: { label: 'Waiting Vendor', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800/60', icon: Hourglass },
     RESOLVED: { label: 'Resolved', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60', icon: CheckCircle2 },
     CLOSED: { label: 'Closed', color: 'bg-slate-200 text-slate-700 border-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600', icon: CheckCircle2 },

@@ -1,50 +1,46 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useNavigate, useSearchParams, useLocation, NavigateFunction } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-    ArrowLeft,
-    Send,
-    Paperclip,
-    AlertCircle,
-    Tag,
-    Monitor,
-    Box,
-    FileText,
-    Save,
-    Trash2,
-    Ticket,
-    DollarSign,
-    Wifi,
-    Code2,
-    Smartphone,
-    X,
-    Maximize2,
-    Download,
-    FileSpreadsheet,
-    FileArchive,
-    File as FileIcon,
-    Image as ImageIcon,
-} from 'lucide-react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Search } from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
-import { useAuth } from '../../../stores/useAuth';
+import { useAuth } from '@/stores/useAuth';
 import { useMyPermissions } from '@/hooks/usePermissions';
 import { logger } from '@/lib/logger';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
-import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { lockBodyScroll, unlockBodyScroll } from '@/lib/scrollLock';
 import {
-    ATTACHMENT_ACCEPT,
     ATTACHMENT_TOTAL_ERROR,
-    FILE_SIZE_LIMITS,
     MAX_ATTACHMENTS_PER_TICKET,
     fitsAttachmentTotal,
-    formatFileSize,
     validateAttachmentFile,
 } from '@/lib/file-validation';
-import { PriorityHoverTip } from '@/components/ui/PriorityHoverTip';
 import { RequesterSelector } from '../components/RequesterSelector';
+import {
+    BASE_CATEGORY_OPTIONS,
+    REQUEST_CARDS,
+    TICKETING_CARDS,
+    TICKET_FORM_CONFIG,
+    TICKET_TYPES,
+    matchesCatalogQuery,
+    type TicketCardConfig,
+    type TicketTemplate,
+    type TicketType,
+} from '../components/create-ticket/createTicketConfig';
+import { TicketCatalogSection, TicketTypeCard } from '../components/create-ticket/TicketTypeCard';
+import {
+    CriticalReasonField,
+    DraftStatus,
+    ErrorBanner,
+    SubmitBar,
+    TemplateChips,
+    TicketFormHeader,
+    TicketFormRow,
+    TicketFormSection,
+    TitleField,
+    UrgencySegment,
+} from '../components/create-ticket/TicketFormSection';
+import { DescriptionComposer, type PreviewItem } from '../components/create-ticket/DescriptionComposer';
+import { AddAttributeModal, ClassificationFields, LightboxModal, type AttributeKind } from '../components/create-ticket/ClassificationFields';
 
 interface TicketDraft {
     title: string;
@@ -71,260 +67,16 @@ interface TicketAttributes {
     software: TicketAttribute[];
 }
 
-const PRIORITY_OPTIONS = [
-    { id: 'LOW', label: 'Low (Minor/Cosmetic)', shortLabel: 'Low', dot: 'bg-emerald-500', activeRing: 'ring-emerald-500/30', activeBorder: 'border-emerald-500/60', activeBg: 'bg-emerald-500/10 dark:bg-emerald-500/15', activeText: 'text-emerald-600 dark:text-emerald-400' },
-    { id: 'MEDIUM', label: 'Normal (Moderate)', shortLabel: 'Normal', dot: 'bg-blue-500', activeRing: 'ring-blue-500/30', activeBorder: 'border-blue-500/60', activeBg: 'bg-blue-500/10 dark:bg-blue-500/15', activeText: 'text-blue-600 dark:text-blue-400' },
-    { id: 'HIGH', label: 'Urgent (Major Impact)', shortLabel: 'Urgent', dot: 'bg-amber-500', activeRing: 'ring-amber-500/30', activeBorder: 'border-amber-500/60', activeBg: 'bg-amber-500/10 dark:bg-amber-500/15', activeText: 'text-amber-600 dark:text-amber-400' },
-    { id: 'CRITICAL', label: 'Blocker (Critical)', shortLabel: 'Blocker', dot: 'bg-rose-500', activeRing: 'ring-rose-500/30', activeBorder: 'border-rose-500/60', activeBg: 'bg-rose-500/10 dark:bg-rose-500/15', activeText: 'text-rose-600 dark:text-rose-400' },
-] as const;
-
-type TicketType = 'none' | 'service' | 'oracle-request' | 'web-dev-request' | 'mobile-dev-request';
-
-const TICKET_TYPES = ['none', 'service', 'oracle-request', 'web-dev-request', 'mobile-dev-request'] as const satisfies readonly TicketType[];
 const DRAFT_AUTOSAVE_DELAY_MS = 2_000;
 
 const getDraftStorageKey = (type: TicketType) => `ticket-draft-${type}`;
-
-const ORACLE_TEMPLATES = [
-    { label: 'Login Issue', priority: 'MEDIUM', subject: 'Lupa Password / Gagal Login Oracle', description: 'Gagal login ke portal Oracle. Error message: ' },
-    { label: 'Role Update', priority: 'MEDIUM', subject: 'Penambahan Role K2', description: 'Mohon tambahkan role [Nama Role] untuk user [Nama User] di K2.' },
-    { label: 'System Error', priority: 'HIGH', subject: 'Error Transaksi Oracle', description: 'Terdapat error saat proses transaksi modul [Nama Modul]. Error detail: ' },
-] as const;
-
-const WEB_DEV_TEMPLATES = [
-    { label: 'UI Bug', priority: 'HIGH', subject: 'Bug Tampilan / Antarmuka Web', description: 'Terdapat kendala tampilan pada halaman [Nama Halaman]. Detail isu: ' },
-    { label: 'API Error', priority: 'HIGH', subject: 'Error Integrasi API / Backend', description: 'Gagal memuat data dari endpoint API [Nama Endpoint]. Pesan error: ' },
-    { label: 'Fitur Baru', priority: 'MEDIUM', subject: 'Permintaan Fitur Baru Web', description: 'Kebutuhan fitur baru pada modul [Nama Modul]. Rincian kebutuhan: ' },
-    { label: 'Slow Web', priority: 'MEDIUM', subject: 'Loading Website Lambat / Timeout', description: 'Akses ke web portal mengalami lag/timeout pada bagian [Bagian Web].' },
-] as const;
-
-const MOBILE_DEV_TEMPLATES = [
-    { label: 'App Crash', priority: 'CRITICAL', subject: 'Aplikasi Mobile Force Close / Crash', description: 'Aplikasi mobile mengalami crash saat membuka [Menu/Fitur]. Perangkat & OS: ' },
-    { label: 'Release Issue', priority: 'HIGH', subject: 'Kendala Rilis / Update APK', description: 'Gagal melakukan instalasi atau update APK versi [Nomor Versi].' },
-    { label: 'Sync Error', priority: 'HIGH', subject: 'Gagal Sinkronisasi Data Mobile', description: 'Data pada aplikasi mobile tidak tersinkron ke server pada modul [Nama Modul].' },
-    { label: 'Push Notif', priority: 'MEDIUM', subject: 'Push Notification Tidak Masuk', description: 'Notifikasi tidak muncul pada device pengguna saat trigger [Nama Event].' },
-] as const;
-
-const QUICK_TEMPLATES = [
-    { label: 'Email Issue', category: 'SOFTWARE', priority: 'HIGH', subject: 'Email tidak bisa diakses', description: 'Tidak dapat mengirim atau menerima email. Error message: ' },
-    { label: 'Printer Fault', category: 'HARDWARE', priority: 'MEDIUM', subject: 'Printer rusak / tidak merespon', description: 'Printer tidak merespon saat print. Sudah direstart. Model printer: ' },
-    { label: 'Slow System', category: 'HARDWARE', priority: 'LOW', subject: 'Komputer lemot', description: 'PC/Laptop sangat lambat saat membuka aplikasi. Area timbul keluhan: ' },
-    { label: 'No Network', category: 'NETWORK', priority: 'HIGH', subject: 'Koneksi internet bermasalah', description: 'Tidak ada koneksi WiFi maupun LAN. Area/Lantai: ' },
-    { label: 'Software Error', category: 'SOFTWARE', priority: 'CRITICAL', subject: 'Error sistem saat input data', description: 'Proses berhenti karena error. Nama sistem: ' },
-    { label: 'Login Issue', category: 'GENERAL', priority: 'MEDIUM', subject: 'Password terkunci', description: 'Gagal login berkali-kali. Mohon dibantu reset. Username: ' },
-] as const;
 
 function getInitialTicketType(value: string | null): TicketType {
     return value && TICKET_TYPES.includes(value as TicketType) ? value as TicketType : 'none';
 }
 
-interface TicketTypeCardActionArgs {
-    setTicketType: (type: TicketType) => void;
-    navigate: NavigateFunction;
-    getBasePath: () => string;
-}
-
-interface TicketCardConfig {
-    key: string;
-    pageKey?: string;
-    section: 'ticketing' | 'request';
-    eyebrow: string;
-    title: string;
-    description: string;
-    mascotImg: string;
-    mascotAlt: string;
-    ctaLabel?: string;
-    icon: typeof Ticket;
-    colorTheme: {
-        gradient: string;
-        badge: string;
-        hoverGlow: string;
-        iconBg: string;
-        hoverText: string;
-    };
-    action: (args: TicketTypeCardActionArgs) => void;
-}
-
-const TICKETING_CARDS: TicketCardConfig[] = [
-    {
-        key: 'service',
-        pageKey: 'tickets',
-        section: 'ticketing',
-        eyebrow: 'General Support',
-        title: 'Service Ticket',
-        description: 'Laporkan masalah hardware, software, jaringan, atau kebutuhan IT support umum lainnya.',
-        mascotImg: '/characters/mascot-service.png',
-        mascotAlt: 'Maskot IT Support Agent',
-        ctaLabel: 'Buat Service Ticket',
-        icon: Ticket,
-        colorTheme: {
-            gradient: 'from-blue-500/20 via-border/70 to-indigo-500/10 dark:from-blue-500/25 dark:via-border/70 dark:to-indigo-500/15',
-            badge: 'text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/20',
-            hoverGlow: 'hover:shadow-blue-500/15 hover:border-blue-500/40',
-            iconBg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white',
-            hoverText: 'text-blue-600 dark:text-blue-400',
-        },
-        action: ({ setTicketType }) => setTicketType('service'),
-    },
-    {
-        key: 'oracle-request',
-        section: 'ticketing',
-        eyebrow: 'Enterprise System',
-        title: 'Oracle / K2 Request',
-        description: 'Bantuan sistem Oracle, update role K2, transaksi modul, atau kendala ERP.',
-        mascotImg: '/characters/mascot-oracle.png',
-        mascotAlt: 'Maskot Oracle & K2',
-        ctaLabel: 'Buat Tiket Oracle',
-        icon: Box,
-        colorTheme: {
-            gradient: 'from-orange-500/20 via-border/70 to-amber-500/10 dark:from-orange-500/25 dark:via-border/70 dark:to-amber-500/15',
-            badge: 'text-orange-600 dark:text-orange-400 bg-orange-500/10 border-orange-500/20',
-            hoverGlow: 'hover:shadow-orange-500/15 hover:border-orange-500/40',
-            iconBg: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 group-hover:bg-orange-600 group-hover:text-white',
-            hoverText: 'text-orange-600 dark:text-orange-400',
-        },
-        action: ({ setTicketType }) => setTicketType('oracle-request'),
-    },
-    {
-        key: 'web-dev-request',
-        section: 'ticketing',
-        eyebrow: 'Web System',
-        title: 'Web Developer Request',
-        description: 'Permintaan bug fix, fitur baru, integrasi web portal, atau kendala performa web.',
-        mascotImg: '/characters/mascot-webdev.png',
-        mascotAlt: 'Maskot Web Developer',
-        ctaLabel: 'Buat Tiket Web Dev',
-        icon: Code2,
-        colorTheme: {
-            gradient: 'from-emerald-500/20 via-border/70 to-teal-500/10 dark:from-emerald-500/25 dark:via-border/70 dark:to-teal-500/15',
-            badge: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-            hoverGlow: 'hover:shadow-emerald-500/15 hover:border-emerald-500/40',
-            iconBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white',
-            hoverText: 'text-emerald-600 dark:text-emerald-400',
-        },
-        action: ({ setTicketType }) => setTicketType('web-dev-request'),
-    },
-    {
-        key: 'mobile-dev-request',
-        section: 'ticketing',
-        eyebrow: 'Mobile App',
-        title: 'Mobile Developer Request',
-        description: 'Permintaan perbaikan crash aplikasi, update APK, notifikasi, atau fitur app mobile.',
-        mascotImg: '/characters/mascot-mobiledev.png',
-        mascotAlt: 'Maskot Mobile Developer',
-        ctaLabel: 'Buat Tiket Mobile Dev',
-        icon: Smartphone,
-        colorTheme: {
-            gradient: 'from-purple-500/20 via-border/70 to-fuchsia-500/10 dark:from-purple-500/25 dark:via-border/70 dark:to-fuchsia-500/15',
-            badge: 'text-purple-600 dark:text-purple-400 bg-purple-500/10 border-purple-500/20',
-            hoverGlow: 'hover:shadow-purple-500/15 hover:border-purple-500/40',
-            iconBg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 group-hover:bg-purple-600 group-hover:text-white',
-            hoverText: 'text-purple-600 dark:text-purple-400',
-        },
-        action: ({ setTicketType }) => setTicketType('mobile-dev-request'),
-    },
-];
-
-const REQUEST_CARDS: TicketCardConfig[] = [
-    {
-        key: 'hardware-budget',
-        pageKey: 'hardware_requests',
-        section: 'request',
-        eyebrow: 'Procurement',
-        title: 'Hardware & Budget',
-        description: 'Ajukan pembelian perangkat keras baru, upgrade spesifikasi laptop/PC, atau penggantian aset.',
-        mascotImg: '/characters/mascot-hardware.png',
-        mascotAlt: 'Maskot Pengadaan Hardware',
-        ctaLabel: 'Buka Form Pengadaan',
-        icon: DollarSign,
-        colorTheme: {
-            gradient: 'from-blue-600/20 via-border/70 to-indigo-600/10 dark:from-blue-600/25 dark:via-border/70 dark:to-indigo-600/15',
-            badge: 'text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
-            hoverGlow: 'hover:shadow-indigo-500/15 hover:border-indigo-500/40',
-            iconBg: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white',
-            hoverText: 'text-indigo-600 dark:text-indigo-400',
-        },
-        action: ({ navigate, getBasePath }) => navigate(`${getBasePath()}/hardware-requests`),
-    },
-    {
-        key: 'access-request',
-        pageKey: 'eform_access',
-        section: 'request',
-        eyebrow: 'Network & Access',
-        title: 'Access Request',
-        description: 'Minta akses WiFi, koneksi VPN, atau izin akses website/aplikasi dengan form approval resmi.',
-        mascotImg: '/characters/mascot-access.png',
-        mascotAlt: 'Maskot Izin Akses',
-        ctaLabel: 'Ajukan Form Akses',
-        icon: Wifi,
-        colorTheme: {
-            gradient: 'from-amber-500/20 via-border/70 to-yellow-500/10 dark:from-amber-500/25 dark:via-border/70 dark:to-yellow-500/15',
-            badge: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20',
-            hoverGlow: 'hover:shadow-amber-500/15 hover:border-amber-500/40',
-            iconBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:bg-amber-600 group-hover:text-white',
-            hoverText: 'text-amber-600 dark:text-amber-400',
-        },
-        action: ({ navigate, getBasePath }) => navigate(`${getBasePath()}/eform-access/new`),
-    },
-];
-
-const TICKET_TYPE_CARDS: TicketCardConfig[] = [...TICKETING_CARDS, ...REQUEST_CARDS];
-
-const TicketTypeCard: React.FC<{
-    card: TicketCardConfig;
-    index: number;
-    className?: string;
-    style?: React.CSSProperties;
-} & TicketTypeCardActionArgs> = ({ card, index, className = '', style, setTicketType, navigate, getBasePath }) => (
-    <div style={style} className={cn("p-px rounded-[1.4rem] bg-gradient-to-br transition-all duration-300", card.colorTheme.gradient, className)}>
-        <button
-            type="button"
-            onClick={() => card.action({ setTicketType, navigate, getBasePath })}
-            aria-label={`Pilih ${card.title}`}
-            className={cn(
-                "group relative flex flex-col justify-between w-full min-h-[190px] h-full overflow-hidden rounded-[calc(1.4rem-1px)] bg-card p-6 text-left shadow-xs ring-1 ring-black/[0.03] dark:ring-white/[0.04] transition-all duration-300 motion-reduce:transition-none ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1.5 hover:shadow-xl motion-reduce:transform-none active:scale-[0.98] active:duration-100 cursor-pointer",
-                card.colorTheme.hoverGlow
-            )}
-        >
-            {/* Mascot Character Floating at Top Right */}
-            <div className="absolute top-3 right-3.5 w-[76px] h-[76px] sm:w-[84px] sm:h-[84px] pointer-events-none flex items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-translate-y-1.5 group-hover:rotate-3">
-                <img
-                    src={card.mascotImg}
-                    alt={card.mascotAlt}
-                    className="w-full h-full object-contain filter drop-shadow-[0_6px_10px_rgba(0,0,0,0.14)] select-none"
-                    loading="lazy"
-                />
-            </div>
-
-            {/* Top Row: Category Badge & Number Indicator */}
-            <div className="relative z-10 pr-20 sm:pr-24">
-                <div className="flex items-center gap-2 mb-3">
-                    <span className={cn("text-[10px] sm:text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-lg border", card.colorTheme.badge)}>
-                        {card.eyebrow}
-                    </span>
-                    <span className="font-mono text-xs font-semibold text-muted-foreground/50 select-none">
-                        #{String(index + 1).padStart(2, '0')}
-                    </span>
-                </div>
-
-                <h2 className="text-base sm:text-lg font-bold text-foreground tracking-tight mb-1.5 group-hover:text-primary transition-colors">
-                    {card.title}
-                </h2>
-                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
-                    {card.description}
-                </p>
-            </div>
-
-            {/* Bottom Row: Call to Action Arrow */}
-            <div className="relative z-10 flex items-center gap-2 mt-5 text-xs font-semibold text-foreground/80 group-hover:text-primary transition-colors">
-                <span>{card.ctaLabel || 'Pilih Kategori'}</span>
-                <span className={cn("w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 group-hover:translate-x-1", card.colorTheme.iconBg)}>
-                    <ArrowLeft className="w-3 h-3 rotate-180" aria-hidden="true" />
-                </span>
-            </div>
-        </button>
-    </div>
-);
+/** Option values stay the attribute's stored value (what the backend expects); IDs keep keys unique. */
+const toPickerOptions = (attrs: TicketAttribute[]) => attrs.map(attr => ({ value: attr.value, label: attr.value }));
 
 export const BentoCreateTicketPage: React.FC = () => {
     const navigate = useNavigate();
@@ -346,7 +98,6 @@ export const BentoCreateTicketPage: React.FC = () => {
     const [showAddModal, setShowAddModal] = useState<{ type: string; show: boolean }>({ type: '', show: false });
     const [newAttributeValue, setNewAttributeValue] = useState('');
     const [isAddingAttribute, setIsAddingAttribute] = useState(false);
-    const addModalRef = useRef<HTMLDivElement>(null);
 
     const [formData, setFormData] = useState({
         title: '',
@@ -359,6 +110,7 @@ export const BentoCreateTicketPage: React.FC = () => {
     });
 
     const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+    const [catalogQuery, setCatalogQuery] = useState('');
     const [errors, setErrors] = useState<{ title?: string; description?: string }>({});
     // Setters store `undefined` for valid fields, so check for an actual message.
     const hasFieldErrors = Boolean(errors.title || errors.description);
@@ -367,8 +119,7 @@ export const BentoCreateTicketPage: React.FC = () => {
 
     const [files, setFiles] = useState<File[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [isDraggingOver, setIsDraggingOver] = useState(false);
-    const [lightboxItem, setLightboxItem] = useState<{ url: string; name: string; size: number; index: number } | null>(null);
+    const [lightboxItem, setLightboxItem] = useState<PreviewItem | null>(null);
 
     // Object URL Map for image previews (cleaned up on file removal / unmount)
     const filePreviewMap = useMemo(() => {
@@ -577,7 +328,6 @@ export const BentoCreateTicketPage: React.FC = () => {
         setNewAttributeValue('');
     }, []);
 
-    useFocusTrap(addModalRef, { enabled: showAddModal.show, onEscape: handleCloseAddModal });
 
     useEffect(() => {
         if (!showAddModal.show && !lightboxItem) return;
@@ -796,7 +546,7 @@ export const BentoCreateTicketPage: React.FC = () => {
     }, [ticketType, formData.title, formData.description, formData.category, formData.device, formData.software, formData.criticalReason, files.length, navigate]);
 
     // Template selection helper
-    const handleTemplateClick = (template: { label: string; subject: string; description: string; priority: string; category?: string }) => {
+    const handleTemplateClick = (template: TicketTemplate) => {
         if (selectedTemplate === template.label) {
             setSelectedTemplate(null);
         } else {
@@ -812,1231 +562,139 @@ export const BentoCreateTicketPage: React.FC = () => {
         }
     };
 
-    // Shared Header Component
-    const renderFormHeader = (icon: React.ReactNode, title: string, subtitle: string, iconBgClass: string) => (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
-            <div className="flex items-center gap-3.5">
-                <button
-                    type="button"
-                    onClick={handleBack}
-                    aria-label="Kembali ke pilihan jenis tiket"
-                    className="p-2.5 rounded-xl bg-card border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted transition-all shadow-2xs active:scale-95 cursor-pointer"
-                >
-                    <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-                </button>
-                <div className="flex items-center gap-3">
-                    <div className={cn("p-2.5 rounded-xl shadow-2xs border", iconBgClass)}>
-                        {icon}
-                    </div>
-                    <div>
-                        <h1 className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight">{title}</h1>
-                        <p className="text-xs sm:text-sm text-muted-foreground font-medium">{subtitle}</p>
-                    </div>
-                </div>
-            </div>
-
-            {hasDraft && (
-                <div aria-live="polite" className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs font-semibold text-emerald-600 dark:text-emerald-400 animate-in fade-in">
-                    <Save className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>Auto-saved{lastSaved ? ` (${lastSaved.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })})` : ''}</span>
-                    <button
-                        type="button"
-                        onClick={clearDraft}
-                        className="ml-1 p-1 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer"
-                        title="Hapus Draft"
-                    >
-                        <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                </div>
-            )}
-        </div>
-    );
-
-    // Clean Priority Selector Component without duration / SLA
-    const renderPrioritySelector = (legendClass = "text-primary") => (
-        <fieldset className="border-0 p-0 m-0">
-            <legend className="text-xs font-bold text-foreground mb-2 flex items-center gap-1.5 uppercase tracking-wide">
-                <AlertCircle className={cn("w-3.5 h-3.5", legendClass)} aria-hidden="true" />
-                <span>Issue Urgency / Prioritas</span>
-            </legend>
-            <div role="radiogroup" aria-label="Issue urgency" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 bg-muted/40 p-1.5 rounded-2xl border border-border/80 shadow-2xs">
-                {PRIORITY_OPTIONS.map((p) => {
-                    const isSelected = formData.priority === p.id;
-                    return (
-                        <PriorityHoverTip key={p.id} priority={p.id} side="top">
-                            <button
-                                type="button"
-                                role="radio"
-                                aria-checked={isSelected}
-                                aria-label={p.label}
-                                onClick={() => setFormData(prev => ({ ...prev, priority: p.id }))}
-                                className={cn(
-                                    "w-full flex items-center justify-center gap-2 py-2.5 px-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer border text-center",
-                                    isSelected
-                                        ? `${p.activeBg} ${p.activeBorder} ${p.activeText} shadow-xs ring-2 ${p.activeRing}`
-                                        : "bg-card border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                                )}
-                            >
-                                <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", p.dot, isSelected && "animate-pulse")} />
-                                <span className="leading-tight">{p.label}</span>
-                            </button>
-                        </PriorityHoverTip>
-                    );
-                })}
-            </div>
-        </fieldset>
-    );
-
-    // File icon helper for non-image files
-    const renderFileIcon = (fileName: string) => {
-        const ext = fileName.split('.').pop()?.toLowerCase() || '';
-        if (['xls', 'xlsx', 'csv'].includes(ext)) return <FileSpreadsheet className="w-4 h-4 text-emerald-500 shrink-0" />;
-        if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return <FileArchive className="w-4 h-4 text-amber-500 shrink-0" />;
-        if (['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) return <ImageIcon className="w-4 h-4 text-blue-500 shrink-0" />;
-        return <FileIcon className="w-4 h-4 text-primary shrink-0" />;
-    };
-
-    // Integrated Rich Composer for Description / Detail Field
-    const renderRichDescriptionComposer = (
-        id: string,
-        placeholder: string,
-        accentBorderFocus: string,
-        iconColor: string
-    ) => {
-        return (
-            <div>
-                <div className="flex justify-between items-center mb-1.5">
-                    <label htmlFor={id} className="text-xs font-bold text-foreground flex items-center gap-1.5 tracking-wide">
-                        <FileText className={cn("w-3.5 h-3.5", iconColor)} aria-hidden="true" />
-                        <span>Detail Masalah / Kebutuhan <span className="text-rose-500">*</span></span>
-                    </label>
-                    <span className={cn(
-                        "text-[11px] font-mono font-medium",
-                        formData.description.trim().length === 0
-                            ? "text-muted-foreground"
-                            : formData.description.trim().length < 10
-                            ? "text-rose-500 font-bold"
-                            : "text-emerald-600 dark:text-emerald-400 font-semibold"
-                    )}>
-                        {formData.description.trim().length < 10 && formData.description.trim().length > 0
-                            ? `Kurang ${10 - formData.description.trim().length} karakter (min. 10)`
-                            : `${formData.description.length} / 5000 karakter`}
-                    </span>
-                </div>
-
-                {/* Composer Card Container with Drag & Drop */}
-                <div
-                    onDragOver={(e) => { e.preventDefault(); setIsDraggingOver(true); }}
-                    onDragLeave={() => setIsDraggingOver(false)}
-                    onDrop={(e) => {
-                        e.preventDefault();
-                        setIsDraggingOver(false);
-                        const droppedFiles = Array.from(e.dataTransfer.files || []);
-                        addFiles(droppedFiles);
-                    }}
-                    className={cn(
-                        "relative flex flex-col bg-background border rounded-2xl transition-all shadow-2xs overflow-hidden",
-                        isDraggingOver && "border-primary ring-4 ring-primary/15 bg-primary/5",
-                        errors.description
-                            ? "border-rose-500 focus-within:ring-4 focus-within:ring-rose-500/10 focus-within:border-rose-500"
-                            : `border-border/90 ${accentBorderFocus}`
-                    )}
-                >
-                    {/* Textarea Area */}
-                    <textarea
-                        id={id}
-                        ref={descriptionRef}
-                        required
-                        maxLength={5000}
-                        value={formData.description}
-                        onPaste={handlePaste}
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            setFormData(prev => ({ ...prev, description: val }));
-                            setErrors(prev => ({ ...prev, description: validateDescription(val) }));
-                            e.target.style.height = 'auto';
-                            e.target.style.height = Math.max(120, e.target.scrollHeight) + 'px';
-                        }}
-                        className="w-full px-4 pt-3.5 pb-2 bg-transparent text-sm font-medium outline-none text-foreground placeholder:text-muted-foreground/60 resize-none min-h-[120px] leading-relaxed"
-                        placeholder={placeholder}
-                    />
-
-                    {/* In-Composer Attachment Preview Tray */}
-                    {files.length > 0 && (
-                        <div className="px-4 py-2.5 bg-muted/25 border-t border-border/70 flex flex-wrap gap-2.5 items-center">
-                            {files.map((file, index) => {
-                                const previewUrl = filePreviewMap.get(file);
-                                const isImage = Boolean(previewUrl);
-
-                                if (isImage && previewUrl) {
-                                    return (
-                                        <div
-                                            key={`${file.name}-${file.size}-${index}`}
-                                            className="group relative w-20 h-20 rounded-xl border border-border/90 bg-card overflow-hidden shadow-2xs transition-all hover:ring-2 hover:ring-primary/40"
-                                        >
-                                            <img
-                                                src={previewUrl}
-                                                alt={file.name}
-                                                className="w-full h-full object-cover cursor-pointer"
-                                                onClick={() => setLightboxItem({ url: previewUrl, name: file.name, size: file.size, index })}
-                                            />
-                                            {/* Hover Overlay Zoom */}
-                                            <button
-                                                type="button"
-                                                onClick={() => setLightboxItem({ url: previewUrl, name: file.name, size: file.size, index })}
-                                                className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity cursor-pointer"
-                                                title="Lihat preview gambar"
-                                            >
-                                                <Maximize2 className="w-4 h-4 drop-shadow" />
-                                            </button>
-                                            {/* Remove Button */}
-                                            <button
-                                                type="button"
-                                                onClick={(e) => { e.stopPropagation(); handleRemoveFile(index); }}
-                                                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 hover:bg-rose-600 text-white flex items-center justify-center transition-colors cursor-pointer shadow-sm"
-                                                title="Hapus gambar"
-                                            >
-                                                <X className="w-3 h-3" />
-                                            </button>
-                                        </div>
-                                    );
-                                }
-
-                                return (
-                                    <div
-                                        key={`${file.name}-${file.size}-${index}`}
-                                        className="flex items-center gap-2 pl-3 pr-1.5 py-1.5 bg-card border border-border/90 rounded-xl text-xs font-medium text-foreground shadow-2xs"
-                                    >
-                                        {renderFileIcon(file.name)}
-                                        <span className="truncate max-w-[150px]" title={file.name}>{file.name}</span>
-                                        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono shrink-0">{formatFileSize(file.size)}</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRemoveFile(index)}
-                                            className="p-1 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
-                                            title="Hapus file"
-                                        >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-
-                    {/* Composer Bottom Toolbar */}
-                    <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-t border-border/80 text-xs">
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="file"
-                                multiple
-                                ref={fileInputRef}
-                                className="hidden"
-                                onChange={handleFileChange}
-                                accept={ATTACHMENT_ACCEPT}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-card hover:bg-muted border border-border/80 text-foreground font-semibold transition-all hover:border-primary/40 cursor-pointer shadow-2xs active:scale-95"
-                                title="Lampirkan File / Screenshot"
-                            >
-                                <Paperclip className="w-3.5 h-3.5 text-primary" />
-                                <span>Lampirkan</span>
-                                {files.length > 0 && (
-                                    <span className="ml-1 px-1.5 py-0.2 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
-                                        {files.length}
-                                    </span>
-                                )}
-                            </button>
-
-                            <span className="hidden sm:inline-block text-[11px] text-muted-foreground">
-                                Tempel gambar (<kbd className="px-1 py-0.5 bg-muted border border-border rounded font-mono text-[10px]">Ctrl+V</kbd>) atau seret file ke sini
-                            </span>
-                        </div>
-
-                        <span className="text-[11px] text-muted-foreground font-medium">
-                            Maks. {MAX_ATTACHMENTS_PER_TICKET} file ({formatFileSize(FILE_SIZE_LIMITS.ATTACHMENT)}/file, video {formatFileSize(FILE_SIZE_LIMITS.VIDEO)})
-                        </span>
-                    </div>
-                </div>
-
-                {errors.description && (
-                    <p className="text-xs text-rose-500 font-medium mt-1 flex items-center gap-1">
-                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                        <span>{errors.description}</span>
-                    </p>
-                )}
-            </div>
-        );
-    };
-
-    // Shared Submit & Critical Reason Region Component
-    const renderSubmitActionBar = (submitBtnClass: string, submitLabel: string) => (
-        <div className="space-y-4 pt-1">
-            {/* Critical Reason Justification Field */}
-            {formData.priority === 'CRITICAL' && (
-                <div className="bg-rose-50/70 dark:bg-rose-950/20 rounded-2xl p-4 border border-rose-200/80 dark:border-rose-800/40 animate-in fade-in zoom-in-95 duration-200 space-y-2">
-                    <label htmlFor="critical-reason" className="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5 uppercase tracking-wide">
-                        <AlertCircle className="w-4 h-4 shrink-0" />
-                        <span>Justifikasi Tiket Blocker (Critical) <span className="text-rose-500">*</span></span>
-                    </label>
-                    <textarea
-                        id="critical-reason"
-                        required
-                        rows={2}
-                        value={formData.criticalReason}
-                        onChange={(e) => setFormData(prev => ({ ...prev, criticalReason: e.target.value }))}
-                        className="w-full px-4 py-2.5 bg-background border border-rose-300 dark:border-rose-700/60 rounded-xl text-sm font-medium focus:ring-4 focus:ring-rose-500/15 outline-none resize-none placeholder:text-muted-foreground/60 min-h-[70px]"
-                        placeholder="Jelaskan mengapa masalah ini menjadi pemblokir (blocker) / berdampak kritis bagi operasional..."
-                    />
-                </div>
-            )}
-
-            {/* Action Bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-border/70">
-                <div className="text-xs text-muted-foreground flex items-center gap-2">
-                    <span>Pintasan:</span>
-                    <kbd className="px-2 py-0.5 bg-muted rounded border border-border font-mono text-[11px] font-semibold text-foreground">Ctrl + Enter</kbd>
-                    <span>untuk kirim langsung</span>
-                </div>
-                <button
-                    type="submit"
-                    disabled={isLoading || !formData.title.trim() || !formData.description.trim() || (formData.priority === 'CRITICAL' && !formData.criticalReason?.trim())}
-                    className={cn(
-                        "w-full sm:w-auto min-w-[180px] h-11 px-6 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
-                        submitBtnClass
-                    )}
-                >
-                    {isLoading ? (
-                        <>
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            <span>Mengirim...</span>
-                        </>
-                    ) : (
-                        <>
-                            <Send className="w-3.5 h-3.5" />
-                            <span>{submitLabel}</span>
-                        </>
-                    )}
-                </button>
-            </div>
-        </div>
-    );
+    const updateField = <K extends keyof typeof formData>(key: K, value: (typeof formData)[K]) =>
+        setFormData(prev => ({ ...prev, [key]: value }));
 
     // ==========================================
     // 1. TICKET TYPE SELECTION SCREEN (none)
     // ==========================================
     if (ticketType === 'none') {
         const getBasePath = () => location.pathname.startsWith('/client') ? '/client' : location.pathname.startsWith('/manager') ? '/manager' : '';
-        const visibleTicketingCards = TICKETING_CARDS.filter(card => canAccessPage(card.pageKey));
-        const visibleRequestCards = REQUEST_CARDS.filter(card => canAccessPage(card.pageKey));
+        const isVisible = (card: TicketCardConfig) => canAccessPage(card.pageKey) && matchesCatalogQuery(card, catalogQuery);
+        const visibleTicketingCards = TICKETING_CARDS.filter(isVisible);
+        const visibleRequestCards = REQUEST_CARDS.filter(isVisible);
+        const renderCard = (card: TicketCardConfig) => (
+            <TicketTypeCard key={card.key} title={card.title} description={card.description} mascotImg={card.mascotImg}
+                mascotAlt={card.mascotAlt} ctaLabel={card.ctaLabel}
+                onSelect={() => card.action({ setTicketType, navigate, getBasePath })} />
+        );
 
         return (
-            <div className="w-full max-w-5xl xl:max-w-6xl mx-auto space-y-8 lg:space-y-10 animate-in fade-in duration-500 pb-8">
-                {/* Header */}
-                <div className="flex items-center gap-4">
-                    <button
-                        type="button"
-                        onClick={() => navigate(-1)}
-                        aria-label="Kembali"
-                        className="p-2.5 rounded-xl bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-all shadow-xs cursor-pointer"
-                    >
-                        <ArrowLeft className="w-5 h-5" aria-hidden="true" />
+            <div className="ct-page ct-page-narrow">
+                <header className="ct-catalog-head">
+                    <button type="button" onClick={() => navigate(-1)} aria-label="Kembali" className="ct-back">
+                        <ArrowLeft aria-hidden="true" />
                     </button>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary">iDesk · Service Catalog</span>
-                        </div>
-                        <h1 className="text-2xl font-bold text-foreground tracking-tight">Buat Tiket Baru</h1>
-                        <p className="text-muted-foreground text-sm">Pilih jenis bantuan atau pengajuan kebutuhan Anda di bawah ini</p>
+                    <div className="min-w-0">
+                        <h1>Buat Tiket Baru</h1>
+                        <p>Pilih jenis bantuan atau pengajuan yang Anda butuhkan</p>
                     </div>
+                </header>
+
+                <div className="portal-search ct-search">
+                    <Search aria-hidden="true" />
+                    <input type="search" aria-label="Cari jenis bantuan" value={catalogQuery}
+                        onChange={e => setCatalogQuery(e.target.value)} placeholder="Cari jenis bantuan, misal: printer, VPN, Oracle" />
                 </div>
 
-                {/* 1. SEKSI TIKETING (ATAS) */}
                 {visibleTicketingCards.length > 0 && (
-                    <section aria-labelledby="section-ticketing" className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2.5">
-                                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-blue-500/20 shrink-0" aria-hidden="true" />
-                                <div>
-                                    <h2 id="section-ticketing" className="text-base sm:text-lg font-extrabold text-foreground tracking-tight">
-                                        Tiket Bantuan & Kendala Teknis
-                                    </h2>
-                                    <p className="text-xs text-muted-foreground">
-                                        Laporkan masalah operasional harian, bug aplikasi, atau kendala perangkat kerja
-                                    </p>
-                                </div>
-                            </div>
-                            <span className="hidden sm:inline-flex text-[11px] font-mono font-medium text-muted-foreground bg-muted/60 px-2.5 py-1 rounded-lg border border-border/80">
-                                {visibleTicketingCards.length} Jenis Tiket
-                            </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-                            {visibleTicketingCards.map((card, idx) => (
-                                <TicketTypeCard
-                                    key={card.key}
-                                    card={card}
-                                    index={idx}
-                                    setTicketType={setTicketType}
-                                    navigate={navigate}
-                                    getBasePath={getBasePath}
-                                    className="animate-in fade-in slide-in-from-bottom-3 fill-mode-both"
-                                    style={{ animationDelay: `${idx * 60}ms`, animationDuration: '400ms' }}
-                                />
-                            ))}
-                        </div>
-                    </section>
+                    <TicketCatalogSection id="section-ticketing" title="Bantuan & kendala teknis"
+                        description="Masalah harian, bug aplikasi, atau kendala perangkat kerja">
+                        {visibleTicketingCards.map(renderCard)}
+                    </TicketCatalogSection>
                 )}
 
-                {/* 2. SEKSI REQUEST (BAWAH) */}
                 {visibleRequestCards.length > 0 && (
-                    <section aria-labelledby="section-requests" className="space-y-4 pt-2">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2.5">
-                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 ring-4 ring-amber-500/20 shrink-0" aria-hidden="true" />
-                                <div>
-                                    <h2 id="section-requests" className="text-base sm:text-lg font-extrabold text-foreground tracking-tight">
-                                        Pengajuan Layanan & Akses (Requests)
-                                    </h2>
-                                    <p className="text-xs text-muted-foreground">
-                                        Permohonan pengadaan barang IT baru atau persetujuan hak akses jaringan & sistem
-                                    </p>
-                                </div>
-                            </div>
-                            <span className="hidden sm:inline-flex text-[11px] font-mono font-medium text-muted-foreground bg-muted/60 px-2.5 py-1 rounded-lg border border-border/80">
-                                {visibleRequestCards.length} Formulir Request
-                            </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-                            {visibleRequestCards.map((card, idx) => (
-                                <TicketTypeCard
-                                    key={card.key}
-                                    card={card}
-                                    index={visibleTicketingCards.length + idx}
-                                    setTicketType={setTicketType}
-                                    navigate={navigate}
-                                    getBasePath={getBasePath}
-                                    className="animate-in fade-in slide-in-from-bottom-3 fill-mode-both"
-                                    style={{ animationDelay: `${(visibleTicketingCards.length + idx) * 60}ms`, animationDuration: '400ms' }}
-                                />
-                            ))}
-                        </div>
-                    </section>
+                    <TicketCatalogSection id="section-requests" title="Pengajuan layanan & akses"
+                        description="Pengadaan perangkat baru atau persetujuan hak akses">
+                        {visibleRequestCards.map(renderCard)}
+                    </TicketCatalogSection>
                 )}
 
-                {/* Info Guidance Strip */}
-                <div className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-r from-primary/5 via-accent/5 to-transparent p-4 sm:p-5 flex gap-4 items-center">
-                    <div className="p-2.5 bg-card rounded-xl text-primary shadow-xs ring-1 ring-primary/10 shrink-0">
-                        <AlertCircle className="w-5 h-5" />
-                    </div>
-                    <div>
-                        <h3 className="font-semibold text-sm text-foreground mb-0.5">Pilih jenis tiket yang paling sesuai</h3>
-                        <p className="text-muted-foreground text-xs leading-relaxed">
-                            Tiap jenis tiket diarahkan langsung ke antrean tim penanganan yang spesifik. Jika Anda membutuhkan bantuan IT umum di kantor/pabrik, pilih <span className="font-semibold text-foreground">Service Ticket</span>.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    // ==========================================
-    // 3. ORACLE / K2 REQUEST FORM
-    // ==========================================
-    if (ticketType === 'oracle-request') {
-        return (
-            <div className="w-full max-w-5xl xl:max-w-6xl mx-auto space-y-5 animate-in fade-in duration-500">
-                {renderFormHeader(
-                    <Box className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />,
-                    "Oracle / K2 Request",
-                    "Enterprise System Support (ERP, Database & K2 Workflow)",
-                    "bg-cyan-500/10 border-cyan-500/20"
-                )}
-
-                {/* Quick Templates */}
-                <div className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <Tag className="w-3.5 h-3.5 text-cyan-500" /> Template Cepat
-                    </span>
-                    <div className="flex flex-wrap items-center gap-2">
-                        {ORACLE_TEMPLATES.map((tpl) => {
-                            const isSelected = selectedTemplate === tpl.label;
-                            return (
-                                <button
-                                    key={tpl.label}
-                                    type="button"
-                                    onClick={() => handleTemplateClick(tpl)}
-                                    className={cn(
-                                        "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all border shadow-2xs active:scale-95 cursor-pointer flex items-center gap-1.5",
-                                        isSelected
-                                            ? "bg-cyan-500/15 border-cyan-500 text-cyan-700 dark:text-cyan-300 ring-2 ring-cyan-500/20"
-                                            : "bg-card border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/60 hover:border-cyan-500/40"
-                                    )}
-                                >
-                                    {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />}
-                                    <span>{tpl.label}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                <form
-                    onSubmit={handleSubmit}
-                    onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); (e.currentTarget as HTMLFormElement).requestSubmit(); } }}
-                    className="bg-card rounded-2xl border border-border/80 p-5 md:p-8 shadow-sm space-y-6"
-                >
-                    {hasFieldErrors && (
-                        <div role="alert" aria-live="assertive" className="flex items-start gap-2 text-xs bg-destructive/10 border border-destructive/20 text-destructive rounded-xl p-3">
-                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-                            <p className="font-medium">{errors.title || errors.description || 'Mohon perbaiki isian yang ditandai.'}</p>
-                        </div>
-                    )}
-
-                    {isStaff && <RequesterSelector requesterId={requesterId} onChange={setRequesterId} currentUserId={user?.id} />}
-
-                    {/* Subject / Title */}
-                    <div>
-                        <div className="flex justify-between items-center mb-1.5">
-                            <label htmlFor="oracle-ticket-title" className="text-xs font-bold text-foreground flex items-center gap-1.5 tracking-wide">
-                                <FileText className="w-3.5 h-3.5 text-cyan-500" aria-hidden="true" />
-                                <span>Subject / Judul Tiket <span className="text-rose-500">*</span></span>
-                            </label>
-                            <span className={cn(
-                                "text-[11px] font-mono font-medium",
-                                formData.title.trim().length === 0
-                                    ? "text-muted-foreground"
-                                    : formData.title.trim().length < 5
-                                    ? "text-rose-500 font-bold"
-                                    : "text-emerald-600 dark:text-emerald-400 font-semibold"
-                            )}>
-                                {formData.title.trim().length < 5 && formData.title.trim().length > 0
-                                    ? `Kurang ${5 - formData.title.trim().length} karakter (min. 5)`
-                                    : `${formData.title.length} / 200 karakter`}
-                            </span>
-                        </div>
-                        <input
-                            id="oracle-ticket-title"
-                            ref={titleRef}
-                            type="text"
-                            required
-                            maxLength={200}
-                            value={formData.title}
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                setFormData(prev => ({ ...prev, title: val }));
-                                setErrors(prev => ({ ...prev, title: validateTitle(val) }));
-                            }}
-                            className={cn(
-                                "w-full px-4 py-2.5 bg-background border rounded-xl text-sm font-medium outline-none text-foreground placeholder:text-muted-foreground/60 transition-all shadow-2xs",
-                                errors.title
-                                    ? "border-rose-500 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500"
-                                    : "border-border/90 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
-                            )}
-                            placeholder="Contoh: Lupa Password Oracle, Penambahan Role K2, Error Validasi AP..."
-                        />
-                        {errors.title && (
-                            <p className="text-xs text-rose-500 font-medium mt-1 flex items-center gap-1">
-                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                                <span>{errors.title}</span>
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Integrated Rich Composer */}
-                    {renderRichDescriptionComposer(
-                        "oracle-ticket-description",
-                        "Tuliskan secara lengkap pesan error, nama modul, username user, atau detail form K2 yang membutuhkan update...",
-                        "focus-within:border-cyan-500 focus-within:ring-4 focus-within:ring-cyan-500/10",
-                        "text-cyan-500"
-                    )}
-
-                    {/* Priority Selector */}
-                    {renderPrioritySelector("text-cyan-500")}
-
-                    {/* Submit Action */}
-                    {renderSubmitActionBar(
-                        "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white shadow-cyan-600/20",
-                        "Kirim Tiket Oracle"
-                    )}
-                </form>
-
-                {/* Lightbox Modal */}
-                {lightboxItem && (
-                    <LightboxModal
-                        item={lightboxItem}
-                        onClose={() => setLightboxItem(null)}
-                        onDelete={() => handleRemoveFile(lightboxItem.index)}
-                    />
+                {visibleTicketingCards.length + visibleRequestCards.length === 0 && (
+                    <p className="ct-empty" role="status">
+                        Tidak ada jenis bantuan yang cocok dengan "{catalogQuery.trim()}". Coba kata lain atau pilih <b>Service Ticket</b> untuk bantuan IT umum.
+                    </p>
                 )}
             </div>
         );
     }
 
     // ==========================================
-    // 4. WEB DEVELOPER REQUEST FORM
+    // 2. TICKET FORMS (service / oracle / web dev / mobile dev)
     // ==========================================
-    if (ticketType === 'web-dev-request') {
-        return (
-            <div className="w-full max-w-5xl xl:max-w-6xl mx-auto space-y-5 animate-in fade-in duration-500">
-                {renderFormHeader(
-                    <Code2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />,
-                    "Web Developer Request",
-                    "Web Applications & Portal Development Support",
-                    "bg-blue-500/10 border-blue-500/20"
-                )}
+    const config = TICKET_FORM_CONFIG[ticketType];
+    const canAddAttribute = user?.role === 'ADMIN' || user?.role === 'AGENT';
+    const submitDisabled = isLoading || !formData.title.trim() || !formData.description.trim() || (formData.priority === 'CRITICAL' && !formData.criticalReason?.trim());
+    const draftStatus = hasDraft ? <DraftStatus savedAt={lastSaved} onClear={clearDraft} /> : undefined;
 
-                {/* Quick Templates */}
-                <div className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <Tag className="w-3.5 h-3.5 text-blue-500" /> Template Cepat
-                    </span>
-                    <div className="flex flex-wrap items-center gap-2">
-                        {WEB_DEV_TEMPLATES.map((tpl) => {
-                            const isSelected = selectedTemplate === tpl.label;
-                            return (
-                                <button
-                                    key={tpl.label}
-                                    type="button"
-                                    onClick={() => handleTemplateClick(tpl)}
-                                    className={cn(
-                                        "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all border shadow-2xs active:scale-95 cursor-pointer flex items-center gap-1.5",
-                                        isSelected
-                                            ? "bg-blue-500/15 border-blue-500 text-blue-700 dark:text-blue-300 ring-2 ring-blue-500/20"
-                                            : "bg-card border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/60 hover:border-blue-500/40"
-                                    )}
-                                >
-                                    {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
-                                    <span>{tpl.label}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                <form
-                    onSubmit={handleSubmit}
-                    onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); (e.currentTarget as HTMLFormElement).requestSubmit(); } }}
-                    className="bg-card rounded-2xl border border-border/80 p-5 md:p-8 shadow-sm space-y-6"
-                >
-                    {hasFieldErrors && (
-                        <div role="alert" aria-live="assertive" className="flex items-start gap-2 text-xs bg-destructive/10 border border-destructive/20 text-destructive rounded-xl p-3">
-                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-                            <p className="font-medium">{errors.title || errors.description || 'Mohon perbaiki isian yang ditandai.'}</p>
-                        </div>
-                    )}
-
-                    {isStaff && <RequesterSelector requesterId={requesterId} onChange={setRequesterId} currentUserId={user?.id} />}
-
-                    {/* Subject / Title */}
-                    <div>
-                        <div className="flex justify-between items-center mb-1.5">
-                            <label htmlFor="web-dev-ticket-title" className="text-xs font-bold text-foreground flex items-center gap-1.5 tracking-wide">
-                                <FileText className="w-3.5 h-3.5 text-blue-500" aria-hidden="true" />
-                                <span>Subject / Judul Tiket <span className="text-rose-500">*</span></span>
-                            </label>
-                            <span className={cn(
-                                "text-[11px] font-mono font-medium",
-                                formData.title.trim().length === 0
-                                    ? "text-muted-foreground"
-                                    : formData.title.trim().length < 5
-                                    ? "text-rose-500 font-bold"
-                                    : "text-emerald-600 dark:text-emerald-400 font-semibold"
-                            )}>
-                                {formData.title.trim().length < 5 && formData.title.trim().length > 0
-                                    ? `Kurang ${5 - formData.title.trim().length} karakter (min. 5)`
-                                    : `${formData.title.length} / 200 karakter`}
-                            </span>
-                        </div>
-                        <input
-                            id="web-dev-ticket-title"
-                            ref={titleRef}
-                            type="text"
-                            required
-                            maxLength={200}
-                            value={formData.title}
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                setFormData(prev => ({ ...prev, title: val }));
-                                setErrors(prev => ({ ...prev, title: validateTitle(val) }));
-                            }}
-                            className={cn(
-                                "w-full px-4 py-2.5 bg-background border rounded-xl text-sm font-medium outline-none text-foreground placeholder:text-muted-foreground/60 transition-all shadow-2xs",
-                                errors.title
-                                    ? "border-rose-500 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500"
-                                    : "border-border/90 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-                            )}
-                            placeholder="Contoh: Bug Tombol Submit, Error API Endpoint, Permintaan Halaman Baru..."
-                        />
-                        {errors.title && (
-                            <p className="text-xs text-rose-500 font-medium mt-1 flex items-center gap-1">
-                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                                <span>{errors.title}</span>
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Integrated Rich Composer */}
-                    {renderRichDescriptionComposer(
-                        "web-dev-ticket-description",
-                        "Jelaskan URL/halaman web, langkah reproduksi error, console log jika ada, atau spesifikasi fitur yang diinginkan...",
-                        "focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/10",
-                        "text-blue-500"
-                    )}
-
-                    {/* Priority Selector */}
-                    {renderPrioritySelector("text-blue-500")}
-
-                    {/* Submit Action */}
-                    {renderSubmitActionBar(
-                        "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-blue-600/20",
-                        "Kirim Tiket Web Dev"
-                    )}
-                </form>
-
-                {/* Lightbox Modal */}
-                {lightboxItem && (
-                    <LightboxModal
-                        item={lightboxItem}
-                        onClose={() => setLightboxItem(null)}
-                        onDelete={() => handleRemoveFile(lightboxItem.index)}
-                    />
-                )}
-            </div>
-        );
-    }
-
-    // ==========================================
-    // 5. MOBILE DEVELOPER REQUEST FORM
-    // ==========================================
-    if (ticketType === 'mobile-dev-request') {
-        return (
-            <div className="w-full max-w-5xl xl:max-w-6xl mx-auto space-y-5 animate-in fade-in duration-500">
-                {renderFormHeader(
-                    <Smartphone className="w-5 h-5 text-purple-600 dark:text-purple-400" />,
-                    "Mobile Developer Request",
-                    "Mobile iOS & Android App Development Support",
-                    "bg-purple-500/10 border-purple-500/20"
-                )}
-
-                {/* Quick Templates */}
-                <div className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <Tag className="w-3.5 h-3.5 text-purple-500" /> Template Cepat
-                    </span>
-                    <div className="flex flex-wrap items-center gap-2">
-                        {MOBILE_DEV_TEMPLATES.map((tpl) => {
-                            const isSelected = selectedTemplate === tpl.label;
-                            return (
-                                <button
-                                    key={tpl.label}
-                                    type="button"
-                                    onClick={() => handleTemplateClick(tpl)}
-                                    className={cn(
-                                        "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all border shadow-2xs active:scale-95 cursor-pointer flex items-center gap-1.5",
-                                        isSelected
-                                            ? "bg-purple-500/15 border-purple-500 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500/20"
-                                            : "bg-card border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/60 hover:border-purple-500/40"
-                                    )}
-                                >
-                                    {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />}
-                                    <span>{tpl.label}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                <form
-                    onSubmit={handleSubmit}
-                    onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); (e.currentTarget as HTMLFormElement).requestSubmit(); } }}
-                    className="bg-card rounded-2xl border border-border/80 p-5 md:p-8 shadow-sm space-y-6"
-                >
-                    {hasFieldErrors && (
-                        <div role="alert" aria-live="assertive" className="flex items-start gap-2 text-xs bg-destructive/10 border border-destructive/20 text-destructive rounded-xl p-3">
-                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-                            <p className="font-medium">{errors.title || errors.description || 'Mohon perbaiki isian yang ditandai.'}</p>
-                        </div>
-                    )}
-
-                    {isStaff && <RequesterSelector requesterId={requesterId} onChange={setRequesterId} currentUserId={user?.id} />}
-
-                    {/* Subject / Title */}
-                    <div>
-                        <div className="flex justify-between items-center mb-1.5">
-                            <label htmlFor="mobile-dev-ticket-title" className="text-xs font-bold text-foreground flex items-center gap-1.5 tracking-wide">
-                                <FileText className="w-3.5 h-3.5 text-purple-500" aria-hidden="true" />
-                                <span>Subject / Judul Tiket <span className="text-rose-500">*</span></span>
-                            </label>
-                            <span className={cn(
-                                "text-[11px] font-mono font-medium",
-                                formData.title.trim().length === 0
-                                    ? "text-muted-foreground"
-                                    : formData.title.trim().length < 5
-                                    ? "text-rose-500 font-bold"
-                                    : "text-emerald-600 dark:text-emerald-400 font-semibold"
-                            )}>
-                                {formData.title.trim().length < 5 && formData.title.trim().length > 0
-                                    ? `Kurang ${5 - formData.title.trim().length} karakter (min. 5)`
-                                    : `${formData.title.length} / 200 karakter`}
-                            </span>
-                        </div>
-                        <input
-                            id="mobile-dev-ticket-title"
-                            ref={titleRef}
-                            type="text"
-                            required
-                            maxLength={200}
-                            value={formData.title}
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                setFormData(prev => ({ ...prev, title: val }));
-                                setErrors(prev => ({ ...prev, title: validateTitle(val) }));
-                            }}
-                            className={cn(
-                                "w-full px-4 py-2.5 bg-background border rounded-xl text-sm font-medium outline-none text-foreground placeholder:text-muted-foreground/60 transition-all shadow-2xs",
-                                errors.title
-                                    ? "border-rose-500 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500"
-                                    : "border-border/90 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10"
-                            )}
-                            placeholder="Contoh: App Force Close, Gagal Download APK, Push Notif Error..."
-                        />
-                        {errors.title && (
-                            <p className="text-xs text-rose-500 font-medium mt-1 flex items-center gap-1">
-                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                                <span>{errors.title}</span>
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Integrated Rich Composer */}
-                    {renderRichDescriptionComposer(
-                        "mobile-dev-ticket-description",
-                        "Jelaskan tipe perangkat (Android/iOS), versi OS, langkah terjadinya error, atau lampirkan screenshot log crash...",
-                        "focus-within:border-purple-500 focus-within:ring-4 focus-within:ring-purple-500/10",
-                        "text-purple-500"
-                    )}
-
-                    {/* Priority Selector */}
-                    {renderPrioritySelector("text-purple-500")}
-
-                    {/* Submit Action */}
-                    {renderSubmitActionBar(
-                        "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-purple-600/20",
-                        "Kirim Tiket Mobile Dev"
-                    )}
-                </form>
-
-                {/* Lightbox Modal */}
-                {lightboxItem && (
-                    <LightboxModal
-                        item={lightboxItem}
-                        onClose={() => setLightboxItem(null)}
-                        onDelete={() => handleRemoveFile(lightboxItem.index)}
-                    />
-                )}
-            </div>
-        );
-    }
-
-    // ==========================================
-    // 6. SERVICE TICKET FORM (Default IT Support)
-    // ==========================================
     return (
-        <div className="w-full max-w-7xl mx-auto space-y-5 animate-in fade-in duration-500 mb-10">
-            {renderFormHeader(
-                <Ticket className="w-5 h-5 text-amber-600 dark:text-amber-500" />,
-                "Service Ticket",
-                "General IT Support Request (Hardware, Software, Network & General)",
-                "bg-amber-500/10 border-amber-500/20"
-            )}
-
-            {/* Quick Templates */}
-            <div className="flex flex-col gap-1.5">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <Tag className="w-3.5 h-3.5 text-amber-500" /> Template Cepat
-                </span>
-                <div className="flex flex-wrap items-center gap-2">
-                    {QUICK_TEMPLATES.map((tpl) => {
-                        const isSelected = selectedTemplate === tpl.label;
-                        return (
-                            <button
-                                key={tpl.label}
-                                type="button"
-                                onClick={() => handleTemplateClick(tpl)}
-                                className={cn(
-                                    "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all border shadow-2xs active:scale-95 cursor-pointer flex items-center gap-1.5",
-                                    isSelected
-                                        ? "bg-amber-500/15 border-amber-500 text-amber-700 dark:text-amber-300 ring-2 ring-amber-500/20"
-                                        : "bg-card border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/60 hover:border-amber-500/40"
-                                )}
-                            >
-                                {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
-                                <span>{tpl.label}</span>
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
+        <div className="ct-page ct-page-form">
+            <TicketFormHeader title={config.title} subtitle={config.subtitle} icon={config.icon} tone={config.tone} onBack={handleBack} />
+            <TemplateChips templates={config.templates} selected={selectedTemplate} onPick={handleTemplateClick} />
 
             <form
                 onSubmit={handleSubmit}
                 onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); (e.currentTarget as HTMLFormElement).requestSubmit(); } }}
-                className="bg-card rounded-2xl border border-border/80 p-5 md:p-8 shadow-sm"
+                className="ct-form"
             >
-                {hasFieldErrors && (
-                    <div role="alert" aria-live="assertive" className="flex items-start gap-2 text-xs bg-destructive/10 border border-destructive/20 text-destructive rounded-xl p-3 mb-6">
-                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-                        <p className="font-medium">{errors.title || errors.description || 'Mohon perbaiki isian yang ditandai.'}</p>
-                    </div>
-                )}
+                {hasFieldErrors && <ErrorBanner message={errors.title || errors.description || 'Mohon perbaiki isian yang ditandai.'} />}
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
-                    {/* LEFT COLUMN - Subject & Integrated Rich Composer (6 cols) */}
-                    <div className="lg:col-span-6 space-y-5">
-                        {isStaff && <RequesterSelector requesterId={requesterId} onChange={setRequesterId} currentUserId={user?.id} />}
-                        <div>
-                            <div className="flex justify-between items-center mb-1.5">
-                                <label htmlFor="service-ticket-title" className="text-xs font-bold text-foreground flex items-center gap-1.5 tracking-wide">
-                                    <FileText className="w-3.5 h-3.5 text-amber-500" aria-hidden="true" />
-                                    <span>Subject / Judul Tiket <span className="text-rose-500">*</span></span>
-                                </label>
-                                <span className={cn(
-                                    "text-[11px] font-mono font-medium",
-                                    formData.title.trim().length === 0
-                                        ? "text-muted-foreground"
-                                        : formData.title.trim().length < 5
-                                        ? "text-rose-500 font-bold"
-                                        : "text-emerald-600 dark:text-emerald-400 font-semibold"
-                                )}>
-                                    {formData.title.trim().length < 5 && formData.title.trim().length > 0
-                                        ? `Kurang ${5 - formData.title.trim().length} karakter (min. 5)`
-                                        : `${formData.title.length} / 200 karakter`}
-                                </span>
-                            </div>
-                            <input
-                                id="service-ticket-title"
-                                ref={titleRef}
-                                type="text"
-                                required
-                                maxLength={200}
-                                value={formData.title}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    setFormData(prev => ({ ...prev, title: val }));
-                                    setErrors(prev => ({ ...prev, title: validateTitle(val) }));
-                                }}
-                                className={cn(
-                                    "w-full px-4 py-2.5 bg-background border rounded-xl text-sm font-medium outline-none text-foreground placeholder:text-muted-foreground/60 transition-all shadow-2xs",
-                                    errors.title
-                                        ? "border-rose-500 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500"
-                                        : "border-border/90 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10"
-                                )}
-                                placeholder="Ringkasan masalah (contoh: Monitor tidak menyala, Laptop lambat)..."
-                            />
-                            {errors.title && (
-                                <p className="text-xs text-rose-500 font-medium mt-1 flex items-center gap-1">
-                                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                                    <span>{errors.title}</span>
-                                </p>
-                            )}
+                <TicketFormSection>
+                    {isStaff && (
+                        <div className="ct-row">
+                            <RequesterSelector requesterId={requesterId} onChange={setRequesterId} currentUserId={user?.id} />
                         </div>
+                    )}
+                    <TitleField id={config.titleId} inputRef={titleRef} value={formData.title} error={errors.title}
+                        placeholder={config.titlePlaceholder}
+                        onChange={(val) => {
+                            updateField('title', val);
+                            setErrors(prev => ({ ...prev, title: validateTitle(val) }));
+                        }} />
+                    <DescriptionComposer id={config.descriptionId} textareaRef={descriptionRef} fileInputRef={fileInputRef}
+                        value={formData.description} error={errors.description} placeholder={config.descriptionPlaceholder}
+                        files={files} previews={filePreviewMap}
+                        onChange={(val) => {
+                            updateField('description', val);
+                            setErrors(prev => ({ ...prev, description: validateDescription(val) }));
+                        }}
+                        onPaste={handlePaste} onDropFiles={addFiles} onFileInput={handleFileChange}
+                        onRemoveFile={handleRemoveFile} onPreview={setLightboxItem} />
+                </TicketFormSection>
 
-                        {/* Integrated Rich Composer */}
-                        {renderRichDescriptionComposer(
-                            "service-ticket-description",
-                            "Jelaskan pesan error, lokasi, langkah yang sudah dicoba, atau paste screenshot langsung...",
-                            "focus-within:border-amber-500 focus-within:ring-4 focus-within:ring-amber-500/10",
-                            "text-amber-500"
-                        )}
-                    </div>
+                <TicketFormSection>
+                    {config.hasClassification && (
+                        <ClassificationFields
+                            values={{ category: formData.category, device: formData.device, software: formData.software }}
+                            options={{
+                                category: [...BASE_CATEGORY_OPTIONS, ...toPickerOptions(attributes.categories ?? [])],
+                                device: toPickerOptions(attributes.devices ?? []),
+                                software: toPickerOptions(attributes.software ?? []),
+                            }}
+                            loadFailed={attributesError} canAddAttribute={canAddAttribute}
+                            onChange={(key, value) => updateField(key, value)}
+                            onRetry={fetchAttributes}
+                            onAdd={(kind: AttributeKind) => setShowAddModal({ type: kind, show: true })} />
+                    )}
+                    <UrgencySegment legendId={`${ticketType}-urgency-label`} value={formData.priority} onChange={(p) => updateField('priority', p)} />
+                    {formData.priority === 'CRITICAL' && (
+                        <CriticalReasonField id={config.criticalReasonId} label={config.criticalReasonLabel} placeholder={config.criticalReasonPlaceholder} value={formData.criticalReason} onChange={(v) => updateField('criticalReason', v)} />
+                    )}
+                </TicketFormSection>
 
-                    {/* CENTER COLUMN - Classification (3 cols) */}
-                    <div className="lg:col-span-3 space-y-5">
-                        {attributesError && (
-                            <div role="alert" className="flex items-start gap-2 text-xs bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-xl p-3">
-                                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                                <div className="flex-1">
-                                    <p className="font-semibold">Gagal memuat daftar kategori/device/software.</p>
-                                    <button type="button" onClick={fetchAttributes} className="underline font-bold mt-1">
-                                        Coba lagi
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                        <div>
-                            <div className="flex justify-between items-center mb-1.5">
-                                <label id="label-service-category" className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wide">
-                                    <Tag className="w-3.5 h-3.5 text-amber-500" aria-hidden="true" /> Category
-                                </label>
-                                {(user?.role === 'ADMIN' || user?.role === 'AGENT') && (
-                                    <button type="button" onClick={() => setShowAddModal({ type: 'CATEGORY', show: true })} className="text-[11px] font-bold text-amber-600 bg-amber-500/10 px-2.5 py-1 rounded-lg uppercase tracking-wider hover:bg-amber-500/20 cursor-pointer">+ Add</button>
-                                )}
-                            </div>
-                            <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
-                                <SelectTrigger aria-labelledby="label-service-category" className="w-full h-11 px-4 py-2.5 text-sm font-medium bg-background border border-border/90 rounded-xl shadow-2xs focus:ring-4 focus:ring-amber-500/10">
-                                    <SelectValue placeholder="Pilih Kategori" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-xl border-border font-medium">
-                                    <SelectItem value="GENERAL">General</SelectItem>
-                                    <SelectItem value="HARDWARE">Hardware</SelectItem>
-                                    <SelectItem value="SOFTWARE">Software</SelectItem>
-                                    <SelectItem value="NETWORK">Network</SelectItem>
-                                    {attributes.categories?.map((attr) => (
-                                        <SelectItem key={attr.id} value={attr.value}>{attr.value}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div>
-                            <div className="flex justify-between items-center mb-1.5">
-                                <label id="label-service-device" className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wide">
-                                    <Monitor className="w-3.5 h-3.5 text-amber-500" aria-hidden="true" /> Device
-                                </label>
-                                {(user?.role === 'ADMIN' || user?.role === 'AGENT') && (
-                                    <button type="button" onClick={() => setShowAddModal({ type: 'DEVICE', show: true })} className="text-[11px] font-bold text-amber-600 bg-amber-500/10 px-2.5 py-1 rounded-lg uppercase tracking-wider hover:bg-amber-500/20 cursor-pointer">+ Add</button>
-                                )}
-                            </div>
-                            <Select value={formData.device} onValueChange={(value) => setFormData({ ...formData, device: value })}>
-                                <SelectTrigger aria-labelledby="label-service-device" className="w-full h-11 px-4 py-2.5 text-sm font-medium bg-background border border-border/90 rounded-xl shadow-2xs focus:ring-4 focus:ring-amber-500/10">
-                                    <SelectValue placeholder="Pilih perangkat (opsional)" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-xl border-border font-medium">
-                                    {attributes.devices?.map((attr) => (
-                                        <SelectItem key={attr.id} value={attr.value}>{attr.value}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div>
-                            <div className="flex justify-between items-center mb-1.5">
-                                <label id="label-service-software" className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wide">
-                                    <Box className="w-3.5 h-3.5 text-amber-500" aria-hidden="true" /> Software
-                                </label>
-                                {(user?.role === 'ADMIN' || user?.role === 'AGENT') && (
-                                    <button type="button" onClick={() => setShowAddModal({ type: 'SOFTWARE', show: true })} className="text-[11px] font-bold text-amber-600 bg-amber-500/10 px-2.5 py-1 rounded-lg uppercase tracking-wider hover:bg-amber-500/20 cursor-pointer">+ Add</button>
-                                )}
-                            </div>
-                            <Select value={formData.software} onValueChange={(value) => setFormData({ ...formData, software: value })}>
-                                <SelectTrigger aria-labelledby="label-service-software" className="w-full h-11 px-4 py-2.5 text-sm font-medium bg-background border border-border/90 rounded-xl shadow-2xs focus:ring-4 focus:ring-amber-500/10">
-                                    <SelectValue placeholder="Pilih aplikasi (opsional)" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-xl border-border font-medium">
-                                    {attributes.software?.map((attr) => (
-                                        <SelectItem key={attr.id} value={attr.value}>{attr.value}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-
-                    {/* RIGHT COLUMN - Priority & Submit (3 cols) */}
-                    <div className="lg:col-span-3 flex flex-col justify-between space-y-6">
-                        <fieldset className="border-0 p-0 m-0">
-                            <legend className="text-xs font-bold text-foreground mb-2 flex items-center gap-1.5 uppercase tracking-wide">
-                                <AlertCircle className="w-3.5 h-3.5 text-amber-500" aria-hidden="true" /> Priority Level
-                            </legend>
-                            <div role="radiogroup" aria-label="Priority level" className="bg-muted/40 rounded-2xl p-1.5 border border-border/80 flex flex-col gap-1.5 shadow-2xs">
-                                {PRIORITY_OPTIONS.map((p) => {
-                                    const isSelected = formData.priority === p.id;
-
-                                    return (
-                                        <PriorityHoverTip key={p.id} priority={p.id} side="left">
-                                            <button
-                                                type="button"
-                                                role="radio"
-                                                aria-checked={isSelected}
-                                                onClick={() => setFormData({ ...formData, priority: p.id })}
-                                                className={cn(
-                                                    "w-full px-3.5 py-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer",
-                                                    isSelected
-                                                        ? `${p.activeBg} ${p.activeBorder} ${p.activeText} shadow-xs ring-2 ${p.activeRing}`
-                                                        : "bg-card border-transparent hover:border-border/80 shadow-2xs text-muted-foreground hover:text-foreground"
-                                                )}
-                                            >
-                                                <div className="flex items-center gap-2.5">
-                                                    <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", p.dot, isSelected && "animate-pulse")} />
-                                                    <span className={cn("font-bold text-xs", isSelected ? p.activeText : "text-foreground")}>
-                                                        {p.label}
-                                                    </span>
-                                                </div>
-                                            </button>
-                                        </PriorityHoverTip>
-                                    );
-                                })}
-                            </div>
-                        </fieldset>
-
-                        {/* Critical Reason */}
-                        {formData.priority === 'CRITICAL' && (
-                            <div className="bg-rose-50/70 dark:bg-rose-950/20 rounded-2xl p-3.5 border border-rose-200/80 dark:border-rose-800/40 animate-in fade-in zoom-in-95 duration-200 space-y-1.5">
-                                <label htmlFor="service-critical-reason" className="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5 uppercase tracking-wide">
-                                    <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" /> Justifikasi Blocker (Critical)
-                                </label>
-                                <textarea
-                                    id="service-critical-reason"
-                                    required
-                                    rows={2}
-                                    value={formData.criticalReason}
-                                    onChange={(e) => setFormData({ ...formData, criticalReason: e.target.value })}
-                                    className="w-full px-3 py-2 bg-background border border-rose-300 dark:border-rose-700/60 rounded-xl text-xs font-medium focus:ring-4 focus:ring-rose-500/15 outline-none resize-none placeholder:text-muted-foreground/60 min-h-[60px]"
-                                    placeholder="Jelaskan alasan urgensi prioritas blocker (critical)..."
-                                />
-                            </div>
-                        )}
-
-                        {/* Submit Button */}
-                        <div className="space-y-2 pt-2">
-                            <button
-                                type="submit"
-                                disabled={isLoading || !formData.title.trim() || !formData.description.trim() || (formData.priority === 'CRITICAL' && !formData.criticalReason?.trim())}
-                                className="w-full h-[46px] flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold rounded-xl transition-all duration-200 focus:ring-4 focus:ring-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-500/20 active:scale-[0.98] text-xs uppercase tracking-wide cursor-pointer"
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        <span>Membuat Tiket...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Send className="w-4 h-4" />
-                                        <span>Kirim Service Ticket</span>
-                                    </>
-                                )}
-                            </button>
-                            <p className="text-center text-[10px] font-medium text-muted-foreground">
-                                Pastikan informasi sudah benar sebelum mengirim
-                            </p>
-                        </div>
-                    </div>
-                </div>
+                <SubmitBar draftStatus={draftStatus} disabled={submitDisabled} loading={isLoading}
+                    label={config.submitLabel} loadingLabel={config.loadingLabel} />
             </form>
 
-            {/* Lightbox Modal */}
             {lightboxItem && (
-                <LightboxModal
-                    item={lightboxItem}
-                    onClose={() => setLightboxItem(null)}
-                    onDelete={() => handleRemoveFile(lightboxItem.index)}
-                />
+                <LightboxModal item={lightboxItem} onClose={() => setLightboxItem(null)} onDelete={() => handleRemoveFile(lightboxItem.index)} />
             )}
 
-            {/* Add Attribute Modal */}
-            {showAddModal.show && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200 p-4">
-                    <div
-                        ref={addModalRef}
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="add-attribute-title"
-                        className="bg-card p-6 md:p-8 rounded-2xl w-full max-w-[400px] border border-border shadow-2xl animate-in zoom-in-95 duration-300"
-                    >
-                        <h3 id="add-attribute-title" className="text-lg font-bold text-foreground mb-4">Add New {showAddModal.type}</h3>
-                        <div className="space-y-4">
-                            <div>
-                                <label htmlFor="new-attribute-value" className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 block">{showAddModal.type} Name</label>
-                                <input
-                                    id="new-attribute-value"
-                                    type="text"
-                                    value={newAttributeValue}
-                                    onChange={(e) => setNewAttributeValue(e.target.value)}
-                                    className="w-full h-11 px-4 border border-border rounded-xl text-sm font-medium text-foreground bg-background focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none"
-                                    placeholder={`Enter new ${showAddModal.type.toLowerCase()} name`}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleAddAttribute()}
-                                />
-                            </div>
-                            <div className="flex gap-3 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={handleCloseAddModal}
-                                    className="flex-1 py-2.5 text-xs font-bold text-muted-foreground bg-muted hover:bg-muted/80 rounded-xl transition-colors cursor-pointer"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={handleAddAttribute}
-                                    disabled={!newAttributeValue.trim() || isAddingAttribute}
-                                    className="flex-1 py-2.5 text-xs font-bold text-primary-foreground bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-md shadow-primary/20 cursor-pointer"
-                                >
-                                    {isAddingAttribute ? 'Adding…' : 'Confirm'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            {config.hasClassification && showAddModal.show && (
+                <AddAttributeModal type={showAddModal.type} value={newAttributeValue} busy={isAddingAttribute}
+                    onChange={setNewAttributeValue} onConfirm={handleAddAttribute} onClose={handleCloseAddModal} />
             )}
-        </div>
-    );
-};
-
-// Lightbox Modal Component for image full preview
-interface LightboxModalProps {
-    item: { url: string; name: string; size: number; index: number };
-    onClose: () => void;
-    onDelete: () => void;
-}
-
-const LightboxModal: React.FC<LightboxModalProps> = ({ item, onClose, onDelete }) => {
-    return (
-        <div
-            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
-            onClick={onClose}
-        >
-            <div
-                className="relative max-w-4xl max-h-[90vh] flex flex-col bg-card rounded-2xl border border-border/80 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* Modal Top Bar */}
-                <div className="flex items-center justify-between px-5 py-3.5 bg-card/90 border-b border-border/80">
-                    <div className="flex items-center gap-2.5 truncate max-w-[70%]">
-                        <ImageIcon className="w-4 h-4 text-primary shrink-0" />
-                        <span className="text-sm font-bold text-foreground truncate" title={item.name}>{item.name}</span>
-                        <span className="text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded shrink-0">{formatFileSize(item.size)}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <a
-                            href={item.url}
-                            download={item.name}
-                            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                            title="Unduh gambar"
-                        >
-                            <Download className="w-4 h-4" />
-                        </a>
-                        <button
-                            type="button"
-                            onClick={() => { onDelete(); onClose(); }}
-                            className="p-2 rounded-xl text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                            title="Hapus gambar"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                            title="Tutup preview"
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Modal Image Area */}
-                <div className="flex items-center justify-center bg-black/10 p-4 max-h-[calc(90vh-70px)] overflow-auto">
-                    <img
-                        src={item.url}
-                        alt={item.name}
-                        className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-md select-none"
-                    />
-                </div>
-            </div>
         </div>
     );
 };

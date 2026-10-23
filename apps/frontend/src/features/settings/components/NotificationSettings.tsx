@@ -1,30 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import {
-    Bell,
-    Mail,
-    Smartphone,
-    Clock,
-    Moon,
-    Settings2,
-    Loader2,
-    ChevronDown,
-    ChevronUp,
-    AlertCircle,
-    Filter,
-    Ticket,
-    HardDrive,
-    FileText,
-    RotateCcw,
-    Video,
-} from 'lucide-react';
+import { Loader2, AlertCircle, Ticket, HardDrive, FileText, RotateCcw, Video } from 'lucide-react';
 import api from '../../../lib/api';
 import { usePushNotifications } from '../../../hooks/usePushNotifications';
 import { useCategorySettings } from '../../../features/notifications/hooks/useCategorySettings';
 import type { CategorySettings } from '@/components/notifications/types/notification.types';
 import { DesktopAppDownloadBanner } from '@/components/notifications/DesktopAppDownloadBanner';
-import { cn } from '@/lib/utils';
+import { resVars } from '@/components/resources/ResourceParts';
+import { MgSwitch } from '@/components/management/MgmtParts';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { SetHead, SetRow, SetSwitchRow } from './SettingsParts';
 
 interface NotificationSettingsProps {
     showAdminTools?: boolean;
@@ -75,11 +61,11 @@ const CHANNEL_KEY_MAP: Record<string, string> = {
 // Helper to get type setting with fallback to default
 // Backend stores with snake_case keys, so we need to convert
 const ACTION_ITEM_CATEGORIES = [
-    { key: 'TICKET', label: 'Ticket', desc: 'SLA warning, tiket belum dibalas, atau konfirmasi resolusi tiket', icon: Ticket, color: 'text-blue-500 bg-blue-50 dark:bg-blue-500/10' },
-    { key: 'HARDWARE_REQUEST', label: 'Hardware Request', desc: 'Persetujuan manajer, jadwal instalasi, atau konfirmasi serah terima barang', icon: HardDrive, color: 'text-amber-500 bg-amber-50 dark:bg-amber-500/10' },
-    { key: 'EFORM', label: 'E-Form', desc: 'Permintaan akses sistem yang menunggu persetujuan pejabat berwenang', icon: FileText, color: 'text-purple-500 bg-purple-50 dark:bg-purple-500/10' },
-    { key: 'ZOOM', label: 'Zoom Meeting', desc: 'Jadwal meeting Zoom terkonfirmasi hari ini', icon: Video, color: 'text-cyan-500 bg-cyan-50 dark:bg-cyan-500/10' },
-    { key: 'RENEWAL', label: 'Renewal Kontrak', desc: 'Kontrak vendor atau lisensi mendekati masa expired (< 7 hari)', icon: RotateCcw, color: 'text-rose-500 bg-rose-50 dark:bg-rose-500/10' },
+    { key: 'TICKET', label: 'Ticket', desc: 'SLA warning, tiket belum dibalas, atau konfirmasi resolusi tiket', icon: Ticket, color: 'var(--dash-blue)' },
+    { key: 'HARDWARE_REQUEST', label: 'Hardware Request', desc: 'Persetujuan manajer, jadwal instalasi, atau konfirmasi serah terima barang', icon: HardDrive, color: 'var(--dash-orange)' },
+    { key: 'EFORM', label: 'E-Form', desc: 'Permintaan akses sistem yang menunggu persetujuan pejabat berwenang', icon: FileText, color: 'var(--dash-navy)' },
+    { key: 'ZOOM', label: 'Zoom Meeting', desc: 'Jadwal meeting Zoom terkonfirmasi hari ini', icon: Video, color: 'var(--dash-teal)' },
+    { key: 'RENEWAL', label: 'Renewal Kontrak', desc: 'Kontrak vendor atau lisensi mendekati masa expired (< 7 hari)', icon: RotateCcw, color: 'var(--dash-red)' },
 ] satisfies Array<{ key: keyof CategorySettings; label: string; desc: string; icon: any; color: string }>;
 
 const getTypeSetting = (
@@ -99,7 +85,6 @@ const getTypeSetting = (
 
 export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ showAdminTools }) => {
     const queryClient = useQueryClient();
-    const [expandedSection, setExpandedSection] = useState<string | null>('channels');
     const { settings: categorySettings, isLoading: catLoading, updateSettings } = useCategorySettings();
 
     // Push notification hook
@@ -125,10 +110,10 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ show
             api.put('/notifications/preferences', data).then(r => r.data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['notification-preferences'] });
-            toast.success('Preferences updated');
+            toast.success('Preferensi disimpan');
         },
         onError: () => {
-            toast.error('Failed to update preferences');
+            toast.error('Gagal menyimpan preferensi');
         },
     });
 
@@ -170,7 +155,7 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ show
             if (context?.previousPrefs) {
                 queryClient.setQueryData(['notification-preferences'], context.previousPrefs);
             }
-            toast.error('Failed to update type settings');
+            toast.error('Gagal menyimpan pengaturan per jenis');
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['notification-preferences'] });
@@ -187,30 +172,30 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ show
             const success = await subscribeToPush();
             if (success) {
                 toggleChannel('push', true);
-                toast.success('Push notifications enabled');
+                toast.success('Push notification aktif');
             } else {
                 if (isPermissionDenied) {
-                    toast.error('Push notifications blocked. Please enable in browser settings.');
+                    toast.error('Push notification diblokir. Izinkan di pengaturan browser.');
                 } else {
-                    toast.error('Failed to enable push notifications');
+                    toast.error('Gagal mengaktifkan push notification');
                 }
             }
         } else {
             const success = await unsubscribeFromPush();
             if (success) {
                 toggleChannel('push', false);
-                toast.success('Push notifications disabled');
+                toast.success('Push notification nonaktif');
             }
         }
     };
 
     // Get push notification status description
     const getPushDescription = (): string => {
-        if (!isPushSupported) return 'Not supported in this browser';
-        if (!isPushConfigured) return 'Not configured (missing VAPID keys)';
-        if (isPermissionDenied) return 'Blocked - enable in browser settings';
-        if (isPushSubscribed) return `Active on ${subscriptionCount} device(s)`;
-        return 'Receive notifications even when app is closed';
+        if (!isPushSupported) return 'Tidak didukung di browser ini';
+        if (!isPushConfigured) return 'Belum dikonfigurasi (VAPID key belum diisi)';
+        if (isPermissionDenied) return 'Diblokir — izinkan di pengaturan browser';
+        if (isPushSubscribed) return `Aktif di ${subscriptionCount} perangkat`;
+        return 'Web Push di browser ini, tetap masuk saat aplikasi ditutup (butuh HTTPS)';
     };
 
     const updateDigest = (settings: Partial<NotificationPreference>) => {
@@ -228,9 +213,7 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ show
         });
     };
 
-    const toggleSection = (section: string) => {
-        setExpandedSection(expandedSection === section ? null : section);
-    };
+
 
     if (isLoading) {
         return (
@@ -243,411 +226,92 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({ show
     if (!preferences) return null;
 
     return (
-        <div className="space-y-6">
-            {/* Desktop App Tray / Toast Banner */}
+        <div>
+            <SetHead title="Notification Preferences" sub="Pilih cara Anda menerima notifikasi." />
             <DesktopAppDownloadBanner showAdminTools={showAdminTools} />
 
-            {/* Channel Settings */}
-            <div className="bg-card dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
-                <button
-                    onClick={() => toggleSection('channels')}
-                    className="w-full flex items-center justify-between p-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                >
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
-                            <Bell className="w-5 h-5 text-primary" />
-                        </div>
-                        <div className="text-left">
-                            <h3 className="font-medium text-slate-800 dark:text-white">Notification Channels</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Choose how you receive notifications</p>
-                        </div>
-                    </div>
-                    {expandedSection === 'channels' ? (
-                        <ChevronUp className="w-5 h-5 text-slate-400" />
-                    ) : (
-                        <ChevronDown className="w-5 h-5 text-slate-400" />
+            <SetSwitchRow title="In-App" sub="Tampilkan notifikasi di aplikasi" checked={preferences.inAppEnabled} onChange={(v) => toggleChannel('inApp', v)} />
+            <SetSwitchRow title="Email" sub={preferences.emailAddress || 'Belum ada email terdaftar'} checked={preferences.emailEnabled} onChange={(v) => toggleChannel('email', v)} />
+            <SetRow title="Push browser" sub={getPushDescription()}>
+                {isPushLoading ? <Loader2 className="w-4 h-4 animate-spin text-[var(--td-text-3)]" aria-label="Memproses" /> : null}
+                <MgSwitch checked={isPushSubscribed && preferences.pushEnabled} onChange={handlePushToggle} label="Push browser"
+                    disabled={!isPushSupported || !isPushConfigured || isPushLoading} />
+            </SetRow>
+            {isPermissionDenied && (
+                <div className="res-note set-warn"><AlertCircle aria-hidden="true" /><span>Push notification diblokir. Izinkan di pengaturan browser.</span></div>
+            )}
+            <SetSwitchRow title="Digest Mode" sub="Gabungkan notifikasi menjadi ringkasan berkala" checked={preferences.digestEnabled} onChange={(v) => updateDigest({ digestEnabled: v })} />
+            {preferences.digestEnabled && (
+                <div className="mg-setting set-sub-row">
+                    <div><b>Frekuensi digest</b></div>
+                    <select aria-label="Frekuensi digest" className="mg-input set-ctl" value={preferences.digestFrequency} onChange={(e) => updateDigest({ digestFrequency: e.target.value as any })}>
+                        <option value="REALTIME">Real-time (No batching)</option>
+                        <option value="HOURLY">Hourly</option>
+                        <option value="DAILY">Daily</option>
+                        <option value="WEEKLY">Weekly</option>
+                    </select>
+                    {preferences.digestFrequency !== 'REALTIME' && preferences.digestFrequency !== 'HOURLY' && (
+                        <input type="time" aria-label="Waktu kirim digest" className="mg-input set-ctl-sm" value={preferences.digestTime || '09:00'}
+                            onChange={(e) => updateDigest({ digestTime: e.target.value })} />
                     )}
-                </button>
-
-                {expandedSection === 'channels' && (
-                    <div className="p-4 pt-0 space-y-4">
-                        <ChannelToggle
-                            icon={<Bell className="w-5 h-5" />}
-                            label="In-App Notifications"
-                            description="Show notifications in the app"
-                            enabled={preferences.inAppEnabled}
-                            onChange={(v) => toggleChannel('inApp', v)}
-                        />
-                        <ChannelToggle
-                            icon={<Mail className="w-5 h-5" />}
-                            label="Email Notifications"
-                            description={preferences.emailAddress || 'No email configured'}
-                            enabled={preferences.emailEnabled}
-                            onChange={(v) => toggleChannel('email', v)}
-                        />
-                        <ChannelToggle
-                            icon={<Smartphone className="w-5 h-5" />}
-                            label="Push Notifications"
-                            description={getPushDescription()}
-                            enabled={isPushSubscribed && preferences.pushEnabled}
-                            onChange={handlePushToggle}
-                            disabled={!isPushSupported || !isPushConfigured || isPushLoading}
-                            loading={isPushLoading}
-                        />
-                        {isPermissionDenied && (
-                            <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-700 dark:text-amber-400">
-                                <AlertCircle className="w-4 h-4 shrink-0" />
-                                <span>Push notifications are blocked. Enable them in your browser settings.</span>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {/* Digest Settings */}
-            <div className="bg-card dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
-                <button
-                    onClick={() => toggleSection('digest')}
-                    className="w-full flex items-center justify-between p-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                >
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                            <Clock className="w-5 h-5 text-blue-500" />
-                        </div>
-                        <div className="text-left">
-                            <h3 className="font-medium text-slate-800 dark:text-white">Digest Mode</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Batch notifications together</p>
-                        </div>
-                    </div>
-                    {expandedSection === 'digest' ? (
-                        <ChevronUp className="w-5 h-5 text-slate-400" />
-                    ) : (
-                        <ChevronDown className="w-5 h-5 text-slate-400" />
-                    )}
-                </button>
-
-                {expandedSection === 'digest' && (
-                    <div className="p-4 pt-0 space-y-4">
-                        <ChannelToggle
-                            icon={<Clock className="w-5 h-5" />}
-                            label="Enable Digest Mode"
-                            description="Receive batched notification summaries"
-                            enabled={preferences.digestEnabled}
-                            onChange={(v) => updateDigest({ digestEnabled: v })}
-                        />
-
-                        {preferences.digestEnabled && (
-                            <div className="ml-12 space-y-3">
-                                <div>
-                                    <label className="text-sm text-slate-500 dark:text-slate-400 mb-2 block">Frequency</label>
-                                    <select
-                                        value={preferences.digestFrequency}
-                                        onChange={(e) => updateDigest({ digestFrequency: e.target.value as any })}
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-slate-800 dark:text-white focus:outline-none focus:border-primary"
-                                    >
-                                        <option value="REALTIME">Real-time (No batching)</option>
-                                        <option value="HOURLY">Hourly</option>
-                                        <option value="DAILY">Daily</option>
-                                        <option value="WEEKLY">Weekly</option>
-                                    </select>
-                                </div>
-
-                                {preferences.digestFrequency !== 'REALTIME' && preferences.digestFrequency !== 'HOURLY' && (
-                                    <div>
-                                        <label className="text-sm text-slate-500 dark:text-slate-400 mb-2 block">Delivery Time</label>
-                                        <input
-                                            type="time"
-                                            value={preferences.digestTime || '09:00'}
-                                            onChange={(e) => updateDigest({ digestTime: e.target.value })}
-                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-slate-800 dark:text-white focus:outline-none focus:border-primary"
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {/* Action Reminders */}
-            <div className="bg-card dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
-                <button
-                    onClick={() => toggleSection('reminders')}
-                    className="w-full flex items-center justify-between p-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                >
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center">
-                            <AlertCircle className="w-5 h-5 text-orange-500" />
-                        </div>
-                        <div className="text-left">
-                            <h3 className="font-medium text-slate-800 dark:text-white">Action Reminders</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">How often to remind you about pending items</p>
-                        </div>
-                    </div>
-                    {expandedSection === 'reminders' ? (
-                        <ChevronUp className="w-5 h-5 text-slate-400" />
-                    ) : (
-                        <ChevronDown className="w-5 h-5 text-slate-400" />
-                    )}
-                </button>
-
-                {expandedSection === 'reminders' && (
-                    <div className="p-4 pt-0">
-                        <div className="flex flex-wrap gap-3">
-                            {['OFF', 'GENTLE', 'MODERATE', 'ASSERTIVE'].map((intensity) => (
-                                <button
-                                    key={intensity}
-                                    onClick={() => updateMutation.mutate({ reminderIntensity: intensity as any })}
-                                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                                        preferences.reminderIntensity === intensity 
-                                        ? 'bg-primary text-white shadow-md' 
-                                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
-                                    }`}
-                                >
-                                    {intensity === 'OFF' && 'Off'}
-                                    {intensity === 'GENTLE' && 'Gentle (1h)'}
-                                    {intensity === 'MODERATE' && 'Moderate (30m)'}
-                                    {intensity === 'ASSERTIVE' && 'Assertive (15m)'}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Category Settings */}
-            <div className="bg-card dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
-                <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-2 border-b border-slate-200 dark:border-slate-700">
-                    <Filter className="w-4 h-4 text-slate-500" />
-                    <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                        Kategori Action Items
-                    </h3>
                 </div>
-                <p className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700/50">
-                    Kategori yang dinonaktifkan tidak akan muncul di Action Command Center
-                </p>
+            )}
+            <SetSwitchRow title="Quiet Hours" sub={`Jeda notifikasi ${preferences.quietHoursStart || '22:00'}–${preferences.quietHoursEnd || '07:00'}`}
+                checked={preferences.quietHoursEnabled} onChange={(v) => updateQuietHours({ quietHoursEnabled: v })} />
+            {preferences.quietHoursEnabled && (
+                <div className="mg-setting set-sub-row">
+                    <div><b>Rentang jam tenang</b></div>
+                    <input type="time" aria-label="Mulai jam tenang" className="mg-input set-ctl-sm" value={preferences.quietHoursStart || '22:00'}
+                        onChange={(e) => updateQuietHours({ quietHoursStart: e.target.value })} />
+                    <span className="text-[var(--td-text-3)]">–</span>
+                    <input type="time" aria-label="Selesai jam tenang" className="mg-input set-ctl-sm" value={preferences.quietHoursEnd || '07:00'}
+                        onChange={(e) => updateQuietHours({ quietHoursEnd: e.target.value })} />
+                </div>
+            )}
+            <SetRow title="Action Reminders" sub="Seberapa sering mengingatkan item yang tertunda">
+                <SegmentedControl aria-label="Intensitas pengingat" className="dash-seg is-sm"
+                    options={[{ value: 'OFF', label: 'Off' }, { value: 'GENTLE', label: 'Gentle (1h)' }, { value: 'MODERATE', label: 'Moderate (30m)' }, { value: 'ASSERTIVE', label: 'Assertive (15m)' }]}
+                    value={preferences.reminderIntensity} onValueChange={(v) => updateMutation.mutate({ reminderIntensity: v as NotificationPreference['reminderIntensity'] })} />
+            </SetRow>
+
+            <section className="set-section" aria-label="Kategori Action Items">
+                <h3>Kategori Action Items</h3>
+                <p>Kategori yang dinonaktifkan tidak akan muncul di Action Command Center.</p>
                 {catLoading ? (
-                    <div className="px-4 py-3 flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                        <span className="text-sm text-slate-400">Memuat...</span>
-                    </div>
+                    <div className="flex items-center gap-2 py-3 text-sm text-[var(--td-text-3)]"><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />Memuat…</div>
                 ) : categorySettings ? (
-                    <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                    <ul className="dash-list">
                         {ACTION_ITEM_CATEGORIES.map(({ key, label, desc, icon: Icon, color }) => (
-                            <div key={key} className="flex items-center justify-between px-4 py-3 gap-3">
-                                <div className="flex items-start gap-3 min-w-0">
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${color}`}>
-                                        <Icon className="w-4 h-4" />
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{label}</p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{desc}</p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => updateSettings({ [key]: !categorySettings[key] })}
-                                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none flex-shrink-0 ${
-                                        categorySettings[key]
-                                            ? 'bg-primary'
-                                            : 'bg-slate-300 dark:bg-slate-600'
-                                    }`}
-                                    aria-label={`Toggle ${label}`}
-                                >
-                                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-xs ${
-                                        categorySettings[key] ? 'translate-x-4' : 'translate-x-0.5'
-                                    }`} />
-                                </button>
-                            </div>
+                            <li key={key}><div className="dash-li">
+                                <span className="dash-ico" style={resVars({ '--c': color })}><Icon aria-hidden="true" /></span>
+                                <div className="grow1"><b>{label}</b><small>{desc}</small></div>
+                                <MgSwitch checked={Boolean(categorySettings[key])} onChange={() => updateSettings({ [key]: !categorySettings[key] })} label={`Aktifkan ${label}`} />
+                            </div></li>
                         ))}
-                    </div>
+                    </ul>
                 ) : null}
-            </div>
+            </section>
 
-            {/* Quiet Hours */}
-            <div className="bg-card dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
-                <button
-                    onClick={() => toggleSection('quiet')}
-                    className="w-full flex items-center justify-between p-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                >
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                            <Moon className="w-5 h-5 text-purple-500" />
+            <section className="set-section" aria-label="Notification Types">
+                <h3>Notification Types</h3>
+                <p>Atur kanal per jenis notifikasi. Kanal yang dimatikan di atas tidak bisa diubah per jenis.</p>
+                <div className="set-type-grid" role="table" aria-label="Kanal per jenis notifikasi">
+                    <div className="set-type-head" role="row"><span role="columnheader">Jenis</span><span role="columnheader">In-App</span><span role="columnheader">Email</span></div>
+                    {notificationTypes.map((type) => (
+                        <div key={type.key} className="set-type-row" role="row">
+                            <span role="cell"><b>{type.label}</b><small>{type.description}</small></span>
+                            <span role="cell"><input type="checkbox" className="mg-check" aria-label={`${type.label} In-App`}
+                                checked={getTypeSetting(preferences.typeSettings, type.key, 'inApp')}
+                                onChange={(e) => updateTypeSetting(type.key, 'inApp', e.target.checked)} disabled={!preferences.inAppEnabled} /></span>
+                            <span role="cell"><input type="checkbox" className="mg-check" aria-label={`${type.label} Email`}
+                                checked={getTypeSetting(preferences.typeSettings, type.key, 'email')}
+                                onChange={(e) => updateTypeSetting(type.key, 'email', e.target.checked)} disabled={!preferences.emailEnabled} /></span>
                         </div>
-                        <div className="text-left">
-                            <h3 className="font-medium text-slate-800 dark:text-white">Quiet Hours</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Do not disturb settings</p>
-                        </div>
-                    </div>
-                    {expandedSection === 'quiet' ? (
-                        <ChevronUp className="w-5 h-5 text-slate-400" />
-                    ) : (
-                        <ChevronDown className="w-5 h-5 text-slate-400" />
-                    )}
-                </button>
-
-                {expandedSection === 'quiet' && (
-                    <div className="p-4 pt-0 space-y-4">
-                        <ChannelToggle
-                            icon={<Moon className="w-5 h-5" />}
-                            label="Enable Quiet Hours"
-                            description="Pause notifications during specified hours"
-                            enabled={preferences.quietHoursEnabled}
-                            onChange={(v) => updateQuietHours({ quietHoursEnabled: v })}
-                        />
-
-                        {preferences.quietHoursEnabled && (
-                            <div className="ml-12 grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm text-slate-500 dark:text-slate-400 mb-2 block">Start Time</label>
-                                    <input
-                                        type="time"
-                                        value={preferences.quietHoursStart || '22:00'}
-                                        onChange={(e) => updateQuietHours({ quietHoursStart: e.target.value })}
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-slate-800 dark:text-white focus:outline-none focus:border-primary"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm text-slate-500 dark:text-slate-400 mb-2 block">End Time</label>
-                                    <input
-                                        type="time"
-                                        value={preferences.quietHoursEnd || '07:00'}
-                                        onChange={(e) => updateQuietHours({ quietHoursEnd: e.target.value })}
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-slate-800 dark:text-white focus:outline-none focus:border-primary"
-                                    />
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {/* Per-Type Settings */}
-            <div className="bg-card dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
-                <button
-                    onClick={() => toggleSection('types')}
-                    className="w-full flex items-center justify-between p-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                >
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center">
-                            <Settings2 className="w-5 h-5 text-orange-500" />
-                        </div>
-                        <div className="text-left">
-                            <h3 className="font-medium text-slate-800 dark:text-white">Notification Types</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Configure per-type channel settings</p>
-                        </div>
-                    </div>
-                    {expandedSection === 'types' ? (
-                        <ChevronUp className="w-5 h-5 text-slate-400" />
-                    ) : (
-                        <ChevronDown className="w-5 h-5 text-slate-400" />
-                    )}
-                </button>
-
-                {expandedSection === 'types' && (
-                    <div className="p-4 pt-0">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-600">
-                                        <th className="text-left py-2 pr-4">Type</th>
-                                        <th className="text-center px-2">In-App</th>
-                                        <th className="text-center px-2">Email</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {notificationTypes.map((type) => (
-                                        <tr key={type.key} className="border-b border-slate-100 dark:border-slate-700">
-                                            <td className="py-3 pr-4">
-                                                <div className="text-slate-800 dark:text-white font-medium">{type.label}</div>
-                                                <div className="text-xs text-slate-500">{type.description}</div>
-                                            </td>
-                                            <td className="text-center px-2">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={getTypeSetting(preferences.typeSettings, type.key, 'inApp')}
-                                                    onChange={(e) => updateTypeSetting(type.key, 'inApp', e.target.checked)}
-                                                    disabled={!preferences.inAppEnabled}
-                                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-primary focus:ring-primary disabled:opacity-50"
-                                                />
-                                            </td>
-                                            <td className="text-center px-2">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={getTypeSetting(preferences.typeSettings, type.key, 'email')}
-                                                    onChange={(e) => updateTypeSetting(type.key, 'email', e.target.checked)}
-                                                    disabled={!preferences.emailEnabled}
-                                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-primary focus:ring-primary disabled:opacity-50"
-                                                />
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
-            </div>
+                    ))}
+                </div>
+            </section>
         </div>
     );
 };
 
-// Channel Toggle Component
-interface ChannelToggleProps {
-    icon: React.ReactNode;
-    label: string;
-    description: string;
-    enabled: boolean;
-    onChange: (enabled: boolean) => void;
-    disabled?: boolean;
-    loading?: boolean;
-}
-
-const ChannelToggle: React.FC<ChannelToggleProps> = ({
-    icon,
-    label,
-    description,
-    enabled,
-    onChange,
-    disabled = false,
-    loading = false,
-}) => (
-    <div className={cn(
-        "flex items-center justify-between p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 transition-colors",
-        (disabled || loading) && "opacity-50"
-    )}>
-        <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 text-slate-500 dark:text-slate-400 shadow-2xs">
-                {icon}
-            </div>
-            <div>
-                <div className="text-slate-900 dark:text-white font-semibold text-sm">{label}</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400">{description}</div>
-            </div>
-        </div>
-        <button
-            type="button"
-            onClick={() => !disabled && !loading && onChange(!enabled)}
-            disabled={disabled || loading}
-            className={cn(
-                "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none",
-                enabled ? "bg-primary" : "bg-slate-300 dark:bg-slate-700",
-                (disabled || loading) ? "cursor-not-allowed" : "cursor-pointer"
-            )}
-            aria-label={`Toggle ${label}`}
-        >
-            {loading ? (
-                <Loader2 className="absolute top-1 left-3.5 w-4 h-4 animate-spin text-white" />
-            ) : (
-                <span
-                    className={cn(
-                        "inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition-transform",
-                        enabled ? "translate-x-6" : "translate-x-1"
-                    )}
-                />
-            )}
-        </button>
-    </div>
-);
-
 export default NotificationSettings;
-

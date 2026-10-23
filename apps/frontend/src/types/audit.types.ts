@@ -208,7 +208,7 @@ export const AUDIT_ACTION_CONFIG: Record<AuditAction, ActionConfig> = {
     [AuditAction.USER_CREATE]: { label: 'User Created', icon: '👤', color: 'text-green-400', bgColor: 'bg-green-500/20' },
     [AuditAction.USER_UPDATE]: { label: 'User Updated', icon: '✏️', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
     [AuditAction.USER_DELETE]: { label: 'User Deleted', icon: '🗑️', color: 'text-red-400', bgColor: 'bg-red-500/20' },
-    [AuditAction.USER_ROLE_CHANGE]: { label: 'Role Changed', icon: '👑', color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
+    [AuditAction.USER_ROLE_CHANGE]: { label: 'Role Changed', icon: '👑', color: 'text-sky-400', bgColor: 'bg-sky-500/20' },
     [AuditAction.USER_BULK_IMPORT]: { label: 'Bulk Import', icon: '📥', color: 'text-cyan-400', bgColor: 'bg-cyan-500/20' },
     [AuditAction.USER_STATUS_TOGGLE]: { label: 'Status Toggle', icon: '🔘', color: 'text-yellow-400', bgColor: 'bg-yellow-500/20' },
 
@@ -216,13 +216,13 @@ export const AUDIT_ACTION_CONFIG: Record<AuditAction, ActionConfig> = {
     [AuditAction.CREATE_TICKET]: { label: 'Ticket Created', icon: '🎫', color: 'text-green-400', bgColor: 'bg-green-500/20' },
     [AuditAction.UPDATE_TICKET]: { label: 'Ticket Updated', icon: '📝', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
     [AuditAction.DELETE_TICKET]: { label: 'Ticket Deleted', icon: '🗑️', color: 'text-red-400', bgColor: 'bg-red-500/20' },
-    [AuditAction.ASSIGN_TICKET]: { label: 'Ticket Assigned', icon: '👉', color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
+    [AuditAction.ASSIGN_TICKET]: { label: 'Ticket Assigned', icon: '👉', color: 'text-sky-400', bgColor: 'bg-sky-500/20' },
     [AuditAction.STATUS_CHANGE]: { label: 'Status Changed', icon: '🔄', color: 'text-yellow-400', bgColor: 'bg-yellow-500/20' },
     [AuditAction.PRIORITY_CHANGE]: { label: 'Priority Changed', icon: '⚡', color: 'text-orange-400', bgColor: 'bg-orange-500/20' },
     [AuditAction.TICKET_REPLY]: { label: 'Reply', icon: '💬', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
     [AuditAction.TICKET_MERGE]: { label: 'Tickets Merged', icon: '🔗', color: 'text-cyan-400', bgColor: 'bg-cyan-500/20' },
     [AuditAction.TICKET_CANCEL]: { label: 'Ticket Cancelled', icon: '❌', color: 'text-red-400', bgColor: 'bg-red-500/20' },
-    [AuditAction.BULK_UPDATE]: { label: 'Bulk Update', icon: '📦', color: 'text-indigo-400', bgColor: 'bg-indigo-500/20' },
+    [AuditAction.BULK_UPDATE]: { label: 'Bulk Update', icon: '📦', color: 'text-teal-400', bgColor: 'bg-teal-500/20' },
 
     // Knowledge Base
     [AuditAction.ARTICLE_CREATE]: { label: 'Article Created', icon: '📄', color: 'text-green-400', bgColor: 'bg-green-500/20' },
@@ -245,7 +245,7 @@ export const AUDIT_ACTION_CONFIG: Record<AuditAction, ActionConfig> = {
     [AuditAction.AUTOMATION_DELETE]: { label: 'Automation Deleted', icon: '🤖', color: 'text-red-400', bgColor: 'bg-red-500/20' },
 
     // Reports
-    [AuditAction.REPORT_GENERATE]: { label: 'Report Generated', icon: '📊', color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
+    [AuditAction.REPORT_GENERATE]: { label: 'Report Generated', icon: '📊', color: 'text-sky-400', bgColor: 'bg-sky-500/20' },
     [AuditAction.REPORT_EXPORT]: { label: 'Report Exported', icon: '📤', color: 'text-cyan-400', bgColor: 'bg-cyan-500/20' },
 
     // Page Access Control
@@ -287,7 +287,7 @@ export const AUDIT_ACTION_CONFIG: Record<AuditAction, ActionConfig> = {
     [AuditAction.AUTOMATION_TOGGLE]: { label: 'Automation Toggled', icon: '🔄', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
 
     // Permissions
-    [AuditAction.PERMISSION_UPDATE]: { label: 'Permission Updated', icon: '🔐', color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
+    [AuditAction.PERMISSION_UPDATE]: { label: 'Permission Updated', icon: '🔐', color: 'text-sky-400', bgColor: 'bg-sky-500/20' },
     [AuditAction.PERMISSION_PRESET_CREATE]: { label: 'Preset Created', icon: '📝', color: 'text-green-400', bgColor: 'bg-green-500/20' },
     [AuditAction.PERMISSION_PRESET_UPDATE]: { label: 'Preset Updated', icon: '✏️', color: 'text-yellow-400', bgColor: 'bg-yellow-500/20' },
     [AuditAction.PERMISSION_PRESET_DELETE]: { label: 'Preset Deleted', icon: '🗑️', color: 'text-red-400', bgColor: 'bg-red-500/20' },
@@ -325,7 +325,7 @@ export const AUDIT_ACTION_CONFIG: Record<AuditAction, ActionConfig> = {
     [AuditAction.INSTALLATION_SCHEDULE_CREATE]: { label: 'Install Scheduled', icon: '📅', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
 
     // Workload
-    [AuditAction.WORKLOAD_PRIORITY_UPDATE]: { label: 'Workload Updated', icon: '⚖️', color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
+    [AuditAction.WORKLOAD_PRIORITY_UPDATE]: { label: 'Workload Updated', icon: '⚖️', color: 'text-sky-400', bgColor: 'bg-sky-500/20' },
 
     // Notifications
     [AuditAction.NOTIFICATION_PREFS_UPDATE]: { label: 'Notif Prefs Updated', icon: '🔔', color: 'text-gray-400', bgColor: 'bg-gray-500/20' }

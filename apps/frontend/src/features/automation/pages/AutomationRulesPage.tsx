@@ -2,21 +2,15 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-    Plus,
-    Zap,
-    Pause,
-    Pencil,
-    Trash2,
-    Copy,
-    MoreHorizontal,
-    Clock,
-    CheckCircle,
-    XCircle,
-    ChevronRight,
-    Sparkles,
-    Target,
-    ArrowRight,
+    Plus, Zap, Pause, Pencil, Trash2, Copy, MoreHorizontal, Clock, ChevronRight, ArrowRight,
+    TriangleAlert, User, MessageSquare, LayoutTemplate, Play, Info,
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { id as idLocale } from 'date-fns/locale';
+import { Button } from '@/components/ui/button';
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
+import { ResBub, ResEmpty, ResHead, ResSkeletonRows } from '@/components/resources/ResourceParts';
+import { MgSwitch } from '@/components/management/MgmtParts';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { RuleBuilder } from './RuleBuilder';
@@ -34,17 +28,18 @@ import {
 } from '@/components/ui/dialog';
 
 // Trigger type labels
-const TRIGGER_LABELS: Record<string, { label: string; icon: typeof Zap; color: string }> = {
-    TICKET_CREATED: { label: 'Ticket Created', icon: Plus, color: 'text-green-500' },
-    TICKET_UPDATED: { label: 'Ticket Updated', icon: Pencil, color: 'text-blue-500' },
-    STATUS_CHANGED: { label: 'Status Changed', icon: ArrowRight, color: 'text-purple-500' },
-    PRIORITY_CHANGED: { label: 'Priority Changed', icon: Target, color: 'text-orange-500' },
-    ASSIGNMENT_CHANGED: { label: 'Assignment Changed', icon: Zap, color: 'text-cyan-500' },
-    MESSAGE_RECEIVED: { label: 'Message Received', icon: ChevronRight, color: 'text-indigo-500' },
-    SLA_BREACH_IMMINENT: { label: 'SLA Warning', icon: Clock, color: 'text-amber-500' },
-    SLA_BREACHED: { label: 'SLA Breached', icon: XCircle, color: 'text-red-500' },
-    TICKET_IDLE: { label: 'Ticket Idle', icon: Pause, color: 'text-slate-500' },
+const TRIGGER_LABELS: Record<string, { label: string; icon: typeof Zap; hue: string }> = {
+    TICKET_CREATED: { label: 'Ticket Created', icon: Plus, hue: 'var(--dash-green)' },
+    TICKET_UPDATED: { label: 'Ticket Updated', icon: Pencil, hue: 'var(--dash-blue)' },
+    STATUS_CHANGED: { label: 'Status Changed', icon: ArrowRight, hue: 'var(--dash-navy)' },
+    PRIORITY_CHANGED: { label: 'Priority Changed', icon: TriangleAlert, hue: 'var(--dash-orange)' },
+    ASSIGNMENT_CHANGED: { label: 'Assignment Changed', icon: User, hue: 'var(--dash-teal)' },
+    MESSAGE_RECEIVED: { label: 'Message Received', icon: MessageSquare, hue: 'var(--dash-blue)' },
+    SLA_BREACH_IMMINENT: { label: 'SLA Warning', icon: Clock, hue: 'var(--dash-orange)' },
+    SLA_BREACHED: { label: 'SLA Breached', icon: TriangleAlert, hue: 'var(--dash-red)' },
+    TICKET_IDLE: { label: 'Ticket Idle', icon: Pause, hue: 'var(--dash-gray)' },
 };
+const RULE_GRID = { gridTemplateColumns: 'repeat(auto-fill, minmax(min(340px, 100%), 1fr))' } as const;
 
 // Action type labels
 const ACTION_LABELS: Record<string, string> = {
@@ -85,6 +80,7 @@ export const AutomationRulesPage = () => {
     const [showTemplates, setShowTemplates] = useState(false);
     const [editingRule, setEditingRule] = useState<WorkflowRule | null>(null);
     const [showRuleBuilder, setShowRuleBuilder] = useState(false);
+    const [ruleToDelete, setRuleToDelete] = useState<WorkflowRule | null>(null);
 
     // Fetch rules
     const { data: rules = [], isLoading } = useQuery<WorkflowRule[]>({
@@ -149,11 +145,6 @@ export const AutomationRulesPage = () => {
         },
     });
 
-    const handleDelete = (rule: WorkflowRule) => {
-        if (window.confirm(`Delete rule "${rule.name}"? This cannot be undone.`)) {
-            deleteMutation.mutate(rule.id);
-        }
-    };
 
     const handleCreateNew = () => {
         setEditingRule(null);
@@ -170,243 +161,127 @@ export const AutomationRulesPage = () => {
         setEditingRule(null);
     };
 
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-            </div>
-        );
-    }
+    const activeCount = rules.filter((r) => r.isActive).length;
 
     return (
-        <div className="space-y-6 p-6 animate-fade-in-up">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg">
-                        <Zap className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Automation Rules</h1>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                            {rules.length} rule{rules.length !== 1 ? 's' : ''} • {rules.filter(r => r.isActive).length} active
-                        </p>
-                    </div>
-                </div>
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => setShowTemplates(true)}
-                        className="px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-2"
-                    >
-                        <Sparkles className="w-4 h-4" />
-                        Templates
-                    </button>
-                    <button
-                        onClick={handleCreateNew}
-                        className="px-4 py-2.5 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-md"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Create Rule
-                    </button>
-                </div>
-            </div>
+        <div className="res-page mg-page">
+            <ResHead icon={Zap} tone="orange" title="Automation Rules"
+                description={isLoading ? 'Memuat rule…' : `${rules.length} rule${rules.length !== 1 ? 's' : ''} • ${activeCount} active`}
+                actions={(
+                    <>
+                        <Button variant="soft" onClick={() => setShowTemplates(true)}><LayoutTemplate aria-hidden="true" />Templates</Button>
+                        <Button variant="primary" onClick={handleCreateNew}><Plus aria-hidden="true" />Create Rule</Button>
+                    </>
+                )} />
 
-            {/* Rules List */}
-            {rules.length === 0 ? (
-                <div className="glass-card p-12 text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-100 to-purple-200 dark:from-violet-900/30 dark:to-purple-800/30 mx-auto mb-4 flex items-center justify-center">
-                        <Zap className="w-8 h-8 text-violet-500" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-2">No automation rules yet</h3>
-                    <p className="text-slate-500 dark:text-slate-400 mb-4">
+            {isLoading ? (
+                <div className="mg-cards" style={RULE_GRID}>
+                    {Array.from({ length: 3 }, (_, i) => <div key={i} className="mg-ccard"><ResSkeletonRows rows={2} /></div>)}
+                </div>
+            ) : rules.length === 0 ? (
+                <div className="res-table">
+                    <ResEmpty icon={Zap} title="No automation rules yet"
+                        cta={(
+                            <div className="flex flex-wrap justify-center gap-2">
+                                <Button variant="soft" onClick={() => setShowTemplates(true)}>Start with Template</Button>
+                                <Button variant="primary" onClick={handleCreateNew}>Create from Scratch</Button>
+                            </div>
+                        )}>
                         Create rules to automate ticket handling
-                    </p>
-                    <div className="flex gap-3 justify-center">
-                        <button
-                            onClick={() => setShowTemplates(true)}
-                            className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                        >
-                            Start with Template
-                        </button>
-                        <button
-                            onClick={handleCreateNew}
-                            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
-                        >
-                            Create from Scratch
-                        </button>
-                    </div>
+                    </ResEmpty>
                 </div>
             ) : (
-                <div className="space-y-3">
+                <div className="mg-cards" style={RULE_GRID}>
                     {rules.map((rule, index) => {
-                        const triggerInfo = TRIGGER_LABELS[rule.trigger.type] || { label: rule.trigger.type, icon: Zap, color: 'text-slate-500' };
-                        const TriggerIcon = triggerInfo.icon;
-
+                        const trig = TRIGGER_LABELS[rule.trigger.type] || { label: rule.trigger.type, icon: Zap, hue: 'var(--dash-gray)' };
+                        const TriggerIcon = trig.icon;
+                        const actions = rule.actions.map((a) => ACTION_LABELS[a.type] || a.type).join(', ');
                         return (
-                            <div
-                                key={rule.id}
-                                className={cn(
-                                    "glass-card p-4 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out hover:shadow-lg cursor-pointer hover-lift",
-                                    !rule.isActive && "opacity-60"
-                                )}
-                                onClick={() => handleEditRule(rule)}
-                            >
-                                <div className="flex items-center gap-4">
-                                    {/* Priority number */}
-                                    <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-sm font-medium text-slate-500">
-                                        {index + 1}
+                            <article key={rule.id} className={cn('mg-ccard', rule.isActive ? 'is-lift' : 'is-off')} aria-labelledby={`rule-${rule.id}`}>
+                                <div className="mg-ccard-top">
+                                    <span className="mg-tile" style={{ ['--c' as string]: trig.hue }}><TriggerIcon aria-hidden="true" /></span>
+                                    <div>
+                                        {/* The name opens the builder; switch and menu are siblings, never nested in it. */}
+                                        <button type="button" id={`rule-${rule.id}`} className="block max-w-full text-left rounded-md focus-visible:outline-none focus-visible:shadow-[var(--td-ring)]" onClick={() => handleEditRule(rule)}>
+                                            <b>{rule.name}</b>
+                                        </button>
+                                        <small>Prioritas {index + 1}{rule.description ? ` · ${rule.description}` : ''}</small>
                                     </div>
-
-                                    {/* Active toggle */}
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            toggleMutation.mutate(rule.id);
-                                        }}
-                                        disabled={toggleMutation.isPending}
-                                        className={cn(
-                                            "w-12 h-6 rounded-full transition-colors relative",
-                                            rule.isActive
-                                                ? "bg-green-500"
-                                                : "bg-slate-300 dark:bg-slate-600"
-                                        )}
-                                    >
-                                        <div
-                                            className={cn(
-                                                "absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
-                                                rule.isActive ? "left-7" : "left-1"
-                                            )}
-                                        />
-                                    </button>
-
-                                    {/* Rule info */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="font-semibold text-slate-800 dark:text-white truncate">
-                                                {rule.name}
-                                            </h3>
-                                            {rule.isActive && (
-                                                <span className="px-2 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full">
-                                                    Active
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-4 mt-1 text-sm">
-                                            <div className={cn("flex items-center gap-1", triggerInfo.color)}>
-                                                <TriggerIcon className="w-3.5 h-3.5" />
-                                                <span>{triggerInfo.label}</span>
-                                            </div>
-                                            {rule.conditions.length > 0 && (
-                                                <>
-                                                    <span className="text-slate-400">|</span>
-                                                    <span className="text-slate-500 dark:text-slate-400">
-                                                        {rule.conditions.length} condition{rule.conditions.length > 1 ? 's' : ''}
-                                                    </span>
-                                                </>
-                                            )}
-                                            <span className="text-slate-400 dark:text-slate-500">→</span>
-                                            <span className="text-slate-500 dark:text-slate-400">
-                                                {rule.actions.map(a => ACTION_LABELS[a.type] || a.type).join(', ')}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Stats */}
-                                    <div className="hidden md:flex items-center gap-6 text-sm text-slate-500 dark:text-slate-400">
-                                        <div className="flex items-center gap-1">
-                                            <CheckCircle className="w-4 h-4" />
-                                            <span>{rule.executionCount} runs</span>
-                                        </div>
-                                        {rule.lastExecutedAt && (
-                                            <div className="flex items-center gap-1">
-                                                <Clock className="w-4 h-4" />
-                                                <span>
-                                                    {new Date(rule.lastExecutedAt).toLocaleDateString()}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Actions */}
+                                    <MgSwitch checked={rule.isActive} label={`Aktifkan ${rule.name}`} disabled={toggleMutation.isPending} onChange={() => toggleMutation.mutate(rule.id)} />
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
-                                            <button
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                                            >
-                                                <MoreHorizontal className="w-5 h-5 text-slate-500" />
-                                            </button>
+                                            <button type="button" className="res-icon-btn" aria-label={`Aksi lainnya untuk ${rule.name}`}><MoreHorizontal aria-hidden="true" /></button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={() => handleEditRule(rule)}>
-                                                <Pencil className="w-4 h-4 mr-2" />
-                                                Edit Rule
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => toast.info('Duplicate feature coming soon')}>
-                                                <Copy className="w-4 h-4 mr-2" />
-                                                Duplicate
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                onClick={() => handleDelete(rule)}
-                                                className="text-red-600"
-                                            >
-                                                <Trash2 className="w-4 h-4 mr-2" />
-                                                Delete
-                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleEditRule(rule)}><Pencil className="w-4 h-4 mr-2" />Edit Rule</DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => toast.info('Duplicate feature coming soon')}><Copy className="w-4 h-4 mr-2" />Duplicate</DropdownMenuItem>
+                                            <DropdownMenuItem variant="destructive" onClick={() => setRuleToDelete(rule)}><Trash2 className="w-4 h-4 mr-2" />Delete</DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </div>
-
-                                {/* Conditions preview */}
-                                {rule.conditions.length > 0 && (
-                                    <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-                                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
-                                            <span className="font-medium text-blue-600 dark:text-blue-400">IF</span>
-                                            {rule.conditions.map((c, i) => (
-                                                <span key={i} className="flex items-center gap-1">
-                                                    {i > 0 && (
-                                                        <span className="font-medium text-blue-500">{rule.conditionLogic || 'AND'}</span>
-                                                    )}
-                                                    <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded">
-                                                        {c.field} {c.operator?.toLowerCase()} {c.value}
-                                                    </span>
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
+                                <div className="mg-flow">
+                                    <ResBub color={trig.hue}>{trig.label}</ResBub>
+                                    {rule.conditions.length > 0 && (
+                                        <>
+                                            <ChevronRight aria-hidden="true" />
+                                            <span className="res-tag" title={rule.conditions.map((c) => `${c.field} ${c.operator?.toLowerCase()} ${c.value}`).join(` ${rule.conditionLogic || 'AND'} `)}>
+                                                {rule.conditions.length} condition{rule.conditions.length > 1 ? 's' : ''}
+                                            </span>
+                                        </>
+                                    )}
+                                    <ChevronRight aria-hidden="true" />
+                                    <span>{actions || '—'}</span>
+                                </div>
+                                <div className="mg-foot2">
+                                    <Play className="w-3 h-3" aria-hidden="true" />{rule.executionCount} runs
+                                    {rule.lastExecutedAt && <><span aria-hidden="true">·</span><Clock className="w-3 h-3" aria-hidden="true" />{format(new Date(rule.lastExecutedAt), 'd MMM yyyy', { locale: idLocale })}</>}
+                                    {rule.isActive && <><span className="res-spacer" /><ResBub color="var(--dash-green)" ink="var(--dash-ink-green)">Active</ResBub></>}
+                                </div>
+                            </article>
                         );
                     })}
                 </div>
             )}
+
+            <div className="res-note" style={{ maxWidth: 720 }}>
+                <Info aria-hidden="true" />Rule dijalankan berurutan sesuai prioritas. Trigger: {Object.values(TRIGGER_LABELS).map((t) => t.label).join(', ')}.
+            </div>
+
+            <ConfirmationDialog
+                isOpen={!!ruleToDelete}
+                title="Delete rule?"
+                description={`Delete rule "${ruleToDelete?.name ?? ''}"? This cannot be undone.`}
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="destructive"
+                isLoading={deleteMutation.isPending}
+                onConfirm={() => { if (ruleToDelete) deleteMutation.mutate(ruleToDelete.id, { onSettled: () => setRuleToDelete(null) }); }}
+                onCancel={() => setRuleToDelete(null)}
+            />
 
             {/* Templates Dialog */}
             <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
                 <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <Sparkles className="w-5 h-5 text-violet-500" />
+                            <LayoutTemplate className="w-5 h-5 text-[hsl(var(--idesk-sapphire))]" />
                             Automation Templates
                         </DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-custom px-1">
+                    <div className="dash-list max-h-96 overflow-y-auto px-1">
                         {templates.map(template => (
                             <button
                                 key={template.id}
+                                type="button"
                                 onClick={() => createFromTemplateMutation.mutate(template.id)}
                                 disabled={createFromTemplateMutation.isPending}
-                                className="w-full p-4 text-left border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                className="dash-li"
                             >
-                                <div className="flex items-center justify-between">
-                                    <h4 className="font-medium text-slate-800 dark:text-white">{template.name}</h4>
-                                    <span className="text-xs text-slate-500 dark:text-slate-400 capitalize">
-                                        {template.category}
-                                    </span>
-                                </div>
-                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                    {template.description}
-                                </p>
+                                <span className="grow1">
+                                    <b>{template.name}</b>
+                                    <small className="!whitespace-normal">{template.description}</small>
+                                </span>
+                                <span className="res-tag capitalize">{template.category}</span>
                             </button>
                         ))}
                     </div>
@@ -418,7 +293,7 @@ export const AutomationRulesPage = () => {
                 <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-hidden">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <Zap className="w-5 h-5 text-violet-500" />
+                            <Zap className="w-5 h-5 text-[var(--dash-ink-orange)]" />
                             {editingRule?.id ? 'Edit Rule' : 'Create Automation Rule'}
                         </DialogTitle>
                     </DialogHeader>

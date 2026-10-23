@@ -53,45 +53,30 @@ export const SecondaryFiltersMenu: React.FC<SecondaryFiltersMenuProps> = ({
     onClearFilters,
 }) => {
     return (
-        <div className="flex items-center gap-1">
-            {/* Refresh Button - Always visible */}
-            <button
-                onClick={onRefresh}
-                className="p-2 hover:bg-slate-200/50 dark:hover:bg-slate-800 transition-colors rounded-lg text-slate-500 dark:text-slate-400"
-                title="Refresh"
-            >
-                <RefreshCw className="w-4 h-4" />
+        <div className="flex items-center gap-2">
+            {/* Refresh (mockup .pop.icon-pop "Muat ulang") */}
+            <button type="button" onClick={onRefresh} className="queue-pop queue-pop-icon" title="Muat ulang" aria-label="Muat ulang">
+                <RefreshCw aria-hidden="true" />
             </button>
 
-            {/* More Menu - Contains Saved Filters & Export */}
+            {/* Saved filters, export and reset ("Lainnya") */}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <button
-                        className="relative flex items-center gap-1.5 px-3 py-2 bg-white/50 dark:bg-slate-800/50 border border-slate-200/50 dark:border-slate-700/50 hover:bg-white/80 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium rounded-lg transition-colors duration-150 text-sm"
-                    >
-                        <MoreHorizontal className="w-4 h-4" />
-                        <span className="hidden sm:inline">More</span>
-                        {hasActiveFilters && (
-                            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-primary text-primary-foreground rounded-full text-xs font-bold flex items-center justify-center px-1 shadow-sm">
-                                {[
-                                    currentFilters.status?.length ? 1 : 0,
-                                    currentFilters.priority?.length ? 1 : 0,
-                                    currentFilters.search ? 1 : 0,
-                                ].reduce((a, b) => a + b, 0)}
-                            </span>
-                        )}
+                    <button type="button" className="queue-pop queue-pop-icon relative" title="Lainnya" aria-label="Lainnya">
+                        <MoreHorizontal aria-hidden="true" />
+                        {hasActiveFilters && <span className="queue-pop-dot" aria-hidden="true" />}
                     </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel className="text-xs text-slate-500 uppercase tracking-wide">
-                        Actions
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">
+                        Lainnya
                     </DropdownMenuLabel>
 
                     {/* Saved Filters Section */}
                     <div className="px-2 py-1.5">
                         <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 mb-2">
                             <Bookmark className="w-4 h-4" />
-                            <span>Saved Filters</span>
+                            <span>Filter tersimpan</span>
                         </div>
                         <div onClick={(e) => e.stopPropagation()}>
                             <SavedFiltersDropdown
@@ -107,7 +92,7 @@ export const SecondaryFiltersMenu: React.FC<SecondaryFiltersMenuProps> = ({
                     <div className="px-2 py-1.5">
                         <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 mb-2">
                             <Download className="w-4 h-4" />
-                            <span>Export Data</span>
+                            <span>Ekspor data</span>
                         </div>
                         <div onClick={(e) => e.stopPropagation()}>
                             <ExportMenu
@@ -133,7 +118,7 @@ export const SecondaryFiltersMenu: React.FC<SecondaryFiltersMenuProps> = ({
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={onClearFilters} variant="destructive">
                                 <X className="w-4 h-4" />
-                                <span>Clear All Filters</span>
+                                <span>Reset filter</span>
                             </DropdownMenuItem>
                         </>
                     )}

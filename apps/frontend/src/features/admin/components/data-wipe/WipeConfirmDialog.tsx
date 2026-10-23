@@ -58,9 +58,9 @@ export const WipeConfirmDialog: React.FC<WipeConfirmDialogProps> = ({
             <div className="space-y-2">
                 <label
                     htmlFor="wipe-confirm-input"
-                    className="block text-sm text-slate-600 dark:text-slate-300"
+                    className="block text-sm text-ink-2"
                 >
-                    Ketik <span className="font-mono font-semibold text-red-600 dark:text-red-400">
+                    Ketik <span className="font-mono font-semibold text-bad-ink">
                         {WIPE_CONFIRM_PHRASE}
                     </span> untuk melanjutkan:
                 </label>
@@ -74,10 +74,10 @@ export const WipeConfirmDialog: React.FC<WipeConfirmDialogProps> = ({
                     onChange={(e) => setTyped(e.target.value)}
                     placeholder={WIPE_CONFIRM_PHRASE}
                     aria-label="Frasa konfirmasi penghapusan data"
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500/20 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 font-mono text-sm text-ink outline-none transition focus:border-bad focus:ring-2 focus:ring-bad/20 disabled:opacity-60"
                 />
                 {typed.length > 0 && !matches && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                    <p className="text-xs text-warn-ink">
                         Frasa belum sesuai. Perhatikan huruf besar dan spasi.
                     </p>
                 )}

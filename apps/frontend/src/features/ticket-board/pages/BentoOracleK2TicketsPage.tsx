@@ -1,24 +1,22 @@
+import { QueueCardToolbar } from '../components/QueueCardToolbar';
+import { Database } from 'lucide-react';
+import { QueueHeader } from '../components/QueueHeader';
+import { QueueFilterBar, PRIORITY_FILTER_OPTIONS } from '../components/QueueFilterBar';
+import { QueueTableHeader } from '../components/QueueTableHeader';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-    Search,
     X,
     Inbox,
     Loader2,
     CircleDot,
     CheckCircle2,
-    Plus,
     TrendingUp,
     AlertTriangle,
     Flame,
-    UserCheck,
-    FilePen,
-    Columns3,
-    TableProperties,
 } from 'lucide-react';
 import api from '@/lib/api';
-import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { TicketListSkeleton } from '../components/TicketListSkeleton';
@@ -28,8 +26,8 @@ import { useOracleK2Tickets } from '../hooks/useOracleK2Tickets';
 import { useAuth } from '@/stores/useAuth';
 import { StatsCard } from '../components/StatsCard';
 import { CustomDropdown } from '../components/TicketDropdowns';
-import { SortableHeader, SortField, SortOrder } from '../components/SortableHeader';
-import { BulkActionsBar, SelectCheckbox } from '../components/BulkActionsBar';
+import type { SortField, SortOrder } from '../components/SortableHeader';
+import { BulkActionsBar } from '../components/BulkActionsBar';
 import { BulkAssignDialog } from '../components/BulkAssignDialog';
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
 import { MergeTicketsModal } from '../components/MergeTicketsModal';
@@ -51,7 +49,6 @@ const CROSS_SITE_ROLES = ['ADMIN', 'MANAGER', 'AGENT_ORACLE'] as const;
 const isCrossSiteRole = (role?: string | null) => (CROSS_SITE_ROLES as readonly string[]).includes(role as string);
 
 export const BentoOracleK2TicketsPage: React.FC = () => {
-    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [searchParams, setSearchParams] = useSearchParams();
     const { user } = useAuth();
@@ -161,11 +158,13 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                 source: (t.source as TicketRowData['source']) ?? 'WEB',
                 isOverdue: Boolean((t as { isOverdue?: boolean }).isOverdue),
                 slaTarget: t.slaTarget,
+                slaRemainingMinutes: (t as Ticket & { slaRemainingMinutes?: number | null }).slaRemainingMinutes,
                 site: t.site ? { id: t.site.id, name: t.site.name, code: t.site.code } : undefined,
                 assignedTo: t.assignedTo
                     ? {
                         id: t.assignedTo.id,
                         fullName: t.assignedTo.fullName,
+                        avatarUrl: (t.assignedTo as typeof t.assignedTo & { avatarUrl?: string }).avatarUrl,
                     }
                     : undefined,
                 createdAt: t.createdAt,
@@ -173,6 +172,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                 user: {
                     id: t.user?.id,
                     fullName: t.user?.fullName ?? 'Unknown',
+                    avatarUrl: (t.user as (NonNullable<Ticket['user']> & { avatarUrl?: string }) | undefined)?.avatarUrl,
                     email: t.user?.email,
                     department: t.user?.department
                         ? { name: t.user.department.name }
@@ -400,104 +400,18 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
 
     return (
         <TicketBoardErrorBoundary>
-            <div className="space-y-6 pb-28 sm:pb-10">
-                {/* Header — Harmonized with BentoTicketListPage */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-                    <div>
-                        <div className="flex items-center gap-2.5">
-                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">Oracle K2 Request</h1>
-                            {isConnected && (
-                                <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                    Live
-                                </span>
-                            )}
-                        </div>
-                        <p className="text-muted-foreground text-xs sm:text-sm font-medium mt-0.5 sm:mt-1">
-                            Tiket khusus Oracle/K2 — hanya AGENT_ORACLE &amp; ADMIN
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                        {/* New Ticket Button */}
-                        <button
-                            onClick={() => navigate('/tickets/create?type=oracle-request')}
-                            className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-primary text-primary-foreground rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all duration-200 ease-out shadow-xs active:scale-[0.98] cursor-pointer"
-                        >
-                            <Plus className="w-4 h-4" />
-                            <span>New Oracle/K2 Request</span>
-                        </button>
+            <div className="queue-page space-y-4 pb-28 sm:pb-10 min-w-0">
+                <QueueHeader title="Oracle K2 Request" description="ERP, database, dan workflow K2" icon={Database} tone="red"
+                    connected={isConnected} canEdit={canEdit}
+                    scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
+                    onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })} />
 
-                        {/* My Tasks Filter */}
-                        {canEdit && (
-                            <button
-                                onClick={() => {
-                                    if (showAssignedToMe) {
-                                        setSearchParams({});
-                                    } else {
-                                        setSearchParams({ filter: 'assigned_to_me' });
-                                    }
-                                }}
-                                className={cn(
-                                    "flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all duration-150 text-xs sm:text-sm font-semibold shadow-xs border active:scale-[0.98] cursor-pointer",
-                                    showAssignedToMe
-                                        ? 'bg-primary text-primary-foreground border-primary'
-                                        : 'bg-card border-border hover:bg-muted/50 text-foreground'
-                                )}
-                            >
-                                <UserCheck className="w-4 h-4" />
-                                <span>My Tasks</span>
-                            </button>
-                        )}
-
-                        {/* Created By Me Filter */}
-                        {canEdit && (
-                            <button
-                                onClick={() => setSearchParams(showCreatedByMe ? {} : { filter: 'created_by_me' })}
-                                aria-pressed={showCreatedByMe}
-                                className={cn(
-                                    "flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all duration-150 text-xs sm:text-sm font-semibold shadow-xs border active:scale-[0.98] cursor-pointer",
-                                    showCreatedByMe
-                                        ? 'bg-primary text-primary-foreground border-primary'
-                                        : 'bg-card border-border hover:bg-muted/50 text-foreground'
-                                )}
-                            >
-                                <FilePen className="w-4 h-4" />
-                                <span>Tiket yang saya buat</span>
-                            </button>
-                        )}
-
-                        {/* View Toggle */}
-                        <div className="flex bg-card border border-border p-1 rounded-xl shadow-xs">
-                            <button
-                                onClick={() => {
-                                    setSearchParams(prev => {
-                                        const next = new URLSearchParams(prev);
-                                        next.set('view', 'kanban');
-                                        return next;
-                                    });
-                                }}
-                                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 text-muted-foreground hover:text-primary rounded-lg transition-colors cursor-pointer"
-                                title="Kanban Board"
-                            >
-                                <Columns3 className="w-4 h-4" />
-                                <span className="text-xs font-semibold hidden md:inline">Kanban</span>
-                            </button>
-                            <button
-                                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-primary/10 text-primary rounded-lg font-bold"
-                                title="Table View"
-                            >
-                                <TableProperties className="w-4 h-4" />
-                                <span className="text-xs font-semibold hidden md:inline">Table</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
+                <p className="text-xs text-muted-foreground">Ringkasan status, overdue, dan critical berdasarkan halaman yang dimuat; Total mengikuti server.</p>
                 {/* Stats Cards — 6 cards responsive grid matching BentoTicketListPage */}
-                <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1.5 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 lg:grid-cols-6 sm:gap-3 lg:gap-4 snap-x">
+                <div className="queue-stats queue-stats-6" aria-label="Ringkasan status">
                     <StatsCard
                         icon={TrendingUp}
-                        label="Total"
+                        tone="neutral" label="Total"
                         value={stats.total}
                         color="text-primary dark:text-blue-400"
                         bgColor="bg-[hsl(var(--primary))]/10 dark:bg-[hsl(var(--primary))]/20"
@@ -507,7 +421,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                     />
                     <StatsCard
                         icon={Inbox}
-                        label="Open"
+                        tone="sky" label="Open"
                         value={stats.open}
                         color="text-[hsl(var(--info-500))]"
                         bgColor="bg-[hsl(var(--info-500))]/10"
@@ -517,7 +431,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                     />
                     <StatsCard
                         icon={CircleDot}
-                        label="In Progress"
+                        tone="navy" label="In Progress"
                         value={stats.inProgress}
                         color="text-[hsl(var(--warning-500))]"
                         bgColor="bg-[hsl(var(--warning-500))]/10"
@@ -527,7 +441,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                     />
                     <StatsCard
                         icon={CheckCircle2}
-                        label="Resolved"
+                        tone="green" label="Resolved"
                         value={stats.resolved}
                         color="text-[hsl(var(--success-500))]"
                         bgColor="bg-[hsl(var(--success-500))]/10"
@@ -537,7 +451,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                     />
                     <StatsCard
                         icon={AlertTriangle}
-                        label="Overdue"
+                        tone="red" label="Overdue"
                         value={stats.overdue}
                         color="text-[hsl(var(--error-500))]"
                         bgColor="bg-[hsl(var(--error-500))]/10"
@@ -546,7 +460,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                     />
                     <StatsCard
                         icon={Flame}
-                        label="Critical"
+                        tone="red" label="Critical"
                         value={stats.critical}
                         color="text-[hsl(var(--error-500))]"
                         bgColor="bg-[hsl(var(--error-500))]/10"
@@ -558,45 +472,15 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                 </div>
 
                 {/* Search & Filters */}
-                <div
-                    className="flex flex-col lg:flex-row lg:items-center gap-3 p-2 bg-card rounded-2xl border border-border relative z-20 shadow-xs"
-                    role="search"
-                    aria-label="Ticket search and filters"
-                >
-                    <div className="relative flex-1 bg-muted/40 rounded-xl transition-all focus-within:ring-1 focus-within:ring-primary focus-within:bg-background border border-transparent focus-within:border-primary/50">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
-                        <input
-                            type="search"
-                            id="oracle-ticket-search"
-                            name="search"
-                            value={searchInput}
-                            onChange={(e) => setSearchInput(e.target.value)}
-                            placeholder="Cari tiket Oracle/K2 (nomor / judul / requester)..."
-                            aria-label="Search tickets"
-                            autoComplete="off"
-                            className="w-full pl-10 pr-10 py-2.5 bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground text-sm font-medium"
-                        />
-                        {searchInput && (
-                            <button
-                                type="button"
-                                onClick={() => setSearchInput('')}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground rounded transition-colors cursor-pointer"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        )}
-                    </div>
+                <QueueFilterBar id="oracle-ticket-search" search={searchInput} onSearch={setSearchInput}>
 
-                    <div className="w-px h-8 bg-border hidden lg:block mx-1" />
-
-                    {/* Primary Filters - Horizontal row */}
-                    <div className="flex items-center gap-2 px-1 pb-1 lg:pb-0 shrink-0 overflow-x-auto no-scrollbar">
+                    
                         <CustomDropdown
                             value={statusFilter}
                             onChange={(val) => setStatusFilter(val === "ALL" ? "" : val)}
-                            placeholder="All Status"
+                            placeholder="Semua" filterKey="Status"
                             options={[
-                                { value: 'ALL', label: 'All Status' },
+                                { value: 'ALL', label: 'Semua' },
                                 { value: 'TODO', label: 'Open' },
                                 { value: 'IN_PROGRESS', label: 'In Progress' },
                                 { value: 'WAITING_VENDOR', label: 'Waiting Vendor' },
@@ -608,15 +492,9 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                         <CustomDropdown
                             value={priorityFilter}
                             onChange={(val) => setPriorityFilter(val === "ALL" ? "" : val)}
-                            placeholder="All Priority"
+                            placeholder="Semua" filterKey="Prioritas"
                             icon={AlertTriangle}
-                            options={[
-                                { value: 'ALL', label: 'All Priority' },
-                                { value: 'LOW', label: 'Low (Minor/Cosmetic)' },
-                                { value: 'MEDIUM', label: 'Normal (Moderate)' },
-                                { value: 'HIGH', label: 'Urgent (Major Impact)' },
-                                { value: 'CRITICAL', label: 'Blocker (Critical)' },
-                            ]}
+                            options={PRIORITY_FILTER_OPTIONS}
                         />
 
                         {/* Site Selector - cross-site roles only */}
@@ -625,11 +503,11 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                                 selectedSiteIds={selectedSites}
                                 onSelectionChange={setSelectedSites}
                                 mode="multi"
-                                className="h-10"
+                                variant="pop"
                             />
                         )}
 
-                        <div className="w-[1px] h-6 bg-border mx-1 hidden sm:block" />
+                        <span className="queue-filters-spacer" aria-hidden="true" />
 
                         {/* Secondary Filters Menu */}
                         <SecondaryFiltersMenu
@@ -651,8 +529,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                             hasActiveFilters={hasActiveFilters}
                             onClearFilters={clearFilters}
                         />
-                    </div>
-                </div>
+                    </QueueFilterBar>
 
                 {/* Active Filter Chips */}
                 <TicketListActiveFilters
@@ -671,7 +548,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
 
                 {/* Tickets List Table */}
                 <div
-                    className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl overflow-hidden relative shadow-sm"
+                    className="queue-table"
                     role="region"
                     aria-label="Oracle K2 Tickets list"
                     aria-busy={isFetching}
@@ -685,6 +562,9 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                         </div>
                     )}
 
+                <QueueCardToolbar sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort}
+                    canEdit={canEdit} ticketCount={rowData.length} isAllSelected={isAllSelected}
+                    isIndeterminate={isIndeterminate} onSelectAll={handleSelectAll} />
                     {filteredTickets.length === 0 && !isFetching ? (
                         <div className="p-12 text-center" role="status" aria-live="polite">
                             <Inbox className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" aria-hidden="true" />
@@ -703,59 +583,9 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                         </div>
                     ) : (
                         <>
-                            {/* Table Header */}
-                            <div
-                                className={cn(
-                                    "sticky top-0 z-20 hidden lg:grid items-center gap-4 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-[hsl(var(--border))]",
-                                    showSiteColumn
-                                        ? "lg:grid-cols-[32px_minmax(280px,2fr)_112px_80px_144px_minmax(120px,1fr)_minmax(140px,1fr)_minmax(100px,1fr)_80px]"
-                                        : "lg:grid-cols-[32px_minmax(280px,2fr)_112px_144px_minmax(120px,1fr)_minmax(140px,1fr)_minmax(100px,1fr)_80px]"
-                                )}
-                                role="row"
-                                aria-label="Table headers"
-                            >
-                                {canEdit && (
-                                    <div className="w-8 shrink-0">
-                                        <SelectCheckbox
-                                            checked={isAllSelected}
-                                            indeterminate={isIndeterminate}
-                                            onChange={handleSelectAll}
-                                        />
-                                    </div>
-                                )}
-                                <SortableHeader
-                                    label="Ticket"
-                                    field="title"
-                                    currentSortBy={sortBy}
-                                    currentSortOrder={sortOrder}
-                                    onSort={handleSort}
-                                />
-                                <SortableHeader
-                                    label="Priority"
-                                    field="priority"
-                                    currentSortBy={sortBy}
-                                    currentSortOrder={sortOrder}
-                                    onSort={handleSort}
-                                />
-                                {showSiteColumn && <div>Site</div>}
-                                <SortableHeader
-                                    label="Status"
-                                    field="status"
-                                    currentSortBy={sortBy}
-                                    currentSortOrder={sortOrder}
-                                    onSort={handleSort}
-                                />
-                                <div>Requester</div>
-                                <div>Assigned To</div>
-                                <div>Target Date</div>
-                                <SortableHeader
-                                    label="Created"
-                                    field="createdAt"
-                                    currentSortBy={sortBy}
-                                    currentSortOrder={sortOrder}
-                                    onSort={handleSort}
-                                />
-                            </div>
+                            <QueueTableHeader showSiteColumn={showSiteColumn} canEdit={canEdit}
+                                isAllSelected={isAllSelected} isIndeterminate={isIndeterminate} onSelectAll={handleSelectAll}
+                                sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
 
                             <VirtualizedTicketList
                                 tickets={rowData}
@@ -781,7 +611,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                                 />
                                 {!paginationInfo.showPagination && rowData.length > 0 && (
                                     <div className="text-center text-xs text-muted-foreground mt-4 font-medium">
-                                        Showing {rowData.length} of {paginationInfo.totalItems} tickets
+                                        Menampilkan {rowData.length} dari {paginationInfo.totalItems} tiket
                                     </div>
                                 )}
                             </div>

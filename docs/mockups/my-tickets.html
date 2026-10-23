@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Tiket Saya (portal pemohon)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=20">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=20"></script>
+<script src="mock-state.js?v=20"></script>
+<script src="shell.js?v=20"></script>
+<script src="motion.js?v=20"></script>
+</head>
+<body data-page="my">
+<script>
+const ic = (n) => `<i data-lucide="${n}"></i>`;
+const STATUS = { TODO: ['Open', 'var(--sky)', 'var(--ink-sky)'], IN_PROGRESS: ['In Progress', 'var(--navy)', 'var(--ink-navy)'], WAITING_VENDOR: ['Waiting Vendor', 'var(--orange)'], RESOLVED: ['Resolved', 'var(--green)'], CLOSED: ['Closed', 'var(--gray)'], CANCELLED: ['Cancelled', 'var(--red)'] };
+const PRI = { LOW: ['Low', 'var(--gray)'], MEDIUM: ['Normal', 'var(--blue)'], HIGH: ['Urgent', 'var(--orange)'] };
+// Synthetic sample data
+const T = [
+  { id: '201026-GEN-0011', t: 'Printer lantai 2 tidak bisa mencetak', cat: 'Hardware', p: 'HIGH', s: 'IN_PROGRESS', pic: ['Yudi Arta Trirensila', 'var(--teal)'], up: '10 menit lalu', unread: 2 },
+  { id: '181026-GEN-0004', t: 'Minta akses folder Synology Finance', cat: 'Akses', p: 'MEDIUM', s: 'WAITING_VENDOR', pic: ['Alphin Santoso H.', 'var(--pink)'], up: 'Kemarin' },
+  { id: '151026-GEN-0009', t: 'Email tidak bisa diakses', cat: 'Software', p: 'MEDIUM', s: 'CANCELLED', pic: ['RM Bagastyo Anggoro', 'var(--green)'], up: '19 Okt' },
+  { id: '101026-GEN-0002', t: 'Laptop lambat saat membuka Excel', cat: 'Software', p: 'LOW', s: 'RESOLVED', pic: ['Beny Saputra', 'var(--blue)'], up: '12 Okt' },
+];
+const STATS = [['Total', 'layers', 'var(--gray)', 4], ['Open', 'inbox', 'var(--sky)', 0], ['In Progress', 'circle-dot', 'var(--navy)', 2], ['Selesai', 'circle-check', 'var(--green)', 1]];
+const av = ([n, c]) => `<span class="avatar" style="--c:${c}">${initials(n)}</span>`;
+
+iDeskUserShell(`
+<main class="content">
+  <div class="head">
+    <div><h2>Tiket Saya <span class="live" style="vertical-align:middle;margin-left:6px"><i></i>Live</span></h2><p>Pantau tiket bantuan yang Anda ajukan</p></div>
+    <span class="spacer"></span>
+    <button class="btn">${ic('refresh-cw')}Muat ulang</button>
+  </div>
+  <a class="help-banner" href="new.html?as=user">
+    <img src="../../apps/frontend/public/characters/mascot-service.png" alt="">
+    <div><b>Ada kendala IT?</b><span>Laporkan masalah komputer, printer, jaringan, atau aplikasi. Tim IT akan segera membantu.</span></div>
+    <span class="link">Buat tiket${ic('arrow-right')}</span>
+  </a>
+  <section class="stats four">${STATS.map(([n, i, c, v], k) => `<button class="stat ${k === 0 ? 'on' : ''} ${v === 0 ? 'zero' : ''}" style="--c:${c};--ink:var(--text)"><span class="top"><span class="ic">${ic(i)}</span><span class="n">${v}</span></span><span class="name">${n}</span></button>`).join('')}</section>
+  <div class="filters">
+    <label class="field">${ic('search')}<input placeholder="Cari judul atau nomor tiket"></label>
+    <div class="seg"><button class="on">Semua</button><button>Open</button><button>In Progress</button><button>Selesai</button><button>Dibatalkan</button></div>
+  </div>
+  <p class="open-hint">${ic('mouse-pointer-click')}Klik tiket untuk melihat percakapan, status terbaru, dan membalas petugas IT.</p>
+  <section class="table">
+    <div class="thead u"><span>Tiket</span><span class="col-pri">Prioritas</span><span>Status</span><span>Ditangani oleh</span><span>Diperbarui</span><span></span></div>
+    ${T.map((r) => {
+      const [sl, sc, si] = STATUS[r.s]; const [pl, pc] = PRI[r.p];
+      return `<a class="row u" href="ticket.html?as=user" aria-label="Buka tiket #${r.id}: ${r.t}" title="Klik untuk melihat percakapan &amp; perkembangan tiket">
+        <div class="tk"><div class="id">#${r.id}<span class="src">${r.cat}</span>${r.unread ? `<span class="bub" style="--c:var(--blue);--ink:var(--accent);height:18px;padding:0 7px;font-size:10.5px">${r.unread} pesan baru</span>` : ''}</div><div class="title">${r.t}</div></div>
+        <span class="col-pri"><span class="bub" style="--c:${pc};--ink:${r.p === 'HIGH' ? 'var(--ink-orange)' : 'var(--text-2)'}">${r.p === 'HIGH' ? ic('triangle-alert') : '<span class="dot"></span>'}${pl}</span></span>
+        <span class="col-st"><span class="bub" style="--c:${sc}${si ? `;--ink:${si}` : ''}"><span class="dot"></span>${sl}</span></span>
+        <div class="col-pic"><span class="bub pic" style="width:auto;max-width:100%">${av(r.pic)}<span class="v">${r.pic[0]}</span></span></div>
+        <span class="col-sla date" style="text-align:left">${r.up}</span>
+        <span class="open-cta" aria-hidden="true"><span>${r.unread ? 'Lihat &amp; balas' : 'Lihat detail'}</span>${ic('chevron-right')}</span>
+      </a>`;
+    }).join('')}
+    <div class="foot"><span>Menampilkan 4 dari 4 tiket contoh</span><button class="pop"><span class="k">Per halaman</span><span class="v">10</span><i data-lucide="chevron-down" class="caret"></i></button></div>
+  </section>
+</main>`);
+lucide.createIcons();
+</script>
+<script src="my-tickets-demo.js?v=20"></script>
+</body>
+</html>

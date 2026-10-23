@@ -88,9 +88,9 @@ export const PresetDropdown: React.FC<{
     return (
         <div className="relative">
             {isApplying ? (
-                <div role="status" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-violet-100 dark:bg-violet-900/30 rounded-lg text-xs border border-violet-200 dark:border-violet-800/50">
-                    <div className="w-3 h-3 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin motion-reduce:animate-none flex-shrink-0" aria-hidden="true" />
-                    <span className="text-violet-700 dark:text-violet-300 font-medium">Applying…</span>
+                <div role="status" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-xs border border-blue-200 dark:border-blue-800/50">
+                    <div className="w-3 h-3 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin motion-reduce:animate-none flex-shrink-0" aria-hidden="true" />
+                    <span className="text-blue-700 dark:text-blue-300 font-medium">Applying…</span>
                 </div>
             ) : (
                 <button
@@ -103,13 +103,8 @@ export const PresetDropdown: React.FC<{
                         ? `Permission preset for ${user.fullName}: ${currentPresetName}`
                         : `Assign a permission preset to ${user.fullName}`}
                     className={cn(
-                        "inline-flex items-center gap-1.5 px-2.5 py-1.5 min-h-[44px] rounded-lg text-xs font-semibold cursor-pointer select-none",
-                        "transition-colors duration-150 btn-feedback",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                        "ring-1",
-                        currentColor
-                            ? `${currentColor.bg} ${currentColor.text} ${currentColor.ring} hover:brightness-95`
-                            : "bg-amber-50 text-amber-600 ring-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:ring-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                        "queue-pop mg-pop-sm cursor-pointer select-none",
+                        !currentColor && "text-[hsl(var(--idesk-text-secondary))]"
                     )}
                     title={currentPresetName ? `Preset: ${currentPresetName}` : 'No preset assigned'}
                 >
@@ -143,7 +138,7 @@ export const PresetDropdown: React.FC<{
                         onMouseDown={e => e.stopPropagation()}
                     >
                         <div className="px-3.5 py-2.5 flex items-center gap-2 border-b border-white/10 dark:border-slate-700/60">
-                            <div className="w-5 h-5 rounded-md bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm">
+                            <div className="w-5 h-5 rounded-md bg-[#2d4a8c] flex items-center justify-center shadow-sm">
                                 <Sparkles className="w-3 h-3 text-white" aria-hidden="true" />
                             </div>
                             <p className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-widest">

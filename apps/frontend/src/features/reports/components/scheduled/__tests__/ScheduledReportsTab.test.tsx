@@ -82,6 +82,20 @@ const mockRecipients = [
 ];
 
 describe('ScheduledReportsTab', () => {
+    it.each([true, false])('exposes responsive actions with canManage=%s', async (canManage) => {
+        vi.mocked(api.get).mockImplementation(async (url) => ({ data: url === '/reports/scheduled' ? { success: true, data: mockConfigs } : [] }));
+        render(<ScheduledReportsTab canManage={canManage} currentSiteId="site-1" />, { wrapper: createWrapper() });
+        const history = await screen.findByRole('button', { name: /Riwayat eksekusi Daily/ });
+        expect(history.closest('.res-hide-m')).toBeNull();
+        for (const action of ['Kirim sekarang', 'Edit', 'Hapus']) {
+            const button = screen.queryByRole('button', { name: `${action} Daily Summary Operations` });
+            if (canManage) {
+                expect(button).toBeInTheDocument();
+                expect(button?.closest('.res-hide-m')).toBeNull();
+            } else expect(button).not.toBeInTheDocument();
+        }
+    });
+
     it('renders scheduled reports list with stats and active configs', async () => {
         (api.get as any).mockImplementation((url: string) => {
             if (url === '/reports/scheduled') {

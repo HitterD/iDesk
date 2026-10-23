@@ -16,6 +16,24 @@ export const STATUS_META: Record<RequestStatus, { label: string; tone: string; h
     CANCELLED:    { label: 'Cancelled',    tone: 'bg-zinc-200 text-zinc-700 ring-zinc-300',         hex: '#52525b' },
 };
 
+/**
+ * Round-2 bubble hues and short labels (mockup hardware.html HW_STATUS). CSS colours so they follow
+ * the light/dark tokens; `STATUS_META.hex` stays for charts and legacy accents.
+ */
+export const STATUS_BUB: Record<RequestStatus, { label: string; color: string; ink?: string }> = {
+    DRAFT:        { label: 'Draft', color: 'var(--dash-gray)' },
+    SUBMITTED:    { label: 'Submitted', color: 'var(--dash-blue)' },
+    UNDER_REVIEW: { label: 'Under Review', color: 'var(--dash-orange)' },
+    APPROVED:     { label: 'Approved', color: 'var(--dash-green)' },
+    PROCUREMENT:  { label: 'SPP Issued', color: 'var(--dash-navy)' },
+    AWAITING_DELIVERY: { label: 'Awaiting Delivery', color: 'var(--dash-teal)' },
+    INSTALLATION: { label: 'Installation', color: 'hsl(var(--idesk-sapphire))' },
+    AWAITING_USER_CONFIRMATION: { label: 'Awaiting User', color: 'var(--res-sea)' },
+    COMPLETED:    { label: 'Completed', color: 'var(--dash-green)' },
+    REJECTED:     { label: 'Rejected', color: 'var(--dash-red)' },
+    CANCELLED:    { label: 'Cancelled', color: 'var(--dash-gray)' },
+};
+
 export const INSTALL_STATUS_META: Record<InstallStatus, { label: string; tone: string; hex: string }> = {
     PROPOSED:               { label: 'Proposed',          tone: 'bg-sky-100 text-sky-800 ring-sky-200',         hex: '#0284c7' },
     PROPOSED_AWAITING_USER: { label: 'Awaiting User',     tone: 'bg-sky-100 text-sky-800 ring-sky-200',         hex: '#0284c7' },

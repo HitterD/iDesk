@@ -22,7 +22,7 @@ const KINDS: Array<{ exts: string[]; kind: Omit<AttachmentKind, 'label'> }> = [
     { exts: ['.xls', '.xlsx', '.csv'], kind: { Icon: FileSpreadsheet, tone: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' } },
     { exts: ['.ppt', '.pptx'], kind: { Icon: Presentation, tone: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' } },
     { exts: ['.zip', '.rar', '.7z'], kind: { Icon: FileArchive, tone: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' } },
-    { exts: ['.mp4', '.mov', '.webm'], kind: { Icon: FileVideo, tone: 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400' } },
+    { exts: ['.mp4', '.mov', '.webm'], kind: { Icon: FileVideo, tone: 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400' } },
 ];
 
 const FALLBACK: Omit<AttachmentKind, 'label'> = {

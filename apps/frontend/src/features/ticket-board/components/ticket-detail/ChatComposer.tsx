@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowUp, Globe, Loader2, Lock, Paperclip, Plus, Smile, Upload, X } from 'lucide-react';
+import { ArrowUp, Eye, Globe, Loader2, Lock, Paperclip, Plus, Reply, Smile, Upload, X } from 'lucide-react';
+import { SegmentedControl, type SegmentedOption } from '@/components/ui/segmented-control';
 import { toast } from 'sonner';
 import TextareaAutosize from 'react-textarea-autosize';
 import { CannedResponsePicker, SlashCommandAutocomplete, applyPlaceholders, SavedReply, TicketVariables } from '@/components/ui/CannedResponses';
@@ -12,8 +13,7 @@ import {
     validateAttachmentFile,
 } from '@/lib/file-validation';
 import { AttachmentTray } from './AttachmentTray';
-import { ReplyPreview } from './QuoteBlock';
-import { ATTACHMENT_QUOTE, buildQuotedContent } from './messageThread';
+import { ATTACHMENT_QUOTE, buildQuotedContent, toDisplayName } from './messageThread';
 
 export interface ReplyTarget {
     id: string;
@@ -37,6 +37,9 @@ interface ChatComposerProps {
 }
 
 const MAX_MESSAGE_LENGTH = 5000;
+/** Counter turns amber / red at these fractions of the limit (same thresholds as before the redesign). */
+const COUNTER_WARN_RATIO = 0.7;
+const COUNTER_OVER_RATIO = 0.9;
 const TYPING_IDLE_MS = 2000;
 const SLASH_PATTERN = /(^|\s)\/([a-zA-Z0-9_-]*)$/;
 
@@ -55,37 +58,32 @@ const createFileList = (files: File[]): FileList => {
     return dt.files;
 };
 
-const iconButton = 'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40';
+type ComposeMode = 'public' | 'internal';
+const MODE_OPTIONS: readonly SegmentedOption<ComposeMode>[] = [
+    { value: 'public', label: 'Public Reply', icon: Globe },
+    { value: 'internal', label: 'Internal Note', icon: Lock },
+];
 
 const PlusMenuPanel: React.FC<{
     view: PlusMenu;
     canAttach: boolean;
+    fileCount: number;
     onAttach: () => void;
     onShowStickers: () => void;
     onSticker: (sticker: string) => void;
     onClose: () => void;
-}> = ({ view, canAttach, onAttach, onShowStickers, onSticker, onClose }) => {
-    const panel = 'absolute bottom-full left-0 z-50 mb-2 rounded-2xl border border-slate-200/70 bg-white/95 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 duration-150 dark:border-slate-700/70 dark:bg-slate-800/95';
-    const item = 'flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700/70 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40';
-
+}> = ({ view, canAttach, fileCount, onAttach, onShowStickers, onSticker, onClose }) => {
     if (view === 'stickers') {
         return (
-            <div className={cn(panel, 'w-[280px] max-w-[calc(100vw-32px)] p-3 sm:w-[320px]')}>
-                <div className="mb-2 flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <div className="td-menu td-sticker-menu" role="dialog" aria-label="Sticker">
+                <div className="td-pop-title flex items-center justify-between">
                     <span>Sticker</span>
-                    <button type="button" onClick={onClose} aria-label="Tutup" className="rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer">
-                        <X className="h-3.5 w-3.5" />
-                    </button>
+                    <button type="button" onClick={onClose} aria-label="Tutup" className="chat-ctx-x h-6 w-6"><X aria-hidden="true" /></button>
                 </div>
-                <div className="grid max-h-[220px] grid-cols-6 gap-1 overflow-y-auto sm:grid-cols-8">
+                <div className="td-grid-pop max-h-[220px] overflow-y-auto" style={{ '--cols': 7 } as React.CSSProperties}>
                     {STICKERS.map(sticker => (
-                        <button
-                            key={sticker}
-                            type="button"
-                            onClick={() => { onSticker(sticker); onClose(); }}
-                            className="mx-auto flex h-9 w-9 select-none items-center justify-center rounded-xl text-xl transition-transform hover:scale-125 hover:bg-slate-100 active:scale-95 dark:hover:bg-slate-700/80 cursor-pointer"
-                            title={sticker}
-                        >
+                        <button key={sticker} type="button" aria-label={`Sticker ${sticker}`} title={sticker}
+                            onClick={() => { onSticker(sticker); onClose(); }}>
                             {sticker}
                         </button>
                     ))}
@@ -95,14 +93,15 @@ const PlusMenuPanel: React.FC<{
     }
 
     return (
-        <div className={cn(panel, 'w-56')} role="menu">
-            <button type="button" role="menuitem" className={item} onClick={onAttach} disabled={!canAttach}>
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary"><Paperclip className="h-4 w-4" /></span>
-                Lampirkan file
+        <div className="td-menu" role="menu" aria-label="Lampirkan & sticker">
+            <p className="td-pop-title">Lampirkan &amp; sticker</p>
+            <button type="button" role="menuitem" className="td-menu-item" onClick={onAttach} disabled={!canAttach}>
+                <Paperclip aria-hidden="true" />
+                <span>Lampirkan file<small>{fileCount}/{MAX_ATTACHMENTS_PER_TICKET} · juga bisa seret atau tempel</small></span>
             </button>
-            <button type="button" role="menuitem" className={item} onClick={onShowStickers}>
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/10 text-amber-600"><Smile className="h-4 w-4" /></span>
-                Sticker
+            <button type="button" role="menuitem" className="td-menu-item" onClick={onShowStickers}>
+                <Smile aria-hidden="true" />
+                <span>Sticker</span>
             </button>
         </div>
     );
@@ -139,7 +138,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     const placeholderText = isInternal
         ? 'Tulis catatan internal untuk staf…'
         : isStaff
-            ? 'Balas ke requester…'
+            ? 'Balas ke pemohon…'
             : 'Balas ke IT Support…';
 
     // Close the plus menu on outside click
@@ -177,7 +176,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             onCancelReply();
             onTypingStop?.();
             if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-            if (isInternal) toast.success('Internal note added');
+            if (isInternal) toast.success('Catatan internal ditambahkan');
         } catch {
             // The error toast was already shown by the page; keep the draft so the user can retry.
             return;
@@ -217,9 +216,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         }, 0);
     };
 
-    /** Queues files that pass the type/size checks, up to the per-message limit. */
-    const addFiles = (incoming: File[]) => {
-        if (isSending || incoming.length === 0) return;
+    /** Queues files that pass the type/size checks, up to the per-message limit; returns how many were queued. */
+    const addFiles = (incoming: File[]): number => {
+        if (isSending || incoming.length === 0) return 0;
         const accepted = incoming.filter(file => {
             const result = validateAttachmentFile(file);
             if (!result.valid) toast.error(`${file.name}: ${result.error}`);
@@ -230,9 +229,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         const toAdd = accepted.slice(0, room);
         if (toAdd.length > 0 && !fitsAttachmentTotal([...selectedFiles, ...toAdd])) {
             toast.error(ATTACHMENT_TOTAL_ERROR);
-            return;
+            return 0;
         }
         if (toAdd.length > 0) setSelectedFiles(prev => [...prev, ...toAdd]);
+        return toAdd.length;
     };
 
     // Paste handler — captures screenshots from clipboard
@@ -243,7 +243,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             .filter((f): f is File => f !== null);
         if (files.length === 0) return;
         e.preventDefault();
-        addFiles(files);
+        const added = addFiles(files);
+        if (added > 0) toast.success(`${added} screenshot ditempel`);
     };
 
     const handleFileSelect = (files: FileList | null) => {
@@ -264,72 +265,61 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         addFiles(Array.from(e.dataTransfer.files));
     };
 
+    const hasContent = messageLength > 0 && Boolean(inputRef.current?.value.trim());
+    const canSend = !isSending && (hasContent || selectedFiles.length > 0);
+    const sendLabel = isSending ? 'Mengirim…' : isInternal ? 'Kirim catatan internal' : 'Kirim';
+
     return (
         <div
             ref={dropZoneRef}
-            className={cn(
-                'sticky bottom-0 z-20 border-t border-slate-200/70 bg-white/85 px-3 pb-3 pt-2.5 backdrop-blur-xl safe-area-pb dark:border-slate-800/80 dark:bg-slate-900/85 sm:px-5',
-                isDragging && 'ring-2 ring-inset ring-primary',
-            )}
+            className={cn('chat-composer relative z-20 safe-area-pb', isInternal && 'is-internal')}
             onDragEnter={handleDragEnter}
             onDragLeave={handleDragLeave}
             onDragOver={stop}
             onDrop={handleDrop}
         >
             {isDragging && (
-                <div className="absolute inset-0 z-30 flex items-center justify-center rounded-2xl border-2 border-dashed border-primary bg-primary/10 backdrop-blur-xs">
+                <div className="absolute inset-2 z-30 flex items-center justify-center rounded-2xl border-2 border-dashed border-primary/55 bg-primary/10 backdrop-blur-xs">
                     <div className="text-center">
-                        <Upload className="mx-auto mb-2 h-9 w-9 animate-bounce text-primary" />
-                        <p className="text-sm font-semibold text-primary">Lepas file untuk melampirkan</p>
-                        <p className="text-xs text-primary/70">Gambar, video, PDF, Office, TXT/CSV, ZIP/RAR/7Z · maks. 25MB/file, video 50MB</p>
+                        <Upload className="mx-auto mb-2 h-7 w-7 text-primary" />
+                        <p className="text-sm font-semibold text-primary">Lepaskan file untuk dilampirkan</p>
+                        <p className="text-xs text-primary/70">Gambar, video, PDF, Office, TXT/CSV, ZIP/RAR/7Z · maks. {MAX_ATTACHMENTS_PER_TICKET} file, 25MB/file, video 50MB</p>
                     </div>
                 </div>
             )}
 
             {canAddInternalNote && (
-                <div className="mb-2 flex items-center gap-2">
-                    <div className="inline-flex rounded-full bg-slate-100 p-0.5 dark:bg-slate-800">
-                        {([false, true] as const).map(internal => {
-                            const active = isInternal === internal;
-                            const Icon = internal ? Lock : Globe;
-                            return (
-                                <button
-                                    key={String(internal)}
-                                    type="button"
-                                    aria-pressed={active}
-                                    onClick={() => setIsInternal(internal)}
-                                    className={cn(
-                                        'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all cursor-pointer',
-                                        active && !internal && 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white',
-                                        active && internal && 'bg-amber-500 text-white shadow-sm',
-                                        !active && 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300',
-                                    )}
-                                >
-                                    <Icon className="h-3.5 w-3.5" />
-                                    {internal ? 'Internal Note' : 'Public Reply'}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    {isInternal && (
-                        <span className="text-xs text-amber-600 animate-in fade-in duration-200 dark:text-amber-400">
-                            Hanya terlihat oleh Agent & Admin
-                        </span>
-                    )}
+                <div className="chat-compose-top">
+                    <SegmentedControl
+                        options={MODE_OPTIONS}
+                        value={isInternal ? 'internal' : 'public'}
+                        onValueChange={(mode) => setIsInternal(mode === 'internal')}
+                        aria-label="Jenis balasan"
+                        className="td-compose-seg"
+                    />
+                    <span className="chat-compose-note">
+                        {isInternal
+                            ? <><Lock aria-hidden="true" /><span>Hanya terlihat oleh staf IT</span></>
+                            : <><Eye aria-hidden="true" /><span>Terlihat oleh pemohon</span></>}
+                    </span>
                 </div>
             )}
 
             {replyTo && (
-                <ReplyPreview
-                    senderName={replyTo.senderName}
-                    content={replyTo.content || ATTACHMENT_QUOTE}
-                    onClose={onCancelReply}
-                />
+                <div className="chat-compose-ctx">
+                    <Reply aria-hidden="true" />
+                    <span className="chat-ctx-t">
+                        <b>Membalas {toDisplayName(replyTo.senderName)}</b> · {replyTo.content || ATTACHMENT_QUOTE}
+                    </span>
+                    <button type="button" onClick={onCancelReply} className="chat-ctx-x" aria-label="Batalkan balasan" title="Batalkan (Esc)">
+                        <X aria-hidden="true" />
+                    </button>
+                </div>
             )}
 
             <AttachmentTray files={selectedFiles} onRemove={i => setSelectedFiles(prev => prev.filter((_, idx) => idx !== i))} progress={sendProgress} />
 
-            <div className="relative flex items-end gap-2">
+            <div className="chat-compose-row">
                 {showCannedResponses && (
                     <SlashCommandAutocomplete
                         query={slashQuery}
@@ -340,58 +330,50 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                     />
                 )}
 
-                <div className="relative mb-1" data-plus-menu>
-                    <button
-                        type="button"
-                        onClick={() => setPlusMenu(prev => (prev === 'closed' ? 'menu' : 'closed'))}
-                        aria-label="Lampiran & sticker"
-                        aria-expanded={plusMenu !== 'closed'}
-                        className={cn(
-                            iconButton,
-                            plusMenu !== 'closed'
-                                ? 'bg-primary/10 text-primary'
-                                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200',
+                <div className="chat-composer-box">
+                    <div className="relative flex-none" data-plus-menu>
+                        <button
+                            type="button"
+                            onClick={() => setPlusMenu(prev => (prev === 'closed' ? 'menu' : 'closed'))}
+                            aria-label="Lampiran & sticker"
+                            title="Lampirkan & sticker"
+                            aria-expanded={plusMenu !== 'closed'}
+                            aria-haspopup="menu"
+                            className="chat-compose-tool"
+                        >
+                            <Plus aria-hidden="true" />
+                        </button>
+                        {plusMenu !== 'closed' && (
+                            <PlusMenuPanel
+                                view={plusMenu}
+                                canAttach={canAttach}
+                                fileCount={selectedFiles.length}
+                                onAttach={() => { setPlusMenu('closed'); fileInputRef.current?.click(); }}
+                                onShowStickers={() => setPlusMenu('stickers')}
+                                onSticker={onSendSticker}
+                                onClose={() => setPlusMenu('closed')}
+                            />
                         )}
-                    >
-                        <Plus className={cn('h-5 w-5 transition-transform duration-200', plusMenu !== 'closed' && 'rotate-45')} />
-                    </button>
-                    {plusMenu !== 'closed' && (
-                        <PlusMenuPanel
-                            view={plusMenu}
-                            canAttach={canAttach}
-                            onAttach={() => { setPlusMenu('closed'); fileInputRef.current?.click(); }}
-                            onShowStickers={() => setPlusMenu('stickers')}
-                            onSticker={onSendSticker}
-                            onClose={() => setPlusMenu('closed')}
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            accept={ATTACHMENT_ACCEPT}
+                            className="hidden"
+                            onChange={e => handleFileSelect(e.target.files)}
                         />
-                    )}
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        multiple
-                        accept={ATTACHMENT_ACCEPT}
-                        className="hidden"
-                        onChange={e => handleFileSelect(e.target.files)}
-                    />
-                </div>
-
-                <div className={cn(
-                    'flex min-w-0 flex-1 items-end rounded-[22px] border bg-white py-1 pl-4 pr-1 transition-shadow dark:bg-slate-800/80',
-                    isInternal
-                        ? 'border-amber-300 focus-within:ring-4 focus-within:ring-amber-500/15 dark:border-amber-700'
-                        : 'border-slate-200 focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10 dark:border-slate-700',
-                )}>
+                    </div>
                     <TextareaAutosize
                         ref={inputRef}
                         minRows={1}
                         maxRows={6}
                         placeholder={placeholderText}
                         aria-label={placeholderText}
-                        className="max-h-40 flex-1 resize-none bg-transparent py-1.5 text-[15px] leading-[1.4] text-slate-900 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-slate-500"
+                        className="max-h-[140px]"
                         onChange={handleInputChange}
                         onPaste={handlePaste}
                         onKeyDown={async e => {
-                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey || !e.shiftKey)) {
+                            if (e.key === 'Enter' && !e.nativeEvent.isComposing && (e.ctrlKey || e.metaKey || !e.shiftKey)) {
                                 e.preventDefault();
                                 await handleSendMessage();
                             }
@@ -401,6 +383,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                     {showCannedResponses && (
                         <CannedResponsePicker
                             compact
+                            className="chat-compose-tool"
                             variables={ticketVariables}
                             onSelect={content => {
                                 setInputValue(content);
@@ -413,27 +396,31 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                 <button
                     type="button"
                     onClick={handleSendMessage}
-                    disabled={isSending}
-                    aria-label={isSending ? 'Mengirim…' : 'Kirim'}
-                    title="Kirim (Enter) · Shift+Enter untuk baris baru"
-                    className={cn(
-                        iconButton,
-                        'mb-0.5 h-9 w-9 text-white shadow-sm',
-                        isInternal ? 'bg-amber-500 hover:bg-amber-600' : 'bg-primary hover:bg-primary/90',
-                    )}
+                    disabled={!canSend}
+                    aria-busy={isSending || undefined}
+                    aria-label={sendLabel}
+                    title={`${sendLabel} (Enter) · Shift+Enter untuk baris baru`}
+                    className="chat-send"
                 >
-                    {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.5} />}
+                    {isSending ? <Loader2 className="idesk-spin" aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}
                 </button>
             </div>
 
-            {messageLength > MAX_MESSAGE_LENGTH * 0.7 && (
-                <p className={cn(
-                    'mt-1 text-right text-[11px] tabular-nums',
-                    messageLength > MAX_MESSAGE_LENGTH * 0.9 ? 'font-semibold text-rose-500' : 'text-amber-500',
-                )}>
-                    {messageLength.toLocaleString()}/{MAX_MESSAGE_LENGTH.toLocaleString()}
-                </p>
-            )}
+            <div className={cn('chat-compose-foot', messageLength === 0 && 'is-idle')}>
+                {/* Hidden on touch devices (CSS), where these shortcuts do not apply. */}
+                <span className="chat-compose-hint">
+                    <kbd>Enter</kbd> kirim · <kbd>Shift+Enter</kbd> baris baru · <kbd>Ctrl+V</kbd> tempel gambar
+                </span>
+                {messageLength > 0 && (
+                    <span className={cn(
+                        'chat-compose-count',
+                        messageLength > MAX_MESSAGE_LENGTH * COUNTER_OVER_RATIO ? 'is-over'
+                            : messageLength > MAX_MESSAGE_LENGTH * COUNTER_WARN_RATIO && 'is-warn',
+                    )}>
+                        {messageLength.toLocaleString()}/{MAX_MESSAGE_LENGTH.toLocaleString()}
+                    </span>
+                )}
+            </div>
         </div>
     );
 };

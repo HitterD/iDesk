@@ -16,7 +16,7 @@ const SLA_WARNING_PERCENT = 70;
 const SITE_BADGE_FALLBACK = 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
 
 /** One badge geometry for every chip in the meta row, so the row keeps a single height. */
-const BADGE_BASE = 'inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold uppercase tracking-wide';
+const BADGE_BASE = 'inline-flex items-center gap-1 h-[22px] rounded-full px-2.5 text-[11.5px] font-semibold border border-black/5 dark:border-white/10';
 
 type Tone = 'good' | 'warn' | 'bad';
 
@@ -56,14 +56,12 @@ interface CardStatProps {
 function CardStat({ label, value, surfaceClassName, valueClassName }: CardStatProps) {
     return (
         <div className={cn(
-            'rounded-lg border px-1 py-2 text-center',
-            surfaceClassName ?? 'bg-slate-50 dark:bg-slate-800/50 border-[hsl(var(--border))]',
+            'rounded-[10px] px-2 py-1.5 text-left',
+            surfaceClassName ?? 'bg-[var(--td-fill)] border-transparent',
         )}>
-            <p className={cn('text-sm font-bold leading-none tabular-nums', valueClassName ?? 'text-slate-800 dark:text-slate-100')}>
+            <p className="text-[10.5px] text-[var(--td-text-3)]">{label}</p>
+            <p className={cn('text-sm font-bold leading-tight tabular-nums', valueClassName ?? 'text-slate-800 dark:text-slate-100')}>
                 {value}
-            </p>
-            <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                {label}
             </p>
         </div>
     );
@@ -173,13 +171,13 @@ export const AgentCard: React.FC<AgentCardProps> = ({
             aria-labelledby={nameId}
             className={cn(
                 "group relative flex h-full cursor-pointer flex-col rounded-2xl border p-4 transition-[box-shadow,border-color,transform] duration-200 ease-out",
-                "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md active:translate-y-0 active:scale-[0.99] motion-reduce:transform-none",
+                "hover:-translate-y-px hover:shadow-[var(--dash-shadow-2)] motion-reduce:transform-none",
                 // Scoped to the card action: an unscoped `has-[:focus-visible]` would
                 // also fire for the select box and overflow menu, which draw their own
                 // rings, stacking two rings for one focus.
                 "has-[[data-card-action]:focus-visible]:ring-2 has-[[data-card-action]:focus-visible]:ring-primary",
-                "bg-white dark:bg-[hsl(var(--card))] border-[hsl(var(--border))]",
-                isSelected && "ring-2 ring-primary border-primary"
+                "bg-[hsl(var(--idesk-surface))] border-transparent shadow-[var(--dash-shadow-1)] rounded-[18px]",
+                isSelected && "ring-2 ring-primary"
             )}
         >
             {/* Identity — the name owns the row. Only the select box shares it. */}
@@ -260,7 +258,7 @@ export const AgentCard: React.FC<AgentCardProps> = ({
             {/* E4: Workload Capacity Bar */}
             <div className="mt-4">
                 <div className="mb-1.5 flex items-center justify-between text-[11px]">
-                    <span className="font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Workload</span>
+                    <span className="font-medium text-[var(--td-text-3)]">Workload</span>
                     <span className={cn('font-bold tabular-nums', TONE_TEXT[loadTone])}>{currentLoad}/{MAX_CAPACITY}</span>
                 </div>
                 <div

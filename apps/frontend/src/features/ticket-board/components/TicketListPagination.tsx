@@ -32,9 +32,9 @@ export const TicketListPagination: React.FC<TicketListPaginationProps> = ({
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 pt-4 mt-2 border-t border-[hsl(var(--border))]">
             {/* Results Info */}
             <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 text-center sm:text-left">
-                Showing <span className="font-semibold text-slate-700 dark:text-slate-200">{paginationInfo.startIndex + 1}</span> to{' '}
-                <span className="font-semibold text-slate-700 dark:text-slate-200">{paginationInfo.endIndex}</span> of{' '}
-                <span className="font-semibold text-slate-700 dark:text-slate-200">{paginationInfo.totalItems}</span> tickets
+                Menampilkan <span className="font-semibold text-slate-700 dark:text-slate-200">{paginationInfo.startIndex + 1}</span>–
+                <span className="font-semibold text-slate-700 dark:text-slate-200">{paginationInfo.endIndex}</span> dari{" "}
+                <span className="font-semibold text-slate-700 dark:text-slate-200">{paginationInfo.totalItems}</span> tiket
             </div>
 
             {/* Mobile Pagination View (< sm) */}
@@ -45,11 +45,11 @@ export const TicketListPagination: React.FC<TicketListPaginationProps> = ({
                     className="flex-1 flex items-center justify-center gap-1 py-2 px-3 rounded-xl border border-border bg-card text-xs font-semibold text-foreground disabled:opacity-40 disabled:cursor-not-allowed active:bg-muted transition-colors shadow-2xs"
                 >
                     <ChevronLeft className="w-4 h-4" />
-                    <span>Prev</span>
+                    <span>Sebelumnya</span>
                 </button>
 
                 <div className="text-xs font-bold text-slate-700 dark:text-slate-300 px-3 py-1.5 bg-muted/50 rounded-lg shrink-0">
-                    Page {currentPage} of {paginationInfo.totalPages}
+                    Hal {currentPage} / {paginationInfo.totalPages}
                 </div>
 
                 <button
@@ -57,7 +57,7 @@ export const TicketListPagination: React.FC<TicketListPaginationProps> = ({
                     disabled={!paginationInfo.hasNextPage}
                     className="flex-1 flex items-center justify-center gap-1 py-2 px-3 rounded-xl border border-border bg-card text-xs font-semibold text-foreground disabled:opacity-40 disabled:cursor-not-allowed active:bg-muted transition-colors shadow-2xs"
                 >
-                    <span>Next</span>
+                    <span>Berikutnya</span>
                     <ChevronRight className="w-4 h-4" />
                 </button>
             </div>
@@ -69,7 +69,7 @@ export const TicketListPagination: React.FC<TicketListPaginationProps> = ({
                     onClick={() => goToPage(1)}
                     disabled={!paginationInfo.hasPrevPage}
                     className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    title="First page"
+                    title="Halaman pertama"
                 >
                     <ChevronsLeft className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                 </button>
@@ -79,7 +79,7 @@ export const TicketListPagination: React.FC<TicketListPaginationProps> = ({
                     onClick={() => goToPage(currentPage - 1)}
                     disabled={!paginationInfo.hasPrevPage}
                     className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    title="Previous page"
+                    title="Halaman sebelumnya"
                 >
                     <ChevronLeft className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                 </button>
@@ -111,7 +111,7 @@ export const TicketListPagination: React.FC<TicketListPaginationProps> = ({
                     onClick={() => goToPage(currentPage + 1)}
                     disabled={!paginationInfo.hasNextPage}
                     className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    title="Next page"
+                    title="Halaman berikutnya"
                 >
                     <ChevronRight className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                 </button>
@@ -121,7 +121,7 @@ export const TicketListPagination: React.FC<TicketListPaginationProps> = ({
                     onClick={() => goToPage(paginationInfo.totalPages)}
                     disabled={!paginationInfo.hasNextPage}
                     className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    title="Last page"
+                    title="Halaman terakhir"
                 >
                     <ChevronsRight className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                 </button>

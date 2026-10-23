@@ -1,55 +1,34 @@
 import React, { useEffect } from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Ticket, LogOut, BookOpen, Settings, Menu, X, Video, MonitorSmartphone, FileText } from 'lucide-react';
-import { motion, AnimatePresence, Variants } from 'framer-motion';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Ticket, BookOpen, Settings, Video, MonitorSmartphone, FileText } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useAuth, performLogout } from '../../stores/useAuth';
-import { NotificationPopover } from '../notifications/NotificationPopover';
-import { ActionCommandCenter } from '../notifications/ActionCommandCenter';
-import { ThemeToggle } from '../ui/ThemeToggle';
-import { Logo } from '../ui/Logo';
-import { UserAvatar } from '../ui/UserAvatar';
 import { FeatureErrorBoundary } from '../ui/FeatureErrorBoundary';
 import { UserGuidebookModal } from '@/features/client/components/UserGuidebookModal';
 import { useMyPermissions } from '@/hooks/usePermissions';
-import { cn } from '@/lib/utils';
+import { ClientTopbar, type ClientNavItem } from './ClientTopbar';
+import { ClientBottomNav } from './ClientBottomNav';
+import { CLIENT_ROUTES } from '@/config/routes';
 
-// Page transition variants - optimized for performance (no blur)
-const pageVariants: Variants = {
-    initial: {
-        opacity: 0,
-        y: 8,
-    },
-    animate: {
-        opacity: 1,
-        y: 0,
-        transition: {
-            duration: 0.2,
-            ease: [0.23, 1, 0.32, 1]
-        }
-    },
-    exit: {
-        opacity: 0,
-        transition: {
-            duration: 0.12,
-            ease: [0.23, 1, 0.32, 1]
-        }
-    }
-};
+const CLIENT_HOME_PATH = CLIENT_ROUTES.MY_TICKETS;
+const CLIENT_PROFILE_PATH = CLIENT_ROUTES.PROFILE;
 
-// Nav item definition with optional pageAccess key
-interface ClientNavItem {
-    path: string;
-    label: string;
-    icon: React.ElementType;
-    pageKey?: string; // If set, item is filtered by pageAccess from preset
-    exact?: boolean; // If true, only match exact path (not sub-paths)
-}
+// All possible nav items — items with pageKey are filtered by preset pageAccess
+const ALL_NAV_ITEMS: ClientNavItem[] = [
+    { path: CLIENT_HOME_PATH, label: 'My Tickets', shortLabel: 'Tiket Saya', icon: Ticket },
+    { path: '/client/hardware-requests', label: 'Hardware Requests', shortLabel: 'Hardware', icon: MonitorSmartphone, pageKey: 'hardware_requests' },
+    { path: '/client/eform-access', label: 'E-Form Access', shortLabel: 'E-Form', icon: FileText, pageKey: 'eform_access' },
+    { path: '/client/zoom-calendar', label: 'Zoom Calendar', shortLabel: 'Zoom', icon: Video, pageKey: 'zoom_calendar' },
+    { path: '/client/kb', label: 'Help Center', shortLabel: 'Bantuan', icon: BookOpen, pageKey: 'knowledge_base' },
+    { path: CLIENT_PROFILE_PATH, label: 'Profile', shortLabel: 'Akun', icon: Settings },
+];
+
+const ENTRANCE_EASE = [0.16, 1, 0.3, 1] as const;
 
 export const ClientLayout: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const { user, justLoggedIn, setJustLoggedIn } = useAuth();
-    const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
     const { data: myPermissions } = useMyPermissions();
 
     useEffect(() => {
@@ -65,16 +44,6 @@ export const ClientLayout: React.FC = () => {
         await performLogout();
         navigate('/login', { replace: true });
     };
-
-    // All possible nav items — items with pageKey are filtered by preset pageAccess
-    const ALL_NAV_ITEMS: ClientNavItem[] = [
-        { path: '/client/my-tickets', label: 'My Tickets', icon: Ticket },
-        { path: '/client/hardware-requests', label: 'Hardware Requests', icon: MonitorSmartphone, pageKey: 'hardware_requests' },
-        { path: '/client/eform-access', label: 'E-Form Access', icon: FileText, pageKey: 'eform_access' },
-        { path: '/client/zoom-calendar', label: 'Zoom Calendar', icon: Video, pageKey: 'zoom_calendar' },
-        { path: '/client/kb', label: 'Help Center', icon: BookOpen, pageKey: 'knowledge_base' },
-        { path: '/client/profile', label: 'Profile', icon: Settings },
-    ];
 
     // Filter nav items by pageAccess:
     // - Items without pageKey are always visible (core features)
@@ -93,8 +62,14 @@ export const ClientLayout: React.FC = () => {
 
     const isTicketDetailPage = location.pathname.startsWith('/client/tickets/');
 
+    const content = (
+        <FeatureErrorBoundary featureName="Client Portal">
+            <Outlet />
+        </FeatureErrorBoundary>
+    );
+
     return (
-        <div className="h-screen flex flex-col overflow-hidden app-background-blobs bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary/30 transition-colors duration-300 print:h-auto print:overflow-visible print:block">
+        <div className="idesk-shell h-screen flex flex-col overflow-hidden font-sans selection:bg-primary/30 transition-colors duration-300 print:h-auto print:overflow-visible print:block">
             {/* Skip Link for Accessibility */}
             <a
                 href="#main-content"
@@ -106,154 +81,65 @@ export const ClientLayout: React.FC = () => {
             {/* Guidebook Onboarding Modal for USER role */}
             <UserGuidebookModal />
 
-            {/* Navbar */}
-            <motion.nav
+            {/* Sapphire top band: brand, navigation segment, utilities, create CTA, account menu */}
+            <motion.div
                 initial={justLoggedIn ? { y: -16, opacity: 0 } : false}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                className="glass-card-elevated sticky top-0 z-50 shrink-0 print:hidden"
+                transition={{ duration: 0.35, ease: ENTRANCE_EASE }}
+                className="relative z-50 shrink-0 print:hidden"
             >
-                <div className="max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
-                    <div className="flex justify-between h-16">
-                        {/* Logo */}
-                        <div className="flex items-center">
-                            <Link to="/client" className="flex items-center gap-2">
-                                <Logo size="sm" variant="full" />
-                            </Link>
-                        </div>
+                <ClientTopbar
+                    navItems={navItems}
+                    isActive={isActive}
+                    homePath={CLIENT_HOME_PATH}
+                    createPath={CLIENT_ROUTES.CREATE_TICKET}
+                    profilePath={CLIENT_PROFILE_PATH}
+                    user={user}
+                    onLogout={handleLogout}
+                />
+            </motion.div>
 
-                        {/* Desktop Navigation */}
-                        <div className="hidden md:flex md:items-center md:space-x-1">
-                            {navItems.map((item) => {
-                                const Icon = item.icon;
-                                return (
-                                    <Link
-                                        key={item.path}
-                                        to={item.path}
-                                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-150 ${isActive(item)
-                                            ? 'bg-primary/10 text-primary'
-                                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                            }`}
-                                    >
-                                        <Icon className="w-4 h-4" />
-                                        {item.label}
-                                    </Link>
-                                );
-                            })}
-                        </div>
-
-                        {/* Right Side */}
-                        <div className="flex items-center gap-2">
-                            <ThemeToggle />
-                            <ActionCommandCenter />
-                            <NotificationPopover />
-
-                            {/* User Menu */}
-                            <div className="hidden md:flex min-w-0 items-center gap-3 ml-2">
-                                <div className="flex min-w-0 items-center gap-2">
-                                    <UserAvatar
-                                        user={user}
-                                        size="sm"
-                                    />
-                                    {/* Long names are cut off so they never push the nav menu off screen; full name on hover. */}
-                                    <span
-                                        className="max-w-[10rem] truncate text-sm font-medium text-slate-700 dark:text-slate-300"
-                                        title={user?.fullName || 'User'}
-                                    >
-                                        {user?.fullName || 'User'}
-                                    </span>
-                                </div>
-                                <button
-                                    onClick={handleLogout}
-                                    className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-                                    title="Logout"
-                                >
-                                    <LogOut className="w-5 h-5" />
-                                </button>
-                            </div>
-
-                            {/* Mobile Menu Button */}
-                            <button
-                                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                                className="md:hidden p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
-                            >
-                                {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Mobile Menu */}
-                {mobileMenuOpen && (
-                    <div className="md:hidden border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-                        <div className="px-4 py-3 space-y-1">
-                            {navItems.map((item) => {
-                                const Icon = item.icon;
-                                return (
-                                    <Link
-                                        key={item.path}
-                                        to={item.path}
-                                        onClick={() => setMobileMenuOpen(false)}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors duration-150 ${isActive(item)
-                                            ? 'bg-primary/10 text-primary'
-                                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                            }`}
-                                    >
-                                        <Icon className="w-5 h-5" />
-                                        {item.label}
-                                    </Link>
-                                );
-                            })}
-                            <button
-                                onClick={handleLogout}
-                                className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 w-full"
-                            >
-                                <LogOut className="w-5 h-5" />
-                                Logout
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </motion.nav>
-
-            {/* Main Content Area */}
-            {isTicketDetailPage ? (
-                <main id="main-content" className="flex-1 min-h-0 overflow-hidden flex flex-col">
-                    <motion.div
-                        initial={justLoggedIn ? { opacity: 0, y: 16, scale: 0.98 } : false}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: 0.08 }}
-                        className="w-full h-full flex flex-col overflow-hidden"
-                    >
-                        <FeatureErrorBoundary featureName="Client Portal">
-                            <Outlet />
-                        </FeatureErrorBoundary>
-                    </motion.div>
-                </main>
-            ) : (
-                <div id="main-scroll-container" className="flex-1 min-h-0 overflow-y-auto scroll-smooth scrollbar-custom flex flex-col print:h-auto print:overflow-visible print:p-0 print:m-0 print:block">
-                    <main id="main-content" className="flex-1 w-full max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-8 print:p-0 print:m-0 print:max-w-none print:w-full print:block">
+            {/* Content on the rounded sheet */}
+            <div className="idesk-sheet portal-sheet flex-1 min-h-0 flex flex-col overflow-hidden print:block print:overflow-visible">
+                {isTicketDetailPage ? (
+                    <main id="main-content" className="flex-1 min-h-0 overflow-hidden flex flex-col">
                         <motion.div
                             initial={justLoggedIn ? { opacity: 0, y: 16, scale: 0.98 } : false}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
-                            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: 0.08 }}
-                            className="w-full print:w-full print:block"
+                            transition={{ duration: 0.4, ease: ENTRANCE_EASE, delay: 0.08 }}
+                            className="w-full h-full flex flex-col overflow-hidden"
                         >
-                            <FeatureErrorBoundary featureName="Client Portal">
-                                <Outlet />
-                            </FeatureErrorBoundary>
+                            {content}
                         </motion.div>
                     </main>
+                ) : (
+                    <div id="main-scroll-container" className="flex-1 min-h-0 overflow-y-auto overflow-x-clip scroll-smooth scrollbar-custom flex flex-col print:h-auto print:overflow-visible print:p-0 print:m-0 print:block">
+                        <main id="main-content" className="flex-1 w-full max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 pt-5 pb-28 lg:pt-7 lg:pb-8 print:p-0 print:m-0 print:max-w-none print:w-full print:block">
+                            <motion.div
+                                initial={justLoggedIn ? { opacity: 0, y: 16, scale: 0.98 } : false}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                transition={{ duration: 0.4, ease: ENTRANCE_EASE, delay: 0.08 }}
+                                className="w-full print:w-full print:block"
+                            >
+                                {/* Keyed so the content fades and rises on every route change (CSS, token-timed). */}
+                                <div key={location.pathname} className="idesk-page-enter print:animate-none">
+                                    {content}
+                                </div>
+                            </motion.div>
+                        </main>
 
-                    {/* Footer */}
-                    <footer className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 py-6 mt-auto shrink-0 print:hidden">
-                        <div className="max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
-                            <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-                                © {new Date().getFullYear()} iDesk Enterprise Platform. Need help? Contact IT Support.
-                            </p>
-                        </div>
-                    </footer>
-                </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Mobile bottom navigation; ticket detail keeps the full height for its chat */}
+            {!isTicketDetailPage && (
+                <ClientBottomNav
+                    navItems={navItems}
+                    isActive={isActive}
+                    createPath={CLIENT_ROUTES.CREATE_TICKET}
+                    profilePath={CLIENT_PROFILE_PATH}
+                />
             )}
         </div>
     );

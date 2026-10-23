@@ -66,8 +66,29 @@ describe('BentoWebDevTicketsPage', () => {
         );
 
         expect(screen.getByText('Web Developer Request')).toBeInTheDocument();
-        expect(screen.getByText('New Web Dev Request')).toBeInTheDocument();
+        // Single CTA: create lives in the topbar / mobile FAB, never in the queue header.
+        expect(screen.queryByRole('button', { name: 'Buat Tiket Baru' })).not.toBeInTheDocument();
+        expect(screen.getByText('Ringkasan status, overdue, dan critical berdasarkan halaman yang dimuat; Total mengikuti server.')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Semua' })).toHaveAttribute('aria-pressed', 'true');
         expect(screen.getByTitle('Kanban Board')).toBeInTheDocument();
+    });
+
+    it('card sort and select-all/row selection drive the existing queue state', () => {
+        const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        render(<QueryClientProvider client={qc}><MemoryRouter><BentoWebDevTicketsPage /></MemoryRouter></QueryClientProvider>);
+        fireEvent.change(screen.getByLabelText('Urutkan tiket'), { target: { value: 'priority' } });
+        expect(useWebDevTicketsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ sortBy: 'priority', sortOrder: 'DESC' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Ubah arah urutan: menurun' }));
+        expect(useWebDevTicketsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ sortBy: 'priority', sortOrder: 'ASC' }));
+        const all = screen.getByRole('checkbox', { name: 'Pilih semua tiket di halaman ini' });
+        // Card and desktop layouts both render in jsdom; [0] is the card checkbox.
+        const row = screen.getAllByRole('checkbox', { name: 'Pilih tiket W-101' })[0];
+        fireEvent.click(all);
+        expect(row).toBeChecked();
+        fireEvent.click(row);
+        expect(all).not.toBeChecked();
+        fireEvent.click(row);
+        expect(all).toBeChecked();
     });
 
     it('renders Kanban board when ?view=kanban query param is set', async () => {
@@ -80,9 +101,10 @@ describe('BentoWebDevTicketsPage', () => {
             </QueryClientProvider>
         );
 
-        expect(await screen.findByText('Web Developer Kanban')).toBeInTheDocument();
+        expect(await screen.findByRole('region', { name: 'Kanban tiket' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Tampilan Kanban' })).toHaveAttribute('aria-current', 'page');
     });
-    it('"Tiket yang saya buat" asks the server for my tickets in this queue', () => {
+    it('"Saya Buat" asks the server for my tickets in this queue', () => {
         const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
         render(
             <QueryClientProvider client={qc}>
@@ -92,7 +114,7 @@ describe('BentoWebDevTicketsPage', () => {
             </QueryClientProvider>
         );
 
-        const button = screen.getByRole('button', { name: /Tiket yang saya buat/ });
+        const button = screen.getByRole('button', { name: /Saya Buat/ });
         expect(button).toHaveAttribute('aria-pressed', 'false');
 
         fireEvent.click(button);
@@ -101,7 +123,7 @@ describe('BentoWebDevTicketsPage', () => {
         expect(useWebDevTicketsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ createdByMe: true, assignedToMe: false }));
     });
 
-    it('"My Tasks" is filtered on the server', () => {
+    it('"Tugas Saya" is filtered on the server', () => {
         const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
         render(
             <QueryClientProvider client={qc}>

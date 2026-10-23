@@ -87,11 +87,14 @@ export function AuditExportButton({ filters }: AuditExportButtonProps) {
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 disabled={isExporting}
-                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-bold text-sm rounded-xl hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                type="button"
+                className="idesk-btn is-soft"
+                aria-expanded={isOpen}
+                aria-busy={isExporting || undefined}
             >
-                <Download className={`w-4 h-4 ${isExporting ? 'animate-bounce' : ''}`} />
+                <Download aria-hidden="true" />
                 Export
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
             </button>
 
             <AnimatePresence>

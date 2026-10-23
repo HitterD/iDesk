@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { firstName, formatDuration, formatSlaRelative, formatWibDateTime, shortDateLabel, wibGreeting } from '../agentDashboard.format';
+import { firstName, formatDuration, formatSlaCompact, formatSlaRelative, formatWibDateTime, shortDateLabel, wibGreeting } from '../agentDashboard.format';
 
 describe('agent dashboard format', () => {
     it('formats resolve durations', () => {
@@ -28,6 +28,12 @@ describe('relative SLA and greeting', () => {
         expect(formatSlaRelative('2026-10-04T02:15:00.000Z', NOW)).toEqual({ text: 'Lewat 45 menit', overdue: true });
         expect(formatSlaRelative('2026-10-04T05:00:00.000Z', NOW)).toEqual({ text: 'Sisa 2 jam', overdue: false });
         expect(formatSlaRelative('2026-10-04T03:00:30.000Z', NOW)).toEqual({ text: 'Sisa < 1 menit', overdue: false });
+    });
+
+    it('uses queue units for the attention SLA bubble', () => {
+        expect(formatSlaCompact('2026-10-04T01:19:30.000Z', NOW)).toEqual({ text: 'Lewat 1j 40m', overdue: true });
+        expect(formatSlaCompact('2026-10-06T11:00:00.000Z', NOW)).toEqual({ text: 'Sisa 2h 8j', overdue: false });
+        expect(formatSlaCompact('2026-10-04T03:20:00.000Z', NOW)).toEqual({ text: 'Sisa 20m', overdue: false });
     });
 
     it('greets by WIB time of day', () => {

@@ -14,16 +14,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import {
-    Volume2,
-    VolumeX,
-    Upload,
-    Play,
-    Trash2,
-    RefreshCw,
-    Music,
-    CheckCircle2,
-} from 'lucide-react';
+import { Volume2, VolumeX, Upload, Play, Trash2, RefreshCw, Music, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { useSoundNotification, type NotificationEventType } from '@/hooks/useSoundNotification';
@@ -45,51 +36,51 @@ const EVENT_TYPE_CONFIG: Record<
     NEW_TICKET: {
         label: 'Tiket Baru',
         desc: 'Diputar saat ada tiket atau permohonan baru masuk ke sistem',
-        color: 'text-blue-700 dark:text-blue-300',
-        bg: 'bg-blue-500/10',
-        border: 'border-blue-500/20',
+        color: 'text-brand',
+        bg: 'bg-brand/10',
+        border: 'border-brand/20',
     },
     MESSAGE: {
         label: 'Pesan Baru',
         desc: 'Diputar saat ada komentar / pesan balasan baru pada tiket',
-        color: 'text-purple-700 dark:text-purple-300',
-        bg: 'bg-purple-500/10',
-        border: 'border-purple-500/20',
+        color: 'text-brand',
+        bg: 'bg-brand/10',
+        border: 'border-brand/20',
     },
     ASSIGNED: {
         label: 'Tiket Ditugaskan',
         desc: 'Diputar saat tiket di-assign kepada staf atau teknisi Anda',
-        color: 'text-indigo-700 dark:text-indigo-300',
-        bg: 'bg-indigo-500/10',
-        border: 'border-indigo-500/20',
+        color: 'text-brand',
+        bg: 'bg-brand/10',
+        border: 'border-brand/20',
     },
     RESOLVED: {
         label: 'Tiket Selesai',
         desc: 'Diputar saat tiket selesai ditangani atau instalasi dikonfirmasi',
-        color: 'text-emerald-700 dark:text-emerald-300',
-        bg: 'bg-emerald-500/10',
-        border: 'border-emerald-500/20',
+        color: 'text-ok-ink',
+        bg: 'bg-ok/10',
+        border: 'border-ok/20',
     },
     CRITICAL: {
         label: 'Alert Critical',
         desc: 'Diputar saat ada insiden prioritas Emergency / Critical',
-        color: 'text-rose-700 dark:text-rose-300',
-        bg: 'bg-rose-500/10',
-        border: 'border-rose-500/20',
+        color: 'text-bad-ink',
+        bg: 'bg-bad/10',
+        border: 'border-bad/20',
     },
     SLA_WARNING: {
         label: 'SLA Warning',
         desc: 'Diputar saat waktu penanganan mendekati batas waktu SLA',
-        color: 'text-amber-700 dark:text-amber-300',
-        bg: 'bg-amber-500/10',
-        border: 'border-amber-500/20',
+        color: 'text-warn-ink',
+        bg: 'bg-warn/10',
+        border: 'border-warn/20',
     },
     SLA_BREACH: {
         label: 'SLA Breach',
         desc: 'Diputar saat tiket melewati batas waktu respon/penyelesaian SLA',
-        color: 'text-red-700 dark:text-red-300',
-        bg: 'bg-red-500/10',
-        border: 'border-red-500/20',
+        color: 'text-bad-ink',
+        bg: 'bg-bad/10',
+        border: 'border-bad/20',
     },
 };
 
@@ -223,23 +214,19 @@ export const SoundSettingsPage: React.FC = () => {
         <div className="space-y-6 max-w-5xl">
             {/* Header Title */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
-                        Sound Settings & Notifications
-                    </h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Atur volume, dengarkan preview, pilih nada dering default, atau unggah audio kustom Anda sendiri.
-                    </p>
+                <div className="min-w-0">
+                    <h2 className="set-title">Sound Settings &amp; Notifications</h2>
+                    <p className="set-sub">Suara untuk tiket baru, balasan, dan SLA kritis: atur volume, dengarkan preview, pilih nada default, atau unggah audio sendiri.</p>
                 </div>
                 <Button
-                    variant="outline"
+                    variant="soft"
                     size="sm"
                     onClick={() => {
                         clearCache();
                         fetchSounds();
                         toast.success('Cache suara disegarkan');
                     }}
-                    className="gap-2 self-start sm:self-auto rounded-xl"
+                    className="self-start sm:self-auto"
                 >
                     <RefreshCw className={cn('size-4', loading && 'animate-spin')} />
                     <span>Segarkan Suara</span>
@@ -247,10 +234,10 @@ export const SoundSettingsPage: React.FC = () => {
             </div>
 
             {/* ── CARD 1: MASTER PREFERENCES ── */}
-            <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl shadow-sm overflow-hidden">
-                <CardHeader className="border-b border-slate-100 dark:border-slate-800/80 pb-4">
-                    <CardTitle className="flex items-center gap-2.5 text-base font-bold text-slate-800 dark:text-white">
-                        <div className="size-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+            <Card className="rounded-3xl border-line bg-surface/70 backdrop-blur-xl shadow-sm overflow-hidden">
+                <CardHeader className="border-b border-line pb-4">
+                    <CardTitle className="flex items-center gap-2.5 text-base font-bold text-ink">
+                        <div className="size-8 rounded-xl bg-brand/10 text-brand flex items-center justify-center">
                             {enabled ? <Volume2 className="size-4.5" /> : <VolumeX className="size-4.5" />}
                         </div>
                         <span>Preferensi Master Audio</span>
@@ -261,12 +248,12 @@ export const SoundSettingsPage: React.FC = () => {
                 </CardHeader>
                 <CardContent className="p-6 space-y-6">
                     {/* Toggle */}
-                    <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60">
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-fill border border-line">
                         <div className="space-y-0.5">
-                            <Label className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                            <Label className="text-sm font-bold text-ink">
                                 Aktifkan Notifikasi Suara
                             </Label>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                            <p className="text-xs text-ink-2">
                                 Bunyikan nada dering saat ada tiket masuk, pesan baru, atau eskalasi SLA.
                             </p>
                         </div>
@@ -275,17 +262,17 @@ export const SoundSettingsPage: React.FC = () => {
 
                     {/* Volume Slider */}
                     <div className="space-y-3 pt-1">
-                        <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                        <div className="flex items-center justify-between text-xs font-bold text-ink">
                             <span className="flex items-center gap-1.5">
                                 <Volume2 className="size-3.5 text-primary" />
                                 <span>Tingkat Volume: {Math.round(volume * 100)}%</span>
                             </span>
                             <Button
-                                variant="secondary"
+                                variant="soft"
                                 size="sm"
                                 onClick={() => testSound('NEW_TICKET')}
                                 disabled={!enabled}
-                                className="h-8 gap-1.5 rounded-xl text-xs font-bold shadow-2xs cursor-pointer active:scale-95"
+                                className="cursor-pointer"
                             >
                                 <Play className="size-3.5" />
                                 <span>Tes Suara Notifikasi</span>
@@ -304,10 +291,10 @@ export const SoundSettingsPage: React.FC = () => {
             </Card>
 
             {/* ── CARD 2: NOTIFICATION SOUNDS LIBRARY ── */}
-            <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl shadow-sm overflow-hidden">
-                <CardHeader className="border-b border-slate-100 dark:border-slate-800/80 pb-4">
-                    <CardTitle className="flex items-center gap-2.5 text-base font-bold text-slate-800 dark:text-white">
-                        <div className="size-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+            <Card className="rounded-3xl border-line bg-surface/70 backdrop-blur-xl shadow-sm overflow-hidden">
+                <CardHeader className="border-b border-line pb-4">
+                    <CardTitle className="flex items-center gap-2.5 text-base font-bold text-ink">
+                        <div className="size-8 rounded-xl bg-brand/10 text-brand flex items-center justify-center">
                             <Music className="size-4.5" />
                         </div>
                         <span>Pustaka Nada Dering Notifikasi</span>
@@ -325,8 +312,8 @@ export const SoundSettingsPage: React.FC = () => {
                     ) : (
                         <div className="overflow-x-auto">
                             <Table>
-                                <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30">
-                                    <TableRow className="border-slate-100 dark:border-slate-800">
+                                <TableHeader className="bg-fill">
+                                    <TableRow className="border-line">
                                         <TableHead className="font-bold text-xs uppercase tracking-wider">Jenis Event</TableHead>
                                         <TableHead className="font-bold text-xs uppercase tracking-wider">Nama Suara</TableHead>
                                         <TableHead className="font-bold text-xs uppercase tracking-wider">Tipe</TableHead>
@@ -341,7 +328,7 @@ export const SoundSettingsPage: React.FC = () => {
 
                                         if (eventSounds.length === 0) {
                                             return (
-                                                <TableRow key={eventType} className="border-slate-100 dark:border-slate-800">
+                                                <TableRow key={eventType} className="border-line">
                                                     <TableCell className="font-bold text-xs">
                                                         <span className={cn('px-2.5 py-1 rounded-lg text-xs font-bold border', eventCfg.bg, eventCfg.color, eventCfg.border)}>
                                                             {eventCfg.label}
@@ -352,10 +339,10 @@ export const SoundSettingsPage: React.FC = () => {
                                                     </TableCell>
                                                     <TableCell className="text-right pr-6">
                                                         <Button
-                                                            variant="ghost"
+                                                            variant="subtle"
                                                             size="sm"
                                                             onClick={() => testSound(eventType)}
-                                                            className="gap-1 text-xs font-bold"
+                                                           
                                                         >
                                                             <Play className="size-3.5" />
                                                             <span>Tes</span>
@@ -366,7 +353,7 @@ export const SoundSettingsPage: React.FC = () => {
                                         }
 
                                         return eventSounds.map((sound, idx) => (
-                                            <TableRow key={sound.id} className="border-slate-100 dark:border-slate-800 hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                                            <TableRow key={sound.id} className="border-line hover:bg-fill">
                                                 {idx === 0 && (
                                                     <TableCell rowSpan={eventSounds.length} className="align-top pt-4 font-bold text-xs">
                                                         <div className="space-y-1">
@@ -394,7 +381,7 @@ export const SoundSettingsPage: React.FC = () => {
                                                     {sound.isDefault ? (
                                                         <Badge variant="secondary" className="text-[10px] font-bold">Default</Badge>
                                                     ) : (
-                                                        <Badge variant="outline" className="text-[10px] font-bold border-purple-500/30 text-purple-600 dark:text-purple-400 bg-purple-500/10">
+                                                        <Badge variant="outline" className="text-[10px] font-bold border-brand/30 text-brand bg-brand/10">
                                                             Custom Upload
                                                         </Badge>
                                                     )}
@@ -403,7 +390,7 @@ export const SoundSettingsPage: React.FC = () => {
                                                 {/* Status Badge */}
                                                 <TableCell className="text-center">
                                                     {sound.isActive ? (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400">
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-ok/10 border border-ok/30 text-ok-ink">
                                                             <CheckCircle2 className="size-3" />
                                                             <span>Aktif</span>
                                                         </span>
@@ -419,7 +406,7 @@ export const SoundSettingsPage: React.FC = () => {
                                                     <div className="flex items-center justify-end gap-1.5">
                                                         {/* Play Preview */}
                                                         <Button
-                                                            variant="ghost"
+                                                            variant="subtle"
                                                             size="icon"
                                                             onClick={() => handlePlayPreview(sound.soundUrl)}
                                                             className={cn(
@@ -434,10 +421,10 @@ export const SoundSettingsPage: React.FC = () => {
                                                         {/* Set Active */}
                                                         {!sound.isActive && (
                                                             <Button
-                                                                variant="outline"
+                                                                variant="soft"
                                                                 size="sm"
                                                                 onClick={() => handleSetActive(eventType, sound.id)}
-                                                                className="h-8 text-xs font-bold rounded-xl border-slate-200 dark:border-slate-700 hover:border-primary/50"
+                                                               
                                                             >
                                                                 Pilih Suara
                                                             </Button>
@@ -446,9 +433,9 @@ export const SoundSettingsPage: React.FC = () => {
                                                         {/* Delete Custom Sound */}
                                                         {!sound.isDefault && (
                                                             <Button
-                                                                variant="ghost"
+                                                                variant="subtle"
                                                                 size="icon"
-                                                                className="size-8 rounded-xl text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                                                                className="size-8 text-bad cursor-pointer"
                                                                 onClick={() => handleDelete(sound.id)}
                                                                 title="Hapus Suara Kustom"
                                                             >
@@ -468,10 +455,10 @@ export const SoundSettingsPage: React.FC = () => {
             </Card>
 
             {/* ── CARD 3: UPLOAD CUSTOM SOUND ── */}
-            <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl shadow-sm overflow-hidden">
-                <CardHeader className="border-b border-slate-100 dark:border-slate-800/80 pb-4">
-                    <CardTitle className="flex items-center gap-2.5 text-base font-bold text-slate-800 dark:text-white">
-                        <div className="size-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <Card className="rounded-3xl border-line bg-surface/70 backdrop-blur-xl shadow-sm overflow-hidden">
+                <CardHeader className="border-b border-line pb-4">
+                    <CardTitle className="flex items-center gap-2.5 text-base font-bold text-ink">
+                        <div className="size-8 rounded-xl bg-ok/10 text-ok-ink flex items-center justify-center">
                             <Upload className="size-4.5" />
                         </div>
                         <span>Upload Custom Sound Manual</span>
@@ -535,10 +522,10 @@ export const SoundSettingsPage: React.FC = () => {
                             <span className="text-[11px] text-muted-foreground">
                                 Setelah diunggah, suara akan otomatis muncul di tabel di atas dan dapat diaktifkan.
                             </span>
-                            <Button
+                            <Button variant="primary"
                                 type="submit"
                                 disabled={uploading}
-                                className="gap-2 rounded-xl text-xs font-bold px-5 shadow-xs active:scale-95 cursor-pointer"
+                                className="cursor-pointer"
                             >
                                 <Upload className="size-3.5" />
                                 <span>{uploading ? 'Mengunggah...' : 'Upload & Simpan'}</span>

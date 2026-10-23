@@ -50,7 +50,7 @@ const NOTIFICATION_ICONS: Record<string, React.ElementType> = {
 
 const NOTIFICATION_COLORS: Record<string, { bg: string; icon: string; border: string }> = {
     TICKET_CREATED: { bg: 'bg-blue-500/10', icon: 'text-blue-400', border: 'border-blue-500/30' },
-    TICKET_ASSIGNED: { bg: 'bg-purple-500/10', icon: 'text-purple-400', border: 'border-purple-500/30' },
+    TICKET_ASSIGNED: { bg: 'bg-sky-500/10', icon: 'text-sky-400', border: 'border-sky-500/30' },
     TICKET_UPDATED: { bg: 'bg-sky-500/10', icon: 'text-sky-400', border: 'border-sky-500/30' },
     TICKET_RESOLVED: { bg: 'bg-green-500/10', icon: 'text-green-400', border: 'border-green-500/30' },
     TICKET_REPLY: { bg: 'bg-indigo-500/10', icon: 'text-indigo-400', border: 'border-indigo-500/30' },

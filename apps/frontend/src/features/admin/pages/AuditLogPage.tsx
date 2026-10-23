@@ -1,30 +1,12 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import {
-    FileText,
-    Search,
-    Filter,
-    ChevronDown,
-    ChevronUp,
-    Shield,
-    User,
-    Ticket,
-    Settings,
-    LogIn,
-    LogOut,
-    Edit,
-    Trash2,
-    Plus,
-    RefreshCw,
-    Calendar,
-    AlertTriangle,
-    Loader2,
-    X,
-    Table2,
-    GitBranch,
-    ExternalLink,
-} from 'lucide-react';
+import { Shield, RefreshCw, Calendar, X, ChevronRight, Rows3, GitCommitVertical, FileSearch, Cpu } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { ResBub, ResEmpty, ResHead, ResPager, ResSearch, ResSkeletonRows, ResRow, ResTable } from '@/components/resources/ResourceParts';
+import { DashAvatar } from '@/features/dashboard/components/DashboardParts';
+import '@/components/management/management.css';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
@@ -34,9 +16,8 @@ import { AuditUserFilter } from '../components/AuditUserFilter';
 import { AuditTimelineView } from '../components/AuditTimelineView';
 import { AuditActionFilter } from '../components/AuditActionFilter';
 import { AuditEntityFilter } from '../components/AuditEntityFilter';
-import { AuditTableSkeleton } from '../components/AuditTableSkeleton';
 import { AuditDateRangePicker } from '../components/AuditDateRangePicker';
-import { AuditAction, AUDIT_ACTION_CONFIG, ENTITY_TYPE_LABELS } from '../../../types/audit.types';
+import { AuditAction, ENTITY_TYPE_LABELS } from '../../../types/audit.types';
 import { useDebounce } from '@/hooks/useDebounce';
 
 interface AuditLog {
@@ -66,25 +47,27 @@ interface AuditResponse {
     };
 }
 
-const ACTION_CONFIG: Record<string, { icon: React.ElementType; color: string; label: string }> = {
-    CREATE_TICKET: { icon: Plus, color: 'text-[hsl(var(--success-500))]', label: 'Ticket Created' },
-    UPDATE_TICKET: { icon: Edit, color: 'text-[hsl(var(--info-500))]', label: 'Ticket Updated' },
-    DELETE_TICKET: { icon: Trash2, color: 'text-[hsl(var(--error-500))]', label: 'Ticket Deleted' },
-    ASSIGN_TICKET: { icon: User, color: 'text-[hsl(var(--primary))]', label: 'Ticket Assigned' },
-    STATUS_CHANGE: { icon: RefreshCw, color: 'text-[hsl(var(--warning-500))]', label: 'Status Changed' },
-    PRIORITY_CHANGE: { icon: AlertTriangle, color: 'text-[hsl(var(--warning-500))]', label: 'Priority Changed' },
-    TICKET_REPLY: { icon: FileText, color: 'text-[hsl(var(--info-500))]', label: 'Ticket Reply' },
-    TICKET_MERGE: { icon: Ticket, color: 'text-[hsl(var(--primary))]', label: 'Tickets Merged' },
-    BULK_UPDATE: { icon: Settings, color: 'text-slate-500 dark:text-slate-400', label: 'Bulk Update' },
-    USER_LOGIN: { icon: LogIn, color: 'text-[hsl(var(--success-500))]', label: 'User Login' },
-    USER_LOGOUT: { icon: LogOut, color: 'text-slate-500 dark:text-slate-400', label: 'User Logout' },
-    USER_CREATE: { icon: Plus, color: 'text-[hsl(var(--success-500))]', label: 'User Created' },
-    USER_UPDATE: { icon: Edit, color: 'text-[hsl(var(--info-500))]', label: 'User Updated' },
-    SETTINGS_CHANGE: { icon: Settings, color: 'text-[hsl(var(--primary))]', label: 'Settings Changed' },
-    ARTICLE_CREATE: { icon: Plus, color: 'text-[hsl(var(--success-500))]', label: 'Article Created' },
-    ARTICLE_UPDATE: { icon: Edit, color: 'text-[hsl(var(--info-500))]', label: 'Article Updated' },
-    ARTICLE_DELETE: { icon: Trash2, color: 'text-[hsl(var(--error-500))]', label: 'Article Deleted' },
+/** Mockup audit-logs.html action hues (no purple); label copy from production. */
+const ACTION_CONFIG: Record<string, { label: string; hue: string }> = {
+    CREATE_TICKET: { label: 'Ticket Created', hue: 'var(--dash-green)' },
+    UPDATE_TICKET: { label: 'Ticket Updated', hue: 'var(--dash-blue)' },
+    DELETE_TICKET: { label: 'Ticket Deleted', hue: 'var(--dash-red)' },
+    ASSIGN_TICKET: { label: 'Ticket Assigned', hue: 'var(--dash-teal)' },
+    STATUS_CHANGE: { label: 'Status Changed', hue: 'var(--dash-navy)' },
+    PRIORITY_CHANGE: { label: 'Priority Changed', hue: 'var(--dash-orange)' },
+    TICKET_REPLY: { label: 'Ticket Reply', hue: 'var(--dash-blue)' },
+    TICKET_MERGE: { label: 'Tickets Merged', hue: 'var(--dash-teal)' },
+    BULK_UPDATE: { label: 'Bulk Update', hue: 'var(--dash-gray)' },
+    USER_LOGIN: { label: 'User Login', hue: 'var(--dash-gray)' },
+    USER_LOGOUT: { label: 'User Logout', hue: 'var(--dash-gray)' },
+    USER_CREATE: { label: 'User Created', hue: 'var(--dash-green)' },
+    USER_UPDATE: { label: 'User Updated', hue: 'var(--dash-brown)' },
+    SETTINGS_CHANGE: { label: 'Settings Changed', hue: 'var(--dash-red)' },
+    ARTICLE_CREATE: { label: 'Article Created', hue: 'var(--dash-green)' },
+    ARTICLE_UPDATE: { label: 'Article Updated', hue: 'var(--dash-brown)' },
+    ARTICLE_DELETE: { label: 'Article Deleted', hue: 'var(--dash-red)' },
 };
+const AUDIT_COLS = '22px 150px minmax(170px,1fr) 150px minmax(170px,1fr) minmax(220px,1.8fr) 110px';
 
 export const AuditLogPage: React.FC = () => {
     const [page, setPage] = useState(1);
@@ -96,14 +79,13 @@ export const AuditLogPage: React.FC = () => {
     const [endDate, setEndDate] = useState<string>('');
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table');
-    const [filtersExpanded, setFiltersExpanded] = useState(true);
     const limit = 25;
 
     // Debounce search query for server-side search
     const debouncedSearch = useDebounce(searchQuery, 300);
 
     // Fetch audit logs with server-side search
-    const { data: auditData, isLoading, refetch } = useQuery<AuditResponse>({
+    const { data: auditData, isLoading, isFetching, refetch } = useQuery<AuditResponse>({
         queryKey: ['audit-logs', page, actionFilter, entityFilter, userIdFilter, debouncedSearch, startDate, endDate],
         queryFn: async () => {
             const params = new URLSearchParams();
@@ -158,386 +140,118 @@ export const AuditLogPage: React.FC = () => {
         });
     };
 
-    const ActionIcon = ({ action }: { action: string }) => {
-        const config = ACTION_CONFIG[action] || { icon: FileText, color: 'text-slate-500 dark:text-slate-400', label: action };
-        const Icon = config.icon;
-        return <Icon className={`w-4 h-4 ${config.color}`} />;
+    const entityLink = (log: AuditLog): string | null => {
+        switch (log.entityType.toLowerCase()) {
+            case 'ticket': return `/tickets/${log.entityId}`;
+            case 'user': return '/agents';
+            case 'article': return `/kb/articles/${log.entityId}`;
+            default: return null;
+        }
     };
+    const fmtJson = (v: Record<string, unknown> | null) => (v ? JSON.stringify(v, null, 2) : '—');
 
     return (
-        <div className="space-y-6 animate-fade-in-up">
-            {/* Header — Flat Industrial Utilitarian */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Audit Logs</h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mt-1">
-                        Track all system activities and changes
-                    </p>
-                </div>
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => refetch()}
-                        className="flex items-center gap-2 px-3 py-2.5 bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl text-slate-700 dark:text-slate-200 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm text-sm"
-                    >
-                        <RefreshCw className="w-4 h-4" />
-                        Refresh
-                    </button>
-                    <AuditExportButton
-                        filters={{
-                            action: actionFilter,
-                            entityType: entityFilter,
-                            startDate: startDate,
-                            endDate: endDate,
-                        }}
-                    />
-                </div>
-            </div>
+        <div className="res-page mg-page">
+            <ResHead icon={Shield} tone="slate" title="Audit Logs" description="Lacak semua aktivitas dan perubahan sistem"
+                actions={(
+                    <>
+                        <Button variant="soft" onClick={() => refetch()} loading={isFetching} aria-label="Refresh">{!isFetching && <RefreshCw aria-hidden="true" />}Refresh</Button>
+                        <AuditExportButton filters={{ action: actionFilter, entityType: entityFilter, startDate, endDate }} />
+                    </>
+                )} />
 
-            {/* Stats Cards */}
             <AuditStatsCards />
 
-            {/* Filters — Clean Panel */}
-            <div className="bg-white dark:bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))]">
-                {/* Row 1: Search + View Toggle */}
-                <div className="flex items-center gap-4 p-4 border-b border-[hsl(var(--border))]">
-                    {/* Search */}
-                    <div className="flex-1 relative">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search by user, entity ID, description..."
-                            className="w-full pl-11 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-[hsl(var(--border))] rounded-xl text-sm text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors duration-150"
-                        />
-                    </div>
-
-                    {/* View Toggle — Tab Pattern */}
-                    <div className="flex items-center bg-slate-50 dark:bg-slate-800/50 rounded-xl p-1.5 border border-[hsl(var(--border))]">
-                        <button
-                            onClick={() => setViewMode('table')}
-                            className={cn(
-                                "flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-colors duration-150",
-                                viewMode === 'table'
-                                    ? 'bg-white dark:bg-slate-700 text-primary shadow-sm ring-1 ring-slate-200 dark:ring-slate-600'
-                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                            )}
-                        >
-                            <Table2 className="w-4 h-4" />
-                            Table
-                        </button>
-                        <button
-                            onClick={() => setViewMode('timeline')}
-                            className={cn(
-                                "flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-colors duration-150",
-                                viewMode === 'timeline'
-                                    ? 'bg-white dark:bg-slate-700 text-primary shadow-sm ring-1 ring-slate-200 dark:ring-slate-600'
-                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                            )}
-                        >
-                            <GitBranch className="w-4 h-4" />
-                            Timeline
-                        </button>
-                    </div>
-                </div>
-
-                {/* Row 2: Filters - Collapsible */}
-                <div className="bg-slate-50/50 dark:bg-slate-800/20">
-                    {/* Collapse Toggle Header */}
-                    <button
-                        onClick={() => setFiltersExpanded(!filtersExpanded)}
-                        className="w-full flex items-center gap-2 px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors uppercase tracking-wider"
-                    >
-                        <Filter className="w-3.5 h-3.5" />
-                        <span>Filters</span>
-                        {activeFilterCount > 0 && (
-                            <span className="px-1.5 py-0.5 text-xs font-bold bg-primary text-primary-foreground rounded-md">
-                                {activeFilterCount}
-                            </span>
-                        )}
-                        <ChevronDown className={`w-4 h-4 ml-auto transition-transform duration-200 ${filtersExpanded ? 'rotate-180' : ''}`} />
+            <div className="res-filters">
+                <ResSearch id="audit-search" value={searchQuery} onChange={setSearchQuery} placeholder="Cari user, entity ID, deskripsi..." label="Cari audit log" />
+                <AuditActionFilter value={actionFilter} onChange={(a) => { setActionFilter(a); setPage(1); }} />
+                <AuditEntityFilter value={entityFilter} onChange={(e) => { setEntityFilter(e); setPage(1); }} />
+                <AuditUserFilter value={userIdFilter} onChange={(u) => { setUserIdFilter(u); setPage(1); }} />
+                <AuditDateRangePicker startDate={startDate} endDate={endDate}
+                    onStartDateChange={(d) => { setStartDate(d); setPage(1); }} onEndDateChange={(d) => { setEndDate(d); setPage(1); }} />
+                <SegmentedControl aria-label="Tampilan" className="dash-seg" value={viewMode} onValueChange={setViewMode} options={[
+                    { value: 'table', label: 'Tabel', icon: Rows3 },
+                    { value: 'timeline', label: 'Timeline', icon: GitCommitVertical },
+                ]} />
+                {hasActiveFilters && (
+                    <button type="button" className="res-reset" onClick={clearFilters}>
+                        <X aria-hidden="true" />Reset{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
                     </button>
-
-                    {/* Collapsible Filter Content */}
-                    {filtersExpanded && (
-                        <div className="flex flex-wrap items-center gap-3 px-4 pb-4">
-
-                            {/* Divider */}
-                            <div className="h-5 w-px bg-[hsl(var(--border))]" />
-
-                            {/* Action Filter - Custom Dropdown */}
-                            <AuditActionFilter
-                                value={actionFilter}
-                                onChange={(action) => {
-                                    setActionFilter(action);
-                                    setPage(1);
-                                }}
-                            />
-
-                            {/* Entity Filter - Custom Dropdown */}
-                            <AuditEntityFilter
-                                value={entityFilter}
-                                onChange={(entity) => {
-                                    setEntityFilter(entity);
-                                    setPage(1);
-                                }}
-                            />
-
-                            {/* User Filter */}
-                            <AuditUserFilter
-                                value={userIdFilter}
-                                onChange={(userId) => {
-                                    setUserIdFilter(userId);
-                                    setPage(1);
-                                }}
-                            />
-
-                            {/* Date Range */}
-                            <AuditDateRangePicker
-                                startDate={startDate}
-                                endDate={endDate}
-                                onStartDateChange={(date) => {
-                                    setStartDate(date);
-                                    setPage(1);
-                                }}
-                                onEndDateChange={(date) => {
-                                    setEndDate(date);
-                                    setPage(1);
-                                }}
-                            />
-
-                            {/* Spacer */}
-                            <div className="flex-1" />
-
-                            {/* Clear Filters */}
-                            {hasActiveFilters && (
-                                <button
-                                    onClick={clearFilters}
-                                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[hsl(var(--error-500))] bg-[hsl(var(--error-50))] dark:bg-[hsl(var(--error-500))]/10 hover:bg-[hsl(var(--error-100))] dark:hover:bg-[hsl(var(--error-500))]/20 rounded-lg transition-colors"
-                                >
-                                    <X className="w-3.5 h-3.5" />
-                                    Clear All
-                                </button>
-                            )}
-                        </div>
-                    )}
-                </div>
+                )}
             </div>
 
-            {/* Timeline View */}
-            {viewMode === 'timeline' && startDate && (
-                <div className="bg-white dark:bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-6">
-                    <AuditTimelineView date={startDate} />
-                </div>
+            {viewMode === 'timeline' && (
+                startDate ? (
+                    <section className="dash-panel dash-feed" aria-label="Timeline"><AuditTimelineView date={startDate} /></section>
+                ) : (
+                    <div className="res-table"><ResEmpty icon={Calendar} title="Pilih tanggal">Pilih tanggal mulai untuk melihat timeline.</ResEmpty></div>
+                )
             )}
 
-            {viewMode === 'timeline' && !startDate && (
-                <div className="bg-white dark:bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-12 text-center">
-                    <Calendar className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-                    <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Select a start date to view timeline</p>
-                </div>
-            )}
-
-            {/* Table View */}
             {viewMode === 'table' && (
-                <div className="bg-white dark:bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] overflow-hidden">
-                    {isLoading ? (
-                        <AuditTableSkeleton rows={8} />
-                    ) : logs.length === 0 ? (
-                        <div className="p-12 text-center">
-                            <Shield className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">No audit logs found</p>
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead>
-                                    <tr className="border-b border-[hsl(var(--border))]">
-                                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-10"></th>
-                                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                            Timestamp
-                                        </th>
-                                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                            User
-                                        </th>
-                                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                            Action
-                                        </th>
-                                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                            Entity
-                                        </th>
-                                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                            Description
-                                        </th>
-                                        <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                            IP Address
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {logs.map((log, index) => (
-                                        <React.Fragment key={log.id}>
-                                            <tr
-                                                className={cn(
-                                                    "hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors cursor-pointer group",
-                                                    index !== logs.length - 1 && "border-b border-[hsl(var(--border))]"
-                                                )}
-                                                onClick={() => toggleExpand(log.id)}
-                                            >
-                                                <td className="px-5 py-3.5">
-                                                    {(log.oldValue || log.newValue) && (
-                                                        expandedRows.has(log.id) ? (
-                                                            <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
-                                                        ) : (
-                                                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
-                                                        )
-                                                    )}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap font-mono">
-                                                    {formatDate(log.createdAt)}
-                                                </td>
-                                                <td className="px-5 py-3.5">
-                                                    <div className="flex items-center gap-2.5">
-                                                        <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                                                            <User className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-xs font-semibold text-slate-800 dark:text-white leading-tight">
-                                                                {log.user?.fullName || 'System'}
-                                                            </p>
-                                                            <p className="text-xs text-slate-400 dark:text-slate-500 leading-tight">
-                                                                {log.user?.email || '-'}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-5 py-3.5">
-                                                    <div className="flex items-center gap-2">
-                                                        <ActionIcon action={log.action} />
-                                                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                                                            {ACTION_CONFIG[log.action]?.label || log.action}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-5 py-3.5">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="px-2 py-0.5 text-xs font-semibold bg-[hsl(var(--primary))]/10 text-primary rounded-md capitalize">
-                                                            {log.entityType}
-                                                        </span>
-                                                        {log.entityId && (
-                                                            (() => {
-                                                                const getEntityLink = () => {
-                                                                    switch (log.entityType.toLowerCase()) {
-                                                                        case 'ticket':
-                                                                            return `/tickets/${log.entityId}`;
-                                                                        case 'user':
-                                                                            return `/admin/agents`;
-                                                                        case 'article':
-                                                                            return `/knowledge-base/articles/${log.entityId}`;
-                                                                        default:
-                                                                            return null;
-                                                                    }
-                                                                };
-                                                                const link = getEntityLink();
-
-                                                                return link ? (
-                                                                    <Link
-                                                                        to={link}
-                                                                        onClick={(e) => e.stopPropagation()}
-                                                                        className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 bg-slate-100 dark:bg-slate-800 hover:bg-[hsl(var(--primary))]/10 px-2 py-0.5 rounded-md font-mono transition-colors group/link"
-                                                                    >
-                                                                        #{log.entityId.slice(0, 8)}
-                                                                        <ExternalLink className="w-3 h-3 opacity-0 group-hover/link:opacity-100 transition-opacity" />
-                                                                    </Link>
-                                                                ) : (
-                                                                    <code className="text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md font-mono">
-                                                                        #{log.entityId.slice(0, 8)}
-                                                                    </code>
-                                                                );
-                                                            })()
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-500 dark:text-slate-400 max-w-xs truncate">
-                                                    {log.description || '-'}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-400 dark:text-slate-500 font-mono">
-                                                    {log.ipAddress || '-'}
-                                                </td>
-                                            </tr>
-                                            {/* Expanded Details Row */}
-                                            {expandedRows.has(log.id) && (log.oldValue || log.newValue) && (
-                                                <tr className="bg-slate-50/50 dark:bg-slate-800/20">
-                                                    <td colSpan={7} className="px-5 py-4">
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            {log.oldValue && (
-                                                                <div>
-                                                                    <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                                                                        Previous Value
-                                                                    </h4>
-                                                                    <pre className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-[hsl(var(--card))] p-3 rounded-lg overflow-auto max-h-40 border border-[hsl(var(--border))] font-mono">
-                                                                        {JSON.stringify(log.oldValue, null, 2)}
-                                                                    </pre>
-                                                                </div>
-                                                            )}
-                                                            {log.newValue && (
-                                                                <div>
-                                                                    <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                                                                        New Value
-                                                                    </h4>
-                                                                    <pre className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-[hsl(var(--card))] p-3 rounded-lg overflow-auto max-h-40 border border-[hsl(var(--border))] font-mono">
-                                                                        {JSON.stringify(log.newValue, null, 2)}
-                                                                    </pre>
-                                                                </div>
-                                                            )}
-                                                            <div className="col-span-2">
-                                                                <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                                                                    Full Description
-                                                                </h4>
-                                                                <p className="text-xs text-slate-700 dark:text-slate-300 bg-white dark:bg-[hsl(var(--card))] p-3 rounded-lg border border-[hsl(var(--border))]">
-                                                                    {log.description || 'No description provided.'}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </React.Fragment>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-
-                    {/* Pagination */}
-                    {meta && meta.totalPages > 1 && (
-                        <div className="px-5 py-3.5 border-t border-[hsl(var(--border))] flex items-center justify-between">
-                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                                Showing {(meta.page - 1) * meta.limit + 1} to{' '}
-                                {Math.min(meta.page * meta.limit, meta.total)} of {meta.total} entries
-                            </p>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                    disabled={page === 1}
-                                    className="px-3.5 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 disabled:opacity-40 disabled:cursor-not-allowed transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out"
-                                >
-                                    Previous
-                                </button>
-                                <span className="px-3 py-2 text-xs font-bold text-slate-800 dark:text-white tabular-nums">
-                                    {page} / {meta.totalPages}
-                                </span>
-                                <button
-                                    onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
-                                    disabled={page >= meta.totalPages}
-                                    className="px-3.5 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 disabled:opacity-40 disabled:cursor-not-allowed transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out"
-                                >
-                                    Next
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                <ResTable label="Audit log" cols={AUDIT_COLS} colsMobile="22px minmax(0,1fr) auto"
+                    head={logs.length > 0 ? <><span /><span>Timestamp</span><span>User</span><span>Action</span><span>Entity</span><span>Description</span><span>IP Address</span></> : undefined}
+                    foot={(
+                        <>
+                            <span>{meta ? `Menampilkan ${meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1}–${Math.min(meta.page * meta.limit, meta.total)} dari ${meta.total} log` : ''}</span>
+                            <span className="res-foot-right">
+                                <span className="res-muted">Klik baris untuk melihat perubahan nilai</span>
+                                {meta && <ResPager page={page} totalPages={meta.totalPages} onChange={setPage} />}
+                            </span>
+                        </>
+                    )}>
+                    {isLoading ? <ResSkeletonRows rows={8} /> : logs.length === 0 ? (
+                        <ResEmpty icon={FileSearch} title="Tidak ada audit log">Coba ubah filter atau kata kunci.</ResEmpty>
+                    ) : logs.map((log) => {
+                        const open = expandedRows.has(log.id);
+                        const hasDiff = Boolean(log.oldValue || log.newValue);
+                        const cfg = ACTION_CONFIG[log.action];
+                        const link = log.entityId ? entityLink(log) : null;
+                        const detailId = `audit-detail-${log.id}`;
+                        const name = log.user?.fullName || 'System';
+                        return (
+                            <React.Fragment key={log.id}>
+                                {/* Mouse: anywhere on the row toggles; keyboard/AT: the disclosure button in the first cell. */}
+                                <ResRow className={cn('is-link', open && 'is-open')} onClick={() => toggleExpand(log.id)}>
+                                    <button type="button" className="res-row-toggle grid place-items-center" aria-expanded={open} aria-controls={detailId}
+                                        aria-label={`${open ? 'Tutup' : 'Buka'} detail log ${cfg?.label ?? log.action}`}
+                                        onClick={(e) => { e.stopPropagation(); toggleExpand(log.id); }}>
+                                        <ChevronRight className="res-chev" aria-hidden="true" />
+                                    </button>
+                                    <span className="res-date text-left">{formatDate(log.createdAt)}</span>
+                                    <div className="queue-person res-hide-m">
+                                        {log.user ? <DashAvatar name={name} /> : <span className="dash-avatar" style={{ ['--c' as string]: 'var(--dash-gray)' }}><Cpu className="w-3.5 h-3.5" aria-hidden="true" /></span>}
+                                        <div className="min-w-0"><b>{name}</b>{log.user?.email && <small>{log.user.email}</small>}</div>
+                                    </div>
+                                    <span><ResBub color={cfg?.hue ?? 'var(--dash-gray)'}>{cfg?.label ?? log.action}</ResBub></span>
+                                    <span className="res-cell res-hide-m">
+                                        <b className="capitalize">{ENTITY_TYPE_LABELS[log.entityType] ?? log.entityType}</b>{' '}
+                                        {log.entityId && (link ? (
+                                            <Link to={link} onClick={(e) => e.stopPropagation()} className="font-mono text-[11.5px] text-[hsl(var(--idesk-sapphire))] hover:underline">#{log.entityId.slice(0, 8)}</Link>
+                                        ) : <span className="font-mono text-[11.5px] res-muted">#{log.entityId.slice(0, 8)}</span>)}
+                                    </span>
+                                    <span className="res-cell res-hide-m" title={log.description ?? undefined}>{log.description || '—'}</span>
+                                    <span className="res-cell is-mono res-hide-m">{log.ipAddress || '—'}</span>
+                                </ResRow>
+                                {open && (
+                                    <div role="row" className="res-row-detail res-row-drawer pt-3">
+                                        <div role="cell" aria-colspan={7}>
+                                        <section id={detailId} aria-label={`Detail ${cfg?.label ?? log.action}`}>
+                                        {hasDiff && (
+                                            <div className="mg-diff mb-2">
+                                                <div><small>Sebelum</small>{fmtJson(log.oldValue)}</div>
+                                                <div><small>Sesudah</small>{fmtJson(log.newValue)}</div>
+                                            </div>
+                                        )}
+                                        <p className="m-0 text-xs text-[hsl(var(--idesk-text-secondary))]"><b className="text-[hsl(var(--idesk-text))]">Full Description:</b> {log.description || 'No description provided.'}</p>
+                                        </section>
+                                        </div>
+                                    </div>
+                                )}
+                            </React.Fragment>
+                        );
+                    })}
+                </ResTable>
             )}
         </div>
     );
