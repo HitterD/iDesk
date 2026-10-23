@@ -86,7 +86,7 @@ describe('ZoomBookingModal', () => {
         expect(onClose).toHaveBeenCalled();
     });
 
-    it('renders estimated end time pill when start time is provided', () => {
+    it('summarises the chosen slot (date, start-end, duration) when a start time is preselected', () => {
         render(
             <ZoomBookingModal
                 open
@@ -100,8 +100,8 @@ describe('ZoomBookingModal', () => {
             { wrapper }
         );
 
-        expect(screen.getByText(/Estimasi:/i)).toBeInTheDocument();
-        expect(screen.getByText(/09:00 - 10:00 WIB/i)).toBeInTheDocument();
-        expect(screen.getByText(/Selesai pukul 10:00/i)).toBeInTheDocument();
+        // Default one hour after the preselected start, shown in the picker summary.
+        expect(screen.getByRole('status')).toHaveTextContent(/kamis, 3 sep · 09\.00–10\.00 WIB · 1 jam/i);
+        expect(screen.getByPlaceholderText(/Ketik atau pilih/)).toHaveValue('09.00');
     });
 });

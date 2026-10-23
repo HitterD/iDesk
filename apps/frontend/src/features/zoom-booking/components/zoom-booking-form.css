@@ -1,0 +1,28 @@
+/* Zoom booking form on the app's field grammar: one height, border, radius and focus ring for every control.
+   Scoped to .zb-form because the shared Input/Textarea still carry the old glass style elsewhere. */
+.zb-form label { font-size: 13px; font-weight: 600; color: hsl(var(--idesk-text)); }
+.zb-form label svg { color: hsl(var(--idesk-text-secondary)); }
+
+.zb-form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.zb-form textarea,
+.zb-form button[role="combobox"] {
+  border: 1px solid hsl(var(--idesk-border)); border-radius: 10px; background: hsl(var(--idesk-surface));
+  box-shadow: none; backdrop-filter: none; font-size: 14px; color: hsl(var(--idesk-text));
+  transition: border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
+}
+.zb-form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.zb-form button[role="combobox"] { height: 40px; }
+.zb-form textarea { min-height: 84px; padding: 10px 12px; resize: vertical; }
+.zb-form input::placeholder, .zb-form textarea::placeholder { color: var(--td-text-3); }
+.zb-form input:hover:not(:focus):not(:disabled), .zb-form textarea:hover:not(:focus), .zb-form button[role="combobox"]:hover { border-color: hsl(var(--idesk-text-secondary) / .45); }
+.zb-form input:focus-visible, .zb-form textarea:focus-visible, .zb-form button[role="combobox"]:focus-visible,
+.zb-form input:focus, .zb-form textarea:focus {
+  outline: none; border-color: hsl(var(--idesk-sapphire)); box-shadow: 0 0 0 3px hsl(var(--idesk-sapphire) / .16);
+}
+
+/* Participant picker: its own wrapper is the field; the inner input stays bare. */
+.zb-form [class*="min-h-[42px]"] { border-radius: 10px; border-color: hsl(var(--idesk-border)); background: hsl(var(--idesk-surface)); }
+.zb-form [class*="min-h-[42px]"] input { height: 30px !important; border: 0 !important; box-shadow: none !important; background: transparent !important; }
+
+/* Sticky footer matches the dialog chrome */
+.zb-form > div:last-child { background: var(--zb-sheet); border-top-color: hsl(var(--idesk-border) / .8); }

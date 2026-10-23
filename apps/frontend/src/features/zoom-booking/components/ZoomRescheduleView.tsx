@@ -1,25 +1,19 @@
 /**
- * ZoomRescheduleView — panel-based reschedule form.
- * Extracted from RescheduleModal (no Dialog wrapper).
+ * ZoomRescheduleView: move a booking to a free slot on the same Zoom account (so its link stays valid).
+ * Availability is shown up front (ZoomSlotPicker), and the old and new times are compared before saving.
  */
-import { useState, useMemo, useEffect } from 'react';
-import { format, addDays } from 'date-fns';
+import { useEffect, useMemo, useState } from 'react';
+import { format, parseISO } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { Video, Clock, AlertTriangle, CalendarIcon } from 'lucide-react';
+import { ArrowRight, Video } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
+import { cn } from '@/lib/utils';
 import type { ZoomBooking } from '../types';
 import { useRescheduleOwnBooking, useZoomCalendar, usePublicZoomSettings } from '../hooks/useZoomBooking';
 import { ZOOM_DURATION_OPTIONS } from '../constants/duration-constants';
+import { clashWith, endsBeforeMidnight, fromMinutes, occupants, toMinutes } from '../utils/slotAvailability';
+import { ZoomSlotPicker } from './ZoomSlotPicker';
 
 interface ZoomRescheduleViewProps {
     booking: ZoomBooking;
@@ -27,96 +21,68 @@ interface ZoomRescheduleViewProps {
     onSuccess?: () => void;
 }
 
+type Scope = 'this' | 'following' | 'all';
+const SCOPES: { value: Scope; label: string }[] = [
+    { value: 'this', label: 'Hanya jadwal ini' },
+    { value: 'following', label: 'Ini & berikutnya' },
+    { value: 'all', label: 'Semua dalam seri' },
+];
+const DEFAULT_ADVANCE_DAYS = 30;
+
+const hhmm = (time: string) => time.substring(0, 5);
+const dayLabel = (date: string) => format(parseISO(date), 'EEEE, d MMM yyyy', { locale: idLocale });
+
+function slotTimes(start = '08:00', end = '18:00', interval = 30): string[] {
+    const times: string[] = [];
+    for (let m = toMinutes(start); m < toMinutes(end); m += interval) times.push(fromMinutes(m));
+    return times;
+}
+
 export function ZoomRescheduleView({ booking, onClose, onSuccess }: ZoomRescheduleViewProps) {
-    const [selectedDate, setSelectedDate] = useState<Date>(new Date(booking.bookingDate));
-    const [selectedTime, setSelectedTime] = useState<string>(booking.startTime.substring(0, 5));
-    const [selectedDuration, setSelectedDuration] = useState<number>(booking.durationMinutes);
-    const [scope, setScope] = useState<'this' | 'following' | 'all'>('this');
+    const [date, setDate] = useState(booking.bookingDate);
+    const [startTime, setStartTime] = useState(hhmm(booking.startTime));
+    const [duration, setDuration] = useState(booking.durationMinutes);
+    const [scope, setScope] = useState<Scope>('this');
 
     const reschedule = useRescheduleOwnBooking();
     const { data: settings } = usePublicZoomSettings();
+    const { data: calendar, isFetching } = useZoomCalendar(booking.zoomAccountId, date, date);
 
-    // Reset when booking changes
     useEffect(() => {
-        setSelectedDate(new Date(booking.bookingDate));
-        setSelectedTime(booking.startTime.substring(0, 5));
-        setSelectedDuration(booking.durationMinutes);
+        setDate(booking.bookingDate);
+        setStartTime(hhmm(booking.startTime));
+        setDuration(booking.durationMinutes);
     }, [booking]);
 
-    const dateRange = useMemo(() => {
-        const start = format(selectedDate, 'yyyy-MM-dd');
-        return { start, end: start };
-    }, [selectedDate]);
-
-    const { data: calendarData } = useZoomCalendar(
-        booking.zoomAccountId,
-        dateRange.start,
-        dateRange.end
+    const times = useMemo(
+        () => slotTimes(settings?.slotStartTime, settings?.slotEndTime, settings?.slotIntervalMinutes || 30),
+        [settings],
     );
+    const durations = useMemo(() => {
+        const allowed = settings?.allowedDurations?.length ? settings.allowedDurations : ZOOM_DURATION_OPTIONS.slice(0, 6).map((o) => o.value);
+        return [...new Set([...allowed, booking.durationMinutes])].sort((a, b) => a - b);
+    }, [settings, booking.durationMinutes]);
 
-    const timeOptions = useMemo(() => {
-        if (!settings) return [];
-        const options: string[] = [];
-        const [startH, startM] = settings.slotStartTime.split(':').map(Number);
-        const [endH, endM] = settings.slotEndTime.split(':').map(Number);
-        const interval = settings.slotIntervalMinutes || 30;
-        let h = startH;
-        let m = startM;
-        while (h < endH || (h === endH && m < endM)) {
-            options.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
-            m += interval;
-            if (m >= 60) { h += Math.floor(m / 60); m = m % 60; }
-        }
-        return options;
-    }, [settings]);
+    const slots = calendar?.find((d) => d.date === date)?.slots;
+    const clash = startTime ? clashWith(occupants(slots, booking.id), startTime, duration) : undefined;
+    const fitsDay = startTime ? endsBeforeMidnight(startTime, duration) : false;
+    const changed = date !== booking.bookingDate || startTime !== hhmm(booking.startTime) || duration !== booking.durationMinutes;
+    const canSave = changed && Boolean(startTime) && fitsDay && !clash && !isFetching && !reschedule.isPending;
 
-    const hasConflict = useMemo(() => {
-        if (!calendarData || !selectedTime) return false;
-        const dateStr = format(selectedDate, 'yyyy-MM-dd');
-        const dayData = calendarData.find((d) => d.date === dateStr);
-        if (!dayData) return false;
-
-        const [startH, startM] = selectedTime.split(':').map(Number);
-        const endMinutes = startH * 60 + startM + selectedDuration;
-        const endH = Math.floor(endMinutes / 60);
-        const endM = endMinutes % 60;
-        const endTime = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
-
-        return dayData.slots.some((slot) => {
-            if (slot.status !== 'booked' && slot.status !== 'my_booking') return false;
-            if (slot.booking?.id === booking.id) return false;
-            return slot.time >= selectedTime && slot.time < endTime;
-        });
-    }, [calendarData, selectedDate, selectedTime, selectedDuration, booking.id]);
-
-    const isPastMidnight = useMemo(() => {
-        if (!selectedTime) return false;
-        const [startH, startM] = selectedTime.split(':').map(Number);
-        return (startH * 60 + startM + selectedDuration) > 24 * 60;
-    }, [selectedTime, selectedDuration]);
-
-    const isChanged =
-        format(selectedDate, 'yyyy-MM-dd') !== booking.bookingDate ||
-        selectedTime !== booking.startTime.substring(0, 5) ||
-        selectedDuration !== booking.durationMinutes;
+    // A new day may not offer the old start time; make the user pick one there rather than keep a hidden value.
+    const changeDate = (next: string) => {
+        setDate(next);
+        if (next !== date) setStartTime('');
+    };
 
     const handleSubmit = async () => {
-        if (!selectedDate || !selectedTime) return;
-        if (isPastMidnight) {
-            toast.error('Meeting tidak boleh melewati pukul 23:59. Silakan pilih jam mulai yang lebih awal atau kurangi durasi.');
-            return;
-        }
+        if (!canSave) return;
         try {
             await reschedule.mutateAsync({
                 bookingId: booking.id,
-                data: {
-                    bookingDate: format(selectedDate, 'yyyy-MM-dd'),
-                    startTime: selectedTime,
-                    durationMinutes: selectedDuration,
-                    scope: booking.seriesId ? scope : undefined,
-                },
+                data: { bookingDate: date, startTime, durationMinutes: duration, scope: booking.seriesId ? scope : undefined },
             });
-            toast.success('Booking berhasil dijadwalkan ulang');
+            toast.success('Jadwal meeting berhasil dipindah');
             onSuccess?.();
             onClose();
         } catch (error: any) {
@@ -124,143 +90,65 @@ export function ZoomRescheduleView({ booking, onClose, onSuccess }: ZoomReschedu
         }
     };
 
-    const originalDate = new Date(booking.bookingDate);
+    const newEnd = startTime ? fromMinutes(toMinutes(startTime) + duration) : '';
 
     return (
-        <div className="p-6 space-y-5">
-            {/* Current booking info */}
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 shadow-sm">
-                <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 shrink-0">
-                        <Video className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold text-sm text-slate-900 dark:text-white tracking-tight truncate">{booking.title}</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                            <span className="font-medium text-slate-700 dark:text-slate-300">Jadwal saat ini:</span>{' '}
-                            {format(originalDate, 'EEEE, d MMMM yyyy', { locale: idLocale })} • {booking.startTime.substring(0, 5)} - {booking.endTime.substring(0, 5)}
-                        </p>
-                    </div>
+        <div className="zr">
+            <div className="zr-current">
+                <span className="zr-ico"><Video aria-hidden="true" /></span>
+                <div className="min-w-0">
+                    <b className="truncate block">{booking.title}</b>
+                    <small>
+                        Saat ini: <span className="capitalize">{dayLabel(booking.bookingDate)}</span> · {hhmm(booking.startTime).replace(':', '.')}–{hhmm(booking.endTime).replace(':', '.')} WIB
+                    </small>
                 </div>
             </div>
 
-            {/* New date */}
-            <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <CalendarIcon className="h-3.5 w-3.5 text-blue-500" />
-                    Tanggal Baru
-                </Label>
-                <ModernDatePicker
-                    value={selectedDate}
-                    onChange={(date) => setSelectedDate(date)}
-                    minDate={new Date()}
-                    maxDate={settings ? addDays(new Date(), settings.advanceBookingDays) : undefined}
-                    triggerClassName="h-11 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-xl text-sm hover:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 shadow-none transition-colors"
-                />
-            </div>
+            <ZoomSlotPicker
+                date={date}
+                onDateChange={changeDate}
+                startTime={startTime}
+                onStartTimeChange={setStartTime}
+                duration={duration}
+                onDurationChange={setDuration}
+                slots={slots}
+                loading={isFetching}
+                times={times}
+                durations={durations}
+                workingDays={settings?.workingDays}
+                maxDaysAhead={settings?.advanceBookingDays ?? DEFAULT_ADVANCE_DAYS}
+                excludeBookingId={booking.id}
+                current={{ date: booking.bookingDate, startTime: hhmm(booking.startTime) }}
+            />
 
-            {/* New time */}
-            <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5 text-blue-500" />
-                    Waktu Baru
-                </Label>
-                <Select value={selectedTime} onValueChange={setSelectedTime}>
-                    <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 hover:border-blue-500/50 shadow-none transition-colors">
-                        <SelectValue placeholder="Pilih waktu" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 max-h-60">
-                        {timeOptions.map((time) => (
-                            <SelectItem key={time} value={time} className="text-slate-900 dark:text-white focus:bg-slate-100 dark:focus:bg-slate-700 cursor-pointer">
-                                <div className="flex items-center gap-2 font-medium">
-                                    <Clock className="h-3.5 w-3.5 text-slate-400" />
-                                    {time}
-                                </div>
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-
-            {/* Duration */}
-            <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5 text-blue-500" />
-                    Durasi (menit)
-                </Label>
-                <Select
-                    value={selectedDuration.toString()}
-                    onValueChange={(v) => setSelectedDuration(parseInt(v))}
-                >
-                    <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 hover:border-blue-500/50 shadow-none transition-colors">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 max-h-60">
-                        {ZOOM_DURATION_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value.toString()} className="text-slate-900 dark:text-white focus:bg-slate-100 dark:focus:bg-slate-700 cursor-pointer">
-                                <span className="font-medium">{opt.label}</span>
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-
-            {/* Midnight warning */}
-            {isPastMidnight && (
-                <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 text-xs">
-                    <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-                    <p className="font-medium leading-relaxed">
-                        Meeting tidak boleh melewati pukul 23:59. Silakan pilih jam mulai yang lebih awal atau kurangi durasi.
-                    </p>
-                </div>
-            )}
-
-            {/* Warning block */}
-            <div className="flex items-start gap-2.5 p-3.5 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50 rounded-xl text-xs mt-4">
-                <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                <p className="leading-relaxed">
-                    Waktu yang tersedia disesuaikan dengan ketersediaan akun Zoom saat ini untuk memastikan <b>Link Zoom tidak berubah</b>.
-                </p>
-            </div>
-
-            {/* Scope Selection for Recurring */}
             {booking.seriesId && (
-                <div className="space-y-2.5 pt-3 border-t border-slate-200 dark:border-slate-800">
-                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Terapkan Perubahan Untuk:</Label>
-                    <Select value={scope} onValueChange={(val: any) => setScope(val)}>
-                        <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-xl text-sm">
-                            <SelectValue placeholder="Pilih jadwal yang diubah" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                            <SelectItem value="this">Hanya jadwal ini</SelectItem>
-                            <SelectItem value="following">Jadwal ini dan selanjutnya</SelectItem>
-                            <SelectItem value="all">Semua jadwal dalam seri</SelectItem>
-                        </SelectContent>
-                    </Select>
+                <div className="zr-scope">
+                    <span className="zsp-label" id="zr-scope">Terapkan ke</span>
+                    <div className="zsp-durations" role="radiogroup" aria-labelledby="zr-scope">
+                        {SCOPES.map((s) => (
+                            <button key={s.value} type="button" role="radio" aria-checked={scope === s.value}
+                                className={cn('zsp-chip', scope === s.value && 'is-selected')} onClick={() => setScope(s.value)}>
+                                {s.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             )}
 
-            {/* Conflict warning */}
-            {hasConflict && (
-                <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 text-xs">
-                    <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-                    <p className="font-medium leading-relaxed">
-                        Waktu yang dipilih bertabrakan dengan booking lain.
-                    </p>
+            {changed && startTime && (
+                <div className="zr-compare" aria-label="Perubahan jadwal">
+                    <span><small>Lama</small><b className="capitalize">{format(parseISO(booking.bookingDate), 'EEE, d MMM', { locale: idLocale })} · {hhmm(booking.startTime).replace(':', '.')}</b></span>
+                    <ArrowRight aria-hidden="true" />
+                    <span><small>Baru</small><b className="capitalize">{format(parseISO(date), 'EEE, d MMM', { locale: idLocale })} · {startTime.replace(':', '.')}–{newEnd.replace(':', '.')}</b></span>
                 </div>
             )}
 
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <Button variant="outline" onClick={onClose} className="h-11 px-5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-sm">
-                    Batal
-                </Button>
-                <Button
-                    onClick={handleSubmit}
-                    disabled={!isChanged || hasConflict || isPastMidnight || reschedule.isPending}
-                    className="h-11 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-md shadow-blue-500/20 active:scale-[0.98] disabled:opacity-50"
-                >
-                    {reschedule.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
+            <p className="zr-note">Link Zoom tidak berubah. Hanya jam kosong di akun Zoom yang sama yang bisa dipilih; peserta perlu diberi tahu jadwal barunya.</p>
+
+            <div className="zr-actions">
+                <Button variant="soft" onClick={onClose}>Batal</Button>
+                <Button variant="primary" onClick={handleSubmit} disabled={!canSave} loading={reschedule.isPending}>
+                    Simpan jadwal baru
                 </Button>
             </div>
         </div>
