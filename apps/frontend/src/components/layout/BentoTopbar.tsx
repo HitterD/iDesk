@@ -10,7 +10,7 @@ import { useAuth } from '@/stores/useAuth';
 import { cn } from '@/lib/utils';
 import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { CREATE_TICKET_LABEL, getCreateTicketPath } from './createTicketAction';
-import { TopbarGreeting, TopbarPresence } from './TopbarStatus';
+import { TopbarGreeting } from './TopbarStatus';
 
 interface UnifiedSearchResult {
     tickets: Array<{
@@ -391,7 +391,6 @@ export const BentoTopbar = () => {
             </div>
 
             <div className="idesk-topbar-right">
-                <TopbarPresence />
                 <div className="idesk-topbar-actions flex items-center gap-1.5">
                     <Link to={getCreateTicketPath(user?.role)} className="idesk-cta mr-1.5">
                         <Plus aria-hidden="true" />

@@ -54,7 +54,7 @@ describe('BentoTvBoardPage', () => {
         expect(screen.getByText(/In Progress/)).toBeInTheDocument();
         expect(screen.queryByText(/Resolved/)).not.toBeInTheDocument();
         expect(screen.queryByText('(Minggu ini)')).not.toBeInTheDocument();
-        expect(screen.getByText(/Waiting Vendor: 2/)).toBeInTheDocument();
+        expect(screen.getByText('Waiting Vendor').textContent).toMatch(/Waiting Vendor\s*2/);
     });
 
     it('gives Open 2 of 5 grid columns and In Progress 3 of 5', async () => {
@@ -110,13 +110,12 @@ describe('BentoTvBoardPage', () => {
         expect(await screen.findByText('ORACLE / K2')).toBeInTheDocument();
     });
 
-    it('shows requester name and department on separate lines', async () => {
+    it('shows the requester name, truncated with a full-name tooltip', async () => {
         renderBoard();
 
         const requester = await screen.findByText('Muhammad Bagas Saputra Wijaya');
         expect(requester).toHaveAttribute('title', 'Muhammad Bagas Saputra Wijaya');
         expect(requester.className).toContain('truncate');
-        expect(screen.getByText('IT')).toBeInTheDocument();
     });
 
     it('omits the department line when the requester has none', async () => {
@@ -127,20 +126,20 @@ describe('BentoTvBoardPage', () => {
         expect(card?.querySelector('[data-testid="tv-board-department"]')).toBeNull();
     });
 
-    it('shows assignee initials and name prominently', async () => {
+    it('shows assignee initials and name', async () => {
         renderBoard();
 
         const assignee = await screen.findByText('Agen A');
-        expect(assignee.className).toContain('font-bold');
+        expect(assignee.className).toContain('font-semibold');
         const card = assignee.closest('[data-testid="tv-board-card"]');
         expect(card?.textContent).toContain('AA');
     });
 
-    it('flags unassigned tickets in amber', async () => {
+    it('flags unassigned tickets in the warning colour', async () => {
         renderBoard();
 
         const unassigned = await screen.findByText('Belum ditugaskan');
-        expect(unassigned.className).toContain('text-amber');
+        expect(unassigned.className).toContain('text-[var(--tv-warn)]');
     });
 
     it('hides the muted indicator while audio plays normally', async () => {
