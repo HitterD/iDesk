@@ -72,6 +72,7 @@ import { isHandledByTakeoverDialog, type TakeoverOptions } from '../hooks/useSta
 import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 import { BentoTicketKanban } from '../components/BentoTicketKanban';
 import { ACTIVE_STATUS_FILTER, DONE_STATUS_FILTER } from '../constants/statusFilters';
+import { useResetPageOnChange, useTicketListUrlState } from '../hooks/useTicketListUrlState';
 import { SiteSelector } from '@/components/site/SiteSelector';
 
 const CROSS_SITE_ROLES = ['ADMIN','MANAGER','AGENT_ORACLE'] as const;
@@ -121,12 +122,14 @@ export const BentoTicketListPage: React.FC = () => {
     }, [user, navigate, playNewTicketSound, playCriticalSound]);
 
     const { isConnected } = useTicketListSocket({ onNewTicket: handleNewTicket });
-    const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<string>('');
-    const [priorityFilter, setPriorityFilter] = useState<string>('');
-    const [overdueFilter, setOverdueFilter] = useState(false);
-    const [selectedSites, setSelectedSites] = useState<string[]>([]);
-    const [currentPage, setCurrentPage] = useState(1);
+    const {
+        searchQuery, setSearchQuery,
+        statusFilter, setStatusFilter,
+        priorityFilter, setPriorityFilter,
+        overdueFilter, setOverdueFilter,
+        selectedSites, setSelectedSites,
+        currentPage, setCurrentPage,
+    } = useTicketListUrlState();
     const ITEMS_PER_PAGE = 20;
     const showAssignedToMe = searchParams.get('filter') === 'assigned_to_me';
     // Tickets I filed (for myself or on behalf of someone), from any team.
@@ -181,9 +184,7 @@ export const BentoTicketListPage: React.FC = () => {
     };
 
     // Reset to page 1 when filters change (before the query)
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [debouncedSearch, statusFilter, priorityFilter, overdueFilter, showAssignedToMe, showCreatedByMe, selectedSites]);
+    useResetPageOnChange([debouncedSearch, statusFilter, priorityFilter, overdueFilter, showAssignedToMe, showCreatedByMe, selectedSites], setCurrentPage);
 
     // Server-side paginated tickets query
     const { data: paginatedData, isLoading, isFetching } = useQuery<PaginatedResponse>({

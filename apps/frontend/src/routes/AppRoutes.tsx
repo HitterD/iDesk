@@ -6,6 +6,7 @@ import { LoadingScreen, RouteFallback } from '../components/ui/LoadingScreen';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
 import { PresenceProvider } from '../components/layout/PresenceProvider';
 import { useDesktopNotifierSync } from '../hooks/useDesktopNotifierSync';
+import { useNotificationClickRead } from '@/features/notifications/hooks/useNotificationClickRead';
 import { NotificationPermissionGate } from '../components/notifications/NotificationPermissionGate';
 
 // Eagerly loaded (critical auth path only)
@@ -166,6 +167,7 @@ export default function AppRoutes() {
     const { isRestoring } = useSessionRestore();
     useSessionTimeout();
     useDesktopNotifierSync();
+    useNotificationClickRead();
 
     if (isRestoring && !isPublicKiosk) {
         return <PageLoader />;

@@ -19,6 +19,8 @@ import { cn } from '@/lib/utils';
 import { forwardToDesktopNotifier } from '@/lib/desktopNotifier';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { getNotificationRedirectPath, type UserRole } from './utils/notificationRouter';
+import { NotificationCategory, type Notification } from './types/notification.types';
 
 /** Only toasts backed by a stored notification carry a uuid id; synthetic ones cannot be marked read. */
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -237,12 +239,12 @@ export const InAppNotificationToast: React.FC = () => {
                 .catch(() => undefined);
         }
 
-        // Navigate based on notification type
-        if (notification.link) {
-            navigate(notification.link);
-        } else if (notification.ticketId) {
-            const basePath = user?.role === 'USER' ? '/client/tickets' : '/tickets';
-            navigate(`${basePath}/${notification.ticketId}`);
+        // Same routing as the bell: links are written for agents, requesters and managers have their own pages.
+        if (notification.link || notification.ticketId) {
+            navigate(getNotificationRedirectPath(
+                { link: notification.link, ticketId: notification.ticketId, category: NotificationCategory.CATEGORY_TICKET } as Notification,
+                (user?.role ?? 'USER') as UserRole,
+            ));
         }
     }, [navigate, removeNotification, user?.role, queryClient]);
 

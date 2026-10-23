@@ -33,6 +33,9 @@ vi.mock('../../notifications/ActionCommandCenter', () => ({
 vi.mock('../../ui/ThemeToggle', () => ({
     ThemeToggle: () => <button type="button">Switch theme</button>,
 }));
+vi.mock('../../notifications/InAppNotificationToast', () => ({
+    InAppNotificationToast: () => null,
+}));
 vi.mock('@/features/client/components/UserGuidebookModal', () => ({
     UserGuidebookModal: () => null,
 }));

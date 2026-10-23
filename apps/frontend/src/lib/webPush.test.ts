@@ -5,10 +5,13 @@ import { ensurePushSubscription, getNotificationSupport, releasePushSubscription
 vi.mock('./api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
 
 const ENDPOINT = 'https://push.example/abc';
+const SERVER_KEY = 'BEl6';
+const keyBytes = (base64: string) => Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)).buffer;
 
-function installBrowser(permission: NotificationPermission, existing: boolean) {
+function installBrowser(permission: NotificationPermission, existing: boolean, subscribedWithKey = SERVER_KEY) {
     const subscription = {
         endpoint: ENDPOINT,
+        options: { applicationServerKey: keyBytes(subscribedWithKey) },
         toJSON: () => ({ endpoint: ENDPOINT, keys: { p256dh: 'p', auth: 'a' } }),
         unsubscribe: vi.fn().mockResolvedValue(true),
     };
@@ -34,7 +37,7 @@ function installBrowser(permission: NotificationPermission, existing: boolean) {
 describe('webPush', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        (api.get as any).mockResolvedValue({ data: { isConfigured: true, publicKey: 'BEl6' } });
+        (api.get as any).mockResolvedValue({ data: { isConfigured: true, publicKey: SERVER_KEY } });
         (api.post as any).mockResolvedValue({ data: {} });
     });
     afterEach(() => vi.unstubAllGlobals());
@@ -60,6 +63,14 @@ describe('webPush', () => {
         await ensurePushSubscription();
         expect(pushManager.subscribe).not.toHaveBeenCalled();
         expect(api.post).toHaveBeenCalledWith('/notifications/push/subscribe', expect.anything());
+    });
+
+    it('replaces a subscription made with an old server key', async () => {
+        const { pushManager, subscription } = installBrowser('granted', true, 'AAAA');
+
+        await expect(ensurePushSubscription()).resolves.toBe(true);
+        expect(subscription.unsubscribe).toHaveBeenCalled();
+        expect(pushManager.subscribe).toHaveBeenCalled();
     });
 
     it('does nothing without permission or server keys', async () => {

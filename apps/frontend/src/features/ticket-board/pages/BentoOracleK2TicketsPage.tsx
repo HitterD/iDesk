@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { TicketListSkeleton } from '../components/TicketListSkeleton';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useResetPageOnChange, useTicketListUrlState } from '../hooks/useTicketListUrlState';
 import { useTicketListSocket } from '@/hooks/useTicketSocket';
 import { useOracleK2Tickets } from '../hooks/useOracleK2Tickets';
 import { useAuth } from '@/stores/useAuth';
@@ -53,11 +54,13 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const { user } = useAuth();
 
-    const [searchInput, setSearchInput] = useState('');
-    const [statusFilter, setStatusFilter] = useState<string>('');
-    const [priorityFilter, setPriorityFilter] = useState<string>('');
-    const [selectedSites, setSelectedSites] = useState<string[]>([]);
-    const [currentPage, setCurrentPage] = useState(1);
+    const {
+        searchQuery: searchInput, setSearchQuery: setSearchInput,
+        statusFilter, setStatusFilter,
+        priorityFilter, setPriorityFilter,
+        selectedSites, setSelectedSites,
+        currentPage, setCurrentPage,
+    } = useTicketListUrlState();
     const showAssignedToMe = searchParams.get('filter') === 'assigned_to_me';
     const showCreatedByMe = searchParams.get('filter') === 'created_by_me';
 
@@ -73,14 +76,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
 
     const debouncedSearch = useDebounce(searchInput, 300);
 
-    useEffect(() => {
-        const page = parseInt(searchParams.get('page') || '1', 10);
-        if (!isNaN(page) && page > 0) setCurrentPage(page);
-    }, [searchParams]);
-
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [debouncedSearch, statusFilter, priorityFilter, selectedSites, showAssignedToMe, showCreatedByMe]);
+    useResetPageOnChange([debouncedSearch, statusFilter, priorityFilter, selectedSites, showAssignedToMe, showCreatedByMe], setCurrentPage);
 
     const { data, isLoading, isError, refetch, isFetching } = useOracleK2Tickets({
         page: currentPage,

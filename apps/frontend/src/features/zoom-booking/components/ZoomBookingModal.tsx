@@ -50,9 +50,9 @@ export function ZoomBookingModal({
     const isMobile = useMediaQuery('(max-width: 767px)');
 
     const TITLES: Record<typeof mode, string> = {
-        booking: 'Book Meeting',
-        detail: 'Detail Meeting',
-        reschedule: 'Reschedule Meeting',
+        booking: 'Booking meeting Zoom',
+        detail: 'Detail meeting',
+        reschedule: 'Jadwalkan ulang meeting',
     };
 
     return (
@@ -67,7 +67,7 @@ export function ZoomBookingModal({
                 <DialogTitle className="sr-only">{TITLES[mode]}</DialogTitle>
 
                 {/* Header — only the title; close button is provided by DialogContent */}
-                <div className="flex items-center px-5 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0">
+                <div className="flex items-center px-5 py-3.5 border-b border-[hsl(var(--idesk-border))] shrink-0">
                     <h2 className="font-semibold text-base">{TITLES[mode]}</h2>
                 </div>
 

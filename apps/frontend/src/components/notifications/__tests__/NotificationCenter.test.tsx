@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 vi.mock('../DesktopAppDownloadBanner', () => ({ DesktopAppDownloadBanner: () => null }));
+vi.mock('../BrowserNotificationStatus', () => ({ BrowserNotificationStatus: () => null }));
 const now = new Date().toISOString();
 const base = {
     activeTab: 'all', setActiveTab: vi.fn(), readFilter: 'all', setReadFilter: vi.fn(), searchQuery: '', setSearchQuery: vi.fn(),
@@ -32,7 +33,7 @@ describe('NotificationCenter (round-2 layout)', () => {
     it('shows category stat cards with unread / total, critical banner and Hari ini group', () => {
         renderIt();
         expect(screen.getByRole('heading', { level: 1, name: 'Notification Center' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Tickets: 1 belum dibaca dari 4' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Tiket: 1 belum dibaca dari 4' })).toBeInTheDocument();
         expect(screen.getByRole('alert')).toHaveTextContent('1 notifikasi kritis belum dikonfirmasi');
         expect(screen.getByText('Hari ini')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Buka Zoom' })).toBeInTheDocument();

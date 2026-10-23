@@ -66,6 +66,20 @@ a.dash-bub:focus-visible, button.dash-bub:focus-visible { outline: 0; box-shadow
 .mg-banner.is-warn .mg-banner-ico { background: var(--dash-orange); }
 .mg-banner.is-crit { background: color-mix(in srgb, var(--dash-red) 8%, hsl(var(--idesk-surface))); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dash-red) 24%, transparent); }
 .mg-banner.is-crit .mg-banner-ico { background: var(--dash-red); }
+/* Notification Center: the optional desktop app, folded away under the browser status */
+.nc-desktop { margin-bottom: 12px; border-radius: 18px; background: hsl(var(--idesk-surface)); box-shadow: inset 0 0 0 1px hsl(var(--idesk-border)); }
+.nc-desktop > summary { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; list-style: none; border-radius: 18px; }
+.nc-desktop > summary::-webkit-details-marker { display: none; }
+.nc-desktop > summary:hover { background: var(--td-fill); }
+.nc-desktop > summary:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
+.nc-desktop > summary > svg:first-child { width: 18px; height: 18px; color: hsl(var(--idesk-text-secondary)); flex: none; }
+.nc-desktop > summary span { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.nc-desktop > summary b { font-size: 14px; font-weight: 600; }
+.nc-desktop > summary small { font-size: 12px; color: hsl(var(--idesk-text-secondary)); }
+.nc-desktop-chevron { width: 16px; height: 16px; color: var(--td-text-3); transition: transform var(--dur-2) var(--ease-out); }
+.nc-desktop[open] .nc-desktop-chevron { transform: rotate(180deg); }
+.nc-desktop[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; box-shadow: inset 0 -1px 0 hsl(var(--idesk-border) / .7); }
+.nc-desktop > :not(summary) { margin: 12px; }
 
 /* Service map */
 .mg-svc-map { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px 32px; align-items: center; padding: 8px 4px; }

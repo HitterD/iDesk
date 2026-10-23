@@ -9,9 +9,9 @@ import { NOTIFICATIONS_READ_EVENT, useMarkNotificationsRead, useNotificationsRea
 vi.mock('@/lib/api', () => ({ default: { post: vi.fn() } }));
 vi.mock('@/stores/useAuth', () => ({ useAuth: () => ({ user: { id: 'u-1' } }) }));
 
-const handlers = new Map<string, () => void>();
+const handlers = new Map<string, (payload?: unknown) => void>();
 const fakeSocket = {
-    on: vi.fn((event: string, handler: () => void) => handlers.set(event, handler)),
+    on: vi.fn((event: string, handler: (payload?: unknown) => void) => handlers.set(event, handler)),
     off: vi.fn((event: string) => handlers.delete(event)),
 };
 vi.mock('@/lib/socket', () => ({ useSocket: () => ({ socket: fakeSocket, isConnected: true }) }));
@@ -52,6 +52,32 @@ describe('useMarkNotificationsRead', () => {
         rerender();
 
         await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+    });
+
+    it('marks a notification read when it arrives while its page is open', async () => {
+        vi.mocked(api.post).mockResolvedValue({ data: { updated: 1 } });
+        const { wrapper } = setup();
+        renderHook(() => useMarkNotificationsRead({ ticketId: 't-1' }), { wrapper });
+        await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+
+        // A reply about another ticket is left alone; one about this ticket is read at once (once, despite two events).
+        handlers.get('notification:u-1')?.({ id: 'n-2', ticketId: 't-9', isRead: false });
+        handlers.get('notification:u-1')?.({ id: 'n-3', ticketId: 't-1', isRead: false });
+        handlers.get('notification:new')?.({ userId: 'u-1', notification: { id: 'n-3', ticketId: 't-1', isRead: false } });
+
+        await waitFor(() => expect(api.post).toHaveBeenCalledTimes(2));
+        expect(api.post).toHaveBeenLastCalledWith('/notifications/read-by-target', { ticketId: 't-1' }, { skipToast: true });
+    });
+
+    it('matches hardware step references to their request', async () => {
+        vi.mocked(api.post).mockResolvedValue({ data: { updated: 1 } });
+        const { wrapper } = setup();
+        renderHook(() => useMarkNotificationsRead({ referenceId: 'hw-1' }), { wrapper });
+        await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+
+        handlers.get('notification:u-1')?.({ id: 'n-4', referenceId: 'hw-1_APPROVAL', isRead: false });
+
+        await waitFor(() => expect(api.post).toHaveBeenCalledTimes(2));
     });
 
     it('waits until the id is known', () => {

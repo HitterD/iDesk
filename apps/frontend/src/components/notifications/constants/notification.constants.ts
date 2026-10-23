@@ -61,7 +61,7 @@ export const NOTIFICATION_ICONS: Record<NotificationType, any> = {
 
 export const CATEGORY_CONFIG: Record<NotificationCategory, { label: string; icon: any; color: string; bgColor: string; darkColor: string; darkBgColor: string }> = {
     [NotificationCategory.CATEGORY_TICKET]: {
-        label: 'Tickets',
+        label: 'Tiket',
         icon: Ticket,
         color: 'text-blue-600',
         bgColor: 'bg-blue-50',
@@ -69,7 +69,7 @@ export const CATEGORY_CONFIG: Record<NotificationCategory, { label: string; icon
         darkBgColor: 'bg-blue-500/10',
     },
     [NotificationCategory.CATEGORY_RENEWAL]: {
-        label: 'Renewals',
+        label: 'Renewal',
         icon: FileText,
         color: 'text-orange-600',
         bgColor: 'bg-orange-50',

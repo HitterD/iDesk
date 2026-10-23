@@ -5,6 +5,7 @@ import { Response } from 'express';
 import { Ticket } from '../ticketing/entities/ticket.entity';
 import { TICKET_DONE_STATUSES_SQL } from '../ticketing/utils/ticket-status-sql.util';
 import { User } from '../users/entities/user.entity';
+import { Site } from '../sites/entities/site.entity';
 import { AgentPerformanceReport } from './generators/agent-performance.report';
 import { TicketVolumeReport } from './generators/ticket-volume.report';
 import { PDFGeneratorService } from './generators/pdf-generator.service';
@@ -147,7 +148,7 @@ export class ReportsService {
             summarySheet,
             `LAPORAN EKSEKUTIF BULANAN (MONTHLY REPORT) — ${monthName.toUpperCase()} ${year}`,
             `${monthName} ${year}`,
-            this.scopeLabel(scope, 'PT Santos Jaya Abadi — All Sites'),
+            await this.scopeLabel(scope, 'PT Santos Jaya Abadi — All Sites'),
             'F'
         );
 
@@ -309,9 +310,14 @@ export class ReportsService {
         return this.ticketVolumeReport.generate({ startDate, endDate }, scope);
     }
 
-    /** Header label for exports: "<site> — <team>". */
-    private scopeLabel(scope: ReportScope, allSitesLabel = 'Semua Site'): string {
-        return `${scope.siteId ? `Site ${scope.siteId}` : allSitesLabel} — ${teamLabel(scope.team)}`;
+    /** Header label for exports: "<site name> (<code>) — <team>", never the raw site id. */
+    private async scopeLabel(scope: ReportScope, allSitesLabel = 'Semua Site'): Promise<string> {
+        let siteLabel = allSitesLabel;
+        if (scope.siteId) {
+            const site = await this.ticketRepo.manager.findOne(Site, { where: { id: scope.siteId }, select: ['id', 'code', 'name'] });
+            siteLabel = site ? `${site.name} (${site.code})` : 'Site tidak dikenal';
+        }
+        return `${siteLabel} — ${teamLabel(scope.team)}`;
     }
 
     /**
@@ -324,7 +330,7 @@ export class ReportsService {
         await this.pdfGenerator.generateAgentPerformancePDF(res, report.data, {
             title: 'Laporan Kinerja Teknisi (Agent Performance)',
             dateRange: { startDate, endDate },
-            siteName: this.scopeLabel(scope),
+            siteName: await this.scopeLabel(scope),
         });
 
         if (userId) {
@@ -346,7 +352,7 @@ export class ReportsService {
         await this.pdfGenerator.generateTicketVolumePDF(res, report.data, {
             title: 'Laporan Volume & Distribusi Tiket',
             dateRange: { startDate, endDate },
-            siteName: this.scopeLabel(scope),
+            siteName: await this.scopeLabel(scope),
         });
 
         if (userId) {
@@ -370,7 +376,7 @@ export class ReportsService {
         await this.pdfGenerator.generateMonthlySummaryPDF(res, stats, {
             title: 'Laporan Ringkasan Bulanan (Monthly Summary)',
             subtitle: `${monthName} ${year}`,
-            siteName: this.scopeLabel(scope, 'Seluruh Site PT Santos Jaya Abadi'),
+            siteName: await this.scopeLabel(scope, 'Seluruh Site PT Santos Jaya Abadi'),
         });
 
         if (userId) {
@@ -422,7 +428,7 @@ export class ReportsService {
             dashSheet,
             'LAPORAN KOMPREHENSIF LAYANAN IT (COMPREHENSIVE REPORT)',
             periodText,
-            this.scopeLabel(scope, 'PT Santos Jaya Abadi — All Sites'),
+            await this.scopeLabel(scope, 'PT Santos Jaya Abadi — All Sites'),
             'F'
         );
 

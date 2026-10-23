@@ -9,6 +9,7 @@ import { useMyPermissions } from '@/hooks/usePermissions';
 import { ClientTopbar, type ClientNavItem } from './ClientTopbar';
 import { ClientBottomNav } from './ClientBottomNav';
 import { CLIENT_ROUTES } from '@/config/routes';
+import { InAppNotificationToast } from '@/components/notifications/InAppNotificationToast';
 
 const CLIENT_HOME_PATH = CLIENT_ROUTES.MY_TICKETS;
 const CLIENT_PROFILE_PATH = CLIENT_ROUTES.PROFILE;
@@ -86,6 +87,11 @@ export const ClientLayout: React.FC = () => {
 
             {/* Guidebook Onboarding Modal for USER role */}
             <UserGuidebookModal />
+
+            {/* Live notification toasts (requesters get them too, not just the bell badge) */}
+            <div className="print:hidden">
+                <InAppNotificationToast />
+            </div>
 
             {/* Sapphire top band: brand, navigation segment, utilities, create CTA, account menu */}
             <motion.div
