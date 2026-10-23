@@ -317,6 +317,25 @@ textarea:focus {
   color: hsl(var(--foreground));
 }
 .idesk-shell-chrome { color: hsl(var(--idesk-chrome-foreground)); }
+/* Batik kopi: a gold kawung of coffee beans, used as an accent only where the reference (iPop) uses its motif:
+   the page-context band left of the topbar search and the foot of the sidebar. Everything else stays plain. */
+.idesk-shell { --batik-kopi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56' fill='none' stroke='%23E6BC5C' stroke-width='1.1' stroke-linecap='round'%3E%3Cellipse cx='28' cy='14.5' rx='6.2' ry='10.5'/%3E%3Cpath d='M28 5.5c-2.6 3.6 2.6 9.4 0 18'/%3E%3Cellipse cx='28' cy='41.5' rx='6.2' ry='10.5'/%3E%3Cpath d='M28 32.5c-2.6 3.6 2.6 9.4 0 18'/%3E%3Cellipse cx='14.5' cy='28' rx='10.5' ry='6.2'/%3E%3Cpath d='M5.5 28c3.6-2.6 9.4 2.6 18 0'/%3E%3Cellipse cx='41.5' cy='28' rx='10.5' ry='6.2'/%3E%3Cpath d='M32.5 28c3.6-2.6 9.4 2.6 18 0'/%3E%3Ccircle cx='28' cy='28' r='1.6' fill='%23E6BC5C' stroke='none'/%3E%3Cpath d='M0 3.2v-3.2h3.2M52.8 0H56v3.2M56 52.8V56h-3.2M3.2 56H0v-3.2' stroke-width='1'/%3E%3C/svg%3E"); }
+.topbar-greeting::before, .idesk-sidebar::after {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  background: var(--batik-kopi) 0 0 / 72px 72px; opacity: .16;
+}
+.topbar-greeting::before {
+  inset: 0 0 0 -18px;
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 35%, transparent 100%);
+          mask-image: linear-gradient(90deg, #000 0, #000 35%, transparent 100%);
+}
+.idesk-sidebar::after {
+  left: 0; right: 0; bottom: 0; height: 34%;
+  -webkit-mask-image: linear-gradient(0deg, #000 0, rgb(0 0 0 / .55) 45%, transparent 100%);
+          mask-image: linear-gradient(0deg, #000 0, rgb(0 0 0 / .55) 45%, transparent 100%);
+}
+.dark .topbar-greeting::before, .dark .idesk-sidebar::after { opacity: .1; }
+@media print { .topbar-greeting::before, .idesk-sidebar::after { display: none; } }
 .idesk-sheet {
   background: hsl(var(--shell-sheet));
   color: hsl(var(--foreground));
@@ -475,6 +494,20 @@ textarea:focus {
 /* Agent topbar: search centred between equal flexible sides (mockup .search { margin: 0 auto }). */
 .idesk-topbar-agent { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr); align-items: center; column-gap: 16px; }
 .idesk-topbar-search-slot { width: min(520px, 40vw); min-width: 0; }
+/* Topbar sides (were empty): greeting + WIB clock on the left, live status before the actions on the right. */
+.topbar-greeting { position: relative; isolation: isolate; align-self: stretch; display: flex; flex-direction: column; justify-content: center; min-width: 0; padding-left: 6px; line-height: 1.25; }
+.topbar-greeting b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 650; letter-spacing: -.01em; color: #fff; }
+.topbar-greeting span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: hsl(var(--idesk-chrome-muted)); font-variant-numeric: tabular-nums; }
+.idesk-topbar-right { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: max-content; }
+.topbar-presence {
+  display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; border-radius: 999px; white-space: nowrap;
+  background: hsl(0 0% 100% / .09); box-shadow: inset 0 0 0 1px hsl(0 0% 100% / .14);
+  font-size: 12px; font-weight: 550; color: hsl(var(--idesk-chrome-foreground)); font-variant-numeric: tabular-nums;
+}
+.topbar-presence i { width: 7px; height: 7px; border-radius: 50%; background: #34c759; box-shadow: 0 0 0 3px rgb(52 199 89 / .25); }
+.topbar-presence.is-off i { background: #f5a524; box-shadow: 0 0 0 3px rgb(245 165 36 / .25); }
+@media (max-width: 1279.98px) { .topbar-greeting { visibility: hidden; } }
+@media (max-width: 1149.98px) { .topbar-presence { display: none; } }
 /* Fill stays at .10 in every state so the .9 placeholder keeps >=4.5:1 on the lightest chrome
    (#2D4A8C under the 7% radial highlight = 4.85:1); hover/focus are signalled by border and ring only. */
 .idesk-topbar-search {
@@ -1327,6 +1360,24 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .chat-sys .chat-sys-ic svg { width: 12px; height: 12px; }
 .chat-sys small { color: var(--td-text-3); font-size: 11px; }
 .chat-sys b { color: hsl(var(--idesk-text)); font-weight: 600; }
+/* Structured activity (ActivityEvent): who acted, each change as "field  old -> new", then their reason. */
+.act-event { margin: 14px auto; width: min(520px, 100%); padding: 10px 14px 11px; border-radius: 14px;
+  background: hsl(var(--idesk-surface)); box-shadow: inset 0 0 0 .5px var(--td-line-strong); font-size: 12.5px; color: hsl(var(--idesk-text-secondary)); }
+.act-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.act-head > span:not(.act-avatar) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-head b { color: hsl(var(--idesk-text)); font-weight: 600; }
+.act-head time { margin-left: auto; padding-left: 10px; font-size: 11px; color: var(--td-text-3); font-variant-numeric: tabular-nums; }
+.act-avatar { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--td-accent-soft);
+  color: hsl(var(--idesk-sapphire)); font-size: 9.5px; font-weight: 700; letter-spacing: .02em; }
+.act-changes { display: grid; gap: 5px; margin: 8px 0 0; padding: 8px 0 0 30px; list-style: none; border-top: .5px solid var(--td-line); }
+.act-changes li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 7px; min-width: 0; }
+.act-field { min-width: 76px; color: var(--td-text-3); font-size: 11.5px; }
+.act-changes b { color: hsl(var(--idesk-text)); font-weight: 600; }
+.act-from { opacity: .72; }
+.act-arrow { width: 12px; height: 12px; flex: none; color: var(--td-text-3); }
+.act-empty { font-style: italic; color: var(--td-text-3); }
+.act-pill.ticket-pill { min-height: 20px; padding: 0 8px; font-size: 11px; }
+.act-reason { margin: 7px 0 0 30px; padding-left: 9px; border-left: 2px solid var(--td-line-strong); font-size: 12px; color: hsl(var(--idesk-text)); }
 .chat-event { --c: hsl(var(--ticket-amber)); margin: 14px auto; width: min(460px, 100%); background: hsl(var(--idesk-surface)); border-radius: 16px; box-shadow: var(--queue-card-shadow); padding: 12px 14px; display: grid; gap: 10px; text-align: left; }
 .chat-event .chat-event-h { display: flex; gap: 10px; align-items: center; }
 .chat-event .chat-event-ic { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center; color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
@@ -1413,6 +1464,12 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .td-sla-bar { height: 6px; border-radius: 3px; background: var(--td-fill-2); overflow: hidden; }
 .td-sla-bar > i { display: block; height: 100%; border-radius: 3px; }
 .td-kvs { display: grid; margin-top: 4px; }
+/* Waiting Vendor appointment row: the time (red once it has passed) and a quiet reschedule capsule. */
+.td-vendor-visit { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px 8px; }
+.td-vendor-visit .is-late { color: hsl(var(--ticket-red-ink)); font-weight: 600; }
+.td-vendor-visit-edit { padding: 2px 9px; border-radius: 999px; background: var(--td-accent-soft); color: hsl(var(--idesk-sapphire)); font-size: 11.5px; font-weight: 600; cursor: pointer; transition: background-color var(--dur-1) var(--ease-out); }
+.td-vendor-visit-edit:hover { background: hsl(var(--idesk-sapphire) / .16); }
+.td-vendor-visit-edit:focus-visible { outline: 0; box-shadow: var(--td-ring); }
 .td-kvs > div { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-top: .5px solid var(--td-line); font-size: 12.5px; }
 .td-kvs > div > span { color: hsl(var(--idesk-text-secondary)); flex: none; }
 .td-kvs > div > b { font-weight: 550; min-width: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

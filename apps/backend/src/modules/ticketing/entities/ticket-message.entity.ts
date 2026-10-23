@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { Ticket } from './ticket.entity';
 import { User } from '../../users/entities/user.entity';
+import type { TicketSystemEvent } from '../utils/ticket-activity.util';
 
 export interface AttachmentInfo {
     path: string;
@@ -44,6 +45,10 @@ export class TicketMessage {
 
     @Column({ default: false })
     isSystemMessage: boolean;
+
+    /** Structured activity (actor, field changes, reason) for system messages; null on older ones. */
+    @Column({ type: 'jsonb', nullable: true })
+    systemEvent: TicketSystemEvent | null;
 
     // Internal notes are only visible to agents/admins, not customers
     @Column({ default: false })

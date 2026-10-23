@@ -251,6 +251,14 @@ export class Ticket {
     @Column({ type: 'timestamp', nullable: true })
     waitingVendorAt: Date | null;
 
+    /** Agreed vendor visit / response time while WAITING_VENDOR; null otherwise. */
+    @Column({ type: 'timestamp', nullable: true })
+    vendorVisitAt: Date | null;
+
+    /** Pending ticket reminder that warns the PIC before vendorVisitAt; cancelled on reschedule or status change. */
+    @Column({ type: 'uuid', nullable: true })
+    vendorVisitReminderId: string | null;
+
     /** Resolution SLA minutes left when the clock was paused (waiting vendor or resolved); null while running. */
     @Column({ type: 'int', nullable: true })
     slaRemainingMinutes: number | null;

@@ -83,8 +83,7 @@ describe('Ticket Authorization Object Checks', () => {
                 isUserEligible: jest.fn().mockResolvedValue(true),
                 describeModule: jest.fn().mockResolvedValue('modul ini'),
                 toAssignable: jest.fn((t: any) => t),
-            } as any, createTestSlaClock(),
-        );
+            } as any, createTestSlaClock(), { resolveVisit: () => new Date(Date.now() + 86_400_000), schedule: jest.fn(), clear: jest.fn(), note: () => '' } as any);
     });
 
     it('prevents non-Oracle agent from fetching messages of Oracle ticket', async () => {

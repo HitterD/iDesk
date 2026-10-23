@@ -26,6 +26,7 @@ import { SelectCheckbox } from './BulkActionsBar';
 import { TicketQuickPreview } from '@/components/ui/TicketQuickPreview';
 import { isTerminalStatus } from './ticket-detail/constants';
 import { ResolveTicketModal } from './ticket-detail/ResolveTicketModal';
+import { VendorVisitDialog } from './ticket-detail/VendorVisitDialog';
 import { getStaggeredDelay, StopPropagationWrapper } from '../utils/listUtils';
 import { useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
 import { TicketRowActions } from './TicketRowActions';
@@ -131,6 +132,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
     const [mobileAssignOpen, setMobileAssignOpen] = useState(false);
     const [reassignModalOpen, setReassignModalOpen] = useState(false);
     const [resolveModalOpen, setResolveModalOpen] = useState(false);
+    const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
     const [targetAgentToAssign, setTargetAgentToAssign] = useState<TargetAgentInfo | null>(null);
     const isCritical = ticket.priority === 'CRITICAL';
     const showCriticalIndicator = isCritical && !isTerminalStatus(ticket.status);
@@ -151,6 +153,10 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
     const handleStatusChange = (newStatus: string) => {
         if (newStatus === 'RESOLVED') {
             setResolveModalOpen(true);
+            return;
+        }
+        if (newStatus === 'WAITING_VENDOR') {
+            setVendorDialogOpen(true);
             return;
         }
         statusTakeover
@@ -494,6 +500,21 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
 
             {/* PIC takeover confirmation when starting a ticket handled by another agent */}
             {statusTakeover.dialogProps && <ReassignConfirmDialog {...statusTakeover.dialogProps} />}
+
+            {/* Waiting Vendor asks when the vendor is expected */}
+            <VendorVisitDialog
+                isOpen={vendorDialogOpen}
+                onClose={() => setVendorDialogOpen(false)}
+                mode="start"
+                ticket={{ id: ticket.id, ticketNumber: ticket.ticketNumber, title: ticket.title }}
+                onConfirm={async (vendorVisitAt) => {
+                    setVendorDialogOpen(false);
+                    await statusTakeover
+                        .request(ticket, 'WAITING_VENDOR', (takeover) =>
+                            onUpdateStatus(ticket.id, 'WAITING_VENDOR', undefined, undefined, { ...takeover, vendorVisitAt }))
+                        .catch(() => undefined); // already reported by the status mutation's onError
+                }}
+            />
 
             {/* Resolve Confirmation Modal with Explanation and Proof Attachments */}
             <ResolveTicketModal

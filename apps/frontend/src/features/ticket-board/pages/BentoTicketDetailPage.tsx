@@ -11,7 +11,7 @@ import { ImageLightbox } from '../components/ticket-detail/ImageLightbox';
 import { TicketHeader } from '../components/ticket-detail/TicketHeader';
 import { TicketChat } from '../components/ticket-detail/TicketChat';
 import { TicketHistory } from '../components/ticket-detail/TicketHistory';
-import { TicketSidebar } from '../components/ticket-detail/TicketSidebar';
+import { TicketSidebar, type StatusChangeExtra } from '../components/ticket-detail/TicketSidebar';
 import { TicketForwardDialog, type ForwardTargetTeam } from '../components/TicketForwardDialog';
 import { ExtendSlaModal } from '../components/ticket-detail/ExtendSlaModal';
 import { SetTicketReminderModal } from '../components/ticket-detail/SetTicketReminderModal';
@@ -189,11 +189,11 @@ export const BentoTicketDetailPage: React.FC = () => {
     const { request: requestStatusTakeover } = statusTakeover;
 
     // Status changes go through the PIC takeover confirmation (skipToast: its 409 opens a dialog).
-    const handleStatusChange = useCallback(async (status: string) => {
+    const handleStatusChange = useCallback(async (status: string, extra?: StatusChangeExtra) => {
         if (!ticket) return;
         const send = async (takeover: TakeoverOptions) => {
             try {
-                await api.patch(`/tickets/${id}/status`, { status, ...takeover }, { skipToast: true });
+                await api.patch(`/tickets/${id}/status`, { status, ...takeover, ...extra }, { skipToast: true });
             } catch (err) {
                 if (!isHandledByTakeoverDialog(err, takeover)) toast.error(getApiErrorMessage(err, 'Failed to update status'));
                 throw err;
@@ -211,14 +211,15 @@ export const BentoTicketDetailPage: React.FC = () => {
         field: 'assignee' | 'status' | 'priority' | 'category' | 'device',
         value: string,
         reasonOrNote?: string,
-        files?: File[]
+        files?: File[],
+        extra?: StatusChangeExtra,
     ) => {
         if (field === 'status' && value === 'RESOLVED') {
             await handleResolveTicket(reasonOrNote, files);
             return;
         }
         if (field === 'status') {
-            await handleStatusChange(value);
+            await handleStatusChange(value, extra);
             return;
         }
 
@@ -246,6 +247,18 @@ export const BentoTicketDetailPage: React.FC = () => {
             throw new Error(`Failed to update ${field}`);
         }
     }, [id, queryClient, handleResolveTicket, handleStatusChange]);
+
+    const handleRescheduleVendorVisit = useCallback(async (vendorVisitAt: string) => {
+        try {
+            await api.patch(`/tickets/${id}/vendor-visit`, { vendorVisitAt }, { skipToast: true });
+            toast.success('Jadwal vendor diperbarui');
+            queryClient.invalidateQueries({ queryKey: ['ticket', id] });
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+        } catch (err) {
+            toast.error(getApiErrorMessage(err, 'Gagal mengubah jadwal vendor'));
+            throw err;
+        }
+    }, [id, queryClient]);
 
     const handleForwardTicket = useCallback(async (targetTeam: ForwardTargetTeam, reason: string) => {
         try {
@@ -465,7 +478,8 @@ export const BentoTicketDetailPage: React.FC = () => {
                                     slaConfigs={slaConfigs}
                                     attributes={attributes}
                                     onAssigneeChange={(v, reason) => handleFieldChange('assignee', v, reason)}
-                                    onStatusChange={(v, note, files) => handleFieldChange('status', v, note, files)}
+                                    onStatusChange={(v, note, files, extra) => handleFieldChange('status', v, note, files, extra)}
+                                    onRescheduleVendorVisit={handleRescheduleVendorVisit}
                                     onPriorityChange={(v) => handleFieldChange('priority', v)}
                                     onCategoryChange={(v) => handleFieldChange('category', v)}
                                     onDeviceChange={(v) => handleFieldChange('device', v)}
@@ -492,7 +506,8 @@ export const BentoTicketDetailPage: React.FC = () => {
                             slaConfigs={slaConfigs}
                             attributes={attributes}
                             onAssigneeChange={(v, reason) => handleFieldChange('assignee', v, reason)}
-                            onStatusChange={(v, note, files) => handleFieldChange('status', v, note, files)}
+                            onStatusChange={(v, note, files, extra) => handleFieldChange('status', v, note, files, extra)}
+                                    onRescheduleVendorVisit={handleRescheduleVendorVisit}
                             onPriorityChange={(v) => handleFieldChange('priority', v)}
                             onCategoryChange={(v) => handleFieldChange('category', v)}
                             onDeviceChange={(v) => handleFieldChange('device', v)}

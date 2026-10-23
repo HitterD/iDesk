@@ -63,6 +63,7 @@ import { TicketChatPushListener } from './listeners/ticket-chat-push.listener';
 
 import { TicketReminder } from './entities/ticket-reminder.entity';
 import { TicketReminderService } from './services/ticket-reminder.service';
+import { TicketVendorVisitService } from './services/ticket-vendor-visit.service';
 import { TicketReminderSchedulerService } from './services/ticket-reminder-scheduler.service';
 import { TicketAssignment } from './entities/ticket-assignment.entity';
 import { AgentRating } from './entities/agent-rating.entity';
@@ -128,6 +129,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         TicketForwardService,
         TicketReminderService,
         TicketReminderSchedulerService,
+        TicketVendorVisitService,
         TimeTrackingService,
         TicketResolutionService,
         AgentRatingService,

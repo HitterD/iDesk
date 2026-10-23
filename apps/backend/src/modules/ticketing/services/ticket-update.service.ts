@@ -1,6 +1,6 @@
 import { Injectable, Inject, NotFoundException, BadRequestException, ForbiddenException, forwardRef, Optional, Logger } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
-import { Repository, In, DataSource } from 'typeorm';
+import { Repository, In, DataSource, EntityManager } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ticket, TicketStatus, HandlingTeam, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
@@ -24,6 +24,8 @@ import { validateTicketSiteAccess } from '../utils/site-access.util';
 import { ModuleAssignmentPolicyService } from './module-assignment-policy.service';
 import { computeResolutionDeadline, TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService } from './sla-clock.service';
+import { TicketVendorVisitService, formatVendorVisit } from './ticket-vendor-visit.service';
+import { TicketSystemEvent, diffActivity, snapshotTicket, systemEvent } from '../utils/ticket-activity.util';
 import {
     AppliedTakeover, ModuleEligibility, TakeoverEffectDeps, TakeoverOptions, applyTakeoverDecision, decideBulkTakeovers,
     describeReassignment, ineligibleAssigneeMessage, recordStatusTakeover, resolveStatusTakeover,
@@ -57,17 +59,20 @@ export class TicketUpdateService {
         private readonly workloadService: WorkloadService,
         private readonly assignmentPolicy: ModuleAssignmentPolicyService,
         private readonly slaClock: SlaClockService,
+        private readonly vendorVisit: TicketVendorVisitService,
     ) { }
 
     async updateTicket(
-        ticketId: string, updateData: Partial<Ticket>, userId: string, takeoverOpts: TakeoverOptions = {},
+        ticketId: string, ticketUpdate: Partial<Ticket> & { vendorVisitRequest?: string }, userId: string, takeoverOpts: TakeoverOptions = {},
     ): Promise<Ticket> {
+        // Not a column: the requested vendor appointment only matters to the WAITING_VENDOR transition.
+        const { vendorVisitRequest, ...updateData } = ticketUpdate;
         // P1 fix: status transition, priority change, slaTarget recompute, and
         // ticket save were separate awaits. A crash mid-sequence left the
         // ticket in a half-mutated state. Now atomic via dataSource.transaction.
         // postUpdateActions (events, audit) stays outside so listeners fire on
         // commit, not before.
-        const { savedTicket, user, changes, oldStatus, takeover } = await this.dataSource.transaction(async (manager) => {
+        const { savedTicket, user, changes, oldStatus, takeover, before } = await this.dataSource.transaction(async (manager) => {
             const ticket = await manager.findOne(Ticket, {
                 where: { id: ticketId },
                 relations: ['user', 'participants', 'assignedTo'],
@@ -95,13 +100,14 @@ export class TicketUpdateService {
 
             const changes: string[] = [];
             const oldStatus = ticket.status;
+            const before = snapshotTicket(ticket);
             // Throws 409 before anything is written when a non-PIC starts the ticket unconfirmed.
             const decision = updateData.status
                 ? await resolveStatusTakeover(ticket, updateData.status, oldStatus, user, takeoverOpts, this.moduleEligibilityOf(user))
                 : null;
 
             if (updateData.status && updateData.status !== ticket.status) {
-                await this.applyStatusTransition(ticket, oldStatus, updateData.status, changes, user, manager);
+                await this.applyStatusTransition(ticket, oldStatus, updateData.status, changes, user, manager, vendorVisitRequest);
             }
             const takeover = decision ? applyTakeoverDecision(ticket, user, decision, changes) : null;
 
@@ -112,10 +118,11 @@ export class TicketUpdateService {
             // Apply updates
             Object.assign(ticket, updateData);
             const savedTicket = await manager.save(Ticket, ticket);
-            return { savedTicket, user, changes, oldStatus, takeover };
+            return { savedTicket, user, changes, oldStatus, takeover, before };
         });
 
-        await this.postUpdateActions(savedTicket, user, changes, oldStatus, ticketId, userId);
+        const activity = systemEvent(user, diffActivity(before, snapshotTicket(savedTicket)), takeover?.reason ?? null);
+        await this.postUpdateActions(savedTicket, user, changes, oldStatus, ticketId, userId, activity);
         if (takeover) {
             await recordStatusTakeover(this.takeoverDeps, savedTicket, user, takeover.previous, takeover.reason);
         }
@@ -137,7 +144,8 @@ export class TicketUpdateService {
     }
 
     private async applyStatusTransition(
-        ticket: Ticket, oldStatus: TicketStatus, newStatus: TicketStatus, changes: string[], user: User, manager?: any
+        ticket: Ticket, oldStatus: TicketStatus, newStatus: TicketStatus, changes: string[], user: User, manager: EntityManager,
+        vendorVisitRequest?: string,
     ): Promise<void> {
         changes.push(`Status changed from ${oldStatus} to ${newStatus}`);
 
@@ -147,9 +155,12 @@ export class TicketUpdateService {
 
         if (newStatus === TicketStatus.WAITING_VENDOR) {
             await this.pauseForVendor(ticket);
-            await this.handleWaitingVendorStatus(ticket, user, manager);
+            const visitAt = this.vendorVisit.resolveVisit(vendorVisitRequest);
+            await this.vendorVisit.schedule(manager, ticket, visitAt, user.id);
+            changes.push(`Janji vendor: ${formatVendorVisit(visitAt)}`);
         } else if (oldStatus === TicketStatus.WAITING_VENDOR) {
             this.endVendorPause(ticket);
+            await this.vendorVisit.clear(manager, ticket);
         }
 
         if (newStatus === TicketStatus.RESOLVED) {
@@ -218,14 +229,18 @@ export class TicketUpdateService {
     }
 
     /** SLA side of a bulk status change: same clock rules as a single update. */
-    private async applyBulkStatusSla(ticket: Ticket, oldStatus: TicketStatus, newStatus: TicketStatus): Promise<void> {
+    private async applyBulkStatusSla(
+        ticket: Ticket, oldStatus: TicketStatus, newStatus: TicketStatus, manager: EntityManager, actorId: string,
+    ): Promise<void> {
         if (newStatus === TicketStatus.IN_PROGRESS && oldStatus === TicketStatus.TODO && !ticket.slaStartedAt) {
             await this.slaClock.startResolution(ticket);
         }
         if (newStatus === TicketStatus.WAITING_VENDOR) {
             await this.pauseForVendor(ticket);
+            await this.vendorVisit.schedule(manager, ticket, this.vendorVisit.resolveVisit(), actorId);
         } else if (oldStatus === TicketStatus.WAITING_VENDOR) {
             this.endVendorPause(ticket);
+            await this.vendorVisit.clear(manager, ticket);
         }
         if (newStatus === TicketStatus.RESOLVED) {
             await this.openConfirmationWindow(ticket);
@@ -235,7 +250,8 @@ export class TicketUpdateService {
     }
 
     private async postUpdateActions(
-        savedTicket: Ticket, user: User, changes: string[], oldStatus: TicketStatus, ticketId: string, userId: string
+        savedTicket: Ticket, user: User, changes: string[], oldStatus: TicketStatus, ticketId: string, userId: string,
+        activity?: TicketSystemEvent,
     ): Promise<void> {
         await this.cacheInvalidationService.onTicketChange(savedTicket.id);
 
@@ -263,6 +279,7 @@ export class TicketUpdateService {
                 ticket: savedTicket,
                 senderId: user.id,
                 isSystemMessage: true,
+                systemEvent: activity && activity.changes.length > 0 ? activity : null,
             });
             await this.messageRepo.save(systemMessage);
 
@@ -331,6 +348,7 @@ export class TicketUpdateService {
                 content: systemMessageContent,
                 ticket: savedTicket,
                 senderId: assigner.id,
+                systemEvent: systemEvent(assigner, [{ field: 'assignee', from: oldAssigneeId ? oldAssigneeName : null, to: null }], reason),
                 isSystemMessage: true,
             });
             await this.messageRepo.save(systemMessage);
@@ -440,6 +458,7 @@ export class TicketUpdateService {
             ticket: savedTicket,
             senderId: assigner.id,
             isSystemMessage: true,
+            systemEvent: systemEvent(assigner, [{ field: 'assignee', from: oldAssigneeId ? oldAssigneeName : null, to: assignee.fullName }], reason),
         });
         await this.messageRepo.save(systemMessage);
 
@@ -528,6 +547,7 @@ export class TicketUpdateService {
         }
 
         const oldStatus = ticket.status;
+        const previousStatus = ticket.status;
         ticket.status = TicketStatus.CANCELLED;
         const savedTicket = await this.ticketRepo.save(ticket);
 
@@ -539,6 +559,7 @@ export class TicketUpdateService {
             ticket: savedTicket,
             senderId: userId,
             isSystemMessage: true,
+            systemEvent: systemEvent(user, [{ field: 'status', from: previousStatus, to: TicketStatus.CANCELLED }], reason),
         });
         await this.messageRepo.save(systemMessage);
 
@@ -652,6 +673,7 @@ export class TicketUpdateService {
             for (const ticket of tickets) {
                 try {
                     const changes: string[] = [];
+                    const before = snapshotTicket(ticket);
 
                     if (ticket.status === TicketStatus.CLOSED || takeoverPlan.denied.has(ticket.id)) {
                         failed.push(ticket.id);
@@ -664,7 +686,7 @@ export class TicketUpdateService {
                             continue;
                         }
                         changes.push(`Status: ${ticket.status} → ${updateData.status}`);
-                        await this.applyBulkStatusSla(ticket, ticket.status, updateData.status);
+                        await this.applyBulkStatusSla(ticket, ticket.status, updateData.status, queryRunner.manager, userId);
                         ticket.status = updateData.status;
                         const decision = takeoverPlan.decisions.get(ticket.id);
                         const takeover = decision ? applyTakeoverDecision(ticket, user, decision, changes) : null;
@@ -697,6 +719,7 @@ export class TicketUpdateService {
                             ticket,
                             senderId: userId,
                             isSystemMessage: true,
+                            systemEvent: systemEvent(user, diffActivity(before, snapshotTicket(ticket)), updateData.reason ?? null),
                         });
                         await queryRunner.manager.save(TicketMessage, systemMessage);
 
@@ -877,62 +900,5 @@ export class TicketUpdateService {
         this.logger.log(`Soft-deleted ${tickets.length} ticket(s) by user ${userId}`);
 
         return { deleted: tickets.length, failed };
-    }
-
-    /**
-     * Handle WAITING_VENDOR status change
-     * - Add system message to ticket notes/discussion
-     */
-    private async handleWaitingVendorStatus(ticket: Ticket, changedBy: User, _manager?: any): Promise<void> {
-        const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
-
-        // Calculate next Thursday (vendor visit day)
-        const nextThursday = this.getNextThursday();
-        const formattedDate = nextThursday.toLocaleDateString('id-ID', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-        });
-
-        // === 1. Add System Message to Notes & Discussion ===
-        const systemNote = `⏳ Status Tiket Diubah ke Waiting Vendor
-
-📋 Tiket ini menunggu kunjungan vendor.
-📅 Jadwal vendor datang: Setiap hari Kamis
-📆 Perkiraan kunjungan terdekat: ${formattedDate}
-
-ℹ️ Estimasi waktu tunggu minimal: 1 minggu
-👤 Diubah oleh: ${changedBy.fullName}
-🕐 Waktu: ${new Date().toLocaleString('id-ID')}
-
----
-SLA Timer di-pause selama menunggu vendor.`;
-
-        const systemMessage = this.messageRepo.create({
-            content: systemNote,
-            ticket,
-            senderId: changedBy.id,
-            isSystemMessage: true,
-        });
-        await this.messageRepo.save(systemMessage);
-
-        // Emit WebSocket event for real-time update
-        this.eventsGateway.notifyNewMessage(ticket.id, systemMessage);
-    }
-
-    /**
-     * Get next Thursday date (vendor visit day)
-     */
-    private getNextThursday(): Date {
-        const now = new Date();
-        const dayOfWeek = now.getDay(); // 0 = Sunday, 4 = Thursday
-        const daysUntilThursday = (4 - dayOfWeek + 7) % 7 || 7; // If today is Thursday, get next week
-
-        const nextThursday = new Date(now);
-        nextThursday.setDate(now.getDate() + daysUntilThursday);
-        nextThursday.setHours(9, 0, 0, 0); // Set to 9 AM
-
-        return nextThursday;
     }
 }

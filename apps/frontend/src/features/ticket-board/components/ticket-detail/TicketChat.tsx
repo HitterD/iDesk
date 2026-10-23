@@ -6,6 +6,7 @@ import { CLOSED_TICKET_NOTICE } from './constants';
 import { MessageAttachments } from './MessageAttachments';
 import { SystemMessageEvent } from './SystemMessageEvent';
 import { MessageBubble } from './MessageBubble';
+import { ActivityEvent } from './ActivityEvent';
 import { ChatComposer, ReplyTarget, STICKERS } from './ChatComposer';
 import {
     continuesGroup,
@@ -383,13 +384,16 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                 <React.Fragment key={message.id}>
                                     {separator}
                                     <div className="chat-system-event" data-system-event={message.id}>
-                                        <SystemMessageEvent
+                                        {message.systemEvent?.changes?.length ? (
+                                            <ActivityEvent event={message.systemEvent} createdAt={message.createdAt}
+                                                audience={isAgentView ? 'staff' : 'requester'} />
+                                        ) : <SystemMessageEvent
                                             audience={isAgentView ? 'staff' : 'requester'}
                                             content={message.content}
                                             createdAt={message.createdAt}
                                             attachments={message.attachments}
                                             onImageClick={onImageClick}
-                                        />
+                                        />}
                                     </div>
                                 </React.Fragment>
                             );

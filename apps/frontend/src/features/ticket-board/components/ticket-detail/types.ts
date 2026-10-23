@@ -1,4 +1,5 @@
 import type { AttachmentInfo } from './attachmentKind';
+import type { TicketSystemEvent } from './ActivityEvent';
 
 export interface TicketParticipant {
     id: string;
@@ -44,6 +45,8 @@ export interface TicketDetail {
     /** Business minutes left while the SLA clock is held (waiting vendor, resolved). */
     slaRemainingMinutes?: number | null;
     lastPausedAt?: string | null;
+    /** Agreed vendor visit while WAITING_VENDOR. */
+    vendorVisitAt?: string | null;
     firstResponseRemainingMinutes?: number | null;
     firstResponseAt?: string;
     firstResponseTarget?: string;
@@ -84,6 +87,8 @@ export interface TicketDetail {
         content: string;
         createdAt: string;
         isSystemMessage: boolean;
+        /** Structured activity (who changed what); absent on older system messages. */
+        systemEvent?: TicketSystemEvent | null;
         isInternal?: boolean;
         attachments: string[];
         attachmentInfo?: AttachmentInfo[] | null;

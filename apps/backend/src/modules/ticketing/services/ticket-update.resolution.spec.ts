@@ -55,8 +55,7 @@ describe('TicketUpdateService — resolution confirmation', () => {
                 })),
             } as any,
             { recalculateAgentWorkload: jest.fn() } as any,
-            { toAssignable: jest.fn((t: any) => t), isUserEligible: jest.fn().mockResolvedValue(true) } as any, createTestSlaClock(),
-        );
+            { toAssignable: jest.fn((t: any) => t), isUserEligible: jest.fn().mockResolvedValue(true) } as any, createTestSlaClock(), { resolveVisit: () => new Date(Date.now() + 86_400_000), schedule: jest.fn(), clear: jest.fn(), note: () => '' } as any);
     });
 
     it('sets a one-working-day confirmation deadline when an agent resolves', async () => {

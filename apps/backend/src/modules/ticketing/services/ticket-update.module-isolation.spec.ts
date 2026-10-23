@@ -70,8 +70,7 @@ describe('TicketUpdateService.assignTicket — per-module assignee isolation', (
             { logAsync: jest.fn() } as any,
             {} as any,
             { recalculateAgentWorkload: jest.fn() } as any,
-            assignmentPolicy, createTestSlaClock(),
-        );
+            assignmentPolicy, createTestSlaClock(), { resolveVisit: () => new Date(Date.now() + 86_400_000), schedule: jest.fn(), clear: jest.fn(), note: () => '' } as any);
     });
 
     it('rejects an assignee who is not on the module list, naming the module', async () => {
