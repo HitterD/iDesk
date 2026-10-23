@@ -2,6 +2,7 @@ import React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import './ticket-actions.css';
+import { PopoverPortalContext } from '@/components/ui/PopoverPortalContext';
 
 interface TicketActionDialogProps {
     open: boolean;
@@ -15,6 +16,7 @@ interface TicketActionDialogProps {
 /** Ticket-only modal shell: trapped focus, restored trigger, and a reachable mobile footer. */
 export function TicketActionDialog({ open, onClose, title, busy = false, children, onEscapeKeyDown }: TicketActionDialogProps) {
     const triggerRef = React.useRef<HTMLElement | null>(null);
+    const [portalContainer, setPortalContainer] = React.useState<HTMLDivElement | null>(null);
     return (
         <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen && !busy) onClose(); }}>
             <DialogPortal>
@@ -32,10 +34,13 @@ export function TicketActionDialog({ open, onClose, title, busy = false, childre
                         if (busy) event.preventDefault();
                     }}
                     onPointerDownOutside={(event) => { if (busy) event.preventDefault(); }}
-                    onKeyDown={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => { if (event.key !== 'Escape') event.stopPropagation(); }}
                 >
                     <DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
-                    {children}
+                    <PopoverPortalContext.Provider value={portalContainer}>
+                        {children}
+                    </PopoverPortalContext.Provider>
+                    <div ref={setPortalContainer} className="ticket-action-popover-container" />
                 </DialogPrimitive.Content>
             </DialogPortal>
         </Dialog>

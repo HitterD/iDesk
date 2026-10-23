@@ -21,8 +21,6 @@ import {
     addMonths,
     subMonths,
     startOfDay,
-    setHours,
-    setMinutes,
     isBefore,
 } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -144,51 +142,21 @@ export const ModernDateTimePicker: React.FC<ModernDateTimePickerProps> = ({
                 <button
                     type="button"
                     disabled={disabled}
-                    className={cn(
-                        'w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border transition-all cursor-pointer text-left select-none shadow-2xs group',
-                        open
-                            ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-500 ring-2 ring-blue-500/20'
-                            : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 hover:bg-slate-50/50 dark:hover:bg-slate-800/50',
-                        disabled && 'opacity-50 cursor-not-allowed pointer-events-none',
-                        className
-                    )}
+                    aria-label={value ? `${formattedDateText}, ${formattedTimeText}` : placeholder}
+                    className={cn('datetime-trigger', className)}
                 >
-                    <div className="flex items-center gap-3 min-w-0">
-                        <div className={cn(
-                            'w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 transition-colors',
-                            open
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs shadow-blue-500/30'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 group-hover:text-blue-600 dark:group-hover:text-blue-400'
-                        )}>
-                            <CalendarIcon className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                            <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate block">
-                                {formattedDateText}
-                            </span>
-                            <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 block truncate">
-                                Klik untuk memilih tanggal & jam manual
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60 font-mono text-xs font-bold">
-                            <Clock className="w-3.5 h-3.5 text-blue-500" />
-                            <span>{formattedTimeText}</span>
-                        </div>
-                        <ChevronDown className={cn(
-                            'w-4 h-4 text-slate-400 transition-transform duration-200',
-                            open && 'rotate-180 text-blue-500'
-                        )} />
-                    </div>
+                    <CalendarIcon className="w-4 h-4 shrink-0" />
+                    <span className="min-w-0 flex-1">{formattedDateText}<small className="block">{formattedTimeText}</small></span>
+                    <ChevronDown className="w-4 h-4 shrink-0" />
                 </button>
             </PopoverTrigger>
 
             <PopoverContent
                 align="start"
                 sideOffset={8}
-                className="w-[340px] sm:w-[410px] p-4 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl shadow-2xl backdrop-blur-md overflow-hidden z-50 animate-in zoom-in-95 duration-150"
+                className="datetime-popover w-[min(350px,calc(100vw-24px))] p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl"
+                collisionPadding={12}
+                onEscapeKeyDown={event => event.stopPropagation()}
             >
                 {/* 1. Month Header Navigation */}
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -239,6 +207,7 @@ export const ModernDateTimePicker: React.FC<ModernDateTimePickerProps> = ({
 
                         return (
                             <button
+                                aria-label={format(day, 'd MMMM yyyy', { locale: idLocale })}
                                 key={day.toISOString()}
                                 type="button"
                                 onClick={() => handleSelectDay(day)}
@@ -275,6 +244,7 @@ export const ModernDateTimePicker: React.FC<ModernDateTimePickerProps> = ({
                         {/* Direct Select Steppers */}
                         <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700">
                             <select
+                                aria-label="Jam"
                                 value={currentHour}
                                 onChange={handleHourChange}
                                 className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer px-1 py-0.5"
@@ -287,11 +257,12 @@ export const ModernDateTimePicker: React.FC<ModernDateTimePickerProps> = ({
                             </select>
                             <span className="text-xs font-bold text-slate-400">:</span>
                             <select
+                                aria-label="Menit"
                                 value={currentMinute}
                                 onChange={handleMinuteChange}
                                 className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer px-1 py-0.5"
                             >
-                                {[0, 15, 30, 45].map((m) => (
+                                {Array.from({ length: 60 }, (_, minute) => minute).map((m) => (
                                     <option key={m} value={m} className="dark:bg-slate-900">
                                         {String(m).padStart(2, '0')}
                                     </option>
