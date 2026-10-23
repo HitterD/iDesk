@@ -1488,7 +1488,7 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 /* Unlayered on purpose: these must beat shadcn Command/Popover utility classes
    (px-2 py-1.5, data-[disabled]:pointer-events-none, w-72, outline-none) and the
    unlayered .glass-card-elevated in glassmorphism.css. */
-.picker-trigger:focus-visible, .picker-panel :focus-visible, .agent-select-list :focus-visible {
+.picker-trigger:focus-visible, .picker-panel :focus-visible {
   outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px;
 }
 .glass-card-elevated.picker-panel {
@@ -1514,7 +1514,45 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .picker-panel .picker-option[data-disabled="true"] { cursor: not-allowed; opacity: .55; }
 /* cmdk emits data-disabled="false" too; override the legacy presence selector locally. */
 .picker-panel .picker-option[data-disabled="false"], .agent-select-list .picker-option[data-disabled="false"] { pointer-events: auto; opacity: 1; }
-.agent-select-list { background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-text)); }
+/* Agent picker (PIC): same language as the action-dialog pop-up menus. Filled search pill, quiet site
+   headings, accent-filled highlighted row (macOS menu), check on the current PIC. */
+[data-radix-popper-content-wrapper] > :has(> .agent-select-list) {
+  border: 0; border-radius: 14px; overflow: hidden;
+  background: hsl(var(--idesk-surface) / .86); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 0 0 .5px rgb(0 0 0 / .14), 0 16px 40px -12px rgb(0 0 0 / .3), 0 2px 6px rgb(0 0 0 / .06);
+}
+.dark [data-radix-popper-content-wrapper] > :has(> .agent-select-list) { background: hsl(var(--idesk-surface-raised) / .9); box-shadow: 0 0 0 .5px rgb(255 255 255 / .12), 0 16px 40px -12px rgb(0 0 0 / .6); }
+.agent-select-list { display: flex; flex-direction: column; max-height: min(420px, var(--radix-popover-content-available-height, 420px)); background: transparent; color: hsl(var(--idesk-text)); }
+.agent-select-list [cmdk-input-wrapper] {
+  flex: none; height: 34px; margin: 8px 8px 4px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--td-fill);
+  transition: box-shadow var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.agent-select-list [cmdk-input-wrapper]:focus-within { background: hsl(var(--idesk-surface)); box-shadow: inset 0 0 0 1px hsl(var(--idesk-sapphire) / .6), 0 0 0 3px hsl(var(--idesk-sapphire) / .16); }
+.agent-select-list [cmdk-input-wrapper] svg { width: 15px; height: 15px; margin-right: 7px; opacity: .55; }
+.agent-select-list [cmdk-input] { height: 100%; padding: 0; font-size: 13px; }
+.agent-select-list [cmdk-input]:focus-visible { outline: 0; }
+.agent-select-list [cmdk-input]::placeholder { color: hsl(var(--idesk-text-secondary)); }
+.agent-select-scroll { flex: 1; min-height: 0; max-height: none; padding: 0 6px 6px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.agent-select-list [cmdk-group-heading] { padding: 10px 8px 4px; font-size: 11px; font-weight: 600; letter-spacing: .01em; color: hsl(var(--idesk-text-secondary)); }
+.agent-select-list .picker-option.agent-option { display: flex; align-items: center; gap: 10px; min-height: 0; padding: 6px 8px; border-radius: 8px; color: hsl(var(--idesk-text)); }
+.agent-select-list .picker-option:focus-visible { outline: 0; }
+.agent-option .dash-avatar { width: 28px; height: 28px; flex: none; }
+.agent-option-none { display: grid; place-items: center; width: 28px; height: 28px; flex: none; border-radius: 50%; background: var(--td-fill-2); color: hsl(var(--idesk-text-secondary)); }
+.agent-option-none svg { width: 15px; height: 15px; }
+.agent-option-text { flex: 1; min-width: 0; line-height: 1.3; }
+.agent-option-name { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px; font-weight: 550; }
+.agent-option-email { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: hsl(var(--idesk-text-secondary)); }
+.agent-option-tag { flex: none; padding: 1px 6px; border-radius: 5px; background: var(--td-fill-2); color: hsl(var(--idesk-text-secondary)); font: 600 10px/1.5 var(--font-mono); letter-spacing: .02em; }
+.agent-option-tag.is-admin { font-family: inherit; background: color-mix(in srgb, var(--dash-orange, #f2930d) 16%, transparent); color: var(--dash-ink-orange, #a85d00); }
+.agent-option-check { width: 15px; height: 15px; flex: none; stroke-width: 2.8; color: hsl(var(--idesk-sapphire)); visibility: hidden; }
+.agent-option[data-checked="true"] .agent-option-check { visibility: visible; }
+.agent-select-list .picker-option.agent-option[data-selected="true"] { background: hsl(var(--idesk-sapphire)); color: #fff; }
+.agent-option[data-selected="true"] .agent-option-email, .agent-option[data-selected="true"] .agent-option-check { color: rgb(255 255 255 / .85); }
+.agent-option[data-selected="true"] .agent-option-tag { background: rgb(255 255 255 / .2); color: #fff; }
+.agent-option[data-selected="true"] .agent-option-none { background: rgb(255 255 255 / .2); color: #fff; }
+.agent-select-empty { padding: 28px 16px; text-align: center; font-size: 13px; font-weight: 550; }
+.agent-select-empty small { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 400; color: hsl(var(--idesk-text-secondary)); }
+.agent-select-foot { flex: none; padding: 7px 14px; border-top: .5px solid hsl(var(--idesk-border)); font-size: 11px; color: hsl(var(--idesk-text-secondary)); }
 @media (pointer: coarse) { .picker-option, .picker-trigger { min-height: 44px; } }
 
 /* FullCalendar Dark Mode Fix */

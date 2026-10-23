@@ -105,7 +105,7 @@ export function CreateWizard() {
 
     return (
         <FormProvider {...form}>
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6 animate-fade-in-up pb-16">
+            <div className="max-w-[1480px] mx-auto w-full space-y-6 pt-1 pb-16">
                 {/* Header */}
                 <div className="flex items-center gap-3.5 border-b border-border pb-5">
                     <div className="size-11 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">

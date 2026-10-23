@@ -70,7 +70,7 @@ export const EformApprovalPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+      <div className="mx-auto max-w-2xl space-y-6 pt-1 pb-8">
         <div className="h-9 w-28 animate-pulse rounded-xl bg-muted" />
         <div className="space-y-4 rounded-2xl border border-border bg-card p-8">
           <div className="h-6 w-56 animate-pulse rounded bg-muted" />
@@ -108,7 +108,7 @@ export const EformApprovalPage: React.FC = () => {
   ];
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+    <div className="mx-auto max-w-2xl space-y-6 pt-1 pb-8">
       <div className="flex items-center justify-between gap-3">
         {backButton}
         <EformStatusBadge status={eform.status} />

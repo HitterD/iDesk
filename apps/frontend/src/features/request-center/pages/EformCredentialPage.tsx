@@ -61,7 +61,7 @@ export const EformCredentialPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+      <div className="mx-auto max-w-2xl space-y-6 pt-1 pb-8">
         <div className="h-9 w-28 animate-pulse rounded-xl bg-muted" />
         <div className="space-y-4 rounded-2xl border border-border bg-card p-8">
           <div className="h-6 w-48 animate-pulse rounded bg-muted" />
@@ -118,7 +118,7 @@ export const EformCredentialPage: React.FC = () => {
     : [];
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+    <div className="mx-auto max-w-2xl space-y-6 pt-1 pb-8">
       {backButton}
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card">

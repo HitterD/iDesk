@@ -70,15 +70,15 @@ export default function HardwareRequestDetailPage() {
     };
 
     return (
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 pb-16">
+        <div className="max-w-[1480px] mx-auto w-full pb-16">
             {/* ── STICKY TOPBAR ── */}
             <motion.div
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, ease: 'easeOut' }}
-                className="sticky top-0 z-20 bg-background/90 backdrop-blur-md py-3 -mx-2 sm:-mx-4 px-2 sm:px-4 border-b border-border mb-6"
+                className="sticky top-0 z-20 bg-background/90 backdrop-blur-md py-3 border-b border-border mb-6"
             >
-                <div className="flex items-center justify-between gap-3 max-w-7xl mx-auto">
+                <div className="flex items-center justify-between gap-3">
                     {/* Back button & Title */}
                     <div className="flex items-center gap-2.5 min-w-0">
                         <Link
@@ -225,7 +225,7 @@ export default function HardwareRequestDetailPage() {
 
 function DetailSkeleton() {
     return (
-        <div className="max-w-7xl mx-auto px-4 py-6 space-y-5 animate-pulse">
+        <div className="max-w-[1480px] mx-auto w-full space-y-5 animate-pulse">
             <div className="h-12 bg-muted/40 rounded-2xl" />
             <div className="h-44 bg-muted/40 rounded-3xl" />
             <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-6">
