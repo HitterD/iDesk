@@ -580,21 +580,23 @@ export const BentoCreateTicketPage: React.FC = () => {
         );
 
         return (
-            <div className="ct-page ct-page-narrow">
-                <header className="ct-catalog-head">
-                    <button type="button" onClick={() => navigate(-1)} aria-label="Kembali" className="ct-back">
-                        <ArrowLeft aria-hidden="true" />
-                    </button>
-                    <div className="min-w-0">
-                        <h1>Buat Tiket Baru</h1>
-                        <p>Pilih jenis bantuan atau pengajuan yang Anda butuhkan</p>
-                    </div>
-                </header>
+            <div className="ct-page ct-page-catalog">
+                <div className="ct-catalog-top">
+                    <header className="ct-catalog-head">
+                        <button type="button" onClick={() => navigate(-1)} aria-label="Kembali" className="ct-back">
+                            <ArrowLeft aria-hidden="true" />
+                        </button>
+                        <div className="min-w-0">
+                            <h1>Buat Tiket Baru</h1>
+                            <p>Pilih jenis bantuan atau pengajuan yang Anda butuhkan</p>
+                        </div>
+                    </header>
 
-                <div className="portal-search ct-search">
-                    <Search aria-hidden="true" />
-                    <input type="search" aria-label="Cari jenis bantuan" value={catalogQuery}
-                        onChange={e => setCatalogQuery(e.target.value)} placeholder="Cari jenis bantuan, misal: printer, VPN, Oracle" />
+                    <div className="portal-search ct-search">
+                        <Search aria-hidden="true" />
+                        <input type="search" aria-label="Cari jenis bantuan" value={catalogQuery}
+                            onChange={e => setCatalogQuery(e.target.value)} placeholder="Cari jenis bantuan, misal: printer, VPN, Oracle" />
+                    </div>
                 </div>
 
                 {visibleTicketingCards.length > 0 && (

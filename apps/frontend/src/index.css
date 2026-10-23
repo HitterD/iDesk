@@ -739,7 +739,11 @@ textarea:focus {
 
 /* ---------- New-ticket catalogue + creation forms (BentoCreateTicketPage) ---------- */
 .ct-page { width: 100%; margin: 0 auto; padding-bottom: 32px; color: hsl(var(--idesk-text)); }
-.ct-page-narrow { max-width: 64rem; }
+/* Catalogue uses the dashboard width; cards stretch so every row is full whatever the role can see. */
+.ct-page-catalog { max-width: 1480px; }
+.ct-catalog-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; }
+.ct-catalog-top .ct-search { flex: 0 1 420px; margin-top: 0; }
+@media (max-width: 760px) { .ct-catalog-top .ct-search { flex-basis: 100%; max-width: none; } }
 .ct-page-form { max-width: 52rem; }
 .ct-back {
   display: inline-grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 9999px; cursor: pointer;
@@ -759,10 +763,15 @@ textarea:focus {
 .ct-section { margin-top: 28px; }
 .ct-section h2 { margin: 0; font-size: 15px; font-weight: 650; line-height: 1.3; letter-spacing: -.01em; }
 .ct-section > p { margin: 2px 0 12px; font-size: 13px; color: hsl(var(--idesk-text-secondary)); }
-.ct-catalog { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.ct-catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+/* Exactly four cards never leave an orphan: 4 across when there is room, else 2 x 2, else one column. */
+.ct-section { container-type: inline-size; }
+.ct-catalog:has(> :nth-child(4):last-child) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container (min-width: 1100px) { .ct-catalog:has(> :nth-child(4):last-child) { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@container (max-width: 560px) { .ct-catalog:has(> :nth-child(4):last-child) { grid-template-columns: minmax(0, 1fr); } }
 .ct-card {
   position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-items: start;
-  min-width: 0; padding: 16px; border-radius: 16px; background: hsl(var(--idesk-surface));
+  min-width: 0; padding: 18px 18px 16px; border-radius: 18px; background: hsl(var(--idesk-surface));
   box-shadow: 0 1px 3px hsl(220 40% 20% / .08), inset 0 0 0 1px hsl(var(--idesk-border) / .55);
   transition: box-shadow 180ms var(--ease-out), transform 180ms var(--ease-out);
 }
@@ -773,7 +782,7 @@ textarea:focus {
 .ct-card h3 { grid-column: 1; margin: 0; font-size: 14px; font-weight: 650; line-height: 1.3; letter-spacing: -.01em; }
 .ct-card p { grid-column: 1; margin: 4px 0 0; font-size: 12.5px; line-height: 1.45; color: hsl(var(--idesk-text-secondary));
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.ct-card img { grid-column: 2; grid-row: 1 / span 3; width: 64px; height: 64px; margin: -6px -4px -6px 0; object-fit: contain; user-select: none;
+.ct-card img { grid-column: 2; grid-row: 1 / span 3; width: 72px; height: 72px; margin: -6px -4px -6px 0; object-fit: contain; user-select: none;
   transition: transform 220ms var(--ease-out); }
 .ct-card:hover img { transform: translateY(-2px) scale(1.04); }
 .ct-link { grid-column: 1; justify-self: start; display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; padding: 0; border-radius: 6px;
@@ -781,7 +790,7 @@ textarea:focus {
 .ct-link svg { width: 14px; height: 14px; transition: transform 180ms var(--ease-out); }
 .ct-card:hover .ct-link svg { transform: translateX(2px); }
 /* Stretch the action over the whole card so the card is one hit target. */
-.ct-link::after { content: ''; position: absolute; inset: 0; border-radius: 16px; }
+.ct-link::after { content: ''; position: absolute; inset: 0; border-radius: 18px; }
 /* Ring on the overlay: works without :has and stays painted in forced-colors. */
 .ct-link:focus-visible::after { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
 .ct-empty { margin-top: 24px; padding: 16px; border-radius: 14px; background: hsl(var(--muted)); font-size: 13px; color: hsl(var(--idesk-text-secondary)); }
