@@ -83,7 +83,7 @@ export function generateExecutiveInsights(data: ReportInsightInput): string[] {
                 const urgentCount = (data.byPriority['CRITICAL'] || 0) + (data.byPriority['URGENT'] || 0) + (data.byPriority['HIGH'] || 0);
                 if (urgentCount > 0) {
                     const urgentPct = ((urgentCount / total) * 100).toFixed(1);
-                    catInsight += ` Sebanyak ${urgentCount} tiket (${urgentPct}%) berkategori prioritas High/Critical yang memerlukan respon cepat.`;
+                    catInsight += ` Sebanyak ${urgentCount} tiket (${urgentPct}%) berprioritas Urgent/Blocker yang memerlukan respon cepat.`;
                 }
             }
             insights.push(catInsight);
@@ -94,7 +94,7 @@ export function generateExecutiveInsights(data: ReportInsightInput): string[] {
     if (data.topPerformer && data.topPerformer.name) {
         let perfInsight = `Agent dengan kontribusi performa tertinggi: ${data.topPerformer.name}`;
         if (data.topPerformer.resolutionRate !== undefined) {
-            perfInsight += ` (Resolution Rate: ${data.topPerformer.resolutionRate.toFixed(1)}%)`;
+            perfInsight += ` (${data.topPerformer.resolutionRate.toFixed(1)}% tiket selesai)`;
         } else if (data.topPerformer.count !== undefined) {
             perfInsight += ` (${data.topPerformer.count} tiket terselesaikan)`;
         }
