@@ -1,8 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Download, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
+import { X, Download, ZoomIn, ZoomOut, RotateCw, Maximize2 } from 'lucide-react';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { lockBodyScroll, unlockBodyScroll } from '@/lib/scrollLock';
+import { cn } from '@/lib/utils';
+import { MAX_ZOOM, MIN_ZOOM, useZoomPan } from './useZoomPan';
+import './image-lightbox.css';
 
 interface ImageLightboxProps {
     /**
@@ -16,150 +19,168 @@ interface ImageLightboxProps {
     onClose: () => void;
 }
 
-const MIN_SCALE = 0.5;
-const MAX_SCALE = 3;
-const SCALE_STEP = 0.25;
+const ARROW_PAN = 80;
+/** A press that moves less than this is a click (close on the backdrop), not a drag. */
+const DRAG_THRESHOLD = 4;
 
+/**
+ * Full-screen image preview: scroll or pinch to zoom where the cursor is, drag to move a zoomed image,
+ * double-click to switch between "fit" and 2x, plus buttons and keyboard (+ - 0 R, arrows, Esc).
+ */
 export const ImageLightbox: React.FC<ImageLightboxProps> = ({ src, alt, onClose }) => {
-    const [scale, setScale] = useState(1);
-    const [rotation, setRotation] = useState(0);
     const dialogRef = useRef<HTMLDivElement>(null);
+    const stageRef = useRef<HTMLDivElement>(null);
+    const imageRef = useRef<HTMLImageElement>(null);
+    const pointers = useRef(new Map<number, { x: number; y: number }>());
+    const gesture = useRef({ moved: 0, pinchDistance: 0, onBackdrop: false });
+    const [dragging, setDragging] = useState(false);
+
+    const stageSize = useCallback(() => ({ width: stageRef.current?.clientWidth ?? 0, height: stageRef.current?.clientHeight ?? 0 }), []);
+    const imageSize = useCallback(() => ({ width: imageRef.current?.offsetWidth ?? 0, height: imageRef.current?.offsetHeight ?? 0 }), []);
+    const zoom = useZoomPan(stageSize, imageSize);
+    const { view } = zoom;
+    const { zoomIn, zoomOut, fit, rotate, panBy, zoomByWheel } = zoom;
 
     useFocusTrap(dialogRef, { enabled: true, onEscape: onClose });
 
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === '+' || e.key === '=') setScale(s => Math.min(s + SCALE_STEP, MAX_SCALE));
-            if (e.key === '-') setScale(s => Math.max(s - SCALE_STEP, MIN_SCALE));
-            // Keep the angle bounded — an unbounded counter drifts past what
-            // transform can express meaningfully after enough presses.
-            if (e.key === 'r' || e.key === 'R') setRotation(r => (r + 90) % 360);
-        };
+    /** Point relative to the stage centre, the origin the transform works in. */
+    const fromCentre = (clientX: number, clientY: number) => {
+        const rect = stageRef.current!.getBoundingClientRect();
+        return { x: clientX - rect.left - rect.width / 2, y: clientY - rect.top - rect.height / 2 };
+    };
 
-        document.addEventListener('keydown', handleKeyDown);
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === '+' || e.key === '=') zoomIn();
+            else if (e.key === '-') zoomOut();
+            else if (e.key === '0') fit();
+            else if (e.key === 'r' || e.key === 'R') rotate();
+            else if (e.key === 'ArrowLeft') panBy(ARROW_PAN, 0, true);
+            else if (e.key === 'ArrowRight') panBy(-ARROW_PAN, 0, true);
+            else if (e.key === 'ArrowUp') panBy(0, ARROW_PAN, true);
+            else if (e.key === 'ArrowDown') panBy(0, -ARROW_PAN, true);
+            else return;
+            e.preventDefault();
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [zoomIn, zoomOut, fit, rotate, panBy]);
+
+    useEffect(() => {
         // Ref-counted: the lightbox opens from inside the ticket detail modal,
         // so a naive reset would restore scrolling while that modal is still up.
         lockBodyScroll();
-
-        return () => {
-            document.removeEventListener('keydown', handleKeyDown);
-            unlockBodyScroll();
-        };
+        return () => unlockBodyScroll();
     }, []);
 
-    const handleZoomIn = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setScale(s => Math.min(s + SCALE_STEP, MAX_SCALE));
+    // Native, non-passive listener: React's onWheel cannot preventDefault the page zoom/scroll.
+    useEffect(() => {
+        const stage = stageRef.current;
+        if (!stage) return;
+        const onWheel = (e: WheelEvent) => {
+            e.preventDefault();
+            zoomByWheel(e.deltaY, fromCentre(e.clientX, e.clientY));
+        };
+        stage.addEventListener('wheel', onWheel, { passive: false });
+        return () => stage.removeEventListener('wheel', onWheel);
+    }, [zoomByWheel]);
+
+    const onPointerDown = (e: React.PointerEvent) => {
+        // Read before capturing: afterwards every event of this pointer targets the stage itself.
+        gesture.current.onBackdrop = e.target === e.currentTarget;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        gesture.current.moved = 0;
+        if (pointers.current.size === 2) {
+            const [a, b] = [...pointers.current.values()];
+            gesture.current.pinchDistance = Math.hypot(a.x - b.x, a.y - b.y);
+        }
+        setDragging(pointers.current.size === 1 && view.scale > 1);
     };
 
-    const handleZoomOut = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setScale(s => Math.max(s - SCALE_STEP, MIN_SCALE));
+    const onPointerMove = (e: React.PointerEvent) => {
+        const previous = pointers.current.get(e.pointerId);
+        if (!previous) return;
+        const point = { x: e.clientX, y: e.clientY };
+        pointers.current.set(e.pointerId, point);
+        gesture.current.moved += Math.hypot(point.x - previous.x, point.y - previous.y);
+        if (pointers.current.size === 2) {
+            const [a, b] = [...pointers.current.values()];
+            const distance = Math.hypot(a.x - b.x, a.y - b.y);
+            if (gesture.current.pinchDistance > 0) {
+                const centre = fromCentre((a.x + b.x) / 2, (a.y + b.y) / 2);
+                zoom.zoomTo(view.scale * (distance / gesture.current.pinchDistance), centre, false);
+            }
+            gesture.current.pinchDistance = distance;
+        } else if (view.scale > 1) {
+            zoom.panBy(point.x - previous.x, point.y - previous.y);
+        }
     };
 
-    const handleRotate = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setRotation(r => (r + 90) % 360);
+    const onPointerUp = (e: React.PointerEvent) => {
+        pointers.current.delete(e.pointerId);
+        if (pointers.current.size < 2) gesture.current.pinchDistance = 0;
+        setDragging(false);
+        // A plain click on the dark area (not the image) closes, like other viewers.
+        if (gesture.current.moved < DRAG_THRESHOLD && gesture.current.onBackdrop && pointers.current.size === 0) onClose();
     };
 
-    const lightboxContent = (
-        <div
-            ref={dialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-label={alt || 'Image preview'}
-            className="fixed inset-0 flex items-center justify-center bg-black/95 backdrop-blur-md animate-in fade-in duration-200"
-            style={{ zIndex: 99999 }}
-            onClick={onClose}
-        >
-            {/* Close button */}
-            <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close image preview"
-                className="absolute top-6 right-6 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out hover:scale-110"
-                title="Close (Esc)"
-            >
-                <X className="w-6 h-6" aria-hidden="true" />
-            </button>
+    const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+    const percent = Math.round(view.scale * 100);
 
-            {/* Controls */}
-            <div className="absolute top-6 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/50 rounded-full p-2">
-                <button
-                    type="button"
-                    onClick={handleZoomOut}
-                    disabled={scale <= MIN_SCALE}
-                    aria-label="Zoom out"
-                    className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-white/10 text-white transition-colors disabled:opacity-40"
-                    title="Zoom Out (-)"
-                >
-                    <ZoomOut className="w-5 h-5" aria-hidden="true" />
+    const content = (
+        <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={alt || 'Pratinjau gambar'} className="ilb">
+            <div className="ilb-bar" onPointerDown={stop}>
+                <button type="button" className="ilb-btn" onClick={zoom.zoomOut} disabled={view.scale <= MIN_ZOOM} aria-label="Perkecil" title="Perkecil (-)">
+                    <ZoomOut aria-hidden="true" />
                 </button>
-                <span className="text-white text-sm font-medium min-w-[60px] text-center tabular-nums" aria-live="polite">
-                    {Math.round(scale * 100)}%
-                </span>
-                <button
-                    type="button"
-                    onClick={handleZoomIn}
-                    disabled={scale >= MAX_SCALE}
-                    aria-label="Zoom in"
-                    className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-white/10 text-white transition-colors disabled:opacity-40"
-                    title="Zoom In (+)"
-                >
-                    <ZoomIn className="w-5 h-5" aria-hidden="true" />
+                <button type="button" className="ilb-pct" onClick={zoom.fit} title="Sesuaikan ke layar (0)" aria-label={`Zoom ${percent}%, klik untuk menyesuaikan ke layar`}>
+                    {percent}%
                 </button>
-                <div className="w-px h-6 bg-white/20 mx-1" />
-                <button
-                    type="button"
-                    onClick={handleRotate}
-                    aria-label="Rotate image"
-                    className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-white/10 text-white transition-colors"
-                    title="Rotate (R)"
-                >
-                    <RotateCw className="w-5 h-5" aria-hidden="true" />
+                <button type="button" className="ilb-btn" onClick={zoom.zoomIn} disabled={view.scale >= MAX_ZOOM} aria-label="Perbesar" title="Perbesar (+)">
+                    <ZoomIn aria-hidden="true" />
+                </button>
+                <span className="ilb-sep" aria-hidden="true" />
+                <button type="button" className="ilb-btn" onClick={zoom.fit} disabled={view.scale === 1 && view.x === 0 && view.y === 0} aria-label="Sesuaikan ke layar" title="Sesuaikan ke layar (0)">
+                    <Maximize2 aria-hidden="true" />
+                </button>
+                <button type="button" className="ilb-btn" onClick={zoom.rotate} aria-label="Putar gambar" title="Putar (R)">
+                    <RotateCw aria-hidden="true" />
                 </button>
             </div>
 
-            {/* Image container */}
-            <div 
-                className="flex items-center justify-center w-full h-full p-12"
-                onClick={(e) => e.stopPropagation()}
+            <button type="button" className="ilb-btn ilb-close" onClick={onClose} aria-label="Tutup pratinjau" title="Tutup (Esc)">
+                <X aria-hidden="true" />
+            </button>
+
+            <div
+                ref={stageRef}
+                className={cn('ilb-stage', view.scale > 1 && 'is-zoomed', dragging && 'is-dragging')}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerUp}
+                onDoubleClick={(e) => zoom.toggleAt(fromCentre(e.clientX, e.clientY))}
             >
                 <img
+                    ref={imageRef}
                     src={src}
-                    alt={alt || 'Attachment preview'}
-                    className="max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-transform duration-200"
-                    style={{ 
-                        transform: `scale(${scale}) rotate(${rotation}deg)`,
-                        maxWidth: '90vw',
-                        maxHeight: '85vh'
-                    }}
+                    alt={alt || 'Lampiran'}
+                    className={cn('ilb-img', zoom.animate && 'is-eased')}
+                    style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale}) rotate(${view.rotation}deg)` }}
                     draggable={false}
                 />
             </div>
 
-            {/* Download button */}
-            <a
-                href={src}
-                download
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="absolute bottom-6 right-6 flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-medium transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out hover:scale-105"
-            >
-                <Download className="w-5 h-5" aria-hidden="true" />
-                Download
-            </a>
-
-            {/* Keyboard shortcuts hint */}
-            <div className="absolute bottom-6 left-6 text-white/50 text-xs">
-                <span className="bg-white/10 px-2 py-1 rounded mr-2">Esc</span> Close
-                <span className="bg-white/10 px-2 py-1 rounded mx-2">+/-</span> Zoom
-                <span className="bg-white/10 px-2 py-1 rounded mx-2">R</span> Rotate
+            <div className="ilb-foot" onPointerDown={stop}>
+                <p className="ilb-hint">Scroll untuk zoom · seret untuk geser · klik dua kali untuk 2×</p>
+                <a href={src} download target="_blank" rel="noopener noreferrer" className="ilb-download">
+                    <Download aria-hidden="true" />Unduh
+                </a>
             </div>
         </div>
     );
 
-    // Use portal to render at document body level for true fullscreen
-    return createPortal(lightboxContent, document.body);
+    // Portal: true full screen even when opened from inside another modal.
+    return createPortal(content, document.body);
 };
