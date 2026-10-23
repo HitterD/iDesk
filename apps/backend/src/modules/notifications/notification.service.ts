@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 
 const logger = new Logger('NotificationService');
 import { InjectRepository } from '@nestjs/typeorm';
@@ -7,6 +7,8 @@ import { Notification, NotificationType, NotificationCategory } from './entities
 import { getCategoryFromType } from './utils/category-mapper';
 import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
 import { SjaAdapterService } from '../sja-adapter/sja-adapter.service';
+import { NotificationPushService } from './notification-push.service';
+import { PRIORITY_LABEL, describeTicketChanges } from './utils/notification-copy.util';
 
 /** Socket event telling a user's clients that some of their notifications became read. */
 export const NOTIFICATIONS_READ_EVENT = 'notifications:read';
@@ -29,6 +31,7 @@ export class NotificationService {
         private readonly notificationRepo: Repository<Notification>,
         private readonly eventsGateway: EventsGateway,
         private readonly sjaAdapter: SjaAdapterService,
+        @Optional() private readonly webPush?: NotificationPushService,
     ) { }
 
     async create(data: {
@@ -108,6 +111,9 @@ export class NotificationService {
             userId: data.userId,
             notification: saved,
         }); } catch (e) { console.warn('Socket emit failed', e); }
+
+        // Browser notification (works without the desktop notifier app)
+        this.webPush?.dispatch(saved);
 
         // Dispatch to SJA Notification Center Outbox
         try {
@@ -370,8 +376,8 @@ export class NotificationService {
         return this.create({
             userId,
             type: NotificationType.TICKET_CREATED,
-            title: 'Ticket Created',
-            message: `Ticket #${ticketNumber} "${title}" has been created`,
+            title: 'Tiket dibuat',
+            message: `Tiket #${ticketNumber} "${title}" sudah diterima tim IT.`,
             ticketId,
             link: `/tickets/${ticketId}`,
         });
@@ -387,7 +393,7 @@ export class NotificationService {
         return this.create({
             userId,
             type: NotificationType.TICKET_ASSIGNED,
-            title: 'Tiket Ditugaskan',
+            title: 'Tiket ditugaskan',
             message: `Tiket #${ticketNumber} ditugaskan kepada Anda ${byWhom}.`,
             ticketId,
             link: `/tickets/${ticketId}`,
@@ -398,8 +404,8 @@ export class NotificationService {
         return this.create({
             userId,
             type: NotificationType.TICKET_UPDATED,
-            title: 'Ticket Updated',
-            message: `Ticket #${ticketNumber} has been updated: ${changes}`,
+            title: 'Tiket diperbarui',
+            message: `Tiket #${ticketNumber}: ${describeTicketChanges(changes) || 'ada perubahan'}.`,
             ticketId,
             link: `/tickets/${ticketId}`,
         });
@@ -409,10 +415,10 @@ export class NotificationService {
         return this.create({
             userId,
             type: NotificationType.TICKET_RESOLVED,
-            title: 'Ticket Resolved',
+            title: 'Tiket selesai',
             message: deadlineLabel
                 ? `Tiket #${ticketNumber} telah diselesaikan. Konfirmasi atau sanggah sebelum ${deadlineLabel}; setelah itu tiket otomatis ditutup.`
-                : `Ticket #${ticketNumber} has been resolved`,
+                : `Tiket #${ticketNumber} telah diselesaikan.`,
             ticketId,
             link: `/tickets/${ticketId}`,
         });
@@ -446,8 +452,8 @@ export class NotificationService {
         return this.create({
             userId,
             type: NotificationType.CHAT_MESSAGE_RECEIVED,
-            title: 'New Chat Message',
-            message: `${senderName} sent a message in ticket #${ticketNumber}`,
+            title: 'Pesan baru',
+            message: `${senderName} mengirim pesan di tiket #${ticketNumber}.`,
             ticketId,
             link: `/tickets/${ticketId}`,
         });
@@ -457,8 +463,8 @@ export class NotificationService {
         return this.create({
             userId,
             type: NotificationType.MENTION,
-            title: 'You were mentioned',
-            message: `${mentionedBy} mentioned you in ticket #${ticketNumber}`,
+            title: 'Anda disebut',
+            message: `${mentionedBy} menyebut Anda di tiket #${ticketNumber}.`,
             ticketId,
             link: `/tickets/${ticketId}`,
         });
@@ -468,8 +474,8 @@ export class NotificationService {
         return this.create({
             userId,
             type: NotificationType.SLA_WARNING,
-            title: 'SLA Warning',
-            message: `Ticket #${ticketNumber} SLA will expire in ${timeRemaining}`,
+            title: 'SLA hampir habis',
+            message: `SLA tiket #${ticketNumber} berakhir dalam ${timeRemaining}.`,
             ticketId,
             link: `/tickets/${ticketId}`,
         });
@@ -479,8 +485,8 @@ export class NotificationService {
         return this.create({
             userId,
             type: NotificationType.SLA_BREACHED,
-            title: 'SLA Breached',
-            message: `Ticket #${ticketNumber} has breached its SLA target`,
+            title: 'SLA terlewati',
+            message: `Tiket #${ticketNumber} melewati target SLA.`,
             ticketId,
             link: `/tickets/${ticketId}`,
         });
@@ -502,6 +508,8 @@ export class NotificationService {
         if (adminIds.length === 0) return [];
 
         const category_ = getCategoryFromType(NotificationType.TICKET_CREATED);
+        // "HARDWARE" -> "Hardware"
+        const categoryLabel = category ? category.charAt(0) + category.slice(1).toLowerCase().replace(/_/g, ' ') : '';
 
         // Create all notification entities in memory
         const notificationEntities = adminIds.map(adminId =>
@@ -509,8 +517,8 @@ export class NotificationService {
                 userId: adminId,
                 type: NotificationType.TICKET_CREATED,
                 category: category_,
-                title: 'New Ticket',
-                message: `New ${priority} ticket from ${requesterName}: "${title}" [${category}]`,
+                title: `Tiket baru · ${PRIORITY_LABEL[priority] ?? priority}`,
+                message: `${requesterName}: "${title}"${categoryLabel ? ` · ${categoryLabel}` : ''}`,
                 ticketId,
                 link: `/tickets/${ticketId}`,
             })
@@ -532,6 +540,7 @@ export class NotificationService {
                 isRead: notification.isRead,
                 createdAt: notification.createdAt,
             }); } catch (e) { logger.warn(`Socket emit failed: ${e instanceof Error ? e.message : 'unknown error'}`); }
+            this.webPush?.dispatch(notification);
         }
 
         return savedNotifications;

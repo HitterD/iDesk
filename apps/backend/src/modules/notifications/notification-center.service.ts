@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit, forwardRef, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, forwardRef, Inject, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, LessThan, MoreThan } from 'typeorm';
 import { Notification, NotificationType } from './entities/notification.entity';
@@ -16,6 +16,8 @@ import {
 import { EmailChannelService } from './channels/email-channel.service';
 import { InAppChannelService } from './channels/inapp-channel.service';
 import { PushChannelService } from './channels/push-channel.service';
+import { NotificationPushService } from './notification-push.service';
+import { getCategoryFromType } from './utils/category-mapper';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -50,6 +52,7 @@ export class NotificationCenterService implements OnModuleInit {
         private readonly pushChannel: PushChannelService,
         private readonly entityManager: EntityManager,
         private readonly cacheService: CacheService,
+        @Optional() private readonly webPush?: NotificationPushService,
     ) { }
 
     onModuleInit() {
@@ -82,6 +85,7 @@ export class NotificationCenterService implements OnModuleInit {
 
         // Create notification record
         const notification = await this.createNotification(payload);
+        this.webPush?.dispatch(notification);
 
         // Determine channels based on payload and preferences
         const channels = this.resolveChannels(payload, preferences);
@@ -843,6 +847,9 @@ export class NotificationCenterService implements OnModuleInit {
             title: payload.title,
             message: payload.message,
             ticketId: payload.ticketId,
+            // Kept so "opened the target page" can mark it read, and so it lands in the right category tab.
+            referenceId: payload.referenceId,
+            category: getCategoryFromType(payload.type),
             link: payload.link,
             isRead: false,
         });

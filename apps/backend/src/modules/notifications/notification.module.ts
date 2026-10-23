@@ -17,6 +17,7 @@ import { NotificationCenterService } from './notification-center.service';
 import { EmailChannelService } from './channels/email-channel.service';
 import { InAppChannelService } from './channels/inapp-channel.service';
 import { PushChannelService } from './channels/push-channel.service';
+import { NotificationPushService } from './notification-push.service';
 
 // Controllers
 import { NotificationController } from './notification.controller';
@@ -57,6 +58,7 @@ import { TicketMessagingService } from '../ticketing/services/ticket-messaging.s
         EmailChannelService,
         InAppChannelService,
         PushChannelService,
+        NotificationPushService,
         // Note: EventsGateway is imported from TicketingModule, not provided here
     ],
     exports: [

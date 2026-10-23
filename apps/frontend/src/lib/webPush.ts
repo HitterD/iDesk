@@ -40,6 +40,12 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
     return Uint8Array.from(window.atob(padded), (char) => char.charCodeAt(0));
 }
 
+function sameKey(current: ArrayBuffer | null, expected: Uint8Array): boolean {
+    if (!current) return false;
+    const bytes = new Uint8Array(current);
+    return bytes.length === expected.length && bytes.every((byte, i) => byte === expected[i]);
+}
+
 /**
  * Registers the service worker and makes sure this browser has a push subscription
  * stored for the signed-in user. Safe to call on every page load. Returns false
@@ -53,11 +59,17 @@ export async function ensurePushSubscription(): Promise<boolean> {
 
         const registration = await navigator.serviceWorker.register(SERVICE_WORKER_URL);
         await navigator.serviceWorker.ready;
-        const subscription = await registration.pushManager.getSubscription()
-            ?? await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(data.publicKey).buffer as ArrayBuffer,
-            });
+        const serverKey = urlBase64ToUint8Array(data.publicKey);
+        let subscription = await registration.pushManager.getSubscription();
+        // Made with another server key (keys rotated): the push service would reject every message.
+        if (subscription && !sameKey(subscription.options.applicationServerKey, serverKey)) {
+            await subscription.unsubscribe();
+            subscription = null;
+        }
+        subscription ??= await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: serverKey.buffer as ArrayBuffer,
+        });
         // Always re-posted: the backend moves the endpoint to whoever is signed in now.
         const { endpoint, keys } = subscription.toJSON();
         await api.post('/notifications/push/subscribe', { subscription: { endpoint, keys } });
