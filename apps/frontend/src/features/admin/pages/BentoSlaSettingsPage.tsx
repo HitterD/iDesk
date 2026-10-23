@@ -218,13 +218,14 @@ const DurationInputGroup: React.FC<DurationInputGroupProps> = ({
     return (
         <div className="p-4 bg-fill rounded-2xl border border-line space-y-3.5">
             {/* Header & Live Formatted Badge */}
-            <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2.5 min-w-0">
                     <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 shadow-2xs", iconBgClass)}>
                         {icon}
                     </div>
                     <div className="min-w-0">
-                        <span className="text-xs font-bold text-ink block truncate">
+                        {/* Wraps instead of truncating: the live duration badge beside it can be long ("2 hari kerja 6 jam"). */}
+                        <span className="text-xs font-bold text-ink block leading-snug text-balance">
                             {label}
                         </span>
                         <span className="text-[11px] text-ink-2 block leading-tight">

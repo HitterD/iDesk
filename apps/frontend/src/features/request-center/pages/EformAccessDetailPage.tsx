@@ -95,7 +95,7 @@ export const EformAccessDetailPage: React.FC = () => {
 
   if (isPending) {
     return (
-      <div className="mx-auto max-w-4xl space-y-6 px-4 py-8 animate-pulse">
+      <div className="mx-auto max-w-4xl space-y-6 pt-1 pb-8 animate-pulse">
         <div className="h-8 w-48 rounded-xl bg-muted" />
         <div className="h-64 rounded-2xl border border-border bg-card p-6" />
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -186,7 +186,7 @@ export const EformAccessDetailPage: React.FC = () => {
   ].filter(Boolean) as Array<{ label: string; value: string }>;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 px-3 sm:px-6 py-6 sm:py-8 animate-fade-in-up">
+    <div className="mx-auto max-w-4xl space-y-6 pt-1 pb-8">
       {/* Header */}
       <div className="flex items-center justify-between gap-2.5">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="rounded-xl font-semibold cursor-pointer shrink-0">

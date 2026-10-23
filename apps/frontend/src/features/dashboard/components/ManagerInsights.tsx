@@ -1,5 +1,6 @@
 import React from 'react';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { ResponsiveChart } from '@/components/ui/responsive-chart';
 import { Clock, CheckCircle, TrendingUp } from 'lucide-react';
 
 const ticketData = [
@@ -53,7 +54,7 @@ export const ManagerInsights: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-navy-main border border-white/10 p-6 rounded-xl h-[350px]">
                     <h3 className="text-white font-semibold mb-6">Tickets by Category</h3>
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveChart width="100%" height="100%">
                         <PieChart>
                             <Pie
                                 data={ticketData}
@@ -73,12 +74,12 @@ export const ManagerInsights: React.FC = () => {
                                 contentStyle={{ backgroundColor: '#0f172a', borderColor: '#333', color: '#fff' }}
                             />
                         </PieChart>
-                    </ResponsiveContainer>
+                    </ResponsiveChart>
                 </div>
 
                 <div className="bg-navy-main border border-white/10 p-6 rounded-xl h-[350px]">
                     <h3 className="text-white font-semibold mb-6">Top Performing Agents</h3>
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveChart width="100%" height="100%">
                         <BarChart data={agentPerformance} layout="vertical">
                             <CartesianGrid strokeDasharray="3 3" stroke="#333" horizontal={false} />
                             <XAxis type="number" stroke="#666" />
@@ -89,7 +90,7 @@ export const ManagerInsights: React.FC = () => {
                             />
                             <Bar dataKey="tickets" fill="#2196F3" radius={[0, 4, 4, 0]} barSize={20} />
                         </BarChart>
-                    </ResponsiveContainer>
+                    </ResponsiveChart>
                 </div>
             </div>
         </div>

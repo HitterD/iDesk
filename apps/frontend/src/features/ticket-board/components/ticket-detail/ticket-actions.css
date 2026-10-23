@@ -43,16 +43,16 @@
     outline: 3px solid hsl(var(--idesk-sapphire) / .4);
     outline-offset: 2px;
 }
-.ticket-action-dialog button:not(.idesk-btn) { transform: none; transition: background-color 150ms, border-color 150ms; }
-.ticket-action-dialog button[aria-pressed] { border-radius: 10px; }
-.ticket-action-dialog button[aria-pressed="true"] {
+.ticket-action-dialog button:not(.idesk-btn):not(.action-chip):not(.action-select-trigger) { transform: none; transition: background-color 150ms, border-color 150ms; }
+.ticket-action-dialog button[aria-pressed]:not(.action-chip):not(.action-select-trigger) { border-radius: 10px; }
+.ticket-action-dialog button[aria-pressed="true"]:not(.action-chip):not(.action-select-trigger) {
     background: hsl(var(--idesk-sapphire) / .1);
     color: hsl(var(--idesk-sapphire));
     border-color: hsl(var(--idesk-sapphire) / .5);
     box-shadow: none;
 }
-.ticket-action-dialog button[aria-pressed="true"] * { color: inherit; }
-.ticket-action-dialog button[aria-pressed="true"] > div > div:first-child { background: transparent; }
+.ticket-action-dialog button[aria-pressed="true"]:not(.action-chip):not(.action-select-trigger) * { color: inherit; }
+.ticket-action-dialog button[aria-pressed="true"]:not(.action-chip):not(.action-select-trigger) > div > div:first-child { background: transparent; }
 .ticket-action-dialog button svg { width: 16px; height: 16px; flex-shrink: 0; }
 .ticket-action-dialog .idesk-btn { flex-shrink: 0; }
 .ticket-action-dialog form { min-height: 0; }
@@ -76,6 +76,7 @@
 .ticket-action-simple textarea { resize: vertical; }
 .ticket-action-simple textarea[data-dragging="true"] { outline: 3px solid hsl(var(--idesk-sapphire) / .4); }
 .ticket-action-help { color: hsl(var(--idesk-text-secondary)); margin-top: 9px; font-size: 11px; line-height: 1.6; }
+span.ticket-action-help { display: block; margin-top: 12px; }
 .ticket-action-files { list-style: none; padding: 0; margin-top: 8px; }
 .ticket-action-files li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid hsl(var(--idesk-border)); }
 .ticket-action-files li > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -85,11 +86,80 @@
 .ticket-action-current { margin: 0 0 20px; font-size: 12px; color: hsl(var(--idesk-text-secondary)); }
 .ticket-action-current strong { font-weight: 500; }
 .ticket-action-teams { border: 0; padding: 0; margin: 0 0 20px; min-width: 0; }
-.ticket-action-simple .ticket-action-team { display: flex; align-items: center; gap: 11px; padding: 12px 0; border-bottom: 1px solid hsl(var(--idesk-border)); margin: 0; cursor: pointer; }
-.ticket-action-simple .ticket-action-team input { appearance: auto; width: 17px; height: 17px; margin: 0; padding: 0; flex: none; accent-color: #2d4a8c; }
-.ticket-action-team b { display: block; font-weight: 550; }
-.ticket-action-team small { display: block; margin-top: 3px; font-size: 12px; font-weight: 400; color: hsl(var(--idesk-text-secondary)); }
-.ticket-action-team:has(input:disabled) { cursor: not-allowed; color: hsl(var(--idesk-text-secondary)); }
+/* Destination teams: an iOS inset-grouped list. The radio stays (keyboard arrows, AT) but is visually hidden;
+   the chosen row shows a sapphire check, the current team a quiet "Saat ini" tag. */
+.ticket-action-teamlist { border-radius: 12px; background: hsl(var(--idesk-surface)); box-shadow: inset 0 0 0 1px hsl(var(--idesk-border)); overflow: hidden; }
+.ticket-action-simple .ticket-action-team {
+    position: relative; display: flex; align-items: center; gap: 12px; margin: 0; padding: 11px 14px; cursor: pointer;
+    transition: background-color var(--dur-1) var(--ease-out);
+}
+.ticket-action-simple .ticket-action-team + .ticket-action-team::before { content: ""; position: absolute; top: 0; left: 14px; right: 0; border-top: .5px solid hsl(var(--idesk-border)); }
+.ticket-action-simple .ticket-action-team input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.ticket-action-team > span { flex: 1; min-width: 0; }
+.ticket-action-team b { display: block; font-size: 13.5px; font-weight: 550; color: hsl(var(--idesk-text)); }
+.ticket-action-team small { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: hsl(var(--idesk-text-secondary)); }
+.ticket-action-team:not(:has(input:disabled)):hover { background: var(--td-fill); }
+.ticket-action-team:not(:has(input:disabled)):active { background: var(--td-fill-2); }
+.ticket-action-team:has(input:checked) { background: hsl(var(--idesk-sapphire) / .07); }
+.ticket-action-team:has(input:checked) b { color: hsl(var(--idesk-sapphire)); }
+.ticket-action-team:has(input:focus-visible) { box-shadow: inset 0 0 0 2px hsl(var(--idesk-sapphire) / .55); }
+.ticket-action-team:has(input:disabled) { cursor: not-allowed; }
+.ticket-action-team:has(input:disabled) b { color: hsl(var(--idesk-text-secondary)); }
+.ticket-action-team-check { width: 18px !important; height: 18px !important; flex: none; color: hsl(var(--idesk-sapphire)); stroke-width: 2.5; opacity: 0; transform: scale(.6);
+    transition: opacity var(--dur-1) var(--ease-out), transform var(--dur-2) var(--ease-spring); }
+.ticket-action-team:has(input:checked) .ticket-action-team-check { opacity: 1; transform: none; }
+.ticket-action-team-now { flex: none; padding: 2px 8px; border-radius: 999px; background: var(--td-fill-2); color: hsl(var(--idesk-text-secondary)); font-size: 11px; font-style: normal; font-weight: 550; }
+
+/* ActionSelect: macOS pop-up button. Filled field, accent chevron badge, translucent menu with a leading check. */
+.action-select-trigger {
+    display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 0 6px 0 12px; border-radius: 10px; text-align: left;
+    background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-text)); font: inherit; font-size: 13px; cursor: pointer;
+    box-shadow: inset 0 0 0 1px hsl(var(--idesk-border)), 0 1px 1.5px rgb(0 0 0 / .04);
+    transition: box-shadow var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.ticket-action-dialog .action-select-trigger:hover:not(:disabled) { background: hsl(var(--idesk-surface-raised)); }
+.ticket-action-dialog .action-select-trigger[data-state="open"], .ticket-action-dialog .action-select-trigger:focus-visible {
+    outline: 0; box-shadow: inset 0 0 0 1px hsl(var(--idesk-sapphire)), 0 0 0 3px hsl(var(--idesk-sapphire) / .18);
+}
+.action-select-trigger:disabled { opacity: .55; cursor: not-allowed; }
+.action-select-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.action-select-trigger[data-placeholder] .action-select-value { color: hsl(var(--idesk-text-secondary)); }
+.action-select-badge {
+    display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 6px;
+    background: hsl(var(--idesk-sapphire)); color: #fff; box-shadow: 0 1px 2px hsl(var(--idesk-sapphire) / .35);
+}
+.ticket-action-dialog .action-select-badge svg { width: 13px; height: 13px; stroke-width: 2.4; }
+.action-select-menu {
+    z-index: 120; min-width: var(--radix-select-trigger-width); max-width: calc(100vw - 24px);
+    max-height: min(320px, var(--radix-select-content-available-height)); overflow: hidden; border-radius: 12px; padding: 5px;
+    background: hsl(var(--idesk-surface) / .82); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+    box-shadow: 0 0 0 .5px rgb(0 0 0 / .14), 0 14px 36px -10px rgb(0 0 0 / .28), 0 2px 6px rgb(0 0 0 / .06);
+    color: hsl(var(--idesk-text));
+}
+.dark .action-select-menu { background: hsl(var(--idesk-surface-raised) / .86); box-shadow: 0 0 0 .5px rgb(255 255 255 / .12), 0 14px 36px -10px rgb(0 0 0 / .6); }
+.action-select-viewport { max-height: inherit; overflow-y: auto; scrollbar-width: thin; }
+.action-select-item {
+    display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; align-items: start;
+    padding: 6px 10px 6px 8px; border-radius: 7px; font-size: 13px; line-height: 1.4; cursor: default; outline: 0; user-select: none;
+}
+.action-select-item small { display: block; font-size: 11.5px; color: hsl(var(--idesk-text-secondary)); }
+.action-select-item[data-highlighted] { background: hsl(var(--idesk-sapphire)); color: #fff; }
+.action-select-item[data-highlighted] small, .action-select-item[data-highlighted] .action-select-check { color: rgb(255 255 255 / .85); }
+.action-select-item[data-disabled] { opacity: .45; }
+.action-select-check { display: grid; place-items: center; height: 18px; color: hsl(var(--idesk-sapphire)); }
+.action-select-check svg { width: 14px; height: 14px; stroke-width: 2.8; }
+
+/* ActionChips: quick picks as capsules; the active one fills with the accent. */
+.action-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ticket-action-dialog .action-chip {
+    height: 30px; padding: 0 13px; border: 0; border-radius: 999px; background: var(--td-fill); color: hsl(var(--idesk-text));
+    font-size: 12.5px; font-weight: 500; cursor: pointer;
+    transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+.ticket-action-dialog .action-chip:hover:not(:disabled) { background: var(--td-fill-2); }
+.ticket-action-dialog .action-chip:active:not(:disabled) { transform: scale(.96); }
+.ticket-action-dialog .action-chip.is-on { background: hsl(var(--idesk-sapphire)); color: #fff; box-shadow: 0 1px 2px hsl(var(--idesk-sapphire) / .3); border-radius: 999px; }
+.ticket-action-dialog .action-chip:disabled { opacity: .5; cursor: not-allowed; }
 .ticket-action-footer { border-top: 1px solid hsl(var(--idesk-border)); padding: 14px 26px 18px; background: hsl(var(--idesk-surface-raised)); }
 .ticket-action-footer > p { margin: 0 0 10px; color: hsl(var(--idesk-text-secondary)); font-size: 11px; }
 .ticket-action-footer > div { display: flex; justify-content: flex-end; gap: 8px; }
@@ -132,6 +202,9 @@
     .ticket-action-header h2 { font-size: 20px; }
     .ticket-action-simple > .ticket-action-body { padding: 18px 20px; }
     .ticket-action-simple textarea, .ticket-action-simple select { font-size: 16px; }
+    .action-select-trigger { min-height: 44px; font-size: 15px; }
+    .action-select-item { padding-block: 9px; font-size: 15px; }
+    .ticket-action-dialog .action-chip { height: 36px; padding: 0 15px; font-size: 14px; }
     .ticket-action-footer { padding: 12px 20px max(16px, env(safe-area-inset-bottom)); }
     .ticket-action-footer > div { display: grid; grid-template-columns: 1fr 1.8fr; }
     .ticket-action-dialog .idesk-btn { min-height: 44px; }
@@ -142,5 +215,5 @@
     .ticket-action-dialog .idesk-btn { min-height: 40px; padding-inline: 10px; }
     .ticket-action-dialog [class*="grid-cols-4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .ticket-action-dialog [class*="justify-between"] { flex-wrap: wrap; }
-    .ticket-action-dialog button[aria-pressed] { min-height: 40px; }
+    .ticket-action-dialog button[aria-pressed]:not(.action-chip):not(.action-select-trigger) { min-height: 40px; }
 }

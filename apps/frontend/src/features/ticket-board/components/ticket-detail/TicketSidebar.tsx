@@ -36,6 +36,7 @@ import { ReassignConfirmDialog, type TargetAgentInfo } from '../ReassignConfirmD
 import { TicketForwardDialog, type ForwardTargetTeam } from '../TicketForwardDialog';
 import { TicketParticipantsSection } from './TicketParticipantsSection';
 import { ResolveTicketModal } from './ResolveTicketModal';
+import { VendorVisitDialog } from './VendorVisitDialog';
 import { SetTicketReminderModal } from './SetTicketReminderModal';
 import { SidebarCard, InfoRow, CardBadge, sidebarPanelClass } from './SidebarCard';
 import { SlaProgress } from './SlaProgress';
@@ -49,13 +50,20 @@ interface TicketSidebarProps {
     slaConfigs: { id: string; priority: string; resolutionTimeMinutes: number }[];
     attributes: { categories: { id: string; value: string }[]; devices: { id: string; value: string }[]; software: any[] };
     onAssigneeChange: (value: string, reason?: string) => Promise<void>;
-    onStatusChange: (value: string, resolutionNote?: string, files?: File[]) => Promise<void>;
+    onStatusChange: (value: string, resolutionNote?: string, files?: File[], extra?: StatusChangeExtra) => Promise<void>;
     onPriorityChange: (value: string) => Promise<void>;
     onCategoryChange: (value: string) => Promise<void>;
     onDeviceChange: (value: string) => Promise<void>;
     onForward?: (targetTeam: ForwardTargetTeam, reason: string) => Promise<void> | void;
     onExtendSla?: () => void;
     onSetReminder?: () => void;
+    /** Moves the vendor appointment of a WAITING_VENDOR ticket. */
+    onRescheduleVendorVisit?: (vendorVisitAt: string) => Promise<void>;
+}
+
+/** Extra PATCH /status fields some transitions need (WAITING_VENDOR: the agreed visit time). */
+export interface StatusChangeExtra {
+    vendorVisitAt?: string;
 }
 
 type FieldKey = 'assignee' | 'status' | 'priority' | 'category' | 'device';
@@ -73,6 +81,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     onForward,
     onExtendSla,
     onSetReminder,
+    onRescheduleVendorVisit,
 }) => {
     const { user } = useAuth();
     const isAdmin = user?.role === 'ADMIN';
@@ -173,6 +182,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     };
 
     const [resolveModalOpen, setResolveModalOpen] = useState(false);
+    const [vendorDialog, setVendorDialog] = useState<'start' | 'reschedule' | null>(null);
 
     const handleConfirmReassign = async (reason: string) => {
         const val = targetAgentToAssign ? targetAgentToAssign.id : '';
@@ -189,11 +199,34 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
             setResolveModalOpen(true);
             return;
         }
+        if (value === 'WAITING_VENDOR') {
+            setVendorDialog('start');
+            return;
+        }
         try {
             await handleStatusChange(value);
         } catch {
             // Cancelled takeover or failed save (already reported): show the server status again.
             setLocalStatus(ticket.status);
+        }
+    };
+
+    const handleConfirmVendorVisit = async (vendorVisitAt: string) => {
+        if (vendorDialog === 'reschedule') {
+            await onRescheduleVendorVisit?.(vendorVisitAt);
+            setVendorDialog(null);
+            return;
+        }
+        setVendorDialog(null);
+        setLocalStatus('WAITING_VENDOR');
+        setSaving(prev => ({ ...prev, status: true }));
+        try {
+            await onStatusChange('WAITING_VENDOR', undefined, undefined, { vendorVisitAt });
+            showSaved('status');
+        } catch {
+            setLocalStatus(ticket.status);
+        } finally {
+            setSaving(prev => ({ ...prev, status: false }));
         }
     };
 
@@ -361,11 +394,23 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     pausedAt={ticket.lastPausedAt}
                 />
                 <div className="td-kvs">
-                    {ticket.status === 'WAITING_VENDOR' ? (
+                    {ticket.status === 'WAITING_VENDOR' ? (<>
+                        <InfoRow label="Janji vendor">
+                            <span className="td-vendor-visit">
+                                <span className={cn(ticket.vendorVisitAt && new Date(ticket.vendorVisitAt) < new Date() && 'is-late')}>
+                                    {ticket.vendorVisitAt ? formatDateTimeID(ticket.vendorVisitAt) : 'Belum dijadwalkan'}
+                                </span>
+                                {!isLocked && onRescheduleVendorVisit && (
+                                    <button type="button" className="td-vendor-visit-edit" onClick={() => setVendorDialog('reschedule')}>
+                                        {ticket.vendorVisitAt ? 'Ubah' : 'Atur'}
+                                    </button>
+                                )}
+                            </span>
+                        </InfoRow>
                         <InfoRow label="Dijeda sejak">
                             {ticket.lastPausedAt ? formatDateTimeID(ticket.lastPausedAt) : '—'}
                         </InfoRow>
-                    ) : ticket.slaTarget && (
+                    </>) : ticket.slaTarget && (
                         <InfoRow label="Target SLA">{formatDateTimeID(ticket.slaTarget)}</InfoRow>
                     )}
                     <InfoRow label="Dibuat">{formatDateTimeID(ticket.createdAt)}</InfoRow>
@@ -525,6 +570,15 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 }}
                 targetAgent={targetAgentToAssign}
                 onConfirm={handleConfirmReassign}
+            />
+
+            <VendorVisitDialog
+                isOpen={vendorDialog !== null}
+                onClose={() => setVendorDialog(null)}
+                mode={vendorDialog ?? 'start'}
+                ticket={{ id: ticket.id, ticketNumber: ticket.ticketNumber, title: ticket.title, vendorVisitAt: ticket.vendorVisitAt }}
+                onConfirm={handleConfirmVendorVisit}
+                isLoading={saving.status}
             />
 
             {/* Resolve Confirmation Modal with Explanation and Proof Attachments */}

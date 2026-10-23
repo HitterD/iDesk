@@ -317,6 +317,33 @@ textarea:focus {
   color: hsl(var(--foreground));
 }
 .idesk-shell-chrome { color: hsl(var(--idesk-chrome-foreground)); }
+/* Batik kopi: an interlocking kawung lattice of gold coffee beans, used as an accent only where the reference (iPop) uses its motif:
+   the page-context band left of the topbar search, the foot of the sidebar and the TV board header. Everything else stays plain. */
+:root { --batik-kopi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40' fill='none' stroke='%23E6BC5C' stroke-width='.9' stroke-linecap='round'%3E%3Cg transform='translate(10 10) rotate(45)'%3E%3Cellipse rx='4.6' ry='11.4'/%3E%3Cpath d='M0-9.4c-1.9 3 1.9 6.4 0 9.4s1.9 6.4 0 9.4'/%3E%3C/g%3E%3Cg transform='translate(30 10) rotate(-45)'%3E%3Cellipse rx='4.6' ry='11.4'/%3E%3Cpath d='M0-9.4c-1.9 3 1.9 6.4 0 9.4s1.9 6.4 0 9.4'/%3E%3C/g%3E%3Cg transform='translate(10 30) rotate(-45)'%3E%3Cellipse rx='4.6' ry='11.4'/%3E%3Cpath d='M0-9.4c-1.9 3 1.9 6.4 0 9.4s1.9 6.4 0 9.4'/%3E%3C/g%3E%3Cg transform='translate(30 30) rotate(45)'%3E%3Cellipse rx='4.6' ry='11.4'/%3E%3Cpath d='M0-9.4c-1.9 3 1.9 6.4 0 9.4s1.9 6.4 0 9.4'/%3E%3C/g%3E%3Ccircle cx='20' cy='20' r='1.5' fill='%23E6BC5C' stroke='none'/%3E%3Ccircle cx='0' cy='0' r='1.5' fill='%23E6BC5C' stroke='none'/%3E%3Ccircle cx='40' cy='0' r='1.5' fill='%23E6BC5C' stroke='none'/%3E%3Ccircle cx='0' cy='40' r='1.5' fill='%23E6BC5C' stroke='none'/%3E%3Ccircle cx='40' cy='40' r='1.5' fill='%23E6BC5C' stroke='none'/%3E%3Ccircle cx='20' cy='0' r='.8' fill='%23E6BC5C' stroke='none'/%3E%3Ccircle cx='20' cy='40' r='.8' fill='%23E6BC5C' stroke='none'/%3E%3Ccircle cx='0' cy='20' r='.8' fill='%23E6BC5C' stroke='none'/%3E%3Ccircle cx='40' cy='20' r='.8' fill='%23E6BC5C' stroke='none'/%3E%3C/svg%3E"); }
+.topbar-greeting::before, .idesk-sidebar::after {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  background: var(--batik-kopi) 0 0 / 44px 44px; opacity: .2;
+}
+.topbar-greeting::before {
+  inset: 0 0 0 -18px;
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 35%, transparent 100%);
+          mask-image: linear-gradient(90deg, #000 0, #000 35%, transparent 100%);
+}
+.idesk-sidebar::after {
+  left: 0; right: 0; bottom: 0; height: 34%;
+  -webkit-mask-image: linear-gradient(0deg, #000 0, rgb(0 0 0 / .55) 45%, transparent 100%);
+          mask-image: linear-gradient(0deg, #000 0, rgb(0 0 0 / .55) 45%, transparent 100%);
+}
+.dark .topbar-greeting::before, .dark .idesk-sidebar::after { opacity: .1; }
+.tv-board-header { position: relative; isolation: isolate; }
+.tv-board-header::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--batik-kopi) 0 0 / 56px 56px; opacity: .18;
+  -webkit-mask-image: linear-gradient(90deg, #000 0, rgb(0 0 0 / .6) 22%, transparent 48%);
+          mask-image: linear-gradient(90deg, #000 0, rgb(0 0 0 / .6) 22%, transparent 48%);
+}
+[data-theme="dark"] .tv-board-header::before { opacity: .12; }
+@media print { .topbar-greeting::before, .idesk-sidebar::after { display: none; } }
 .idesk-sheet {
   background: hsl(var(--shell-sheet));
   color: hsl(var(--foreground));
@@ -401,7 +428,12 @@ textarea:focus {
 .nav-group.is-quiet .nav-item.is-active {
   background: hsl(var(--shell-sheet)); color: hsl(var(--foreground)); font-weight: 600;
   width: 100%; margin-right: 0; border-radius: var(--shell-tab-radius) 0 0 var(--shell-tab-radius);
+  /* The tab grows 10px into the sheet; pad it back so the label and badge don't shift. */
+  padding-right: 18px;
 }
+/* Icon rail and footer items keep their width when active, so they keep their padding too. */
+.nav-item-icon.is-active { padding: 0; }
+.nav-foot .nav-item.is-active { padding-right: 8px; }
 .nav-item.is-active::before, .nav-item.is-active::after {
   content: ""; position: absolute; right: 0; width: var(--shell-tab-radius); height: var(--shell-tab-radius);
   background: transparent; pointer-events: none;
@@ -417,11 +449,13 @@ textarea:focus {
 }
 /* Mobile drawer has no adjoining sheet: active becomes a rounded pill. */
 @media (max-width: 1023.98px) {
-  .nav-item.is-active, .nav-group.is-quiet .nav-item.is-active { width: calc(100% - 10px); margin-right: 10px; border-radius: 12px; }
+  .nav-item.is-active, .nav-group.is-quiet .nav-item.is-active { width: calc(100% - 10px); margin-right: 10px; padding-right: 8px; border-radius: 12px; }
   .nav-item.is-active::before, .nav-item.is-active::after { display: none; }
 }
 
 .nav-badge {
+  /* Above the active tab's joining curves, whose sheet-coloured shadows reach into short items. */
+  position: relative; z-index: 1;
   min-width: 20px; padding: 0 6px; border-radius: 10px; text-align: center;
   font-size: 11px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums;
   background: hsl(0 0% 100% / .16); color: #fff;
@@ -467,7 +501,13 @@ textarea:focus {
 .idesk-topbar { color: hsl(var(--idesk-chrome-foreground)); }
 /* Agent topbar: search centred between equal flexible sides (mockup .search { margin: 0 auto }). */
 .idesk-topbar-agent { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr); align-items: center; column-gap: 16px; }
-.idesk-topbar-search-slot { width: min(520px, 40vw); min-width: 0; }
+.idesk-topbar-search-slot { width: clamp(280px, 32vw, 520px); min-width: 0; }
+/* Topbar sides (were empty): greeting + WIB clock on the left, live status before the actions on the right. */
+.topbar-greeting { position: relative; isolation: isolate; align-self: stretch; display: flex; flex-direction: column; justify-content: center; min-width: 0; padding-left: 6px; line-height: 1.25; }
+.topbar-greeting b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 650; letter-spacing: -.01em; color: #fff; }
+.topbar-greeting span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: hsl(var(--idesk-chrome-muted)); font-variant-numeric: tabular-nums; }
+.idesk-topbar-right { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: max-content; }
+@media (max-width: 1279.98px) { .topbar-greeting { visibility: hidden; } }
 /* Fill stays at .10 in every state so the .9 placeholder keeps >=4.5:1 on the lightest chrome
    (#2D4A8C under the 7% radial highlight = 4.85:1); hover/focus are signalled by border and ring only. */
 .idesk-topbar-search {
@@ -552,7 +592,9 @@ textarea:focus {
 .portal-help-copy span { font-size: 13px; color: hsl(var(--idesk-text-secondary)); }
 .portal-help-banner:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
 @media (max-width: 639.98px) {
-  .portal-help-banner { flex-wrap: wrap; }
+  /* Copy takes the row beside the mascot; the CTA wraps beneath it instead of squeezing the text. */
+  .portal-help-banner { flex-wrap: wrap; row-gap: 6px; }
+  .portal-help-copy { flex-basis: calc(100% - 70px); }
   .portal-help-cta { margin-left: 70px; }
 }
 
@@ -600,7 +642,7 @@ textarea:focus {
   /* Selection cell bleeds into the row padding and half the column gap: full row height,
      45px wide (14px pad + 26px column + 5px gap), so no near-miss falls through to the row. */
   .queue-grid > .queue-select-cell { min-width: 0; margin: 0 -5px 0 -16px; padding: 0 5px 0 16px; }
-  .queue-thead { height: 36px; border-bottom: .5px solid hsl(var(--idesk-border)); color: hsl(var(--idesk-text-secondary) / .8); font-size: 11.5px; font-weight: 500; }
+  .queue-thead { height: 36px; border-bottom: .5px solid hsl(var(--idesk-border)); color: var(--td-text-3); font-size: 11.5px; font-weight: 500; }
   .queue-desktop-row { min-height: 60px; }
   .queue-mobile-row, .queue-card-toolbar { display: none; }
 }
@@ -629,6 +671,20 @@ textarea:focus {
 .portal-search:focus-within { box-shadow: inset 0 0 0 1px hsl(var(--idesk-sapphire)), 0 0 0 3px hsl(var(--idesk-sapphire) / .16); }
 .portal-seg { display: flex; gap: 2px; min-width: 0; max-width: 100%; padding: 3px; border-radius: 12px; background: hsl(var(--muted)); overflow-x: auto; scrollbar-width: none; }
 .portal-seg::-webkit-scrollbar { display: none; }
+/* Overflowing tab rows fade at whichever edge still hides tabs (scroll-driven, so no JS; inert elsewhere). */
+@property --seg-fade-l { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --seg-fade-r { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes seg-edge-fade {
+  from { --seg-fade-l: 0px; --seg-fade-r: 28px; }
+  8%, 92% { --seg-fade-l: 28px; --seg-fade-r: 28px; }
+  to { --seg-fade-l: 28px; --seg-fade-r: 0px; }
+}
+@supports (animation-timeline: scroll()) {
+  .portal-seg {
+    mask-image: linear-gradient(to right, transparent, #000 var(--seg-fade-l), #000 calc(100% - var(--seg-fade-r)), transparent);
+    animation: seg-edge-fade linear both; animation-timeline: scroll(self inline);
+  }
+}
 .portal-seg-btn {
   display: inline-flex; align-items: center; gap: 6px; flex: none; height: 34px; padding: 0 12px; border-radius: 9px; cursor: pointer;
   font-size: 12.5px; font-weight: 500; white-space: nowrap; color: hsl(var(--idesk-text-secondary));
@@ -716,7 +772,11 @@ textarea:focus {
 
 /* ---------- New-ticket catalogue + creation forms (BentoCreateTicketPage) ---------- */
 .ct-page { width: 100%; margin: 0 auto; padding-bottom: 32px; color: hsl(var(--idesk-text)); }
-.ct-page-narrow { max-width: 64rem; }
+/* Catalogue uses the dashboard width; cards stretch so every row is full whatever the role can see. */
+.ct-page-catalog { max-width: 1480px; }
+.ct-catalog-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; }
+.ct-catalog-top .ct-search { flex: 0 1 420px; margin-top: 0; }
+@media (max-width: 760px) { .ct-catalog-top .ct-search { flex-basis: 100%; max-width: none; } }
 .ct-page-form { max-width: 52rem; }
 .ct-back {
   display: inline-grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 9999px; cursor: pointer;
@@ -736,10 +796,15 @@ textarea:focus {
 .ct-section { margin-top: 28px; }
 .ct-section h2 { margin: 0; font-size: 15px; font-weight: 650; line-height: 1.3; letter-spacing: -.01em; }
 .ct-section > p { margin: 2px 0 12px; font-size: 13px; color: hsl(var(--idesk-text-secondary)); }
-.ct-catalog { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.ct-catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+/* Exactly four cards never leave an orphan: 4 across when there is room, else 2 x 2, else one column. */
+.ct-section { container-type: inline-size; }
+.ct-catalog:has(> :nth-child(4):last-child) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container (min-width: 1100px) { .ct-catalog:has(> :nth-child(4):last-child) { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@container (max-width: 560px) { .ct-catalog:has(> :nth-child(4):last-child) { grid-template-columns: minmax(0, 1fr); } }
 .ct-card {
   position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-items: start;
-  min-width: 0; padding: 16px; border-radius: 16px; background: hsl(var(--idesk-surface));
+  min-width: 0; padding: 18px 18px 16px; border-radius: 18px; background: hsl(var(--idesk-surface));
   box-shadow: 0 1px 3px hsl(220 40% 20% / .08), inset 0 0 0 1px hsl(var(--idesk-border) / .55);
   transition: box-shadow 180ms var(--ease-out), transform 180ms var(--ease-out);
 }
@@ -750,7 +815,7 @@ textarea:focus {
 .ct-card h3 { grid-column: 1; margin: 0; font-size: 14px; font-weight: 650; line-height: 1.3; letter-spacing: -.01em; }
 .ct-card p { grid-column: 1; margin: 4px 0 0; font-size: 12.5px; line-height: 1.45; color: hsl(var(--idesk-text-secondary));
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.ct-card img { grid-column: 2; grid-row: 1 / span 3; width: 64px; height: 64px; margin: -6px -4px -6px 0; object-fit: contain; user-select: none;
+.ct-card img { grid-column: 2; grid-row: 1 / span 3; width: 72px; height: 72px; margin: -6px -4px -6px 0; object-fit: contain; user-select: none;
   transition: transform 220ms var(--ease-out); }
 .ct-card:hover img { transform: translateY(-2px) scale(1.04); }
 .ct-link { grid-column: 1; justify-self: start; display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; padding: 0; border-radius: 6px;
@@ -758,7 +823,7 @@ textarea:focus {
 .ct-link svg { width: 14px; height: 14px; transition: transform 180ms var(--ease-out); }
 .ct-card:hover .ct-link svg { transform: translateX(2px); }
 /* Stretch the action over the whole card so the card is one hit target. */
-.ct-link::after { content: ''; position: absolute; inset: 0; border-radius: 16px; }
+.ct-link::after { content: ''; position: absolute; inset: 0; border-radius: 18px; }
 /* Ring on the overlay: works without :has and stays painted in forced-colors. */
 .ct-link:focus-visible::after { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
 .ct-empty { margin-top: 24px; padding: 16px; border-radius: 14px; background: hsl(var(--muted)); font-size: 13px; color: hsl(var(--idesk-text-secondary)); }
@@ -1009,11 +1074,11 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .queue-sort:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
 .queue-sort:active { transform: none; }
 .queue-sort-created { justify-self: end; white-space: nowrap; }
-.queue-created-date { color: hsl(var(--idesk-text-secondary) / .85); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.queue-created-date { color: var(--td-text-3); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .queue-sort-created svg { opacity: 1; }
 .queue-title-cell { align-self: stretch; display: flex; align-items: center; }
 .queue-tk { min-width: 0; padding: 10px 0; }
-.queue-tk-id { display: flex; align-items: center; gap: 6px; min-width: 0; font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: hsl(var(--idesk-text-secondary) / .85); white-space: nowrap; }
+.queue-tk-id { display: flex; align-items: center; gap: 6px; min-width: 0; font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--td-text-3); white-space: nowrap; }
 .queue-tk-id > span:first-child { flex: none; }
 .ticket-pill.queue-src, .queue-src {
   display: inline-flex; align-items: center; gap: 3px; min-height: 0; height: 17px; padding: 0 6px; border: 0; border-radius: 6px;
@@ -1029,7 +1094,7 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .queue-tk-title { margin-top: 2px; font-size: 13.5px; font-weight: 550; color: hsl(var(--idesk-text)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color var(--dur-1) var(--ease-out); }
 .queue-person { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .queue-person b { display: block; font-size: 12.5px; font-weight: 550; color: hsl(var(--idesk-text)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.queue-person small { display: block; font-size: 11px; color: hsl(var(--idesk-text-secondary) / .85); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue-person small { display: block; font-size: 11px; color: var(--td-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ticket-pill.queue-pic, .queue-pic {
   width: 100%; height: 30px; min-height: 30px; padding: 0 10px 0 3px; border-radius: 15px; gap: 6px; justify-content: flex-start;
   background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-text)); border-color: hsl(var(--idesk-border));
@@ -1171,7 +1236,7 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 
 /* ---------- Round-2 ticket detail (mockup idesk.css "Ticket detail header", "Messages", "Composer", inspector) ---------- */
 :root {
-  --td-fill: rgb(116 116 128 / .08); --td-fill-2: rgb(116 116 128 / .14); --td-text-3: #8a8a92;
+  --td-fill: rgb(116 116 128 / .08); --td-fill-2: rgb(116 116 128 / .14); --td-text-3: #696972; /* >=4.5:1 on every fill it sits on */
   --td-line: rgb(0 0 0 / .07); --td-line-strong: rgb(0 0 0 / .11);
   --td-accent-soft: hsl(var(--idesk-sapphire) / .09);
   --td-amber: #f2a516;
@@ -1180,7 +1245,7 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   --td-ring: 0 0 0 3px hsl(var(--idesk-sapphire) / .38);
 }
 .dark {
-  --td-fill: rgb(118 118 128 / .16); --td-fill-2: rgb(118 118 128 / .24); --td-text-3: #85858d;
+  --td-fill: rgb(118 118 128 / .16); --td-fill-2: rgb(118 118 128 / .24); --td-text-3: #96969c;
   --td-line: rgb(255 255 255 / .07); --td-line-strong: rgb(255 255 255 / .12);
   --td-accent-soft: hsl(var(--idesk-sapphire) / .16);
 }
@@ -1223,7 +1288,9 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 }
 
 /* Messages: who line, bubble, floating tool pill, reaction chips */
-.chat-msg { display: flex; gap: 10px; max-width: 78%; animation: td-msg-in var(--dur-3) var(--ease-out) both; }
+.chat-msg { display: flex; gap: 10px; max-width: 78%; }
+/* Only messages that arrive while the thread is open animate in; opening a ticket shows it settled. */
+.chat-msg.is-arriving { animation: td-msg-in var(--dur-3) var(--ease-out) backwards; }
 .chat-msg.is-out { margin-left: auto; flex-direction: row-reverse; }
 .chat-msg > .chat-msg-col { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
 .chat-msg.is-out > .chat-msg-col { align-items: flex-end; }
@@ -1293,6 +1360,24 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .chat-sys .chat-sys-ic svg { width: 12px; height: 12px; }
 .chat-sys small { color: var(--td-text-3); font-size: 11px; }
 .chat-sys b { color: hsl(var(--idesk-text)); font-weight: 600; }
+/* Structured activity (ActivityEvent): who acted, each change as "field  old -> new", then their reason. */
+.act-event { margin: 14px auto; width: min(520px, 100%); padding: 10px 14px 11px; border-radius: 14px;
+  background: hsl(var(--idesk-surface)); box-shadow: inset 0 0 0 .5px var(--td-line-strong); font-size: 12.5px; color: hsl(var(--idesk-text-secondary)); }
+.act-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.act-head > span:not(.act-avatar) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-head b { color: hsl(var(--idesk-text)); font-weight: 600; }
+.act-head time { margin-left: auto; padding-left: 10px; font-size: 11px; color: var(--td-text-3); font-variant-numeric: tabular-nums; }
+.act-avatar { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--td-accent-soft);
+  color: hsl(var(--idesk-sapphire)); font-size: 9.5px; font-weight: 700; letter-spacing: .02em; }
+.act-changes { display: grid; gap: 5px; margin: 8px 0 0; padding: 8px 0 0 30px; list-style: none; border-top: .5px solid var(--td-line); }
+.act-changes li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 7px; min-width: 0; }
+.act-field { min-width: 76px; color: var(--td-text-3); font-size: 11.5px; }
+.act-changes b { color: hsl(var(--idesk-text)); font-weight: 600; }
+.act-from { opacity: .72; }
+.act-arrow { width: 12px; height: 12px; flex: none; color: var(--td-text-3); }
+.act-empty { font-style: italic; color: var(--td-text-3); }
+.act-pill.ticket-pill { min-height: 20px; padding: 0 8px; font-size: 11px; }
+.act-reason { margin: 7px 0 0 30px; padding-left: 9px; border-left: 2px solid var(--td-line-strong); font-size: 12px; color: hsl(var(--idesk-text)); }
 .chat-event { --c: hsl(var(--ticket-amber)); margin: 14px auto; width: min(460px, 100%); background: hsl(var(--idesk-surface)); border-radius: 16px; box-shadow: var(--queue-card-shadow); padding: 12px 14px; display: grid; gap: 10px; text-align: left; }
 .chat-event .chat-event-h { display: flex; gap: 10px; align-items: center; }
 .chat-event .chat-event-ic { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center; color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
@@ -1379,6 +1464,12 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .td-sla-bar { height: 6px; border-radius: 3px; background: var(--td-fill-2); overflow: hidden; }
 .td-sla-bar > i { display: block; height: 100%; border-radius: 3px; }
 .td-kvs { display: grid; margin-top: 4px; }
+/* Waiting Vendor appointment row: the time (red once it has passed) and a quiet reschedule capsule. */
+.td-vendor-visit { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px 8px; }
+.td-vendor-visit .is-late { color: hsl(var(--ticket-red-ink)); font-weight: 600; }
+.td-vendor-visit-edit { padding: 2px 9px; border-radius: 999px; background: var(--td-accent-soft); color: hsl(var(--idesk-sapphire)); font-size: 11.5px; font-weight: 600; cursor: pointer; transition: background-color var(--dur-1) var(--ease-out); }
+.td-vendor-visit-edit:hover { background: hsl(var(--idesk-sapphire) / .16); }
+.td-vendor-visit-edit:focus-visible { outline: 0; box-shadow: var(--td-ring); }
 .td-kvs > div { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-top: .5px solid var(--td-line); font-size: 12.5px; }
 .td-kvs > div > span { color: hsl(var(--idesk-text-secondary)); flex: none; }
 .td-kvs > div > b { font-weight: 550; min-width: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1401,7 +1492,24 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 @keyframes idesk-backdrop-in { from { opacity: 0; backdrop-filter: blur(0); } }
 
 /* Page content arrives on every route change (keyed wrapper in BentoLayout / ClientLayout). */
-.idesk-page-enter { animation: idesk-page-in var(--dur-3) var(--ease-out) both; }
+/* backwards, not both: a transform left filled after the entrance would make this wrapper the containing
+   block for every position:fixed descendant (inline modals, drawers) and pin them inside the page. */
+.idesk-page-enter { animation: idesk-page-in var(--dur-3) var(--ease-out) backwards; }
+/* In-shell lazy page fallback: invisible for 300ms so quick chunk loads never flash a loader. */
+@keyframes idesk-fade-in { from { opacity: 0; } }
+.idesk-route-fallback { display: grid; place-items: center; min-height: 40vh; animation: idesk-fade-in var(--dur-2) var(--ease-out) 300ms both; }
+
+/* KB suggestion rows (KbSuggestionDialog): colour-only hover, the arrow nudges toward the article. */
+.kb-suggest-item {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border-radius: 14px; text-align: left; cursor: pointer;
+  background: hsl(var(--idesk-surface)); box-shadow: inset 0 0 0 1px hsl(var(--idesk-border) / .8);
+  transition: background-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+.kb-suggest-item:hover { background: hsl(var(--idesk-selection) / .6); box-shadow: inset 0 0 0 1px hsl(var(--idesk-sapphire) / .25); }
+.kb-suggest-item:active { transform: scale(.99); }
+.kb-suggest-item:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
+.kb-suggest-arrow { width: 16px; height: 16px; flex: none; color: hsl(var(--muted-foreground)); transition: transform var(--dur-2) var(--ease-out), color var(--dur-1) var(--ease-out); }
+.kb-suggest-item:hover .kb-suggest-arrow { transform: translate(2px, -2px); color: hsl(var(--idesk-sapphire)); }
 
 /* Sidebar items: press feedback (never on the active tab) and the active tab sliding from the previous item. */
 .nav-item:not(.is-active):active { transform: scale(.98); }
@@ -1423,9 +1531,15 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   transform-origin: var(--radix-popper-transform-origin);
   animation: idesk-pop-in var(--dur-2) var(--ease-out);
 }
+[data-radix-popper-content-wrapper] > [data-state="closed"] { animation: idesk-fade-out var(--dur-1) var(--ease-out) forwards; }
 /* Dialogs spring in over a blurred backdrop. */
 .idesk-dialog-overlay[data-state="open"] { animation: idesk-backdrop-in var(--dur-3) var(--ease-out); }
 .idesk-dialog-content[data-state="open"] { animation: idesk-dialog-in var(--dur-3) var(--ease-spring); }
+/* Dismissal is quicker and quieter than arrival: a short fade-and-settle, no slide back. */
+@keyframes idesk-dialog-out { to { opacity: 0; transform: scale(.98); } }
+@keyframes idesk-fade-out { to { opacity: 0; } }
+.idesk-dialog-overlay[data-state="closed"] { animation: idesk-fade-out var(--dur-1) var(--ease-out) forwards; }
+.idesk-dialog-content[data-state="closed"] { animation: idesk-dialog-out var(--dur-1) var(--ease-out) forwards; }
 /* Unlayered on purpose: beats select-styles.css (unlayered global select chevron) for the mockup "Per halaman" pop. */
 .portal-page-size select { appearance: none; border: 0; outline: 0; background: none; color: hsl(var(--idesk-text)); font: inherit; font-weight: 600; padding: 0 2px 0 0; cursor: pointer; }
 /* Unlayered on purpose (beats the .inline-block utility): TicketQuickPreview wraps its trigger in an
@@ -1440,7 +1554,7 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 /* Unlayered on purpose: these must beat shadcn Command/Popover utility classes
    (px-2 py-1.5, data-[disabled]:pointer-events-none, w-72, outline-none) and the
    unlayered .glass-card-elevated in glassmorphism.css. */
-.picker-trigger:focus-visible, .picker-panel :focus-visible, .agent-select-list :focus-visible {
+.picker-trigger:focus-visible, .picker-panel :focus-visible {
   outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px;
 }
 .glass-card-elevated.picker-panel {
@@ -1466,7 +1580,45 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .picker-panel .picker-option[data-disabled="true"] { cursor: not-allowed; opacity: .55; }
 /* cmdk emits data-disabled="false" too; override the legacy presence selector locally. */
 .picker-panel .picker-option[data-disabled="false"], .agent-select-list .picker-option[data-disabled="false"] { pointer-events: auto; opacity: 1; }
-.agent-select-list { background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-text)); }
+/* Agent picker (PIC): same language as the action-dialog pop-up menus. Filled search pill, quiet site
+   headings, accent-filled highlighted row (macOS menu), check on the current PIC. */
+[data-radix-popper-content-wrapper] > :has(> .agent-select-list) {
+  border: 0; border-radius: 14px; overflow: hidden;
+  background: hsl(var(--idesk-surface) / .86); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 0 0 .5px rgb(0 0 0 / .14), 0 16px 40px -12px rgb(0 0 0 / .3), 0 2px 6px rgb(0 0 0 / .06);
+}
+.dark [data-radix-popper-content-wrapper] > :has(> .agent-select-list) { background: hsl(var(--idesk-surface-raised) / .9); box-shadow: 0 0 0 .5px rgb(255 255 255 / .12), 0 16px 40px -12px rgb(0 0 0 / .6); }
+.agent-select-list { display: flex; flex-direction: column; max-height: min(420px, var(--radix-popover-content-available-height, 420px)); background: transparent; color: hsl(var(--idesk-text)); }
+.agent-select-list [cmdk-input-wrapper] {
+  flex: none; height: 34px; margin: 8px 8px 4px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--td-fill);
+  transition: box-shadow var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.agent-select-list [cmdk-input-wrapper]:focus-within { background: hsl(var(--idesk-surface)); box-shadow: inset 0 0 0 1px hsl(var(--idesk-sapphire) / .6), 0 0 0 3px hsl(var(--idesk-sapphire) / .16); }
+.agent-select-list [cmdk-input-wrapper] svg { width: 15px; height: 15px; margin-right: 7px; opacity: .55; }
+.agent-select-list [cmdk-input] { height: 100%; padding: 0; font-size: 13px; }
+.agent-select-list [cmdk-input]:focus-visible { outline: 0; }
+.agent-select-list [cmdk-input]::placeholder { color: hsl(var(--idesk-text-secondary)); }
+.agent-select-scroll { flex: 1; min-height: 0; max-height: none; padding: 0 6px 6px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.agent-select-list [cmdk-group-heading] { padding: 10px 8px 4px; font-size: 11px; font-weight: 600; letter-spacing: .01em; color: hsl(var(--idesk-text-secondary)); }
+.agent-select-list .picker-option.agent-option { display: flex; align-items: center; gap: 10px; min-height: 0; padding: 6px 8px; border-radius: 8px; color: hsl(var(--idesk-text)); }
+.agent-select-list .picker-option:focus-visible { outline: 0; }
+.agent-option .dash-avatar { width: 28px; height: 28px; flex: none; }
+.agent-option-none { display: grid; place-items: center; width: 28px; height: 28px; flex: none; border-radius: 50%; background: var(--td-fill-2); color: hsl(var(--idesk-text-secondary)); }
+.agent-option-none svg { width: 15px; height: 15px; }
+.agent-option-text { flex: 1; min-width: 0; line-height: 1.3; }
+.agent-option-name { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px; font-weight: 550; }
+.agent-option-email { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: hsl(var(--idesk-text-secondary)); }
+.agent-option-tag { flex: none; padding: 1px 6px; border-radius: 5px; background: var(--td-fill-2); color: hsl(var(--idesk-text-secondary)); font: 600 10px/1.5 var(--font-mono); letter-spacing: .02em; }
+.agent-option-tag.is-admin { font-family: inherit; background: color-mix(in srgb, var(--dash-orange, #f2930d) 16%, transparent); color: var(--dash-ink-orange, #a85d00); }
+.agent-option-check { width: 15px; height: 15px; flex: none; stroke-width: 2.8; color: hsl(var(--idesk-sapphire)); visibility: hidden; }
+.agent-option[data-checked="true"] .agent-option-check { visibility: visible; }
+.agent-select-list .picker-option.agent-option[data-selected="true"] { background: hsl(var(--idesk-sapphire)); color: #fff; }
+.agent-option[data-selected="true"] .agent-option-email, .agent-option[data-selected="true"] .agent-option-check { color: rgb(255 255 255 / .85); }
+.agent-option[data-selected="true"] .agent-option-tag { background: rgb(255 255 255 / .2); color: #fff; }
+.agent-option[data-selected="true"] .agent-option-none { background: rgb(255 255 255 / .2); color: #fff; }
+.agent-select-empty { padding: 28px 16px; text-align: center; font-size: 13px; font-weight: 550; }
+.agent-select-empty small { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 400; color: hsl(var(--idesk-text-secondary)); }
+.agent-select-foot { flex: none; padding: 7px 14px; border-top: .5px solid hsl(var(--idesk-border)); font-size: 11px; color: hsl(var(--idesk-text-secondary)); }
 @media (pointer: coarse) { .picker-option, .picker-trigger { min-height: 44px; } }
 
 /* FullCalendar Dark Mode Fix */
@@ -1611,4 +1763,6 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   }
   .queue-stat:hover, .portal-stat:hover, .ct-card:hover, .ct-card:hover img, .ct-card:hover .ct-link svg, .card-interactive:hover { transform: none; }
   .idesk-spin, .animate-pulse { animation: none !important; }
+  /* Scroll-driven edge fade is not motion; a time duration would break its scroll mapping. */
+  .portal-seg { animation-duration: auto !important; }
 }

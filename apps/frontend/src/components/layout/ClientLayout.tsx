@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Ticket, BookOpen, Settings, Video, MonitorSmartphone, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -39,6 +39,12 @@ export const ClientLayout: React.FC = () => {
             return () => clearTimeout(timer);
         }
     }, [justLoggedIn, setJustLoggedIn]);
+
+    // The scroll container outlives routes: start every page at the top, instantly (not scroll-smooth).
+    const scrollRef = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+        scrollRef.current?.scrollTo?.({ top: 0, behavior: 'instant' });
+    }, [location.pathname]);
 
     const handleLogout = async () => {
         await performLogout();
@@ -113,7 +119,7 @@ export const ClientLayout: React.FC = () => {
                         </motion.div>
                     </main>
                 ) : (
-                    <div id="main-scroll-container" className="flex-1 min-h-0 overflow-y-auto overflow-x-clip scroll-smooth scrollbar-custom flex flex-col print:h-auto print:overflow-visible print:p-0 print:m-0 print:block">
+                    <div ref={scrollRef} id="main-scroll-container" className="flex-1 min-h-0 overflow-y-auto overflow-x-clip scroll-smooth scrollbar-custom flex flex-col print:h-auto print:overflow-visible print:p-0 print:m-0 print:block">
                         <main id="main-content" className="flex-1 w-full max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 pt-5 pb-28 lg:pt-7 lg:pb-8 print:p-0 print:m-0 print:max-w-none print:w-full print:block">
                             <motion.div
                                 initial={justLoggedIn ? { opacity: 0, y: 16, scale: 0.98 } : false}

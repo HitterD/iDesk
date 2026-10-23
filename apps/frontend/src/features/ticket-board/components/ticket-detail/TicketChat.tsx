@@ -6,6 +6,7 @@ import { CLOSED_TICKET_NOTICE } from './constants';
 import { MessageAttachments } from './MessageAttachments';
 import { SystemMessageEvent } from './SystemMessageEvent';
 import { MessageBubble } from './MessageBubble';
+import { ActivityEvent } from './ActivityEvent';
 import { ChatComposer, ReplyTarget, STICKERS } from './ChatComposer';
 import {
     continuesGroup,
@@ -150,6 +151,10 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         m => !m.isSystemMessage && m.attachments?.length > 0
     );
     const initialAttachments = initialMessage?.attachments ?? [];
+
+    // Messages present when the ticket opens render settled; only later arrivals get the entrance
+    // animation (the page is keyed per path, so this resets when another ticket opens).
+    const [initialMessageIds] = useState(() => new Set((ticket.messages ?? []).map((m) => m.id)));
 
     const sortedMessages = useMemo(
         () => [...(ticket.messages ?? [])].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
@@ -379,13 +384,16 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                 <React.Fragment key={message.id}>
                                     {separator}
                                     <div className="chat-system-event" data-system-event={message.id}>
-                                        <SystemMessageEvent
+                                        {message.systemEvent?.changes?.length ? (
+                                            <ActivityEvent event={message.systemEvent} createdAt={message.createdAt}
+                                                audience={isAgentView ? 'staff' : 'requester'} />
+                                        ) : <SystemMessageEvent
                                             audience={isAgentView ? 'staff' : 'requester'}
                                             content={message.content}
                                             createdAt={message.createdAt}
                                             attachments={message.attachments}
                                             onImageClick={onImageClick}
-                                        />
+                                        />}
                                     </div>
                                 </React.Fragment>
                             );
@@ -407,6 +415,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                     isGroupStart={isGroupStart || newDay}
                                     isGroupEnd={isGroupEnd}
                                     isHighlighted={highlightedId === message.id}
+                                    isArriving={!initialMessageIds.has(message.id)}
                                     reactions={messageReactions[message.id] || []}
                                     onAddReaction={(emoji) => handleAddReaction(message.id, emoji)}
                                     onRemoveReaction={(emoji) => handleRemoveReaction(message.id, emoji)}

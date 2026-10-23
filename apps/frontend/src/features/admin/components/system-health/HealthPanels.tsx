@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Activity, BookOpen, Bell, CheckCircle, ClipboardList, Copy, FileText, History, Radio, Server, Settings, Shield, Users, Video } from 'lucide-react';
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts';
+import { ResponsiveChart } from '@/components/ui/responsive-chart';
 import { ResBub, ResSearch, resVars } from '@/components/resources/ResourceParts';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Button } from '@/components/ui/button';
@@ -33,7 +34,7 @@ export const HealthLatencyPanel: React.FC<{ history: HealthHistory }> = ({ histo
                     <DashLegend line series={LATENCY_SERIES} />
                     <div className="dash-plot is-soft hl-plot">
                         <div className="dash-plot-inner">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveChart width="100%" height="100%">
                                 <LineChart data={rows} margin={{ top: 6, right: 4, left: 0, bottom: 0 }}>
                                     <CartesianGrid vertical={false} />
                                     <XAxis dataKey="x" tickLine={false} axisLine={false} tickMargin={6} minTickGap={24} />
@@ -45,7 +46,7 @@ export const HealthLatencyPanel: React.FC<{ history: HealthHistory }> = ({ histo
                                             isAnimationActive={false} connectNulls activeDot={{ r: 4, strokeWidth: 2, stroke: 'hsl(var(--idesk-surface))' }} />
                                     ))}
                                 </LineChart>
-                            </ResponsiveContainer>
+                            </ResponsiveChart>
                         </div>
                     </div>
                 </figure>

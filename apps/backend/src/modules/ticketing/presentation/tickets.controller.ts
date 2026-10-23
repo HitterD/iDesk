@@ -29,6 +29,7 @@ import { Public } from '../../../shared/core/decorators/public.decorator';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { TicketCreateService } from '../services/ticket-create.service';
 import { TicketUpdateService } from '../services/ticket-update.service';
+import { TicketVendorVisitService } from '../services/ticket-vendor-visit.service';
 import { TicketMessagingService } from '../services/ticket-messaging.service';
 import { TicketQueryService } from '../services/ticket-query.service';
 import { CreateTicketDto } from '../dto/create-ticket.dto';
@@ -41,6 +42,7 @@ import { CacheInterceptor } from '@nestjs/cache-manager';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import {
     UpdateTicketStatusDto,
+    UpdateVendorVisitDto,
     UpdateTicketPriorityDto,
     UpdateTicketCategoryDto,
     UpdateTicketDeviceDto,
@@ -92,6 +94,7 @@ export class TicketsController {
         private readonly ticketResolutionService: TicketResolutionService,
         private readonly agentRatingService: AgentRatingService,
         @InjectRepository(User) private readonly userRepo: Repository<User>,
+        private readonly ticketVendorVisitService: TicketVendorVisitService,
         @Optional() private readonly eventEmitter?: EventEmitter2,
     ) { }
 
@@ -279,8 +282,8 @@ export class TicketsController {
         return this.ticketQueryService.findOne(id);
     }
 
+    // Same gate as GET :id: findOne enforces ticket access, and requesters only get PUBLIC articles.
     @Get(':id/kb-suggestions')
-    @Roles(UserRole.ADMIN, UserRole.AGENT)
     @ApiOperation({ summary: 'Suggest most relevant KB articles for a ticket' })
     @ApiResponse({ status: 200, description: 'Top relevant articles (max 3)' })
     async getKbSuggestions(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
@@ -498,11 +501,23 @@ export class TicketsController {
         @Body() dto: UpdateTicketStatusDto,
         @Request() req: any,
     ) {
-        return this.ticketUpdateService.updateTicket(id, { status: dto.status }, req.user.userId, {
+        return this.ticketUpdateService.updateTicket(id, { status: dto.status, vendorVisitRequest: dto.vendorVisitAt }, req.user.userId, {
             takeover: dto.takeover,
             keepAssignee: dto.keepAssignee,
             reason: dto.reason,
         });
+    }
+
+    @Patch(':id/vendor-visit')
+    @Roles(...TICKET_AGENT_ROLES)
+    @ApiOperation({ summary: 'Reschedule the vendor appointment of a WAITING_VENDOR ticket' })
+    @ApiResponse({ status: 200, description: 'Vendor appointment updated; the PIC reminder follows it.' })
+    async updateVendorVisit(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: UpdateVendorVisitDto,
+        @Request() req: any,
+    ) {
+        return this.ticketVendorVisitService.reschedule(id, dto.vendorVisitAt, req.user.userId);
     }
 
     @Patch(':id/priority')

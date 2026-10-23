@@ -9,7 +9,8 @@
 }
 .dark { --res-surface-2: #232326; }
 
-.res-page { max-width: 1480px; margin: 0 auto; width: 100%; padding-top: 4px; font-size: 13px; line-height: 1.45; color: hsl(var(--idesk-text)); }
+/* Full width like the ticket queues: tables use the room; a centred 1480px cap left wide gutters on large screens. */
+.res-page { width: 100%; padding-top: 4px; font-size: 13px; line-height: 1.45; color: hsl(var(--idesk-text)); }
 .res-page .dash-head { margin-bottom: 18px; }
 
 /* Page tabs (mockup .seg.page-tabs): segmented links, count chip, panels slide from the direction of travel */
@@ -47,8 +48,18 @@
 
 /* Data tables (mockup .table.d): per-table columns through --cols / --cols-m */
 .res-table { position: relative; min-width: 0; border-radius: 20px; background: hsl(var(--idesk-surface)); box-shadow: var(--dash-shadow-1); overflow: clip; }
-.res-table-scroll { min-width: 0; max-width: 100%; overflow-x: auto; }
-.res-table-grid { min-width: max-content; }
+.res-table-scroll {
+  min-width: 0; max-width: 100%; overflow-x: auto;
+  /* Edge shadows only while columns are hidden on that side: the surface-coloured covers scroll
+     with the content (local) and hide the fixed (scroll) shadows once an edge is reached. */
+  background:
+    linear-gradient(to right, hsl(var(--idesk-surface)) 40%, transparent) left / 32px 100% no-repeat local,
+    linear-gradient(to left, hsl(var(--idesk-surface)) 40%, transparent) right / 32px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, hsl(var(--foreground) / .12), transparent) left / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, hsl(var(--foreground) / .12), transparent) right / 12px 100% no-repeat scroll;
+}
+/* min-content, not max-content: flexible columns stop at their minimum and long text ellipsizes instead of widening the table. */
+.res-table-grid { min-width: min-content; }
 .res-thead, .res-row { display: grid; grid-template-columns: var(--cols); align-items: center; column-gap: 10px; padding: 0 16px; }
 .res-thead { height: 36px; font-size: 11.5px; font-weight: 500; color: var(--td-text-3); border-bottom: .5px solid var(--td-line); }
 .res-thead .is-right { text-align: right; }
@@ -77,6 +88,9 @@
 .res-chev { width: 16px; height: 16px; color: var(--td-text-3); justify-self: end; transition: transform var(--dur-2) var(--ease-out); }
 .res-row.is-open .res-chev { transform: rotate(90deg); }
 .res-row-toggle { display: block; min-width: 0; text-align: left; color: inherit; text-decoration: none; border-radius: 10px; }
+/* A <button> lays its content out at content width (Chrome wraps it in an anonymous box), so ellipsis never
+   fires and long titles spill into the next column. A one-column grid clamps the children to the cell. */
+button.res-row-toggle { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; }
 a.res-row-toggle, .queue-person.res-row-toggle { display: flex; }
 .res-row-toggle:focus-visible { outline: 0; box-shadow: var(--td-ring); }
 .res-row-drawer { padding: 0 16px 14px; border-bottom: .5px solid var(--td-line); background: var(--res-surface-2); }
@@ -298,7 +312,7 @@ a.res-tag:focus-visible { outline: 0; box-shadow: var(--td-ring); }
   .res-kpi-n { font-size: 26px; }
   .res-thead { display: none; }
   .res-table { background: transparent; box-shadow: none; display: grid; gap: 8px; overflow: visible; }
-  .res-table-scroll { overflow: visible; }
+  .res-table-scroll { overflow: visible; background: none; }
   .res-table-grid { min-width: 0; }
   .res-table .res-rows { display: grid; gap: 8px; }
   .res-row { grid-template-columns: var(--cols-m, minmax(0, 1fr) auto); row-gap: 6px; padding: 12px 14px 12px 16px; min-height: 0; background: hsl(var(--idesk-surface)); border-radius: 16px; box-shadow: var(--dash-shadow-1); border: 0; }

@@ -89,7 +89,7 @@ describe('TicketListRow queue presentation contract', () => {
         const date = desktop.querySelector('time');
         expect(date).toHaveTextContent('20 Okt');
         expect(date).toHaveAttribute('dateTime', '2026-10-20T09:30:00+07:00');
-        expect(date?.getAttribute('title')).toMatch(/20 Oktober 2026.*09:30/);
+        expect(date?.getAttribute('title')).toMatch(/20 Oktober 2026.*09[.:]30/);
         expect(desktop.lastElementChild).toBe(date);
         expect(desktop.children).toHaveLength(showSiteColumn ? 9 : 8);
     });
@@ -248,14 +248,15 @@ describe('TicketListRow critical indicators', () => {
     it.each(['RESOLVED', 'CLOSED', 'CANCELLED'] as const)('hides flame for %s critical ticket', (status) => {
         const { container } = renderCriticalTicket(status);
         expect(container.querySelectorAll('.lucide-flame')).toHaveLength(0);
-        expect(screen.queryByText('Critical')).not.toBeInTheDocument();
+        expect(container.querySelector('.queue-flag')).toBeNull();
         expect(container.querySelectorAll('span.rounded-full[aria-hidden="true"].bg-red-500')).toHaveLength(0);
     });
 
     it.each(['TODO', 'IN_PROGRESS', 'WAITING_VENDOR'] as const)('shows flame for %s critical ticket', (status) => {
         const { container } = renderCriticalTicket(status);
         expect(container.querySelectorAll('.lucide-flame').length).toBeGreaterThanOrEqual(2);
-        expect(screen.getByText('Critical')).toBeInTheDocument();
+        // Mobile card flag reads the priority's own label, matching the desktop chip.
+        expect(container.querySelector('.queue-flag')).toHaveTextContent('Blocker');
     });
 });
 

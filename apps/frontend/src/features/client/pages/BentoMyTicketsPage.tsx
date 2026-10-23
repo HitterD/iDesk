@@ -231,7 +231,7 @@ export const BentoMyTicketsPage: React.FC = () => {
     ] as const;
 
     return (
-        <div className="space-y-5 animate-in motion-reduce:animate-none fade-in duration-200">
+        <div className="space-y-5">
             {/* Header Area */}
             <div className="flex items-start sm:items-center justify-between gap-3">
                 <div className="min-w-0">

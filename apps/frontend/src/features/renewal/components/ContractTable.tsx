@@ -177,10 +177,10 @@ export const ContractTable: React.FC<ContractTableProps> = ({
     if (contracts.length === 0) {
         return (
             <div className="res-table">
-                <ResEmpty icon={FileSearch} title="No Contracts Found"
+                <ResEmpty icon={FileSearch} title="Belum ada kontrak"
                     cta={(onUpload || onAddManual) ? (
                         <div className="flex flex-wrap justify-center gap-2">
-                            {onAddManual && <Button variant="soft" onClick={onAddManual}><FilePlus2 aria-hidden="true" />Add Manual</Button>}
+                            {onAddManual && <Button variant="soft" onClick={onAddManual}><FilePlus2 aria-hidden="true" />Tambah Manual</Button>}
                             {onUpload && <Button variant="primary" onClick={onUpload}><Upload aria-hidden="true" />Upload PDF</Button>}
                         </div>
                     ) : undefined}>
@@ -241,7 +241,7 @@ export const ContractTable: React.FC<ContractTableProps> = ({
                                 aria-pressed={contract.isAcknowledged}>
                                 <CheckCircle className={cn(contract.isAcknowledged && 'text-[var(--dash-ink-green)]')} aria-hidden="true" />
                             </button>
-                            <button type="button" className="res-icon-btn" onClick={() => onView(contract)} title="View PDF" aria-label={`Lihat PDF ${contract.poNumber ?? ''}`}><FileText aria-hidden="true" /></button>
+                            <button type="button" className="res-icon-btn" onClick={() => onView(contract)} title="Lihat PDF" aria-label={`Lihat PDF ${contract.poNumber ?? ''}`}><FileText aria-hidden="true" /></button>
                             <button type="button" className="res-icon-btn" onClick={() => onEdit(contract)} title="Edit" aria-label={`Edit ${contract.poNumber ?? ''}`}><Pencil aria-hidden="true" /></button>
                             <button type="button" className="res-icon-btn is-danger" onClick={() => onDelete(contract.id)} title="Delete" aria-label={`Hapus ${contract.poNumber ?? ''}`}><Trash2 aria-hidden="true" /></button>
                         </span>

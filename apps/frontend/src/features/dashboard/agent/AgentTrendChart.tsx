@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, CartesianGrid, ComposedChart, Line, Tooltip, XAxis, YAxis } from 'recharts';
+import { ResponsiveChart } from '@/components/ui/responsive-chart';
 import { LineChart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AgentTicketStats } from './agentDashboard.types';
@@ -60,7 +61,7 @@ export const AgentTrendChart: React.FC<{ stats: AgentTicketStats; className?: st
                     <DashLegend line series={SERIES.map((s) => ({ ...s, total: totals[s.key as keyof typeof totals] }))} />
                     <div className="dash-plot is-soft">
                         <div className="dash-plot-inner">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveChart width="100%" height="100%">
                                 <ComposedChart data={plotRows} margin={{ top: 6, right: 4, left: 0, bottom: 0 }}>
                                     <CartesianGrid vertical={false} />
                                     {/* Numeric x over [-.5, n-.5]: point i sits at (i + .5) / n like the mockup, edge labels never clip. */}
@@ -77,7 +78,7 @@ export const AgentTrendChart: React.FC<{ stats: AgentTicketStats; className?: st
                                             dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: 'hsl(var(--idesk-surface))' }} />
                                     ))}
                                 </ComposedChart>
-                            </ResponsiveContainer>
+                            </ResponsiveChart>
                         </div>
                     </div>
                     <DashChartTable caption="Tanggal" labels={rows.map((r) => r.label)} series={SERIES} rows={rows as unknown as Record<string, number>[]} />

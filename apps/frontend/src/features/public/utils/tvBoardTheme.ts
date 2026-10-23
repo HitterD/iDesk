@@ -8,7 +8,15 @@ export type TvTheme = 'light' | 'dark';
  */
 export const TV_THEME_VARS: Record<TvTheme, CSSProperties> = {
     light: {
-        '--tv-bg': '#F5F5F7',
+        '--tv-bg': '#F4F4F6',
+        // Sapphire chrome, as in the app shell.
+        '--tv-chrome': 'linear-gradient(180deg, #2D4A8C, #243D75)',
+        '--tv-chrome-text': '#FFFFFF',
+        '--tv-chrome-muted': 'rgba(255,255,255,0.72)',
+        '--tv-chrome-fill': 'rgba(255,255,255,0.12)',
+        '--tv-accent': '#2D4A8C',
+        '--tv-accent-2': '#0E7C7B',
+        '--tv-warn': '#B25E00',
         '--tv-surface': '#FFFFFF',
         '--tv-text': '#1D1D1F',
         '--tv-text-body': '#424245',
@@ -23,8 +31,15 @@ export const TV_THEME_VARS: Record<TvTheme, CSSProperties> = {
         '--tv-live': '#248A3D',
     } as CSSProperties,
     dark: {
-        '--tv-bg': '#000000',
-        '--tv-surface': '#1C1C1E',
+        '--tv-bg': '#0B0D12',
+        '--tv-chrome': 'linear-gradient(180deg, #1B2848, #141D35)',
+        '--tv-chrome-text': '#F5F5F7',
+        '--tv-chrome-muted': 'rgba(245,245,247,0.66)',
+        '--tv-chrome-fill': 'rgba(255,255,255,0.10)',
+        '--tv-accent': '#9DB0E8',
+        '--tv-accent-2': '#5CC8C6',
+        '--tv-warn': '#FFB340',
+        '--tv-surface': '#17181C',
         '--tv-text': '#F5F5F7',
         '--tv-text-body': '#D1D1D6',
         '--tv-text-secondary': '#AEAEB2',

@@ -61,7 +61,8 @@ describe('TicketsController', () => {
             mockKbService,
             mockTicketResolutionService,
             mockAgentRatingService,
-            mockUserRepo
+            mockUserRepo,
+            { reschedule: jest.fn() } as any,
         );
     });
 

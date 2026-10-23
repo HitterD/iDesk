@@ -1,7 +1,8 @@
 import { Button } from '@/components/ui/button';
 import { TicketActionDialog } from './ticket-detail/TicketActionDialog';
 import React, { useState, useEffect } from 'react';
-import { Forward, X } from 'lucide-react';
+import { Check, Forward, X } from 'lucide-react';
+import { ActionSelect } from './ticket-detail/ActionControls';
 
 export type ForwardTargetTeam = 'OPS_SUPPORT' | 'ORACLE_DEV' | 'MOBILE_DEV' | 'WEB_DEV';
 export interface ForwardTicketInfo {
@@ -24,17 +25,17 @@ const TEAM_OPTIONS: { value: ForwardTargetTeam; label: string; desc: string }[] 
     { value: 'MOBILE_DEV', label: 'Mobile Developer Team', desc: 'Aplikasi iOS dan Android.' },
 ];
 const REASON_PRESETS = [
-    { id: 'web_issue', label: 'Terkait aplikasi Web / Portal / Frontend', forTeam: 'WEB_DEV' },
-    { id: 'mobile_issue', label: 'Terkait aplikasi Mobile (iOS / Android)', forTeam: 'MOBILE_DEV' },
-    { id: 'oracle_issue', label: 'Terkait aplikasi Oracle / K2', forTeam: 'ORACLE_DEV' },
-    { id: 'infra_issue', label: 'Masalah infrastruktur / perangkat / IT Support', forTeam: 'OPS_SUPPORT' },
-    { id: 'needs_dev', label: 'Butuh kode / akses developer' },
-    { id: 'misrouted', label: 'Salah routing awal' },
-    { id: 'other', label: 'Lainnya' },
+    { value: 'web_issue', label: 'Terkait aplikasi Web / Portal / Frontend', forTeam: 'WEB_DEV' },
+    { value: 'mobile_issue', label: 'Terkait aplikasi Mobile (iOS / Android)', forTeam: 'MOBILE_DEV' },
+    { value: 'oracle_issue', label: 'Terkait aplikasi Oracle / K2', forTeam: 'ORACLE_DEV' },
+    { value: 'infra_issue', label: 'Masalah infrastruktur / perangkat / IT Support', forTeam: 'OPS_SUPPORT' },
+    { value: 'needs_dev', label: 'Butuh kode / akses developer' },
+    { value: 'misrouted', label: 'Salah routing awal' },
+    { value: 'other', label: 'Lainnya' },
 ];
 const NOTE_MAX_LENGTH = 500;
 const getTeamName = (team?: string) => TEAM_OPTIONS.find((option) => option.value === team)?.label || 'IT Support / Ops Support';
-const getTeamPreset = (team: ForwardTargetTeam) => REASON_PRESETS.find((preset) => preset.forTeam === team)!.id;
+const getTeamPreset = (team: ForwardTargetTeam) => REASON_PRESETS.find((preset) => preset.forTeam === team)!.value;
 
 export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({ isOpen, onClose, ticket, onConfirm, isLoading = false }) => {
     const [selectedTeam, setSelectedTeam] = useState<ForwardTargetTeam>('ORACLE_DEV');
@@ -59,7 +60,7 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({ isOpen
             setError('Mohon tuliskan alasan pengalihan pada kolom catatan.');
             return;
         }
-        const presetLabel = REASON_PRESETS.find((preset) => preset.id === selectedPreset)?.label || selectedPreset;
+        const presetLabel = REASON_PRESETS.find((preset) => preset.value === selectedPreset)?.label || selectedPreset;
         const finalReason = selectedPreset === 'other' ? customReason.trim() : `${presetLabel}${customReason.trim() ? `: ${customReason.trim()}` : ''}`;
         try {
             setError(null);
@@ -81,18 +82,22 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({ isOpen
                     <p className="ticket-action-current">Tim saat ini: <strong>{getTeamName(currentTeam)}</strong></p>
                     <fieldset className="ticket-action-teams" disabled={isLoading}>
                         <legend>Tim tujuan <span>(wajib)</span></legend>
-                        {TEAM_OPTIONS.map((option) => <label className="ticket-action-team" key={option.value}>
-                            <input type="radio" name="forward-team" value={option.value} checked={selectedTeam === option.value} disabled={option.value === currentTeam}
-                                onChange={() => { setSelectedTeam(option.value); setSelectedPreset(getTeamPreset(option.value)); setError(null); }} />
-                            <span><b>{option.label}</b><small>{option.value === currentTeam ? 'Tim saat ini · tidak dapat dipilih' : option.desc}</small></span>
-                        </label>)}
+                        <div className="ticket-action-teamlist">
+                            {TEAM_OPTIONS.map((option) => {
+                                const isCurrent = option.value === currentTeam;
+                                return <label className="ticket-action-team" key={option.value}>
+                                    <input type="radio" name="forward-team" value={option.value} checked={selectedTeam === option.value} disabled={isCurrent}
+                                        onChange={() => { setSelectedTeam(option.value); setSelectedPreset(getTeamPreset(option.value)); setError(null); }} />
+                                    <span><b>{option.label}</b><small>{isCurrent ? 'Tim saat ini · tidak dapat dipilih' : option.desc}</small></span>
+                                    {isCurrent ? <em className="ticket-action-team-now">Saat ini</em> : <Check className="ticket-action-team-check" aria-hidden="true" />}
+                                </label>;
+                            })}
+                        </div>
                     </fieldset>
                     <div className="ticket-action-field">
                         <label htmlFor="ticket-forward-reason">Alasan <span>(wajib)</span></label>
-                        <select id="ticket-forward-reason" value={selectedPreset} disabled={isLoading}
-                            onChange={(event) => { setSelectedPreset(event.target.value); setError(null); }}>
-                            {REASON_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
-                        </select>
+                        <ActionSelect id="ticket-forward-reason" options={REASON_PRESETS} value={selectedPreset} disabled={isLoading}
+                            onValueChange={(value) => { setSelectedPreset(value); setError(null); }} />
                     </div>
                     <div className="ticket-action-field">
                         <label htmlFor="ticket-forward-note">Catatan tambahan <span>{selectedPreset === 'other' ? '(wajib untuk Lainnya)' : '(opsional)'}</span></label>

@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsISO8601, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { TicketStatus, TicketPriority } from '../entities/ticket.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Sanitize } from '../../../shared/core/validators/input-sanitizer';
@@ -55,6 +55,17 @@ export class UpdateTicketStatusDto {
     @MaxLength(500)
     @Sanitize({ removeHtml: true })
     reason?: string;
+
+    @ApiPropertyOptional({ description: 'WAITING_VENDOR only: agreed vendor visit time (ISO). Defaults to next Thursday 09:00 WIB.' })
+    @IsOptional()
+    @IsISO8601()
+    vendorVisitAt?: string;
+}
+
+export class UpdateVendorVisitDto {
+    @ApiProperty({ description: 'Agreed vendor visit time (ISO 8601)' })
+    @IsISO8601()
+    vendorVisitAt: string;
 }
 
 export class UpdateTicketPriorityDto {

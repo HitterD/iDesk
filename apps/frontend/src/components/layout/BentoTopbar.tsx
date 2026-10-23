@@ -10,6 +10,7 @@ import { useAuth } from '@/stores/useAuth';
 import { cn } from '@/lib/utils';
 import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { CREATE_TICKET_LABEL, getCreateTicketPath } from './createTicketAction';
+import { TopbarGreeting } from './TopbarStatus';
 
 interface UnifiedSearchResult {
     tickets: Array<{
@@ -181,7 +182,7 @@ export const BentoTopbar = () => {
         // Three columns: equal flexible sides keep the search centred; the actions column never
         // shrinks below its content, so on narrow desktops the search shifts left instead of overlapping.
         <header className="idesk-topbar idesk-topbar-agent h-14 pl-3 pr-3.5 bg-transparent">
-            <span aria-hidden="true" />
+            <TopbarGreeting />
             <div className="idesk-topbar-search-slot" ref={searchRef} data-testid="topbar-search-slot">
                 <div className="relative group">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(var(--idesk-chrome-muted))] group-focus-within:text-white transition-colors z-10" aria-hidden="true" />
@@ -389,14 +390,16 @@ export const BentoTopbar = () => {
                 </div>
             </div>
 
-            <div className="idesk-topbar-actions flex items-center justify-self-end gap-1.5">
-                <Link to={getCreateTicketPath(user?.role)} className="idesk-cta mr-1.5">
-                    <Plus aria-hidden="true" />
-                    <span>{CREATE_TICKET_LABEL}</span>
-                </Link>
-                <ThemeToggle className="!bg-transparent hover:!bg-white/10 !text-white" />
-                <ActionCommandCenter />
-                <NotificationPopover />
+            <div className="idesk-topbar-right">
+                <div className="idesk-topbar-actions flex items-center gap-1.5">
+                    <Link to={getCreateTicketPath(user?.role)} className="idesk-cta mr-1.5">
+                        <Plus aria-hidden="true" />
+                        <span>{CREATE_TICKET_LABEL}</span>
+                    </Link>
+                    <ThemeToggle className="!bg-transparent hover:!bg-white/10 !text-white" />
+                    <ActionCommandCenter />
+                    <NotificationPopover />
+                </div>
             </div>
         </header>
     );

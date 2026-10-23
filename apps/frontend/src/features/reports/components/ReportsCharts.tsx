@@ -12,10 +12,10 @@ import {
     CartesianGrid,
     Tooltip,
     Legend,
-    ResponsiveContainer,
     Area,
     AreaChart,
 } from 'recharts';
+import { ResponsiveChart } from '@/components/ui/responsive-chart';
 import { cn } from '@/lib/utils';
 import { STATUS_CHART_HEX } from '@/lib/constants/ticket.constants';
 
@@ -90,7 +90,7 @@ export const TicketVolumeChart: React.FC<TicketVolumeChartProps> = ({
 
     return (
         <div className="w-full" style={{ height }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveChart width="100%" height="100%">
                 {showArea ? (
                     <AreaChart data={formattedData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                         <defs>
@@ -190,7 +190,7 @@ export const TicketVolumeChart: React.FC<TicketVolumeChartProps> = ({
                         />
                     </LineChart>
                 )}
-            </ResponsiveContainer>
+            </ResponsiveChart>
         </div>
     );
 };
@@ -252,7 +252,7 @@ export const AgentPerformanceChart: React.FC<AgentPerformanceChartProps> = ({
 
     return (
         <div className="w-full" style={{ height }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveChart width="100%" height="100%">
                 <BarChart
                     data={sortedData}
                     layout="vertical"
@@ -302,7 +302,7 @@ export const AgentPerformanceChart: React.FC<AgentPerformanceChartProps> = ({
                         ))}
                     </Bar>
                 </BarChart>
-            </ResponsiveContainer>
+            </ResponsiveChart>
         </div>
     );
 };
@@ -397,7 +397,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({
                     {title}
                 </h4>
             )}
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveChart width="100%" height="100%">
                 <PieChart>
                     <Pie
                         data={chartData}
@@ -435,7 +435,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({
                         />
                     )}
                 </PieChart>
-            </ResponsiveContainer>
+            </ResponsiveChart>
         </div>
     );
 };

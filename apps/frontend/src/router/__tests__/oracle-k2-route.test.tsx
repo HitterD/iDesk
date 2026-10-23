@@ -43,17 +43,20 @@ let mockUser = {
     email: 'oracle@idesk.local',
 };
 
-vi.mock('@/stores/useAuth', () => ({
-    useAuth: (selector?: any) => {
-        const state = {
-            user: mockUser,
-            isAuthenticated: true,
-            isSessionExpired: () => false,
-            logout: vi.fn(),
-        };
-        return selector ? selector(state) : state;
-    },
-}));
+vi.mock('@/stores/useAuth', () => {
+    const state = () => ({
+        user: mockUser,
+        isAuthenticated: true,
+        isSessionExpired: () => false,
+        logout: vi.fn(),
+    });
+    // No getState: session restore skips verification here. setState is still called in its finally.
+    const useAuth = Object.assign(
+        (selector?: any) => (selector ? selector(state()) : state()),
+        { setState: vi.fn() },
+    );
+    return { useAuth };
+});
 
 // Helper component to track current pathname in MemoryRouter
 const LocationDisplay = () => {

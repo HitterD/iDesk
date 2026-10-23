@@ -68,7 +68,7 @@
         --secondary-foreground: 228 12% 25%;
 
         --muted: 40 12% 93%;             /* #EEECE8 Warm Gray */
-        --muted-foreground: 228 8% 52%;
+        --muted-foreground: 228 8% 43%;   /* >=4.5:1 on canvas, muted and tinted rows */
 
         --accent: 36 85% 58%;            /* #E8A830 Warm Amber */
         --accent-foreground: 228 12% 15%;
@@ -285,7 +285,7 @@
         --secondary-foreground: 40 15% 85%;
 
         --muted: 225 15% 15%;             /* #1D2330 muted surface */
-        --muted-foreground: 228 8% 55%;
+        --muted-foreground: 228 8% 60%;
 
         --accent: 36 75% 55%;             /* #D9A02E warm gold glow */
         --accent-foreground: 225 25% 8%;

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
+import { ResponsiveChart } from '@/components/ui/responsive-chart';
 import { BarChart3, CalendarArrowUp, ChartLine, CircleCheck, Clock3, Inbox, Layers, Lightbulb, Plus, Timer, Users } from 'lucide-react';
 import { MgStat } from '@/components/management/MgmtParts';
 import { ResEmpty, ResSkeletonRows, ResRow, ResTable } from '@/components/resources/ResourceParts';
@@ -148,7 +149,7 @@ const VolumeColumns: React.FC<{ daily: TicketVolumeData['daily'] }> = ({ daily }
             <DashLegend series={VOLUME_SERIES} />
             <div className="dash-plot">
                 <div className="dash-plot-inner">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveChart width="100%" height="100%">
                         <BarChart data={rows} margin={{ top: 6, right: 0, left: 0, bottom: 0 }} barGap={2} barCategoryGap="18%">
                             <CartesianGrid vertical={false} />
                             <XAxis dataKey="label" tickLine={false} axisLine={false} interval={rows.length > SPARSE_AFTER ? 1 : 0} tickMargin={6} />
@@ -157,7 +158,7 @@ const VolumeColumns: React.FC<{ daily: TicketVolumeData['daily'] }> = ({ daily }
                                 content={({ active, label, payload }) => <DashTooltip active={active} title={String(label ?? '')} payload={payload as never} series={VOLUME_SERIES} />} />
                             {VOLUME_SERIES.map((s) => <Bar key={s.key} dataKey={s.key} name={s.name} fill={s.color} radius={[4, 4, 0, 0]} maxBarSize={14} minPointSize={2} isAnimationActive={false} />)}
                         </BarChart>
-                    </ResponsiveContainer>
+                    </ResponsiveChart>
                 </div>
             </div>
             <DashChartTable caption="Tanggal" labels={rows.map((r) => r.label)} series={VOLUME_TABLE} rows={rows as unknown as Record<string, number>[]} />

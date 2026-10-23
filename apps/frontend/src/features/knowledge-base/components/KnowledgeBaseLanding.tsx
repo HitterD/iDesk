@@ -220,6 +220,7 @@ export const KnowledgeBaseLanding: React.FC<KnowledgeBaseLandingProps> = ({
                     search={debouncedSearch}
                     articleBasePath={articleBasePath}
                     onReset={resetFilters}
+                    isFiltered={!isBrowsing}
                     featured={isBrowsing && featured ? { article: featured, isRead: guideRead, onOpen: () => markGuideRead(featured.id) } : undefined}
                 />
 
@@ -317,19 +318,28 @@ interface ArticleFeedProps {
     search: string;
     articleBasePath: string;
     onReset: () => void;
+    /** A search or topic is narrowing the feed, so "see all topics" can widen it. */
+    isFiltered: boolean;
     /** "Mulai di sini" guide shown as the first row while browsing. */
     featured?: { article: KBArticle; isRead: boolean; onOpen: () => void };
 }
 
-function ArticleFeed({ articles, isLoading, search, articleBasePath, onReset, featured }: ArticleFeedProps) {
+const emptyCopy = (search: string, isFiltered: boolean): { title: string; body: string } => {
+    if (search) return { title: 'Panduan tidak ditemukan', body: 'Coba kata kunci lain, atau lihat semua topik.' };
+    if (isFiltered) return { title: 'Belum ada panduan di topik ini', body: 'Pilih topik lain atau buat tiket bantuan.' };
+    return { title: 'Belum ada panduan', body: 'Panduan akan muncul di sini setelah tim IT menerbitkannya.' };
+};
+
+function ArticleFeed({ articles, isLoading, search, articleBasePath, onReset, isFiltered, featured }: ArticleFeedProps) {
     if (isLoading) {
         return <div className="kb-arts"><ResSkeletonRows rows={SKELETON_ROWS} /></div>;
     }
     if (articles.length === 0 && !featured) {
+        const copy = emptyCopy(search, isFiltered);
         return (
-            <ResEmpty icon={SearchX} className="kb-empty" title={search ? 'Panduan tidak ditemukan' : 'Belum ada panduan di topik ini'}
-                cta={<Button variant="subtle" onClick={onReset}>Lihat semua topik</Button>}>
-                {search ? 'Coba kata kunci lain, atau lihat semua topik.' : 'Pilih topik lain atau buat tiket bantuan.'}
+            <ResEmpty icon={SearchX} className="kb-empty" title={copy.title}
+                cta={isFiltered ? <Button variant="soft" onClick={onReset}>Lihat semua topik</Button> : undefined}>
+                {copy.body}
             </ResEmpty>
         );
     }

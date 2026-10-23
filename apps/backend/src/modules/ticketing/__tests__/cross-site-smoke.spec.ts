@@ -136,8 +136,7 @@ describe('Cross-site smoke: site-locked agents cannot cross sites', () => {
                     isUserEligible: jest.fn().mockResolvedValue(true),
                     describeModule: jest.fn().mockResolvedValue('modul ini'),
                     toAssignable: jest.fn((t: any) => t),
-                } as any, createTestSlaClock(),
-            );
+                } as any, createTestSlaClock(), { resolveVisit: () => new Date(Date.now() + 86_400_000), schedule: jest.fn(), clear: jest.fn(), note: () => '' } as any);
         });
 
         it('updateTicket: SPJ agent cannot mutate SMG ticket', async () => {

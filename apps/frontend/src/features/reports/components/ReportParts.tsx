@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, CartesianGrid, ComposedChart, Line, Tooltip, XAxis, YAxis } from 'recharts';
+import { ResponsiveChart } from '@/components/ui/responsive-chart';
 import { ChevronDown, ChevronLeft, ChevronRight, Eye, FileText, LineChart, Sheet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -232,7 +233,7 @@ export const TrendLines: React.FC<{ daily: readonly DailyPoint[] }> = ({ daily }
             <DashLegend series={TREND_SERIES} />
             <div className="dash-plot">
                 <div className="dash-plot-inner">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveChart width="100%" height="100%">
                         <ComposedChart data={rows} margin={{ top: 6, right: 4, left: 0, bottom: 0 }}>
                             <CartesianGrid vertical={false} />
                             <XAxis dataKey="x" type="number" domain={[-HALF_BAND, rows.length - HALF_BAND]} ticks={ticks}
@@ -246,7 +247,7 @@ export const TrendLines: React.FC<{ daily: readonly DailyPoint[] }> = ({ daily }
                                     activeDot={{ r: 4, strokeWidth: 2, stroke: 'hsl(var(--idesk-surface))' }} />
                             ))}
                         </ComposedChart>
-                    </ResponsiveContainer>
+                    </ResponsiveChart>
                 </div>
             </div>
             <DashChartTable caption="Tanggal" labels={rows.map((r) => r.label)} series={TREND_SERIES} rows={rows as unknown as Record<string, number>[]} />

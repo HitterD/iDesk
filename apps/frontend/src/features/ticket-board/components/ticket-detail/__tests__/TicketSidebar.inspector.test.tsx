@@ -103,7 +103,10 @@ describe('TicketSidebar inspector', () => {
         renderSidebar({}, cb);
         await user.click(screen.getByRole('button', { name: 'Status: In Progress' }));
         await user.click(screen.getByRole('option', { name: 'Waiting Vendor' }));
-        expect(cb.onStatusChange).toHaveBeenCalledWith('WAITING_VENDOR');
+        // Waiting Vendor first asks for the vendor appointment (defaults to next Thursday 09:00 WIB).
+        expect(cb.onStatusChange).not.toHaveBeenCalled();
+        await user.click(await screen.findByRole('button', { name: 'Tunggu vendor' }));
+        expect(cb.onStatusChange).toHaveBeenCalledWith('WAITING_VENDOR', undefined, undefined, { vendorVisitAt: expect.any(String) });
         expect(await screen.findByRole('button', { name: 'Status: In Progress' })).toBeInTheDocument();
     });
 
@@ -114,7 +117,7 @@ describe('TicketSidebar inspector', () => {
         await user.click(screen.getByRole('option', { name: 'Resolved' }));
         expect(cb.onStatusChange).not.toHaveBeenCalled();
         await user.type(screen.getByPlaceholderText(/Jelaskan tindakan teknis/), 'Roller diganti');
-        await user.click(screen.getByRole('button', { name: /Ya, Selesaikan Tiket/ }));
+        await user.click(screen.getByRole('button', { name: /^Selesaikan tiket$/ }));
         await waitFor(() => expect(cb.onStatusChange).toHaveBeenCalledWith('RESOLVED', 'Roller diganti', []));
     });
 

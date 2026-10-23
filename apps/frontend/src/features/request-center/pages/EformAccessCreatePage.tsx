@@ -532,7 +532,7 @@ export const EformAccessCreatePage: React.FC = () => {
   const activeMascotConfig = MASCOT_CONFIG_BY_TYPE[formType];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 animate-in fade-in duration-200">
+    <div className="mx-auto max-w-[1480px] w-full pt-1 pb-8 space-y-6">
       {/* Top Bar: Back Button & Context Header */}
       <div className="flex items-center justify-between">
         <Button

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, RefreshCw, ServerCrash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/stores/useAuth';
 import { useTicketListSocket } from '@/hooks/useTicketSocket';
+import { getRoleHome, isAgentRole } from '@/lib/roleHome';
 import { SERVICE_SCOPE_LABELS } from '@/lib/constants/service-scope';
 import { getRoleLabel } from '@/features/admin/components/agent-management/agent-types';
 import { DashboardSkeleton } from '../components/DashboardSkeleton';
@@ -41,8 +42,16 @@ function agentMeta(agent: AgentDashboardData['agent']): string {
 /**
  * Personal agent dashboard (mockup dashboard-me.html). `/dashboard/me` shows the signed-in agent;
  * `/dashboard/agent/:id` lets ADMIN/MANAGER open a specific agent (the backend enforces scope).
+ * Non-agents have no personal dashboard (the API rejects them), so `/dashboard/me` sends them home.
  */
 export const AgentDashboardPage: React.FC = () => {
+    const { id } = useParams<{ id: string }>();
+    const { user } = useAuth();
+    if (!id && user && !isAgentRole(user.role)) return <Navigate to={getRoleHome(user.role)} replace />;
+    return <AgentDashboardView />;
+};
+
+const AgentDashboardView: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { user } = useAuth();

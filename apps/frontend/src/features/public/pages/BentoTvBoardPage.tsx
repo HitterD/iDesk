@@ -24,7 +24,6 @@ const PILL = 'rounded-full bg-[var(--tv-surface)] px-4 py-1.5 text-lg shadow-[0_
 const COLUMNS: Array<{
     key: 'open' | 'inProgress';
     title: string;
-    subtitle: string;
     icon: React.ElementType;
     span: string;
     emptyMessage: string;
@@ -33,20 +32,18 @@ const COLUMNS: Array<{
     {
         key: 'open',
         title: 'Open',
-        subtitle: 'Antrean masuk',
         icon: Inbox,
         span: 'md:col-span-2',
         emptyMessage: 'Tidak ada tiket dalam antrean',
-        accent: '#007AFF',
+        accent: 'var(--tv-accent)',
     },
     {
         key: 'inProgress',
         title: 'In Progress',
-        subtitle: 'Sedang dikerjakan',
         icon: CircleDot,
         span: 'md:col-span-3',
         emptyMessage: 'Tidak ada tiket sedang dikerjakan',
-        accent: '#5AC8FA',
+        accent: 'var(--tv-accent-2)',
     },
 ];
 
@@ -127,34 +124,52 @@ const NEW_TICKET_RINGTONE_KEY: Record<DivisionSoundKey, keyof TvBoardRingtones> 
 const withFallback = (custom: string | null | undefined, builtIn: string): RingtoneSound =>
     custom ? { src: custom, fallback: builtIn } : { src: builtIn };
 
+/** On the sapphire header: a green dot while live; words only when something is off. */
 function LiveStatus({ state }: { state: ConnectionState }) {
     if (state === 'offline') {
         return (
             <span
                 data-testid="tv-board-status-reconnecting"
-                className="flex items-center gap-2 text-lg font-semibold text-[#FF9500]"
+                className="flex items-center gap-2 text-base font-semibold text-[#FFB340]"
                 title="Koneksi terganggu, mencoba menghubungkan kembali secara otomatis"
             >
                 <span className="h-2.5 w-2.5 animate-ping rounded-full bg-[#FF9500]" />
-                Menghubungkan kembali...
+                Menghubungkan kembali…
             </span>
         );
     }
     return state === 'polling' ? (
         <span
             data-testid="tv-board-status-polling"
-            className="flex items-center gap-2 text-lg font-semibold text-[var(--tv-text-secondary)]"
+            className="flex items-center gap-2 text-base font-medium text-[var(--tv-chrome-muted)]"
             title="Koneksi realtime terputus; data tetap diperbarui berkala sambil menyambung ulang"
         >
-            <span className="h-2.5 w-2.5 rounded-full bg-[var(--tv-text-tertiary)]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[var(--tv-chrome-muted)]" />
             Sinkron berkala
         </span>
     ) : (
-        <span data-testid="tv-board-status-live" className="flex items-center gap-2 text-lg font-semibold text-[var(--tv-live)]">
-            <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#34C759]" />
+        <span data-testid="tv-board-status-live" className="flex items-center gap-2 text-base font-medium text-[var(--tv-chrome-muted)]" title="Pembaruan real-time aktif">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#34C759] shadow-[0_0_0_4px_rgba(52,199,89,0.25)]" />
             Live
         </span>
     );
+}
+
+/** Theme and sound test are setup controls: hidden on the wall, shown while someone moves the mouse. */
+const CONTROLS_IDLE_MS = 3000;
+function useRevealOnPointer(): boolean {
+    const [visible, setVisible] = useState(false);
+    useEffect(() => {
+        let timer: number | undefined;
+        const show = () => {
+            setVisible(true);
+            window.clearTimeout(timer);
+            timer = window.setTimeout(() => setVisible(false), CONTROLS_IDLE_MS);
+        };
+        window.addEventListener('pointermove', show);
+        return () => { window.removeEventListener('pointermove', show); window.clearTimeout(timer); };
+    }, []);
+    return visible;
 }
 
 export const BentoTvBoardPage: React.FC = () => {
@@ -273,6 +288,7 @@ export const BentoTvBoardPage: React.FC = () => {
     }, [board, now, enqueue]);
 
     const data = board;
+    const controlsVisible = useRevealOnPointer();
 
     // Admin picks the board default; a screen can override it locally with the toggle.
     const [themeOverride, setThemeOverride] = useState<TvTheme | null>(() => readThemeOverride(token));
@@ -330,47 +346,50 @@ export const BentoTvBoardPage: React.FC = () => {
             onClick={unlockAudio}
             data-testid="tv-board-root"
             data-theme={theme}
-            className="relative h-[100dvh] overflow-hidden select-none px-8 py-6 font-sans text-[var(--tv-text)] antialiased"
+            className="relative h-[100dvh] overflow-hidden select-none font-sans text-[var(--tv-text)] antialiased"
             style={themeStyle}
         >
-            <div className="mx-auto flex h-full max-w-[160rem] flex-col gap-5">
-                {/* Top bar: site | clock */}
-                <header className="flex items-center justify-between gap-6">
-                    <div className="flex min-w-0 items-center gap-5">
-                        <img src="/idesk-logo.webp" alt="iDesk Logo" className="h-12 w-auto shrink-0 object-contain" />
-                        <span className="h-10 w-px shrink-0 bg-[var(--tv-hairline)]" aria-hidden="true" />
-                        <div className="min-w-0">
-                            <div className="flex items-baseline gap-3">
+            <div className="flex h-full flex-col">
+                {/* Sapphire header: site and today's watch-outs | clock */}
+                <header className="tv-board-header shrink-0 px-8 pb-5 pt-5 text-[var(--tv-chrome-text)]" style={{ background: 'var(--tv-chrome)' }}>
+                    <div className="mx-auto flex max-w-[160rem] items-center justify-between gap-8">
+                        <div className="flex min-w-0 items-center gap-5">
+                            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-white shadow-[0_2px_8px_rgba(0,0,0,0.18)]">
+                                <img src="/idesk-logo.webp" alt="iDesk" className="h-9 w-9 object-contain" />
+                            </span>
+                            <div className="min-w-0">
                                 <h1 className="truncate text-4xl font-bold tracking-tight">{data.siteName}</h1>
-                                {data.siteCode && <span className="text-xl font-semibold text-[var(--tv-text-tertiary)]">{data.siteCode}</span>}
-                            </div>
-                            <div className="mt-0.5 flex items-center gap-4 text-lg text-[var(--tv-text-secondary)]">
-                                <span>{data.showsDevTickets ? 'TV Monitoring Board · Hub Tim Dev semua site' : 'TV Monitoring Board'}</span>
-                                <LiveStatus state={connectionState} />
+                                <div className="mt-1.5"><LiveStatus state={connectionState} /></div>
                             </div>
                         </div>
-                    </div>
 
-                    <div className="shrink-0 text-right">
-                        <div className="text-6xl font-semibold leading-none tracking-tight tabular-nums">{formattedTime}</div>
-                        <div className="mt-1.5 text-lg capitalize text-[var(--tv-text-secondary)]">{formattedDate}</div>
+                        <div className="flex shrink-0 items-center gap-3">
+                            <span className="rounded-full px-5 py-2 text-xl font-medium" style={{ background: 'var(--tv-chrome-fill)' }}>
+                                Waiting Vendor <span className="ml-1.5 font-bold tabular-nums">{data.waitingVendorCount}</span>
+                            </span>
+                            {overdueCount > 0 && (
+                                <span className="flex items-center gap-2 rounded-full bg-[#FF3B30] px-5 py-2 text-xl font-semibold text-white">
+                                    <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+                                    Overdue <span className="tabular-nums">{overdueCount}</span>
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="shrink-0 text-right">
+                            <div className="text-6xl font-semibold leading-none tracking-tight tabular-nums">{formattedTime}</div>
+                            <div className="mt-1.5 text-lg capitalize text-[var(--tv-chrome-muted)]">{formattedDate}</div>
+                        </div>
                     </div>
                 </header>
 
-                {/* Summary strip: division counts | vendor, overdue, audio */}
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-[var(--tv-inverse-bg)] px-4 py-1.5 text-lg font-semibold text-[var(--tv-inverse-text)]">
-                            Total <span className="ml-1 tabular-nums">{divisionCounts.TOTAL}</span>
-                        </span>
+                <div className="mx-auto flex min-h-0 w-full max-w-[160rem] flex-1 flex-col gap-4 px-8 pb-6 pt-5">
+                    {/* Division legend: where today's load sits */}
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-1 text-lg">
                         {DIVISION_ORDER.map((key) => {
                             const config = DIVISION_CONFIGS[key];
                             const count = divisionCounts[key];
                             return (
-                                <span
-                                    key={key}
-                                    className={cn('flex items-center gap-2', PILL, count === 0 && 'opacity-40')}
-                                >
+                                <span key={key} className={cn('flex items-center gap-2', count === 0 && 'opacity-40')}>
                                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: config.color }} aria-hidden="true" />
                                     <span className="text-[var(--tv-text-secondary)]">{config.shortLabel}</span>
                                     <span className="font-semibold tabular-nums">{count}</span>
@@ -379,104 +398,84 @@ export const BentoTvBoardPage: React.FC = () => {
                         })}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                        <span className={cn(PILL, 'font-medium tabular-nums text-[var(--tv-text-secondary)]')}>
-                            Waiting Vendor: {data.waitingVendorCount}
-                        </span>
-                        {overdueCount > 0 && (
-                            <span
-                                className="flex items-center gap-2 rounded-full px-4 py-1.5 text-lg font-semibold"
-                                style={{ color: APPLE_RED, backgroundColor: `${APPLE_RED}1A` }}
-                            >
-                                <AlertTriangle className="h-5 w-5" aria-hidden="true" />
-                                Overdue <span className="tabular-nums">{overdueCount}</span>
-                            </span>
-                        )}
-                        <button
-                            type="button"
-                            data-testid="tv-board-theme-toggle"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                toggleTheme();
-                            }}
-                            title={theme === 'dark' ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'}
-                            aria-label={theme === 'dark' ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'}
-                            className={cn('flex cursor-pointer items-center gap-2 text-[var(--tv-text-secondary)] transition-colors hover:text-[var(--tv-text)]', PILL)}
-                        >
-                            {theme === 'dark' ? <Sun className="h-5 w-5" aria-hidden="true" /> : <Moon className="h-5 w-5" aria-hidden="true" />}
-                            {theme === 'dark' ? 'Terang' : 'Gelap'}
-                        </button>
-                        {blocked ? (
-                            <button
-                                type="button"
-                                data-testid="tv-board-audio-blocked"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    unlockAudio();
-                                }}
-                                title="Klik untuk mengaktifkan suara TV Board"
-                                className="flex animate-pulse cursor-pointer items-center gap-2 rounded-full bg-[#FF9500] px-4 py-1.5 text-lg font-semibold text-white"
-                            >
-                                <VolumeX className="h-5 w-5" aria-hidden="true" />
-                                Aktifkan Audio
-                            </button>
-                        ) : (
-                            <button
-                                type="button"
-                                data-testid="tv-board-test-audio"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    playTestSound();
-                                }}
-                                title="Klik untuk menguji suara speaker TV"
-                                className={cn('flex cursor-pointer items-center gap-2 text-[var(--tv-text-secondary)] transition-colors hover:text-[var(--tv-text)]', PILL)}
-                            >
-                                <Volume2 className="h-5 w-5" aria-hidden="true" />
-                                Test Suara
-                            </button>
-                        )}
-                    </div>
-                </div>
+                    {/* Columns */}
+                    <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 md:grid-cols-5">
+                        {COLUMNS.map((column) => {
+                            const ColumnIcon = column.icon;
+                            const items = column.key === 'open' ? data.open : data.inProgress;
 
-                {/* Columns */}
-                <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 md:grid-cols-5">
-                    {COLUMNS.map((column) => {
-                        const ColumnIcon = column.icon;
-                        const items = column.key === 'open' ? data.open : data.inProgress;
-
-                        return (
-                            <section key={column.key} className={cn('flex min-h-0 flex-col overflow-hidden', column.span)}>
-                                <div className="mb-3 flex items-end justify-between gap-3 px-1">
-                                    <div className="flex items-baseline gap-3">
+                            return (
+                                <section key={column.key} className={cn('flex min-h-0 flex-col overflow-hidden', column.span)}>
+                                    <div className="mb-3 flex items-center gap-3 px-1">
                                         <h2 className="text-3xl font-bold tracking-tight">{column.title}</h2>
-                                        <p className="text-lg text-[var(--tv-text-tertiary)]">{column.subtitle}</p>
+                                        <span className="rounded-full px-3 py-0.5 text-2xl font-semibold tabular-nums"
+                                            style={{ color: column.accent, backgroundColor: `color-mix(in srgb, ${column.accent} 12%, transparent)` }}>
+                                            {items.length}
+                                        </span>
                                     </div>
-                                    <span className="text-5xl font-semibold leading-none tabular-nums" style={{ color: column.accent }}>
-                                        {items.length}
-                                    </span>
-                                </div>
-                                <TvBoardColumnContent
-                                    items={items}
-                                    now={now}
-                                    ColumnIcon={ColumnIcon}
-                                    emptyMessage={column.emptyMessage}
-                                    boardSiteCode={data.siteCode}
-                                />
-                            </section>
-                        );
-                    })}
+                                    <TvBoardColumnContent
+                                        items={items}
+                                        now={now}
+                                        ColumnIcon={ColumnIcon}
+                                        emptyMessage={column.emptyMessage}
+                                        boardSiteCode={data.siteCode}
+                                    />
+                                </section>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
 
-            {blocked && (
-                <div
-                    data-testid="tv-board-audio-banner"
-                    className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center"
+            {/* Setup controls: out of sight on the wall, revealed by moving the mouse. Blocked audio always shows. */}
+            <div className={cn('absolute bottom-6 right-8 flex items-center gap-2 transition-opacity duration-300',
+                controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0')}>
+                <button
+                    type="button"
+                    data-testid="tv-board-theme-toggle"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        toggleTheme();
+                    }}
+                    title={theme === 'dark' ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'}
+                    aria-label={theme === 'dark' ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'}
+                    className={cn('flex cursor-pointer items-center gap-2 text-[var(--tv-text-secondary)] transition-colors hover:text-[var(--tv-text)]', PILL)}
                 >
-                    <span className="flex items-center gap-3 rounded-full bg-[var(--tv-inverse-bg)]/90 px-6 py-3 text-xl font-semibold text-[var(--tv-inverse-text)] shadow-lg">
+                    {theme === 'dark' ? <Sun className="h-5 w-5" aria-hidden="true" /> : <Moon className="h-5 w-5" aria-hidden="true" />}
+                    {theme === 'dark' ? 'Terang' : 'Gelap'}
+                </button>
+                {!blocked && (
+                    <button
+                        type="button"
+                        data-testid="tv-board-test-audio"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            playTestSound();
+                        }}
+                        title="Klik untuk menguji suara speaker TV"
+                        className={cn('flex cursor-pointer items-center gap-2 text-[var(--tv-text-secondary)] transition-colors hover:text-[var(--tv-text)]', PILL)}
+                    >
+                        <Volume2 className="h-5 w-5" aria-hidden="true" />
+                        Tes suara
+                    </button>
+                )}
+            </div>
+
+            {/* A wall TV only plays alerts after one click; say so until it happens. */}
+            {blocked && (
+                <div data-testid="tv-board-audio-banner" className="absolute inset-x-0 bottom-6 flex justify-center">
+                    <button
+                        type="button"
+                        data-testid="tv-board-audio-blocked"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            unlockAudio();
+                        }}
+                        className="flex cursor-pointer items-center gap-3 rounded-full bg-[#FF9500] px-6 py-3 text-xl font-semibold text-white shadow-lg"
+                    >
                         <VolumeX className="h-6 w-6" aria-hidden="true" />
-                        Suara diblokir browser. Klik di mana saja untuk mengaktifkan suara.
-                    </span>
+                        Suara diblokir browser · klik untuk mengaktifkan
+                    </button>
                 </div>
             )}
         </div>

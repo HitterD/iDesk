@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { formatDateTime } from "./utils/dateFormat"
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs))
@@ -22,11 +23,7 @@ export function generateId(): string {
     return `${Date.now()}-${Math.random().toString(36).substring(2, 10)}-${Math.random().toString(36).substring(2, 10)}`;
 }
 
+/** Date + time to the second, in the app's Indonesian locale ("23 Okt 2026, 11.09.07"). */
 export function formatDate(dateString: string | Date | undefined | null) {
-    if (!dateString) return 'N/A';
-    return new Intl.DateTimeFormat('en-US', {
-        dateStyle: 'short',
-        timeStyle: 'medium',
-        timeZone: 'Asia/Jakarta'
-    }).format(new Date(dateString));
+    return formatDateTime(dateString, 'id-ID', { timeStyle: 'medium' });
 }

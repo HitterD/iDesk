@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ExtendSlaModal } from '../ExtendSlaModal';
 
@@ -30,5 +31,23 @@ describe('ExtendSlaModal paused', () => {
     it('keeps date mode for active tickets', () => {
         render(<ExtendSlaModal isOpen onClose={vi.fn()} ticket={{ ...ticket, status: 'IN_PROGRESS' }} onConfirm={vi.fn()} />);
         expect(screen.getByText('Date picker')).toBeInTheDocument();
+    });
+
+    it('applies a quick-pick capsule and the chosen reason category in date mode', async () => {
+        const DAY_MS = 24 * 60 * 60 * 1000;
+        const onConfirm = vi.fn().mockResolvedValue(undefined);
+        render(<ExtendSlaModal isOpen onClose={vi.fn()} ticket={{ ...ticket, status: 'IN_PROGRESS' }} onConfirm={onConfirm} />);
+        const presets = screen.getByRole('group', { name: 'Pilihan cepat' });
+        expect(screen.getByRole('button', { name: '1 Minggu' })).toHaveAttribute('aria-pressed', 'true');
+        fireEvent.click(screen.getByRole('button', { name: '2 Minggu' }));
+        expect(presets.querySelector('[aria-pressed="true"]')).toHaveTextContent('2 Minggu');
+        await userEvent.click(screen.getByRole('combobox', { name: 'Kategori alasan' }));
+        await userEvent.click(screen.getByRole('option', { name: 'Menunggu Vendor' }));
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Menunggu unit pengganti' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Perpanjang SLA' }));
+        await waitFor(() => expect(onConfirm).toHaveBeenCalledOnce());
+        const sent = onConfirm.mock.calls[0][0];
+        expect(sent.reasonCategory).toBe('WAITING_VENDOR');
+        expect(Math.abs(new Date(sent.newTargetDate).getTime() - (Date.now() + 14 * DAY_MS))).toBeLessThan(60_000);
     });
 });

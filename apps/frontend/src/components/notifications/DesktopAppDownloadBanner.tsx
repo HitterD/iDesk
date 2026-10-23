@@ -217,13 +217,13 @@ fetch('http://127.0.0.1:19876/notify', {
                                     </span>
                                 )}
                                 {isAppActiveLocally === false && (
-                                    <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                                    <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
                                         <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
                                         Belum Terhubung
                                     </span>
                                 )}
                             </div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                            <p className="text-xs text-muted-foreground">
                                 Notifikasi pop-up desktop Windows saat ada tiket baru atau pembaruan status sistem.
                             </p>
                         </div>
@@ -247,7 +247,7 @@ fetch('http://127.0.0.1:19876/notify', {
                             disabled={isTestingNotification}
                             className="text-xs h-9 px-3 rounded-xl border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
                         >
-                            <Bell className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
+                            <Bell className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
                             {isTestingNotification ? 'Mengirim...' : 'Tes Notifikasi'}
                         </Button>
 
@@ -268,7 +268,7 @@ fetch('http://127.0.0.1:19876/notify', {
                         <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                             Preferensi Tampilan Notifikasi Desktop:
                         </span>
-                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                        <span className="text-[11px] text-muted-foreground">
                             Pilih bagaimana notifikasi tiket ditampilkan di layar monitor ini
                         </span>
                     </div>
@@ -314,7 +314,7 @@ fetch('http://127.0.0.1:19876/notify', {
                                         )}>
                                             {item.title}
                                         </p>
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
                                             {item.description}
                                         </p>
                                     </div>
@@ -335,7 +335,7 @@ fetch('http://127.0.0.1:19876/notify', {
                                 <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                                     Bilah Diagnostik SJA Notifier
                                 </span>
-                                <span className="text-[11px] text-slate-500 dark:text-slate-400 ml-1.5 hidden sm:inline">
+                                <span className="text-[11px] text-muted-foreground ml-1.5 hidden sm:inline">
                                     (Pengujian 5 Skenario Khusus Admin & Agent)
                                 </span>
                             </div>
@@ -351,13 +351,13 @@ fetch('http://127.0.0.1:19876/notify', {
                                         disabled={isTestingNotification}
                                         className="text-xs h-8 px-3 rounded-lg bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 font-medium shadow-2xs gap-1.5"
                                     >
-                                        <Laptop className="h-3.5 w-3.5 text-slate-500" />
+                                        <Laptop className="h-3.5 w-3.5 text-muted-foreground" />
                                         {isTestingNotification ? 'Mengirim...' : 'Uji 5 Skenario'}
                                         <ChevronDown className="h-3 w-3 opacity-60" />
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-80 p-1.5 shadow-xl">
-                                    <DropdownMenuLabel className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-2 py-1">
+                                    <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1">
                                         Pilih Skenario Event iDesk:
                                     </DropdownMenuLabel>
                                     <DropdownMenuSeparator />
@@ -368,7 +368,7 @@ fetch('http://127.0.0.1:19876/notify', {
                                         <Inbox className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
                                         <div>
                                             <p className="font-semibold text-slate-800 dark:text-slate-200">1. Tiket Baru Masuk</p>
-                                            <p className="text-[11px] text-slate-500 leading-tight">Event TICKET_CREATED (#TKT-2026-1042)</p>
+                                            <p className="text-[11px] text-muted-foreground leading-tight">Event TICKET_CREATED (#TKT-2026-1042)</p>
                                         </div>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem 
@@ -378,7 +378,7 @@ fetch('http://127.0.0.1:19876/notify', {
                                         <UserCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                                         <div>
                                             <p className="font-semibold text-slate-800 dark:text-slate-200">2. Tiket Ditugaskan ke Agent</p>
-                                            <p className="text-[11px] text-slate-500 leading-tight">Event TICKET_ASSIGNED (#TKT-2026-0988)</p>
+                                            <p className="text-[11px] text-muted-foreground leading-tight">Event TICKET_ASSIGNED (#TKT-2026-0988)</p>
                                         </div>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem 
@@ -388,7 +388,7 @@ fetch('http://127.0.0.1:19876/notify', {
                                         <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
                                         <div>
                                             <p className="font-semibold text-slate-800 dark:text-slate-200">3. Peringatan SLA Urgent</p>
-                                            <p className="text-[11px] text-slate-500 leading-tight">Event SLA_WARNING (Sisa 15 Menit!)</p>
+                                            <p className="text-[11px] text-muted-foreground leading-tight">Event SLA_WARNING (Sisa 15 Menit!)</p>
                                         </div>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem 
@@ -398,7 +398,7 @@ fetch('http://127.0.0.1:19876/notify', {
                                         <MessageSquare className="h-4 w-4 text-[#2d4a8c] dark:text-[#a9bdf0] shrink-0 mt-0.5" />
                                         <div>
                                             <p className="font-semibold text-slate-800 dark:text-slate-200">4. Balasan Pesan Tiket</p>
-                                            <p className="text-[11px] text-slate-500 leading-tight">Event TICKET_REPLY / User Chat</p>
+                                            <p className="text-[11px] text-muted-foreground leading-tight">Event TICKET_REPLY / User Chat</p>
                                         </div>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem 
@@ -408,7 +408,7 @@ fetch('http://127.0.0.1:19876/notify', {
                                         <Laptop2 className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                                         <div>
                                             <p className="font-semibold text-slate-800 dark:text-slate-200">5. Approval Hardware / E-Form</p>
-                                            <p className="text-[11px] text-slate-500 leading-tight">Event HARDWARE_REQUEST (#HW-2026-041)</p>
+                                            <p className="text-[11px] text-muted-foreground leading-tight">Event HARDWARE_REQUEST (#HW-2026-041)</p>
                                         </div>
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
@@ -421,7 +421,7 @@ fetch('http://127.0.0.1:19876/notify', {
                                 disabled={isTestingNotification}
                                 className="text-xs h-8 px-3 rounded-lg bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 font-medium shadow-2xs"
                             >
-                                <UserCheck className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
+                                <UserCheck className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
                                 Tes Terassign
                             </Button>
                         </div>
@@ -443,7 +443,7 @@ fetch('http://127.0.0.1:19876/notify', {
                                     <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-base">
                                         SJA Desktop Notifier (Santos Jaya Abadi)
                                     </h3>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    <p className="text-xs text-muted-foreground">
                                         Aplikasi Notifikasi Taskbar Tray Windows Native (WhatsApp-Style)
                                     </p>
                                 </div>
@@ -464,28 +464,28 @@ fetch('http://127.0.0.1:19876/notify', {
                                     <Bell className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
                                     <div>
                                         <p className="font-medium text-xs text-slate-900 dark:text-slate-100">Toast Pop-up & Suara</p>
-                                        <p className="text-[11px] text-slate-500 mt-0.5">Muncul di pojok kanan bawah desktop mirip pesan WhatsApp saat ada aktivitas baru.</p>
+                                        <p className="text-[11px] text-muted-foreground mt-0.5">Muncul di pojok kanan bawah desktop mirip pesan WhatsApp saat ada aktivitas baru.</p>
                                     </div>
                                 </div>
                                 <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-start gap-3">
                                     <ExternalLink className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
                                     <div>
                                         <p className="font-medium text-xs text-slate-900 dark:text-slate-100">Direct Click Redirect</p>
-                                        <p className="text-[11px] text-slate-500 mt-0.5">Klik notifikasi langsung membuka tiket atau URL terkait di web browser secara otomatis.</p>
+                                        <p className="text-[11px] text-muted-foreground mt-0.5">Klik notifikasi langsung membuka tiket atau URL terkait di web browser secara otomatis.</p>
                                     </div>
                                 </div>
                                 <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-start gap-3">
                                     <Layers className="h-4 w-4 text-[#2d4a8c] dark:text-[#a9bdf0] mt-0.5 shrink-0" />
                                     <div>
                                         <p className="font-medium text-xs text-slate-900 dark:text-slate-100">Mode Fleksibel</p>
-                                        <p className="text-[11px] text-slate-500 mt-0.5">Mendukung pilihan mode Windows Toast, Popup Window detail, atau keduanya sekaligus.</p>
+                                        <p className="text-[11px] text-muted-foreground mt-0.5">Mendukung pilihan mode Windows Toast, Popup Window detail, atau keduanya sekaligus.</p>
                                     </div>
                                 </div>
                                 <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-start gap-3">
                                     <Monitor className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
                                     <div>
                                         <p className="font-medium text-xs text-slate-900 dark:text-slate-100">Auto-Start Windows</p>
-                                        <p className="text-[11px] text-slate-500 mt-0.5">Otomatis berjalan di latar belakang taskbar tray (~15MB RAM) setiap komputer dinyalakan.</p>
+                                        <p className="text-[11px] text-muted-foreground mt-0.5">Otomatis berjalan di latar belakang taskbar tray (~15MB RAM) setiap komputer dinyalakan.</p>
                                     </div>
                                 </div>
                             </div>
@@ -522,7 +522,7 @@ fetch('http://127.0.0.1:19876/notify', {
                             <div className="space-y-2.5">
                                 <div className="flex items-center justify-between">
                                     <h4 className="font-semibold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wide text-muted-foreground">
-                                        <Terminal className="h-4 w-4 text-slate-500" />
+                                        <Terminal className="h-4 w-4 text-muted-foreground" />
                                         Integrasi Web Internal Santos (Port 19876)
                                     </h4>
                                     <button

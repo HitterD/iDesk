@@ -85,8 +85,7 @@ describe('TicketUpdateService.assignTicket — Oracle/K2 enforcement', () => {
                 isUserEligible: jest.fn().mockResolvedValue(true),
                 describeModule: jest.fn().mockResolvedValue('modul ini'),
                 toAssignable: jest.fn((t: any) => t),
-            } as any, createTestSlaClock(),
-        );
+            } as any, createTestSlaClock(), { resolveVisit: () => new Date(Date.now() + 86_400_000), schedule: jest.fn(), clear: jest.fn(), note: () => '' } as any);
     });
 
     it('throws ForbiddenException when non-AGENT_ORACLE is assigned to an Oracle/K2 category ticket', async () => {
@@ -258,8 +257,7 @@ describe('TicketUpdateService.bulkAssign', () => {
                 isUserEligible: jest.fn().mockResolvedValue(true),
                 describeModule: jest.fn().mockResolvedValue('modul ini'),
                 toAssignable: jest.fn((t: any) => t),
-            } as any, createTestSlaClock(),
-        );
+            } as any, createTestSlaClock(), { resolveVisit: () => new Date(Date.now() + 86_400_000), schedule: jest.fn(), clear: jest.fn(), note: () => '' } as any);
     });
 
     it('assigns multiple tickets successfully and returns counts', async () => {
@@ -386,8 +384,7 @@ describe('TicketUpdateService — status takeover', () => {
             mockAuditService,
             { transaction: jest.fn((cb: any) => cb(manager)), createQueryRunner: jest.fn(() => mockQueryRunner) } as any,
             mockWorkloadService,
-            mockPolicy, createTestSlaClock(),
-        );
+            mockPolicy, createTestSlaClock(), { resolveVisit: () => new Date(Date.now() + 86_400_000), schedule: jest.fn(), clear: jest.fn(), note: () => '' } as any);
     });
 
     const assignedEvents = () => mockEventEmitter.emit.mock.calls.filter((c: any[]) => c[0] === 'ticket.assigned');

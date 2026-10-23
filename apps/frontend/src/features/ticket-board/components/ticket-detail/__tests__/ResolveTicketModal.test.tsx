@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { ResolveTicketModal } from '../ResolveTicketModal';
 
@@ -40,7 +41,7 @@ describe('ResolveTicketModal Component', () => {
         expect(screen.getByRole('button', { name: 'Selesaikan tiket' })).toHaveClass('ticket-action-complete');
     });
 
-    it('populates textarea when a quick template chip is clicked', () => {
+    it('populates textarea when a quick template is picked', async () => {
         render(
             <ResolveTicketModal
                 isOpen={true}
@@ -50,9 +51,10 @@ describe('ResolveTicketModal Component', () => {
             />
         );
 
-        fireEvent.change(screen.getByRole('combobox', { name: /Gunakan template/ }), {
-            target: { value: 'Masalah berhasil diperbaiki dan telah dites berjalan normal.' },
-        });
+        await userEvent.click(screen.getByRole('combobox', { name: /Gunakan template/ }));
+        await userEvent.click(screen.getByRole('option', { name: 'Masalah berhasil diperbaiki dan telah dites berjalan normal.' }));
+        // Acts as a menu: back to its placeholder after filling the note.
+        expect(screen.getByRole('combobox', { name: /Gunakan template/ })).toHaveTextContent('Pilih template solusi…');
 
         const textarea = screen.getByPlaceholderText(/Jelaskan tindakan teknis atau solusi/i) as HTMLTextAreaElement;
         expect(textarea.value).toContain('Masalah berhasil diperbaiki');

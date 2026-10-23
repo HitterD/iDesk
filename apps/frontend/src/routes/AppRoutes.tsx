@@ -2,7 +2,7 @@ import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-do
 import { Suspense, lazy } from 'react';
 import { FeatureErrorBoundary } from '../components/ui/FeatureErrorBoundary';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
-import { LoadingScreen } from '../components/ui/LoadingScreen';
+import { LoadingScreen, RouteFallback } from '../components/ui/LoadingScreen';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
 import { PresenceProvider } from '../components/layout/PresenceProvider';
 import { useDesktopNotifierSync } from '../hooks/useDesktopNotifierSync';
@@ -84,7 +84,7 @@ const DeviceActivationPage = lazy(() => import('../features/devices/DeviceActiva
 
 // Loading fallback component
 const PageLoader = () => (
-    <LoadingScreen message="Loading..." />
+    <LoadingScreen message="Memuat…" />
 );
 
 import { useAuth } from '../stores/useAuth';
@@ -142,7 +142,7 @@ interface LazyRouteProps {
 const LazyRoute = ({ component: Component, featureName, requiredPageAccess, allowedRoles }: LazyRouteProps) => {
     let element = (
         <FeatureErrorBoundary featureName={featureName}>
-            <Suspense fallback={<PageLoader />}>
+            <Suspense fallback={<RouteFallback />}>
                 <Component />
             </Suspense>
         </FeatureErrorBoundary>
