@@ -186,7 +186,7 @@ export const EformAccessDetailPage: React.FC = () => {
   ].filter(Boolean) as Array<{ label: string; value: string }>;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 px-3 sm:px-6 py-6 sm:py-8 animate-fade-in-up">
+    <div className="mx-auto max-w-4xl space-y-6 px-3 sm:px-6 py-6 sm:py-8">
       {/* Header */}
       <div className="flex items-center justify-between gap-2.5">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="rounded-xl font-semibold cursor-pointer shrink-0">

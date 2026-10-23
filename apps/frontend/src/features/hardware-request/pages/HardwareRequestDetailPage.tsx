@@ -70,7 +70,7 @@ export default function HardwareRequestDetailPage() {
     };
 
     return (
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 pb-16 animate-fade-in-up">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 pb-16">
             {/* ── STICKY TOPBAR ── */}
             <motion.div
                 initial={{ opacity: 0, y: -8 }}

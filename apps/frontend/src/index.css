@@ -401,7 +401,12 @@ textarea:focus {
 .nav-group.is-quiet .nav-item.is-active {
   background: hsl(var(--shell-sheet)); color: hsl(var(--foreground)); font-weight: 600;
   width: 100%; margin-right: 0; border-radius: var(--shell-tab-radius) 0 0 var(--shell-tab-radius);
+  /* The tab grows 10px into the sheet; pad it back so the label and badge don't shift. */
+  padding-right: 18px;
 }
+/* Icon rail and footer items keep their width when active, so they keep their padding too. */
+.nav-item-icon.is-active { padding: 0; }
+.nav-foot .nav-item.is-active { padding-right: 8px; }
 .nav-item.is-active::before, .nav-item.is-active::after {
   content: ""; position: absolute; right: 0; width: var(--shell-tab-radius); height: var(--shell-tab-radius);
   background: transparent; pointer-events: none;
@@ -417,11 +422,13 @@ textarea:focus {
 }
 /* Mobile drawer has no adjoining sheet: active becomes a rounded pill. */
 @media (max-width: 1023.98px) {
-  .nav-item.is-active, .nav-group.is-quiet .nav-item.is-active { width: calc(100% - 10px); margin-right: 10px; border-radius: 12px; }
+  .nav-item.is-active, .nav-group.is-quiet .nav-item.is-active { width: calc(100% - 10px); margin-right: 10px; padding-right: 8px; border-radius: 12px; }
   .nav-item.is-active::before, .nav-item.is-active::after { display: none; }
 }
 
 .nav-badge {
+  /* Above the active tab's joining curves, whose sheet-coloured shadows reach into short items. */
+  position: relative; z-index: 1;
   min-width: 20px; padding: 0 6px; border-radius: 10px; text-align: center;
   font-size: 11px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums;
   background: hsl(0 0% 100% / .16); color: #fff;
@@ -552,7 +559,9 @@ textarea:focus {
 .portal-help-copy span { font-size: 13px; color: hsl(var(--idesk-text-secondary)); }
 .portal-help-banner:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
 @media (max-width: 639.98px) {
-  .portal-help-banner { flex-wrap: wrap; }
+  /* Copy takes the row beside the mascot; the CTA wraps beneath it instead of squeezing the text. */
+  .portal-help-banner { flex-wrap: wrap; row-gap: 6px; }
+  .portal-help-copy { flex-basis: calc(100% - 70px); }
   .portal-help-cta { margin-left: 70px; }
 }
 
@@ -600,7 +609,7 @@ textarea:focus {
   /* Selection cell bleeds into the row padding and half the column gap: full row height,
      45px wide (14px pad + 26px column + 5px gap), so no near-miss falls through to the row. */
   .queue-grid > .queue-select-cell { min-width: 0; margin: 0 -5px 0 -16px; padding: 0 5px 0 16px; }
-  .queue-thead { height: 36px; border-bottom: .5px solid hsl(var(--idesk-border)); color: hsl(var(--idesk-text-secondary) / .8); font-size: 11.5px; font-weight: 500; }
+  .queue-thead { height: 36px; border-bottom: .5px solid hsl(var(--idesk-border)); color: var(--td-text-3); font-size: 11.5px; font-weight: 500; }
   .queue-desktop-row { min-height: 60px; }
   .queue-mobile-row, .queue-card-toolbar { display: none; }
 }
@@ -629,6 +638,20 @@ textarea:focus {
 .portal-search:focus-within { box-shadow: inset 0 0 0 1px hsl(var(--idesk-sapphire)), 0 0 0 3px hsl(var(--idesk-sapphire) / .16); }
 .portal-seg { display: flex; gap: 2px; min-width: 0; max-width: 100%; padding: 3px; border-radius: 12px; background: hsl(var(--muted)); overflow-x: auto; scrollbar-width: none; }
 .portal-seg::-webkit-scrollbar { display: none; }
+/* Overflowing tab rows fade at whichever edge still hides tabs (scroll-driven, so no JS; inert elsewhere). */
+@property --seg-fade-l { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --seg-fade-r { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes seg-edge-fade {
+  from { --seg-fade-l: 0px; --seg-fade-r: 28px; }
+  8%, 92% { --seg-fade-l: 28px; --seg-fade-r: 28px; }
+  to { --seg-fade-l: 28px; --seg-fade-r: 0px; }
+}
+@supports (animation-timeline: scroll()) {
+  .portal-seg {
+    mask-image: linear-gradient(to right, transparent, #000 var(--seg-fade-l), #000 calc(100% - var(--seg-fade-r)), transparent);
+    animation: seg-edge-fade linear both; animation-timeline: scroll(self inline);
+  }
+}
 .portal-seg-btn {
   display: inline-flex; align-items: center; gap: 6px; flex: none; height: 34px; padding: 0 12px; border-radius: 9px; cursor: pointer;
   font-size: 12.5px; font-weight: 500; white-space: nowrap; color: hsl(var(--idesk-text-secondary));
@@ -1009,11 +1032,11 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .queue-sort:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
 .queue-sort:active { transform: none; }
 .queue-sort-created { justify-self: end; white-space: nowrap; }
-.queue-created-date { color: hsl(var(--idesk-text-secondary) / .85); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.queue-created-date { color: var(--td-text-3); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .queue-sort-created svg { opacity: 1; }
 .queue-title-cell { align-self: stretch; display: flex; align-items: center; }
 .queue-tk { min-width: 0; padding: 10px 0; }
-.queue-tk-id { display: flex; align-items: center; gap: 6px; min-width: 0; font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: hsl(var(--idesk-text-secondary) / .85); white-space: nowrap; }
+.queue-tk-id { display: flex; align-items: center; gap: 6px; min-width: 0; font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--td-text-3); white-space: nowrap; }
 .queue-tk-id > span:first-child { flex: none; }
 .ticket-pill.queue-src, .queue-src {
   display: inline-flex; align-items: center; gap: 3px; min-height: 0; height: 17px; padding: 0 6px; border: 0; border-radius: 6px;
@@ -1029,7 +1052,7 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .queue-tk-title { margin-top: 2px; font-size: 13.5px; font-weight: 550; color: hsl(var(--idesk-text)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color var(--dur-1) var(--ease-out); }
 .queue-person { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .queue-person b { display: block; font-size: 12.5px; font-weight: 550; color: hsl(var(--idesk-text)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.queue-person small { display: block; font-size: 11px; color: hsl(var(--idesk-text-secondary) / .85); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue-person small { display: block; font-size: 11px; color: var(--td-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ticket-pill.queue-pic, .queue-pic {
   width: 100%; height: 30px; min-height: 30px; padding: 0 10px 0 3px; border-radius: 15px; gap: 6px; justify-content: flex-start;
   background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-text)); border-color: hsl(var(--idesk-border));
@@ -1171,7 +1194,7 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 
 /* ---------- Round-2 ticket detail (mockup idesk.css "Ticket detail header", "Messages", "Composer", inspector) ---------- */
 :root {
-  --td-fill: rgb(116 116 128 / .08); --td-fill-2: rgb(116 116 128 / .14); --td-text-3: #8a8a92;
+  --td-fill: rgb(116 116 128 / .08); --td-fill-2: rgb(116 116 128 / .14); --td-text-3: #696972; /* >=4.5:1 on every fill it sits on */
   --td-line: rgb(0 0 0 / .07); --td-line-strong: rgb(0 0 0 / .11);
   --td-accent-soft: hsl(var(--idesk-sapphire) / .09);
   --td-amber: #f2a516;
@@ -1180,7 +1203,7 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   --td-ring: 0 0 0 3px hsl(var(--idesk-sapphire) / .38);
 }
 .dark {
-  --td-fill: rgb(118 118 128 / .16); --td-fill-2: rgb(118 118 128 / .24); --td-text-3: #85858d;
+  --td-fill: rgb(118 118 128 / .16); --td-fill-2: rgb(118 118 128 / .24); --td-text-3: #96969c;
   --td-line: rgb(255 255 255 / .07); --td-line-strong: rgb(255 255 255 / .12);
   --td-accent-soft: hsl(var(--idesk-sapphire) / .16);
 }
@@ -1223,7 +1246,9 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 }
 
 /* Messages: who line, bubble, floating tool pill, reaction chips */
-.chat-msg { display: flex; gap: 10px; max-width: 78%; animation: td-msg-in var(--dur-3) var(--ease-out) both; }
+.chat-msg { display: flex; gap: 10px; max-width: 78%; }
+/* Only messages that arrive while the thread is open animate in; opening a ticket shows it settled. */
+.chat-msg.is-arriving { animation: td-msg-in var(--dur-3) var(--ease-out) backwards; }
 .chat-msg.is-out { margin-left: auto; flex-direction: row-reverse; }
 .chat-msg > .chat-msg-col { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
 .chat-msg.is-out > .chat-msg-col { align-items: flex-end; }
@@ -1401,7 +1426,24 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 @keyframes idesk-backdrop-in { from { opacity: 0; backdrop-filter: blur(0); } }
 
 /* Page content arrives on every route change (keyed wrapper in BentoLayout / ClientLayout). */
-.idesk-page-enter { animation: idesk-page-in var(--dur-3) var(--ease-out) both; }
+/* backwards, not both: a transform left filled after the entrance would make this wrapper the containing
+   block for every position:fixed descendant (inline modals, drawers) and pin them inside the page. */
+.idesk-page-enter { animation: idesk-page-in var(--dur-3) var(--ease-out) backwards; }
+/* In-shell lazy page fallback: invisible for 300ms so quick chunk loads never flash a loader. */
+@keyframes idesk-fade-in { from { opacity: 0; } }
+.idesk-route-fallback { display: grid; place-items: center; min-height: 40vh; animation: idesk-fade-in var(--dur-2) var(--ease-out) 300ms both; }
+
+/* KB suggestion rows (KbSuggestionDialog): colour-only hover, the arrow nudges toward the article. */
+.kb-suggest-item {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border-radius: 14px; text-align: left; cursor: pointer;
+  background: hsl(var(--idesk-surface)); box-shadow: inset 0 0 0 1px hsl(var(--idesk-border) / .8);
+  transition: background-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+.kb-suggest-item:hover { background: hsl(var(--idesk-selection) / .6); box-shadow: inset 0 0 0 1px hsl(var(--idesk-sapphire) / .25); }
+.kb-suggest-item:active { transform: scale(.99); }
+.kb-suggest-item:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
+.kb-suggest-arrow { width: 16px; height: 16px; flex: none; color: hsl(var(--muted-foreground)); transition: transform var(--dur-2) var(--ease-out), color var(--dur-1) var(--ease-out); }
+.kb-suggest-item:hover .kb-suggest-arrow { transform: translate(2px, -2px); color: hsl(var(--idesk-sapphire)); }
 
 /* Sidebar items: press feedback (never on the active tab) and the active tab sliding from the previous item. */
 .nav-item:not(.is-active):active { transform: scale(.98); }
@@ -1423,9 +1465,15 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   transform-origin: var(--radix-popper-transform-origin);
   animation: idesk-pop-in var(--dur-2) var(--ease-out);
 }
+[data-radix-popper-content-wrapper] > [data-state="closed"] { animation: idesk-fade-out var(--dur-1) var(--ease-out) forwards; }
 /* Dialogs spring in over a blurred backdrop. */
 .idesk-dialog-overlay[data-state="open"] { animation: idesk-backdrop-in var(--dur-3) var(--ease-out); }
 .idesk-dialog-content[data-state="open"] { animation: idesk-dialog-in var(--dur-3) var(--ease-spring); }
+/* Dismissal is quicker and quieter than arrival: a short fade-and-settle, no slide back. */
+@keyframes idesk-dialog-out { to { opacity: 0; transform: scale(.98); } }
+@keyframes idesk-fade-out { to { opacity: 0; } }
+.idesk-dialog-overlay[data-state="closed"] { animation: idesk-fade-out var(--dur-1) var(--ease-out) forwards; }
+.idesk-dialog-content[data-state="closed"] { animation: idesk-dialog-out var(--dur-1) var(--ease-out) forwards; }
 /* Unlayered on purpose: beats select-styles.css (unlayered global select chevron) for the mockup "Per halaman" pop. */
 .portal-page-size select { appearance: none; border: 0; outline: 0; background: none; color: hsl(var(--idesk-text)); font: inherit; font-weight: 600; padding: 0 2px 0 0; cursor: pointer; }
 /* Unlayered on purpose (beats the .inline-block utility): TicketQuickPreview wraps its trigger in an
@@ -1611,4 +1659,6 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   }
   .queue-stat:hover, .portal-stat:hover, .ct-card:hover, .ct-card:hover img, .ct-card:hover .ct-link svg, .card-interactive:hover { transform: none; }
   .idesk-spin, .animate-pulse { animation: none !important; }
+  /* Scroll-driven edge fade is not motion; a time duration would break its scroll mapping. */
+  .portal-seg { animation-duration: auto !important; }
 }

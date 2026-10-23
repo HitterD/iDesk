@@ -6,10 +6,11 @@ import { AgentDashboardPage } from '../AgentDashboardPage';
 import type { AgentDashboardData } from '../agentDashboard.types';
 
 const api = vi.hoisted(() => ({ get: vi.fn() }));
+const auth = vi.hoisted(() => ({ user: { id: 'me-1', role: 'AGENT_WEB_DEV' } }));
 vi.mock('@/lib/api', () => ({ default: api }));
 vi.mock('@/hooks/useTicketSocket', () => ({ useTicketListSocket: vi.fn() }));
 vi.mock('@/stores/useAuth', () => ({
-    useAuth: () => ({ user: { id: 'me-1', role: 'AGENT_WEB_DEV' } }),
+    useAuth: () => auth,
 }));
 vi.mock('../../components/MyRatingCard', () => ({ MyRatingCard: () => <div>MyRatingCard</div> }));
 // recharts' ResponsiveContainer needs real layout; jsdom has none.
@@ -45,13 +46,25 @@ const renderAt = (path: string) => render(
             <Routes>
                 <Route path="/dashboard/me" element={<AgentDashboardPage />} />
                 <Route path="/dashboard/agent/:id" element={<AgentDashboardPage />} />
+                <Route path="/dashboard" element={<div>Team dashboard</div>} />
             </Routes>
         </MemoryRouter>
     </QueryClientProvider>,
 );
 
 describe('AgentDashboardPage', () => {
-    beforeEach(() => api.get.mockReset());
+    beforeEach(() => {
+        api.get.mockReset();
+        auth.user = { id: 'me-1', role: 'AGENT_WEB_DEV' };
+    });
+
+    it('sends a non-agent away from /dashboard/me without calling the agent-only API', () => {
+        auth.user = { id: 'admin-1', role: 'ADMIN' };
+        renderAt('/dashboard/me');
+
+        expect(screen.getByText('Team dashboard')).toBeInTheDocument();
+        expect(api.get).not.toHaveBeenCalled();
+    });
 
     it('shows my own dev dashboard with breakdowns and no support card', async () => {
         api.get.mockResolvedValue({ data: dashboard({}) });

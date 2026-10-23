@@ -21,7 +21,8 @@ const BADGE_BASE = 'inline-flex items-center gap-1 h-[22px] rounded-full px-2.5 
 type Tone = 'good' | 'warn' | 'bad';
 
 const TONE_TEXT: Record<Tone, string> = {
-    good: 'text-[hsl(var(--success-500))]',
+    // 600 in light mode: 500 is under 4.5:1 on white and on the success tint.
+    good: 'text-[hsl(var(--success-600))] dark:text-[hsl(var(--success-500))]',
     warn: 'text-[hsl(var(--accent))]',
     bad: 'text-[hsl(var(--error-500))]',
 };
@@ -281,7 +282,7 @@ export const AgentCard: React.FC<AgentCardProps> = ({
             <div className="mt-4 mb-4 grid grid-cols-4 gap-1.5">
                 <CardStat label="Score" value={agent.appraisalPoints || 0} valueClassName="text-[hsl(var(--accent))]" />
                 <CardStat label="Active" value={agent.inProgressTickets} valueClassName="text-blue-600 dark:text-blue-400" />
-                <CardStat label="Month" value={agent.resolvedThisMonth} valueClassName="text-[hsl(var(--success-500))]" />
+                <CardStat label="Month" value={agent.resolvedThisMonth} valueClassName={TONE_TEXT.good} />
                 <CardStat
                     label="SLA"
                     value={`${agent.slaCompliance}%`}

@@ -118,7 +118,7 @@ export const EformCredentialPage: React.FC = () => {
     : [];
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8 animate-fade-in-up">
+    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
       {backButton}
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card">

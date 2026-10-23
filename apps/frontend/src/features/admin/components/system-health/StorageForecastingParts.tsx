@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, ChevronDown, FileText, Image, Info, Server, Sparkles } from 'lucide-react';
-import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, Tooltip, XAxis, YAxis } from 'recharts';
+import { ResponsiveChart } from '@/components/ui/responsive-chart';
 import { resVars } from '@/components/resources/ResourceParts';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Button } from '@/components/ui/button';
@@ -87,7 +88,7 @@ export const ProjectionChart: React.FC<ChartProps> = ({ rows, scenario, onScenar
                 <DashLegend line series={SERIES.filter((s) => show(s.scenario))} />
                 <div className="dash-plot is-soft hl-plot-lg">
                     <div className="dash-plot-inner">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveChart width="100%" height="100%">
                             <ComposedChart data={rows as ProjectionRow[]} margin={{ top: 14, right: 8, left: 0, bottom: 0 }}>
                                 <CartesianGrid vertical={false} />
                                 <XAxis dataKey="dateLabel" tickLine={false} axisLine={false} tickMargin={6} minTickGap={24} />
@@ -113,7 +114,7 @@ export const ProjectionChart: React.FC<ChartProps> = ({ rows, scenario, onScenar
                                 {show('high') && <Line type="monotone" dataKey="highGrowthGB" name="High Load (+50%)" stroke={C_HIGH} strokeWidth={2} strokeDasharray="4 4" dot={false} />}
                                 {show('peak') && <Line type="monotone" dataKey="peakGrowthGB" name="Peak Surge (2.0x)" stroke={C_PEAK} strokeWidth={2} strokeDasharray="3 3" dot={false} />}
                             </ComposedChart>
-                        </ResponsiveContainer>
+                        </ResponsiveChart>
                     </div>
                 </div>
             </figure>

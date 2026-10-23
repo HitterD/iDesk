@@ -108,7 +108,7 @@ export const EformApprovalPage: React.FC = () => {
   ];
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8 animate-fade-in-up">
+    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
       <div className="flex items-center justify-between gap-3">
         {backButton}
         <EformStatusBadge status={eform.status} />

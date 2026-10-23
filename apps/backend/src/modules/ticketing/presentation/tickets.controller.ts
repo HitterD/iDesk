@@ -279,8 +279,8 @@ export class TicketsController {
         return this.ticketQueryService.findOne(id);
     }
 
+    // Same gate as GET :id: findOne enforces ticket access, and requesters only get PUBLIC articles.
     @Get(':id/kb-suggestions')
-    @Roles(UserRole.ADMIN, UserRole.AGENT)
     @ApiOperation({ summary: 'Suggest most relevant KB articles for a ticket' })
     @ApiResponse({ status: 200, description: 'Top relevant articles (max 3)' })
     async getKbSuggestions(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {

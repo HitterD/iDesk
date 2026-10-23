@@ -64,8 +64,8 @@ describe('ZoomBookingModal', () => {
             { wrapper }
         );
 
-        // Accessible-name "Close" should match exactly once
-        const closeButtons = screen.getAllByRole('button', { name: /^close$/i });
+        // Accessible-name "Tutup" should match exactly once
+        const closeButtons = screen.getAllByRole('button', { name: /^tutup$/i });
         expect(closeButtons).toHaveLength(1);
     });
 
@@ -82,7 +82,7 @@ describe('ZoomBookingModal', () => {
             />,
             { wrapper }
         );
-        await user.click(screen.getByRole('button', { name: /^close$/i }));
+        await user.click(screen.getByRole('button', { name: /^tutup$/i }));
         expect(onClose).toHaveBeenCalled();
     });
 

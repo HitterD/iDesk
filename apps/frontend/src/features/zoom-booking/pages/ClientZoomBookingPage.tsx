@@ -74,7 +74,7 @@ export function ClientZoomBookingPage() {
     };
 
     return (
-        <div className="w-full space-y-4 lg:space-y-6 animate-fade-in-up">
+        <div className="w-full space-y-4 lg:space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-1">
                 <div className="flex items-center gap-3 sm:gap-4">
                     <div className="relative shrink-0">

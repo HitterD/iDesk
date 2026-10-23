@@ -25,22 +25,20 @@ export const AdminWorkloadDashboard: React.FC = () => {
     const [recalculating, setRecalculating] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     
-    // For non-cross-site roles (agents), default immediately to user's site
-    const [activeSiteId, setActiveSiteId] = useState<string>(
-        !isAdmin && !isManager && user?.siteId ? user.siteId : ''
-    );
+    // Everyone starts on their own site; cross-site roles without one get the first site from SiteTabs.
+    const [activeSiteId, setActiveSiteId] = useState<string>(user?.siteId ?? '');
 
     // Filter & Search states
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<FilterStatus>('ALL');
     const [sortBy, setSortBy] = useState<SortOption>('POINTS_ASC');
 
-    // If non-admin/non-manager logs in and activeSiteId was not yet set from user.siteId
+    // The user may arrive after the first render; adopt their site if nothing is selected yet.
     useEffect(() => {
-        if (!isAdmin && !isManager && user?.siteId && !activeSiteId) {
+        if (user?.siteId && !activeSiteId) {
             setActiveSiteId(user.siteId);
         }
-    }, [isAdmin, isManager, user?.siteId, activeSiteId]);
+    }, [user?.siteId, activeSiteId]);
 
     useEffect(() => {
         if (activeSiteId) {

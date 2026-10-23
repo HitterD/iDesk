@@ -9,11 +9,11 @@ import {
     YAxis,
     CartesianGrid,
     Tooltip,
-    ResponsiveContainer,
     LineChart,
     Line,
     Legend,
 } from 'recharts';
+import { ResponsiveChart } from '@/components/ui/responsive-chart';
 import {
     Ticket,
     AlertTriangle,
@@ -229,7 +229,7 @@ export const ManagerDashboard = () => {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <ResponsiveContainer width="100%" height={320}>
+                            <ResponsiveChart width="100%" height={320}>
                                 <LineChart data={getTrendChartData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                                     <XAxis dataKey="date" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
@@ -251,7 +251,7 @@ export const ManagerDashboard = () => {
                                         />
                                     ))}
                                 </LineChart>
-                            </ResponsiveContainer>
+                            </ResponsiveChart>
                         </CardContent>
                     </Card>
                 </div>
@@ -267,7 +267,7 @@ export const ManagerDashboard = () => {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <ResponsiveContainer width="100%" height={220}>
+                            <ResponsiveChart width="100%" height={220}>
                                 <BarChart data={stats?.siteStats || []} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                                     <XAxis dataKey="siteCode" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
@@ -276,7 +276,7 @@ export const ManagerDashboard = () => {
                                     <Bar dataKey="openTickets" name="Open" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={40} />
                                     <Bar dataKey="criticalTickets" name="Critical" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={40} />
                                 </BarChart>
-                            </ResponsiveContainer>
+                            </ResponsiveChart>
                         </CardContent>
                     </Card>
 

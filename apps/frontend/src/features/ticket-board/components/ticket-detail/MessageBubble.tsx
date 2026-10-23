@@ -22,6 +22,8 @@ interface MessageBubbleProps {
     isGroupStart: boolean;
     isGroupEnd: boolean;
     isHighlighted: boolean;
+    /** Arrived after the thread was opened: plays the entrance animation. */
+    isArriving?: boolean;
     /** Small badge after the name, e.g. "Pemohon" (agent view) or "IT Support" (requester view). */
     roleLabel?: string;
     /** Name shown for the viewer's own messages (requester view: "Anda"). */
@@ -84,6 +86,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     isSticker,
     isGroupStart,
     isHighlighted,
+    isArriving = false,
     roleLabel,
     ownLabel,
     reactions,
@@ -120,6 +123,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             className={cn(
                 'chat-msg rounded-2xl transition-colors duration-700',
                 isOutgoing && 'is-out',
+                isArriving && 'is-arriving',
                 isGroupStart ? 'mt-3.5' : 'mt-1.5',
                 press.open && 'tools-open',
                 isHighlighted && 'bg-primary/10 dark:bg-primary/15',

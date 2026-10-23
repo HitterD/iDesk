@@ -28,6 +28,9 @@ import { BulkAssignDialog } from '../components/BulkAssignDialog';
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
 import { MergeTicketsModal } from '../components/MergeTicketsModal';
 import { useTicketListSocket } from '@/hooks/useTicketSocket';
+import { PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
+
+const QUEUE_PRIORITY_OPTIONS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const;
 
 export const DynamicTicketQueuePage: React.FC = () => {
     const { slug } = useParams<{ slug: string }>();
@@ -187,7 +190,7 @@ export const DynamicTicketQueuePage: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6">
             {/* Header Banner */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
                 <div className="flex items-center gap-4">
@@ -308,10 +311,9 @@ export const DynamicTicketQueuePage: React.FC = () => {
                         className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                         <option value="ALL">Semua Prioritas</option>
-                        <option value="CRITICAL">Critical</option>
-                        <option value="HIGH">High</option>
-                        <option value="MEDIUM">Medium</option>
-                        <option value="LOW">Low</option>
+                        {QUEUE_PRIORITY_OPTIONS.map((key) => (
+                            <option key={key} value={key}>{PRIORITY_CONFIG[key].shortLabel}</option>
+                        ))}
                     </select>
                 </div>
             </div>

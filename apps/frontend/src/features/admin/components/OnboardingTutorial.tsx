@@ -16,40 +16,40 @@ interface TutorialStep {
 
 const TUTORIAL_STEPS: TutorialStep[] = [
     {
-        title: 'Welcome to Agent Management',
-        description: 'This page lets you manage your entire support team. View agents, track performance, and manage permissions all in one place.',
+        title: 'Selamat datang di Agent Management',
+        description: 'Kelola seluruh tim support dari satu halaman: lihat agen, pantau performa, dan atur hak akses.',
         icon: Users,
     },
     {
-        title: 'Quick Stats Dashboard',
-        description: 'Click on any stat card to filter agents. See total agents, active tickets, resolved counts, and your top performer at a glance.',
+        title: 'Ringkasan cepat',
+        description: 'Klik kartu statistik untuk memfilter agen. Total agen, tiket aktif, tiket selesai, dan performa terbaik terlihat sekilas.',
         icon: BarChart3,
     },
     {
         title: 'Import & Export',
-        description: 'Use Import to bulk add users via CSV (with preview before import). Export lets you download user data as CSV or Excel.',
+        description: 'Import menambah banyak user sekaligus dari CSV (dengan pratinjau sebelum disimpan). Export mengunduh data user sebagai CSV atau Excel.',
         icon: Upload,
     },
     {
-        title: 'Search & Filter',
-        description: 'Use the search bar to find agents by name or email. Filter by site or role using the dropdown menus.',
+        title: 'Cari & filter',
+        description: 'Cari agen berdasarkan nama atau email. Saring berdasarkan site atau role lewat menu dropdown.',
         icon: Search,
     },
     {
-        title: 'Bulk Actions',
-        description: 'Select multiple agents using checkboxes, then use bulk actions to change roles, assign sites, or compare performance.',
+        title: 'Aksi massal',
+        description: 'Centang beberapa agen, lalu ubah role, pindahkan site, atau bandingkan performanya sekaligus.',
         icon: Shield,
     },
     {
-        title: 'Keyboard Shortcuts',
+        title: 'Pintasan keyboard',
         // Must match the handler in BentoAdminAgentsPage — the old copy advertised
         // plain Ctrl+A and a bare Delete, neither of which exists.
-        description: 'Press ? anytime to see keyboard shortcuts. Use Ctrl+Shift+A to select all, Ctrl+Delete to remove selected, Escape to close dialogs.',
+        description: 'Tekan ? kapan saja untuk melihat pintasan. Ctrl+Shift+A memilih semua, Ctrl+Delete menghapus yang dipilih, Escape menutup dialog.',
         icon: Keyboard,
     },
     {
-        title: "You're Ready!",
-        description: 'Start managing your team. Click on any agent card to see detailed performance stats and activity history.',
+        title: 'Siap digunakan',
+        description: 'Mulai kelola tim Anda. Klik baris agen untuk melihat detail performa dan riwayat aktivitas.',
         icon: CheckCircle,
     },
 ];
@@ -127,9 +127,9 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({ onComple
                 <button
                     onClick={handleSkip}
                     type="button"
-                    className="absolute top-4 right-4 px-3 min-h-[44px] text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors text-sm z-10"
+                    className="absolute top-4 right-4 px-3 min-h-[44px] text-muted-foreground hover:text-foreground transition-colors text-sm z-10"
                 >
-                    Skip tour
+                    Lewati
                 </button>
 
                 {/* Content */}
@@ -169,7 +169,7 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({ onComple
                     </h2>
 
                     {/* Description */}
-                    <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
+                    <p className="text-muted-foreground leading-relaxed">
                         {step.description}
                     </p>
                 </div>
@@ -188,7 +188,7 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({ onComple
                         )}
                     >
                         <ChevronLeft className="w-4 h-4" />
-                        Back
+                        Kembali
                     </button>
 
                     <button
@@ -196,7 +196,7 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({ onComple
                         type="button"
                         className="flex items-center gap-1 px-6 py-2 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors"
                     >
-                        {isLastStep ? 'Get Started' : 'Next'}
+                        {isLastStep ? 'Mulai' : 'Lanjut'}
                         {!isLastStep && <ChevronRight className="w-4 h-4" />}
                     </button>
                 </div>

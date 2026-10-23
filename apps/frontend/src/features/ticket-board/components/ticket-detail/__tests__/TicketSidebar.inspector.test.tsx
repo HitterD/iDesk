@@ -114,7 +114,7 @@ describe('TicketSidebar inspector', () => {
         await user.click(screen.getByRole('option', { name: 'Resolved' }));
         expect(cb.onStatusChange).not.toHaveBeenCalled();
         await user.type(screen.getByPlaceholderText(/Jelaskan tindakan teknis/), 'Roller diganti');
-        await user.click(screen.getByRole('button', { name: /Ya, Selesaikan Tiket/ }));
+        await user.click(screen.getByRole('button', { name: /^Selesaikan tiket$/ }));
         await waitFor(() => expect(cb.onStatusChange).toHaveBeenCalledWith('RESOLVED', 'Roller diganti', []));
     });
 

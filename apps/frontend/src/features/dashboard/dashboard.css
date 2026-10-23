@@ -112,7 +112,8 @@ button.dash-li { width: calc(100% + 16px); text-align: left; }
 .dash-feed .dash-t, .dash-li .dash-date { min-width: 44px; text-align: right; color: var(--td-text-3); font-size: 11.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .dash-li .dash-date { font-size: 12px; }
 .dash-rank { width: 22px; flex: none; text-align: center; font-weight: 650; color: var(--td-text-3); font-variant-numeric: tabular-nums; }
-.dash-avatar { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--c); font-weight: 650; font-size: 10.5px; letter-spacing: .02em;
+/* Initials mix the hue toward the text colour so they keep >=4.5:1 on their own tint (light and dark). */
+.dash-avatar { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; flex: none; color: color-mix(in srgb, var(--c) 55%, hsl(var(--idesk-text))); font-weight: 650; font-size: 10.5px; letter-spacing: .02em;
   background: color-mix(in srgb, var(--c) 16%, hsl(var(--idesk-surface))); }
 .dash-n-green { color: var(--dash-ink-green); font-weight: 650; }
 .dash-n-accent { color: hsl(var(--idesk-sapphire)); font-weight: 650; }

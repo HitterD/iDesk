@@ -301,9 +301,9 @@ export const RenewalDashboardPage = () => {
                     setContractToDelete(null);
                 }}
                 onConfirm={handleDeleteConfirm}
-                title="Delete Contract"
-                message="Are you sure you want to delete this contract? This action cannot be undone."
-                confirmText="Delete"
+                title="Hapus kontrak"
+                message="Kontrak ini akan dihapus permanen dan tidak bisa dikembalikan."
+                confirmText="Hapus kontrak"
                 variant="danger"
                 isLoading={deleteMutation.isPending}
             />

@@ -661,7 +661,7 @@ export const BentoTicketListPage: React.FC = () => {
                             {/* Results Count (when no pagination needed) */}
                             {
                                 !paginationInfo.showPagination && filteredTickets.length > 0 && (
-                                    <div className="text-center text-sm text-slate-400 mt-4">
+                                    <div className="text-center text-sm text-muted-foreground mt-4">
                                         Menampilkan {filteredTickets.length} dari {paginationInfo.totalItems || tickets.length} tiket
                                     </div>
                                 )

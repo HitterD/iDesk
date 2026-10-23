@@ -151,6 +151,10 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     );
     const initialAttachments = initialMessage?.attachments ?? [];
 
+    // Messages present when the ticket opens render settled; only later arrivals get the entrance
+    // animation (the page is keyed per path, so this resets when another ticket opens).
+    const [initialMessageIds] = useState(() => new Set((ticket.messages ?? []).map((m) => m.id)));
+
     const sortedMessages = useMemo(
         () => [...(ticket.messages ?? [])].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
         [ticket.messages],
@@ -407,6 +411,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                     isGroupStart={isGroupStart || newDay}
                                     isGroupEnd={isGroupEnd}
                                     isHighlighted={highlightedId === message.id}
+                                    isArriving={!initialMessageIds.has(message.id)}
                                     reactions={messageReactions[message.id] || []}
                                     onAddReaction={(emoji) => handleAddReaction(message.id, emoji)}
                                     onRemoveReaction={(emoji) => handleRemoveReaction(message.id, emoji)}

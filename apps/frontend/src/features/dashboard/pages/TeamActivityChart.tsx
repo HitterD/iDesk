@@ -1,5 +1,6 @@
 import React from 'react';
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
+import { ResponsiveChart } from '@/components/ui/responsive-chart';
 import { BarChart3 } from 'lucide-react';
 import { columnAxis, daySlashLabel } from '../components/dashboardChart';
 import { CHART_HEX, DashChartTable, DashEmpty, DashLegend, DashTooltip, type ChartSeries } from '../components/DashboardParts';
@@ -28,7 +29,7 @@ export const TeamActivityChart: React.FC<{ days: readonly TeamDay[]; range: numb
             <DashLegend series={SERIES} />
             <div className="dash-plot">
                 <div className="dash-plot-inner">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveChart width="100%" height="100%">
                         <BarChart data={rows} margin={{ top: 6, right: 0, left: 0, bottom: 0 }} barGap={2} barCategoryGap="18%">
                             <CartesianGrid vertical={false} />
                             <XAxis dataKey="label" tickLine={false} axisLine={false} interval={days.length > SPARSE_AFTER ? 1 : 0} tickMargin={6} />
@@ -41,7 +42,7 @@ export const TeamActivityChart: React.FC<{ days: readonly TeamDay[]; range: numb
                                 <Bar key={s.key} dataKey={s.key} name={s.name} fill={s.color} radius={BAR_RADIUS} maxBarSize={BAR_MAX_PX} minPointSize={2} isAnimationActive={false} />
                             ))}
                         </BarChart>
-                    </ResponsiveContainer>
+                    </ResponsiveChart>
                 </div>
             </div>
             <DashChartTable caption="Tanggal" labels={rows.map((r) => r.label)} series={SERIES} rows={rows as unknown as Record<string, number>[]} />

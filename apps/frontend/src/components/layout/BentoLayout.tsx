@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
-import { motion, AnimatePresence, Variants } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { BentoSidebar } from './BentoSidebar';
 import { ShellBrand } from './SidebarNavigation';
 import { BentoTopbar } from './BentoTopbar';
@@ -13,33 +13,10 @@ import { InAppNotificationToast } from '@/components/notifications/InAppNotifica
 import { CriticalNotificationBanner } from '@/components/notifications/CriticalNotificationBanner';
 import { useAuth } from '@/stores/useAuth';
 
-/** Mirrors tokens.css --ease-out / --dur-3 / --dur-1 (framer cannot read CSS variables). */
-const EASE_OUT = [0.22, 1, 0.36, 1] as const;
-const DUR_3_S = 0.28;
-const DUR_1_S = 0.12;
-
-// Page content fades and rises on every route change (round-2 motion inventory).
-const pageVariants: Variants = {
-    initial: {
-        opacity: 0,
-        y: 8,
-    },
-    animate: {
-        opacity: 1,
-        y: 0,
-        transition: {
-            duration: DUR_3_S,
-            ease: EASE_OUT
-        }
-    },
-    exit: {
-        opacity: 0,
-        transition: {
-            duration: DUR_1_S,
-            ease: EASE_OUT
-        }
-    }
-};
+/** One-off entrance right after login; route changes use the CSS `.idesk-page-enter` (token-timed). */
+const LOGIN_FROM = { opacity: 0, y: 16, scale: 0.98 } as const;
+const LOGIN_TO = { opacity: 1, y: 0, scale: 1 } as const;
+const LOGIN_TRANSITION = { duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: 0.08 } as const;
 
 export const BentoLayout = () => {
     const location = useLocation();
@@ -63,6 +40,22 @@ export const BentoLayout = () => {
     useEffect(() => {
         setIsMobileMenuOpen(false);
     }, [location.pathname]);
+
+    // The scroll container outlives routes: start every page at the top, instantly (not scroll-smooth).
+    const mainRef = useRef<HTMLElement>(null);
+    useLayoutEffect(() => {
+        mainRef.current?.scrollTo?.({ top: 0, behavior: 'instant' });
+    }, [location.pathname]);
+
+    // Keyed on the path so each page gets the CSS entrance without waiting for the previous one to exit
+    // (an exiting wrapper would re-render the *new* Outlet and mount the page twice).
+    const renderPage = (className: string) => (
+        <motion.div initial={justLoggedIn ? LOGIN_FROM : false} animate={LOGIN_TO} transition={LOGIN_TRANSITION} className={className}>
+            <div key={location.pathname} className={cn('idesk-page-enter print:animate-none', className)}>
+                <Outlet />
+            </div>
+        </motion.div>
+    );
 
     // Initialize keyboard shortcuts with custom actions
     useKeyboardShortcuts([
@@ -149,19 +142,8 @@ export const BentoLayout = () => {
                         if (isTicketDetail) {
                             // Full-screen detail mode: child controls its own height and scrolling
                             return (
-                                <main id="main-content" className="flex-1 overflow-hidden">
-                                    <AnimatePresence mode="wait">
-                                        <motion.div
-                                            key={location.pathname}
-                                            variants={pageVariants}
-                                            initial={justLoggedIn ? { opacity: 0, y: 16, scale: 0.98 } : "initial"}
-                                            animate={justLoggedIn ? { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: 0.08 } } : "animate"}
-                                            exit="exit"
-                                            className="w-full h-full"
-                                        >
-                                            <Outlet />
-                                        </motion.div>
-                                    </AnimatePresence>
+                                <main ref={mainRef} id="main-content" className="flex-1 overflow-hidden">
+                                    {renderPage('w-full h-full')}
                                 </main>
                             );
                         }
@@ -170,21 +152,11 @@ export const BentoLayout = () => {
                             // Kanban board & Zoom calendar mode: fit full height so header is sticky and grid scrolls internally
                             return (
                                 <main
+                                    ref={mainRef}
                                     id="main-content"
                                     className="flex-1 overflow-hidden p-3 lg:px-3.5 lg:pt-3 lg:pb-3 flex flex-col min-h-0"
                                 >
-                                    <AnimatePresence mode="wait">
-                                        <motion.div
-                                            key={location.pathname}
-                                            variants={pageVariants}
-                                            initial={justLoggedIn ? { opacity: 0, y: 16, scale: 0.98 } : "initial"}
-                                            animate={justLoggedIn ? { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: 0.08 } } : "animate"}
-                                            exit="exit"
-                                            className="w-full h-full flex flex-col min-h-0"
-                                        >
-                                            <Outlet />
-                                        </motion.div>
-                                    </AnimatePresence>
+                                    {renderPage('w-full h-full flex flex-col min-h-0')}
                                 </main>
                             );
                         }
@@ -192,21 +164,11 @@ export const BentoLayout = () => {
                         // Normal mode: padded, scrollable main area
                         return (
                             <main
+                                ref={mainRef}
                                 id="main-content"
                                 className="flex-1 overflow-y-auto px-3 pt-3 pb-24 lg:px-3.5 lg:pt-3.5 lg:pb-6 scroll-smooth scrollbar-custom print:h-auto print:overflow-visible print:p-0 print:m-0 print:block"
                             >
-                                <AnimatePresence mode="wait">
-                                    <motion.div
-                                        key={location.pathname}
-                                        variants={pageVariants}
-                                        initial={justLoggedIn ? { opacity: 0, y: 16, scale: 0.98 } : "initial"}
-                                        animate={justLoggedIn ? { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: 0.08 } } : "animate"}
-                                        exit="exit"
-                                        className="w-full print:w-full print:block"
-                                    >
-                                        <Outlet />
-                                    </motion.div>
-                                </AnimatePresence>
+                                {renderPage('w-full print:w-full print:block')}
                             </main>
                         );
                     })()}

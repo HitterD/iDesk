@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { format, isValid } from 'date-fns';
-import { id as indonesia } from 'date-fns/locale';
+import { isValid } from 'date-fns';
 import { ExternalSourceBadge } from '@/components/ui/ExternalSourceBadge';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -20,6 +19,7 @@ import { AgentSelectList } from './AgentSelectList';
 import { ReassignConfirmDialog, type TargetAgentInfo } from './ReassignConfirmDialog';
 import { useAuth } from '@/stores/useAuth';
 
+import { PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
 import { PriorityDropdown, StatusDropdown } from './TicketDropdowns';
 import { TargetDateCell } from './TargetDateCell';
 import { SelectCheckbox } from './BulkActionsBar';
@@ -29,6 +29,12 @@ import { ResolveTicketModal } from './ticket-detail/ResolveTicketModal';
 import { getStaggeredDelay, StopPropagationWrapper } from '../utils/listUtils';
 import { useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
 import { TicketRowActions } from './TicketRowActions';
+
+/** Created date in WIB like the rest of the app (SLA, timestamps), not the viewer's device zone. */
+const CREATED_SHORT = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short' });
+const CREATED_FULL = new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
 
 export interface TicketRowData {
     id: string;
@@ -255,7 +261,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                         {hardwareLink}
                         {ticket.isParticipant && <span className="queue-src"><Users aria-hidden="true" />Partisipan</span>}
                         {showOverdue && <span className="queue-flag"><TriangleAlert aria-hidden="true" />Overdue</span>}
-                        {showCriticalIndicator && !showOverdue && <span className="queue-flag"><Flame aria-hidden="true" />Critical</span>}
+                        {showCriticalIndicator && !showOverdue && <span className="queue-flag"><Flame aria-hidden="true" />{PRIORITY_CONFIG.CRITICAL.shortLabel}</span>}
                         {unreadChip}
                     </div>
                     <TicketRowActions layout="card" {...rowActions} className="queue-mcard-acts"
@@ -461,8 +467,8 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                 </div>
                 {validCreatedDate ? (
                     <time className="queue-created-date" dateTime={ticket.createdAt}
-                        title={format(validCreatedDate, 'd MMMM yyyy, HH:mm', { locale: indonesia })}>
-                        {format(validCreatedDate, 'd MMM', { locale: indonesia })}
+                        title={CREATED_FULL.format(validCreatedDate)}>
+                        {CREATED_SHORT.format(validCreatedDate)}
                     </time>
                 ) : <span className="queue-created-date">-</span>}
             </div>

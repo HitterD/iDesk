@@ -67,7 +67,7 @@ const ACTION_CONFIG: Record<string, { label: string; hue: string }> = {
     ARTICLE_UPDATE: { label: 'Article Updated', hue: 'var(--dash-brown)' },
     ARTICLE_DELETE: { label: 'Article Deleted', hue: 'var(--dash-red)' },
 };
-const AUDIT_COLS = '22px 150px minmax(170px,1fr) 150px minmax(170px,1fr) minmax(220px,1.8fr) 110px';
+const AUDIT_COLS = '22px 128px minmax(150px,1fr) 136px minmax(130px,.9fr) minmax(180px,1.8fr) 112px';
 
 export const AuditLogPage: React.FC = () => {
     const [page, setPage] = useState(1);
@@ -190,7 +190,7 @@ export const AuditLogPage: React.FC = () => {
 
             {viewMode === 'table' && (
                 <ResTable label="Audit log" cols={AUDIT_COLS} colsMobile="22px minmax(0,1fr) auto"
-                    head={logs.length > 0 ? <><span /><span>Timestamp</span><span>User</span><span>Action</span><span>Entity</span><span>Description</span><span>IP Address</span></> : undefined}
+                    head={logs.length > 0 ? <><span /><span>Waktu</span><span>User</span><span>Aksi</span><span>Entitas</span><span>Deskripsi</span><span>Alamat IP</span></> : undefined}
                     foot={(
                         <>
                             <span>{meta ? `Menampilkan ${meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1}–${Math.min(meta.page * meta.limit, meta.total)} dari ${meta.total} log` : ''}</span>
@@ -243,7 +243,7 @@ export const AuditLogPage: React.FC = () => {
                                                 <div><small>Sesudah</small>{fmtJson(log.newValue)}</div>
                                             </div>
                                         )}
-                                        <p className="m-0 text-xs text-[hsl(var(--idesk-text-secondary))]"><b className="text-[hsl(var(--idesk-text))]">Full Description:</b> {log.description || 'No description provided.'}</p>
+                                        <p className="m-0 text-xs text-[hsl(var(--idesk-text-secondary))]"><b className="text-[hsl(var(--idesk-text))]">Deskripsi lengkap:</b> {log.description || 'Tidak ada deskripsi.'}</p>
                                         </section>
                                         </div>
                                     </div>
