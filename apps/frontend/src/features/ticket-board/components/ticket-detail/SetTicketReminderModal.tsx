@@ -1,6 +1,7 @@
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { Button } from '@/components/ui/button';
 import { TicketActionDialog } from './TicketActionDialog';
+import { ActionChips } from './ActionControls';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -55,6 +56,7 @@ const PRESET_OPTIONS: PresetOption[] = [
     { id: 'today_evening', label: 'Akhir Kerja' },
     { id: 'next_week', label: '1 Minggu' },
 ];
+const PRESET_CHIPS = PRESET_OPTIONS.map(preset => ({ value: preset.id, label: preset.label }));
 
 export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
     isOpen,
@@ -218,12 +220,9 @@ export const SetTicketReminderModal: React.FC<SetTicketReminderModalProps> = ({
                     <div className="ticket-action-field">
                         <label>Jadwal pengingat</label>
                         <ModernDateTimePicker value={selectedDate} onChange={handleDateTimeChange} minDate={new Date()} disabled={loading} />
-                        <label htmlFor="reminder-preset" className="ticket-action-help">Pilihan cepat</label>
-                        <select id="reminder-preset" value={activePreset ?? ''} disabled={loading}
-                            onChange={event => { if (event.target.value) handleApplyPreset(event.target.value as PresetKey); }}>
-                            <option value="">Tanggal khusus</option>
-                            {PRESET_OPTIONS.map(preset => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
-                        </select>
+                        <span id="reminder-preset-label" className="ticket-action-help">Pilihan cepat</span>
+                        <ActionChips labelledBy="reminder-preset-label" disabled={loading} value={activePreset}
+                            options={PRESET_CHIPS} onSelect={handleApplyPreset} />
                     </div>
                     <div className="ticket-action-field">
                         <label htmlFor="ticket-reminder-note">Catatan <span>(opsional)</span></label>

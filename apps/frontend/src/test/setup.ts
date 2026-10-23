@@ -7,3 +7,6 @@ globalThis.ResizeObserver ??= class {
     disconnect() {}
 } as unknown as typeof ResizeObserver;
 Element.prototype.scrollIntoView ??= () => {};
+// Radix Select opens on pointerdown and captures the pointer.
+Element.prototype.hasPointerCapture ??= () => false;
+Element.prototype.releasePointerCapture ??= () => {};

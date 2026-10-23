@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi } from 'vitest';
 import api from '@/lib/api';
@@ -20,8 +20,10 @@ describe('Ticket reminders', () => {
         setup();
         expect(screen.getByText('Penerima: Agent Test')).toBeInTheDocument();
         expect(screen.queryByText('agent@example.test')).not.toBeInTheDocument();
-        expect(screen.getByLabelText('Pilihan cepat').querySelectorAll('option')).toHaveLength(5);
-        fireEvent.change(screen.getByLabelText('Pilihan cepat'), { target: { value: 'two_days' } });
+        const presets = screen.getByRole('group', { name: 'Pilihan cepat' });
+        expect(within(presets).getAllByRole('button')).toHaveLength(4);
+        fireEvent.click(within(presets).getByRole('button', { name: '2 Hari Lagi' }));
+        expect(within(presets).getByRole('button', { name: '2 Hari Lagi' })).toHaveAttribute('aria-pressed', 'true');
         fireEvent.change(screen.getByLabelText('Catatan pengingat'), { target: { value: '  Follow up vendor  ' } });
         fireEvent.click(screen.getByRole('button', { name: 'Jadwalkan pengingat' }));
         await waitFor(() => expect(api.post).toHaveBeenCalledWith('/tickets/ticket/reminders', {

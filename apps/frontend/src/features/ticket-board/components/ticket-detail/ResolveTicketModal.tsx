@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { TicketActionDialog } from './TicketActionDialog';
+import { ActionSelect } from './ActionControls';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { CheckCircle2, X, FileText, Paperclip } from 'lucide-react';
 import { toast } from 'sonner';
@@ -19,6 +20,7 @@ const QUICK_TEMPLATES = [
     'Penggantian / perbaikan unit hardware telah selesai dilakukan.',
     'Panduan solusi & verifikasi telah dikonfirmasi bersama user.',
 ];
+const TEMPLATE_OPTIONS = QUICK_TEMPLATES.map((template) => ({ value: template, label: template }));
 const MAX_ATTACHMENTS = 5;
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -134,11 +136,9 @@ export const ResolveTicketModal: React.FC<ResolveTicketModalProps> = ({ isOpen, 
                     </div>
                     <div className="ticket-action-field">
                         <label htmlFor="ticket-resolution-template">Gunakan template <span>(opsional)</span></label>
-                        <select id="ticket-resolution-template" defaultValue="" disabled={isLoading}
-                            onChange={(event) => { if (event.target.value) { setResolutionNote(event.target.value); setError(null); textareaRef.current?.focus(); } }}>
-                            <option value="">Pilih template solusi…</option>
-                            {QUICK_TEMPLATES.map((template) => <option key={template} value={template}>{template}</option>)}
-                        </select>
+                        {/* Acts as a menu: picking fills the note, then the control returns to its placeholder. */}
+                        <ActionSelect id="ticket-resolution-template" options={TEMPLATE_OPTIONS} value="" placeholder="Pilih template solusi…" disabled={isLoading}
+                            onValueChange={(value) => { setResolutionNote(value); setError(null); textareaRef.current?.focus(); }} />
                     </div>
                     <div className="ticket-action-attachments">
                         <Button variant="soft" type="button" onClick={() => fileInputRef.current?.click()} disabled={isLoading || files.length >= MAX_ATTACHMENTS}><Paperclip />Lampirkan</Button>
