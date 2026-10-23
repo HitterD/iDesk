@@ -182,25 +182,37 @@ export class NotificationCenterService implements OnModuleInit {
     async getOrCreatePreferences(userId: string): Promise<NotificationPreference> {
         let prefs = await this.preferenceRepo.findOne({ where: { userId } });
 
-        if (!prefs) {
-            // Get user to populate defaults
-            const user = await this.userRepo.findOne({ where: { id: userId } });
-
-            prefs = this.preferenceRepo.create({
-                userId,
-                inAppEnabled: true,
-                emailEnabled: true,
-                emailAddress: user?.email || undefined,
-                pushEnabled: false,
-                digestEnabled: false,
-                digestFrequency: DigestFrequency.REALTIME,
-                quietHoursEnabled: false,
-                timezone: 'Asia/Jakarta',
-            });
-
-            await this.preferenceRepo.save(prefs);
+        if (prefs) {
+            return this.syncAccountEmail(prefs);
         }
 
+        // Get user to populate defaults
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        prefs = this.preferenceRepo.create({
+            userId,
+            inAppEnabled: true,
+            emailEnabled: true,
+            emailAddress: user?.email || undefined,
+            pushEnabled: false,
+            digestEnabled: false,
+            digestFrequency: DigestFrequency.REALTIME,
+            quietHoursEnabled: false,
+            timezone: 'Asia/Jakarta',
+        });
+        await this.preferenceRepo.save(prefs);
+        return prefs;
+    }
+
+    /**
+     * The email channel always uses the account email. emailAddress used to be a copy taken when the
+     * preferences row was first created, so after an email change (self-service, admin, HRIS) mail kept
+     * going to the old address and the settings page kept showing it. Re-sync it whenever it is read.
+     */
+    private async syncAccountEmail(prefs: NotificationPreference): Promise<NotificationPreference> {
+        const user = await this.userRepo.findOne({ where: { id: prefs.userId }, select: ['id', 'email'] });
+        if (!user?.email || user.email === prefs.emailAddress) return prefs;
+        prefs.emailAddress = user.email;
+        await this.preferenceRepo.update(prefs.id, { emailAddress: user.email });
         return prefs;
     }
 
@@ -209,7 +221,9 @@ export class NotificationCenterService implements OnModuleInit {
         updates: Partial<NotificationPreference>
     ): Promise<NotificationPreference> {
         const prefs = await this.getOrCreatePreferences(userId);
-        return this.preferenceRepo.save({ ...prefs, ...updates });
+        // The address follows the account email (see syncAccountEmail); a client cannot fork it.
+        const { emailAddress: _ignored, ...allowed } = updates;
+        return this.preferenceRepo.save({ ...prefs, ...allowed });
     }
 
     async updateTypePreference(
@@ -786,7 +800,7 @@ export class NotificationCenterService implements OnModuleInit {
             if (!buffer || buffer.length === 0) continue;
 
             try {
-                await this.sendDigest(pref, buffer);
+                await this.sendDigest(await this.syncAccountEmail(pref), buffer);
                 this.digestBuffer.delete(pref.userId);
             } catch (error) {
                 this.logger.error(`Failed to send digest to user ${pref.userId}:`, error);
