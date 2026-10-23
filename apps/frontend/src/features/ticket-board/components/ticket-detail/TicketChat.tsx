@@ -5,6 +5,7 @@ import { TicketDetail } from './types';
 import { CLOSED_TICKET_NOTICE } from './constants';
 import { MessageAttachments } from './MessageAttachments';
 import { SystemMessageEvent } from './SystemMessageEvent';
+import { legacyActivityEvent } from './legacyActivity';
 import { MessageBubble } from './MessageBubble';
 import { ActivityEvent } from './ActivityEvent';
 import { ChatComposer, ReplyTarget, STICKERS } from './ChatComposer';
@@ -380,12 +381,14 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                         const separator = newDay ? <DateSeparator date={message.createdAt} /> : null;
 
                         if (!isBubble(message)) {
+                            // Messages from before structured events are rebuilt from their text, so history looks alike.
+                            const activity = message.systemEvent?.changes?.length ? message.systemEvent : legacyActivityEvent(message.content);
                             return (
                                 <React.Fragment key={message.id}>
                                     {separator}
                                     <div className="chat-system-event" data-system-event={message.id}>
-                                        {message.systemEvent?.changes?.length ? (
-                                            <ActivityEvent event={message.systemEvent} createdAt={message.createdAt}
+                                        {activity ? (
+                                            <ActivityEvent event={activity} createdAt={message.createdAt}
                                                 audience={isAgentView ? 'staff' : 'requester'} />
                                         ) : <SystemMessageEvent
                                             audience={isAgentView ? 'staff' : 'requester'}

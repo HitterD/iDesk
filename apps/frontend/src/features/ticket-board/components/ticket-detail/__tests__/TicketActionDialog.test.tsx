@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { TicketActionDialog } from '../TicketActionDialog';
 
 function Workflow() {
@@ -32,5 +32,22 @@ describe('Ticket action dialog lifecycle', () => {
             await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
             expect(document.body.style.pointerEvents).not.toBe('none');
         }
+    });
+
+    it('does not open the ticket row it was launched from when clicked inside', () => {
+        // The row opens the ticket on click; React bubbles portal clicks to it unless the dialog stops them.
+        const openRow = vi.fn();
+        render(
+            <div role="button" onClick={openRow}>
+                <TicketActionDialog open onClose={() => undefined} title="Menunggu vendor">
+                    <button type="button">Besok</button>
+                </TicketActionDialog>
+            </div>,
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Besok' }));
+        fireEvent.click(screen.getByRole('dialog'));
+
+        expect(openRow).not.toHaveBeenCalled();
     });
 });
