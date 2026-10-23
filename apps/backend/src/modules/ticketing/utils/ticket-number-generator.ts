@@ -1,14 +1,15 @@
 import { EntityManager } from 'typeorm';
-import { Ticket } from '../entities/ticket.entity';
 
 /**
  * Shared daily ticket-number generator.
  *
- * The number is per-day and monotonically increasing: `DDMMYY-DIV-0001`.
- * It MUST be called inside a transaction, and it takes a `pessimistic_write`
- * lock on the newest of today's ticket rows so concurrently-created tickets
- * serialize on the same lock and never reuse a number (PROD-19).
+ * The number is per-day and monotonically increasing: `DDMMYY-DIV-0001`, one sequence shared by every division.
+ * It MUST be called inside a transaction: it takes a transaction-scoped advisory lock for the day, so concurrent
+ * creations serialize and never reuse a number (PROD-19).
  */
+
+/** Namespace for pg_advisory_xact_lock so ticket numbering never collides with other locks. */
+const NUMBERING_LOCK_KEY = 'ticket-number';
 
 export const TICKET_NUMBER_WIDTH = 4;
 
@@ -18,15 +19,6 @@ export function dateSegment(now: Date): string {
     const month = (now.getMonth() + 1).toString().padStart(2, '0');
     const year = now.getFullYear().toString().slice(-2);
     return `${day}${month}${year}`;
-}
-
-/** Last daily sequence parsed from a ticket number (`DDMMYY-DIV-0001` → 1), or 0. */
-export function lastDailySequence(ticketNumber: string | null | undefined): number {
-    if (!ticketNumber) return 0;
-    const parts = ticketNumber.split('-');
-    if (parts.length !== 3) return 0;
-    const last = parseInt(parts[2], 10);
-    return Number.isNaN(last) ? 0 : last;
 }
 
 /** Builds a full ticket number from its parts. */
@@ -50,16 +42,17 @@ export async function generateNextTicketNumber(
     now: Date = new Date(),
 ): Promise<string> {
     const dateStr = dateSegment(now);
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-
-    const latestTicket: Ticket | null = await manager
-        .createQueryBuilder(Ticket, 'ticket')
-        .where('ticket.createdAt >= :todayStart', { todayStart })
-        .orderBy('ticket.createdAt', 'DESC')
-        .setLock('pessimistic_write')
-        .getOne();
-
-    const next = lastDailySequence(latestTicket?.ticketNumber) + 1;
-    return formatTicketNumber(dateStr, division, next);
+    // An advisory lock, not FOR UPDATE on the newest row: that row lock neither covers the first ticket of the day
+    // (no row to lock) nor lets a waiter see the row its predecessor inserted, so both read the same "latest".
+    await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`${NUMBERING_LOCK_KEY}:${dateStr}`]);
+    // Raw SQL on purpose: the unique constraint still holds soft-deleted tickets, but the entity query hid them, so
+    // deleting today's newest ticket made every later creation reuse its number ("already exists") until midnight.
+    // MAX over the number itself, not the newest createdAt, so any row of today counts regardless of insert order.
+    const rows: { maxSeq: string | null }[] = await manager.query(
+        `SELECT MAX(CAST(SUBSTRING("ticketNumber" FROM '[0-9]+$') AS INTEGER)) AS "maxSeq"
+           FROM tickets
+          WHERE "ticketNumber" LIKE $1 AND "ticketNumber" ~ '^[0-9]{6}-[A-Za-z0-9]+-[0-9]+$'`,
+        [`${dateStr}-%`],
+    );
+    return formatTicketNumber(dateStr, division, Number(rows[0]?.maxSeq ?? 0) + 1);
 }
