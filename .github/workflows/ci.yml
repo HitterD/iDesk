@@ -68,3 +68,5 @@ jobs:
       - run: npm ci
       - name: Type check
         run: npx tsc --noEmit -p tsconfig.app.json
+      - name: Lint (errors fail; warnings capped at the existing debt)
+        run: npm run lint
