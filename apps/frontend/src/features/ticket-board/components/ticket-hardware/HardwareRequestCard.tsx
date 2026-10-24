@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    ArrowUpRight, CalendarCheck, CheckCircle2, CircleSlash, Cpu, MessageSquareWarning, PackageCheck, ThumbsUp, Wrench, XCircle,
+    ArrowUpRight, CalendarCheck, CalendarClock, CheckCircle2, CircleSlash, Cpu, MessageSquareWarning, PackageCheck, ThumbsUp, Wrench, XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
@@ -47,6 +47,7 @@ const PHASE: Record<Exclude<HardwareTicketPhase, 'PROPOSED'>, { icon: React.Elem
     REJECTED: { icon: XCircle, text: 'ditolak ICT', tone: 'bad' },
     PROCUREMENT_DONE: { icon: PackageCheck, text: 'selesai pengadaan', tone: 'ok' },
     SCHEDULE_PROPOSED: { icon: CalendarCheck, text: 'punya usulan jadwal pemasangan, menunggu pemohon', tone: 'warn' },
+    RESCHEDULE_REQUESTED: { icon: CalendarClock, text: 'pemohon minta jadwal pemasangan lain', tone: 'warn' },
     SCHEDULED: { icon: CalendarCheck, text: 'dijadwalkan pemasangan', tone: 'info' },
     INSTALLED: { icon: Wrench, text: 'selesai dipasang, menunggu konfirmasi pemohon', tone: 'warn' },
     ISSUE_REPORTED: { icon: MessageSquareWarning, text: 'dilaporkan bermasalah oleh pemohon', tone: 'bad' },

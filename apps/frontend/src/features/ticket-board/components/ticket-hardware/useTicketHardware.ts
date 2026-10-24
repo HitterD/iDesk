@@ -2,6 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ticketHardwareApi, type ProposeHardwarePayload } from './api';
 
+const ACTIVE_POLL_MS = 30_000;
+const ENDED = new Set(['REJECTED', 'CANCELLED', 'COMPLETED', 'CLOSED']);
+
 export const ticketHardwareKey = (ticketId: string) => ['ticket', ticketId, 'hardware-requests'] as const;
 
 export function useTicketHardwareRequests(ticketId: string | undefined, enabled = true) {
@@ -10,6 +13,9 @@ export function useTicketHardwareRequests(ticketId: string | undefined, enabled 
         queryFn: () => ticketHardwareApi.list(ticketId!),
         enabled: Boolean(ticketId) && enabled,
         staleTime: 15_000,
+        // Some steps change the request without a chat message (review started, procurement, items arriving), so
+        // while it is still running the card re-reads now and then; background tabs do not poll.
+        refetchInterval: (query) => (query.state.data?.some((request) => !ENDED.has(request.status)) ? ACTIVE_POLL_MS : false),
     });
 }
 

@@ -35,8 +35,9 @@ describe('TicketHardwareRequestService', () => {
                 id: 'req-1', requestNumber: 'HR-2026-0012', status: RequestStatus.DRAFT, justification: '[NON-BUDGET] Mouse rusak, perlu ganti',
                 proposedById: 'agent-1', createdAt: new Date(),
                 items: [
-                    { id: 'i1', catalogId: 'cat-1', quantity: 1, categorySnapshot: { name: 'Mouse', category: 'PERIPHERAL' } },
-                    { id: 'i2', catalogId: 'cat-1', quantity: 1, categorySnapshot: { name: 'Mouse', category: 'PERIPHERAL' } },
+                    { id: 'i1', catalogId: 'cat-1', quantity: 1, deliveryStatus: 'ARRIVED', categorySnapshot: { name: 'Mouse', category: 'PERIPHERAL' } },
+                    { id: 'i2', catalogId: 'cat-1', quantity: 1, deliveryStatus: 'PENDING', categorySnapshot: { name: 'Mouse', category: 'PERIPHERAL' } },
+                    { id: 'i3', catalogId: 'cat-2', quantity: 1, deliveryStatus: 'NOT_PROCURED', categorySnapshot: { name: 'Keyboard', category: 'PERIPHERAL' } },
                 ],
             }]),
         };
@@ -59,7 +60,10 @@ describe('TicketHardwareRequestService', () => {
         expect(notifications.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'user-1', link: '/tickets/ticket-1' }));
         expect(summary).toEqual(expect.objectContaining({
             requestType: HardwareRequestType.NON_BUDGET, justification: 'Mouse rusak, perlu ganti',
-            proposedBy: { id: 'agent-1', name: 'Agen IT' }, items: [{ name: 'Mouse', category: 'PERIPHERAL', quantity: 2 }],
+            proposedBy: { id: 'agent-1', name: 'Agen IT' },
+            items: [{ name: 'Mouse', category: 'PERIPHERAL', quantity: 2 }, { name: 'Keyboard', category: 'PERIPHERAL', quantity: 1 }],
+            // The keyboard was never procured, so it is not waited for.
+            delivery: { arrived: 1, total: 2 },
         }));
     });
 

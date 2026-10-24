@@ -20,7 +20,7 @@ export type EFormTicketPhase =
 
 export type HardwareTicketPhase =
     | 'PROPOSED' | 'SUBMITTED' | 'DECLINED' | 'WITHDRAWN' | 'APPROVED' | 'REJECTED' | 'PROCUREMENT_DONE'
-    | 'SCHEDULE_PROPOSED' | 'SCHEDULED' | 'INSTALLED' | 'ISSUE_REPORTED' | 'COMPLETED' | 'CANCELLED';
+    | 'SCHEDULE_PROPOSED' | 'RESCHEDULE_REQUESTED' | 'SCHEDULED' | 'INSTALLED' | 'ISSUE_REPORTED' | 'COMPLETED' | 'CANCELLED';
 
 export interface TicketSystemEvent {
     v: 1;

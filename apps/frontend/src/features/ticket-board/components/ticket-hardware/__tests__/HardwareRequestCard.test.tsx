@@ -110,4 +110,10 @@ describe('HardwareRequestCard', () => {
         expect(screen.getByText('“Stok habis”')).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'HR-2026-0012' })).toHaveAttribute('href', '/client/hardware-requests/req-1');
     });
+
+    it('shows when the requester asked for another installation time, with why', () => {
+        renderCard({ event: { ...proposed, phase: 'RESCHEDULE_REQUESTED' }, reason: 'Saya cuti hari itu' });
+        expect(screen.getByText(/pemohon minta jadwal pemasangan lain/)).toBeInTheDocument();
+        expect(screen.getByText('“Saya cuti hari itu”')).toBeInTheDocument();
+    });
 });
