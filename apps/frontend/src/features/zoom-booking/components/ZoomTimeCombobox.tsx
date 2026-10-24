@@ -10,6 +10,10 @@ export interface TimeOption {
     busyTitle?: string;
     isCurrent?: boolean;
     disabled?: boolean;
+    /** Shown instead of "Kosong" for a free option, e.g. the meeting length an end time gives ("1 jam"). */
+    note?: string;
+    /** Why a free option still cannot be picked (e.g. past midnight). */
+    reason?: string;
 }
 
 interface ZoomTimeComboboxProps {
@@ -18,20 +22,46 @@ interface ZoomTimeComboboxProps {
     options: TimeOption[];
     disabled?: boolean;
     labelledBy?: string;
+    placeholder?: string;
+    /** Error noun for a typed time that is not offered: "jam mulai" / "jam selesai". */
+    noun?: string;
 }
 
 const digitsOf = (text: string) => text.replace(/\D/g, '');
+const LIST_SPACE = 260; // .zsp-list max-height + gap
+
+/** Open upward when the list would be cut by the dialog (or page) below and there is more room above. */
+function shouldDropUp(root: HTMLElement): boolean {
+    const field = root.getBoundingClientRect();
+    let clipTop = 0;
+    let clipBottom = window.innerHeight;
+    for (let el = root.parentElement; el; el = el.parentElement) {
+        const { overflowY } = getComputedStyle(el);
+        if (overflowY !== 'visible') {
+            const rect = el.getBoundingClientRect();
+            clipTop = Math.max(clipTop, rect.top);
+            clipBottom = Math.min(clipBottom, rect.bottom);
+            break;
+        }
+    }
+    const below = clipBottom - field.bottom;
+    return below < LIST_SPACE && field.top - clipTop > below;
+}
 const statusOf = (option: TimeOption) =>
-    option.busyTitle ? `Terisi · ${option.busyTitle}` : option.isCurrent ? 'Jadwal saat ini' : 'Kosong';
+    option.busyTitle ? `Terisi · ${option.busyTitle}` : option.reason ?? (option.isCurrent ? 'Jadwal saat ini' : option.note ?? 'Kosong');
 
 /**
  * Start time as a field you can type into ("1430", "14.30") or open as a list. The list keeps availability
  * visible: taken times show who has them and cannot be picked.
  */
-export const ZoomTimeCombobox: React.FC<ZoomTimeComboboxProps> = ({ value, onChange, options, disabled, labelledBy }) => {
+export const ZoomTimeCombobox: React.FC<ZoomTimeComboboxProps> = ({
+    value, onChange, options, disabled, labelledBy, placeholder = 'Ketik atau pilih, mis. 14.30', noun = 'Jam',
+}) => {
     const listId = useId();
     const inputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLUListElement>(null);
+    const rootRef = useRef<HTMLDivElement>(null);
+    const [dropUp, setDropUp] = useState(false);
     const [open, setOpen] = useState(false);
     const [text, setText] = useState(value ? displayTime(value) : '');
     const [typing, setTyping] = useState(false);
@@ -51,6 +81,7 @@ export const ZoomTimeCombobox: React.FC<ZoomTimeComboboxProps> = ({ value, onCha
     // Open on the chosen time (or the first free one) instead of the top of a 48-row list.
     useEffect(() => {
         if (!open) return;
+        if (rootRef.current) setDropUp(shouldDropUp(rootRef.current));
         const index = Math.max(0, shown.findIndex((o) => o.time === value || (!value && !o.disabled)));
         setActive(index);
         requestAnimationFrame(() => listRef.current?.children[index]?.scrollIntoView({ block: 'nearest' }));
@@ -69,8 +100,10 @@ export const ZoomTimeCombobox: React.FC<ZoomTimeComboboxProps> = ({ value, onCha
         const time = parseTypedTime(text);
         const option = time ? options.find((o) => o.time === time) : undefined;
         if (!time) setError('Format jam tidak dikenali. Contoh: 14.30');
-        else if (!option) setError(`${displayTime(time)} tidak tersedia. Pilih jam dari daftar.`);
-        else if (option.disabled) setError(`${displayTime(time)} sudah terisi${option.busyTitle ? `: ${option.busyTitle}` : ''}.`);
+        else if (!option) setError(`${noun} ${displayTime(time)} tidak tersedia. Pilih dari daftar.`);
+        else if (option.disabled) setError(option.busyTitle || !option.reason
+            ? `${displayTime(time)} sudah terisi${option.busyTitle ? `: ${option.busyTitle}` : ''}.`
+            : `${displayTime(time)}: ${option.reason}.`);
         else { pick(option); return; }
         setText(value ? displayTime(value) : '');
     };
@@ -97,13 +130,13 @@ export const ZoomTimeCombobox: React.FC<ZoomTimeComboboxProps> = ({ value, onCha
     };
 
     return (
-        <div className="zsp-combo" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { if (typing) commitTyped(); setOpen(false); } }}>
+        <div ref={rootRef} className="zsp-combo" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { if (typing) commitTyped(); setOpen(false); } }}>
             <div className={cn('zsp-field', error && 'is-invalid')}>
                 <Clock aria-hidden="true" />
                 <input ref={inputRef} type="text" inputMode="numeric" autoComplete="off" role="combobox" aria-expanded={open}
                     aria-controls={listId} aria-labelledby={labelledBy} aria-invalid={Boolean(error)}
                     aria-activedescendant={open && shown[active] ? `${listId}-${shown[active].time}` : undefined}
-                    placeholder="Ketik atau pilih, mis. 14.30" value={text} disabled={disabled}
+                    placeholder={placeholder} value={text} disabled={disabled}
                     onFocus={() => setOpen(true)} onClick={() => setOpen(true)}
                     onChange={(e) => { setText(e.target.value); setTyping(true); setError(''); setOpen(true); setActive(0); }}
                     onKeyDown={onKeyDown} />
@@ -113,7 +146,7 @@ export const ZoomTimeCombobox: React.FC<ZoomTimeComboboxProps> = ({ value, onCha
                 </button>
             </div>
             {open && (
-                <ul ref={listRef} id={listId} role="listbox" className="zsp-list" aria-labelledby={labelledBy}>
+                <ul ref={listRef} id={listId} role="listbox" className={cn('zsp-list', dropUp && 'is-up')} aria-labelledby={labelledBy}>
                     {shown.length === 0 && <li className="zsp-list-empty">Tidak ada jam yang cocok</li>}
                     {shown.map((option, index) => (
                         <li key={option.time} id={`${listId}-${option.time}`} role="option" aria-selected={option.time === value}
