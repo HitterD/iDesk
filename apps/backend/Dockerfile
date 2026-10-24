@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 COPY apps/backend/package*.json ./
@@ -11,7 +11,7 @@ ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm run build
 
 # Production stage
-FROM node:20-alpine AS production
+FROM node:24-alpine AS production
 
 WORKDIR /app
 
@@ -21,7 +21,7 @@ COPY --from=builder --chown=node:node /app/package*.json ./
 COPY --from=builder --chown=node:node /app/dist ./dist
 
 # Install only production dependencies to reduce image bloat
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Install runtime utilities: su-exec, postgresql-client (providing pg_dump and psql), tar, and bash
 RUN apk add --no-cache su-exec postgresql-client tar bash

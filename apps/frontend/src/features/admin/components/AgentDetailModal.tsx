@@ -191,7 +191,6 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
             case 'IN_PROGRESS': return STATUS_TONE_CLASSES.IN_PROGRESS.pill;
             case 'RESOLVED': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
             case 'CLOSED': return 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400';
-            case 'CLOSED': return 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400';
             default: return 'bg-slate-100 text-slate-700';
         }
     };

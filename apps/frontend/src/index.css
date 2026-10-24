@@ -91,24 +91,14 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
   100% { background-position: 200% 0; opacity: 0.8; }
 }
 
-/* Form Input Micro-interactions (Subtle Ring) */
-input:focus:not([type="checkbox"]):not([type="radio"]), 
-select:focus, 
-textarea:focus {
-  animation: input-focus-ring 0.3s var(--ease-out);
-  box-shadow: 0 0 0 3px hsla(var(--primary), 0.15) !important;
-}
-
-@keyframes input-focus-ring {
-  0% { box-shadow: 0 0 0 0 hsla(var(--primary), 0.5); }
-  100% { box-shadow: 0 0 0 3px hsla(var(--primary), 0.15); }
-}
+/* (A global `input:focus { box-shadow: hsla(var(--primary), .15) !important }` used to sit here. With space-separated
+   HSL tokens it was invalid and computed to `none !important`, erasing every component's own focus/error ring.) */
 
 /* Form Error Validation Shake */
 .animate-shake-error {
   animation: shake-error 0.4s var(--ease-out-back);
-  border-color: hsla(var(--destructive), 1) !important;
-  color: hsla(var(--destructive), 1);
+  border-color: hsl(var(--destructive)) !important;
+  color: hsl(var(--destructive));
 }
 
 @keyframes shake-error {
@@ -877,6 +867,19 @@ textarea.ct-input { padding: 10px 12px; line-height: 1.5; resize: vertical; }
 .ct-critical { min-height: 64px; }
 .ct-field-error { display: flex; align-items: center; gap: 5px; margin: 0; font-size: 12px; font-weight: 500; color: hsl(var(--ticket-red-ink)); }
 .ct-field-error svg { width: 14px; height: 14px; flex: none; }
+/* Rejected submit: missing fields nudge once (the a/b names alternate so a second rejected click replays it)
+   and their label turns red, so the eye lands on what to fill. */
+@keyframes ct-nudge-a { 20% { translate: -6px 0; } 40% { translate: 5px 0; } 60% { translate: -3px 0; } 80% { translate: 2px 0; } }
+@keyframes ct-nudge-b { 20% { translate: -6px 0; } 40% { translate: 5px 0; } 60% { translate: -3px 0; } 80% { translate: 2px 0; } }
+[data-nudge="a"] { animation: ct-nudge-a 360ms var(--ease-out); }
+[data-nudge="b"] { animation: ct-nudge-b 360ms var(--ease-out); }
+.ct-row:has([aria-invalid="true"]) > .ct-label > :is(label, span:first-child) { color: hsl(var(--ticket-red-ink)); transition: color var(--dur-2) var(--ease-out); }
+.ct-alert { animation: mi-rise var(--dur-2) var(--ease-out); scroll-margin-top: 80px; }
+.ct-alert-body { display: grid; gap: 6px; }
+.ct-alert-fields { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ct-alert-fields button { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: hsl(var(--ticket-red-ink));
+  background: hsl(var(--idesk-surface)); box-shadow: inset 0 0 0 1px hsl(var(--ticket-red) / .35); transition: background-color var(--dur-1) var(--ease-out); }
+.ct-alert-fields button:hover { background: hsl(var(--ticket-red) / .08); }
 .ct-ta { border-radius: 11px; background: hsl(var(--muted)); overflow: hidden; transition: box-shadow 150ms var(--ease-out), background-color 150ms var(--ease-out); }
 .ct-ta.is-dragging { box-shadow: inset 0 0 0 2px hsl(var(--idesk-sapphire) / .6); background: hsl(var(--idesk-selection)); }
 .ct-ta textarea { display: block; width: 100%; min-height: 120px; padding: 10px 12px; border: 0; outline: 0; resize: none; background: transparent;

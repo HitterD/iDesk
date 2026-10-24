@@ -120,7 +120,7 @@ const NavBadge: React.FC<{ badge: BadgeInfo | null; placement?: 'inline' | 'corn
     if (!badge || badge.count <= 0) return null;
     const text = cap && badge.count > MAX_BADGE ? `${MAX_BADGE}+` : badge.count;
     return (
-        <span className="nav-badge" data-variant={badge.variant ?? 'primary'} data-placement={placement}>
+        <span key={text} className="nav-badge mi-badge" data-variant={badge.variant ?? 'primary'} data-placement={placement}>
             {text}
         </span>
     );

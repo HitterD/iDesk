@@ -13,7 +13,7 @@ export class UpdatePriorityWeightDto {
     description?: string;
 }
 
-export class AssignTicketDto {
+export class AutoAssignTicketDto {
     @IsUUID()
     ticketId: string;
 

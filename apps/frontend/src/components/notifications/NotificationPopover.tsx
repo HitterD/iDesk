@@ -94,7 +94,7 @@ export const NotificationPopover: React.FC = () => {
                 >
                     <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-primary transition-colors" />
                     {unreadCount > 0 && (
-                        <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary text-white text-xs font-bold flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900" aria-hidden="true">
+                        <span key={unreadCount} className="mi-badge absolute top-1.5 right-1.5 w-4 h-4 bg-primary text-white text-xs font-bold flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900" aria-hidden="true">
                             {unreadCount > 9 ? '9+' : unreadCount}
                         </span>
                     )}

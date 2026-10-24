@@ -76,11 +76,6 @@ export const ContractCalendar: React.FC<ContractCalendarProps> = ({
     onContractClick,
     isLoading = false,
 }) => {
-    // Show skeleton while loading
-    if (isLoading) {
-        return <CalendarSkeleton />;
-    }
-
     const today = new Date();
     const [viewYear, setViewYear] = React.useState(today.getFullYear());
     const [viewMonth, setViewMonth] = React.useState(today.getMonth());
@@ -156,6 +151,12 @@ export const ContractCalendar: React.FC<ContractCalendarProps> = ({
         setViewYear(newDate.getFullYear());
         setViewMonth(newDate.getMonth());
     };
+
+    // Skeleton only after every hook: returning before them changed the hook count when loading finished,
+    // which crashes React ("Rendered more hooks than during the previous render").
+    if (isLoading) {
+        return <CalendarSkeleton />;
+    }
 
     const getStatusColor = (status: ContractStatus) => {
         switch (status) {

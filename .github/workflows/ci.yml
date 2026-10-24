@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: apps/backend/package-lock.json
       - run: npm ci
@@ -62,9 +62,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: apps/frontend/package-lock.json
       - run: npm ci
       - name: Type check
         run: npx tsc --noEmit -p tsconfig.app.json
+      - name: Lint (errors fail; warnings capped at the existing debt)
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: Production build
+        run: npm run build

@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM node:20-alpine as builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ ENV VITE_SOCKET_URL=$VITE_SOCKET_URL
 RUN npm run build --prefix apps/frontend
 
 # Stage 2: Serve
-FROM nginx:1.25-alpine
+FROM nginx:1.28-alpine
 
 COPY --from=builder /app/apps/frontend/dist /usr/share/nginx/html
 COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
