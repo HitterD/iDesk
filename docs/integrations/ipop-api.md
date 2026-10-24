@@ -1,5 +1,8 @@
 # iDesk API for iPop
 
+> Other office apps (EBBK, ...) use the same ticket API with their own credentials and permissions:
+> see [aplikasi-terhubung-api.md](aplikasi-terhubung-api.md).
+
 iPop (`https://ipop.santos.co.id`) creates iDesk tickets and shows their progress.
 iPop is told when a new chat message arrives (a short preview, section 5.1), can read the
 public conversation (section 4.1) and post text replies to it (section 4.2). Adding
