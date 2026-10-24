@@ -253,6 +253,9 @@ describe('BentoCreateTicketPage forms', () => {
 
         fireEvent.click(submit);
         expect(title).toHaveAttribute('data-nudge', 'b');
+        // typing never replays the nudge, even when the field turns invalid again
+        fireEvent.change(title, { target: { value: 'abc' } });
+        expect(title).not.toHaveAttribute('data-nudge');
         fireEvent.change(title, { target: { value: 'Printer mati total' } });
         expect(title).toHaveAttribute('aria-invalid', 'false');
         expect(within(screen.getByRole('alert')).queryByRole('button', { name: 'Judul' })).not.toBeInTheDocument();
@@ -368,7 +371,8 @@ describe('BentoCreateTicketPage forms', () => {
         fireEvent.change(document.getElementById('service-ticket-description')!, { target: { value: 'Printer lantai dua tidak menyala.' } });
         fireEvent.click(screen.getByRole('button', { name: /kirim service ticket/i }));
 
-        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Lengkapi 1 isian'));
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Gagal membuat tiket: Title must be at least 5 characters'));
+        expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Judul' })).toBeInTheDocument();
         expect(document.getElementById('service-ticket-title')).toHaveAttribute('aria-invalid', 'true');
         expect(screen.getByText(/Judul tidak valid/)).toBeInTheDocument();
     });

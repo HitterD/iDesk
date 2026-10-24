@@ -91,16 +91,8 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
   100% { background-position: 200% 0; opacity: 0.8; }
 }
 
-/* Fallback focus ring for bare inputs. Layered and not !important: it used to be `hsla(var(--primary), .15) !important`,
-   which is invalid with space-separated HSL tokens, so it computed to `none` and erased every input's own focus and
-   error ring app-wide. Components with their own ring (Tailwind ring-*, .ct-input, ...) now win. */
-@layer base {
-  input:focus:not([type="checkbox"]):not([type="radio"]),
-  select:focus,
-  textarea:focus {
-    box-shadow: 0 0 0 3px hsl(var(--primary) / .15);
-  }
-}
+/* (A global `input:focus { box-shadow: hsla(var(--primary), .15) !important }` used to sit here. With space-separated
+   HSL tokens it was invalid and computed to `none !important`, erasing every component's own focus/error ring.) */
 
 /* Form Error Validation Shake */
 .animate-shake-error {

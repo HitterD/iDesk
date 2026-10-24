@@ -167,7 +167,7 @@ export function ErrorBanner({ message, fields = [], onJump }: {
         <div role="alert" aria-live="assertive" className="ct-alert">
             <AlertCircle aria-hidden="true" />
             <div className="ct-alert-body">
-                <p>{fields.length > 0 ? `Lengkapi ${fields.length} isian sebelum mengirim:` : message}</p>
+                <p>{message ?? `Lengkapi ${fields.length} isian sebelum mengirim:`}</p>
                 {fields.length > 0 && (
                     <ul className="ct-alert-fields">
                         {fields.map((field) => (

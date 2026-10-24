@@ -119,10 +119,12 @@ export const BentoCreateTicketPage: React.FC = () => {
     // Rejected submits so far: makes empty required fields count as errors and replays the field nudge.
     const [attempt, setAttempt] = useState(0);
     const [submitError, setSubmitError] = useState<string>();
+    // Fields flagged by the last rejected submit; editing one drops it, so typing never replays the nudge.
+    const [nudged, setNudged] = useState<TicketField[]>([]);
     const titleRef = useRef<HTMLInputElement>(null);
     const descriptionRef = useRef<HTMLTextAreaElement>(null);
     const criticalReasonRef = useRef<HTMLTextAreaElement>(null);
-    const resetValidation = () => { setErrors({}); setAttempt(0); setSubmitError(undefined); };
+    const resetValidation = () => { setErrors({}); setAttempt(0); setSubmitError(undefined); setNudged([]); };
 
     const focusField = (field: TicketField) => {
         const el = { title: titleRef, description: descriptionRef, criticalReason: criticalReasonRef }[field].current;
@@ -413,6 +415,7 @@ export const BentoCreateTicketPage: React.FC = () => {
         if (missing.length > 0) {
             setErrors(found);
             setSubmitError(undefined);
+            setNudged(missing);
             setAttempt((n) => n + 1);
             focusField(missing[0]);
             return;
@@ -499,6 +502,7 @@ export const BentoCreateTicketPage: React.FC = () => {
             const rejected = invalidFields(fields);
             if (rejected.length > 0) {
                 setErrors(fields);
+                setNudged(rejected);
                 setAttempt((n) => n + 1);
                 focusField(rejected[0]);
             }
@@ -561,8 +565,11 @@ export const BentoCreateTicketPage: React.FC = () => {
         }
     };
 
-    const updateField = <K extends keyof typeof formData>(key: K, value: (typeof formData)[K]) =>
+    const updateField = <K extends keyof typeof formData>(key: K, value: (typeof formData)[K]) => {
         setFormData(prev => ({ ...prev, [key]: value }));
+        setSubmitError(undefined); // a server message describes the old input
+        setNudged(prev => prev.filter(field => field !== key));
+    };
 
     // ==========================================
     // 1. TICKET TYPE SELECTION SCREEN (none)
@@ -629,6 +636,7 @@ export const BentoCreateTicketPage: React.FC = () => {
     // Never disabled for missing input: a rejected click is what shows the user what is missing.
     const submitDisabled = isLoading;
     const required = attempt > 0;
+    const nudgeOf = (field: TicketField) => (nudged.includes(field) ? attempt : 0);
     const missingFields = required ? invalidFields(errors) : [];
     const draftStatus = hasDraft ? <DraftStatus savedAt={lastSaved} onClear={clearDraft} /> : undefined;
 
@@ -651,14 +659,14 @@ export const BentoCreateTicketPage: React.FC = () => {
                             <RequesterSelector requesterId={requesterId} onChange={setRequesterId} currentUserId={user?.id} />
                         </div>
                     )}
-                    <TitleField id={config.titleId} inputRef={titleRef} value={formData.title} error={errors.title} attempt={attempt}
+                    <TitleField id={config.titleId} inputRef={titleRef} value={formData.title} error={errors.title} attempt={nudgeOf('title')}
                         placeholder={config.titlePlaceholder}
                         onChange={(val) => {
                             updateField('title', val);
                             setErrors(prev => ({ ...prev, title: titleError(val, required) }));
                         }} />
                     <DescriptionComposer id={config.descriptionId} textareaRef={descriptionRef} fileInputRef={fileInputRef}
-                        value={formData.description} error={errors.description} attempt={attempt} placeholder={config.descriptionPlaceholder}
+                        value={formData.description} error={errors.description} attempt={nudgeOf('description')} placeholder={config.descriptionPlaceholder}
                         files={files} previews={filePreviewMap}
                         onChange={(val) => {
                             updateField('description', val);
@@ -689,7 +697,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                     {formData.priority === 'CRITICAL' && (
                         <CriticalReasonField id={config.criticalReasonId} inputRef={criticalReasonRef} label={config.criticalReasonLabel}
                             placeholder={config.criticalReasonPlaceholder} value={formData.criticalReason}
-                            error={errors.criticalReason} attempt={attempt}
+                            error={errors.criticalReason} attempt={nudgeOf('criticalReason')}
                             onChange={(v) => {
                                 updateField('criticalReason', v);
                                 setErrors(prev => ({ ...prev, criticalReason: criticalReasonError({ ...formData, criticalReason: v }, required) }));
