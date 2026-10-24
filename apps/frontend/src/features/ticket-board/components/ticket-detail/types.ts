@@ -35,6 +35,8 @@ export interface TicketDetail {
     device?: string;
     /** WEB, EMAIL or IPOP (filed through the iPop integration). */
     source?: string;
+    /** Connected app that filed it (source API), e.g. 'EBBK'. */
+    externalSource?: string | null;
     criticalReason?: string;
     createdAt: string;
     updatedAt: string;

@@ -152,6 +152,7 @@ export const BentoWebDevTicketsPage: React.FC = () => {
                 status: (t.status as TicketRowData['status']) ?? 'TODO',
                 priority: (t.priority as TicketRowData['priority']) ?? 'MEDIUM',
                 source: (t.source as TicketRowData['source']) ?? 'WEB',
+                externalSource: t.externalSource ?? null,
                 isOverdue: Boolean((t as { isOverdue?: boolean }).isOverdue),
                 slaTarget: t.slaTarget,
                 slaRemainingMinutes: (t as Ticket & { slaRemainingMinutes?: number | null }).slaRemainingMinutes,
