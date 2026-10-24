@@ -22,6 +22,8 @@ const DETAIL_MAX = 300;
 export interface TicketEFormSummary {
     id: string;
     code: string;
+    /** Running document number once submitted, e.g. F/ICT/04/0012. */
+    documentNumber: string | null;
     formType: EFormType;
     status: EFormStatus;
     note: string;
@@ -141,6 +143,7 @@ export class TicketEFormService {
             return {
                 id: request.id,
                 code: eformCode(request.id),
+                documentNumber: request.documentNumber ?? null,
                 formType: request.formType,
                 status: request.status,
                 note: String(request.formData?.alasan ?? ''),

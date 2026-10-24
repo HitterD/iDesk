@@ -49,6 +49,13 @@ describe('EFormRequestService - Synology direct-to-IT flow', () => {
       create: jest.fn((v: any) => v),
       save: jest.fn(async (v: any) => ({ id: 'eform-1', ...v })),
     };
+    // createRequest numbers the form inside a transaction; the manager hands the save back to the repo mock.
+    eformRepo.manager = {
+      transaction: jest.fn(async (work: any) => work({
+        query: jest.fn(async () => [{ maxSeq: null }]),
+        save: (_entity: unknown, value: any) => eformRepo.save(value),
+      })),
+    };
     approvalRepo = { save: jest.fn() };
     signatureRepo = { save: jest.fn() };
     eventEmitter = { emit: jest.fn() };

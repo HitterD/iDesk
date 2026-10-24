@@ -29,6 +29,8 @@ describe('createUploadsFileHandler', () => {
         fs.writeFileSync(path.join(root, 'tickets', TICKET_ID, 'abc-2.png'), 'png');
         fs.writeFileSync(path.join(root, 'tickets', TICKET_ID, 'abc-3.mp4'), 'mp4');
         fs.writeFileSync(path.join(root, 'avatar.png'), 'public');
+        fs.mkdirSync(path.join(root, 'eform-approvals'), { recursive: true });
+        fs.writeFileSync(path.join(root, 'eform-approvals', 'signed.pdf'), '%PDF');
     });
 
     afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -51,6 +53,15 @@ describe('createUploadsFileHandler', () => {
         const { res } = await run(req('/avatar.png'));
         expect(res.sentFile).toBe(path.join(root, 'avatar.png'));
         expect(access.authenticate).not.toHaveBeenCalled();
+    });
+
+    it('never serves GM-signed e-forms by URL, even to a signed-in user, nor lets the static fallback try', async () => {
+        for (const p of ['/eform-approvals/signed.pdf', '/EFORM-APPROVALS/signed.pdf', '/eform-approvals/']) {
+            const { res, next } = await run(req(p));
+            expect(res.statusCode).toBe(404);
+            expect(res.sendFile).not.toHaveBeenCalled();
+            expect(next).not.toHaveBeenCalled();
+        }
     });
 
     it('answers 401 for a ticket file without a valid session', async () => {

@@ -142,6 +142,12 @@ describe('EFormRequestService.createRequest completing a proposal', () => {
             create: jest.fn((v: any) => v),
             merge: jest.fn((target: any, v: any) => Object.assign(target, v)),
             save: jest.fn(async (v: any) => ({ id: 'new-id', ...v })),
+            manager: {
+                transaction: jest.fn(async (work: any) => work({
+                    query: jest.fn(async () => [{ maxSeq: null }]),
+                    save: (_entity: unknown, value: any) => repo.save(value),
+                })),
+            },
         };
         service = new EFormRequestService(
             { logAsync: jest.fn() } as any, repo, { save: jest.fn() } as any, { save: jest.fn() } as any, {} as any,

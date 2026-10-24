@@ -6,6 +6,7 @@ import { EFormRequest, EFormStatus, EFormType, EFormApproval, EFormSignature, EF
 import { EFormCredentialService } from './eform-credential.service';
 import { CreateEFormRequestDto, ApproveManagerDto, SubmitCredentialDto, FulfillRequestDto } from './dto';
 import { EFormPdfService } from './eform-pdf.service';
+import { nextDocumentNumber } from './eform-document-number';
 import { SettingsService } from '../settings/settings.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
@@ -96,7 +97,11 @@ export class EFormRequestService {
       ? this.eformRequestRepository.merge(draft, fields)
       : this.eformRequestRepository.create(fields);
 
-    const savedRequest = await this.eformRequestRepository.save(request);
+    // The number is taken with the save, under its lock, so two submissions never share one.
+    const savedRequest = await this.eformRequestRepository.manager.transaction(async (manager) => {
+      if (!request.documentNumber) request.documentNumber = await nextDocumentNumber(manager, dto.formType);
+      return manager.save(EFormRequest, request);
+    });
 
     await this.eformSignatureRepository.save({
       eformRequestId: savedRequest.id,
@@ -207,7 +212,8 @@ export class EFormRequestService {
       { action: 'APPROVED', actionAt: new Date() },
     );
 
-    request.status = EFormStatus.PENDING_ICT;
+    // Next the GM signs the printed form; IT uploads it (EFormDocumentService) before provisioning.
+    request.status = EFormStatus.PENDING_GM;
     request.currentApproverId = null;
     const savedRequest = await this.eformRequestRepository.save(request);
 

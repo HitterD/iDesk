@@ -182,7 +182,8 @@ export const COUNTER_RESETS: { table: string; column: string; label: string }[] 
  */
 export const WIPE_UPLOAD_DIRS: Record<WipeDomain, string[]> = {
     [WipeDomain.TICKETING]: ['tickets', 'access-forms'],
-    [WipeDomain.EFORM]: [],
+    // Flat, but every file in it is a GM-signed copy of an e-form request, all of which a wipe deletes.
+    [WipeDomain.EFORM]: ['eform-approvals'],
     [WipeDomain.HARDWARE]: [],
 };
 

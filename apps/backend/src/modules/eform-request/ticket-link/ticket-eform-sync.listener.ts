@@ -26,6 +26,12 @@ export class TicketEFormSyncListener {
         return this.link.record(request.id, 'MANAGER_APPROVED');
     }
 
+    /** IT uploaded the form the GM signed by hand. */
+    @OnEvent('eform.gm-approved')
+    onGmApproved({ request, userId }: EFormEvent) {
+        return this.link.record(request.id, 'GM_APPROVED', { actorId: userId ?? null });
+    }
+
     @OnEvent('eform.ict-confirmed')
     onCredentialsIssued({ request }: EFormEvent) {
         return this.link.record(request.id, 'GRANTED');

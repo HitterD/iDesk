@@ -13,7 +13,8 @@ const PHASE_TEXT: Record<EFormTicketPhase, (access: string) => string> = {
     DECLINED: (a) => `Pemohon menolak usulan ${a}.`,
     WITHDRAWN: (a) => `Tim IT menarik usulan ${a}.`,
     SUBMITTED: (a) => `Pemohon menandatangani dan mengajukan ${a}; tiket menunggu prosesnya.`,
-    MANAGER_APPROVED: (a) => `Pengajuan ${a} disetujui atasan dan diteruskan ke ICT.`,
+    MANAGER_APPROVED: (a) => `Pengajuan ${a} disetujui atasan; menunggu tanda tangan GM.`,
+    GM_APPROVED: (a) => `Tanda tangan GM untuk ${a} sudah diterima; diteruskan ke ICT.`,
     GRANTED: (a) => `${a.charAt(0).toUpperCase()}${a.slice(1)} sudah diberikan. Tiket ditutup otomatis.`,
     REJECTED: (a) => `Pengajuan ${a} ditolak. Tiket kembali ditangani.`,
 };

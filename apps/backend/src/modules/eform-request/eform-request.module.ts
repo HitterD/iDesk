@@ -10,6 +10,8 @@ import { EFormRequestService } from './eform-request.service';
 import { EFormCredentialService } from './eform-credential.service';
 import { EFormPdfService } from './eform-pdf.service';
 import { EFormRequestController } from './eform-request.controller';
+import { EFormDocumentController } from './eform-document.controller';
+import { EFormDocumentService } from './eform-document.service';
 import { EFormNotificationListener } from './listeners/eform-notification.listener';
 import { EFormExpirationReminderCron } from './listeners/eform-expiration-reminder.cron';
 import { AuditModule } from '../audit/audit.module';
@@ -41,11 +43,12 @@ import { TicketEFormSyncListener } from './ticket-link/ticket-eform-sync.listene
     SynologyModule,
     forwardRef(() => TicketingModule),
   ],
-  controllers: [EFormRequestController, TicketEFormController],
+  controllers: [EFormRequestController, EFormDocumentController, TicketEFormController],
   providers: [
     EFormRequestService, 
     EFormCredentialService, 
     EFormPdfService,
+    EFormDocumentService,
     SynologyNasBrowseService,
     EFormNotificationListener,
     EFormExpirationReminderCron,

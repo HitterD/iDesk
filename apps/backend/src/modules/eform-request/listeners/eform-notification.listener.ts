@@ -57,7 +57,8 @@ export class EFormNotificationListener {
   async handleEFormManagerApproved(payload: { request: EFormRequest }) {
     const siteId = (payload.request as any).siteId as string | null;
     try {
-      await this.notificationCenter.sendToRoleAtSite(UserRole.AGENT_OPERATIONAL_SUPPORT, siteId, { type: NotificationType.EFORM_MANAGER2_APPROVED, title: 'Provisioning Akses Diperlukan', message: 'Permintaan ' + payload.request.formType + ' dari ' + payload.request.requesterName + ' telah disetujui dan siap diproses.', referenceId: payload.request.id });
+      // Next step is IT's: print the form, get the GM's signature on it, upload the signed PDF.
+      await this.notificationCenter.sendToRoleAtSite(UserRole.AGENT_OPERATIONAL_SUPPORT, siteId, { type: NotificationType.EFORM_MANAGER2_APPROVED, title: 'Tanda Tangan GM Diperlukan', message: 'Permintaan ' + payload.request.formType + ' dari ' + payload.request.requesterName + ' disetujui atasan. Unduh PDF, mintakan tanda tangan GM, lalu unggah berkasnya.', referenceId: payload.request.id });
     } catch (error: any) { this.logger.error('Failed to notify ICT for eform.manager-approved: ' + error.message); }
     try {
       const siteLabel = await this.resolveSiteLabel(siteId);
@@ -65,7 +66,7 @@ export class EFormNotificationListener {
       const ictUsers: any[] = siteId
         ? await this.userRepo.find({ where: [{ role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, siteId, isActive: true } as any, { role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, siteId: IsNull(), isActive: true } as any] } as any)
         : await this.userRepo.find({ where: { role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, isActive: true } as any });
-      for (const u of ictUsers) if (u.email) await this.mailDispatch.send({ to: u.email, subject: siteLabel + 'Provisioning Diperlukan - ' + payload.request.formType + ' dari ' + payload.request.requesterName, template: 'eform-request', context: { request: payload.request, recipientName: u.fullName || u.email, link: buildAppUrl('/eform/' + payload.request.id), siteLabel: siteLabel.trim(), year: new Date().getFullYear() } });
+      for (const u of ictUsers) if (u.email) await this.mailDispatch.send({ to: u.email, subject: siteLabel + 'Tanda Tangan GM Diperlukan - ' + payload.request.formType + ' dari ' + payload.request.requesterName, template: 'eform-request', context: { request: payload.request, recipientName: u.fullName || u.email, link: buildAppUrl('/eform/' + payload.request.id), siteLabel: siteLabel.trim(), year: new Date().getFullYear() } });
     } catch (e: any) { this.logger.warn('Email for eform.manager-approved failed: ' + e.message); }
   }
   @OnEvent('eform.direct-to-ict')
