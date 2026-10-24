@@ -91,11 +91,9 @@ export function useHasPermission(
 ) {
     const { user } = useAuth();
 
-    // ADMIN bypasses permission checks
-    if (user?.role === 'ADMIN') {
-        return { hasPermission: true, isLoading: false };
-    }
-
+    // ADMIN bypasses permission checks. The query is still declared (disabled) so the hook order never
+    // changes when `user` loads or switches: a conditional hook crashes React ("Rendered more hooks...").
+    const isAdmin = user?.role === 'ADMIN';
     const { data: permissions, isLoading } = useQuery({
         queryKey: ['my-permissions'],
         queryFn: async () => {
@@ -103,10 +101,11 @@ export function useHasPermission(
             const res = await api.get('/permissions/me');
             return res.data;
         },
-        enabled: !!user?.id || !!(user as any)?.userId,
+        enabled: !isAdmin && (!!user?.id || !!(user as any)?.userId),
         staleTime: 30 * 1000,
     });
 
+    if (isAdmin) return { hasPermission: true, isLoading: false };
     if (isLoading) return { hasPermission: false, isLoading: true };
 
     const permission = permissions?.permissions?.[featureKey];
@@ -144,21 +143,19 @@ export function useMyPermissions() {
 export function useHasPageAccess(pageKey: string) {
     const { user } = useAuth();
 
-    // ADMIN bypasses page access checks
-    if (user?.role === 'ADMIN') {
-        return { hasAccess: true, isLoading: false, isError: false };
-    }
-
+    // ADMIN bypasses page access checks (query declared but disabled: hooks must not be conditional)
+    const isAdmin = user?.role === 'ADMIN';
     const { data: permissions, isLoading, isError } = useQuery<MyPermissionsResponse>({
         queryKey: ['my-permissions'],
         queryFn: async () => {
             const res = await api.get('/permissions/me');
             return res.data;
         },
-        enabled: !!user?.id || !!(user as any)?.userId,  // FIXED: was user?.id, Zustand stores userId not id
+        enabled: !isAdmin && (!!user?.id || !!(user as any)?.userId),  // FIXED: was user?.id, Zustand stores userId not id
         staleTime: 5 * 60 * 1000, // 5 minutes cache
     });
 
+    if (isAdmin) return { hasAccess: true, isLoading: false, isError: false };
     if (isLoading) return { hasAccess: false, isLoading: true, isError: false };
 
     // If query failed (network error etc.), do NOT redirect to unauthorized
@@ -182,21 +179,19 @@ export function useHasPageAccess(pageKey: string) {
 export function useHasFeaturePermission(feature: string, action: 'view' | 'create' | 'edit' | 'delete'): boolean {
     const { user } = useAuth();
 
-    // ADMIN bypasses feature access checks
-    if (user?.role === 'ADMIN') {
-        return true;
-    }
-
+    // ADMIN bypasses feature access checks (query declared but disabled: hooks must not be conditional)
+    const isAdmin = user?.role === 'ADMIN';
     const { data: permissions } = useQuery<MyPermissionsResponse>({
         queryKey: ['my-permissions'],
         queryFn: async () => {
             const res = await api.get('/permissions/me');
             return res.data;
         },
-        enabled: !!user?.id || !!(user as any)?.userId,  // FIXED: was user?.id, Zustand stores userId not id
+        enabled: !isAdmin && (!!user?.id || !!(user as any)?.userId),  // FIXED: was user?.id, Zustand stores userId not id
         staleTime: 5 * 60 * 1000, // 5 minutes cache
     });
 
+    if (isAdmin) return true;
     // Check feature permission from preset's permissions object
     // Format: permissions.permissions['feature.action'].canAction
     const featureKey = `${feature}.${action}`;
