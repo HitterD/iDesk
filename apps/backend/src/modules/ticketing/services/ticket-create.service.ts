@@ -23,6 +23,8 @@ import { SlaClockService } from './sla-clock.service';
 export interface ExternalTicketRef {
     source: string;
     ref: string;
+    /** Someone else who submitted it in that system for the requester; keeps requester-side access. */
+    filedById?: string | null;
 }
 
 @Injectable()
@@ -97,7 +99,7 @@ export class TicketCreateService {
                 device: createTicketDto.device,
                 software: createTicketDto.software,
                 user,
-                createdById: creator.id === user.id ? null : creator.id,
+                createdById: external?.filedById && external.filedById !== user.id ? external.filedById : creator.id === user.id ? null : creator.id,
                 status: TicketStatus.TODO,
                 siteId: user.siteId, // Auto-assign the requester's site
                 criticalReason: createTicketDto.criticalReason || null,

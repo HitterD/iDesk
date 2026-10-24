@@ -80,6 +80,7 @@ import { AccessRequestModule } from './modules/access-request/access-request.mod
 import { WorkloadModule } from './modules/workload/workload.module';
 import { AgentDashboardModule } from './modules/agent-dashboard/agent-dashboard.module';
 import { IpopIntegrationModule } from './modules/integrations/ipop/ipop.module';
+import { IntegrationAppsModule } from './modules/integrations/apps/integration-apps.module';
 
 // New modules for Phase 4
 import { SoundModule } from './modules/sound/sound.module';
@@ -228,6 +229,7 @@ import { validateAuthEnvironment } from './config/auth.config';
         WorkloadModule, // Phase 3: Auto-Assignment
         AgentDashboardModule, // Per-agent personal dashboard
         IpopIntegrationModule, // iPop server-to-server ticket API + status webhooks
+        IntegrationAppsModule, // Other office apps (EBBK, ...): same ticket API, per-app secret, modules and permissions
         SoundModule, // Phase 4: Sound Notifications
         SynologyModule, // Phase 4: Synology Backup
         DataWipeModule, // Danger zone: wipe transactional data for go-live

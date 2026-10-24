@@ -93,6 +93,12 @@ export class IpopCreateTicketDto {
     @Type(() => IpopRequesterDto)
     requester: IpopRequesterDto;
 
+    @ApiPropertyOptional({ type: IpopRequesterDto, description: 'Someone else who submits it for the requester (e.g. a secretary); gets requester-side access' })
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => IpopRequesterDto)
+    submittedBy?: IpopRequesterDto;
+
     @ApiPropertyOptional({ description: 'Required when priority is CRITICAL' })
     @ValidateIf((o) => o.priority === TicketPriority.CRITICAL)
     @IsString()
