@@ -1,4 +1,5 @@
-import { Building2, Calendar, Coins, FileText, MapPin, User, Users, AlertTriangle, Wrench } from 'lucide-react';
+import { Building2, Calendar, Coins, FileText, MapPin, User, Users, AlertTriangle, Wrench, MessagesSquare, ArrowUpRight } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { SectionCard } from '../common/SectionCard';
 import { fmtDateTime } from '../../utils/format.util';
 import { UserAvatar } from '@/components/ui/UserAvatar';
@@ -11,6 +12,8 @@ function getDeptName(dept: any): string {
 }
 
 export function RequestInfoCard({ r }: { r: HardwareRequest | any }) {
+    const { pathname } = useLocation();
+    const ticketPath = r.sourceTicketId ? `${pathname.startsWith('/client/') ? '/client' : ''}/tickets/${r.sourceTicketId}` : null;
     const isInstallationOnly = String(r.justification || '').includes('[PENJADWALAN PEMASANGAN]');
     const isNonBudget = String(r.justification || '').includes('[NON-BUDGET]');
     const cleanJustification = String(r.justification || '')
@@ -53,6 +56,17 @@ export function RequestInfoCard({ r }: { r: HardwareRequest | any }) {
                             : 'Realisasi Budget Tahunan ICT'}
                     </span>
                 </div>
+
+                {ticketPath && (
+                    <Link to={ticketPath} className="flex items-center gap-3 p-3 rounded-xl bg-primary/5 border border-primary/15 hover:bg-primary/10 transition-colors">
+                        <MessagesSquare className="size-4 text-primary shrink-0" aria-hidden="true" />
+                        <span className="flex-1 min-w-0 text-sm">
+                            <span className="font-semibold text-foreground">Diusulkan dari tiket IT Support</span>
+                            <span className="block text-xs text-muted-foreground">Progres di sini ikut tampil di chat tiket.</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary">Buka tiket<ArrowUpRight className="size-3.5" aria-hidden="true" /></span>
+                    </Link>
+                )}
 
                 {/* Requester & Department Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

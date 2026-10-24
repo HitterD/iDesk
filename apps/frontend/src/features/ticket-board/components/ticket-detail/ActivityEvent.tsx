@@ -3,6 +3,7 @@ import { ArrowRight } from 'lucide-react';
 import { PRIORITY_CONFIG, STATUS_CONFIG } from '@/lib/constants/ticket.constants';
 import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
 import { formatMessageTime, toDisplayName } from './messageThread';
+import type { HardwareTicketPhase } from '../ticket-hardware/hardwareFlow';
 
 /** Mirrors the backend's TicketSystemEvent (utils/ticket-activity.util.ts). */
 export interface TicketSystemEvent {
@@ -10,6 +11,8 @@ export interface TicketSystemEvent {
     actor: { id: string; name: string } | null;
     changes: { field: 'status' | 'assignee' | 'priority' | 'category' | 'vendorVisit'; from: string | null; to: string | null }[];
     reason?: string | null;
+    /** A step of a hardware request proposed from this ticket (rendered by ticket-hardware, not here). */
+    hardwareRequest?: { id: string; number: string; phase: HardwareTicketPhase; at?: string | null };
 }
 
 type Change = TicketSystemEvent['changes'][number];

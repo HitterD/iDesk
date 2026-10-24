@@ -13,11 +13,18 @@ export interface TicketActivityChange {
  * Structured twin of a system message's text: who did it, what changed (old -> new) and why. The chat
  * renders this instead of parsing the English sentence in `content`, which stays for email and search.
  */
+/** Steps of a hardware request proposed from the ticket, as told in the ticket's chat. */
+export type HardwareTicketPhase =
+    | 'PROPOSED' | 'SUBMITTED' | 'DECLINED' | 'WITHDRAWN' | 'APPROVED' | 'REJECTED' | 'PROCUREMENT_DONE'
+    | 'SCHEDULE_PROPOSED' | 'SCHEDULED' | 'INSTALLED' | 'COMPLETED' | 'CANCELLED';
+
 export interface TicketSystemEvent {
     v: 1;
     actor: { id: string; name: string } | null;
     changes: TicketActivityChange[];
     reason?: string | null;
+    /** Set on messages about a hardware request linked to this ticket; the chat renders it as a card. */
+    hardwareRequest?: { id: string; number: string; phase: HardwareTicketPhase; at?: string | null };
 }
 
 export type TicketActivitySnapshot = Record<TicketActivityField, string | null>;

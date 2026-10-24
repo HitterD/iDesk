@@ -12,6 +12,7 @@ import type { TicketDetail } from '../../ticket-board/components/ticket-detail/t
 import { isTerminalStatus } from '../../ticket-board/components/ticket-detail/constants';
 import { PriorityPill, StatusPill } from '../../ticket-board/components/ticket-detail/TicketPropertyRows';
 import { SelfResolveButton } from './resolution/SelfResolveButton';
+import { statusSentence, useHardwareHold } from '../../ticket-board/components/ticket-hardware';
 
 /** SLA countdown recomputed every minute */
 const SLA_TICK_MS = 60_000;
@@ -35,7 +36,7 @@ const formatTimeRemaining = (diffMs: number): string => {
 };
 
 /** Requester-facing SLA label. WAITING_VENDOR is paused: remaining business time only, never a target date. */
-const useRequesterSla = (ticket: TicketDetail) => {
+const useRequesterSla = (ticket: TicketDetail, hardwareHold: { requestNumber: string; detail: string } | null) => {
     const slaClock = useSlaClock();
     const [now, setNow] = useState(() => new Date());
     useEffect(() => {
@@ -46,6 +47,7 @@ const useRequesterSla = (ticket: TicketDetail) => {
     return useMemo((): { state: SlaState; label: string; tooltip?: string } => {
         if (isTerminalStatus(ticket.status)) return { state: 'resolved', label: 'Selesai' };
         if (ticket.status === 'WAITING_VENDOR') {
+            if (hardwareHold) return { state: 'paused', label: 'Menunggu hardware', tooltip: `${hardwareHold.requestNumber} · ${hardwareHold.detail}` };
             return {
                 state: 'paused',
                 label: 'Menunggu vendor',
@@ -62,7 +64,7 @@ const useRequesterSla = (ticket: TicketDetail) => {
         }
         if (diff <= 0) return { state: 'overdue', label: 'Lewat target' };
         return { state: diff < WARNING_MS ? 'warning' : 'ok', label: `SLA: ${formatTimeRemaining(diff)}` };
-    }, [ticket.status, ticket.slaTarget, ticket.priority, ticket.slaRemainingMinutes, now, slaClock]);
+    }, [ticket.status, ticket.slaTarget, ticket.priority, ticket.slaRemainingMinutes, now, slaClock, hardwareHold]);
 };
 
 interface ClientTicketHeaderProps {
@@ -101,7 +103,9 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
     const navigate = useNavigate();
     const location = useLocation();
     const [copied, setCopied] = useState(false);
-    const sla = useRequesterSla(ticket);
+    const hold = useHardwareHold(ticket);
+    const hardwareHold = useMemo(() => (hold ? { requestNumber: hold.requestNumber, detail: statusSentence(hold) } : null), [hold]);
+    const sla = useRequesterSla(ticket, hardwareHold);
     const SlaIcon = SLA_ICONS[sla.state];
 
     const isTerminal = isTerminalStatus(ticket.status);
