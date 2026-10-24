@@ -3,7 +3,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint . --max-warnings 1209",
+    "lint": "eslint . --max-warnings 1208",
     "preview": "vite preview",
     "test": "vitest run --pool=forks"
   },

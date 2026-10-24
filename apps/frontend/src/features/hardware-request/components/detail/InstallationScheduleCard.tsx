@@ -26,6 +26,10 @@ interface InstallationScheduleCardProps {
     onSelectSlot?: (schedule: InstallationSchedule) => void;
     onReschedule?: (schedule: InstallationSchedule) => void;
     onProposeNewSlots?: (schedule: InstallationSchedule) => void;
+    /** The viewer; a single proposed time is confirmed by whoever did not propose it. */
+    viewerId?: string;
+    onConfirmProposed?: () => void;
+    confirming?: boolean;
 }
 
 const INSTALL_STATUS_CONFIG: Record<InstallStatus, { label: string; bg: string; text: string; border: string; icon: any }> = {
@@ -94,6 +98,9 @@ export function InstallationScheduleCard({
     onSelectSlot,
     onReschedule,
     onProposeNewSlots,
+    viewerId,
+    onConfirmProposed,
+    confirming = false,
 }: InstallationScheduleCardProps) {
     const statusCfg = INSTALL_STATUS_CONFIG[schedule.status] || INSTALL_STATUS_CONFIG.PROPOSED;
     const StatusIcon = statusCfg.icon;
@@ -177,6 +184,40 @@ export function InstallationScheduleCard({
                                 </button>
                             )}
                         </div>
+                    </div>
+                )}
+
+                {/* ── ONE PROPOSED TIME (e.g. after ICT moved the installation): the other side confirms it ── */}
+                {schedule.status === 'PROPOSED' && startDate && (
+                    <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 sm:p-5 space-y-3">
+                        <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200 text-xs sm:text-sm font-extrabold uppercase tracking-wider">
+                            <CalendarClock className="size-4 text-amber-600 dark:text-amber-400" />
+                            <span>Usulan Waktu Pemasangan</span>
+                        </div>
+                        <p className="text-sm font-bold text-foreground">
+                            {startDate.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                            <span className="font-semibold text-muted-foreground"> · {formatTimeRange(schedule.scheduledStart, schedule.scheduledEnd)} WIB</span>
+                        </p>
+                        {schedule.rescheduleReason && (
+                            <p className="text-xs text-muted-foreground">Alasan perubahan: {schedule.rescheduleReason}</p>
+                        )}
+                        {viewerId && viewerId !== schedule.proposedBy && onConfirmProposed ? (
+                            <div className="flex flex-wrap items-center justify-end gap-3 pt-2 border-t border-amber-500/20">
+                                {!isStaff && (
+                                    <button type="button" onClick={() => onReschedule?.(schedule)}
+                                        className="text-xs font-bold text-amber-800 dark:text-amber-300 hover:underline cursor-pointer mr-auto">
+                                        Waktu tidak cocok? Ajukan jadwal lain
+                                    </button>
+                                )}
+                                <button type="button" onClick={onConfirmProposed} disabled={confirming}
+                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all shadow-xs active:scale-[0.98] cursor-pointer disabled:opacity-60">
+                                    <CheckCircle2 className="size-3.5" />
+                                    <span>{confirming ? 'Menyimpan…' : 'Setujui jadwal ini'}</span>
+                                </button>
+                            </div>
+                        ) : (
+                            <p className="text-xs text-amber-800 dark:text-amber-300">Menunggu konfirmasi dari pihak lain.</p>
+                        )}
                     </div>
                 )}
 

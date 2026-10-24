@@ -330,7 +330,7 @@ export const EformCredentialPage: React.FC = () => {
             <div className="rounded-xl border border-dashed border-border bg-muted/20 px-6 py-10 text-center">
               <p className="text-sm font-semibold text-foreground">Kredensial belum tersedia</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Akses baru disiapkan setelah permintaan disetujui atasan dan diproses tim ICT.
+                Akses baru disiapkan setelah permintaan disetujui atasan dan GM, lalu diproses tim ICT.
               </p>
             </div>
           )}

@@ -42,4 +42,9 @@ export class CreateEFormRequestDto {
   @IsUUID()
   @IsOptional()
   managerId?: string;
+
+  /** Completes a proposal IT drafted from a ticket instead of creating a new request. */
+  @IsUUID()
+  @IsOptional()
+  draftId?: string;
 }

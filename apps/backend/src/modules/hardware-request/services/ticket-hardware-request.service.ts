@@ -25,9 +25,18 @@ export interface TicketHardwareRequestSummary {
     requestType: HardwareRequestType;
     justification: string;
     rejectReason: string | null;
+    requesterId: string;
     proposedBy: { id: string; name: string } | null;
     items: Array<{ name: string; category: string | null; quantity: number }>;
-    schedule: { start: string | null; end: string | null; status: string } | null;
+    /** Latest installation schedule: the requester confirms a single proposal or picks one of `slots` from the ticket. */
+    schedule: {
+        id: string;
+        start: string | null;
+        end: string | null;
+        status: string;
+        proposedById: string | null;
+        slots: Array<{ start: string; end: string }>;
+    } | null;
     createdAt: Date;
     submittedAt: Date | null;
     approvedAt: Date | null;
@@ -139,12 +148,16 @@ export class TicketHardwareRequestService {
                 requestType: requestTypeOf(request.justification),
                 justification: stripPrefix(request.justification ?? ''),
                 rejectReason: request.rejectReason,
+                requesterId: request.requesterId,
                 proposedBy: proposer ? { id: proposer.id, name: proposer.fullName } : null,
                 items: groupItems(request),
                 schedule: schedule ? {
+                    id: schedule.id,
                     start: schedule.scheduledStart?.toISOString() ?? null,
                     end: schedule.scheduledEnd?.toISOString() ?? null,
                     status: schedule.status,
+                    proposedById: schedule.proposedBy ?? null,
+                    slots: schedule.proposedSlots ?? [],
                 } : null,
                 createdAt: request.createdAt,
                 submittedAt: request.submittedAt,

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as PDFDocument from 'pdfkit';
 import { EFormRequest, EFormStatus, EFormType } from './entities';
 import { resolveSantosLogoPath } from '../../shared/core/utils/brand-logo.util';
+import { EFORM_DOCUMENT_CODE } from './eform-document-number';
 
 export interface DecryptedCredentialData {
   username?: string;
@@ -23,6 +24,9 @@ const formatDateId = (dateObj?: Date | string | null): string => {
   const year = d.getFullYear();
   return `${day}-${month}-${year}`;
 };
+
+/** Above this many characters the document number is printed smaller so it fits the header cell. */
+const DOC_NO_FIT_CHARS = 18;
 
 @Injectable()
 export class EFormPdfService {
@@ -51,23 +55,19 @@ export class EFormPdfService {
 
         // Title and Document No.
         let formTitle = 'Permintaan Akses VPN';
-        let docNo = 'F/ICT/04';
         if (eformRequest.formType === EFormType.WEBSITE) {
           formTitle = 'Permintaan Akses Website';
-          docNo = 'F/ICT/04-W';
         } else if (eformRequest.formType === EFormType.NETWORK) {
           formTitle = 'Permintaan Akses Jaringan';
-          docNo = 'F/ICT/04-N';
         } else if (eformRequest.formType === EFormType.FLASHDISK) {
           formTitle = 'Permintaan Akses Flashdisk';
-          docNo = 'F/ICT/04-FD';
         } else if (eformRequest.formType === EFormType.EMAIL) {
           formTitle = 'Permintaan Akun Email Baru';
-          docNo = 'F/ICT/04-E';
         } else if (eformRequest.formType === EFormType.SYNOLOGY_NAS) {
           formTitle = 'Permintaan Akses Synology NAS';
-          docNo = 'F/ICT/04-NAS';
         }
+        // The running number; the bare form code only for a request numbered before it existed (never submitted).
+        const docNo = eformRequest.documentNumber || EFORM_DOCUMENT_CODE[eformRequest.formType] || EFORM_DOCUMENT_CODE[EFormType.VPN];
 
         const formattedCreatedDate = formatDateId(eformRequest.createdAt);
 
@@ -116,7 +116,9 @@ export class EFormPdfService {
         doc.font('Helvetica').fontSize(7.5).fillColor('#000000');
 
         doc.text('Dokumen No.', metaX, headerY + 2.5);
-        doc.text(`: ${docNo}`, valX, headerY + 2.5);
+        // Long hand-edited numbers shrink to stay on one line of the meta column.
+        doc.fontSize(docNo.length > DOC_NO_FIT_CHARS ? 6 : 7.5).text(`: ${docNo}`, valX, headerY + 2.5, { lineBreak: false });
+        doc.fontSize(7.5);
 
         doc.text('Revisi No.', metaX, headerY + rowH + 2.5);
         doc.text(': 00', valX, headerY + rowH + 2.5);
@@ -506,6 +508,13 @@ export class EFormPdfService {
 
           doc.text('Nama    :', startX + sigColW * 2 + 10, approvalLineY);
           doc.text('Jabatan :', startX + sigColW * 2 + 10, approvalLineY + 10);
+          if (eformRequest.gmApprovedAt) {
+            // The GM signs the printed form by hand; the signed copy is kept with the request.
+            doc.font('Helvetica-Oblique').fontSize(6.5).fillColor('#334155')
+              .text(`Ditandatangani manual, berkas terlampir (${formatDateId(eformRequest.gmApprovedAt)})`,
+                startX + sigColW * 2 + 10, approvalLineY - 16, { width: sigColW - 20 });
+            doc.font('Helvetica').fontSize(7.5).fillColor('#000000');
+          }
         }
 
         // ==========================================

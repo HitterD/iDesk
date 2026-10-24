@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CalendarSlot } from '../types';
 import { clashWith, displayTime, durationLabel, endsBeforeMidnight, fromMinutes, occupants, toMinutes } from '../utils/slotAvailability';
-import { ZoomTimeCombobox } from './ZoomTimeCombobox';
+import { ZoomTimeCombobox, type TimeOption } from './ZoomTimeCombobox';
 import './zoom-slot-picker.css';
 
 /** Never render more than this many day chips, whatever the advance-booking window is. */
@@ -18,6 +18,7 @@ export interface ZoomSlotPickerProps {
     onDateChange: (date: string) => void;
     startTime: string;
     onStartTimeChange: (time: string) => void;
+    /** Meeting length in minutes. Picked as an end time; callers keep working in minutes. */
     duration: number;
     onDurationChange: (minutes: number) => void;
     /** Calendar slots of `date` for the chosen account (undefined while loading). */
@@ -25,6 +26,7 @@ export interface ZoomSlotPickerProps {
     loading?: boolean;
     /** Start times offered by the settings window, "HH:mm". */
     times: string[];
+    /** Allowed meeting lengths (the backend accepts only these), offered as end times. */
     durations: number[];
     /** 0 = Sunday; days outside are not bookable. */
     workingDays?: number[];
@@ -37,8 +39,9 @@ export interface ZoomSlotPickerProps {
 }
 
 /**
- * Date strip + typeable start-time field + duration chips, showing availability up front so a clash is never picked
- * blind: the time list says who holds each taken slot. Shared by "Book Meeting" and "Reschedule".
+ * Date strip + typeable start and end time fields, showing availability up front so a clash is never picked blind:
+ * the lists say who holds each taken slot. The end is picked as a clock time ("selesai 15.00"), not a length, so
+ * nobody has to work out when a 2-hour meeting ends. Shared by "Book Meeting" and "Reschedule".
  */
 export const ZoomSlotPicker: React.FC<ZoomSlotPickerProps> = ({
     date, onDateChange, startTime, onStartTimeChange, duration, onDurationChange,
@@ -76,6 +79,19 @@ export const ZoomSlotPicker: React.FC<ZoomSlotPickerProps> = ({
     const scrollStrip = (direction: number) => stripRef.current?.scrollBy({ left: direction * STRIP_SCROLL, behavior: 'smooth' });
     const end = startTime ? fromMinutes(toMinutes(startTime) + duration) : '';
     const clash = startTime ? clashWith(busy, startTime, duration) : undefined;
+    // One end time per allowed length; ends past midnight are not offered at all.
+    const endOptions: TimeOption[] = startTime
+        ? [...durations].sort((a, b) => a - b).filter((minutes) => endsBeforeMidnight(startTime, minutes)).map((minutes) => {
+            const blockedBy = clashWith(busy, startTime, minutes);
+            return {
+                time: fromMinutes(toMinutes(startTime) + minutes),
+                note: durationLabel(minutes),
+                busyTitle: blockedBy?.title,
+                disabled: Boolean(blockedBy) && !allowBusy,
+            };
+        })
+        : [];
+    const pickEnd = (time: string) => onDurationChange(toMinutes(time) - toMinutes(startTime));
 
     return (
         <div className="zsp">
@@ -104,6 +120,7 @@ export const ZoomSlotPicker: React.FC<ZoomSlotPickerProps> = ({
                 </div>
             </div>
 
+            <div className="zsp-times">
             <div className="zsp-row">
                 <span className="zsp-label" id="zsp-time">
                     Jam mulai
@@ -117,21 +134,16 @@ export const ZoomSlotPicker: React.FC<ZoomSlotPickerProps> = ({
             </div>
 
             <div className="zsp-row">
-                <span className="zsp-label" id="zsp-duration">Durasi</span>
-                <div className="zsp-durations" role="radiogroup" aria-labelledby="zsp-duration">
-                    {durations.map((minutes) => {
-                        const blockedBy = startTime ? clashWith(busy, startTime, minutes) : undefined;
-                        const tooLate = startTime ? !endsBeforeMidnight(startTime, minutes) : false;
-                        const disabled = !startTime || tooLate || (Boolean(blockedBy) && !allowBusy);
-                        return (
-                            <button key={minutes} type="button" role="radio" aria-checked={minutes === duration} disabled={disabled}
-                                title={!startTime ? 'Pilih jam mulai dulu' : blockedBy ? `Bertabrakan dengan ${blockedBy.title}` : tooLate ? 'Melewati tengah malam' : undefined}
-                                className={cn('zsp-chip', minutes === duration && 'is-selected')} onClick={() => onDurationChange(minutes)}>
-                                {durationLabel(minutes)}
-                            </button>
-                        );
-                    })}
-                </div>
+                <span className="zsp-label" id="zsp-end">Jam selesai</span>
+                {!startTime ? (
+                    <p className="zsp-empty">Pilih jam mulai dulu.</p>
+                ) : endOptions.length === 0 ? (
+                    <p className="zsp-empty">Tidak ada jam selesai sebelum tengah malam. Pilih jam mulai lebih awal.</p>
+                ) : (
+                    <ZoomTimeCombobox value={end} onChange={pickEnd} options={endOptions} disabled={loading} labelledBy="zsp-end"
+                        placeholder="Ketik atau pilih, mis. 15.00" noun="Jam selesai" />
+                )}
+            </div>
             </div>
 
             {startTime && (

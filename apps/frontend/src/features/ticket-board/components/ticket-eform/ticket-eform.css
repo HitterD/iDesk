@@ -1,0 +1,11 @@
+/* E-form access inside an IT support ticket. Layout comes from ticket-hardware.css (.thw-*); only what differs lives here. */
+.tef-types { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 560px) { .tef-types { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tef-type svg { width: 18px; height: 18px; color: hsl(var(--idesk-sapphire)); }
+.tef-needs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.tef-detail { display: flex; flex-direction: column; gap: 6px; }
+.tef-input { height: 40px; padding: 0 12px; border: 0; border-radius: 11px; font-size: 14px; color: hsl(var(--idesk-text));
+  background: var(--td-fill); box-shadow: inset 0 0 0 1px var(--td-line); }
+.tef-input:focus { outline: 0; background: hsl(var(--idesk-surface)); box-shadow: inset 0 0 0 1px hsl(var(--idesk-sapphire) / .55), 0 0 0 3px hsl(var(--idesk-sapphire) / .16); }
+.thw-card-ico.is-eform { background: hsl(152 60% 40% / .12); color: hsl(152 60% 32%); }
+.dark .thw-card-ico.is-eform { color: hsl(152 55% 62%); }

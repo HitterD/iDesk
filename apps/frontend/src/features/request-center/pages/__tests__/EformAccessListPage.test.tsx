@@ -108,6 +108,6 @@ describe('EformAccessListPage', () => {
 
     // Switch back to Table view
     fireEvent.click(tableBtn);
-    expect(screen.getByPlaceholderText('Cari nama pemohon atau ID permintaan')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Cari nama pemohon, nomor dokumen, atau ID')).toBeInTheDocument();
   });
 });

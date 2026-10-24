@@ -55,11 +55,11 @@ describe('EFormNotificationListener', () => {
         expect(notificationCenter.sendToRoleAtSite).toHaveBeenCalledWith(
             UserRole.AGENT_OPERATIONAL_SUPPORT,
             'site-1',
-            expect.objectContaining({ title: 'Provisioning Akses Diperlukan' }),
+            expect.objectContaining({ title: 'Tanda Tangan GM Diperlukan' }),
         );
         expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({
             to: 'ops1@example.com',
-            subject: expect.stringContaining('[SPJ] Provisioning Diperlukan'),
+            subject: expect.stringContaining('[SPJ] Tanda Tangan GM Diperlukan'),
         }));
     });
 });

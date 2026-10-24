@@ -24,6 +24,7 @@ import { UserAvatar } from '@/components/ui/UserAvatar';
 import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
 import { PDFPreviewModal, usePDFPreview } from '@/features/reports/components/PDFPreviewModal';
 import { ProposeHardwareDialog, TicketHardwareMessage, canProposeHardware } from '../ticket-hardware';
+import { ProposeEFormDialog, TicketEFormMessage, canProposeEForm } from '../ticket-eform';
 
 interface TicketChatProps {
     ticket: TicketDetail;
@@ -90,6 +91,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const [highlightedId, setHighlightedId] = useState<string | null>(null);
     const [messageReactions, setMessageReactions] = useState<Record<string, Reaction[]>>({});
     const [proposingHardware, setProposingHardware] = useState(false);
+    const [proposingEForm, setProposingEForm] = useState(false);
     const { user } = useAuth();
     const pdfPreview = usePDFPreview();
     const isTicketClosed = ticket.status === 'CLOSED';
@@ -382,6 +384,20 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                         const newDay = !prev || !isSameDay(prev.createdAt, message.createdAt);
                         const separator = newDay ? <DateSeparator date={message.createdAt} /> : null;
 
+                        const eformEvent = message.systemEvent?.eformRequest;
+                        if (eformEvent) {
+                            return (
+                                <React.Fragment key={message.id}>
+                                    {separator}
+                                    <div className="chat-system-event" data-system-event={message.id}>
+                                        <TicketEFormMessage ticketId={ticket.id} event={eformEvent} createdAt={message.createdAt}
+                                            actorName={message.systemEvent?.actor?.name} reason={message.systemEvent?.reason}
+                                            isRequester={Boolean(user?.id && user.id === ticket.user?.id)} />
+                                    </div>
+                                </React.Fragment>
+                            );
+                        }
+
                         const hardwareEvent = message.systemEvent?.hardwareRequest;
                         if (hardwareEvent) {
                             return (
@@ -496,11 +512,16 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     onTypingStart={onTypingStart}
                     onTypingStop={onTypingStop}
                     onProposeHardware={canProposeHardware(ticket, isAgentView) ? () => setProposingHardware(true) : undefined}
+                    onProposeEForm={canProposeEForm(ticket, isAgentView, user?.role) ? () => setProposingEForm(true) : undefined}
                 />
             )}
 
             {canProposeHardware(ticket, isAgentView) && (
                 <ProposeHardwareDialog open={proposingHardware} onOpenChange={setProposingHardware} ticketId={ticket.id}
+                    ticketNumber={ticket.ticketNumber} requesterName={toDisplayName(ticket.user?.fullName)} defaultReason={ticket.title} />
+            )}
+            {canProposeEForm(ticket, isAgentView, user?.role) && (
+                <ProposeEFormDialog open={proposingEForm} onOpenChange={setProposingEForm} ticketId={ticket.id}
                     ticketNumber={ticket.ticketNumber} requesterName={toDisplayName(ticket.user?.fullName)} defaultReason={ticket.title} />
             )}
 

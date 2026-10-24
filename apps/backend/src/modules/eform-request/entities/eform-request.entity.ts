@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, Index } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { EFormApproval } from './eform-approval.entity';
 import { EFormSignature } from './eform-signature.entity';
@@ -15,9 +15,13 @@ export enum EFormType {
 export enum EFormStatus {
   DRAFT = 'DRAFT',
   PENDING_MANAGER = 'PENDING_MANAGER',
+  /** Approved by the manager; IT collects the GM's wet signature on the printed form and uploads the signed PDF. */
+  PENDING_GM = 'PENDING_GM',
   PENDING_ICT = 'PENDING_ICT',
   CONFIRMED = 'CONFIRMED',
-  REJECTED = 'REJECTED'
+  REJECTED = 'REJECTED',
+  /** A proposal from a ticket that the requester declined or IT withdrew before it was signed. */
+  CANCELLED = 'CANCELLED',
 }
 
 @Entity('eform_requests')
@@ -70,6 +74,32 @@ export class EFormRequest {
 
   @Column({ type: 'varchar', nullable: true })
   currentApproverId: string | null;
+
+  /** Set when IT proposed this access from a ticket; the requester completes and signs the draft. */
+  @Index('IDX_eform_requests_sourceTicketId')
+  @Column({ type: 'uuid', nullable: true })
+  sourceTicketId: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  proposedById: string | null;
+
+  /** Running number per form, e.g. F/ICT/04-W/0007; assigned on submit, editable by IT. */
+  @Index('UQ_eform_requests_documentNumber', { unique: true })
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  documentNumber: string | null;
+
+  /** Stored name of the PDF signed by the GM (under uploads/eform-approvals, never served statically). */
+  @Column({ type: 'varchar', nullable: true, select: false })
+  gmApprovalFile: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  gmApprovalFileName: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  gmApprovalUploadedById: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  gmApprovedAt: Date | null;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'currentApproverId' })

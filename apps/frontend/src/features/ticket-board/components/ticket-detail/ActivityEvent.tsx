@@ -4,6 +4,7 @@ import { PRIORITY_CONFIG, STATUS_CONFIG } from '@/lib/constants/ticket.constants
 import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
 import { formatMessageTime, toDisplayName } from './messageThread';
 import type { HardwareTicketPhase } from '../ticket-hardware/hardwareFlow';
+import type { EFormTicketPhase } from '../ticket-eform/eformFlow';
 
 /** Mirrors the backend's TicketSystemEvent (utils/ticket-activity.util.ts). */
 export interface TicketSystemEvent {
@@ -13,6 +14,8 @@ export interface TicketSystemEvent {
     reason?: string | null;
     /** A step of a hardware request proposed from this ticket (rendered by ticket-hardware, not here). */
     hardwareRequest?: { id: string; number: string; phase: HardwareTicketPhase; at?: string | null };
+    /** A step of an e-form access request proposed from this ticket (rendered by ticket-eform, not here). */
+    eformRequest?: { id: string; code: string; formType: string; phase: EFormTicketPhase };
 }
 
 type Change = TicketSystemEvent['changes'][number];

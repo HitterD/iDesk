@@ -12,7 +12,9 @@ import { SlaProgress } from '../../ticket-board/components/ticket-detail/SlaProg
 import { TicketParticipantsSection } from '../../ticket-board/components/ticket-detail/TicketParticipantsSection';
 import { toDisplayName } from '../../ticket-board/components/ticket-detail/messageThread';
 import { PriorityPill, PropertyRow, StatusPill } from '../../ticket-board/components/ticket-detail/TicketPropertyRows';
-import { TicketHardwareSection, useHardwareHold } from '../../ticket-board/components/ticket-hardware';
+import { TicketHardwareSection } from '../../ticket-board/components/ticket-hardware';
+import { TicketEFormSection } from '../../ticket-board/components/ticket-eform';
+import { useTicketHold } from '../../ticket-board/components/ticket-detail/useTicketHold';
 
 const PAUSED_STATUS = 'WAITING_VENDOR';
 const COPIED_RESET_MS = 2000;
@@ -83,7 +85,7 @@ export const ClientTicketInspector: React.FC<{ ticket: TicketDetail }> = ({ tick
     const { user } = useAuth();
     const isClosed = isTerminalStatus(ticket.status);
     const isPaused = ticket.status === PAUSED_STATUS;
-    const hardwareHold = useHardwareHold(ticket);
+    const hold = useTicketHold(ticket);
     const canManageParticipants = user?.role === 'ADMIN' || user?.role === 'AGENT' || Boolean(user?.role?.startsWith('AGENT_')) || user?.role === 'MANAGER';
     const canAddParticipants = canManageParticipants || ticket.user?.id === user?.id || Boolean(ticket.participants?.some(p => p.userId === user?.id));
 
@@ -93,7 +95,7 @@ export const ClientTicketInspector: React.FC<{ ticket: TicketDetail }> = ({ tick
 
             <SidebarCard title="Detail tiket" bodyClassName="space-y-2">
                 <div>
-                    <PropertyRow label="Status"><StatusPill status={ticket.status} /></PropertyRow>
+                    <PropertyRow label="Status"><StatusPill status={ticket.status} hold={hold} /></PropertyRow>
                     <PropertyRow label="Prioritas"><PriorityPill priority={ticket.priority} short /></PropertyRow>
                     <PropertyRow label="Kategori"><span className="td-readonly">{ticket.category ? categoryLabel(ticket.category) : 'Tidak ada'}</span></PropertyRow>
                     <PropertyRow label="Perangkat"><span className="td-readonly">{ticket.device || 'Tidak ada'}</span></PropertyRow>
@@ -120,7 +122,7 @@ export const ClientTicketInspector: React.FC<{ ticket: TicketDetail }> = ({ tick
                     slaTarget={ticket.slaTarget}
                     slaRemainingMinutes={ticket.slaRemainingMinutes}
                     pausedAt={ticket.lastPausedAt}
-                    pausedLabel={hardwareHold ? 'Menunggu hardware' : undefined}
+                    pausedLabel={hold?.label}
                 />
                 <div className="td-kvs">
                     {isPaused ? (
@@ -143,6 +145,7 @@ export const ClientTicketInspector: React.FC<{ ticket: TicketDetail }> = ({ tick
             />
 
             <TicketHardwareSection ticketId={ticket.id} />
+            <TicketEFormSection ticketId={ticket.id} />
 
             {ticket.isHardwareInstallation && <HardwareSchedule ticket={ticket} />}
         </div>

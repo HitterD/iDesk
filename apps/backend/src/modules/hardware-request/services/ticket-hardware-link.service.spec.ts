@@ -1,5 +1,6 @@
 import { TicketHardwareLinkService } from './ticket-hardware-link.service';
 import { TicketStatus } from '../../ticketing/entities/ticket.entity';
+import { TicketLinkedRequestService } from '../../ticketing/services/ticket-linked-request.service';
 
 describe('TicketHardwareLinkService', () => {
     let service: TicketHardwareLinkService;
@@ -23,7 +24,8 @@ describe('TicketHardwareLinkService', () => {
         vendorVisit = { clear: jest.fn() };
         gateway = { notifyNewMessage: jest.fn(), notifyTicketUpdate: jest.fn(), notifyTicketListUpdate: jest.fn(), notifyDashboardStatsUpdate: jest.fn() };
         const dataSource = { transaction: jest.fn(async (cb: any) => cb(manager)) };
-        service = new TicketHardwareLinkService(reqRepo as any, dataSource as any, slaClock, vendorVisit, gateway, { recalculateAgentWorkload: jest.fn() } as any);
+        const linked = new TicketLinkedRequestService(dataSource as any, slaClock, vendorVisit, gateway, { recalculateAgentWorkload: jest.fn() } as any);
+        service = new TicketHardwareLinkService(reqRepo as any, linked);
     });
 
     const message = () => manager.create.mock.calls.find((c: any[]) => c[1]?.isSystemMessage)?.[1];

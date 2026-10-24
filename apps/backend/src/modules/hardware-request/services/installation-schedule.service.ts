@@ -83,9 +83,9 @@ export class InstallationScheduleService {
     }
 
     async confirm(requestId: string, actor: ActingUser): Promise<InstallationSchedule> {
-        const sched = await this.repo.findOne({ where: { requestId } });
-        if (!sched) throw new NotFoundException('schedule not found');
-        if (sched.status !== InstallStatus.PROPOSED) throw new ConflictException('invalid state: must be PROPOSED');
+        // A reschedule retires the old row and adds a new PROPOSED one: confirm that one, not whichever row comes first.
+        const sched = await this.repo.findOne({ where: { requestId, status: InstallStatus.PROPOSED }, order: { createdAt: 'DESC' } });
+        if (!sched || sched.status !== InstallStatus.PROPOSED) throw new ConflictException('invalid state: must be PROPOSED');
 
         const req = await this.reqRepo.findOne({ where: { id: requestId } });
         if (!req) throw new NotFoundException('request');

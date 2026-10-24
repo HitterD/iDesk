@@ -13,6 +13,9 @@ const slots: CalendarSlot[] = [
     { date: day, time: '14:30', endTime: '15:00', status: 'booked', booking: meeting },
 ];
 
+const startField = () => screen.getByRole('combobox', { name: 'Jam mulai' });
+const endField = () => screen.getByRole('combobox', { name: 'Jam selesai' });
+
 const renderPicker = (props: Partial<ZoomSlotPickerProps> = {}) => {
     const handlers = { onDateChange: vi.fn(), onStartTimeChange: vi.fn(), onDurationChange: vi.fn() };
     render(
@@ -25,7 +28,7 @@ const renderPicker = (props: Partial<ZoomSlotPickerProps> = {}) => {
 describe('ZoomSlotPicker', () => {
     it('lists taken start times with who has them and keeps them unpickable', () => {
         const { onStartTimeChange } = renderPicker();
-        fireEvent.focus(screen.getByRole('combobox'));
+        fireEvent.focus(startField());
 
         const taken = screen.getByRole('option', { name: /14\.00 Terisi · Diskusi Air/ });
         expect(taken).toHaveAttribute('aria-disabled', 'true');
@@ -38,7 +41,7 @@ describe('ZoomSlotPicker', () => {
 
     it('takes a typed time, and refuses one that is taken', () => {
         const { onStartTimeChange } = renderPicker();
-        const field = screen.getByRole('combobox');
+        const field = startField();
 
         fireEvent.change(field, { target: { value: '1300' } });
         fireEvent.keyDown(field, { key: 'Enter' });
@@ -52,26 +55,48 @@ describe('ZoomSlotPicker', () => {
 
     it('narrows the list to what is being typed', () => {
         renderPicker();
-        fireEvent.change(screen.getByRole('combobox'), { target: { value: '13' } });
+        fireEvent.change(startField(), { target: { value: '13' } });
 
         expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['13.00Kosong', '13.30Kosong']);
 
-        fireEvent.change(screen.getByRole('combobox'), { target: { value: '1' } });
+        fireEvent.change(startField(), { target: { value: '1' } });
         expect(screen.getAllByRole('option').map((o) => o.textContent?.slice(0, 5))).toEqual(['01.30', '13.00', '13.30', '14.00', '15.00', '16.00']);
     });
 
-    it('disables a duration that would run into the next booking', () => {
-        renderPicker({ startTime: '13:00' });
+    it('offers end times (not lengths) and blocks one that runs into the next booking', () => {
+        const { onDurationChange } = renderPicker({ startTime: '13:00' });
+        fireEvent.focus(endField());
 
-        expect(screen.getByRole('radio', { name: '30 mnt' })).toBeEnabled();
-        expect(screen.getByRole('radio', { name: '1 jam' })).toBeEnabled();
-        expect(screen.getByRole('radio', { name: '2 jam' })).toBeDisabled();
+        expect(screen.getAllByRole('option').map((o) => o.getAttribute('aria-label'))).toEqual([
+            '13.30 30 mnt', '14.00 1 jam', '15.00 Terisi · Diskusi Air',
+        ]);
+        expect(screen.getByRole('option', { name: /15\.00/ })).toHaveAttribute('aria-disabled', 'true');
+
+        fireEvent.click(screen.getByRole('option', { name: '14.00 1 jam' }));
+        expect(onDurationChange).toHaveBeenCalledWith(60);
+    });
+
+    it('takes a typed end time and turns it into the meeting length', () => {
+        const { onDurationChange } = renderPicker({ startTime: '16:00' });
+        fireEvent.change(endField(), { target: { value: '18' } });
+        fireEvent.keyDown(endField(), { key: 'Enter' });
+        expect(onDurationChange).toHaveBeenCalledWith(120);
+
+        fireEvent.change(endField(), { target: { value: '17.15' } });
+        fireEvent.keyDown(endField(), { key: 'Enter' });
+        expect(screen.getByRole('alert')).toHaveTextContent('Jam selesai 17.15 tidak tersedia');
+    });
+
+    it('asks for the start time before offering end times, and never offers one past midnight', () => {
+        renderPicker();
+        expect(screen.queryByRole('combobox', { name: 'Jam selesai' })).not.toBeInTheDocument();
+        expect(screen.getByText('Pilih jam mulai dulu.')).toBeInTheDocument();
     });
 
     it('lets Gabungan pick a busy slot, another account can take it', () => {
         renderPicker({ allowBusy: true, startTime: '14:00' });
 
-        fireEvent.focus(screen.getByRole('combobox'));
+        fireEvent.focus(startField());
         expect(screen.getByRole('option', { name: /14\.00 Terisi/ })).not.toHaveAttribute('aria-disabled');
         expect(screen.getByRole('status')).toHaveTextContent('bentrok dengan Diskusi Air');
     });
@@ -79,7 +104,7 @@ describe('ZoomSlotPicker', () => {
     it('does not count the booking being rescheduled and marks its current slot', () => {
         renderPicker({ excludeBookingId: 'b-9', current: { date: day, startTime: '14:00' } });
 
-        fireEvent.focus(screen.getByRole('combobox'));
+        fireEvent.focus(startField());
         expect(screen.getByRole('option', { name: '14.00 Jadwal saat ini' })).not.toHaveAttribute('aria-disabled');
     });
 

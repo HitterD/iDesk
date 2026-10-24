@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { EformStatusPipeline, EFormStatus } from '../components/eform/EformStatusPipeline';
 import { EformTypeBadge, getTypeConfig, ICT_ROLES } from '../components/eform/eform-vocabulary';
+import { DocumentNumberField, GmApprovalPanel } from '../components/eform/EformPaperwork';
 import { useAuth } from '@/stores/useAuth';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -218,7 +219,7 @@ export const EformAccessDetailPage: React.FC = () => {
             <div>
               <p className="font-bold text-sm text-foreground">Pengajuan Akses Telah Terealisasi (ACC)</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Dokumen resmi F-ICT-04 telah lengkap dengan tanda tangan pemohon, atasan, dan verifikasi ICT.
+                Dokumen resmi {request.documentNumber ?? 'F-ICT-04'} telah lengkap dengan tanda tangan pemohon, atasan{request.gmApprovalFileName ? ', GM' : ''}, dan verifikasi ICT.
               </p>
             </div>
           </div>
@@ -240,6 +241,8 @@ export const EformAccessDetailPage: React.FC = () => {
           rejectionReason={request.rejectionReason}
         />
       </div>
+
+      <GmApprovalPanel request={request} isICT={isICT} onReject={() => setRejectOpen(true)} />
 
       {/* Contextual action */}
       {isCurrentApprover && request.status === EFormStatus.PENDING_MANAGER && (
@@ -300,10 +303,9 @@ export const EformAccessDetailPage: React.FC = () => {
                 <dd className="mt-1 text-sm font-bold text-foreground">{request.requesterName}</dd>
               </div>
               <div>
-                <dt className="text-xs font-semibold text-muted-foreground">ID transaksi</dt>
-                <dd className="mt-1 font-mono text-sm font-bold text-primary">
-                  #{request.id.slice(0, 8).toUpperCase()}
-                </dd>
+                <dt className="text-xs font-semibold text-muted-foreground">Nomor dokumen</dt>
+                <DocumentNumberField request={request} canEdit={isICT} />
+                <p className="mt-0.5 font-mono text-xs text-muted-foreground">ID #{request.id.slice(0, 8).toUpperCase()}</p>
               </div>
               <div>
                 <dt className="text-xs font-semibold text-muted-foreground">Masa berlaku</dt>
@@ -478,7 +480,9 @@ export const EformAccessDetailPage: React.FC = () => {
           </div>
 
           <p className="px-1 text-xs leading-relaxed text-muted-foreground">
-            {type.description}. Permintaan diteruskan ke atasan Anda, lalu ke tim ICT untuk disiapkan.
+            {type.description}. {request.formType === 'SYNOLOGY_NAS'
+              ? 'Permintaan langsung disiapkan tim ICT.'
+              : 'Permintaan diteruskan ke atasan Anda, ditandatangani GM, lalu disiapkan tim ICT.'}
           </p>
         </aside>
       </div>

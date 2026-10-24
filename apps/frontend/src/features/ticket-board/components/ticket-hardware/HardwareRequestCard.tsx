@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    ArrowUpRight, CalendarCheck, CheckCircle2, CircleSlash, Cpu, PackageCheck, ThumbsUp, Wrench, XCircle,
+    ArrowUpRight, CalendarCheck, CheckCircle2, CircleSlash, Cpu, MessageSquareWarning, PackageCheck, ThumbsUp, Wrench, XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
 import { cn } from '@/lib/utils';
 import { formatMessageTime, toDisplayName } from '../ticket-detail/messageThread';
 import {
-    FLOW_LABEL, requesterTodo, statusSentence, type HardwareTicketPhase, type RequestStatus, type TicketHardwareRequest,
+    FLOW_LABEL, requesterTodo, staffTodo, statusSentence, type HardwareTicketPhase, type RequestStatus, type TicketHardwareRequest,
 } from './hardwareFlow';
+import { HardwareRequesterActions } from './HardwareRequesterActions';
 import { HardwareProgress } from './HardwareProgress';
 import { useAnswerProposal } from './useTicketHardware';
 import './ticket-hardware.css';
@@ -45,9 +46,10 @@ const PHASE: Record<Exclude<HardwareTicketPhase, 'PROPOSED'>, { icon: React.Elem
     APPROVED: { icon: CheckCircle2, text: 'disetujui ICT', tone: 'ok' },
     REJECTED: { icon: XCircle, text: 'ditolak ICT', tone: 'bad' },
     PROCUREMENT_DONE: { icon: PackageCheck, text: 'selesai pengadaan', tone: 'ok' },
-    SCHEDULE_PROPOSED: { icon: CalendarCheck, text: 'menunggu pemohon memilih jadwal pemasangan', tone: 'warn' },
+    SCHEDULE_PROPOSED: { icon: CalendarCheck, text: 'punya usulan jadwal pemasangan, menunggu pemohon', tone: 'warn' },
     SCHEDULED: { icon: CalendarCheck, text: 'dijadwalkan pemasangan', tone: 'info' },
     INSTALLED: { icon: Wrench, text: 'selesai dipasang, menunggu konfirmasi pemohon', tone: 'warn' },
+    ISSUE_REPORTED: { icon: MessageSquareWarning, text: 'dilaporkan bermasalah oleh pemohon', tone: 'bad' },
     COMPLETED: { icon: CheckCircle2, text: 'selesai. Tiket ditutup otomatis', tone: 'ok' },
     CANCELLED: { icon: XCircle, text: 'dibatalkan', tone: 'bad' },
 };
@@ -68,7 +70,7 @@ function PhaseLine({ event, actorName, reason, createdAt, hardwareBasePath }: Ha
             <span className="thw-line-ico"><Icon aria-hidden="true" /></span>
             <span className="thw-line-text">
                 <Link to={`${hardwareBasePath}/${event.id}`}><b>{event.number}</b></Link> {meta.text}
-                {event.phase === 'SCHEDULED' && event.at && <> · <b>{WIB.format(new Date(event.at))} WIB</b></>}
+                {(event.phase === 'SCHEDULED' || event.phase === 'SCHEDULE_PROPOSED') && event.at && <> · <b>{WIB.format(new Date(event.at))} WIB</b></>}
                 {actorName && <span className="thw-line-by"> · {toDisplayName(actorName)}</span>}
                 {reason && <span className="thw-line-reason">“{reason}”</span>}
             </span>
@@ -83,6 +85,8 @@ function ProposalCard({ event, actorName, createdAt, request, ticketId, isReques
     const pending = request?.status === 'DRAFT';
     const busy = accept.isPending || decline.isPending || withdraw.isPending;
     const todo = isRequester && request ? requesterTodo(request) : null;
+    // Staff see where ICT stands next; the work itself happens on the Hardware Request page.
+    const nextForIct = !isRequester && request ? staffTodo(request) : null;
     const href = `${hardwareBasePath}/${event.id}`;
 
     return (
@@ -105,6 +109,7 @@ function ProposalCard({ event, actorName, createdAt, request, ticketId, isReques
                 {request.justification && <p className="thw-card-why">{request.justification}</p>}
                 {!pending && <HardwareProgress request={request} />}
                 {request.status === 'REJECTED' && request.rejectReason && <p className="thw-card-note">Alasan ICT: {request.rejectReason}</p>}
+                {todo && <HardwareRequesterActions request={request} ticketId={ticketId} href={href} />}
             </>) : <p className="thw-card-why">Memuat detail…</p>}
 
             <footer className="thw-card-foot">
@@ -135,8 +140,8 @@ function ProposalCard({ event, actorName, createdAt, request, ticketId, isReques
                     </Button>
                 </>)}
                 {!pending && request && (
-                    <Button asChild variant={todo ? 'primary' : 'soft'}>
-                        <Link to={href}>{todo ?? 'Lihat detail'}<ArrowUpRight aria-hidden="true" /></Link>
+                    <Button asChild variant={nextForIct ? 'primary' : 'soft'}>
+                        <Link to={href}>{nextForIct ?? 'Lihat detail'}<ArrowUpRight aria-hidden="true" /></Link>
                     </Button>
                 )}
             </footer>

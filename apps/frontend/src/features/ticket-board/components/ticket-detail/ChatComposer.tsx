@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowUp, Cpu, Eye, Globe, Loader2, Lock, Paperclip, Plus, Reply, Smile, Upload, X } from 'lucide-react';
+import { ArrowUp, Cpu, Eye, Globe, KeyRound, Loader2, Lock, Paperclip, Plus, Reply, Smile, Upload, X } from 'lucide-react';
 import { SegmentedControl, type SegmentedOption } from '@/components/ui/segmented-control';
 import { toast } from 'sonner';
 import TextareaAutosize from 'react-textarea-autosize';
@@ -36,6 +36,7 @@ interface ChatComposerProps {
     onTypingStop?: () => void;
     /** Shown to ICT on an open IT support ticket: propose a hardware request for the requester to confirm. */
     onProposeHardware?: () => void;
+    onProposeEForm?: () => void;
 }
 
 const MAX_MESSAGE_LENGTH = 5000;
@@ -75,7 +76,8 @@ const PlusMenuPanel: React.FC<{
     onSticker: (sticker: string) => void;
     onClose: () => void;
     onProposeHardware?: () => void;
-}> = ({ view, canAttach, fileCount, onAttach, onShowStickers, onSticker, onClose, onProposeHardware }) => {
+    onProposeEForm?: () => void;
+}> = ({ view, canAttach, fileCount, onAttach, onShowStickers, onSticker, onClose, onProposeHardware, onProposeEForm }) => {
     if (view === 'stickers') {
         return (
             <div className="td-menu td-sticker-menu" role="dialog" aria-label="Sticker">
@@ -112,6 +114,12 @@ const PlusMenuPanel: React.FC<{
                     <span>Hardware request<small>Usulkan barang, pemohon tinggal konfirmasi</small></span>
                 </button>
             )}
+            {onProposeEForm && (
+                <button type="button" role="menuitem" className="td-menu-item" onClick={() => { onClose(); onProposeEForm(); }}>
+                    <KeyRound aria-hidden="true" />
+                    <span>Akses E-Form<small>Usulkan akses (VPN, email, …), pemohon tinggal tanda tangan</small></span>
+                </button>
+            )}
         </div>
     );
 };
@@ -129,6 +137,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     onTypingStart,
     onTypingStop,
     onProposeHardware,
+    onProposeEForm,
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -363,6 +372,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                                 onSticker={onSendSticker}
                                 onClose={() => setPlusMenu('closed')}
                                 onProposeHardware={onProposeHardware}
+                                onProposeEForm={onProposeEForm}
                             />
                         )}
                         <input

@@ -1,3 +1,4 @@
+import { In, Not } from 'typeorm';
 import { ForbiddenException } from '@nestjs/common';
 import { EFormRequestService } from './eform-request.service';
 import { UserRole } from '../users/enums/user-role.enum';
@@ -77,7 +78,7 @@ describe('EFormRequestService site isolation (P0 credential protection)', () => 
       await service.findAll({ role, siteId: SITE_SPJ });
 
       expect(eformRepo.find).toHaveBeenCalledWith({
-        where: { siteId: SITE_SPJ },
+        where: { siteId: SITE_SPJ, status: Not(In([EFormStatus.DRAFT, EFormStatus.CANCELLED])) },
         order: { createdAt: 'DESC' },
       });
     });
@@ -96,7 +97,9 @@ describe('EFormRequestService site isolation (P0 credential protection)', () => 
       const result = await service.findAll({ role, siteId: null });
 
       // Should have called without site filter (or with all)
+      // No site filter; unsigned ticket proposals are still left out.
       expect(eformRepo.find).toHaveBeenCalledWith({
+        where: { status: Not(In([EFormStatus.DRAFT, EFormStatus.CANCELLED])) },
         order: { createdAt: 'DESC' },
       });
       expect(result.length).toBeGreaterThanOrEqual(0);

@@ -16,6 +16,7 @@ interface Step {
 const standardSteps: Step[] = [
   { id: EFormStatus.DRAFT, label: 'Diajukan', detail: 'Formulir dikirim pemohon' },
   { id: EFormStatus.PENDING_MANAGER, label: 'Atasan', detail: 'Menunggu persetujuan' },
+  { id: EFormStatus.PENDING_GM, label: 'GM', detail: 'Tanda tangan GM' },
   { id: EFormStatus.PENDING_ICT, label: 'Tim ICT', detail: 'Akses disiapkan' },
   { id: EFormStatus.CONFIRMED, label: 'Selesai', detail: 'Kredensial tersedia' },
 ];

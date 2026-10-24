@@ -640,6 +640,16 @@ export class HardwareRequestCommandService {
                 }));
             }
 
+            if (toStatus === RequestStatus.INSTALLATION) {
+                this.emitter.emit(HR_EVT.INSTALL_ISSUE_REPORTED, {
+                    requestId: req.id,
+                    actorId: userId,
+                    occurredAt: new Date(),
+                    requesterId: req.requesterId,
+                    comments: payload.comments?.trim() || null,
+                });
+            }
+
             if (toStatus === RequestStatus.COMPLETED) {
                 this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
                     requestId: req.id,

@@ -103,6 +103,11 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
                     return [...oldMessages, data.message];
                 });
 
+                // A step of a request raised from this ticket: its card and sidebar read the request's live state.
+                const linked = (data.message as { systemEvent?: { hardwareRequest?: unknown; eformRequest?: unknown } }).systemEvent;
+                if (linked?.hardwareRequest) queryClient.invalidateQueries({ queryKey: ['ticket', ticketId, 'hardware-requests'] });
+                if (linked?.eformRequest) queryClient.invalidateQueries({ queryKey: ['ticket', ticketId, 'eform-requests'] });
+
                 // Fail-safe: resync in background so relations/SLA/unread state catch up (debounced).
                 scheduleTicketResync(false);
 

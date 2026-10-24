@@ -1,6 +1,9 @@
 /* ZoomSlotPicker: day strip, typeable start-time list, duration chips on the app tokens (sapphire selection, --td-* fills). */
 .zsp { display: flex; flex-direction: column; gap: 16px; }
 .zsp-row { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* Start and end side by side: the meeting reads as a range ("10.00 → 11.30"), not a length to add up. */
+.zsp-times { display: grid; grid-template-columns: repeat(2, minmax(0, 280px)); gap: 12px 16px; }
+@media (max-width: 520px) { .zsp-times { grid-template-columns: 1fr; } }
 .zsp-label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: hsl(var(--idesk-text)); }
 .zsp-spin { width: 14px; height: 14px; color: var(--td-text-3); animation: spin 1s linear infinite; }
 
@@ -52,6 +55,7 @@
   border-radius: 12px; background: var(--zb-sheet); box-shadow: 0 12px 32px hsl(220 40% 10% / .18), inset 0 0 0 1px hsl(var(--idesk-border));
   animation: idesk-pop-in var(--dur-2) var(--ease-out); transform-origin: top center;
 }
+.zsp-list.is-up { top: auto; bottom: calc(100% + 6px); transform-origin: bottom center; }
 .zsp-opt { display: flex; align-items: baseline; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; }
 .zsp-opt b { width: 44px; font-weight: 600; font-variant-numeric: tabular-nums; color: hsl(var(--idesk-text)); }
 .zsp-opt span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: hsl(var(--idesk-text-secondary)); }

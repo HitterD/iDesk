@@ -3,7 +3,8 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
-    HR_EVT, HardwareEvents, HrApproved, HrCancelled, HrInstallCompleted, HrRejected, HrScheduleConfirmed, HrScheduleProposed,
+    HR_EVT, HardwareEvents, HrApproved, HrCancelled, HrInstallCompleted, HrInstallIssueReported, HrRejected, HrScheduleConfirmed, HrScheduleProposed,
+    HrScheduleRescheduled,
     HrSubmitted, ProcurementCompletedPayload, ScheduleConfirmedPayload, ScheduleProposedPayload,
 } from '../domain/events/hardware-request.events';
 import { HardwareRequest } from '../domain/entities/hardware-request.entity';
@@ -63,6 +64,13 @@ export class TicketHardwareSyncListener {
         return this.link.record(e.requestId, 'SCHEDULE_PROPOSED', { actorId: e.technicianId });
     }
 
+    /** A moved installation is a new proposal the other side has to confirm. */
+    @OnEvent(HR_EVT.SCHEDULE_RESCHEDULED)
+    async onRescheduled(e: HrScheduleRescheduled) {
+        const schedule = await this.schedRepo.findOne({ where: { id: e.newId }, select: { id: true, scheduledStart: true } });
+        return this.link.record(e.requestId, 'SCHEDULE_PROPOSED', { actorId: e.actorId, reason: e.reason ?? null, at: schedule?.scheduledStart ?? null });
+    }
+
     @OnEvent(HR_EVT.SCHEDULE_CONFIRMED)
     async onScheduleConfirmed(e: HrScheduleConfirmed) {
         const schedule = await this.schedRepo.findOne({ where: { id: e.scheduleId }, select: { id: true, scheduledStart: true } });
@@ -72,6 +80,11 @@ export class TicketHardwareSyncListener {
     @OnEvent(HardwareEvents.ScheduleConfirmed)
     onSlotConfirmed(e: ScheduleConfirmedPayload) {
         return this.link.record(e.requestId, 'SCHEDULED', { at: e.scheduledStart });
+    }
+
+    @OnEvent(HR_EVT.INSTALL_ISSUE_REPORTED)
+    onIssueReported(e: HrInstallIssueReported) {
+        return this.link.record(e.requestId, 'ISSUE_REPORTED', { actorId: e.actorId, reason: e.comments });
     }
 
     @OnEvent(HR_EVT.INSTALL_COMPLETED)

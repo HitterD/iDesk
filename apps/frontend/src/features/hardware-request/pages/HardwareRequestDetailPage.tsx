@@ -3,6 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Calendar, Check, Copy, Cpu, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { confirmProposedSchedule } from '../api/installation.api';
 import { useHardwareRequest } from '../hooks/useHardwareRequest';
 import { useHardwareRequestRealtime } from '../hooks/useHardwareRequestRealtime';
 import { useHardwareRole } from '../hooks/usePermissions';
@@ -28,6 +30,15 @@ export default function HardwareRequestDetailPage() {
     useMarkNotificationsRead(id ? { referenceId: id } : null);
     const { data: r, isLoading, isError } = useHardwareRequest(id);
     const { userId, role } = useHardwareRole();
+    const queryClient = useQueryClient();
+    const confirmProposed = useMutation({
+        mutationFn: () => confirmProposedSchedule(id!),
+        onSuccess: () => {
+            toast.success('Jadwal pemasangan disetujui');
+            queryClient.invalidateQueries({ queryKey: ['hardware-requests', 'detail', id] });
+        },
+        onError: (error: Error) => toast.error(error.message || 'Gagal menyetujui jadwal'),
+    });
     const basePath = useHardwareBasePath();
     const [copied, setCopied] = useState(false);
     useHardwareRequestRealtime(id);
@@ -157,6 +168,9 @@ export default function HardwareRequestDetailPage() {
                             // server-side); requesters file a reschedule request instead.
                             onReschedule={(s: InstallationSchedule) => (isStaff ? setProposeOpen(true) : setRescheduleSched(s))}
                             onProposeNewSlots={() => setProposeOpen(true)}
+                            viewerId={userId}
+                            onConfirmProposed={() => confirmProposed.mutate()}
+                            confirming={confirmProposed.isPending}
                         />
                     )}
 

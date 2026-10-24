@@ -27,6 +27,10 @@ function relativeInside(root: string, target: string): string | null {
 const isTicketPath = (rel: string): boolean =>
     rel.split('/')[0].toLowerCase() === TICKET_UPLOAD_DIR;
 
+/** Folders whose files leave only through their own authorized endpoint (GM-signed e-forms), never by URL. */
+const PRIVATE_UPLOAD_DIRS = new Set(['eform-approvals']);
+const isPrivatePath = (rel: string): boolean => PRIVATE_UPLOAD_DIRS.has(rel.split('/')[0].toLowerCase());
+
 /** Legacy flat URLs (`/uploads/<file>`) for files that now live in `tickets/<dir>/`. */
 function findInTicketDirs(root: string, fileName: string): string | null {
     const ticketsDir = path.join(root, TICKET_UPLOAD_DIR);
@@ -72,6 +76,10 @@ export function createUploadsFileHandler(uploadRoot: string, access: AttachmentA
         const rel = relativeInside(root, target);
         if (rel === null) {
             res.status(403).send('Forbidden');
+            return;
+        }
+        if (isPrivatePath(rel)) {
+            res.status(404).send('Not Found');
             return;
         }
 

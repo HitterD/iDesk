@@ -42,9 +42,15 @@ export const PropertyRow: React.FC<{
 );
 
 /** Readonly status bubble (requester inspector, header): mockup `.bub` with a status dot. */
-export const StatusPill: React.FC<{ status: string }> = ({ status }) => {
+export const StatusPill: React.FC<{ status: string; hold?: { label: string; code: string; detail: string } | null }> = ({ status, hold }) => {
     const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.TODO;
-    return <TicketPill tone={STATUS_TONES[status] || 'neutral'}><span aria-hidden="true" className="td-pill-dot" />{cfg.label}</TicketPill>;
+    // A ticket waiting on a request raised from it says what it waits on, once, instead of "Waiting Vendor".
+    const held = status === 'WAITING_VENDOR' && hold ? hold : null;
+    return (
+        <TicketPill tone={STATUS_TONES[status] || 'neutral'} title={held ? `${held.code} · ${held.detail}` : undefined}>
+            <span aria-hidden="true" className="td-pill-dot" />{held ? held.label : cfg.label}
+        </TicketPill>
+    );
 };
 
 /** Readonly priority bubble; `short` uses the compact label (header). */
