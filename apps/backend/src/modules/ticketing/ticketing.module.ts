@@ -25,6 +25,7 @@ import { NotificationModule } from '../notifications/notification.module';
 import { SlaConfigModule } from '../sla-config/sla-config.module';
 import { SlaClockService } from './services/sla-clock.service';
 import { WorkloadModule } from '../workload/workload.module';
+import { TicketLinkedRequestService } from './services/ticket-linked-request.service';
 import { ModuleAssignmentPolicyModule } from './module-assignment-policy.module';
 
 import { SavedReply } from './entities/saved-reply.entity';
@@ -115,6 +116,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
     ],
     providers: [
         // Core services (Split)
+        TicketLinkedRequestService,
         TicketCreateService,
         TicketUpdateService,
         SlaClockService,
@@ -149,6 +151,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         TicketChatPushListener,
     ],
     exports: [
+        TicketLinkedRequestService,
         TicketCreateService,
         TicketUpdateService,
         SlaClockService,

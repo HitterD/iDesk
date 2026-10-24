@@ -53,6 +53,31 @@ export function useAnswerProposal(ticketId: string) {
     return { accept, decline, withdraw };
 }
 
+/** The requester's answers about the installation (schedule, result), straight from the ticket card. */
+export function useRequesterSteps(ticketId: string) {
+    const refresh = useRefresh(ticketId);
+    const fail = (fallback: string) => (error: Error) => toast.error(error.message || fallback);
+    const pickSlot = useMutation({
+        mutationFn: ticketHardwareApi.pickSlot,
+        onSuccess: async () => { await refresh(); toast.success('Jadwal pemasangan dipilih'); },
+        onError: fail('Gagal memilih jadwal'),
+    });
+    const confirmSchedule = useMutation({
+        mutationFn: ticketHardwareApi.confirmSchedule,
+        onSuccess: async () => { await refresh(); toast.success('Jadwal pemasangan disetujui'); },
+        onError: fail('Gagal menyetujui jadwal'),
+    });
+    const confirmInstallation = useMutation({
+        mutationFn: ticketHardwareApi.confirmInstallation,
+        onSuccess: async (_data, { ok }) => {
+            await refresh();
+            toast.success(ok ? 'Terima kasih, pemasangan dikonfirmasi' : 'Masalah dilaporkan ke tim IT');
+        },
+        onError: fail('Gagal mengirim konfirmasi'),
+    });
+    return { pickSlot, confirmSchedule, confirmInstallation };
+}
+
 const NOT_HOLDING = new Set(['DRAFT', 'REJECTED', 'CANCELLED', 'COMPLETED', 'CLOSED']);
 
 /**

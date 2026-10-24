@@ -106,6 +106,17 @@ describe('InstallationScheduleService', () => {
                 .rejects.toThrow(/counterparty/i);
         });
 
+        it('confirms the newest PROPOSED schedule, not a retired one (after a reschedule)', async () => {
+            scheduleRepo.findOne.mockResolvedValue({
+                id: 'sch-2', requestId: 'r1', status: InstallStatus.PROPOSED, proposedBy: 't1', technicianId: 't1',
+            });
+            requestRepo.findOne.mockResolvedValue({ id: 'r1', status: RequestStatus.INSTALLATION, requesterId: 'u1' });
+            await svc.confirm('r1', { id: 'u1', role: 'USER' });
+            expect(scheduleRepo.findOne).toHaveBeenCalledWith({
+                where: { requestId: 'r1', status: InstallStatus.PROPOSED }, order: { createdAt: 'DESC' },
+            });
+        });
+
         it('rejects confirm when not in PROPOSED', async () => {
             scheduleRepo.findOne.mockResolvedValue({
                 id: 'sch-1', requestId: 'r1', status: InstallStatus.CONFIRMED, proposedBy: 'u1', technicianId: 't1',

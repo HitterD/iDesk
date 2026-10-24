@@ -16,7 +16,7 @@ export interface TicketActivityChange {
 /** Steps of a hardware request proposed from the ticket, as told in the ticket's chat. */
 export type HardwareTicketPhase =
     | 'PROPOSED' | 'SUBMITTED' | 'DECLINED' | 'WITHDRAWN' | 'APPROVED' | 'REJECTED' | 'PROCUREMENT_DONE'
-    | 'SCHEDULE_PROPOSED' | 'SCHEDULED' | 'INSTALLED' | 'COMPLETED' | 'CANCELLED';
+    | 'SCHEDULE_PROPOSED' | 'SCHEDULED' | 'INSTALLED' | 'ISSUE_REPORTED' | 'COMPLETED' | 'CANCELLED';
 
 export interface TicketSystemEvent {
     v: 1;

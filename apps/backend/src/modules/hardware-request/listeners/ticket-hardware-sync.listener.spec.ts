@@ -33,4 +33,14 @@ describe('TicketHardwareSyncListener', () => {
         await listener.onScheduleConfirmed({ ...base, scheduleId: 's-1', confirmedBy: 'user-1', technicianId: 't-1' });
         expect(link.record).toHaveBeenCalledWith('req-1', 'SCHEDULED', { actorId: 'user-1', at: new Date('2026-10-27T02:00:00Z') });
     });
+
+    it('puts the requester\'s complaint about the installation on the ticket', async () => {
+        await listener.onIssueReported({ ...base, actorId: 'user-1', comments: 'Monitor tidak menyala' });
+        expect(link.record).toHaveBeenCalledWith('req-1', 'ISSUE_REPORTED', { actorId: 'user-1', reason: 'Monitor tidak menyala' });
+    });
+
+    it('posts a moved installation as a new time to confirm', async () => {
+        await listener.onRescheduled({ ...base, actorId: 'agent-1', oldId: 's-0', newId: 's-1', technicianId: 't-1', reason: 'Teknisi sakit' });
+        expect(link.record).toHaveBeenCalledWith('req-1', 'SCHEDULE_PROPOSED', { actorId: 'agent-1', reason: 'Teknisi sakit', at: new Date('2026-10-27T02:00:00Z') });
+    });
 });
