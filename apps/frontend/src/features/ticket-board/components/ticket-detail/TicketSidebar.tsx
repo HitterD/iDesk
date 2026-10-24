@@ -43,8 +43,9 @@ import { SlaProgress } from './SlaProgress';
 import { toDisplayName } from './messageThread';
 import { useAuth } from '@/stores/useAuth';
 import { Button } from '@/components/ui/button';
-import { TicketHardwareSection, statusSentence, useHardwareHold } from '../ticket-hardware';
-import { TicketEFormSection, eformStatusSentence, useEFormHold } from '../ticket-eform';
+import { TicketHardwareSection } from '../ticket-hardware';
+import { TicketEFormSection } from '../ticket-eform';
+import { useTicketHold } from './useTicketHold';
 
 interface TicketSidebarProps {
     ticket: TicketDetail;
@@ -90,8 +91,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     const isClosed = isTerminalStatus(ticket.status);
     // Requester-side viewers (e.g. the agent who filed it) can't change properties.
     const isLocked = isClosed || ticket.viewerAccess === 'requester';
-    const hardwareHold = useHardwareHold(ticket);
-    const eformHold = useEFormHold(ticket);
+    const hold = useTicketHold(ticket);
     const [copiedEmail, setCopiedEmail] = useState(false);
     const [forwardOpen, setForwardOpen] = useState(false);
     const [reminderModalOpen, setReminderModalOpen] = useState(false);
@@ -399,10 +399,8 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 />
                 <div className="td-kvs">
                     {ticket.status === 'WAITING_VENDOR' ? (<>
-                        {hardwareHold ? (
-                            <InfoRow label="Menunggu HR"><span title={statusSentence(hardwareHold)}>{hardwareHold.requestNumber}</span></InfoRow>
-                        ) : eformHold ? (
-                            <InfoRow label="Menunggu E-Form"><span title={eformStatusSentence(eformHold)}>{eformHold.code}</span></InfoRow>
+                        {hold ? (
+                            <InfoRow label={hold.label}><span title={hold.detail}>{hold.code}</span></InfoRow>
                         ) : <InfoRow label="Janji vendor">
                             <span className="td-vendor-visit">
                                 <span className={cn(ticket.vendorVisitAt && new Date(ticket.vendorVisitAt) < new Date() && 'is-late')}>

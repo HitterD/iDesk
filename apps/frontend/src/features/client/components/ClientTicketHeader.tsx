@@ -12,8 +12,7 @@ import type { TicketDetail } from '../../ticket-board/components/ticket-detail/t
 import { isTerminalStatus } from '../../ticket-board/components/ticket-detail/constants';
 import { PriorityPill, StatusPill } from '../../ticket-board/components/ticket-detail/TicketPropertyRows';
 import { SelfResolveButton } from './resolution/SelfResolveButton';
-import { statusSentence, useHardwareHold } from '../../ticket-board/components/ticket-hardware';
-import { eformStatusSentence, useEFormHold } from '../../ticket-board/components/ticket-eform';
+import { useTicketHold, type TicketHold } from '../../ticket-board/components/ticket-detail/useTicketHold';
 
 /** SLA countdown recomputed every minute */
 const SLA_TICK_MS = 60_000;
@@ -37,10 +36,7 @@ const formatTimeRemaining = (diffMs: number): string => {
 };
 
 /** Requester-facing SLA label. WAITING_VENDOR is paused: remaining business time only, never a target date. */
-/** What a waiting ticket is waiting on, when it is a request raised from it rather than a vendor. */
-type RequestHold = { label: string; requestNumber: string; detail: string };
-
-const useRequesterSla = (ticket: TicketDetail, hardwareHold: RequestHold | null) => {
+const useRequesterSla = (ticket: TicketDetail, hold: TicketHold | null) => {
     const slaClock = useSlaClock();
     const [now, setNow] = useState(() => new Date());
     useEffect(() => {
@@ -51,10 +47,11 @@ const useRequesterSla = (ticket: TicketDetail, hardwareHold: RequestHold | null)
     return useMemo((): { state: SlaState; label: string; tooltip?: string } => {
         if (isTerminalStatus(ticket.status)) return { state: 'resolved', label: 'Selesai' };
         if (ticket.status === 'WAITING_VENDOR') {
-            if (hardwareHold) return { state: 'paused', label: hardwareHold.label, tooltip: `${hardwareHold.requestNumber} · ${hardwareHold.detail}` };
+            // The status pill already says what the ticket waits on; this pill only says the clock is stopped.
+            if (hold) return { state: 'paused', label: 'SLA dijeda', tooltip: `${hold.code} · ${hold.detail}` };
             return {
                 state: 'paused',
-                label: 'Menunggu vendor',
+                label: 'SLA dijeda',
                 tooltip: ticket.slaRemainingMinutes != null
                     ? `Dijeda · sisa ${formatSlaDuration(ticket.slaRemainingMinutes * MS_PER_MINUTE)}`
                     : 'Dijeda',
@@ -68,7 +65,7 @@ const useRequesterSla = (ticket: TicketDetail, hardwareHold: RequestHold | null)
         }
         if (diff <= 0) return { state: 'overdue', label: 'Lewat target' };
         return { state: diff < WARNING_MS ? 'warning' : 'ok', label: `SLA: ${formatTimeRemaining(diff)}` };
-    }, [ticket.status, ticket.slaTarget, ticket.priority, ticket.slaRemainingMinutes, now, slaClock, hardwareHold]);
+    }, [ticket.status, ticket.slaTarget, ticket.priority, ticket.slaRemainingMinutes, now, slaClock, hold]);
 };
 
 interface ClientTicketHeaderProps {
@@ -107,14 +104,8 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
     const navigate = useNavigate();
     const location = useLocation();
     const [copied, setCopied] = useState(false);
-    const hold = useHardwareHold(ticket);
-    const accessHold = useEFormHold(ticket);
-    const hardwareHold = useMemo<RequestHold | null>(() => {
-        if (hold) return { label: 'Menunggu hardware', requestNumber: hold.requestNumber, detail: statusSentence(hold) };
-        if (accessHold) return { label: 'Menunggu akses E-Form', requestNumber: accessHold.code, detail: eformStatusSentence(accessHold) };
-        return null;
-    }, [hold, accessHold]);
-    const sla = useRequesterSla(ticket, hardwareHold);
+    const hold = useTicketHold(ticket);
+    const sla = useRequesterSla(ticket, hold);
     const SlaIcon = SLA_ICONS[sla.state];
 
     const isTerminal = isTerminalStatus(ticket.status);
@@ -150,7 +141,7 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
                         <span>#{ticketNumber}</span>
                         {copied ? <Check className="text-emerald-600" aria-hidden="true" /> : <Copy aria-hidden="true" />}
                     </button>
-                    <StatusPill status={ticket.status} />
+                    <StatusPill status={ticket.status} hold={hold} />
                     <TicketPill tone={SLA_TONES[sla.state]} title={sla.tooltip}>
                         <SlaIcon className={cn('h-3 w-3 shrink-0', sla.state === 'overdue' && 'animate-pulse')} aria-hidden="true" />
                         <span className="tabular-nums">{sla.label}</span>

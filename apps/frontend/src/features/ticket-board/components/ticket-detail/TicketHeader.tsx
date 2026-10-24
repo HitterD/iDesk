@@ -25,6 +25,7 @@ import { STATUS_CONFIG, isTerminalStatus } from './constants';
 import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
 import { formatSlaDuration } from '@/lib/utils/slaDuration';
 import { PriorityPill, StatusPill } from './TicketPropertyRows';
+import { useTicketHold } from './useTicketHold';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
@@ -83,6 +84,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
     const navigate = useNavigate();
     const location = useLocation();
     const [copied, setCopied] = useState(false);
+    const hold = useTicketHold(ticket);
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
     const [showResolveConfirm, setShowResolveConfirm] = useState(false);
     const [currentTime, setCurrentTime] = useState<Date>(new Date());
@@ -358,7 +360,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                         <span>#{ticketNumber}</span>
                         {copied ? <Check className="text-emerald-600" aria-hidden="true" /> : <Copy aria-hidden="true" />}
                     </button>
-                    <StatusPill status={ticket.status} />
+                    <StatusPill status={ticket.status} hold={hold} />
                     <TicketPill tone={slaTone} title={slaTooltip}>
                         <SlaIcon className={cn('h-3 w-3 shrink-0', slaStatus === 'overdue' && 'animate-pulse')} aria-hidden="true" />
                         <span className="tabular-nums">{resolutionTime}</span>
