@@ -94,6 +94,8 @@ export interface HardwareRequest {
     completedAt?: string | null;
     reviewedBy?: string | null; approvedBy?: string | null; procuredBy?: string | null;
     rejectReason?: string | null;
+    /** IT support ticket it was proposed from; that ticket follows its progress. */
+    sourceTicketId?: string | null;
     version: number;
     items: HardwareRequestItem[];
     installationSchedule?: InstallationSchedule | null;

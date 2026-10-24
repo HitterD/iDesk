@@ -132,3 +132,23 @@ describe('TicketChat round-2 actions', () => {
         }
     });
 });
+
+describe('TicketChat hardware request entry', () => {
+    beforeAll(() => { Element.prototype.scrollIntoView = vi.fn(); });
+    beforeEach(() => { currentUser = AGENT; });
+
+    const openPlus = () => fireEvent.click(screen.getByRole('button', { name: 'Lampiran & sticker' }));
+
+    it('offers ICT a hardware request in the + menu of an IT support ticket', () => {
+        renderChat();
+        openPlus();
+        expect(screen.getByRole('menuitem', { name: /Hardware request/ })).toBeInTheDocument();
+    });
+
+    it('keeps it out of the requester menu', () => {
+        currentUser = REQUESTER;
+        renderChat();
+        openPlus();
+        expect(screen.queryByRole('menuitem', { name: /Hardware request/ })).not.toBeInTheDocument();
+    });
+});

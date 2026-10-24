@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
 import { PDFPreviewModal, usePDFPreview } from '@/features/reports/components/PDFPreviewModal';
+import { ProposeHardwareDialog, TicketHardwareMessage, canProposeHardware } from '../ticket-hardware';
 
 interface TicketChatProps {
     ticket: TicketDetail;
@@ -88,6 +89,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
     const [highlightedId, setHighlightedId] = useState<string | null>(null);
     const [messageReactions, setMessageReactions] = useState<Record<string, Reaction[]>>({});
+    const [proposingHardware, setProposingHardware] = useState(false);
     const { user } = useAuth();
     const pdfPreview = usePDFPreview();
     const isTicketClosed = ticket.status === 'CLOSED';
@@ -380,6 +382,20 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                         const newDay = !prev || !isSameDay(prev.createdAt, message.createdAt);
                         const separator = newDay ? <DateSeparator date={message.createdAt} /> : null;
 
+                        const hardwareEvent = message.systemEvent?.hardwareRequest;
+                        if (hardwareEvent) {
+                            return (
+                                <React.Fragment key={message.id}>
+                                    {separator}
+                                    <div className="chat-system-event" data-system-event={message.id}>
+                                        <TicketHardwareMessage ticketId={ticket.id} event={hardwareEvent} createdAt={message.createdAt}
+                                            actorName={message.systemEvent?.actor?.name} reason={message.systemEvent?.reason}
+                                            isRequester={Boolean(user?.id && user.id === ticket.user?.id)} />
+                                    </div>
+                                </React.Fragment>
+                            );
+                        }
+
                         if (!isBubble(message)) {
                             // Messages from before structured events are rebuilt from their text, so history looks alike.
                             const activity = message.systemEvent?.changes?.length ? message.systemEvent : legacyActivityEvent(message.content);
@@ -479,7 +495,13 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     onSendSticker={handleSendSticker}
                     onTypingStart={onTypingStart}
                     onTypingStop={onTypingStop}
+                    onProposeHardware={canProposeHardware(ticket, isAgentView) ? () => setProposingHardware(true) : undefined}
                 />
+            )}
+
+            {canProposeHardware(ticket, isAgentView) && (
+                <ProposeHardwareDialog open={proposingHardware} onOpenChange={setProposingHardware} ticketId={ticket.id}
+                    ticketNumber={ticket.ticketNumber} requesterName={toDisplayName(ticket.user?.fullName)} defaultReason={ticket.title} />
             )}
 
             <PDFPreviewModal

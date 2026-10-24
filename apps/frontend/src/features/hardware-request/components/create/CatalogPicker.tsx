@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 
 const CATS: ItemCategory[] = ['LAPTOP', 'DESKTOP', 'MONITOR', 'ACCESSORY', 'NETWORK', 'SOFTWARE', 'OTHER'];
 
-const CATEGORY_ICONS: Record<ItemCategory, React.ElementType> = {
+export const CATEGORY_ICONS: Record<ItemCategory, React.ElementType> = {
     LAPTOP: Laptop,
     DESKTOP: Monitor,
     MONITOR: Tv,

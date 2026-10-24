@@ -12,6 +12,7 @@ import { SlaProgress } from '../../ticket-board/components/ticket-detail/SlaProg
 import { TicketParticipantsSection } from '../../ticket-board/components/ticket-detail/TicketParticipantsSection';
 import { toDisplayName } from '../../ticket-board/components/ticket-detail/messageThread';
 import { PriorityPill, PropertyRow, StatusPill } from '../../ticket-board/components/ticket-detail/TicketPropertyRows';
+import { TicketHardwareSection } from '../../ticket-board/components/ticket-hardware';
 
 const PAUSED_STATUS = 'WAITING_VENDOR';
 const COPIED_RESET_MS = 2000;
@@ -138,6 +139,8 @@ export const ClientTicketInspector: React.FC<{ ticket: TicketDetail }> = ({ tick
                 canAddUsers={canAddParticipants}
                 isClosed={isClosed}
             />
+
+            <TicketHardwareSection ticketId={ticket.id} />
 
             {ticket.isHardwareInstallation && <HardwareSchedule ticket={ticket} />}
         </div>

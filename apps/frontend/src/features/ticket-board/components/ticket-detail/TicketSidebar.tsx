@@ -43,6 +43,7 @@ import { SlaProgress } from './SlaProgress';
 import { toDisplayName } from './messageThread';
 import { useAuth } from '@/stores/useAuth';
 import { Button } from '@/components/ui/button';
+import { TicketHardwareSection } from '../ticket-hardware';
 
 interface TicketSidebarProps {
     ticket: TicketDetail;
@@ -486,6 +487,9 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 canAddUsers={canAddParticipants}
                 isClosed={isClosed}
             />
+
+            {/* Hardware requests proposed from this ticket */}
+            <TicketHardwareSection ticketId={ticket.id} />
 
             {/* 4. Hardware Installation Schedule (if applicable) */}
             {ticket.isHardwareInstallation && (
