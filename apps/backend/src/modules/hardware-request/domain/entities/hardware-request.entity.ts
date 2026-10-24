@@ -20,6 +20,7 @@ import { InstallationSchedule } from './installation-schedule.entity';
 @Entity('hardware_requests')
 @Index(['status', 'createdAt'])
 @Index(['requesterId', 'createdAt'])
+@Index('IDX_hardware_requests_sourceTicketId', ['sourceTicketId'])
 export class HardwareRequest {
     @PrimaryGeneratedColumn('uuid')
     id: string;
@@ -98,6 +99,14 @@ export class HardwareRequest {
 
     @Column({ type: 'text', nullable: true })
     rejectReason: string | null;
+
+    /** IT support ticket this request was proposed from; that ticket follows the request's progress. */
+    @Column({ type: 'uuid', nullable: true })
+    sourceTicketId: string | null;
+
+    /** ICT staff member who proposed it from the ticket; the requester confirms it by submitting. */
+    @Column({ type: 'uuid', nullable: true })
+    proposedById: string | null;
 
     @VersionColumn()
     version: number;

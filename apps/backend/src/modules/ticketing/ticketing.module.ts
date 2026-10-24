@@ -152,6 +152,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         TicketCreateService,
         TicketUpdateService,
         SlaClockService,
+        TicketVendorVisitService,
         TicketMessagingService,
         TicketQueryService,
         TicketTemplateService,

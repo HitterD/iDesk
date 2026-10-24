@@ -14,6 +14,7 @@ import { SlaClockService } from '../../ticketing/services/sla-clock.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { SiteActor } from '../../../shared/core/utils/site-scope.util';
 import { DEFAULT_TIMEZONE } from '../../sla-config/business-hours.calc';
+import { generateNextTicketNumber } from '../../ticketing/utils/ticket-number-generator';
 
 /** Schedule times are shown in WIB; the server clock runs in UTC. */
 const TIME_FORMAT: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', timeZone: DEFAULT_TIMEZONE };
@@ -63,6 +64,10 @@ export class HardwareScheduleTicketListener {
                 return;
             }
 
+            // Raised from an IT support ticket: that ticket follows the request (TicketHardwareSyncListener),
+            // so no separate installation ticket.
+            if (req.sourceTicketId) return;
+
             // Check if ticket already created for this schedule to avoid duplicate
             if (sched.ticketId) {
                 this.logger.log(`Ticket already exists for schedule ${sched.id}: ${sched.ticketId}`);
@@ -105,37 +110,11 @@ export class HardwareScheduleTicketListener {
                 const messageRepo = manager.getRepository(TicketMessage);
                 const schedRepo = manager.getRepository(InstallationSchedule);
 
-                const date = new Date();
-                const day = date.getDate().toString().padStart(2, '0');
-                const month = (date.getMonth() + 1).toString().padStart(2, '0');
-                const year = date.getFullYear().toString().slice(-2);
-                const dateStr = `${day}${month}${year}`;
-
                 const division = requester?.department?.name
                     ? requester.department.name.substring(0, 3).toUpperCase()
                     : 'ICT';
-
-                const todayStart = new Date(date);
-                todayStart.setHours(0, 0, 0, 0);
-
-                const latestTicket = await manager.createQueryBuilder(Ticket, 'ticket')
-                    .where('ticket.createdAt >= :todayStart', { todayStart })
-                    .orderBy('ticket.createdAt', 'DESC')
-                    .setLock('pessimistic_write')
-                    .getOne();
-
-                let newNumber = 1;
-                if (latestTicket && latestTicket.ticketNumber) {
-                    const parts = latestTicket.ticketNumber.split('-');
-                    if (parts.length === 3) {
-                        const lastNumber = parseInt(parts[2], 10);
-                        if (!isNaN(lastNumber)) {
-                            newNumber = lastNumber + 1;
-                        }
-                    }
-                }
-                const numberStr = newNumber.toString().padStart(4, '0');
-                const ticketNumber = `${dateStr}-${division}-${numberStr}`;
+                // Shared locked generator: the old inline copy missed soft-deleted tickets and collided ("already exists").
+                const ticketNumber = await generateNextTicketNumber(manager, division);
 
                 const title = `[Hardware Installation] ${req.requestNumber} - ${itemSummary}`;
                 const description = [

@@ -46,7 +46,14 @@ export class HardwareRequestCommandService {
         private readonly emitter: EventEmitter2,
     ) {}
 
-    async createDraft(userId: string, siteId: string | null, userRole: UserRole, dto: CreateRequestDto): Promise<HardwareRequest> {
+    /**
+     * `origin` marks a draft that ICT staff proposed from an IT support ticket on the requester's behalf
+     * (`userId` is then that requester); the requester confirms it by submitting.
+     */
+    async createDraft(
+        userId: string, siteId: string | null, userRole: UserRole, dto: CreateRequestDto,
+        origin?: { sourceTicketId: string; proposedById: string },
+    ): Promise<HardwareRequest> {
         return this.dataSource.transaction(async (mgr) => {
             const requestRepo = mgr.getRepository(HardwareRequest);
             const activityRepo = mgr.getRepository(HardwareRequestActivity);
@@ -94,16 +101,18 @@ export class HardwareRequestCommandService {
                 justification: dto.justification,
                 status: RequestStatus.DRAFT,
                 items: itemsWithSnapshot as any,
+                sourceTicketId: origin?.sourceTicketId ?? null,
+                proposedById: origin?.proposedById ?? null,
             });
             const saved = await requestRepo.save(entity);
 
             const activity = activityRepo.create({
                 requestId: saved.id,
-                actorId: userId,
+                actorId: origin?.proposedById ?? userId,
                 action: ActivityAction.CREATED,
                 fromStatus: null,
                 toStatus: RequestStatus.DRAFT,
-                metadata: { requestNumber: saved.requestNumber },
+                metadata: origin ? { requestNumber: saved.requestNumber, sourceTicketId: origin.sourceTicketId } : { requestNumber: saved.requestNumber },
             });
             await activityRepo.save(activity);
 
