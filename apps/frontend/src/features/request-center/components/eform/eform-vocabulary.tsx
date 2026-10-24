@@ -14,6 +14,8 @@ export enum EFormStatus {
     PENDING_ICT = 'PENDING_ICT',
     CONFIRMED = 'CONFIRMED',
     REJECTED = 'REJECTED',
+    /** A proposal from a ticket the requester declined or IT withdrew before it was signed. */
+    CANCELLED = 'CANCELLED',
 }
 
 /** Synology NAS account status mode */
@@ -70,6 +72,13 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
         icon: CheckCircle2,
         badge: 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50',
         solid: 'bg-emerald-600',
+    },
+    [EFormStatus.CANCELLED]: {
+        label: 'Dibatalkan',
+        hint: 'Usulan tidak dilanjutkan',
+        icon: Ban,
+        badge: 'bg-muted text-muted-foreground border-border',
+        solid: 'bg-muted-foreground/40',
     },
     [EFormStatus.REJECTED]: {
         label: 'Ditolak',

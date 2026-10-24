@@ -112,6 +112,8 @@ export const useCreateEformRequest = () => {
       termsAccepted: boolean;
       signatureData: string;
       managerId?: string;
+      /** Completes a proposal IT drafted from a ticket instead of creating a new request. */
+      draftId?: string;
     }) => {
       const { data } = await api.post(API_BASE, payload);
       return data;

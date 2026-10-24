@@ -13,6 +13,7 @@ import { isTerminalStatus } from '../../ticket-board/components/ticket-detail/co
 import { PriorityPill, StatusPill } from '../../ticket-board/components/ticket-detail/TicketPropertyRows';
 import { SelfResolveButton } from './resolution/SelfResolveButton';
 import { statusSentence, useHardwareHold } from '../../ticket-board/components/ticket-hardware';
+import { eformStatusSentence, useEFormHold } from '../../ticket-board/components/ticket-eform';
 
 /** SLA countdown recomputed every minute */
 const SLA_TICK_MS = 60_000;
@@ -36,7 +37,10 @@ const formatTimeRemaining = (diffMs: number): string => {
 };
 
 /** Requester-facing SLA label. WAITING_VENDOR is paused: remaining business time only, never a target date. */
-const useRequesterSla = (ticket: TicketDetail, hardwareHold: { requestNumber: string; detail: string } | null) => {
+/** What a waiting ticket is waiting on, when it is a request raised from it rather than a vendor. */
+type RequestHold = { label: string; requestNumber: string; detail: string };
+
+const useRequesterSla = (ticket: TicketDetail, hardwareHold: RequestHold | null) => {
     const slaClock = useSlaClock();
     const [now, setNow] = useState(() => new Date());
     useEffect(() => {
@@ -47,7 +51,7 @@ const useRequesterSla = (ticket: TicketDetail, hardwareHold: { requestNumber: st
     return useMemo((): { state: SlaState; label: string; tooltip?: string } => {
         if (isTerminalStatus(ticket.status)) return { state: 'resolved', label: 'Selesai' };
         if (ticket.status === 'WAITING_VENDOR') {
-            if (hardwareHold) return { state: 'paused', label: 'Menunggu hardware', tooltip: `${hardwareHold.requestNumber} · ${hardwareHold.detail}` };
+            if (hardwareHold) return { state: 'paused', label: hardwareHold.label, tooltip: `${hardwareHold.requestNumber} · ${hardwareHold.detail}` };
             return {
                 state: 'paused',
                 label: 'Menunggu vendor',
@@ -104,7 +108,12 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
     const location = useLocation();
     const [copied, setCopied] = useState(false);
     const hold = useHardwareHold(ticket);
-    const hardwareHold = useMemo(() => (hold ? { requestNumber: hold.requestNumber, detail: statusSentence(hold) } : null), [hold]);
+    const accessHold = useEFormHold(ticket);
+    const hardwareHold = useMemo<RequestHold | null>(() => {
+        if (hold) return { label: 'Menunggu hardware', requestNumber: hold.requestNumber, detail: statusSentence(hold) };
+        if (accessHold) return { label: 'Menunggu akses E-Form', requestNumber: accessHold.code, detail: eformStatusSentence(accessHold) };
+        return null;
+    }, [hold, accessHold]);
     const sla = useRequesterSla(ticket, hardwareHold);
     const SlaIcon = SLA_ICONS[sla.state];
 

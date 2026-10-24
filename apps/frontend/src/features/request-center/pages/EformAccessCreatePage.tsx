@@ -27,7 +27,7 @@ import {
   FolderPlus,
   Info,
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -195,6 +195,13 @@ export const EformAccessCreatePage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const renewFrom = searchParams.get('renewFrom');
   const { data: sourceRequest } = useEformDetail(renewFrom || '');
+  // A proposal IT drafted from a ticket: prefilled here, signed by the requester, then back to the ticket.
+  const proposalId = searchParams.get('proposal');
+  const proposalTicketId = searchParams.get('ticket');
+  const { data: proposal } = useEformDetail(proposalId || '');
+  const prefillSource = sourceRequest ?? proposal;
+  const queryClient = useQueryClient();
+  const ticketPath = proposalTicketId ? `${basePath === '/client' ? '/client' : ''}/tickets/${proposalTicketId}` : null;
   const hasPrefilledRef = useRef(false);
 
   const [formType, setFormType] = useState<FormType>('VPN');
@@ -319,30 +326,37 @@ export const EformAccessCreatePage: React.FC = () => {
     }
   }, [userProfile, remoteDepartments, user?.departmentId]);
 
-  // Handle prefill from renewal
+  // Handle prefill from a renewal or from a ticket proposal
   useEffect(() => {
-    if (sourceRequest && !hasPrefilledRef.current) {
+    if (prefillSource && !hasPrefilledRef.current) {
       hasPrefilledRef.current = true;
-      if (['VPN', 'WEBSITE', 'NETWORK', 'FLASHDISK', 'EMAIL', 'SYNOLOGY_NAS'].includes(sourceRequest.formType)) {
-        setFormType(sourceRequest.formType as FormType);
+      const isProposal = !sourceRequest;
+      if (isProposal && prefillSource.status !== 'DRAFT') {
+        toast.info('Usulan ini sudah diajukan atau dibatalkan');
+        navigate(`${basePath}/eform-access/${prefillSource.id}`, { replace: true });
+        return;
+      }
+      const sourceRequestOrProposal = prefillSource;
+      if (['VPN', 'WEBSITE', 'NETWORK', 'FLASHDISK', 'EMAIL', 'SYNOLOGY_NAS'].includes(sourceRequestOrProposal.formType)) {
+        setFormType(sourceRequestOrProposal.formType as FormType);
       }
 
-      if (sourceRequest.requesterDepartment) {
-        setRequesterDepartment(sourceRequest.requesterDepartment);
+      if (sourceRequestOrProposal.requesterDepartment) {
+        setRequesterDepartment(sourceRequestOrProposal.requesterDepartment);
         hasUserManuallySelectedDeptRef.current = true;
       }
 
-      const idSnippet = sourceRequest.id.slice(0, 8).toUpperCase();
-      const renewReason = `Perpanjangan akses ${sourceRequest.formType} dari pengajuan sebelumnya (#${idSnippet})`;
+      const idSnippet = sourceRequestOrProposal.id.slice(0, 8).toUpperCase();
+      const renewReason = `Perpanjangan akses ${sourceRequestOrProposal.formType} dari pengajuan sebelumnya (#${idSnippet})`;
 
       const todayStr = new Date().toISOString().split('T')[0];
       let newDariTanggal = todayStr;
-      if (sourceRequest.formData?.sampaiTanggal && sourceRequest.formData.sampaiTanggal > todayStr) {
-        newDariTanggal = sourceRequest.formData.sampaiTanggal;
+      if (sourceRequestOrProposal.formData?.sampaiTanggal && sourceRequestOrProposal.formData.sampaiTanggal > todayStr) {
+        newDariTanggal = sourceRequestOrProposal.formData.sampaiTanggal;
       }
 
       let newSampaiTanggal = '';
-      const isPermanentSource = ['WEBSITE', 'EMAIL', 'SYNOLOGY_NAS'].includes(sourceRequest.formType);
+      const isPermanentSource = ['WEBSITE', 'EMAIL', 'SYNOLOGY_NAS'].includes(sourceRequestOrProposal.formType);
       if (!isPermanentSource) {
         const start = parseDateString(newDariTanggal) || new Date();
         const end = new Date(start);
@@ -352,50 +366,52 @@ export const EformAccessCreatePage: React.FC = () => {
 
       setFormData(prev => ({
         ...prev,
-        kebutuhanAkses: sourceRequest.formData?.kebutuhanAkses || prev.kebutuhanAkses,
-        alasan: renewReason,
-        dariTanggal: newDariTanggal,
-        sampaiTanggal: newSampaiTanggal,
+        kebutuhanAkses: sourceRequestOrProposal.formData?.kebutuhanAkses || prev.kebutuhanAkses,
+        alasan: isProposal ? sourceRequestOrProposal.formData?.alasan || prev.alasan : renewReason,
+        dariTanggal: isProposal ? prev.dariTanggal : newDariTanggal,
+        sampaiTanggal: isProposal ? prev.sampaiTanggal : newSampaiTanggal,
       }));
 
-      if (sourceRequest.requestedWebsites) {
-        setRequestedWebsites(sourceRequest.requestedWebsites);
+      if (sourceRequestOrProposal.requestedWebsites) {
+        setRequestedWebsites(sourceRequestOrProposal.requestedWebsites);
       }
-      if (sourceRequest.networkPurpose) {
-        setNetworkPurpose(sourceRequest.networkPurpose);
+      if (sourceRequestOrProposal.networkPurpose) {
+        setNetworkPurpose(sourceRequestOrProposal.networkPurpose);
       }
-      if (sourceRequest.formData?.hostname) {
-        setHostname(sourceRequest.formData.hostname);
+      if (sourceRequestOrProposal.formData?.hostname) {
+        setHostname(sourceRequestOrProposal.formData.hostname);
       }
-      if (sourceRequest.formData?.accessLevel) {
-        if (sourceRequest.formType === 'SYNOLOGY_NAS') {
-          setNasAccessLevel(sourceRequest.formData.accessLevel);
+      if (sourceRequestOrProposal.formData?.accessLevel) {
+        if (sourceRequestOrProposal.formType === 'SYNOLOGY_NAS') {
+          setNasAccessLevel(sourceRequestOrProposal.formData.accessLevel);
         } else {
-          setAccessLevel(sourceRequest.formData.accessLevel);
+          setAccessLevel(sourceRequestOrProposal.formData.accessLevel);
         }
       }
-      if (sourceRequest.formData?.flashdiskInfo) {
-        setFlashdiskInfo(sourceRequest.formData.flashdiskInfo);
+      if (sourceRequestOrProposal.formData?.flashdiskInfo) {
+        setFlashdiskInfo(sourceRequestOrProposal.formData.flashdiskInfo);
       }
-      if (sourceRequest.formData?.proposedEmail) {
-        setProposedEmail(sourceRequest.formData.proposedEmail);
+      if (sourceRequestOrProposal.formData?.proposedEmail) {
+        setProposedEmail(sourceRequestOrProposal.formData.proposedEmail);
       }
-      if (sourceRequest.formData?.accountType) {
-        setEmailAccountType(sourceRequest.formData.accountType);
+      if (sourceRequestOrProposal.formData?.accountType) {
+        setEmailAccountType(sourceRequestOrProposal.formData.accountType);
       }
-      if (sourceRequest.formData?.folderPath) {
-        setFolderPath(sourceRequest.formData.folderPath);
+      if (sourceRequestOrProposal.formData?.folderPath) {
+        setFolderPath(sourceRequestOrProposal.formData.folderPath);
       }
-      if (Array.isArray(sourceRequest.formData?.nasSelections)) {
-        setNasSelections(sourceRequest.formData.nasSelections);
+      if (Array.isArray(sourceRequestOrProposal.formData?.nasSelections)) {
+        setNasSelections(sourceRequestOrProposal.formData.nasSelections);
       }
-      if (Array.isArray(sourceRequest.formData?.screenshots)) {
-        setFolderScreenshots(sourceRequest.formData.screenshots);
+      if (Array.isArray(sourceRequestOrProposal.formData?.screenshots)) {
+        setFolderScreenshots(sourceRequestOrProposal.formData.screenshots);
       }
 
-      toast.info(`Memuat data pengajuan sebelumnya (#${idSnippet}) untuk perpanjangan akses`);
+      toast.info(isProposal
+        ? 'Usulan dari tim IT dimuat. Periksa, pilih atasan, lalu tanda tangani.'
+        : `Memuat data pengajuan sebelumnya (#${idSnippet}) untuk perpanjangan akses`);
     }
-  }, [sourceRequest]);
+  }, [prefillSource, sourceRequest, basePath, navigate]);
 
   const isPermanentAllowed = formType === 'WEBSITE' || formType === 'EMAIL' || formType === 'SYNOLOGY_NAS';
 
@@ -518,9 +534,12 @@ export const EformAccessCreatePage: React.FC = () => {
         termsAccepted,
         signatureData,
         managerId,
+        draftId: proposalId || undefined,
       });
       toast.success('Permintaan akses berhasil diajukan');
-      navigate(`${basePath}/eform-access/${result.id}`);
+      // The ticket's card, sidebar and status were cached before signing: re-read them on the way back.
+      if (proposalTicketId) await queryClient.invalidateQueries({ queryKey: ['ticket', proposalTicketId] });
+      navigate(ticketPath ?? `${basePath}/eform-access/${result.id}`);
     } catch {
       toast.error('Gagal mengirim permintaan');
     }
@@ -558,6 +577,18 @@ export const EformAccessCreatePage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
         {/* Left Column (8 cols): Main Form Bento Cards */}
         <div className="lg:col-span-8 space-y-6">
+          {/* Proposal Banner: IT drafted this from a ticket */}
+          {proposal && !sourceRequest && (
+            <div className="flex items-start gap-3 p-4 rounded-2xl bg-primary/10 border border-primary/20 text-xs text-foreground shadow-xs">
+              <FileEdit className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold text-primary">Usulan dari tim IT:</span> sebagian formulir sudah diisi untuk{' '}
+                <span className="font-mono font-bold">#{proposal.id.slice(0, 8).toUpperCase()}</span> ({getTypeConfig(proposal.formType).label}).
+                Periksa datanya, pilih atasan penyetuju, lalu tanda tangani. Setelah diajukan, Anda kembali ke tiket.
+              </div>
+            </div>
+          )}
+
           {/* Renewal Banner */}
           {renewFrom && sourceRequest && (
             <div className="flex items-start gap-3 p-4 rounded-2xl bg-primary/10 border border-primary/20 text-xs text-foreground shadow-xs">
