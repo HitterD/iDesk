@@ -14,6 +14,10 @@ export interface TicketActivityChange {
  * renders this instead of parsing the English sentence in `content`, which stays for email and search.
  */
 /** Steps of a hardware request proposed from the ticket, as told in the ticket's chat. */
+/** Steps of an e-form access request proposed from a ticket, as the ticket shows them. */
+export type EFormTicketPhase =
+    | 'PROPOSED' | 'DECLINED' | 'WITHDRAWN' | 'SUBMITTED' | 'MANAGER_APPROVED' | 'GRANTED' | 'REJECTED';
+
 export type HardwareTicketPhase =
     | 'PROPOSED' | 'SUBMITTED' | 'DECLINED' | 'WITHDRAWN' | 'APPROVED' | 'REJECTED' | 'PROCUREMENT_DONE'
     | 'SCHEDULE_PROPOSED' | 'SCHEDULED' | 'INSTALLED' | 'ISSUE_REPORTED' | 'COMPLETED' | 'CANCELLED';
@@ -25,6 +29,7 @@ export interface TicketSystemEvent {
     reason?: string | null;
     /** Set on messages about a hardware request linked to this ticket; the chat renders it as a card. */
     hardwareRequest?: { id: string; number: string; phase: HardwareTicketPhase; at?: string | null };
+    eformRequest?: { id: string; code: string; formType: string; phase: EFormTicketPhase };
 }
 
 export type TicketActivitySnapshot = Record<TicketActivityField, string | null>;

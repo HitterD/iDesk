@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, Not } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EFormRequest, EFormStatus, EFormType, EFormApproval, EFormSignature, EFormCredential } from './entities';
 import { EFormCredentialService } from './eform-credential.service';
@@ -17,6 +17,9 @@ import {
   CREDENTIAL_READER_ROLES,
   DIRECT_TO_ICT_FORM_TYPES,
 } from './eform-roles.constants';
+
+/** Proposals from a ticket that were never signed (or were dropped) stay out of the e-form lists. */
+const UNLISTED = [EFormStatus.DRAFT, EFormStatus.CANCELLED];
 
 /** Synology (and any future direct type) skips manager approval entirely. */
 const goesDirectToIct = (formType: EFormType): boolean =>
@@ -73,7 +76,8 @@ export class EFormRequestService {
       throw new BadRequestException('Atasan penyetuju wajib dipilih untuk jenis akses ini');
     }
 
-    const request = this.eformRequestRepository.create({
+    const draft = dto.draftId ? await this.loadOwnDraft(dto.draftId, userId) : null;
+    const fields = {
       formType: dto.formType,
       status: directToIct ? EFormStatus.PENDING_ICT : EFormStatus.PENDING_MANAGER,
       requesterId: userId,
@@ -86,7 +90,11 @@ export class EFormRequestService {
       currentApproverId: directToIct ? null : dto.managerId,
       siteId: requesterSiteId,
       submittedAt: new Date(),
-    });
+    };
+    // A draft keeps its id (and its link to the ticket it was proposed from); the requester's answers replace IT's.
+    const request = draft
+      ? this.eformRequestRepository.merge(draft, fields)
+      : this.eformRequestRepository.create(fields);
 
     const savedRequest = await this.eformRequestRepository.save(request);
 
@@ -277,9 +285,18 @@ export class EFormRequestService {
     };
   }
 
+  /** A proposal from a ticket that only its requester may complete, and only once. */
+  private async loadOwnDraft(draftId: string, userId: string): Promise<EFormRequest> {
+    const draft = await this.eformRequestRepository.findOne({ where: { id: draftId } });
+    if (!draft || draft.requesterId !== userId) throw new NotFoundException('Usulan akses tidak ditemukan');
+    if (draft.status !== EFormStatus.DRAFT) throw new BadRequestException('Usulan ini sudah diajukan atau dibatalkan');
+    return draft;
+  }
+
   async getMyRequests(userId: string) {
+    // Unsigned proposals live in their ticket until the requester submits them.
     return this.eformRequestRepository.find({
-      where: { requesterId: userId },
+      where: { requesterId: userId, status: Not(In(UNLISTED)) },
       order: { createdAt: 'DESC' },
     });
   }
@@ -294,13 +311,13 @@ export class EFormRequestService {
   async findAll(actor: SiteActor) {
     const scope = resolveSiteScope(actor);
     if (scope.mode === 'all') {
-      return this.eformRequestRepository.find({ order: { createdAt: 'DESC' } });
+      return this.eformRequestRepository.find({ where: { status: Not(In(UNLISTED)) }, order: { createdAt: 'DESC' } });
     }
     if (scope.mode === 'none') {
       return [];
     }
     return this.eformRequestRepository.find({
-      where: { siteId: scope.siteId as any },
+      where: { siteId: scope.siteId as any, status: Not(In(UNLISTED)) },
       order: { createdAt: 'DESC' },
     });
   }
@@ -361,7 +378,9 @@ export class EFormRequestService {
     const isICT = ICT_ROLES.includes(userRole);
     if (!isApprover && !isICT) throw new ForbiddenException('Not authorized to reject this request');
 
-    if (request.status === EFormStatus.CONFIRMED || request.status === EFormStatus.REJECTED) {
+    // Done requests stay done; an unsigned proposal from a ticket is withdrawn there, not rejected.
+    const closed = [EFormStatus.CONFIRMED, EFormStatus.REJECTED, EFormStatus.DRAFT, EFormStatus.CANCELLED];
+    if (closed.includes(request.status)) {
       throw new BadRequestException('Invalid state');
     }
 

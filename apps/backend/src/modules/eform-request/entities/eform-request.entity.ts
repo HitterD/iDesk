@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, Index } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { EFormApproval } from './eform-approval.entity';
 import { EFormSignature } from './eform-signature.entity';
@@ -17,7 +17,9 @@ export enum EFormStatus {
   PENDING_MANAGER = 'PENDING_MANAGER',
   PENDING_ICT = 'PENDING_ICT',
   CONFIRMED = 'CONFIRMED',
-  REJECTED = 'REJECTED'
+  REJECTED = 'REJECTED',
+  /** A proposal from a ticket that the requester declined or IT withdrew before it was signed. */
+  CANCELLED = 'CANCELLED',
 }
 
 @Entity('eform_requests')
@@ -70,6 +72,14 @@ export class EFormRequest {
 
   @Column({ type: 'varchar', nullable: true })
   currentApproverId: string | null;
+
+  /** Set when IT proposed this access from a ticket; the requester completes and signs the draft. */
+  @Index('IDX_eform_requests_sourceTicketId')
+  @Column({ type: 'uuid', nullable: true })
+  sourceTicketId: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  proposedById: string | null;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'currentApproverId' })

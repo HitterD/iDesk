@@ -23,6 +23,12 @@ export const ICT_ROLES: UserRole[] = [
  */
 export const CREDENTIAL_READER_ROLES: UserRole[] = [...ICT_ROLES, UserRole.MANAGER];
 
+/**
+ * Who may propose access from an IT support ticket: ICT plus the ticket's IT support agents. A proposal is only a
+ * draft; the requester still completes, signs and submits it, and approval runs as usual.
+ */
+export const EFORM_PROPOSER_ROLES: UserRole[] = [...ICT_ROLES, UserRole.AGENT];
+
 /** Form types that skip manager approval and go straight to IT. */
 export const DIRECT_TO_ICT_FORM_TYPES = ['SYNOLOGY_NAS'] as const;
 
