@@ -13,6 +13,16 @@ import { TicketActivityChange, TicketSystemEvent } from '../utils/ticket-activit
 
 const MINUTE_MS = 60_000;
 
+/**
+ * Where requests raised from a ticket live, and which statuses mean they no longer hold it. A DRAFT is a proposal the
+ * requester has not answered: it does not hold the ticket, but the ticket must not be closed over it either.
+ */
+const LINKED_SOURCES: ReadonlyArray<{ table: string; ended: readonly string[] }> = [
+    { table: 'hardware_requests', ended: ['REJECTED', 'CANCELLED', 'COMPLETED', 'CLOSED'] },
+    { table: 'eform_requests', ended: ['CONFIRMED', 'REJECTED', 'CANCELLED'] },
+];
+const PROPOSAL_STATUS = 'DRAFT';
+
 /** The request-specific part of a system message (e.g. `{ hardwareRequest }` or `{ eformRequest }`, plus a reason). */
 export type LinkedRequestEvent = Omit<TicketSystemEvent, 'v' | 'actor' | 'changes'>;
 
@@ -49,7 +59,8 @@ export class TicketLinkedRequestService {
                 const ticket = await manager.findOne(Ticket, { where: { id: phase.ticketId }, lock: { mode: 'pessimistic_write' } });
                 if (!ticket) return null;
                 const actor = phase.actorId ? await manager.findOne(User, { where: { id: phase.actorId } }) : null;
-                const changes = await this.moveTicket(manager, ticket, phase.target);
+                const target = await this.settleTarget(manager, ticket.id, phase);
+                const changes = await this.moveTicket(manager, ticket, target);
                 if (changes.length > 0) await manager.save(Ticket, ticket);
                 const systemEvent: TicketSystemEvent = {
                     v: 1,
@@ -70,6 +81,32 @@ export class TicketLinkedRequestService {
         } catch (err: any) {
             this.logger.error(`Failed to record a linked request step on ticket ${phase.ticketId}: ${err?.message ?? err}`);
         }
+    }
+
+    /**
+     * One ticket can carry several requests (a laptop and a VPN, say). The first to finish must not close the ticket
+     * or hand it back while another one is still running, and a finished request must not close it over a proposal
+     * nobody has answered yet: the ticket goes back to the agent instead.
+     */
+    private async settleTarget(manager: EntityManager, ticketId: string, phase: LinkedPhase): Promise<TicketStatus | undefined> {
+        const { target } = phase;
+        if (target !== TicketStatus.CLOSED && target !== TicketStatus.IN_PROGRESS) return target;
+        const selfId = phase.event.hardwareRequest?.id ?? phase.event.eformRequest?.id ?? null;
+        let running = 0;
+        let proposals = 0;
+        for (const { table, ended } of LINKED_SOURCES) {
+            const [row]: { running: string; proposals: string }[] = await manager.query(
+                `SELECT COUNT(*) FILTER (WHERE status::text <> ALL($3::text[]) AND status::text <> $4) AS running,
+                        COUNT(*) FILTER (WHERE status::text = $4) AS proposals
+                   FROM ${table} WHERE "sourceTicketId" = $1 AND ($2::uuid IS NULL OR id <> $2::uuid)`,
+                [ticketId, selfId, ended, PROPOSAL_STATUS],
+            );
+            running += Number(row?.running ?? 0);
+            proposals += Number(row?.proposals ?? 0);
+        }
+        if (running > 0) return undefined;
+        if (target === TicketStatus.CLOSED && proposals > 0) return TicketStatus.IN_PROGRESS;
+        return target;
     }
 
     /** Same clock rules as a manual WAITING_VENDOR wait, without a vendor appointment. */

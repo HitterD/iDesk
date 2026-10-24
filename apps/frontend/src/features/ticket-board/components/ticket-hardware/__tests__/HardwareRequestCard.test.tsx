@@ -111,6 +111,16 @@ describe('HardwareRequestCard', () => {
         expect(screen.getByRole('link', { name: 'HR-2026-0012' })).toHaveAttribute('href', '/client/hardware-requests/req-1');
     });
 
+    it('says the ticket was closed only when the step really closed it', () => {
+        const { unmount } = renderCard({ event: { ...proposed, phase: 'COMPLETED' }, ticketMove: 'closed' });
+        expect(screen.getByText(/selesai\. Tiket ditutup otomatis/)).toBeInTheDocument();
+        unmount();
+        // Another request of the ticket is still running: the ticket stays open, and the line does not claim otherwise.
+        renderCard({ event: { ...proposed, phase: 'COMPLETED' }, ticketMove: null });
+        expect(screen.getByText(/selesai/)).toBeInTheDocument();
+        expect(screen.queryByText(/ditutup otomatis/)).not.toBeInTheDocument();
+    });
+
     it('shows when the requester asked for another installation time, with why', () => {
         renderCard({ event: { ...proposed, phase: 'RESCHEDULE_REQUESTED' }, reason: 'Saya cuti hari itu' });
         expect(screen.getByText(/pemohon minta jadwal pemasangan lain/)).toBeInTheDocument();

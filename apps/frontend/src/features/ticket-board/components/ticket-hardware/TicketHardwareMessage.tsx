@@ -1,5 +1,6 @@
 import React from 'react';
 import { useHardwareBasePath } from '@/features/hardware-request/hooks/useHardwareBasePath';
+import type { LinkedTicketMove } from '../ticket-detail/ActivityEvent';
 import { HardwareRequestCard, type HardwarePhaseEvent } from './HardwareRequestCard';
 import { useTicketHardwareRequests } from './useTicketHardware';
 
@@ -10,6 +11,7 @@ interface TicketHardwareMessageProps {
     reason?: string | null;
     createdAt: string;
     isRequester: boolean;
+    ticketMove?: LinkedTicketMove;
 }
 
 /** A chat system message about a linked hardware request, joined with the request's live state. */

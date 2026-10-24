@@ -19,6 +19,8 @@ describe('TicketHardwareLinkService', () => {
             findOne: jest.fn(async (entity: any) => (entity.name === 'User' ? { id: 'user-1', fullName: 'Budi' } : ticket)),
             save: jest.fn(async (_e: unknown, row: any) => ({ id: 'msg-1', ...row })),
             create: jest.fn((_e: unknown, row: any) => row),
+            // The other requests raised from the ticket: [hardware_requests, eform_requests] counts of running and unanswered.
+            query: jest.fn(async () => [{ running: '0', proposals: '0' }]),
         };
         slaClock = { hold: jest.fn(), release: jest.fn() };
         vendorVisit = { clear: jest.fn() };
@@ -81,6 +83,49 @@ describe('TicketHardwareLinkService', () => {
 
         expect(ticket.status).toBe(TicketStatus.CLOSED);
         expect(ticket.closedAt).toBeInstanceOf(Date);
+    });
+
+    it('keeps waiting while another request raised from the ticket is still running', async () => {
+        ticket.status = TicketStatus.WAITING_VENDOR;
+        manager.query.mockResolvedValueOnce([{ running: '0', proposals: '0' }]).mockResolvedValueOnce([{ running: '1', proposals: '0' }]);
+
+        await service.record('req-1', 'COMPLETED');
+
+        expect(ticket.status).toBe(TicketStatus.WAITING_VENDOR);
+        expect(ticket.closedAt).toBeUndefined();
+        expect(message().systemEvent.changes).toEqual([]);
+    });
+
+    it('does not resume the ticket on a rejection while another request is still running', async () => {
+        ticket.status = TicketStatus.WAITING_VENDOR;
+        manager.query.mockResolvedValueOnce([{ running: '1', proposals: '0' }]);
+
+        await service.record('req-1', 'REJECTED');
+
+        expect(ticket.status).toBe(TicketStatus.WAITING_VENDOR);
+        expect(slaClock.release).not.toHaveBeenCalled();
+    });
+
+    it('hands the ticket back instead of closing it over a proposal nobody answered', async () => {
+        ticket.status = TicketStatus.WAITING_VENDOR;
+        manager.query.mockResolvedValueOnce([{ running: '0', proposals: '1' }]).mockResolvedValueOnce([{ running: '0', proposals: '0' }]);
+
+        await service.record('req-1', 'COMPLETED');
+
+        expect(ticket.status).toBe(TicketStatus.IN_PROGRESS);
+        expect(message().systemEvent.changes).toEqual([{ field: 'status', from: 'WAITING_VENDOR', to: 'IN_PROGRESS' }]);
+    });
+
+    it('looks at the other requests of this ticket only, never the one that just changed', async () => {
+        ticket.status = TicketStatus.WAITING_VENDOR;
+
+        await service.record('req-1', 'COMPLETED');
+
+        const [sql, params] = manager.query.mock.calls[0];
+        expect(sql).toContain('"sourceTicketId" = $1');
+        expect(params.slice(0, 2)).toEqual(['ticket-1', 'req-1']);
+        // Both kinds of linked request are checked: hardware and e-form.
+        expect(manager.query.mock.calls.map((c: any[]) => c[0].match(/FROM (\w+)/)[1])).toEqual(['hardware_requests', 'eform_requests']);
     });
 
     it('ignores requests that did not come from a ticket', async () => {

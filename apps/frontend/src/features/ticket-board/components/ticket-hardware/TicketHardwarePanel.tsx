@@ -23,7 +23,7 @@ export const TicketHardwarePanel: React.FC<{ requests: TicketHardwareRequest[]; 
                                 <ArrowUpRight aria-hidden="true" />
                             </span>
                             <span className="thw-panel-state">{statusSentence(request)}</span>
-                            {request.status !== 'DRAFT' && <HardwareProgress request={request} />}
+                            {request.status !== 'DRAFT' && <HardwareProgress request={request} compact />}
                         </Link>
                     </li>
                 ))}

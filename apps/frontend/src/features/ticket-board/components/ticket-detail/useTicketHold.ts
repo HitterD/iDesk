@@ -16,8 +16,16 @@ export function useTicketHold(ticket: { id: string; status: string }): TicketHol
     const hardware = useHardwareHold(ticket);
     const eform = useEFormHold(ticket);
     return useMemo(() => {
-        if (hardware) return { label: 'Menunggu hardware', code: hardware.requestNumber, detail: statusSentence(hardware) };
-        if (eform) return { label: 'Menunggu akses E-Form', code: eform.code, detail: eformStatusSentence(eform) };
-        return null;
+        const hardwareHold = hardware && { label: 'Menunggu hardware', code: hardware.requestNumber, detail: statusSentence(hardware) };
+        const eformHold = eform && { label: 'Menunggu E-Form', code: eform.code, detail: eformStatusSentence(eform) };
+        // One ticket can wait on both (a laptop and a VPN, say): say so instead of naming only one.
+        if (hardwareHold && eformHold) {
+            return {
+                label: 'Menunggu hardware & E-Form',
+                code: `${hardwareHold.code} · ${eformHold.code}`,
+                detail: `${hardwareHold.code}: ${hardwareHold.detail}. ${eformHold.code}: ${eformHold.detail}`,
+            };
+        }
+        return hardwareHold || eformHold || null;
     }, [hardware, eform]);
 }
