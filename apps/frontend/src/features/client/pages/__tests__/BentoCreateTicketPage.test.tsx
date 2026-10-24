@@ -231,7 +231,42 @@ describe('BentoCreateTicketPage forms', () => {
         fireEvent.change(document.getElementById('service-ticket-description')!, { target: { value: 'pendek' } });
         fireEvent.click(screen.getByRole('button', { name: /kirim service ticket/i }));
         expect(mockedPost).not.toHaveBeenCalled();
-        expect(screen.getByRole('alert')).toHaveTextContent('Judul tiket minimal 5 karakter');
+        expect(screen.getByText('Judul tiket minimal 5 karakter')).toBeInTheDocument();
+        expect(screen.getByRole('alert')).toHaveTextContent('Lengkapi 2 isian sebelum mengirim');
+    });
+
+    it('keeps submit clickable and, when clicked empty, highlights and focuses what is missing', () => {
+        renderPage('/client/create?type=service');
+        const submit = screen.getByRole('button', { name: /kirim service ticket/i });
+        expect(submit).not.toBeDisabled();
+        fireEvent.click(submit);
+
+        expect(mockedPost).not.toHaveBeenCalled();
+        const title = document.getElementById('service-ticket-title')!;
+        expect(title).toHaveAttribute('aria-invalid', 'true');
+        expect(title).toHaveAttribute('data-nudge', 'a');
+        expect(document.activeElement).toBe(title);
+        const alert = screen.getByRole('alert');
+        expect(within(alert).getByRole('button', { name: 'Judul' })).toBeInTheDocument();
+        fireEvent.click(within(alert).getByRole('button', { name: 'Detail masalah' }));
+        expect(document.activeElement).toBe(document.getElementById('service-ticket-description'));
+
+        fireEvent.click(submit);
+        expect(title).toHaveAttribute('data-nudge', 'b');
+        fireEvent.change(title, { target: { value: 'Printer mati total' } });
+        expect(title).toHaveAttribute('aria-invalid', 'false');
+        expect(within(screen.getByRole('alert')).queryByRole('button', { name: 'Judul' })).not.toBeInTheDocument();
+    });
+
+    it('requires the Blocker justification before posting', () => {
+        renderPage('/client/create?type=service');
+        fireEvent.change(document.getElementById('service-ticket-title')!, { target: { value: 'Server down' } });
+        fireEvent.change(document.getElementById('service-ticket-description')!, { target: { value: 'Semua aplikasi tidak bisa diakses.' } });
+        fireEvent.click(screen.getByRole('radio', { name: 'Blocker (Critical)' }));
+        fireEvent.click(screen.getByRole('button', { name: /kirim service ticket/i }));
+        expect(mockedPost).not.toHaveBeenCalled();
+        expect(screen.getByText('Jelaskan kenapa tiket ini Blocker')).toBeInTheDocument();
+        expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Alasan prioritas Blocker' })).toBeInTheDocument();
     });
 
     it('submits the current FormData with real attribute values and files, then clears the draft and redirects', async () => {
@@ -324,6 +359,18 @@ describe('BentoCreateTicketPage forms', () => {
         expect(localStorage.getItem('ticket-draft-oracle-request')).not.toBeNull();
         expect(document.getElementById('oracle-ticket-title')).toHaveValue('Gagal login Oracle');
         expect(screen.queryByTestId('location')).not.toBeInTheDocument();
+    });
+
+    it('shows a server rejection in the form, on the field it names', async () => {
+        mockedPost.mockRejectedValueOnce({ response: { status: 400, data: { message: ['Title must be at least 5 characters'] } } });
+        renderPage('/client/create?type=service');
+        fireEvent.change(document.getElementById('service-ticket-title')!, { target: { value: 'Printer mati' } });
+        fireEvent.change(document.getElementById('service-ticket-description')!, { target: { value: 'Printer lantai dua tidak menyala.' } });
+        fireEvent.click(screen.getByRole('button', { name: /kirim service ticket/i }));
+
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Lengkapi 1 isian'));
+        expect(document.getElementById('service-ticket-title')).toHaveAttribute('aria-invalid', 'true');
+        expect(screen.getByText(/Judul tidak valid/)).toBeInTheDocument();
     });
 
     it('autosaves the type-scoped draft after the existing 2-second debounce', () => {

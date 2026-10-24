@@ -40,6 +40,10 @@ import {
     UrgencySegment,
 } from '../components/create-ticket/TicketFormSection';
 import { DescriptionComposer, type PreviewItem } from '../components/create-ticket/DescriptionComposer';
+import {
+    criticalReasonError, descriptionError, invalidFields, mapSubmitError, titleError, validateTicketForm,
+    type TicketField, type TicketFormErrors,
+} from '../components/create-ticket/createTicketValidation';
 import { AddAttributeModal, ClassificationFields, LightboxModal, type AttributeKind } from '../components/create-ticket/ClassificationFields';
 
 interface TicketDraft {
@@ -111,11 +115,22 @@ export const BentoCreateTicketPage: React.FC = () => {
 
     const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
     const [catalogQuery, setCatalogQuery] = useState('');
-    const [errors, setErrors] = useState<{ title?: string; description?: string }>({});
-    // Setters store `undefined` for valid fields, so check for an actual message.
-    const hasFieldErrors = Boolean(errors.title || errors.description);
+    const [errors, setErrors] = useState<TicketFormErrors>({});
+    // Rejected submits so far: makes empty required fields count as errors and replays the field nudge.
+    const [attempt, setAttempt] = useState(0);
+    const [submitError, setSubmitError] = useState<string>();
     const titleRef = useRef<HTMLInputElement>(null);
     const descriptionRef = useRef<HTMLTextAreaElement>(null);
+    const criticalReasonRef = useRef<HTMLTextAreaElement>(null);
+    const resetValidation = () => { setErrors({}); setAttempt(0); setSubmitError(undefined); };
+
+    const focusField = (field: TicketField) => {
+        const el = { title: titleRef, description: descriptionRef, criticalReason: criticalReasonRef }[field].current;
+        if (!el) return;
+        const smooth = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        el.scrollIntoView?.({ block: 'center', behavior: smooth ? 'smooth' : 'auto' });
+        el.focus({ preventScroll: true });
+    };
 
     const [files, setFiles] = useState<File[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -137,22 +152,6 @@ export const BentoCreateTicketPage: React.FC = () => {
             filePreviewMap.forEach((url) => URL.revokeObjectURL(url));
         };
     }, [filePreviewMap]);
-
-    const validateTitle = (val: string) => {
-        const trimmed = val.trim();
-        if (trimmed.length > 0 && trimmed.length < 5) {
-            return 'Judul tiket minimal 5 karakter';
-        }
-        return undefined;
-    };
-
-    const validateDescription = (val: string) => {
-        const trimmed = val.trim();
-        if (trimmed.length > 0 && trimmed.length < 10) {
-            return 'Deskripsi tiket minimal 10 karakter';
-        }
-        return undefined;
-    };
 
     const [hasDraft, setHasDraft] = useState(false);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -207,7 +206,7 @@ export const BentoCreateTicketPage: React.FC = () => {
         } catch (error) {
             logger.error('Failed to load scoped draft:', error);
         }
-        setErrors({});
+        resetValidation();
         setSelectedTemplate(null);
     }, [ticketType]);
 
@@ -273,7 +272,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                 software: '',
                 criticalReason: '',
             });
-            setErrors({});
+            resetValidation();
             toast.success('Draft dibersihkan', snapshot ? {
                 description: 'Draft formulir berhasil dihapus.',
                 action: {
@@ -409,18 +408,17 @@ export const BentoCreateTicketPage: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (ticketType === 'service' || ticketType === 'oracle-request' || ticketType === 'web-dev-request' || ticketType === 'mobile-dev-request') {
-            const titleErr = validateTitle(formData.title) || (formData.title.trim().length === 0 ? 'Judul tiket wajib diisi (minimal 5 karakter)' : undefined);
-            const descErr = validateDescription(formData.description) || (formData.description.trim().length === 0 ? 'Deskripsi tiket wajib diisi (minimal 10 karakter)' : undefined);
-
-            if (titleErr || descErr) {
-                setErrors({ title: titleErr, description: descErr });
-                toast.error(titleErr || descErr || 'Mohon lengkapi formulir sesuai ketentuan minimal karakter.');
-                (titleErr ? titleRef : descriptionRef).current?.focus();
-                return;
-            }
+        const found = validateTicketForm(formData);
+        const missing = invalidFields(found);
+        if (missing.length > 0) {
+            setErrors(found);
+            setSubmitError(undefined);
+            setAttempt((n) => n + 1);
+            focusField(missing[0]);
+            return;
         }
 
+        setSubmitError(undefined);
         setIsLoading(true);
         try {
             const formDataToSend = new FormData();
@@ -495,13 +493,14 @@ export const BentoCreateTicketPage: React.FC = () => {
             }
         } catch (error: any) {
             logger.error('Failed to create ticket:', error);
-            const serverMsg = error.response?.data?.message;
-            if (Array.isArray(serverMsg)) {
-                toast.error(`Gagal membuat tiket: ${serverMsg.join(', ')}`);
-            } else if (typeof serverMsg === 'string') {
-                toast.error(`Gagal membuat tiket: ${serverMsg}`);
-            } else {
-                toast.error('Gagal membuat tiket. Silakan periksa kembali formulir Anda.');
+            const { fields, message } = mapSubmitError(error);
+            setSubmitError(message);
+            toast.error(message);
+            const rejected = invalidFields(fields);
+            if (rejected.length > 0) {
+                setErrors(fields);
+                setAttempt((n) => n + 1);
+                focusField(rejected[0]);
             }
         } finally {
             setIsLoading(false);
@@ -558,7 +557,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                 priority: template.priority,
                 ...(template.category ? { category: template.category } : {}),
             }));
-            setErrors({});
+            resetValidation();
         }
     };
 
@@ -627,7 +626,10 @@ export const BentoCreateTicketPage: React.FC = () => {
     // ==========================================
     const config = TICKET_FORM_CONFIG[ticketType];
     const canAddAttribute = user?.role === 'ADMIN' || user?.role === 'AGENT';
-    const submitDisabled = isLoading || !formData.title.trim() || !formData.description.trim() || (formData.priority === 'CRITICAL' && !formData.criticalReason?.trim());
+    // Never disabled for missing input: a rejected click is what shows the user what is missing.
+    const submitDisabled = isLoading;
+    const required = attempt > 0;
+    const missingFields = required ? invalidFields(errors) : [];
     const draftStatus = hasDraft ? <DraftStatus savedAt={lastSaved} onClear={clearDraft} /> : undefined;
 
     return (
@@ -636,11 +638,12 @@ export const BentoCreateTicketPage: React.FC = () => {
             <TemplateChips templates={config.templates} selected={selectedTemplate} onPick={handleTemplateClick} />
 
             <form
+                noValidate // our own summary + field highlights replace the browser's one-field bubble
                 onSubmit={handleSubmit}
                 onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); (e.currentTarget as HTMLFormElement).requestSubmit(); } }}
                 className="ct-form"
             >
-                {hasFieldErrors && <ErrorBanner message={errors.title || errors.description || 'Mohon perbaiki isian yang ditandai.'} />}
+                <ErrorBanner message={submitError} fields={missingFields} onJump={focusField} />
 
                 <TicketFormSection>
                     {isStaff && (
@@ -648,18 +651,18 @@ export const BentoCreateTicketPage: React.FC = () => {
                             <RequesterSelector requesterId={requesterId} onChange={setRequesterId} currentUserId={user?.id} />
                         </div>
                     )}
-                    <TitleField id={config.titleId} inputRef={titleRef} value={formData.title} error={errors.title}
+                    <TitleField id={config.titleId} inputRef={titleRef} value={formData.title} error={errors.title} attempt={attempt}
                         placeholder={config.titlePlaceholder}
                         onChange={(val) => {
                             updateField('title', val);
-                            setErrors(prev => ({ ...prev, title: validateTitle(val) }));
+                            setErrors(prev => ({ ...prev, title: titleError(val, required) }));
                         }} />
                     <DescriptionComposer id={config.descriptionId} textareaRef={descriptionRef} fileInputRef={fileInputRef}
-                        value={formData.description} error={errors.description} placeholder={config.descriptionPlaceholder}
+                        value={formData.description} error={errors.description} attempt={attempt} placeholder={config.descriptionPlaceholder}
                         files={files} previews={filePreviewMap}
                         onChange={(val) => {
                             updateField('description', val);
-                            setErrors(prev => ({ ...prev, description: validateDescription(val) }));
+                            setErrors(prev => ({ ...prev, description: descriptionError(val, required) }));
                         }}
                         onPaste={handlePaste} onDropFiles={addFiles} onFileInput={handleFileChange}
                         onRemoveFile={handleRemoveFile} onPreview={setLightboxItem} />
@@ -679,9 +682,18 @@ export const BentoCreateTicketPage: React.FC = () => {
                             onRetry={fetchAttributes}
                             onAdd={(kind: AttributeKind) => setShowAddModal({ type: kind, show: true })} />
                     )}
-                    <UrgencySegment legendId={`${ticketType}-urgency-label`} value={formData.priority} onChange={(p) => updateField('priority', p)} />
+                    <UrgencySegment legendId={`${ticketType}-urgency-label`} value={formData.priority} onChange={(p) => {
+                        updateField('priority', p);
+                        setErrors(prev => ({ ...prev, criticalReason: criticalReasonError({ ...formData, priority: p }, required) }));
+                    }} />
                     {formData.priority === 'CRITICAL' && (
-                        <CriticalReasonField id={config.criticalReasonId} label={config.criticalReasonLabel} placeholder={config.criticalReasonPlaceholder} value={formData.criticalReason} onChange={(v) => updateField('criticalReason', v)} />
+                        <CriticalReasonField id={config.criticalReasonId} inputRef={criticalReasonRef} label={config.criticalReasonLabel}
+                            placeholder={config.criticalReasonPlaceholder} value={formData.criticalReason}
+                            error={errors.criticalReason} attempt={attempt}
+                            onChange={(v) => {
+                                updateField('criticalReason', v);
+                                setErrors(prev => ({ ...prev, criticalReason: criticalReasonError({ ...formData, criticalReason: v }, required) }));
+                            }} />
                     )}
                 </TicketFormSection>
 

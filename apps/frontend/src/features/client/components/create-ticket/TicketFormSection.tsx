@@ -3,10 +3,10 @@ import { AlertCircle, ArrowLeft, CircleCheck, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PriorityHoverTip } from '@/components/ui/PriorityHoverTip';
 import { PRIORITY_OPTIONS, type FormTone, type TicketTemplate } from './createTicketConfig';
+import { DESCRIPTION_MIN, FIELD_LABEL, TITLE_MAX, TITLE_MIN, type TicketField } from './createTicketValidation';
 
-const TITLE_MIN = 5;
-const TITLE_MAX = 200;
-const DESCRIPTION_MIN = 10;
+/** Restarts the field's nudge on every rejected submit: the two names alternate so the animation replays. */
+export const nudgeAttr = (error: string | undefined, attempt: number) => (error && attempt > 0 ? (attempt % 2 ? 'a' : 'b') : undefined);
 
 const PRIORITY_DOT_TONE: Record<string, string> = { LOW: 'neutral', MEDIUM: 'blue', HIGH: 'amber', CRITICAL: 'red' };
 
@@ -77,20 +77,21 @@ export function CharCounter({ value, min, max }: { value: string; min: number; m
     );
 }
 
-export function FieldError({ message }: { message?: string }) {
+export function FieldError({ id, message }: { id?: string; message?: string }) {
     if (!message) return null;
-    return <p className="ct-field-error"><AlertCircle aria-hidden="true" /><span>{message}</span></p>;
+    return <p id={id} className="ct-field-error"><AlertCircle aria-hidden="true" /><span>{message}</span></p>;
 }
 
-export function TitleField({ id, inputRef, value, error, placeholder, onChange }: {
-    id: string; inputRef: React.Ref<HTMLInputElement>; value: string; error?: string; placeholder: string; onChange: (value: string) => void;
+export function TitleField({ id, inputRef, value, error, attempt = 0, placeholder, onChange }: {
+    id: string; inputRef: React.Ref<HTMLInputElement>; value: string; error?: string; attempt?: number; placeholder: string; onChange: (value: string) => void;
 }) {
     return (
         <TicketFormRow label="Judul" htmlFor={id} required meta={<CharCounter value={value} min={TITLE_MIN} max={TITLE_MAX} />}>
             <input id={id} ref={inputRef} type="text" required maxLength={TITLE_MAX} value={value}
-                aria-invalid={Boolean(error)} onChange={e => onChange(e.target.value)}
+                aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} data-nudge={nudgeAttr(error, attempt)}
+                onChange={e => onChange(e.target.value)}
                 className={cn('ct-input', error && 'is-invalid')} placeholder={placeholder} />
-            <FieldError message={error} />
+            <FieldError id={`${id}-error`} message={error} />
         </TicketFormRow>
     );
 }
@@ -116,13 +117,16 @@ export function UrgencySegment({ value, onChange, legendId }: { value: string; o
     );
 }
 
-export function CriticalReasonField({ id, label, placeholder, value, onChange }: {
-    id: string; label: string; placeholder: string; value: string; onChange: (value: string) => void;
+export function CriticalReasonField({ id, inputRef, label, placeholder, value, error, attempt = 0, onChange }: {
+    id: string; inputRef?: React.Ref<HTMLTextAreaElement>; label: string; placeholder: string; value: string;
+    error?: string; attempt?: number; onChange: (value: string) => void;
 }) {
     return (
         <TicketFormRow label={label} htmlFor={id} required>
-            <textarea id={id} required rows={2} value={value} onChange={e => onChange(e.target.value)}
-                className="ct-input ct-critical" placeholder={placeholder} />
+            <textarea id={id} ref={inputRef} required rows={2} value={value} onChange={e => onChange(e.target.value)}
+                aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} data-nudge={nudgeAttr(error, attempt)}
+                className={cn('ct-input ct-critical', error && 'is-invalid')} placeholder={placeholder} />
+            <FieldError id={`${id}-error`} message={error} />
         </TicketFormRow>
     );
 }
@@ -154,11 +158,24 @@ export function SubmitBar({ draftStatus, disabled, loading, label, loadingLabel 
     );
 }
 
-export function ErrorBanner({ message }: { message?: string }) {
-    if (!message) return null;
+/** Form-level alert. With `fields`, lists what is still missing; each name jumps to its field. */
+export function ErrorBanner({ message, fields = [], onJump }: {
+    message?: string; fields?: readonly TicketField[]; onJump?: (field: TicketField) => void;
+}) {
+    if (!message && fields.length === 0) return null;
     return (
         <div role="alert" aria-live="assertive" className="ct-alert">
-            <AlertCircle aria-hidden="true" /><p>{message}</p>
+            <AlertCircle aria-hidden="true" />
+            <div className="ct-alert-body">
+                <p>{fields.length > 0 ? `Lengkapi ${fields.length} isian sebelum mengirim:` : message}</p>
+                {fields.length > 0 && (
+                    <ul className="ct-alert-fields">
+                        {fields.map((field) => (
+                            <li key={field}><button type="button" onClick={() => onJump?.(field)}>{FIELD_LABEL[field]}</button></li>
+                        ))}
+                    </ul>
+                )}
+            </div>
         </div>
     );
 }

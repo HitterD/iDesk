@@ -2,9 +2,8 @@ import { useState, type ClipboardEvent, type ChangeEvent, type Ref, type RefObje
 import { FileArchive, FileSpreadsheet, File as FileIcon, Image as ImageIcon, Maximize2, Paperclip, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ATTACHMENT_ACCEPT, FILE_SIZE_LIMITS, MAX_ATTACHMENTS_PER_TICKET, formatFileSize } from '@/lib/file-validation';
-import { CharCounter, FieldError, TicketFormRow, DESCRIPTION_MIN } from './TicketFormSection';
-
-const DESCRIPTION_MAX = 5000;
+import { CharCounter, FieldError, TicketFormRow, nudgeAttr } from './TicketFormSection';
+import { DESCRIPTION_MAX, DESCRIPTION_MIN } from './createTicketValidation';
 const MIN_TEXTAREA_HEIGHT = 120;
 
 export interface PreviewItem { url: string; name: string; size: number; index: number }
@@ -23,6 +22,8 @@ export interface DescriptionComposerProps {
     fileInputRef: RefObject<HTMLInputElement | null>;
     value: string;
     error?: string;
+    /** Rejected-submit counter; replays the field nudge while `error` is set. */
+    attempt?: number;
     placeholder: string;
     files: File[];
     previews: Map<File, string>;
@@ -36,18 +37,18 @@ export interface DescriptionComposerProps {
 
 /** Details textarea with the attachment tray and toolbar; file rules stay with the caller. */
 export function DescriptionComposer(props: DescriptionComposerProps) {
-    const { id, textareaRef, fileInputRef, value, error, placeholder, files, previews } = props;
+    const { id, textareaRef, fileInputRef, value, error, attempt = 0, placeholder, files, previews } = props;
     const [dragging, setDragging] = useState(false);
     return (
         <TicketFormRow label="Detail masalah" htmlFor={id} required meta={<CharCounter value={value} min={DESCRIPTION_MIN} max={DESCRIPTION_MAX} />}>
             <div
-                className={cn('ct-ta', dragging && 'is-dragging', error && 'is-invalid')}
+                className={cn('ct-ta', dragging && 'is-dragging', error && 'is-invalid')} data-nudge={nudgeAttr(error, attempt)}
                 onDragOver={e => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={e => { e.preventDefault(); setDragging(false); props.onDropFiles(Array.from(e.dataTransfer.files || [])); }}
             >
                 <textarea id={id} ref={textareaRef} required maxLength={DESCRIPTION_MAX} value={value} placeholder={placeholder}
-                    aria-invalid={Boolean(error)} onPaste={props.onPaste}
+                    aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} onPaste={props.onPaste}
                     onChange={e => {
                         props.onChange(e.target.value);
                         e.target.style.height = 'auto';
@@ -67,7 +68,7 @@ export function DescriptionComposer(props: DescriptionComposerProps) {
                     </span>
                 </div>
             </div>
-            <FieldError message={error} />
+            <FieldError id={`${id}-error`} message={error} />
         </TicketFormRow>
     );
 }
