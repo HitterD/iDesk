@@ -1,4 +1,5 @@
 export { TicketHardwareMessage, canProposeHardware } from './TicketHardwareMessage';
 export { ProposeHardwareDialog } from './ProposeHardwareDialog';
 export { TicketHardwarePanel, TicketHardwareSection } from './TicketHardwarePanel';
-export { useTicketHardwareRequests } from './useTicketHardware';
+export { useHardwareHold, useTicketHardwareRequests } from './useTicketHardware';
+export { statusSentence } from './hardwareFlow';

@@ -52,7 +52,16 @@ describe('HardwareRequestCard', () => {
     it('shows staff that the requester still has to answer', () => {
         renderCard({ isRequester: false });
         expect(screen.queryByRole('button', { name: /Setujui/ })).not.toBeInTheDocument();
-        expect(screen.getByText('Menunggu konfirmasi pemohon', { selector: '.thw-card-wait' })).toBeInTheDocument();
+        expect(screen.getByText('Menunggu konfirmasi pemohon')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Tarik usulan' })).toBeInTheDocument();
+    });
+
+    it('lets staff withdraw an unanswered proposal after confirming', async () => {
+        renderCard({ isRequester: false });
+        fireEvent.click(screen.getByRole('button', { name: 'Tarik usulan' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Ya, tarik' }));
+
+        await waitFor(() => expect(api.decline).toHaveBeenCalledWith('req-1', expect.anything()));
     });
 
     it('sends the requester to confirm the installation once it is done', () => {

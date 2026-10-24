@@ -43,7 +43,7 @@ import { SlaProgress } from './SlaProgress';
 import { toDisplayName } from './messageThread';
 import { useAuth } from '@/stores/useAuth';
 import { Button } from '@/components/ui/button';
-import { TicketHardwareSection } from '../ticket-hardware';
+import { TicketHardwareSection, statusSentence, useHardwareHold } from '../ticket-hardware';
 
 interface TicketSidebarProps {
     ticket: TicketDetail;
@@ -89,6 +89,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     const isClosed = isTerminalStatus(ticket.status);
     // Requester-side viewers (e.g. the agent who filed it) can't change properties.
     const isLocked = isClosed || ticket.viewerAccess === 'requester';
+    const hardwareHold = useHardwareHold(ticket);
     const [copiedEmail, setCopiedEmail] = useState(false);
     const [forwardOpen, setForwardOpen] = useState(false);
     const [reminderModalOpen, setReminderModalOpen] = useState(false);
@@ -396,7 +397,9 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 />
                 <div className="td-kvs">
                     {ticket.status === 'WAITING_VENDOR' ? (<>
-                        <InfoRow label="Janji vendor">
+                        {hardwareHold ? (
+                            <InfoRow label="Menunggu HR"><span title={statusSentence(hardwareHold)}>{hardwareHold.requestNumber}</span></InfoRow>
+                        ) : <InfoRow label="Janji vendor">
                             <span className="td-vendor-visit">
                                 <span className={cn(ticket.vendorVisitAt && new Date(ticket.vendorVisitAt) < new Date() && 'is-late')}>
                                     {ticket.vendorVisitAt ? formatDateTimeID(ticket.vendorVisitAt) : 'Belum dijadwalkan'}
@@ -407,7 +410,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                                     </button>
                                 )}
                             </span>
-                        </InfoRow>
+                        </InfoRow>}
                         <InfoRow label="Dijeda sejak">
                             {ticket.lastPausedAt ? formatDateTimeID(ticket.lastPausedAt) : '—'}
                         </InfoRow>

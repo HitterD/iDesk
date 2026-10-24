@@ -31,10 +31,12 @@ interface SlaProgressProps {
     variant?: 'agent' | 'requester';
     /** Muted text at the right of the label (requester: target date). */
     aside?: React.ReactNode;
+    /** Requester label while paused, when the wait is not a vendor (e.g. "Menunggu hardware"). */
+    pausedLabel?: string;
 }
 
 /** Remaining SLA time as a label plus a bar of time used (start → target). */
-export const SlaProgress: React.FC<SlaProgressProps> = ({ status, priority, createdAt, slaStartedAt, slaTarget, slaRemainingMinutes, pausedAt, variant = 'agent', aside }) => {
+export const SlaProgress: React.FC<SlaProgressProps> = ({ status, priority, createdAt, slaStartedAt, slaTarget, slaRemainingMinutes, pausedAt, variant = 'agent', aside, pausedLabel }) => {
     const slaClock = useSlaClock();
     if (!slaTarget) return null;
 
@@ -53,7 +55,7 @@ export const SlaProgress: React.FC<SlaProgressProps> = ({ status, priority, crea
     } else if (isPaused) {
         tone = 'paused';
         label = variant === 'requester' && status === 'WAITING_VENDOR'
-            ? 'Menunggu vendor'
+            ? pausedLabel ?? 'Menunggu vendor'
             : slaRemainingMinutes != null ? `Dijeda · sisa ${formatDuration(slaRemainingMinutes * 60_000)}` : 'Dijeda';
     } else {
         const { remainingMs, offHours } = slaCountdown(slaTarget, now, priority, slaClock);

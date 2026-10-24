@@ -12,7 +12,7 @@ import { SlaProgress } from '../../ticket-board/components/ticket-detail/SlaProg
 import { TicketParticipantsSection } from '../../ticket-board/components/ticket-detail/TicketParticipantsSection';
 import { toDisplayName } from '../../ticket-board/components/ticket-detail/messageThread';
 import { PriorityPill, PropertyRow, StatusPill } from '../../ticket-board/components/ticket-detail/TicketPropertyRows';
-import { TicketHardwareSection } from '../../ticket-board/components/ticket-hardware';
+import { TicketHardwareSection, useHardwareHold } from '../../ticket-board/components/ticket-hardware';
 
 const PAUSED_STATUS = 'WAITING_VENDOR';
 const COPIED_RESET_MS = 2000;
@@ -83,6 +83,7 @@ export const ClientTicketInspector: React.FC<{ ticket: TicketDetail }> = ({ tick
     const { user } = useAuth();
     const isClosed = isTerminalStatus(ticket.status);
     const isPaused = ticket.status === PAUSED_STATUS;
+    const hardwareHold = useHardwareHold(ticket);
     const canManageParticipants = user?.role === 'ADMIN' || user?.role === 'AGENT' || Boolean(user?.role?.startsWith('AGENT_')) || user?.role === 'MANAGER';
     const canAddParticipants = canManageParticipants || ticket.user?.id === user?.id || Boolean(ticket.participants?.some(p => p.userId === user?.id));
 
@@ -119,6 +120,7 @@ export const ClientTicketInspector: React.FC<{ ticket: TicketDetail }> = ({ tick
                     slaTarget={ticket.slaTarget}
                     slaRemainingMinutes={ticket.slaRemainingMinutes}
                     pausedAt={ticket.lastPausedAt}
+                    pausedLabel={hardwareHold ? 'Menunggu hardware' : undefined}
                 />
                 <div className="td-kvs">
                     {isPaused ? (

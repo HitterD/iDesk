@@ -45,5 +45,23 @@ export function useAnswerProposal(ticketId: string) {
         onSuccess: async () => { await refresh(); toast.success('Usulan ditolak. Tim IT akan menindaklanjuti di chat.'); },
         onError: (error: Error) => toast.error(error.message || 'Gagal menolak usulan'),
     });
-    return { accept, decline };
+    const withdraw = useMutation({
+        mutationFn: ticketHardwareApi.decline,
+        onSuccess: async () => { await refresh(); toast.success('Usulan ditarik. Anda bisa mengusulkan ulang dari menu +.'); },
+        onError: (error: Error) => toast.error(error.message || 'Gagal menarik usulan'),
+    });
+    return { accept, decline, withdraw };
+}
+
+const NOT_HOLDING = new Set(['DRAFT', 'REJECTED', 'CANCELLED', 'COMPLETED', 'CLOSED']);
+
+/**
+ * The hardware request a WAITING_VENDOR ticket is actually waiting on (it was submitted from this ticket and is
+ * still running), so the ticket can say so instead of "waiting for a vendor". Null for a real vendor wait.
+ */
+export function useHardwareHold(ticket: { id: string; status: string }) {
+    const waiting = ticket.status === 'WAITING_VENDOR';
+    const { data } = useTicketHardwareRequests(ticket.id, waiting);
+    if (!waiting) return null;
+    return data?.filter((request) => !NOT_HOLDING.has(request.status)).at(-1) ?? null;
 }

@@ -78,10 +78,10 @@ function PhaseLine({ event, actorName, reason, createdAt, hardwareBasePath }: Ha
 }
 
 function ProposalCard({ event, actorName, createdAt, request, ticketId, isRequester, hardwareBasePath }: HardwareRequestCardProps) {
-    const { accept, decline } = useAnswerProposal(ticketId);
+    const { accept, decline, withdraw } = useAnswerProposal(ticketId);
     const [confirmDecline, setConfirmDecline] = useState(false);
     const pending = request?.status === 'DRAFT';
-    const busy = accept.isPending || decline.isPending;
+    const busy = accept.isPending || decline.isPending || withdraw.isPending;
     const todo = isRequester && request ? requesterTodo(request) : null;
     const href = `${hardwareBasePath}/${event.id}`;
 
@@ -124,7 +124,16 @@ function ProposalCard({ event, actorName, createdAt, request, ticketId, isReques
                         Ya, tolak
                     </Button>
                 </>)}
-                {pending && !isRequester && <span className="thw-card-wait">Menunggu konfirmasi pemohon</span>}
+                {pending && !isRequester && !confirmDecline && (
+                    <Button type="button" variant="subtle" onClick={() => setConfirmDecline(true)}>Tarik usulan</Button>
+                )}
+                {pending && !isRequester && confirmDecline && (<>
+                    <span className="thw-card-ask">Tarik usulan ini?</span>
+                    <Button type="button" variant="soft" onClick={() => setConfirmDecline(false)} disabled={busy}>Batal</Button>
+                    <Button type="button" variant="danger" onClick={() => withdraw.mutate(event.id)} loading={withdraw.isPending} disabled={busy}>
+                        Ya, tarik
+                    </Button>
+                </>)}
                 {!pending && request && (
                     <Button asChild variant={todo ? 'primary' : 'soft'}>
                         <Link to={href}>{todo ?? 'Lihat detail'}<ArrowUpRight aria-hidden="true" /></Link>
