@@ -50,6 +50,8 @@ export enum TicketSource {
     EMAIL = 'EMAIL',
     /** Filed by the iPop app through the integration API. */
     IPOP = 'IPOP',
+    /** Filed by another connected app (Settings > Integrasi aplikasi); the app is in externalSource. */
+    API = 'API',
 }
 
 export enum TicketType {

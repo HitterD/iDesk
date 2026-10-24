@@ -27,5 +27,6 @@ import { IpopController } from './ipop.controller';
         IpopAuthGuard, IpopCatalogService, IpopTicketService, IpopWebhookService, IpopTicketEventsListener,
         IpopZoomBookingService, IpopZoomEventsListener,
     ],
+    exports: [IpopCatalogService, IpopTicketService],
 })
 export class IpopIntegrationModule {}

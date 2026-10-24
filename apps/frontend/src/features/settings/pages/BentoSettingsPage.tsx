@@ -1,7 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import * as Tabs from '@radix-ui/react-tabs';
-import { User, Lock, Palette, Bell, Clock, Loader2, HardDrive, Shield, Video, Volume2, MonitorPlay, Mail, Zap, Boxes, Radio, Settings } from 'lucide-react';
+import { User, Lock, Palette, Bell, Clock, Loader2, HardDrive, Shield, Video, Volume2, MonitorPlay, Mail, Zap, Boxes, Radio, Settings, Plug } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SetHead } from '../components/SettingsParts';
 import { ResHead } from '@/components/resources/ResourceParts';
@@ -23,6 +23,7 @@ const SoundSettingsTab = lazy(() => import('./SoundSettingsPage').then(m => ({ d
 const TvBoardSettingsTab = lazy(() => import('../components/TvBoardSettings').then(m => ({ default: m.TvBoardSettings })));
 const MailSettingsTab = lazy(() => import('./MailSettingsPage').then(m => ({ default: m.MailSettingsPage })));
 const WebhookIntegrationHubTab = lazy(() => import('../components/WebhookIntegrationHub'));
+const IntegrationAppsTab = lazy(() => import('../integration-apps/IntegrationAppsTab'));
 
 
 const TabFallback: React.FC = () => (
@@ -99,6 +100,7 @@ export const BentoSettingsPage: React.FC = () => {
                                         { value: 'mail', icon: Mail, label: 'Email' },
                                         { value: 'tv-board', icon: MonitorPlay, label: 'TV Board' },
                                         { value: 'desktop-webhook', icon: Radio, label: 'Desktop & Webhook Hub' },
+                                        { value: 'integration-apps', icon: Plug, label: 'Integrasi Aplikasi' },
                                     ].map((tab) => (
                                         <Tabs.Trigger
                                             key={tab.value}
@@ -214,6 +216,14 @@ export const BentoSettingsPage: React.FC = () => {
                             <Tabs.Content value="ticket-modules" className="settings-tab-panel">
                                 <Suspense fallback={<TabFallback />}>
                                     <TicketModulesSettingsTab />
+                                </Suspense>
+                            </Tabs.Content>
+                        )}
+
+                        {user?.role === 'ADMIN' && (
+                            <Tabs.Content value="integration-apps" className="settings-tab-panel">
+                                <Suspense fallback={<TabFallback />}>
+                                    <IntegrationAppsTab />
                                 </Suspense>
                             </Tabs.Content>
                         )}

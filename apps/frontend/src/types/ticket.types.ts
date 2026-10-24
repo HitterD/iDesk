@@ -7,7 +7,7 @@ import type { ServiceScope } from '@/lib/constants/service-scope';
 
 export type TicketStatus = 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
 export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-export type TicketSource = 'WEB' | 'TELEGRAM' | 'EMAIL' | 'IPOP';
+export type TicketSource = 'WEB' | 'TELEGRAM' | 'EMAIL' | 'IPOP' | 'API';
 export type UserRole = 'ADMIN' | 'AGENT' | 'AGENT_OPERATIONAL_SUPPORT' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'USER';
 
 export interface Department {
@@ -64,6 +64,8 @@ export interface Ticket {
     priority: TicketPriority;
     category?: string;
     source: TicketSource;
+    /** Connected app that filed it (source API), e.g. 'EBBK'. */
+    externalSource?: string | null;
     device?: string;
     software?: string;
     criticalReason?: string;

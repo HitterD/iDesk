@@ -28,6 +28,28 @@ import { IPOP_MAX_ATTACHMENT_BYTES, IpopAttachmentDto, IpopCreateTicketDto, Ipop
 import { pickPublicBaseUrl } from '../../../shared/mail/app-url.util';
 
 export const IPOP_SOURCE = 'IPOP';
+
+/**
+ * Who is calling the ticket API: iPop, or a connected app (EBBK, ...). Decides which tickets it may see, which
+ * modules it may file into and how its tickets are tagged. iPop keeps its original behaviour (IPOP_SCOPE).
+ */
+export interface PartnerScope {
+    /** externalSource of the tickets it files; also its `origin` in views. */
+    source: string;
+    /** Ticket channel recorded on its tickets. */
+    ticketSource: TicketSource;
+    /** Module slugs it may file into; null = every module. */
+    modules: string[] | null;
+    /** true: sees only the tickets it filed. false (iPop): also iDesk-filed tickets of NIK holders. */
+    ownTicketsOnly: boolean;
+}
+
+export const IPOP_SCOPE: PartnerScope = { source: IPOP_SOURCE, ticketSource: TicketSource.IPOP, modules: null, ownTicketsOnly: false };
+
+/** Whether a caller may read (and be told about) a ticket. */
+export function isVisibleTo(scope: PartnerScope, ticket: Pick<Ticket, 'externalSource' | 'ticketType'> & { user?: { employeeId?: string | null } | null }): boolean {
+    return scope.ownTicketsOnly ? ticket.externalSource === scope.source : isIpopVisible(ticket);
+}
 /** Ticket types a requester never sees in iDesk "My Tickets"; iPop mirrors that view. */
 const HIDDEN_FROM_REQUESTER: TicketType[] = [TicketType.ICT_BUDGET, TicketType.HARDWARE_INSTALLATION];
 const MAX_LIST = 100;
@@ -38,8 +60,10 @@ export interface IpopTicketView {
     ticketId: string;
     ticketNumber: string;
     externalRef: string | null;
-    /** Where the ticket was filed: through iPop, or directly in iDesk. */
-    origin: 'IPOP' | 'IDESK';
+    /** Where the ticket was filed: through the calling app ('IPOP', 'EBBK', ...), or directly in iDesk ('IDESK'). */
+    origin: string;
+    /** Who submitted it for the requester in the calling app (connected apps only; absent for iPop). */
+    submittedBy?: { nik: string | null; name: string | null } | null;
     /** Owner of the ticket, so iPop can attach iDesk-filed tickets to the right user. */
     requester: { nik: string | null; name: string | null };
     status: string;
@@ -100,14 +124,18 @@ export class IpopTicketService {
         private readonly messaging: TicketMessagingService,
     ) {}
 
-    async create(dto: IpopCreateTicketDto): Promise<IpopCreateResult> {
+    async create(dto: IpopCreateTicketDto, scope: PartnerScope = IPOP_SCOPE): Promise<IpopCreateResult> {
         // Idempotent: a retried request (timeout, network blip) returns the first ticket.
-        const existing = await this.findByRef(dto.externalRef);
-        if (existing) return { created: false, ticket: this.toView(existing) };
+        const existing = await this.findByRef(dto.externalRef, scope);
+        if (existing) return { created: false, ticket: this.toView(existing, scope) };
 
+        if (scope.modules && !scope.modules.includes(dto.module)) {
+            throw new ForbiddenException(`This app may not file tickets into module "${dto.module}"`);
+        }
         const requester = await this.resolveRequester(dto.requester);
+        const submitter = dto.submittedBy ? await this.resolveRequester(dto.submittedBy, 'Submitter') : null;
         const route = await this.catalog.resolveRoute(dto.module, dto.category);
-        const saved = await this.storeAttachments(dto.attachments ?? []);
+        const saved = await this.storeAttachments(dto.attachments ?? [], scope.source.toLowerCase());
 
         const createDto: CreateTicketDto = {
             title: dto.title,
@@ -115,7 +143,7 @@ export class IpopTicketService {
             priority: dto.priority,
             category: route.category,
             ticketType: route.ticketType,
-            source: TicketSource.IPOP,
+            source: scope.ticketSource,
             device: dto.device,
             software: dto.software,
             criticalReason: dto.criticalReason,
@@ -132,35 +160,35 @@ export class IpopTicketService {
                 createDto,
                 saved.map((a) => a.path),
                 saved,
-                { source: IPOP_SOURCE, ref: dto.externalRef },
+                { source: scope.source, ref: dto.externalRef, ...(submitter ? { filedById: submitter.id } : {}) },
             );
             const full = await this.loadTicket(ticket.id);
-            this.logger.log(`iPop ${dto.externalRef} -> ticket ${ticket.ticketNumber} (${route.module.slug})`);
-            return { created: true, ticket: this.toView(full ?? ticket) };
+            this.logger.log(`${scope.source} ${dto.externalRef} -> ticket ${ticket.ticketNumber} (${route.module.slug})`);
+            return { created: true, ticket: this.toView(full ?? ticket, scope) };
         } catch (error) {
             await this.discard(saved);
             // Two concurrent retries: the unique (externalSource, externalRef) index lets one win.
             if (error instanceof QueryFailedError && (error as any).driverError?.code === PG_UNIQUE_VIOLATION) {
-                const winner = await this.findByRef(dto.externalRef);
-                if (winner) return { created: false, ticket: this.toView(winner) };
+                const winner = await this.findByRef(dto.externalRef, scope);
+                if (winner) return { created: false, ticket: this.toView(winner, scope) };
             }
             throw error;
         }
     }
 
-    async getByNumber(ticketNumber: string): Promise<IpopTicketView> {
+    async getByNumber(ticketNumber: string, scope: PartnerScope = IPOP_SCOPE): Promise<IpopTicketView> {
         const ticket = await this.ticketRepo.findOne({ where: { ticketNumber }, relations: VIEW_RELATIONS });
-        if (!ticket || !isIpopVisible(ticket)) throw new NotFoundException(`No ticket ${ticketNumber} visible to iPop`);
-        return this.toView(ticket);
+        if (!ticket || !isVisibleTo(scope, ticket)) throw new NotFoundException(`No ticket ${ticketNumber} visible to this app`);
+        return this.toView(ticket, scope);
     }
 
     /**
      * The public conversation of a ticket, oldest first (the latest MAX_MESSAGES). Internal
      * notes and system messages never leave iDesk; files are listed by name and opened in iDesk.
      */
-    async getMessages(ticketNumber: string): Promise<IpopMessagesView> {
+    async getMessages(ticketNumber: string, scope: PartnerScope = IPOP_SCOPE): Promise<IpopMessagesView> {
         const ticket = await this.ticketRepo.findOne({ where: { ticketNumber }, relations: VIEW_RELATIONS });
-        if (!ticket || !isIpopVisible(ticket)) throw new NotFoundException(`No ticket ${ticketNumber} visible to iPop`);
+        if (!ticket || !isVisibleTo(scope, ticket)) throw new NotFoundException(`No ticket ${ticketNumber} visible to this app`);
         const rows = await this.messageRepo.find({
             where: { ticketId: ticket.id, isInternal: false, isSystemMessage: false },
             relations: ['sender'],
@@ -169,7 +197,7 @@ export class IpopTicketService {
         });
         return {
             ticketNumber: ticket.ticketNumber,
-            url: this.toView(ticket).url,
+            url: this.toView(ticket, scope).url,
             messages: rows.reverse().map((m) => ({
                 id: m.id,
                 sender: { name: m.sender?.fullName ?? null },
@@ -186,25 +214,25 @@ export class IpopTicketService {
      * events, SLA and notifications as typing it in iDesk). Only the ticket's requester side or its
      * assigned agent may reply this way; anyone else gets 403.
      */
-    async reply(ref: string, dto: IpopReplyDto): Promise<{ id: string; createdAt: string }> {
+    async reply(ref: string, dto: IpopReplyDto, scope: PartnerScope = IPOP_SCOPE): Promise<{ id: string; createdAt: string }> {
         // Agents have no iPop copy of the ticket, so iPop may only know its iDesk id.
         const where = UUID.test(ref) ? { id: ref } : { ticketNumber: ref };
         const ticket = await this.ticketRepo.findOne({ where, relations: [...VIEW_RELATIONS, 'participants'] });
-        if (!ticket || !isIpopVisible(ticket)) throw new NotFoundException(`No ticket ${ref} visible to iPop`);
+        if (!ticket || !isVisibleTo(scope, ticket)) throw new NotFoundException(`No ticket ${ref} visible to this app`);
         const user = await this.userRepo.findOne({ where: { employeeId: dto.nik } });
         if (!user || user.isActive === false) throw new UnprocessableEntityException('No active iDesk account for this NIK');
         const allowed = isTicketRequesterSide(user.id, ticket) || ticket.assignedToId === user.id;
-        if (!allowed) throw new ForbiddenException('Only the requester or the assigned agent can reply from iPop');
+        if (!allowed) throw new ForbiddenException('Only the requester side or the assigned agent can reply from this app');
         const content = dto.content.trim();
         if (!content) throw new BadRequestException('Message cannot be empty');
         const saved = await this.messaging.replyToTicket(ticket.id, user.id, content);
         return { id: saved.id, createdAt: new Date(saved.createdAt).toISOString() };
     }
 
-    async find(query: IpopTicketQueryDto): Promise<IpopTicketView[]> {
+    async find(query: IpopTicketQueryDto, scope: PartnerScope = IPOP_SCOPE): Promise<IpopTicketView[]> {
         if (query.externalRef) {
-            const ticket = await this.findByRef(query.externalRef);
-            return ticket ? [this.toView(ticket)] : [];
+            const ticket = await this.findByRef(query.externalRef, scope);
+            return ticket ? [this.toView(ticket, scope)] : [];
         }
         if (!query.nik) {
             throw new BadRequestException('Provide externalRef or nik');
@@ -216,24 +244,28 @@ export class IpopTicketService {
             where: {
                 userId: user.id,
                 ticketType: Not(In(HIDDEN_FROM_REQUESTER)),
+                ...(scope.ownTicketsOnly ? { externalSource: scope.source } : {}),
                 ...(query.state === 'open' ? { status: Not(In(TICKET_INACTIVE_STATUSES)) } : {}),
             },
             relations: VIEW_RELATIONS,
             order: { createdAt: 'DESC' },
             take: MAX_LIST,
         });
-        return tickets.map((t) => this.toView(t));
+        return tickets.map((t) => this.toView(t, scope));
     }
 
     /** Public progress view (also the webhook payload). */
-    toView(ticket: Ticket): IpopTicketView {
+    toView(ticket: Ticket, scope: PartnerScope = IPOP_SCOPE): IpopTicketView {
         const base = pickPublicBaseUrl(this.config.get<string>('FRONTEND_URL'));
         return {
             ticketId: ticket.id,
             ticketNumber: ticket.ticketNumber,
             externalRef: ticket.externalRef ?? null,
-            origin: ticket.externalSource === IPOP_SOURCE ? 'IPOP' : 'IDESK',
+            origin: ticket.externalSource === scope.source ? scope.source : 'IDESK',
             requester: { nik: ticket.user?.employeeId ?? null, name: ticket.user?.fullName ?? null },
+            ...(scope.ownTicketsOnly ? {
+                submittedBy: ticket.createdBy ? { nik: ticket.createdBy.employeeId ?? null, name: ticket.createdBy.fullName ?? null } : null,
+            } : {}),
             status: ticket.status,
             priority: ticket.priority,
             module: moduleSlugOf(ticket),
@@ -254,31 +286,31 @@ export class IpopTicketService {
         return this.ticketRepo.findOne({ where: { id }, relations: VIEW_RELATIONS });
     }
 
-    private findByRef(externalRef: string): Promise<Ticket | null> {
+    private findByRef(externalRef: string, scope: PartnerScope): Promise<Ticket | null> {
         return this.ticketRepo.findOne({
-            where: { externalSource: IPOP_SOURCE, externalRef },
+            where: { externalSource: scope.source, externalRef },
             relations: VIEW_RELATIONS,
         });
     }
 
-    /** The iPop user must already exist in iDesk (HRIS is the single source of users). */
-    private async resolveRequester(requester: { nik?: string; email?: string }): Promise<User> {
+    /** The person must already exist in iDesk (HRIS is the single source of users). */
+    private async resolveRequester(requester: { nik?: string; email?: string }, role = 'Requester'): Promise<User> {
         const user = requester.nik
             ? await this.userRepo.findOne({ where: { employeeId: requester.nik } })
             : await this.userRepo.findOne({ where: { email: requester.email!.toLowerCase() } });
         if (!user) {
-            throw new UnprocessableEntityException('Requester is not registered in iDesk (match by NIK/email failed)');
+            throw new UnprocessableEntityException(`${role} is not registered in iDesk (match by NIK/email failed)`);
         }
         if (!user.isActive) {
-            throw new UnprocessableEntityException('Requester account is inactive in iDesk');
+            throw new UnprocessableEntityException(`${role} account is inactive in iDesk`);
         }
         return user;
     }
 
     /** Decodes, size/type-checks and writes the base64 attachments; all-or-nothing. */
-    private async storeAttachments(files: IpopAttachmentDto[]): Promise<AttachmentInfo[]> {
+    private async storeAttachments(files: IpopAttachmentDto[], folder: string): Promise<AttachmentInfo[]> {
         if (files.length === 0) return [];
-        const dir = join(UPLOAD_ROOT, 'tickets', 'ipop');
+        const dir = join(UPLOAD_ROOT, 'tickets', folder);
         await mkdir(dir, { recursive: true });
         const saved: AttachmentInfo[] = [];
         try {
@@ -297,7 +329,7 @@ export class IpopTicketService {
                 const name = `${Date.now().toString(36)}-${randomBytes(4).toString('hex')}${ext}`;
                 await writeFile(join(dir, name), buffer);
                 saved.push({
-                    path: `/uploads/tickets/ipop/${name}`,
+                    path: `/uploads/tickets/${folder}/${name}`,
                     name: file.fileName.slice(0, 200),
                     size: buffer.length,
                     mime: mimeOf(ext),
@@ -315,7 +347,7 @@ export class IpopTicketService {
     }
 }
 
-const VIEW_RELATIONS = ['assignedTo', 'user'];
+const VIEW_RELATIONS = ['assignedTo', 'user', 'createdBy'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_MESSAGES = 200;
 /** iDesk books installation slots in WIB (UTC+7, no DST). */

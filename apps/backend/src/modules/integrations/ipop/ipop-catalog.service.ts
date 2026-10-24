@@ -70,7 +70,7 @@ export class IpopCatalogService {
     async resolveRoute(slug: string, category: string | undefined): Promise<IpopRoute> {
         const module = (await this.supportedModules()).find((m) => m.slug === slug);
         if (!module) {
-            throw new BadRequestException(`Unknown or inactive module "${slug}". See GET /integrations/ipop/modules.`);
+            throw new BadRequestException(`Unknown or inactive module "${slug}". See GET /modules.`);
         }
 
         const devType = DEV_MODULE_TYPES[slug];

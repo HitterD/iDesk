@@ -45,7 +45,9 @@ export interface TicketRowData {
     category: string;
     status: 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
-    source: 'WEB' | 'TELEGRAM' | 'EMAIL' | 'IPOP';
+    source: 'WEB' | 'TELEGRAM' | 'EMAIL' | 'IPOP' | 'API';
+    /** Connected app that filed it (source API), e.g. 'EBBK'. */
+    externalSource?: string | null;
     isOverdue: boolean;
     slaTarget?: string;
     slaRemainingMinutes?: number | null;
@@ -262,7 +264,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                             </label>
                         )}
                         <span>#{displayNumber}</span>
-                        <ExternalSourceBadge source={ticket.source} className="queue-src" />
+                        <ExternalSourceBadge source={ticket.source} externalSource={ticket.externalSource} className="queue-src" />
                         {ticket.site && <TicketPill tone="neutral" className="queue-src font-mono">{ticket.site.code}</TicketPill>}
                         {hardwareLink}
                         {ticket.isParticipant && <span className="queue-src"><Users aria-hidden="true" />Partisipan</span>}
@@ -361,7 +363,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                     <div className="queue-tk">
                         <div className="queue-tk-id">
                             <span>#{displayNumber}</span>
-                            <ExternalSourceBadge source={ticket.source} className="queue-src" />
+                            <ExternalSourceBadge source={ticket.source} externalSource={ticket.externalSource} className="queue-src" />
                             {hardwareLink}
                             {ticket.isParticipant && (
                                 <span className="queue-src"><Users aria-hidden="true" />Partisipan</span>

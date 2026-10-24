@@ -117,10 +117,13 @@ async function bootstrap() {
         referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     }));
 
-    // iPop integration: keep the exact request bytes for the HMAC check, and allow the
-    // base64 attachments it sends inline (registered first so the global parser skips it).
+    // iPop and connected apps (EBBK, ...): keep the exact request bytes for the HMAC check, and allow the
+    // base64 attachments they send inline (registered first so the global parser skips it).
     // Both prefixes: the /api -> /v1 rewrite below runs after this parser.
-    app.use(['/v1/integrations/ipop', '/api/v1/integrations/ipop'], express.json({
+    app.use([
+        '/v1/integrations/ipop', '/api/v1/integrations/ipop',
+        '/v1/integrations/apps', '/api/v1/integrations/apps',
+    ], express.json({
         limit: IPOP_JSON_LIMIT,
         verify: (req: any, _res, buf) => { req.rawBody = Buffer.from(buf); },
     }));
