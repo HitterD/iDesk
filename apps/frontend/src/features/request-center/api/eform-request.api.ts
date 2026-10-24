@@ -24,6 +24,11 @@ export interface EFormRequest {
   termsAccepted: boolean;
   rejectionReason?: string;
   currentApproverId?: string;
+  /** Running number, e.g. F/ICT/04-W/0007; set on submit, editable by ICT. */
+  documentNumber?: string | null;
+  /** Original name of the form the GM signed by hand, once ICT uploaded it. */
+  gmApprovalFileName?: string | null;
+  gmApprovedAt?: string | null;
   submittedAt?: string;
   resolvedAt?: string;
   createdAt: string;
@@ -212,16 +217,54 @@ export const useRejectRequest = () => {
   });
 };
 
-export const downloadEformPdf = async (id: string, fileName?: string) => {
-  const response = await api.get(`${API_BASE}/${id}/pdf`, { responseType: 'blob' });
+const saveBlob = async (path: string, fileName: string) => {
+  const response = await api.get(path, { responseType: 'blob' });
   const url = window.URL.createObjectURL(new Blob([response.data as any]));
   const link = document.createElement('a');
   link.href = url;
-  link.setAttribute('download', fileName || `EForm-VPN-${id}.pdf`);
+  link.setAttribute('download', fileName);
   document.body.appendChild(link);
   link.click();
   link.remove();
   window.URL.revokeObjectURL(url);
+};
+
+export const downloadEformPdf = (id: string, fileName?: string) =>
+  saveBlob(`${API_BASE}/${id}/pdf`, fileName || `EForm-VPN-${id}.pdf`);
+
+/** The form as the GM signed it (uploaded by ICT). */
+export const downloadGmApproval = (id: string, fileName?: string | null) =>
+  saveBlob(`${API_BASE}/${id}/gm-approval`, fileName || `TTD-GM-${id}.pdf`);
+
+const invalidateRequest = (queryClient: ReturnType<typeof useQueryClient>, id: string) => {
+  queryClient.invalidateQueries({ queryKey: ['eform-request', id] });
+  queryClient.invalidateQueries({ queryKey: ['eform-requests'] });
+};
+
+/** ICT uploads the PDF the GM signed; the first upload moves the request on to provisioning. */
+export const useUploadGmApproval = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+      const body = new FormData();
+      body.append('file', file);
+      // The panel words the failure itself (with the server's reason), so the global toast stays quiet.
+      const { data } = await api.post(`${API_BASE}/${id}/gm-approval`, body, { skipToast: true });
+      return data as EFormRequest;
+    },
+    onSuccess: (_, { id }) => invalidateRequest(queryClient, id),
+  });
+};
+
+export const useUpdateDocumentNumber = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, documentNumber }: { id: string; documentNumber: string }) => {
+      const { data } = await api.patch(`${API_BASE}/${id}/document-number`, { documentNumber }, { skipToast: true });
+      return data as EFormRequest;
+    },
+    onSuccess: (_, { id }) => invalidateRequest(queryClient, id),
+  });
 };
 
 export const useGetEformPdf = (id: string) => {

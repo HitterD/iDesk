@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Check, CheckCircle2, CircleSlash, FileSignature, KeyRound, ThumbsUp, UserCheck, XCircle } from 'lucide-react';
+import { ArrowUpRight, Check, CheckCircle2, CircleSlash, FileSignature, KeyRound, PenLine, ThumbsUp, UserCheck, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
 import { cn } from '@/lib/utils';
@@ -36,13 +36,14 @@ const PHASE: Record<Exclude<EFormTicketPhase, 'PROPOSED'>, { icon: React.Element
     SUBMITTED: { icon: ThumbsUp, text: 'ditandatangani dan diajukan pemohon', tone: 'ok' },
     DECLINED: { icon: CircleSlash, text: 'ditolak pemohon', tone: 'bad' },
     WITHDRAWN: { icon: CircleSlash, text: 'ditarik tim IT', tone: 'info' },
-    MANAGER_APPROVED: { icon: UserCheck, text: 'disetujui atasan, diteruskan ke ICT', tone: 'ok' },
+    MANAGER_APPROVED: { icon: UserCheck, text: 'disetujui atasan, menunggu tanda tangan GM', tone: 'ok' },
+    GM_APPROVED: { icon: PenLine, text: 'sudah ditandatangani GM, diteruskan ke ICT', tone: 'ok' },
     GRANTED: { icon: KeyRound, text: 'aktif. Tiket ditutup otomatis', tone: 'ok' },
     REJECTED: { icon: XCircle, text: 'ditolak', tone: 'bad' },
 };
 
 const STATUS_TONE: Partial<Record<EFormStatus, TicketPillTone>> = {
-    DRAFT: 'amber', PENDING_MANAGER: 'amber', CONFIRMED: 'green', REJECTED: 'red', CANCELLED: 'neutral',
+    DRAFT: 'amber', PENDING_MANAGER: 'amber', PENDING_GM: 'amber', CONFIRMED: 'green', REJECTED: 'red', CANCELLED: 'neutral',
 };
 
 /** An e-form access message in the ticket chat: the proposal as a live card, later steps as one-line events. */

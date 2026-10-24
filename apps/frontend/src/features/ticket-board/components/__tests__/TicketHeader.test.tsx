@@ -9,6 +9,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { TicketHeader } from '../ticket-detail/TicketHeader';
 
+// The hold lookup is a query of its own (covered by StatusPill tests); the header tests are about layout and navigation.
+vi.mock('../ticket-detail/useTicketHold', () => ({ useTicketHold: () => null }));
+
 // Mock useNavigate
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {

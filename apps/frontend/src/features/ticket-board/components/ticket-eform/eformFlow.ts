@@ -1,13 +1,15 @@
 /** Mirrors EFormTicketPhase (backend ticketing/utils/ticket-activity.util.ts). */
-export type EFormTicketPhase = 'PROPOSED' | 'DECLINED' | 'WITHDRAWN' | 'SUBMITTED' | 'MANAGER_APPROVED' | 'GRANTED' | 'REJECTED';
+export type EFormTicketPhase = 'PROPOSED' | 'DECLINED' | 'WITHDRAWN' | 'SUBMITTED' | 'MANAGER_APPROVED' | 'GM_APPROVED' | 'GRANTED' | 'REJECTED';
 
-export type EFormStatus = 'DRAFT' | 'PENDING_MANAGER' | 'PENDING_ICT' | 'CONFIRMED' | 'REJECTED' | 'CANCELLED';
+export type EFormStatus = 'DRAFT' | 'PENDING_MANAGER' | 'PENDING_GM' | 'PENDING_ICT' | 'CONFIRMED' | 'REJECTED' | 'CANCELLED';
 export type EFormType = 'VPN' | 'WEBSITE' | 'NETWORK' | 'FLASHDISK' | 'EMAIL' | 'SYNOLOGY_NAS';
 
 /** What a ticket knows about one e-form request proposed from it (backend TicketEFormSummary). */
 export interface TicketEFormRequest {
     id: string;
     code: string;
+    /** Running document number once submitted, e.g. F/ICT/04/0012. */
+    documentNumber?: string | null;
     formType: EFormType;
     status: EFormStatus;
     note: string;
@@ -20,7 +22,7 @@ export interface TicketEFormRequest {
     resolvedAt: string | null;
 }
 
-/** Synology access skips the manager: it goes from the requester straight to ICT. */
+/** Synology access skips the manager (and so the GM): it goes from the requester straight to ICT. */
 const skipsManager = (type: EFormType) => type === 'SYNOLOGY_NAS';
 
 interface FlowStep { label: string; statuses: EFormStatus[] }
@@ -29,7 +31,10 @@ interface FlowStep { label: string; statuses: EFormStatus[] }
 export function flowSteps(type: EFormType): FlowStep[] {
     return [
         { label: 'Tanda tangan pemohon', statuses: ['DRAFT'] },
-        ...(skipsManager(type) ? [] : [{ label: 'Persetujuan atasan', statuses: ['PENDING_MANAGER'] as EFormStatus[] }]),
+        ...(skipsManager(type) ? [] : [
+            { label: 'Persetujuan atasan', statuses: ['PENDING_MANAGER'] as EFormStatus[] },
+            { label: 'Tanda tangan GM', statuses: ['PENDING_GM'] as EFormStatus[] },
+        ]),
         { label: 'Proses ICT', statuses: ['PENDING_ICT'] },
         { label: 'Akses aktif', statuses: ['CONFIRMED'] },
     ];
@@ -48,6 +53,7 @@ export function statusSentence(request: Pick<TicketEFormRequest, 'status' | 'app
     switch (request.status) {
         case 'DRAFT': return 'Menunggu pemohon melengkapi & tanda tangan';
         case 'PENDING_MANAGER': return request.approverName ? `Menunggu persetujuan ${request.approverName}` : 'Menunggu persetujuan atasan';
+        case 'PENDING_GM': return 'Menunggu tanda tangan GM';
         case 'PENDING_ICT': return 'Sedang disiapkan tim ICT';
         case 'CONFIRMED': return 'Akses sudah aktif';
         case 'REJECTED': return 'Ditolak';
@@ -58,7 +64,7 @@ export function statusSentence(request: Pick<TicketEFormRequest, 'status' | 'app
 
 /** ICT's next step, shown to the agent in the ticket; the work happens on the e-form page. */
 export const staffTodo = (request: Pick<TicketEFormRequest, 'status'>): string | null =>
-    request.status === 'PENDING_ICT' ? 'Proses akses' : null;
+    request.status === 'PENDING_GM' ? 'Unggah TTD GM' : request.status === 'PENDING_ICT' ? 'Proses akses' : null;
 
 /** VPN needs as the e-form page offers them (VPN_NEED_OPTIONS ids in EformAccessCreatePage). */
 export const VPN_NEEDS = ['Remote PC Kantor', 'Akses Jaringan Kantor'] as const;

@@ -27,9 +27,14 @@ type TabView = 'my-requests' | 'pending-approvals';
 
 const ICT_ROLES = ['ADMIN', 'AGENT_ADMIN'];
 
+/** ICT's queue: getting the GM's signature on paper, then provisioning. */
+const ICT_QUEUE = 'ICT_QUEUE';
+const ICT_QUEUE_STATUSES: readonly EFormStatus[] = [EFormStatus.PENDING_GM, EFormStatus.PENDING_ICT];
+
 const STATUS_FILTERS = [
     { value: 'ALL', label: 'Semua status' },
     { value: 'EXPIRING_SOON', label: 'Segera Berakhir (< 7 Hari)' },
+    { value: ICT_QUEUE, label: 'Antrean ICT (TTD GM + proses)' },
     ...Object.values(EFormStatus).map(status => ({
         value: status as string,
         label: getStatusConfig(status).label,
@@ -74,6 +79,7 @@ export const EformAccessListPage: React.FC = () => {
                 const matchesSearch =
                     !query ||
                     (req.requesterName?.toLowerCase() || '').includes(query) ||
+                    (req.documentNumber?.toLowerCase() || '').includes(query) ||
                     req.id.toLowerCase().startsWith(query);
                 const matchesStatus =
                     statusFilter === 'ALL'
@@ -83,7 +89,9 @@ export const EformAccessListPage: React.FC = () => {
                                 const exp = calculateExpirationStatus(req.formData?.sampaiTanggal, req.status);
                                 return !!(exp.isExpiringSoon || exp.isToday);
                             })()
-                            : req.status === statusFilter;
+                            : statusFilter === ICT_QUEUE
+                                ? ICT_QUEUE_STATUSES.includes(req.status as EFormStatus)
+                                : req.status === statusFilter;
                 const matchesType = typeFilter === 'ALL' || req.formType === typeFilter;
                 return matchesSearch && matchesStatus && matchesType;
             }),
@@ -94,7 +102,7 @@ export const EformAccessListPage: React.FC = () => {
         () => ({
             total: activeList.length,
             pendingManager: activeList.filter(r => r.status === EFormStatus.PENDING_MANAGER).length,
-            pendingIct: activeList.filter(r => r.status === EFormStatus.PENDING_ICT).length,
+            pendingIct: activeList.filter(r => ICT_QUEUE_STATUSES.includes(r.status as EFormStatus)).length,
             confirmed: activeList.filter(r => r.status === EFormStatus.CONFIRMED).length,
             expiringSoon: activeList.filter(r => {
                 const exp = calculateExpirationStatus(r.formData?.sampaiTanggal, r.status);
@@ -135,7 +143,7 @@ export const EformAccessListPage: React.FC = () => {
                 <ResStat icon={UserCheck} tone="amber" label="Menunggu Atasan" value={counts.pendingManager} attention={counts.pendingManager > 0} zero={counts.pendingManager === 0}
                     active={statusFilter === EFormStatus.PENDING_MANAGER} onClick={() => toggleStat(EFormStatus.PENDING_MANAGER)} />
                 <ResStat icon={Loader} tone="blue" label="Diproses ICT" value={counts.pendingIct} zero={counts.pendingIct === 0}
-                    active={statusFilter === EFormStatus.PENDING_ICT} onClick={() => toggleStat(EFormStatus.PENDING_ICT)} />
+                    active={statusFilter === ICT_QUEUE} onClick={() => toggleStat(ICT_QUEUE)} />
                 <ResStat icon={CircleCheck} tone="green" label="Akses Siap" value={counts.confirmed} zero={counts.confirmed === 0}
                     active={statusFilter === EFormStatus.CONFIRMED} onClick={() => toggleStat(EFormStatus.CONFIRMED)} />
                 <ResStat icon={Hourglass} tone="amber" label="Segera Berakhir" value={counts.expiringSoon} attention={counts.expiringSoon > 0} zero={counts.expiringSoon === 0}
@@ -160,7 +168,7 @@ export const EformAccessListPage: React.FC = () => {
             ) : (
                 <>
                     <div className="res-filters">
-                        <ResSearch id="eform-search" value={searchTerm} onChange={setSearchTerm} placeholder="Cari nama pemohon atau ID permintaan" label="Cari permintaan" />
+                        <ResSearch id="eform-search" value={searchTerm} onChange={setSearchTerm} placeholder="Cari nama pemohon, nomor dokumen, atau ID" label="Cari permintaan" />
                         <FilterPop k="Jenis" shown={typeLabel} label="Saring jenis akses" value={typeFilter} onChange={setTypeFilter}
                             options={[{ value: 'ALL', label: 'Semua jenis' }, ...EFORM_TYPES.map(({ id, label }) => ({ value: id, label }))]} />
                         <FilterPop k="Status" shown={statusLabel} label="Saring status" value={statusFilter} onChange={setStatusFilter} options={STATUS_FILTERS} />
@@ -215,6 +223,7 @@ const FilterPop: React.FC<FilterPopProps> = ({ k, shown, label, value, onChange,
 /** Mockup status bubble hues (eform.html ST). */
 const STATUS_BUB: Record<string, { color: string; ink?: string }> = {
     [EFormStatus.PENDING_MANAGER]: { color: 'var(--dash-orange)', ink: 'var(--dash-ink-orange)' },
+    [EFormStatus.PENDING_GM]: { color: 'var(--dash-orange)', ink: 'var(--dash-ink-orange)' },
     [EFormStatus.PENDING_ICT]: { color: 'var(--dash-blue)' },
     [EFormStatus.CONFIRMED]: { color: 'var(--dash-green)', ink: 'var(--dash-ink-green)' },
     [EFormStatus.REJECTED]: { color: 'var(--dash-red)', ink: 'var(--dash-ink-red)' },
@@ -264,9 +273,9 @@ const EformListRow: React.FC<EformListRowProps> = ({ request, isApprovalTab, hre
         // Mouse users may click anywhere on the row; keyboard/AT use the real link in the first cell.
         <ResRow className="is-link" onClick={onOpen}>
             <Link to={href} className="queue-person res-row-toggle" onClick={(e) => e.stopPropagation()}
-                aria-label={`${isApprovalTab ? 'Tinjau' : 'Detail'} ${type.label} ${shortId(request.id)}: ${name}`}>
+                aria-label={`${isApprovalTab ? 'Tinjau' : 'Detail'} ${type.label} ${docLabel(request)}: ${name}`}>
                 <span className="res-type-ico" style={resVars({ '--c': TYPE_TINT })}><TypeIcon aria-hidden="true" /></span>
-                <div className="min-w-0"><b>{type.label}</b><small className="font-mono">{shortId(request.id)}</small></div>
+                <div className="min-w-0"><b>{type.label}</b><small className="font-mono">{docLabel(request)}</small></div>
             </Link>
             <div className="queue-person res-hide-m">
                 <DashAvatar name={name} />
@@ -297,6 +306,8 @@ const EformListRow: React.FC<EformListRowProps> = ({ request, isApprovalTab, hre
 };
 
 const shortId = (id: string) => `#${id.slice(0, 8).toUpperCase()}`;
+/** The document number once submitted; the short id for anything older. */
+const docLabel = (request: { id: string; documentNumber?: string | null }) => request.documentNumber || shortId(request.id);
 
 interface EmptyStateProps {
     isFiltered: boolean;
@@ -319,7 +330,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({ isFiltered, isApprovalTab, onRe
     return (
         <ResEmpty icon={FileText} title="Belum ada pengajuan"
             cta={<button type="button" className="idesk-text-link" onClick={onCreate}>Ajukan akses<ArrowRight aria-hidden="true" /></button>}>
-            Ajukan akses VPN, website, atau jaringan. Permintaan diteruskan ke atasan Anda, lalu ke tim ICT untuk disiapkan.
+            Ajukan akses VPN, website, atau jaringan. Permintaan diteruskan ke atasan Anda, ditandatangani GM, lalu disiapkan tim ICT.
         </ResEmpty>
     );
 };

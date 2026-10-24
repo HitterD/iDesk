@@ -43,7 +43,7 @@ export function useCancelEFormProposal(ticketId: string, byRequester: boolean) {
     });
 }
 
-const HOLDING = new Set(['PENDING_MANAGER', 'PENDING_ICT']);
+const HOLDING = new Set(['PENDING_MANAGER', 'PENDING_GM', 'PENDING_ICT']);
 
 /** The e-form request a WAITING_VENDOR ticket is waiting on, so it can say so instead of "waiting for a vendor". */
 export function useEFormHold(ticket: { id: string; status: string }) {

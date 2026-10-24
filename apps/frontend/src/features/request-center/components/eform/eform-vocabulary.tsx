@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, ShieldCheck, Database, CheckCircle2, Ban, FileEdit, Globe, Wifi, Usb, Mail, HardDrive } from 'lucide-react';
+import { Clock, PenLine, ShieldCheck, Database, CheckCircle2, Ban, FileEdit, Globe, Wifi, Usb, Mail, HardDrive } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import '@/features/dashboard/dashboard.css';
 import '@/components/resources/resources.css';
@@ -11,6 +11,8 @@ export const ICT_ROLES = ['ADMIN', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT'] a
 export enum EFormStatus {
     DRAFT = 'DRAFT',
     PENDING_MANAGER = 'PENDING_MANAGER',
+    /** Manager approved; IT gets the GM's signature on the printed form and uploads it. */
+    PENDING_GM = 'PENDING_GM',
     PENDING_ICT = 'PENDING_ICT',
     CONFIRMED = 'CONFIRMED',
     REJECTED = 'REJECTED',
@@ -56,6 +58,13 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
         label: 'Menunggu Atasan',
         hint: 'Menunggu persetujuan atasan',
         icon: Clock,
+        badge: 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50',
+        solid: 'bg-amber-500',
+    },
+    [EFormStatus.PENDING_GM]: {
+        label: 'Menunggu TTD GM',
+        hint: 'Tim ICT meminta tanda tangan GM',
+        icon: PenLine,
         badge: 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50',
         solid: 'bg-amber-500',
     },
@@ -119,6 +128,7 @@ export const EFORM_TYPES = (['VPN', 'WEBSITE', 'NETWORK', 'FLASHDISK', 'EMAIL', 
 /** Mockup bubble hue per status (eform.html ST). */
 const STATUS_BUB_HUE: Record<string, { c: string; ink?: string }> = {
     [EFormStatus.PENDING_MANAGER]: { c: 'var(--dash-orange, #f2930d)', ink: 'var(--dash-ink-orange, #a85d00)' },
+    [EFormStatus.PENDING_GM]: { c: 'var(--dash-orange, #f2930d)', ink: 'var(--dash-ink-orange, #a85d00)' },
     [EFormStatus.PENDING_ICT]: { c: 'var(--dash-blue, #3d63b8)' },
     [EFormStatus.CONFIRMED]: { c: 'var(--dash-green, #2fb350)', ink: 'var(--dash-ink-green, #1c7a35)' },
     [EFormStatus.REJECTED]: { c: 'var(--dash-red, #f04438)', ink: 'var(--dash-ink-red, #c4281c)' },
