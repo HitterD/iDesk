@@ -200,6 +200,18 @@ describe('CsiRespondentService', () => {
             expect(manager.save).not.toHaveBeenCalled();
         });
 
+        it('validates against ratees read after taking the period lock', async () => {
+            const builder = memoryRepository<any>(periods.rows).createQueryBuilder();
+            builder.getOne.mockImplementation(async () => {
+                ratees.rows.splice(2); // a concurrent admin edit committed before our lock was granted
+                return periods.rows[0];
+            });
+            periods.createQueryBuilder.mockReturnValueOnce(builder);
+            await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toBeInstanceOf(BadRequestException);
+            expect(builder.setLock).toHaveBeenCalledWith('pessimistic_write');
+            expect(manager.save).not.toHaveBeenCalled();
+        });
+
         it('submit rejects inactive department (400)', async () => {
             await expect(service.submit(me, 'p1', dto({ departmentId: 'dep-off' }), NOW)).rejects.toBeInstanceOf(BadRequestException);
             await expect(service.submit(me, 'p1', dto({ departmentId: 'dep-hc' }), NOW)).rejects.toBeInstanceOf(BadRequestException);

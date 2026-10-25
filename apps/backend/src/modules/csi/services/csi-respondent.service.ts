@@ -78,19 +78,22 @@ export class CsiRespondentService {
     async submit(user: CsiRespondentRef, periodId: string, dto: SubmitResponseDto, now: Date = new Date()) {
         const { period, audience } = await this.resolveEligible(user, periodId);
         assertSubmittable(period, now);
-        const department = await this.departments.findOne({ where: { id: dto.departmentId, scope: period.scope, isActive: true } });
-        if (!department) throw new BadRequestException('Departemen tidak ditemukan atau tidak aktif');
-        const dimensions = await this.dimensionsOf(audience.ratees);
-        const items = validateItems(dto.items ?? [], dimensions);
-        const comments = validateComments(dto.comments ?? [], audience.ratees);
+        const respondentId = audience.respondent.id;
         try {
             await this.dataSource.transaction(async (manager) => {
+                // Lock first so concurrent admin ratee/rater edits (same lock) cannot change what we validate against.
                 const locked = await lockPeriodRow(manager, period.id);
                 if (!locked) throw new NotFoundException(NOT_FOUND_MESSAGE);
                 assertSubmittable(locked, now);
-                const existing = await manager.getRepository(CsiResponse).count({ where: { periodId: period.id, respondentId: audience.respondent.id } });
+                const existing = await manager.getRepository(CsiResponse).count({ where: { periodId: period.id, respondentId } });
                 if (existing > 0) throw new ConflictException(ALREADY_SUBMITTED_MESSAGE);
-                await this.writeResponse(manager, { periodId: period.id, respondentId: audience.respondent.id, department, items, comments, now });
+                const current = await this.audienceFor(audience.respondent, locked);
+                if (!current) throw new NotFoundException(NOT_FOUND_MESSAGE);
+                const department = await this.departments.findOne({ where: { id: dto.departmentId, scope: locked.scope, isActive: true } });
+                if (!department) throw new BadRequestException('Departemen tidak ditemukan atau tidak aktif');
+                const items = validateItems(dto.items ?? [], await this.dimensionsOf(current.ratees));
+                const comments = validateComments(dto.comments ?? [], current.ratees);
+                await this.writeResponse(manager, { periodId: period.id, respondentId, department, items, comments, now });
             });
         } catch (error) {
             if (error instanceof QueryFailedError && (error.driverError as { code?: string })?.code === PG_UNIQUE_VIOLATION) {
