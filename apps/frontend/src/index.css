@@ -1094,6 +1094,24 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   font-family: var(--font-sans); font-size: 10.5px; font-weight: 500; line-height: 17px; color: hsl(var(--idesk-text-secondary)); background: hsl(var(--muted));
 }
 .queue-src svg { width: 11px; height: 11px; }
+/* Ticket source badge (ExternalSourceBadge): neutral chip, the app is told apart by its dot. */
+.src-badge {
+  --src: var(--src-slate);
+  display: inline-flex; align-items: center; gap: 5px; flex: none; height: 18px; padding: 0 7px 0 6px; border-radius: 9px;
+  font-family: var(--font-sans); font-size: 10.5px; font-weight: 600; line-height: 1; white-space: nowrap; letter-spacing: .01em;
+  color: hsl(var(--idesk-text)); background: color-mix(in srgb, hsl(var(--src)) 9%, hsl(var(--idesk-surface)));
+  box-shadow: inset 0 0 0 .5px color-mix(in srgb, hsl(var(--src)) 30%, transparent);
+}
+.src-badge > i { width: 6px; height: 6px; border-radius: 50%; flex: none; background: hsl(var(--src)); }
+.src-badge[data-src="ipop"] { --src: var(--src-ipop); }
+.src-badge[data-src="blue"] { --src: var(--src-blue); }
+.src-badge[data-src="sky"] { --src: var(--src-sky); }
+.src-badge[data-src="teal"] { --src: var(--src-teal); }
+.src-badge[data-src="amber"] { --src: var(--src-amber); }
+.src-badge[data-src="orange"] { --src: var(--src-orange); }
+.src-badge[data-src="red"] { --src: var(--src-red); }
+.src-badge[data-src="pink"] { --src: var(--src-pink); }
+.src-badge[data-src="slate"] { --src: var(--src-slate); }
 .queue-unread {
   display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 7px; border-radius: 9px; flex: none;
   font-family: var(--font-sans); font-size: 10.5px; font-weight: 550; color: hsl(var(--idesk-sapphire));

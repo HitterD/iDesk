@@ -45,6 +45,16 @@
         --ticket-red-ink: 4 75% 40%;
         --ticket-teal: 178 81% 31%;
         --ticket-teal-ink: 178 80% 24%;
+        /* Ticket source dots: iPop green, connected apps pick one of the rest (no violet). */
+        --src-ipop: 146 64% 36%;
+        --src-blue: 221 70% 52%;
+        --src-sky: 204.5 79% 49%;
+        --src-teal: 178 81% 31%;
+        --src-amber: 35 90% 48%;
+        --src-orange: 20 88% 52%;
+        --src-red: 4 80% 54%;
+        --src-pink: 334 72% 54%;
+        --src-slate: 215 16% 47%;
 
         /* TYPOGRAPHY — SF Pro on Apple devices (system font, never self-hosted), Inter elsewhere (index.html). */
         --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", system-ui, sans-serif;
@@ -267,6 +277,15 @@
         --ticket-green-ink: 136 59% 65%;
         --ticket-red-ink: 4 100% 74%;
         --ticket-teal-ink: 178 62% 65%;
+        --src-ipop: 146 55% 52%;
+        --src-blue: 221 80% 68%;
+        --src-sky: 206 100% 65%;
+        --src-teal: 178 62% 50%;
+        --src-amber: 38 95% 58%;
+        --src-orange: 22 95% 62%;
+        --src-red: 4 90% 66%;
+        --src-pink: 334 85% 70%;
+        --src-slate: 215 20% 65%;
 
         /* PREMIUM DARK — Deep Navy & Luminous */
         --background: 225 25% 8%;         /* #101520 deep navy */

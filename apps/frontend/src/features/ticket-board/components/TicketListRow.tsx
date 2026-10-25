@@ -264,7 +264,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                             </label>
                         )}
                         <span>#{displayNumber}</span>
-                        <ExternalSourceBadge source={ticket.source} externalSource={ticket.externalSource} className="queue-src" />
+                        <ExternalSourceBadge source={ticket.source} externalSource={ticket.externalSource} />
                         {ticket.site && <TicketPill tone="neutral" className="queue-src font-mono">{ticket.site.code}</TicketPill>}
                         {hardwareLink}
                         {ticket.isParticipant && <span className="queue-src"><Users aria-hidden="true" />Partisipan</span>}
@@ -363,7 +363,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                     <div className="queue-tk">
                         <div className="queue-tk-id">
                             <span>#{displayNumber}</span>
-                            <ExternalSourceBadge source={ticket.source} externalSource={ticket.externalSource} className="queue-src" />
+                            <ExternalSourceBadge source={ticket.source} externalSource={ticket.externalSource} />
                             {hardwareLink}
                             {ticket.isParticipant && (
                                 <span className="queue-src"><Users aria-hidden="true" />Partisipan</span>

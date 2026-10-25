@@ -372,7 +372,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                         </TicketPill>
                     )}
                     <PriorityPill priority={ticket.priority} short />
-                    <ExternalSourceBadge source={ticket.source} externalSource={ticket.externalSource} className="rounded-full py-1" />
+                    <ExternalSourceBadge source={ticket.source} externalSource={ticket.externalSource} />
                 </div>
 
                 <div className="td-line">

@@ -6,6 +6,7 @@ import {
 import { cn } from '@/lib/utils';
 import { TicketPill, PRIORITY_TONES, STATUS_TONES } from '@/components/ui/ticket-pill';
 import { TicketQuickPreview } from '@/components/ui/TicketQuickPreview';
+import { ExternalSourceBadge } from '@/components/ui/ExternalSourceBadge';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { STATUS_CONFIG, PRIORITY_CONFIG, KANBAN_COLUMNS } from '@/lib/constants/ticket.constants';
 import { TargetDateCell } from './TargetDateCell';
@@ -17,6 +18,9 @@ export interface KanbanTicket {
     title: string;
     description?: string;
     category?: string;
+    source?: string | null;
+    /** Connected app that filed it (source API), e.g. 'EBBK'. */
+    externalSource?: string | null;
     status: 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
     isOverdue?: boolean;
@@ -81,7 +85,7 @@ export const EnhancedKanbanCard: React.FC<KanbanCardProps> = ({ ticket, index, o
                 >
                     <div className="kanban-id">
                         <span>#{number}</span>
-                        {ticket.category && <span className="src">{ticket.category.replace(/_/g, ' ')}</span>}
+                        <ExternalSourceBadge source={ticket.source} externalSource={ticket.externalSource} />
                         {locked && <span className="kanban-lock" title="Hanya baca"><Lock aria-label="Hanya baca" /></span>}
                     </div>
                     <span className="card-acts">

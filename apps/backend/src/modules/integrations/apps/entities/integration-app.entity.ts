@@ -1,5 +1,5 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
-import type { AppPermission } from '../integration-app.constants';
+import type { AppColor, AppPermission } from '../integration-app.constants';
 
 /**
  * Another office application (e.g. EBBK) allowed to file and follow tickets through the API.
@@ -20,6 +20,10 @@ export class IntegrationApp {
 
     @Column({ type: 'varchar', length: 300, nullable: true })
     description: string | null;
+
+    /** Dot colour of the ticket source badge (APP_COLORS); null = derived from clientId. */
+    @Column({ type: 'varchar', length: 16, nullable: true })
+    color: AppColor | null;
 
     /** HMAC secret, encrypted with CredentialCipherService; shown in plain text only when issued. */
     @Column({ type: 'text' })
