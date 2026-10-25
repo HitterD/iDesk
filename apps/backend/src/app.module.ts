@@ -78,6 +78,7 @@ import { AccessRequestModule } from './modules/access-request/access-request.mod
 
 // New modules for Phase 3
 import { WorkloadModule } from './modules/workload/workload.module';
+import { CsiModule } from './modules/csi/csi.module';
 import { AgentDashboardModule } from './modules/agent-dashboard/agent-dashboard.module';
 import { IpopIntegrationModule } from './modules/integrations/ipop/ipop.module';
 import { IntegrationAppsModule } from './modules/integrations/apps/integration-apps.module';
@@ -158,7 +159,7 @@ import { validateAuthEnvironment } from './config/auth.config';
             synchronize: process.env.DB_SYNCHRONIZE === 'true' && process.env.NODE_ENV !== 'production',
             // Enable migrations for production
             migrationsRun: process.env.NODE_ENV === 'production',
-            migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
+            migrations: [join(__dirname, 'migrations', '!(*.spec).{ts,js}')],
             // Slow query logging with custom logger
             logging: ['error', 'warn', 'schema', 'migration'],
             logger: new CustomTypeOrmLogger(),
@@ -227,6 +228,7 @@ import { validateAuthEnvironment } from './config/auth.config';
 
         AccessRequestModule, // Phase 2: Ticket Types
         WorkloadModule, // Phase 3: Auto-Assignment
+        CsiModule,
         AgentDashboardModule, // Per-agent personal dashboard
         IpopIntegrationModule, // iPop server-to-server ticket API + status webhooks
         IntegrationAppsModule, // Other office apps (EBBK, ...): same ticket API, per-app secret, modules and permissions
