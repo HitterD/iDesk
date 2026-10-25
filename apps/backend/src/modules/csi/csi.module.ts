@@ -12,6 +12,9 @@ import { CsiPeriodService } from './services/csi-period.service';
 import { CsiAdminPeriodController } from './presentation/csi-admin-period.controller';
 import { CsiRespondentService } from './services/csi-respondent.service';
 import { CsiMeController } from './presentation/csi-me.controller';
+import { CsiReportService } from './services/csi-report.service';
+import { CsiExportService } from './services/csi-export.service';
+import { CsiAdminReportController } from './presentation/csi-admin-report.controller';
 import { CsiDimension } from './entities/csi-dimension.entity';
 import { CsiDepartment } from './entities/csi-department.entity';
 import { CsiRater } from './entities/csi-rater.entity';
@@ -33,7 +36,7 @@ import { CsiResponseComment } from './entities/csi-response-comment.entity';
         AuthModule,
         AuditModule,
     ],
-    controllers: [CsiAdminMasterController, CsiAdminPeriodController, CsiMeController],
-    providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService],
+    controllers: [CsiAdminMasterController, CsiAdminPeriodController, CsiAdminReportController, CsiMeController],
+    providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiExportService],
 })
 export class CsiModule { }
