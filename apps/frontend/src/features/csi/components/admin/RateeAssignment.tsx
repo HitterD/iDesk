@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useServerDraft } from '../../lib/useServerDraft';
 import { ChevronDown, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -6,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { useCsiDimensions, useSetCsiRatees } from '../../hooks/useCsi';
 import {
-    draftFromPeriod, mergeRatees, orderDimensions, toRateesPayload, type DraftUser, type RateeDraft,
+    draftFromPeriod, mergeRatees, orderDimensions, rateesSignature, toRateesPayload, type DraftUser, type RateeDraft,
 } from '../../lib/csiAdmin';
 import type { CsiDimension, CsiPeriodDetail, CsiScopeParam } from '../../types';
 import { AdminSection, EmptyNote, LockedNote, MUTED_TEXT, UserMultiPicker } from './AdminParts';
@@ -110,7 +111,7 @@ function RateeTable({ draft, dimensions, locked, onChangeRow, onRemove }: {
 export function RateeAssignment({ scope, period }: { scope: CsiScopeParam; period: CsiPeriodDetail }) {
     const { data: dimensions = [] } = useCsiDimensions(scope);
     const save = useSetCsiRatees(scope, period.id);
-    const [draft, setDraft] = useState<RateeDraft[]>(() => draftFromPeriod(period));
+    const [draft, setDraft] = useServerDraft<RateeDraft[]>(() => draftFromPeriod(period), rateesSignature(period));
     const [pickedUsers, setPickedUsers] = useState<DraftUser[]>([]);
     const [pickedDimensions, setPickedDimensions] = useState<string[]>([]);
     const locked = period.locked;

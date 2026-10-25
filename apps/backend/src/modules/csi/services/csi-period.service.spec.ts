@@ -220,6 +220,20 @@ describe('CsiPeriodService', () => {
             expect(periods.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', title: 'Baru', endDate: '2026-09-20' }));
         });
 
+        it('rejects changing respondentMode once the period has answers (409), keeping same-mode edits', async () => {
+            responses.rows.push({ id: 'resp', periodId: 'p1' });
+            await expect(service.update(ICT, 'p1', { respondentMode: CsiRespondentMode.LISTED }))
+                .rejects.toThrow(new ConflictException('Periode sudah memiliki jawaban'));
+            expect(periods.save).not.toHaveBeenCalled();
+            await service.update(ICT, 'p1', { respondentMode: CsiRespondentMode.OPEN, title: 'Baru' });
+            expect(periods.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', title: 'Baru', respondentMode: CsiRespondentMode.OPEN }));
+        });
+
+        it('allows changing respondentMode before any answer', async () => {
+            await service.update(ICT, 'p1', { respondentMode: CsiRespondentMode.LISTED });
+            expect(periods.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', respondentMode: CsiRespondentMode.LISTED }));
+        });
+
         it('rejects period of other scope (404)', async () => {
             await expect(service.update(HC, 'p1', { title: 'X' })).rejects.toBeInstanceOf(NotFoundException);
         });

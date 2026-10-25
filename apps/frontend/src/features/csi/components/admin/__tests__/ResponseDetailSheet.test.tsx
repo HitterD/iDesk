@@ -16,7 +16,7 @@ vi.mock('../../../hooks/useCsi', () => ({
     useResetCsiResponse: () => ({ mutate: hooks.reset, isPending: false }),
 }));
 
-beforeEach(() => hooks.reset.mockReset());
+beforeEach(() => { hooks.reset.mockReset(); });
 afterEach(cleanup);
 
 describe('ResponseDetailSheet', () => {
@@ -37,5 +37,19 @@ describe('ResponseDetailSheet', () => {
         await actor.click(confirm);
 
         expect(hooks.reset).toHaveBeenCalledWith({ responseId: 'r1', reason: 'abc salah dept' }, expect.anything());
+    });
+
+    it('mengosongkan alasan setelah reset berhasil', async () => {
+        const actor = userEvent.setup();
+        hooks.reset.mockImplementation((_payload: unknown, options: { onSuccess: () => void }) => options.onSuccess());
+        const { rerender } = render(<ResponseDetailSheet scope="ict" periodId="p1" responseId="r1" onClose={vi.fn()} />);
+
+        await actor.click(screen.getByRole('button', { name: 'Reset jawaban' }));
+        await actor.type(screen.getByLabelText('Alasan reset'), 'salah dept');
+        await actor.click(screen.getByRole('button', { name: 'Reset jawaban' }));
+
+        rerender(<ResponseDetailSheet scope="ict" periodId="p1" responseId="r2" onClose={vi.fn()} />);
+        await actor.click(await screen.findByRole('button', { name: 'Reset jawaban' }));
+        expect(screen.getByLabelText('Alasan reset')).toHaveValue('');
     });
 });

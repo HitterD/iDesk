@@ -26,6 +26,8 @@ export interface SegmentedControlProps<V extends string> {
     onValueChange: (value: V) => void;
     'aria-label': string;
     className?: string;
+    /** Disables every button segment (link segments are unaffected). */
+    disabled?: boolean;
 }
 
 const ARROW_STEP: Readonly<Record<string, number>> = { ArrowRight: 1, ArrowLeft: -1 };
@@ -36,7 +38,7 @@ const isModifiedClick = (event: MouseEvent) => event.metaKey || event.ctrlKey ||
  * Duration comes from `--dur-3`, so prefers-reduced-motion (which zeroes it) makes the move instant.
  */
 export function SegmentedControl<V extends string>({
-    options, value, onValueChange, 'aria-label': ariaLabel, className,
+    options, value, onValueChange, 'aria-label': ariaLabel, className, disabled,
 }: SegmentedControlProps<V>) {
     const groupRef = useRef<HTMLDivElement>(null);
     const thumbRef = useRef<HTMLSpanElement>(null);
@@ -73,7 +75,7 @@ export function SegmentedControl<V extends string>({
     };
 
     return (
-        <div ref={groupRef} role="group" aria-label={ariaLabel} className={cn('portal-seg has-thumb', className)}>
+        <div ref={groupRef} role="group" aria-label={ariaLabel} className={cn('portal-seg has-thumb', disabled && 'opacity-60 cursor-not-allowed', className)}>
             <span ref={thumbRef} className="seg-thumb" aria-hidden="true" />
             {options.map((option, index) => {
                 const Icon = option.icon;
@@ -114,6 +116,7 @@ export function SegmentedControl<V extends string>({
                         ref={(el) => { itemRefs.current[index] = el; }}
                         type="button"
                         aria-pressed={selected}
+                        disabled={disabled}
                         {...shared}
                         onClick={() => onValueChange(option.value)}
                     >

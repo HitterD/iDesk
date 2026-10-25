@@ -6,7 +6,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { cn } from '@/lib/utils';
 import { CsiApi } from '../../api/csi.api';
 import { useCsiReport } from '../../hooks/useCsi';
-import { downloadBlob } from '../../lib/csiAdmin';
+import { blobErrorMessage, downloadBlob } from '../../lib/csiAdmin';
 import { formatPercent, formatScore } from '../../lib/format';
 import type { CsiReport, CsiScopeParam } from '../../types';
 import { StarRating } from '../StarRating';
@@ -51,9 +51,9 @@ function ExportButton({ scope, periodId }: { scope: CsiScopeParam; periodId: str
         try {
             const { blob, filename } = await CsiApi.exportPeriod(scope, periodId);
             downloadBlob(blob, filename);
-        } catch {
-            // The api interceptor already toasts server errors; this covers download failures.
-            toast.error('Gagal mengekspor laporan. Silakan coba lagi.');
+        } catch (error) {
+            // skipToast on the request: this is the only toast for a failed export.
+            toast.error(await blobErrorMessage(error));
         } finally {
             setBusy(false);
         }

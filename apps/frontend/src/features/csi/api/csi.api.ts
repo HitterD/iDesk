@@ -104,7 +104,8 @@ export const CsiApi = {
         return (await api.delete<CsiResetResult>(`${periodPath(scope, id)}/responses/${encodeURIComponent(responseId)}`, { data: payload })).data;
     },
     async exportPeriod(scope: CsiScopeParam, id: string): Promise<{ blob: Blob; filename: string }> {
-        const response = await api.get<Blob>(`${periodPath(scope, id)}/export`, { responseType: 'blob' });
+        // A blob error body hides the server message from the interceptor; the caller shows one toast instead.
+        const response = await api.get<Blob>(`${periodPath(scope, id)}/export`, { responseType: 'blob', skipToast: true });
         return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope) };
     },
 };

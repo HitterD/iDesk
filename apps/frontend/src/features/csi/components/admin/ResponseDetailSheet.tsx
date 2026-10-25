@@ -16,7 +16,9 @@ import { FIELD_LABEL, MUTED_TEXT } from './AdminParts';
 const REASON_ID = 'csi-reset-reason';
 
 function ResetDialog({ open, name, pending, onCancel, onConfirm }: {
-    open: boolean; name: string; pending: boolean; onCancel: () => void; onConfirm: (reason: string) => void;
+    open: boolean; name: string; pending: boolean; onCancel: () => void;
+    /** `onDone` runs after a successful reset so the reason field starts empty next time. */
+    onConfirm: (reason: string, onDone: () => void) => void;
 }) {
     const [reason, setReason] = useState('');
     const trimmed = reason.trim();
@@ -25,7 +27,7 @@ function ResetDialog({ open, name, pending, onCancel, onConfirm }: {
         <ConfirmationDialog isOpen={open} appearance="ticket" variant="destructive" title="Reset jawaban?"
             description={`Jawaban ${name} akan dihapus dan ia dapat mengisi ulang. Tindakan ini tercatat di audit log.`}
             confirmText="Reset jawaban" cancelText="Batal" isLoading={pending}
-            confirmDisabled={trimmed.length < CSI_RESET_REASON_MIN} onCancel={close} onConfirm={() => onConfirm(trimmed)}>
+            confirmDisabled={trimmed.length < CSI_RESET_REASON_MIN} onCancel={close} onConfirm={() => onConfirm(trimmed, () => setReason(''))}>
             <div className="mt-2 grid gap-1.5">
                 <label htmlFor={REASON_ID} className={FIELD_LABEL}>Alasan reset</label>
                 <Textarea id={REASON_ID} value={reason} rows={3} maxLength={CSI_RESET_REASON_MAX} onChange={(event) => setReason(event.target.value)}
@@ -64,9 +66,9 @@ export function ResponseDetailSheet({ scope, periodId, responseId, onClose }: {
     const { data: detail, isLoading, isError, refetch } = useCsiResponseDetail(scope, periodId, responseId ?? '');
     const reset = useResetCsiResponse(scope, periodId);
     const [confirming, setConfirming] = useState(false);
-    const confirm = (reason: string) => {
+    const confirm = (reason: string, onDone: () => void) => {
         if (!responseId) return;
-        reset.mutate({ responseId, reason }, { onSuccess: () => { setConfirming(false); onClose(); } });
+        reset.mutate({ responseId, reason }, { onSuccess: () => { onDone(); setConfirming(false); onClose(); } });
     };
     return (
         <>

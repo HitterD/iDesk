@@ -111,6 +111,10 @@ export class CsiPeriodService {
 
     async update(scope: ServiceScope, id: string, dto: UpdatePeriodDto) {
         const period = await this.findInScope(scope, id);
+        // Only texts and dates stay editable after the first answer; the respondent mode shapes who may answer.
+        if (dto.respondentMode !== undefined && dto.respondentMode !== period.respondentMode && await this.isLocked(id)) {
+            throw new ConflictException(LOCKED_MESSAGE);
+        }
         const next = { ...period, ...definedOnly(dto) };
         assertDateOrder(next.startDate, next.endDate);
         await this.assertNoOverlap(scope, next.siteId, next.startDate, next.endDate, id);

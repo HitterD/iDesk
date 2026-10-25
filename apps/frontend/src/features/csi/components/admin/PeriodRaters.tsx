@@ -1,9 +1,9 @@
-import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { useCsiRaters, useSetCsiRaters } from '../../hooks/useCsi';
-import { sameIds } from '../../lib/csiAdmin';
+import { ratersSignature, sameIds } from '../../lib/csiAdmin';
+import { useServerDraft } from '../../lib/useServerDraft';
 import type { CsiPeriodDetail, CsiScopeParam } from '../../types';
 import { AdminSection, EmptyNote, LockedNote, MUTED_TEXT } from './AdminParts';
 
@@ -12,7 +12,7 @@ export function PeriodRaters({ scope, period }: { scope: CsiScopeParam; period: 
     const { data: master = [], isLoading } = useCsiRaters(scope);
     const save = useSetCsiRaters(scope, period.id);
     const saved = period.raters.map((rater) => rater.userId);
-    const [selected, setSelected] = useState<string[]>(saved);
+    const [selected, setSelected] = useServerDraft<string[]>(() => saved, ratersSignature(period));
     const locked = period.locked;
     const dirty = !sameIds(selected, saved);
     const allIds = master.map((rater) => rater.userId);

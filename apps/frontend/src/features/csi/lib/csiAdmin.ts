@@ -100,6 +100,22 @@ export function toRateesPayload(draft: readonly RateeDraft[], masterOrder: reado
 export const sameIds = (a: readonly string[], b: readonly string[]) =>
     a.length === b.length && [...a].sort().join('|') === [...b].sort().join('|');
 
+export const CSI_EXPORT_FAILED = 'Gagal mengekspor laporan. Silakan coba lagi.';
+
+/** Server message of a failed blob request (JSON error body read as text); falls back to a generic message. */
+export async function blobErrorMessage(error: unknown): Promise<string> {
+    const data = (error as { response?: { data?: unknown } } | null)?.response?.data;
+    if (!(data instanceof Blob)) return CSI_EXPORT_FAILED;
+    try {
+        const message: unknown = JSON.parse(await data.text())?.message;
+        if (typeof message === 'string' && message) return message;
+        if (Array.isArray(message) && message.length) return message.join(', ');
+    } catch {
+        // Not JSON (e.g. proxy HTML): keep the generic message.
+    }
+    return CSI_EXPORT_FAILED;
+}
+
 /** Starts a browser download for a blob and always releases the object URL. */
 export function downloadBlob(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
@@ -114,3 +130,11 @@ export function downloadBlob(blob: Blob, filename: string): void {
         URL.revokeObjectURL(url);
     }
 }
+
+/** Identity of the server-side ratee assignment; changes only when the saved content or lock changes. */
+export const rateesSignature = (period: CsiPeriodDetail) => JSON.stringify([
+    period.locked, period.ratees.map((ratee) => [ratee.userId, ratee.dimensions.map((dimension) => dimension.dimensionId)]),
+]);
+
+/** Identity of the server-side period raters; changes only when the saved raters or lock changes. */
+export const ratersSignature = (period: CsiPeriodDetail) => JSON.stringify([period.locked, period.raters.map((rater) => rater.userId)]);

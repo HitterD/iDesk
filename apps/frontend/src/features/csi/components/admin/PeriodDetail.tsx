@@ -46,11 +46,9 @@ function SettingsPanel({ scope, period, onDeleted }: { scope: CsiScopeParam; per
                 actions={<DeletePeriod scope={scope} period={period} onDeleted={onDeleted} />}>
                 <PeriodEditor key={period.updatedAt} scope={scope} period={period} />
             </AdminSection>
-            {/* Keyed by updatedAt + locked so a refetch after saving resets the local drafts. */}
-            <RateeAssignment key={`ratees-${period.updatedAt}-${period.locked}-${period.ratees.length}`} scope={scope} period={period} />
-            {period.respondentMode === 'LISTED' && (
-                <PeriodRaters key={`raters-${period.raters.map((rater) => rater.userId).join(',')}-${period.locked}`} scope={scope} period={period} />
-            )}
+            {/* Drafts re-seed themselves only when the saved assignment or lock changes (useServerDraft). */}
+            <RateeAssignment scope={scope} period={period} />
+            {period.respondentMode === 'LISTED' && <PeriodRaters scope={scope} period={period} />}
         </div>
     );
 }

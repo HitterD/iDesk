@@ -11,7 +11,7 @@ import {
 } from '../../lib/csiAdmin';
 import { formatDateRange } from '../../lib/format';
 import type { CsiPeriodDetail, CsiPeriodListItem, CsiRespondentMode, CsiScopeParam } from '../../types';
-import { FIELD_LABEL, MUTED_TEXT } from './AdminParts';
+import { FIELD_LABEL, LockedNote, MUTED_TEXT } from './AdminParts';
 
 const NO_COPY = '';
 const MODE_OPTIONS = (Object.keys(CSI_MODE_LABELS) as CsiRespondentMode[]).map((value) => ({ value, label: CSI_MODE_LABELS[value] }));
@@ -49,6 +49,8 @@ interface PeriodEditorProps {
 
 export function PeriodEditor({ scope, period, periods = [], onSaved, onCancel }: PeriodEditorProps) {
     const isEdit = !!period;
+    // Backend rejects a mode change once answers exist; only texts and dates stay editable.
+    const modeLocked = !!period?.locked;
     const [form, setForm] = useState(() => initialState(scope, period));
     const { data: sites = [] } = useActiveSites();
     const create = useCreateCsiPeriod(scope);
@@ -69,8 +71,8 @@ export function PeriodEditor({ scope, period, periods = [], onSaved, onCancel }:
         event.preventDefault();
         if (!canSubmit) return;
         const fields = {
-            title: form.title.trim(), intro: form.intro, thankYou: form.thankYou,
-            startDate: form.startDate, endDate: form.endDate, respondentMode: form.respondentMode,
+            title: form.title.trim(), intro: form.intro, thankYou: form.thankYou, startDate: form.startDate, endDate: form.endDate,
+            ...(modeLocked ? {} : { respondentMode: form.respondentMode }),
         };
         const options = { onSuccess: (saved: CsiPeriodDetail) => onSaved?.(saved) };
         if (period) update.mutate({ id: period.id, payload: fields }, options);
@@ -126,8 +128,11 @@ export function PeriodEditor({ scope, period, periods = [], onSaved, onCancel }:
             {invalidDates && <p id="csi-period-date-error" role="alert" className="text-[12.5px] text-[hsl(var(--ticket-red-ink))]">Tanggal selesai tidak boleh sebelum tanggal mulai.</p>}
             <div className="grid gap-1.5">
                 <span className={FIELD_LABEL}>Mode responden</span>
-                <SegmentedControl aria-label="Mode responden" className="dash-seg" options={MODE_OPTIONS} value={form.respondentMode}
-                    onValueChange={(value) => set('respondentMode', value)} />
+                <div className="flex flex-wrap items-center gap-3">
+                    <SegmentedControl aria-label="Mode responden" className="dash-seg" options={MODE_OPTIONS} value={form.respondentMode}
+                        onValueChange={(value) => set('respondentMode', value)} disabled={modeLocked} />
+                    {modeLocked && <LockedNote />}
+                </div>
             </div>
             <div className="flex flex-wrap justify-end gap-2 pt-1">
                 {onCancel && <Button type="button" variant="soft" onClick={onCancel} disabled={pending}>Batal</Button>}

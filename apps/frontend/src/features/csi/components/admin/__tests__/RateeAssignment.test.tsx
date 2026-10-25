@@ -24,10 +24,10 @@ const user = (id: string, fullName: string, jobTitle: string): CsiUserSearchResu
     id, fullName, jobTitle, email: `${id}@idesk.test`, siteId: 's1', site: { code: 'SPJ', name: 'Sidoarjo' },
 });
 
-const period = (locked: boolean): CsiPeriodDetail => ({
+const period = (locked: boolean, over: Partial<CsiPeriodDetail> = {}): CsiPeriodDetail => ({
     id: 'p1', scope: 'ICT', siteId: 's1', title: 'Survei Q4', intro: '', thankYou: '',
     startDate: '2026-10-01', endDate: '2026-10-31', respondentMode: 'OPEN', createdById: 'a1',
-    site: { id: 's1', code: 'SPJ', name: 'Sidoarjo' }, status: 'ACTIVE', locked, ratees: [], raters: [], ...STAMP,
+    site: { id: 's1', code: 'SPJ', name: 'Sidoarjo' }, status: 'ACTIVE', locked, ratees: [], raters: [], ...STAMP, ...over,
 });
 
 const pickUsers = async (actor: ReturnType<typeof userEvent.setup>, names: string[]) => {
@@ -42,6 +42,17 @@ beforeEach(() => {
     hooks.users = [user('u1', 'Andi Saputra', 'IT Support'), user('u2', 'Budi Santoso', 'Network')];
 });
 afterEach(cleanup);
+
+const savedRatee = (userId: string, name: string, dimensionIds: string[]): CsiPeriodDetail['ratees'][number] => ({
+    id: `pr-${userId}`, periodId: 'p1', userId, displayName: name, jobTitle: null, sortOrder: 0, ...STAMP,
+    dimensions: dimensionIds.map((dimensionId, index) => ({ id: `${userId}-${dimensionId}`, periodRateeId: `pr-${userId}`, dimensionId, dimensionName: dimensionId, sortOrder: index, ...STAMP })),
+});
+
+const assignAndi = async (actor: ReturnType<typeof userEvent.setup>) => {
+    await pickUsers(actor, ['Andi Saputra']);
+    await actor.click(screen.getByRole('checkbox', { name: 'Kecepatan' }));
+    await actor.click(screen.getByRole('button', { name: 'Pasang ke yang dipilih' }));
+};
 
 describe('RateeAssignment', () => {
     it('memasang 2 dimensi ke 2 user lalu menyimpan payload setRatees berisi keduanya', async () => {
@@ -90,5 +101,42 @@ describe('RateeAssignment', () => {
         expect(screen.getByRole('button', { name: 'Pilih orang yang dinilai' })).toBeDisabled();
         expect(screen.getByRole('button', { name: 'Simpan penugasan' })).toBeDisabled();
         expect(screen.getByText('Terkunci karena sudah ada jawaban')).toBeInTheDocument();
+    });
+
+    it('mempertahankan draft yang belum disimpan saat periode di-refetch dengan updatedAt baru', async () => {
+        const actor = userEvent.setup();
+        const { rerender } = render(<RateeAssignment scope="ict" period={period(false)} />);
+        await assignAndi(actor);
+
+        rerender(<RateeAssignment scope="ict" period={period(false, { title: 'Judul baru', updatedAt: '2026-10-26T01:00:00Z' })} />);
+
+        expect(screen.getByRole('table', { name: 'Orang yang dinilai' })).toHaveTextContent('Andi Saputra');
+        expect(screen.getByText('Ada perubahan yang belum disimpan')).toBeInTheDocument();
+    });
+
+    it('menyelaraskan draft dengan server setelah penugasan tersimpan', async () => {
+        const actor = userEvent.setup();
+        const { rerender } = render(<RateeAssignment scope="ict" period={period(false)} />);
+        await assignAndi(actor);
+        await actor.click(screen.getByRole('button', { name: 'Simpan penugasan' }));
+
+        rerender(<RateeAssignment scope="ict" period={period(false, { ratees: [savedRatee('u2', 'Budi Santoso', ['d2'])] })} />);
+
+        const table = screen.getByRole('table', { name: 'Orang yang dinilai' });
+        expect(table).toHaveTextContent('Budi Santoso');
+        expect(table).not.toHaveTextContent('Andi Saputra');
+        expect(screen.queryByText('Ada perubahan yang belum disimpan')).not.toBeInTheDocument();
+    });
+
+    it('membuang draft dan mengunci kontrol saat periode berubah menjadi locked', async () => {
+        const actor = userEvent.setup();
+        const { rerender } = render(<RateeAssignment scope="ict" period={period(false)} />);
+        await assignAndi(actor);
+
+        rerender(<RateeAssignment scope="ict" period={period(true)} />);
+
+        expect(screen.queryByRole('table', { name: 'Orang yang dinilai' })).not.toBeInTheDocument();
+        expect(screen.getByText('Terkunci karena sudah ada jawaban')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Simpan penugasan' })).toBeDisabled();
     });
 });
