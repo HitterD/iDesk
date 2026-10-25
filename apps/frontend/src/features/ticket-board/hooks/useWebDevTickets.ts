@@ -11,6 +11,10 @@ export interface WebDevTicketsParams {
     /** Server-side "Tiket yang saya buat" / "My Tasks" filters, so paging and totals stay right. */
     createdByMe?: boolean;
     assignedToMe?: boolean;
+    /** List filters, applied by the server so they cover every page (status may be a comma list). */
+    status?: string;
+    priority?: string;
+    siteIds?: string[];
 }
 
 export interface WebDevTicketsResponse {
@@ -35,14 +39,19 @@ async function fetchWebDevTickets(params: WebDevTicketsParams): Promise<WebDevTi
             search: params.search || undefined,
             createdByMe: params.createdByMe || undefined,
             assignedToMe: params.assignedToMe || undefined,
+            status: params.status || undefined,
+            priority: params.priority || undefined,
+            siteIds: params.siteIds?.length ? params.siteIds : undefined,
         },
+        // siteIds=a&siteIds=b, as PaginationDto expects.
+        paramsSerializer: { indexes: null },
     });
     return response.data;
 }
 
 export function useWebDevTickets(params: WebDevTicketsParams) {
     return useQuery({
-        queryKey: ['tickets', 'web-dev', params.page, params.limit, params.sortBy, params.sortOrder, params.search, params.createdByMe ?? false, params.assignedToMe ?? false],
+        queryKey: ['tickets', 'web-dev', params.page, params.limit, params.sortBy, params.sortOrder, params.search, params.createdByMe ?? false, params.assignedToMe ?? false, params.status ?? '', params.priority ?? '', params.siteIds ?? []],
         queryFn: () => fetchWebDevTickets(params),
         placeholderData: keepPreviousData,
         staleTime: 30_000,

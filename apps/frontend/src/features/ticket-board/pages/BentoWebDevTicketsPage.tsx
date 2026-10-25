@@ -39,6 +39,8 @@ import { TicketBoardErrorBoundary } from '../components/TicketBoardErrorBoundary
 import { TicketListPagination } from '../components/TicketListPagination';
 import { TicketListActiveFilters } from '../components/TicketListActiveFilters';
 import { useTicketListMutations } from '../hooks/useTicketListMutations';
+import { useQueueStats } from '../hooks/useQueueStats';
+import { DONE_STATUS_FILTER } from '../constants/statusFilters';
 import { isHandledByTakeoverDialog, type TakeoverOptions } from '../hooks/useStatusTakeover';
 import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 import { BentoTicketKanban } from '../components/BentoTicketKanban';
@@ -87,6 +89,9 @@ export const BentoWebDevTicketsPage: React.FC = () => {
         search: debouncedSearch,
         createdByMe: showCreatedByMe,
         assignedToMe: showAssignedToMe,
+        status: statusFilter,
+        priority: priorityFilter,
+        siteIds: selectedSites,
     });
 
     const { isConnected } = useTicketListSocket({
@@ -114,33 +119,20 @@ export const BentoWebDevTicketsPage: React.FC = () => {
 
     const { assignTicketMutation, updateStatusMutation, updatePriorityMutation } = useTicketListMutations(agents);
 
-    // Compute stats from tickets in view / meta
-    const stats = useMemo(() => {
-        return {
-            total: meta?.total ?? tickets.length,
-            open: tickets.filter((t) => t.status === 'TODO').length,
-            inProgress: tickets.filter((t) => t.status === 'IN_PROGRESS').length,
-            waitingVendor: tickets.filter((t) => t.status === 'WAITING_VENDOR').length,
-            resolved: tickets.filter((t) => t.status === 'RESOLVED').length,
-            overdue: tickets.filter((t) => Boolean((t as { isOverdue?: boolean }).isOverdue)).length,
-            critical: tickets.filter((t) => t.priority === 'CRITICAL').length,
-        };
-    }, [tickets, meta]);
+    // Card counts come from the server for the whole queue (same scope as the list), not just this page.
+    const { data: queueStats } = useQueueStats('web-dev', { siteIds: selectedSites, assignedToMe: showAssignedToMe, createdByMe: showCreatedByMe });
+    const stats = {
+        total: queueStats?.total ?? meta?.total ?? 0,
+        open: queueStats?.open ?? 0,
+        inProgress: queueStats?.inProgress ?? 0,
+        waitingVendor: queueStats?.waitingVendor ?? 0,
+        resolved: queueStats?.resolved ?? 0,
+        overdue: queueStats?.overdue ?? 0,
+        critical: queueStats?.critical ?? 0,
+    };
 
-    // Apply client-side filters
-    const filteredTickets: Ticket[] = useMemo(() => {
-        let result = tickets;
-        if (statusFilter) {
-            result = result.filter((t) => t.status === statusFilter);
-        }
-        if (priorityFilter) {
-            result = result.filter((t) => t.priority === priorityFilter);
-        }
-        if (selectedSites.length > 0) {
-            result = result.filter((t) => t.site?.id && selectedSites.includes(t.site.id));
-        }
-        return result;
-    }, [tickets, statusFilter, priorityFilter, selectedSites]);
+    // Status, priority and site are filtered by the server, so the page and the totals agree.
+    const filteredTickets: Ticket[] = tickets;
 
     // Map Ticket → TicketRowData shape (reused by VirtualizedTicketList)
     const rowData: TicketRowData[] = useMemo(
@@ -454,8 +446,8 @@ export const BentoWebDevTicketsPage: React.FC = () => {
                         color="text-[hsl(var(--success-500))]"
                         bgColor="bg-[hsl(var(--success-500))]/10"
                         animationIndex={4}
-                        onClick={() => setStatusFilter('RESOLVED')}
-                        isActive={statusFilter === 'RESOLVED'}
+                        onClick={() => setStatusFilter(DONE_STATUS_FILTER)}
+                        isActive={statusFilter === DONE_STATUS_FILTER}
                     />
                     <StatsCard
                         icon={AlertTriangle}
