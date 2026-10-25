@@ -402,7 +402,6 @@ export const BentoMobileDevTicketsPage: React.FC = () => {
             <div className="queue-page space-y-4 pb-28 sm:pb-10 min-w-0">
                 <QueueHeader title="Mobile Developer Request" description="Aplikasi mobile, APK, dan notifikasi" icon={Smartphone} tone="teal-deep" />
 
-                <p className="text-xs text-muted-foreground">Ringkasan status, overdue, dan critical berdasarkan halaman yang dimuat; Total mengikuti server.</p>
                 {/* Stats Cards */}
                 <div className="queue-stats queue-stats-6" aria-label="Ringkasan status">
                     <StatsCard

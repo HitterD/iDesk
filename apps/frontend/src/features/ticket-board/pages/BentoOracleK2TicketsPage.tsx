@@ -400,7 +400,6 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
             <div className="queue-page space-y-4 pb-28 sm:pb-10 min-w-0">
                 <QueueHeader title="Oracle K2 Request" description="ERP, database, dan workflow K2" icon={Database} tone="red" />
 
-                <p className="text-xs text-muted-foreground">Ringkasan status, overdue, dan critical berdasarkan halaman yang dimuat; Total mengikuti server.</p>
                 {/* Stats Cards — 6 cards responsive grid matching BentoTicketListPage */}
                 <div className="queue-stats queue-stats-6" aria-label="Ringkasan status">
                     <StatsCard

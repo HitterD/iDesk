@@ -402,7 +402,6 @@ export const BentoWebDevTicketsPage: React.FC = () => {
             <div className="queue-page space-y-4 pb-28 sm:pb-10 min-w-0">
                 <QueueHeader title="Web Developer Request" description="Bug, fitur, dan integrasi web portal" icon={Code2} tone="teal" />
 
-                <p className="text-xs text-muted-foreground">Ringkasan status, overdue, dan critical berdasarkan halaman yang dimuat; Total mengikuti server.</p>
                 {/* Stats Cards */}
                 <div className="queue-stats queue-stats-6" aria-label="Ringkasan status">
                     <StatsCard
