@@ -16,7 +16,8 @@ import { TicketDetail, SlaAdjustment } from './types';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { cn } from '@/lib/utils';
 import { isTerminalStatus } from './constants';
-import { offHoursLabel, slaCountdown, SlaCountdown, useSlaClock } from '@/lib/slaCountdown';
+import { formatSlaTime, offHoursLabel, slaCountdown, SlaCountdown, useSlaClock } from '@/lib/slaCountdown';
+import { formatSlaSpan } from '@/lib/utils/slaDuration';
 
 interface SlaStatusCardProps {
     ticket: TicketDetail & {
@@ -40,33 +41,8 @@ const CATEGORY_LABELS: Record<string, string> = {
     OTHER: 'Alasan Lainnya',
 };
 
-const formatTimeRemaining = (diffMs: number): string => {
-    if (diffMs <= 0) return 'Overdue';
-
-    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-    const parts = [];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours > 0) parts.push(`${hours}h`);
-    parts.push(`${minutes}m`);
-
-    return parts.join(' ');
-};
-
-const formatDuration = (diffMs: number): string => {
-    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-    const parts = [];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours > 0) parts.push(`${hours}h`);
-    parts.push(`${minutes}m`);
-
-    return parts.join(' ');
-};
+/** Wall-clock duration (time to first response, measured from creation): "2 hari 3 jam", "45 mnt". */
+const formatDuration = (diffMs: number): string => formatSlaSpan(diffMs, null);
 
 export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
     ticket,
@@ -96,7 +72,7 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
             if (ticket.slaTarget && !isResolved) {
                 const clock = slaCountdown(ticket.slaTarget, now, ticket.priority, slaClock);
                 setResolutionClock(clock);
-                setResolutionTimeRemaining(formatTimeRemaining(clock.remainingMs));
+                setResolutionTimeRemaining(clock.remainingMs <= 0 ? 'Overdue' : formatSlaTime(clock.remainingMs, slaClock, ticket.priority));
 
                 // Calculate percentage based on slaStartedAt
                 if (ticket.slaStartedAt) {
@@ -110,7 +86,7 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
             if (ticket.firstResponseTarget && !ticket.firstResponseAt && !isResolved) {
                 const clock = slaCountdown(ticket.firstResponseTarget, now, ticket.priority, slaClock);
                 setResponseClock(clock);
-                setFirstResponseTimeRemaining(formatTimeRemaining(clock.remainingMs));
+                setFirstResponseTimeRemaining(clock.remainingMs <= 0 ? 'Overdue' : formatSlaTime(clock.remainingMs, slaClock, ticket.priority));
             }
         };
 
@@ -291,7 +267,7 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
                         <p className="text-xs text-orange-600 mt-1.5 flex items-center gap-1">
                             <Pause className="w-3 h-3" />
                             {ticket.lastPausedAt ? `Dijeda sejak ${formatDateTimeID(ticket.lastPausedAt)}` : 'Dijeda'}
-                            {ticket.slaRemainingMinutes != null && ` — sisa ${formatDuration(ticket.slaRemainingMinutes * 60000)} jam kerja`}
+                            {ticket.slaRemainingMinutes != null && ` — sisa ${formatSlaTime(ticket.slaRemainingMinutes * 60000, slaClock, ticket.priority)}`}
                         </p>
                     )}
 

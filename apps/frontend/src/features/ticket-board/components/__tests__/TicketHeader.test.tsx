@@ -149,7 +149,7 @@ describe('TicketHeader compact metadata bubbles', () => {
 
     it('shows paused SLA with remaining business time and no target date', () => {
         renderHeader({ status: 'WAITING_VENDOR', slaTarget: '2026-10-20T05:00:00Z', slaRemainingMinutes: 320 });
-        const sla = screen.getByText('SLA dijeda · sisa 5j 20m');
+        const sla = screen.getByText('SLA dijeda · sisa 5 jam 20 mnt');
         expect(sla.closest('.ticket-pill')).toHaveClass('ticket-tone-amber');
         expect(document.querySelector('header [title*="Target:"]')).not.toBeInTheDocument();
     });

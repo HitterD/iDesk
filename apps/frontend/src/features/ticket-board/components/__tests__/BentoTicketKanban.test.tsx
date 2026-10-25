@@ -73,7 +73,7 @@ describe('Kanban card (round 2)', () => {
 describe('Kanban paused SLA', () => {
     it.each([120, null, 0])('never shows a target or urgency while paused: %s', (remaining) => {
         renderCard({ ...ticket, slaRemainingMinutes: remaining });
-        expect(screen.getByText(remaining == null ? 'Dijeda' : `Dijeda · sisa ${remaining === 120 ? '2j 0m' : '0m'}`)).toBeInTheDocument();
+        expect(screen.getByText(remaining == null ? 'Dijeda' : `Dijeda · sisa ${remaining === 120 ? '2 jam' : '0 mnt'}`)).toBeInTheDocument();
         expect(screen.queryByText(/Target:|Due soon:|Overdue:/)).not.toBeInTheDocument();
     });
 });

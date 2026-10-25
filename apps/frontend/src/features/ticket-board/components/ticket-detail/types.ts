@@ -49,6 +49,8 @@ export interface TicketDetail {
     lastPausedAt?: string | null;
     /** Agreed vendor visit while WAITING_VENDOR. */
     vendorVisitAt?: string | null;
+    /** Why a WAITING_VENDOR ticket waits (template or typed by the PIC). */
+    vendorNote?: string | null;
     firstResponseRemainingMinutes?: number | null;
     firstResponseAt?: string;
     firstResponseTarget?: string;

@@ -51,6 +51,9 @@ export interface TicketRowData {
     isOverdue: boolean;
     slaTarget?: string;
     slaRemainingMinutes?: number | null;
+    /** WAITING_VENDOR: agreed vendor time and why the ticket waits. */
+    vendorVisitAt?: string | null;
+    vendorNote?: string | null;
     scheduledDate?: string;
     scheduledTime?: string;
     isHardwareInstallation?: boolean;
@@ -503,17 +506,17 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
             {/* PIC takeover confirmation when starting a ticket handled by another agent */}
             {statusTakeover.dialogProps && <ReassignConfirmDialog {...statusTakeover.dialogProps} />}
 
-            {/* Waiting Vendor asks when the vendor is expected */}
+            {/* Waiting Vendor asks why (note) and when the vendor is expected */}
             <VendorVisitDialog
                 isOpen={vendorDialogOpen}
                 onClose={() => setVendorDialogOpen(false)}
                 mode="start"
                 ticket={{ id: ticket.id, ticketNumber: ticket.ticketNumber, title: ticket.title }}
-                onConfirm={async (vendorVisitAt) => {
+                onConfirm={async (vendorVisitAt, vendorNote) => {
                     setVendorDialogOpen(false);
                     await statusTakeover
                         .request(ticket, 'WAITING_VENDOR', (takeover) =>
-                            onUpdateStatus(ticket.id, 'WAITING_VENDOR', undefined, undefined, { ...takeover, vendorVisitAt }))
+                            onUpdateStatus(ticket.id, 'WAITING_VENDOR', undefined, undefined, { ...takeover, vendorVisitAt, vendorNote }))
                         .catch(() => undefined); // already reported by the status mutation's onError
                 }}
             />

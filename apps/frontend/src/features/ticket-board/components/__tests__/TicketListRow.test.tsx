@@ -178,9 +178,9 @@ describe('TicketListRow queue presentation contract', () => {
 
     it('shows paused SLA on mobile even without a target date', () => {
         renderRow({ ...mockTicket, status: 'WAITING_VENDOR', slaTarget: undefined, slaRemainingMinutes: 90 });
-        expect(screen.getAllByText('Dijeda · sisa 1j 30m')).toHaveLength(2);
+        expect(screen.getAllByText('Dijeda · sisa 1 jam 30 mnt')).toHaveLength(2);
         screen.getAllByLabelText('SLA Timer Paused').forEach((sla) => {
-            expect(sla).toHaveClass('ticket-pill');
+            expect(sla).toHaveClass('sla-cell', 'is-pause');
             expect(sla.closest('button')).toBeNull();
         });
     });
@@ -209,7 +209,7 @@ describe('TicketListRow paused SLA', () => {
                 />
             </MemoryRouter>
         );
-        expect(screen.getAllByText('Dijeda · sisa 2j 0m')).toHaveLength(2);
+        expect(screen.getAllByText('Dijeda · sisa 2 jam')).toHaveLength(2);
     });
 
     it('shows a WAITING_VENDOR ticket as paused, never overdue, even when the server flags it overdue', () => {
@@ -223,7 +223,7 @@ describe('TicketListRow paused SLA', () => {
                 />
             </MemoryRouter>
         );
-        expect(screen.getAllByText('Dijeda · sisa 2j 0m')).toHaveLength(2);
+        expect(screen.getAllByText('Dijeda · sisa 2 jam')).toHaveLength(2);
         expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
         expect(container.querySelectorAll('.lucide-triangle-alert, .lucide-alert-triangle')).toHaveLength(0);
         expect(container.firstElementChild?.className).not.toContain('error-500');

@@ -6,8 +6,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
-import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
-import { formatSlaDuration } from '@/lib/utils/slaDuration';
+import { formatSlaTime, offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
+import { formatSlaTarget, formatSlaTargetFull } from '@/lib/utils/slaDuration';
 import type { TicketDetail } from '../../ticket-board/components/ticket-detail/types';
 import { isTerminalStatus } from '../../ticket-board/components/ticket-detail/constants';
 import { PriorityPill, StatusPill } from '../../ticket-board/components/ticket-detail/TicketPropertyRows';
@@ -23,18 +23,6 @@ type SlaState = 'ok' | 'warning' | 'overdue' | 'resolved' | 'paused' | 'none';
 const SLA_TONES: Record<SlaState, TicketPillTone> = { ok: 'blue', warning: 'amber', overdue: 'red', resolved: 'green', paused: 'amber', none: 'neutral' };
 const SLA_ICONS: Record<SlaState, React.ElementType> = { ok: Clock, warning: Clock, overdue: AlertTriangle, resolved: CheckCircle2, paused: Pause, none: Clock };
 
-const formatTimeRemaining = (diffMs: number): string => {
-    if (diffMs <= 0) return 'Overdue';
-    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    const parts = [];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours > 0) parts.push(`${hours}h`);
-    parts.push(`${minutes}m`);
-    return parts.join(' ');
-};
-
 /** Requester-facing SLA label. WAITING_VENDOR is paused: remaining business time only, never a target date. */
 const useRequesterSla = (ticket: TicketDetail, hold: TicketHold | null) => {
     const slaClock = useSlaClock();
@@ -49,23 +37,26 @@ const useRequesterSla = (ticket: TicketDetail, hold: TicketHold | null) => {
         if (ticket.status === 'WAITING_VENDOR') {
             // The status pill already says what the ticket waits on; this pill only says the clock is stopped.
             if (hold) return { state: 'paused', label: 'SLA dijeda', tooltip: `${hold.code} · ${hold.detail}` };
+            const left = ticket.slaRemainingMinutes != null ? `Dijeda · sisa ${formatSlaTime(ticket.slaRemainingMinutes * MS_PER_MINUTE, slaClock, ticket.priority)}` : 'Dijeda';
+            const visit = ticket.vendorVisitAt ? `Janji vendor: ${formatSlaTargetFull(new Date(ticket.vendorVisitAt))}` : null;
             return {
                 state: 'paused',
                 label: 'SLA dijeda',
-                tooltip: ticket.slaRemainingMinutes != null
-                    ? `Dijeda · sisa ${formatSlaDuration(ticket.slaRemainingMinutes * MS_PER_MINUTE)}`
-                    : 'Dijeda',
+                tooltip: [ticket.vendorNote, visit, left].filter(Boolean).join('\n'),
             };
         }
         if (!ticket.slaTarget) return { state: 'none', label: 'Tanpa SLA' };
         const countdown = slaCountdown(ticket.slaTarget, now, ticket.priority, slaClock);
         const diff = countdown.remainingMs;
+        const left = formatSlaTime(diff, slaClock, ticket.priority);
+        const due = formatSlaTarget(new Date(ticket.slaTarget), now);
+        const full = `Target: ${formatSlaTargetFull(new Date(ticket.slaTarget))}`;
         if (countdown.offHours) {
-            return { state: 'paused', label: `SLA: ${formatTimeRemaining(diff)} (dijeda)`, tooltip: offHoursLabel(countdown, now, slaClock) };
+            return { state: 'paused', label: `${due} · sisa ${left}`, tooltip: `${full}\n${offHoursLabel(countdown, now, slaClock)}` };
         }
-        if (diff <= 0) return { state: 'overdue', label: 'Lewat target' };
-        return { state: diff < WARNING_MS ? 'warning' : 'ok', label: `SLA: ${formatTimeRemaining(diff)}` };
-    }, [ticket.status, ticket.slaTarget, ticket.priority, ticket.slaRemainingMinutes, now, slaClock, hold]);
+        if (diff <= 0) return { state: 'overdue', label: `${due} · lewat ${left}`, tooltip: full };
+        return { state: diff < WARNING_MS ? 'warning' : 'ok', label: `${due} · sisa ${left}`, tooltip: full };
+    }, [ticket.status, ticket.slaTarget, ticket.priority, ticket.slaRemainingMinutes, ticket.vendorNote, ticket.vendorVisitAt, now, slaClock, hold]);
 };
 
 interface ClientTicketHeaderProps {

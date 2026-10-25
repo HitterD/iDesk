@@ -516,7 +516,7 @@ export class TicketsController {
         @Body() dto: UpdateTicketStatusDto,
         @Request() req: any,
     ) {
-        return this.ticketUpdateService.updateTicket(id, { status: dto.status, vendorVisitRequest: dto.vendorVisitAt }, req.user.userId, {
+        return this.ticketUpdateService.updateTicket(id, { status: dto.status, vendorVisitRequest: dto.vendorVisitAt, vendorNoteRequest: dto.vendorNote }, req.user.userId, {
             takeover: dto.takeover,
             keepAssignee: dto.keepAssignee,
             reason: dto.reason,
@@ -532,7 +532,7 @@ export class TicketsController {
         @Body() dto: UpdateVendorVisitDto,
         @Request() req: any,
     ) {
-        return this.ticketVendorVisitService.reschedule(id, dto.vendorVisitAt, req.user.userId);
+        return this.ticketVendorVisitService.reschedule(id, dto.vendorVisitAt, req.user.userId, dto.vendorNote);
     }
 
     @Patch(':id/priority')
