@@ -24,13 +24,15 @@ function exportFilename(disposition: unknown, scope: CsiScopeParam): string {
 
 export const CsiApi = {
     async active(): Promise<CsiActivePeriod[]> {
-        return (await api.get<CsiActivePeriod[]>('/csi/me/active')).data;
+        // Background nav probe: a failure just hides the entry point, no toast.
+        return (await api.get<CsiActivePeriod[]>('/csi/me/active', { skipToast: true })).data;
     },
     async form(id: string): Promise<CsiForm> {
-        return (await api.get<CsiForm>(`/csi/me/periods/${encodeURIComponent(id)}`)).data;
+        // The survey page renders 404/410 inline instead of a toast.
+        return (await api.get<CsiForm>(`/csi/me/periods/${encodeURIComponent(id)}`, { skipToast: true })).data;
     },
     async submit(id: string, payload: SubmitCsiResponse): Promise<CsiSubmitResult> {
-        return (await api.post<CsiSubmitResult>(`/csi/me/periods/${encodeURIComponent(id)}/responses`, payload)).data;
+        return (await api.post<CsiSubmitResult>(`/csi/me/periods/${encodeURIComponent(id)}/responses`, payload, { skipToast: true })).data;
     },
     async dimensions(scope: CsiScopeParam, includeInactive = false): Promise<CsiDimension[]> {
         return (await api.get<CsiDimension[]>(`${adminPath(scope)}/dimensions`, { params: { includeInactive } })).data;

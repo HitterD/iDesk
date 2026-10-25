@@ -81,6 +81,10 @@ const EformApprovalPage = lazy(() => import('../features/request-center/pages/Ef
 const EformCredentialPage = lazy(() => import('../features/request-center/pages/EformCredentialPage').then(m => ({ default: m.EformCredentialPage })));
 const DeviceActivationPage = lazy(() => import('../features/devices/DeviceActivationPage'));
 
+// CSI respondent pages: eligibility is enforced by the backend, so no requiredPageAccess.
+const CsiSurveyListPage = lazy(() => import('../features/csi/pages/CsiSurveyListPage').then(m => ({ default: m.CsiSurveyListPage })));
+const CsiSurveyPage = lazy(() => import('../features/csi/pages/CsiSurveyPage').then(m => ({ default: m.CsiSurveyPage })));
+
 // VPN Access and Google Sync are now integrated into RenewalHubPage
 
 // Loading fallback component
@@ -252,6 +256,10 @@ export default function AppRoutes() {
                         {/* Zoom Booking Calendar */}
                         <Route path="zoom-calendar" element={<LazyRoute component={ZoomCalendarPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
                         <Route path="zoom-settings" element={<LazyRoute component={ZoomSettingsPage} featureName="Zoom Settings" allowedRoles={['ADMIN']} />} />
+
+                        {/* CSI survey (respondent) */}
+                        <Route path="csi" element={<LazyRoute component={CsiSurveyListPage} featureName="Survei Kepuasan" />} />
+                        <Route path="csi/:id" element={<LazyRoute component={CsiSurveyPage} featureName="Survei Kepuasan" />} />
                     </Route>
 
                     {/* Manager Routes - Using BentoLayout */}
@@ -290,6 +298,8 @@ export default function AppRoutes() {
 
                         <Route path="zoom-calendar" element={<LazyRoute component={ZoomCalendarPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
                         <Route path="renewal" element={<LazyRoute component={RenewalHubPage} featureName="Renewal Hub" requiredPageAccess="renewal" />} />
+                        <Route path="csi" element={<LazyRoute component={CsiSurveyListPage} featureName="Survei Kepuasan" />} />
+                        <Route path="csi/:id" element={<LazyRoute component={CsiSurveyPage} featureName="Survei Kepuasan" />} />
                     </Route>
 
                     {/* Client Routes - Lazy loaded portal */}
@@ -329,6 +339,8 @@ export default function AppRoutes() {
                         <Route path="eform-access/:id/credentials" element={<LazyRoute component={EformCredentialPage} featureName="E-Form Credentials" requiredPageAccess="eform_access" />} />
 
                         <Route path="profile" element={<LazyRoute component={ClientProfilePage} featureName="Profile" />} />
+                        <Route path="csi" element={<LazyRoute component={CsiSurveyListPage} featureName="Survei Kepuasan" />} />
+                        <Route path="csi/:id" element={<LazyRoute component={CsiSurveyPage} featureName="Survei Kepuasan" />} />
                         <Route index element={<Navigate to="/client/my-tickets" replace />} />
                     </Route>
 

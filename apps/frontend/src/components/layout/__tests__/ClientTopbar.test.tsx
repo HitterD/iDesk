@@ -1,4 +1,4 @@
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
@@ -21,6 +21,11 @@ const permissions = vi.hoisted(() => ({
 }));
 vi.mock('@/hooks/usePermissions', () => ({
     useMyPermissions: () => ({ data: permissions.current }),
+}));
+
+const csiActive = vi.hoisted(() => ({ current: undefined as Array<{ id: string; scope: string; title: string; submitted: boolean }> | undefined }));
+vi.mock('@/features/csi/hooks/useCsi', () => ({
+    useCsiActive: () => ({ data: csiActive.current }),
 }));
 
 // Real implementations are untouched by this task; stub them to isolate the shell.
@@ -61,6 +66,7 @@ describe('ClientLayout requester shell', () => {
     beforeEach(() => {
         performLogout.mockClear();
         permissions.current = { pageAccess: { hardware_requests: false, eform_access: true, zoom_calendar: false, knowledge_base: true } };
+        csiActive.current = undefined;
     });
 
     it('keeps the preset-limited navigation in the portal segment', () => {
@@ -71,6 +77,24 @@ describe('ClientLayout requester shell', () => {
         expect(within(portalNav()).queryByRole('link', { name: /Profile|Akun/ })).not.toBeInTheDocument();
         expect(within(portalNav()).queryByText('Hardware Requests')).not.toBeInTheDocument();
         expect(within(portalNav()).queryByText('Zoom Calendar')).not.toBeInTheDocument();
+    });
+
+    it('hides the survey tab while the active-survey list is loading or empty', () => {
+        renderPortal();
+        expect(within(portalNav()).queryByRole('link', { name: 'Survei' })).not.toBeInTheDocument();
+        csiActive.current = [];
+        cleanup();
+        renderPortal();
+        expect(within(portalNav()).queryByRole('link', { name: 'Survei' })).not.toBeInTheDocument();
+    });
+
+    it('adds the survey tab before Profile when an active survey exists', () => {
+        csiActive.current = [{ id: 'p1', scope: 'ICT', title: 'Survei ICT', submitted: false }];
+        renderPortal();
+        const labels = within(portalNav()).getAllByRole('link').map((link) => link.textContent?.trim());
+        expect(labels).toEqual(['Tiket Saya', 'E-Form', 'Bantuan', 'Survei']);
+        expect(within(portalNav()).getByRole('link', { name: 'Survei' })).toHaveAttribute('href', '/client/csi');
+        expect(within(portalNav()).getByRole('link', { name: 'Survei' })).toHaveAttribute('data-tone', 'teal');
     });
 
     it('shows every item while the preset is still loading', () => {

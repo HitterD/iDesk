@@ -589,6 +589,7 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
 .portal-tab[data-tone="mint"] { --tab-hue: 171 100% 33%; }
 .portal-tab[data-tone="sky"] { --tab-hue: var(--ticket-sky); }
 .portal-tab[data-tone="brown"] { --tab-hue: 34 25% 50%; }
+.portal-tab[data-tone="teal"] { --tab-hue: 189 61% 48%; }
 .dark .portal-tab.is-active { background: hsl(0 0% 100% / .16); color: #fff; }
 @media (max-width: 1279.98px) { .portal-tabs { gap: 4px; } .portal-tab { padding-right: 10px; font-size: 13px; } }
 
@@ -601,6 +602,7 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
 .client-bnav-tab[data-tone="mint"] { --tab-hue: 171 100% 33%; }
 .client-bnav-tab[data-tone="sky"] { --tab-hue: var(--ticket-sky); }
 .client-bnav-tab[data-tone="brown"] { --tab-hue: 34 25% 50%; }
+.client-bnav-tab[data-tone="teal"] { --tab-hue: 189 61% 48%; }
 .client-bnav-tab[data-tone="gray"] { --tab-hue: var(--ticket-neutral); }
 
 .portal-account {

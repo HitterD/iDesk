@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Ticket, BookOpen, Settings, Video, MonitorSmartphone, FileText } from 'lucide-react';
+import { Ticket, BookOpen, Settings, Video, MonitorSmartphone, FileText, Star } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth, performLogout } from '../../stores/useAuth';
 import { FeatureErrorBoundary } from '../ui/FeatureErrorBoundary';
@@ -10,6 +10,8 @@ import { ClientTopbar, type ClientNavItem } from './ClientTopbar';
 import { ClientBottomNav } from './ClientBottomNav';
 import { CLIENT_ROUTES } from '@/config/routes';
 import { InAppNotificationToast } from '@/components/notifications/InAppNotificationToast';
+import { useCsiActive } from '@/features/csi/hooks/useCsi';
+import { CSI_PATHS } from '@/features/csi/lib/useCsiBasePath';
 
 const CLIENT_HOME_PATH = CLIENT_ROUTES.MY_TICKETS;
 const CLIENT_PROFILE_PATH = CLIENT_ROUTES.PROFILE;
@@ -23,6 +25,8 @@ const ALL_NAV_ITEMS: ClientNavItem[] = [
     { path: '/client/kb', label: 'Help Center', shortLabel: 'Bantuan', icon: BookOpen, tone: 'brown', pageKey: 'knowledge_base' },
     { path: CLIENT_PROFILE_PATH, label: 'Profile', shortLabel: 'Akun', icon: Settings, tone: 'gray' },
 ];
+/** Shown only while the requester has at least one active survey (hidden while loading or on error). */
+const CSI_NAV_ITEM: ClientNavItem = { path: CSI_PATHS.client, label: 'Survei Kepuasan', shortLabel: 'Survei', icon: Star, tone: 'teal' };
 
 const ENTRANCE_EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -31,6 +35,7 @@ export const ClientLayout: React.FC = () => {
     const navigate = useNavigate();
     const { user, justLoggedIn, setJustLoggedIn } = useAuth();
     const { data: myPermissions } = useMyPermissions();
+    const { data: activeSurveys } = useCsiActive();
 
     useEffect(() => {
         if (justLoggedIn) {
@@ -56,11 +61,16 @@ export const ClientLayout: React.FC = () => {
     // - Items without pageKey are always visible (core features)
     // - Items with pageKey: show only if pageAccess[key] === true
     //   If pageAccess not yet loaded, show all (avoids flash of missing items)
-    const navItems = ALL_NAV_ITEMS.filter(item => {
+    const permittedItems = ALL_NAV_ITEMS.filter(item => {
         if (!item.pageKey) return true; // Always visible
         if (!myPermissions?.pageAccess) return true; // Still loading — show all temporarily
         return myPermissions.pageAccess[item.pageKey] === true;
     });
+    // The survey tab sits before Profile so the bottom nav keeps Profile as its last tab.
+    const navItems = activeSurveys?.length
+        ? [...permittedItems.filter(item => item.path !== CLIENT_PROFILE_PATH), CSI_NAV_ITEM,
+            ...permittedItems.filter(item => item.path === CLIENT_PROFILE_PATH)]
+        : permittedItems;
 
     const isActive = (item: ClientNavItem) =>
         item.exact
