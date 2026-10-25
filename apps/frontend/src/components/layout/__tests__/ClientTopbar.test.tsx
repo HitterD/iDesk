@@ -179,6 +179,22 @@ describe('ClientLayout requester shell', () => {
         expect(within(nav).queryByRole('link', { name: /Hardware/ })).not.toBeInTheDocument();
     });
 
+    it('puts a pending survey first in the bottom nav without reordering the topbar', () => {
+        csiActive.current = [{ id: 'p1', scope: 'ICT', title: 'Survei ICT', submitted: false }];
+        renderPortal();
+        const bottomLabels = within(bottomNav()).getAllByRole('link').map((link) => link.textContent?.trim());
+        expect(bottomLabels).toEqual(['Survei', 'Tiket Saya', 'Tiket Baru', 'E-Form', 'Akun']);
+        const topLabels = within(portalNav()).getAllByRole('link').map((link) => link.textContent?.trim());
+        expect(topLabels).toEqual(['Tiket Saya', 'E-Form', 'Bantuan', 'Survei']);
+    });
+
+    it('keeps the survey after the sections in the bottom nav once every survey is submitted', () => {
+        csiActive.current = [{ id: 'p1', scope: 'ICT', title: 'Survei ICT', submitted: true }];
+        renderPortal();
+        const bottomLabels = within(bottomNav()).getAllByRole('link').map((link) => link.textContent?.trim());
+        expect(bottomLabels).toEqual(['Tiket Saya', 'E-Form', 'Tiket Baru', 'Bantuan', 'Akun']);
+    });
+
     it('hides the bottom nav and keeps the full-height layout on ticket detail', () => {
         const { container } = renderPortal('/client/tickets/abc-123');
         expect(screen.queryByRole('navigation', { name: 'Navigasi bawah' })).not.toBeInTheDocument();

@@ -71,6 +71,11 @@ export const ClientLayout: React.FC = () => {
         ? [...permittedItems.filter(item => item.path !== CLIENT_PROFILE_PATH), CSI_NAV_ITEM,
             ...permittedItems.filter(item => item.path === CLIENT_PROFILE_PATH)]
         : permittedItems;
+    // The bottom nav only fits a few sections, so a pending survey leads there; the topbar order is unchanged.
+    const hasPendingSurvey = activeSurveys?.some(survey => !survey.submitted) ?? false;
+    const bottomNavItems = hasPendingSurvey
+        ? [CSI_NAV_ITEM, ...navItems.filter(item => item !== CSI_NAV_ITEM)]
+        : navItems;
 
     const isActive = (item: ClientNavItem) =>
         item.exact
@@ -157,7 +162,7 @@ export const ClientLayout: React.FC = () => {
             {/* Mobile bottom navigation; ticket detail keeps the full height for its chat */}
             {!isTicketDetailPage && (
                 <ClientBottomNav
-                    navItems={navItems}
+                    navItems={bottomNavItems}
                     isActive={isActive}
                     createPath={CLIENT_ROUTES.CREATE_TICKET}
                     profilePath={CLIENT_PROFILE_PATH}
