@@ -13,7 +13,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
-import { ShellBrand } from './SidebarNavigation';
+import { ShellBrand, type NavTone } from './SidebarNavigation';
 import { CREATE_TICKET_LABEL } from './createTicketAction';
 import { cn } from '@/lib/utils';
 
@@ -24,6 +24,8 @@ export interface ClientNavItem {
     /** Compact label for the mobile bottom navigation. */
     shortLabel?: string;
     icon: React.ElementType;
+    /** Module colour of the icon tile; the same hue as the agent sidebar uses for this module. */
+    tone: NavTone;
     pageKey?: string;
     exact?: boolean;
 }
@@ -51,7 +53,7 @@ const ACCOUNT_ROLE_LABEL = 'Pemohon';
 const ACCOUNT_MENU_LABEL = 'Akun';
 const FALLBACK_NAME = 'User';
 
-/** Sapphire top band for the requester portal: brand, navigation segment, utilities, create CTA, account menu. */
+/** Sapphire top band for the requester portal: brand, module tabs (coloured tiles, always labelled), utilities, create CTA, account menu. */
 export const ClientTopbar: React.FC<ClientTopbarProps> = ({
     navItems, isActive, homePath, createPath, profilePath, user, onLogout,
 }) => {
@@ -76,10 +78,10 @@ export const ClientTopbar: React.FC<ClientTopbarProps> = ({
                             title={item.label}
                             aria-current={active ? 'page' : undefined}
                             className={cn('portal-tab', active && 'is-active')}
+                            data-tone={item.tone}
                         >
-                            <Icon aria-hidden="true" />
-                            {/* Inactive labels collapse to icons only between lg and xl; the title then names the link. */}
-                            <span className={active ? undefined : 'hidden xl:inline'}>{item.shortLabel ?? item.label}</span>
+                            <span className="nav-tile portal-tab-tile" data-tone={item.tone}><Icon aria-hidden="true" /></span>
+                            <span>{item.shortLabel ?? item.label}</span>
                         </Link>
                     );
                 })}

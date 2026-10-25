@@ -85,14 +85,18 @@ describe('ClientLayout requester shell', () => {
         expect(within(portalNav()).getByRole('link', { name: 'Tiket Saya' })).not.toHaveAttribute('aria-current');
     });
 
-    it('keeps inactive tab labels visible from xl and never sets an aria-label that hides them', () => {
+    it('always shows every tab label beside its module-coloured tile, without an aria-label that hides it', () => {
         renderPortal();
-        within(portalNav()).getAllByRole('link').forEach((link) => {
+        const tones = within(portalNav()).getAllByRole('link').map((link) => {
             expect(link).not.toHaveAttribute('aria-label');
-            const label = link.querySelector('span');
-            if (link.getAttribute('aria-current') !== 'page') expect(label).toHaveClass('hidden', 'xl:inline');
-            else expect(label).not.toHaveClass('hidden');
+            const [tile, label] = Array.from(link.children);
+            expect(tile).toHaveClass('nav-tile');
+            expect(label).not.toHaveClass('hidden');
+            expect(label.textContent).not.toBe('');
+            return tile.getAttribute('data-tone');
         });
+        // Each module keeps its own colour.
+        expect(new Set(tones).size).toBe(tones.length);
     });
 
     it('renders the sapphire chrome and a rounded content sheet', () => {

@@ -226,7 +226,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
             tone: 'blue',
             quiet: true,
             items: [
-                { key: 'zoom_calendar', icon: Video, tone: 'blue', label: 'Zoom Calendar', path: '/zoom-calendar' },
+                { key: 'zoom_calendar', icon: Video, tone: 'sky', label: 'Zoom Calendar', path: '/zoom-calendar' },
                 { key: 'knowledge_base', icon: BookOpen, tone: 'brown', label: 'Knowledge Base', path: '/kb' },
             ]
         },

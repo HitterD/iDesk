@@ -16,12 +16,12 @@ const CLIENT_PROFILE_PATH = CLIENT_ROUTES.PROFILE;
 
 // All possible nav items — items with pageKey are filtered by preset pageAccess
 const ALL_NAV_ITEMS: ClientNavItem[] = [
-    { path: CLIENT_HOME_PATH, label: 'My Tickets', shortLabel: 'Tiket Saya', icon: Ticket },
-    { path: '/client/hardware-requests', label: 'Hardware Requests', shortLabel: 'Hardware', icon: MonitorSmartphone, pageKey: 'hardware_requests' },
-    { path: '/client/eform-access', label: 'E-Form Access', shortLabel: 'E-Form', icon: FileText, pageKey: 'eform_access' },
-    { path: '/client/zoom-calendar', label: 'Zoom Calendar', shortLabel: 'Zoom', icon: Video, pageKey: 'zoom_calendar' },
-    { path: '/client/kb', label: 'Help Center', shortLabel: 'Bantuan', icon: BookOpen, pageKey: 'knowledge_base' },
-    { path: CLIENT_PROFILE_PATH, label: 'Profile', shortLabel: 'Akun', icon: Settings },
+    { path: CLIENT_HOME_PATH, label: 'My Tickets', shortLabel: 'Tiket Saya', icon: Ticket, tone: 'blue' },
+    { path: '/client/hardware-requests', label: 'Hardware Requests', shortLabel: 'Hardware', icon: MonitorSmartphone, tone: 'orange', pageKey: 'hardware_requests' },
+    { path: '/client/eform-access', label: 'E-Form Access', shortLabel: 'E-Form', icon: FileText, tone: 'mint', pageKey: 'eform_access' },
+    { path: '/client/zoom-calendar', label: 'Zoom Calendar', shortLabel: 'Zoom', icon: Video, tone: 'sky', pageKey: 'zoom_calendar' },
+    { path: '/client/kb', label: 'Help Center', shortLabel: 'Bantuan', icon: BookOpen, tone: 'brown', pageKey: 'knowledge_base' },
+    { path: CLIENT_PROFILE_PATH, label: 'Profile', shortLabel: 'Akun', icon: Settings, tone: 'gray' },
 ];
 
 const ENTRANCE_EASE = [0.16, 1, 0.3, 1] as const;
