@@ -5,6 +5,8 @@ import { AuditModule } from '../audit/audit.module';
 import { User } from '../users/entities/user.entity';
 import { PermissionPreset } from '../permissions/entities/permission-preset.entity';
 import { CsiAdminGuard } from './guards/csi-admin.guard';
+import { CsiMasterService } from './services/csi-master.service';
+import { CsiAdminMasterController } from './presentation/csi-admin-master.controller';
 import { CsiDimension } from './entities/csi-dimension.entity';
 import { CsiDepartment } from './entities/csi-department.entity';
 import { CsiRater } from './entities/csi-rater.entity';
@@ -26,6 +28,7 @@ import { CsiResponseComment } from './entities/csi-response-comment.entity';
         AuthModule,
         AuditModule,
     ],
-    providers: [CsiAdminGuard],
+    controllers: [CsiAdminMasterController],
+    providers: [CsiAdminGuard, CsiMasterService],
 })
 export class CsiModule { }
