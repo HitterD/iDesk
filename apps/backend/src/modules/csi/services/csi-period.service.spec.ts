@@ -330,6 +330,31 @@ describe('CsiPeriodService', () => {
                 expectLockedInTransaction();
                 expect(periods.delete).not.toHaveBeenCalled();
             });
+
+            it('update of respondentMode', async () => {
+                await expect(service.update(ICT, 'p1', { respondentMode: CsiRespondentMode.LISTED }))
+                    .rejects.toThrow(new ConflictException('Periode sudah memiliki jawaban'));
+                expectLockedInTransaction();
+                expect(periods.save).not.toHaveBeenCalled();
+            });
+        });
+
+        it('update of respondentMode saves through the transaction after taking the period row lock', async () => {
+            const txPeriods = memoryRepository<any>(periods.rows);
+            manager.repositories.set(CsiPeriod, txPeriods);
+            await service.update(ICT, 'p1', { respondentMode: CsiRespondentMode.LISTED });
+            const builder = txPeriods.createQueryBuilder.mock.results.at(-1)!.value;
+            expect(builder.setLock).toHaveBeenCalledWith('pessimistic_write');
+            expect(responses.count).toHaveBeenCalledWith({ where: { periodId: 'p1' } });
+            expect(txPeriods.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', respondentMode: CsiRespondentMode.LISTED }));
+            expect(builder.setLock.mock.invocationCallOrder[0]).toBeLessThan(txPeriods.save.mock.invocationCallOrder[0]);
+            expect(periods.save).not.toHaveBeenCalled();
+        });
+
+        it('update without a mode change keeps saving outside a transaction', async () => {
+            await service.update(ICT, 'p1', { title: 'Baru', respondentMode: CsiRespondentMode.OPEN });
+            expect(periods.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', title: 'Baru' }));
+            expect(periods.createQueryBuilder).not.toHaveBeenCalled();
         });
 
         it('remove deletes an unlocked period within scope only', async () => {

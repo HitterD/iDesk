@@ -111,14 +111,19 @@ export class CsiPeriodService {
 
     async update(scope: ServiceScope, id: string, dto: UpdatePeriodDto) {
         const period = await this.findInScope(scope, id);
-        // Only texts and dates stay editable after the first answer; the respondent mode shapes who may answer.
-        if (dto.respondentMode !== undefined && dto.respondentMode !== period.respondentMode && await this.isLocked(id)) {
-            throw new ConflictException(LOCKED_MESSAGE);
-        }
         const next = { ...period, ...definedOnly(dto) };
         assertDateOrder(next.startDate, next.endDate);
         await this.assertNoOverlap(scope, next.siteId, next.startDate, next.endDate, id);
-        await this.periods.save(next);
+        if (dto.respondentMode !== undefined && dto.respondentMode !== period.respondentMode) {
+            // Only texts and dates stay editable after the first answer. The exclusive row lock serialises this
+            // with respondent submits (FOR SHARE), so a first answer cannot commit between the check and the save.
+            await this.dataSource.transaction(async (manager) => {
+                await lockUnlockedPeriod(manager, id);
+                await manager.getRepository(CsiPeriod).save(next);
+            });
+        } else {
+            await this.periods.save(next);
+        }
         return this.get(scope, id);
     }
 
