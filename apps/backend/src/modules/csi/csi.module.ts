@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { AuditModule } from '../audit/audit.module';
+import { User } from '../users/entities/user.entity';
+import { PermissionPreset } from '../permissions/entities/permission-preset.entity';
+import { CsiAdminGuard } from './guards/csi-admin.guard';
 import { CsiDimension } from './entities/csi-dimension.entity';
 import { CsiDepartment } from './entities/csi-department.entity';
 import { CsiRater } from './entities/csi-rater.entity';
@@ -18,9 +21,11 @@ import { CsiResponseComment } from './entities/csi-response-comment.entity';
         TypeOrmModule.forFeature([
             CsiDimension, CsiDepartment, CsiRater, CsiPeriod, CsiPeriodRatee,
             CsiPeriodRateeDimension, CsiPeriodRater, CsiResponse, CsiResponseItem, CsiResponseComment,
+            User, PermissionPreset,
         ]),
         AuthModule,
         AuditModule,
     ],
+    providers: [CsiAdminGuard],
 })
 export class CsiModule { }
