@@ -17,7 +17,7 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/comp
 /** Tile hues; the palette is defined in index.css (`.nav-tile[data-tone]`). No purple by design. */
 export type NavTone =
     | 'gray' | 'navy' | 'blue' | 'red' | 'teal' | 'teal-deep'
-    | 'orange' | 'mint' | 'brown' | 'green' | 'slate';
+    | 'orange' | 'mint' | 'brown' | 'green' | 'slate' | 'sky';
 
 export interface NavItem {
     key: string;
