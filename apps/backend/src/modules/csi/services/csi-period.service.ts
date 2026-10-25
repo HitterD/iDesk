@@ -120,16 +120,18 @@ export class CsiPeriodService {
 
     async remove(scope: ServiceScope, id: string) {
         const period = await this.findInScope(scope, id);
-        await this.assertUnlocked(id);
-        await this.periods.delete({ id, scope });
+        await this.dataSource.transaction(async (manager) => {
+            await lockUnlockedPeriod(manager, id);
+            await manager.getRepository(CsiPeriod).delete({ id, scope });
+        });
         return period;
     }
 
     async setRatees(scope: ServiceScope, id: string, assignments: RateeAssignmentDto[]) {
         await this.findInScope(scope, id);
-        await this.assertUnlocked(id);
         const ratees = await this.resolveRatees(scope, assignments);
         await this.dataSource.transaction(async (manager) => {
+            await lockUnlockedPeriod(manager, id);
             await manager.delete(CsiPeriodRatee, { periodId: id });
             await this.writeRatees(manager, id, ratees);
         });
@@ -138,11 +140,11 @@ export class CsiPeriodService {
 
     async setRaters(scope: ServiceScope, id: string, userIds: string[]) {
         await this.findInScope(scope, id);
-        await this.assertUnlocked(id);
         const ids = [...new Set(userIds)];
         const active = await this.activeUsers(ids);
         if (active.size !== ids.length) throw new BadRequestException(INACTIVE_USER_MESSAGE);
         await this.dataSource.transaction(async (manager) => {
+            await lockUnlockedPeriod(manager, id);
             await manager.delete(CsiPeriodRater, { periodId: id });
             await this.writeRaters(manager, id, ids);
         });
@@ -155,10 +157,6 @@ export class CsiPeriodService {
 
     private async isLocked(periodId: string) {
         return (await this.responses.count({ where: { periodId } })) > 0;
-    }
-
-    private async assertUnlocked(periodId: string) {
-        if (await this.isLocked(periodId)) throw new ConflictException(LOCKED_MESSAGE);
     }
 
     private async assertNoOverlap(scope: ServiceScope, siteId: string, startDate: string, endDate: string, excludeId?: string) {
@@ -247,6 +245,22 @@ function toSnapshot(user: User, dimensions: CsiDimension[]): RateeSnapshot {
         userId: user.id, displayName: user.fullName, jobTitle: user.jobTitle ?? null,
         dimensions: dimensions.map((dimension) => ({ id: dimension.id, name: dimension.name })),
     };
+}
+
+/**
+ * Locks the period row (serialising with respondent submissions, which take the same lock)
+ * and rejects with 409 once any response exists. Must run inside the caller's transaction.
+ */
+async function lockUnlockedPeriod(manager: EntityManager, periodId: string) {
+    await lockPeriodRow(manager, periodId);
+    const responseCount = await manager.getRepository(CsiResponse).count({ where: { periodId } });
+    if (responseCount > 0) throw new ConflictException(LOCKED_MESSAGE);
+}
+
+/** SELECT ... FOR UPDATE on the period row; shared by admin assignment edits and respondent submit. */
+export function lockPeriodRow(manager: EntityManager, periodId: string) {
+    return manager.getRepository(CsiPeriod).createQueryBuilder('p')
+        .setLock('pessimistic_write').where('p.id = :id', { id: periodId }).getOne();
 }
 
 function assertDateOrder(startDate: string, endDate: string) {

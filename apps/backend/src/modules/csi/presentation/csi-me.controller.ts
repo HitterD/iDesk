@@ -1,0 +1,31 @@
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
+import { SubmitResponseDto } from '../dto/submit.dto';
+import { CsiRespondentService } from '../services/csi-respondent.service';
+
+type CsiMeRequest = { user: { userId: string; siteId?: string | null } };
+const CSI_ID_PIPE = new ParseUUIDPipe({
+    exceptionFactory: () => new BadRequestException('ID harus berupa UUID'),
+});
+const toRespondent = (req: CsiMeRequest) => ({ id: req.user.userId, siteId: req.user.siteId ?? null });
+
+@Controller('csi/me')
+@UseGuards(JwtAuthGuard)
+export class CsiMeController {
+    constructor(private readonly respondent: CsiRespondentService) { }
+
+    @Get('active')
+    listActive(@Req() req: CsiMeRequest) {
+        return this.respondent.listActive(toRespondent(req));
+    }
+
+    @Get('periods/:id')
+    getForm(@Req() req: CsiMeRequest, @Param('id', CSI_ID_PIPE) id: string) {
+        return this.respondent.getForm(toRespondent(req), id);
+    }
+
+    @Post('periods/:id/responses')
+    submit(@Req() req: CsiMeRequest, @Param('id', CSI_ID_PIPE) id: string, @Body() dto: SubmitResponseDto) {
+        return this.respondent.submit(toRespondent(req), id, dto);
+    }
+}

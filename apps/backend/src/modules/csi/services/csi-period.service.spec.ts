@@ -5,6 +5,7 @@ import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
+import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiPeriodService, computeStatus } from './csi-period.service';
 
 const ICT = ServiceScope.ICT;
@@ -34,9 +35,11 @@ function memoryRepository<T extends Record<string, any>>(rows: T[] = []) {
         save: jest.fn(async (value: any) => ({ id: value.id ?? 'saved-id', ...value })),
         delete: jest.fn().mockResolvedValue({ affected: 1 }),
         createQueryBuilder: jest.fn(() => {
-            const builder: any = {};
-            ['select', 'addSelect', 'where', 'groupBy'].forEach((name) => { builder[name] = jest.fn(() => builder); });
+            const builder: any = { params: {} };
+            ['select', 'addSelect', 'groupBy', 'setLock'].forEach((name) => { builder[name] = jest.fn(() => builder); });
+            builder.where = jest.fn((_sql: string, params: any = {}) => { builder.params = params; return builder; });
             builder.getRawMany = jest.fn(async () => []);
+            builder.getOne = jest.fn(async () => rows.find((row) => row.id === builder.params.id) ?? null);
             return builder;
         }),
     };
@@ -45,8 +48,11 @@ function memoryRepository<T extends Record<string, any>>(rows: T[] = []) {
 function transactionManager(persist: (target: unknown, value: any) => void = () => undefined) {
     let sequence = 0;
     const saved: Array<{ target: unknown; value: any }> = [];
+    const repositories = new Map<unknown, unknown>();
     const manager = {
         saved,
+        repositories,
+        getRepository: jest.fn((target: unknown) => repositories.get(target)),
         delete: jest.fn().mockResolvedValue({ affected: 1 }),
         save: jest.fn(async (target: unknown, value: any) => {
             const withIds = Array.isArray(value)
@@ -110,6 +116,8 @@ describe('CsiPeriodService', () => {
         ]);
         sites = memoryRepository<any>([site, { id: 'site-b', code: 'SMG', name: 'Semarang' }]);
         manager = transactionManager((target, value) => { if (target === CsiPeriod) periods.rows.push(value); });
+        manager.repositories.set(CsiPeriod, periods);
+        manager.repositories.set(CsiResponse, responses);
         const dataSource = { transaction: jest.fn(async (work: any) => work(manager)) };
         service = new CsiPeriodService(
             periods as any, ratees as any, rateeDimensions as any, periodRaters as any, responses as any,
@@ -275,6 +283,39 @@ describe('CsiPeriodService', () => {
             expect(detail.ratees).toEqual([expect.objectContaining({ id: 'r1', userId: 'u-off',
                 dimensions: [expect.objectContaining({ id: 'rd1', dimensionName: 'Responsif' })] })]);
             expect(JSON.stringify(ratees.find.mock.calls)).not.toContain('isActive');
+        });
+
+        describe('re-checks lock on the locked period row inside the transaction', () => {
+            let txResponses: ReturnType<typeof memoryRepository>;
+            beforeEach(() => {
+                // Outside the transaction no response is visible yet; a concurrent submit commits before our lock.
+                txResponses = memoryRepository<any>([{ id: 'resp', periodId: 'p1' }]);
+                manager.repositories.set(CsiResponse, txResponses);
+            });
+            const expectLockedInTransaction = () => {
+                const builder = periods.createQueryBuilder.mock.results.at(-1)!.value;
+                expect(builder.setLock).toHaveBeenCalledWith('pessimistic_write');
+                expect(builder.where).toHaveBeenCalledWith('p.id = :id', { id: 'p1' });
+                expect(txResponses.count).toHaveBeenCalledWith({ where: { periodId: 'p1' } });
+                expect(manager.delete).not.toHaveBeenCalled();
+                expect(manager.save).not.toHaveBeenCalled();
+            };
+
+            it('setRatees', async () => {
+                await expect(service.setRatees(ICT, 'p1', [{ userId: 'u1', dimensionIds: ['d1'] }])).rejects.toThrow(new ConflictException('Periode sudah memiliki jawaban'));
+                expectLockedInTransaction();
+            });
+
+            it('setRaters', async () => {
+                await expect(service.setRaters(ICT, 'p1', ['u2'])).rejects.toThrow(new ConflictException('Periode sudah memiliki jawaban'));
+                expectLockedInTransaction();
+            });
+
+            it('remove', async () => {
+                await expect(service.remove(ICT, 'p1')).rejects.toThrow(new ConflictException('Periode sudah memiliki jawaban'));
+                expectLockedInTransaction();
+                expect(periods.delete).not.toHaveBeenCalled();
+            });
         });
 
         it('remove deletes an unlocked period within scope only', async () => {
