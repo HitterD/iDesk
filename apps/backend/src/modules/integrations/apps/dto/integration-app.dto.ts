@@ -3,7 +3,7 @@ import {
     ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsOptional, IsString, IsUrl, Matches, MaxLength, MinLength,
 } from 'class-validator';
 import { Sanitize } from '../../../../shared/core/validators/input-sanitizer';
-import { ALL_APP_PERMISSIONS, APP_CLIENT_ID_PATTERN, type AppPermission } from '../integration-app.constants';
+import { ALL_APP_PERMISSIONS, APP_CLIENT_ID_PATTERN, APP_COLORS, type AppColor, type AppPermission } from '../integration-app.constants';
 
 const MAX_MODULES = 10;
 
@@ -22,6 +22,11 @@ export class UpdateIntegrationAppDto {
     @MaxLength(300)
     @Sanitize({ removeHtml: true })
     description?: string | null;
+
+    @ApiPropertyOptional({ enum: APP_COLORS, nullable: true, description: 'Source badge dot colour; null = automatic' })
+    @IsOptional()
+    @IsIn([...APP_COLORS, null])
+    color?: AppColor | null;
 
     @ApiPropertyOptional({ example: ['web-developer'], description: 'Ticket module slugs this app may file into' })
     @IsOptional()

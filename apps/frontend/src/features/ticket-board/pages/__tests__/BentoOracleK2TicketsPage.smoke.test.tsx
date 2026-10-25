@@ -1,7 +1,8 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, expect } from 'vitest';
+import api from '@/lib/api';
 import { BentoOracleK2TicketsPage } from '../BentoOracleK2TicketsPage';
 
 const useOracleK2TicketsSpy = vi.hoisted(() => vi.fn());
@@ -68,7 +69,7 @@ describe('BentoOracleK2TicketsPage', () => {
         expect(screen.getByText('Oracle K2 Request')).toBeInTheDocument();
         // Single CTA: create lives in the topbar / mobile FAB, never in the queue header.
         expect(screen.queryByRole('button', { name: 'Buat Tiket Baru' })).not.toBeInTheDocument();
-        expect(screen.getByText('Ringkasan status, overdue, dan critical berdasarkan halaman yang dimuat; Total mengikuti server.')).toBeInTheDocument();
+        expect(screen.queryByText(/berdasarkan halaman yang dimuat/)).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Semua' })).toHaveAttribute('aria-pressed', 'true');
         expect(screen.getByTitle('Kanban Board')).toBeInTheDocument();
     });
@@ -116,5 +117,30 @@ describe('BentoOracleK2TicketsPage', () => {
         );
 
         expect(useOracleK2TicketsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ assignedToMe: true, createdByMe: false }));
+    });
+
+    it('shows counts for the whole queue from the server and filters the list there', async () => {
+        vi.mocked(api.get).mockImplementation(async (url: string) => ({
+            data: url.startsWith('/tickets/queue-stats')
+                ? { total: 40, open: 7, inProgress: 21, waitingVendor: 3, resolved: 9, overdue: 12, critical: 2 }
+                : [],
+        }));
+        const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        render(
+            <QueryClientProvider client={qc}>
+                <MemoryRouter>
+                    <BentoOracleK2TicketsPage />
+                </MemoryRouter>
+            </QueryClientProvider>
+        );
+
+        await waitFor(() => expect(vi.mocked(api.get)).toHaveBeenCalledWith('/tickets/queue-stats?queue=oracle'));
+        // Card numbers count up (StatsCard animation); wait for the final value.
+        expect(await screen.findByText('21', {}, { timeout: 3000 })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByText('Waiting Vendor'));
+        expect(useOracleK2TicketsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'WAITING_VENDOR' }));
+        fireEvent.click(screen.getByText('Resolved'));
+        expect(useOracleK2TicketsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'RESOLVED,CLOSED' }));
     });
 });

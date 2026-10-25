@@ -39,7 +39,7 @@ import {
 import { KanbanBoardSkeleton } from './KanbanSkeleton';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { SiteSelector } from '@/components/site/SiteSelector';
-import { QueueHeader } from './QueueHeader';
+import { QueueHeader, QueueToggles } from './QueueHeader';
 import { StatsCard } from './StatsCard';
 import type { TicketPillTone } from '@/components/ui/ticket-pill';
 import { QueueFilterBar, PRIORITY_FILTER_OPTIONS } from './QueueFilterBar';
@@ -625,11 +625,8 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
 
     return (
         <div className="queue-page h-full flex flex-col min-h-0 space-y-4">
-            {/* Same header as the Tabel view: scope segments + Kanban | Tabel in the same place. */}
-            <QueueHeader title={config.title} description={config.description} icon={config.icon} tone={config.tone}
-                connected={isConnected} canEdit view="kanban" tablePath={propQueue ? undefined : config.tablePath}
-                scopes={KANBAN_SCOPES} scope={scope}
-                onScopeChange={(value) => setScope(value === 'assigned_to_me' ? 'assigned_to_me' : 'all')} />
+            {/* Same title (topbar) and toggles (end of the filter row) as the Tabel view. */}
+            <QueueHeader title={config.title} description={config.description} icon={config.icon} tone={config.tone} />
 
             {/* Same counters as the Tabel view (computed from the loaded board). */}
             <div className="queue-stats queue-stats-7" aria-label="Ringkasan status">
@@ -662,6 +659,9 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
                 {isAdmin && (
                     <SiteSelector selectedSiteIds={selectedSites} onSelectionChange={setSelectedSites} mode="multi" variant="pop" />
                 )}
+                <QueueToggles canEdit view="kanban" tablePath={propQueue ? undefined : config.tablePath}
+                    scopes={KANBAN_SCOPES} scope={scope}
+                    onScopeChange={(value) => setScope(value === 'assigned_to_me' ? 'assigned_to_me' : 'all')} />
             </QueueFilterBar>
             {!isCrossSiteRole(user?.role) && !user?.siteId && (
                 <div className="mx-0 mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">Akun Anda belum terpasang ke site. Hubungi admin untuk menetapkan site agar tiket dapat ditampilkan.</div>

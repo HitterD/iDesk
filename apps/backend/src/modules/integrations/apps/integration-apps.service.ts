@@ -6,7 +6,7 @@ import { CredentialCipherService } from '../../../shared/core/encryption/credent
 import { IpopCatalogService } from '../ipop/ipop-catalog.service';
 import { IntegrationApp } from './entities/integration-app.entity';
 import { CreateIntegrationAppDto, UpdateIntegrationAppDto } from './dto/integration-app.dto';
-import { RESERVED_CLIENT_IDS } from './integration-app.constants';
+import { RESERVED_CLIENT_IDS, appSource } from './integration-app.constants';
 
 const SECRET_BYTES = 32;
 const SECRET_HINT_LENGTH = 4;
@@ -21,6 +21,7 @@ export interface IntegrationAppView {
     clientId: string;
     name: string;
     description: string | null;
+    color: string | null;
     secretHint: string;
     modules: string[];
     permissions: string[];
@@ -30,6 +31,8 @@ export interface IntegrationAppView {
     createdAt: Date;
     updatedAt: Date;
 }
+
+export interface AppSourceView { source: string; name: string; color: string | null }
 
 /** An app with its decrypted secret, for signing checks and webhook delivery only. */
 export interface ResolvedApp { app: IntegrationApp; secret: string }
@@ -49,6 +52,12 @@ export class IntegrationAppsService {
         return apps.map(toView);
     }
 
+    /** What a ticket source badge needs: externalSource (upper-case client id), display name, colour. */
+    async listSources(): Promise<AppSourceView[]> {
+        const apps = await this.repo.find({ select: { clientId: true, name: true, color: true }, order: { name: 'ASC' } });
+        return apps.map((app) => ({ source: appSource(app.clientId), name: app.name, color: app.color ?? null }));
+    }
+
     /** Creates the app and returns its secret once; iDesk keeps it encrypted and never shows it again. */
     async create(dto: CreateIntegrationAppDto, actorId: string): Promise<{ app: IntegrationAppView; secret: string }> {
         const clientId = dto.clientId.trim().toLowerCase();
@@ -60,6 +69,7 @@ export class IntegrationAppsService {
             clientId,
             name: dto.name.trim(),
             description: dto.description?.trim() || null,
+            color: dto.color ?? null,
             secretCipher: this.cipher.encrypt(secret),
             secretHint: secret.slice(-SECRET_HINT_LENGTH),
             modules: unique(dto.modules),
@@ -77,6 +87,7 @@ export class IntegrationAppsService {
         if (dto.modules) await this.assertModules(dto.modules);
         if (dto.name !== undefined) app.name = dto.name.trim();
         if (dto.description !== undefined) app.description = dto.description?.trim() || null;
+        if (dto.color !== undefined) app.color = dto.color;
         if (dto.modules) app.modules = unique(dto.modules);
         if (dto.permissions) app.permissions = unique(dto.permissions);
         if (dto.webhookUrl !== undefined) app.webhookUrl = dto.webhookUrl?.trim() || null;
@@ -152,6 +163,7 @@ function toView(app: IntegrationApp): IntegrationAppView {
         clientId: app.clientId,
         name: app.name,
         description: app.description,
+        color: app.color ?? null,
         secretHint: app.secretHint,
         modules: app.modules ?? [],
         permissions: app.permissions ?? [],

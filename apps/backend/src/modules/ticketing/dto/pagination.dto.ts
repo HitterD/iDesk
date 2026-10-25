@@ -119,3 +119,30 @@ export interface PaginatedResult<T> {
         hasPrevPage: boolean;
     };
 }
+/** GET /tickets/queue-stats: which queue, plus the scope filters of its list. */
+export class QueueStatsQueryDto {
+    @ApiPropertyOptional({ enum: ['it-support', 'oracle', 'web-dev', 'mobile-dev'] })
+    @IsIn(['it-support', 'oracle', 'web-dev', 'mobile-dev'])
+    queue: 'it-support' | 'oracle' | 'web-dev' | 'mobile-dev';
+
+    @ApiPropertyOptional({ description: 'Filter by multiple site IDs (cross-site roles only)', type: [String] })
+    @IsOptional()
+    @Transform(({ value }) => {
+        if (!value) return undefined;
+        return Array.isArray(value) ? value : [value];
+    })
+    @IsString({ each: true })
+    siteIds?: string[];
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @Transform(({ value }) => value === true || value === 'true')
+    @IsBoolean()
+    createdByMe?: boolean;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @Transform(({ value }) => value === true || value === 'true')
+    @IsBoolean()
+    assignedToMe?: boolean;
+}

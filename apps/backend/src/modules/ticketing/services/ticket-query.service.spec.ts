@@ -209,3 +209,51 @@ describe('toPrefixTsQuery', () => {
         expect(toPrefixTsQuery('() & |')).toBe('!_');
     });
 });
+
+describe('TicketQueryService queue stats', () => {
+    let service: any;
+    let qb: any;
+
+    beforeEach(() => {
+        const terminals: Record<string, unknown> = { getRawOne: { total: '9', open: '2', waitingVendor: '1', critical: '3' } };
+        qb = new Proxy({} as any, {
+            get(target, prop: string) {
+                if (prop in terminals) return jest.fn().mockResolvedValue(terminals[prop]);
+                target[prop] ??= jest.fn(() => qb);
+                return target[prop];
+            },
+        });
+        service = new TicketQueryService({ createQueryBuilder: jest.fn(() => qb) } as any, {} as any, {} as any);
+    });
+
+    it('counts a developer queue with its team filter and parses every count', async () => {
+        const stats = await service.getQueueStats('oracle', 'dev-1', UserRole.AGENT_ORACLE, null);
+
+        expect(qb.where).toHaveBeenCalledWith(ORACLE_ONLY, ORACLE_FILTER_PARAMS);
+        expect(stats).toEqual({ total: 9, open: 2, inProgress: 0, waitingVendor: 1, resolved: 0, overdue: 0, critical: 3 });
+    });
+
+    it('keeps the IT Support queue on OPS_SUPPORT and out of Request Center categories', async () => {
+        await service.getQueueStats('it-support', 'agent-1', UserRole.AGENT, 'site-1');
+
+        expect(qb.andWhere).toHaveBeenCalledWith(OPS_SUPPORT_ONLY, OPS_SUPPORT_PARAMS);
+        expect(qb.andWhere).toHaveBeenCalledWith('ticket.category NOT IN (:...requestCenterCategories)', {
+            requestCenterCategories: ['ICT_BUDGET', 'LOST_ITEM', 'ACCESS_REQUEST'],
+        });
+        expect(qb.andWhere).toHaveBeenCalledWith('ticket.siteId = :userSiteId', { userSiteId: 'site-1' });
+    });
+
+    it('scopes "Tugas Saya" counts to the caller', async () => {
+        await service.getQueueStats('web-dev', 'dev-1', UserRole.AGENT_WEB_DEV, null, { assignedToMe: true });
+
+        expect(qb.andWhere).toHaveBeenCalledWith('ticket.assignedToId = :assigneeId', { assigneeId: 'dev-1' });
+    });
+
+    it('filters developer queue lists by status list and overdue on the server', async () => {
+        qb.getManyAndCount = jest.fn().mockResolvedValue([[], 0]);
+        await service.findAllPaginatedMobileDev('dev-1', UserRole.AGENT_MOBILE_DEV, null, { status: 'RESOLVED,CLOSED', overdue: true });
+
+        expect(qb.andWhere).toHaveBeenCalledWith('ticket.status IN (:...statuses)', { statuses: ['RESOLVED', 'CLOSED'] });
+        expect(qb.andWhere).toHaveBeenCalledWith(OVERDUE_SQL);
+    });
+});

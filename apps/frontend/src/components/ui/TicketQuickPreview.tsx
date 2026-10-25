@@ -12,8 +12,6 @@ import {
     CircleDot,
     Hourglass,
     XCircle,
-    Globe,
-    Mail,
     Laptop,
     Code2,
     Calendar,
@@ -23,6 +21,7 @@ import {
     Building2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ExternalSourceBadge } from './ExternalSourceBadge';
 import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
@@ -37,6 +36,8 @@ export interface TicketPreviewData {
     criticalReason?: string;
     category?: string;
     source?: 'WEB' | 'TELEGRAM' | 'EMAIL' | string;
+    /** Connected app that filed it (source API), e.g. 'EBBK'. */
+    externalSource?: string | null;
     device?: string;
     software?: string;
     createdAt: string;
@@ -81,13 +82,6 @@ const PRIORITY_CONFIG: Record<string, { label: string; color: string; icon?: Rea
     HARDWARE_INSTALLATION: { label: 'Hardware Installation', color: 'text-teal-700 bg-teal-50 border-teal-200 dark:text-teal-300 dark:bg-teal-950/50 dark:border-teal-800/60', icon: Laptop },
 };
 
-const SOURCE_CONFIG: Record<string, { label: string; icon: React.ElementType }> = {
-    WEB: { label: 'Web Portal', icon: Globe },
-    EMAIL: { label: 'Email Support', icon: Mail },
-    IPOP: { label: 'via iPop', icon: Globe },
-    API: { label: 'via aplikasi', icon: Globe },
-};
-
 export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({
     ticket,
     children,
@@ -103,8 +97,6 @@ export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({
     const StatusIcon = status.icon;
     const PriorityIcon = priority.icon;
 
-    const source = ticket.source ? (SOURCE_CONFIG[ticket.source.toUpperCase()] || { label: ticket.source, icon: Globe }) : null;
-    const SourceIcon = source?.icon;
 
     const handleMouseEnter = () => {
         if (disabled) return;
@@ -230,12 +222,7 @@ export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({
                                                     </span>
                                                 )}
 
-                                                {source && SourceIcon && (
-                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium text-muted-foreground bg-muted border border-border/40 shrink-0" title={`Sumber tiket: ${source.label}`}>
-                                                        <SourceIcon className="w-2.5 h-2.5" />
-                                                        <span>{source.label}</span>
-                                                    </span>
-                                                )}
+                                                <ExternalSourceBadge source={ticket.source} externalSource={ticket.externalSource} />
                                             </div>
 
                                             {/* Status Badge */}

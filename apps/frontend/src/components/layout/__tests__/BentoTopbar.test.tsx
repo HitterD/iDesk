@@ -2,7 +2,10 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { act } from 'react';
+import { Ticket } from 'lucide-react';
 import { BentoTopbar } from '../BentoTopbar';
+import { usePageTitleStore } from '@/stores/usePageTitle';
 import { MobileBottomNav } from '../MobileBottomNav';
 
 vi.mock('@/lib/api', () => ({
@@ -28,6 +31,7 @@ vi.mock('../../ui/ThemeToggle', () => ({
 describe('BentoTopbar', () => {
     beforeEach(() => {
         localStorage.clear();
+        usePageTitleStore.setState({ current: null });
         authUser.current = { id: 'agent-1', fullName: 'Ops Agent', role: 'AGENT' };
     });
 
@@ -39,6 +43,16 @@ describe('BentoTopbar', () => {
                 </MemoryRouter>
             </QueryClientProvider>,
         );
+
+    it('greets the user until a page puts its own title in the topbar', () => {
+        renderTopbar();
+        expect(screen.getByText(/Ops/)).toBeInTheDocument();
+        act(() => usePageTitleStore.getState().set({ title: 'IT Support Tickets', description: 'Antrian IT Support', icon: Ticket, tone: 'blue' }));
+        expect(screen.getByRole('heading', { level: 1, name: 'IT Support Tickets' })).toBeInTheDocument();
+        expect(screen.queryByText(/Ops/)).not.toBeInTheDocument();
+        act(() => usePageTitleStore.getState().set(null));
+        expect(screen.queryByRole('heading', { name: 'IT Support Tickets' })).not.toBeInTheDocument();
+    });
 
     it('renders the labelled amber create-ticket link to the existing route', () => {
         renderTopbar();

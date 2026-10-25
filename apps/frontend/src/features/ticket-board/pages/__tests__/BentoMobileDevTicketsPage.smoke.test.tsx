@@ -68,7 +68,7 @@ describe('BentoMobileDevTicketsPage', () => {
         expect(screen.getByText('Mobile Developer Request')).toBeInTheDocument();
         // Single CTA: create lives in the topbar / mobile FAB, never in the queue header.
         expect(screen.queryByRole('button', { name: 'Buat Tiket Baru' })).not.toBeInTheDocument();
-        expect(screen.getByText('Ringkasan status, overdue, dan critical berdasarkan halaman yang dimuat; Total mengikuti server.')).toBeInTheDocument();
+        expect(screen.queryByText(/berdasarkan halaman yang dimuat/)).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Semua' })).toHaveAttribute('aria-pressed', 'true');
         expect(screen.getByTitle('Kanban Board')).toBeInTheDocument();
     });

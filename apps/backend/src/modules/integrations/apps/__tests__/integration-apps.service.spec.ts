@@ -56,4 +56,12 @@ describe('IntegrationAppsService', () => {
         expect(rotated.secret).not.toBe(secret);
         await expect(service.resolveActive('ebbk')).resolves.toEqual(expect.objectContaining({ secret: rotated.secret }));
     });
+
+    it('stores the badge colour and lists sources without any secret', async () => {
+        const { app } = await service.create({ ...dto, name: 'E-BBK', color: 'amber' } as any, 'a');
+        expect(app.color).toBe('amber');
+
+        await service.update(app.id, { color: null });
+        await expect(service.listSources()).resolves.toEqual([{ source: 'EBBK', name: 'E-BBK', color: null }]);
+    });
 });

@@ -1,5 +1,5 @@
 import { QueueCardToolbar } from '../components/QueueCardToolbar';
-import { QueueHeader } from '../components/QueueHeader';
+import { QueueHeader, QueueToggles } from '../components/QueueHeader';
 import { QueueFilterBar, PRIORITY_FILTER_OPTIONS } from '../components/QueueFilterBar';
 import { QueueTableHeader } from '../components/QueueTableHeader';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
@@ -10,6 +10,7 @@ import {
     Inbox,
     Loader2,
     CircleDot,
+    Hourglass,
     CheckCircle2,
     TrendingUp,
     AlertTriangle,
@@ -38,6 +39,8 @@ import { TicketBoardErrorBoundary } from '../components/TicketBoardErrorBoundary
 import { TicketListPagination } from '../components/TicketListPagination';
 import { TicketListActiveFilters } from '../components/TicketListActiveFilters';
 import { useTicketListMutations } from '../hooks/useTicketListMutations';
+import { useQueueStats } from '../hooks/useQueueStats';
+import { DONE_STATUS_FILTER } from '../constants/statusFilters';
 import { isHandledByTakeoverDialog, type TakeoverOptions } from '../hooks/useStatusTakeover';
 import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 import { BentoTicketKanban } from '../components/BentoTicketKanban';
@@ -86,6 +89,9 @@ export const BentoMobileDevTicketsPage: React.FC = () => {
         search: debouncedSearch,
         createdByMe: showCreatedByMe,
         assignedToMe: showAssignedToMe,
+        status: statusFilter,
+        priority: priorityFilter,
+        siteIds: selectedSites,
     });
 
     const { isConnected } = useTicketListSocket({
@@ -113,32 +119,20 @@ export const BentoMobileDevTicketsPage: React.FC = () => {
 
     const { assignTicketMutation, updateStatusMutation, updatePriorityMutation } = useTicketListMutations(agents);
 
-    // Compute stats from tickets in view / meta
-    const stats = useMemo(() => {
-        return {
-            total: meta?.total ?? tickets.length,
-            open: tickets.filter((t) => t.status === 'TODO').length,
-            inProgress: tickets.filter((t) => t.status === 'IN_PROGRESS').length,
-            resolved: tickets.filter((t) => t.status === 'RESOLVED').length,
-            overdue: tickets.filter((t) => Boolean((t as { isOverdue?: boolean }).isOverdue)).length,
-            critical: tickets.filter((t) => t.priority === 'CRITICAL').length,
-        };
-    }, [tickets, meta]);
+    // Card counts come from the server for the whole queue (same scope as the list), not just this page.
+    const { data: queueStats } = useQueueStats('mobile-dev', { siteIds: selectedSites, assignedToMe: showAssignedToMe, createdByMe: showCreatedByMe });
+    const stats = {
+        total: queueStats?.total ?? meta?.total ?? 0,
+        open: queueStats?.open ?? 0,
+        inProgress: queueStats?.inProgress ?? 0,
+        waitingVendor: queueStats?.waitingVendor ?? 0,
+        resolved: queueStats?.resolved ?? 0,
+        overdue: queueStats?.overdue ?? 0,
+        critical: queueStats?.critical ?? 0,
+    };
 
-    // Apply client-side filters
-    const filteredTickets: Ticket[] = useMemo(() => {
-        let result = tickets;
-        if (statusFilter) {
-            result = result.filter((t) => t.status === statusFilter);
-        }
-        if (priorityFilter) {
-            result = result.filter((t) => t.priority === priorityFilter);
-        }
-        if (selectedSites.length > 0) {
-            result = result.filter((t) => t.site?.id && selectedSites.includes(t.site.id));
-        }
-        return result;
-    }, [tickets, statusFilter, priorityFilter, selectedSites]);
+    // Status, priority and site are filtered by the server, so the page and the totals agree.
+    const filteredTickets: Ticket[] = tickets;
 
     // Map Ticket → TicketRowData shape (reused by VirtualizedTicketList)
     const rowData: TicketRowData[] = useMemo(
@@ -400,14 +394,10 @@ export const BentoMobileDevTicketsPage: React.FC = () => {
     return (
         <TicketBoardErrorBoundary>
             <div className="queue-page space-y-4 pb-28 sm:pb-10 min-w-0">
-                <QueueHeader title="Mobile Developer Request" description="Aplikasi mobile, APK, dan notifikasi" icon={Smartphone} tone="teal-deep"
-                    connected={isConnected} canEdit={canEdit}
-                    scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
-                    onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })} />
+                <QueueHeader title="Mobile Developer Request" description="Aplikasi mobile, APK, dan notifikasi" icon={Smartphone} tone="teal-deep" />
 
-                <p className="text-xs text-muted-foreground">Ringkasan status, overdue, dan critical berdasarkan halaman yang dimuat; Total mengikuti server.</p>
                 {/* Stats Cards */}
-                <div className="queue-stats queue-stats-6" aria-label="Ringkasan status">
+                <div className="queue-stats queue-stats-7" aria-label="Ringkasan status">
                     <StatsCard
                         icon={TrendingUp}
                         tone="neutral" label="Total"
@@ -439,14 +429,25 @@ export const BentoMobileDevTicketsPage: React.FC = () => {
                         isActive={statusFilter === 'IN_PROGRESS'}
                     />
                     <StatsCard
+                        icon={Hourglass}
+                        tone="amber" label="Waiting Vendor"
+                        value={stats.waitingVendor}
+                        color="text-amber-600 dark:text-amber-400"
+                        bgColor="bg-amber-500/10"
+                        highlight
+                        animationIndex={3}
+                        onClick={() => setStatusFilter('WAITING_VENDOR')}
+                        isActive={statusFilter === 'WAITING_VENDOR'}
+                    />
+                    <StatsCard
                         icon={CheckCircle2}
                         tone="green" label="Resolved"
                         value={stats.resolved}
                         color="text-[hsl(var(--success-500))]"
                         bgColor="bg-[hsl(var(--success-500))]/10"
-                        animationIndex={3}
-                        onClick={() => setStatusFilter('RESOLVED')}
-                        isActive={statusFilter === 'RESOLVED'}
+                        animationIndex={4}
+                        onClick={() => setStatusFilter(DONE_STATUS_FILTER)}
+                        isActive={statusFilter === DONE_STATUS_FILTER}
                     />
                     <StatsCard
                         icon={AlertTriangle}
@@ -455,7 +456,7 @@ export const BentoMobileDevTicketsPage: React.FC = () => {
                         color="text-[hsl(var(--error-500))]"
                         bgColor="bg-[hsl(var(--error-500))]/10"
                         highlight
-                        animationIndex={4}
+                        animationIndex={5}
                     />
                     <StatsCard
                         icon={Flame}
@@ -464,7 +465,7 @@ export const BentoMobileDevTicketsPage: React.FC = () => {
                         color="text-[hsl(var(--error-500))]"
                         bgColor="bg-[hsl(var(--error-500))]/10"
                         highlight
-                        animationIndex={5}
+                        animationIndex={6}
                         onClick={() => setPriorityFilter('CRITICAL')}
                         isActive={priorityFilter === 'CRITICAL'}
                     />
@@ -528,6 +529,9 @@ export const BentoMobileDevTicketsPage: React.FC = () => {
                             hasActiveFilters={hasActiveFilters}
                             onClearFilters={clearFilters}
                         />
+                        <QueueToggles canEdit={canEdit}
+                            scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
+                            onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })} />
                     </QueueFilterBar>
 
                 {/* Active Filter Chips */}

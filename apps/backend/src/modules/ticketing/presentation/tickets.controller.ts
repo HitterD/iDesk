@@ -20,6 +20,7 @@ import {
     Headers,
     UnauthorizedException,
     NotFoundException,
+    ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { timingSafeEqual } from 'crypto';
@@ -31,9 +32,9 @@ import { TicketCreateService } from '../services/ticket-create.service';
 import { TicketUpdateService } from '../services/ticket-update.service';
 import { TicketVendorVisitService } from '../services/ticket-vendor-visit.service';
 import { TicketMessagingService } from '../services/ticket-messaging.service';
-import { TicketQueryService } from '../services/ticket-query.service';
+import { TicketQueryService, QUEUE_KEYS, effectiveQueue } from '../services/ticket-query.service';
 import { CreateTicketDto } from '../dto/create-ticket.dto';
-import { PaginationDto } from '../dto/pagination.dto';
+import { PaginationDto, QueueStatsQueryDto } from '../dto/pagination.dto';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/core/guards/roles.guard';
 import { Roles } from '../../../shared/core/decorators/roles.decorator';
@@ -255,6 +256,20 @@ export class TicketsController {
             excludeCategory,
             days,
         );
+    }
+
+    /** Status tab counts of one queue page, over the whole queue in the caller's scope. */
+    @Get('queue-stats')
+    @Roles(...TICKET_AGENT_ROLES)
+    @ApiOperation({ summary: 'Get status counts of a ticket queue' })
+    @ApiQuery({ name: 'queue', required: true, enum: QUEUE_KEYS })
+    @ApiResponse({ status: 200, description: 'total, open, inProgress, waitingVendor, resolved, overdue, critical' })
+    async getQueueStats(@Request() req: any, @Query() query: QueueStatsQueryDto) {
+        const role = req.user.role as UserRole;
+        if (query.queue !== 'it-support' && effectiveQueue(query.queue, role) === undefined) {
+            throw new ForbiddenException('Developer queue not available for this role');
+        }
+        return this.ticketQueryService.getQueueStats(query.queue, req.user.userId, role, req.user.siteId ?? null, query);
     }
 
     @Get('hardware-stats')
