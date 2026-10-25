@@ -3,11 +3,12 @@ import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { SubmitResponseDto } from '../dto/submit.dto';
 import { CsiRespondentService } from '../services/csi-respondent.service';
 
-type CsiMeRequest = { user: { userId: string; siteId?: string | null } };
+type CsiMeRequest = { user: { userId: string } };
 const CSI_ID_PIPE = new ParseUUIDPipe({
     exceptionFactory: () => new BadRequestException('ID harus berupa UUID'),
 });
-const toRespondent = (req: CsiMeRequest) => ({ id: req.user.userId, siteId: req.user.siteId ?? null });
+// Only the id comes from the token; the service re-reads site and active state from the database.
+const toRespondent = (req: CsiMeRequest) => ({ id: req.user.userId });
 
 @Controller('csi/me')
 @UseGuards(JwtAuthGuard)

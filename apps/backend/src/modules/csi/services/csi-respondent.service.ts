@@ -14,8 +14,8 @@ import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { computeStatus, lockPeriodRow } from './csi-period.service';
 
-/** Only `id` is trusted; site and active flag are always re-read from the database. */
-export type CsiRespondentRef = { id: string; siteId?: string | null };
+/** Only the user id is taken from the token; site and active flag are always re-read from the database. */
+export type CsiRespondentRef = { id: string };
 
 const NOT_FOUND_MESSAGE = 'Survei tidak ditemukan';
 const ENDED_MESSAGE = 'Periode penilaian sudah berakhir';
@@ -25,8 +25,20 @@ const PG_UNIQUE_VIOLATION = '23505';
 type Respondent = Pick<User, 'id' | 'fullName' | 'siteId'>;
 type Audience = { respondent: Respondent; ratees: CsiPeriodRatee[] };
 type CommentRow = { periodRateeId: string; comment: string };
+/** Repositories for assignment reads; inside the submit transaction they come from its EntityManager. */
+type AssignmentReaders = {
+    periodRaters: Repository<CsiPeriodRater>;
+    ratees: Repository<CsiPeriodRatee>;
+    rateeDimensions: Repository<CsiPeriodRateeDimension>;
+    departments: Repository<CsiDepartment>;
+};
 
-const bySortOrder = <T extends { sortOrder: number }>(rows: T[]) => [...rows].sort((a, b) => a.sortOrder - b.sortOrder);
+const readersOf = (manager: EntityManager): AssignmentReaders => ({
+    periodRaters: manager.getRepository(CsiPeriodRater),
+    ratees: manager.getRepository(CsiPeriodRatee),
+    rateeDimensions: manager.getRepository(CsiPeriodRateeDimension),
+    departments: manager.getRepository(CsiDepartment),
+});
 
 @Injectable()
 export class CsiRespondentService {
@@ -41,13 +53,17 @@ export class CsiRespondentService {
         @InjectDataSource() private readonly dataSource: DataSource,
     ) { }
 
+    private get readers(): AssignmentReaders {
+        return { periodRaters: this.periodRaters, ratees: this.ratees, rateeDimensions: this.rateeDimensions, departments: this.departments };
+    }
+
     async listActive(user: CsiRespondentRef, now: Date = new Date()) {
         const respondent = await this.loadRespondent(user.id);
         if (!respondent) return [];
         const candidates = await this.periods.find({ where: { siteId: respondent.siteId }, order: { startDate: 'DESC' } });
         const result: Array<{ id: string; scope: CsiPeriod['scope']; title: string; submitted: boolean }> = [];
         for (const period of candidates) {
-            if (computeStatus(period, now) !== 'ACTIVE' || !(await this.audienceFor(respondent, period))) continue;
+            if (computeStatus(period, now) !== 'ACTIVE' || !(await this.audienceFor(this.readers, respondent, period))) continue;
             result.push({ id: period.id, scope: period.scope, title: period.title, submitted: await this.hasSubmitted(period.id, respondent.id) });
         }
         return result;
@@ -61,12 +77,12 @@ export class CsiRespondentService {
         }
         const [departments, dimensions] = await Promise.all([
             this.departments.find({ where: { scope: period.scope, isActive: true }, order: { sortOrder: 'ASC', name: 'ASC' } }),
-            this.dimensionsOf(audience.ratees),
+            this.dimensionsOf(this.readers, audience.ratees),
         ]);
         return {
             submitted: false as const, id: period.id, scope: period.scope, title: period.title, intro: period.intro,
             respondent: { fullName: audience.respondent.fullName },
-            departments: bySortOrder(departments).map((department) => ({ id: department.id, name: department.name })),
+            departments: departments.map((department) => ({ id: department.id, name: department.name })),
             ratees: audience.ratees.map((ratee) => ({
                 periodRateeId: ratee.id, displayName: ratee.displayName, jobTitle: ratee.jobTitle,
                 dimensions: dimensions.filter((row) => row.periodRateeId === ratee.id)
@@ -81,17 +97,20 @@ export class CsiRespondentService {
         const respondentId = audience.respondent.id;
         try {
             await this.dataSource.transaction(async (manager) => {
-                // Lock first so concurrent admin ratee/rater edits (same lock) cannot change what we validate against.
-                const locked = await lockPeriodRow(manager, period.id);
+                // FOR SHARE: submits for one period don't queue behind each other, while admin edits
+                // (FOR UPDATE on the same row) cannot change what we validate against until we commit.
+                const locked = await lockPeriodRow(manager, period.id, 'pessimistic_read');
                 if (!locked) throw new NotFoundException(NOT_FOUND_MESSAGE);
                 assertSubmittable(locked, now);
                 const existing = await manager.getRepository(CsiResponse).count({ where: { periodId: period.id, respondentId } });
                 if (existing > 0) throw new ConflictException(ALREADY_SUBMITTED_MESSAGE);
-                const current = await this.audienceFor(audience.respondent, locked);
+                // All reads go through the transaction's connection: a submit holds exactly one pooled connection.
+                const readers = readersOf(manager);
+                const current = await this.audienceFor(readers, audience.respondent, locked);
                 if (!current) throw new NotFoundException(NOT_FOUND_MESSAGE);
-                const department = await this.departments.findOne({ where: { id: dto.departmentId, scope: locked.scope, isActive: true } });
+                const department = await readers.departments.findOne({ where: { id: dto.departmentId, scope: locked.scope, isActive: true } });
                 if (!department) throw new BadRequestException('Departemen tidak ditemukan atau tidak aktif');
-                const items = validateItems(dto.items ?? [], await this.dimensionsOf(current.ratees));
+                const items = validateItems(dto.items ?? [], await this.dimensionsOf(readers, current.ratees));
                 const comments = validateComments(dto.comments ?? [], current.ratees);
                 await this.writeResponse(manager, { periodId: period.id, respondentId, department, items, comments, now });
             });
@@ -108,7 +127,7 @@ export class CsiRespondentService {
     private async resolveEligible(user: CsiRespondentRef, periodId: string): Promise<{ period: CsiPeriod; audience: Audience }> {
         const respondent = await this.loadRespondent(user.id);
         const period = respondent ? await this.periods.findOne({ where: { id: periodId } }) : null;
-        const audience = period ? await this.audienceFor(respondent!, period) : null;
+        const audience = period ? await this.audienceFor(this.readers, respondent!, period) : null;
         if (!period || !audience) throw new NotFoundException(NOT_FOUND_MESSAGE);
         return { period, audience };
     }
@@ -120,22 +139,21 @@ export class CsiRespondentService {
     }
 
     /** Site match, rater membership for LISTED mode, and at least one ratee other than the respondent. */
-    private async audienceFor(respondent: Respondent, period: CsiPeriod): Promise<Audience | null> {
+    private async audienceFor(readers: AssignmentReaders, respondent: Respondent, period: CsiPeriod): Promise<Audience | null> {
         if (period.siteId !== respondent.siteId) return null;
         if (period.respondentMode !== CsiRespondentMode.OPEN) {
-            const rater = await this.periodRaters.findOne({ where: { periodId: period.id, userId: respondent.id } });
+            const rater = await readers.periodRaters.findOne({ where: { periodId: period.id, userId: respondent.id } });
             if (!rater) return null;
         }
-        const rows = await this.ratees.find({ where: { periodId: period.id }, order: { sortOrder: 'ASC' } });
-        const ratees = bySortOrder(rows.filter((ratee) => ratee.userId !== respondent.id));
+        const rows = await readers.ratees.find({ where: { periodId: period.id }, order: { sortOrder: 'ASC' } });
+        const ratees = rows.filter((ratee) => ratee.userId !== respondent.id);
         return ratees.length ? { respondent, ratees } : null;
     }
 
-    private async dimensionsOf(ratees: CsiPeriodRatee[]) {
-        const rows = await this.rateeDimensions.find({
+    private dimensionsOf(readers: AssignmentReaders, ratees: CsiPeriodRatee[]) {
+        return readers.rateeDimensions.find({
             where: { periodRateeId: In(ratees.map((ratee) => ratee.id)) }, order: { sortOrder: 'ASC' },
         });
-        return bySortOrder(rows);
     }
 
     private async hasSubmitted(periodId: string, respondentId: string) {

@@ -257,10 +257,15 @@ async function lockUnlockedPeriod(manager: EntityManager, periodId: string) {
     if (responseCount > 0) throw new ConflictException(LOCKED_MESSAGE);
 }
 
-/** SELECT ... FOR UPDATE on the period row; shared by admin assignment edits and respondent submit. */
-export function lockPeriodRow(manager: EntityManager, periodId: string) {
+/**
+ * Row lock on the period. Admin assignment edits take FOR UPDATE (`pessimistic_write`);
+ * respondent submits take FOR SHARE (`pessimistic_read`) so they don't serialise among themselves.
+ */
+export function lockPeriodRow(
+    manager: EntityManager, periodId: string, mode: 'pessimistic_write' | 'pessimistic_read' = 'pessimistic_write',
+) {
     return manager.getRepository(CsiPeriod).createQueryBuilder('p')
-        .setLock('pessimistic_write').where('p.id = :id', { id: periodId }).getOne();
+        .setLock(mode).where('p.id = :id', { id: periodId }).getOne();
 }
 
 function assertDateOrder(startDate: string, endDate: string) {

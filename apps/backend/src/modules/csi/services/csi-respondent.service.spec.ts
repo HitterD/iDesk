@@ -2,6 +2,10 @@ import { BadRequestException, ConflictException, GoneException, NotFoundExceptio
 import { QueryFailedError } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiRespondentMode } from '../csi.constants';
+import { CsiDepartment } from '../entities/csi-department.entity';
+import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
+import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
+import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
@@ -55,6 +59,8 @@ describe('CsiRespondentService', () => {
     let departments: ReturnType<typeof memoryRepository>;
     let users: ReturnType<typeof memoryRepository>;
     let txResponses: ReturnType<typeof memoryRepository>;
+    let txRepos: Map<unknown, ReturnType<typeof memoryRepository>>;
+    let injectedCallsInTxn: number;
     let manager: any;
     let saved: Array<{ target: unknown; value: any }>;
     let service: CsiRespondentService;
@@ -86,12 +92,21 @@ describe('CsiRespondentService', () => {
             { id: 'no-site', fullName: 'Tanpa Site', siteId: null, isActive: true },
             { id: 'inactive', fullName: 'Nonaktif', siteId: 'site-a', isActive: false },
         ]);
-        txResponses = responses;
+        txResponses = memoryRepository<any>(responses.rows);
         saved = [];
+        // Transaction-scoped repositories share rows with the injected ones but are distinct mocks,
+        // so tests can tell which connection a read went through.
+        txRepos = new Map<unknown, ReturnType<typeof memoryRepository>>([
+            [CsiPeriodRatee, memoryRepository<any>(ratees.rows)],
+            [CsiPeriodRateeDimension, memoryRepository<any>(rateeDimensions.rows)],
+            [CsiPeriodRater, memoryRepository<any>(periodRaters.rows)],
+            [CsiDepartment, memoryRepository<any>(departments.rows)],
+        ]);
         manager = {
             getRepository: jest.fn((target: unknown) => {
                 if (target === CsiPeriod) return periods;
                 if (target === CsiResponse) return txResponses;
+                if (txRepos.has(target)) return txRepos.get(target);
                 throw new Error('unexpected repository');
             }),
             save: jest.fn(async (target: unknown, value: any) => {
@@ -102,30 +117,41 @@ describe('CsiRespondentService', () => {
                 return withIds;
             }),
         };
-        const dataSource = { transaction: jest.fn(async (work: any) => work(manager)) };
+        const injected = [ratees, rateeDimensions, periodRaters, departments, responses, users];
+        const injectedCalls = () => injected.reduce((sum, repo) => sum + repo.find.mock.calls.length
+            + repo.findOne.mock.calls.length + repo.count.mock.calls.length, 0);
+        injectedCallsInTxn = 0;
+        const dataSource = { transaction: jest.fn(async (work: any) => {
+            const before = injectedCalls();
+            try {
+                return await work(manager);
+            } finally {
+                injectedCallsInTxn += injectedCalls() - before;
+            }
+        }) };
         service = new CsiRespondentService(
             periods as any, ratees as any, rateeDimensions as any, periodRaters as any, responses as any,
             departments as any, users as any, dataSource as any,
         );
     });
 
-    const me = { id: 'me', siteId: 'site-a' };
+    const me = { id: 'me' };
     const fullItems = (score = 4) => ['rd1a', 'rd1b', 'rd2a'].map((periodRateeDimensionId) => ({ periodRateeDimensionId, score }));
     const dto = (over: Record<string, any> = {}) => ({ departmentId: 'dep1', items: fullItems(), comments: [], ...over });
     const savedOf = (target: unknown) => saved.find((entry) => entry.target === target)?.value;
 
     describe('visibility', () => {
         it('hides period of other site', async () => {
-            await expect(service.getForm({ id: 'other-site', siteId: 'site-b' }, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
-            expect(await service.listActive({ id: 'other-site', siteId: 'site-b' }, NOW)).toEqual([]);
+            await expect(service.getForm({ id: 'other-site' }, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
+            expect(await service.listActive({ id: 'other-site' }, NOW)).toEqual([]);
         });
 
-        it('uses DB siteId, not the token, and never matches a null site', async () => {
-            await expect(service.getForm({ id: 'other-site', siteId: 'site-a' }, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
-            await expect(service.getForm({ id: 'no-site', siteId: null }, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
-            await expect(service.getForm({ id: 'inactive', siteId: 'site-a' }, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
-            await expect(service.getForm({ id: 'ghost', siteId: 'site-a' }, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
-            expect(await service.listActive({ id: 'inactive', siteId: 'site-a' }, NOW)).toEqual([]);
+        it('re-reads the user from DB: other site, null site, inactive or missing is never eligible', async () => {
+            await expect(service.getForm({ id: 'other-site' }, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
+            await expect(service.getForm({ id: 'no-site' }, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
+            await expect(service.getForm({ id: 'inactive' }, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
+            await expect(service.getForm({ id: 'ghost' }, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
+            expect(await service.listActive({ id: 'inactive' }, NOW)).toEqual([]);
         });
 
         it('hides LISTED period from non-rater', async () => {
@@ -208,7 +234,7 @@ describe('CsiRespondentService', () => {
             });
             periods.createQueryBuilder.mockReturnValueOnce(builder);
             await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toBeInstanceOf(BadRequestException);
-            expect(builder.setLock).toHaveBeenCalledWith('pessimistic_write');
+            expect(builder.setLock).toHaveBeenCalledWith('pessimistic_read');
             expect(manager.save).not.toHaveBeenCalled();
         });
 
@@ -231,7 +257,7 @@ describe('CsiRespondentService', () => {
             txResponses = memoryRepository<any>([{ id: 'resp', periodId: 'p1', respondentId: 'me' }]);
             await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toThrow(new ConflictException('Anda sudah mengisi survei ini'));
             const builder = periods.createQueryBuilder.mock.results.at(-1)!.value;
-            expect(builder.setLock).toHaveBeenCalledWith('pessimistic_write');
+            expect(builder.setLock).toHaveBeenCalledWith('pessimistic_read');
             expect(manager.save).not.toHaveBeenCalled();
         });
 
@@ -248,7 +274,7 @@ describe('CsiRespondentService', () => {
         it('rejects submit after endDate', async () => {
             await expect(service.submit(me, 'p1', dto(), AFTER_END)).rejects.toThrow(new GoneException('Periode penilaian sudah berakhir'));
             await expect(service.submit(me, 'p1', dto(), new Date('2026-09-30T23:00:00+07:00'))).rejects.toThrow(NOT_FOUND);
-            await expect(service.submit({ id: 'other-site', siteId: 'site-b' }, 'p1', dto(), AFTER_END)).rejects.toThrow(NOT_FOUND);
+            await expect(service.submit({ id: 'other-site' }, 'p1', dto(), AFTER_END)).rejects.toThrow(NOT_FOUND);
             expect(manager.save).not.toHaveBeenCalled();
         });
 
@@ -268,6 +294,26 @@ describe('CsiRespondentService', () => {
             ]);
             expect(savedOf(CsiResponseComment)).toEqual([expect.objectContaining({ responseId: 'resp-new', periodRateeId: 'r1', comment: 'Mantap' })]);
             expect(saved.map((entry) => entry.target)).toEqual([CsiResponse, CsiResponseItem, CsiResponseComment]);
+        });
+
+        it('submit locks the period row FOR SHARE (pessimistic_read), not FOR UPDATE', async () => {
+            await service.submit(me, 'p1', dto(), NOW);
+            const builder = periods.createQueryBuilder.mock.results.at(-1)!.value;
+            expect(builder.setLock).toHaveBeenCalledTimes(1);
+            expect(builder.setLock).toHaveBeenCalledWith('pessimistic_read');
+            expect(builder.where).toHaveBeenCalledWith('p.id = :id', { id: 'p1' });
+        });
+
+        it('submit reads only through the transaction manager inside the callback', async () => {
+            periods.rows[0] = period({ respondentMode: CsiRespondentMode.LISTED });
+            periodRaters.rows.push({ id: 'pr1', periodId: 'p1', userId: 'me' });
+            await service.submit(me, 'p1', dto(), NOW);
+            expect(injectedCallsInTxn).toBe(0);
+            expect(txRepos.get(CsiPeriodRater)!.findOne).toHaveBeenCalledWith({ where: { periodId: 'p1', userId: 'me' } });
+            expect(txRepos.get(CsiPeriodRatee)!.find).toHaveBeenCalled();
+            expect(txRepos.get(CsiPeriodRateeDimension)!.find).toHaveBeenCalled();
+            expect(txRepos.get(CsiDepartment)!.findOne).toHaveBeenCalledWith({ where: { id: 'dep1', scope: ICT, isActive: true } });
+            expect(manager.getRepository).toHaveBeenCalledWith(CsiResponse);
         });
     });
 });
