@@ -10,7 +10,7 @@ import type { EFormTicketPhase } from '../ticket-eform/eformFlow';
 export interface TicketSystemEvent {
     v: 1;
     actor: { id: string; name: string } | null;
-    changes: { field: 'status' | 'assignee' | 'priority' | 'category' | 'vendorVisit'; from: string | null; to: string | null }[];
+    changes: { field: 'status' | 'assignee' | 'priority' | 'category' | 'vendorVisit' | 'vendorNote'; from: string | null; to: string | null }[];
     reason?: string | null;
     /** A step of a hardware request proposed from this ticket (rendered by ticket-hardware, not here). */
     hardwareRequest?: { id: string; number: string; phase: HardwareTicketPhase; at?: string | null };
@@ -41,6 +41,7 @@ const FIELD_LABEL: Record<Change['field'], string> = {
     priority: 'Prioritas',
     category: 'Kategori',
     vendorVisit: 'Janji vendor',
+    vendorNote: 'Keterangan vendor',
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -92,7 +93,7 @@ function ChangeRow({ change }: { change: Change }) {
 const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
 /** Requesters see what happened to their ticket, not who on the team did it or why. */
-const REQUESTER_FIELDS: ReadonlySet<Change['field']> = new Set(['status', 'assignee', 'vendorVisit']);
+const REQUESTER_FIELDS: ReadonlySet<Change['field']> = new Set(['status', 'assignee', 'vendorVisit', 'vendorNote']);
 
 /**
  * One activity entry in the conversation: who acted, then each change as "field: old -> new",

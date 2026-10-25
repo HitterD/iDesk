@@ -6,6 +6,7 @@ vi.mock('@/lib/slaCountdown', async (importOriginal) => ({
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
+import { formatSlaTargetFull } from '@/lib/utils/slaDuration';
 import { SlaProgress } from '../SlaProgress';
 
 const props = {
@@ -22,7 +23,7 @@ afterEach(() => vi.useRealTimers());
 describe('SlaProgress paused', () => {
     it('shows remaining time and pause date without a target title', () => {
         render(<SlaProgress {...props} />);
-        expect(screen.getByText('Dijeda · sisa 2j 0m')).toBeInTheDocument();
+        expect(screen.getByText('Dijeda · sisa 2 jam')).toBeInTheDocument();
         expect(screen.getByTitle(`Dijeda sejak ${formatDateTimeID(props.pausedAt)}`)).toBeInTheDocument();
         expect(screen.queryByTitle(/Target:/)).not.toBeInTheDocument();
     });
@@ -35,7 +36,7 @@ describe('SlaProgress paused', () => {
         vi.setSystemTime(new Date('2026-10-21T06:00:00Z'));
         rerender(<SlaProgress {...props} slaRemainingMinutes={180} />);
         expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
-        expect(screen.getByText('Dijeda · sisa 3j 0m')).toBeInTheDocument();
+        expect(screen.getByText('Dijeda · sisa 3 jam')).toBeInTheDocument();
     });
 
     it.each([
@@ -59,11 +60,11 @@ describe('SlaProgress paused', () => {
 
     it('shows zero remaining rather than hiding it', () => {
         render(<SlaProgress {...props} slaRemainingMinutes={0} />);
-        expect(screen.getByText('Dijeda · sisa 0m')).toBeInTheDocument();
+        expect(screen.getByText('Dijeda · sisa 0 mnt')).toBeInTheDocument();
     });
 
     it('keeps target title for an active ticket', () => {
         render(<SlaProgress {...props} status="IN_PROGRESS" />);
-        expect(screen.getByTitle(`Target: ${formatDateTimeID(props.slaTarget)}`)).toBeInTheDocument();
+        expect(screen.getByTitle(`Target: ${formatSlaTargetFull(new Date(props.slaTarget))}`)).toBeInTheDocument();
     });
 });

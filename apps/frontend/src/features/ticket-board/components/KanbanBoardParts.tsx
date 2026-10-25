@@ -26,6 +26,9 @@ export interface KanbanTicket {
     isOverdue?: boolean;
     slaTarget?: string;
     slaRemainingMinutes?: number | null;
+    /** WAITING_VENDOR: agreed vendor time and why the ticket waits. */
+    vendorVisitAt?: string | null;
+    vendorNote?: string | null;
     assignedTo?: { id: string; fullName: string; email?: string; avatarUrl?: string; role?: string };
     user?: { id?: string; fullName: string; avatarUrl?: string; department?: { name: string } };
     site?: { id: string; code: string; name: string };

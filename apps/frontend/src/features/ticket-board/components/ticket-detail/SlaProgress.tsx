@@ -1,8 +1,8 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
-import { slaCountdown, useSlaClock } from '@/lib/slaCountdown';
-import { formatSlaDuration as formatDuration } from '@/lib/utils/slaDuration';
+import { formatSlaTime, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
+import { formatSlaTargetFull } from '@/lib/utils/slaDuration';
 import { isTerminalStatus } from './constants';
 
 const MS_PER_HOUR = 60 * 60 * 1000;
@@ -41,6 +41,7 @@ export const SlaProgress: React.FC<SlaProgressProps> = ({ status, priority, crea
     if (!slaTarget) return null;
 
     const now = new Date();
+    const formatDuration = (ms: number) => formatSlaTime(ms, slaClock, priority);
     const start = new Date(slaStartedAt || createdAt).getTime();
     const target = new Date(slaTarget).getTime();
     const isPaused = PAUSED_STATUSES.includes(status);
@@ -61,7 +62,7 @@ export const SlaProgress: React.FC<SlaProgressProps> = ({ status, priority, crea
         const { remainingMs, offHours } = slaCountdown(slaTarget, now, priority, slaClock);
         if (remainingMs <= 0) {
             tone = 'overdue';
-            label = `Lewat ${formatDuration(-remainingMs)}`;
+            label = `Lewat ${formatDuration(remainingMs)}`;
         } else {
             tone = offHours ? 'paused' : remainingMs < WARNING_MS ? 'warning' : 'ok';
             label = `Sisa ${formatDuration(remainingMs)}${offHours ? ' (di luar jam kerja)' : ''}`;
@@ -74,7 +75,7 @@ export const SlaProgress: React.FC<SlaProgressProps> = ({ status, priority, crea
     const right = variant === 'requester' ? aside : percent != null ? `${percent}% terpakai` : null;
 
     return (
-        <div className="td-sla-big" title={isPaused ? (pausedAt ? `Dijeda sejak ${formatDateTimeID(pausedAt)}` : 'Dijeda') : `Target: ${formatDateTimeID(slaTarget)}`}>
+        <div className="td-sla-big" title={isPaused ? (pausedAt ? `Dijeda sejak ${formatDateTimeID(pausedAt)}` : 'Dijeda') : `Target: ${formatSlaTargetFull(new Date(slaTarget))}`}>
             <div className="td-sla-t">
                 <b className={cn('tabular-nums', TONE[tone].text)}>{label}</b>
                 {right && <span className="tabular-nums">{right}</span>}

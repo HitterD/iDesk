@@ -150,6 +150,8 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                 isOverdue: Boolean((t as { isOverdue?: boolean }).isOverdue),
                 slaTarget: t.slaTarget,
                 slaRemainingMinutes: (t as Ticket & { slaRemainingMinutes?: number | null }).slaRemainingMinutes,
+                vendorVisitAt: (t as Ticket & { vendorVisitAt?: string | null }).vendorVisitAt ?? null,
+                vendorNote: (t as Ticket & { vendorNote?: string | null }).vendorNote ?? null,
                 site: t.site ? { id: t.site.id, name: t.site.name, code: t.site.code } : undefined,
                 assignedTo: t.assignedTo
                     ? {

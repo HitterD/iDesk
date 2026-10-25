@@ -248,9 +248,9 @@ export const BentoTicketDetailPage: React.FC = () => {
         }
     }, [id, queryClient, handleResolveTicket, handleStatusChange]);
 
-    const handleRescheduleVendorVisit = useCallback(async (vendorVisitAt: string) => {
+    const handleRescheduleVendorVisit = useCallback(async (vendorVisitAt: string, vendorNote: string) => {
         try {
-            await api.patch(`/tickets/${id}/vendor-visit`, { vendorVisitAt }, { skipToast: true });
+            await api.patch(`/tickets/${id}/vendor-visit`, { vendorVisitAt, vendorNote }, { skipToast: true });
             toast.success('Jadwal vendor diperbarui');
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
             queryClient.invalidateQueries({ queryKey: ['tickets'] });

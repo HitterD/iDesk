@@ -645,8 +645,8 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
 @container (min-width: 1100px) {
   .queue-grid { display: grid; align-items: center; column-gap: 8px; padding: 0 16px; }
   /* Shared header/row tracks fit the 1100px table, including the final created date. */
-  .queue-grid-sites { grid-template-columns: 26px minmax(160px, 2.4fr) 104px 50px 150px minmax(110px, 1.1fr) minmax(160px, 1.3fr) 160px 60px; }
-  .queue-grid-default { grid-template-columns: 26px minmax(160px, 2.4fr) 104px 150px minmax(110px, 1.1fr) minmax(160px, 1.3fr) 160px 60px; }
+  .queue-grid-sites { grid-template-columns: 26px minmax(160px, 2.4fr) 104px 50px 150px minmax(110px, 1.1fr) minmax(150px, 1.3fr) 178px 60px; }
+  .queue-grid-default { grid-template-columns: 26px minmax(160px, 2.4fr) 104px 150px minmax(110px, 1.1fr) minmax(150px, 1.3fr) 178px 60px; }
   /* Selection cell bleeds into the row padding and half the column gap: full row height,
      45px wide (14px pad + 26px column + 5px gap), so no near-miss falls through to the row. */
   .queue-grid > .queue-select-cell { min-width: 0; margin: 0 -5px 0 -16px; padding: 0 5px 0 16px; }
@@ -1154,6 +1154,23 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .queue-pic > svg:last-child { margin-left: auto; }
 .ticket-pill.queue-pic-empty, .queue-pic-empty { border-style: dashed; padding-left: 10px; color: hsl(var(--idesk-text-secondary)); }
 
+
+/* SLA cell (TargetDateCell): target date on top, working time left below; readable without hovering. */
+.sla-cell {
+  --sla: var(--ticket-blue); --sla-ink: var(--ticket-blue-ink);
+  position: relative; display: inline-grid; gap: 1px; min-width: 0; max-width: 100%; padding: 4px 9px 4px 9px; border-radius: 9px;
+  line-height: 1.25; cursor: default; background: color-mix(in srgb, hsl(var(--sla)) 8%, transparent);
+  box-shadow: inset 2px 0 0 hsl(var(--sla));
+}
+.sla-cell > b { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 12px; font-weight: 600; color: hsl(var(--idesk-text)); white-space: nowrap; }
+.sla-cell > b > svg { width: 12px; height: 12px; flex: none; color: hsl(var(--sla-ink)); }
+.sla-cell > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; font-weight: 550; color: hsl(var(--sla-ink)); font-variant-numeric: tabular-nums; }
+.sla-cell.is-soon, .sla-cell.is-pause { --sla: var(--ticket-amber); --sla-ink: var(--ticket-amber-ink); }
+.sla-cell.is-late { --sla: var(--ticket-red); --sla-ink: var(--ticket-red-ink); }
+.sla-cell-ext { position: absolute; top: -6px; right: -6px; display: inline-flex; align-items: center; gap: 1px; height: 15px; padding: 0 4px; border-radius: 8px;
+  font-style: normal; font-size: 9.5px; font-weight: 700; color: hsl(var(--ticket-amber-ink)); background: hsl(var(--idesk-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, hsl(var(--ticket-amber)) 45%, transparent); }
+.sla-cell-ext svg { width: 9px; height: 9px; }
 
 /* Mockup .live (requester header) and the footer "Per halaman" pop. */
 .portal-live { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; line-height: 1; color: hsl(var(--ticket-green-ink)); }

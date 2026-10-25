@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { motion, AnimatePresence } from 'framer-motion';
-import { format, formatDistanceToNow } from 'date-fns';
-import { id as idLocale } from 'date-fns/locale';
+import { format } from 'date-fns';
 import { 
     Clock, 
     Tag, 
@@ -24,7 +23,8 @@ import { cn } from '@/lib/utils';
 import { ExternalSourceBadge } from './ExternalSourceBadge';
 import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
-import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
+import { formatSlaTime, offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
+import { formatSlaTarget } from '@/lib/utils/slaDuration';
 
 export interface TicketPreviewData {
     id: string;
@@ -148,13 +148,14 @@ export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({
             const now = new Date();
             const clock = slaCountdown(targetDate, now, ticket.priority, slaClock);
             const overdue = ticket.isOverdue || clock.remainingMs <= 0;
-            const distance = formatDistanceToNow(targetDate, { addSuffix: true, locale: idLocale });
+            const due = formatSlaTarget(targetDate, now);
+            const left = formatSlaTime(clock.remainingMs, slaClock, ticket.priority);
 
             if (overdue) {
                 return {
                     type: 'overdue',
                     label: 'SLA Overdue (Terlambat)',
-                    detail: `Target lewat ${distance.replace('yang lalu', '')}`,
+                    detail: `${due} · lewat ${left}`,
                     colorClass: 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800/60',
                 };
             }
@@ -162,7 +163,7 @@ export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({
             return {
                 type: 'active',
                 label: 'Target SLA',
-                detail: clock.offHours ? `${offHoursLabel(clock, now, slaClock)}. Batas waktu ${distance}` : `Batas waktu ${distance}`,
+                detail: clock.offHours ? `${due} · sisa ${left}. ${offHoursLabel(clock, now, slaClock)}` : `${due} · sisa ${left}`,
                 colorClass: 'text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/80',
             };
         }

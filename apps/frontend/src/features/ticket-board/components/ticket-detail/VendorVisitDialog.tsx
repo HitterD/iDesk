@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Hourglass, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ModernDateTimePicker } from '@/components/ui/ModernDateTimePicker';
@@ -11,6 +11,17 @@ const MAX_DAYS_AHEAD = 90;
 const VISIT_HOUR_WIB = 9;
 const THURSDAY = 4;
 const WIB_DAY = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'short', day: 'numeric', month: 'short' });
+/** Same limit as tickets.vendorNote on the server. */
+export const VENDOR_NOTE_MAX_LENGTH = 300;
+/** Most common reasons; "Lainnya" clears the field for a typed note. */
+export const VENDOR_NOTE_TEMPLATES = [
+    'Menunggu spare part',
+    'Menunggu jadwal kunjungan vendor',
+    'Menunggu penawaran / konfirmasi vendor',
+    'Unit diperbaiki di service center vendor',
+    'Menunggu lisensi / aktivasi dari vendor',
+] as const;
+const OTHER_NOTE = 'Lainnya';
 
 /** `daysAhead` days from today (in WIB) at `hour`:00 WIB. */
 function wibAt(daysAhead: number, hour: number, now: Date): Date {
@@ -33,20 +44,22 @@ function quickPicks(now: Date): Record<QuickPick, Date> {
 interface VendorVisitDialogProps {
     isOpen: boolean;
     onClose: () => void;
-    ticket: { id: string; ticketNumber?: string; title?: string; vendorVisitAt?: string | null };
+    ticket: { id: string; ticketNumber?: string; title?: string; vendorVisitAt?: string | null; vendorNote?: string | null };
     /** start: moving the ticket to Waiting Vendor; reschedule: moving an existing appointment. */
     mode: 'start' | 'reschedule';
-    onConfirm: (vendorVisitAt: string) => Promise<void> | void;
+    onConfirm: (vendorVisitAt: string, vendorNote: string) => Promise<void> | void;
     isLoading?: boolean;
 }
 
-/** Agreed vendor visit time for a Waiting Vendor ticket; the PIC is reminded 30 minutes before. */
+/** Why the ticket waits (template or typed) and the agreed vendor time; the PIC is reminded 30 minutes before. */
 export const VendorVisitDialog: React.FC<VendorVisitDialogProps> = ({ isOpen, onClose, ticket, mode, onConfirm, isLoading = false }) => {
     const [now, setNow] = useState(() => new Date());
     const picks = useMemo(() => quickPicks(now), [now]);
     const [visitAt, setVisitAt] = useState<Date>(picks.thursday);
     const [pick, setPick] = useState<QuickPick | null>('thursday');
     const [error, setError] = useState<string | null>(null);
+    const [note, setNote] = useState('');
+    const noteRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -56,8 +69,9 @@ export const VendorVisitDialog: React.FC<VendorVisitDialogProps> = ({ isOpen, on
         setNow(opened);
         setVisitAt(mode === 'reschedule' && current && current > opened ? current : fresh.thursday);
         setPick(mode === 'reschedule' && current ? null : 'thursday');
+        setNote(mode === 'reschedule' ? ticket.vendorNote ?? '' : '');
         setError(null);
-    }, [isOpen, mode, ticket.vendorVisitAt]);
+    }, [isOpen, mode, ticket.vendorVisitAt, ticket.vendorNote]);
 
     const options = useMemo(() => [
         { value: 'tomorrow' as const, label: `Besok · ${WIB_DAY.format(picks.tomorrow)}` },
@@ -68,13 +82,26 @@ export const VendorVisitDialog: React.FC<VendorVisitDialogProps> = ({ isOpen, on
     const maxDate = useMemo(() => new Date(now.getTime() + MAX_DAYS_AHEAD * DAY_MS), [now]);
     const isPast = visitAt.getTime() <= Date.now();
     const isTooFar = visitAt.getTime() > maxDate.getTime();
+    const trimmedNote = note.trim();
+    const noteMissing = trimmedNote.length === 0;
+    const pickedTemplate = (VENDOR_NOTE_TEMPLATES as readonly string[]).includes(trimmedNote) ? trimmedNote : (note ? OTHER_NOTE : null);
+    const noteOptions = useMemo(() => [...VENDOR_NOTE_TEMPLATES, OTHER_NOTE].map((label) => ({ value: label, label })), []);
+    const chooseNote = (value: string) => {
+        setError(null);
+        if (value === OTHER_NOTE) {
+            setNote('');
+            noteRef.current?.focus();
+            return;
+        }
+        setNote(value);
+    };
 
     const handleConfirm = async (event?: React.FormEvent) => {
         event?.preventDefault();
-        if (isLoading || isPast || isTooFar) return;
+        if (isLoading || isPast || isTooFar || noteMissing) return;
         try {
             setError(null);
-            await onConfirm(visitAt.toISOString());
+            await onConfirm(visitAt.toISOString(), trimmedNote);
         } catch (cause: any) {
             setError(cause?.response?.data?.message || cause?.message || 'Gagal menyimpan jadwal vendor');
         }
@@ -91,6 +118,15 @@ export const VendorVisitDialog: React.FC<VendorVisitDialogProps> = ({ isOpen, on
                 <div className="ticket-action-body">
                     {mode === 'start' && <p className="ticket-action-current">SLA dijeda selama menunggu vendor dan berjalan lagi saat status diubah.</p>}
                     <div className="ticket-action-field">
+                        <label id="vendor-note-label" htmlFor="vendor-note">Keterangan <span aria-hidden="true" className="ticket-action-required">*</span></label>
+                        <ActionChips labelledBy="vendor-note-label" options={noteOptions} value={pickedTemplate} disabled={isLoading} onSelect={chooseNote} />
+                        <textarea id="vendor-note" ref={noteRef} value={note} required aria-required="true" disabled={isLoading}
+                            maxLength={VENDOR_NOTE_MAX_LENGTH} rows={2}
+                            placeholder="Pilih template di atas atau ketik keterangan sendiri…"
+                            onChange={(event) => { setNote(event.target.value); setError(null); }} />
+                        <span className="ticket-action-help ticket-action-count">{note.length}/{VENDOR_NOTE_MAX_LENGTH}</span>
+                    </div>
+                    <div className="ticket-action-field">
                         <label>Janji kunjungan / respon vendor</label>
                         <ModernDateTimePicker value={visitAt} minDate={now} maxDate={maxDate} disabled={isLoading}
                             onChange={(date) => { setVisitAt(date); setPick(null); setError(null); }} placeholder="Pilih tanggal dan jam" />
@@ -105,7 +141,7 @@ export const VendorVisitDialog: React.FC<VendorVisitDialogProps> = ({ isOpen, on
                 </div>
                 <footer className="ticket-action-footer"><div>
                     <Button variant="soft" type="button" onClick={onClose} disabled={isLoading}>Batal</Button>
-                    <Button variant="primary" type="submit" loading={isLoading} disabled={isLoading || isPast || isTooFar}>
+                    <Button variant="primary" type="submit" loading={isLoading} disabled={isLoading || isPast || isTooFar || noteMissing}>
                         <Hourglass />{mode === 'start' ? 'Tunggu vendor' : 'Simpan jadwal'}
                     </Button>
                 </div></footer>

@@ -105,8 +105,12 @@ describe('TicketSidebar inspector', () => {
         await user.click(screen.getByRole('option', { name: 'Waiting Vendor' }));
         // Waiting Vendor first asks for the vendor appointment (defaults to next Thursday 09:00 WIB).
         expect(cb.onStatusChange).not.toHaveBeenCalled();
-        await user.click(await screen.findByRole('button', { name: 'Tunggu vendor' }));
-        expect(cb.onStatusChange).toHaveBeenCalledWith('WAITING_VENDOR', undefined, undefined, { vendorVisitAt: expect.any(String) });
+        // ...and why: the button stays off until a note is picked or typed.
+        const confirm = await screen.findByRole('button', { name: 'Tunggu vendor' });
+        expect(confirm).toBeDisabled();
+        await user.click(screen.getByRole('button', { name: 'Menunggu spare part' }));
+        await user.click(confirm);
+        expect(cb.onStatusChange).toHaveBeenCalledWith('WAITING_VENDOR', undefined, undefined, { vendorVisitAt: expect.any(String), vendorNote: 'Menunggu spare part' });
         expect(await screen.findByRole('button', { name: 'Status: In Progress' })).toBeInTheDocument();
     });
 

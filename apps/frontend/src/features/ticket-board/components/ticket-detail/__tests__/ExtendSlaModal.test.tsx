@@ -13,9 +13,9 @@ describe('ExtendSlaModal paused', () => {
         render(<ExtendSlaModal isOpen onClose={vi.fn()} ticket={ticket} onConfirm={onConfirm} />);
         expect(screen.queryByText('Date picker')).not.toBeInTheDocument();
         expect(screen.queryByText('Sebelumnya:')).not.toBeInTheDocument();
-        expect(screen.getByText('Sisa sebelumnya: 2j 0m (dijeda)')).toBeInTheDocument();
+        expect(screen.getByText('Sisa sebelumnya: 2 jam (dijeda)')).toBeInTheDocument();
         fireEvent.change(screen.getByLabelText('Tambahan menit'), { target: { value: '60' } });
-        expect(screen.getByText('Sisa baru: 3j 0m (dijeda)')).toBeInTheDocument();
+        expect(screen.getByText('Sisa baru: 3 jam (dijeda)')).toBeInTheDocument();
         fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Menunggu sparepart vendor' } });
         fireEvent.click(screen.getByRole('button', { name: 'Perpanjang SLA' }));
         await waitFor(() => expect(onConfirm).toHaveBeenCalledWith({ reasonCategory: 'WAITING_USER', reasonText: 'Menunggu sparepart vendor', minutes: 60 }));

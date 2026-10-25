@@ -2,6 +2,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import api from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { businessMinutesBetween, BusinessSchedule, isWithinBusinessHours, nextBusinessStart } from './businessHours';
+import { formatSlaSpan, workingDayMinutes } from './utils/slaDuration';
 
 const MS_PER_MINUTE = 60_000;
 const SLA_CLOCK_STALE_MS = 10 * MS_PER_MINUTE;
@@ -108,4 +109,14 @@ export function useSlaClock(fetch = true): SlaClockInfo | null {
     const info = useSyncExternalStore(subscribe, () => current);
     useEffect(() => { if (fetch) refresh(); }, [fetch]);
     return info;
+}
+
+/** Working-day length (minutes) for a priority's SLA, or null when it counts calendar time. */
+export function slaDayMinutes(info: SlaClockInfo | null | undefined, priority: string | undefined): number | null {
+    return countsBusinessHours(info, priority) ? workingDayMinutes(info.schedule) : null;
+}
+
+/** "2 hari 3 jam kerja" for business-hours SLAs, "1 hari 2 jam" for calendar ones. */
+export function formatSlaTime(ms: number, info: SlaClockInfo | null | undefined, priority: string | undefined): string {
+    return formatSlaSpan(ms, slaDayMinutes(info, priority));
 }

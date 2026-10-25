@@ -26,6 +26,7 @@ import api from '../../../lib/api';
 import { cn } from '@/lib/utils';
 import { AgentSelectList, Agent } from './AgentSelectList';
 import { ReassignConfirmDialog, type TargetAgentInfo } from './ReassignConfirmDialog';
+import { VendorVisitDialog } from './ticket-detail/VendorVisitDialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/stores/useAuth';
 import { STATUS_CONFIG, PRIORITY_CONFIG, KANBAN_COLUMNS, NON_SELECTABLE_STATUSES } from '@/lib/constants/ticket.constants';
@@ -399,6 +400,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedSites, setSelectedSites] = useState<string[]>([]);
     const [landedId, setLandedId] = useState<string | null>(null);
+    const [vendorTicket, setVendorTicket] = useState<Ticket | null>(null);
     const landedTimer = useRef<number | undefined>(undefined);
     useEffect(() => () => window.clearTimeout(landedTimer.current), []);
 
@@ -606,12 +608,17 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
     };
 
     // A takeover confirmation opens before the optimistic move, so cancelling leaves the card in place.
+    const sendStatus = (ticket: Ticket, status: string, vendor?: Pick<TakeoverOptions, 'vendorVisitAt' | 'vendorNote'>) => {
+        statusTakeover
+            .request(ticket, status, (takeover) => updateStatusMutation.mutateAsync({ id: ticket.id, status, takeover: { ...takeover, ...vendor } }))
+            .catch(() => undefined); // already reported by the mutation's onError
+    };
     const changeStatus = (id: string, status: string) => {
         const ticket = tickets.find(t => t.id === id) ?? (selectedTicket?.id === id ? selectedTicket : undefined);
         if (!ticket) return;
-        statusTakeover
-            .request(ticket, status, (takeover) => updateStatusMutation.mutateAsync({ id, status, takeover }))
-            .catch(() => undefined); // already reported by the mutation's onError
+        // Waiting Vendor asks why and when, like the Tabel view; nothing moves until it is confirmed.
+        if (status === 'WAITING_VENDOR') { setVendorTicket(ticket); return; }
+        sendStatus(ticket, status);
     };
 
     const handleQuickAssign = useCallback((ticketId: string) => {
@@ -714,6 +721,15 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
 
             {/* PIC takeover confirmation when starting a ticket handled by another agent */}
             {statusTakeover.dialogProps && <ReassignConfirmDialog {...statusTakeover.dialogProps} />}
+
+            {vendorTicket && (
+                <VendorVisitDialog isOpen onClose={() => setVendorTicket(null)} mode="start"
+                    ticket={{ id: vendorTicket.id, ticketNumber: vendorTicket.ticketNumber, title: vendorTicket.title }}
+                    onConfirm={(vendorVisitAt, vendorNote) => {
+                        setVendorTicket(null);
+                        sendStatus(vendorTicket, 'WAITING_VENDOR', { vendorVisitAt, vendorNote });
+                    }} />
+            )}
         </div>
     );
 };

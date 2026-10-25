@@ -3,7 +3,8 @@ import { TicketActionDialog } from './TicketActionDialog';
 import { ActionChips, ActionSelect } from './ActionControls';
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, Loader2 } from 'lucide-react';
-import { formatSlaDuration, MS_PER_MINUTE } from '@/lib/utils/slaDuration';
+import { MS_PER_MINUTE } from '@/lib/utils/slaDuration';
+import { formatSlaTime, useSlaClock } from '@/lib/slaCountdown';
 import { SlaAdjustmentReasonCategory } from './types';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { ModernDateTimePicker } from '@/components/ui/ModernDateTimePicker';
@@ -50,6 +51,7 @@ type PresetValue = typeof PRESETS[number]['value'];
 
 export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({ isOpen, onClose, ticket, onConfirm, isLoading = false }) => {
     const isPaused = ticket.status === 'WAITING_VENDOR';
+    const slaClock = useSlaClock();
     const [addedMinutes, setAddedMinutes] = useState(DEFAULT_ADDED_MINUTES);
     const currentTargetDate = useMemo(() => ticket.slaTarget ? new Date(ticket.slaTarget) : new Date(), [ticket.slaTarget]);
     const minDate = useMemo(() => new Date(Math.max(currentTargetDate.getTime(), Date.now())), [currentTargetDate]);
@@ -91,12 +93,12 @@ export const ExtendSlaModal: React.FC<ExtendSlaModalProps> = ({ isOpen, onClose,
             </header>
             <div className="ticket-action-body">
                 {isPaused ? <div className="ticket-action-field">
-                    <p className="ticket-action-current">Sisa sebelumnya: {ticket.slaRemainingMinutes != null ? formatSlaDuration(ticket.slaRemainingMinutes * MS_PER_MINUTE) : 'Belum tersedia'} (dijeda)</p>
+                    <p className="ticket-action-current">Sisa sebelumnya: {ticket.slaRemainingMinutes != null ? formatSlaTime(ticket.slaRemainingMinutes * MS_PER_MINUTE, slaClock, ticket.priority) : 'Belum tersedia'} (dijeda)</p>
                     <label htmlFor="sla-added-minutes">Tambahan menit</label>
                     <input id="sla-added-minutes" type="number" min={1} max={MAX_ADDED_MINUTES} step={1}
                         value={Number.isNaN(addedMinutes) ? '' : addedMinutes} disabled={isLoading}
                         onChange={event => setAddedMinutes(event.target.valueAsNumber)} className="w-full" />
-                    <p className="ticket-action-help">Sisa baru: {ticket.slaRemainingMinutes != null && isValidMinutes ? formatSlaDuration((ticket.slaRemainingMinutes + addedMinutes) * MS_PER_MINUTE) : '—'} (dijeda)</p>
+                    <p className="ticket-action-help">Sisa baru: {ticket.slaRemainingMinutes != null && isValidMinutes ? formatSlaTime((ticket.slaRemainingMinutes + addedMinutes) * MS_PER_MINUTE, slaClock, ticket.priority) : '—'} (dijeda)</p>
                 </div> : <div className="ticket-action-field">
                     <p className="ticket-action-current">Deadline saat ini: {ticket.slaTarget ? formatDateTimeID(ticket.slaTarget) : 'Belum ditentukan'}</p>
                     <label>Deadline baru</label>

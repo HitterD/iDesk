@@ -25,6 +25,8 @@ export interface TakeoverOptions {
     reason?: string;
     /** WAITING_VENDOR only: agreed vendor visit time (ISO); the backend defaults to next Thursday 09:00 WIB. */
     vendorVisitAt?: string;
+    /** WAITING_VENDOR only: what the ticket waits on (template or typed). */
+    vendorNote?: string;
 }
 
 /** Performs the status change with the given takeover flags; rejects with the axios error. */
