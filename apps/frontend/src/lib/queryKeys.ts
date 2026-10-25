@@ -54,6 +54,27 @@ export const queryKeys = {
         detail: (id: string) => ['eform-access', id] as const,
     },
 
+    // ─── Customer Satisfaction Index ───────────────────────────────────────────
+    csi: {
+        all: ['csi'] as const,
+        active: () => ['csi', 'me', 'active'] as const,
+        forms: () => ['csi', 'me', 'form'] as const,
+        form: (id: string) => ['csi', 'me', 'form', id] as const,
+        dimensions: (scope: 'ict' | 'hc', includeInactive?: boolean) =>
+            ['csi', scope, 'dimensions', ...(includeInactive === undefined ? [] : [includeInactive])] as const,
+        departments: (scope: 'ict' | 'hc', includeInactive?: boolean) =>
+            ['csi', scope, 'departments', ...(includeInactive === undefined ? [] : [includeInactive])] as const,
+        raters: (scope: 'ict' | 'hc') => ['csi', scope, 'raters'] as const,
+        userSearch: (scope: 'ict' | 'hc', search: string) => ['csi', scope, 'users', search] as const,
+        periods: (scope: 'ict' | 'hc', siteId?: string) =>
+            ['csi', scope, 'periods', ...(siteId === undefined ? [] : [siteId])] as const,
+        period: (scope: 'ict' | 'hc', id: string) => ['csi', scope, 'period', id] as const,
+        report: (scope: 'ict' | 'hc', id: string) => ['csi', scope, 'report', id] as const,
+        respondents: (scope: 'ict' | 'hc', id: string) => ['csi', scope, 'respondents', id] as const,
+        responseDetail: (scope: 'ict' | 'hc', id: string, responseId?: string) =>
+            ['csi', scope, 'response', id, ...(responseId === undefined ? [] : [responseId])] as const,
+    },
+
     // ─── System & User ─────────────────────────────────────────────────────────
     user: {
         me: () => ['my-profile'] as const,
