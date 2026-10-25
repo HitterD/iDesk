@@ -4,9 +4,12 @@ import { AuthModule } from '../auth/auth.module';
 import { AuditModule } from '../audit/audit.module';
 import { User } from '../users/entities/user.entity';
 import { PermissionPreset } from '../permissions/entities/permission-preset.entity';
+import { Site } from '../sites/entities/site.entity';
 import { CsiAdminGuard } from './guards/csi-admin.guard';
 import { CsiMasterService } from './services/csi-master.service';
 import { CsiAdminMasterController } from './presentation/csi-admin-master.controller';
+import { CsiPeriodService } from './services/csi-period.service';
+import { CsiAdminPeriodController } from './presentation/csi-admin-period.controller';
 import { CsiDimension } from './entities/csi-dimension.entity';
 import { CsiDepartment } from './entities/csi-department.entity';
 import { CsiRater } from './entities/csi-rater.entity';
@@ -23,12 +26,12 @@ import { CsiResponseComment } from './entities/csi-response-comment.entity';
         TypeOrmModule.forFeature([
             CsiDimension, CsiDepartment, CsiRater, CsiPeriod, CsiPeriodRatee,
             CsiPeriodRateeDimension, CsiPeriodRater, CsiResponse, CsiResponseItem, CsiResponseComment,
-            User, PermissionPreset,
+            User, PermissionPreset, Site,
         ]),
         AuthModule,
         AuditModule,
     ],
-    controllers: [CsiAdminMasterController],
-    providers: [CsiAdminGuard, CsiMasterService],
+    controllers: [CsiAdminMasterController, CsiAdminPeriodController],
+    providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService],
 })
 export class CsiModule { }
