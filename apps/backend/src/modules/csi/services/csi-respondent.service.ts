@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, GoneException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, QueryFailedError, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, LessThanOrEqual, MoreThanOrEqual, QueryFailedError, Repository } from 'typeorm';
+import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
 import { User } from '../../users/entities/user.entity';
 import { CSI_COMMENT_MAX, CSI_SCORE_MAX, CSI_SCORE_MIN, CsiRespondentMode } from '../csi.constants';
 import { SubmitResponseDto } from '../dto/submit.dto';
@@ -60,7 +61,12 @@ export class CsiRespondentService {
     async listActive(user: CsiRespondentRef, now: Date = new Date()) {
         const respondent = await this.loadRespondent(user.id);
         if (!respondent) return [];
-        const candidates = await this.periods.find({ where: { siteId: respondent.siteId }, order: { startDate: 'DESC' } });
+        // Narrow to periods covering today's WIB date; computeStatus stays the authoritative check.
+        const today = localDateKey(now, DEFAULT_TIMEZONE);
+        const candidates = await this.periods.find({
+            where: { siteId: respondent.siteId, startDate: LessThanOrEqual(today), endDate: MoreThanOrEqual(today) },
+            order: { startDate: 'DESC' },
+        });
         const result: Array<{ id: string; scope: CsiPeriod['scope']; title: string; submitted: boolean }> = [];
         for (const period of candidates) {
             if (computeStatus(period, now) !== 'ACTIVE' || !(await this.audienceFor(this.readers, respondent, period))) continue;

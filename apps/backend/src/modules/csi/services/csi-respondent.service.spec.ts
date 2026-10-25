@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, GoneException, NotFoundException } from '@nestjs/common';
-import { QueryFailedError } from 'typeorm';
+import { LessThanOrEqual, MoreThanOrEqual, QueryFailedError } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiRespondentMode } from '../csi.constants';
 import { CsiDepartment } from '../entities/csi-department.entity';
@@ -23,6 +23,8 @@ function matches(row: Record<string, any>, where: Record<string, any> = {}): boo
     return Object.entries(where).every(([key, value]): boolean => {
         if (value && typeof value === 'object' && '_type' in value) {
             if (value._type === 'in') return value._value.includes(row[key]);
+            if (value._type === 'lessThanOrEqual') return row[key] <= value._value;
+            if (value._type === 'moreThanOrEqual') return row[key] >= value._value;
             throw new Error(`Unsupported operator ${value._type}`);
         }
         return row[key] === value;
@@ -179,6 +181,22 @@ describe('CsiRespondentService', () => {
             expect(await service.listActive(me, NOW)).toEqual([{ id: 'p1', scope: ICT, title: 'CSI ICT Oktober', submitted: false }]);
             responses.rows.push({ id: 'resp', periodId: 'p1', respondentId: 'me' });
             expect(await service.listActive(me, NOW)).toEqual([{ id: 'p1', scope: ICT, title: 'CSI ICT Oktober', submitted: true }]);
+        });
+
+        it('listActive only loads periods whose date range covers the WIB date of today', async () => {
+            periods.rows.push(period({ id: 'p-old', startDate: '2025-01-01', endDate: '2025-01-31' }));
+            await service.listActive(me, NOW);
+            expect(periods.find).toHaveBeenCalledWith(expect.objectContaining({
+                where: { siteId: 'site-a', startDate: LessThanOrEqual('2026-10-15'), endDate: MoreThanOrEqual('2026-10-15') },
+            }));
+        });
+
+        it('listActive uses the WIB calendar date, not the UTC one, at day boundaries', async () => {
+            // 00:30 WIB on 1 Oct is still 30 Sep in UTC.
+            const firstMinutesWib = new Date('2026-10-01T00:30:00+07:00');
+            expect(await service.listActive(me, firstMinutesWib)).toEqual([{ id: 'p1', scope: ICT, title: 'CSI ICT Oktober', submitted: false }]);
+            // 23:30 WIB on 31 Oct is still inside the period.
+            expect(await service.listActive(me, new Date('2026-10-31T23:30:00+07:00'))).toHaveLength(1);
         });
     });
 
