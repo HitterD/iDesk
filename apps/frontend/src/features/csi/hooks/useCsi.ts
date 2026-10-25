@@ -26,8 +26,11 @@ const periodKeys = (scope: CsiScopeParam, id: string): QueryKey[] => [
     keys.responseDetail(scope, id), keys.active(), keys.form(id),
 ];
 
+/** Active surveys change rarely; submitting a response invalidates this query anyway. */
+const ACTIVE_SURVEYS_STALE_TIME_MS = 60_000;
+
 export function useCsiActive() {
-    return useQuery({ queryKey: keys.active(), queryFn: CsiApi.active });
+    return useQuery({ queryKey: keys.active(), queryFn: CsiApi.active, staleTime: ACTIVE_SURVEYS_STALE_TIME_MS });
 }
 export function useCsiForm(id: string) {
     return useQuery({ queryKey: keys.form(id), queryFn: () => CsiApi.form(id), enabled: !!id });
