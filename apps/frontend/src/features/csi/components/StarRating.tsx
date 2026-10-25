@@ -16,6 +16,8 @@ export interface StarRatingProps {
     onChange?: (value: number) => void;
     label: string;
     size?: 'sm' | 'lg';
+    /** Hide the verbal label under the stars (e.g. compact report cells). */
+    hideLabel?: boolean;
 }
 
 function keyboardValue(key: string, value: number): number | undefined {
@@ -32,7 +34,7 @@ function keyboardValue(key: string, value: number): number | undefined {
     }
 }
 
-export function StarRating({ value, onChange, label, size = 'lg' }: StarRatingProps) {
+export function StarRating({ value, onChange, label, size = 'lg', hideLabel = false }: StarRatingProps) {
     const buttons = useRef<Array<HTMLButtonElement | null>>([]);
     const tabStop = STARS.some((star) => star === value) ? value : STARS[0];
     const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, star: number) => {
@@ -62,7 +64,7 @@ export function StarRating({ value, onChange, label, size = 'lg' }: StarRatingPr
                     ) : <span key={star}>{icon}</span>;
                 })}
             </div>
-            {CSI_RATING_LABELS[value] && <p className="text-xs text-slate-600 dark:text-slate-400">{CSI_RATING_LABELS[value]}</p>}
+            {!hideLabel && CSI_RATING_LABELS[value] && <p className="text-xs text-slate-600 dark:text-slate-400">{CSI_RATING_LABELS[value]}</p>}
         </div>
     );
 }

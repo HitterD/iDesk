@@ -92,7 +92,8 @@ export function useUpdateCsiPeriod(scope: CsiScopeParam) {
         ({ id }) => periodKeys(scope, id));
 }
 export function useDeleteCsiPeriod(scope: CsiScopeParam) {
-    return useCsiMutation((id: string) => CsiApi.deletePeriod(scope, id), (id) => periodKeys(scope, id));
+    // Not the detail keys: the open detail view would refetch a deleted period (404 toast) before navigating away.
+    return useCsiMutation((id: string) => CsiApi.deletePeriod(scope, id), () => [keys.periods(scope), keys.active()]);
 }
 export function useSetCsiRatees(scope: CsiScopeParam, id: string) {
     return useCsiMutation((payload: SetCsiRatees) => CsiApi.setRatees(scope, id, payload), () => periodKeys(scope, id));

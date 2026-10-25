@@ -123,6 +123,32 @@ describe('BentoSidebar', () => {
         expect(await screen.findByRole('link', { name: 'Survei Kepuasan' })).toHaveAttribute('href', '/manager/csi');
     });
 
+    it('shows Admin CSI HC for ADMIN only when csi_admin_hc is granted (no ADMIN bypass)', () => {
+        pageAccess.current = { ...pageAccess.defaults, csi_admin_ict: true };
+        const { unmount } = renderSidebar('/dashboard');
+        expect(screen.getByRole('link', { name: 'Admin CSI ICT' })).toHaveAttribute('href', '/csi/admin/ict');
+        expect(screen.queryByRole('link', { name: 'Admin CSI HC' })).not.toBeInTheDocument();
+        unmount();
+
+        pageAccess.current = { ...pageAccess.defaults, csi_admin_hc: true };
+        renderSidebar('/dashboard');
+        expect(screen.getByRole('link', { name: 'Admin CSI HC' })).toHaveAttribute('href', '/csi/admin/hc');
+        expect(screen.queryByRole('link', { name: 'Admin CSI ICT' })).not.toBeInTheDocument();
+    });
+
+    it('points Admin CSI to the manager layout and hides it from non-admin roles', () => {
+        authUser.current = { id: 'mgr-1', fullName: 'Manager', role: 'MANAGER' };
+        pageAccess.current = { ...pageAccess.defaults, csi_admin_hc: true };
+        const { unmount } = renderSidebar('/manager/dashboard');
+        expect(screen.getByRole('link', { name: 'Admin CSI HC' })).toHaveAttribute('href', '/manager/csi/admin/hc');
+        unmount();
+
+        authUser.current = { id: 'agent-1', fullName: 'Agent', role: 'AGENT' };
+        pageAccess.current = { ...pageAccess.defaults, csi_admin_ict: true, csi_admin_hc: true };
+        renderSidebar('/dashboard');
+        expect(screen.queryByRole('link', { name: /Admin CSI/ })).not.toBeInTheDocument();
+    });
+
     it('highlights only Dashboard Saya on /dashboard/me, not Dashboard Tim too', async () => {
         authUser.current = { id: 'agent-1', fullName: 'Ops Agent', role: 'AGENT_OPERATIONAL_SUPPORT' };
         renderSidebar('/dashboard/me');

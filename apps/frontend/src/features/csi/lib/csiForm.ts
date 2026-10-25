@@ -36,9 +36,6 @@ export function rateeAverage(ratee: Ratee, scores: CsiScores): number {
     return sum / ratee.dimensions.length;
 }
 
-const AVERAGE_FORMAT = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-export const formatAverage = (value: number) => AVERAGE_FORMAT.format(value);
-
 export function buildSubmitPayload(form: CsiOpenForm, departmentId: string, scores: CsiScores, comments: CsiComments): SubmitCsiResponse {
     const items = form.ratees.flatMap((ratee) => ratee.dimensions.map((dimension) => ({
         periodRateeDimensionId: dimension.periodRateeDimensionId,

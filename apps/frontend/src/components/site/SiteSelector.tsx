@@ -1,19 +1,11 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Check, ChevronDown, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
 import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
 import { cn } from '@/lib/utils';
-import api from '@/lib/api';
-
-interface Site {
-    id: string;
-    code: string;
-    name: string;
-    isActive: boolean;
-}
+import { useActiveSites } from './useActiveSites';
 
 interface SiteSelectorProps {
     selectedSiteIds: string[];
@@ -38,28 +30,7 @@ export const SiteSelector = ({
     variant = 'default',
 }: SiteSelectorProps) => {
     const [open, setOpen] = useState(false);
-    const {
-        data: sites = [],
-        isLoading: loading,
-        isError,
-        refetch,
-    } = useQuery<Site[]>({
-        queryKey: ['sites', 'active'],
-        queryFn: async () => {
-            try {
-                const res = await api.get('/sites/active');
-                return Array.isArray(res.data) ? res.data : [];
-            } catch (err: any) {
-                if (err.response?.status === 403 || err.response?.status === 404) {
-                    const fallbackRes = await api.get('/sites');
-                    return Array.isArray(fallbackRes.data) ? fallbackRes.data : [];
-                }
-                throw err;
-            }
-        },
-        staleTime: 5 * 60 * 1000,
-        refetchOnWindowFocus: false,
-    });
+    const { data: sites = [], isLoading: loading, isError, refetch } = useActiveSites();
 
     const error = isError ? 'Gagal memuat sites' : null;
 

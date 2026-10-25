@@ -10,7 +10,8 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { StarRating } from './StarRating';
-import { CSI_COMMENT_MAX, formatAverage, rateeAverage, type CsiScores } from '../lib/csiForm';
+import { CSI_COMMENT_MAX, rateeAverage, type CsiScores } from '../lib/csiForm';
+import { formatAverage } from '../lib/format';
 import type { CsiOpenForm } from '../types';
 
 type Ratee = CsiOpenForm['ratees'][number];
