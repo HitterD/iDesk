@@ -1,6 +1,6 @@
 import { QueueCardToolbar } from '../components/QueueCardToolbar';
 import { Database } from 'lucide-react';
-import { QueueHeader } from '../components/QueueHeader';
+import { QueueHeader, QueueToggles } from '../components/QueueHeader';
 import { QueueFilterBar, PRIORITY_FILTER_OPTIONS } from '../components/QueueFilterBar';
 import { QueueTableHeader } from '../components/QueueTableHeader';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
@@ -398,10 +398,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
     return (
         <TicketBoardErrorBoundary>
             <div className="queue-page space-y-4 pb-28 sm:pb-10 min-w-0">
-                <QueueHeader title="Oracle K2 Request" description="ERP, database, dan workflow K2" icon={Database} tone="red"
-                    connected={isConnected} canEdit={canEdit}
-                    scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
-                    onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })} />
+                <QueueHeader title="Oracle K2 Request" description="ERP, database, dan workflow K2" icon={Database} tone="red" />
 
                 <p className="text-xs text-muted-foreground">Ringkasan status, overdue, dan critical berdasarkan halaman yang dimuat; Total mengikuti server.</p>
                 {/* Stats Cards — 6 cards responsive grid matching BentoTicketListPage */}
@@ -526,6 +523,9 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                             hasActiveFilters={hasActiveFilters}
                             onClearFilters={clearFilters}
                         />
+                        <QueueToggles canEdit={canEdit}
+                            scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
+                            onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })} />
                     </QueueFilterBar>
 
                 {/* Active Filter Chips */}

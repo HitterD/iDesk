@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/stores/useAuth';
+import { usePageTitleStore, type PageTitle } from '@/stores/usePageTitle';
 import { firstName, wibGreeting } from '@/features/dashboard/agent/agentDashboard.format';
 
 const MINUTE_MS = 60_000;
@@ -20,8 +21,14 @@ function useMinuteClock(): Date {
     return now;
 }
 
-/** Left of the topbar: who and when. WIB, because every SLA in the app is read in WIB. */
+/** Left of the topbar: the page's own title when it sets one (queue pages), else who and when. */
 export const TopbarGreeting: React.FC = () => {
+    const page = usePageTitleStore((state) => state.current);
+    return page ? <TopbarPageTitle {...page} /> : <TopbarHello />;
+};
+
+/** Who and when. WIB, because every SLA in the app is read in WIB. */
+const TopbarHello: React.FC = () => {
     const { user } = useAuth();
     const name = user?.fullName;
     const now = useMinuteClock();
@@ -32,3 +39,13 @@ export const TopbarGreeting: React.FC = () => {
         </div>
     );
 };
+
+const TopbarPageTitle: React.FC<PageTitle> = ({ title, description, icon: Icon, tone }) => (
+    <div className="topbar-greeting is-page">
+        <span className="nav-tile topbar-page-tile" data-tone={tone}><Icon aria-hidden="true" /></span>
+        <div className="min-w-0">
+            <h1>{title}</h1>
+            <span>{description}</span>
+        </div>
+    </div>
+);

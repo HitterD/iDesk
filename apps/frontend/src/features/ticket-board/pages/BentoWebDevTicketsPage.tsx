@@ -1,5 +1,5 @@
 import { QueueCardToolbar } from '../components/QueueCardToolbar';
-import { QueueHeader } from '../components/QueueHeader';
+import { QueueHeader, QueueToggles } from '../components/QueueHeader';
 import { QueueFilterBar, PRIORITY_FILTER_OPTIONS } from '../components/QueueFilterBar';
 import { QueueTableHeader } from '../components/QueueTableHeader';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
@@ -400,10 +400,7 @@ export const BentoWebDevTicketsPage: React.FC = () => {
     return (
         <TicketBoardErrorBoundary>
             <div className="queue-page space-y-4 pb-28 sm:pb-10 min-w-0">
-                <QueueHeader title="Web Developer Request" description="Bug, fitur, dan integrasi web portal" icon={Code2} tone="teal"
-                    connected={isConnected} canEdit={canEdit}
-                    scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
-                    onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })} />
+                <QueueHeader title="Web Developer Request" description="Bug, fitur, dan integrasi web portal" icon={Code2} tone="teal" />
 
                 <p className="text-xs text-muted-foreground">Ringkasan status, overdue, dan critical berdasarkan halaman yang dimuat; Total mengikuti server.</p>
                 {/* Stats Cards */}
@@ -528,6 +525,9 @@ export const BentoWebDevTicketsPage: React.FC = () => {
                             hasActiveFilters={hasActiveFilters}
                             onClearFilters={clearFilters}
                         />
+                        <QueueToggles canEdit={canEdit}
+                            scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
+                            onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })} />
                     </QueueFilterBar>
 
                 {/* Active Filter Chips */}

@@ -1,6 +1,6 @@
 import { QueueCardToolbar } from '../components/QueueCardToolbar';
 import { Ticket as TicketIcon } from 'lucide-react';
-import { QueueHeader } from '../components/QueueHeader';
+import { QueueHeader, QueueToggles } from '../components/QueueHeader';
 import { QueueFilterBar, PRIORITY_FILTER_OPTIONS } from '../components/QueueFilterBar';
 import { QueueTableHeader } from '../components/QueueTableHeader';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
@@ -509,10 +509,7 @@ export const BentoTicketListPage: React.FC = () => {
 
     return (
         <div className="queue-page space-y-4 pb-28 sm:pb-10 min-w-0">
-            <QueueHeader title="IT Support Tickets" description="Antrian IT Support untuk semua site Anda" icon={TicketIcon} tone="blue"
-                connected={isConnected} canEdit={canEdit}
-                scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
-                onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })} />
+            <QueueHeader title="IT Support Tickets" description="Antrian IT Support untuk semua site Anda" icon={TicketIcon} tone="blue" />
 
             {/* Stats Cards - Horizontally scrollable snap strip on mobile, grid on tablet/desktop */}
             <div className="queue-stats queue-stats-7" aria-label="Ringkasan status">
@@ -586,6 +583,9 @@ export const BentoTicketListPage: React.FC = () => {
                         hasActiveFilters={hasActiveFilters}
                         onClearFilters={clearFilters}
                     />
+                    <QueueToggles canEdit={canEdit}
+                        scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
+                        onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })} />
                 </QueueFilterBar>
 
             {/* Active Filter Chips - P3 MEDIUM: Removable filter badges */}
