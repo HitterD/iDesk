@@ -9,7 +9,7 @@ export type HardwareRequestType = 'BUDGET_ANNUAL' | 'NON_BUDGET' | 'HARDWARE_INS
 /** Mirrors HardwareTicketPhase (backend utils/ticket-activity.util.ts). */
 export type HardwareTicketPhase =
     | 'PROPOSED' | 'SUBMITTED' | 'DECLINED' | 'WITHDRAWN' | 'APPROVED' | 'REJECTED' | 'PROCUREMENT_DONE'
-    | 'SCHEDULE_PROPOSED' | 'SCHEDULED' | 'INSTALLED' | 'ISSUE_REPORTED' | 'COMPLETED' | 'CANCELLED';
+    | 'SCHEDULE_PROPOSED' | 'RESCHEDULE_REQUESTED' | 'SCHEDULED' | 'INSTALLED' | 'ISSUE_REPORTED' | 'COMPLETED' | 'CANCELLED';
 
 /** Latest installation schedule. PROPOSED: one time to confirm; PROPOSED_AWAITING_USER: `slots` to pick from. */
 export interface TicketHardwareSchedule {
@@ -31,6 +31,8 @@ export interface TicketHardwareRequest {
     requesterId: string;
     proposedBy: { id: string; name: string } | null;
     items: Array<{ name: string; category: string | null; quantity: number }>;
+    /** Procured units that have arrived so far. */
+    delivery?: { arrived: number; total: number };
     schedule: TicketHardwareSchedule | null;
     createdAt: string;
     submittedAt: string | null;
@@ -85,7 +87,11 @@ export function currentStep(type: HardwareRequestType, status: RequestStatus): n
 }
 
 type ScheduleView = Pick<TicketHardwareSchedule, 'start' | 'status'> & Partial<Pick<TicketHardwareSchedule, 'proposedById' | 'slots'>>;
-type RequestView = { status: RequestStatus; requesterId?: string; schedule: ScheduleView | null };
+type RequestView = { status: RequestStatus; requesterId?: string; schedule: ScheduleView | null; delivery?: { arrived: number; total: number } };
+
+/** A finished or retired schedule: the installation still stands open, so ICT has to set a new one. */
+const SPENT_SCHEDULE = new Set(['DONE', 'CANCELLED', 'RESCHEDULED']);
+const allArrived = (request: RequestView) => Boolean(request.delivery && request.delivery.total > 0 && request.delivery.arrived >= request.delivery.total);
 
 /** What the requester has to answer about the installation schedule, if anything. */
 export function scheduleAsk(request: RequestView): 'pick' | 'confirm' | null {
@@ -104,12 +110,18 @@ export function statusSentence(request: Pick<TicketHardwareRequest, 'status' | '
         case 'UNDER_REVIEW': return 'Sedang direview ICT';
         case 'APPROVED': return 'Disetujui, menunggu pengadaan';
         case 'PROCUREMENT': return 'Dalam pengadaan';
-        case 'AWAITING_DELIVERY': return 'Menunggu barang datang';
+        case 'AWAITING_DELIVERY': {
+            const { arrived = 0, total = 0 } = request.delivery ?? {};
+            if (total > 0 && arrived >= total) return 'Barang lengkap, menunggu jadwal pemasangan';
+            return total > 0 ? `Menunggu barang datang (${arrived}/${total})` : 'Menunggu barang datang';
+        }
         case 'INSTALLATION': {
             const ask = scheduleAsk(request);
             if (ask === 'pick') return 'Pilih jadwal pemasangan';
             if (ask === 'confirm') return 'Konfirmasi jadwal pemasangan';
             if (request.schedule?.status === 'RESCHEDULE_REQUESTED') return 'Pemohon minta jadwal lain';
+            // The requester reported a problem after the job was done: it goes back to ICT for another visit.
+            if (request.schedule && SPENT_SCHEDULE.has(request.schedule.status)) return 'Masalah dilaporkan, menunggu jadwal perbaikan';
             return request.schedule?.start && ['CONFIRMED', 'IN_PROGRESS'].includes(request.schedule.status)
                 ? 'Pemasangan terjadwal' : 'Menunggu jadwal pemasangan';
         }
@@ -136,9 +148,10 @@ export function staffTodo(request: Pick<TicketHardwareRequest, 'requestType'> & 
         case 'SUBMITTED': return request.requestType === 'HARDWARE_INSTALLATION' ? 'Jadwalkan pemasangan' : 'Review usulan';
         case 'UNDER_REVIEW': return 'Putuskan review';
         case 'APPROVED': case 'PROCUREMENT': return 'Proses pengadaan';
-        case 'AWAITING_DELIVERY': return 'Catat barang datang';
+        case 'AWAITING_DELIVERY': return allArrived(request) ? 'Jadwalkan pemasangan' : 'Catat barang datang';
         case 'INSTALLATION':
             if (!request.schedule || request.schedule.status === 'RESCHEDULE_REQUESTED') return 'Atur jadwal pemasangan';
+            if (SPENT_SCHEDULE.has(request.schedule.status)) return 'Jadwalkan perbaikan';
             if (request.schedule.status === 'CONFIRMED' || request.schedule.status === 'IN_PROGRESS') return 'Selesaikan pemasangan';
             return null;
         default: return null;

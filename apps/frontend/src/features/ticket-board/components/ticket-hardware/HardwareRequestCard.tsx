@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    ArrowUpRight, CalendarCheck, CheckCircle2, CircleSlash, Cpu, MessageSquareWarning, PackageCheck, ThumbsUp, Wrench, XCircle,
+    ArrowUpRight, CalendarCheck, CalendarClock, CheckCircle2, CircleSlash, Cpu, MessageSquareWarning, PackageCheck, ThumbsUp, Wrench, XCircle,
 } from 'lucide-react';
+import { TICKET_MOVE_TEXT, type LinkedTicketMove } from '../ticket-detail/ActivityEvent';
 import { Button } from '@/components/ui/button';
 import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
 import { cn } from '@/lib/utils';
@@ -33,6 +34,8 @@ interface HardwareRequestCardProps {
     /** The ticket's requester (answers the proposal); staff only follow it. */
     isRequester: boolean;
     hardwareBasePath: string;
+    /** What this step did to the ticket (closed it, handed it back), if anything. */
+    ticketMove?: LinkedTicketMove;
 }
 
 const WIB = new Intl.DateTimeFormat('id-ID', {
@@ -47,10 +50,11 @@ const PHASE: Record<Exclude<HardwareTicketPhase, 'PROPOSED'>, { icon: React.Elem
     REJECTED: { icon: XCircle, text: 'ditolak ICT', tone: 'bad' },
     PROCUREMENT_DONE: { icon: PackageCheck, text: 'selesai pengadaan', tone: 'ok' },
     SCHEDULE_PROPOSED: { icon: CalendarCheck, text: 'punya usulan jadwal pemasangan, menunggu pemohon', tone: 'warn' },
+    RESCHEDULE_REQUESTED: { icon: CalendarClock, text: 'pemohon minta jadwal pemasangan lain', tone: 'warn' },
     SCHEDULED: { icon: CalendarCheck, text: 'dijadwalkan pemasangan', tone: 'info' },
     INSTALLED: { icon: Wrench, text: 'selesai dipasang, menunggu konfirmasi pemohon', tone: 'warn' },
     ISSUE_REPORTED: { icon: MessageSquareWarning, text: 'dilaporkan bermasalah oleh pemohon', tone: 'bad' },
-    COMPLETED: { icon: CheckCircle2, text: 'selesai. Tiket ditutup otomatis', tone: 'ok' },
+    COMPLETED: { icon: CheckCircle2, text: 'selesai', tone: 'ok' },
     CANCELLED: { icon: XCircle, text: 'dibatalkan', tone: 'bad' },
 };
 
@@ -62,14 +66,14 @@ const STATUS_TONE: Partial<Record<RequestStatus, TicketPillTone>> = {
 export const HardwareRequestCard: React.FC<HardwareRequestCardProps> = (props) =>
     props.event.phase === 'PROPOSED' ? <ProposalCard {...props} /> : <PhaseLine {...props} />;
 
-function PhaseLine({ event, actorName, reason, createdAt, hardwareBasePath }: HardwareRequestCardProps) {
+function PhaseLine({ event, actorName, reason, createdAt, hardwareBasePath, ticketMove }: HardwareRequestCardProps) {
     const meta = PHASE[event.phase as Exclude<HardwareTicketPhase, 'PROPOSED'>];
     const Icon = meta.icon;
     return (
         <div className={cn('thw-line', `is-${meta.tone}`)}>
             <span className="thw-line-ico"><Icon aria-hidden="true" /></span>
             <span className="thw-line-text">
-                <Link to={`${hardwareBasePath}/${event.id}`}><b>{event.number}</b></Link> {meta.text}
+                <Link to={`${hardwareBasePath}/${event.id}`}><b>{event.number}</b></Link> {meta.text}{ticketMove && `. ${TICKET_MOVE_TEXT[ticketMove]}`}
                 {(event.phase === 'SCHEDULED' || event.phase === 'SCHEDULE_PROPOSED') && event.at && <> · <b>{WIB.format(new Date(event.at))} WIB</b></>}
                 {actorName && <span className="thw-line-by"> · {toDisplayName(actorName)}</span>}
                 {reason && <span className="thw-line-reason">“{reason}”</span>}

@@ -20,6 +20,21 @@ export interface TicketSystemEvent {
 
 type Change = TicketSystemEvent['changes'][number];
 
+/** What a step of a linked request did to the ticket itself, so its chat line says only what really happened. */
+export type LinkedTicketMove = 'closed' | 'resumed' | null;
+
+export function linkedTicketMove(event: Pick<TicketSystemEvent, 'changes'> | null | undefined): LinkedTicketMove {
+    const status = event?.changes?.find((change) => change.field === 'status');
+    if (status?.to === 'CLOSED') return 'closed';
+    if (status?.to === 'IN_PROGRESS') return 'resumed';
+    return null;
+}
+
+export const TICKET_MOVE_TEXT: Record<Exclude<LinkedTicketMove, null>, string> = {
+    closed: 'Tiket ditutup otomatis',
+    resumed: 'Tiket kembali ditangani',
+};
+
 const FIELD_LABEL: Record<Change['field'], string> = {
     status: 'Status',
     assignee: 'PIC',

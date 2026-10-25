@@ -92,6 +92,9 @@
 .is-current > .thw-step-label { font-weight: 600; color: hsl(var(--idesk-sapphire)); }
 .is-done > .thw-step-label { color: hsl(var(--idesk-text-secondary)); }
 .thw-steps.is-stopped { opacity: .45; filter: grayscale(1); }
+/* Sidebar: too narrow for the labels (they ran into each other), and the card above already names the step. */
+.thw-steps.is-compact .thw-step-label { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.thw-steps.is-compact li { gap: 0; }
 
 /* ---------- Chat: proposal card ---------- */
 .thw-card {

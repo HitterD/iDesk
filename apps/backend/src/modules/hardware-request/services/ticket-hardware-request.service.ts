@@ -28,6 +28,8 @@ export interface TicketHardwareRequestSummary {
     requesterId: string;
     proposedBy: { id: string; name: string } | null;
     items: Array<{ name: string; category: string | null; quantity: number }>;
+    /** How many of the procured units have arrived; ICT schedules the installation once they all have. */
+    delivery: { arrived: number; total: number };
     /** Latest installation schedule: the requester confirms a single proposal or picks one of `slots` from the ticket. */
     schedule: {
         id: string;
@@ -151,6 +153,7 @@ export class TicketHardwareRequestService {
                 requesterId: request.requesterId,
                 proposedBy: proposer ? { id: proposer.id, name: proposer.fullName } : null,
                 items: groupItems(request),
+                delivery: deliveryOf(request),
                 schedule: schedule ? {
                     id: schedule.id,
                     start: schedule.scheduledStart?.toISOString() ?? null,
@@ -168,6 +171,12 @@ export class TicketHardwareRequestService {
             };
         });
     }
+}
+
+/** Units that are being (or were) procured, and how many are already there. */
+function deliveryOf(request: HardwareRequest): TicketHardwareRequestSummary['delivery'] {
+    const procured = (request.items ?? []).filter((item) => item.deliveryStatus !== 'NOT_PROCURED');
+    return { arrived: procured.filter((item) => item.deliveryStatus === 'ARRIVED').length, total: procured.length };
 }
 
 /** Items are stored one row per unit; the card lists them per catalog entry with a count. */

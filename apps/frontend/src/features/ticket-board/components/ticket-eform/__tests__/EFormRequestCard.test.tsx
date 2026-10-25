@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { EFormRequestCard } from '../EFormRequestCard';
+import { EFormProgress, EFormRequestCard } from '../EFormRequestCard';
 import type { TicketEFormRequest } from '../eformFlow';
 
 const api = vi.hoisted(() => ({ cancel: vi.fn(() => Promise.resolve()) }));
@@ -52,6 +52,33 @@ describe('EFormRequestCard', () => {
         renderCard({ isRequester: false, request: { ...request, status: 'PENDING_ICT' } });
         expect(screen.getByRole('list', { name: 'Progres akses E-Form' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: /Proses akses/ })).toHaveAttribute('href', '/client/eform-access/ef-1');
+    });
+
+    it('shows the running document number once the form is submitted', () => {
+        renderCard({ isRequester: false, request: { ...request, status: 'PENDING_MANAGER', documentNumber: 'F/ICT/04/0012' } });
+        expect(screen.getByText(/No\. F\/ICT\/04\/0012/)).toBeInTheDocument();
+    });
+
+    it('says the ticket was closed only when granting the access really closed it', () => {
+        const { unmount } = renderCard({ event: { ...proposed, phase: 'GRANTED' }, ticketMove: 'closed' });
+        expect(screen.getByText(/aktif\. Tiket ditutup otomatis/)).toBeInTheDocument();
+        unmount();
+        // Another request of the ticket is still running: the line must not claim the ticket closed.
+        renderCard({ event: { ...proposed, phase: 'GRANTED' }, ticketMove: null });
+        expect(screen.queryByText(/ditutup otomatis/)).not.toBeInTheDocument();
+    });
+
+    it('shows the GM step line', () => {
+        renderCard({ event: { ...proposed, phase: 'GM_APPROVED' } });
+        expect(screen.getByText(/sudah ditandatangani GM/)).toBeInTheDocument();
+    });
+
+    it('keeps the step labels out of the narrow sidebar bar but available to screen readers', () => {
+        const { container } = render(<EFormProgress request={{ formType: 'VPN', status: 'PENDING_GM' }} compact />);
+        const bar = container.querySelector('ol')!;
+        expect(bar).toHaveClass('is-compact');
+        expect(bar.querySelectorAll('li')).toHaveLength(5);
+        expect(bar.querySelector('li[aria-current="step"]')).toHaveAttribute('title', 'Tanda tangan GM');
     });
 
     it('renders later steps as one line with the reason', () => {

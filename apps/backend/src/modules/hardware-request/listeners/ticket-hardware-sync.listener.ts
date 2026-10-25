@@ -5,7 +5,7 @@ import { Repository } from 'typeorm';
 import {
     HR_EVT, HardwareEvents, HrApproved, HrCancelled, HrInstallCompleted, HrInstallIssueReported, HrRejected, HrScheduleConfirmed, HrScheduleProposed,
     HrScheduleRescheduled,
-    HrSubmitted, ProcurementCompletedPayload, ScheduleConfirmedPayload, ScheduleProposedPayload,
+    HrSubmitted, ProcurementCompletedPayload, ScheduleConfirmedPayload, ScheduleProposedPayload, ScheduleRescheduleRequestedPayload,
 } from '../domain/events/hardware-request.events';
 import { HardwareRequest } from '../domain/entities/hardware-request.entity';
 import { InstallationSchedule } from '../domain/entities/installation-schedule.entity';
@@ -50,8 +50,19 @@ export class TicketHardwareSyncListener {
     }
 
     @OnEvent(HardwareEvents.ProcurementCompleted)
-    onProcurementDone(e: ProcurementCompletedPayload) {
-        return this.link.record(e.requestId, 'PROCUREMENT_DONE');
+    async onProcurementDone(e: ProcurementCompletedPayload) {
+        if (e.approvedItems > 0) return this.link.record(e.requestId, 'PROCUREMENT_DONE');
+        // Nothing was approved: procurement ends the request as REJECTED without the regular rejection event, so the
+        // ticket would otherwise keep waiting on a request that is already over.
+        const request = await this.reqRepo.findOne({ where: { id: e.requestId }, select: { id: true, rejectReason: true } });
+        return this.link.record(e.requestId, 'REJECTED', { reason: request?.rejectReason ?? null });
+    }
+
+    /** The requester asked for another time: ICT has to propose a new one. */
+    @OnEvent(HardwareEvents.ScheduleRescheduleRequested)
+    async onRescheduleRequested(e: ScheduleRescheduleRequestedPayload) {
+        const request = await this.reqRepo.findOne({ where: { id: e.requestId }, select: { id: true, requesterId: true } });
+        return this.link.record(e.requestId, 'RESCHEDULE_REQUESTED', { actorId: request?.requesterId ?? null, reason: e.reason || null });
     }
 
     @OnEvent(HR_EVT.SCHEDULE_PROPOSED)

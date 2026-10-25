@@ -4,6 +4,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { getTypeConfig } from '@/features/request-center/components/eform/eform-vocabulary';
 import { useEformBasePath } from '@/features/request-center/hooks/useEformBasePath';
 import { SidebarCard } from '../ticket-detail/SidebarCard';
+import type { LinkedTicketMove } from '../ticket-detail/ActivityEvent';
 import { EFormProgress, EFormRequestCard, type EFormPhaseEvent } from './EFormRequestCard';
 import { statusSentence, type TicketEFormRequest } from './eformFlow';
 import { useTicketEFormRequests } from './useTicketEForm';
@@ -15,6 +16,7 @@ interface TicketEFormMessageProps {
     reason?: string | null;
     createdAt: string;
     isRequester: boolean;
+    ticketMove?: LinkedTicketMove;
 }
 
 /** A chat system message about a linked e-form request, joined with the request's live state. */
@@ -49,7 +51,7 @@ function LinkedEForms({ requests: shown }: { requests: TicketEFormRequest[] }) {
                                     <ArrowUpRight aria-hidden="true" />
                                 </span>
                                 <span className="thw-panel-state">{statusSentence(request)}</span>
-                                {request.status !== 'DRAFT' && <EFormProgress request={request} />}
+                                {request.status !== 'DRAFT' && <EFormProgress request={request} compact />}
                             </Link>
                         </li>
                     ))}

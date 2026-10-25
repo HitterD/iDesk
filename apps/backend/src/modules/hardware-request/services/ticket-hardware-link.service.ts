@@ -21,6 +21,7 @@ const PHASE_TEXT: Record<HardwareTicketPhase, (no: string, at?: string) => strin
     REJECTED: (no) => `Hardware request ${no} ditolak ICT. Tiket kembali ditangani.`,
     PROCUREMENT_DONE: (no) => `Pengadaan untuk ${no} selesai.`,
     SCHEDULE_PROPOSED: (no) => `Jadwal pemasangan ${no} diusulkan. Pemohon diminta memilih jadwal.`,
+    RESCHEDULE_REQUESTED: (no) => `Pemohon meminta jadwal pemasangan ${no} diubah. Tim IT mengusulkan jadwal baru.`,
     SCHEDULED: (no, at) => `Pemasangan ${no} dijadwalkan${at ? ` ${at} WIB` : ''}.`,
     INSTALLED: (no) => `Pemasangan ${no} selesai dikerjakan. Menunggu konfirmasi pemohon.`,
     ISSUE_REPORTED: (no) => `Pemohon melaporkan masalah pada pemasangan ${no}. Tim IT menindaklanjuti.`,

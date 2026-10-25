@@ -7,7 +7,7 @@ import { MessageAttachments } from './MessageAttachments';
 import { SystemMessageEvent } from './SystemMessageEvent';
 import { legacyActivityEvent } from './legacyActivity';
 import { MessageBubble } from './MessageBubble';
-import { ActivityEvent } from './ActivityEvent';
+import { ActivityEvent, linkedTicketMove } from './ActivityEvent';
 import { ChatComposer, ReplyTarget, STICKERS } from './ChatComposer';
 import {
     continuesGroup,
@@ -392,6 +392,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                     <div className="chat-system-event" data-system-event={message.id}>
                                         <TicketEFormMessage ticketId={ticket.id} event={eformEvent} createdAt={message.createdAt}
                                             actorName={message.systemEvent?.actor?.name} reason={message.systemEvent?.reason}
+                                            ticketMove={linkedTicketMove(message.systemEvent)}
                                             isRequester={Boolean(user?.id && user.id === ticket.user?.id)} />
                                     </div>
                                 </React.Fragment>
@@ -406,6 +407,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                     <div className="chat-system-event" data-system-event={message.id}>
                                         <TicketHardwareMessage ticketId={ticket.id} event={hardwareEvent} createdAt={message.createdAt}
                                             actorName={message.systemEvent?.actor?.name} reason={message.systemEvent?.reason}
+                                            ticketMove={linkedTicketMove(message.systemEvent)}
                                             isRequester={Boolean(user?.id && user.id === ticket.user?.id)} />
                                     </div>
                                 </React.Fragment>
