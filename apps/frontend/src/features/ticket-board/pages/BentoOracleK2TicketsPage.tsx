@@ -11,6 +11,7 @@ import {
     Inbox,
     Loader2,
     CircleDot,
+    Hourglass,
     CheckCircle2,
     TrendingUp,
     AlertTriangle,
@@ -119,6 +120,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
             total: meta?.total ?? tickets.length,
             open: tickets.filter((t) => t.status === 'TODO').length,
             inProgress: tickets.filter((t) => t.status === 'IN_PROGRESS').length,
+            waitingVendor: tickets.filter((t) => t.status === 'WAITING_VENDOR').length,
             resolved: tickets.filter((t) => t.status === 'RESOLVED').length,
             overdue: tickets.filter((t) => Boolean((t as { isOverdue?: boolean }).isOverdue)).length,
             critical: tickets.filter((t) => t.priority === 'CRITICAL').length,
@@ -401,7 +403,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                 <QueueHeader title="Oracle K2 Request" description="ERP, database, dan workflow K2" icon={Database} tone="red" />
 
                 {/* Stats Cards — 6 cards responsive grid matching BentoTicketListPage */}
-                <div className="queue-stats queue-stats-6" aria-label="Ringkasan status">
+                <div className="queue-stats queue-stats-7" aria-label="Ringkasan status">
                     <StatsCard
                         icon={TrendingUp}
                         tone="neutral" label="Total"
@@ -433,12 +435,23 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                         isActive={statusFilter === 'IN_PROGRESS'}
                     />
                     <StatsCard
+                        icon={Hourglass}
+                        tone="amber" label="Waiting Vendor"
+                        value={stats.waitingVendor}
+                        color="text-amber-600 dark:text-amber-400"
+                        bgColor="bg-amber-500/10"
+                        highlight
+                        animationIndex={3}
+                        onClick={() => setStatusFilter('WAITING_VENDOR')}
+                        isActive={statusFilter === 'WAITING_VENDOR'}
+                    />
+                    <StatsCard
                         icon={CheckCircle2}
                         tone="green" label="Resolved"
                         value={stats.resolved}
                         color="text-[hsl(var(--success-500))]"
                         bgColor="bg-[hsl(var(--success-500))]/10"
-                        animationIndex={3}
+                        animationIndex={4}
                         onClick={() => setStatusFilter('RESOLVED')}
                         isActive={statusFilter === 'RESOLVED'}
                     />
@@ -449,7 +462,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                         color="text-[hsl(var(--error-500))]"
                         bgColor="bg-[hsl(var(--error-500))]/10"
                         highlight
-                        animationIndex={4}
+                        animationIndex={5}
                     />
                     <StatsCard
                         icon={Flame}
@@ -458,7 +471,7 @@ export const BentoOracleK2TicketsPage: React.FC = () => {
                         color="text-[hsl(var(--error-500))]"
                         bgColor="bg-[hsl(var(--error-500))]/10"
                         highlight
-                        animationIndex={5}
+                        animationIndex={6}
                         onClick={() => setPriorityFilter('CRITICAL')}
                         isActive={priorityFilter === 'CRITICAL'}
                     />
