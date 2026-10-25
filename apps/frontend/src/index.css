@@ -591,7 +591,6 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
 .portal-tab[data-tone="brown"] { --tab-hue: 34 25% 50%; }
 .dark .portal-tab.is-active { background: hsl(0 0% 100% / .16); color: #fff; }
 @media (max-width: 1279.98px) { .portal-tabs { gap: 4px; } .portal-tab { padding-right: 10px; font-size: 13px; } }
-@media (prefers-reduced-motion: reduce) { .portal-tab:hover .portal-tab-tile { transform: none; } }
 
 /* Requester bottom nav (phones): same module tiles; the active tab gets its module colour underline. */
 .client-bnav-tile { width: 30px; height: 30px; border-radius: 9px; }
@@ -1859,7 +1858,8 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
     animation-duration: .01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important;
     transition-duration: .01ms !important; scroll-behavior: auto !important;
   }
-  .queue-stat:hover, .portal-stat:hover, .ct-card:hover, .ct-card:hover img, .ct-card:hover .ct-link svg, .card-interactive:hover { transform: none; }
+  .queue-stat:hover, .portal-stat:hover, .ct-card:hover, .ct-card:hover img, .ct-card:hover .ct-link svg, .card-interactive:hover,
+  .portal-tab:hover .portal-tab-tile { transform: none; }
   .idesk-spin, .animate-pulse { animation: none !important; }
   /* Scroll-driven edge fade is not motion; a time duration would break its scroll mapping. */
   .portal-seg { animation-duration: auto !important; }
