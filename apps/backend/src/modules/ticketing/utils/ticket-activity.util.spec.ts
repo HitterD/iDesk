@@ -13,6 +13,13 @@ describe('ticket activity', () => {
         ]);
     });
 
+    it('reports a new vendor note', () => {
+        const after = { ...base, status: 'WAITING_VENDOR', vendorNote: 'Menunggu spare part' };
+        expect(diffActivity(snapshotTicket(base), snapshotTicket(after))).toContainEqual(
+            { field: 'vendorNote', from: null, to: 'Menunggu spare part' },
+        );
+    });
+
     it('is empty when nothing reportable changed', () => {
         expect(diffActivity(snapshotTicket(base), snapshotTicket({ ...base }))).toEqual([]);
     });

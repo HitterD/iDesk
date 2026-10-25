@@ -1,7 +1,7 @@
 import type { Ticket } from '../entities/ticket.entity';
 
 /** Fields the activity log reports, in the order they are shown. */
-export type TicketActivityField = 'status' | 'assignee' | 'priority' | 'category' | 'vendorVisit';
+export type TicketActivityField = 'status' | 'assignee' | 'priority' | 'category' | 'vendorVisit' | 'vendorNote';
 
 export interface TicketActivityChange {
     field: TicketActivityField;
@@ -34,11 +34,11 @@ export interface TicketSystemEvent {
 
 export type TicketActivitySnapshot = Record<TicketActivityField, string | null>;
 
-type SnapshotSource = Pick<Ticket, 'status' | 'priority' | 'category' | 'vendorVisitAt'> & {
+type SnapshotSource = Pick<Ticket, 'status' | 'priority' | 'category' | 'vendorVisitAt'> & Partial<Pick<Ticket, 'vendorNote'>> & {
     assignedTo?: { fullName?: string | null } | null;
 };
 
-const FIELDS: TicketActivityField[] = ['status', 'assignee', 'priority', 'category', 'vendorVisit'];
+const FIELDS: TicketActivityField[] = ['status', 'assignee', 'priority', 'category', 'vendorVisit', 'vendorNote'];
 
 export function snapshotTicket(ticket: SnapshotSource): TicketActivitySnapshot {
     return {
@@ -47,6 +47,7 @@ export function snapshotTicket(ticket: SnapshotSource): TicketActivitySnapshot {
         priority: (ticket.priority as string | undefined) ?? null,
         category: ticket.category ?? null,
         vendorVisit: ticket.vendorVisitAt ? new Date(ticket.vendorVisitAt).toISOString() : null,
+        vendorNote: ticket.vendorNote ?? null,
     };
 }
 

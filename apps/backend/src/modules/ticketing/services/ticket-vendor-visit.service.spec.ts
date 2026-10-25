@@ -5,6 +5,7 @@ import {
     VENDOR_VISIT_REMIND_BEFORE_MS,
     defaultVendorVisit,
     formatVendorVisit,
+    normalizeVendorNote,
 } from './ticket-vendor-visit.service';
 
 const HOUR = 60 * 60 * 1000;
@@ -82,5 +83,22 @@ describe('TicketVendorVisitService', () => {
             expect(manager.delete).toHaveBeenCalledWith(TicketReminder, { id: 'rem-1', isSent: false });
             expect(ticket).toMatchObject({ vendorVisitAt: null, vendorVisitReminderId: null });
         });
+    });
+});
+
+describe('normalizeVendorNote', () => {
+    it('trims the note and treats blanks as no note', () => {
+        expect(normalizeVendorNote('  Menunggu spare part ')).toBe('Menunggu spare part');
+        expect(normalizeVendorNote('   ')).toBeNull();
+        expect(normalizeVendorNote(undefined)).toBeNull();
+    });
+});
+
+describe('vendor note in the system message', () => {
+    it('lists the note above the appointment', () => {
+        const service = new TicketVendorVisitService({} as any, {} as any, {} as any);
+        const text = service.note(new Date('2026-10-29T02:00:00Z'), 'Yudi', true, 'Menunggu spare part');
+        expect(text).toContain('📝 Keterangan: Menunggu spare part');
+        expect(text.indexOf('Keterangan')).toBeLessThan(text.indexOf('Janji vendor'));
     });
 });

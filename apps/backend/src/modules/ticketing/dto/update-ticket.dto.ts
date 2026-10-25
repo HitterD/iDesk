@@ -1,5 +1,5 @@
 import { IsBoolean, IsEnum, IsISO8601, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
-import { TicketStatus, TicketPriority } from '../entities/ticket.entity';
+import { TicketStatus, TicketPriority, VENDOR_NOTE_MAX_LENGTH } from '../entities/ticket.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Sanitize } from '../../../shared/core/validators/input-sanitizer';
 
@@ -60,12 +60,26 @@ export class UpdateTicketStatusDto {
     @IsOptional()
     @IsISO8601()
     vendorVisitAt?: string;
+
+    @ApiPropertyOptional({ description: 'WAITING_VENDOR only: what the ticket waits on (e.g. "Menunggu spare part")', maxLength: VENDOR_NOTE_MAX_LENGTH })
+    @IsOptional()
+    @IsString()
+    @MaxLength(VENDOR_NOTE_MAX_LENGTH)
+    @Sanitize({ removeHtml: true })
+    vendorNote?: string;
 }
 
 export class UpdateVendorVisitDto {
     @ApiProperty({ description: 'Agreed vendor visit time (ISO 8601)' })
     @IsISO8601()
     vendorVisitAt: string;
+
+    @ApiPropertyOptional({ description: 'New vendor note; omit to keep the current one', maxLength: VENDOR_NOTE_MAX_LENGTH })
+    @IsOptional()
+    @IsString()
+    @MaxLength(VENDOR_NOTE_MAX_LENGTH)
+    @Sanitize({ removeHtml: true })
+    vendorNote?: string;
 }
 
 export class UpdateTicketPriorityDto {

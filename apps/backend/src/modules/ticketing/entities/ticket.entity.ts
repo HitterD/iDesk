@@ -78,6 +78,9 @@ export enum HandlingTeam {
     WEB_DEV = 'WEB_DEV',
 }
 
+/** Longest vendor note a PIC can save (column length and DTO limit). */
+export const VENDOR_NOTE_MAX_LENGTH = 300;
+
 @Entity('tickets')
 @Index(['status', 'priority']) // Composite index for filtering
 @Index(['createdAt']) // Index for date-based queries
@@ -256,6 +259,10 @@ export class Ticket {
     /** Agreed vendor visit / response time while WAITING_VENDOR; null otherwise. */
     @Column({ type: 'timestamp', nullable: true })
     vendorVisitAt: Date | null;
+
+    /** Why the ticket waits on the vendor (template or typed by the PIC); null when not WAITING_VENDOR. */
+    @Column({ type: 'varchar', length: VENDOR_NOTE_MAX_LENGTH, nullable: true })
+    vendorNote: string | null;
 
     /** Pending ticket reminder that warns the PIC before vendorVisitAt; cancelled on reschedule or status change. */
     @Column({ type: 'uuid', nullable: true })
