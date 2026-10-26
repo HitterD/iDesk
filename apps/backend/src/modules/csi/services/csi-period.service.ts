@@ -102,12 +102,13 @@ export class CsiPeriodService {
             dimensions: dimensions.filter((row) => row.periodRateeId === ratee.id).sort((a, b) => a.sortOrder - b.sortOrder),
         }));
         const activeDepartmentCount = await this.departments.count({ where: { scope: period.scope, isActive: true } });
+        const eligibleRaterCount = await this.countEligibleRaters(id, period.siteId);
         return {
             ...period, site: pickSite(period.site), status: computeStatus(period, now), locked: await this.isLocked(id),
             ratees: rateesWithDimensions,
             raters,
             readiness: computeReadiness({
-                ratees: rateesWithDimensions, raterCount: raters.length, respondentMode: period.respondentMode, activeDepartmentCount,
+                ratees: rateesWithDimensions, raterCount: eligibleRaterCount, respondentMode: period.respondentMode, activeDepartmentCount,
             }),
         };
     }
@@ -213,6 +214,11 @@ export class CsiPeriodService {
 
     private async findInScope(scope: ServiceScope, id: string, withSite = false) {
         return assertPeriodInScope(await this.periods.findOne({ where: { id }, ...(withSite ? { relations: { site: true } } : {}) }), scope);
+    }
+
+    /** Raters who can actually open the survey (respondent eligibility): active users of the period's site. */
+    private countEligibleRaters(periodId: string, siteId: string) {
+        return this.periodRaters.count({ where: { periodId, user: { isActive: true, siteId } } });
     }
 
     private async isLocked(periodId: string) {

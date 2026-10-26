@@ -433,6 +433,22 @@ describe('CsiPeriodService', () => {
             expect((await service.get(ICT, 'p1')).readiness.ready).toBe(true);
         });
 
+        it('readiness counts only raters who are active and belong to the period site (LISTED)', async () => {
+            periods.rows.push(basePeriod({ publishStatus: CsiPeriodPublishStatus.DRAFT, respondentMode: CsiRespondentMode.LISTED }));
+            withAssignment();
+            const rater = (id: string, user: Record<string, unknown>) => ({ id, periodId: 'p1', userId: user.id, user });
+            periodRaters.rows.push(
+                rater('pr-off', { id: 'u-off', fullName: 'Nonaktif', isActive: false, siteId: 'site-a' }),
+                rater('pr-other', { id: 'u2', fullName: 'Sari', isActive: true, siteId: 'site-b' }),
+            );
+            const ratersCheck = async () => (await service.get(ICT, 'p1')).readiness.checks.find((check) => check.key === 'raters');
+            expect(await ratersCheck()).toMatchObject({ ok: false });
+            await expect(service.publish(ICT, 'p1')).rejects.toThrow(new BadRequestException('Survei belum lengkap'));
+            periodRaters.rows.push(rater('pr-ok', { id: 'u1', fullName: 'Budi Baru', isActive: true, siteId: 'site-a' }));
+            expect(await ratersCheck()).toMatchObject({ ok: true });
+            expect((await service.publish(ICT, 'p1')).publishStatus).toBe(CsiPeriodPublishStatus.PUBLISHED);
+        });
+
         it('publish rejects incomplete with 400', async () => {
             periods.rows.push(draft());
             await expect(service.publish(ICT, 'p1')).rejects.toThrow(new BadRequestException('Survei belum lengkap'));
