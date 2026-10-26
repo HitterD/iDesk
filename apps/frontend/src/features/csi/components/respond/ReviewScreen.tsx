@@ -33,6 +33,28 @@ function PreviewBanner() {
     );
 }
 
+/** One row per ratee: avatar, name, star average (1 decimal, id-ID) and "Ubah". */
+function ReviewRatees({ ratees, scores, onEdit }: { ratees: CsiOpenForm['ratees']; scores: CsiScores; onEdit: (index: number) => void }) {
+    return (
+        <ul className={cn(CSI_CARD, 'divide-y divide-border/60 overflow-hidden')}>
+            {ratees.map((ratee, index) => {
+                const average = formatAverage(rateeAverage(ratee, scores));
+                return (
+                    <li key={ratee.periodRateeId} aria-label={ratee.displayName} className={ROW}>
+                        <RateeAvatar name={ratee.displayName} avatarUrl={ratee.avatarUrl} size="sm" />
+                        <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-foreground">{ratee.displayName}</span>
+                        <span className="inline-flex shrink-0 items-center gap-1.5 text-[15px] font-semibold tabular-nums text-foreground"
+                            title={averageLabel(average)}>
+                            <Star className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden="true" />{average}
+                        </span>
+                        <Button type="button" variant="subtle" className={EDIT_BUTTON} onClick={() => onEdit(index)}>{RESPOND_COPY.edit}</Button>
+                    </li>
+                );
+            })}
+        </ul>
+    );
+}
+
 export function ReviewScreen(props: ReviewScreenProps) {
     const { form, departmentName, scores, preview, submitting, failure, onEditDepartment, onEditRatee, onBack, onSubmit } = props;
     return (
@@ -52,22 +74,7 @@ export function ReviewScreen(props: ReviewScreenProps) {
                     aria-label={`${RESPOND_COPY.edit} ${RESPOND_COPY.department.toLowerCase()}`}>{RESPOND_COPY.edit}</Button>
             </div>
 
-            <ul className={cn(CSI_CARD, 'divide-y divide-border/60 overflow-hidden')}>
-                {form.ratees.map((ratee, index) => {
-                    const average = formatAverage(rateeAverage(ratee, scores));
-                    return (
-                        <li key={ratee.periodRateeId} aria-label={ratee.displayName} className={ROW}>
-                            <RateeAvatar name={ratee.displayName} avatarUrl={ratee.avatarUrl} size="sm" />
-                            <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-foreground">{ratee.displayName}</span>
-                            <span className="inline-flex shrink-0 items-center gap-1.5 text-[15px] font-semibold tabular-nums text-foreground"
-                                title={averageLabel(average)}>
-                                <Star className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden="true" />{average}
-                            </span>
-                            <Button type="button" variant="subtle" className={EDIT_BUTTON} onClick={() => onEditRatee(index)}>{RESPOND_COPY.edit}</Button>
-                        </li>
-                    );
-                })}
-            </ul>
+            <ReviewRatees ratees={form.ratees} scores={scores} onEdit={onEditRatee} />
 
             {failure && (
                 <p role="alert" className="flex items-center gap-2 rounded-xl bg-destructive/10 px-4 py-3 text-[13px] font-medium text-destructive">

@@ -1,6 +1,6 @@
 import { createModuleLogger } from '@/lib/logger';
 import type { CsiOpenForm } from '../types';
-import type { CsiComments, CsiScores } from './csiForm';
+import { CSI_COMMENT_MAX, type CsiComments, type CsiScores } from './csiForm';
 
 /**
  * Respondent answers kept in `localStorage` so a refresh or closed tab does not lose them.
@@ -31,6 +31,10 @@ function pick<T>(source: unknown, allowed: ReadonlySet<string>, accept: (value: 
     return Object.fromEntries(Object.entries(source).filter(([id, value]) => allowed.has(id) && accept(value))) as Record<string, T>;
 }
 
+/** A tampered or legacy draft must not restore more text than the textarea (and backend) accept. */
+const clampComments = (comments: Record<string, string>): CsiComments =>
+    Object.fromEntries(Object.entries(comments).map(([id, text]) => [id, text.slice(0, CSI_COMMENT_MAX)]));
+
 /** Keeps only answers that still match the form (ratees/dimensions may change while the period is open). */
 function sanitize(raw: unknown, form: CsiOpenForm): SurveyDraft | null {
     if (!isRecord(raw)) return null;
@@ -41,17 +45,25 @@ function sanitize(raw: unknown, form: CsiOpenForm): SurveyDraft | null {
     return {
         departmentId,
         scores: pick(raw.scores, dimensionIds, isScore),
-        comments: pick(raw.comments, rateeIds, (value): value is string => typeof value === 'string'),
+        comments: clampComments(pick(raw.comments, rateeIds, (value): value is string => typeof value === 'string')),
         position: Math.min(Math.max(position, 0), form.ratees.length + 1),
     };
 }
 
-/** Storage can throw (quota, private mode, disabled); a draft is a convenience, so failures only warn. */
+let warned = false;
+
+/**
+ * Storage can throw (quota, private mode, disabled); a draft is a convenience, so failures only warn,
+ * and only once per session because autosave would otherwise repeat the same warning on every change.
+ */
 function attempt<T>(action: string, run: () => T, fallback: T): T {
     try {
         return run();
     } catch (error) {
-        log.warn(`Draft ${action} failed`, error);
+        if (!warned) {
+            warned = true;
+            log.warn(`Draft ${action} failed; further storage errors are silenced`, error);
+        }
         return fallback;
     }
 }

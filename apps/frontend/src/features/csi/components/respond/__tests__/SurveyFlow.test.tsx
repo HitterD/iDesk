@@ -155,6 +155,50 @@ describe('SurveyFlow', () => {
             .toHaveAttribute('aria-checked', 'true');
     });
 
+    it('navigation scrolls the new screen heading into view', async () => {
+        const user = userEvent.setup();
+        const scrolled: Element[] = [];
+        const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(function (this: Element) { scrolled.push(this); });
+        renderFlow();
+        expect(scrollSpy).not.toHaveBeenCalled();
+        await startFilling(user);
+        const heading = screen.getByRole('heading', { name: 'Andi' });
+        expect(scrolled).toContain(heading);
+        expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({ block: 'start' }));
+        expect(heading).toHaveFocus();
+        scrollSpy.mockRestore();
+    });
+
+    it('renders screen titles as h2 when embedded', () => {
+        renderFlow({ headingLevel: 'h2' });
+        expect(screen.getByRole('heading', { level: 2, name: 'Survei Kepuasan ICT Q4' })).toBeInTheDocument();
+    });
+
+    it('saves a pending answer when unmounted inside the debounce window', async () => {
+        const user = userEvent.setup();
+        const view = renderFlow();
+        await startFilling(user);
+        await rate(user, 'Kecepatan untuk Andi', 5);
+        view.unmount();
+        expect(JSON.parse(localStorage.getItem(KEY) ?? '{}').scores).toEqual({ x1: 5 });
+    });
+
+    it('does not resurrect the draft after submit when the page clears it', async () => {
+        const user = userEvent.setup();
+        const onSubmit = vi.fn(() => localStorage.removeItem(KEY));
+        const view = renderFlow({ onSubmit });
+        await startFilling(user);
+        await rate(user, 'Kecepatan untuk Andi', 5);
+        await rate(user, 'Keramahan untuk Andi', 4);
+        await user.click(button('Lanjut'));
+        await rate(user, 'Kecepatan untuk Budi', 3);
+        await user.click(button('Tinjau jawaban'));
+        await user.click(button('Kirim'));
+        expect(onSubmit).toHaveBeenCalledTimes(1);
+        view.unmount();
+        expect(localStorage.getItem(KEY)).toBeNull();
+    });
+
     it('preview mode never calls onSubmit', async () => {
         const user = userEvent.setup();
         const onSubmit = vi.fn();

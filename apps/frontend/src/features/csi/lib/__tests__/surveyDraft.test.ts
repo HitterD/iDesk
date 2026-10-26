@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearDraft, draftKey, loadDraft, saveDraft, type SurveyDraft } from '../surveyDraft';
+import { CSI_COMMENT_MAX } from '../csiForm';
+
+const warn = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/logger', () => ({ createModuleLogger: () => ({ warn }) }));
 import type { CsiOpenForm } from '../../types';
 
 const FORM: CsiOpenForm = {
@@ -50,6 +54,11 @@ describe('surveyDraft', () => {
         expect(loadDraft(KEY, FORM)?.position).toBe(0);
     });
 
+    it('clamps restored comments to CSI_COMMENT_MAX', () => {
+        saveDraft(KEY, { ...DRAFT, comments: { r1: 'x'.repeat(CSI_COMMENT_MAX + 50) } });
+        expect(loadDraft(KEY, FORM)?.comments.r1).toHaveLength(CSI_COMMENT_MAX);
+    });
+
     it('returns null for malformed JSON', () => {
         localStorage.setItem(KEY, '{not json');
         expect(loadDraft(KEY, FORM)).toBeNull();
@@ -63,5 +72,8 @@ describe('surveyDraft', () => {
         expect(() => saveDraft(KEY, DRAFT)).not.toThrow();
         expect(loadDraft(KEY, FORM)).toBeNull();
         expect(() => clearDraft(KEY)).not.toThrow();
+        expect(() => saveDraft(KEY, DRAFT)).not.toThrow();
+        // Autosave hits storage on every change: one warning per session is enough.
+        expect(warn).toHaveBeenCalledTimes(1);
     });
 });

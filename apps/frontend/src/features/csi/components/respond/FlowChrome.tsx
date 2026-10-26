@@ -2,11 +2,15 @@ import { createContext, useContext, useEffect, useRef, type ReactNode } from 're
 import { m, useReducedMotion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
+export type HeadingLevel = 'h1' | 'h2';
+
 interface FlowChromeState {
-    /** True once the respondent moved between screens: only then the new heading takes focus. */
+    /** True once the respondent moved between screens: only then the new heading scrolls in and takes focus. */
     navigated: boolean;
     /** Live page: lift the sticky footer above the client portal's fixed bottom nav on mobile. */
     aboveBottomNav: boolean;
+    /** Level of every screen title unless a heading overrides it (`h2` when embedded, e.g. a preview sheet). */
+    headingLevel?: HeadingLevel;
 }
 
 export const FlowChromeContext = createContext<FlowChromeState>({ navigated: false, aboveBottomNav: false });
@@ -15,15 +19,22 @@ const SLIDE_PX = 24;
 const SLIDE_SECONDS = 0.2;
 const SLIDE_EASE = [0.22, 1, 0.36, 1] as const;
 
-/** Heading of the current screen; receives focus after navigation so screen readers announce the new step. */
-export function ScreenHeading({ id, className, children }: { id?: string; className?: string; children: ReactNode }) {
-    const { navigated } = useContext(FlowChromeContext);
+/**
+ * Title of the current screen. After navigation it scrolls itself into view (works in any layout's
+ * scroll container) and takes focus so screen readers announce the new step. Nothing happens on first mount.
+ */
+export function ScreenHeading({ id, className, as, children }: { id?: string; className?: string; as?: HeadingLevel; children: ReactNode }) {
+    const { navigated, headingLevel = 'h1' } = useContext(FlowChromeContext);
+    const reduce = useReducedMotion();
     const ref = useRef<HTMLHeadingElement>(null);
     useEffect(() => {
-        if (navigated) ref.current?.focus({ preventScroll: true });
-    }, [navigated]);
+        if (!navigated) return;
+        ref.current?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+        ref.current?.focus({ preventScroll: true });
+    }, [navigated, reduce]);
+    const Tag = as ?? headingLevel;
     return (
-        <h1 ref={ref} id={id} tabIndex={-1} className={cn('text-foreground outline-none', className)}>{children}</h1>
+        <Tag ref={ref} id={id} tabIndex={-1} className={cn('scroll-mt-24 text-foreground outline-none', className)}>{children}</Tag>
     );
 }
 

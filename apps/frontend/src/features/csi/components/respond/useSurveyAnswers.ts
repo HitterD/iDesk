@@ -29,6 +29,40 @@ function initialState(form: CsiOpenForm, key: string | null): { draft: SurveyDra
     return { draft: { ...stored, position: resumePosition(form, stored) }, resumed: true };
 }
 
+/** Debounced autosave; also flushed on `pagehide`, on unmount, and right before submit. */
+function useDraftAutosave(key: string | null, draft: SurveyDraft) {
+    const latest = useRef({ key, draft });
+    const pending = useRef(false);
+    const flush = useRef(() => {
+        const { key: target, draft: answers } = latest.current;
+        if (!target || !pending.current) return;
+        pending.current = false;
+        saveDraft(target, answers);
+    });
+
+    useEffect(() => {
+        latest.current = { key, draft };
+    }, [key, draft]);
+    useEffect(() => {
+        const save = flush.current;
+        window.addEventListener('pagehide', save);
+        // In-app navigation (back link, route change) inside the debounce window keeps the last answer.
+        return () => {
+            window.removeEventListener('pagehide', save);
+            save();
+        };
+    }, []);
+    const schedule = () => {
+        pending.current = true;
+    };
+    useEffect(() => {
+        if (!pending.current) return undefined;
+        const timer = window.setTimeout(flush.current, SAVE_DEBOUNCE_MS);
+        return () => window.clearTimeout(timer);
+    }, [draft]);
+    return { schedule, flush: () => flush.current() };
+}
+
 /**
  * Respondent answers + current screen. In live mode every change is autosaved (debounced) to
  * `localStorage`; preview mode never reads or writes storage.
@@ -37,27 +71,17 @@ export function useSurveyAnswers(form: CsiOpenForm, userId: string, live: boolea
     const key = live && userId ? draftKey(userId, form.id) : null;
     const [{ draft: initial, resumed }] = useState(() => initialState(form, key));
     const [draft, setDraft] = useState<SurveyDraft>(initial);
-    const dirty = useRef(false);
-
-    useEffect(() => {
-        if (!key || !dirty.current) return undefined;
-        const save = () => saveDraft(key, draft);
-        const timer = window.setTimeout(save, SAVE_DEBOUNCE_MS);
-        // A refresh/close inside the debounce window still keeps the last answer.
-        window.addEventListener('pagehide', save);
-        return () => {
-            window.clearTimeout(timer);
-            window.removeEventListener('pagehide', save);
-        };
-    }, [key, draft]);
+    const autosave = useDraftAutosave(key, draft);
 
     const update = (patch: (previous: SurveyDraft) => SurveyDraft) => {
-        dirty.current = true;
+        autosave.schedule();
         setDraft(patch);
     };
     return {
         draft,
         resumed,
+        /** Writes any pending change now (before submit) so nothing is left to save after the page clears the draft. */
+        settle: autosave.flush,
         setDepartment: (departmentId: string) => update((previous) => ({ ...previous, departmentId })),
         setScore: (dimensionId: string, score: number) =>
             update((previous) => ({ ...previous, scores: { ...previous.scores, [dimensionId]: score } })),
@@ -66,3 +90,5 @@ export function useSurveyAnswers(form: CsiOpenForm, userId: string, live: boolea
         setPosition: (position: number) => update((previous) => ({ ...previous, position })),
     };
 }
+
+export type SurveyAnswers = ReturnType<typeof useSurveyAnswers>;
