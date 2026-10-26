@@ -51,9 +51,6 @@ export function useUpdateCsiDimension(scope: CsiScopeParam) {
     return useCsiMutation(({ id, payload }: UpdatePayload<UpdateCsiDimension>) => CsiApi.updateDimension(scope, id, payload),
         () => [keys.dimensions(scope)]);
 }
-export function useDeactivateCsiDimension(scope: CsiScopeParam) {
-    return useCsiMutation((id: string) => CsiApi.deactivateDimension(scope, id), () => [keys.dimensions(scope)]);
-}
 export function useReorderCsiDimensions(scope: CsiScopeParam) {
     return useCsiMutation((ids: string[]) => CsiApi.reorderDimensions(scope, { ids }), () => [keys.dimensions(scope)]);
 }
@@ -70,9 +67,6 @@ export function useCreateCsiDepartment(scope: CsiScopeParam) {
 export function useUpdateCsiDepartment(scope: CsiScopeParam) {
     return useCsiMutation(({ id, payload }: UpdatePayload<UpdateCsiDepartment>) => CsiApi.updateDepartment(scope, id, payload),
         () => departmentKeys(scope));
-}
-export function useDeactivateCsiDepartment(scope: CsiScopeParam) {
-    return useCsiMutation((id: string) => CsiApi.deactivateDepartment(scope, id), () => departmentKeys(scope));
 }
 export function useReorderCsiDepartments(scope: CsiScopeParam) {
     return useCsiMutation((ids: string[]) => CsiApi.reorderDepartments(scope, { ids }), () => departmentKeys(scope));

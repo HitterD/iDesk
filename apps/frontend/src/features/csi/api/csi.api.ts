@@ -38,14 +38,11 @@ export const CsiApi = {
         return (await api.get<CsiDimension[]>(`${adminPath(scope)}/dimensions`, { params: { includeInactive } })).data;
     },
     async createDimension(scope: CsiScopeParam, payload: CreateCsiDimension): Promise<CsiDimension> {
-        return (await api.post<CsiDimension>(`${adminPath(scope)}/dimensions`, payload)).data;
+        return (await api.post<CsiDimension>(`${adminPath(scope)}/dimensions`, payload, { skipToast: true })).data;
     },
     async updateDimension(scope: CsiScopeParam, id: string, payload: UpdateCsiDimension): Promise<CsiDimension> {
         // Inline autosave renders its own error text next to the field, so no toast.
         return (await api.patch<CsiDimension>(itemPath(scope, 'dimensions', id), payload, { skipToast: true })).data;
-    },
-    async deactivateDimension(scope: CsiScopeParam, id: string): Promise<CsiDimension> {
-        return (await api.delete<CsiDimension>(itemPath(scope, 'dimensions', id))).data;
     },
     async reorderDimensions(scope: CsiScopeParam, payload: CsiReorder): Promise<CsiDimension[]> {
         return (await api.put<CsiDimension[]>(`${adminPath(scope)}/dimensions/order`, payload)).data;
@@ -57,14 +54,11 @@ export const CsiApi = {
         return (await api.get<CsiDepartment[]>(`${adminPath(scope)}/departments`, { params: { includeInactive } })).data;
     },
     async createDepartment(scope: CsiScopeParam, payload: CreateCsiDepartment): Promise<CsiDepartment> {
-        return (await api.post<CsiDepartment>(`${adminPath(scope)}/departments`, payload)).data;
+        return (await api.post<CsiDepartment>(`${adminPath(scope)}/departments`, payload, { skipToast: true })).data;
     },
     async updateDepartment(scope: CsiScopeParam, id: string, payload: UpdateCsiDepartment): Promise<CsiDepartment> {
         // Inline autosave renders its own error text next to the field, so no toast.
         return (await api.patch<CsiDepartment>(itemPath(scope, 'departments', id), payload, { skipToast: true })).data;
-    },
-    async deactivateDepartment(scope: CsiScopeParam, id: string): Promise<CsiDepartment> {
-        return (await api.delete<CsiDepartment>(itemPath(scope, 'departments', id))).data;
     },
     async reorderDepartments(scope: CsiScopeParam, payload: CsiReorder): Promise<CsiDepartment[]> {
         return (await api.put<CsiDepartment[]>(`${adminPath(scope)}/departments/order`, payload)).data;

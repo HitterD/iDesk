@@ -13,6 +13,7 @@ import { SortableList } from '../../common/SortableList';
 import { EmptyNote } from '../AdminParts';
 import { QuestionCard } from './QuestionCard';
 import { QUESTION_COPY } from './questionCopy';
+import { saveErrorMessage } from './useInlineField';
 
 /** Inline question editor: every edit autosaves, order is drag and drop, no dialogs except the template confirm. */
 export function QuestionList({ scope }: { scope: CsiScopeParam }) {
@@ -28,9 +29,16 @@ export function QuestionList({ scope }: { scope: CsiScopeParam }) {
     const all = list.data ?? [];
     const visible = showInactive ? all : all.filter((question) => question.isActive);
 
+    const [addError, setAddError] = useState<string | null>(null);
+
     const add = async () => {
-        const created = await create.mutateAsync({ name: QUESTION_COPY.newQuestionName, type: 'STAR', required: true });
-        setFocusId(created.id);
+        setAddError(null);
+        try {
+            const created = await create.mutateAsync({ name: QUESTION_COPY.newQuestionName, type: 'STAR', required: true });
+            setFocusId(created.id);
+        } catch (error) {
+            setAddError(saveErrorMessage(error, QUESTION_COPY.createFailed));
+        }
     };
     const applyTemplate = () => template.mutate(undefined, { onSettled: () => setConfirmTemplate(false) });
     const save = (id: string, payload: UpdateCsiDimension) => update.mutateAsync({ id, payload });
@@ -54,11 +62,12 @@ export function QuestionList({ scope }: { scope: CsiScopeParam }) {
                 <SortableList items={visible} getId={(question) => question.id} label={QUESTION_COPY.handleNoun}
                     onReorder={(ids) => reorder.mutateAsync(mergeVisibleOrder(all.map((question) => question.id), ids))}
                     renderItem={(question, handle) => (
-                        <QuestionCard question={question} handle={handle} onSave={save} autoFocusTitle={question.id === focusId} />
+                        <QuestionCard question={question} handle={handle} onSave={save} autoFocusTitle={question.id === focusId} onAutoFocused={() => setFocusId(null)} />
                     )} />
                 <Button type="button" variant="soft" className="justify-self-start" disabled={create.isPending} onClick={() => void add()}>
                     <Plus aria-hidden="true" />{QUESTION_COPY.add}
                 </Button>
+                {addError && <p role="alert" className="text-[12.5px] font-medium text-[hsl(var(--destructive))]">{addError}</p>}
             </section>
             <ConfirmationDialog isOpen={confirmTemplate} appearance="ticket" variant="default" title={QUESTION_COPY.templateTitle}
                 description={QUESTION_COPY.templateDescription} confirmText={QUESTION_COPY.templateConfirm} cancelText={QUESTION_COPY.cancel}

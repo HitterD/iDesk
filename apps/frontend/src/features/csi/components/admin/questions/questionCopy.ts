@@ -45,6 +45,7 @@ export const OPTIONS_COPY = {
     presets: 'Isi cepat',
     min: 'Minimal 2 pilihan',
     labelEmpty: 'Label pilihan tidak boleh kosong',
+    labelDuplicate: 'Label pilihan tidak boleh sama',
     handleNoun: 'pilihan',
     optionLabel: (position: number) => `Label pilihan ${position}`,
     optionPoints: (position: number) => `Poin pilihan ${position}`,

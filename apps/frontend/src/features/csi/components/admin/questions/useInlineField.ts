@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import type { SaveStatus } from '../../common/SaveStatusText';
 // `useRef` stays for the saved-flash timer only (never read during render).
 
-export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 const SAVED_FLASH_MS = 1800;
 const FALLBACK_ERROR = 'Gagal menyimpan';
 

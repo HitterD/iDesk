@@ -22,20 +22,23 @@ export interface QuestionCardProps {
     onSave: (id: string, payload: UpdateCsiDimension) => Promise<unknown>;
     /** Focus and select the title once on mount (a question just created). */
     autoFocusTitle?: boolean;
+    /** Called after that one-time focus so the parent can drop the target (no refocus on remount). */
+    onAutoFocused?: () => void;
 }
 
 const LABEL = 'text-[12.5px] font-medium text-[hsl(var(--idesk-text-secondary))]';
 const FIELD_BARE = 'rounded-xl border-transparent bg-transparent px-3 hover:bg-[hsl(var(--muted)/.6)] focus-visible:bg-[hsl(var(--idesk-surface))]';
 const hasOptions = (type: CsiQuestionType): type is 'SCALE' | 'CHOICE' => type === 'SCALE' || type === 'CHOICE';
 
-export function QuestionCard({ question, handle, onSave, autoFocusTitle }: QuestionCardProps) {
+export function QuestionCard({ question, handle, onSave, autoFocusTitle, onAutoFocused }: QuestionCardProps) {
     const status = useSaveStatus();
     const titleRef = useRef<HTMLInputElement>(null);
     useEffect(() => {
         if (!autoFocusTitle) return;
         titleRef.current?.focus();
         titleRef.current?.select();
-    }, [autoFocusTitle]);
+        onAutoFocused?.();
+    }, [autoFocusTitle, onAutoFocused]);
 
     const save = (payload: UpdateCsiDimension) => status.run(() => onSave(question.id, payload));
     const title = useInlineField({

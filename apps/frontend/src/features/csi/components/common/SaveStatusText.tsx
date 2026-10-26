@@ -1,6 +1,6 @@
 import { AlertCircle, Check, Loader2 } from 'lucide-react';
-import type { SaveStatus } from '../admin/questions/useInlineField';
 
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 const COPY = { saving: 'Menyimpan…', saved: 'Tersimpan', fallbackError: 'Gagal menyimpan' } as const;
 
 /** Tiny per-card autosave status; always mounted so screen readers announce changes (aria-live polite). */

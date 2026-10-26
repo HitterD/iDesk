@@ -68,6 +68,31 @@ describe('OptionsEditor', () => {
         expect(onChange).toHaveBeenCalledWith([...CHOICE, { label: 'Kadang', points: null }]);
     });
 
+    it('blocks duplicate labels with a message and does not save', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        render(<OptionsEditor type="SCALE" options={SCALE} onChange={onChange} />);
+        const second = screen.getByLabelText('Label pilihan 2');
+        await user.clear(second);
+        await user.type(second, ' baik ');
+        await user.tab();
+        expect(screen.getByText('Label pilihan tidak boleh sama')).toBeInTheDocument();
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('Escape restores the label of that option even after another option was removed above it', async () => {
+        const user = userEvent.setup();
+        const three: CsiOption[] = [{ label: 'A', points: 5 }, { label: 'B', points: 3 }, { label: 'C', points: 1 }];
+        const { rerender } = render(<OptionsEditor type="SCALE" options={three} onChange={vi.fn()} />);
+        await user.click(screen.getByRole('button', { name: 'Hapus pilihan A' }));
+        const second = screen.getByLabelText('Label pilihan 2');
+        expect(second).toHaveValue('C');
+        await user.type(second, 'xyz');
+        await user.keyboard('{Escape}');
+        expect(second).toHaveValue('C');
+        rerender(<OptionsEditor type="SCALE" options={three} onChange={vi.fn()} />);
+    });
+
     it('Escape reverts a label edit', async () => {
         const user = userEvent.setup();
         render(<OptionsEditor type="SCALE" options={SCALE} onChange={vi.fn()} />);

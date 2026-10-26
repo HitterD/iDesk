@@ -51,6 +51,15 @@ describe('QuestionList', () => {
         await waitFor(() => expect(CsiApi.updateDimension).toHaveBeenCalledWith('ict', 'q3', { name: 'Ketepatan solusi' }));
     });
 
+    it('shows an inline error when creating fails and does not throw', async () => {
+        vi.mocked(CsiApi.createDimension).mockRejectedValue({ response: { data: { message: 'Terlalu banyak pertanyaan' } } });
+        const user = userEvent.setup();
+        renderWithQuery(<QuestionList scope="ict" />);
+        await screen.findByDisplayValue('Kecepatan');
+        await user.click(screen.getByRole('button', { name: 'Tambah pertanyaan' }));
+        expect(await screen.findByText('Terlalu banyak pertanyaan')).toBeInTheDocument();
+    });
+
     it('template button calls API after confirm', async () => {
         vi.mocked(CsiApi.applyTemplate).mockResolvedValue([]);
         const user = userEvent.setup();
