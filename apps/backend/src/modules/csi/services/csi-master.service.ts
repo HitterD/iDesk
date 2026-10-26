@@ -1,12 +1,23 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, In, Raw, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, In, Raw, Repository } from 'typeorm';
+import { PickKeysByType } from 'typeorm/common/PickKeysByType';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { User } from '../../users/entities/user.entity';
 import { CsiDimension } from '../entities/csi-dimension.entity';
 import { CsiDepartment } from '../entities/csi-department.entity';
 import { CsiRater } from '../entities/csi-rater.entity';
 import { CreateDepartmentDto, CreateDimensionDto, DEFAULT_USER_SEARCH_LIMIT, MAX_USER_SEARCH_LIMIT, UpdateDepartmentDto, UpdateDimensionDto } from '../dto/master.dto';
+import { CsiQuestionType } from '../csi.constants';
+import { INVALID_OPTIONS_MESSAGE, optionsMatchType } from '../csi-question.util';
+import { CSI_TEMPLATE_2025 } from '../csi-template';
+
+const INCOMPLETE_ORDER_MESSAGE = 'Urutan tidak lengkap';
+type Ordered = { id: string; scope: ServiceScope; sortOrder: number };
+
+function assertOptionsMatchType(type: CsiQuestionType, options: unknown) {
+    if (!optionsMatchType(type, options ?? [])) throw new BadRequestException(INVALID_OPTIONS_MESSAGE);
+}
 
 @Injectable()
 export class CsiMasterService {
@@ -22,8 +33,28 @@ export class CsiMasterService {
             order: { sortOrder: 'ASC', name: 'ASC' } });
     }
 
-    createDimension(scope: ServiceScope, dto: CreateDimensionDto) {
-        return this.dimensions.save(this.dimensions.create({ ...dto, scope }));
+    async createDimension(scope: ServiceScope, dto: CreateDimensionDto) {
+        const options = dto.options ?? [];
+        assertOptionsMatchType(dto.type, options);
+        const sortOrder = await this.nextSortOrder(this.dimensions, scope);
+        return this.dimensions.save(this.dimensions.create({ ...dto, scope, required: dto.required ?? true, options, sortOrder }));
+    }
+
+    /** Appends the CSI 2025 questionnaire (not idempotent: every call adds nine questions). */
+    async createTemplateDimensions(scope: ServiceScope) {
+        const start = await this.nextSortOrder(this.dimensions, scope);
+        return this.dimensions.save(CSI_TEMPLATE_2025.map((question, index) => this.dimensions.create({
+            scope, name: question.name, description: null, type: question.type, required: true,
+            options: question.options.map((option) => ({ ...option })), sortOrder: start + index,
+        })));
+    }
+
+    reorderDimensions(scope: ServiceScope, ids: string[]) {
+        return this.reorder(this.dimensions, scope, ids);
+    }
+
+    reorderDepartments(scope: ServiceScope, ids: string[]) {
+        return this.reorder(this.departments, scope, ids);
     }
 
     deactivateDimension(scope: ServiceScope, id: string) {
@@ -49,12 +80,30 @@ export class CsiMasterService {
     async updateDimension(scope: ServiceScope, id: string, dto: UpdateDimensionDto) {
         const dimension = await this.dimensions.findOne({ where: { id, scope } });
         if (!dimension) throw new NotFoundException('Dimensi tidak ditemukan');
-        return this.dimensions.save({ ...dimension, ...dto });
+        const next = { ...dimension, ...dto };
+        if (dto.type !== undefined || dto.options !== undefined) assertOptionsMatchType(next.type, next.options);
+        return this.dimensions.save(next);
     }
 
     async createDepartment(scope: ServiceScope, dto: CreateDepartmentDto) {
         await this.assertDepartmentNameAvailable(scope, dto.name);
-        return this.saveDepartment(this.departments.create({ ...dto, scope }));
+        const sortOrder = await this.nextSortOrder(this.departments, scope);
+        return this.saveDepartment(this.departments.create({ ...dto, scope, sortOrder }));
+    }
+
+    /** New master rows always go to the bottom of their scope. */
+    private async nextSortOrder<T extends Ordered>(repository: Repository<T>, scope: ServiceScope) {
+        const max = await repository.maximum('sortOrder' as PickKeysByType<T, number>, { scope } as FindOptionsWhere<T>);
+        return max === null || max === undefined ? 0 : max + 1;
+    }
+
+    /** `ids` must be exactly the scope's rows (active and inactive); sortOrder becomes the index. */
+    private async reorder<T extends Ordered>(repository: Repository<T>, scope: ServiceScope, ids: string[]) {
+        const rows = await repository.find({ where: { scope } as FindOptionsWhere<T> });
+        const byId = new Map(rows.map((row) => [row.id, row]));
+        const complete = ids.length === rows.length && new Set(ids).size === ids.length && ids.every((id) => byId.has(id));
+        if (!complete) throw new BadRequestException(INCOMPLETE_ORDER_MESSAGE);
+        return repository.save(ids.map((id, index): T => ({ ...byId.get(id)!, sortOrder: index })));
     }
 
     private async assertDepartmentNameAvailable(scope: ServiceScope, name: string, excludeId?: string) {

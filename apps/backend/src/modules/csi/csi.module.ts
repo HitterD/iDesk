@@ -19,6 +19,7 @@ import { CsiDimension } from './entities/csi-dimension.entity';
 import { CsiDepartment } from './entities/csi-department.entity';
 import { CsiRater } from './entities/csi-rater.entity';
 import { CsiPeriod } from './entities/csi-period.entity';
+import { CsiPeriodSite } from './entities/csi-period-site.entity';
 import { CsiPeriodRatee } from './entities/csi-period-ratee.entity';
 import { CsiPeriodRateeDimension } from './entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRater } from './entities/csi-period-rater.entity';
@@ -29,7 +30,7 @@ import { CsiResponseComment } from './entities/csi-response-comment.entity';
 @Module({
     imports: [
         TypeOrmModule.forFeature([
-            CsiDimension, CsiDepartment, CsiRater, CsiPeriod, CsiPeriodRatee,
+            CsiDimension, CsiDepartment, CsiRater, CsiPeriod, CsiPeriodSite, CsiPeriodRatee,
             CsiPeriodRateeDimension, CsiPeriodRater, CsiResponse, CsiResponseItem, CsiResponseComment,
             User, PermissionPreset, Site,
         ]),

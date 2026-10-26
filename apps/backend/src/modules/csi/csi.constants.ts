@@ -6,6 +6,27 @@ export const CSI_SCORE_MIN = 1;
 export const CSI_SCORE_MAX = 5;
 export const CSI_COMMENT_MAX = 1000;
 export const CSI_RESET_REASON_MIN = 5;
+export const CSI_OPTIONS_MIN = 2;
+export const CSI_OPTIONS_MAX = 10;
+export const CSI_OPTION_LABEL_MAX = 200;
+export const CSI_TEAM_LABEL_DEFAULT = 'Tim IT Support';
+export const CSI_SLA_TARGET_DEFAULT = 80;
+
+/** Question kinds; only STAR and SCALE carry a 1–5 score. */
+export enum CsiQuestionType {
+    STAR = 'STAR',
+    SCALE = 'SCALE',
+    CHOICE = 'CHOICE',
+    TEXT = 'TEXT',
+}
+
+export type CsiOption = { label: string; points: number | null };
+
+/** A TEAM ratee is the single "Penilaian tim" section of a period (no user). */
+export enum CsiRateeKind {
+    PERSON = 'PERSON',
+    TEAM = 'TEAM',
+}
 
 export enum CsiRespondentMode {
     OPEN = 'OPEN',

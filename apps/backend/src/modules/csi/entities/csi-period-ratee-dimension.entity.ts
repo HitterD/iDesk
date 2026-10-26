@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { CsiPeriodRatee } from './csi-period-ratee.entity';
 import { CsiDimension } from './csi-dimension.entity';
+import { CsiOption, CsiQuestionType } from '../csi.constants';
 
 @Entity('csi_period_ratee_dimensions')
 @Index('UQ_csi_period_ratee_dimensions_ratee_dimension', ['periodRateeId', 'dimensionId'], { unique: true })
@@ -22,8 +23,18 @@ export class CsiPeriodRateeDimension {
     @JoinColumn({ name: 'dimensionId' })
     dimension: CsiDimension;
 
-    @Column({ type: 'varchar', length: 100 })
+    @Column({ type: 'varchar', length: 300 })
     dimensionName: string;
+
+    // Snapshot of the question definition at assignment time.
+    @Column({ type: 'varchar', length: 10, default: CsiQuestionType.STAR })
+    type: CsiQuestionType;
+
+    @Column({ default: true })
+    required: boolean;
+
+    @Column({ type: 'jsonb', default: () => "'[]'" })
+    options: CsiOption[];
 
     @Column({ type: 'int' })
     sortOrder: number;

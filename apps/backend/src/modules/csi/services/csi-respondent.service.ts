@@ -67,10 +67,10 @@ export class CsiRespondentService {
         const today = localDateKey(now, DEFAULT_TIMEZONE);
         const candidates = await this.periods.find({
             where: {
-                siteId: respondent.siteId, publishStatus: CsiPeriodPublishStatus.PUBLISHED,
+                sites: { siteId: respondent.siteId }, publishStatus: CsiPeriodPublishStatus.PUBLISHED,
                 startDate: LessThanOrEqual(today), endDate: MoreThanOrEqual(today),
             },
-            order: { startDate: 'DESC' },
+            relations: { sites: true }, order: { startDate: 'DESC' },
         });
         const result: Array<{ id: string; scope: CsiPeriod['scope']; title: string; submitted: boolean }> = [];
         for (const period of candidates) {
@@ -98,7 +98,7 @@ export class CsiRespondentService {
             departments: departments.map((department) => ({ id: department.id, name: department.name })),
             ratees: audience.ratees.map((ratee) => ({
                 periodRateeId: ratee.id, displayName: ratee.displayName, jobTitle: ratee.jobTitle,
-                avatarUrl: avatars.get(ratee.userId) ?? null,
+                avatarUrl: ratee.userId ? avatars.get(ratee.userId) ?? null : null,
                 dimensions: dimensions.filter((row) => row.periodRateeId === ratee.id).map((row) => ({
                     periodRateeDimensionId: row.id, name: row.dimensionName, description: descriptions.get(row.dimensionId) ?? null,
                 })),
@@ -121,7 +121,8 @@ export class CsiRespondentService {
                 if (existing > 0) throw new ConflictException(ALREADY_SUBMITTED_MESSAGE);
                 // All reads go through the transaction's connection: a submit holds exactly one pooled connection.
                 const readers = readersOf(manager);
-                const current = await this.audienceFor(readers, audience.respondent, locked);
+                // The locked row carries no relations; sites are not editable in this revision, so reuse the loaded ones.
+                const current = await this.audienceFor(readers, audience.respondent, { ...locked, sites: period.sites });
                 if (!current) throw new NotFoundException(NOT_FOUND_MESSAGE);
                 const department = await readers.departments.findOne({ where: { id: dto.departmentId, scope: locked.scope, isActive: true } });
                 if (!department) throw new BadRequestException('Departemen tidak ditemukan atau tidak aktif');
@@ -141,7 +142,7 @@ export class CsiRespondentService {
     /** 404 unless the period exists and the user is in its audience (status is checked by the caller). */
     private async resolveEligible(user: CsiRespondentRef, periodId: string): Promise<{ period: CsiPeriod; audience: Audience }> {
         const respondent = await this.loadRespondent(user.id);
-        const period = respondent ? await this.periods.findOne({ where: { id: periodId } }) : null;
+        const period = respondent ? await this.periods.findOne({ where: { id: periodId }, relations: { sites: true } }) : null;
         const audience = period ? await this.audienceFor(this.readers, respondent!, period) : null;
         if (!period || !audience) throw new NotFoundException(NOT_FOUND_MESSAGE);
         return { period, audience };
@@ -158,7 +159,8 @@ export class CsiRespondentService {
      * A draft period behaves exactly like a missing one; submit calls this with the locked row.
      */
     private async audienceFor(readers: AssignmentReaders, respondent: Respondent, period: CsiPeriod): Promise<Audience | null> {
-        if (period.publishStatus !== CsiPeriodPublishStatus.PUBLISHED || period.siteId !== respondent.siteId) return null;
+        const coversSite = (period.sites ?? []).some((row) => row.siteId === respondent.siteId);
+        if (period.publishStatus !== CsiPeriodPublishStatus.PUBLISHED || !coversSite) return null;
         if (period.respondentMode !== CsiRespondentMode.OPEN) {
             const rater = await readers.periodRaters.findOne({ where: { periodId: period.id, userId: respondent.id } });
             if (!rater) return null;
@@ -176,7 +178,8 @@ export class CsiRespondentService {
 
     /** Current avatar per ratee user (one query); ratee rows only snapshot name and job title. */
     private async avatarsOf(ratees: CsiPeriodRatee[]) {
-        const rows = await this.users.find({ where: { id: In([...new Set(ratees.map((ratee) => ratee.userId))]) }, select: { id: true, avatarUrl: true } });
+        const userIds = ratees.map((ratee) => ratee.userId).filter((id): id is string => id !== null);
+        const rows = await this.users.find({ where: { id: In([...new Set(userIds)]) }, select: { id: true, avatarUrl: true } });
         return new Map(rows.map((user) => [user.id, user.avatarUrl ?? null]));
     }
 

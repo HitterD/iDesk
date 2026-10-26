@@ -1,10 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, Index } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { Site } from '../../sites/entities/site.entity';
-import { CsiPeriodPublishStatus, CsiRespondentMode } from '../csi.constants';
+import { CSI_SLA_TARGET_DEFAULT, CSI_TEAM_LABEL_DEFAULT, CsiPeriodPublishStatus, CsiRespondentMode } from '../csi.constants';
+import { CsiPeriodSite } from './csi-period-site.entity';
 
 @Entity('csi_periods')
-@Index('IDX_csi_periods_scope_site_start', ['scope', 'siteId', 'startDate'])
+@Index('IDX_csi_periods_scope_start', ['scope', 'startDate'])
 export class CsiPeriod {
     @PrimaryGeneratedColumn('uuid')
     id: string;
@@ -12,12 +12,8 @@ export class CsiPeriod {
     @Column({ type: 'varchar', length: 10 })
     scope: ServiceScope;
 
-    @Column({ type: 'uuid' })
-    siteId: string;
-
-    @ManyToOne(() => Site, { nullable: false })
-    @JoinColumn({ name: 'siteId' })
-    site: Site;
+    @OneToMany(() => CsiPeriodSite, (periodSite) => periodSite.period, { cascade: ['insert'] })
+    sites: CsiPeriodSite[];
 
     @Column({ type: 'varchar', length: 150 })
     title: string;
@@ -41,6 +37,18 @@ export class CsiPeriod {
     // Fails closed: a period saved without an explicit status stays a draft.
     @Column({ name: 'status', type: 'varchar', length: 10, default: CsiPeriodPublishStatus.DRAFT })
     publishStatus: CsiPeriodPublishStatus;
+
+    @Column({ default: false })
+    teamEnabled: boolean;
+
+    @Column({ type: 'varchar', length: 100, default: CSI_TEAM_LABEL_DEFAULT })
+    teamLabel: string;
+
+    @Column({ default: true })
+    individualEnabled: boolean;
+
+    @Column({ type: 'smallint', default: CSI_SLA_TARGET_DEFAULT })
+    slaTargetPct: number;
 
     @Column({ type: 'uuid' })
     createdById: string;

@@ -21,6 +21,7 @@ function matches(row: Record<string, any>, where: Record<string, any> = {}): boo
             if (value._type === 'moreThanOrEqual') return row[key] >= value._value;
             throw new Error(`Unsupported operator ${value._type}`);
         }
+        if (Array.isArray(row[key])) return row[key].some((child: Record<string, any>) => matches(child, value));
         if (value && typeof value === 'object') return matches(row[key] ?? {}, value);
         return row[key] === value;
     });
@@ -72,8 +73,9 @@ function transactionManager(persist: (target: unknown, value: any) => void = () 
 
 const site = { id: 'site-a', code: 'SPJ', name: 'Sepanjang' };
 const basePeriod = (over: Partial<CsiPeriod> = {}): CsiPeriod => ({
-    id: 'p1', scope: ICT, siteId: 'site-a', site: site as any, title: 'Q3', intro: 'Halo', thankYou: 'Terima kasih',
+    id: 'p1', scope: ICT, sites: [{ siteId: 'site-a', site } as any], title: 'Q3', intro: 'Halo', thankYou: 'Terima kasih',
     startDate: '2026-07-01', endDate: '2026-09-30', respondentMode: CsiRespondentMode.OPEN, publishStatus: CsiPeriodPublishStatus.PUBLISHED, createdById: 'admin',
+    teamEnabled: false, teamLabel: 'Tim IT Support', individualEnabled: true, slaTargetPct: 80,
     createdAt: new Date(), updatedAt: new Date(), ...over,
 });
 
@@ -178,12 +180,12 @@ describe('CsiPeriodService', () => {
 
         it('allows same range on other site', async () => {
             await service.create(ICT, createDto({ siteId: 'site-b', startDate: '2026-07-01', endDate: '2026-09-30' }), 'admin');
-            expect(savedPeriod()).toMatchObject({ scope: ICT, siteId: 'site-b', createdById: 'admin' });
+            expect(savedPeriod()).toMatchObject({ scope: ICT, sites: [{ siteId: 'site-b' }], createdById: 'admin' });
         });
 
         it('allows same range for other scope', async () => {
             await service.create(HC, createDto({ startDate: '2026-07-01', endDate: '2026-09-30' }), 'admin');
-            expect(savedPeriod()).toMatchObject({ scope: HC, siteId: 'site-a' });
+            expect(savedPeriod()).toMatchObject({ scope: HC, sites: [{ siteId: 'site-a' }] });
         });
 
         it('create stores DRAFT', async () => {
@@ -226,7 +228,7 @@ describe('CsiPeriodService', () => {
 
             await service.create(ICT, { siteId: 'site-b', startDate: '2026-10-01', endDate: '2026-12-31', copyFromPeriodId: 'p1', intro: 'Baru' }, 'admin');
 
-            expect(savedPeriod()).toMatchObject({ title: 'Q3', intro: 'Baru', thankYou: 'Terima kasih', siteId: 'site-b' });
+            expect(savedPeriod()).toMatchObject({ title: 'Q3', intro: 'Baru', thankYou: 'Terima kasih', sites: [{ siteId: 'site-b' }] });
             const periodId = savedPeriod().id;
             const savedRatees = manager.saved.find((entry) => entry.target === CsiPeriodRatee)!.value;
             expect(savedRatees).toEqual([expect.objectContaining({ periodId, userId: 'u1', displayName: 'Budi Baru', jobTitle: 'Staf IT', sortOrder: 0 })]);

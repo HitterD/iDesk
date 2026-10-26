@@ -3,6 +3,7 @@ import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiMasterService } from './csi-master.service';
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiPeriod } from '../entities/csi-period.entity';
+import { CsiQuestionType } from '../csi.constants';
 
 const scope = ServiceScope.ICT;
 function repository() {
@@ -10,6 +11,7 @@ function repository() {
         find: jest.fn().mockResolvedValue([]), findOne: jest.fn().mockResolvedValue(null),
         create: jest.fn((value) => value), save: jest.fn(async (value) => value),
         delete: jest.fn().mockResolvedValue({ affected: 1 }),
+        maximum: jest.fn().mockResolvedValue(null),
     };
 }
 
@@ -54,7 +56,8 @@ describe('CSI master scope boundaries', () => {
     });
 
     it('creates a dimension in the supplied scope and soft-deactivates without mutation', async () => {
-        expect(await service.createDimension(scope, { name: 'Layanan', description: 'Baik', sortOrder: 2 })).toEqual({ scope, name: 'Layanan', description: 'Baik', sortOrder: 2 });
+        expect(await service.createDimension(scope, { name: 'Layanan', description: 'Baik', type: CsiQuestionType.STAR }))
+            .toEqual({ scope, name: 'Layanan', description: 'Baik', type: CsiQuestionType.STAR, required: true, options: [], sortOrder: 0 });
         const row = { id: 'd1', scope, name: 'Layanan', isActive: true };
         dimensions.findOne.mockResolvedValue(row);
         expect(await service.deactivateDimension(scope, 'd1')).toEqual({ ...row, isActive: false });
@@ -141,5 +144,85 @@ describe('CSI master scope boundaries', () => {
         expect(() => assertPeriodInScope(null, scope)).toThrow(NotFoundException);
         const period = { scope } as CsiPeriod;
         expect(assertPeriodInScope(period, scope)).toBe(period);
+    });
+
+    it('create appends sortOrder at the end', async () => {
+        dimensions.maximum.mockResolvedValue(4);
+        departments.maximum.mockResolvedValue(7);
+        expect(await service.createDimension(scope, { name: 'Baru', type: CsiQuestionType.TEXT, required: false }))
+            .toMatchObject({ scope, sortOrder: 5, required: false, options: [] });
+        expect(dimensions.maximum).toHaveBeenCalledWith('sortOrder', { scope });
+        expect(await service.createDepartment(scope, { name: 'Gudang' })).toMatchObject({ scope, name: 'Gudang', sortOrder: 8 });
+        expect(departments.maximum).toHaveBeenCalledWith('sortOrder', { scope });
+    });
+
+    it('reorder rejects incomplete id set (400)', async () => {
+        dimensions.find.mockResolvedValue([{ id: 'a', scope, sortOrder: 0 }, { id: 'b', scope, sortOrder: 1 }]);
+        for (const ids of [['a'], ['a', 'b', 'c'], ['a', 'a'], ['a', 'x']]) {
+            await expect(service.reorderDimensions(scope, ids)).rejects.toThrow(new BadRequestException('Urutan tidak lengkap'));
+        }
+        expect(dimensions.find).toHaveBeenCalledWith({ where: { scope } });
+        departments.find.mockResolvedValue([{ id: 'a', scope, sortOrder: 0 }]);
+        await expect(service.reorderDepartments(scope, [])).rejects.toThrow(new BadRequestException('Urutan tidak lengkap'));
+        expect(dimensions.save).not.toHaveBeenCalled();
+        expect(departments.save).not.toHaveBeenCalled();
+    });
+
+    it('reorder assigns index order', async () => {
+        const rows = [{ id: 'a', scope, sortOrder: 0 }, { id: 'b', scope, sortOrder: 1 }, { id: 'c', scope, sortOrder: 2 }];
+        dimensions.find.mockResolvedValue(rows);
+        expect(await service.reorderDimensions(scope, ['c', 'a', 'b'])).toEqual([
+            { id: 'c', scope, sortOrder: 0 }, { id: 'a', scope, sortOrder: 1 }, { id: 'b', scope, sortOrder: 2 },
+        ]);
+        expect(rows[0].sortOrder).toBe(0);
+        departments.find.mockResolvedValue([{ id: 'x', scope, sortOrder: 5 }, { id: 'y', scope, sortOrder: 9 }]);
+        expect(await service.reorderDepartments(scope, ['y', 'x'])).toEqual([{ id: 'y', scope, sortOrder: 0 }, { id: 'x', scope, sortOrder: 1 }]);
+    });
+
+    it('rejects invalid options for the question type on create and update (400)', async () => {
+        const invalid = new BadRequestException('Pilihan tidak valid untuk jenis pertanyaan ini');
+        await expect(service.createDimension(scope, { name: 'X', type: CsiQuestionType.SCALE, options: [{ label: 'A', points: 1 }] })).rejects.toThrow(invalid);
+        await expect(service.createDimension(scope, { name: 'X', type: CsiQuestionType.STAR, options: [{ label: 'A', points: null }] })).rejects.toThrow(invalid);
+        dimensions.findOne.mockResolvedValue({ id: 'd1', scope, name: 'Lama', type: CsiQuestionType.CHOICE, options: [{ label: 'A', points: null }, { label: 'B', points: null }] });
+        // Switching type without new options re-validates the stored options against the new type.
+        await expect(service.updateDimension(scope, 'd1', { type: CsiQuestionType.SCALE })).rejects.toThrow(invalid);
+        expect(await service.updateDimension(scope, 'd1', { type: CsiQuestionType.TEXT, options: [] })).toMatchObject({ type: CsiQuestionType.TEXT, options: [] });
+        expect(dimensions.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('template creates 9 questions in order with E-Services replaced by iDesk', async () => {
+        dimensions.maximum.mockResolvedValue(2);
+        const created = await service.createTemplateDimensions(scope);
+        expect(created).toHaveLength(9);
+        expect(created.map((row: any) => row.sortOrder)).toEqual([3, 4, 5, 6, 7, 8, 9, 10, 11]);
+        expect(created.every((row: any) => row.scope === scope && row.required === true)).toBe(true);
+        expect(created.map((row: any) => row.type)).toEqual([
+            CsiQuestionType.CHOICE, CsiQuestionType.SCALE, CsiQuestionType.SCALE, CsiQuestionType.SCALE, CsiQuestionType.SCALE,
+            CsiQuestionType.SCALE, CsiQuestionType.STAR, CsiQuestionType.SCALE, CsiQuestionType.STAR,
+        ]);
+        const prefix = 'Tolong ungkapkan tingkat kepuasan Anda terhadap hal-hal berikut ini ';
+        expect(created.map((row: any) => row.name)).toEqual([
+            'Dalam 1 tahun terakhir, berapa kali Bapak/Ibu meminta bantuan IT Support melalui platform iDesk / Whatsapp / Telepon?',
+            `${prefix}[Kecepatan respon IT Support terhadap laporan dari pengguna]`,
+            `${prefix}[IT Support bersikap ramah dan mampu menerima penjelasan terhadap masalah yang dihadapi dengan baik]`,
+            `${prefix}[Kemampuan diagnosa IT Support terhadap permasalahan yang dilaporkan]`,
+            `${prefix}[Kemampuan IT Support dalam memberikan solusi atau menyelesaikan permasalahan]`,
+            `${prefix}[Kecepatan IT Support dalam memberikan solusi atau menangani permasalahan sesuai target yang disepakati]`,
+            'Bagaimana Anda menilai kemampuan komunikasi IT Support?',
+            'Jika anda meminta penjelasan terhadap masalah yang dihadapi. Bagaimana penilaian anda terhadap penjelasan yang diberikan tim IT Support kepada anda?',
+            'Bagaimana penilaian anda terhadap kualitas pelayanan tim IT Support secara keseluruhan?',
+        ]);
+        expect(created.some((row: any) => row.name.includes('E-Services'))).toBe(false);
+        expect(created[0].options).toEqual([{ label: '< 5 kali', points: null }, { label: '5 - 10 kali', points: null }, { label: '> 10 kali', points: null }]);
+        expect(created[1].options).toEqual([
+            { label: 'Sangat puas', points: 5 }, { label: 'Puas', points: 4 }, { label: 'Netral', points: 3 },
+            { label: 'Tidak puas', points: 2 }, { label: 'Sangat tidak puas', points: 1 },
+        ]);
+        expect(created[7].options).toEqual([
+            { label: 'Sangat baik', points: 5 }, { label: 'Baik', points: 4 }, { label: 'Cukup', points: 3 },
+            { label: 'Buruk', points: 2 }, { label: 'Sangat buruk', points: 1 },
+        ]);
+        expect(created[6].options).toEqual([]);
+        expect(dimensions.save).toHaveBeenCalledTimes(1);
     });
 });

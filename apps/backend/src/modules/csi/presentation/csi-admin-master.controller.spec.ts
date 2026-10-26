@@ -8,10 +8,15 @@ import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiAdminMasterController } from './csi-admin-master.controller';
+import { CreateDimensionDto } from '../dto/master.dto';
 
 describe('CSI admin master HTTP validation', () => {
     let app: INestApplication;
-    const master = { listDimensions: jest.fn().mockResolvedValue([]), updateDimension: jest.fn(), searchUsers: jest.fn().mockResolvedValue([]) };
+    const master = {
+        listDimensions: jest.fn().mockResolvedValue([]), updateDimension: jest.fn(), searchUsers: jest.fn().mockResolvedValue([]),
+        reorderDimensions: jest.fn().mockResolvedValue([{ id: 'a' }]), reorderDepartments: jest.fn().mockResolvedValue([{ id: 'b' }]),
+        createTemplateDimensions: jest.fn().mockResolvedValue([{ id: 't' }]),
+    };
     beforeAll(async () => {
         const module = await Test.createTestingModule({
             controllers: [CsiAdminMasterController], providers: [{ provide: CsiMasterService, useValue: master }],
@@ -36,6 +41,17 @@ describe('CSI admin master HTTP validation', () => {
         expect(master.updateDimension).not.toHaveBeenCalled();
         await request(app.getHttpServer()).get('/csi/admin/hc/dimensions?includeInactive=invalid').expect(400);
     });
+
+    it('routes order and template before :id so they are not parsed as UUIDs', async () => {
+        const id = '7f1c6a2e-7a35-4c55-9a43-5d3c2a1b0e9f';
+        await request(app.getHttpServer()).put('/csi/admin/hc/dimensions/order').send({ ids: [id] }).expect(200, [{ id: 'a' }]);
+        expect(master.reorderDimensions).toHaveBeenCalledWith(ServiceScope.HC, [id]);
+        await request(app.getHttpServer()).put('/csi/admin/hc/departments/order').send({ ids: [id] }).expect(200, [{ id: 'b' }]);
+        expect(master.reorderDepartments).toHaveBeenCalledWith(ServiceScope.HC, [id]);
+        await request(app.getHttpServer()).post('/csi/admin/hc/dimensions/template').expect(201, [{ id: 't' }]);
+        expect(master.createTemplateDimensions).toHaveBeenCalledWith(ServiceScope.HC);
+        await request(app.getHttpServer()).put('/csi/admin/hc/dimensions/order').send({ ids: ['x'] }).expect(400);
+    });
 });
 
 describe('CSI admin master controller', () => {
@@ -54,7 +70,7 @@ describe('CSI admin master controller', () => {
         const req = { csiScope: ServiceScope.HC, params: { scope: 'ict' } };
         for (const resource of ['Dimension', 'Department'] as const) {
             expect(await controller[`list${resource}s`](req, { includeInactive: true })).toEqual({ id: 'result' });
-            await controller[`create${resource}`](req, { name: 'Nama' });
+            await controller[`create${resource}`](req, { name: 'Nama' } as CreateDimensionDto);
             await controller[`update${resource}`](req, 'id', { name: 'Baru' });
             await controller[`deactivate${resource}`](req, 'id');
             expect(service[`list${resource}s`]).toHaveBeenCalledWith(ServiceScope.HC, true);

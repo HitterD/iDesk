@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, LessThanOrEqual, MoreThanOrEqual, Not, Repository } from 'typeorm';
+import { DataSource, EntityManager, FindOptionsRelations, In, LessThanOrEqual, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { wibEndOfDate, wibStartOfDate } from '../../../shared/core/utils/wib-date.util';
 import { Site } from '../../sites/entities/site.entity';
@@ -13,6 +13,7 @@ import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
+import { CsiPeriodSite } from '../entities/csi-period-site.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { assertPeriodInScope } from './csi-scope.util';
 
@@ -57,6 +58,18 @@ export function computeReadiness(input: {
 }
 
 const pickSite = (site?: Site | null) => site ? { id: site.id, code: site.code, name: site.name } : null;
+const WITH_SITES: FindOptionsRelations<CsiPeriod> = { sites: { site: true } };
+const firstSiteId = (period: CsiPeriod) => period.sites?.[0]?.siteId ?? null;
+/**
+ * Interim response shape until multi-site lands in the API: the legacy single `siteId`/`site` come from the
+ * first period site; `sites` is exposed as safe site summaries (never the raw Site entity).
+ */
+const withSiteFields = (period: CsiPeriod) => ({
+    ...period,
+    siteId: firstSiteId(period),
+    site: pickSite(period.sites?.[0]?.site),
+    sites: (period.sites ?? []).map((row) => pickSite(row.site) ?? { id: row.siteId, code: null, name: null }),
+});
 const definedOnly = <T extends object>(value: T): Partial<T> =>
     Object.fromEntries(Object.entries(value).filter(([, field]) => field !== undefined)) as Partial<T>;
 
@@ -77,16 +90,16 @@ export class CsiPeriodService {
 
     async list(scope: ServiceScope, siteId?: string, now: Date = new Date()) {
         const rows = await this.periods.find({
-            where: { scope, ...(siteId ? { siteId } : {}) }, relations: { site: true }, order: { startDate: 'DESC' },
+            where: { scope, ...(siteId ? { sites: { siteId } } : {}) }, relations: WITH_SITES, order: { startDate: 'DESC' },
         });
         const counts = await this.countResponses(rows.map((row) => row.id));
         return rows.map((row) => ({
-            ...row, site: pickSite(row.site), status: computeStatus(row, now), responseCount: counts.get(row.id) ?? 0,
+            ...withSiteFields(row), status: computeStatus(row, now), responseCount: counts.get(row.id) ?? 0,
         }));
     }
 
     async get(scope: ServiceScope, id: string, now: Date = new Date()) {
-        const period = await this.findInScope(scope, id, true);
+        const period = await this.findInScope(scope, id, WITH_SITES);
         // No user.isActive filter: assignments are snapshots and must survive later deactivation.
         const ratees = await this.ratees.find({ where: { periodId: id }, order: { sortOrder: 'ASC' } });
         const dimensions = ratees.length ? await this.rateeDimensions.find({
@@ -102,9 +115,9 @@ export class CsiPeriodService {
             dimensions: dimensions.filter((row) => row.periodRateeId === ratee.id).sort((a, b) => a.sortOrder - b.sortOrder),
         }));
         const activeDepartmentCount = await this.departments.count({ where: { scope: period.scope, isActive: true } });
-        const eligibleRaterCount = await this.countEligibleRaters(id, period.siteId);
+        const eligibleRaterCount = await this.countEligibleRaters(id, firstSiteId(period));
         return {
-            ...period, site: pickSite(period.site), status: computeStatus(period, now), locked: await this.isLocked(id),
+            ...withSiteFields(period), status: computeStatus(period, now), locked: await this.isLocked(id),
             ratees: rateesWithDimensions,
             raters,
             readiness: computeReadiness({
@@ -145,8 +158,9 @@ export class CsiPeriodService {
         const copied = source ? await this.copyAssignments(scope, source.id) : { ratees: [], raterIds: [] };
 
         const periodId = await this.dataSource.transaction(async (manager) => {
+            // The single requested site is written as one csi_period_sites row (cascade insert).
             const saved = await manager.save(CsiPeriod, {
-                scope, siteId: dto.siteId, title,
+                scope, sites: [{ siteId: dto.siteId } as CsiPeriodSite], title,
                 intro: dto.intro ?? source?.intro ?? '',
                 thankYou: dto.thankYou ?? source?.thankYou ?? '',
                 startDate: dto.startDate, endDate: dto.endDate,
@@ -162,10 +176,10 @@ export class CsiPeriodService {
     }
 
     async update(scope: ServiceScope, id: string, dto: UpdatePeriodDto) {
-        const period = await this.findInScope(scope, id);
+        const { sites, ...period } = await this.findInScope(scope, id, { sites: true });
         const next = { ...period, ...definedOnly(dto) };
         assertDateOrder(next.startDate, next.endDate);
-        await this.assertNoOverlap(scope, next.siteId, next.startDate, next.endDate, id);
+        for (const { siteId } of sites ?? []) await this.assertNoOverlap(scope, siteId, next.startDate, next.endDate, id);
         if (dto.respondentMode !== undefined && dto.respondentMode !== period.respondentMode) {
             // Only texts and dates stay editable after the first answer. The exclusive row lock serialises this
             // with respondent submits (FOR SHARE), so a first answer cannot commit between the check and the save.
@@ -212,12 +226,13 @@ export class CsiPeriodService {
         return this.get(scope, id);
     }
 
-    private async findInScope(scope: ServiceScope, id: string, withSite = false) {
-        return assertPeriodInScope(await this.periods.findOne({ where: { id }, ...(withSite ? { relations: { site: true } } : {}) }), scope);
+    private async findInScope(scope: ServiceScope, id: string, relations?: FindOptionsRelations<CsiPeriod>) {
+        return assertPeriodInScope(await this.periods.findOne({ where: { id }, ...(relations ? { relations } : {}) }), scope);
     }
 
     /** Raters who can actually open the survey (respondent eligibility): active users of the period's site. */
-    private countEligibleRaters(periodId: string, siteId: string) {
+    private async countEligibleRaters(periodId: string, siteId: string | null) {
+        if (!siteId) return 0;
         return this.periodRaters.count({ where: { periodId, user: { isActive: true, siteId } } });
     }
 
@@ -227,7 +242,7 @@ export class CsiPeriodService {
 
     private async assertNoOverlap(scope: ServiceScope, siteId: string, startDate: string, endDate: string, excludeId?: string) {
         const clash = await this.periods.findOne({ where: {
-            scope, siteId, startDate: LessThanOrEqual(endDate), endDate: MoreThanOrEqual(startDate),
+            scope, sites: { siteId }, startDate: LessThanOrEqual(endDate), endDate: MoreThanOrEqual(startDate),
             ...(excludeId ? { id: Not(excludeId) } : {}),
         } });
         if (clash) throw new ConflictException('Rentang tanggal bertabrakan dengan periode lain');
@@ -276,9 +291,11 @@ export class CsiPeriodService {
             where: { periodRateeId: In(sourceRatees.map((ratee) => ratee.id)) }, order: { sortOrder: 'ASC' },
         }) : [];
         const sourceRaters = await this.periodRaters.find({ where: { periodId: sourceId } });
-        const users = await this.activeUsers([...new Set([...sourceRatees, ...sourceRaters].map((row) => row.userId))]);
+        // TEAM ratees (no user) are not copied here; the team section is copied by the team feature.
+        const personRatees = sourceRatees.filter((ratee): ratee is CsiPeriodRatee & { userId: string } => ratee.userId !== null);
+        const users = await this.activeUsers([...new Set([...personRatees, ...sourceRaters].map((row) => row.userId))]);
         const dimensions = await this.activeDimensions(scope, [...new Set(sourceDimensions.map((row) => row.dimensionId))]);
-        const ratees = [...sourceRatees].sort((a, b) => a.sortOrder - b.sortOrder).flatMap((ratee) => {
+        const ratees = [...personRatees].sort((a, b) => a.sortOrder - b.sortOrder).flatMap((ratee) => {
             const user = users.get(ratee.userId);
             const kept = sourceDimensions.filter((row) => row.periodRateeId === ratee.id)
                 .sort((a, b) => a.sortOrder - b.sortOrder)

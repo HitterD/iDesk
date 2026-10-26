@@ -27,6 +27,7 @@ function matches(row: Record<string, any>, where: Record<string, any> = {}): boo
             if (value._type === 'moreThanOrEqual') return row[key] >= value._value;
             throw new Error(`Unsupported operator ${value._type}`);
         }
+        if (Array.isArray(row[key])) return row[key].some((child: Record<string, any>) => matches(child, value));
         return row[key] === value;
     });
 }
@@ -48,7 +49,7 @@ function memoryRepository<T extends Record<string, any>>(rows: T[] = []) {
 }
 
 const period = (over: Partial<CsiPeriod> = {}) => ({
-    id: 'p1', scope: ICT, siteId: 'site-a', title: 'CSI ICT Oktober', intro: 'Mohon diisi', thankYou: 'Terima kasih!',
+    id: 'p1', scope: ICT, sites: [{ siteId: 'site-a' }] as CsiPeriod['sites'], title: 'CSI ICT Oktober', intro: 'Mohon diisi', thankYou: 'Terima kasih!',
     startDate: '2026-10-01', endDate: '2026-10-31', respondentMode: CsiRespondentMode.OPEN, publishStatus: CsiPeriodPublishStatus.PUBLISHED, createdById: 'admin', ...over,
 });
 
@@ -196,7 +197,7 @@ describe('CsiRespondentService', () => {
         });
 
         it('listActive returns eligible periods with submitted flag', async () => {
-            periods.rows.push(period({ id: 'p-b', siteId: 'site-b' }));
+            periods.rows.push(period({ id: 'p-b', sites: [{ siteId: 'site-b' }] as CsiPeriod['sites'] }));
             expect(await service.listActive(me, NOW)).toEqual([{ id: 'p1', scope: ICT, title: 'CSI ICT Oktober', submitted: false }]);
             responses.rows.push({ id: 'resp', periodId: 'p1', respondentId: 'me' });
             expect(await service.listActive(me, NOW)).toEqual([{ id: 'p1', scope: ICT, title: 'CSI ICT Oktober', submitted: true }]);
@@ -207,7 +208,7 @@ describe('CsiRespondentService', () => {
             await service.listActive(me, NOW);
             expect(periods.find).toHaveBeenCalledWith(expect.objectContaining({
                 where: {
-                    siteId: 'site-a', publishStatus: CsiPeriodPublishStatus.PUBLISHED,
+                    sites: { siteId: 'site-a' }, publishStatus: CsiPeriodPublishStatus.PUBLISHED,
                     startDate: LessThanOrEqual('2026-10-15'), endDate: MoreThanOrEqual('2026-10-15'),
                 },
             }));

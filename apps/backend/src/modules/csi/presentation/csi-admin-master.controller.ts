@@ -1,7 +1,7 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
-import { AddRatersDto, CreateDepartmentDto, CreateDimensionDto, MasterListQueryDto, UpdateDepartmentDto, UpdateDimensionDto, UserSearchQueryDto } from '../dto/master.dto';
+import { AddRatersDto, CreateDepartmentDto, CreateDimensionDto, MasterListQueryDto, ReorderDto, UpdateDepartmentDto, UpdateDimensionDto, UserSearchQueryDto } from '../dto/master.dto';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiMasterService } from '../services/csi-master.service';
 
@@ -25,6 +25,17 @@ export class CsiAdminMasterController {
         return this.master.createDimension(req.csiScope, dto);
     }
 
+    // Static segments are registered before the `:id` routes so "order"/"template" never hit the UUID pipe.
+    @Put('dimensions/order')
+    reorderDimensions(@Req() req: CsiAdminRequest, @Body() dto: ReorderDto) {
+        return this.master.reorderDimensions(req.csiScope, dto.ids);
+    }
+
+    @Post('dimensions/template')
+    createTemplateDimensions(@Req() req: CsiAdminRequest) {
+        return this.master.createTemplateDimensions(req.csiScope);
+    }
+
     @Patch('dimensions/:id')
     updateDimension(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Body() dto: UpdateDimensionDto) {
         return this.master.updateDimension(req.csiScope, id, dto);
@@ -43,6 +54,11 @@ export class CsiAdminMasterController {
     @Post('departments')
     createDepartment(@Req() req: CsiAdminRequest, @Body() dto: CreateDepartmentDto) {
         return this.master.createDepartment(req.csiScope, dto);
+    }
+
+    @Put('departments/order')
+    reorderDepartments(@Req() req: CsiAdminRequest, @Body() dto: ReorderDto) {
+        return this.master.reorderDepartments(req.csiScope, dto.ids);
     }
 
     @Patch('departments/:id')

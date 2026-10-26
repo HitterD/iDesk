@@ -61,7 +61,7 @@ function itemRepository(rows: any[]) {
 }
 
 const period = (over: Partial<CsiPeriod> = {}) => ({
-    id: 'p1', scope: ICT, siteId: 'site-a', title: 'CSI ICT Oktober', intro: 'Mohon diisi', thankYou: 'Terima kasih!',
+    id: 'p1', scope: ICT, sites: [{ siteId: 'site-a' }] as CsiPeriod['sites'], title: 'CSI ICT Oktober', intro: 'Mohon diisi', thankYou: 'Terima kasih!',
     startDate: '2026-10-01', endDate: '2026-10-31', respondentMode: CsiRespondentMode.OPEN, createdById: 'admin', ...over,
 });
 
