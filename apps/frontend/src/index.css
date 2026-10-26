@@ -412,18 +412,23 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
   width: calc(100% - 10px); margin-right: 10px; padding: 6px 8px;
   border-radius: 12px; font-size: 13px; font-weight: 500; white-space: nowrap;
   color: hsl(var(--idesk-chrome-foreground) / .92);
-  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), transform var(--dur-2) var(--ease-spring);
+  /* The active tab is a sheet-coloured layer that grows out of the sidebar toward the content
+     (and shrinks back on the item being left), so switching pages reads as one fluid motion. */
+  background-image: linear-gradient(hsl(var(--shell-sheet)), hsl(var(--shell-sheet)));
+  background-repeat: no-repeat; background-position: left center; background-size: 0% 100%;
+  transition: background-color var(--dur-2) var(--ease-out), background-size var(--dur-3) var(--ease-out),
+    color var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-spring);
 }
 .nav-item.is-primary { padding: 7px 8px; font-size: 13.5px; }
 .nav-group.is-quiet .nav-item { padding: 4px 8px; font-size: 12.5px; color: hsl(var(--idesk-chrome-muted)); }
-.nav-item:hover { background: hsl(var(--shell-fill)); color: #fff; }
+.nav-item:hover { background-color: hsl(var(--shell-fill)); color: #fff; }
 .nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .nav-item-icon { justify-content: center; width: 48px; height: 44px; margin-right: 0; padding: 0; cursor: pointer; }
 
 /* Active item: a sheet-coloured tab that joins the content sheet on the right. */
 .nav-item.is-active,
 .nav-group.is-quiet .nav-item.is-active {
-  background: hsl(var(--shell-sheet)); color: hsl(var(--foreground)); font-weight: 600;
+  background-color: transparent; background-size: 100% 100%; color: hsl(var(--foreground)); font-weight: 600;
   width: 100%; margin-right: 0; border-radius: var(--shell-tab-radius) 0 0 var(--shell-tab-radius);
   /* The tab grows 10px into the sheet; pad it back so the label and badge don't shift. */
   padding-right: 18px;
@@ -437,6 +442,10 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
 }
 .nav-item.is-active::before { top: calc(var(--shell-tab-radius) * -1); border-bottom-right-radius: var(--shell-tab-radius); box-shadow: 5px 5px 0 5px hsl(var(--shell-sheet)); }
 .nav-item.is-active::after { bottom: calc(var(--shell-tab-radius) * -1); border-top-right-radius: var(--shell-tab-radius); box-shadow: 5px -5px 0 5px hsl(var(--shell-sheet)); }
+/* The joining curves land last, once the tab has reached the sheet. */
+@keyframes nav-curve-in { from { opacity: 0; transform: scale(.4); } }
+.nav-item.is-active::before { transform-origin: bottom right; animation: nav-curve-in var(--dur-2) var(--ease-out) calc(var(--dur-3) * .55) backwards; }
+.nav-item.is-active::after { transform-origin: top right; animation: nav-curve-in var(--dur-2) var(--ease-out) calc(var(--dur-3) * .55) backwards; }
 /* The first item sits beside the sheet's rounded top corner, where a top joining curve has
    nothing to join and paints a notch under the brand. Drop that curve and square the corner
    so the tab meets the sheet flush. */
@@ -1628,16 +1637,8 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .kb-suggest-arrow { width: 16px; height: 16px; flex: none; color: hsl(var(--muted-foreground)); transition: transform var(--dur-2) var(--ease-out), color var(--dur-1) var(--ease-out); }
 .kb-suggest-item:hover .kb-suggest-arrow { transform: translate(2px, -2px); color: hsl(var(--idesk-sapphire)); }
 
-/* Sidebar items: press feedback (never on the active tab) and the active tab sliding from the previous item. */
+/* Sidebar items: press feedback, never on the active tab. */
 .nav-item:not(.is-active):active { transform: scale(.98); }
-.nav-tab-ghost {
-  position: absolute; left: 0; top: 0; width: 100%; pointer-events: none;
-  background: hsl(var(--shell-sheet)); border-radius: var(--shell-tab-radius) 0 0 var(--shell-tab-radius);
-  transition: transform var(--dur-3) var(--ease-out);
-}
-.nav-item.is-active.is-arriving { background: transparent; color: hsl(var(--idesk-chrome-foreground)); }
-.nav-item.is-active.is-arriving::before, .nav-item.is-active.is-arriving::after { opacity: 0; }
-.nav-item.is-active::before, .nav-item.is-active::after { transition: opacity var(--dur-1) var(--ease-out); }
 
 /* Stat cards lift on hover; press settles back without shrinking the hit box below the card. */
 .queue-stat[role="button"]:hover, .portal-stat:hover { transform: translateY(-2px); }
