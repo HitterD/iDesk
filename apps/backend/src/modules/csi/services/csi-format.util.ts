@@ -24,3 +24,8 @@ export function formatTimestampWib(date: Date): string {
     const parts = Object.fromEntries(WIB_PARTS.formatToParts(date).map((part) => [part.type, part.value]));
     return `${parts.year}/${parts.month}/${parts.day} ${parts.hour}:${parts.minute}:${parts.second} ${parts.dayPeriod} ${TIMESTAMP_SUFFIX}`;
 }
+
+const CONTROL_CHARS = /[\u0000-\u0009\u000b-\u001f]/g;
+
+/** Removes control characters from user text, keeping line feeds. */
+export const cleanText = (value: string): string => value.replace(CONTROL_CHARS, '');

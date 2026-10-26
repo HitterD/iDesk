@@ -17,7 +17,10 @@ import { CsiMeController } from './presentation/csi-me.controller';
 import { CsiReportService } from './services/csi-report.service';
 import { CsiExportService } from './services/csi-export.service';
 import { CsiAdminReportController } from './presentation/csi-admin-report.controller';
-import { CsiDimension } from './entities/csi-dimension.entity';
+import { CsiMemoSetting } from './entities/csi-memo-setting.entity';
+import { CsiMemoService } from './services/csi-memo.service';
+import { CsiAdminMemoController } from './presentation/csi-admin-memo.controller';
+import { CsiDimension }from './entities/csi-dimension.entity';
 import { CsiDepartment } from './entities/csi-department.entity';
 import { CsiRater } from './entities/csi-rater.entity';
 import { CsiPeriod } from './entities/csi-period.entity';
@@ -34,12 +37,12 @@ import { CsiResponseComment } from './entities/csi-response-comment.entity';
         TypeOrmModule.forFeature([
             CsiDimension, CsiDepartment, CsiRater, CsiPeriod, CsiPeriodSite, CsiPeriodRatee,
             CsiPeriodRateeDimension, CsiPeriodRater, CsiResponse, CsiResponseItem, CsiResponseComment,
-            User, PermissionPreset, Site, Ticket,
+            CsiMemoSetting, User, PermissionPreset, Site, Ticket,
         ]),
         AuthModule,
         AuditModule,
     ],
-    controllers: [CsiAdminMasterController, CsiAdminPeriodController, CsiAdminReportController, CsiMeController],
-    providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService],
+    controllers: [CsiAdminMasterController, CsiAdminPeriodController, CsiAdminReportController, CsiAdminMemoController, CsiMeController],
+    providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService, CsiMemoService],
 })
 export class CsiModule { }
