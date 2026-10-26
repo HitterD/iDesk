@@ -1,28 +1,25 @@
 import { useState } from 'react';
-import { Navigate, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import { ShieldAlert, Star } from 'lucide-react';
 import { ResHead } from '@/components/resources/ResourceParts';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { cn } from '@/lib/utils';
-import { DepartmentsTab } from '../components/admin/DepartmentsTab';
-import { DimensionsTab } from '../components/admin/DimensionsTab';
+import { MasterDataPanel } from '../components/admin/MasterDataPanel';
 import { PeriodDetail } from '../components/admin/PeriodDetail';
 import { PeriodsTab } from '../components/admin/PeriodsTab';
-import { RatersTab } from '../components/admin/RatersTab';
 import { ADMIN_PANEL, MUTED_TEXT } from '../components/admin/AdminParts';
+import { WizardRoute } from '../components/wizard/WizardRoute';
 import { csiAdminPath, CSI_SCOPE_OF, isCsiScopeParam } from '../lib/csiAdmin';
+import { useAdminRoute, type AdminRoute } from '../lib/useAdminRoute';
 import { useCsiAdminAccess } from '../lib/useCsiAdminAccess';
 import { useCsiBasePath } from '../lib/useCsiBasePath';
-import type { CsiScopeParam } from '../types';
+import type { CsiPeriodListItem, CsiScopeParam } from '../types';
 
-type AdminTab = 'periods' | 'dimensions' | 'departments' | 'raters';
-const TABS = [
-    { value: 'periods', label: 'Periode' },
-    { value: 'dimensions', label: 'Dimensi' },
-    { value: 'departments', label: 'Departemen' },
-    { value: 'raters', label: 'Penilai' },
+type AdminArea = 'surveys' | 'master';
+const AREAS = [
+    { value: 'surveys', label: 'Survei' },
+    { value: 'master', label: 'Master data' },
 ] as const;
-const PERIOD_PARAM = 'period';
 
 function NotAuthorized() {
     return (
@@ -36,35 +33,30 @@ function NotAuthorized() {
     );
 }
 
-function TabBody({ scope, tab, onOpenPeriod }: { scope: CsiScopeParam; tab: AdminTab; onOpenPeriod: (id: string) => void }) {
-    switch (tab) {
-        case 'dimensions': return <DimensionsTab scope={scope} />;
-        case 'departments': return <DepartmentsTab scope={scope} />;
-        case 'raters': return <RatersTab scope={scope} />;
-        default: return <PeriodsTab scope={scope} onOpen={onOpenPeriod} />;
+function SurveysArea({ scope, route }: { scope: CsiScopeParam; route: AdminRoute }) {
+    if (route.wizard !== undefined) return <WizardRoute key={route.wizard ?? 'new'} scope={scope} route={route} />;
+    if (route.periodId) {
+        return <PeriodDetail key={route.periodId} scope={scope} periodId={route.periodId} onBack={route.closeAll}
+            onEditStep={(step) => route.openWizard(route.periodId, step)} />;
     }
+    // Drafts resume in the wizard (the step is resolved once the detail loads); published surveys open the detail.
+    const open = (period: CsiPeriodListItem) => period.publishStatus === 'DRAFT' ? route.openWizard(period.id) : route.openDetail(period.id);
+    return <PeriodsTab scope={scope} onOpen={open} onCreate={() => route.openWizard(null, 'info')} />;
 }
 
 function ScopeAdmin({ scope }: { scope: CsiScopeParam }) {
-    const [params, setParams] = useSearchParams();
-    const [tab, setTab] = useState<AdminTab>('periods');
-    const periodId = params.get(PERIOD_PARAM);
-    const openPeriod = (id: string | null) => setParams((current) => {
-        const next = new URLSearchParams(current);
-        if (id) next.set(PERIOD_PARAM, id); else next.delete(PERIOD_PARAM);
-        return next;
-    });
-    const selectTab = (value: AdminTab) => { setTab(value); if (periodId) openPeriod(null); };
+    const route = useAdminRoute();
+    const [area, setArea] = useState<AdminArea>('surveys');
+    const inSurvey = route.wizard !== undefined || !!route.periodId;
+    const selectArea = (value: AdminArea) => { setArea(value); if (inSurvey) route.closeAll(); };
 
     return (
         <div className="res-page">
             <ResHead icon={Star} tone="orange" title={`Survei Kepuasan — ${CSI_SCOPE_OF[scope]}`}
-                description="Kelola periode, dimensi penilaian, departemen, dan penilai." />
-            <SegmentedControl aria-label="Bagian Admin CSI" className="res-tabs" options={TABS}
-                value={periodId ? 'periods' : tab} onValueChange={selectTab} />
-            {periodId
-                ? <PeriodDetail key={periodId} scope={scope} periodId={periodId} onBack={() => openPeriod(null)} />
-                : <TabBody scope={scope} tab={tab} onOpenPeriod={openPeriod} />}
+                description="Buat survei langkah demi langkah, terbitkan, lalu pantau hasilnya." />
+            <SegmentedControl aria-label="Bagian Admin CSI" className="res-tabs" options={AREAS}
+                value={inSurvey ? 'surveys' : area} onValueChange={selectArea} />
+            {area === 'master' && !inSurvey ? <MasterDataPanel scope={scope} /> : <SurveysArea scope={scope} route={route} />}
         </div>
     );
 }

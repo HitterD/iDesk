@@ -37,6 +37,24 @@ export function stepComplete(key: WizardStepKey, period: CsiPeriodDetail): boole
     }
 }
 
+type ReadinessKey = CsiPeriodDetail['readiness']['checks'][number]['key'];
+
+/** Wizard step where each readiness check is fixed. */
+export const READINESS_STEP: Readonly<Record<ReadinessKey, WizardStepKey>> = {
+    ratees: 'ratees',
+    dimensions: 'ratees',
+    raters: 'raters',
+    departments: 'departments',
+};
+
+/** Where a draft resumes: the first visible step that is still incomplete, else the review. */
+export function resumeStep(period: CsiPeriodDetail): WizardStepKey {
+    return visibleSteps(period.respondentMode).find((key) => !stepComplete(key, period)) ?? 'review';
+}
+
+export const isWizardStepKey = (value: string | null): value is WizardStepKey =>
+    WIZARD_STEPS.some((step) => step.key === value);
+
 export const CSI_SECONDS_PER_RATING = 10;
 const SECONDS_PER_MINUTE = 60;
 

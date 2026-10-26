@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Pencil } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -37,6 +37,8 @@ interface MasterListProps {
     withDescription?: boolean;
     showInactive: boolean;
     onShowInactiveChange: (value: boolean) => void;
+    /** Wizard use: hides the "Tampilkan nonaktif" switch and uses a soft add button (the page keeps one amber CTA). */
+    compact?: boolean;
     onCreate: (payload: MasterPayload, done: () => void) => void;
     onUpdate: (id: string, payload: MasterPayload, done: () => void) => void;
     onDeactivate: (id: string, done: () => void) => void;
@@ -104,7 +106,7 @@ function MasterDialog({ noun, item, withDescription, pending, onClose, onSubmit 
 }
 
 export function MasterList(props: MasterListProps) {
-    const { noun, items, isLoading, isError, onRetry, withDescription, showInactive, onShowInactiveChange, pending } = props;
+    const { noun, items, isLoading, isError, onRetry, withDescription, showInactive, onShowInactiveChange, pending, compact } = props;
     const [editing, setEditing] = useState<MasterItem | 'new' | null>(null);
     const [deactivating, setDeactivating] = useState<MasterItem | null>(null);
     const sorted = [...(items ?? [])].sort(byActiveOrder);
@@ -116,12 +118,16 @@ export function MasterList(props: MasterListProps) {
     return (
         <div className="grid gap-4">
             <div className="flex flex-wrap items-center gap-3">
-                <label className="flex items-center gap-2.5">
-                    <Switch checked={showInactive} onCheckedChange={onShowInactiveChange} aria-label="Tampilkan nonaktif" />
-                    <span className="text-[13px]">Tampilkan nonaktif</span>
-                </label>
+                {!compact && (
+                    <label className="flex items-center gap-2.5">
+                        <Switch checked={showInactive} onCheckedChange={onShowInactiveChange} aria-label="Tampilkan nonaktif" />
+                        <span className="text-[13px]">Tampilkan nonaktif</span>
+                    </label>
+                )}
                 <span className="flex-1" />
-                <CreateButton label={`Tambah ${capitalize(noun)}`} onClick={() => setEditing('new')} />
+                {compact
+                    ? <Button variant="soft" onClick={() => setEditing('new')}><Plus aria-hidden="true" />{`Tambah ${capitalize(noun)}`}</Button>
+                    : <CreateButton label={`Tambah ${capitalize(noun)}`} onClick={() => setEditing('new')} />}
             </div>
             <section aria-label={`Daftar ${noun}`} className={cn(ADMIN_PANEL, 'overflow-hidden')}>
                 {isLoading && <div className="h-32 animate-pulse bg-[hsl(var(--muted)/.5)] motion-reduce:animate-none" aria-busy="true" />}

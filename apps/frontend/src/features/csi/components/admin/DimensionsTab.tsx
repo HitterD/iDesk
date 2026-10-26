@@ -5,7 +5,7 @@ import {
 import type { CsiScopeParam } from '../../types';
 import { MasterList } from './MasterList';
 
-export function DimensionsTab({ scope }: { scope: CsiScopeParam }) {
+export function DimensionsTab({ scope, compact }: { scope: CsiScopeParam; compact?: boolean }) {
     const [showInactive, setShowInactive] = useState(false);
     const list = useCsiDimensions(scope, showInactive);
     const create = useCreateCsiDimension(scope);
@@ -13,7 +13,7 @@ export function DimensionsTab({ scope }: { scope: CsiScopeParam }) {
     const deactivate = useDeactivateCsiDimension(scope);
     return (
         <MasterList noun="dimensi" withDescription items={list.data} isLoading={list.isLoading} isError={list.isError}
-            onRetry={() => list.refetch()} showInactive={showInactive} onShowInactiveChange={setShowInactive}
+            onRetry={() => list.refetch()} compact={compact} showInactive={showInactive} onShowInactiveChange={setShowInactive}
             pending={create.isPending || update.isPending || deactivate.isPending}
             onCreate={(payload, done) => create.mutate(payload, { onSuccess: done })}
             onUpdate={(id, payload, done) => update.mutate({ id, payload }, { onSuccess: done })}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useServerDraft } from '../../lib/useServerDraft';
 import { ChevronDown, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -108,7 +108,9 @@ function RateeTable({ draft, dimensions, locked, onChangeRow, onRemove }: {
     );
 }
 
-export function RateeAssignment({ scope, period }: { scope: CsiScopeParam; period: CsiPeriodDetail }) {
+export function RateeAssignment({ scope, period, onDirtyChange }: {
+    scope: CsiScopeParam; period: CsiPeriodDetail; onDirtyChange?: (dirty: boolean) => void;
+}) {
     const { data: dimensions = [] } = useCsiDimensions(scope);
     const save = useSetCsiRatees(scope, period.id);
     const [draft, setDraft] = useServerDraft<RateeDraft[]>(() => draftFromPeriod(period), rateesSignature(period));
@@ -119,6 +121,7 @@ export function RateeAssignment({ scope, period }: { scope: CsiScopeParam; perio
     const payload = toRateesPayload(draft, order);
     const dirty = JSON.stringify(payload) !== JSON.stringify(toRateesPayload(draftFromPeriod(period), order));
     const invalid = draft.some((row) => !row.dimensionIds.length);
+    useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
     const assign = () => {
         setDraft((current) => mergeRatees(current, pickedUsers, orderDimensions(pickedDimensions, order)));
@@ -141,7 +144,7 @@ export function RateeAssignment({ scope, period }: { scope: CsiScopeParam; perio
                     <span className={MUTED_TEXT}>2. Pilih dimensi</span>
                     {dimensions.length
                         ? <DimensionChecklist idPrefix="assign" dimensions={dimensions} value={pickedDimensions} onChange={setPickedDimensions} disabled={locked} />
-                        : <p className={MUTED_TEXT}>Belum ada dimensi aktif. Tambahkan di tab Dimensi.</p>}
+                        : <p className={MUTED_TEXT}>Belum ada dimensi aktif. Tambahkan di langkah Dimensi.</p>}
                 </div>
                 <Button variant="soft" className="lg:mt-6" onClick={assign} disabled={locked || !pickedUsers.length || !pickedDimensions.length}>
                     Pasang ke yang dipilih

@@ -1,6 +1,6 @@
 import type { TicketPillTone } from '@/components/ui/ticket-pill';
 import type {
-    CsiPeriodDetail, CsiPeriodStatus, CsiRespondentMode, CsiScope, CsiScopeParam, SetCsiRatees,
+    CsiPeriodDetail, CsiPeriodStatus, CsiPublishStatus, CsiRespondentMode, CsiScope, CsiScopeParam, SetCsiRatees,
 } from '../types';
 
 export const CSI_ADMIN_SCOPES = ['ict', 'hc'] as const satisfies readonly CsiScopeParam[];
@@ -31,6 +31,15 @@ export const CSI_STATUS_TONES: Readonly<Record<CsiPeriodStatus, TicketPillTone>>
     UPCOMING: 'sky',
     ACTIVE: 'green',
     ENDED: 'neutral',
+};
+
+export const CSI_PUBLISH_LABELS: Readonly<Record<CsiPublishStatus, string>> = {
+    DRAFT: 'Draft',
+    PUBLISHED: 'Terbit',
+};
+export const CSI_PUBLISH_TONES: Readonly<Record<CsiPublishStatus, TicketPillTone>> = {
+    DRAFT: 'amber',
+    PUBLISHED: 'navy',
 };
 
 /** Mirrors backend reset DTO bounds. */

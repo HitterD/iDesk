@@ -6,8 +6,10 @@ import { TicketPill } from '@/components/ui/ticket-pill';
 import { useDebounce } from '@/hooks/useDebounce';
 import { cn } from '@/lib/utils';
 import { useCsiUserSearch } from '../../hooks/useCsi';
-import { CSI_LOCKED_NOTE, CSI_SEARCH_DEBOUNCE_MS, CSI_STATUS_LABELS, CSI_STATUS_TONES, type DraftUser } from '../../lib/csiAdmin';
-import type { CsiPeriodStatus, CsiScopeParam } from '../../types';
+import {
+    CSI_LOCKED_NOTE, CSI_PUBLISH_LABELS, CSI_PUBLISH_TONES, CSI_SEARCH_DEBOUNCE_MS, CSI_STATUS_LABELS, CSI_STATUS_TONES, type DraftUser,
+} from '../../lib/csiAdmin';
+import type { CsiPeriodStatus, CsiPublishStatus, CsiScopeParam } from '../../types';
 
 /** Panel surface: hairline shadow on the neutral sheet, tokens keep dark mode working. */
 export const ADMIN_PANEL = 'rounded-[18px] bg-[hsl(var(--idesk-surface))] text-[hsl(var(--idesk-text))] shadow-[var(--dash-shadow-1)]';
@@ -50,6 +52,11 @@ export function LockedNote({ children = CSI_LOCKED_NOTE }: { children?: ReactNod
 
 export function StatusPill({ status }: { status: CsiPeriodStatus }) {
     return <TicketPill tone={CSI_STATUS_TONES[status]}>{CSI_STATUS_LABELS[status]}</TicketPill>;
+}
+
+/** Draft/Terbit, shown next to (not instead of) the time status. */
+export function PublishPill({ status }: { status: CsiPublishStatus }) {
+    return <TicketPill tone={CSI_PUBLISH_TONES[status]}>{CSI_PUBLISH_LABELS[status]}</TicketPill>;
 }
 
 export function EmptyNote({ children }: { children: ReactNode }) {

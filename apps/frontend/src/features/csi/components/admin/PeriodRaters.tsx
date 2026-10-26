@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
@@ -8,13 +9,16 @@ import type { CsiPeriodDetail, CsiScopeParam } from '../../types';
 import { AdminSection, EmptyNote, LockedNote, MUTED_TEXT } from './AdminParts';
 
 /** LISTED periods only: choose which registered raters may fill this period. */
-export function PeriodRaters({ scope, period }: { scope: CsiScopeParam; period: CsiPeriodDetail }) {
+export function PeriodRaters({ scope, period, onDirtyChange }: {
+    scope: CsiScopeParam; period: CsiPeriodDetail; onDirtyChange?: (dirty: boolean) => void;
+}) {
     const { data: master = [], isLoading } = useCsiRaters(scope);
     const save = useSetCsiRaters(scope, period.id);
     const saved = period.raters.map((rater) => rater.userId);
     const [selected, setSelected] = useServerDraft<string[]>(() => saved, ratersSignature(period));
     const locked = period.locked;
     const dirty = !sameIds(selected, saved);
+    useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
     const allIds = master.map((rater) => rater.userId);
     const allChecked = allIds.length > 0 && allIds.every((id) => selected.includes(id));
     const toggle = (id: string, on: boolean) => setSelected((current) => on ? [...current, id] : current.filter((item) => item !== id));
@@ -23,7 +27,7 @@ export function PeriodRaters({ scope, period }: { scope: CsiScopeParam; period: 
         <AdminSection title="Penilai periode" description="Hanya penilai yang dicentang yang dapat mengisi survei periode ini."
             actions={locked ? <LockedNote /> : dirty ? <span role="status" className="text-[12.5px] font-medium text-[hsl(var(--ticket-amber-ink))]">Ada perubahan yang belum disimpan</span> : null}>
             {!isLoading && !master.length ? (
-                <EmptyNote>Belum ada penilai terdaftar. Tambahkan di tab Penilai.</EmptyNote>
+                <EmptyNote>Belum ada penilai terdaftar. Tambahkan penilai di atas.</EmptyNote>
             ) : (
                 <div className="rounded-2xl border border-[hsl(var(--idesk-border)/.7)]">
                     <div className="flex items-center gap-2.5 border-b border-[hsl(var(--idesk-border)/.7)] px-4 py-2.5">

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { CsiPeriodDetail, CsiRespondentMode } from '../../types';
-import { estimateMinutes, nextStep, previousStep, stepComplete, visibleSteps, WIZARD_STEPS } from '../wizard';
+import {
+    estimateMinutes, isWizardStepKey, nextStep, previousStep, READINESS_STEP, resumeStep, stepComplete, visibleSteps, WIZARD_STEPS,
+} from '../wizard';
 
 const period = (checks: CsiPeriodDetail['readiness']['checks']): CsiPeriodDetail => ({
     id: 'p1', scope: 'ICT', siteId: 's1', title: '', intro: '', thankYou: '',
@@ -63,6 +65,28 @@ describe('stepComplete', () => {
     it('does not complete ratees with a missing prerequisite check', () => {
         expect(stepComplete('ratees', period([check('ratees', true)]))).toBe(false);
         expect(stepComplete('ratees', period([check('dimensions', true)]))).toBe(false);
+    });
+});
+
+describe('resumeStep', () => {
+    it('resumes at the first incomplete visible step', () => {
+        expect(resumeStep(period([check('ratees', false), check('dimensions', true), check('raters', false)]))).toBe('ratees');
+        expect(resumeStep(period([check('ratees', true), check('dimensions', true), check('raters', false), check('departments', true)]))).toBe('raters');
+    });
+
+    it('skips the hidden raters step for OPEN and lands on review when everything is complete', () => {
+        const open = { ...period([check('ratees', true), check('dimensions', true), check('departments', true)]), respondentMode: 'OPEN' as const };
+        expect(resumeStep(open)).toBe('review');
+    });
+
+    it('maps every readiness check to the step that fixes it', () => {
+        expect(READINESS_STEP).toEqual({ ratees: 'ratees', dimensions: 'ratees', raters: 'raters', departments: 'departments' });
+    });
+
+    it('recognises only known step keys', () => {
+        expect(isWizardStepKey('ratees')).toBe(true);
+        expect(isWizardStepKey('nope')).toBe(false);
+        expect(isWizardStepKey(null)).toBe(false);
     });
 });
 

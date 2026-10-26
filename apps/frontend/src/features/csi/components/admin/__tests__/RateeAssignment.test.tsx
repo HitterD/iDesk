@@ -140,4 +140,17 @@ describe('RateeAssignment', () => {
         expect(screen.getByText('Terkunci karena sudah ada jawaban')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Simpan penugasan' })).toBeDisabled();
     });
+
+    it('melaporkan perubahan draft lewat onDirtyChange', async () => {
+        const actor = userEvent.setup();
+        const onDirtyChange = vi.fn();
+        render(<RateeAssignment scope="ict" period={period(false)} onDirtyChange={onDirtyChange} />);
+        expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+
+        await assignAndi(actor);
+        expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+        await actor.click(screen.getByRole('button', { name: 'Hapus Andi Saputra' }));
+        expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    });
 });
