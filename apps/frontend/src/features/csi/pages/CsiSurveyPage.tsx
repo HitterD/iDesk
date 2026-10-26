@@ -23,7 +23,7 @@ function SurveySkeleton() {
     );
 }
 
-/** The server is the authority: once it reports the survey as answered, the local draft is obsolete. */
+/** The server is the authority: once it reports the survey as answered or ended (410), the local draft is obsolete. */
 function useClearDraftWhen(done: boolean, userId: string, periodId: string) {
     useEffect(() => {
         if (done && userId) clearDraft(draftKey(userId, periodId));
@@ -33,7 +33,7 @@ function useClearDraftWhen(done: boolean, userId: string, periodId: string) {
 function SurveyForm({ form, basePath, userId }: { form: CsiOpenForm; basePath: string; userId: string }) {
     const submit = useSubmitCsi(form.id);
     const status = errorStatus(submit.error);
-    useClearDraftWhen(submit.isSuccess || status === CSI_HTTP_CONFLICT, userId, form.id);
+    useClearDraftWhen(submit.isSuccess || status === CSI_HTTP_CONFLICT || status === CSI_HTTP_GONE, userId, form.id);
 
     if (submit.isSuccess) {
         return <CsiStatusScreen tone="success" title={THANK_YOU_TITLE} message={submit.data.thankYou} backTo={basePath} />;
@@ -61,7 +61,7 @@ export function CsiSurveyPage() {
     const basePath = useCsiBasePath();
     const userId = useAuth((state) => state.user?.id ?? '');
     const { data: form, error, isLoading, refetch } = useCsiForm(id);
-    useClearDraftWhen(Boolean(form?.submitted), userId, id);
+    useClearDraftWhen(Boolean(form?.submitted) || errorStatus(error) === CSI_HTTP_GONE, userId, id);
 
     if (isLoading) return <SurveySkeleton />;
     if (error || !form) {

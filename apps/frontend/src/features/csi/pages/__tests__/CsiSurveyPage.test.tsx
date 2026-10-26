@@ -128,6 +128,23 @@ describe('CsiSurveyPage', () => {
         expect(await screen.findByText('Periode penilaian sudah berakhir')).toBeInTheDocument();
     });
 
+    it('clears local draft on 410 at submit', async () => {
+        vi.mocked(CsiApi.submit).mockRejectedValue(httpError(410));
+        const user = userEvent.setup();
+        renderPage();
+        await fillAndSubmit(user);
+        expect(await screen.findByText('Periode penilaian sudah berakhir')).toBeInTheDocument();
+        await waitFor(() => expect(localStorage.getItem(DRAFT_KEY)).toBeNull());
+    });
+
+    it('clears local draft when the form itself answers 410', async () => {
+        localStorage.setItem(DRAFT_KEY, STORED_DRAFT);
+        vi.mocked(CsiApi.form).mockRejectedValue(httpError(410));
+        renderPage();
+        expect(await screen.findByText('Periode penilaian sudah berakhir')).toBeInTheDocument();
+        await waitFor(() => expect(localStorage.getItem(DRAFT_KEY)).toBeNull());
+    });
+
     it('clears local draft on 409', async () => {
         vi.mocked(CsiApi.submit).mockRejectedValue(httpError(409));
         const user = userEvent.setup();
