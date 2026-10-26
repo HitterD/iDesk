@@ -166,7 +166,7 @@ export const BentoLayout = () => {
                             <main
                                 ref={mainRef}
                                 id="main-content"
-                                className="flex-1 overflow-y-auto px-3 pt-3 pb-24 lg:px-3.5 lg:pt-3.5 lg:pb-6 scroll-smooth scrollbar-custom print:h-auto print:overflow-visible print:p-0 print:m-0 print:block"
+                                className="flex-1 overflow-y-auto px-3 [--flow-gutter:0.75rem] pt-3 pb-24 lg:px-3.5 lg:pt-3.5 lg:pb-6 scroll-smooth scrollbar-custom print:h-auto print:overflow-visible print:p-0 print:m-0 print:block"
                             >
                                 {renderPage('w-full print:w-full print:block')}
                             </main>

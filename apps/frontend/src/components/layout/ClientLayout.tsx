@@ -141,7 +141,7 @@ export const ClientLayout: React.FC = () => {
                     </main>
                 ) : (
                     <div ref={scrollRef} id="main-scroll-container" className="flex-1 min-h-0 overflow-y-auto overflow-x-clip scroll-smooth scrollbar-custom flex flex-col print:h-auto print:overflow-visible print:p-0 print:m-0 print:block">
-                        <main id="main-content" className="flex-1 w-full max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 pt-5 pb-28 lg:pt-7 lg:pb-8 print:p-0 print:m-0 print:max-w-none print:w-full print:block">
+                        <main id="main-content" className="flex-1 w-full max-w-[1400px] xl:max-w-[1700px] 2xl:max-w-[1900px] mx-auto px-3.5 [--flow-gutter:0.875rem] sm:px-6 lg:px-8 xl:px-10 2xl:px-12 pt-5 pb-28 lg:pt-7 lg:pb-8 print:p-0 print:m-0 print:max-w-none print:w-full print:block">
                             <motion.div
                                 initial={justLoggedIn ? { opacity: 0, y: 16, scale: 0.98 } : false}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}

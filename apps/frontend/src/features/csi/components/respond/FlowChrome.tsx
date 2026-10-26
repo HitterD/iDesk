@@ -54,11 +54,13 @@ export function ScreenTransition({ screenKey, direction, children }: { screenKey
 /**
  * Action bar: sticky to the bottom of the scroll area on mobile, inline on desktop.
  * On the live page it sits above the fixed bottom nav (the layout already reserves `pb-28` for it).
+ * On mobile it bleeds to the edges by `--flow-gutter`, which each host sets to its own horizontal padding
+ * (unset = no bleed), so it never overflows a layout whose padding differs.
  */
 export function FlowFooter({ note, children }: { note?: ReactNode; children: ReactNode }) {
     const { aboveBottomNav } = useContext(FlowChromeContext);
     return (
-        <div className={cn('sticky z-20 -mx-3.5 border-t border-border/60 bg-background/90 px-3.5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl',
+        <div className={cn('sticky z-20 mx-[calc(-1*var(--flow-gutter,0px))] border-t border-border/60 bg-background/90 px-[var(--flow-gutter,0px)] pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl',
             'sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pb-2 sm:backdrop-blur-none',
             aboveBottomNav ? 'bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:bottom-0' : 'bottom-0')}>
             {note}
