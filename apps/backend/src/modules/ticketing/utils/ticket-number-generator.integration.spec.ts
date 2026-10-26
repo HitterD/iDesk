@@ -50,8 +50,12 @@ maybeDescribe('generateNextTicketNumber (integration, real Postgres)', () => {
 
     it('shares one sequence across divisions and ignores other days and malformed numbers', async () => {
         expect(await nextNumberWith([
-            ['231026-GEN-0009'], ['231026-ICT-0014'], ['221026-FIN-0099'], ['231026-OLD'], ['X231026-FIN-0500'],
+            ['231026-GEN-0009'], ['231026-ICT-0014'], ['221026-FIN-0099'], ['231026-OLD'], ['X231026-FIN-0500'], ['231026-FIN-'],
         ])).toBe('231026-FIN-0015');
+    });
+
+    it('counts legacy numbers whose division holds a space (regression: "261026-HC -0013 already exists")', async () => {
+        expect(await nextNumberWith([['231026-FIN-0012'], ['231026-HC -0013']])).toBe('231026-FIN-0014');
     });
 
     it('compares numerically past 9999', async () => {

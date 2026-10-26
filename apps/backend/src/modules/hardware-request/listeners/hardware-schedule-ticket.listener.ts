@@ -14,7 +14,7 @@ import { SlaClockService } from '../../ticketing/services/sla-clock.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { SiteActor } from '../../../shared/core/utils/site-scope.util';
 import { DEFAULT_TIMEZONE } from '../../sla-config/business-hours.calc';
-import { generateNextTicketNumber } from '../../ticketing/utils/ticket-number-generator';
+import { divisionCode, generateNextTicketNumber } from '../../ticketing/utils/ticket-number-generator';
 
 /** Schedule times are shown in WIB; the server clock runs in UTC. */
 const TIME_FORMAT: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', timeZone: DEFAULT_TIMEZONE };
@@ -110,9 +110,7 @@ export class HardwareScheduleTicketListener {
                 const messageRepo = manager.getRepository(TicketMessage);
                 const schedRepo = manager.getRepository(InstallationSchedule);
 
-                const division = requester?.department?.name
-                    ? requester.department.name.substring(0, 3).toUpperCase()
-                    : 'ICT';
+                const division = divisionCode(requester?.department?.name, 'ICT');
                 // Shared locked generator: the old inline copy missed soft-deleted tickets and collided ("already exists").
                 const ticketNumber = await generateNextTicketNumber(manager, division);
 

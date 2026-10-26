@@ -16,7 +16,7 @@ import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { CreateTicketDto } from '../dto/create-ticket.dto';
 import { resolveInitialHandlingTeam } from '../utils/oracle-ticket-access.util';
-import { generateNextTicketNumber } from '../utils/ticket-number-generator';
+import { divisionCode, generateNextTicketNumber } from '../utils/ticket-number-generator';
 import { SlaClockService } from './sla-clock.service';
 
 /** An external system that filed the ticket; (source, ref) is unique, so retries are idempotent. */
@@ -108,7 +108,7 @@ export class TicketCreateService {
             } as DeepPartial<Ticket>);
 
             const date = new Date();
-            const division = user.department?.name ? user.department.name.substring(0, 3).toUpperCase() : 'GEN';
+            const division = divisionCode(user.department?.name, 'GEN');
 
             // === Hardware Installation: Special Handling ===
             const isHardwareInstallation = createTicketDto.category === 'HARDWARE_INSTALLATION' ||
