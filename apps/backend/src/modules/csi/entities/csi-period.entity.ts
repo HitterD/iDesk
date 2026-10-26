@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { Site } from '../../sites/entities/site.entity';
-import { CsiRespondentMode } from '../csi.constants';
+import { CsiPeriodPublishStatus, CsiRespondentMode } from '../csi.constants';
 
 @Entity('csi_periods')
 @Index('IDX_csi_periods_scope_site_start', ['scope', 'siteId', 'startDate'])
@@ -36,6 +36,10 @@ export class CsiPeriod {
 
     @Column({ type: 'varchar', length: 10 })
     respondentMode: CsiRespondentMode;
+
+    // Named publishStatus so it never clobbers the computed time `status` in API responses.
+    @Column({ name: 'status', type: 'varchar', length: 10, default: CsiPeriodPublishStatus.PUBLISHED })
+    publishStatus: CsiPeriodPublishStatus;
 
     @Column({ type: 'uuid' })
     createdById: string;

@@ -5,8 +5,9 @@ import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { wibEndOfDate, wibStartOfDate } from '../../../shared/core/utils/wib-date.util';
 import { Site } from '../../sites/entities/site.entity';
 import { User } from '../../users/entities/user.entity';
-import { CsiRespondentMode } from '../csi.constants';
+import { CsiPeriodPublishStatus, CsiRespondentMode } from '../csi.constants';
 import { CreatePeriodDto, RateeAssignmentDto, UpdatePeriodDto } from '../dto/period.dto';
+import { CsiDepartment } from '../entities/csi-department.entity';
 import { CsiDimension } from '../entities/csi-dimension.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
@@ -23,12 +24,36 @@ const DEFAULT_RESPONDENT_MODE: Record<ServiceScope, CsiRespondentMode> = {
 };
 const LOCKED_MESSAGE = 'Periode sudah memiliki jawaban';
 const INACTIVE_USER_MESSAGE = 'Pengguna tidak ditemukan atau tidak aktif';
+const INCOMPLETE_MESSAGE = 'Survei belum lengkap';
+
+export type CsiReadinessKey = 'ratees' | 'dimensions' | 'departments' | 'raters';
+export type CsiReadiness = { ready: boolean; checks: Array<{ key: CsiReadinessKey; ok: boolean; label: string }> };
+const READINESS_LABELS: Record<CsiReadinessKey, string> = {
+    ratees: 'Minimal 1 orang dinilai',
+    dimensions: 'Setiap orang punya minimal 1 dimensi',
+    departments: 'Minimal 1 departemen aktif',
+    raters: 'Minimal 1 penilai (mode terdaftar)',
+};
 
 /** Period dates are inclusive WIB calendar days. */
 export function computeStatus(period: { startDate: string; endDate: string }, now: Date = new Date()): CsiPeriodStatus {
     if (now.getTime() < wibStartOfDate(period.startDate).getTime()) return 'UPCOMING';
     if (now.getTime() > wibEndOfDate(period.endDate).getTime()) return 'ENDED';
     return 'ACTIVE';
+}
+
+/** Publish prerequisites; the `raters` check only applies to LISTED periods. */
+export function computeReadiness(input: {
+    ratees: Array<{ dimensions: unknown[] }>; raterCount: number; respondentMode: CsiRespondentMode; activeDepartmentCount: number;
+}): CsiReadiness {
+    const results: Array<[CsiReadinessKey, boolean]> = [
+        ['ratees', input.ratees.length > 0],
+        ['dimensions', input.ratees.every((ratee) => ratee.dimensions.length > 0)],
+        ['departments', input.activeDepartmentCount > 0],
+        ...(input.respondentMode === CsiRespondentMode.LISTED ? [['raters', input.raterCount > 0] as [CsiReadinessKey, boolean]] : []),
+    ];
+    const checks = results.map(([key, ok]) => ({ key, ok, label: READINESS_LABELS[key] }));
+    return { ready: checks.every((check) => check.ok), checks };
 }
 
 const pickSite = (site?: Site | null) => site ? { id: site.id, code: site.code, name: site.name } : null;
@@ -46,6 +71,7 @@ export class CsiPeriodService {
         @InjectRepository(CsiDimension) private readonly dimensions: Repository<CsiDimension>,
         @InjectRepository(User) private readonly users: Repository<User>,
         @InjectRepository(Site) private readonly sites: Repository<Site>,
+        @InjectRepository(CsiDepartment) private readonly departments: Repository<CsiDepartment>,
         @InjectDataSource() private readonly dataSource: DataSource,
     ) { }
 
@@ -71,14 +97,38 @@ export class CsiPeriodService {
             select: { id: true, periodId: true, userId: true, user: { id: true, fullName: true, email: true, jobTitle: true } },
             order: { user: { fullName: 'ASC' } },
         });
+        const rateesWithDimensions = ratees.map((ratee) => ({
+            ...ratee,
+            dimensions: dimensions.filter((row) => row.periodRateeId === ratee.id).sort((a, b) => a.sortOrder - b.sortOrder),
+        }));
+        const activeDepartmentCount = await this.departments.count({ where: { scope: period.scope, isActive: true } });
         return {
             ...period, site: pickSite(period.site), status: computeStatus(period, now), locked: await this.isLocked(id),
-            ratees: ratees.map((ratee) => ({
-                ...ratee,
-                dimensions: dimensions.filter((row) => row.periodRateeId === ratee.id).sort((a, b) => a.sortOrder - b.sortOrder),
-            })),
+            ratees: rateesWithDimensions,
             raters,
+            readiness: computeReadiness({
+                ratees: rateesWithDimensions, raterCount: raters.length, respondentMode: period.respondentMode, activeDepartmentCount,
+            }),
         };
+    }
+
+    /** Re-computes readiness server-side; already published is a no-op. */
+    async publish(scope: ServiceScope, id: string) {
+        const detail = await this.get(scope, id);
+        if (detail.publishStatus === CsiPeriodPublishStatus.PUBLISHED) return detail;
+        if (!detail.readiness.ready) throw new BadRequestException(INCOMPLETE_MESSAGE);
+        await this.periods.update({ id, scope }, { publishStatus: CsiPeriodPublishStatus.PUBLISHED });
+        return this.get(scope, id);
+    }
+
+    /** Back to draft is only allowed before the first answer (same lock as assignment edits). */
+    async unpublish(scope: ServiceScope, id: string) {
+        await this.findInScope(scope, id);
+        await this.dataSource.transaction(async (manager) => {
+            await lockUnlockedPeriod(manager, id);
+            await manager.getRepository(CsiPeriod).update({ id, scope }, { publishStatus: CsiPeriodPublishStatus.DRAFT });
+        });
+        return this.get(scope, id);
     }
 
     async create(scope: ServiceScope, dto: CreatePeriodDto, actorId: string) {
@@ -100,6 +150,7 @@ export class CsiPeriodService {
                 thankYou: dto.thankYou ?? source?.thankYou ?? '',
                 startDate: dto.startDate, endDate: dto.endDate,
                 respondentMode: dto.respondentMode ?? source?.respondentMode ?? DEFAULT_RESPONDENT_MODE[scope],
+                publishStatus: CsiPeriodPublishStatus.DRAFT,
                 createdById: actorId,
             });
             await this.writeRatees(manager, saved.id, copied.ratees);

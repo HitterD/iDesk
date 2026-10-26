@@ -3,9 +3,10 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, LessThanOrEqual, MoreThanOrEqual, QueryFailedError, Repository } from 'typeorm';
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
 import { User } from '../../users/entities/user.entity';
-import { CSI_COMMENT_MAX, CSI_SCORE_MAX, CSI_SCORE_MIN, CsiRespondentMode } from '../csi.constants';
+import { CSI_COMMENT_MAX, CSI_SCORE_MAX, CSI_SCORE_MIN, CsiPeriodPublishStatus, CsiRespondentMode } from '../csi.constants';
 import { SubmitResponseDto } from '../dto/submit.dto';
 import { CsiDepartment } from '../entities/csi-department.entity';
+import { CsiDimension } from '../entities/csi-dimension.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
@@ -51,6 +52,7 @@ export class CsiRespondentService {
         @InjectRepository(CsiResponse) private readonly responses: Repository<CsiResponse>,
         @InjectRepository(CsiDepartment) private readonly departments: Repository<CsiDepartment>,
         @InjectRepository(User) private readonly users: Repository<User>,
+        @InjectRepository(CsiDimension) private readonly dimensions: Repository<CsiDimension>,
         @InjectDataSource() private readonly dataSource: DataSource,
     ) { }
 
@@ -64,7 +66,10 @@ export class CsiRespondentService {
         // Narrow to periods covering today's WIB date; computeStatus stays the authoritative check.
         const today = localDateKey(now, DEFAULT_TIMEZONE);
         const candidates = await this.periods.find({
-            where: { siteId: respondent.siteId, startDate: LessThanOrEqual(today), endDate: MoreThanOrEqual(today) },
+            where: {
+                siteId: respondent.siteId, publishStatus: CsiPeriodPublishStatus.PUBLISHED,
+                startDate: LessThanOrEqual(today), endDate: MoreThanOrEqual(today),
+            },
             order: { startDate: 'DESC' },
         });
         const result: Array<{ id: string; scope: CsiPeriod['scope']; title: string; submitted: boolean }> = [];
@@ -81,18 +86,22 @@ export class CsiRespondentService {
         if (await this.hasSubmitted(period.id, audience.respondent.id)) {
             return { submitted: true as const, title: period.title, thankYou: period.thankYou };
         }
-        const [departments, dimensions] = await Promise.all([
+        const [departments, dimensions, avatars] = await Promise.all([
             this.departments.find({ where: { scope: period.scope, isActive: true }, order: { sortOrder: 'ASC', name: 'ASC' } }),
             this.dimensionsOf(this.readers, audience.ratees),
+            this.avatarsOf(audience.ratees),
         ]);
+        const descriptions = await this.descriptionsOf(dimensions);
         return {
-            submitted: false as const, id: period.id, scope: period.scope, title: period.title, intro: period.intro,
+            submitted: false as const, id: period.id, scope: period.scope, title: period.title, intro: period.intro, endDate: period.endDate,
             respondent: { fullName: audience.respondent.fullName },
             departments: departments.map((department) => ({ id: department.id, name: department.name })),
             ratees: audience.ratees.map((ratee) => ({
                 periodRateeId: ratee.id, displayName: ratee.displayName, jobTitle: ratee.jobTitle,
-                dimensions: dimensions.filter((row) => row.periodRateeId === ratee.id)
-                    .map((row) => ({ periodRateeDimensionId: row.id, name: row.dimensionName })),
+                avatarUrl: avatars.get(ratee.userId) ?? null,
+                dimensions: dimensions.filter((row) => row.periodRateeId === ratee.id).map((row) => ({
+                    periodRateeDimensionId: row.id, name: row.dimensionName, description: descriptions.get(row.dimensionId) ?? null,
+                })),
             })),
         };
     }
@@ -144,9 +153,12 @@ export class CsiRespondentService {
         return user && user.isActive && user.siteId ? { id: user.id, fullName: user.fullName, siteId: user.siteId } : null;
     }
 
-    /** Site match, rater membership for LISTED mode, and at least one ratee other than the respondent. */
+    /**
+     * Published, site match, rater membership for LISTED mode, and at least one ratee other than the respondent.
+     * A draft period behaves exactly like a missing one; submit calls this with the locked row.
+     */
     private async audienceFor(readers: AssignmentReaders, respondent: Respondent, period: CsiPeriod): Promise<Audience | null> {
-        if (period.siteId !== respondent.siteId) return null;
+        if (period.publishStatus !== CsiPeriodPublishStatus.PUBLISHED || period.siteId !== respondent.siteId) return null;
         if (period.respondentMode !== CsiRespondentMode.OPEN) {
             const rater = await readers.periodRaters.findOne({ where: { periodId: period.id, userId: respondent.id } });
             if (!rater) return null;
@@ -160,6 +172,20 @@ export class CsiRespondentService {
         return readers.rateeDimensions.find({
             where: { periodRateeId: In(ratees.map((ratee) => ratee.id)) }, order: { sortOrder: 'ASC' },
         });
+    }
+
+    /** Current avatar per ratee user (one query); ratee rows only snapshot name and job title. */
+    private async avatarsOf(ratees: CsiPeriodRatee[]) {
+        const rows = await this.users.find({ where: { id: In([...new Set(ratees.map((ratee) => ratee.userId))]) }, select: { id: true, avatarUrl: true } });
+        return new Map(rows.map((user) => [user.id, user.avatarUrl ?? null]));
+    }
+
+    /** Current master description per dimension id (one query); a deleted master yields no entry. */
+    private async descriptionsOf(dimensions: CsiPeriodRateeDimension[]) {
+        const ids = [...new Set(dimensions.map((row) => row.dimensionId))];
+        if (!ids.length) return new Map<string, string | null>();
+        const rows = await this.dimensions.find({ where: { id: In(ids) }, select: { id: true, description: true } });
+        return new Map(rows.map((dimension) => [dimension.id, dimension.description ?? null]));
     }
 
     private async hasSubmitted(periodId: string, respondentId: string) {

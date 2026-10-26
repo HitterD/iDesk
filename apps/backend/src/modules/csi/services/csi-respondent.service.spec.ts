@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, GoneException, NotFoundException } from '@nestjs/common';
 import { LessThanOrEqual, MoreThanOrEqual, QueryFailedError } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CsiRespondentMode } from '../csi.constants';
+import { CsiPeriodPublishStatus, CsiRespondentMode } from '../csi.constants';
 import { CsiDepartment } from '../entities/csi-department.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
@@ -49,7 +49,7 @@ function memoryRepository<T extends Record<string, any>>(rows: T[] = []) {
 
 const period = (over: Partial<CsiPeriod> = {}) => ({
     id: 'p1', scope: ICT, siteId: 'site-a', title: 'CSI ICT Oktober', intro: 'Mohon diisi', thankYou: 'Terima kasih!',
-    startDate: '2026-10-01', endDate: '2026-10-31', respondentMode: CsiRespondentMode.OPEN, createdById: 'admin', ...over,
+    startDate: '2026-10-01', endDate: '2026-10-31', respondentMode: CsiRespondentMode.OPEN, publishStatus: CsiPeriodPublishStatus.PUBLISHED, createdById: 'admin', ...over,
 });
 
 describe('CsiRespondentService', () => {
@@ -60,6 +60,7 @@ describe('CsiRespondentService', () => {
     let responses: ReturnType<typeof memoryRepository>;
     let departments: ReturnType<typeof memoryRepository>;
     let users: ReturnType<typeof memoryRepository>;
+    let dimensions: ReturnType<typeof memoryRepository>;
     let txResponses: ReturnType<typeof memoryRepository>;
     let txRepos: Map<unknown, ReturnType<typeof memoryRepository>>;
     let injectedCallsInTxn: number;
@@ -93,6 +94,12 @@ describe('CsiRespondentService', () => {
             { id: 'other-site', fullName: 'Lain', siteId: 'site-b', isActive: true },
             { id: 'no-site', fullName: 'Tanpa Site', siteId: null, isActive: true },
             { id: 'inactive', fullName: 'Nonaktif', siteId: 'site-a', isActive: false },
+            { id: 'u1', fullName: 'Budi', siteId: 'site-a', isActive: true, avatarUrl: '/uploads/budi.png' },
+            { id: 'u2', fullName: 'Sari', siteId: 'site-a', isActive: true, avatarUrl: null },
+        ]);
+        dimensions = memoryRepository<any>([
+            { id: 'd1', scope: ICT, name: 'Responsif', description: 'Cepat menanggapi', isActive: true },
+            { id: 'd2', scope: ICT, name: 'Ramah', description: null, isActive: true },
         ]);
         txResponses = memoryRepository<any>(responses.rows);
         saved = [];
@@ -133,7 +140,7 @@ describe('CsiRespondentService', () => {
         }) };
         service = new CsiRespondentService(
             periods as any, ratees as any, rateeDimensions as any, periodRaters as any, responses as any,
-            departments as any, users as any, dataSource as any,
+            departments as any, users as any, dimensions as any, dataSource as any,
         );
     });
 
@@ -176,6 +183,18 @@ describe('CsiRespondentService', () => {
             expect(await service.listActive(me, NOW)).toEqual([]);
         });
 
+        it('draft period is not listed and getForm 404', async () => {
+            periods.rows[0] = period({ publishStatus: CsiPeriodPublishStatus.DRAFT });
+            expect(await service.listActive(me, NOW)).toEqual([]);
+            await expect(service.getForm(me, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
+        });
+
+        it('published period with no ratees is not listed', async () => {
+            ratees.rows.splice(0);
+            expect(await service.listActive(me, NOW)).toEqual([]);
+            await expect(service.getForm(me, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
+        });
+
         it('listActive returns eligible periods with submitted flag', async () => {
             periods.rows.push(period({ id: 'p-b', siteId: 'site-b' }));
             expect(await service.listActive(me, NOW)).toEqual([{ id: 'p1', scope: ICT, title: 'CSI ICT Oktober', submitted: false }]);
@@ -187,7 +206,10 @@ describe('CsiRespondentService', () => {
             periods.rows.push(period({ id: 'p-old', startDate: '2025-01-01', endDate: '2025-01-31' }));
             await service.listActive(me, NOW);
             expect(periods.find).toHaveBeenCalledWith(expect.objectContaining({
-                where: { siteId: 'site-a', startDate: LessThanOrEqual('2026-10-15'), endDate: MoreThanOrEqual('2026-10-15') },
+                where: {
+                    siteId: 'site-a', publishStatus: CsiPeriodPublishStatus.PUBLISHED,
+                    startDate: LessThanOrEqual('2026-10-15'), endDate: MoreThanOrEqual('2026-10-15'),
+                },
             }));
         });
 
@@ -204,16 +226,35 @@ describe('CsiRespondentService', () => {
         it('excludes self from ratees', async () => {
             const form: any = await service.getForm(me, 'p1', NOW);
             expect(form).toEqual({
-                submitted: false, id: 'p1', scope: ICT, title: 'CSI ICT Oktober', intro: 'Mohon diisi',
+                submitted: false, id: 'p1', scope: ICT, title: 'CSI ICT Oktober', intro: 'Mohon diisi', endDate: '2026-10-31',
                 respondent: { fullName: 'Andi Responden' },
                 departments: [{ id: 'dep1', name: 'Produksi' }],
                 ratees: [
-                    { periodRateeId: 'r1', displayName: 'Budi', jobTitle: 'Teknisi', dimensions: [
-                        { periodRateeDimensionId: 'rd1a', name: 'Responsif' }, { periodRateeDimensionId: 'rd1b', name: 'Ramah' },
+                    { periodRateeId: 'r1', displayName: 'Budi', jobTitle: 'Teknisi', avatarUrl: '/uploads/budi.png', dimensions: [
+                        { periodRateeDimensionId: 'rd1a', name: 'Responsif', description: 'Cepat menanggapi' },
+                        { periodRateeDimensionId: 'rd1b', name: 'Ramah', description: null },
                     ] },
-                    { periodRateeId: 'r2', displayName: 'Sari', jobTitle: null, dimensions: [{ periodRateeDimensionId: 'rd2a', name: 'Responsif' }] },
+                    { periodRateeId: 'r2', displayName: 'Sari', jobTitle: null, avatarUrl: null, dimensions: [
+                        { periodRateeDimensionId: 'rd2a', name: 'Responsif', description: 'Cepat menanggapi' },
+                    ] },
                 ],
             });
+        });
+
+        it('getForm includes endDate, avatarUrl and dimension description', async () => {
+            // Deleted master dimension or missing user degrade to null instead of failing the form.
+            dimensions.rows.splice(0, 1);
+            users.rows.splice(users.rows.findIndex((row) => row.id === 'u1'), 1);
+            const form: any = await service.getForm(me, 'p1', NOW);
+            expect(form.endDate).toBe('2026-10-31');
+            expect(form.ratees[0]).toMatchObject({ periodRateeId: 'r1', avatarUrl: null });
+            expect(form.ratees[0].dimensions).toEqual([
+                { periodRateeDimensionId: 'rd1a', name: 'Responsif', description: null },
+                { periodRateeDimensionId: 'rd1b', name: 'Ramah', description: null },
+            ]);
+            // One batched lookup each, not one query per ratee or dimension.
+            expect(dimensions.find).toHaveBeenCalledTimes(1);
+            expect(users.find).toHaveBeenCalledTimes(1);
         });
 
         it('returns thank-you state when already submitted', async () => {
@@ -287,6 +328,20 @@ describe('CsiRespondentService', () => {
         it('rethrows other database errors', async () => {
             manager.save.mockRejectedValueOnce(new QueryFailedError('INSERT', [], Object.assign(new Error('boom'), { code: '23503' })));
             await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toBeInstanceOf(QueryFailedError);
+        });
+
+        it('submit to draft period 404', async () => {
+            periods.rows[0] = period({ publishStatus: CsiPeriodPublishStatus.DRAFT });
+            await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toThrow(NOT_FOUND);
+            expect(manager.save).not.toHaveBeenCalled();
+        });
+
+        it('submit re-checks publishStatus on the locked row (unpublished concurrently)', async () => {
+            const builder = memoryRepository<any>(periods.rows).createQueryBuilder();
+            builder.getOne.mockImplementation(async () => ({ ...periods.rows[0], publishStatus: CsiPeriodPublishStatus.DRAFT }));
+            periods.createQueryBuilder.mockReturnValueOnce(builder);
+            await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toThrow(NOT_FOUND);
+            expect(manager.save).not.toHaveBeenCalled();
         });
 
         it('rejects submit after endDate', async () => {

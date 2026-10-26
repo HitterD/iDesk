@@ -1,12 +1,12 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CsiRespondentMode } from '../csi.constants';
+import { CsiPeriodPublishStatus, CsiRespondentMode } from '../csi.constants';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
-import { CsiPeriodService, computeStatus } from './csi-period.service';
+import { CsiPeriodService, computeReadiness, computeStatus } from './csi-period.service';
 
 const ICT = ServiceScope.ICT;
 const HC = ServiceScope.HC;
@@ -33,6 +33,10 @@ function memoryRepository<T extends Record<string, any>>(rows: T[] = []) {
         findOne: jest.fn(async (options: any = {}) => rows.find((row) => matches(row, options.where)) ?? null),
         count: jest.fn(async (options: any = {}) => rows.filter((row) => matches(row, options.where)).length),
         save: jest.fn(async (value: any) => ({ id: value.id ?? 'saved-id', ...value })),
+        update: jest.fn(async (where: any, patch: any) => {
+            rows.forEach((row, index) => { if (matches(row, where)) rows[index] = { ...row, ...patch }; });
+            return { affected: 1 };
+        }),
         delete: jest.fn().mockResolvedValue({ affected: 1 }),
         createQueryBuilder: jest.fn(() => {
             const builder: any = { params: {} };
@@ -69,7 +73,7 @@ function transactionManager(persist: (target: unknown, value: any) => void = () 
 const site = { id: 'site-a', code: 'SPJ', name: 'Sepanjang' };
 const basePeriod = (over: Partial<CsiPeriod> = {}): CsiPeriod => ({
     id: 'p1', scope: ICT, siteId: 'site-a', site: site as any, title: 'Q3', intro: 'Halo', thankYou: 'Terima kasih',
-    startDate: '2026-07-01', endDate: '2026-09-30', respondentMode: CsiRespondentMode.OPEN, createdById: 'admin',
+    startDate: '2026-07-01', endDate: '2026-09-30', respondentMode: CsiRespondentMode.OPEN, publishStatus: CsiPeriodPublishStatus.PUBLISHED, createdById: 'admin',
     createdAt: new Date(), updatedAt: new Date(), ...over,
 });
 
@@ -85,6 +89,34 @@ describe('computeStatus', () => {
     });
 });
 
+describe('computeReadiness', () => {
+    const complete = {
+        ratees: [{ dimensions: [{}] }], raterCount: 1, respondentMode: CsiRespondentMode.LISTED, activeDepartmentCount: 1,
+    };
+    const failing = (input: Parameters<typeof computeReadiness>[0]) =>
+        computeReadiness(input).checks.filter((check) => !check.ok).map((check) => check.key);
+
+    it('is ready when every check passes and uses the exact labels', () => {
+        expect(computeReadiness(complete)).toEqual({ ready: true, checks: [
+            { key: 'ratees', ok: true, label: 'Minimal 1 orang dinilai' },
+            { key: 'dimensions', ok: true, label: 'Setiap orang punya minimal 1 dimensi' },
+            { key: 'departments', ok: true, label: 'Minimal 1 departemen aktif' },
+            { key: 'raters', ok: true, label: 'Minimal 1 penilai (mode terdaftar)' },
+        ] });
+    });
+
+    it('flags missing ratees, empty dimensions, no departments, no raters for LISTED only', () => {
+        expect(failing({ ...complete, ratees: [] })).toEqual(['ratees']);
+        expect(failing({ ...complete, ratees: [{ dimensions: [{}] }, { dimensions: [] }] })).toEqual(['dimensions']);
+        expect(failing({ ...complete, activeDepartmentCount: 0 })).toEqual(['departments']);
+        expect(failing({ ...complete, raterCount: 0 })).toEqual(['raters']);
+        expect(computeReadiness({ ...complete, raterCount: 0 }).ready).toBe(false);
+        const open = computeReadiness({ ...complete, raterCount: 0, respondentMode: CsiRespondentMode.OPEN });
+        expect(open.ready).toBe(true);
+        expect(open.checks.map((check) => check.key)).toEqual(['ratees', 'dimensions', 'departments']);
+    });
+});
+
 describe('CsiPeriodService', () => {
     let periods: ReturnType<typeof memoryRepository>;
     let ratees: ReturnType<typeof memoryRepository>;
@@ -94,6 +126,7 @@ describe('CsiPeriodService', () => {
     let dimensions: ReturnType<typeof memoryRepository>;
     let users: ReturnType<typeof memoryRepository>;
     let sites: ReturnType<typeof memoryRepository>;
+    let departments: ReturnType<typeof memoryRepository>;
     let manager: ReturnType<typeof transactionManager>;
     let service: CsiPeriodService;
 
@@ -115,13 +148,17 @@ describe('CsiPeriodService', () => {
             { id: 'u-off', fullName: 'Nonaktif', jobTitle: 'X', isActive: false },
         ]);
         sites = memoryRepository<any>([site, { id: 'site-b', code: 'SMG', name: 'Semarang' }]);
+        departments = memoryRepository<any>([
+            { id: 'dep1', scope: ICT, name: 'Produksi', isActive: true },
+            { id: 'dep-off', scope: ICT, name: 'Lama', isActive: false },
+        ]);
         manager = transactionManager((target, value) => { if (target === CsiPeriod) periods.rows.push(value); });
         manager.repositories.set(CsiPeriod, periods);
         manager.repositories.set(CsiResponse, responses);
         const dataSource = { transaction: jest.fn(async (work: any) => work(manager)) };
         service = new CsiPeriodService(
             periods as any, ratees as any, rateeDimensions as any, periodRaters as any, responses as any,
-            dimensions as any, users as any, sites as any, dataSource as any,
+            dimensions as any, users as any, sites as any, departments as any, dataSource as any,
         );
     });
 
@@ -146,6 +183,11 @@ describe('CsiPeriodService', () => {
         it('allows same range for other scope', async () => {
             await service.create(HC, createDto({ startDate: '2026-07-01', endDate: '2026-09-30' }), 'admin');
             expect(savedPeriod()).toMatchObject({ scope: HC, siteId: 'site-a' });
+        });
+
+        it('create stores DRAFT', async () => {
+            await service.create(ICT, createDto({ startDate: '2026-11-01', endDate: '2026-11-30' }), 'admin');
+            expect(savedPeriod()).toMatchObject({ publishStatus: CsiPeriodPublishStatus.DRAFT });
         });
 
         it('rejects unknown site (400)', async () => {
@@ -361,6 +403,79 @@ describe('CsiPeriodService', () => {
             await expect(service.remove(HC, 'p1')).rejects.toBeInstanceOf(NotFoundException);
             await service.remove(ICT, 'p1');
             expect(periods.delete).toHaveBeenCalledWith({ id: 'p1', scope: ICT });
+        });
+    });
+    describe('publish', () => {
+        const draft = () => basePeriod({ publishStatus: CsiPeriodPublishStatus.DRAFT });
+        const withAssignment = () => {
+            ratees.rows.push({ id: 'r1', periodId: 'p1', userId: 'u1', displayName: 'Budi', jobTitle: null, sortOrder: 0 });
+            rateeDimensions.rows.push({ id: 'rd1', periodRateeId: 'r1', dimensionId: 'd1', dimensionName: 'Responsif', sortOrder: 0 });
+        };
+
+        it('get and list expose publishStatus next to the time status, and get exposes readiness', async () => {
+            periods.rows.push(draft());
+            const at = new Date('2026-08-01T10:00:00+07:00');
+            const detail = await service.get(ICT, 'p1', at);
+            expect(detail).toMatchObject({ status: 'ACTIVE', publishStatus: CsiPeriodPublishStatus.DRAFT, readiness: { ready: false } });
+            const [row] = await service.list(ICT, undefined, at);
+            expect(row).toMatchObject({ status: 'ACTIVE', publishStatus: CsiPeriodPublishStatus.DRAFT });
+        });
+
+        it('readiness counts only active departments of the period scope', async () => {
+            periods.rows.push(draft());
+            withAssignment();
+            departments.rows.splice(0, 1);
+            expect((await service.get(ICT, 'p1')).readiness.checks).toContainEqual(expect.objectContaining({ key: 'departments', ok: false }));
+            departments.rows.push({ id: 'dep-hc', scope: HC, name: 'HC', isActive: true });
+            expect((await service.get(ICT, 'p1')).readiness.ready).toBe(false);
+            departments.rows.push({ id: 'dep2', scope: ICT, name: 'Gudang', isActive: true });
+            expect((await service.get(ICT, 'p1')).readiness.ready).toBe(true);
+        });
+
+        it('publish rejects incomplete with 400', async () => {
+            periods.rows.push(draft());
+            await expect(service.publish(ICT, 'p1')).rejects.toThrow(new BadRequestException('Survei belum lengkap'));
+            expect(periods.update).not.toHaveBeenCalled();
+            expect(periods.rows[0].publishStatus).toBe(CsiPeriodPublishStatus.DRAFT);
+        });
+
+        it('publish sets PUBLISHED', async () => {
+            periods.rows.push(draft());
+            withAssignment();
+            const detail = await service.publish(ICT, 'p1');
+            expect(periods.update).toHaveBeenCalledWith({ id: 'p1', scope: ICT }, { publishStatus: CsiPeriodPublishStatus.PUBLISHED });
+            expect(detail.publishStatus).toBe(CsiPeriodPublishStatus.PUBLISHED);
+        });
+
+        it('publishing an already published period is a no-op', async () => {
+            periods.rows.push(basePeriod());
+            const detail = await service.publish(ICT, 'p1');
+            expect(detail.publishStatus).toBe(CsiPeriodPublishStatus.PUBLISHED);
+            expect(periods.update).not.toHaveBeenCalled();
+        });
+
+        it('publish rejects period of other scope (404)', async () => {
+            periods.rows.push(draft());
+            withAssignment();
+            await expect(service.publish(HC, 'p1')).rejects.toBeInstanceOf(NotFoundException);
+            await expect(service.unpublish(HC, 'p1')).rejects.toBeInstanceOf(NotFoundException);
+            expect(periods.update).not.toHaveBeenCalled();
+        });
+
+        it('unpublish rejects when answers exist (409)', async () => {
+            periods.rows.push(basePeriod());
+            responses.rows.push({ id: 'resp', periodId: 'p1' });
+            await expect(service.unpublish(ICT, 'p1')).rejects.toThrow(new ConflictException('Periode sudah memiliki jawaban'));
+            const builder = periods.createQueryBuilder.mock.results.at(-1)!.value;
+            expect(builder.setLock).toHaveBeenCalledWith('pessimistic_write');
+            expect(periods.update).not.toHaveBeenCalled();
+        });
+
+        it('unpublish sets DRAFT', async () => {
+            periods.rows.push(basePeriod());
+            const detail = await service.unpublish(ICT, 'p1');
+            expect(periods.update).toHaveBeenCalledWith({ id: 'p1', scope: ICT }, { publishStatus: CsiPeriodPublishStatus.DRAFT });
+            expect(detail.publishStatus).toBe(CsiPeriodPublishStatus.DRAFT);
         });
     });
 });

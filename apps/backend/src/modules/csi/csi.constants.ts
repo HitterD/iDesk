@@ -12,6 +12,12 @@ export enum CsiRespondentMode {
     LISTED = 'LISTED',
 }
 
+/** Admin-controlled visibility, independent of the date-based time status (UPCOMING/ACTIVE/ENDED). */
+export enum CsiPeriodPublishStatus {
+    DRAFT = 'DRAFT',
+    PUBLISHED = 'PUBLISHED',
+}
+
 export const CSI_ADMIN_PAGE_KEY: Record<ServiceScope, PageKey> = {
     ICT: 'csi_admin_ict',
     HC: 'csi_admin_hc',

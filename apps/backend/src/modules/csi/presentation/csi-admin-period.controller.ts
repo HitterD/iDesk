@@ -40,6 +40,16 @@ export class CsiAdminPeriodController {
         return this.periods.remove(req.csiScope, id);
     }
 
+    @Post(':id/publish')
+    publish(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string) {
+        return this.periods.publish(req.csiScope, id);
+    }
+
+    @Post(':id/unpublish')
+    unpublish(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string) {
+        return this.periods.unpublish(req.csiScope, id);
+    }
+
     @Put(':id/ratees')
     setRatees(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Body() dto: SetRateesDto) {
         return this.periods.setRatees(req.csiScope, id, dto.ratees);
