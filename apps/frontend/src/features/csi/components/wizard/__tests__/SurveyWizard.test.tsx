@@ -167,6 +167,41 @@ describe('SurveyWizard', () => {
         expect(props.onStepChange).toHaveBeenCalledWith('dimensions');
     });
 
+    it('stepper from a dirty valid info step saves first, then opens the chosen step', async () => {
+        const actor = userEvent.setup();
+        fx.update.mutate.mockImplementation((_vars, options) => options?.onSuccess?.(period({ title: 'Survei Q4 baru' })));
+        renderWizard('p1', 'info');
+        await actor.type(screen.getByLabelText('Judul'), ' baru');
+        await actor.click(stepper().getByRole('button', { name: /Departemen/ }));
+
+        expect(fx.update.mutate).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'p1', payload: expect.objectContaining({ title: 'Survei Q4 baru' }) }), expect.anything());
+        expect(props.onStepChange).toHaveBeenCalledWith('departments');
+    });
+
+    it("dirty but invalid info blocks the stepper and header with 'Simpan perubahan dulu'", async () => {
+        const actor = userEvent.setup();
+        renderWizard('p1', 'info');
+        await actor.clear(screen.getByLabelText('Judul'));
+
+        expect(screen.getByText('Simpan perubahan dulu')).toHaveAttribute('role', 'status');
+        expect(stepper().getByRole('button', { name: /Departemen/ })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Semua survei' })).toBeDisabled();
+        expect(fx.update.mutate).not.toHaveBeenCalled();
+    });
+
+    it("'Semua survei' from a dirty valid info step saves, then closes", async () => {
+        const actor = userEvent.setup();
+        fx.update.mutate.mockImplementation((_vars, options) => options?.onSuccess?.(period({ title: 'Survei Q4 baru' })));
+        renderWizard('p1', 'info');
+        await actor.type(screen.getByLabelText('Judul'), ' baru');
+        await actor.click(screen.getByRole('button', { name: 'Semua survei' }));
+
+        expect(fx.update.mutate).toHaveBeenCalled();
+        expect(props.onClose).toHaveBeenCalled();
+        expect(props.onStepChange).not.toHaveBeenCalled();
+    });
+
     it('locks the respondent mode once the survey has answers', () => {
         fx.period = period({ locked: true });
         renderWizard('p1', 'info');

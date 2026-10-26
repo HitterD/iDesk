@@ -7,7 +7,7 @@ import { WIZARD_COPY } from './wizardCopy';
 interface WizardFooterProps {
     showBack: boolean;
     showNext: boolean;
-    /** Unsaved ratee/rater edits: navigation waits for their own "Simpan". */
+    /** Unsaved ratee/rater edits, or info edits that cannot be saved yet: navigation waits. */
     blocked: boolean;
     nextDisabled: boolean;
     exitDisabled: boolean;

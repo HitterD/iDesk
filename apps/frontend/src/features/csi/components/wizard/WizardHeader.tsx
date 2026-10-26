@@ -22,15 +22,24 @@ function DeleteDraft({ scope, period, onDeleted }: { scope: CsiScopeParam; perio
     );
 }
 
-export function WizardHeader({ scope, period, onClose }: { scope: CsiScopeParam; period: CsiPeriodDetail | undefined; onClose: () => void }) {
+interface WizardHeaderProps {
+    scope: CsiScopeParam;
+    period: CsiPeriodDetail | undefined;
+    /** "Semua survei": the wizard saves dirty info first, so it is disabled while that cannot happen. */
+    onBack: () => void;
+    backDisabled: boolean;
+    onDeleted: () => void;
+}
+
+export function WizardHeader({ scope, period, onBack, backDisabled, onDeleted }: WizardHeaderProps) {
     return (
         <header className="grid gap-3">
-            <button type="button" onClick={onClose} className="idesk-text-link w-fit"><ArrowLeft aria-hidden="true" />Semua survei</button>
+            <button type="button" onClick={onBack} disabled={backDisabled} className="idesk-text-link w-fit disabled:cursor-not-allowed disabled:opacity-50"><ArrowLeft aria-hidden="true" />Semua survei</button>
             <div className="flex flex-wrap items-center gap-2">
                 <h2 className="min-w-0 text-[20px] font-bold tracking-tight">{period?.title || WIZARD_COPY.create}</h2>
                 {period && <PublishPill status={period.publishStatus} />}
                 <span className="flex-1" />
-                {period && period.publishStatus === 'DRAFT' && !period.locked && <DeleteDraft scope={scope} period={period} onDeleted={onClose} />}
+                {period && period.publishStatus === 'DRAFT' && !period.locked && <DeleteDraft scope={scope} period={period} onDeleted={onDeleted} />}
             </div>
         </header>
     );
