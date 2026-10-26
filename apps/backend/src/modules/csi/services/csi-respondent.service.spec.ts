@@ -51,7 +51,7 @@ function memoryRepository<T extends Record<string, any>>(rows: T[] = []) {
 
 const period = (over: Partial<CsiPeriod> = {}) => ({
     id: 'p1', scope: ICT, sites: [{ siteId: 'site-a' }] as CsiPeriod['sites'], title: 'CSI ICT Oktober', intro: 'Mohon diisi', thankYou: 'Terima kasih!',
-    startDate: '2026-10-01', endDate: '2026-10-31', respondentMode: CsiRespondentMode.OPEN, publishStatus: CsiPeriodPublishStatus.PUBLISHED, createdById: 'admin', ...over,
+    startDate: '2026-10-01', endDate: '2026-10-31', teamEnabled: false, individualEnabled: true, teamLabel: 'Tim IT Support', respondentMode: CsiRespondentMode.OPEN, publishStatus: CsiPeriodPublishStatus.PUBLISHED, createdById: 'admin', ...over,
 });
 
 describe('CsiRespondentService', () => {
@@ -74,16 +74,16 @@ describe('CsiRespondentService', () => {
     beforeEach(() => {
         periods = memoryRepository<any>([period()]);
         ratees = memoryRepository<any>([
-            { id: 'r-me', periodId: 'p1', userId: 'me', displayName: 'Saya', jobTitle: 'Staf', sortOrder: 0 },
-            { id: 'r1', periodId: 'p1', userId: 'u1', displayName: 'Budi', jobTitle: 'Teknisi', sortOrder: 1 },
-            { id: 'r2', periodId: 'p1', userId: 'u2', displayName: 'Sari', jobTitle: null, sortOrder: 2 },
+            { id: 'r-me', kind: 'PERSON', periodId: 'p1', userId: 'me', displayName: 'Saya', jobTitle: 'Staf', sortOrder: 0 },
+            { id: 'r1', kind: 'PERSON', periodId: 'p1', userId: 'u1', displayName: 'Budi', jobTitle: 'Teknisi', sortOrder: 1 },
+            { id: 'r2', kind: 'PERSON', periodId: 'p1', userId: 'u2', displayName: 'Sari', jobTitle: null, sortOrder: 2 },
         ]);
         rateeDimensions = memoryRepository<any>([
-            { id: 'rd-me', periodRateeId: 'r-me', dimensionId: 'd1', dimensionName: 'Responsif', sortOrder: 0 },
-            { id: 'rd1a', periodRateeId: 'r1', dimensionId: 'd1', dimensionName: 'Responsif', sortOrder: 0 },
-            { id: 'rd1b', periodRateeId: 'r1', dimensionId: 'd2', dimensionName: 'Ramah', sortOrder: 1 },
-            { id: 'rd2a', periodRateeId: 'r2', dimensionId: 'd1', dimensionName: 'Responsif', sortOrder: 0 },
-            { id: 'rd-other', periodRateeId: 'r-other', dimensionId: 'd1', dimensionName: 'Responsif', sortOrder: 0 },
+            { id: 'rd-me', periodRateeId: 'r-me', dimensionId: 'd1', dimensionName: 'Responsif', type: 'STAR', required: true, options: [], sortOrder: 0 },
+            { id: 'rd1a', periodRateeId: 'r1', dimensionId: 'd1', dimensionName: 'Responsif', type: 'STAR', required: true, options: [], sortOrder: 0 },
+            { id: 'rd1b', periodRateeId: 'r1', dimensionId: 'd2', dimensionName: 'Ramah', type: 'STAR', required: true, options: [], sortOrder: 1 },
+            { id: 'rd2a', periodRateeId: 'r2', dimensionId: 'd1', dimensionName: 'Responsif', type: 'STAR', required: true, options: [], sortOrder: 0 },
+            { id: 'rd-other', periodRateeId: 'r-other', dimensionId: 'd1', dimensionName: 'Responsif', type: 'STAR', required: true, options: [], sortOrder: 0 },
         ]);
         periodRaters = memoryRepository<any>([]);
         responses = memoryRepository<any>([]);
@@ -151,7 +151,7 @@ describe('CsiRespondentService', () => {
 
     const me = { id: 'me' };
     const fullItems = (score = 4) => ['rd1a', 'rd1b', 'rd2a'].map((periodRateeDimensionId) => ({ periodRateeDimensionId, score }));
-    const dto = (over: Record<string, any> = {}) => ({ departmentId: 'dep1', items: fullItems(), comments: [], ...over });
+    const dto = (over: Record<string, any> = {}) => ({ respondentName: 'Andi', departmentId: 'dep1', items: fullItems(), comments: [], ...over });
     const savedOf = (target: unknown) => saved.find((entry) => entry.target === target)?.value;
 
     describe('visibility', () => {
@@ -173,7 +173,7 @@ describe('CsiRespondentService', () => {
             await expect(service.getForm(me, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
             expect(await service.listActive(me, NOW)).toEqual([]);
             periodRaters.rows.push({ id: 'pr1', periodId: 'p1', userId: 'me' });
-            await expect(service.getForm(me, 'p1', NOW)).resolves.toMatchObject({ submitted: false, id: 'p1' });
+            await expect(service.getForm(me, 'p1', NOW)).resolves.toMatchObject({ id: 'p1' });
         });
 
         it('hides ended period', async () => {
@@ -203,7 +203,7 @@ describe('CsiRespondentService', () => {
         it('listActive returns eligible periods with submitted flag', async () => {
             periods.rows.push(period({ id: 'p-b', sites: [{ siteId: 'site-b' }] as CsiPeriod['sites'] }));
             expect(await service.listActive(me, NOW)).toEqual([{ id: 'p1', scope: ICT, title: 'CSI ICT Oktober', submitted: false }]);
-            responses.rows.push({ id: 'resp', periodId: 'p1', respondentId: 'me' });
+            responses.rows.push({ id: 'resp', periodId: 'p1', respondentId: 'me', respondentName: 'Andi' });
             expect(await service.listActive(me, NOW)).toEqual([{ id: 'p1', scope: ICT, title: 'CSI ICT Oktober', submitted: true }]);
         });
 
@@ -245,16 +245,16 @@ describe('CsiRespondentService', () => {
         it('excludes self from ratees', async () => {
             const form: any = await service.getForm(me, 'p1', NOW);
             expect(form).toEqual({
-                submitted: false, id: 'p1', scope: ICT, title: 'CSI ICT Oktober', intro: 'Mohon diisi', endDate: '2026-10-31',
-                respondent: { fullName: 'Andi Responden' },
+                id: 'p1', scope: ICT, title: 'CSI ICT Oktober', intro: 'Mohon diisi', endDate: '2026-10-31', teamLabel: 'Tim IT Support',
+                respondent: { fullName: 'Andi Responden' }, submittedNames: [],
                 departments: [{ id: 'dep1', name: 'Produksi' }],
                 ratees: [
-                    { periodRateeId: 'r1', displayName: 'Budi', jobTitle: 'Teknisi', avatarUrl: '/uploads/budi.png', dimensions: [
-                        { periodRateeDimensionId: 'rd1a', name: 'Responsif', description: 'Cepat menanggapi' },
-                        { periodRateeDimensionId: 'rd1b', name: 'Ramah', description: null },
+                    { periodRateeId: 'r1', kind: 'PERSON', displayName: 'Budi', jobTitle: 'Teknisi', avatarUrl: '/uploads/budi.png', dimensions: [
+                        { periodRateeDimensionId: 'rd1a', name: 'Responsif', description: 'Cepat menanggapi', type: 'STAR', required: true, options: [] },
+                        { periodRateeDimensionId: 'rd1b', name: 'Ramah', description: null, type: 'STAR', required: true, options: [] },
                     ] },
-                    { periodRateeId: 'r2', displayName: 'Sari', jobTitle: null, avatarUrl: null, dimensions: [
-                        { periodRateeDimensionId: 'rd2a', name: 'Responsif', description: 'Cepat menanggapi' },
+                    { periodRateeId: 'r2', kind: 'PERSON', displayName: 'Sari', jobTitle: null, avatarUrl: null, dimensions: [
+                        { periodRateeDimensionId: 'rd2a', name: 'Responsif', description: 'Cepat menanggapi', type: 'STAR', required: true, options: [] },
                     ] },
                 ],
             });
@@ -268,17 +268,73 @@ describe('CsiRespondentService', () => {
             expect(form.endDate).toBe('2026-10-31');
             expect(form.ratees[0]).toMatchObject({ periodRateeId: 'r1', avatarUrl: null });
             expect(form.ratees[0].dimensions).toEqual([
-                { periodRateeDimensionId: 'rd1a', name: 'Responsif', description: null },
-                { periodRateeDimensionId: 'rd1b', name: 'Ramah', description: null },
+                { periodRateeDimensionId: 'rd1a', name: 'Responsif', description: null, type: 'STAR', required: true, options: [] },
+                { periodRateeDimensionId: 'rd1b', name: 'Ramah', description: null, type: 'STAR', required: true, options: [] },
             ]);
             // One batched lookup each, not one query per ratee or dimension.
             expect(dimensions.find).toHaveBeenCalledTimes(1);
             expect(users.find).toHaveBeenCalledTimes(1);
         });
 
-        it('returns thank-you state when already submitted', async () => {
-            responses.rows.push({ id: 'resp', periodId: 'p1', respondentId: 'me' });
-            expect(await service.getForm(me, 'p1', NOW)).toEqual({ submitted: true, title: 'CSI ICT Oktober', thankYou: 'Terima kasih!' });
+        it('getForm returns submittedNames and TEAM first, never submitted:true', async () => {
+            periods.rows[0] = period({ teamEnabled: true });
+            ratees.rows.push({ id: 'r-team', kind: 'TEAM', periodId: 'p1', userId: null, displayName: 'Tim IT Support', jobTitle: null, sortOrder: -1 });
+            rateeDimensions.rows.push({ id: 'rd-team', periodRateeId: 'r-team', dimensionId: 'd1', dimensionName: 'Layanan', type: 'TEXT', required: false, options: [], sortOrder: 0 });
+            responses.rows.push({ id: 'a', periodId: 'p1', respondentId: 'me', respondentName: 'Andi', submittedAt: new Date(1) });
+            responses.rows.push({ id: 'b', periodId: 'p1', respondentId: 'me', respondentName: 'Rina', submittedAt: new Date(2) });
+            const form: any = await service.getForm(me, 'p1', NOW);
+            expect(form).not.toHaveProperty('submitted');
+            expect(form.submittedNames).toEqual(['Andi', 'Rina']);
+            expect(form.ratees.map((ratee: any) => [ratee.periodRateeId, ratee.kind])).toEqual([['r-team', 'TEAM'], ['r1', 'PERSON'], ['r2', 'PERSON']]);
+            expect(form.ratees[0].dimensions[0]).toMatchObject({ type: 'TEXT', required: false });
+        });
+    });
+
+    describe('section visibility and multi-site eligibility', () => {
+        const addTeam = () => {
+            ratees.rows.push({ id: 'r-team', kind: 'TEAM', periodId: 'p1', userId: null, displayName: 'Tim IT Support', jobTitle: null, sortOrder: -1 });
+            rateeDimensions.rows.push({ id: 'rd-team', periodRateeId: 'r-team', dimensionId: 'd1', dimensionName: 'Layanan', type: 'STAR', required: true, options: [], sortOrder: 0 });
+        };
+
+        it('respondent of second survey site is eligible', async () => {
+            periods.rows[0] = period({ sites: [{ siteId: 'site-b' }, { siteId: 'site-a' }] as CsiPeriod['sites'] });
+            await expect(service.getForm(me, 'p1', NOW)).resolves.toMatchObject({ id: 'p1' });
+            await expect(service.getForm({ id: 'other-site' }, 'p1', NOW)).resolves.toMatchObject({ id: 'p1' });
+        });
+
+        it('TEAM ratee visible to its own team members (never self-excluded)', async () => {
+            periods.rows[0] = period({ teamEnabled: true });
+            addTeam();
+            const form: any = await service.getForm(me, 'p1', NOW);
+            expect(form.ratees[0].periodRateeId).toBe('r-team');
+            expect(form.ratees.map((ratee: any) => ratee.periodRateeId)).not.toContain('r-me');
+        });
+
+        it('hides the TEAM ratee when teamEnabled is false (rows stay)', async () => {
+            addTeam();
+            const form: any = await service.getForm(me, 'p1', NOW);
+            expect(form.ratees.map((ratee: any) => ratee.periodRateeId)).toEqual(['r1', 'r2']);
+            await expect(service.submit(me, 'p1', dto({ items: [...fullItems(), { periodRateeDimensionId: 'rd-team', score: 3 }] }), NOW))
+                .rejects.toBeInstanceOf(BadRequestException);
+        });
+
+        it('hides PERSON ratees when individualEnabled is false; team-only period stays eligible', async () => {
+            periods.rows[0] = period({ teamEnabled: true, individualEnabled: false });
+            addTeam();
+            const form: any = await service.getForm(me, 'p1', NOW);
+            expect(form.ratees.map((ratee: any) => ratee.periodRateeId)).toEqual(['r-team']);
+            await expect(service.submit(me, 'p1', dto({ items: fullItems() }), NOW)).rejects.toBeInstanceOf(BadRequestException);
+            await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd-team', score: 4 }] }), NOW)).resolves.toMatchObject({ submitted: true });
+        });
+
+        it('period whose only enabled section has no visible ratees is not eligible', async () => {
+            periods.rows[0] = period({ teamEnabled: false, individualEnabled: false });
+            addTeam();
+            await expect(service.getForm(me, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
+            expect(await service.listActive(me, NOW)).toEqual([]);
+            periods.rows[0] = period({ teamEnabled: true, individualEnabled: false });
+            ratees.rows.splice(ratees.rows.findIndex((row) => row.id === 'r-team'), 1);
+            await expect(service.getForm(me, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
         });
     });
 
@@ -329,6 +385,88 @@ describe('CsiRespondentService', () => {
             expect(manager.save).not.toHaveBeenCalled();
         });
 
+        describe('typed answers', () => {
+            const SCALE_OPTIONS = [{ label: 'Buruk', points: 1 }, { label: 'Baik', points: 4 }];
+            const CHOICE_OPTIONS = [{ label: 'Telepon', points: null }, { label: 'Email', points: null }];
+            beforeEach(() => {
+                rateeDimensions.rows.push(
+                    { id: 'q-scale', periodRateeId: 'r2', dimensionId: 'd1', dimensionName: 'Skala', type: 'SCALE', required: true, options: SCALE_OPTIONS, sortOrder: 1 },
+                    { id: 'q-choice', periodRateeId: 'r2', dimensionId: 'd1', dimensionName: 'Kanal', type: 'CHOICE', required: false, options: CHOICE_OPTIONS, sortOrder: 2 },
+                    { id: 'q-text', periodRateeId: 'r2', dimensionId: 'd1', dimensionName: 'Catatan', type: 'TEXT', required: false, options: [], sortOrder: 3 },
+                );
+            });
+            const base = () => [...fullItems(), { periodRateeDimensionId: 'q-scale', optionIndex: 1 }];
+
+            it('STAR/SCALE/CHOICE/TEXT answers resolve to score/label/text', async () => {
+                await service.submit(me, 'p1', dto({ items: [
+                    ...base(), { periodRateeDimensionId: 'q-choice', optionIndex: 1 }, { periodRateeDimensionId: 'q-text', text: '  Bagus sekali  ' },
+                ] }), NOW);
+                const items = savedOf(CsiResponseItem);
+                const by = (id: string) => items.find((row: any) => row.periodRateeDimensionId === id);
+                expect(by('rd1a')).toMatchObject({ score: 4, answerLabel: null, answerText: null });
+                expect(by('q-scale')).toMatchObject({ score: 4, answerLabel: 'Baik', answerText: null });
+                expect(by('q-choice')).toMatchObject({ score: null, answerLabel: 'Email', answerText: null });
+                expect(by('q-text')).toMatchObject({ score: null, answerLabel: null, answerText: 'Bagus sekali' });
+            });
+
+            it('wrong answer field for type 400', async () => {
+                const bad = (extra: Array<Record<string, any>>) => service.submit(me, 'p1', dto({ items: [...fullItems(), ...extra] }), NOW);
+                const wrong = new BadRequestException('Jawaban tidak sesuai jenis pertanyaan ini');
+                await expect(bad([{ periodRateeDimensionId: 'q-scale', score: 3 }])).rejects.toThrow(wrong);
+                await expect(bad([{ periodRateeDimensionId: 'q-scale', optionIndex: 0, text: 'x' }])).rejects.toThrow(wrong);
+                await expect(bad([{ periodRateeDimensionId: 'q-scale', optionIndex: 0 }, { periodRateeDimensionId: 'q-choice', score: 2 }])).rejects.toThrow(wrong);
+                await expect(bad([{ periodRateeDimensionId: 'q-scale', optionIndex: 0 }, { periodRateeDimensionId: 'q-text', optionIndex: 0 }])).rejects.toThrow(wrong);
+                await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd1a', optionIndex: 0 }, ...fullItems().slice(1), ...base().slice(3)] }), NOW))
+                    .rejects.toThrow(wrong);
+                await expect(bad([{ periodRateeDimensionId: 'q-scale', optionIndex: 5 }])).rejects.toBeInstanceOf(BadRequestException);
+                expect(manager.save).not.toHaveBeenCalled();
+            });
+
+            it('optional question may be omitted; required may not', async () => {
+                await expect(service.submit(me, 'p1', dto({ items: base() }), NOW)).resolves.toMatchObject({ submitted: true });
+                saved.length = 0;
+                await expect(service.submit(me, 'p1', dto({ respondentName: 'Rina', items: fullItems() }), NOW))
+                    .rejects.toThrow(new BadRequestException('Semua pertanyaan wajib harus dijawab'));
+            });
+
+            it('optional TEXT given empty is dropped, not stored', async () => {
+                await service.submit(me, 'p1', dto({ items: [...base(), { periodRateeDimensionId: 'q-text', text: '   ' }] }), NOW);
+                expect(savedOf(CsiResponseItem).some((row: any) => row.periodRateeDimensionId === 'q-text')).toBe(false);
+            });
+
+            it('rejects TEXT longer than 1000 characters', async () => {
+                await expect(service.submit(me, 'p1', dto({ items: [...base(), { periodRateeDimensionId: 'q-text', text: 'x'.repeat(1001) }] }), NOW))
+                    .rejects.toBeInstanceOf(BadRequestException);
+            });
+        });
+
+        describe('respondent name', () => {
+            it('stores the trimmed, space-collapsed display name', async () => {
+                await service.submit(me, 'p1', dto({ respondentName: '  Rina   Sari ' }), NOW);
+                expect(savedOf(CsiResponse)).toMatchObject({ respondentName: 'Rina Sari' });
+            });
+
+            it('rejects names shorter than 2 or longer than 150 after trimming (400)', async () => {
+                await expect(service.submit(me, 'p1', dto({ respondentName: ' a ' }), NOW)).rejects.toBeInstanceOf(BadRequestException);
+                await expect(service.submit(me, 'p1', dto({ respondentName: 'x'.repeat(151) }), NOW)).rejects.toBeInstanceOf(BadRequestException);
+                await expect(service.submit(me, 'p1', dto({ respondentName: undefined }), NOW)).rejects.toBeInstanceOf(BadRequestException);
+            });
+
+            it('one response per normalised name', async () => {
+                txResponses.rows.push({ id: 'old', periodId: 'p1', respondentId: 'me', respondentName: 'Rina' });
+                const conflict = new ConflictException('Nama ini sudah mengisi survei ini');
+                await expect(service.submit(me, 'p1', dto({ respondentName: ' rina ' }), NOW)).rejects.toThrow(conflict);
+                await expect(service.submit(me, 'p1', dto({ respondentName: 'RINA' }), NOW)).rejects.toThrow(conflict);
+                expect(manager.save).not.toHaveBeenCalled();
+                await expect(service.submit(me, 'p1', dto({ respondentName: 'Budi' }), NOW)).resolves.toMatchObject({ submitted: true });
+            });
+
+            it('another account may reuse the same name', async () => {
+                txResponses.rows.push({ id: 'old', periodId: 'p1', respondentId: 'u1', respondentName: 'Rina' });
+                await expect(service.submit(me, 'p1', dto({ respondentName: 'Rina' }), NOW)).resolves.toMatchObject({ submitted: true });
+            });
+        });
+
         it('submit rejects inactive department (400)', async () => {
             await expect(service.submit(me, 'p1', dto({ departmentId: 'dep-off' }), NOW)).rejects.toBeInstanceOf(BadRequestException);
             await expect(service.submit(me, 'p1', dto({ departmentId: 'dep-hc' }), NOW)).rejects.toBeInstanceOf(BadRequestException);
@@ -345,8 +483,8 @@ describe('CsiRespondentService', () => {
         });
 
         it('submit rejects second submission (409)', async () => {
-            txResponses = memoryRepository<any>([{ id: 'resp', periodId: 'p1', respondentId: 'me' }]);
-            await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toThrow(new ConflictException('Anda sudah mengisi survei ini'));
+            txResponses = memoryRepository<any>([{ id: 'resp', periodId: 'p1', respondentId: 'me', respondentName: 'Andi' }]);
+            await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toThrow(new ConflictException('Nama ini sudah mengisi survei ini'));
             const builder = periods.createQueryBuilder.mock.results.at(-1)!.value;
             expect(builder.setLock).toHaveBeenCalledWith('pessimistic_read');
             expect(manager.save).not.toHaveBeenCalled();
@@ -354,7 +492,7 @@ describe('CsiRespondentService', () => {
 
         it('rejects concurrent duplicate via unique violation', async () => {
             manager.save.mockRejectedValueOnce(new QueryFailedError('INSERT', [], Object.assign(new Error('duplicate key'), { code: '23505' })));
-            await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toThrow(new ConflictException('Anda sudah mengisi survei ini'));
+            await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toThrow(new ConflictException('Nama ini sudah mengisi survei ini'));
         });
 
         it('rethrows other database errors', async () => {

@@ -21,7 +21,8 @@ const RESET_ENTITY_TYPE = 'csi_response';
 const PERCENT = 100;
 
 export type CsiActorRef = { id: string };
-export type CsiAnswerScore = { dimension: string; score: number };
+// Null for CHOICE/TEXT answers; Task 4 adds label/text to reports.
+export type CsiAnswerScore = { dimension: string; score: number | null };
 export type CsiAnswerRatee = { periodRateeId: string; displayName: string; jobTitle: string | null; comment: string | null; scores: CsiAnswerScore[] };
 export type CsiAnswer = { responseId: string; fullName: string; departmentName: string; submittedAt: Date; ratees: CsiAnswerRatee[] };
 type ItemReaders = { items: Repository<CsiResponseItem>; comments: Repository<CsiResponseComment> };

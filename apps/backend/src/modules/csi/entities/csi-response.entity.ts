@@ -4,7 +4,9 @@ import { CsiPeriod } from './csi-period.entity';
 import { CsiDepartment } from './csi-department.entity';
 
 @Entity('csi_responses')
-@Index('UQ_csi_responses_period_respondent', ['periodId', 'respondentId'], { unique: true })
+// Uniqueness (periodId, respondentId, lower(btrim(respondentName))) is an expression index that TypeORM
+// cannot declare; it lives in migration 1794020000000 (same pattern as csi_departments).
+@Index('UQ_csi_responses_period_respondent_name', { synchronize: false })
 export class CsiResponse {
     @PrimaryGeneratedColumn('uuid')
     id: string;
@@ -22,6 +24,10 @@ export class CsiResponse {
     @ManyToOne(() => User, { nullable: false })
     @JoinColumn({ name: 'respondentId' })
     respondent: User;
+
+    /** Display name typed by the respondent (trimmed, spaces collapsed). */
+    @Column({ type: 'varchar', length: 150 })
+    respondentName: string;
 
     @Column({ type: 'uuid' })
     departmentId: string;

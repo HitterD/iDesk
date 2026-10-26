@@ -32,8 +32,16 @@ export class CsiResponseItem {
     @JoinColumn({ name: 'periodRateeDimensionId' })
     periodRateeDimension: CsiPeriodRateeDimension;
 
-    @Column({ type: 'smallint' })
-    score: number;
+    /** Null for CHOICE and TEXT answers. */
+    @Column({ type: 'smallint', nullable: true })
+    score: number | null;
+
+    /** Snapshot of the chosen option label (SCALE/CHOICE). */
+    @Column({ type: 'varchar', length: 200, nullable: true })
+    answerLabel: string | null;
+
+    @Column({ type: 'varchar', length: 1000, nullable: true })
+    answerText: string | null;
 
     @CreateDateColumn()
     createdAt: Date;
