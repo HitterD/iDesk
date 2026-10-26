@@ -85,7 +85,11 @@ const withSites = (period: CsiPeriod) => ({
 /** TEAM first, then people by sortOrder (a legacy row without `kind` is a PERSON). */
 const teamFirst = (a: CsiPeriodRatee, b: CsiPeriodRatee) =>
     Number(b.kind === CsiRateeKind.TEAM) - Number(a.kind === CsiRateeKind.TEAM) || a.sortOrder - b.sortOrder;
-const sameIds = (a: string[], b: string[]) => a.length === b.length && a.every((id) => b.includes(id));
+/** Fields that become immutable once the period has answers (`siteIds` is compared separately). */
+const LOCKED_FIELDS = ['respondentMode', 'teamEnabled', 'individualEnabled', 'teamLabel'] as const;
+const changesLockedField = (period: Omit<CsiPeriod, 'sites'>, dto: UpdatePeriodDto) =>
+    LOCKED_FIELDS.some((field) => dto[field] !== undefined && dto[field] !== period[field]);
+const sameIds =(a: string[], b: string[]) => a.length === b.length && a.every((id) => b.includes(id));
 const assertSomeSection = (sections: { teamEnabled: boolean; individualEnabled: boolean }) => {
     if (!sections.teamEnabled && !sections.individualEnabled) throw new BadRequestException(NO_SECTION_MESSAGE);
 };
@@ -221,9 +225,10 @@ export class CsiPeriodService {
         const siteIds = requestedSiteIds ? await this.resolveSiteIds(requestedSiteIds) : currentSiteIds;
         await this.assertNoOverlap(scope, siteIds, next.startDate, next.endDate, id);
         const sitesChanged = !sameIds(siteIds, currentSiteIds);
-        if (sitesChanged || (dto.respondentMode !== undefined && dto.respondentMode !== period.respondentMode)) {
-            // Only texts and dates stay editable after the first answer. The exclusive row lock serialises this
-            // with respondent submits (FOR SHARE), so a first answer cannot commit between the check and the save.
+        if (sitesChanged || changesLockedField(period, dto)) {
+            // Sites, respondent mode, sections and team label are frozen after the first answer (title, texts, dates and
+            // the SLA target stay editable). The exclusive row lock serialises this with respondent submits (FOR SHARE),
+            // so a first answer cannot commit between the check and the save.
             await this.dataSource.transaction(async (manager) => {
                 await lockUnlockedPeriod(manager, id);
                 if (sitesChanged) {
@@ -231,12 +236,14 @@ export class CsiPeriodService {
                     await manager.save(CsiPeriodSite, siteIds.map((siteId) => ({ periodId: id, siteId })));
                 }
                 await manager.getRepository(CsiPeriod).save(next);
+                // The TEAM ratee's displayName snapshots the label; rename it in the same locked transaction.
+                if (dto.teamLabel !== undefined && dto.teamLabel !== period.teamLabel) {
+                    await manager.getRepository(CsiPeriodRatee).update({ periodId: id, kind: CsiRateeKind.TEAM }, { displayName: dto.teamLabel });
+                }
             });
         } else {
             await this.periods.save(next);
         }
-        // The TEAM ratee's displayName snapshots the label; keep it in step (idempotent, also allowed when locked).
-        if (dto.teamLabel !== undefined) await this.ratees.update({ periodId: id, kind: CsiRateeKind.TEAM }, { displayName: dto.teamLabel });
         return this.get(scope, id);
     }
 

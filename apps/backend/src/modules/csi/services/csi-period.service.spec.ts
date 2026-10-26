@@ -389,12 +389,53 @@ describe('CsiPeriodService', () => {
             expect(periods.save).toHaveBeenCalledWith(expect.objectContaining({ teamEnabled: true, individualEnabled: false }));
         });
 
-        it('teamLabel update renames TEAM ratee', async () => {
+        it('teamLabel update renames TEAM ratee inside the locked transaction', async () => {
+            const txRatees = memoryRepository<any>(ratees.rows);
+            const txPeriods = memoryRepository<any>(periods.rows);
+            manager.repositories.set(CsiPeriodRatee, txRatees);
+            manager.repositories.set(CsiPeriod, txPeriods);
             await service.update(ICT, 'p1', { teamLabel: 'Tim Helpdesk' });
-            expect(ratees.update).toHaveBeenCalledWith({ periodId: 'p1', kind: CsiRateeKind.TEAM }, { displayName: 'Tim Helpdesk' });
-            ratees.update.mockClear();
-            await service.update(ICT, 'p1', { title: 'Tanpa label' });
+            expect(txRatees.update).toHaveBeenCalledWith({ periodId: 'p1', kind: CsiRateeKind.TEAM }, { displayName: 'Tim Helpdesk' });
+            expect(txPeriods.createQueryBuilder.mock.results.at(-1)!.value.setLock).toHaveBeenCalledWith('pessimistic_write');
+            expect(txPeriods.save.mock.invocationCallOrder[0]).toBeLessThan(txRatees.update.mock.invocationCallOrder[0]);
             expect(ratees.update).not.toHaveBeenCalled();
+            expect(periods.save).not.toHaveBeenCalled();
+            await service.update(ICT, 'p1', { title: 'Tanpa label' });
+            expect(txRatees.update).toHaveBeenCalledTimes(1);
+        });
+
+        describe('immutable once the period has answers', () => {
+            beforeEach(() => responses.rows.push({ id: 'resp', periodId: 'p1' }));
+            const changes: Array<[string, Record<string, unknown>]> = [
+                ['siteIds', { siteIds: ['site-b'] }],
+                ['respondentMode', { respondentMode: CsiRespondentMode.LISTED }],
+                ['teamEnabled', { teamEnabled: true }],
+                ['individualEnabled', { individualEnabled: false, teamEnabled: true }],
+                ['teamLabel', { teamLabel: 'Tim Lain' }],
+            ];
+
+            it.each(changes)('rejects changing %s (409) without writing', async (_field, patch) => {
+                await expect(service.update(ICT, 'p1', patch)).rejects.toThrow(new ConflictException('Periode sudah memiliki jawaban'));
+                expect(periods.save).not.toHaveBeenCalled();
+                expect(manager.save).not.toHaveBeenCalled();
+                expect(ratees.update).not.toHaveBeenCalled();
+            });
+
+            it('accepts unchanged values for the immutable fields', async () => {
+                await service.update(ICT, 'p1', {
+                    siteIds: ['site-a'], respondentMode: CsiRespondentMode.OPEN, teamEnabled: false,
+                    individualEnabled: true, teamLabel: 'Tim IT Support', title: 'Baru',
+                });
+                expect(periods.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', title: 'Baru' }));
+                expect(ratees.update).not.toHaveBeenCalled();
+            });
+
+            it('keeps slaTargetPct, texts and dates editable', async () => {
+                await service.update(ICT, 'p1', { slaTargetPct: 90, title: 'T', intro: 'I', thankYou: 'K', endDate: '2026-09-20' });
+                expect(periods.save).toHaveBeenCalledWith(expect.objectContaining({
+                    id: 'p1', slaTargetPct: 90, title: 'T', intro: 'I', thankYou: 'K', endDate: '2026-09-20',
+                }));
+            });
         });
     });
 
