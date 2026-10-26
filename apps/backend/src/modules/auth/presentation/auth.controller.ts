@@ -178,7 +178,6 @@ export class AuthController {
     }
 
     @Post('forgot-password')
-    @Throttle({ default: AUTH_RATE_LIMIT })
     @HttpCode(200)
     @ApiOperation({ summary: 'Self-service password reset: emails a temporary password to the registered email (regular users only)' })
     @ApiResponse({ status: 200, description: 'Temporary password sent' })
