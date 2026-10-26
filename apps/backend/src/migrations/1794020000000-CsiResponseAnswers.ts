@@ -6,7 +6,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  */
 const UP = [
     `ALTER TABLE "csi_responses" ADD COLUMN IF NOT EXISTS "respondentName" varchar(150)`,
-    `UPDATE "csi_responses" r SET "respondentName" = u."fullName" FROM "users" u WHERE u."id" = r."respondentId" AND r."respondentName" IS NULL`,
+    `UPDATE "csi_responses" r SET "respondentName" = left(u."fullName", 150) FROM "users" u WHERE u."id" = r."respondentId" AND r."respondentName" IS NULL`,
     `ALTER TABLE "csi_responses" ALTER COLUMN "respondentName" SET NOT NULL`,
     `DROP INDEX IF EXISTS "UQ_csi_responses_period_respondent"`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "UQ_csi_responses_period_respondent_name" ON "csi_responses" ("periodId", "respondentId", lower(btrim("respondentName")))`,

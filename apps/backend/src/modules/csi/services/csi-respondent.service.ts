@@ -27,6 +27,7 @@ const NOT_FOUND_MESSAGE = 'Survei tidak ditemukan';
 const ENDED_MESSAGE = 'Periode penilaian sudah berakhir';
 const NAME_TAKEN_MESSAGE = 'Nama ini sudah mengisi survei ini';
 const WRONG_TYPE_MESSAGE = 'Jawaban tidak sesuai jenis pertanyaan ini';
+const OPTION_POINTS_MESSAGE = 'Pilihan tidak memiliki nilai yang valid';
 const REQUIRED_MESSAGE = 'Semua pertanyaan wajib harus dijawab';
 const NAME_LENGTH_MESSAGE = `Nama harus ${CSI_RESPONDENT_NAME_MIN}–${CSI_RESPONDENT_NAME_MAX} karakter`;
 const PG_UNIQUE_VIOLATION = '23505';
@@ -88,7 +89,7 @@ export class CsiRespondentService {
         const result: Array<{ id: string; scope: CsiPeriod['scope']; title: string; submitted: boolean }> = [];
         for (const period of candidates) {
             if (computeStatus(period, now) !== 'ACTIVE' || !(await this.audienceFor(this.readers, respondent, period))) continue;
-            result.push({ id: period.id, scope: period.scope, title: period.title, submitted: (await this.submittedNames(period.id, respondent.id)).length > 0 });
+            result.push({ id: period.id, scope: period.scope, title: period.title, submitted: await this.hasSubmitted(period.id, respondent.id) });
         }
         return result;
     }
@@ -212,6 +213,11 @@ export class CsiRespondentService {
         return new Map(rows.map((dimension) => [dimension.id, dimension.description ?? null]));
     }
 
+    /** True when the account has at least one response for the period (count only, no rows loaded). */
+    private async hasSubmitted(periodId: string, respondentId: string) {
+        return (await this.responses.count({ where: { periodId, respondentId } })) > 0;
+    }
+
     /** Display names this account already answered the period with, oldest first. */
     private async submittedNames(periodId: string, respondentId: string): Promise<string[]> {
         const rows = await this.responses.find({ where: { periodId, respondentId }, order: { submittedAt: 'ASC' } });
@@ -277,7 +283,10 @@ function resolveAnswer(dimension: CsiPeriodRateeDimension, item: SubmitResponseD
             const option = Number.isInteger(optionIndex) ? (dimension.options ?? [])[optionIndex!] : undefined;
             if (!option) throw new BadRequestException('Pilihan jawaban tidak valid');
             const answerLabel = option.label.slice(0, CSI_OPTION_LABEL_MAX);
-            return dimension.type === CsiQuestionType.SCALE ? { ...base, score: option.points, answerLabel } : { ...base, answerLabel };
+            if (dimension.type === CsiQuestionType.CHOICE) return { ...base, answerLabel };
+            const points = option.points;
+            if (!Number.isInteger(points) || points! < CSI_SCORE_MIN || points! > CSI_SCORE_MAX) throw new BadRequestException(OPTION_POINTS_MESSAGE);
+            return { ...base, score: points, answerLabel };
         }
         case CsiQuestionType.TEXT: {
             if (has(score) || has(optionIndex) || typeof text !== 'string') throw new BadRequestException(WRONG_TYPE_MESSAGE);

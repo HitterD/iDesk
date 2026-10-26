@@ -20,7 +20,7 @@ describe('CsiResponseAnswers1794020000000', () => {
     it('backfills respondentName and swaps unique index', async () => {
         await migration.up(queryRunner);
         const addColumn = indexOf(/ALTER TABLE "csi_responses" ADD COLUMN IF NOT EXISTS "respondentName" varchar\(150\)/);
-        const backfill = indexOf(/UPDATE "csi_responses" r SET "respondentName" = u."fullName" FROM "users" u WHERE u."id" = r."respondentId"/);
+        const backfill = indexOf(/UPDATE "csi_responses" r SET "respondentName" = left\(u."fullName", 150\) FROM "users" u WHERE u."id" = r."respondentId"/);
         const notNull = indexOf(/ALTER TABLE "csi_responses" ALTER COLUMN "respondentName" SET NOT NULL/);
         const dropOld = indexOf(/DROP INDEX IF EXISTS "UQ_csi_responses_period_respondent"/);
         const createNew = indexOf(/CREATE UNIQUE INDEX IF NOT EXISTS "UQ_csi_responses_period_respondent_name" ON "csi_responses" \("periodId", "respondentId", lower\(btrim\("respondentName"\)\)\)/);

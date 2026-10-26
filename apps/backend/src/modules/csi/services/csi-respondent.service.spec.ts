@@ -205,6 +205,9 @@ describe('CsiRespondentService', () => {
             expect(await service.listActive(me, NOW)).toEqual([{ id: 'p1', scope: ICT, title: 'CSI ICT Oktober', submitted: false }]);
             responses.rows.push({ id: 'resp', periodId: 'p1', respondentId: 'me', respondentName: 'Andi' });
             expect(await service.listActive(me, NOW)).toEqual([{ id: 'p1', scope: ICT, title: 'CSI ICT Oktober', submitted: true }]);
+            // submitted comes from a count, not from loading response rows.
+            expect(responses.find).not.toHaveBeenCalled();
+            expect(responses.count).toHaveBeenCalled();
         });
 
         it('listActive only loads periods whose date range covers the WIB date of today', async () => {
@@ -419,6 +422,15 @@ describe('CsiRespondentService', () => {
                 await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd1a', optionIndex: 0 }, ...fullItems().slice(1), ...base().slice(3)] }), NOW))
                     .rejects.toThrow(wrong);
                 await expect(bad([{ periodRateeDimensionId: 'q-scale', optionIndex: 5 }])).rejects.toBeInstanceOf(BadRequestException);
+                expect(manager.save).not.toHaveBeenCalled();
+            });
+
+            it('SCALE option with null or out-of-range points fails with a clear 400', async () => {
+                const options = rateeDimensions.rows.find((row) => row.id === 'q-scale')!.options;
+                options.push({ label: 'Rusak', points: null }, { label: 'Tinggi', points: 9 });
+                const poorly = new BadRequestException('Pilihan tidak memiliki nilai yang valid');
+                await expect(service.submit(me, 'p1', dto({ items: [...fullItems(), { periodRateeDimensionId: 'q-scale', optionIndex: 2 }] }), NOW)).rejects.toThrow(poorly);
+                await expect(service.submit(me, 'p1', dto({ items: [...fullItems(), { periodRateeDimensionId: 'q-scale', optionIndex: 3 }] }), NOW)).rejects.toThrow(poorly);
                 expect(manager.save).not.toHaveBeenCalled();
             });
 
