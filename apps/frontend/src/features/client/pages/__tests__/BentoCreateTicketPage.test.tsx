@@ -177,6 +177,35 @@ describe('BentoCreateTicketPage forms', () => {
         expect(screen.getByRole('button', { name: 'Kategori' })).toHaveTextContent('Software');
     });
 
+    it('asks before a template replaces text the user typed', () => {
+        renderPage('/client/create?type=service');
+        fireEvent.change(document.getElementById('service-ticket-title')!, { target: { value: 'Judul saya sendiri' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Email Issue' }));
+
+        expect(screen.getByRole('alertdialog', { name: /ganti isi dengan template/i })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Batal' }));
+        expect(document.getElementById('service-ticket-title')).toHaveValue('Judul saya sendiri');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Email Issue' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Ganti isi' }));
+        expect(document.getElementById('service-ticket-title')).toHaveValue('Email tidak bisa diakses');
+    });
+
+    it('confirms in an app dialog before leaving a filled form', () => {
+        renderPage('/client/create?type=service');
+        fireEvent.change(document.getElementById('service-ticket-title')!, { target: { value: 'Printer macet' } });
+        fireEvent.click(screen.getByRole('button', { name: /ganti jenis tiket/i }));
+
+        const dialog = screen.getByRole('alertdialog', { name: /yakin ingin kembali/i });
+        expect(dialog).toHaveTextContent(/masih tersimpan sebagai draft/i);
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Tetap di sini' }));
+        expect(document.getElementById('service-ticket-title')).toHaveValue('Printer macet');
+
+        fireEvent.click(screen.getByRole('button', { name: /ganti jenis tiket/i }));
+        fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Kembali' }));
+        expect(document.getElementById('service-ticket-title')).toBeNull();
+    });
+
     it('updates the title and description counters', () => {
         renderPage('/client/create?type=service');
         fireEvent.change(document.getElementById('service-ticket-title')!, { target: { value: 'Printer macet' } });
