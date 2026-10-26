@@ -11,8 +11,8 @@ describe('BentoLoginPage smoke', () => {
       </MemoryRouter>
     );
     expect(screen.getByPlaceholderText(/nik atau email/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/•+/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /continue|sign in|authenticate/i })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/masukkan password/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^masuk$/i })).toBeInTheDocument();
   });
 
   it('renders only the first two background slides, as compressed WebP', () => {
