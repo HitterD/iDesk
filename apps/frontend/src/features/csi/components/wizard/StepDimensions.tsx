@@ -6,7 +6,7 @@ import { WIZARD_COPY } from './wizardCopy';
 export function StepDimensions({ scope }: { scope: CsiScopeParam }) {
     return (
         <StepMaster title="Dimensi" note={WIZARD_COPY.dimensionsNote}>
-            <DimensionsTab scope={scope} compact />
+            <DimensionsTab scope={scope} />
         </StepMaster>
     );
 }

@@ -7,7 +7,7 @@ import { RatersTab } from './RatersTab';
 
 type MasterTab = 'dimensions' | 'departments' | 'raters';
 const MASTER_TABS = [
-    { value: 'dimensions', label: 'Dimensi' },
+    { value: 'dimensions', label: 'Pertanyaan' },
     { value: 'departments', label: 'Departemen' },
     { value: 'raters', label: 'Penilai' },
 ] as const;

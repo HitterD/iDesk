@@ -41,7 +41,8 @@ export const CsiApi = {
         return (await api.post<CsiDimension>(`${adminPath(scope)}/dimensions`, payload)).data;
     },
     async updateDimension(scope: CsiScopeParam, id: string, payload: UpdateCsiDimension): Promise<CsiDimension> {
-        return (await api.patch<CsiDimension>(itemPath(scope, 'dimensions', id), payload)).data;
+        // Inline autosave renders its own error text next to the field, so no toast.
+        return (await api.patch<CsiDimension>(itemPath(scope, 'dimensions', id), payload, { skipToast: true })).data;
     },
     async deactivateDimension(scope: CsiScopeParam, id: string): Promise<CsiDimension> {
         return (await api.delete<CsiDimension>(itemPath(scope, 'dimensions', id))).data;
@@ -59,7 +60,8 @@ export const CsiApi = {
         return (await api.post<CsiDepartment>(`${adminPath(scope)}/departments`, payload)).data;
     },
     async updateDepartment(scope: CsiScopeParam, id: string, payload: UpdateCsiDepartment): Promise<CsiDepartment> {
-        return (await api.patch<CsiDepartment>(itemPath(scope, 'departments', id), payload)).data;
+        // Inline autosave renders its own error text next to the field, so no toast.
+        return (await api.patch<CsiDepartment>(itemPath(scope, 'departments', id), payload, { skipToast: true })).data;
     },
     async deactivateDepartment(scope: CsiScopeParam, id: string): Promise<CsiDepartment> {
         return (await api.delete<CsiDepartment>(itemPath(scope, 'departments', id))).data;

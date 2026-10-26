@@ -50,6 +50,13 @@ export const CSI_TITLE_MAX = 150;
 export const CSI_TEXT_MAX = 2000;
 export const CSI_NAME_MAX = 100;
 export const CSI_DESCRIPTION_MAX = 300;
+/** Mirrors backend question DTO / constants bounds. */
+export const CSI_QUESTION_MAX = 300;
+export const CSI_OPTION_LABEL_MAX = 200;
+export const CSI_OPTIONS_MIN = 2;
+export const CSI_OPTIONS_MAX = 10;
+export const CSI_SCORE_MIN = 1;
+export const CSI_SCORE_MAX = 5;
 
 export const CSI_LOCKED_NOTE = 'Terkunci karena sudah ada jawaban';
 export const CSI_SEARCH_DEBOUNCE_MS = 300;
