@@ -1,5 +1,8 @@
 import type { NavigateFunction } from 'react-router-dom';
-import { Box, Code2, Smartphone, Ticket } from 'lucide-react';
+import {
+    Box, Bug, Code2, Gauge, KeyRound, LayoutTemplate, Mail, PlugZap, Printer, RefreshCw, Rocket, Smartphone, Ticket,
+    TriangleAlert, UserCog, WifiOff, Zap, BellOff, type LucideIcon,
+} from 'lucide-react';
 
 export type TicketType = 'none' | 'service' | 'oracle-request' | 'web-dev-request' | 'mobile-dev-request';
 export type FormTicketType = Exclude<TicketType, 'none'>;
@@ -54,6 +57,28 @@ const QUICK_TEMPLATES: readonly TicketTemplate[] = [
     { label: 'Software Error', category: 'SOFTWARE', priority: 'CRITICAL', subject: 'Error sistem saat input data', description: 'Proses berhenti karena error. Nama sistem: ' },
     { label: 'Login Issue', category: 'GENERAL', priority: 'MEDIUM', subject: 'Password terkunci', description: 'Gagal login berkali-kali. Mohon dibantu reset. Username: ' },
 ];
+
+/** Each quick template gets a glyph so the chips read as actions, not passive tags. */
+const TEMPLATE_ICONS: Record<string, LucideIcon> = {
+    'Email Issue': Mail,
+    'Printer Fault': Printer,
+    'Slow System': Gauge,
+    'No Network': WifiOff,
+    'Software Error': TriangleAlert,
+    'Login Issue': KeyRound,
+    'Role Update': UserCog,
+    'System Error': TriangleAlert,
+    'UI Bug': Bug,
+    'API Error': PlugZap,
+    'Fitur Baru': Rocket,
+    'Slow Web': Zap,
+    'App Crash': Bug,
+    'Release Issue': Rocket,
+    'Sync Error': RefreshCw,
+    'Push Notif': BellOff,
+};
+
+export const templateIcon = (template: TicketTemplate): LucideIcon => TEMPLATE_ICONS[template.label] ?? LayoutTemplate;
 
 /** Built-in service categories, listed before the attribute-sourced ones (unchanged values). */
 export const BASE_CATEGORY_OPTIONS = [

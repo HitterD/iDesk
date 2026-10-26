@@ -1,8 +1,8 @@
 import type { ReactNode, ElementType } from 'react';
-import { AlertCircle, ArrowLeft, CircleCheck, Send } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, CircleCheck, Send, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PriorityHoverTip } from '@/components/ui/PriorityHoverTip';
-import { PRIORITY_OPTIONS, type FormTone, type TicketTemplate } from './createTicketConfig';
+import { PRIORITY_OPTIONS, templateIcon, type FormTone, type TicketTemplate } from './createTicketConfig';
 import { DESCRIPTION_MIN, FIELD_LABEL, TITLE_MAX, TITLE_MIN, type TicketField } from './createTicketValidation';
 
 /** Restarts the field's nudge on every rejected submit: the two names alternate so the animation replays. */
@@ -38,16 +38,19 @@ export function TicketFormHeader({ title, subtitle, icon: Icon, tone, onBack }: 
     title: string; subtitle: string; icon: ElementType; tone: FormTone; onBack: () => void;
 }) {
     return (
-        <header className="ct-form-head">
-            <button type="button" onClick={onBack} aria-label="Kembali ke pilihan jenis tiket" className="ct-back">
+        <>
+            <button type="button" onClick={onBack} className="ct-back-link">
                 <ArrowLeft aria-hidden="true" />
+                <span>Ganti jenis tiket</span>
             </button>
-            <span className="nav-tile ct-tile" data-tone={tone}><Icon aria-hidden="true" /></span>
-            <div className="min-w-0 flex-1">
-                <h1>{title}</h1>
-                <p>{subtitle}</p>
-            </div>
-        </header>
+            <header className="ct-form-head">
+                <span className="nav-tile ct-tile" data-tone={tone}><Icon aria-hidden="true" /></span>
+                <div className="min-w-0 flex-1">
+                    <h1>{title}</h1>
+                    <p>{subtitle}</p>
+                </div>
+            </header>
+        </>
     );
 }
 
@@ -55,14 +58,25 @@ export function TemplateChips({ templates, selected, onPick }: {
     templates: readonly TicketTemplate[]; selected: string | null; onPick: (template: TicketTemplate) => void;
 }) {
     return (
-        <div className="ct-templates" role="group" aria-label="Template cepat">
-            <span className="ct-templates-label">Mulai dari template:</span>
-            {templates.map(tpl => (
-                <button key={tpl.label} type="button" className="ct-chip" aria-pressed={selected === tpl.label} onClick={() => onPick(tpl)}>
-                    {tpl.label}
-                </button>
-            ))}
-        </div>
+        <section className="ct-templates" aria-labelledby="ct-templates-label">
+            <p className="ct-templates-label" id="ct-templates-label">
+                <Sparkles aria-hidden="true" />
+                <span><strong>Pilih template</strong> untuk mengisi judul &amp; detail otomatis</span>
+            </p>
+            <div className="ct-templates-list" role="group" aria-labelledby="ct-templates-label">
+                {templates.map(tpl => {
+                    const active = selected === tpl.label;
+                    const Icon = active ? Check : templateIcon(tpl);
+                    return (
+                        <button key={tpl.label} type="button" className="ct-chip" aria-pressed={active} onClick={() => onPick(tpl)}
+                            title={tpl.subject}>
+                            <Icon aria-hidden="true" />
+                            {tpl.label}
+                        </button>
+                    );
+                })}
+            </div>
+        </section>
     );
 }
 

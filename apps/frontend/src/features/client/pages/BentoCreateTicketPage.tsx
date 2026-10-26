@@ -15,6 +15,7 @@ import {
     validateAttachmentFile,
 } from '@/lib/file-validation';
 import { RequesterSelector } from '../components/RequesterSelector';
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import {
     BASE_CATEGORY_OPTIONS,
     REQUEST_CARDS,
@@ -114,6 +115,8 @@ export const BentoCreateTicketPage: React.FC = () => {
     });
 
     const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+    const [confirmLeave, setConfirmLeave] = useState(false);
+    const [pendingTemplate, setPendingTemplate] = useState<TicketTemplate | null>(null);
     const [catalogQuery, setCatalogQuery] = useState('');
     const [errors, setErrors] = useState<TicketFormErrors>({});
     // Rejected submits so far: makes empty required fields count as errors and replays the field nudge.
@@ -535,34 +538,50 @@ export const BentoCreateTicketPage: React.FC = () => {
         return (roleDefaults[userRole] || roleDefaults['USER']).includes(pageKey);
     }, [user?.role, myPermissions?.pageAccess]);
 
-    const handleBack = useCallback(() => {
-        const hasDirtyForm = Boolean(formData.title.trim() || formData.description.trim() || formData.category || formData.device || formData.software || formData.criticalReason || files.length > 0);
-        if (ticketType !== 'none' && hasDirtyForm) {
-            const ok = window.confirm('Perubahan belum disimpan. Yakin ingin kembali? Draft akan tetap tersimpan.');
-            if (!ok) return;
-        }
+    const hasDirtyForm = Boolean(formData.title.trim() || formData.description.trim() || formData.category || formData.device || formData.software || formData.criticalReason || files.length > 0);
+
+    const leaveForm = useCallback(() => {
+        setConfirmLeave(false);
         if (ticketType !== 'none') {
             setTicketType('none');
         } else {
             navigate(-1);
         }
-    }, [ticketType, formData.title, formData.description, formData.category, formData.device, formData.software, formData.criticalReason, files.length, navigate]);
+    }, [ticketType, navigate]);
 
-    // Template selection helper
+    const handleBack = useCallback(() => {
+        if (ticketType !== 'none' && hasDirtyForm) {
+            setConfirmLeave(true);
+            return;
+        }
+        leaveForm();
+    }, [ticketType, hasDirtyForm, leaveForm]);
+
+    const applyTemplate = (template: TicketTemplate) => {
+        setPendingTemplate(null);
+        setSelectedTemplate(template.label);
+        setFormData(prev => ({
+            ...prev,
+            title: template.subject,
+            description: template.description,
+            priority: template.priority,
+            ...(template.category ? { category: template.category } : {}),
+        }));
+        resetValidation();
+    };
+
+    // Template selection helper: typed text is only replaced after the user agrees.
     const handleTemplateClick = (template: TicketTemplate) => {
         if (selectedTemplate === template.label) {
             setSelectedTemplate(null);
-        } else {
-            setSelectedTemplate(template.label);
-            setFormData(prev => ({
-                ...prev,
-                title: template.subject,
-                description: template.description,
-                priority: template.priority,
-                ...(template.category ? { category: template.category } : {}),
-            }));
-            resetValidation();
+            return;
         }
+        const hasOwnText = Boolean(formData.title.trim() || formData.description.trim());
+        if (hasOwnText && !selectedTemplate) {
+            setPendingTemplate(template);
+            return;
+        }
+        applyTemplate(template);
     };
 
     const updateField = <K extends keyof typeof formData>(key: K, value: (typeof formData)[K]) => {
@@ -712,6 +731,28 @@ export const BentoCreateTicketPage: React.FC = () => {
             {lightboxItem && (
                 <LightboxModal item={lightboxItem} onClose={() => setLightboxItem(null)} onDelete={() => handleRemoveFile(lightboxItem.index)} />
             )}
+
+            <ConfirmationDialog
+                appearance="ticket"
+                isOpen={confirmLeave}
+                title="Yakin ingin kembali?"
+                description="Perubahan Anda masih tersimpan sebagai draft."
+                cancelText="Tetap di sini"
+                confirmText="Kembali"
+                onCancel={() => setConfirmLeave(false)}
+                onConfirm={leaveForm}
+            />
+
+            <ConfirmationDialog
+                appearance="ticket"
+                isOpen={pendingTemplate !== null}
+                title="Ganti isi dengan template?"
+                description={`Judul dan detail yang sudah Anda ketik akan diganti dengan template "${pendingTemplate?.label ?? ''}".`}
+                cancelText="Batal"
+                confirmText="Ganti isi"
+                onCancel={() => setPendingTemplate(null)}
+                onConfirm={() => { if (pendingTemplate) applyTemplate(pendingTemplate); }}
+            />
 
             {config.hasClassification && showAddModal.show && (
                 <AddAttributeModal type={showAddModal.type} value={newAttributeValue} busy={isAddingAttribute}

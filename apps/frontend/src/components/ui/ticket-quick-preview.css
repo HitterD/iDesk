@@ -1,0 +1,42 @@
+/* TicketQuickPreview: same surface, border and shadow as the queue's picker panels, same pills as the rows. */
+.qp-card {
+  width: min(384px, calc(100vw - 32px)); overflow: hidden; user-select: none;
+  border: 1px solid hsl(var(--idesk-border)); border-radius: 16px;
+  background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-text));
+  box-shadow: 0 14px 38px -12px hsl(220 55% 15% / .28);
+}
+.dark .qp-card { box-shadow: 0 18px 44px -14px hsl(0 0% 0% / .65); }
+.qp-arrow { fill: hsl(var(--idesk-surface)); stroke: hsl(var(--idesk-border)); }
+
+.qp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px 0; }
+.qp-id { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--td-text-3); white-space: nowrap; }
+.qp-title { margin: 6px 0 0; padding: 0 16px; font-size: 14px; font-weight: 600; line-height: 1.35; text-wrap: balance; }
+.qp-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 16px 0; }
+.qp-card .ticket-pill svg { width: 12px; height: 12px; flex: none; }
+.qp-body { display: grid; gap: 12px; padding: 14px 16px 16px; }
+
+.qp-section-label { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; font-size: 11px; font-weight: 600; color: hsl(var(--idesk-text-secondary)); }
+.qp-section-label svg { width: 12px; height: 12px; }
+.qp-desc {
+  max-height: 160px; overflow-y: auto; padding: 10px 12px; border-radius: 12px; user-select: text;
+  background: hsl(var(--idesk-surface-raised)); box-shadow: inset 0 0 0 1px hsl(var(--idesk-border) / .7);
+  font-size: 12.5px; line-height: 1.55; white-space: pre-wrap;
+}
+.qp-desc-empty { font-style: italic; color: hsl(var(--idesk-text-secondary)); }
+
+/* Tinted callouts reuse the pill tone variables (--pill-hue/--pill-ink) from .ticket-tone-*. */
+.qp-tint {
+  display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; border-radius: 12px; font-size: 12px; font-weight: 500;
+  color: hsl(var(--pill-ink)); background: color-mix(in srgb, hsl(var(--pill-hue)) 10%, hsl(var(--idesk-surface)));
+}
+.qp-tint svg { width: 14px; height: 14px; flex: none; margin-top: 1px; }
+.qp-tint strong { font-weight: 650; }
+.qp-tint p { margin: 2px 0 0; color: hsl(var(--idesk-text)); font-weight: 450; }
+
+.qp-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px;
+  border-top: 1px solid hsl(var(--idesk-border) / .7); font-size: 11.5px; color: hsl(var(--idesk-text-secondary));
+}
+.qp-foot strong { font-weight: 600; color: hsl(var(--idesk-text)); }
+.qp-open { display: inline-flex; align-items: center; gap: 3px; font-weight: 600; color: hsl(var(--idesk-sapphire)); }
+.qp-open svg { width: 13px; height: 13px; }

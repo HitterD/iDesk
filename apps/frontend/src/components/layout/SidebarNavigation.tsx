@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ChevronDown, LogOut, LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -53,57 +53,6 @@ const FLYOUT_CLOSE_DELAY_MS = 150;
 const TOOLTIP_DELAY_MS = 100;
 const TOOLTIP_OFFSET = 14;
 const SKELETON_ROWS = [1, 2, 3, 4, 5];
-/** sessionStorage key holding the previous active tab's offset (mockup motion.js). */
-const TAB_FROM_KEY = 'idesk-sidebar-tab-from';
-const DESKTOP_QUERY = '(min-width: 1024px)';
-const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
-/** Safety net if transitionend never fires (tab hidden, element removed). */
-const TAB_SLIDE_FALLBACK_MS = 600;
-
-const matches = (query: string) => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches;
-const offsetIn = (nav: HTMLElement, el: Element) => el.getBoundingClientRect().top - nav.getBoundingClientRect().top + nav.scrollTop;
-
-/**
- * Desktop only: the sheet-coloured active tab slides from the previously active item to the new one.
- * The click records where the old tab was; the next render with a new active item animates a ghost there.
- */
-function useActiveTabSlide(navRef: React.RefObject<HTMLElement | null>, activePath: string, disabled: boolean) {
-    useLayoutEffect(() => {
-        const nav = navRef.current;
-        if (!nav || disabled) return undefined;
-        const remember = (event: MouseEvent) => {
-            const target = (event.target as Element | null)?.closest('a.nav-item');
-            const current = nav.querySelector('.nav-item.is-active');
-            if (!target || !current || target === current) return;
-            try { sessionStorage.setItem(TAB_FROM_KEY, String(offsetIn(nav, current))); } catch { /* storage unavailable: no slide */ }
-        };
-        nav.addEventListener('click', remember);
-        return () => nav.removeEventListener('click', remember);
-    }, [navRef, disabled]);
-
-    useLayoutEffect(() => {
-        const nav = navRef.current;
-        let from: string | null = null;
-        try { from = sessionStorage.getItem(TAB_FROM_KEY); sessionStorage.removeItem(TAB_FROM_KEY); } catch { from = null; }
-        const active = nav?.querySelector<HTMLElement>('.nav-item.is-active');
-        if (!nav || !active || from === null || disabled || matches(REDUCED_MOTION_QUERY) || !matches(DESKTOP_QUERY)) return undefined;
-        const to = offsetIn(nav, active);
-        if (Math.abs(to - Number(from)) < 1) return undefined;
-        const ghost = document.createElement('span');
-        ghost.className = 'nav-tab-ghost';
-        ghost.setAttribute('aria-hidden', 'true');
-        ghost.style.height = `${active.offsetHeight}px`;
-        ghost.style.transform = `translateY(${from}px)`;
-        nav.prepend(ghost);
-        active.classList.add('is-arriving');
-        let frame = requestAnimationFrame(() => { frame = requestAnimationFrame(() => { ghost.style.transform = `translateY(${to}px)`; }); });
-        const done = () => { ghost.remove(); active.classList.remove('is-arriving'); };
-        ghost.addEventListener('transitionend', done, { once: true });
-        const timer = window.setTimeout(done, TAB_SLIDE_FALLBACK_MS);
-        return () => { cancelAnimationFrame(frame); window.clearTimeout(timer); done(); };
-    }, [navRef, activePath, disabled]);
-}
-
 type TileSize = 'primary' | 'default' | 'quiet' | 'collapsed' | 'flyout';
 
 const NavTile: React.FC<{ icon: LucideIcon; tone: NavTone; size?: TileSize }> = ({ icon: Icon, tone, size = 'default' }) => (
@@ -327,10 +276,8 @@ export interface SidebarNavigationProps {
 export const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
     entries, isCollapsed, isLoading, activePath, isGroupExpanded, onToggleGroup, getItemBadge, getGroupBadge, onNavigate,
 }) => {
-    const navRef = useRef<HTMLElement>(null);
-    useActiveTabSlide(navRef, activePath, isCollapsed || isLoading);
     return (
-    <nav ref={navRef} aria-label="Main navigation" className="nav-scroll flex-1 flex flex-col gap-0.5 min-h-0">
+    <nav aria-label="Main navigation" className="nav-scroll flex-1 flex flex-col gap-0.5 min-h-0">
         {isLoading ? (
             <div className="space-y-1" aria-hidden="true">
                 {SKELETON_ROWS.map(i => (
