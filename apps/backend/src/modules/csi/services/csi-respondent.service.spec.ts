@@ -6,6 +6,7 @@ import { CsiDepartment } from '../entities/csi-department.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
+import { CsiPeriodSite } from '../entities/csi-period-site.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
@@ -64,6 +65,7 @@ describe('CsiRespondentService', () => {
     let dimensions: ReturnType<typeof memoryRepository>;
     let txResponses: ReturnType<typeof memoryRepository>;
     let txRepos: Map<unknown, ReturnType<typeof memoryRepository>>;
+    let periodSiteRows: Array<{ id: string; periodId: string; siteId: string }>;
     let injectedCallsInTxn: number;
     let manager: any;
     let saved: Array<{ target: unknown; value: any }>;
@@ -106,7 +108,9 @@ describe('CsiRespondentService', () => {
         saved = [];
         // Transaction-scoped repositories share rows with the injected ones but are distinct mocks,
         // so tests can tell which connection a read went through.
+        periodSiteRows = [{ id: 'ps1', periodId: 'p1', siteId: 'site-a' }];
         txRepos = new Map<unknown, ReturnType<typeof memoryRepository>>([
+            [CsiPeriodSite, memoryRepository<any>(periodSiteRows)],
             [CsiPeriodRatee, memoryRepository<any>(ratees.rows)],
             [CsiPeriodRateeDimension, memoryRepository<any>(rateeDimensions.rows)],
             [CsiPeriodRater, memoryRepository<any>(periodRaters.rows)],
@@ -214,6 +218,20 @@ describe('CsiRespondentService', () => {
             }));
         });
 
+        it('listActive loads every site of a matching multi-site period (site filter must not truncate the relation)', async () => {
+            const twoSites = [{ siteId: 'site-a' }, { siteId: 'site-b' }] as CsiPeriod['sites'];
+            periods.rows[0] = period({ sites: twoSites });
+            // Mimic TypeORM: a where on the joined relation also truncates the relation that is loaded with it.
+            periods.find.mockImplementation(async (options: any = {}) => periods.rows
+                .filter((row) => matches(row, options.where))
+                .map((row) => options.relations && options.where?.sites
+                    ? { ...row, sites: row.sites.filter((child: any) => matches(child, options.where.sites)) } : row));
+            expect(await service.listActive(me, NOW)).toEqual([expect.objectContaining({ id: 'p1' })]);
+            const loaded = periods.find.mock.results.map((entry) => entry.value);
+            const withRelations = periods.find.mock.calls.findIndex(([options]: any) => options.relations);
+            expect((await loaded[withRelations])[0].sites).toHaveLength(2);
+        });
+
         it('listActive uses the WIB calendar date, not the UTC one, at day boundaries', async () => {
             // 00:30 WIB on 1 Oct is still 30 Sep in UTC.
             const firstMinutesWib = new Date('2026-10-01T00:30:00+07:00');
@@ -295,6 +313,19 @@ describe('CsiRespondentService', () => {
             periods.createQueryBuilder.mockReturnValueOnce(builder);
             await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toBeInstanceOf(BadRequestException);
             expect(builder.setLock).toHaveBeenCalledWith('pessimistic_read');
+            expect(manager.save).not.toHaveBeenCalled();
+        });
+
+        it('re-reads the period sites through the transaction after taking the lock (sites edited concurrently)', async () => {
+            const builder = memoryRepository<any>(periods.rows).createQueryBuilder();
+            builder.getOne.mockImplementation(async () => {
+                // An admin edit that moved the survey to site-b committed before our FOR SHARE lock was granted.
+                periodSiteRows.splice(0, periodSiteRows.length, { id: 'ps2', periodId: 'p1', siteId: 'site-b' });
+                return periods.rows[0];
+            });
+            periods.createQueryBuilder.mockReturnValueOnce(builder);
+            await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toThrow(NOT_FOUND);
+            expect(txRepos.get(CsiPeriodSite)!.find).toHaveBeenCalledWith({ where: { periodId: 'p1' } });
             expect(manager.save).not.toHaveBeenCalled();
         });
 

@@ -10,6 +10,7 @@ import { CsiDimension } from '../entities/csi-dimension.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
+import { CsiPeriodSite } from '../entities/csi-period-site.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
@@ -65,13 +66,18 @@ export class CsiRespondentService {
         if (!respondent) return [];
         // Narrow to periods covering today's WIB date; computeStatus stays the authoritative check.
         const today = localDateKey(now, DEFAULT_TIMEZONE);
-        const candidates = await this.periods.find({
+        // Filtering on `sites` while also loading it would truncate the loaded relation to the respondent's site,
+        // so match ids first and then load those periods with all their sites.
+        const matching = await this.periods.find({
             where: {
                 sites: { siteId: respondent.siteId }, publishStatus: CsiPeriodPublishStatus.PUBLISHED,
                 startDate: LessThanOrEqual(today), endDate: MoreThanOrEqual(today),
             },
-            relations: { sites: true }, order: { startDate: 'DESC' },
+            select: { id: true },
         });
+        const candidates = matching.length ? await this.periods.find({
+            where: { id: In(matching.map((row) => row.id)) }, relations: { sites: true }, order: { startDate: 'DESC' },
+        }) : [];
         const result: Array<{ id: string; scope: CsiPeriod['scope']; title: string; submitted: boolean }> = [];
         for (const period of candidates) {
             if (computeStatus(period, now) !== 'ACTIVE' || !(await this.audienceFor(this.readers, respondent, period))) continue;
@@ -121,8 +127,9 @@ export class CsiRespondentService {
                 if (existing > 0) throw new ConflictException(ALREADY_SUBMITTED_MESSAGE);
                 // All reads go through the transaction's connection: a submit holds exactly one pooled connection.
                 const readers = readersOf(manager);
-                // The locked row carries no relations; sites are not editable in this revision, so reuse the loaded ones.
-                const current = await this.audienceFor(readers, audience.respondent, { ...locked, sites: period.sites });
+                // The locked row carries no relations and admins can edit the period sites: re-read them after the lock.
+                const sites = await manager.getRepository(CsiPeriodSite).find({ where: { periodId: period.id } });
+                const current = await this.audienceFor(readers, audience.respondent, { ...locked, sites });
                 if (!current) throw new NotFoundException(NOT_FOUND_MESSAGE);
                 const department = await readers.departments.findOne({ where: { id: dto.departmentId, scope: locked.scope, isActive: true } });
                 if (!department) throw new BadRequestException('Departemen tidak ditemukan atau tidak aktif');

@@ -1,9 +1,13 @@
 import { Transform, Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsDateString, IsEnum, IsString, IsUUID, Length, Matches, MaxLength, ValidateIf, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
 import { CsiRespondentMode } from '../csi.constants';
 
 const TITLE_MAX_LENGTH = 150;
 const TEXT_MAX_LENGTH = 2000;
+const TEAM_LABEL_MAX_LENGTH = 100;
+const SITES_MAX = 20;
+const SLA_TARGET_MIN = 1;
+const SLA_TARGET_MAX = 100;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const trimString = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
 const isProvided = (_object: object, value: unknown) => value !== undefined;
@@ -28,11 +32,41 @@ class PeriodFieldsDto {
     @ValidateIf(isProvided)
     @IsEnum(CsiRespondentMode, { message: 'Mode responden tidak valid' })
     respondentMode?: CsiRespondentMode;
+
+    @ValidateIf(isProvided)
+    @IsBoolean({ message: 'Penilaian tim harus berupa boolean' })
+    teamEnabled?: boolean;
+
+    @ValidateIf(isProvided)
+    @Transform(trimString)
+    @IsString({ message: 'Label tim harus berupa teks' })
+    @Length(1, TEAM_LABEL_MAX_LENGTH, { message: 'Label tim harus terdiri dari 1–100 karakter' })
+    teamLabel?: string;
+
+    @ValidateIf(isProvided)
+    @IsBoolean({ message: 'Penilaian per orang harus berupa boolean' })
+    individualEnabled?: boolean;
+
+    @ValidateIf(isProvided)
+    @IsInt({ message: 'Target SLA harus berupa bilangan bulat' })
+    @Min(SLA_TARGET_MIN, { message: 'Target SLA minimal 1' })
+    @Max(SLA_TARGET_MAX, { message: 'Target SLA maksimal 100' })
+    slaTargetPct?: number;
 }
 
+const siteIdsRules = (): PropertyDecorator => (target, key) => [
+    IsArray({ message: 'Daftar site harus berupa array' }),
+    ArrayMinSize(1, { message: 'Pilih minimal satu site' }),
+    ArrayMaxSize(SITES_MAX, { message: 'Maksimal 20 site' }),
+    ArrayUnique(undefined, { message: 'Site tidak boleh duplikat' }),
+    IsUUID('all', { each: true, message: 'Site harus berupa UUID' }),
+].forEach((decorator) => decorator(target, key));
+
 export class CreatePeriodDto extends PeriodFieldsDto {
-    @IsUUID('all', { message: 'Site harus berupa UUID' })
-    siteId: string;
+    // Optional only when copying: the sites then default to the source period's sites.
+    @ValidateIf((object: CreatePeriodDto) => object.copyFromPeriodId === undefined || object.siteIds !== undefined)
+    @siteIdsRules()
+    siteIds?: string[];
 
     @IsDateString({ strict: true }, { message: 'Tanggal mulai tidak valid' })
     @Matches(DATE_ONLY, { message: 'Tanggal mulai harus berformat YYYY-MM-DD' })
@@ -48,6 +82,10 @@ export class CreatePeriodDto extends PeriodFieldsDto {
 }
 
 export class UpdatePeriodDto extends PeriodFieldsDto {
+    @ValidateIf(isProvided)
+    @siteIdsRules()
+    siteIds?: string[];
+
     @ValidateIf(isProvided)
     @IsDateString({ strict: true }, { message: 'Tanggal mulai tidak valid' })
     @Matches(DATE_ONLY, { message: 'Tanggal mulai harus berformat YYYY-MM-DD' })
@@ -74,6 +112,12 @@ export class SetRateesDto {
     @ValidateNested({ each: true })
     @Type(() => RateeAssignmentDto)
     ratees: RateeAssignmentDto[];
+}
+
+export class SetTeamQuestionsDto {
+    @IsArray({ message: 'Daftar pertanyaan harus berupa array' })
+    @IsUUID('all', { each: true, message: 'ID pertanyaan harus berupa UUID' })
+    questionIds: string[];
 }
 
 export class SetPeriodRatersDto {
