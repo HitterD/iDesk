@@ -16,7 +16,7 @@ import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { CreateTicketDto } from '../dto/create-ticket.dto';
 import { resolveInitialHandlingTeam } from '../utils/oracle-ticket-access.util';
-import { divisionCode, generateNextTicketNumber } from '../utils/ticket-number-generator';
+import { departmentDivision, generateNextTicketNumber, withTicketNumberRetry } from '../utils/ticket-number-generator';
 import { SlaClockService } from './sla-clock.service';
 
 /** An external system that filed the ticket; (source, ref) is unique, so retries are idempotent. */
@@ -108,7 +108,7 @@ export class TicketCreateService {
             } as DeepPartial<Ticket>);
 
             const date = new Date();
-            const division = divisionCode(user.department?.name, 'GEN');
+            const division = departmentDivision(user.department, 'GEN');
 
             // === Hardware Installation: Special Handling ===
             const isHardwareInstallation = createTicketDto.category === 'HARDWARE_INSTALLATION' ||
@@ -143,7 +143,7 @@ export class TicketCreateService {
             }
 
             // Wrap in transaction (M7: multiple-write ops)
-            const finalTicket = await this.ticketRepo.manager.transaction(async (manager) => {
+            const finalTicket = await withTicketNumberRetry(this.logger, () => this.ticketRepo.manager.transaction(async (manager) => {
                 // Generate Custom Ticket Number safely within transaction.
                 // Shared locked generator (PROD-19): every creation path serializes
                 // on the same pessimistic_write lock so concurrent creations
@@ -163,7 +163,7 @@ export class TicketCreateService {
                 await manager.save(message);
 
                 return savedTicket;
-            }); // End of transaction
+            })); // End of transaction
 
             // Domain events + audit fire AFTER commit: listeners must only react
             // to a ticket that actually persisted (no phantom notifications on rollback).
