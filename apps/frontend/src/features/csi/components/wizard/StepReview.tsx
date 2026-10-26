@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { usePublishCsiPeriod } from '../../hooks/useCsi';
 import { CSI_MODE_LABELS } from '../../lib/csiAdmin';
-import { formatDateRange, formatSiteCodes } from '../../lib/format';
+import { formatDateRange } from '../../lib/format';
+import { formatSiteNames } from '../../lib/location';
 import type { WizardStepKey } from '../../lib/wizard';
 import type { CsiPeriodDetail, CsiScopeParam } from '../../types';
 import { AdminSection, MUTED_TEXT } from '../admin/AdminParts';
@@ -13,13 +14,18 @@ import { ReadinessList } from './ReadinessList';
 import { SurveyPreview } from './SurveyPreview';
 import { STEP_TITLES, WIZARD_COPY } from './wizardCopy';
 
+const sectionsLabel = (period: CsiPeriodDetail) =>
+    [period.teamEnabled && 'Tim', period.individualEnabled && 'Per orang'].filter(Boolean).join(' & ');
+
 function Summary({ period }: { period: CsiPeriodDetail }) {
     const rows: Array<[string, string]> = [
         ['Judul', period.title],
-        ['Site', formatSiteCodes(period.sites)],
+        ['Site', formatSiteNames(period.sites)],
         ['Tanggal', formatDateRange(period.startDate, period.endDate)],
         ['Mode responden', CSI_MODE_LABELS[period.respondentMode]],
-        ['Orang yang dinilai', `${period.ratees.length} orang`],
+        ['Bagian', sectionsLabel(period)],
+        ['Target SLA', `${period.slaTargetPct}%`],
+        ...(period.individualEnabled ? [['Orang yang dinilai', `${period.ratees.filter((ratee) => ratee.kind === 'PERSON').length} orang`] as [string, string]] : []),
         ...(period.respondentMode === 'LISTED' ? [['Penilai', `${period.raters.length} penilai`] as [string, string]] : []),
     ];
     return (

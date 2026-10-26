@@ -81,7 +81,8 @@ export interface DraftUser {
 }
 
 export function draftFromPeriod(period: CsiPeriodDetail): RateeDraft[] {
-    return period.ratees.flatMap((ratee) => ratee.userId === null ? [] : [{
+    const people = [...period.ratees].filter((ratee) => ratee.kind === 'PERSON').sort((a, b) => a.sortOrder - b.sortOrder);
+    return people.flatMap((ratee) => ratee.userId === null ? [] : [{
         userId: ratee.userId,
         displayName: ratee.displayName,
         jobTitle: ratee.jobTitle,
@@ -149,7 +150,7 @@ export function downloadBlob(blob: Blob, filename: string): void {
 
 /** Identity of the server-side ratee assignment; changes only when the saved content or lock changes. */
 export const rateesSignature = (period: CsiPeriodDetail) => JSON.stringify([
-    period.locked, period.ratees.map((ratee) => [ratee.userId, ratee.dimensions.map((dimension) => dimension.dimensionId)]),
+    period.locked, draftFromPeriod(period).map((row) => [row.userId, row.dimensionIds]),
 ]);
 
 /** Identity of the server-side period raters; changes only when the saved raters or lock changes. */

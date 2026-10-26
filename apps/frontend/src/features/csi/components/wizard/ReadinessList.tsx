@@ -5,8 +5,8 @@ import { READINESS_STEP, type WizardStepKey } from '../../lib/wizard';
 import type { CsiReadiness } from '../../types';
 import { WIZARD_COPY } from './wizardCopy';
 
-/** Checks fixed on the period itself (ratee/rater assignment), which the backend freezes once answers exist. */
-const PERIOD_BOUND = new Set<CsiReadiness['checks'][number]['key']>(['ratees', 'dimensions', 'raters']);
+/** Checks fixed on the period itself (team, ratee and rater assignment), which the backend freezes once answers exist. */
+const PERIOD_BOUND = new Set<CsiReadiness['checks'][number]['key']>(['team', 'ratees', 'dimensions', 'raters']);
 
 /**
  * A published survey can lose readiness later (ratees cleared, last department deactivated);

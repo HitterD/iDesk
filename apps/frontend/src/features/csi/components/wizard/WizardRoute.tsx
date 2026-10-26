@@ -22,7 +22,7 @@ export function WizardRoute({ scope, route }: { scope: CsiScopeParam; route: Adm
     return (
         <SurveyWizard scope={scope} periodId={periodId} step={resolved}
             onStepChange={(next) => route.setStep(next)} onClose={route.closeAll}
-            onCreated={(id) => route.openWizard(id, 'dimensions', { replace: true })}
+            onCreated={(id) => route.openWizard(id, 'questions', { replace: true })}
             onPublished={route.openDetail} />
     );
 }

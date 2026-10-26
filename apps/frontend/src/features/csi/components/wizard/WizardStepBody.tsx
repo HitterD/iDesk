@@ -3,11 +3,12 @@ import type { WizardStepKey } from '../../lib/wizard';
 import type { CsiPeriodDetail, CsiScopeParam } from '../../types';
 import type { PeriodEditorStatus } from '../admin/PeriodEditor';
 import { StepDepartments } from './StepDepartments';
-import { StepDimensions } from './StepDimensions';
 import { StepInfo } from './StepInfo';
+import { StepQuestions } from './StepQuestions';
 import { StepRaters } from './StepRaters';
 import { StepRatees } from './StepRatees';
 import { StepReview } from './StepReview';
+import { StepTeam } from './StepTeam';
 
 export interface WizardStepBodyProps {
     scope: CsiScopeParam;
@@ -27,7 +28,8 @@ export function WizardStepBody(props: WizardStepBodyProps) {
         return <StepInfo scope={scope} period={period} formRef={props.formRef} onStatusChange={props.onInfoStatus} onSaved={props.onInfoSaved} />;
     }
     switch (step) {
-        case 'dimensions': return <StepDimensions scope={scope} />;
+        case 'questions': return <StepQuestions scope={scope} />;
+        case 'team': return <StepTeam scope={scope} period={period} onDirtyChange={props.onDirtyChange} />;
         case 'ratees': return <StepRatees scope={scope} period={period} onDirtyChange={props.onDirtyChange} />;
         case 'raters': return <StepRaters scope={scope} period={period} onDirtyChange={props.onDirtyChange} />;
         case 'departments': return <StepDepartments scope={scope} />;

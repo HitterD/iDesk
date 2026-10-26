@@ -21,7 +21,7 @@ vi.mock('../../../hooks/useCsi', () => ({
     useCsiPeriod: () => ({ data: fx.period, isLoading: false, isError: false, refetch: () => undefined }),
     useCsiPeriods: () => ({ data: [] }),
     useCsiDimensions: () => ({ data: fx.dimensions, isLoading: false, isError: false }),
-    useCreateCsiDimension: fx.idle, useUpdateCsiDimension: fx.idle, useDeactivateCsiDimension: fx.idle,
+    useCreateCsiDimension: fx.idle, useUpdateCsiDimension: fx.idle, 
     useCreateCsiPeriod: fx.idle, useUpdateCsiPeriod: fx.idle, useDeleteCsiPeriod: () => fx.remove,
 }));
 vi.mock('@/components/site/useActiveSites', () => ({ useActiveSites: () => ({ data: [] }) }));
@@ -49,14 +49,14 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('SurveyWizard stepper ticks', () => {
-    it('ticks Dimensi only when the scope has an active dimension', () => {
+    it('ticks Pertanyaan only when the scope has an active question', () => {
         fx.dimensions = [];
         renderWizard('p1');
-        expect(isDone(/Dimensi/)).toBe(false);
+        expect(isDone(/Pertanyaan/)).toBe(false);
         cleanup();
         fx.dimensions = [fx.dimension];
         renderWizard('p1');
-        expect(isDone(/Dimensi/)).toBe(true);
+        expect(isDone(/Pertanyaan/)).toBe(true);
     });
 
     it('ticks Tinjau & terbitkan only once published', () => {

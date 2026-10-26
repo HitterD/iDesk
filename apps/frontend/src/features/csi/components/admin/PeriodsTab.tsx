@@ -6,7 +6,8 @@ import { useActiveSites } from '@/components/site/useActiveSites';
 import { cn } from '@/lib/utils';
 import { useCsiPeriods } from '../../hooks/useCsi';
 import { CSI_MODE_LABELS } from '../../lib/csiAdmin';
-import { formatDateRange, formatSiteCodes } from '../../lib/format';
+import { formatDateRange } from '../../lib/format';
+import { formatSites } from '../../lib/location';
 import type { CsiPeriodListItem, CsiScopeParam } from '../../types';
 import { WIZARD_COPY } from '../wizard/wizardCopy';
 import { ADMIN_PANEL, CreateButton, EmptyNote, MUTED_TEXT, PublishPill, StatusPill } from './AdminParts';
@@ -30,7 +31,7 @@ function PeriodRow({ period, onOpen }: { period: CsiPeriodListItem; onOpen: () =
                 className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-5 py-4 text-left hover:bg-[hsl(var(--muted)/.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_auto_auto_auto]">
                 <span className="min-w-0">
                     <span className="block truncate text-[14.5px] font-semibold">{period.title}</span>
-                    <span className={cn(MUTED_TEXT, 'block text-[12px]')}>{`${formatSiteCodes(period.sites)} · ${CSI_MODE_LABELS[period.respondentMode]}`}</span>
+                    <span className={cn(MUTED_TEXT, 'block text-[12px]')}>{`${formatSites(period.sites)} · ${CSI_MODE_LABELS[period.respondentMode]}`}</span>
                 </span>
                 <span className={cn(MUTED_TEXT, 'hidden tabular-nums sm:block')}>{formatDateRange(period.startDate, period.endDate)}</span>
                 <span className="hidden sm:block"><Pills period={period} /></span>

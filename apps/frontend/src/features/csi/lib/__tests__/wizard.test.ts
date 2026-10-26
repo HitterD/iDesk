@@ -13,11 +13,15 @@ const period = (checks: CsiPeriodDetail['readiness']['checks']): CsiPeriodDetail
 });
 const check = (key: CsiPeriodDetail['readiness']['checks'][number]['key'], ok: boolean) => ({ key, ok, label: key });
 
+type Sections = Pick<CsiPeriodDetail, 'respondentMode' | 'teamEnabled' | 'individualEnabled'>;
+const sections = (over: Partial<Sections> = {}): Sections => ({ respondentMode: 'LISTED', teamEnabled: true, individualEnabled: true, ...over });
+
 describe('wizard steps', () => {
-    it('uses the approved step order and Indonesian labels', () => {
+    it('uses the revision 2 step order and Indonesian labels', () => {
         expect(WIZARD_STEPS).toEqual([
             { key: 'info', label: 'Info survei' },
-            { key: 'dimensions', label: 'Dimensi' },
+            { key: 'questions', label: 'Pertanyaan' },
+            { key: 'team', label: 'Penilaian tim' },
             { key: 'ratees', label: 'Orang yang dinilai' },
             { key: 'raters', label: 'Penilai' },
             { key: 'departments', label: 'Departemen' },
@@ -25,83 +29,106 @@ describe('wizard steps', () => {
         ]);
     });
 
-    it('hides raters for OPEN and keeps it for LISTED', () => {
-        expect(visibleSteps('OPEN')).toEqual(['info', 'dimensions', 'ratees', 'departments', 'review']);
-        expect(visibleSteps('LISTED')).toEqual(['info', 'dimensions', 'ratees', 'raters', 'departments', 'review']);
+    it('a new survey (no period) only shows the info step', () => {
+        expect(visibleSteps(null)).toEqual(['info']);
     });
 
-    it.each<CsiRespondentMode>(['OPEN', 'LISTED'])('walks visible steps with null at both ends in %s mode', (mode) => {
-        const steps = visibleSteps(mode);
+    it('visibleSteps hides team when disabled and ratees when individual disabled', () => {
+        expect(visibleSteps(sections())).toEqual(['info', 'questions', 'team', 'ratees', 'raters', 'departments', 'review']);
+        expect(visibleSteps(sections({ teamEnabled: false }))).toEqual(['info', 'questions', 'ratees', 'raters', 'departments', 'review']);
+        expect(visibleSteps(sections({ individualEnabled: false }))).toEqual(['info', 'questions', 'team', 'raters', 'departments', 'review']);
+    });
+
+    it('hides raters for OPEN and keeps it for LISTED', () => {
+        expect(visibleSteps(sections({ respondentMode: 'OPEN' }))).toEqual(['info', 'questions', 'team', 'ratees', 'departments', 'review']);
+    });
+
+    it.each<CsiRespondentMode>(['OPEN', 'LISTED'])('walks visible steps with null at both ends in %s mode', (respondentMode) => {
+        const current = sections({ respondentMode });
+        const steps = visibleSteps(current);
         steps.forEach((step, index) => {
-            expect(nextStep(mode, step)).toBe(steps[index + 1] ?? null);
-            expect(previousStep(mode, step)).toBe(steps[index - 1] ?? null);
+            expect(nextStep(current, step)).toBe(steps[index + 1] ?? null);
+            expect(previousStep(current, step)).toBe(steps[index - 1] ?? null);
         });
     });
 
     it('returns null when the current step is hidden', () => {
-        expect(nextStep('OPEN', 'raters')).toBeNull();
-        expect(previousStep('OPEN', 'raters')).toBeNull();
+        expect(nextStep(sections({ respondentMode: 'OPEN' }), 'raters')).toBeNull();
+        expect(previousStep(sections({ teamEnabled: false }), 'team')).toBeNull();
     });
 });
 
-const DIMENSIONS = 2;
+const QUESTIONS = 2;
 
 describe('stepComplete', () => {
     it('completes info once the period exists, independently of readiness', () => {
         expect(stepComplete('info', period([]), 0)).toBe(true);
     });
 
-    it('completes dimensions only when the scope has at least one active master dimension', () => {
-        expect(stepComplete('dimensions', period([]), 0)).toBe(false);
-        expect(stepComplete('dimensions', period([]), 1)).toBe(true);
+    it('completes questions only when the scope has at least one active question', () => {
+        expect(stepComplete('questions', period([]), 0)).toBe(false);
+        expect(stepComplete('questions', period([]), 1)).toBe(true);
+    });
+
+    it('completes team from the server team check', () => {
+        expect(stepComplete('team', period([check('team', true)]), QUESTIONS)).toBe(true);
+        expect(stepComplete('team', period([check('team', false)]), QUESTIONS)).toBe(false);
+        expect(stepComplete('team', period([]), QUESTIONS)).toBe(false);
     });
 
     it('completes review only once the survey is published', () => {
         const ready = { ...period([]), readiness: { ready: true, checks: [] } };
-        expect(stepComplete('review', ready, DIMENSIONS)).toBe(false);
-        expect(stepComplete('review', { ...ready, publishStatus: 'PUBLISHED' }, DIMENSIONS)).toBe(true);
+        expect(stepComplete('review', ready, QUESTIONS)).toBe(false);
+        expect(stepComplete('review', { ...ready, publishStatus: 'PUBLISHED' }, QUESTIONS)).toBe(true);
     });
 
     it.each([[false, false], [false, true], [true, false], [true, true]])(
-        'requires both ratees (%s) and assigned dimensions (%s)', (ratees, dimensions) => {
-            expect(stepComplete('ratees', period([check('ratees', ratees), check('dimensions', dimensions)]), DIMENSIONS))
+        'requires both ratees (%s) and assigned questions (%s)', (ratees, dimensions) => {
+            expect(stepComplete('ratees', period([check('ratees', ratees), check('dimensions', dimensions)]), QUESTIONS))
                 .toBe(ratees && dimensions);
         },
     );
 
     it.each(['raters', 'departments'] as const)('uses the server %s check, not overall readiness', (key) => {
-        expect(stepComplete(key, period([check(key, true)]), DIMENSIONS)).toBe(true);
-        expect(stepComplete(key, period([check(key, false)]), DIMENSIONS)).toBe(false);
-        expect(stepComplete(key, period([]), DIMENSIONS)).toBe(false);
+        expect(stepComplete(key, period([check(key, true)]), QUESTIONS)).toBe(true);
+        expect(stepComplete(key, period([check(key, false)]), QUESTIONS)).toBe(false);
+        expect(stepComplete(key, period([]), QUESTIONS)).toBe(false);
     });
 
     it('does not complete ratees with a missing prerequisite check', () => {
-        expect(stepComplete('ratees', period([check('ratees', true)]), DIMENSIONS)).toBe(false);
-        expect(stepComplete('ratees', period([check('dimensions', true)]), DIMENSIONS)).toBe(false);
+        expect(stepComplete('ratees', period([check('ratees', true)]), QUESTIONS)).toBe(false);
+        expect(stepComplete('ratees', period([check('dimensions', true)]), QUESTIONS)).toBe(false);
     });
 });
 
 describe('resumeStep', () => {
     it('resumes at the first incomplete visible step', () => {
-        expect(resumeStep(period([check('ratees', false), check('dimensions', true), check('raters', false)]), DIMENSIONS)).toBe('ratees');
-        expect(resumeStep(period([check('ratees', true), check('dimensions', true), check('raters', false), check('departments', true)]), DIMENSIONS)).toBe('raters');
+        expect(resumeStep(period([check('ratees', false), check('dimensions', true), check('raters', false)]), QUESTIONS)).toBe('ratees');
+        expect(resumeStep(period([check('ratees', true), check('dimensions', true), check('raters', false), check('departments', true)]), QUESTIONS)).toBe('raters');
     });
 
-    it('resumes at dimensions when the scope has no active dimension yet', () => {
-        expect(resumeStep(period([check('ratees', false)]), 0)).toBe('dimensions');
+    it('resumes at questions when the scope has no active question yet', () => {
+        expect(resumeStep(period([check('ratees', false)]), 0)).toBe('questions');
+    });
+
+    it('resumes at team when team is enabled and its check fails', () => {
+        const team = { ...period([check('team', false), check('ratees', true), check('dimensions', true)]), teamEnabled: true };
+        expect(resumeStep(team, QUESTIONS)).toBe('team');
     });
 
     it('skips the hidden raters step for OPEN and lands on review when everything is complete', () => {
         const open = { ...period([check('ratees', true), check('dimensions', true), check('departments', true)]), respondentMode: 'OPEN' as const };
-        expect(resumeStep(open, DIMENSIONS)).toBe('review');
+        expect(resumeStep(open, QUESTIONS)).toBe('review');
     });
 
     it('maps every readiness check to the step that fixes it', () => {
-        expect(READINESS_STEP).toEqual({ team: 'dimensions', ratees: 'ratees', dimensions: 'ratees', raters: 'raters', departments: 'departments' });
+        expect(READINESS_STEP).toEqual({ team: 'team', ratees: 'ratees', dimensions: 'ratees', raters: 'raters', departments: 'departments' });
     });
 
-    it('recognises only known step keys', () => {
+    it('recognises only known step keys and no longer the old dimensions key', () => {
         expect(isWizardStepKey('ratees')).toBe(true);
+        expect(isWizardStepKey('team')).toBe(true);
+        expect(isWizardStepKey('dimensions')).toBe(false);
         expect(isWizardStepKey('nope')).toBe(false);
         expect(isWizardStepKey(null)).toBe(false);
     });

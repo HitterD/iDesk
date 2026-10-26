@@ -4,7 +4,8 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { useCsiPeriod } from '../../hooks/useCsi';
 import { CSI_MODE_LABELS } from '../../lib/csiAdmin';
-import { formatDateRange, formatSiteCodes } from '../../lib/format';
+import { formatDateRange } from '../../lib/format';
+import { formatSites } from '../../lib/location';
 import type { WizardStepKey } from '../../lib/wizard';
 import type { CsiScopeParam } from '../../types';
 import { ADMIN_PANEL, MUTED_TEXT, PublishPill, StatusPill } from './AdminParts';
@@ -58,7 +59,7 @@ export function PeriodDetail({ scope, periodId, onBack, onEditStep }: PeriodDeta
                         <StatusPill status={period.status} />
                     </div>
                     <p className={MUTED_TEXT}>
-                        {[formatSiteCodes(period.sites), formatDateRange(period.startDate, period.endDate), CSI_MODE_LABELS[period.respondentMode]].filter(Boolean).join(' · ')}
+                        {[formatSites(period.sites), formatDateRange(period.startDate, period.endDate), CSI_MODE_LABELS[period.respondentMode]].filter(Boolean).join(' · ')}
                     </p>
                 </div>
                 <SegmentedControl aria-label="Bagian survei" className="dash-seg" options={DETAIL_TABS} value={tab} onValueChange={setTab} />

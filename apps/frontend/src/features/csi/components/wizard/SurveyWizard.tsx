@@ -2,7 +2,6 @@ import { useCallback, useRef, useState } from 'react';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { cn } from '@/lib/utils';
 import { useCsiDimensions, useCsiPeriod } from '../../hooks/useCsi';
-import { CSI_DEFAULT_MODE } from '../../lib/csiAdmin';
 import { nextStep, previousStep, stepComplete, visibleSteps, type WizardStepKey } from '../../lib/wizard';
 import type { CsiPeriodDetail, CsiScopeParam } from '../../types';
 import { ADMIN_PANEL } from '../admin/AdminParts';
@@ -19,7 +18,7 @@ export interface SurveyWizardProps {
     step: WizardStepKey;
     onStepChange: (step: WizardStepKey) => void;
     onClose: () => void;
-    /** The draft was created; the caller moves the URL to the new period's dimensions step. */
+    /** The draft was created; the caller moves the URL to the new period's questions step. */
     onCreated: (periodId: string) => void;
     /** Published from the review step; the caller opens the detail view. */
     onPublished: (periodId: string) => void;
@@ -45,13 +44,13 @@ function useStepDirty(step: WizardStepKey) {
 export function SurveyWizard({ scope, periodId, step, onStepChange, onClose, onCreated, onPublished }: SurveyWizardProps) {
     const query = useCsiPeriod(scope, periodId ?? '');
     const { data: dimensions = [] } = useCsiDimensions(scope);
+    const activeQuestions = dimensions.length;
     const { isLoading, isError, refetch } = query;
     const period = periodId ? query.data : undefined;
     const formRef = useRef<HTMLFormElement>(null);
     const intent = useRef<InfoIntent>('next');
     const [info, setInfo] = useState(IDLE_INFO);
-    const mode = period?.respondentMode ?? CSI_DEFAULT_MODE[scope];
-    const steps = visibleSteps(mode);
+    const steps = visibleSteps(period ?? null);
     const current = effectiveStep(step, steps, period);
     const [stepDirty, reportDirty] = useStepDirty(current);
     const infoDirty = current === 'info' && info.dirty;
@@ -65,9 +64,9 @@ export function SurveyWizard({ scope, periodId, step, onStepChange, onClose, onC
     const infoSaved = (saved: CsiPeriodDetail) => {
         if (intent.current === 'exit') onClose();
         else if (!periodId) onCreated(saved.id);
-        else onStepChange(intent.current === 'next' ? nextStep(saved.respondentMode, 'info') ?? 'review' : intent.current);
+        else onStepChange(intent.current === 'next' ? nextStep(saved, 'info') ?? 'review' : intent.current);
     };
-    const goNext = () => current === 'info' ? submitInfo('next') : onStepChange(nextStep(mode, current) ?? 'review');
+    const goNext = () => current === 'info' ? submitInfo('next') : onStepChange(nextStep(period ?? null, current) ?? 'review');
     const exit = () => infoDirty ? submitInfo('exit') : onClose();
     const select = (key: WizardStepKey) => infoDirty ? submitInfo(key) : onStepChange(key);
 
@@ -77,7 +76,7 @@ export function SurveyWizard({ scope, periodId, step, onStepChange, onClose, onC
             <div className="grid items-start gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
                 <div className={cn(ADMIN_PANEL, 'p-2.5 lg:sticky lg:top-4')}>
                     <WizardStepper steps={steps} current={current} canNavigate={!!period && !blocked && !info.pending}
-                        isComplete={(key) => !!period && stepComplete(key, period, dimensions.length)} onSelect={select} />
+                        isComplete={(key) => !!period && stepComplete(key, period, activeQuestions)} onSelect={select} />
                 </div>
                 <div className="grid min-w-0 gap-4">
                     <WizardStepBody scope={scope} step={current} period={period} formRef={formRef}
@@ -86,7 +85,7 @@ export function SurveyWizard({ scope, periodId, step, onStepChange, onClose, onC
                     <WizardFooter showBack={current !== 'info'} showNext={current !== 'review'} blocked={blocked}
                         nextDisabled={current === 'info' && !info.canSubmit} exitDisabled={current === 'info' && info.dirty && !info.canSubmit}
                         pending={current === 'info' && info.pending}
-                        onBack={() => onStepChange(previousStep(mode, current) ?? 'info')} onNext={goNext} onExit={exit} />
+                        onBack={() => onStepChange(previousStep(period ?? null, current) ?? 'info')} onNext={goNext} onExit={exit} />
                 </div>
             </div>
         </div>

@@ -14,7 +14,7 @@ const fx = vi.hoisted(() => {
         periods: [] as CsiPeriodListItem[],
         create: mutation(), update: mutation(), publish: mutation(),
         idle: () => ({ mutate: vi.fn(), isPending: false }),
-        dimension: { id: 'd1', name: 'Kecepatan', sortOrder: 1, scope: 'ICT', isActive: true, description: null, ...STAMP } as CsiDimension,
+        dimension: { id: 'd1', name: 'Kecepatan', sortOrder: 1, scope: 'ICT', isActive: true, description: null, type: 'STAR', required: true, options: [], ...STAMP } as CsiDimension,
         dimensions: [] as CsiDimension[],
         users: [{ id: 'u1', fullName: 'Andi Saputra', jobTitle: null, email: 'andi@idesk.test', siteId: 's1', site: null }] as CsiUserSearchResult[],
         toast: { success: vi.fn() },
@@ -29,10 +29,10 @@ vi.mock('../../../hooks/useCsi', () => ({
     useCsiDepartments: () => ({ data: [], isLoading: false, isError: false }),
     useCsiUserSearch: () => ({ data: fx.users, isFetching: false }),
     useCsiRaters: () => ({ data: [], isLoading: false }),
-    useCreateCsiDimension: fx.idle, useUpdateCsiDimension: fx.idle, useDeactivateCsiDimension: fx.idle,
+    useCreateCsiDimension: fx.idle, useUpdateCsiDimension: fx.idle, 
     useReorderCsiDimensions: fx.idle, useApplyCsiTemplate: fx.idle, useReorderCsiDepartments: fx.idle,
-    useCreateCsiDepartment: fx.idle, useUpdateCsiDepartment: fx.idle, useDeactivateCsiDepartment: fx.idle, useAddCsiRaters: fx.idle,
-    useSetCsiRatees: fx.idle, useSetCsiRaters: fx.idle, useDeleteCsiPeriod: fx.idle,
+    useCreateCsiDepartment: fx.idle, useUpdateCsiDepartment: fx.idle, useAddCsiRaters: fx.idle,
+    useSetCsiRatees: fx.idle, useSetCsiTeamQuestions: fx.idle, useSetCsiRaters: fx.idle, useDeleteCsiPeriod: fx.idle,
 }));
 vi.mock('@/components/site/useActiveSites', () => ({ useActiveSites: () => ({ data: [{ id: 's1', code: 'SPJ', name: 'Sidoarjo' }] }) }));
 vi.mock('sonner', () => ({ toast: fx.toast }));
@@ -51,6 +51,10 @@ const props = { onStepChange: vi.fn(), onClose: vi.fn(), onCreated: vi.fn(), onP
 const renderWizard = (periodId: string | null, step: WizardStepKey) =>
     render(<SurveyWizard scope="ict" periodId={periodId} step={step} {...props} />);
 const stepper = () => within(screen.getByRole('navigation', { name: 'Langkah pembuatan survei' }));
+const pickSite = async (actor: ReturnType<typeof userEvent.setup>, name = /SPJ · Sidoarjo/) => {
+    await actor.click(screen.getByRole('button', { name: 'Tambah site' }));
+    await actor.click(await screen.findByRole('option', { name }));
+};
 const setDates = (start: string, end: string) => {
     fireEvent.change(screen.getByLabelText('Tanggal mulai'), { target: { value: start } });
     fireEvent.change(screen.getByLabelText('Tanggal selesai'), { target: { value: end } });
@@ -71,11 +75,11 @@ describe('SurveyWizard', () => {
         renderWizard(null, 'info');
 
         expect(stepper().getByRole('button', { name: /Info survei/ })).toHaveAttribute('aria-current', 'step');
-        expect(stepper().getByRole('button', { name: /Dimensi/ })).toBeDisabled();
+        expect(stepper().getAllByRole('button')).toHaveLength(1);
+        expect(stepper().queryByRole('button', { name: /Pertanyaan/ })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Kembali' })).not.toBeInTheDocument();
 
-        await actor.click(screen.getByRole('button', { name: 'Site' }));
-        await actor.click(await screen.findByRole('option', { name: /SPJ · Sidoarjo/ }));
+        await pickSite(actor);
         await actor.type(screen.getByLabelText('Judul'), 'Survei Q4');
         setDates('2026-11-01', '2026-11-30');
         await actor.click(screen.getByRole('button', { name: 'Lanjut' }));
@@ -88,8 +92,7 @@ describe('SurveyWizard', () => {
     it('copy requires dates before continue', async () => {
         const actor = userEvent.setup();
         renderWizard(null, 'info');
-        await actor.click(screen.getByRole('button', { name: 'Site' }));
-        await actor.click(await screen.findByRole('option', { name: /SPJ · Sidoarjo/ }));
+        await pickSite(actor);
         setDates('2026-11-01', '2026-11-30');
 
         await actor.click(screen.getByRole('button', { name: 'Salin dari survei sebelumnya' }));
@@ -107,12 +110,12 @@ describe('SurveyWizard', () => {
     });
 
     it('raters step hidden for OPEN mode', () => {
-        renderWizard('p1', 'dimensions');
-        expect(stepper().queryByRole('button', { name: /Penilai/ })).not.toBeInTheDocument();
+        renderWizard('p1', 'questions');
+        expect(stepper().queryByRole('button', { name: /Penilai$/ })).not.toBeInTheDocument();
         cleanup();
         fx.period = period({ respondentMode: 'LISTED' });
-        renderWizard('p1', 'dimensions');
-        expect(stepper().getByRole('button', { name: /Penilai/ })).toBeEnabled();
+        renderWizard('p1', 'questions');
+        expect(stepper().getByRole('button', { name: /Penilai$/ })).toBeEnabled();
     });
 
     it('review disables Terbitkan when not ready and lists failing checks', async () => {
@@ -175,7 +178,7 @@ describe('SurveyWizard', () => {
         renderWizard('p1', 'info');
         await actor.click(screen.getByRole('button', { name: 'Lanjut' }));
         expect(fx.update.mutate).not.toHaveBeenCalled();
-        expect(props.onStepChange).toHaveBeenCalledWith('dimensions');
+        expect(props.onStepChange).toHaveBeenCalledWith('questions');
     });
 
     it('stepper from a dirty valid info step saves first, then opens the chosen step', async () => {
@@ -217,5 +220,78 @@ describe('SurveyWizard', () => {
         fx.period = period({ locked: true });
         renderWizard('p1', 'info');
         expect(screen.getByRole('button', { name: 'Hanya penilai terdaftar' })).toBeDisabled();
+    });
+
+    it('info step requires at least one site', async () => {
+        const actor = userEvent.setup();
+        renderWizard(null, 'info');
+        await actor.type(screen.getByLabelText('Judul'), 'Survei Q4');
+        setDates('2026-11-01', '2026-11-30');
+        expect(screen.getByText('Pilih minimal satu site.')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Lanjut' })).toBeDisabled();
+        await pickSite(actor);
+        expect(screen.queryByText('Pilih minimal satu site.')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Lanjut' })).toBeEnabled();
+        await actor.click(screen.getByRole('button', { name: 'Hapus site SPJ' }));
+        expect(screen.getByRole('button', { name: 'Lanjut' })).toBeDisabled();
+    });
+
+    it('cannot turn off both sections', async () => {
+        const actor = userEvent.setup();
+        renderWizard('p1', 'info');
+        await actor.click(screen.getByRole('switch', { name: 'Penilaian per orang' }));
+        expect(screen.getByText('Aktifkan minimal satu bagian penilaian')).toHaveAttribute('role', 'alert');
+        expect(screen.getByRole('button', { name: 'Lanjut' })).toBeDisabled();
+        await actor.click(screen.getByRole('switch', { name: 'Penilaian tim' }));
+        expect(screen.queryByText('Aktifkan minimal satu bagian penilaian')).not.toBeInTheDocument();
+    });
+
+    it('shows the team label only when team is enabled and sends sections and SLA on create', async () => {
+        const actor = userEvent.setup();
+        renderWizard(null, 'info');
+        expect(screen.queryByLabelText('Nama tim')).not.toBeInTheDocument();
+        await actor.click(screen.getByRole('switch', { name: 'Penilaian tim' }));
+        expect(screen.getByLabelText('Nama tim')).toHaveValue('Tim IT Support');
+        await pickSite(actor);
+        await actor.type(screen.getByLabelText('Judul'), 'Survei Q4');
+        setDates('2026-11-01', '2026-11-30');
+        fireEvent.change(screen.getByLabelText('Target SLA'), { target: { value: '90' } });
+        await actor.click(screen.getByRole('button', { name: 'Lanjut' }));
+        expect(fx.create.mutate).toHaveBeenCalledWith(
+            expect.objectContaining({ teamEnabled: true, individualEnabled: true, teamLabel: 'Tim IT Support', slaTargetPct: 90 }), expect.anything());
+    });
+
+    it('rejects an SLA target outside 1-100', () => {
+        renderWizard('p1', 'info');
+        fireEvent.change(screen.getByLabelText('Target SLA'), { target: { value: '101' } });
+        expect(screen.getByText('Target SLA harus bilangan bulat 1–100')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Lanjut' })).toBeDisabled();
+    });
+
+    it('freezes sites and sections when locked but keeps the SLA target editable', () => {
+        fx.period = period({ locked: true });
+        renderWizard('p1', 'info');
+        expect(screen.queryByRole('button', { name: 'Tambah site' })).not.toBeInTheDocument();
+        expect(screen.getByRole('switch', { name: 'Penilaian tim' })).toBeDisabled();
+        expect(screen.getByRole('switch', { name: 'Penilaian per orang' })).toBeDisabled();
+        expect(screen.getByLabelText('Target SLA')).toBeEnabled();
+    });
+
+    it('team step appears with its section; an old ?step=dimensions falls back to the review', () => {
+        fx.period = period({ teamEnabled: true, individualEnabled: false });
+        renderWizard('p1', 'team');
+        expect(stepper().getByRole('button', { name: /Penilaian tim/ })).toHaveAttribute('aria-current', 'step');
+        expect(stepper().queryByRole('button', { name: /Orang yang dinilai/ })).not.toBeInTheDocument();
+        cleanup();
+        renderWizard('p1', 'dimensions' as WizardStepKey);
+        expect(stepper().getByRole('button', { name: /Tinjau/ })).toHaveAttribute('aria-current', 'step');
+    });
+
+    it('review summary shows the sites, sections and SLA target', () => {
+        fx.period = period({ teamEnabled: true, sites: [{ id: 's1', code: 'SPJ', name: 'Sidoarjo' }, { id: 's2', code: 'BKS', name: 'Bekasi' }], slaTargetPct: 85 });
+        renderWizard('p1', 'review');
+        expect(screen.getByText('Sidoarjo & Bekasi')).toBeInTheDocument();
+        expect(screen.getByText('Tim & Per orang')).toBeInTheDocument();
+        expect(screen.getByText('85%')).toBeInTheDocument();
     });
 });
