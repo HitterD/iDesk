@@ -1,4 +1,4 @@
-import { AlertCircle, Eye, Star } from 'lucide-react';
+import { AlertCircle, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { rateeAverage, type CsiScores } from '../../lib/csiForm';
@@ -24,14 +24,6 @@ interface ReviewScreenProps {
 
 const ROW = 'flex items-center gap-3.5 px-4 py-3 sm:px-5';
 const EDIT_BUTTON = 'shrink-0 px-3';
-
-function PreviewBanner() {
-    return (
-        <p role="note" className="flex items-center gap-2 rounded-2xl bg-[hsl(var(--ticket-amber)/.12)] px-4 py-2.5 text-[13px] font-medium text-[hsl(var(--ticket-amber-ink))]">
-            <Eye className="h-4 w-4 shrink-0" aria-hidden="true" />{RESPOND_COPY.previewBanner}
-        </p>
-    );
-}
 
 /** One row per ratee: avatar, name, star average (1 decimal, id-ID) and "Ubah". */
 function ReviewRatees({ ratees, scores, onEdit }: { ratees: CsiOpenForm['ratees']; scores: CsiScores; onEdit: (index: number) => void }) {
@@ -63,7 +55,6 @@ export function ReviewScreen(props: ReviewScreenProps) {
                 <ScreenHeading className="text-2xl font-bold tracking-tight">{RESPOND_COPY.reviewTitle}</ScreenHeading>
                 <p className="text-[14px] text-muted-foreground">{RESPOND_COPY.reviewHint}</p>
             </header>
-            {preview && <PreviewBanner />}
 
             <div className={cn(CSI_CARD, ROW)}>
                 <div className="min-w-0 flex-1">

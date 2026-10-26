@@ -25,11 +25,6 @@ export function countDimensions(form: CsiOpenForm): number {
     return form.ratees.reduce((total, ratee) => total + ratee.dimensions.length, 0);
 }
 
-export function countRated(form: CsiOpenForm, scores: CsiScores): number {
-    return form.ratees.reduce((total, ratee) =>
-        total + ratee.dimensions.filter((dimension) => (scores[dimension.periodRateeDimensionId] ?? 0) > 0).length, 0);
-}
-
 export function rateeAverage(ratee: Ratee, scores: CsiScores): number {
     if (!ratee.dimensions.length) return 0;
     const sum = ratee.dimensions.reduce((total, dimension) => total + (scores[dimension.periodRateeDimensionId] ?? 0), 0);

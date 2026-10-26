@@ -217,7 +217,8 @@ describe('SurveyFlow', () => {
         await user.click(button('Lanjut'));
         await rate(user, 'Kecepatan untuk Budi', 3);
         await user.click(button('Tinjau jawaban'));
-        expect(screen.getByText('Pratinjau — jawaban tidak dikirim')).toBeInTheDocument();
+        // The preview sheet shows the banner once; the flow itself does not repeat it.
+        expect(screen.queryByText('Pratinjau — jawaban tidak dikirim')).not.toBeInTheDocument();
         expect(button('Kirim')).toBeDisabled();
         await user.click(button('Kirim'));
         expect(onSubmit).not.toHaveBeenCalled();

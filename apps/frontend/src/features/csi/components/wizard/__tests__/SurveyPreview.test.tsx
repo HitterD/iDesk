@@ -39,6 +39,7 @@ describe('SurveyPreview', () => {
         fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Kecepatan untuk Admin Preview' })).getByRole('radio', { name: '5 dari 5' }));
         fireEvent.change(screen.getByRole('textbox', { name: 'Saran untuk Admin Preview (opsional)' }), { target: { value: 'Bagus' } });
         fireEvent.click(screen.getByRole('button', { name: 'Tinjau jawaban' }));
+        expect(screen.getAllByText('Pratinjau — jawaban tidak dikirim')).toHaveLength(1);
         expect(screen.getByRole('button', { name: 'Kirim' })).toBeDisabled();
         view.unmount();
         expect(read).not.toHaveBeenCalled();

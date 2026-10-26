@@ -29,7 +29,6 @@ export const WIZARD_COPY = {
     toDetail: 'Ke detail survei',
     previewTitle: 'Pratinjau',
     previewBanner: 'Pratinjau — jawaban tidak dikirim',
-    previewPlaceholder: 'Pratinjau form responden akan tersedia di sini.',
     dimensionsNote: 'Dimensi dipasang ke orang di langkah berikutnya.',
     departmentsNote: 'Semua departemen aktif dipakai di form. Tambahkan bila ada yang belum terdaftar.',
     ratersNote: 'Tambahkan penilai terdaftar, lalu centang siapa yang mengisi survei ini.',
