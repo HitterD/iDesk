@@ -26,13 +26,19 @@ export function previousStep(mode: CsiRespondentMode, current: WizardStepKey): W
     return steps[steps.indexOf(current) - 1] ?? null;
 }
 
-export function stepComplete(key: WizardStepKey, period: CsiPeriodDetail): boolean {
+/**
+ * Whether a step of an existing period counts as done (stepper tick, resume point).
+ * `activeDimensionCount` = active master dimensions in the scope (the dimensions step has no server check).
+ */
+export function stepComplete(key: WizardStepKey, period: CsiPeriodDetail, activeDimensionCount: number): boolean {
     const checkOk = (checkKey: CsiPeriodDetail['readiness']['checks'][number]['key']) =>
         period.readiness.checks.some((check) => check.key === checkKey && check.ok);
     switch (key) {
+        case 'dimensions': return activeDimensionCount > 0;
         case 'ratees': return checkOk('ratees') && checkOk('dimensions');
         case 'raters': return checkOk('raters');
         case 'departments': return checkOk('departments');
+        case 'review': return period.publishStatus === 'PUBLISHED';
         default: return true;
     }
 }
@@ -48,8 +54,9 @@ export const READINESS_STEP: Readonly<Record<ReadinessKey, WizardStepKey>> = {
 };
 
 /** Where a draft resumes: the first visible step that is still incomplete, else the review. */
-export function resumeStep(period: CsiPeriodDetail): WizardStepKey {
-    return visibleSteps(period.respondentMode).find((key) => !stepComplete(key, period)) ?? 'review';
+export function resumeStep(period: CsiPeriodDetail, activeDimensionCount: number): WizardStepKey {
+    return visibleSteps(period.respondentMode)
+        .find((key) => key !== 'review' && !stepComplete(key, period, activeDimensionCount)) ?? 'review';
 }
 
 export const isWizardStepKey = (value: string | null): value is WizardStepKey =>

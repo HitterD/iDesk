@@ -44,39 +44,56 @@ describe('wizard steps', () => {
     });
 });
 
+const DIMENSIONS = 2;
+
 describe('stepComplete', () => {
-    it.each(['info', 'dimensions', 'review'] as const)('always completes %s independently of readiness', (key) => {
-        expect(stepComplete(key, period([]))).toBe(true);
+    it('completes info once the period exists, independently of readiness', () => {
+        expect(stepComplete('info', period([]), 0)).toBe(true);
+    });
+
+    it('completes dimensions only when the scope has at least one active master dimension', () => {
+        expect(stepComplete('dimensions', period([]), 0)).toBe(false);
+        expect(stepComplete('dimensions', period([]), 1)).toBe(true);
+    });
+
+    it('completes review only once the survey is published', () => {
+        const ready = { ...period([]), readiness: { ready: true, checks: [] } };
+        expect(stepComplete('review', ready, DIMENSIONS)).toBe(false);
+        expect(stepComplete('review', { ...ready, publishStatus: 'PUBLISHED' }, DIMENSIONS)).toBe(true);
     });
 
     it.each([[false, false], [false, true], [true, false], [true, true]])(
         'requires both ratees (%s) and assigned dimensions (%s)', (ratees, dimensions) => {
-            expect(stepComplete('ratees', period([check('ratees', ratees), check('dimensions', dimensions)])))
+            expect(stepComplete('ratees', period([check('ratees', ratees), check('dimensions', dimensions)]), DIMENSIONS))
                 .toBe(ratees && dimensions);
         },
     );
 
     it.each(['raters', 'departments'] as const)('uses the server %s check, not overall readiness', (key) => {
-        expect(stepComplete(key, period([check(key, true)]))).toBe(true);
-        expect(stepComplete(key, period([check(key, false)]))).toBe(false);
-        expect(stepComplete(key, period([]))).toBe(false);
+        expect(stepComplete(key, period([check(key, true)]), DIMENSIONS)).toBe(true);
+        expect(stepComplete(key, period([check(key, false)]), DIMENSIONS)).toBe(false);
+        expect(stepComplete(key, period([]), DIMENSIONS)).toBe(false);
     });
 
     it('does not complete ratees with a missing prerequisite check', () => {
-        expect(stepComplete('ratees', period([check('ratees', true)]))).toBe(false);
-        expect(stepComplete('ratees', period([check('dimensions', true)]))).toBe(false);
+        expect(stepComplete('ratees', period([check('ratees', true)]), DIMENSIONS)).toBe(false);
+        expect(stepComplete('ratees', period([check('dimensions', true)]), DIMENSIONS)).toBe(false);
     });
 });
 
 describe('resumeStep', () => {
     it('resumes at the first incomplete visible step', () => {
-        expect(resumeStep(period([check('ratees', false), check('dimensions', true), check('raters', false)]))).toBe('ratees');
-        expect(resumeStep(period([check('ratees', true), check('dimensions', true), check('raters', false), check('departments', true)]))).toBe('raters');
+        expect(resumeStep(period([check('ratees', false), check('dimensions', true), check('raters', false)]), DIMENSIONS)).toBe('ratees');
+        expect(resumeStep(period([check('ratees', true), check('dimensions', true), check('raters', false), check('departments', true)]), DIMENSIONS)).toBe('raters');
+    });
+
+    it('resumes at dimensions when the scope has no active dimension yet', () => {
+        expect(resumeStep(period([check('ratees', false)]), 0)).toBe('dimensions');
     });
 
     it('skips the hidden raters step for OPEN and lands on review when everything is complete', () => {
         const open = { ...period([check('ratees', true), check('dimensions', true), check('departments', true)]), respondentMode: 'OPEN' as const };
-        expect(resumeStep(open)).toBe('review');
+        expect(resumeStep(open, DIMENSIONS)).toBe('review');
     });
 
     it('maps every readiness check to the step that fixes it', () => {

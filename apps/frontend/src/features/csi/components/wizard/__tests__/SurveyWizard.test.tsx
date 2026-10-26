@@ -14,7 +14,8 @@ const fx = vi.hoisted(() => {
         periods: [] as CsiPeriodListItem[],
         create: mutation(), update: mutation(), publish: mutation(),
         idle: () => ({ mutate: vi.fn(), isPending: false }),
-        dimensions: [{ id: 'd1', name: 'Kecepatan', sortOrder: 1, scope: 'ICT', isActive: true, description: null, ...STAMP }] as CsiDimension[],
+        dimension: { id: 'd1', name: 'Kecepatan', sortOrder: 1, scope: 'ICT', isActive: true, description: null, ...STAMP } as CsiDimension,
+        dimensions: [] as CsiDimension[],
         users: [{ id: 'u1', fullName: 'Andi Saputra', jobTitle: null, email: 'andi@idesk.test', siteId: 's1', site: null }] as CsiUserSearchResult[],
         toast: { success: vi.fn() },
     };
@@ -30,7 +31,7 @@ vi.mock('../../../hooks/useCsi', () => ({
     useCsiRaters: () => ({ data: [], isLoading: false }),
     useCreateCsiDimension: fx.idle, useUpdateCsiDimension: fx.idle, useDeactivateCsiDimension: fx.idle,
     useCreateCsiDepartment: fx.idle, useUpdateCsiDepartment: fx.idle, useDeactivateCsiDepartment: fx.idle, useAddCsiRaters: fx.idle,
-    useSetCsiRatees: fx.idle, useSetCsiRaters: fx.idle,
+    useSetCsiRatees: fx.idle, useSetCsiRaters: fx.idle, useDeleteCsiPeriod: fx.idle,
 }));
 vi.mock('@/components/site/useActiveSites', () => ({ useActiveSites: () => ({ data: [{ id: 's1', code: 'SPJ', name: 'Sidoarjo' }] }) }));
 vi.mock('sonner', () => ({ toast: fx.toast }));
@@ -58,6 +59,7 @@ beforeEach(() => {
     vi.clearAllMocks();
     fx.period = period();
     fx.periods = [listItem()];
+    fx.dimensions = [fx.dimension];
 });
 afterEach(cleanup);
 

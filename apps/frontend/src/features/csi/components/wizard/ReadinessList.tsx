@@ -5,9 +5,15 @@ import { READINESS_STEP, type WizardStepKey } from '../../lib/wizard';
 import type { CsiReadiness } from '../../types';
 import { WIZARD_COPY } from './wizardCopy';
 
-/** Publish prerequisites with ✓/✗ and an "Ubah" action that opens the owning wizard step. */
-export function ReadinessList({ readiness, onEdit, disabled }: {
-    readiness: CsiReadiness; onEdit: (step: WizardStepKey) => void; disabled?: boolean;
+/** Checks fixed on the period itself (ratee/rater assignment), which the backend freezes once answers exist. */
+const PERIOD_BOUND = new Set<CsiReadiness['checks'][number]['key']>(['ratees', 'dimensions', 'raters']);
+
+/**
+ * Publish prerequisites with ✓/✗ and an "Ubah" action that opens the owning wizard step.
+ * `locked` disables "Ubah" for period-bound checks; departments are master data and stay editable.
+ */
+export function ReadinessList({ readiness, onEdit, locked }: {
+    readiness: CsiReadiness; onEdit: (step: WizardStepKey) => void; locked?: boolean;
 }) {
     return (
         <ul className="divide-y divide-[hsl(var(--idesk-border)/.55)] rounded-2xl border border-[hsl(var(--idesk-border)/.7)]">
@@ -21,7 +27,7 @@ export function ReadinessList({ readiness, onEdit, disabled }: {
                         <span>{check.label}</span>{' '}
                         <span className="sr-only">{check.ok ? WIZARD_COPY.checkOk : WIZARD_COPY.checkFailed}</span>
                     </span>
-                    <Button variant="subtle" disabled={disabled} aria-label={`${WIZARD_COPY.edit}: ${check.label}`} onClick={() => onEdit(READINESS_STEP[check.key])}>
+                    <Button variant="subtle" disabled={locked && PERIOD_BOUND.has(check.key)} aria-label={`${WIZARD_COPY.edit}: ${check.label}`} onClick={() => onEdit(READINESS_STEP[check.key])}>
                         <Pencil aria-hidden="true" />{WIZARD_COPY.edit}
                     </Button>
                 </li>

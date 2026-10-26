@@ -106,7 +106,8 @@ describe('computeReadiness', () => {
     });
 
     it('flags missing ratees, empty dimensions, no departments, no raters for LISTED only', () => {
-        expect(failing({ ...complete, ratees: [] })).toEqual(['ratees']);
+        // No ratees is not "every ratee has a dimension" (no vacuous truth).
+        expect(failing({ ...complete, ratees: [] })).toEqual(['ratees', 'dimensions']);
         expect(failing({ ...complete, ratees: [{ dimensions: [{}] }, { dimensions: [] }] })).toEqual(['dimensions']);
         expect(failing({ ...complete, activeDepartmentCount: 0 })).toEqual(['departments']);
         expect(failing({ ...complete, raterCount: 0 })).toEqual(['raters']);

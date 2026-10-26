@@ -9,13 +9,14 @@ const fx = vi.hoisted(() => ({
     period: null as unknown as CsiPeriodDetail,
     publish: { mutate: vi.fn(), isPending: false },
     unpublish: { mutate: vi.fn(), isPending: false },
+    remove: { mutate: vi.fn(), isPending: false },
     toast: { success: vi.fn() },
 }));
 
 vi.mock('../../../hooks/useCsi', () => ({
     useCsiPeriod: () => ({ data: fx.period, isLoading: false, isError: false, refetch: () => undefined }),
     usePublishCsiPeriod: () => fx.publish, useUnpublishCsiPeriod: () => fx.unpublish,
-    useDeleteCsiPeriod: () => ({ mutate: vi.fn(), isPending: false }),
+    useDeleteCsiPeriod: () => fx.remove,
 }));
 vi.mock('sonner', () => ({ toast: fx.toast }));
 
@@ -30,7 +31,8 @@ const period = (over: Partial<CsiPeriodDetail> = {}): CsiPeriodDetail => ({
 });
 
 const onEditStep = vi.fn();
-const renderDetail = () => render(<PeriodDetail scope="ict" periodId="p1" onBack={vi.fn()} onEditStep={onEditStep} />);
+const onBack = vi.fn();
+const renderDetail = () => render(<PeriodDetail scope="ict" periodId="p1" onBack={onBack} onEditStep={onEditStep} />);
 
 beforeEach(() => { vi.clearAllMocks(); fx.period = period(); });
 afterEach(cleanup);
@@ -61,10 +63,23 @@ describe('PeriodDetail', () => {
         expect(fx.toast.success).toHaveBeenCalledWith('Survei ditarik ke draft');
     });
 
-    it('tidak menawarkan Tarik ke draft setelah ada jawaban', () => {
+    it('setelah ada jawaban: tanpa Tarik ke draft, Ubah penugasan dan hapus nonaktif, Ubah departemen tetap aktif', () => {
         fx.period = period({ locked: true });
         renderDetail();
         expect(screen.queryByRole('button', { name: 'Tarik ke draft' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Ubah: Minimal 1 orang dinilai' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Ubah: Minimal 1 departemen aktif' })).toBeEnabled();
+        expect(screen.getByRole('button', { name: /Hapus survei/ })).toBeDisabled();
+    });
+
+    it('Hapus survei menghapus lalu kembali ke daftar', async () => {
+        const actor = userEvent.setup();
+        fx.remove.mutate.mockImplementation((_id, options) => options?.onSuccess?.());
+        renderDetail();
+        await actor.click(screen.getByRole('button', { name: /Hapus survei/ }));
+        await actor.click(await screen.findByRole('button', { name: 'Hapus' }));
+        expect(fx.remove.mutate).toHaveBeenCalledWith('p1', expect.anything());
+        expect(onBack).toHaveBeenCalled();
     });
 
     it('draft belum lengkap: Terbitkan nonaktif', () => {

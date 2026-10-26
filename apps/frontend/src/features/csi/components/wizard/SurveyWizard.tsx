@@ -1,17 +1,16 @@
 import { useCallback, useRef, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { cn } from '@/lib/utils';
-import { useCsiPeriod } from '../../hooks/useCsi';
+import { useCsiDimensions, useCsiPeriod } from '../../hooks/useCsi';
 import { CSI_DEFAULT_MODE } from '../../lib/csiAdmin';
 import { nextStep, previousStep, stepComplete, visibleSteps, type WizardStepKey } from '../../lib/wizard';
 import type { CsiPeriodDetail, CsiScopeParam } from '../../types';
-import { ADMIN_PANEL, PublishPill } from '../admin/AdminParts';
+import { ADMIN_PANEL } from '../admin/AdminParts';
 import type { PeriodEditorStatus } from '../admin/PeriodEditor';
 import { WizardFooter } from './WizardFooter';
+import { WizardHeader } from './WizardHeader';
 import { WizardStepBody } from './WizardStepBody';
 import { WizardStepper } from './WizardStepper';
-import { WIZARD_COPY } from './wizardCopy';
 
 export interface SurveyWizardProps {
     scope: CsiScopeParam;
@@ -35,10 +34,6 @@ function effectiveStep(step: WizardStepKey, steps: readonly WizardStepKey[], per
     return steps.includes(step) ? step : 'review';
 }
 
-/** Stepper check mark: the review step is only "done" once the survey is published. */
-const isStepDone = (key: WizardStepKey, period: CsiPeriodDetail | undefined) =>
-    !!period && (key === 'review' ? period.publishStatus === 'PUBLISHED' : stepComplete(key, period));
-
 /** Unsaved ratee/rater drafts block navigation; the flag belongs to the step that reported it. */
 function useStepDirty(step: WizardStepKey) {
     const [dirty, setDirty] = useState<{ step: WizardStepKey; value: boolean }>({ step, value: false });
@@ -46,20 +41,9 @@ function useStepDirty(step: WizardStepKey) {
     return [dirty.step === step && dirty.value, report] as const;
 }
 
-function WizardHeader({ period, onClose }: { period: CsiPeriodDetail | undefined; onClose: () => void }) {
-    return (
-        <header className="grid gap-3">
-            <button type="button" onClick={onClose} className="idesk-text-link w-fit"><ArrowLeft aria-hidden="true" />Semua survei</button>
-            <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-[20px] font-bold tracking-tight">{period?.title || WIZARD_COPY.create}</h2>
-                {period && <PublishPill status={period.publishStatus} />}
-            </div>
-        </header>
-    );
-}
-
 export function SurveyWizard({ scope, periodId, step, onStepChange, onClose, onCreated, onPublished }: SurveyWizardProps) {
     const query = useCsiPeriod(scope, periodId ?? '');
+    const { data: dimensions = [] } = useCsiDimensions(scope);
     const { isLoading, isError, refetch } = query;
     const period = periodId ? query.data : undefined;
     const formRef = useRef<HTMLFormElement>(null);
@@ -84,11 +68,11 @@ export function SurveyWizard({ scope, periodId, step, onStepChange, onClose, onC
 
     return (
         <div className="grid gap-5">
-            <WizardHeader period={period} onClose={onClose} />
+            <WizardHeader scope={scope} period={period} onClose={onClose} />
             <div className="grid items-start gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
                 <div className={cn(ADMIN_PANEL, 'p-2.5 lg:sticky lg:top-4')}>
                     <WizardStepper steps={steps} current={current} canNavigate={!!period && !blocked}
-                        isComplete={(key) => isStepDone(key, period)} onSelect={onStepChange} />
+                        isComplete={(key) => !!period && stepComplete(key, period, dimensions.length)} onSelect={onStepChange} />
                 </div>
                 <div className="grid min-w-0 gap-4">
                     <WizardStepBody scope={scope} step={current} period={period} formRef={formRef}

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useCsiPeriod } from '../../hooks/useCsi';
+import { useCsiDimensions, useCsiPeriod } from '../../hooks/useCsi';
 import type { AdminRoute } from '../../lib/useAdminRoute';
 import { resumeStep } from '../../lib/wizard';
 import type { CsiScopeParam } from '../../types';
@@ -9,8 +9,9 @@ import { SurveyWizard } from './SurveyWizard';
 export function WizardRoute({ scope, route }: { scope: CsiScopeParam; route: AdminRoute }) {
     const periodId = route.wizard ?? null;
     const { data: period } = useCsiPeriod(scope, periodId ?? '');
-    const loaded = periodId ? period : undefined;
-    const resolved = route.step ?? (loaded ? resumeStep(loaded) : 'info');
+    const { data: dimensions } = useCsiDimensions(scope);
+    const loaded = periodId && dimensions ? period : undefined;
+    const resolved = route.step ?? (loaded && dimensions ? resumeStep(loaded, dimensions.length) : 'info');
     const { step, setStep } = route;
 
     // Pin the resumed step in the URL so later saves (which change readiness) do not move the admin.

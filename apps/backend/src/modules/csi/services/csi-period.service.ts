@@ -48,7 +48,7 @@ export function computeReadiness(input: {
 }): CsiReadiness {
     const results: Array<[CsiReadinessKey, boolean]> = [
         ['ratees', input.ratees.length > 0],
-        ['dimensions', input.ratees.every((ratee) => ratee.dimensions.length > 0)],
+        ['dimensions', input.ratees.length > 0 && input.ratees.every((ratee) => ratee.dimensions.length > 0)],
         ['departments', input.activeDepartmentCount > 0],
         ...(input.respondentMode === CsiRespondentMode.LISTED ? [['raters', input.raterCount > 0] as [CsiReadinessKey, boolean]] : []),
     ];
