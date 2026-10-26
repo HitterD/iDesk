@@ -97,4 +97,19 @@ describe('PeriodDetail', () => {
         await actor.click(screen.getByRole('button', { name: 'Terbitkan' }));
         expect(fx.toast.success).toHaveBeenCalledWith('Survei diterbitkan');
     });
+
+    it('terbit tetapi checklist merah: banner peringatan (role status)', () => {
+        fx.period = period({ readiness: { ready: false, checks: [check('departments', false, 'Minimal 1 departemen aktif')] } });
+        renderDetail();
+        expect(screen.getByText('Survei terbit tetapi belum lengkap — responden tidak dapat mengisi sampai checklist terpenuhi.')).toHaveAttribute('role', 'status');
+    });
+
+    it.each([
+        ['terbit dan lengkap', {}],
+        ['draft belum lengkap', { publishStatus: 'DRAFT', readiness: { ready: false, checks: [] } }],
+    ] as const)('tanpa banner peringatan bila %s', (_case, over) => {
+        fx.period = period(over);
+        renderDetail();
+        expect(screen.queryByText('Survei terbit tetapi belum lengkap — responden tidak dapat mengisi sampai checklist terpenuhi.')).not.toBeInTheDocument();
+    });
 });

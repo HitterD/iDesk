@@ -51,6 +51,13 @@ describe('SurveyFlow', () => {
         expect(screen.getByLabelText('Nama')).toHaveValue('Rina Pemohon');
     });
 
+    it('no active department: friendly message instead of a dead start button', () => {
+        renderFlow({ form: { ...FORM, departments: [] } });
+        expect(screen.getByRole('status')).toHaveTextContent('Survei ini belum siap diisi. Silakan coba lagi nanti atau hubungi admin.');
+        expect(screen.queryByRole('button', { name: 'Mulai mengisi' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('combobox', { name: 'Departemen' })).not.toBeInTheDocument();
+    });
+
     it('Mulai mengisi disabled until department chosen', async () => {
         const user = userEvent.setup();
         renderFlow();

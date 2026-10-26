@@ -18,6 +18,7 @@ export const RESPOND_COPY = {
     reviewTitle: 'Tinjau jawaban',
     reviewHint: 'Periksa kembali sebelum mengirim. Survei hanya bisa dikirim sekali.',
     previewBanner: 'Pratinjau — jawaban tidak dikirim',
+    notReady: 'Survei ini belum siap diisi. Silakan coba lagi nanti atau hubungi admin.',
 } as const;
 
 export const summaryText = (people: number, minutes: number) => `Anda akan menilai ${people} orang · sekitar ${minutes} menit`;

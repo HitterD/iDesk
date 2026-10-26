@@ -22,6 +22,7 @@ export const WIZARD_COPY = {
     checkOk: 'terpenuhi',
     checkFailed: 'belum terpenuhi',
     readinessTitle: 'Kelengkapan',
+    publishedIncomplete: 'Survei terbit tetapi belum lengkap — responden tidak dapat mengisi sampai checklist terpenuhi.',
     published: 'Survei diterbitkan',
     unpublished: 'Survei ditarik ke draft',
     alreadyPublished: 'Survei ini sudah terbit.',

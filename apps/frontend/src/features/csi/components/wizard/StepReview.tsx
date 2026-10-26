@@ -55,7 +55,7 @@ export function StepReview({ scope, period, onEditStep, onPublished }: StepRevie
                 <Summary period={period} />
             </AdminSection>
             <AdminSection title={WIZARD_COPY.readinessTitle}>
-                <ReadinessList readiness={period.readiness} onEdit={onEditStep} />
+                <ReadinessList readiness={period.readiness} onEdit={onEditStep} published={published} />
                 <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
                     <Button variant="soft" onClick={() => setPreviewing(true)}><Eye aria-hidden="true" />{WIZARD_COPY.preview}</Button>
                     {published

@@ -64,7 +64,7 @@ export function PeriodChecklist({ scope, period, onEditStep, onDeleted }: Period
                     <Pencil aria-hidden="true" />{WIZARD_COPY.editInfo}
                 </Button>
             )}>
-            <ReadinessList readiness={period.readiness} onEdit={onEditStep} locked={period.locked} />
+            <ReadinessList readiness={period.readiness} onEdit={onEditStep} locked={period.locked} published={period.publishStatus === 'PUBLISHED'} />
             <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
                 {period.locked && <LockedNote />}
                 <span className="flex-1" />

@@ -131,6 +131,16 @@ describe('SurveyWizard', () => {
         expect(props.onStepChange).toHaveBeenCalledWith('ratees');
     });
 
+    it('review warns when a published survey no longer passes its checklist', () => {
+        fx.period = period({ publishStatus: 'PUBLISHED', readiness: { ready: false, checks: [check('ratees', false, 'Minimal 1 orang dinilai')] } });
+        renderWizard('p1', 'review');
+        expect(screen.getByText('Survei terbit tetapi belum lengkap — responden tidak dapat mengisi sampai checklist terpenuhi.')).toHaveAttribute('role', 'status');
+        cleanup();
+        fx.period = period({ publishStatus: 'PUBLISHED' });
+        renderWizard('p1', 'review');
+        expect(screen.queryByText('Survei terbit tetapi belum lengkap — responden tidak dapat mengisi sampai checklist terpenuhi.')).not.toBeInTheDocument();
+    });
+
     it('Terbitkan calls publish and closes to detail', async () => {
         const actor = userEvent.setup();
         fx.publish.mutate.mockImplementation((_vars, options) => options?.onSuccess?.(period({ publishStatus: 'PUBLISHED' })));

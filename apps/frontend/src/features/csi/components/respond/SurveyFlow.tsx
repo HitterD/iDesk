@@ -44,7 +44,8 @@ export function SurveyFlow({ form, userId, mode = 'live', onSubmit, submitting =
             <ScreenTransition screenKey={String(position)} direction={nav.direction}>
                 {position === 0 && (
                     <IntroScreen form={form} departmentId={draft.departmentId} onDepartmentChange={answers.setDepartment}
-                        canStart={preview || Boolean(draft.departmentId)} onStart={() => goTo(1)} />
+                        canStart={preview || Boolean(draft.departmentId)} onStart={() => goTo(1)}
+                        unavailable={!preview && form.departments.length === 0} />
                 )}
                 {ratee && (
                     <RateeScreen ratees={form.ratees} index={position - 1} scores={draft.scores}
