@@ -8,7 +8,7 @@ const AVERAGE_FORMAT = new Intl.NumberFormat(LOCALE, { minimumFractionDigits: 1,
 const SCORE_FORMAT = new Intl.NumberFormat(LOCALE, { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 const PERCENT_FORMAT = new Intl.NumberFormat(LOCALE, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-/** One-decimal star average (respondent confirmation sheet). */
+/** One-decimal star average (respondent review screen). */
 export const formatAverage = (value: number) => AVERAGE_FORMAT.format(value);
 
 /** Report average as returned by the backend (2 decimals max); null → "—". */
