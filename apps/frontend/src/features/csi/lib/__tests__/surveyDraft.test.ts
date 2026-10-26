@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clearDraft, draftKey, loadDraft, saveDraft, type SurveyDraft } from '../surveyDraft';
+import { clearDraft, draftKey, hasDraft, loadDraft, saveDraft, type SurveyDraft } from '../surveyDraft';
 import { CSI_COMMENT_MAX } from '../csiForm';
 
 const warn = vi.hoisted(() => vi.fn());
@@ -28,6 +28,16 @@ afterEach(() => {
 describe('surveyDraft', () => {
     it('uses the csi-draft:<userId>:<periodId> key', () => {
         expect(KEY).toBe('csi-draft:u1:p1');
+    });
+
+    it('detects drafts only for the matching user and period', () => {
+        expect(hasDraft('u1', 'p1')).toBe(false);
+        saveDraft(KEY, DRAFT);
+        expect(hasDraft('u1', 'p1')).toBe(true);
+        expect(hasDraft('u2', 'p1')).toBe(false);
+        expect(hasDraft('u1', 'p2')).toBe(false);
+        clearDraft(KEY);
+        expect(hasDraft('u1', 'p1')).toBe(false);
     });
 
     it('round-trips draft', () => {
@@ -71,6 +81,7 @@ describe('surveyDraft', () => {
         vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(boom);
         expect(() => saveDraft(KEY, DRAFT)).not.toThrow();
         expect(loadDraft(KEY, FORM)).toBeNull();
+        expect(hasDraft('u1', 'p1')).toBe(false);
         expect(() => clearDraft(KEY)).not.toThrow();
         expect(() => saveDraft(KEY, DRAFT)).not.toThrow();
         // Autosave hits storage on every change: one warning per session is enough.

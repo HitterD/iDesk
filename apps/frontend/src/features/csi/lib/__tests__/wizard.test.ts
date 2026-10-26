@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CsiPeriodDetail, CsiRespondentMode } from '../../types';
 import {
-    estimateMinutes, isWizardStepKey, nextStep, previousStep, READINESS_STEP, resumeStep, stepComplete, visibleSteps, WIZARD_STEPS,
+    toPreviewForm, estimateMinutes, isWizardStepKey, nextStep, previousStep, READINESS_STEP, resumeStep, stepComplete, visibleSteps, WIZARD_STEPS,
 } from '../wizard';
 
 const period = (checks: CsiPeriodDetail['readiness']['checks']): CsiPeriodDetail => ({
@@ -104,6 +104,46 @@ describe('resumeStep', () => {
         expect(isWizardStepKey('ratees')).toBe(true);
         expect(isWizardStepKey('nope')).toBe(false);
         expect(isWizardStepKey(null)).toBe(false);
+    });
+});
+
+describe('toPreviewForm', () => {
+    it('maps period fields, preserves active department order and includes the admin among ordered ratees', () => {
+        const base = { createdAt: '', updatedAt: '' };
+        const source = {
+            ...period([]), title: 'ICT Q4', intro: 'Nilai tim kami',
+            ratees: [
+                { ...base, id: 'r2', periodId: 'p1', userId: 'u2', displayName: 'Budi', jobTitle: null, sortOrder: 2, dimensions: [] },
+                { ...base, id: 'r1', periodId: 'p1', userId: 'a1', displayName: 'Admin', jobTitle: 'Support', sortOrder: 1, dimensions: [
+                    { ...base, id: 'x2', periodRateeId: 'r1', dimensionId: 'missing', dimensionName: 'Solusi', sortOrder: 2 },
+                    { ...base, id: 'x1', periodRateeId: 'r1', dimensionId: 'd1', dimensionName: 'Respons tersimpan', sortOrder: 1 },
+                ] },
+            ],
+        };
+        const department = { ...base, scope: 'ICT' as const, isActive: true, sortOrder: 0 };
+        const result = toPreviewForm(source, [
+            { ...department, id: 'g2', name: 'Produksi', sortOrder: 2 },
+            { ...department, id: 'off', name: 'Lama', isActive: false },
+            { ...department, id: 'g1', name: 'Finance', sortOrder: 1 },
+        ], [{ ...department, id: 'd1', name: 'Respons master', description: 'Cepat ditanggapi' }], 'Admin');
+        expect(result).toEqual({
+            submitted: false, id: 'p1', scope: 'ICT', title: 'ICT Q4', intro: 'Nilai tim kami', endDate: '2026-10-31',
+            respondent: { fullName: 'Admin' },
+            departments: [{ id: 'g2', name: 'Produksi' }, { id: 'g1', name: 'Finance' }],
+            ratees: [
+                { periodRateeId: 'r1', displayName: 'Admin', jobTitle: 'Support', avatarUrl: null, dimensions: [
+                    { periodRateeDimensionId: 'x1', name: 'Respons tersimpan', description: 'Cepat ditanggapi' },
+                    { periodRateeDimensionId: 'x2', name: 'Solusi', description: null },
+                ] },
+                { periodRateeId: 'r2', displayName: 'Budi', jobTitle: null, avatarUrl: null, dimensions: [] },
+            ],
+        });
+        expect(source.ratees.map((ratee) => ratee.id)).toEqual(['r2', 'r1']);
+        expect(source.ratees[1].dimensions.map((dimension) => dimension.id)).toEqual(['x2', 'x1']);
+    });
+
+    it('supports an empty draft period', () => {
+        expect(toPreviewForm(period([]), [], [], 'Admin').ratees).toEqual([]);
     });
 });
 

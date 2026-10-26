@@ -68,6 +68,10 @@ function attempt<T>(action: string, run: () => T, fallback: T): T {
     }
 }
 
+export function hasDraft(userId: string, periodId: string): boolean {
+    return attempt('check', () => localStorage.getItem(draftKey(userId, periodId)) !== null, false);
+}
+
 export function loadDraft(key: string, form: CsiOpenForm): SurveyDraft | null {
     return attempt('load', () => {
         const stored = localStorage.getItem(key);

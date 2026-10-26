@@ -3,6 +3,8 @@ import { CheckCircle2, ChevronRight, ClipboardList, Star } from 'lucide-react';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { TicketPill } from '@/components/ui/ticket-pill';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/stores/useAuth';
+import { hasDraft } from '../lib/surveyDraft';
 import { useCsiActive } from '../hooks/useCsi';
 import { useCsiBasePath } from '../lib/useCsiBasePath';
 import { CSI_CARD, FadeIn } from '../components/CsiSurveyParts';
@@ -12,6 +14,7 @@ export const CSI_SURVEY_PAGE_TITLE = 'Survei Kepuasan';
 
 export function CsiSurveyListPage() {
     const basePath = useCsiBasePath();
+    const { user } = useAuth();
     const { data: surveys, isLoading, isError, refetch } = useCsiActive();
 
     return (
@@ -60,6 +63,11 @@ export function CsiSurveyListPage() {
                                             )}
                                         </span>
                                     </span>
+                                    {!survey.submitted && (
+                                        <span className="shrink-0 text-[13px] font-semibold text-primary">
+                                            {user && hasDraft(user.id, survey.id) ? 'Lanjutkan' : 'Isi Survei'}
+                                        </span>
+                                    )}
                                     <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
                                 </Link>
                             </FadeIn>

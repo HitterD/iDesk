@@ -1,4 +1,23 @@
-import type { CsiPeriodDetail, CsiRespondentMode } from '../types';
+import type { CsiDepartment, CsiDimension, CsiOpenForm, CsiPeriodDetail, CsiRespondentMode } from '../types';
+
+/** Admin preview uses snapshot labels and master descriptions without excluding any ratee. */
+export function toPreviewForm(
+    period: CsiPeriodDetail, departments: CsiDepartment[], dimensions: CsiDimension[], respondentName: string,
+): CsiOpenForm {
+    const descriptions = new Map(dimensions.map((dimension) => [dimension.id, dimension.description]));
+    return {
+        submitted: false, id: period.id, scope: period.scope, title: period.title,
+        intro: period.intro, endDate: period.endDate, respondent: { fullName: respondentName },
+        departments: departments.filter((department) => department.isActive).map(({ id, name }) => ({ id, name })),
+        ratees: [...period.ratees].sort((a, b) => a.sortOrder - b.sortOrder).map((ratee) => ({
+            periodRateeId: ratee.id, displayName: ratee.displayName, jobTitle: ratee.jobTitle, avatarUrl: null,
+            dimensions: [...ratee.dimensions].sort((a, b) => a.sortOrder - b.sortOrder).map((dimension) => ({
+                periodRateeDimensionId: dimension.id, name: dimension.dimensionName,
+                description: descriptions.get(dimension.dimensionId) ?? null,
+            })),
+        })),
+    };
+}
 
 export type WizardStepKey = 'info' | 'dimensions' | 'ratees' | 'raters' | 'departments' | 'review';
 
