@@ -1,6 +1,6 @@
 import { CsiRespondentMode } from '../csi.constants';
 import { formatLocation } from './csi-format.util';
-import { cell, contentWidth, Doc, drawRow, drawTable, MARGIN, MemoSurvey, scaleWidths, TableColumn, TEAL_SOFT, LINE } from './csi-memo-draw';
+import { cell, contentWidth, Doc, drawRow, drawTable, MARGIN, MemoSurvey, PORTRAIT, scaleWidths, TableColumn, TEAL_SOFT, LINE } from './csi-memo-draw';
 import { formatPercent } from './csi-memo-page';
 
 const HEADING_SIZE = 12;
@@ -22,7 +22,7 @@ function summaryRows(survey: MemoSurvey): Array<[string, string]> {
 /** "Lampiran SLA" page(s): summary box and the reporter table (Email | Departemen | Nama). */
 export function drawSlaPages(doc: Doc, survey: MemoSurvey): void {
     const { report } = survey;
-    doc.addPage();
+    doc.addPage(PORTRAIT);
     doc.font('Helvetica-Bold').fontSize(HEADING_SIZE).fillColor('#000000')
         .text(`Lampiran SLA — ${cell(formatLocation(report.period.sites))}`, MARGIN, MARGIN, { width: contentWidth(doc) });
     const half = scaleWidths([60, 40], contentWidth(doc) / 2);
@@ -35,7 +35,7 @@ export function drawSlaPages(doc: Doc, survey: MemoSurvey): void {
     const columns: TableColumn[] = REPORTER_HEADERS.map((header, i) => ({ header, width: widths[i] }));
     const rows = report.sla.reporters.map((reporter) => [cell(reporter.email), cell(reporter.department), cell(reporter.fullName)]);
     drawTable(doc, columns, rows, y + 14, BODY_SIZE, () => {
-        doc.addPage();
+        doc.addPage(PORTRAIT);
         return MARGIN;
     });
 }

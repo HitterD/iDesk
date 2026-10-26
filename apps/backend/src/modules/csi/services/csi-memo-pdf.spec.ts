@@ -45,6 +45,55 @@ describe('renderMemoPdf', () => {
         expect(norm((await pdfParse(buffer)).text)).toContain('Pak Budi');
     });
 
+    /** Text per page, whitespace-normalised. */
+    async function pagesOf(buffer: Buffer): Promise<string[]> {
+        const pages: string[] = [];
+        await pdfParse(buffer, {
+            pagerender: async (page: any) => {
+                const content = await page.getTextContent();
+                pages.push(norm(content.items.map((item: any) => item.str).join(' ')));
+                return '';
+            },
+        });
+        return pages;
+    }
+
+    it('a tall Lokasi stays in one block with its names on the same page', async () => {
+        const survey = memoSurvey(1);
+        survey.report.period.sites = Array.from({ length: 40 }, (_, i) => ({ id: `s${i}`, code: `C${String(i).padStart(2, '0')}`, name: `SJA Site Nomor ${i}` }));
+        const filler = [memoSurvey(2), memoSurvey(2), memoSurvey(2)];
+        const pages = await pagesOf(await renderMemoPdf(memoHeader(), [...filler, survey]));
+        const holder = pages.findIndex((page) => page.includes('SJA Site Nomor 0 '));
+        expect(holder).toBeGreaterThanOrEqual(0);
+        expect(pages[holder]).toContain('SJA Site Nomor 39');
+        expect(pages[holder]).toContain('Budi Hartono');
+        expect(pages[holder]).toContain('Dewi Lestari');
+        // The memo page holding the block is the one with the recap header, not a stray overflow page.
+        expect(pages[holder]).toContain('% Pengisi (SLA)');
+        expect(pages[holder]).not.toContain('Timestamp');
+    });
+
+    it('truncates an oversized TEXT answer with an ellipsis and keeps the page count stable', async () => {
+        const survey = memoSurvey(1);
+        const long = Array.from({ length: 100 }, (_, i) => `kata${i}`).join(' ').padEnd(1000, 'x');
+        survey.answers[0].ratees[0].scores.push({ dimension: 'Saran', type: 'TEXT', score: null, answerLabel: null, answerText: long } as any);
+        // Many questions make each column narrow (about 15 columns in real surveys), so the answer wraps to a very tall cell.
+        const extra = Array.from({ length: 9 }, (_, i) => ({ name: `Q${i}`, type: 'STAR', average: null, count: 0, distribution: [] }));
+        survey.report.ratees[0].questions.push(...extra, { name: 'Saran', type: 'TEXT', average: null, count: 0, distribution: [] });
+        const buffer = await renderMemoPdf(memoHeader(), [survey]);
+        const pages = await pagesOf(buffer);
+        const all = pages.join(' ');
+        expect(all).toMatch(/kata\d+(…|\.\.\.)/); // pdf-parse extracts the ellipsis glyph as three dots
+        expect(all.replace(/\s/g, '')).not.toContain(long.replace(/\s/g, ''));
+        expect(pages).toHaveLength(3); // memo, answers, SLA: the oversized row never spills onto an extra page
+    });
+
+    it('a long signer title does not add a page', async () => {
+        const title = 'Kepala Bagian Teknologi Informasi dan Operasional '.repeat(12);
+        const buffer = await renderMemoPdf(memoHeader({ signerRight: { name: 'Siti Aminah', title } }), [memoSurvey(1)]);
+        expect(await pagesOf(buffer)).toHaveLength(3);
+    });
+
     (process.env.CSI_MEMO_SAMPLE ? it : it.skip)('writes a sample pdf', async () => {
         fs.writeFileSync(process.env.CSI_MEMO_SAMPLE as string, await renderMemoPdf(memoHeader(), [memoSurvey(1), memoSurvey(2)]));
     });

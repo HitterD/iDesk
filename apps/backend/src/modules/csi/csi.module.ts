@@ -20,7 +20,7 @@ import { CsiAdminReportController } from './presentation/csi-admin-report.contro
 import { CsiMemoSetting } from './entities/csi-memo-setting.entity';
 import { CsiMemoService } from './services/csi-memo.service';
 import { CsiAdminMemoController } from './presentation/csi-admin-memo.controller';
-import { CsiDimension }from './entities/csi-dimension.entity';
+import { CsiDimension } from './entities/csi-dimension.entity';
 import { CsiDepartment } from './entities/csi-department.entity';
 import { CsiRater } from './entities/csi-rater.entity';
 import { CsiPeriod } from './entities/csi-period.entity';
