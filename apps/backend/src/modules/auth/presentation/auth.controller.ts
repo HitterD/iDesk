@@ -178,11 +178,11 @@ export class AuthController {
     }
 
     @Post('forgot-password')
+    @Throttle({ default: AUTH_RATE_LIMIT })
     @HttpCode(200)
-    @ApiOperation({ summary: 'Self-service password reset: emails a temporary password (regular users only)' })
+    @ApiOperation({ summary: 'Self-service password reset: emails a temporary password to the registered email (regular users only)' })
     @ApiResponse({ status: 200, description: 'Temporary password sent' })
-    @ApiResponse({ status: 403, description: 'Account disabled or role not eligible' })
-    @ApiResponse({ status: 404, description: 'NIK or email not found' })
+    @ApiResponse({ status: 400, description: 'NIK and email do not match an eligible account' })
     async forgotPassword(@Body() dto: ForgotPasswordDto) {
         return this.passwordResetService.forgotPassword(dto);
     }

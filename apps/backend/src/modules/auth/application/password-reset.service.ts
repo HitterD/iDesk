@@ -1,11 +1,9 @@
 import {
     BadRequestException,
-    ForbiddenException,
     HttpException,
     HttpStatus,
     Injectable,
     Logger,
-    NotFoundException,
     ServiceUnavailableException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
@@ -29,21 +27,19 @@ const RESET_COOLDOWN_SECONDS = 60;
 const RESET_COOLDOWN_KEY_PREFIX = 'auth:forgot-password:cooldown:';
 
 export const FORGOT_PASSWORD_MESSAGES = {
-    EMAIL_REQUIRED: 'Email tujuan wajib diisi.',
-    NIK_NOT_FOUND: 'NIK tidak ditemukan. Periksa kembali NIK HRIS Anda.',
-    EMAIL_NOT_FOUND: 'Email tidak terdaftar. Gunakan NIK HRIS Anda.',
-    PLACEHOLDER_EMAIL: 'Email tersebut tidak dapat menerima pesan. Gunakan email aktif Anda.',
-    ACCOUNT_DISABLED: 'Akun nonaktif. Silakan hubungi admin.',
-    ROLE_NOT_ALLOWED: 'Akun admin/agent/manager tidak bisa reset mandiri. Silakan hubungi admin.',
+    EMAIL_REQUIRED: 'Email terdaftar wajib diisi.',
+    // One answer for every refusal, so the form cannot be used to probe which NIKs exist,
+    // which accounts are disabled or which ones belong to staff.
+    MISMATCH: 'NIK dan email tidak cocok dengan data terdaftar. Hubungi IT jika Anda lupa email yang didaftarkan.',
     SEND_FAILED: 'Gagal mengirim email. Silakan coba beberapa saat lagi atau hubungi admin.',
     COOLDOWN: 'Password sementara baru saja dikirim. Periksa email Anda atau coba lagi dalam 1 menit.',
     SUCCESS: 'Password sementara telah dikirim ke email Anda.',
 } as const;
 
 /**
- * Self-service reset from the login page. Only regular users qualify: a NIK is not
- * secret, so privileged accounts must still go through an admin. The typed email only
- * receives the temporary password; it never replaces the email stored on the account.
+ * Self-service reset from the login page. A NIK is not secret, so the caller must also
+ * know the email registered on the account, and the temporary password only ever goes
+ * to that registered email. Privileged accounts must still go through an admin.
  */
 @Injectable()
 export class PasswordResetService {
@@ -57,8 +53,7 @@ export class PasswordResetService {
     ) {}
 
     async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string; sentTo: string }> {
-        const { user, recipient } = await this.resolveTarget(dto);
-        this.assertEligible(user);
+        const user = await this.resolveUser(dto);
 
         const cooldownKey = `${RESET_COOLDOWN_KEY_PREFIX}${user.id}`;
         if (await this.cache.getAsync<boolean>(cooldownKey)) {
@@ -67,13 +62,13 @@ export class PasswordResetService {
         await this.cache.setAsync(cooldownKey, true, RESET_COOLDOWN_SECONDS);
 
         try {
-            await this.resetAndMail(user, recipient);
+            await this.resetAndMail(user, user.email);
         } catch (error) {
             // Nothing usable reached the user, so a retry must not wait out the cooldown.
             await this.cache.delAsync(cooldownKey);
             throw error;
         }
-        return { message: FORGOT_PASSWORD_MESSAGES.SUCCESS, sentTo: recipient };
+        return { message: FORGOT_PASSWORD_MESSAGES.SUCCESS, sentTo: user.email };
     }
 
     /**
@@ -105,32 +100,23 @@ export class PasswordResetService {
         }
     }
 
-    private async resolveTarget(dto: ForgotPasswordDto): Promise<{ user: User; recipient: string }> {
-        const identifier = dto.identifier.trim();
+    /** Every refusal past input validation shares MISMATCH; see FORGOT_PASSWORD_MESSAGES. */
+    private async resolveUser(dto: ForgotPasswordDto): Promise<User> {
+        const nik = dto.identifier.trim();
+        const email = dto.email?.trim().toLowerCase();
+        if (!email) throw new BadRequestException(FORGOT_PASSWORD_MESSAGES.EMAIL_REQUIRED);
 
-        // Forgotten NIK: the registered email identifies the account and receives the mail.
-        if (identifier.includes('@')) {
-            const email = identifier.toLowerCase();
-            if (email.endsWith(PLACEHOLDER_EMAIL_DOMAIN)) {
-                throw new BadRequestException(FORGOT_PASSWORD_MESSAGES.PLACEHOLDER_EMAIL);
-            }
-            const user = await this.usersService.findByEmail(email);
-            if (!user) throw new NotFoundException(FORGOT_PASSWORD_MESSAGES.EMAIL_NOT_FOUND);
-            return { user, recipient: user.email };
+        const user = nik.includes('@') ? null : await this.usersService.findByEmployeeId(nik);
+        const registered = user?.email?.trim().toLowerCase();
+        if (
+            !user
+            || registered !== email
+            || email.endsWith(PLACEHOLDER_EMAIL_DOMAIN)
+            || user.isActive === false
+            || user.role !== UserRole.USER
+        ) {
+            throw new BadRequestException(FORGOT_PASSWORD_MESSAGES.MISMATCH);
         }
-
-        const recipient = dto.email?.trim().toLowerCase();
-        if (!recipient) throw new BadRequestException(FORGOT_PASSWORD_MESSAGES.EMAIL_REQUIRED);
-        if (recipient.endsWith(PLACEHOLDER_EMAIL_DOMAIN)) {
-            throw new BadRequestException(FORGOT_PASSWORD_MESSAGES.PLACEHOLDER_EMAIL);
-        }
-        const user = await this.usersService.findByEmployeeId(identifier);
-        if (!user) throw new NotFoundException(FORGOT_PASSWORD_MESSAGES.NIK_NOT_FOUND);
-        return { user, recipient };
-    }
-
-    private assertEligible(user: User): void {
-        if (user.isActive === false) throw new ForbiddenException(FORGOT_PASSWORD_MESSAGES.ACCOUNT_DISABLED);
-        if (user.role !== UserRole.USER) throw new ForbiddenException(FORGOT_PASSWORD_MESSAGES.ROLE_NOT_ALLOWED);
+        return user;
     }
 }
