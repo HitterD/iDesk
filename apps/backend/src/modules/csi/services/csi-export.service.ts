@@ -2,20 +2,31 @@ import { Injectable } from '@nestjs/common';
 import * as ExcelJS from 'exceljs';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
+import { CsiRateeKind } from '../csi.constants';
+import { answerColumns, answerRows, questionsOf } from './csi-export.answers';
+import { addStyledSheet, AVERAGE_COLUMN, PERCENT_COLUMN, sanitizeCell, WIDTH } from './csi-export.sheet';
+import { formatLocation } from './csi-format.util';
 import { CsiReportService } from './csi-report.service';
 
-const FORMULA_PREFIX = /^[=+\-@]/;
-const COLUMN_WIDTH = 22;
-const STATUS_SUBMITTED = 'Sudah mengisi';
-const STATUS_PENDING = 'Belum mengisi';
-const WIB_DATETIME = new Intl.DateTimeFormat('sv-SE', {
-    timeZone: DEFAULT_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
-});
+export { sanitizeCell } from './csi-export.sheet';
 
-/** Neutralises spreadsheet formula injection: text starting with = + - @ is prefixed with a single quote. */
-export function sanitizeCell(value: string | null | undefined): string {
-    const text = value ?? '';
-    return FORMULA_PREFIX.test(text) ? `'${text}` : text;
+type Report = Awaited<ReturnType<CsiReportService['getReport']>>;
+const SHEET_RECAP = 'Rekap';
+const SHEET_TEAM = 'Penilaian Tim';
+const SHEET_PERSON = 'Penilaian Per Orang';
+
+/** Rekap: Lokasi, Nama (team label or person), Average per ratee, Average survei, % Pengisi (SLA). */
+function addRecap(workbook: ExcelJS.Workbook, report: Report) {
+    const location = sanitizeCell(formatLocation(report.period.sites));
+    const rows = report.ratees.map((ratee) => [
+        location,
+        sanitizeCell(ratee.kind === CsiRateeKind.TEAM ? report.period.teamLabel : ratee.displayName),
+        ratee.average, report.overall.average, report.sla.pengisiPct,
+    ]);
+    addStyledSheet(workbook, SHEET_RECAP, [
+        { header: 'Lokasi', width: WIDTH.name }, { header: 'Nama', width: WIDTH.name },
+        AVERAGE_COLUMN('Average'), AVERAGE_COLUMN('Average survei'), PERCENT_COLUMN('% Pengisi (SLA)'),
+    ], rows);
 }
 
 @Injectable()
@@ -23,9 +34,8 @@ export class CsiExportService {
     constructor(private readonly reports: CsiReportService) { }
 
     async buildWorkbook(scope: ServiceScope, periodId: string, now: Date = new Date()): Promise<{ filename: string; buffer: Buffer }> {
-        const [report, respondents, answers] = await Promise.all([
+        const [report, answers] = await Promise.all([
             this.reports.getReport(scope, periodId),
-            this.reports.getRespondents(scope, periodId),
             this.reports.listAnswers(scope, periodId),
         ]);
         const workbook = new ExcelJS.Workbook();
@@ -33,38 +43,16 @@ export class CsiExportService {
         workbook.created = now;
         workbook.title = sanitizeCell(report.period.title);
 
-        const dimensionNames = [...new Set(report.ratees.flatMap((ratee) => ratee.dimensions.map((dimension) => dimension.name)))];
-        addSheet(workbook, 'Nilai', ['Nama', 'Jabatan', 'Responden', ...dimensionNames, 'Rata-rata', 'Indeks %'],
-            report.ratees.map((ratee) => [
-                sanitizeCell(ratee.displayName), sanitizeCell(ratee.jobTitle), ratee.respondentCount,
-                ...dimensionNames.map((name) => ratee.dimensions.find((dimension) => dimension.name === name)?.average ?? null),
-                ratee.average, ratee.indexPct,
-            ]));
-
-        addSheet(workbook, 'Jawaban', ['Responden', 'Departemen', 'Dinilai', 'Dimensi', 'Skor', 'Komentar'],
-            answers.flatMap((answer) => answer.ratees.flatMap((ratee) => ratee.scores.map(({ dimension, score }) => [
-                sanitizeCell(answer.fullName), sanitizeCell(answer.departmentName), sanitizeCell(ratee.displayName),
-                sanitizeCell(dimension), score, sanitizeCell(ratee.comment),
-            ]))));
-
-        addSheet(workbook, 'Status Responden', ['Nama', 'Departemen', 'Status', 'Waktu Mengisi (WIB)'], [
-            ...respondents.submitted.map((row) => [
-                sanitizeCell(row.fullName), sanitizeCell(row.departmentName), STATUS_SUBMITTED, WIB_DATETIME.format(row.submittedAt),
-            ]),
-            ...(respondents.pending ?? []).map((row) => [sanitizeCell(row.fullName), '', STATUS_PENDING, '']),
-        ]);
-
+        addRecap(workbook, report);
+        const kinds: Array<[CsiRateeKind, string]> = [[CsiRateeKind.TEAM, SHEET_TEAM], [CsiRateeKind.PERSON, SHEET_PERSON]];
+        for (const [kind, sheetName] of kinds) {
+            if (!report.ratees.some((ratee) => ratee.kind === kind)) continue;
+            const questions = questionsOf(report.ratees, kind);
+            addStyledSheet(workbook, sheetName, answerColumns(questions, kind === CsiRateeKind.PERSON), answerRows(answers, kind, questions));
+        }
         return {
             filename: `csi-${scope.toLowerCase()}-${localDateKey(now, DEFAULT_TIMEZONE)}.xlsx`,
             buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
         };
     }
-}
-
-function addSheet(workbook: ExcelJS.Workbook, name: string, headers: string[], rows: Array<Array<string | number | null>>) {
-    const sheet = workbook.addWorksheet(name);
-    sheet.addRow(headers).font = { bold: true };
-    rows.forEach((row) => sheet.addRow(row));
-    sheet.columns.forEach((column) => { column.width = COLUMN_WIDTH; });
-    return sheet;
 }

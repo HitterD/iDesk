@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Request } from 'express';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, FindOptionsRelations, In, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
-import { CSI_RESET_REASON_MIN, CSI_SCORE_MAX, CsiRespondentMode } from '../csi.constants';
+import { CSI_RESET_REASON_MIN, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
@@ -14,24 +14,41 @@ import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { lockPeriodRow } from './csi-period.service';
+import { overallStats, rateeStats } from './csi-report.calc';
 import { assertPeriodInScope } from './csi-scope.util';
+import { CsiSlaService } from './csi-sla.service';
 
 const RESPONSE_NOT_FOUND_MESSAGE = 'Jawaban tidak ditemukan';
 const RESET_ENTITY_TYPE = 'csi_response';
-const PERCENT = 100;
+const SORT_LAST = '￿';
+const RATEE_ORDER_FACTOR = 1e6;
 
 export type CsiActorRef = { id: string };
-// Null for CHOICE/TEXT answers; Task 4 adds label/text to reports.
-export type CsiAnswerScore = { dimension: string; score: number | null };
-export type CsiAnswerRatee = { periodRateeId: string; displayName: string; jobTitle: string | null; comment: string | null; scores: CsiAnswerScore[] };
-export type CsiAnswer = { responseId: string; fullName: string; departmentName: string; submittedAt: Date; ratees: CsiAnswerRatee[] };
+/** `score` is null for CHOICE/TEXT answers; `answerLabel` (SCALE/CHOICE) and `answerText` (TEXT) carry the non-numeric answer. */
+export type CsiAnswerScore = {
+    dimension: string; type: CsiQuestionType; score: number | null; answerLabel: string | null; answerText: string | null;
+};
+export type CsiAnswerRatee = {
+    periodRateeId: string; kind: CsiRateeKind; displayName: string; jobTitle: string | null; comment: string | null; scores: CsiAnswerScore[];
+};
+export type CsiAnswer = {
+    responseId: string; respondentName: string; accountName: string; areaName: string | null;
+    departmentName: string; submittedAt: Date; ratees: CsiAnswerRatee[];
+};
 type ItemReaders = { items: Repository<CsiResponseItem>; comments: Repository<CsiResponseComment> };
 
-const round = (value: number, decimals: number) => {
-    const factor = 10 ** decimals;
-    return Math.round(value * factor) / factor;
-};
-const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+const toScore = (item: CsiResponseItem): CsiAnswerScore => ({
+    dimension: item.periodRateeDimension.dimensionName, type: item.periodRateeDimension.type ?? CsiQuestionType.STAR,
+    score: item.score ?? null, answerLabel: item.answerLabel ?? null, answerText: item.answerText ?? null,
+});
+
+const siteSummaries = (period: CsiPeriod) =>
+    (period.sites ?? []).map((row) => ({ id: row.siteId, code: row.site?.code ?? null, name: row.site?.name ?? null }))
+        .sort((a, b) => (a.code ?? SORT_LAST).localeCompare(b.code ?? SORT_LAST));
+
+/** TEAM ratee first, then people in their stored order. */
+const teamFirst = (ratees: CsiPeriodRatee[]) =>
+    [...ratees].sort((a, b) => Number(b.kind === CsiRateeKind.TEAM) - Number(a.kind === CsiRateeKind.TEAM));
 
 @Injectable()
 export class CsiReportService {
@@ -45,6 +62,7 @@ export class CsiReportService {
         @InjectRepository(CsiResponseComment) private readonly comments: Repository<CsiResponseComment>,
         @InjectDataSource() private readonly dataSource: DataSource,
         private readonly audit: AuditService,
+        private readonly sla: CsiSlaService,
     ) { }
 
     private get readers(): ItemReaders {
@@ -52,33 +70,20 @@ export class CsiReportService {
     }
 
     async getReport(scope: ServiceScope, periodId: string) {
-        const period = await this.findInScope(scope, periodId);
+        const period = await this.findInScope(scope, periodId, { sites: { site: true } });
         const ratees = await this.ratees.find({ where: { periodId }, order: { sortOrder: 'ASC' } });
         const rateeIds = ratees.map((ratee) => ratee.id);
-        const [dimensions, scoreStats, respondentCounts] = rateeIds.length
-            ? await Promise.all([
-                this.rateeDimensions.find({ where: { periodRateeId: In(rateeIds) }, order: { sortOrder: 'ASC' } }),
-                this.dimensionStats(rateeIds),
-                this.respondentCounts(rateeIds),
-            ])
-            : [[], new Map<string, { average: number; count: number }>(), new Map<string, number>()];
+        const [dimensions, items, responseCount] = await Promise.all([
+            rateeIds.length ? this.rateeDimensions.find({ where: { periodRateeId: In(rateeIds) }, order: { sortOrder: 'ASC' } }) : [],
+            rateeIds.length ? this.items.find({ where: { periodRateeId: In(rateeIds) } }) : [],
+            this.responses.count({ where: { periodId } }),
+        ]);
+        const sites = siteSummaries(period);
         return {
-            period,
-            ratees: ratees.map((ratee) => {
-                const own = dimensions.filter((dimension) => dimension.periodRateeId === ratee.id).map((dimension) => {
-                    const stats = scoreStats.get(dimension.id);
-                    return { name: dimension.dimensionName, rawAverage: stats?.average ?? null, count: stats?.count ?? 0 };
-                });
-                const scored = own.flatMap((dimension) => (dimension.rawAverage === null ? [] : [dimension.rawAverage]));
-                const average = scored.length ? round(mean(scored), 2) : null;
-                return {
-                    periodRateeId: ratee.id, displayName: ratee.displayName, jobTitle: ratee.jobTitle,
-                    respondentCount: respondentCounts.get(ratee.id) ?? 0,
-                    average,
-                    indexPct: average === null ? null : round((average / CSI_SCORE_MAX) * PERCENT, 1),
-                    dimensions: own.map(({ name, rawAverage, count }) => ({ name, average: rawAverage === null ? null : round(rawAverage, 2), count })),
-                };
-            }),
+            period: { ...period, sites },
+            overall: overallStats(items, responseCount),
+            ratees: teamFirst(ratees).map((ratee) => rateeStats(ratee, dimensions, items)),
+            sla: await this.sla.compute(period, sites, responseCount),
         };
     }
 
@@ -86,7 +91,7 @@ export class CsiReportService {
         const period = await this.findInScope(scope, periodId);
         const responses = await this.responses.find({ where: { periodId }, relations: { respondent: true }, order: { submittedAt: 'ASC' } });
         const submitted = responses.map((response) => ({
-            responseId: response.id, fullName: response.respondent.fullName,
+            responseId: response.id, respondentName: response.respondentName, accountName: response.respondent.fullName,
             departmentName: response.departmentName, submittedAt: response.submittedAt,
         }));
         let pending: Array<{ userId: string; fullName: string }> | null = null;
@@ -104,16 +109,16 @@ export class CsiReportService {
 
     async getResponseDetail(scope: ServiceScope, periodId: string, responseId: string): Promise<CsiAnswer> {
         await this.findInScope(scope, periodId);
-        const response = await this.responses.findOne({ where: { id: responseId, periodId }, relations: { respondent: true } });
+        const response = await this.responses.findOne({ where: { id: responseId, periodId }, relations: { respondent: { site: true } } });
         if (!response) throw new NotFoundException(RESPONSE_NOT_FOUND_MESSAGE);
         const [answer] = await this.buildAnswers(this.readers, [response]);
         return answer;
     }
 
-    /** Every response of the period with its scores and comments, in submit order (used by the Excel export). */
+    /** Every response of the period with its answers and comments, in submit order (used by the Excel export). */
     async listAnswers(scope: ServiceScope, periodId: string): Promise<CsiAnswer[]> {
         await this.findInScope(scope, periodId);
-        const responses = await this.responses.find({ where: { periodId }, relations: { respondent: true }, order: { submittedAt: 'ASC' } });
+        const responses = await this.responses.find({ where: { periodId }, relations: { respondent: { site: true } }, order: { submittedAt: 'ASC' } });
         return this.buildAnswers(this.readers, responses);
     }
 
@@ -137,36 +142,18 @@ export class CsiReportService {
         await this.audit.log({
             userId: actor.id, action: AuditAction.CSI_RESPONSE_RESET, entityType: RESET_ENTITY_TYPE, entityId: responseId,
             oldValue: {
-                periodId, respondentId: response.respondentId, respondentName: answer.fullName,
+                periodId, respondentId: response.respondentId, respondentName: answer.respondentName,
                 departmentName: answer.departmentName, submittedAt: answer.submittedAt,
                 scores: answer.ratees.flatMap((ratee) => ratee.scores.map(({ dimension, score }) => ({ ratee: ratee.displayName, dimension, score }))),
             },
-            description: `Reset jawaban CSI ${answer.fullName}. Alasan: ${trimmed}`,
+            description: `Reset jawaban CSI ${answer.respondentName}. Alasan: ${trimmed}`,
             request: req,
         });
         return { reset: true as const };
     }
 
-    private async findInScope(scope: ServiceScope, periodId: string) {
-        return assertPeriodInScope(await this.periods.findOne({ where: { id: periodId } }), scope);
-    }
-
-    private async dimensionStats(rateeIds: string[]) {
-        const rows: Array<{ periodRateeDimensionId: string; average: string; count: string }> = await this.items.createQueryBuilder('item')
-            .select('item.periodRateeDimensionId', 'periodRateeDimensionId')
-            .addSelect('AVG(item.score)', 'average').addSelect('COUNT(*)', 'count')
-            .where('item.periodRateeId IN (:...rateeIds)', { rateeIds })
-            .groupBy('item.periodRateeDimensionId').getRawMany();
-        return new Map(rows.map((row) => [row.periodRateeDimensionId, { average: Number(row.average), count: Number(row.count) }]));
-    }
-
-    private async respondentCounts(rateeIds: string[]) {
-        const rows: Array<{ periodRateeId: string; respondents: string }> = await this.items.createQueryBuilder('item')
-            .select('item.periodRateeId', 'periodRateeId')
-            .addSelect('COUNT(DISTINCT item.responseId)', 'respondents')
-            .where('item.periodRateeId IN (:...rateeIds)', { rateeIds })
-            .groupBy('item.periodRateeId').getRawMany();
-        return new Map(rows.map((row) => [row.periodRateeId, Number(row.respondents)]));
+    private async findInScope(scope: ServiceScope, periodId: string, relations?: FindOptionsRelations<CsiPeriod>) {
+        return assertPeriodInScope(await this.periods.findOne({ where: { id: periodId }, ...(relations ? { relations } : {}) }), scope);
     }
 
     /** Groups each response's items by ratee (ratee and dimension sortOrder) and attaches the comment per ratee. */
@@ -181,18 +168,20 @@ export class CsiReportService {
         return responses.map((response) => {
             const own = sortBy(
                 items.filter((item) => item.responseId === response.id),
-                (item) => item.periodRatee.sortOrder * 1e6 + item.periodRateeDimension.sortOrder,
+                (item) => item.periodRatee.sortOrder * RATEE_ORDER_FACTOR + item.periodRateeDimension.sortOrder,
             );
             const ratees = new Map<string, CsiAnswerRatee>();
             for (const item of own) {
                 const entry = ratees.get(item.periodRateeId) ?? {
-                    periodRateeId: item.periodRateeId, displayName: item.periodRatee.displayName, jobTitle: item.periodRatee.jobTitle,
+                    periodRateeId: item.periodRateeId, kind: item.periodRatee.kind ?? CsiRateeKind.PERSON,
+                    displayName: item.periodRatee.displayName, jobTitle: item.periodRatee.jobTitle,
                     comment: commentOf.get(`${response.id}:${item.periodRateeId}`) ?? null, scores: [],
                 };
-                ratees.set(item.periodRateeId, { ...entry, scores: [...entry.scores, { dimension: item.periodRateeDimension.dimensionName, score: item.score }] });
+                ratees.set(item.periodRateeId, { ...entry, scores: [...entry.scores, toScore(item)] });
             }
             return {
-                responseId: response.id, fullName: response.respondent.fullName, departmentName: response.departmentName,
+                responseId: response.id, respondentName: response.respondentName, accountName: response.respondent.fullName,
+                areaName: response.respondent.site?.name ?? null, departmentName: response.departmentName,
                 submittedAt: response.submittedAt, ratees: [...ratees.values()],
             };
         });

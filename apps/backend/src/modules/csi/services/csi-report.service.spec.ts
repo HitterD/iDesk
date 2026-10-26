@@ -38,58 +38,40 @@ function memoryRepository<T extends Record<string, any>>(rows: T[] = []) {
     };
 }
 
-/** Aggregates in memory exactly like the two GROUP BY queries the report issues (AVG comes back as a string). */
-function itemRepository(rows: any[]) {
-    const repo: any = memoryRepository(rows);
-    repo.createQueryBuilder = jest.fn(() => {
-        const builder: any = { params: {}, group: '' };
-        for (const method of ['select', 'addSelect']) builder[method] = jest.fn(() => builder);
-        builder.where = jest.fn((_sql: string, params: any) => { builder.params = params; return builder; });
-        builder.groupBy = jest.fn((column: string) => { builder.group = column; return builder; });
-        builder.getRawMany = jest.fn(async () => {
-            const scoped = rows.filter((row) => builder.params.rateeIds.includes(row.periodRateeId));
-            const byKey = new Map<string, any[]>();
-            const key = builder.group.endsWith('periodRateeDimensionId') ? 'periodRateeDimensionId' : 'periodRateeId';
-            for (const row of scoped) byKey.set(row[key], [...(byKey.get(row[key]) ?? []), row]);
-            return [...byKey.entries()].map(([id, group]) => key === 'periodRateeDimensionId'
-                ? { periodRateeDimensionId: id, average: String(group.reduce((sum, row) => sum + row.score, 0) / group.length), count: String(group.length) }
-                : { periodRateeId: id, respondents: String(new Set(group.map((row) => row.responseId)).size) });
-        });
-        return builder;
-    });
-    return repo;
-}
+const itemRepository = (rows: any[]) => memoryRepository(rows);
 
 const period = (over: Partial<CsiPeriod> = {}) => ({
     id: 'p1', scope: ICT, sites: [{ siteId: 'site-a' }] as CsiPeriod['sites'], title: 'CSI ICT Oktober', intro: 'Mohon diisi', thankYou: 'Terima kasih!',
     startDate: '2026-10-01', endDate: '2026-10-31', respondentMode: CsiRespondentMode.OPEN, createdById: 'admin', ...over,
 });
 
-const ratee1 = { id: 'r1', periodId: 'p1', userId: 'u1', displayName: 'Budi', jobTitle: 'Teknisi', sortOrder: 0 };
-const ratee2 = { id: 'r2', periodId: 'p1', userId: 'u2', displayName: 'Sari', jobTitle: null, sortOrder: 1 };
-const dimA = { id: 'rd1a', periodRateeId: 'r1', dimensionId: 'd1', dimensionName: 'Responsif', sortOrder: 0 };
-const dimB = { id: 'rd1b', periodRateeId: 'r1', dimensionId: 'd2', dimensionName: 'Ramah', sortOrder: 1 };
-const dim2A = { id: 'rd2a', periodRateeId: 'r2', dimensionId: 'd1', dimensionName: 'Responsif', sortOrder: 0 };
+const ratee1 = { id: 'r1', periodId: 'p1', kind: 'PERSON', userId: 'u1', displayName: 'Budi', jobTitle: 'Teknisi', sortOrder: 0 };
+const ratee2 = { id: 'r2', periodId: 'p1', kind: 'PERSON', userId: 'u2', displayName: 'Sari', jobTitle: null, sortOrder: 1 };
+const dimA = { id: 'rd1a', periodRateeId: 'r1', dimensionId: 'd1', dimensionName: 'Responsif', type: 'STAR', options: [], sortOrder: 0 };
+const dimB = { id: 'rd1b', periodRateeId: 'r1', dimensionId: 'd2', dimensionName: 'Ramah', type: 'STAR', options: [], sortOrder: 1 };
+const dim2A = { id: 'rd2a', periodRateeId: 'r2', dimensionId: 'd1', dimensionName: 'Responsif', type: 'STAR', options: [], sortOrder: 0 };
 
 describe('CsiReportService', () => {
     let periods: ReturnType<typeof memoryRepository>;
     let responses: ReturnType<typeof memoryRepository>;
     let periodRaters: ReturnType<typeof memoryRepository>;
+    let rateeDimensions: ReturnType<typeof memoryRepository>;
     let items: any;
     let comments: ReturnType<typeof memoryRepository>;
     let audit: { log: jest.Mock };
     let manager: any;
     let deleted: Array<{ target: unknown; criteria: any }>;
+    let sla: { compute: jest.Mock };
     let service: CsiReportService;
 
     beforeEach(() => {
         periods = memoryRepository<any>([period(), period({ id: 'p-hc', scope: HC })]);
         const ratees = memoryRepository<any>([ratee2, ratee1]);
-        const rateeDimensions = memoryRepository<any>([dimB, dimA, dim2A]);
+        rateeDimensions = memoryRepository<any>([dimB, dimA, dim2A]);
         periodRaters = memoryRepository<any>([]);
         responses = memoryRepository<any>([
-            { id: 'resp2', periodId: 'p1', respondentId: 'x2', departmentName: 'Gudang', submittedAt: new Date('2026-10-12T03:00:00Z'), respondent: { id: 'x2', fullName: 'Wati' } },
-            { id: 'resp1', periodId: 'p1', respondentId: 'x1', departmentName: 'Keuangan', submittedAt: new Date('2026-10-10T03:00:00Z'), respondent: { id: 'x1', fullName: 'Andi' } },
+            { id: 'resp2', periodId: 'p1', respondentId: 'x2', departmentName: 'Gudang', submittedAt: new Date('2026-10-12T03:00:00Z'), respondentName: 'Wati Nama', respondent: { id: 'x2', fullName: 'Wati', site: { name: 'Sepanjang' } } },
+            { id: 'resp1', periodId: 'p1', respondentId: 'x1', departmentName: 'Keuangan', submittedAt: new Date('2026-10-10T03:00:00Z'), respondentName: 'Andi Nama', respondent: { id: 'x1', fullName: 'Andi', site: null } },
         ]);
         // Dimension A: 5 and 3 -> 4; dimension B: only 2 -> 2. Ratee 2 has no scores at all.
         items = itemRepository([
@@ -119,30 +101,79 @@ describe('CsiReportService', () => {
             }),
         };
         const dataSource = { transaction: jest.fn(async (work: (m: any) => unknown) => work(manager)) };
+        sla = { compute: jest.fn(async () => ({ basis: 0, pengisiPct: null })) };
         service = new CsiReportService(
             periods as any, ratees as any, rateeDimensions as any, periodRaters as any,
-            responses as any, items, comments as any, dataSource as any, audit as any,
+            responses as any, items, comments as any, dataSource as any, audit as any, sla as any,
         );
     });
 
-    it('average is mean of dimension means', async () => {
+    it('ratee average is mean of response averages', async () => {
         const report = await service.getReport(ICT, 'p1');
         const budi = report.ratees[0];
         expect(budi.displayName).toBe('Budi');
-        expect(budi.dimensions).toEqual([
-            { name: 'Responsif', average: 4, count: 2 },
-            { name: 'Ramah', average: 2, count: 1 },
-        ]);
-        expect(budi.average).toBe(3);
-        expect(budi.indexPct).toBe(60);
+        // resp1 scores 5,2 -> 3.5; resp2 scores 3 -> 3; mean of response averages = 3.25 (not the question-mean 3)
+        expect(budi.average).toBe(3.25);
+        expect(budi.indexPct).toBe(65);
         expect(budi.respondentCount).toBe(2);
+        expect(budi.questions).toEqual([
+            { name: 'Responsif', type: 'STAR', average: 4, count: 2, distribution: [
+                { label: '1', count: 0 }, { label: '2', count: 0 }, { label: '3', count: 1 }, { label: '4', count: 0 }, { label: '5', count: 1 },
+            ] },
+            { name: 'Ramah', type: 'STAR', average: 2, count: 1, distribution: [
+                { label: '1', count: 0 }, { label: '2', count: 1 }, { label: '3', count: 0 }, { label: '4', count: 0 }, { label: '5', count: 0 },
+            ] },
+        ]);
+    });
+
+    it('report reads legacy STAR answers', async () => {
+        // Legacy rows have no type/options on the snapshot and no answerLabel/answerText on items.
+        for (const dimension of [dimA, dimB]) { delete (dimension as any).type; delete (dimension as any).options; }
+        const report = await service.getReport(ICT, 'p1');
+        expect(report.ratees[0].average).toBe(3.25);
+        expect(report.ratees[0].questions[0]).toMatchObject({ type: 'STAR', average: 4, count: 2 });
+        expect(report.period.sites).toEqual([{ id: 'site-a', code: null, name: null }]);
+        dimA.type = 'STAR'; dimA.options = []; dimB.type = 'STAR'; dimB.options = [];
+    });
+
+    it('overall average uses all scored items', async () => {
+        responses.rows.push({ id: 'resp9', periodId: 'p1', respondentId: 'x9', respondentName: 'titi yusliyanti', departmentName: 'D', submittedAt: new Date(), respondent: { fullName: 'T' } });
+        [4, 5, 4, 4, 4, 5, 4, 4].forEach((score, index) => items.rows.push({
+            id: `t${index}`, responseId: 'resp9', periodRateeId: 'r2', periodRateeDimensionId: 'rd2a', score,
+            periodRatee: ratee2, periodRateeDimension: dim2A,
+        }));
+        const report = await service.getReport(ICT, 'p1');
+        // responses: 3.5, 3, 4.25 -> (3.5 + 3 + 4.25) / 3 = 3.58
+        expect(report.overall).toEqual({ average: 3.58, respondentCount: 3 });
+        expect(report.sla).toEqual({ basis: 0, pengisiPct: null });
+        expect(sla.compute).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1' }), [{ id: 'site-a', code: null, name: null }], 3);
+    });
+
+    it('CHOICE and TEXT questions have null average and keep their answers', async () => {
+        const choice = { id: 'rd1c', periodRateeId: 'r1', dimensionId: 'd3', dimensionName: 'Channel', type: 'CHOICE', options: [{ label: 'Telepon', points: null }, { label: 'Email', points: null }], sortOrder: 2 };
+        const text = { id: 'rd1t', periodRateeId: 'r1', dimensionId: 'd4', dimensionName: 'Saran', type: 'TEXT', options: [], sortOrder: 3 };
+        rateeDimensions.rows.push(choice, text);
+        items.rows.push(
+            { id: 'c1', responseId: 'resp1', periodRateeId: 'r1', periodRateeDimensionId: 'rd1c', score: null, answerLabel: 'Email', answerText: null, periodRatee: ratee1, periodRateeDimension: choice },
+            { id: 'c2', responseId: 'resp1', periodRateeId: 'r1', periodRateeDimensionId: 'rd1t', score: null, answerLabel: null, answerText: 'Mantap', periodRatee: ratee1, periodRateeDimension: text },
+        );
+        const report = await service.getReport(ICT, 'p1');
+        const [, , channel, saran] = report.ratees[0].questions;
+        expect(channel).toEqual({ name: 'Channel', type: 'CHOICE', average: null, count: 0, distribution: [{ label: 'Telepon', count: 0 }, { label: 'Email', count: 1 }] });
+        expect(saran).toEqual({ name: 'Saran', type: 'TEXT', average: null, count: 0, distribution: [] });
+        expect(report.ratees[0].average).toBe(3.25);
+        const detail = await service.getResponseDetail(ICT, 'p1', 'resp1');
+        expect(detail.ratees[0].scores.slice(2)).toEqual([
+            { dimension: 'Channel', type: 'CHOICE', score: null, answerLabel: 'Email', answerText: null },
+            { dimension: 'Saran', type: 'TEXT', score: null, answerLabel: null, answerText: 'Mantap' },
+        ]);
     });
 
     it('ratee without responses has null average', async () => {
         const report = await service.getReport(ICT, 'p1');
         const sari = report.ratees[1];
         expect(sari).toMatchObject({ displayName: 'Sari', respondentCount: 0, average: null, indexPct: null });
-        expect(sari.dimensions).toEqual([{ name: 'Responsif', average: null, count: 0 }]);
+        expect(sari.questions).toEqual([expect.objectContaining({ name: 'Responsif', average: null, count: 0 })]);
     });
 
     it('report rejects period of other scope (404)', async () => {
@@ -159,8 +190,8 @@ describe('CsiReportService', () => {
         );
         const result = await service.getRespondents(ICT, 'p1');
         expect(result.mode).toBe(CsiRespondentMode.LISTED);
-        expect(result.submitted.map((row) => row.fullName)).toEqual(['Andi', 'Wati']);
-        expect(result.submitted[0]).toEqual({ responseId: 'resp1', fullName: 'Andi', departmentName: 'Keuangan', submittedAt: new Date('2026-10-10T03:00:00Z') });
+        expect(result.submitted.map((row) => row.respondentName)).toEqual(['Andi Nama', 'Wati Nama']);
+        expect(result.submitted[0]).toEqual({ responseId: 'resp1', respondentName: 'Andi Nama', accountName: 'Andi', departmentName: 'Keuangan', submittedAt: new Date('2026-10-10T03:00:00Z') });
         expect(result.pending).toEqual([{ userId: 'x4', fullName: 'Citra' }, { userId: 'x3', fullName: 'Yudi' }]);
         expect(result.totals).toEqual({ submitted: 2, pending: 2 });
     });
@@ -173,10 +204,10 @@ describe('CsiReportService', () => {
 
     it('response detail lists scores and comments per ratee, 404 for other period', async () => {
         const detail = await service.getResponseDetail(ICT, 'p1', 'resp1');
-        expect(detail).toMatchObject({ responseId: 'resp1', fullName: 'Andi', departmentName: 'Keuangan' });
+        expect(detail).toMatchObject({ responseId: 'resp1', respondentName: 'Andi Nama', accountName: 'Andi', areaName: null, departmentName: 'Keuangan' });
         expect(detail.ratees).toEqual([{
-            periodRateeId: 'r1', displayName: 'Budi', jobTitle: 'Teknisi', comment: 'Cepat tanggap',
-            scores: [{ dimension: 'Responsif', score: 5 }, { dimension: 'Ramah', score: 2 }],
+            periodRateeId: 'r1', kind: 'PERSON', displayName: 'Budi', jobTitle: 'Teknisi', comment: 'Cepat tanggap',
+            scores: [{ dimension: 'Responsif', type: 'STAR', score: 5, answerLabel: null, answerText: null }, { dimension: 'Ramah', type: 'STAR', score: 2, answerLabel: null, answerText: null }],
         }]);
         await expect(service.getResponseDetail(ICT, 'p-hc', 'resp1')).rejects.toThrow(NotFoundException);
         await expect(service.getResponseDetail(ICT, 'p1', 'nope')).rejects.toThrow(NotFoundException);
@@ -200,7 +231,7 @@ describe('CsiReportService', () => {
         expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({
             userId: 'admin', action: AuditAction.CSI_RESPONSE_RESET, entityType: 'csi_response', entityId: 'resp1', request: req,
             oldValue: {
-                periodId: 'p1', respondentId: 'x1', respondentName: 'Andi', departmentName: 'Keuangan',
+                periodId: 'p1', respondentId: 'x1', respondentName: 'Andi Nama', departmentName: 'Keuangan',
                 submittedAt: new Date('2026-10-10T03:00:00Z'),
                 scores: [{ ratee: 'Budi', dimension: 'Responsif', score: 5 }, { ratee: 'Budi', dimension: 'Ramah', score: 2 }],
             },
