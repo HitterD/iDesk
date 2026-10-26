@@ -19,7 +19,7 @@ export interface PeriodFormState {
 }
 
 export const initialState = (scope: CsiScopeParam, period?: CsiPeriodDetail): PeriodFormState => period ? {
-    siteId: period.siteId, title: period.title, intro: period.intro, thankYou: period.thankYou,
+    siteId: period.sites[0]?.id ?? '', title: period.title, intro: period.intro, thankYou: period.thankYou,
     startDate: period.startDate, endDate: period.endDate, respondentMode: period.respondentMode, copying: false, copyFromPeriodId: NO_COPY,
 } : {
     siteId: '', title: '', intro: '', thankYou: '', startDate: '', endDate: '', respondentMode: CSI_DEFAULT_MODE[scope], copying: false, copyFromPeriodId: NO_COPY,
@@ -60,6 +60,6 @@ export const toUpdatePayload = (form: PeriodFormState, modeLocked: boolean): Upd
 export const toCreatePayload = (form: PeriodFormState): CreateCsiPeriod => ({
     ...textAndDates(form),
     respondentMode: form.respondentMode,
-    siteId: form.siteId,
+    siteIds: [form.siteId],
     ...(form.copying && form.copyFromPeriodId ? { copyFromPeriodId: form.copyFromPeriodId } : {}),
 });

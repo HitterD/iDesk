@@ -5,10 +5,10 @@ import {
 } from '../wizard';
 
 const period = (checks: CsiPeriodDetail['readiness']['checks']): CsiPeriodDetail => ({
-    id: 'p1', scope: 'ICT', siteId: 's1', title: '', intro: '', thankYou: '',
+    id: 'p1', scope: 'ICT', teamEnabled: false, teamLabel: 'Tim IT Support', individualEnabled: true, slaTargetPct: 80, title: '', intro: '', thankYou: '',
     startDate: '2026-10-01', endDate: '2026-10-31', respondentMode: 'LISTED', createdById: 'a1',
     createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z',
-    site: null, status: 'ACTIVE', publishStatus: 'DRAFT', locked: false, ratees: [], raters: [],
+    sites: [], status: 'ACTIVE', publishStatus: 'DRAFT', locked: false, ratees: [], raters: [],
     readiness: { ready: false, checks },
 });
 const check = (key: CsiPeriodDetail['readiness']['checks'][number]['key'], ok: boolean) => ({ key, ok, label: key });
@@ -97,7 +97,7 @@ describe('resumeStep', () => {
     });
 
     it('maps every readiness check to the step that fixes it', () => {
-        expect(READINESS_STEP).toEqual({ ratees: 'ratees', dimensions: 'ratees', raters: 'raters', departments: 'departments' });
+        expect(READINESS_STEP).toEqual({ team: 'dimensions', ratees: 'ratees', dimensions: 'ratees', raters: 'raters', departments: 'departments' });
     });
 
     it('recognises only known step keys', () => {
@@ -113,10 +113,10 @@ describe('toPreviewForm', () => {
         const source = {
             ...period([]), title: 'ICT Q4', intro: 'Nilai tim kami',
             ratees: [
-                { ...base, id: 'r2', periodId: 'p1', userId: 'u2', displayName: 'Budi', jobTitle: null, sortOrder: 2, dimensions: [] },
-                { ...base, id: 'r1', periodId: 'p1', userId: 'a1', displayName: 'Admin', jobTitle: 'Support', sortOrder: 1, dimensions: [
-                    { ...base, id: 'x2', periodRateeId: 'r1', dimensionId: 'missing', dimensionName: 'Solusi', sortOrder: 2 },
-                    { ...base, id: 'x1', periodRateeId: 'r1', dimensionId: 'd1', dimensionName: 'Respons tersimpan', sortOrder: 1 },
+                { ...base, id: 'r2', periodId: 'p1', kind: 'PERSON' as const, userId: 'u2', displayName: 'Budi', jobTitle: null, sortOrder: 2, dimensions: [] },
+                { ...base, id: 'r1', periodId: 'p1', kind: 'PERSON' as const, userId: 'a1', displayName: 'Admin', jobTitle: 'Support', sortOrder: 1, dimensions: [
+                    { ...base, id: 'x2', periodRateeId: 'r1', dimensionId: 'missing', dimensionName: 'Solusi', type: 'STAR' as const, required: true, options: [], sortOrder: 2 },
+                    { ...base, id: 'x1', periodRateeId: 'r1', dimensionId: 'd1', dimensionName: 'Respons tersimpan', type: 'STAR' as const, required: true, options: [], sortOrder: 1 },
                 ] },
             ],
         };
@@ -127,15 +127,15 @@ describe('toPreviewForm', () => {
             { ...department, id: 'g1', name: 'Finance', sortOrder: 1 },
         ], [{ ...department, id: 'd1', name: 'Respons master', description: 'Cepat ditanggapi' }], 'Admin');
         expect(result).toEqual({
-            submitted: false, id: 'p1', scope: 'ICT', title: 'ICT Q4', intro: 'Nilai tim kami', endDate: '2026-10-31',
+            teamLabel: 'Tim IT Support', submittedNames: [], id: 'p1', scope: 'ICT', title: 'ICT Q4', intro: 'Nilai tim kami', endDate: '2026-10-31',
             respondent: { fullName: 'Admin' },
             departments: [{ id: 'g2', name: 'Produksi' }, { id: 'g1', name: 'Finance' }],
             ratees: [
-                { periodRateeId: 'r1', displayName: 'Admin', jobTitle: 'Support', avatarUrl: null, dimensions: [
-                    { periodRateeDimensionId: 'x1', name: 'Respons tersimpan', description: 'Cepat ditanggapi' },
-                    { periodRateeDimensionId: 'x2', name: 'Solusi', description: null },
+                { periodRateeId: 'r1', kind: 'PERSON', displayName: 'Admin', jobTitle: 'Support', avatarUrl: null, dimensions: [
+                    { periodRateeDimensionId: 'x1', name: 'Respons tersimpan', description: 'Cepat ditanggapi', type: 'STAR' as const, required: true, options: [] },
+                    { periodRateeDimensionId: 'x2', name: 'Solusi', description: null, type: 'STAR' as const, required: true, options: [] },
                 ] },
-                { periodRateeId: 'r2', displayName: 'Budi', jobTitle: null, avatarUrl: null, dimensions: [] },
+                { periodRateeId: 'r2', kind: 'PERSON', displayName: 'Budi', jobTitle: null, avatarUrl: null, dimensions: [] },
             ],
         });
         expect(source.ratees.map((ratee) => ratee.id)).toEqual(['r2', 'r1']);

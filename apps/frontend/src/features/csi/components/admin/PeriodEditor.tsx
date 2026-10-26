@@ -9,6 +9,7 @@ import { CSI_MODE_LABELS, CSI_TEXT_MAX, CSI_TITLE_MAX } from '../../lib/csiAdmin
 import {
     datesInvalid, formDirty, initialState, toCreatePayload, toUpdatePayload, withCopyMode, withCopySource, type PeriodFormState,
 } from '../../lib/periodForm';
+import { formatSiteCodes } from '../../lib/format';
 import type { CsiPeriodDetail, CsiPeriodListItem, CsiRespondentMode, CsiScopeParam } from '../../types';
 import { WIZARD_COPY } from '../wizard/wizardCopy';
 import { FIELD_LABEL, LockedNote, MUTED_TEXT } from './AdminParts';
@@ -86,7 +87,7 @@ function SiteField({ period, value, onChange }: { period?: CsiPeriodDetail; valu
         <div className="grid gap-1.5">
             <span className={FIELD_LABEL}>Site</span>
             {period
-                ? <p className="text-[14px] font-medium">{period.site ? `${period.site.code} · ${period.site.name}` : '—'} <span className={MUTED_TEXT}>(tidak dapat diubah)</span></p>
+                ? <p className="text-[14px] font-medium">{formatSiteCodes(period.sites)} <span className={MUTED_TEXT}>(tidak dapat diubah)</span></p>
                 : <SearchablePicker label="Site" value={value} options={options} onValueChange={onChange}
                     placeholder="Pilih site" searchPlaceholder="Cari site…" triggerClassName="min-h-9 w-full sm:max-w-sm" />}
         </div>

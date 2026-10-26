@@ -23,4 +23,8 @@ export const formatDate = (value: string) => format(parseISO(value), 'dd MMM yyy
 /** Timestamp → "01 Okt 2026, 14.05". */
 export const formatDateTime = (value: string) => format(parseISO(value), 'dd MMM yyyy, HH.mm', { locale: idLocale });
 
+/** "ICT & HC" style label for the sites a period covers; "—" when none. */
+export const formatSiteCodes = (sites: ReadonlyArray<{ code: string | null }>) =>
+    sites.map((site) => site.code).filter(Boolean).join(' & ') || EMPTY;
+
 export const formatDateRange = (start: string, end: string) => `${formatDate(start)} – ${formatDate(end)}`;

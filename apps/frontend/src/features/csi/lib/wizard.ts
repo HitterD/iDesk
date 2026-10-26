@@ -6,14 +6,15 @@ export function toPreviewForm(
 ): CsiOpenForm {
     const descriptions = new Map(dimensions.map((dimension) => [dimension.id, dimension.description]));
     return {
-        submitted: false, id: period.id, scope: period.scope, title: period.title,
-        intro: period.intro, endDate: period.endDate, respondent: { fullName: respondentName },
+        id: period.id, scope: period.scope, title: period.title,
+        intro: period.intro, endDate: period.endDate, teamLabel: period.teamLabel, submittedNames: [], respondent: { fullName: respondentName },
         departments: departments.filter((department) => department.isActive).map(({ id, name }) => ({ id, name })),
         ratees: [...period.ratees].sort((a, b) => a.sortOrder - b.sortOrder).map((ratee) => ({
-            periodRateeId: ratee.id, displayName: ratee.displayName, jobTitle: ratee.jobTitle, avatarUrl: null,
+            periodRateeId: ratee.id, kind: ratee.kind, displayName: ratee.displayName, jobTitle: ratee.jobTitle, avatarUrl: null,
             dimensions: [...ratee.dimensions].sort((a, b) => a.sortOrder - b.sortOrder).map((dimension) => ({
                 periodRateeDimensionId: dimension.id, name: dimension.dimensionName,
                 description: descriptions.get(dimension.dimensionId) ?? null,
+                type: dimension.type, required: dimension.required, options: dimension.options,
             })),
         })),
     };
@@ -66,6 +67,7 @@ type ReadinessKey = CsiPeriodDetail['readiness']['checks'][number]['key'];
 
 /** Wizard step where each readiness check is fixed. */
 export const READINESS_STEP: Readonly<Record<ReadinessKey, WizardStepKey>> = {
+    team: 'dimensions',
     ratees: 'ratees',
     dimensions: 'ratees',
     raters: 'raters',

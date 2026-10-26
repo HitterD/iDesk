@@ -40,7 +40,8 @@ export function buildSubmitPayload(form: CsiOpenForm, departmentId: string, scor
         const comment = (comments[ratee.periodRateeId] ?? '').trim();
         return comment ? [{ periodRateeId: ratee.periodRateeId, comment }] : [];
     });
-    return filled.length ? { departmentId, items, comments: filled } : { departmentId, items };
+    const respondentName = form.respondent.fullName;
+    return filled.length ? { respondentName, departmentId, items, comments: filled } : { respondentName, departmentId, items };
 }
 
 /** HTTP status of an axios-style error, if any. */

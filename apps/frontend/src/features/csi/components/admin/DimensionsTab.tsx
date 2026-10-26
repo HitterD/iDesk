@@ -15,7 +15,7 @@ export function DimensionsTab({ scope, compact }: { scope: CsiScopeParam; compac
         <MasterList noun="dimensi" withDescription items={list.data} isLoading={list.isLoading} isError={list.isError}
             onRetry={() => list.refetch()} compact={compact} showInactive={showInactive} onShowInactiveChange={setShowInactive}
             pending={create.isPending || update.isPending || deactivate.isPending}
-            onCreate={(payload, done) => create.mutate(payload, { onSuccess: done })}
+            onCreate={(payload, done) => create.mutate({ ...payload, type: 'STAR' }, { onSuccess: done })}
             onUpdate={(id, payload, done) => update.mutate({ id, payload }, { onSuccess: done })}
             onDeactivate={(id, done) => deactivate.mutate(id, { onSuccess: done })} />
     );

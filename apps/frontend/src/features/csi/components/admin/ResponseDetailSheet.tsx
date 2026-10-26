@@ -49,7 +49,9 @@ function DetailBody({ detail }: { detail: CsiResponseDetail }) {
                         {ratee.scores.map((item) => (
                             <li key={item.dimension} className="flex items-center justify-between gap-3 py-2">
                                 <span className="text-[13.5px]">{item.dimension}</span>
-                                <StarRating value={item.score} label={`${item.dimension} untuk ${ratee.displayName}`} size="sm" hideLabel />
+                                {item.score === null
+                                    ? <span className="text-[13px] font-medium">{item.answerLabel ?? item.answerText ?? '—'}</span>
+                                    : <StarRating value={item.score} label={`${item.dimension} untuk ${ratee.displayName}`} size="sm" hideLabel />}
                             </li>
                         ))}
                     </ul>
@@ -76,7 +78,7 @@ export function ResponseDetailSheet({ scope, periodId, responseId, onClose }: {
             <Sheet open={!!responseId && !confirming} onOpenChange={(open) => { if (!open && !confirming) onClose(); }}>
                 <SheetContent side="right" className="max-w-lg">
                     <SheetHeader className="pr-12">
-                        <SheetTitle>{detail?.fullName ?? 'Detail jawaban'}</SheetTitle>
+                        <SheetTitle>{detail?.respondentName ?? 'Detail jawaban'}</SheetTitle>
                         <SheetDescription>{detail ? `${detail.departmentName} · ${formatDateTime(detail.submittedAt)}` : 'Memuat jawaban…'}</SheetDescription>
                     </SheetHeader>
                     <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
@@ -91,7 +93,7 @@ export function ResponseDetailSheet({ scope, periodId, responseId, onClose }: {
                     </div>
                 </SheetContent>
             </Sheet>
-            <ResetDialog open={confirming} name={detail?.fullName ?? ''} pending={reset.isPending}
+            <ResetDialog open={confirming} name={detail?.respondentName ?? ''} pending={reset.isPending}
                 onCancel={() => setConfirming(false)} onConfirm={confirm} />
         </>
     );

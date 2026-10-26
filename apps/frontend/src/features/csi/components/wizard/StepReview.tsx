@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { usePublishCsiPeriod } from '../../hooks/useCsi';
 import { CSI_MODE_LABELS } from '../../lib/csiAdmin';
-import { formatDateRange } from '../../lib/format';
+import { formatDateRange, formatSiteCodes } from '../../lib/format';
 import type { WizardStepKey } from '../../lib/wizard';
 import type { CsiPeriodDetail, CsiScopeParam } from '../../types';
 import { AdminSection, MUTED_TEXT } from '../admin/AdminParts';
@@ -16,7 +16,7 @@ import { STEP_TITLES, WIZARD_COPY } from './wizardCopy';
 function Summary({ period }: { period: CsiPeriodDetail }) {
     const rows: Array<[string, string]> = [
         ['Judul', period.title],
-        ['Site', period.site ? `${period.site.code} · ${period.site.name}` : '—'],
+        ['Site', formatSiteCodes(period.sites)],
         ['Tanggal', formatDateRange(period.startDate, period.endDate)],
         ['Mode responden', CSI_MODE_LABELS[period.respondentMode]],
         ['Orang yang dinilai', `${period.ratees.length} orang`],

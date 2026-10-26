@@ -65,6 +65,7 @@ export const queryKeys = {
         departments: (scope: 'ict' | 'hc', includeInactive?: boolean) =>
             ['csi', scope, 'departments', ...(includeInactive === undefined ? [] : [includeInactive])] as const,
         raters: (scope: 'ict' | 'hc') => ['csi', scope, 'raters'] as const,
+        memoSettings: (scope: 'ict' | 'hc') => ['csi', scope, 'memo-settings'] as const,
         userSearch: (scope: 'ict' | 'hc', search: string) => ['csi', scope, 'users', search] as const,
         periods: (scope: 'ict' | 'hc', siteId?: string) =>
             ['csi', scope, 'periods', ...(siteId === undefined ? [] : [siteId])] as const,

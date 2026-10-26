@@ -6,9 +6,9 @@ import type { CsiResponseDetail } from '../../../types';
 
 const hooks = vi.hoisted(() => ({ reset: vi.fn() }));
 const DETAIL: CsiResponseDetail = {
-    responseId: 'r1', fullName: 'Rina Pemohon', departmentName: 'Finance', submittedAt: '2026-10-20T07:05:00Z',
-    ratees: [{ periodRateeId: 'pr1', displayName: 'Andi', jobTitle: 'IT Support', comment: 'Cepat tanggap',
-        scores: [{ dimension: 'Kecepatan', score: 5 }] }],
+    responseId: 'r1', respondentName: 'Rina Pemohon', accountName: 'Rina', areaName: null, departmentName: 'Finance', submittedAt: '2026-10-20T07:05:00Z',
+    ratees: [{ periodRateeId: 'pr1', kind: 'PERSON', displayName: 'Andi', jobTitle: 'IT Support', comment: 'Cepat tanggap',
+        scores: [{ dimension: 'Kecepatan', type: 'STAR', score: 5, answerLabel: null, answerText: null }] }],
 };
 
 vi.mock('../../../hooks/useCsi', () => ({

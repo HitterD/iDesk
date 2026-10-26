@@ -27,8 +27,8 @@ vi.mock('../../../hooks/useCsi', () => ({
 vi.mock('@/components/site/useActiveSites', () => ({ useActiveSites: () => ({ data: [] }) }));
 
 const period = (over: Partial<CsiPeriodDetail> = {}): CsiPeriodDetail => ({
-    id: 'p1', scope: 'ICT', siteId: 's1', title: 'Survei Q4', intro: '', thankYou: '', startDate: '2026-10-01', endDate: '2026-10-31',
-    respondentMode: 'OPEN', createdById: 'a1', site: { id: 's1', code: 'SPJ', name: 'Sidoarjo' }, status: 'ACTIVE',
+    id: 'p1', scope: 'ICT', teamEnabled: false, teamLabel: 'Tim IT Support', individualEnabled: true, slaTargetPct: 80, title: 'Survei Q4', intro: '', thankYou: '', startDate: '2026-10-01', endDate: '2026-10-31',
+    respondentMode: 'OPEN', createdById: 'a1', sites: [{ id: 's1', code: 'SPJ', name: 'Sidoarjo' }], status: 'ACTIVE',
     publishStatus: 'DRAFT', locked: false, ratees: [], raters: [], ...fx.STAMP,
     readiness: { ready: true, checks: [] }, ...over,
 });

@@ -2,9 +2,9 @@ import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/
 import { queryKeys } from '@/lib/queryKeys';
 import { CsiApi } from '../api/csi.api';
 import type {
-    CsiScopeParam, CsiUserIds, CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod,
-    ResetCsiResponse, SetCsiRatees, SubmitCsiResponse, UpdateCsiDepartment,
-    UpdateCsiDimension, UpdateCsiPeriod,
+    CsiMemoHeader, CsiMemoRequest, CsiScopeParam, CsiUserIds, CreateCsiDepartment, CreateCsiDimension,
+    CreateCsiPeriod, ResetCsiResponse, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
+    UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod,
 } from '../types';
 
 const keys = queryKeys.csi;
@@ -54,6 +54,12 @@ export function useUpdateCsiDimension(scope: CsiScopeParam) {
 export function useDeactivateCsiDimension(scope: CsiScopeParam) {
     return useCsiMutation((id: string) => CsiApi.deactivateDimension(scope, id), () => [keys.dimensions(scope)]);
 }
+export function useReorderCsiDimensions(scope: CsiScopeParam) {
+    return useCsiMutation((ids: string[]) => CsiApi.reorderDimensions(scope, { ids }), () => [keys.dimensions(scope)]);
+}
+export function useApplyCsiTemplate(scope: CsiScopeParam) {
+    return useCsiMutation(() => CsiApi.applyTemplate(scope), () => [keys.dimensions(scope)]);
+}
 export function useCsiDepartments(scope: CsiScopeParam, includeInactive = false) {
     return useQuery({ queryKey: keys.departments(scope, includeInactive), queryFn: () => CsiApi.departments(scope, includeInactive) });
 }
@@ -67,6 +73,9 @@ export function useUpdateCsiDepartment(scope: CsiScopeParam) {
 }
 export function useDeactivateCsiDepartment(scope: CsiScopeParam) {
     return useCsiMutation((id: string) => CsiApi.deactivateDepartment(scope, id), () => departmentKeys(scope));
+}
+export function useReorderCsiDepartments(scope: CsiScopeParam) {
+    return useCsiMutation((ids: string[]) => CsiApi.reorderDepartments(scope, { ids }), () => departmentKeys(scope));
 }
 export function useCsiRaters(scope: CsiScopeParam) {
     return useQuery({ queryKey: keys.raters(scope), queryFn: () => CsiApi.raters(scope) });
@@ -107,6 +116,9 @@ export function useDeleteCsiPeriod(scope: CsiScopeParam) {
 export function useSetCsiRatees(scope: CsiScopeParam, id: string) {
     return useCsiMutation((payload: SetCsiRatees) => CsiApi.setRatees(scope, id, payload), () => periodKeys(scope, id));
 }
+export function useSetCsiTeamQuestions(scope: CsiScopeParam, id: string) {
+    return useCsiMutation((payload: SetCsiTeamQuestions) => CsiApi.setTeamQuestions(scope, id, payload), () => periodKeys(scope, id));
+}
 export function useSetCsiRaters(scope: CsiScopeParam, id: string) {
     return useCsiMutation((payload: CsiUserIds) => CsiApi.setRaters(scope, id, payload), () => periodKeys(scope, id));
 }
@@ -123,4 +135,15 @@ export function useCsiResponseDetail(scope: CsiScopeParam, id: string, responseI
 export function useResetCsiResponse(scope: CsiScopeParam, id: string) {
     return useCsiMutation(({ responseId, reason }: ResetCsiResponse & { responseId: string }) =>
         CsiApi.resetResponse(scope, id, responseId, { reason }), () => periodKeys(scope, id));
+}
+
+export function useCsiMemoSettings(scope: CsiScopeParam) {
+    return useQuery({ queryKey: keys.memoSettings(scope), queryFn: () => CsiApi.memoSettings(scope) });
+}
+export function useSaveCsiMemoSettings(scope: CsiScopeParam) {
+    return useCsiMutation((payload: CsiMemoHeader) => CsiApi.saveMemoSettings(scope, payload), () => [keys.memoSettings(scope)]);
+}
+/** Memo PDF export; the caller owns the single error toast (the blob error body hides the server message). */
+export function useExportCsiMemo(scope: CsiScopeParam) {
+    return useMutation({ mutationFn: (payload: CsiMemoRequest) => CsiApi.exportMemo(scope, payload) });
 }

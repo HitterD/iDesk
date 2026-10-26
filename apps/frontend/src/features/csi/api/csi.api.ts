@@ -3,8 +3,8 @@ import type {
     CsiActivePeriod, CsiDepartment, CsiDimension, CsiForm, CsiPeriod, CsiPeriodDetail,
     CsiPeriodListItem, CsiRater, CsiRemovedRater, CsiReport, CsiResetResult, CsiRespondents,
     CsiResponseDetail, CsiScopeParam, CsiSubmitResult, CsiUserIds, CsiUserSearchResult,
-    CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, ResetCsiResponse,
-    SetCsiRatees, SubmitCsiResponse, UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod,
+    CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, CsiMemoHeader, CsiMemoRequest, CsiReorder,
+    ResetCsiResponse, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse, UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod,
 } from '../types';
 
 const adminPath = (scope: CsiScopeParam) => `/csi/admin/${scope}`;
@@ -12,8 +12,8 @@ const periodPath = (scope: CsiScopeParam, id: string) => `${adminPath(scope)}/pe
 const itemPath = (scope: CsiScopeParam, resource: string, id: string) =>
     `${adminPath(scope)}/${resource}/${encodeURIComponent(id)}`;
 
-function exportFilename(disposition: unknown, scope: CsiScopeParam): string {
-    const fallback = `csi-${scope}.xlsx`;
+function exportFilename(disposition: unknown, scope: CsiScopeParam, extension = 'xlsx'): string {
+    const fallback = `csi-${scope}.${extension}`;
     if (typeof disposition !== 'string') return fallback;
     const filename = /filename="([^"]+)"/i.exec(disposition)?.[1]
         ?? /filename=([^;\s]+)/i.exec(disposition)?.[1];
@@ -46,6 +46,12 @@ export const CsiApi = {
     async deactivateDimension(scope: CsiScopeParam, id: string): Promise<CsiDimension> {
         return (await api.delete<CsiDimension>(itemPath(scope, 'dimensions', id))).data;
     },
+    async reorderDimensions(scope: CsiScopeParam, payload: CsiReorder): Promise<CsiDimension[]> {
+        return (await api.put<CsiDimension[]>(`${adminPath(scope)}/dimensions/order`, payload)).data;
+    },
+    async applyTemplate(scope: CsiScopeParam): Promise<CsiDimension[]> {
+        return (await api.post<CsiDimension[]>(`${adminPath(scope)}/dimensions/template`)).data;
+    },
     async departments(scope: CsiScopeParam, includeInactive = false): Promise<CsiDepartment[]> {
         return (await api.get<CsiDepartment[]>(`${adminPath(scope)}/departments`, { params: { includeInactive } })).data;
     },
@@ -57,6 +63,9 @@ export const CsiApi = {
     },
     async deactivateDepartment(scope: CsiScopeParam, id: string): Promise<CsiDepartment> {
         return (await api.delete<CsiDepartment>(itemPath(scope, 'departments', id))).data;
+    },
+    async reorderDepartments(scope: CsiScopeParam, payload: CsiReorder): Promise<CsiDepartment[]> {
+        return (await api.put<CsiDepartment[]>(`${adminPath(scope)}/departments/order`, payload)).data;
     },
     async raters(scope: CsiScopeParam): Promise<CsiRater[]> {
         return (await api.get<CsiRater[]>(`${adminPath(scope)}/raters`)).data;
@@ -94,6 +103,9 @@ export const CsiApi = {
     async setRatees(scope: CsiScopeParam, id: string, payload: SetCsiRatees): Promise<CsiPeriodDetail> {
         return (await api.put<CsiPeriodDetail>(`${periodPath(scope, id)}/ratees`, payload)).data;
     },
+    async setTeamQuestions(scope: CsiScopeParam, id: string, payload: SetCsiTeamQuestions): Promise<CsiPeriodDetail> {
+        return (await api.put<CsiPeriodDetail>(`${periodPath(scope, id)}/team`, payload)).data;
+    },
     async setRaters(scope: CsiScopeParam, id: string, payload: CsiUserIds): Promise<CsiPeriodDetail> {
         return (await api.put<CsiPeriodDetail>(`${periodPath(scope, id)}/raters`, payload)).data;
     },
@@ -113,5 +125,16 @@ export const CsiApi = {
         // A blob error body hides the server message from the interceptor; the caller shows one toast instead.
         const response = await api.get<Blob>(`${periodPath(scope, id)}/export`, { responseType: 'blob', skipToast: true });
         return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope) };
+    },
+    async memoSettings(scope: CsiScopeParam): Promise<CsiMemoHeader> {
+        return (await api.get<CsiMemoHeader>(`${adminPath(scope)}/memo-settings`)).data;
+    },
+    async saveMemoSettings(scope: CsiScopeParam, payload: CsiMemoHeader): Promise<CsiMemoHeader> {
+        return (await api.put<CsiMemoHeader>(`${adminPath(scope)}/memo-settings`, payload)).data;
+    },
+    async exportMemo(scope: CsiScopeParam, payload: CsiMemoRequest): Promise<{ blob: Blob; filename: string }> {
+        // A blob error body hides the server message from the interceptor; the caller shows one toast instead.
+        const response = await api.post<Blob>(`${adminPath(scope)}/reports/memo`, payload, { responseType: 'blob', skipToast: true });
+        return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope, 'pdf') };
     },
 };

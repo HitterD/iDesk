@@ -74,12 +74,12 @@ export interface DraftUser {
 }
 
 export function draftFromPeriod(period: CsiPeriodDetail): RateeDraft[] {
-    return period.ratees.map((ratee) => ({
+    return period.ratees.flatMap((ratee) => ratee.userId === null ? [] : [{
         userId: ratee.userId,
         displayName: ratee.displayName,
         jobTitle: ratee.jobTitle,
         dimensionIds: ratee.dimensions.map((dimension) => dimension.dimensionId),
-    }));
+    }]);
 }
 
 /** Orders dimension IDs by the master order; unknown IDs keep their relative order at the end. */

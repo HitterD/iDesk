@@ -1,6 +1,6 @@
 import { SearchablePicker } from '@/components/ui/searchable-picker';
 import { SegmentedControl } from '@/components/ui/segmented-control';
-import { formatDateRange } from '../../lib/format';
+import { formatDateRange, formatSiteCodes } from '../../lib/format';
 import type { PeriodFormState } from '../../lib/periodForm';
 import type { CsiPeriodListItem } from '../../types';
 import { WIZARD_COPY } from '../wizard/wizardCopy';
@@ -19,7 +19,7 @@ export function CopySourceField({ form, periods, onModeChange, onSourceChange }:
 }) {
     if (!periods.length) return null;
     const options = periods.map((item) => ({
-        value: item.id, label: item.title, description: `${item.site?.code ?? ''} · ${formatDateRange(item.startDate, item.endDate)}`,
+        value: item.id, label: item.title, description: `${formatSiteCodes(item.sites)} · ${formatDateRange(item.startDate, item.endDate)}`,
     }));
     return (
         <div className="grid gap-3">

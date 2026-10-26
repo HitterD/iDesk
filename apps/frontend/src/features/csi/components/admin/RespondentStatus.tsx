@@ -40,7 +40,7 @@ export function RespondentStatus({ scope, periodId, onOpenResponse }: {
                                             <button type="button" onClick={() => onOpenResponse(item.responseId)}
                                                 className="group flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-[hsl(var(--muted)/.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
                                                 <span className="min-w-0 flex-1">
-                                                    <span className="block truncate text-[13.5px] font-medium">{item.fullName}</span>
+                                                    <span className="block truncate text-[13.5px] font-medium">{item.respondentName}</span>
                                                     <span className={cn(MUTED_TEXT, 'block text-[12px]')}>{`${item.departmentName} · ${formatDateTime(item.submittedAt)}`}</span>
                                                 </span>
                                                 <ChevronRight className="h-4 w-4 shrink-0 opacity-50 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden="true" />

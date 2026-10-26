@@ -6,16 +6,16 @@ import { draftKey } from '../../../lib/surveyDraft';
 import type { CsiOpenForm } from '../../../types';
 
 const FORM: CsiOpenForm = {
-    submitted: false, id: 'p1', scope: 'ICT', title: 'Survei Kepuasan ICT Q4', intro: 'Mohon nilai layanan kami.',
+    teamLabel: 'Tim IT Support', submittedNames: [], id: 'p1', scope: 'ICT', title: 'Survei Kepuasan ICT Q4', intro: 'Mohon nilai layanan kami.',
     endDate: '2026-10-31', respondent: { fullName: 'Rina Pemohon' },
     departments: [{ id: 'd1', name: 'Finance' }, { id: 'd2', name: 'Produksi' }],
     ratees: [
-        { periodRateeId: 'r1', displayName: 'Andi', jobTitle: 'IT Support', avatarUrl: null, dimensions: [
-            { periodRateeDimensionId: 'x1', name: 'Kecepatan', description: 'Seberapa cepat ditanggapi' },
-            { periodRateeDimensionId: 'x2', name: 'Keramahan', description: null },
+        { periodRateeId: 'r1', kind: 'PERSON', displayName: 'Andi', jobTitle: 'IT Support', avatarUrl: null, dimensions: [
+            { periodRateeDimensionId: 'x1', name: 'Kecepatan', description: 'Seberapa cepat ditanggapi', type: 'STAR' as const, required: true, options: [] },
+            { periodRateeDimensionId: 'x2', name: 'Keramahan', description: null, type: 'STAR' as const, required: true, options: [] },
         ] },
-        { periodRateeId: 'r2', displayName: 'Budi', jobTitle: null, avatarUrl: '/uploads/budi.png', dimensions: [
-            { periodRateeDimensionId: 'y1', name: 'Kecepatan', description: null },
+        { periodRateeId: 'r2', kind: 'PERSON', displayName: 'Budi', jobTitle: null, avatarUrl: '/uploads/budi.png', dimensions: [
+            { periodRateeDimensionId: 'y1', name: 'Kecepatan', description: null, type: 'STAR' as const, required: true, options: [] },
         ] },
     ],
 };
@@ -143,7 +143,7 @@ describe('SurveyFlow', () => {
         await user.click(button('Tinjau jawaban'));
         await user.click(button('Kirim'));
         expect(onSubmit).toHaveBeenCalledWith({
-            departmentId: 'd2',
+            respondentName: 'Rina Pemohon', departmentId: 'd2',
             items: [{ periodRateeDimensionId: 'x1', score: 5 }, { periodRateeDimensionId: 'x2', score: 4 }, { periodRateeDimensionId: 'y1', score: 3 }],
         });
     });

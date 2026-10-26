@@ -16,7 +16,8 @@ vi.mock('@/stores/useAuth', () => ({
 }));
 
 const OPEN_FORM: CsiOpenForm = {
-    submitted: false,
+    teamLabel: 'Tim IT Support',
+    submittedNames: [],
     id: 'p1',
     scope: 'ICT',
     title: 'Survei Kepuasan ICT Q4',
@@ -26,12 +27,12 @@ const OPEN_FORM: CsiOpenForm = {
     departments: [{ id: 'd1', name: 'Finance' }, { id: 'd2', name: 'Produksi' }],
     ratees: [
         {
-            periodRateeId: 'r1', displayName: 'Andi', jobTitle: 'IT Support', avatarUrl: null,
-            dimensions: [{ periodRateeDimensionId: 'x1', name: 'Kecepatan', description: null }, { periodRateeDimensionId: 'x2', name: 'Keramahan', description: null }],
+            periodRateeId: 'r1', kind: 'PERSON', displayName: 'Andi', jobTitle: 'IT Support', avatarUrl: null,
+            dimensions: [{ periodRateeDimensionId: 'x1', name: 'Kecepatan', description: null, type: 'STAR' as const, required: true, options: [] }, { periodRateeDimensionId: 'x2', name: 'Keramahan', description: null, type: 'STAR' as const, required: true, options: [] }],
         },
         {
-            periodRateeId: 'r2', displayName: 'Budi', jobTitle: null, avatarUrl: null,
-            dimensions: [{ periodRateeDimensionId: 'y1', name: 'Kecepatan', description: null }],
+            periodRateeId: 'r2', kind: 'PERSON', displayName: 'Budi', jobTitle: null, avatarUrl: null,
+            dimensions: [{ periodRateeDimensionId: 'y1', name: 'Kecepatan', description: null, type: 'STAR' as const, required: true, options: [] }],
         },
     ],
 };
@@ -100,7 +101,7 @@ describe('CsiSurveyPage', () => {
 
         expect(await screen.findByText('Terima kasih atas penilaian Anda!')).toBeInTheDocument();
         expect(CsiApi.submit).toHaveBeenCalledWith('p1', {
-            departmentId: 'd2',
+            respondentName: 'Rina Pemohon', departmentId: 'd2',
             items: [
                 { periodRateeDimensionId: 'x1', score: 5 },
                 { periodRateeDimensionId: 'x2', score: 4 },
@@ -109,15 +110,6 @@ describe('CsiSurveyPage', () => {
             comments: [{ periodRateeId: 'r1', comment: 'Pertahankan' }],
         });
         expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
-    });
-
-    it('respons submitted: true dari form menampilkan thankYou dan menghapus draft', async () => {
-        localStorage.setItem(DRAFT_KEY, STORED_DRAFT);
-        vi.mocked(CsiApi.form).mockResolvedValue({ submitted: true, title: 'Survei Kepuasan ICT Q4', thankYou: 'Sampai jumpa periode depan.' });
-        renderPage();
-        expect(await screen.findByText('Sampai jumpa periode depan.')).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Mulai mengisi' })).not.toBeInTheDocument();
-        await waitFor(() => expect(localStorage.getItem(DRAFT_KEY)).toBeNull());
     });
 
     it('410 saat submit menampilkan "Periode penilaian sudah berakhir"', async () => {

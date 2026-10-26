@@ -61,7 +61,7 @@ export function CsiSurveyPage() {
     const basePath = useCsiBasePath();
     const userId = useAuth((state) => state.user?.id ?? '');
     const { data: form, error, isLoading, refetch } = useCsiForm(id);
-    useClearDraftWhen(Boolean(form?.submitted) || errorStatus(error) === CSI_HTTP_GONE, userId, id);
+    useClearDraftWhen(errorStatus(error) === CSI_HTTP_GONE, userId, id);
 
     if (isLoading) return <SurveySkeleton />;
     if (error || !form) {
@@ -69,9 +69,6 @@ export function CsiSurveyPage() {
         if (status === CSI_HTTP_GONE) return <CsiStatusScreen tone="warning" title={CSI_MESSAGES.ended} backTo={basePath} />;
         if (status === CSI_HTTP_NOT_FOUND || !error) return <CsiStatusScreen tone="muted" title={CSI_MESSAGES.notFound} backTo={basePath} />;
         return <ErrorState title="Gagal memuat survei" message="Terjadi kendala saat memuat survei. Silakan coba lagi." onRetry={() => refetch()} />;
-    }
-    if (form.submitted) {
-        return <CsiStatusScreen tone="success" title={form.title} message={form.thankYou} backTo={basePath} />;
     }
     return <SurveyForm key={form.id} form={form} basePath={basePath} userId={userId} />;
 }

@@ -10,13 +10,13 @@ vi.mock('../../../hooks/useCsi', () => ({
 }));
 
 const PERIOD: CsiPeriodDetail = {
-    id: 'p1', scope: 'ICT', siteId: 's1', title: 'Survei ICT', intro: 'Nilai tim kami', thankYou: '',
+    id: 'p1', scope: 'ICT', teamEnabled: false, teamLabel: 'Tim IT Support', individualEnabled: true, slaTargetPct: 80, title: 'Survei ICT', intro: 'Nilai tim kami', thankYou: '',
     startDate: '2026-10-01', endDate: '2026-10-31', respondentMode: 'OPEN', createdById: 'admin',
-    createdAt: '', updatedAt: '', site: null, status: 'ACTIVE', publishStatus: 'DRAFT', locked: false,
+    createdAt: '', updatedAt: '', sites: [], status: 'ACTIVE', publishStatus: 'DRAFT', locked: false,
     readiness: { ready: false, checks: [] }, raters: [],
-    ratees: [{ id: 'r1', periodId: 'p1', userId: 'admin', displayName: 'Admin Preview', jobTitle: 'Support',
+    ratees: [{ id: 'r1', periodId: 'p1', kind: 'PERSON', userId: 'admin', displayName: 'Admin Preview', jobTitle: 'Support',
         sortOrder: 0, createdAt: '', updatedAt: '', dimensions: [
-            { id: 'x1', periodRateeId: 'r1', dimensionId: 'd1', dimensionName: 'Kecepatan', sortOrder: 0, createdAt: '', updatedAt: '' },
+            { id: 'x1', periodRateeId: 'r1', dimensionId: 'd1', dimensionName: 'Kecepatan', type: 'STAR' as const, required: true, options: [], sortOrder: 0, createdAt: '', updatedAt: '' },
         ] }],
 };
 

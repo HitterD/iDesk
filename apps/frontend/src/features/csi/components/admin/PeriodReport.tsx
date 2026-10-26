@@ -33,7 +33,7 @@ function ReportRowView({ row }: { row: ReportRow }) {
             <td className="px-4 py-3 font-semibold tabular-nums">{formatPercent(row.indexPct)}</td>
             <td className="px-4 py-3">
                 <span className="flex flex-wrap gap-1">
-                    {row.dimensions.map((dimension) => (
+                    {row.questions.filter((question) => question.average !== null).map((dimension) => (
                         <span key={dimension.name} className="rounded-full bg-[hsl(var(--muted))] px-2.5 py-0.5 text-[12px] font-medium tabular-nums">
                             {`${dimension.name}: ${formatScore(dimension.average)}`}
                         </span>
