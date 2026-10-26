@@ -128,7 +128,7 @@ export const ForgotPasswordDialog: React.FC<ForgotPasswordDialogProps> = ({ onCl
                             <div className="relative">
                                 <FieldIcon icon={IdCard} />
                                 <input id="fp-nik" type="text" inputMode="numeric" value={nik} onChange={(e) => setNik(e.target.value)}
-                                    className="auth-input pl-10" placeholder="Contoh: 12345" autoComplete="username" autoFocus
+                                    className="auth-input has-icon" placeholder="Contoh: 12345" autoComplete="username" autoFocus
                                     aria-invalid={!!error || undefined} />
                             </div>
                         </div>
@@ -138,7 +138,7 @@ export const ForgotPasswordDialog: React.FC<ForgotPasswordDialogProps> = ({ onCl
                             <div className="relative">
                                 <FieldIcon icon={Mail} />
                                 <input id="fp-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                                    className="auth-input pl-10" placeholder="nama@kapalapi.co.id" autoComplete="email"
+                                    className="auth-input has-icon" placeholder="nama@kapalapi.co.id" autoComplete="email"
                                     aria-invalid={!!error || undefined} />
                             </div>
                         </div>
