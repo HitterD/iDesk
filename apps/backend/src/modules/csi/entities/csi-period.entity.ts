@@ -38,7 +38,8 @@ export class CsiPeriod {
     respondentMode: CsiRespondentMode;
 
     // Named publishStatus so it never clobbers the computed time `status` in API responses.
-    @Column({ name: 'status', type: 'varchar', length: 10, default: CsiPeriodPublishStatus.PUBLISHED })
+    // Fails closed: a period saved without an explicit status stays a draft.
+    @Column({ name: 'status', type: 'varchar', length: 10, default: CsiPeriodPublishStatus.DRAFT })
     publishStatus: CsiPeriodPublishStatus;
 
     @Column({ type: 'uuid' })
