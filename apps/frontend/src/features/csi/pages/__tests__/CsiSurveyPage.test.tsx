@@ -37,7 +37,7 @@ const OPEN_FORM: CsiOpenForm = {
     ],
 };
 const DRAFT_KEY = draftKey('u1', 'p1');
-const STORED_DRAFT = JSON.stringify({ departmentId: 'd1', scores: { x1: 5 }, comments: {}, position: 1 });
+const STORED_DRAFT = JSON.stringify({ respondentName: 'Rina Pemohon', departmentId: 'd1', answers: { x1: { score: 5 } }, comments: {}, position: 1 });
 
 const httpError = (status: number) => Object.assign(new Error(`HTTP ${status}`), { isAxiosError: true, response: { status, data: {} } });
 
@@ -83,12 +83,12 @@ afterEach(() => {
 });
 
 describe('CsiSurveyPage', () => {
-    it('menampilkan layar pembuka: judul, intro, nama read-only, departemen', async () => {
+    it('menampilkan layar pembuka: judul, intro, nama bisa diubah, departemen', async () => {
         renderPage();
         expect(await screen.findByRole('heading', { name: 'Survei Kepuasan ICT Q4' })).toBeInTheDocument();
         expect(screen.getByText(/Mohon nilai layanan kami\./)).toBeInTheDocument();
         expect(screen.getByLabelText('Nama')).toHaveValue('Rina Pemohon');
-        expect(screen.getByLabelText('Nama')).toHaveAttribute('readonly');
+        expect(screen.getByLabelText('Nama')).not.toHaveAttribute('readonly');
         expect(screen.getByText('Pilih departemen')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Mulai mengisi' })).toBeDisabled();
     });
@@ -137,13 +137,31 @@ describe('CsiSurveyPage', () => {
         await waitFor(() => expect(localStorage.getItem(DRAFT_KEY)).toBeNull());
     });
 
-    it('clears local draft on 409', async () => {
+    it('409 nama ganda: kembali ke pembuka dengan galat di kolom nama, draft tetap ada', async () => {
         vi.mocked(CsiApi.submit).mockRejectedValue(httpError(409));
         const user = userEvent.setup();
         renderPage();
         await fillAndSubmit(user);
-        expect(await screen.findByText('Anda sudah mengisi survei ini')).toBeInTheDocument();
-        expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+        expect(await screen.findByRole('alert')).toHaveTextContent('Nama ini sudah mengisi survei ini');
+        expect(screen.getByLabelText('Nama')).toHaveAttribute('aria-invalid', 'true');
+        await waitFor(() => expect(JSON.parse(localStorage.getItem(DRAFT_KEY) ?? '{}').answers).toMatchObject({ y1: { score: 3 } }));
+    });
+
+    it('Isi lagi atas nama orang lain: nama & jawaban kosong, departemen tetap, draft dihapus', async () => {
+        vi.mocked(CsiApi.submit).mockResolvedValue({ submitted: true, thankYou: 'Terima kasih atas penilaian Anda!' });
+        const user = userEvent.setup();
+        renderPage();
+        await fillAndSubmit(user);
+        expect(await screen.findByRole('heading', { name: 'Terima kasih!' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Kembali ke daftar survei' })).toHaveAttribute('href', '/client/csi');
+        await user.click(screen.getByRole('button', { name: 'Isi lagi atas nama orang lain' }));
+        expect(await screen.findByLabelText('Nama')).toHaveValue('');
+        expect(screen.getByRole('combobox', { name: 'Departemen' })).toHaveTextContent('Produksi');
+        expect(screen.queryByText('Melanjutkan isian sebelumnya')).not.toBeInTheDocument();
+        await user.type(screen.getByLabelText('Nama'), 'Sari');
+        await user.click(screen.getByRole('button', { name: 'Mulai mengisi' }));
+        expect(within(screen.getByRole('radiogroup', { name: 'Kecepatan untuk Andi' })).getByRole('radio', { name: '5 dari 5' }))
+            .toHaveAttribute('aria-checked', 'false');
     });
 
     it('gagal kirim (500) tetap di layar tinjau dengan pesan galat', async () => {

@@ -32,7 +32,7 @@ export function SurveyPreview({ open, onOpenChange, period }: SurveyPreviewProps
                     <p role="note" className="mb-4 flex items-center gap-2 rounded-2xl bg-[hsl(var(--ticket-amber)/.12)] px-4 py-2.5 text-[13px] font-medium text-[hsl(var(--ticket-amber-ink))]">
                         <Eye className="h-4 w-4 shrink-0" aria-hidden="true" />{WIZARD_COPY.previewBanner}
                     </p>
-                    {period.ratees.length === 0 ? (
+                    {form.ratees.length === 0 ? (
                         <EmptyNote>Tambahkan orang yang dinilai untuk melihat pratinjau.</EmptyNote>
                     ) : (
                         <SurveyFlow key={period.id} form={form} userId={user?.id ?? ''} mode="preview" headingLevel="h2" />

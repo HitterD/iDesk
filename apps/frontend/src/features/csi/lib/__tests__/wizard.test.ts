@@ -169,6 +169,21 @@ describe('toPreviewForm', () => {
         expect(source.ratees[1].dimensions.map((dimension) => dimension.id)).toEqual(['x2', 'x1']);
     });
 
+    it('puts the team screen first and hides disabled sections', () => {
+        const base = { createdAt: '', updatedAt: '', periodId: 'p1', userId: null, jobTitle: null };
+        const scale = { ...base, id: 't1', periodRateeId: 'rt', dimensionId: 'd9', dimensionName: 'Kualitas', type: 'SCALE' as const, required: false,
+            options: [{ label: 'Baik', points: 5 }], sortOrder: 1 };
+        const ratees = [
+            { ...base, id: 'r1', kind: 'PERSON' as const, userId: 'u2', displayName: 'Budi', sortOrder: 1, dimensions: [] },
+            { ...base, id: 'rt', kind: 'TEAM' as const, displayName: 'Tim IT Support', sortOrder: 2, dimensions: [scale] },
+        ];
+        const both = toPreviewForm({ ...period([]), teamEnabled: true, ratees }, [], [], 'Admin');
+        expect(both.ratees.map((ratee) => ratee.periodRateeId)).toEqual(['rt', 'r1']);
+        expect(both.ratees[0]).toMatchObject({ kind: 'TEAM', dimensions: [{ type: 'SCALE', required: false, options: [{ label: 'Baik', points: 5 }] }] });
+        expect(toPreviewForm({ ...period([]), teamEnabled: false, ratees }, [], [], 'Admin').ratees.map((ratee) => ratee.periodRateeId)).toEqual(['r1']);
+        expect(toPreviewForm({ ...period([]), teamEnabled: true, individualEnabled: false, ratees }, [], [], 'Admin').ratees.map((ratee) => ratee.periodRateeId)).toEqual(['rt']);
+    });
+
     it('supports an empty draft period', () => {
         expect(toPreviewForm(period([]), [], [], 'Admin').ratees).toEqual([]);
     });

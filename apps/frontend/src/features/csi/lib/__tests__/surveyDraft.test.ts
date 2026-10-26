@@ -1,24 +1,30 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearDraft, draftKey, hasDraft, loadDraft, saveDraft, type SurveyDraft } from '../surveyDraft';
-import { CSI_COMMENT_MAX } from '../csiForm';
+import { CSI_ANSWER_TEXT_MAX, CSI_COMMENT_MAX } from '../csiForm';
 
 const warn = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/logger', () => ({ createModuleLogger: () => ({ warn }) }));
 import type { CsiOpenForm } from '../../types';
 
+const star = (id: string) => ({ periodRateeDimensionId: id, name: 'Kecepatan', description: null, type: 'STAR' as const, required: true, options: [] });
 const FORM: CsiOpenForm = {
-    submitted: false, id: 'p1', scope: 'ICT', title: 'Survei', intro: '', endDate: '2026-10-31',
+    id: 'p1', scope: 'ICT', title: 'Survei', intro: '', endDate: '2026-10-31', teamLabel: 'Tim IT', submittedNames: [],
     respondent: { fullName: 'Rina' },
     departments: [{ id: 'd1', name: 'Finance' }],
     ratees: [
-        { periodRateeId: 'r1', displayName: 'Andi', jobTitle: null, avatarUrl: null,
-            dimensions: [{ periodRateeDimensionId: 'x1', name: 'Kecepatan', description: null }] },
-        { periodRateeId: 'r2', displayName: 'Budi', jobTitle: null, avatarUrl: null,
-            dimensions: [{ periodRateeDimensionId: 'y1', name: 'Kecepatan', description: null }] },
+        { periodRateeId: 'r1', kind: 'PERSON', displayName: 'Andi', jobTitle: null, avatarUrl: null, dimensions: [
+            star('x1'),
+            { periodRateeDimensionId: 'x2', name: 'Keramahan', description: null, type: 'SCALE', required: true, options: [{ label: 'Baik', points: 5 }, { label: 'Buruk', points: 1 }] },
+            { periodRateeDimensionId: 'x3', name: 'Saran', description: null, type: 'TEXT', required: false, options: [] },
+        ] },
+        { periodRateeId: 'r2', kind: 'PERSON', displayName: 'Budi', jobTitle: null, avatarUrl: null, dimensions: [star('y1')] },
     ],
 };
 const KEY = draftKey('u1', 'p1');
-const DRAFT: SurveyDraft = { departmentId: 'd1', scores: { x1: 5, y1: 3 }, comments: { r1: 'Mantap' }, position: 2 };
+const DRAFT: SurveyDraft = {
+    respondentName: 'Rina', departmentId: 'd1', answers: { x1: { score: 5 }, x2: { optionIndex: 1 }, y1: { score: 3 } },
+    comments: { r1: 'Mantap' }, position: 2,
+};
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -26,8 +32,8 @@ afterEach(() => {
 });
 
 describe('surveyDraft', () => {
-    it('uses the csi-draft:<userId>:<periodId> key', () => {
-        expect(KEY).toBe('csi-draft:u1:p1');
+    it('uses the csi-draft:v2:<userId>:<periodId> key', () => {
+        expect(KEY).toBe('csi-draft:v2:u1:p1');
     });
 
     it('detects drafts only for the matching user and period', () => {
@@ -47,9 +53,31 @@ describe('surveyDraft', () => {
         expect(loadDraft(KEY, FORM)).toBeNull();
     });
 
-    it('drops scores for unknown dimensions', () => {
-        saveDraft(KEY, { ...DRAFT, scores: { x1: 4, gone: 5, y1: 9 }, comments: { r1: 'ok', rX: 'hilang' } });
-        expect(loadDraft(KEY, FORM)).toEqual({ ...DRAFT, scores: { x1: 4 }, comments: { r1: 'ok' } });
+    it('drops answers for unknown dimensions and invalid values per type', () => {
+        saveDraft(KEY, {
+            ...DRAFT,
+            answers: { x1: { score: 9 }, gone: { score: 5 }, x2: { optionIndex: 2 }, y1: { score: 4 }, x3: { text: '   ' } },
+            comments: { r1: 'ok', rX: 'hilang' },
+        });
+        expect(loadDraft(KEY, FORM)).toEqual({ ...DRAFT, answers: { y1: { score: 4 } }, comments: { r1: 'ok' } });
+    });
+
+    it('keeps trimmed text and clamps it to the answer limit', () => {
+        saveDraft(KEY, { ...DRAFT, answers: { x3: { text: `  ${'a'.repeat(CSI_ANSWER_TEXT_MAX + 20)}` } } });
+        expect(loadDraft(KEY, FORM)?.answers.x3?.text).toHaveLength(CSI_ANSWER_TEXT_MAX);
+    });
+
+    it('ignores v1 drafts entirely', () => {
+        localStorage.setItem('csi-draft:u1:p1', JSON.stringify({ departmentId: 'd1', scores: { x1: 5 }, comments: {}, position: 1 }));
+        expect(hasDraft('u1', 'p1')).toBe(false);
+        expect(loadDraft(KEY, FORM)).toBeNull();
+    });
+
+    it('falls back to the account name when the stored name is invalid', () => {
+        saveDraft(KEY, { ...DRAFT, respondentName: 'x' });
+        expect(loadDraft(KEY, FORM)?.respondentName).toBe('Rina');
+        saveDraft(KEY, { ...DRAFT, respondentName: '  Rina Dua  ' });
+        expect(loadDraft(KEY, FORM)?.respondentName).toBe('Rina Dua');
     });
 
     it('drops department not in form', () => {

@@ -11,19 +11,34 @@ export const RESPOND_COPY = {
     departmentPlaceholder: 'Pilih departemen',
     identity: 'Identitas Anda',
     resumed: 'Melanjutkan isian sebelumnya',
-    chipsLabel: 'Daftar orang yang dinilai',
+    chipsLabel: 'Daftar bagian yang dinilai',
     chipComplete: 'lengkap',
-    missingStar: 'Belum diberi bintang',
+    missingAnswer: 'Belum dijawab',
+    required: 'wajib',
     commentPlaceholder: 'Tulis saran atau apresiasi…',
+    teamSub: 'Penilaian tim',
     reviewTitle: 'Tinjau jawaban',
-    reviewHint: 'Periksa kembali sebelum mengirim. Survei hanya bisa dikirim sekali.',
+    reviewHint: 'Periksa kembali sebelum mengirim. Survei hanya bisa dikirim sekali untuk setiap nama.',
+    noScore: '—',
     notReady: 'Survei ini belum siap diisi. Silakan coba lagi nanti atau hubungi admin.',
+    nameInvalid: 'Nama harus 2–150 karakter',
+    thankYouTitle: 'Terima kasih!',
+    fillAgain: 'Isi lagi atas nama orang lain',
+    backToList: 'Kembali ke daftar survei',
 } as const;
 
-export const summaryText = (people: number, minutes: number) => `Anda akan menilai ${people} orang · sekitar ${minutes} menit`;
+const TEAM_PREFIX = /^tim\s+/i;
+export const summaryText = (people: number, minutes: number, teamLabel: string | null) => {
+    const team = teamLabel ? `tim ${teamLabel.replace(TEAM_PREFIX, '')}` : null;
+    const persons = people > 0 ? `${people} orang` : null;
+    return `Anda akan menilai ${[team, persons].filter(Boolean).join(' dan ')} · sekitar ${minutes} menit`;
+};
 export const deadlineText = (date: string) => `Tersedia sampai ${date}`;
-export const positionText = (index: number, total: number) => `Orang ${index} dari ${total}`;
-export const missingText = (count: number) => `Beri bintang untuk ${count} penilaian lagi`;
+export const submittedNote = (names: string[]) => `Akun ini sudah mengisi atas nama: ${names.join(', ')}.`;
+export const positionText = (index: number, total: number) => `Langkah ${index} dari ${total}`;
+export const missingText = (count: number) => `Jawab ${count} pertanyaan wajib lagi`;
 export const commentLabel = (name: string) => `Saran untuk ${name} (opsional)`;
-export const ratingLabel = (dimension: string, name: string) => `${dimension} untuk ${name}`;
-export const averageLabel = (value: string) => `Rata-rata ${value} dari 5 bintang`;
+export const ratingLabel = (question: string, name: string) => `${question} untuk ${name}`;
+export const averageLabel = (value: string) => `Rata-rata ${value} dari 5`;
+export const otherAnswersText = (count: number) => `${count} jawaban lain`;
+export const counterText = (length: number, max: number) => `${length}/${max}`;

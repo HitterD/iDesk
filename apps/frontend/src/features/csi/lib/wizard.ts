@@ -1,6 +1,16 @@
 import type { CsiDepartment, CsiDimension, CsiOpenForm, CsiPeriodDetail } from '../types';
+import { orderRatees } from './csiForm';
 
-/** Admin preview uses snapshot labels and master descriptions without excluding any ratee. */
+type PeriodRatee = CsiPeriodDetail['ratees'][number];
+
+/** Same section rule as the respondent form: TEAM only while the team section is on, PERSON only while individuals are. */
+const inEnabledSection = (period: CsiPeriodDetail) => (ratee: PeriodRatee) =>
+    ratee.kind === 'TEAM' ? period.teamEnabled : period.individualEnabled;
+
+/**
+ * Admin preview uses snapshot labels and master descriptions. Unlike the live form it never excludes the
+ * admin themself; disabled sections are hidden and the team screen comes first.
+ */
 export function toPreviewForm(
     period: CsiPeriodDetail, departments: CsiDepartment[], dimensions: CsiDimension[], respondentName: string,
 ): CsiOpenForm {
@@ -9,14 +19,14 @@ export function toPreviewForm(
         id: period.id, scope: period.scope, title: period.title,
         intro: period.intro, endDate: period.endDate, teamLabel: period.teamLabel, submittedNames: [], respondent: { fullName: respondentName },
         departments: departments.filter((department) => department.isActive).map(({ id, name }) => ({ id, name })),
-        ratees: [...period.ratees].sort((a, b) => a.sortOrder - b.sortOrder).map((ratee) => ({
+        ratees: orderRatees([...period.ratees].filter(inEnabledSection(period)).sort((a, b) => a.sortOrder - b.sortOrder).map((ratee) => ({
             periodRateeId: ratee.id, kind: ratee.kind, displayName: ratee.displayName, jobTitle: ratee.jobTitle, avatarUrl: null,
             dimensions: [...ratee.dimensions].sort((a, b) => a.sortOrder - b.sortOrder).map((dimension) => ({
                 periodRateeDimensionId: dimension.id, name: dimension.dimensionName,
                 description: descriptions.get(dimension.dimensionId) ?? null,
                 type: dimension.type, required: dimension.required, options: dimension.options,
             })),
-        })),
+        }))),
     };
 }
 

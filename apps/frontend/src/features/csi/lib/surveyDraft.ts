@@ -1,21 +1,21 @@
 import { createModuleLogger } from '@/lib/logger';
 import type { CsiOpenForm } from '../types';
-import { CSI_COMMENT_MAX, type CsiComments, type CsiScores } from './csiForm';
+import { CSI_COMMENT_MAX, isNameValid, normalizeAnswer, type CsiAnswers, type CsiComments } from './csiForm';
 
 /**
  * Respondent answers kept in `localStorage` so a refresh or closed tab does not lose them.
  * `position`: 0 = intro, 1..n = ratee screens, n + 1 = review.
  */
 export interface SurveyDraft {
+    respondentName: string;
     departmentId: string;
-    scores: CsiScores;
+    answers: CsiAnswers;
     comments: CsiComments;
     position: number;
 }
 
-const KEY_PREFIX = 'csi-draft';
-const MIN_SCORE = 1;
-const MAX_SCORE = 5;
+/** `v2` = typed answers; v1 drafts (stars only) live under the old key and are never read. */
+const KEY_PREFIX = 'csi-draft:v2';
 const log = createModuleLogger('csi-draft');
 
 export const draftKey = (userId: string, periodId: string) => `${KEY_PREFIX}:${userId}:${periodId}`;
@@ -23,29 +23,34 @@ export const draftKey = (userId: string, periodId: string) => `${KEY_PREFIX}:${u
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const isScore = (value: unknown): value is number =>
-    Number.isInteger(value) && (value as number) >= MIN_SCORE && (value as number) <= MAX_SCORE;
-
-function pick<T>(source: unknown, allowed: ReadonlySet<string>, accept: (value: unknown) => value is T): Record<string, T> {
+/** A tampered draft must not restore more text than the textarea (and backend) accept. */
+function sanitizeComments(source: unknown, rateeIds: ReadonlySet<string>): CsiComments {
     if (!isRecord(source)) return {};
-    return Object.fromEntries(Object.entries(source).filter(([id, value]) => allowed.has(id) && accept(value))) as Record<string, T>;
+    return Object.fromEntries(Object.entries(source)
+        .filter((entry): entry is [string, string] => rateeIds.has(entry[0]) && typeof entry[1] === 'string')
+        .map(([id, text]) => [id, text.slice(0, CSI_COMMENT_MAX)]));
 }
 
-/** A tampered or legacy draft must not restore more text than the textarea (and backend) accept. */
-const clampComments = (comments: Record<string, string>): CsiComments =>
-    Object.fromEntries(Object.entries(comments).map(([id, text]) => [id, text.slice(0, CSI_COMMENT_MAX)]));
+function sanitizeAnswers(source: unknown, form: CsiOpenForm): CsiAnswers {
+    if (!isRecord(source)) return {};
+    const entries = form.ratees.flatMap((ratee) => ratee.dimensions).flatMap((dimension) => {
+        const answer = normalizeAnswer(dimension, source[dimension.periodRateeDimensionId]);
+        return answer ? [[dimension.periodRateeDimensionId, answer] as const] : [];
+    });
+    return Object.fromEntries(entries);
+}
 
-/** Keeps only answers that still match the form (ratees/dimensions may change while the period is open). */
+/** Keeps only answers that still match the form (ratees/questions may change while the period is open). */
 function sanitize(raw: unknown, form: CsiOpenForm): SurveyDraft | null {
     if (!isRecord(raw)) return null;
-    const dimensionIds = new Set(form.ratees.flatMap((ratee) => ratee.dimensions.map((dimension) => dimension.periodRateeDimensionId)));
     const rateeIds = new Set(form.ratees.map((ratee) => ratee.periodRateeId));
-    const departmentId = form.departments.some((department) => department.id === raw.departmentId) ? String(raw.departmentId) : '';
+    const name = typeof raw.respondentName === 'string' ? raw.respondentName.trim() : '';
     const position = Number.isFinite(raw.position) ? Math.trunc(raw.position as number) : 0;
     return {
-        departmentId,
-        scores: pick(raw.scores, dimensionIds, isScore),
-        comments: clampComments(pick(raw.comments, rateeIds, (value): value is string => typeof value === 'string')),
+        respondentName: isNameValid(name) ? name : form.respondent.fullName,
+        departmentId: form.departments.some((department) => department.id === raw.departmentId) ? String(raw.departmentId) : '',
+        answers: sanitizeAnswers(raw.answers, form),
+        comments: sanitizeComments(raw.comments, rateeIds),
         position: Math.min(Math.max(position, 0), form.ratees.length + 1),
     };
 }

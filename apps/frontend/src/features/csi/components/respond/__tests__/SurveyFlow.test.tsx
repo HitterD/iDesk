@@ -1,227 +1,139 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SurveyFlow } from '../SurveyFlow';
-import { draftKey } from '../../../lib/surveyDraft';
-import type { CsiOpenForm } from '../../../types';
-
-const FORM: CsiOpenForm = {
-    teamLabel: 'Tim IT Support', submittedNames: [], id: 'p1', scope: 'ICT', title: 'Survei Kepuasan ICT Q4', intro: 'Mohon nilai layanan kami.',
-    endDate: '2026-10-31', respondent: { fullName: 'Rina Pemohon' },
-    departments: [{ id: 'd1', name: 'Finance' }, { id: 'd2', name: 'Produksi' }],
-    ratees: [
-        { periodRateeId: 'r1', kind: 'PERSON', displayName: 'Andi', jobTitle: 'IT Support', avatarUrl: null, dimensions: [
-            { periodRateeDimensionId: 'x1', name: 'Kecepatan', description: 'Seberapa cepat ditanggapi', type: 'STAR' as const, required: true, options: [] },
-            { periodRateeDimensionId: 'x2', name: 'Keramahan', description: null, type: 'STAR' as const, required: true, options: [] },
-        ] },
-        { periodRateeId: 'r2', kind: 'PERSON', displayName: 'Budi', jobTitle: null, avatarUrl: '/uploads/budi.png', dimensions: [
-            { periodRateeDimensionId: 'y1', name: 'Kecepatan', description: null, type: 'STAR' as const, required: true, options: [] },
-        ] },
-    ],
-};
-const KEY = draftKey('u1', 'p1');
-type User = ReturnType<typeof userEvent.setup>;
+import { button, chips, choose, FORM, LONG_NAME, rate, startFilling } from './surveyFlowFixture';
 
 const renderFlow = (props: Partial<Parameters<typeof SurveyFlow>[0]> = {}) =>
     render(<SurveyFlow form={FORM} userId="u1" {...props} />);
-const button = (name: string | RegExp) => screen.getByRole('button', { name });
-const rate = (user: User, group: string, stars: number) =>
-    user.click(within(screen.getByRole('radiogroup', { name: group })).getByRole('radio', { name: `${stars} dari 5` }));
-const chooseDepartment = async (user: User, name: string) => {
-    await user.click(screen.getByRole('combobox', { name: 'Departemen' }));
-    await user.click(await screen.findByRole('option', { name }));
-};
-const startFilling = async (user: User) => {
-    await chooseDepartment(user, 'Produksi');
-    await user.click(button('Mulai mengisi'));
-};
-const chips = () => within(screen.getByRole('navigation', { name: 'Daftar orang yang dinilai' }));
 
 afterEach(() => {
     cleanup();
     localStorage.clear();
 });
 
-describe('SurveyFlow', () => {
-    it('intro shows count, minutes and deadline', () => {
+describe('SurveyFlow intro', () => {
+    it('shows team + people, minutes, deadline and the editable prefilled name', () => {
         renderFlow();
         expect(screen.getByRole('heading', { name: 'Survei Kepuasan ICT Q4' })).toBeInTheDocument();
-        expect(screen.getByText('Anda akan menilai 2 orang · sekitar 1 menit')).toBeInTheDocument();
+        expect(screen.getByText('Anda akan menilai tim IT Support dan 2 orang · sekitar 1 menit')).toBeInTheDocument();
         expect(screen.getByText('Tersedia sampai 31 Okt 2026')).toBeInTheDocument();
-        expect(screen.getByLabelText('Nama')).toHaveValue('Rina Pemohon');
+        const name = screen.getByLabelText('Nama');
+        expect(name).toHaveValue('Rina Pemohon');
+        expect(name).not.toHaveAttribute('readonly');
+        expect(name).toHaveAttribute('autocomplete', 'name');
     });
 
     it('no active department: friendly message instead of a dead start button', () => {
         renderFlow({ form: { ...FORM, departments: [] } });
         expect(screen.getByRole('status')).toHaveTextContent('Survei ini belum siap diisi. Silakan coba lagi nanti atau hubungi admin.');
         expect(screen.queryByRole('button', { name: 'Mulai mengisi' })).not.toBeInTheDocument();
-        expect(screen.queryByRole('combobox', { name: 'Departemen' })).not.toBeInTheDocument();
     });
 
-    it('Mulai mengisi disabled until department chosen', async () => {
+    it('lists names already submitted and blocks reusing one (case/space-insensitive)', async () => {
+        const user = userEvent.setup();
+        renderFlow({ form: { ...FORM, submittedNames: ['Rina Pemohon', 'Sari'] } });
+        expect(screen.getByText('Akun ini sudah mengisi atas nama: Rina Pemohon, Sari.')).toBeInTheDocument();
+        expect(screen.getByRole('alert')).toHaveTextContent('Nama ini sudah mengisi survei ini');
+        await user.click(screen.getByRole('combobox', { name: 'Departemen' }));
+        await user.click(await screen.findByRole('option', { name: 'Produksi' }));
+        expect(button('Mulai mengisi')).toBeDisabled();
+        const name = screen.getByLabelText('Nama');
+        await user.clear(name);
+        await user.type(name, '  sari ');
+        expect(screen.getByRole('alert')).toHaveTextContent('Nama ini sudah mengisi survei ini');
+        await user.clear(name);
+        await user.type(name, 'Dodi');
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(button('Mulai mengisi')).toBeEnabled();
+    });
+
+    it('requires a 2–150 character name', async () => {
         const user = userEvent.setup();
         renderFlow();
+        await user.click(screen.getByRole('combobox', { name: 'Departemen' }));
+        await user.click(await screen.findByRole('option', { name: 'Produksi' }));
+        const name = screen.getByLabelText('Nama');
+        await user.clear(name);
+        await user.type(name, 'R');
+        expect(screen.getByRole('alert')).toHaveTextContent('Nama harus 2–150 karakter');
         expect(button('Mulai mengisi')).toBeDisabled();
+        expect(name).toHaveAttribute('maxlength', '150');
+    });
+});
+
+describe('SurveyFlow screens', () => {
+    it('team screen comes first with its label and sub-text', async () => {
+        const user = userEvent.setup();
+        renderFlow();
         await startFilling(user);
-        expect(screen.getByRole('heading', { name: 'Andi' })).toBeInTheDocument();
-        expect(screen.getByText('Orang 1 dari 2')).toBeInTheDocument();
-        expect(screen.getByText('Seberapa cepat ditanggapi')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Tim IT Support' })).toBeInTheDocument();
+        expect(screen.getByText('Penilaian tim')).toBeInTheDocument();
+        expect(screen.getByText('Langkah 1 dari 3')).toBeInTheDocument();
+        expect(chips().getAllByRole('button').map((chip) => chip.textContent)).toEqual(['Tim IT Support', 'Andi', LONG_NAME]);
     });
 
-    it("Lanjut with missing stars shows 'Beri bintang untuk 2 penilaian lagi' and stays", async () => {
+    it('chips wrap and show full names', async () => {
+        const user = userEvent.setup();
+        renderFlow();
+        await startFilling(user);
+        expect(screen.getByRole('navigation', { name: 'Daftar bagian yang dinilai' }).querySelector('ol')).toHaveClass('flex-wrap');
+        const chip = chips().getByRole('button', { name: new RegExp(LONG_NAME) });
+        expect(chip).toHaveTextContent(LONG_NAME);
+        expect(chip.innerHTML).not.toContain('truncate');
+    });
+
+    it('required blocks Lanjut with a count and highlight; optional can be skipped', async () => {
         const user = userEvent.setup();
         const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView');
         renderFlow();
         await startFilling(user);
         await user.click(button('Lanjut'));
-        expect(screen.getByRole('status')).toHaveTextContent('Beri bintang untuk 2 penilaian lagi');
-        expect(screen.getByRole('heading', { name: 'Andi' })).toBeInTheDocument();
-        expect(document.querySelectorAll('[data-missing]')).toHaveLength(2);
+        expect(screen.getByRole('status')).toHaveTextContent('Jawab 1 pertanyaan wajib lagi');
+        expect(document.querySelectorAll('[data-missing]')).toHaveLength(1);
         expect(scrollSpy).toHaveBeenCalled();
-        await rate(user, 'Kecepatan untuk Andi', 5);
-        expect(screen.getByRole('status')).toHaveTextContent('Beri bintang untuk 1 penilaian lagi');
-        await rate(user, 'Keramahan untuk Andi', 4);
+        await choose(user, 'Kualitas layanan untuk Tim IT Support', 'Sangat baik');
+        // The optional CHOICE question stays unanswered.
         await user.click(button('Lanjut'));
-        expect(screen.getByRole('heading', { name: 'Budi' })).toBeInTheDocument();
-        expect(button('Tinjau jawaban')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Andi' })).toBeInTheDocument();
+        await user.click(button('Lanjut'));
+        expect(screen.getByRole('status')).toHaveTextContent('Jawab 2 pertanyaan wajib lagi');
         scrollSpy.mockRestore();
     });
 
-    it('chips jump to a ratee and show check when complete', async () => {
+    it('chip ticks only after the screen was visited and its required questions are answered', async () => {
         const user = userEvent.setup();
         renderFlow();
         await startFilling(user);
-        expect(chips().getByRole('button', { name: /Andi/ })).toHaveAttribute('aria-current', 'step');
-        await rate(user, 'Kecepatan untuk Andi', 5);
-        await rate(user, 'Keramahan untuk Andi', 4);
-        expect(chips().getByRole('button', { name: /Andi, lengkap/ })).toBeInTheDocument();
-        await user.click(chips().getByRole('button', { name: /Budi/ }));
-        expect(screen.getByRole('heading', { name: 'Budi' })).toBeInTheDocument();
-        expect(chips().getByRole('button', { name: /Budi/ })).toHaveAttribute('aria-current', 'step');
+        expect(chips().queryByRole('button', { name: /lengkap/ })).not.toBeInTheDocument();
+        await choose(user, 'Kualitas layanan untuk Tim IT Support', 'Cukup');
+        expect(chips().getByRole('button', { name: /Tim IT Support, lengkap/ })).toBeInTheDocument();
+        await user.click(chips().getByRole('button', { name: new RegExp(LONG_NAME) }));
+        expect(screen.getByRole('heading', { name: LONG_NAME })).toBeInTheDocument();
+        expect(chips().getByRole('button', { name: /Andi/ })).not.toHaveAccessibleName(/lengkap/);
     });
 
-    it('Tinjau jawaban returns to a ratee skipped via chips', async () => {
+    it('Tinjau jawaban returns to a screen skipped via the chips', async () => {
         const user = userEvent.setup();
         renderFlow();
         await startFilling(user);
-        await user.click(chips().getByRole('button', { name: /Budi/ }));
-        await rate(user, 'Kecepatan untuk Budi', 3);
+        await choose(user, 'Kualitas layanan untuk Tim IT Support', 'Cukup');
+        await user.click(chips().getByRole('button', { name: new RegExp(LONG_NAME) }));
+        await rate(user, `Kecepatan untuk ${LONG_NAME}`, 3);
         await user.click(button('Tinjau jawaban'));
         expect(screen.getByRole('heading', { name: 'Andi' })).toBeInTheDocument();
-        expect(screen.getByRole('status')).toHaveTextContent('Beri bintang untuk 2 penilaian lagi');
+        expect(screen.getByRole('status')).toHaveTextContent('Jawab 2 pertanyaan wajib lagi');
     });
 
     it('avatar falls back to the initial when the photo fails', async () => {
         const user = userEvent.setup();
         renderFlow();
         await startFilling(user);
-        expect(screen.getByText('A')).toBeInTheDocument();
-        await user.click(chips().getByRole('button', { name: /Budi/ }));
+        await user.click(chips().getByRole('button', { name: new RegExp(LONG_NAME) }));
         const photo = document.querySelector('img');
         expect(photo).toHaveAttribute('alt', '');
-        expect(photo).toHaveAttribute('loading', 'lazy');
         fireEvent.error(photo as HTMLImageElement);
         expect(document.querySelector('img')).toBeNull();
         expect(screen.getByText('B')).toBeInTheDocument();
-    });
-
-    it('review Ubah jumps back', async () => {
-        const user = userEvent.setup();
-        const onSubmit = vi.fn();
-        renderFlow({ onSubmit });
-        await startFilling(user);
-        await rate(user, 'Kecepatan untuk Andi', 5);
-        await rate(user, 'Keramahan untuk Andi', 4);
-        await user.click(button('Lanjut'));
-        await rate(user, 'Kecepatan untuk Budi', 3);
-        await user.click(button('Tinjau jawaban'));
-        const andi = screen.getByRole('listitem', { name: 'Andi' });
-        expect(within(andi).getByText('4,5')).toBeInTheDocument();
-        expect(screen.getByText('Produksi')).toBeInTheDocument();
-        await user.click(within(screen.getByRole('listitem', { name: 'Budi' })).getByRole('button', { name: 'Ubah' }));
-        expect(screen.getByRole('heading', { name: 'Budi' })).toBeInTheDocument();
-        await user.click(button('Tinjau jawaban'));
-        await user.click(button('Kirim'));
-        expect(onSubmit).toHaveBeenCalledWith({
-            respondentName: 'Rina Pemohon', departmentId: 'd2',
-            items: [{ periodRateeDimensionId: 'x1', score: 5 }, { periodRateeDimensionId: 'x2', score: 4 }, { periodRateeDimensionId: 'y1', score: 3 }],
-        });
-    });
-
-    it('restores draft after remount', async () => {
-        const user = userEvent.setup();
-        const first = renderFlow();
-        await startFilling(user);
-        await rate(user, 'Kecepatan untuk Andi', 5);
-        await waitFor(() => expect(JSON.parse(localStorage.getItem(KEY) ?? '{}').scores).toEqual({ x1: 5 }));
-        first.unmount();
-        renderFlow();
-        expect(screen.getByText('Melanjutkan isian sebelumnya')).toBeInTheDocument();
-        expect(screen.getByRole('heading', { name: 'Andi' })).toBeInTheDocument();
-        expect(within(screen.getByRole('radiogroup', { name: 'Kecepatan untuk Andi' })).getByRole('radio', { name: '5 dari 5' }))
-            .toHaveAttribute('aria-checked', 'true');
-    });
-
-    it('navigation scrolls the new screen heading into view', async () => {
-        const user = userEvent.setup();
-        const scrolled: Element[] = [];
-        const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(function (this: Element) { scrolled.push(this); });
-        renderFlow();
-        expect(scrollSpy).not.toHaveBeenCalled();
-        await startFilling(user);
-        const heading = screen.getByRole('heading', { name: 'Andi' });
-        expect(scrolled).toContain(heading);
-        expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({ block: 'start' }));
-        expect(heading).toHaveFocus();
-        scrollSpy.mockRestore();
-    });
-
-    it('renders screen titles as h2 when embedded', () => {
-        renderFlow({ headingLevel: 'h2' });
-        expect(screen.getByRole('heading', { level: 2, name: 'Survei Kepuasan ICT Q4' })).toBeInTheDocument();
-    });
-
-    it('saves a pending answer when unmounted inside the debounce window', async () => {
-        const user = userEvent.setup();
-        const view = renderFlow();
-        await startFilling(user);
-        await rate(user, 'Kecepatan untuk Andi', 5);
-        view.unmount();
-        expect(JSON.parse(localStorage.getItem(KEY) ?? '{}').scores).toEqual({ x1: 5 });
-    });
-
-    it('does not resurrect the draft after submit when the page clears it', async () => {
-        const user = userEvent.setup();
-        const onSubmit = vi.fn(() => localStorage.removeItem(KEY));
-        const view = renderFlow({ onSubmit });
-        await startFilling(user);
-        await rate(user, 'Kecepatan untuk Andi', 5);
-        await rate(user, 'Keramahan untuk Andi', 4);
-        await user.click(button('Lanjut'));
-        await rate(user, 'Kecepatan untuk Budi', 3);
-        await user.click(button('Tinjau jawaban'));
-        await user.click(button('Kirim'));
-        expect(onSubmit).toHaveBeenCalledTimes(1);
-        view.unmount();
-        expect(localStorage.getItem(KEY)).toBeNull();
-    });
-
-    it('preview mode never calls onSubmit', async () => {
-        const user = userEvent.setup();
-        const onSubmit = vi.fn();
-        renderFlow({ mode: 'preview', onSubmit });
-        expect(button('Mulai mengisi')).toBeEnabled();
-        await user.click(button('Mulai mengisi'));
-        await rate(user, 'Kecepatan untuk Andi', 5);
-        await rate(user, 'Keramahan untuk Andi', 4);
-        await user.click(button('Lanjut'));
-        await rate(user, 'Kecepatan untuk Budi', 3);
-        await user.click(button('Tinjau jawaban'));
-        // The preview sheet shows the banner once; the flow itself does not repeat it.
-        expect(screen.queryByText('Pratinjau — jawaban tidak dikirim')).not.toBeInTheDocument();
-        expect(button('Kirim')).toBeDisabled();
-        await user.click(button('Kirim'));
-        expect(onSubmit).not.toHaveBeenCalled();
-        expect(localStorage.getItem(KEY)).toBeNull();
     });
 });

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CsiApi } from '../../api/csi.api';
 import { CsiSurveyListPage } from '../CsiSurveyListPage';
 import { CsiPendingCard } from '../../components/CsiPendingCard';
+import { draftKey } from '../../lib/surveyDraft';
 import type { CsiActivePeriod } from '../../types';
 
 vi.mock('@/stores/useAuth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
@@ -42,9 +43,9 @@ describe('CsiSurveyListPage', () => {
     });
 
     it('shows Lanjutkan when draft exists, but never for submitted or another user', async () => {
-        localStorage.setItem('csi-draft:u1:p1', '{}');
-        localStorage.setItem('csi-draft:u1:p2', '{}');
-        localStorage.setItem('csi-draft:other:p3', '{}');
+        localStorage.setItem(draftKey('u1', 'p1'), '{}');
+        localStorage.setItem(draftKey('u1', 'p2'), '{}');
+        localStorage.setItem(draftKey('other', 'p3'), '{}');
         vi.mocked(CsiApi.active).mockResolvedValue([...SURVEYS, { ...SURVEYS[0], id: 'p3', title: 'Baru' }]);
         renderAt('/client/csi', <CsiSurveyListPage />);
         expect(await screen.findByRole('link', { name: /Survei ICT Q4.*Lanjutkan/ })).toHaveAttribute('href', '/client/csi/p1');
@@ -70,22 +71,22 @@ describe('CsiPendingCard', () => {
     });
 
     it('shows Lanjutkan when a pending survey has a draft', async () => {
-        localStorage.setItem('csi-draft:u1:p1', '{}');
+        localStorage.setItem(draftKey('u1', 'p1'), '{}');
         vi.mocked(CsiApi.active).mockResolvedValue(SURVEYS);
         renderAt('/client/my-tickets', <CsiPendingCard />);
         expect(await screen.findByRole('link', { name: 'Lanjutkan' })).toHaveAttribute('href', '/client/csi/p1');
     });
 
     it('keeps Isi Survei for another user or a submitted draft', async () => {
-        localStorage.setItem('csi-draft:other:p1', '{}');
-        localStorage.setItem('csi-draft:u1:p2', '{}');
+        localStorage.setItem(draftKey('other', 'p1'), '{}');
+        localStorage.setItem(draftKey('u1', 'p2'), '{}');
         vi.mocked(CsiApi.active).mockResolvedValue(SURVEYS);
         renderAt('/client/my-tickets', <CsiPendingCard />);
         expect(await screen.findByRole('link', { name: 'Isi Survei' })).toBeInTheDocument();
     });
 
     it('resumes via the list when any of multiple pending surveys has a draft', async () => {
-        localStorage.setItem('csi-draft:u1:p3', '{}');
+        localStorage.setItem(draftKey('u1', 'p3'), '{}');
         vi.mocked(CsiApi.active).mockResolvedValue([...SURVEYS, { ...SURVEYS[0], id: 'p3' }]);
         renderAt('/client/my-tickets', <CsiPendingCard />);
         expect(await screen.findByRole('link', { name: 'Lanjutkan' })).toHaveAttribute('href', '/client/csi');
