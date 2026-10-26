@@ -11,6 +11,8 @@ import { formatSites } from '../../lib/location';
 import type { CsiPeriodListItem, CsiScopeParam } from '../../types';
 import { WIZARD_COPY } from '../wizard/wizardCopy';
 import { ADMIN_PANEL, CreateButton, EmptyNote, MUTED_TEXT, PublishPill, StatusPill } from './AdminParts';
+import { Button } from '@/components/ui/button';
+import { MemoExportDialog } from './MemoExportDialog';
 
 const ALL_SITES = '';
 const SKELETON_ROWS = 3;
@@ -54,6 +56,7 @@ interface PeriodsTabProps {
 
 export function PeriodsTab({ scope, onOpen, onCreate }: PeriodsTabProps) {
     const [siteId, setSiteId] = useState(ALL_SITES);
+    const [memoOpen, setMemoOpen] = useState(false);
     const { data: periods, isLoading, isError, refetch } = useCsiPeriods(scope, siteId || undefined);
     const { data: sites = [] } = useActiveSites();
     const siteOptions = [{ value: ALL_SITES, label: 'Semua site' }, ...sites.map((site) => ({ value: site.id, label: `${site.code} · ${site.name}` }))];
@@ -64,6 +67,7 @@ export function PeriodsTab({ scope, onOpen, onCreate }: PeriodsTabProps) {
                 <SearchablePicker label="Filter site" value={siteId} options={siteOptions} onValueChange={setSiteId}
                     searchPlaceholder="Cari site…" triggerClassName="min-h-9 min-w-[160px]" />
                 <span className="flex-1" />
+                <Button variant="soft" onClick={() => setMemoOpen(true)}>Export memo PDF</Button>
                 <CreateButton label={WIZARD_COPY.create} onClick={onCreate} />
             </div>
             <section aria-label="Daftar survei" className={cn(ADMIN_PANEL, 'overflow-hidden')}>
@@ -87,6 +91,7 @@ export function PeriodsTab({ scope, onOpen, onCreate }: PeriodsTabProps) {
                     </ul>
                 )}
             </section>
+            {memoOpen && <MemoExportDialog scope={scope} open onOpenChange={setMemoOpen} />}
         </div>
     );
 }

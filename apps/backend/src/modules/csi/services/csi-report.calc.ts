@@ -7,7 +7,7 @@ import { averageOfAverages, responseAverage } from './csi-score.util';
 const PERCENT = 100;
 const INDEX_DECIMALS = 10;
 
-export type CsiItemRow = Pick<CsiResponseItem, 'responseId' | 'periodRateeId' | 'periodRateeDimensionId' | 'score' | 'answerLabel'>;
+export type CsiItemRow = Pick<CsiResponseItem, 'responseId' | 'periodRateeId' | 'periodRateeDimensionId' | 'score' | 'answerLabel'> & { answerText?: string | null };
 export type CsiDistributionBucket = { label: string; count: number };
 export type CsiQuestionStat = {
     name: string; type: CsiQuestionType; average: number | null; count: number; distribution: CsiDistributionBucket[];
@@ -28,7 +28,10 @@ export function responseAverages(items: CsiItemRow[]): Array<number | null> {
 
 /** Answer distribution per question type: STAR 1..5, SCALE/CHOICE the snapshot options, TEXT none. */
 function distributionOf(dimension: CsiPeriodRateeDimension, items: CsiItemRow[]): CsiDistributionBucket[] {
-    if (dimension.type === CsiQuestionType.TEXT) return [];
+    if (dimension.type === CsiQuestionType.TEXT) {
+        const counts = countBy(items.filter((item) => item.answerText?.trim()), (item) => item.answerText!.trim());
+        return [...counts].map(([label, count]) => ({ label, count }));
+    }
     if (dimension.type === CsiQuestionType.STAR) {
         const counts = countBy(items, (item) => String(item.score));
         return Array.from({ length: CSI_SCORE_MAX - CSI_SCORE_MIN + 1 }, (_, index) => {

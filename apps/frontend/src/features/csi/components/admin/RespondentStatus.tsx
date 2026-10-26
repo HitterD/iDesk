@@ -1,7 +1,8 @@
 import { ChevronRight } from 'lucide-react';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { cn } from '@/lib/utils';
-import { useCsiRespondents } from '../../hooks/useCsi';
+import { useCsiReport, useCsiRespondents } from '../../hooks/useCsi';
+import { SlaSummary } from './ReportSummary';
 import { formatDateTime } from '../../lib/format';
 import type { CsiScopeParam } from '../../types';
 import { AdminSection, EmptyNote, MUTED_TEXT } from './AdminParts';
@@ -19,9 +20,11 @@ export function RespondentStatus({ scope, periodId, onOpenResponse }: {
     scope: CsiScopeParam; periodId: string; onOpenResponse: (responseId: string) => void;
 }) {
     const { data, isLoading, isError, refetch } = useCsiRespondents(scope, periodId);
+    const { data: report } = useCsiReport(scope, periodId);
     const listed = data?.mode === 'LISTED';
     return (
         <AdminSection title="Status responden" description={data && !listed ? 'Mode terbuka: semua user aktif di site dapat mengisi' : undefined}>
+            {report && <div className="mb-5"><SlaSummary sla={report.sla} /></div>}
             {isLoading && <div className="h-24 animate-pulse rounded-2xl bg-[hsl(var(--muted))] motion-reduce:animate-none" aria-busy="true" aria-label="Memuat responden" />}
             {isError && <ErrorState compact message="Gagal memuat status responden." onRetry={() => refetch()} />}
             {data && (
@@ -41,7 +44,7 @@ export function RespondentStatus({ scope, periodId, onOpenResponse }: {
                                                 className="group flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-[hsl(var(--muted)/.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
                                                 <span className="min-w-0 flex-1">
                                                     <span className="block truncate text-[13.5px] font-medium">{item.respondentName}</span>
-                                                    <span className={cn(MUTED_TEXT, 'block text-[12px]')}>{`${item.departmentName} · ${formatDateTime(item.submittedAt)}`}</span>
+                                                    <span className={cn(MUTED_TEXT, 'block text-[12px]')}>{`${item.departmentName} · Akun: ${item.accountName} · ${formatDateTime(item.submittedAt)}`}</span>
                                                 </span>
                                                 <ChevronRight className="h-4 w-4 shrink-0 opacity-50 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden="true" />
                                             </button>

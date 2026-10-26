@@ -9,7 +9,8 @@ import { useCsiReport } from '../../hooks/useCsi';
 import { blobErrorMessage, downloadBlob } from '../../lib/csiAdmin';
 import { formatPercent, formatScore } from '../../lib/format';
 import type { CsiReport, CsiScopeParam } from '../../types';
-import { StarRating } from '../StarRating';
+import { ReportSummary } from './ReportSummary';
+import { QuestionResults } from './QuestionResults';
 import { AdminSection, EmptyNote, MUTED_TEXT } from './AdminParts';
 
 type ReportRow = CsiReport['ratees'][number];
@@ -25,7 +26,6 @@ function ReportRowView({ row }: { row: ReportRow }) {
             <td className="px-4 py-3">
                 {row.average === null ? <span className={MUTED_TEXT}>—</span> : (
                     <span className="flex items-center gap-2">
-                        <StarRating value={Math.round(row.average)} label={`Rata-rata ${row.displayName}`} size="sm" hideLabel />
                         <span className="font-semibold tabular-nums">{formatScore(row.average)}</span>
                     </span>
                 )}
@@ -68,10 +68,11 @@ function ExportButton({ scope, periodId }: { scope: CsiScopeParam; periodId: str
 export function PeriodReport({ scope, periodId }: { scope: CsiScopeParam; periodId: string }) {
     const { data: report, isLoading, isError, refetch } = useCsiReport(scope, periodId);
     return (
-        <AdminSection title="Laporan per orang" description="Rata-rata total = rata-rata dari rata-rata dimensi; indeks = total ÷ 5 × 100."
+        <AdminSection title="Laporan penilaian" description="Nilai keseluruhan menggunakan skala maksimal 5, dari rata-rata nilai setiap responden."
             actions={<ExportButton scope={scope} periodId={periodId} />}>
             {isLoading && <div className="h-32 animate-pulse rounded-2xl bg-[hsl(var(--muted))] motion-reduce:animate-none" aria-busy="true" aria-label="Memuat laporan" />}
             {isError && <ErrorState compact message="Gagal memuat laporan." onRetry={() => refetch()} />}
+            {report && <ReportSummary report={report} />}
             {report && !report.ratees.length && <EmptyNote>Belum ada orang yang dinilai pada periode ini.</EmptyNote>}
             {report && report.ratees.length > 0 && (
                 <div className="overflow-x-auto rounded-2xl border border-[hsl(var(--idesk-border)/.7)]">
@@ -85,10 +86,11 @@ export function PeriodReport({ scope, periodId }: { scope: CsiScopeParam; period
                                 <th className="px-4 py-2.5 font-medium">Per dimensi</th>
                             </tr>
                         </thead>
-                        <tbody>{report.ratees.map((row) => <ReportRowView key={row.periodRateeId} row={row} />)}</tbody>
+                        <tbody>{[...report.ratees].sort((a, b) => Number(b.kind === 'TEAM') - Number(a.kind === 'TEAM')).map((row) => <ReportRowView key={row.periodRateeId} row={row} />)}</tbody>
                     </table>
                 </div>
             )}
+            {report && <QuestionResults ratees={report.ratees} />}
         </AdminSection>
     );
 }

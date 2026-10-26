@@ -160,7 +160,7 @@ describe('CsiReportService', () => {
         const report = await service.getReport(ICT, 'p1');
         const [, , channel, saran] = report.ratees[0].questions;
         expect(channel).toEqual({ name: 'Channel', type: 'CHOICE', average: null, count: 0, distribution: [{ label: 'Telepon', count: 0 }, { label: 'Email', count: 1 }] });
-        expect(saran).toEqual({ name: 'Saran', type: 'TEXT', average: null, count: 0, distribution: [] });
+        expect(saran).toEqual({ name: 'Saran', type: 'TEXT', average: null, count: 0, distribution: [{ label: 'Mantap', count: 1 }] });
         expect(report.ratees[0].average).toBe(3.25);
         const detail = await service.getResponseDetail(ICT, 'p1', 'resp1');
         expect(detail.ratees[0].scores.slice(2)).toEqual([
