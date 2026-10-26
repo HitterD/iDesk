@@ -30,6 +30,7 @@ vi.mock('@/components/site/useActiveSites', () => ({ useActiveSites: () => ({ da
 const period = (over: Partial<CsiPeriodDetail> = {}): CsiPeriodDetail => ({
     id: 'p1', scope: 'ICT', siteId: 's1', title: 'Survei Q4', intro: '', thankYou: '', startDate: '2026-10-01', endDate: '2026-10-31',
     respondentMode: 'OPEN', createdById: 'a1', site: { id: 's1', code: 'SPJ', name: 'Sidoarjo' }, status: 'ACTIVE',
+    publishStatus: 'PUBLISHED', readiness: { ready: false, checks: [] },
     locked: false, ratees: [], raters: [], ...STAMP, ...over,
 });
 

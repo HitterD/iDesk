@@ -4,6 +4,12 @@ export type CsiScopeParam = 'ict' | 'hc';
 export type CsiScope = ServiceScope;
 export type CsiRespondentMode = 'OPEN' | 'LISTED';
 export type CsiPeriodStatus = 'UPCOMING' | 'ACTIVE' | 'ENDED';
+export type CsiPublishStatus = 'DRAFT' | 'PUBLISHED';
+
+export interface CsiReadiness {
+    ready: boolean;
+    checks: Array<{ key: 'ratees' | 'dimensions' | 'departments' | 'raters'; ok: boolean; label: string }>;
+}
 
 interface CsiTimestamps {
     createdAt: string;
@@ -60,6 +66,7 @@ export interface CsiPeriod extends CsiTimestamps {
 export interface CsiPeriodListItem extends CsiPeriod {
     site: { id: string; code: string; name: string } | null;
     status: CsiPeriodStatus;
+    publishStatus: CsiPublishStatus;
     responseCount: number;
 }
 
@@ -91,7 +98,9 @@ export interface CsiPeriodRater {
 export interface CsiPeriodDetail extends CsiPeriod {
     site: CsiPeriodListItem['site'];
     status: CsiPeriodStatus;
+    publishStatus: CsiPublishStatus;
     locked: boolean;
+    readiness: CsiReadiness;
     ratees: CsiPeriodRatee[];
     raters: CsiPeriodRater[];
 }
@@ -115,13 +124,15 @@ export interface CsiOpenForm {
     scope: CsiScope;
     title: string;
     intro: string;
+    endDate: string;
     respondent: { fullName: string };
     departments: Array<{ id: string; name: string }>;
     ratees: Array<{
         periodRateeId: string;
         displayName: string;
         jobTitle: string | null;
-        dimensions: Array<{ periodRateeDimensionId: string; name: string }>;
+        avatarUrl: string | null;
+        dimensions: Array<{ periodRateeDimensionId: string; name: string; description: string | null }>;
     }>;
 }
 

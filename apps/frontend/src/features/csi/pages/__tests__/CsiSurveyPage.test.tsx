@@ -17,16 +17,17 @@ const OPEN_FORM: CsiOpenForm = {
     scope: 'ICT',
     title: 'Survei Kepuasan ICT Q4',
     intro: 'Mohon nilai layanan kami.\nTerima kasih.',
+    endDate: '2026-10-31',
     respondent: { fullName: 'Rina Pemohon' },
     departments: [{ id: 'd1', name: 'Finance' }, { id: 'd2', name: 'Produksi' }],
     ratees: [
         {
-            periodRateeId: 'r1', displayName: 'Andi', jobTitle: 'IT Support',
-            dimensions: [{ periodRateeDimensionId: 'x1', name: 'Kecepatan' }, { periodRateeDimensionId: 'x2', name: 'Keramahan' }],
+            periodRateeId: 'r1', displayName: 'Andi', jobTitle: 'IT Support', avatarUrl: null,
+            dimensions: [{ periodRateeDimensionId: 'x1', name: 'Kecepatan', description: null }, { periodRateeDimensionId: 'x2', name: 'Keramahan', description: null }],
         },
         {
-            periodRateeId: 'r2', displayName: 'Budi', jobTitle: null,
-            dimensions: [{ periodRateeDimensionId: 'y1', name: 'Kecepatan' }],
+            periodRateeId: 'r2', displayName: 'Budi', jobTitle: null, avatarUrl: null,
+            dimensions: [{ periodRateeDimensionId: 'y1', name: 'Kecepatan', description: null }],
         },
     ],
 };

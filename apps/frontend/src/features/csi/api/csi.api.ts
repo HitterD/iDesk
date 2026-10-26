@@ -82,6 +82,12 @@ export const CsiApi = {
     async updatePeriod(scope: CsiScopeParam, id: string, payload: UpdateCsiPeriod): Promise<CsiPeriodDetail> {
         return (await api.patch<CsiPeriodDetail>(periodPath(scope, id), payload)).data;
     },
+    async publishPeriod(scope: CsiScopeParam, id: string): Promise<CsiPeriodDetail> {
+        return (await api.post<CsiPeriodDetail>(`${periodPath(scope, id)}/publish`)).data;
+    },
+    async unpublishPeriod(scope: CsiScopeParam, id: string): Promise<CsiPeriodDetail> {
+        return (await api.post<CsiPeriodDetail>(`${periodPath(scope, id)}/unpublish`)).data;
+    },
     async deletePeriod(scope: CsiScopeParam, id: string): Promise<CsiPeriod> {
         return (await api.delete<CsiPeriod>(periodPath(scope, id))).data;
     },

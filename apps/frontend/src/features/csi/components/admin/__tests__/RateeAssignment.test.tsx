@@ -27,6 +27,7 @@ const user = (id: string, fullName: string, jobTitle: string): CsiUserSearchResu
 const period = (locked: boolean, over: Partial<CsiPeriodDetail> = {}): CsiPeriodDetail => ({
     id: 'p1', scope: 'ICT', siteId: 's1', title: 'Survei Q4', intro: '', thankYou: '',
     startDate: '2026-10-01', endDate: '2026-10-31', respondentMode: 'OPEN', createdById: 'a1',
+    publishStatus: 'PUBLISHED', readiness: { ready: false, checks: [] },
     site: { id: 's1', code: 'SPJ', name: 'Sidoarjo' }, status: 'ACTIVE', locked, ratees: [], raters: [], ...STAMP, ...over,
 });
 
