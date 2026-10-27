@@ -205,7 +205,7 @@ export class Ticket {
     @JoinColumn({ name: 'createdById' })
     createdBy: User | null;
 
-    @Column({ type: 'varchar', nullable: true })
+    @Column({ type: 'uuid', nullable: true })
     createdById: string | null;
 
     @Column({ type: 'int', default: 0 })
