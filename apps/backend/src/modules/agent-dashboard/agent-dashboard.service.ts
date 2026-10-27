@@ -6,7 +6,7 @@ import { AgentRating } from '../ticketing/entities/agent-rating.entity';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { AgentDailyWorkload } from '../workload/entities/agent-daily-workload.entity';
-import { workloadDay } from '../workload/workload.service';
+import { WorkloadService } from '../workload/workload.service';
 import { CacheService } from '../../shared/core/cache';
 import { ServiceScope, canHandleScope, scopeOfRole } from '../../shared/core/utils/service-scope.util';
 import { localDateKey } from '../sla-config/business-hours.calc';
@@ -93,6 +93,7 @@ export class AgentDashboardService {
         @InjectRepository(AgentDailyWorkload) private readonly workloadRepo: Repository<AgentDailyWorkload>,
         @InjectRepository(AgentRating) private readonly ratingRepo: Repository<AgentRating>,
         private readonly cacheService: CacheService,
+        private readonly workloadService: WorkloadService,
     ) { }
 
     async getDashboard(actor: DashboardActor, agentId: string, days?: number | string): Promise<AgentDashboard> {
@@ -166,8 +167,9 @@ export class AgentDashboardService {
     }
 
     private async loadSupport(agentId: string, now: Date, today: Date): Promise<NonNullable<AgentDashboard['support']>> {
-        const [workloads, installs] = await Promise.all([
-            this.workloadRepo.find({ where: { agentId, workDate: workloadDay(now) } }),
+        const [liveLoad, installs] = await Promise.all([
+            // Live points: a stored daily row goes stale when a ticket moves to or from waiting vendor.
+            this.workloadService.liveWorkloads([agentId], undefined, undefined, now),
             this.ticketRepo.find({
                 select: ['id', 'ticketNumber', 'title', 'scheduledDate', 'scheduledTime'],
                 where: {
@@ -181,7 +183,7 @@ export class AgentDashboardService {
         ]);
         const todayKey = localDateKey(now, AGENT_DASHBOARD_TIMEZONE);
         return {
-            workloadPointsToday: workloads.reduce((sum, w) => sum + (w.totalPoints ?? 0), 0),
+            workloadPointsToday: liveLoad.get(agentId)?.points ?? 0,
             installs: installs.map((t) => ({
                 id: t.id,
                 ticketNumber: t.ticketNumber,

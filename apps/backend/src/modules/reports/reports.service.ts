@@ -32,11 +32,11 @@ import { ReportScope, applyTeamFilter, teamLabel } from './utils/report-team-sco
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { wibMonthRange } from '../../shared/core/utils/wib-date.util';
-import { agentSiteCells, metricRate, reportMetricSql, summarizeAgentMetrics, rankAgents } from './utils/report-metrics.util';
+import { metricRate, reportMetricSql, summarizeAgentMetrics, rankAgents } from './utils/report-metrics.util';
 import { fmtDate, fmtPeriod, fmtPct, fmtHours, fmtMinutes, REPORT_COHORT, DAILY_CREATED_LABEL, DAILY_DONE_LONG_LABEL } from './generators/report-pdf-canvas';
 
 /** 1-based column of 'Kepatuhan SLA (%)' on the agent sheet; also the last column of its filter and borders. */
-const AGENT_SHEET_SLA_COLUMN = 11;
+const AGENT_SHEET_SLA_COLUMN = 7;
 
 @Injectable()
 export class ReportsService {
@@ -204,11 +204,11 @@ export class ReportsService {
         const summaryRows: Array<[string, string | number, string]> = [
             ['Periode Laporan', `${monthName} ${year}`, `${fmtPeriod({ startDate, endDate })} · ${REPORT_COHORT}`],
             ['Dibatalkan', stats.cancelledTickets, 'Tidak masuk denominator penyelesaian'],
-            ['Tiket eligible', stats.eligibleTickets, 'Historis dikurangi pembatalan'],
+            ['Tiket tidak dibatalkan', stats.eligibleTickets, 'Total dikurangi pembatalan'],
             ['Total Tiket Terdaftar', total, 'Jumlah seluruh tiket yang masuk pada periode ini'],
             ['Tiket Berhasil Diselesaikan', resolved, 'Tiket berstatus RESOLVED / CLOSED'],
             ['Tiket Masih Aktif / Terbuka', open, 'Tiket berstatus OPEN, IN_PROGRESS, atau WAITING_VENDOR'],
-            ['Tingkat Penyelesaian (Resolution Rate)', fmtPct(resRate), 'Persentase tiket terselesaikan dibanding tiket eligible (tanpa cancelled)'],
+            ['Tingkat Penyelesaian (Resolution Rate)', fmtPct(resRate), 'Persentase tiket terselesaikan dibanding tiket yang tidak dibatalkan'],
             ['Rata-rata Durasi Resolusi', fmtHours(avgHours), 'Rata-rata waktu dari tiket dibuat hingga selesai'],
         ];
 
@@ -347,7 +347,6 @@ export class ReportsService {
             title: 'Laporan Kinerja Teknisi (Agent Performance)',
             dateRange: { startDate, endDate },
             siteName: await this.scopeLabel(scope),
-            siteId: scope.siteId,
         });
 
         if (userId) {
@@ -370,7 +369,6 @@ export class ReportsService {
             title: 'Laporan Volume & Distribusi Tiket',
             dateRange: { startDate, endDate },
             siteName: await this.scopeLabel(scope),
-            siteId: scope.siteId,
         });
 
         if (userId) {
@@ -482,7 +480,7 @@ export class ReportsService {
             ['Rentang Periode Laporan', periodText, 'Periode tanggal yang dievaluasi'],
             ['Total Tiket Masuk (Created)', totalCreated, 'Jumlah total tiket yang terbuat pada periode'],
             ['Dibatalkan', volumeReport.data.summary.totalCancelled, 'Tidak masuk denominator penyelesaian'],
-            ['Tiket eligible', volumeReport.data.summary.totalEligible, 'Historis dikurangi pembatalan'],
+            ['Tiket tidak dibatalkan', volumeReport.data.summary.totalEligible, 'Total dikurangi pembatalan'],
             ['Total Tiket Selesai (Resolved)', totalResolved, 'Jumlah tiket yang berhasil diselesaikan'],
             ['Tiket Masih Pending / Berjalan', totalPending, 'Tiket aktif yang belum terselesaikan'],
             ['Rata-rata Tiket Per Hari', `${avgPerDay.toFixed(1)} tiket/hari`, 'Rata-rata volume harian'],
@@ -533,11 +531,7 @@ export class ReportsService {
         const agentSheet = workbook.addWorksheet('Kinerja Teknisi');
         agentSheet.columns = [
             { header: 'Nama Teknisi', key: 'agentName', width: 26 },
-            { header: 'Site Asal', key: 'agentSite', width: 18 },
-            { header: 'Lintas Site', key: 'crossSite', width: 12 },
-            { header: 'Ditugaskan', key: 'totalAssigned', width: 14 },
-            { header: 'Dibatalkan', key: 'totalCancelled', width: 14 },
-            { header: 'Eligible', key: 'totalEligible', width: 12 },
+            { header: 'Tugas', key: 'totalAssigned', width: 12 },
             { header: 'Diselesaikan', key: 'totalResolved', width: 14 },
             { header: 'Tingkat Resolusi (%)', key: 'resolutionRate', width: 20 },
             { header: 'Avg Respon', key: 'avgResponseTimeMinutes', width: 16 },
@@ -549,14 +543,9 @@ export class ReportsService {
         setupFreezePanes(agentSheet, 1);
 
         rankAgents(performanceReport.data).forEach((agent, idx) => {
-            const [agentSite, crossSite] = agentSiteCells(agent, scope.siteId);
             const row = agentSheet.addRow({
                 agentName: agent.agentName,
-                agentSite,
-                crossSite,
                 totalAssigned: agent.totalAssigned || 0,
-                totalCancelled: agent.totalCancelled || 0,
-                totalEligible: agent.totalEligible || 0,
                 totalResolved: agent.totalResolved || 0,
                 resolutionRate: fmtPct(agent.resolutionRate),
                 avgResponseTimeMinutes: fmtMinutes(agent.avgResponseTimeMinutes),
@@ -575,7 +564,7 @@ export class ReportsService {
         });
 
         if (performanceReport.data.length > 0) {
-            applyAutoFilter(agentSheet, 'A', 1, 'K', performanceReport.data.length + 1);
+            applyAutoFilter(agentSheet, 'A', 1, 'G', performanceReport.data.length + 1);
             applyFullBorders(agentSheet, 1, performanceReport.data.length + 1, AGENT_SHEET_SLA_COLUMN);
         }
         autoFitColumns(agentSheet, 14, 35);

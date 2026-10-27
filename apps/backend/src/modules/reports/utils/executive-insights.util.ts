@@ -47,7 +47,7 @@ export function generateExecutiveInsights(data: ReportInsightInput): string[] {
 
     let volumeInsight = `Total ${total.toLocaleString('id-ID')} tiket tercatat pada periode ini dengan tingkat penyelesaian ${resRate == null ? '—' : `${resRate.toFixed(1)}%`} (${resolved.toLocaleString('id-ID')} tiket terselesaikan${open == null ? '' : `, ${open.toLocaleString('id-ID')} masih aktif/berjalan`}).`;
     if (resRate == null) {
-        volumeInsight += ' Tidak ada tiket eligible untuk menghitung tingkat penyelesaian.';
+        volumeInsight += ' Tidak ada tiket yang tidak dibatalkan untuk menghitung tingkat penyelesaian.';
     } else if (resRate >= 90) {
         volumeInsight += ' Produktivitas penyelesaian tiket berada pada zona sangat optimal.';
     } else if (resRate >= 75) {

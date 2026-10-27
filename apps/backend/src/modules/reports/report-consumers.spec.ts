@@ -8,12 +8,13 @@ import { EXCEL_COLORS } from './utils/excel-styles.util';
 import { generateExecutiveInsights } from './utils/executive-insights.util';
 
 const range = { startDate: new Date('2026-09-30T17:00:00Z'), endDate: new Date('2026-10-31T16:59:59Z') };
-const agent = (name: string, eligible: number, resolved: number, evaluated: number, compliant: number) => ({
-    agentId: name, agentName: name, agentSiteId: 'home', agentSiteName: 'Home',
-    totalAssigned: eligible + 2, totalCancelled: 2, totalEligible: eligible, totalResolved: resolved,
+// Cancelled tickets never reach agent metrics: totalAssigned ("Tugas") is already net of them.
+const agent = (name: string, assigned: number, resolved: number, evaluated: number, compliant: number) => ({
+    agentId: name, agentName: name,
+    totalAssigned: assigned, totalResolved: resolved,
     slaEvaluated: evaluated, slaCompliant: compliant, slaBreached: evaluated - compliant,
     responseSamples: 0, responseTotalMinutes: 0, resolutionSamples: 0, resolutionTotalMinutes: 0,
-    resolutionRate: eligible ? resolved / eligible * 100 : null,
+    resolutionRate: assigned ? resolved / assigned * 100 : null,
     slaComplianceRate: evaluated ? compliant / evaluated * 100 : null,
     avgResponseTimeMinutes: null, avgResolutionTimeMinutes: null, ticketsByPriority: {},
 });
@@ -55,7 +56,7 @@ describe('active report consumers', () => {
         expect(JSON.stringify(kpis.mock.calls)).toContain('50,0%');
         expect(JSON.stringify(kpis.mock.calls)).toContain('Penyelesaian terbanyak');
         expect(JSON.stringify(table.mock.calls)).toContain('—');
-        expect(JSON.stringify(table.mock.calls)).toContain('Home');
+        expect(JSON.stringify(table.mock.calls)).not.toMatch(/lintas site|batal|eligible/i);
         expect(JSON.stringify(header.mock.calls)).toContain('Tiket dibuat dalam periode; status saat laporan diambil');
     });
     it.each(['buildPerformanceExcel', 'buildCombinedExcel', 'buildVolumeExcel'])('renders real scheduled workbook cells: %s', async method => {
@@ -66,7 +67,8 @@ describe('active report consumers', () => {
         expect(text.join(' ')).toContain('Tiket dibuat dalam periode; status saat laporan diambil');
         expect(text.join(' ')).not.toContain('null%');
         expect(text.join(' ')).not.toContain('null m');
-        expect(text.join(' ')).toContain('Dibatalkan');
+        // Cancelled stays visible in the volume report only, never in agent performance.
+        if (method === 'buildVolumeExcel') expect(text.join(' ')).toContain('Dibatalkan');
         if (method !== 'buildVolumeExcel') {
             expect(text).toContain('—');
             expect(text.join(' ')).toContain('50,0%');
@@ -93,7 +95,7 @@ describe('active report consumers', () => {
             expect(text).toContain('—');
         }
     });
-    describe('per-agent Excel reconciliation', () => {
+    describe('per-agent Excel columns', () => {
         const crossAgents = [agent('Hasby', 12, 8, 10, 9), agent('Nobody', 0, 0, 0, 0)];
         const sheetRows = (wb: ExcelJS.Workbook, name: string) => {
             const rows: Record<string, unknown>[] = [];
@@ -109,22 +111,16 @@ describe('active report consumers', () => {
         const load = async (buffer: Buffer) => { const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buffer as any); return wb; };
 
         it.each([['buildPerformanceExcel', 'Agent Performance'], ['buildCombinedExcel', 'Agent Performance']])(
-            'scheduled %s lists cancelled, eligible and cross-site columns', async (method, sheetName) => {
+            'scheduled %s shows Tugas without cancelled, eligible or site columns', async (method, sheetName) => {
                 const service: any = new DynamicScheduledReportsService(null as any, null as any, null as any, null as any, null as any, null as any, null as any, null as any);
-                const args = method === 'buildCombinedExcel' ? [volume, crossAgents, range, 'Site S1', 'selected'] : [crossAgents, range, 'Site S1', 'selected'];
+                const args = method === 'buildCombinedExcel' ? [volume, crossAgents, range, 'Site S1'] : [crossAgents, range, 'Site S1'];
                 const { rows } = sheetRows(await load(await service[method](...args)), sheetName);
                 const hasby = rows.find(r => r['Nama Teknisi'] === 'Hasby')!;
-                expect(hasby).toMatchObject({ 'Site Asal': 'Home', 'Lintas Site': 'Ya', Ditugaskan: '14', Dibatalkan: '2', Eligible: '12', Selesai: '8' });
-                expect(Number(hasby.Ditugaskan) - Number(hasby.Dibatalkan)).toBe(Number(hasby.Eligible));
+                expect(hasby).toMatchObject({ Tugas: '12', Selesai: '8' });
+                for (const gone of ['Dibatalkan', 'Eligible', 'Site Asal', 'Lintas Site', 'Ditugaskan']) expect(hasby).not.toHaveProperty(gone);
             });
 
-        it('marks an agent from the selected site as not cross-site', async () => {
-            const service: any = new DynamicScheduledReportsService(null as any, null as any, null as any, null as any, null as any, null as any, null as any, null as any);
-            const { rows } = sheetRows(await load(await service.buildPerformanceExcel(crossAgents, range, 'Site S1', 'home')), 'Agent Performance');
-            expect(rows.find(r => r['Nama Teknisi'] === 'Hasby')!['Lintas Site']).toBe('Tidak');
-        });
-
-        it('interactive agent sheet has the same columns, uniform duration headers and no red for unevaluated SLA', async () => {
+        it('interactive agent sheet shows Tugas only, uniform duration headers and no red for unevaluated SLA', async () => {
             const qb: any = { leftJoinAndSelect: () => qb, where: () => qb, orderBy: () => qb, andWhere: () => qb, getMany: async () => [] };
             const service: any = new ReportsService({ logAsync: jest.fn() } as any, { createQueryBuilder: () => qb } as any, null as any,
                 { generate: async () => ({ data: crossAgents }) } as any, { generate: async () => ({ data: volume }) } as any, null as any, null as any);
@@ -136,9 +132,10 @@ describe('active report consumers', () => {
             await done;
             const wb = await load(Buffer.concat(chunks));
             const { rows, sheet } = sheetRows(wb, 'Kinerja Teknisi');
-            expect(rows.find(r => r['Nama Teknisi'] === 'Hasby')).toMatchObject({ 'Site Asal': 'Home', 'Lintas Site': 'Ya', Dibatalkan: '2', Eligible: '12' });
+            expect(rows.find(r => r['Nama Teknisi'] === 'Hasby')).toMatchObject({ Tugas: '12', Diselesaikan: '8' });
             const headers = (sheet.getRow(1).values as unknown[]).join('|');
             expect(headers).not.toContain('(Menit)');
+            expect(headers).not.toMatch(/Dibatalkan|Eligible|Site Asal|Lintas Site/);
             const slaCol = (sheet.getRow(1).values as unknown[]).indexOf('Kepatuhan SLA (%)');
             const nobody = sheet.getRow(3);
             expect(nobody.getCell(slaCol).value).toBe('—');

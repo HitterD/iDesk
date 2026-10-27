@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { ChevronDown, LayoutDashboard, RefreshCw, UserSearch } from 'lucide-react';
+import { ChevronDown, LayoutDashboard, Pause, RefreshCw, UserSearch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -57,12 +57,20 @@ interface WorkloadTableProps {
     onSort: (v: SortOption) => void;
 }
 
-const TicketChip: React.FC<{ t: AgentWorkloadDto['activeTickets'][number] }> = ({ t }) => (
-    <Link to={`/tickets/${t.id}`} className="dash-bub mono" title={`${t.ticketNumber}: ${t.title}`}
-        style={cssVars({ '--c': PRIORITY_DOT[t.priority?.toUpperCase()] ?? DASH_COLORS.gray })}>
-        {t.ticketNumber}
-    </Link>
-);
+const WAITING_VENDOR = 'WAITING_VENDOR';
+
+/** Waiting-vendor tickets stay with their PIC but carry no workload points, so they read as paused. */
+const TicketChip: React.FC<{ t: AgentWorkloadDto['activeTickets'][number] }> = ({ t }) => {
+    const waiting = t.status === WAITING_VENDOR;
+    return (
+        <Link to={`/tickets/${t.id}`} className="dash-bub mono"
+            title={waiting ? `${t.ticketNumber}: ${t.title} — tunggu vendor, tidak dihitung poin` : `${t.ticketNumber}: ${t.title}`}
+            style={cssVars({ '--c': waiting ? DASH_COLORS.orange : PRIORITY_DOT[t.priority?.toUpperCase()] ?? DASH_COLORS.gray })}>
+            {waiting && <Pause className="h-3 w-3" aria-hidden="true" />}
+            {t.ticketNumber}
+        </Link>
+    );
+};
 
 const Tickets: React.FC<{ agent: AgentWorkloadDto }> = ({ agent }) => {
     const tickets = agent.activeTickets || [];
@@ -84,8 +92,10 @@ const Tickets: React.FC<{ agent: AgentWorkloadDto }> = ({ agent }) => {
                             {tickets.map((t) => (
                                 <li key={t.id}>
                                     <Link to={`/tickets/${t.id}`} className="dash-li">
-                                        <span className="dash-pdot" style={cssVars({ '--c': PRIORITY_DOT[t.priority?.toUpperCase()] ?? DASH_COLORS.gray })} aria-hidden="true" />
-                                        <span className="grow1"><b className="mono">{t.ticketNumber}</b><small>{t.title}</small></span>
+                                        <span className="dash-pdot" style={cssVars({ '--c': t.status === WAITING_VENDOR ? DASH_COLORS.orange : PRIORITY_DOT[t.priority?.toUpperCase()] ?? DASH_COLORS.gray })} aria-hidden="true" />
+                                        <span className="grow1"><b className="mono">{t.ticketNumber}</b><small>{t.title}</small>
+                                            {t.status === WAITING_VENDOR && <small className="inline-flex items-center gap-1"><Pause className="h-3 w-3" aria-hidden="true" />Tunggu vendor, tidak dihitung poin</small>}
+                                        </span>
                                     </Link>
                                 </li>
                             ))}

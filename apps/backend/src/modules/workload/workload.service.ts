@@ -20,14 +20,13 @@ import {
 import { BusinessHoursService } from '../sla-config/business-hours.service';
 import { BusinessSchedule, DEFAULT_TIMEZONE, localDateKey, startOfLocalDay } from '../sla-config/business-hours.calc';
 import { FALLBACK_SCHEDULE, countsTowardsWorkload, installActivationAt } from './install-day.util';
+import { DEFAULT_PRIORITY_WEIGHTS, LiveWorkload, WORKLOAD_ACTIVE_STATUSES, activeTicketWhere, computeLiveWorkloads } from './live-workload.util';
 
 /** Workload days and crons follow WIB, not the server's UTC clock. */
 const WORKLOAD_TIMEZONE = DEFAULT_TIMEZONE;
 /** Install days can slip past weekends/long holidays before they open. */
 const INSTALL_ACTIVATION_LOOKBACK_DAYS = 14;
 const MS_PER_DAY = 86_400_000;
-/** Vendor waiting retains the PIC but does not consume assignment capacity. */
-const WORKLOAD_ACTIVE_STATUSES = [TicketStatus.TODO, TicketStatus.IN_PROGRESS];
 
 /**
  * Workload day of `at` as a UTC-midnight Date of its WIB calendar date, so the
@@ -40,13 +39,7 @@ export function workloadDay(at: Date = new Date()): Date {
 @Injectable()
 export class WorkloadService {
     // Default priority weights if not configured in DB
-    private readonly DEFAULT_WEIGHTS: Record<string, number> = {
-        LOW: 1,
-        MEDIUM: 2,
-        HIGH: 4,
-        CRITICAL: 8,
-        HARDWARE_INSTALLATION: 3,
-    };
+    private readonly DEFAULT_WEIGHTS = DEFAULT_PRIORITY_WEIGHTS;
 
     constructor(
         private readonly auditService: AuditService,
@@ -78,6 +71,31 @@ export class WorkloadService {
     ): Promise<number> {
         if (!countsTowardsWorkload(ticket, await this.getSchedule(), now)) return 0;
         return this.getPriorityWeight(ticket.priority);
+    }
+
+    /**
+     * Live workload of each agent at one site (or across sites when siteId is
+     * omitted), read from the tickets themselves. Waiting-vendor tickets keep
+     * their PIC but weigh nothing; they are counted separately. Pass already
+     * fetched tickets to avoid a second query.
+     */
+    async liveWorkloads(
+        agentIds: string[],
+        siteId?: string,
+        preloaded?: Ticket[],
+        now: Date = new Date(),
+    ): Promise<Map<string, LiveWorkload>> {
+        if (agentIds.length === 0) return new Map();
+        const [tickets, weights, schedule] = await Promise.all([
+            preloaded ?? this.ticketRepo.find({
+                where: activeTicketWhere(agentIds, siteId),
+                select: ['id', 'priority', 'status', 'assignedToId', 'isHardwareInstallation', 'scheduledDate'],
+            }),
+            this.priorityWeightRepo.find(),
+            this.getSchedule(),
+        ]);
+        const weightByPriority = new Map(weights.map(w => [w.priority, w.points]));
+        return computeLiveWorkloads(agentIds, tickets, weightByPriority, schedule, now);
     }
 
     // ==========================================
@@ -324,20 +342,13 @@ export class WorkloadService {
             created.forEach(w => workloadByAgent.set(w.agentId, w));
         }
 
-        // Active tickets filter — when cross-site with no target, we still scope per agent's site in the result
-        // but to keep query simple and correct, if no targetSiteId we fetch across those agents' sites.
-        const ticketWhere: any = {
-            assignedToId: In(agentIds),
-            status: In([TicketStatus.TODO, TicketStatus.IN_PROGRESS, TicketStatus.WAITING_VENDOR]),
-        };
-        if (targetSiteId) {
-            ticketWhere.siteId = targetSiteId;
-        }
-
+        // One fetch serves both the ticket chips and the live points. With no target site
+        // (cross-site "all") it spans every site of these agents.
         const activeTickets = await this.ticketRepo.find({
-            where: ticketWhere,
-            select: ['id', 'ticketNumber', 'title', 'priority', 'status', 'category', 'assignedToId', 'siteId'],
+            where: activeTicketWhere(agentIds, targetSiteId),
+            select: ['id', 'ticketNumber', 'title', 'priority', 'status', 'category', 'assignedToId', 'siteId', 'isHardwareInstallation', 'scheduledDate'],
         });
+        const liveLoad = await this.liveWorkloads(agentIds, targetSiteId, activeTickets);
         const activeTicketsByAgent = new Map<string, typeof activeTickets>();
         for (const ticket of activeTickets) {
             const agentId = ticket.assignedToId as string;
@@ -348,18 +359,20 @@ export class WorkloadService {
 
         return agents.map(agent => {
             const workload = workloadByAgent.get(agent.id)!;
+            const live = liveLoad.get(agent.id)!;
             return {
                 agentId: agent.id,
                 agentName: agent.fullName,
                 email: agent.email,
                 role: agent.role,
-                totalPoints: workload.totalPoints,
+                totalPoints: live.points,
                 appraisalPoints: agent.appraisalPoints,
                 lastAssignedAt: workload.lastAssignedAt,
                 siteId: agent.siteId,
                 siteCode: agent.site?.code || '',
                 siteName: agent.site?.name || '',
-                activeTicketsCount: workload.activeTickets,
+                activeTicketsCount: live.workloadTickets,
+                waitingVendorCount: live.waitingVendor,
                 activeTickets: activeTicketsByAgent.get(agent.id) ?? [],
             };
         });
@@ -556,11 +569,12 @@ export class WorkloadService {
             created.forEach(w => workloadByAgent.set(w.agentId, w));
         }
 
+        const liveLoad = await this.liveWorkloads(availableAgentIds, siteId);
         const agentWorkloads: { agent: User; points: number; lastAssignedAt: Date | null }[] = availableAgents.map(agent => {
             const workload = workloadByAgent.get(agent.id)!;
             return {
                 agent,
-                points: workload.totalPoints,
+                points: liveLoad.get(agent.id)!.points,
                 lastAssignedAt: workload.lastAssignedAt || null,
             };
         });

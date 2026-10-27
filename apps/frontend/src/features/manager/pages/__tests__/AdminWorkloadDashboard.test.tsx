@@ -40,6 +40,45 @@ describe('AdminWorkloadDashboard (round-2 layout)', () => {
         expect(screen.getByText('Belum ada')).toBeInTheDocument();
     });
 
+    it('keeps waiting-vendor tickets under the PIC but out of the workload count', async () => {
+        agents.push({ agentId: 'a3', agentName: 'Rm Bagastyo', email: 'r@x.id', role: 'AGENT', totalPoints: 2, appraisalPoints: 0, lastAssignedAt: null, siteId: 's1', siteCode: 'SPJ', siteName: 'Sidoarjo',
+            activeTicketsCount: 1, waitingVendorCount: 1,
+            activeTickets: [
+                { id: 't2', ticketNumber: '271026-TAL-0021', title: 'Flashdisk', priority: 'LOW', status: 'IN_PROGRESS', category: 'HARDWARE' },
+                { id: 'v1', ticketNumber: '081026-RMW-0003', title: 'Printer', priority: 'HIGH', status: 'WAITING_VENDOR', category: 'HARDWARE' },
+            ] } as typeof agents[number]);
+        try {
+            renderPage();
+            await screen.findByText('Rm Bagastyo');
+            const card = screen.getByText('Tiket Aktif Dalam Proses').closest('.queue-stat') as HTMLElement;
+            // 1 (Beny) + 1 (Bagastyo); the vendor ticket is excluded from the count.
+            expect(within(card).getByText('2')).toBeInTheDocument();
+            expect(within(card).getByText(/1 tunggu vendor/)).toBeInTheDocument();
+            const vendorChip = screen.getByRole('link', { name: /081026-RMW-0003/ });
+            expect(vendorChip).toHaveAttribute('title', expect.stringMatching(/tunggu vendor.*tidak dihitung poin/i));
+        } finally {
+            agents.pop();
+        }
+    });
+
+    it('marks waiting-vendor tickets inside the "+N lainnya" popover too', async () => {
+        const chip = (id: string, status: string) => ({ id, ticketNumber: id, title: `Tiket ${id}`, priority: 'LOW', status, category: 'HARDWARE' });
+        agents.push({ agentId: 'a4', agentName: 'Popover Agent', email: 'p@x.id', role: 'AGENT', totalPoints: 1, appraisalPoints: 0, lastAssignedAt: null, siteId: 's1', siteCode: 'SPJ', siteName: 'Sidoarjo',
+            activeTicketsCount: 3, waitingVendorCount: 1,
+            activeTickets: [chip('T-1', 'IN_PROGRESS'), chip('T-2', 'TODO'), chip('T-3', 'TODO'), chip('V-9', 'WAITING_VENDOR')] } as typeof agents[number]);
+        try {
+            renderPage();
+            await screen.findByText('Popover Agent');
+            await userEvent.click(screen.getByRole('button', { name: '1 tiket lainnya milik Popover Agent' }));
+            const vendorItem = (await screen.findByText('Tiket V-9')).closest('a') as HTMLElement;
+            expect(within(vendorItem).getByText('Tunggu vendor, tidak dihitung poin')).toBeInTheDocument();
+            const workableItem = screen.getAllByText('Tiket T-1').map((el) => el.closest('a') as HTMLElement).find(Boolean)!;
+            expect(within(workableItem).queryByText(/tunggu vendor/i)).not.toBeInTheDocument();
+        } finally {
+            agents.pop();
+        }
+    });
+
     it('filters by status with the segmented control', async () => {
         renderPage();
         await screen.findByText('Beny Saputra');

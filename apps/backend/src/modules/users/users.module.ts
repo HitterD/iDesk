@@ -12,12 +12,15 @@ import { DepartmentsController } from './departments.controller';
 import { Ticket } from '../ticketing/entities/ticket.entity';
 import { TicketModule } from '../ticketing/entities/ticket-module.entity';
 import { Site } from '../sites/entities/site.entity';
+import { PriorityWeight } from '../workload/entities/priority-weight.entity';
 import { PermissionsModule } from '../permissions/permissions.module';
+import { SlaConfigModule } from '../sla-config/sla-config.module';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([User, Department, Ticket, Site, TicketModule]),
-        forwardRef(() => PermissionsModule)
+        TypeOrmModule.forFeature([User, Department, Ticket, Site, TicketModule, PriorityWeight]),
+        forwardRef(() => PermissionsModule),
+        SlaConfigModule, // Business hours: install-day gating of live workload points
     ],
     controllers: [UsersController, DepartmentsController],
     providers: [
