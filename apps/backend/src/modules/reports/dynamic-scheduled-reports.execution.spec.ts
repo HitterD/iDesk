@@ -90,7 +90,7 @@ describe('DynamicScheduledReportsService execution', () => {
       generate: jest.fn().mockResolvedValue({
         data: {
           daily: [],
-          summary: { totalCreated: 0, totalResolved: 0, totalPending: 0, avgPerDay: 0, peakDay: '', peakCount: 0 },
+          summary: { totalCreated: 0, totalResolved: 0, totalPending: 0, totalCancelled: 0, totalEligible: 0, resolutionRate: null, avgPerDay: 0, peakDay: '', peakCount: 0 },
         },
       }),
     } as any;
@@ -99,7 +99,7 @@ describe('DynamicScheduledReportsService execution', () => {
       generate: jest.fn().mockResolvedValue({ data: [] }),
     } as any;
 
-    reportsService = {} as any;
+    reportsService = { scopeLabel: jest.fn().mockResolvedValue('Sepanjang (SPJ) — Semua tim') } as any;
 
     mailDispatch = {
       send: jest.fn().mockResolvedValue(undefined),

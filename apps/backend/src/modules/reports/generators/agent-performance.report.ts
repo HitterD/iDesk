@@ -1,236 +1,95 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Ticket } from '../../ticketing/entities/ticket.entity';
-import { TICKET_DONE_STATUSES_SQL } from '../../ticketing/utils/ticket-status-sql.util';
-import { ReportTeam, rolesForTeam } from '../utils/report-team-scope.util';
+import { ReportTeam, applyTeamFilter } from '../utils/report-team-scope.util';
+import { MetricCounts, metricRate, rankAgents, reportMetricSql } from '../utils/report-metrics.util';
 
-export interface AgentMetrics {
+export interface AgentMetrics extends MetricCounts {
     agentId: string;
     agentName: string;
-    totalAssigned: number;
-    totalResolved: number;
-    resolutionRate: number;
-    avgResponseTimeMinutes: number;
-    avgResolutionTimeMinutes: number;
+    agentSiteId: string | null;
+    agentSiteName: string | null;
+    resolutionRate: number | null;
+    avgResponseTimeMinutes: number | null;
+    avgResolutionTimeMinutes: number | null;
+    /** Historical priority counts, including cancelled tickets. */
     ticketsByPriority: Record<string, number>;
-    slaComplianceRate: number;
 }
 
-export interface DateRange {
-    startDate: Date;
-    endDate: Date;
-}
+export interface DateRange { startDate: Date; endDate: Date; }
+export interface ReportResult<T> { reportType: string; data: T; generatedAt: Date; }
 
-export interface ReportResult<T> {
-    reportType: string;
-    data: T;
-    generatedAt: Date;
-}
-
-/**
- * Agent Performance Report Generator
- * OPTIMIZED: Uses single SQL query with aggregations instead of N+1 pattern
- */
 @Injectable()
 export class AgentPerformanceReport {
     private readonly logger = new Logger(AgentPerformanceReport.name);
 
     constructor(
-        @InjectRepository(User)
-        private readonly userRepo: Repository<User>,
-        @InjectRepository(Ticket)
-        private readonly ticketRepo: Repository<Ticket>,
-    ) { }
+        @InjectRepository(User) private readonly userRepo: Repository<User>,
+        @InjectRepository(Ticket) private readonly ticketRepo: Repository<Ticket>,
+    ) {}
 
-    /**
-     * Generate agent performance metrics using optimized SQL aggregation
-     * Single query instead of N queries (one per agent)
-     *
-     * @param dateRange - Date range to generate report for
-     * @param options - Optional filters
-     * @param options.siteId - Filter to a specific site (strict site scoping for scheduled reports)
-     * @param options.team - Only agents whose role belongs to this team (all agents when omitted)
-     */
-    async generate(
-        dateRange: DateRange,
-        options?: { siteId?: string; team?: ReportTeam }
-    ): Promise<ReportResult<AgentMetrics[]>> {
-        // Single optimized query with GROUP BY for all metrics
-        const qb = this.ticketRepo
-            .createQueryBuilder('ticket')
+    async generate(dateRange: DateRange, options?: { siteId?: string; team?: ReportTeam }): Promise<ReportResult<AgentMetrics[]>> {
+        const asOf = new Date();
+        const sql = reportMetricSql();
+        const qb = this.scopedQuery(dateRange, options)
             .select('ticket.assignedToId', 'agentId')
             .addSelect('user.fullName', 'agentName')
+            .addSelect('user.siteId', 'agentSiteId')
+            .addSelect('site.name', 'agentSiteName')
             .addSelect('COUNT(ticket.id)', 'totalAssigned')
-            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'totalResolved')
-            .addSelect(`
-                AVG(CASE
-                    WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL})
-                    THEN EXTRACT(EPOCH FROM (COALESCE(ticket.resolvedAt, ticket.updatedAt) - ticket.createdAt)) / 60
-                    ELSE NULL
-                END)
-            `, 'avgResolutionTimeMinutes')
-            // NOTE: keep each `ticket.<prop>` away from a line break. TypeORM's
-            // property-name replacer matches with `[^ =(),]+`, which does not
-            // exclude newlines, so a property at end-of-line swallows the `\n`,
-            // misses the column map, and reaches Postgres unquoted as
-            // `ticket.slatarget` → 42703 "column does not exist".
-            .addSelect(`
-                SUM(CASE
-                    WHEN ticket.slaTarget IS NOT NULL AND ticket.status IN (${TICKET_DONE_STATUSES_SQL})
-                         AND COALESCE(ticket.resolvedAt, ticket.updatedAt) > ticket.slaTarget THEN 1
-                    WHEN ticket.slaTarget IS NOT NULL AND ticket.status NOT IN (${TICKET_DONE_STATUSES_SQL})
-                         AND NOW() > ticket.slaTarget THEN 1
-                    ELSE 0
-                END)
-            `, 'slaBreached')
+            .addSelect("SUM(CASE WHEN ticket.status = 'CANCELLED' THEN 1 ELSE 0 END)", 'totalCancelled')
+            .addSelect(`SUM(CASE WHEN ${sql.done} THEN 1 ELSE 0 END)`, 'totalResolved')
+            .addSelect(`COUNT(${sql.responseMinutes})`, 'responseSamples')
+            .addSelect(`SUM(${sql.responseMinutes})`, 'responseTotalMinutes')
+            .addSelect(`COUNT(${sql.resolutionMinutes})`, 'resolutionSamples')
+            .addSelect(`SUM(${sql.resolutionMinutes})`, 'resolutionTotalMinutes')
+            .addSelect(`COUNT(${sql.slaEvaluation})`, 'slaEvaluated')
+            .addSelect(`SUM(CASE WHEN (${sql.slaEvaluation}) = 1 THEN 1 ELSE 0 END)`, 'slaCompliant')
+            .addSelect(`SUM(CASE WHEN (${sql.slaEvaluation}) = 0 THEN 1 ELSE 0 END)`, 'slaBreached')
             .innerJoin('ticket.assignedTo', 'user')
-            .where('ticket.createdAt BETWEEN :startDate AND :endDate', {
-                startDate: dateRange.startDate,
-                endDate: dateRange.endDate,
-            })
-            .andWhere('ticket.assignedToId IS NOT NULL');
-
-        // Apply site filter if provided (critical for scheduled reports site isolation)
-        if (options?.siteId) {
-            qb.andWhere('ticket.siteId = :siteId', { siteId: options.siteId });
-        }
-
-        // Team split: an agent belongs to the team of their role
-        if (options?.team) {
-            qb.andWhere('user.role IN (:...teamRoles)', { teamRoles: rolesForTeam(options.team) });
-        }
-
-        const rawMetrics = await qb
-            .groupBy('ticket.assignedToId')
-            .addGroupBy('user.fullName')
-            .orderBy('COUNT(ticket.id)', 'DESC')
-            .getRawMany();
-
-        // Get priority breakdown per agent (separate query for detailed breakdown)
-        const priorityQb = this.ticketRepo
-            .createQueryBuilder('ticket')
-            .select('ticket.assignedToId', 'agentId')
-            .addSelect('ticket.priority', 'priority')
-            .addSelect('COUNT(*)', 'count')
-            .where('ticket.createdAt BETWEEN :startDate AND :endDate', {
-                startDate: dateRange.startDate,
-                endDate: dateRange.endDate,
-            })
-            .andWhere('ticket.assignedToId IS NOT NULL');
-
-        if (options?.siteId) {
-            priorityQb.andWhere('ticket.siteId = :siteId', { siteId: options.siteId });
-        }
-        if (options?.team) {
-            priorityQb
-                .innerJoin('ticket.assignedTo', 'user')
-                .andWhere('user.role IN (:...teamRoles)', { teamRoles: rolesForTeam(options.team) });
-        }
-
-        const priorityBreakdown = await priorityQb
-            .groupBy('ticket.assignedToId')
-            .addGroupBy('ticket.priority')
-            .getRawMany();
-
-        // Create priority map per agent
-        const priorityMap = new Map<string, Record<string, number>>();
-        for (const row of priorityBreakdown) {
-            if (!priorityMap.has(row.agentId)) {
-                priorityMap.set(row.agentId, {});
-            }
-            priorityMap.get(row.agentId)![row.priority] = parseInt(row.count);
-        }
-
-        // Get average first response time (requires messages relation)
-        const responseTimeData = await this.getAverageResponseTimes(dateRange, options?.siteId);
-
-        // Transform raw results to AgentMetrics
-        const metrics: AgentMetrics[] = rawMetrics.map(row => {
-            const totalAssigned = parseInt(row.totalAssigned) || 0;
-            const totalResolved = parseInt(row.totalResolved) || 0;
-            const slaBreached = parseInt(row.slaBreached) || 0;
-
-            const resolutionRate = totalAssigned > 0
-                ? (totalResolved / totalAssigned) * 100
-                : 0;
-
-            const slaComplianceRate = totalAssigned > 0
-                ? ((totalAssigned - slaBreached) / totalAssigned) * 100
-                : 100;
-
-            return {
-                agentId: row.agentId,
-                agentName: row.agentName || 'Unknown',
-                totalAssigned,
-                totalResolved,
-                resolutionRate: Math.round(resolutionRate * 100) / 100,
-                avgResponseTimeMinutes: responseTimeData.get(row.agentId) || 0,
-                avgResolutionTimeMinutes: Math.round(parseFloat(row.avgResolutionTimeMinutes) || 0),
-                ticketsByPriority: priorityMap.get(row.agentId) || {},
-                slaComplianceRate: Math.round(slaComplianceRate * 100) / 100,
-            };
-        });
-
+            .leftJoin('user.site', 'site')
+            .andWhere('ticket.createdAt <= :asOf', { asOf })
+            .groupBy('ticket.assignedToId').addGroupBy('user.fullName')
+            .addGroupBy('user.siteId').addGroupBy('site.name');
+        const rows = await qb.getRawMany();
+        const priorities = await this.scopedQuery(dateRange, options)
+            .select('ticket.assignedToId', 'agentId').addSelect('ticket.priority', 'priority')
+            .addSelect('COUNT(*)', 'count').andWhere('ticket.createdAt <= :asOf', { asOf })
+            .groupBy('ticket.assignedToId').addGroupBy('ticket.priority').getRawMany();
+        const metrics = rows.map(row => this.toMetrics(row, priorities));
         this.logger.debug(`Generated performance report for ${metrics.length} agents`);
-
-        return {
-            reportType: 'AGENT_PERFORMANCE',
-            data: metrics,
-            generatedAt: new Date()
-        };
+        return { reportType: 'AGENT_PERFORMANCE', data: rankAgents(metrics), generatedAt: asOf };
     }
 
-    /**
-     * Calculate average first response time per agent
-     * This still requires message data but is optimized with aggregation
-     */
-    private async getAverageResponseTimes(dateRange: DateRange, siteId?: string): Promise<Map<string, number>> {
-        const responseMap = new Map<string, number>();
+    private scopedQuery(dateRange: DateRange, options?: { siteId?: string; team?: ReportTeam }) {
+        const qb = this.ticketRepo.createQueryBuilder('ticket')
+            .where('ticket.createdAt BETWEEN :startDate AND :endDate', dateRange)
+            .andWhere('ticket.assignedToId IS NOT NULL');
+        if (options?.siteId) qb.andWhere('ticket.siteId = :siteId', { siteId: options.siteId });
+        return applyTeamFilter(qb, 'ticket', options?.team);
+    }
 
-        try {
-            // Query for first response times using window function approach
-            const qb = this.ticketRepo
-                .createQueryBuilder('ticket')
-                .select('ticket.assignedToId', 'agentId')
-                // The subquery is raw SQL over ticket_messages (entity TicketMessage),
-                // so its own columns must be hand-quoted; only `ticket.*` goes
-                // through TypeORM's replacer — and must not sit at end-of-line.
-                .addSelect(`
-                    AVG(
-                        EXTRACT(EPOCH FROM (
-                            (SELECT MIN(m."createdAt")
-                             FROM ticket_messages m
-                             WHERE m."ticketId" = ticket.id
-                               AND m."senderId" = ticket.assignedToId AND m."isSystemMessage" = false
-                            ) - ticket.createdAt )) / 60
-                    )
-                `, 'avgResponseMinutes')
-                .where('ticket.createdAt BETWEEN :startDate AND :endDate', {
-                    startDate: dateRange.startDate,
-                    endDate: dateRange.endDate,
-                })
-                .andWhere('ticket.assignedToId IS NOT NULL');
-
-            if (siteId) {
-                qb.andWhere('ticket.siteId = :siteId', { siteId });
-            }
-
-            const responseData = await qb
-                .groupBy('ticket.assignedToId')
-                .getRawMany();
-
-            for (const row of responseData) {
-                if (row.avgResponseMinutes) {
-                    responseMap.set(row.agentId, Math.round(parseFloat(row.avgResponseMinutes)));
-                }
-            }
-        } catch (error) {
-            // If subquery fails (e.g., message table structure), return empty map
-            this.logger.warn('Could not calculate response times, using default values');
-        }
-
-        return responseMap;
+    private toMetrics(row: Record<string, any>, priorities: Record<string, any>[]): AgentMetrics {
+        const count = (key: string): number => Number(row[key]) || 0;
+        const totalAssigned = count('totalAssigned');
+        const totalCancelled = count('totalCancelled');
+        const totalEligible = totalAssigned - totalCancelled;
+        const responseSamples = count('responseSamples');
+        const resolutionSamples = count('resolutionSamples');
+        return {
+            agentId: row.agentId, agentName: row.agentName || 'Unknown',
+            agentSiteId: row.agentSiteId ?? null, agentSiteName: row.agentSiteName ?? null,
+            totalAssigned, totalCancelled, totalEligible, totalResolved: count('totalResolved'),
+            slaEvaluated: count('slaEvaluated'), slaCompliant: count('slaCompliant'), slaBreached: count('slaBreached'),
+            responseSamples, responseTotalMinutes: count('responseTotalMinutes'),
+            resolutionSamples, resolutionTotalMinutes: count('resolutionTotalMinutes'),
+            resolutionRate: metricRate(count('totalResolved'), totalEligible),
+            slaComplianceRate: metricRate(count('slaCompliant'), count('slaEvaluated')),
+            avgResponseTimeMinutes: responseSamples ? count('responseTotalMinutes') / responseSamples : null,
+            avgResolutionTimeMinutes: resolutionSamples ? count('resolutionTotalMinutes') / resolutionSamples : null,
+            ticketsByPriority: Object.fromEntries(priorities.filter(p => p.agentId === row.agentId).map(p => [p.priority, Number(p.count)])),
+        };
     }
 }

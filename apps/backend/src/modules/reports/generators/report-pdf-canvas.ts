@@ -86,16 +86,24 @@ export const humanizeSentence = (text: string): string =>
 export const fmtInt = (n: number) => Math.round(Number(n) || 0).toLocaleString('id-ID');
 export const fmtDec = (n: number, digits = 1) =>
     (Number(n) || 0).toLocaleString('id-ID', { minimumFractionDigits: digits, maximumFractionDigits: digits });
-export const fmtPct = (n: number, digits = 1) => `${fmtDec(n, digits)}%`;
+export const REPORT_COHORT = 'Tiket dibuat dalam periode; status saat laporan diambil';
+/** Daily trend labels: "resolved" per day counts tickets created that day which are done now, not tickets finished that day. */
+export const DAILY_CREATED_LABEL = 'Dibuat';
+export const DAILY_DONE_LABEL = 'Kini selesai';
+export const DAILY_DONE_LONG_LABEL = 'Dari tiket hari itu yang kini selesai';
+export const DAILY_TREND_CAPTION = 'Tiket dibuat per hari, dan dari tiket hari itu berapa yang kini selesai.';
+export const fmtPct = (n: number | null | undefined, digits = 1) => n == null || !Number.isFinite(n) ? '—' : `${fmtDec(n, digits)}%`;
 
 /** 14 -> "14 mnt", 95 -> "1,6 jam", 3000 -> "2,1 hari". */
-export function fmtMinutes(minutes: number): string {
-    const m = Number(minutes) || 0;
+export function fmtMinutes(minutes: number | null): string {
+    if (minutes == null || !Number.isFinite(minutes) || minutes < 0) return '—';
+    const m = minutes;
+    if (m < 1) return '<1 menit';
     if (m < 60) return `${fmtInt(m)} mnt`;
     if (m < 60 * 48) return `${fmtDec(m / 60)} jam`;
     return `${fmtDec(m / 60 / 24)} hari`;
 }
-export const fmtHours = (hours: number) => fmtMinutes((Number(hours) || 0) * 60);
+export const fmtHours = (hours: number | null | undefined) => fmtMinutes(hours == null ? null : hours * 60);
 
 const DATE_FMT = new Intl.DateTimeFormat('id-ID', { timeZone: WIB, day: 'numeric', month: 'short', year: 'numeric' });
 const DATE_SHORT_FMT = new Intl.DateTimeFormat('id-ID', { timeZone: WIB, day: 'numeric', month: 'short' });
@@ -118,8 +126,8 @@ export function fmtPeriod(range?: { startDate: Date; endDate: Date } | string): 
     return `${fmtDate(range.startDate)} - ${fmtDate(range.endDate)}`;
 }
 
-export const toneForRate = (rate: number, good = 90, warn = 75): Tone =>
-    rate >= good ? 'good' : rate >= warn ? 'warn' : 'bad';
+export const toneForRate = (rate: number | null, good = 90, warn = 75): Tone =>
+    rate == null ? 'neutral' : rate >= good ? 'good' : rate >= warn ? 'warn' : 'bad';
 
 // ─── Canvas ──────────────────────────────────────────────────
 
@@ -155,6 +163,29 @@ export class ReportCanvas {
             fitted = `${fitted.trimEnd()}...`;
         }
         doc.text(fitted, x, y, { width, align, lineBreak: false });
+    }
+
+    /**
+     * Splits text at explicit newlines, then wraps each line at word boundaries so it fits `width` in the current font.
+     * A single word wider than `width` stays whole here; line() shortens it.
+     */
+    private wrap(text: string, width: number): string[] {
+        const { doc } = this;
+        return text.split('\n').flatMap((paragraph) => {
+            const lines: string[] = [];
+            let current = '';
+            paragraph.split(' ').forEach((word) => {
+                const candidate = current ? `${current} ${word}` : word;
+                if (current && doc.widthOfString(candidate) > width) {
+                    lines.push(current);
+                    current = word;
+                } else {
+                    current = candidate;
+                }
+            });
+            lines.push(current);
+            return lines;
+        });
     }
 
     private font(bold: boolean, size: number, color: string): void {
@@ -330,7 +361,9 @@ export class ReportCanvas {
         const totalW = columns.reduce((sum, c) => sum + c.width, 0);
         const cols = columns.map((c) => ({ ...c, width: (c.width * CONTENT_W) / totalW }));
         const headH = 22;
-        const rowH = 22;
+        const minRowH = 22;
+        const lineH = 11;
+        const rowPad = 11;
 
         const drawHead = () => {
             doc.roundedRect(PAGE.margin, this.y, CONTENT_W, headH, 5).fill(INK.fill);
@@ -343,15 +376,21 @@ export class ReportCanvas {
             this.y += headH;
         };
 
-        this.ensure(headH + rowH * Math.min(rows.length || 1, 3));
+        this.ensure(headH + minRowH * Math.min(rows.length || 1, 3));
         drawHead();
         if (rows.length === 0) {
             this.font(false, 9, INK.tertiary);
             this.line(emptyText, PAGE.margin + 8, this.y + 7, CONTENT_W - 16);
-            this.y += rowH + 12;
+            this.y += minRowH + 12;
             return;
         }
         rows.forEach((row) => {
+            // Cells wrap onto extra lines instead of being cut; the row grows to the tallest cell.
+            const cellLines = row.map((cell, ci) => {
+                this.font(Boolean(cell.bold), 9, cell.color ?? INK.text);
+                return this.wrap(cell.text, cols[ci].width - 16);
+            });
+            const rowH = Math.max(minRowH, rowPad + Math.max(...cellLines.map((l) => l.length)) * lineH);
             if (this.y + rowH > CONTENT_BOTTOM) {
                 doc.addPage();
                 this.y = PAGE.margin;
@@ -361,7 +400,7 @@ export class ReportCanvas {
             row.forEach((cell, ci) => {
                 const c = cols[ci];
                 this.font(Boolean(cell.bold), 9, cell.color ?? INK.text);
-                this.line(cell.text, x + 8, this.y + 7, c.width - 16, c.align);
+                cellLines[ci].forEach((text, li) => this.line(text, x + 8, this.y + 7 + li * lineH, c.width - 16, c.align));
                 x += c.width;
             });
             doc.moveTo(PAGE.margin, this.y + rowH).lineTo(PAGE.margin + CONTENT_W, this.y + rowH).lineWidth(0.5).strokeColor(INK.line).stroke();
@@ -370,7 +409,7 @@ export class ReportCanvas {
         this.y += 16;
     }
 
-    /** Created vs resolved per day, with a value axis and day-of-month labels. */
+    /** Created per day vs how many of that day's tickets are done now, with a value axis and day-of-month labels. */
     dailyChart(daily: { date: string; created: number; resolved: number }[]): void {
         if (daily.length === 0) return;
         const { doc } = this;
@@ -384,8 +423,8 @@ export class ReportCanvas {
             this.font(false, 8.5, INK.secondary);
             this.line(label, x + 12, this.y + 1, 80);
         };
-        legend(PAGE.margin + CONTENT_W - 190, INK.brand, 'Tiket masuk');
-        legend(PAGE.margin + CONTENT_W - 95, INK.green, 'Tiket selesai');
+        legend(PAGE.margin + CONTENT_W - 190, INK.brand, DAILY_CREATED_LABEL);
+        legend(PAGE.margin + CONTENT_W - 95, INK.green, DAILY_DONE_LABEL);
 
         const top = this.y + 18;
         const plotX = PAGE.margin + axisW;

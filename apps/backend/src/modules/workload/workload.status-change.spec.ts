@@ -8,7 +8,7 @@ describe('WorkloadService.onTicketStatusChange — RESOLVED / CLOSED transitions
 
     beforeEach(() => {
         workload = { totalPoints: 10, activeTickets: 3, resolvedTickets: 0 };
-        workloadRepo = { save: jest.fn(async (w: any) => w) };
+        workloadRepo = { save: jest.fn(async (w: any) => Object.assign(workload, w)) };
         const ticketRepo = {
             findOne: jest.fn().mockResolvedValue({ id: 't1', assignedToId: 'a1', siteId: 's1', priority: 'HIGH' }),
         };
@@ -25,6 +25,26 @@ describe('WorkloadService.onTicketStatusChange — RESOLVED / CLOSED transitions
         jest.spyOn(service, 'getPriorityWeight').mockResolvedValue(4);
         jest.spyOn(service, 'getAgentWorkload').mockResolvedValue(workload as any);
     });
+
+    it('pausing removes load and resuming restores it without changing the PIC', async () => {
+        await service.onTicketStatusChange('t1', TicketStatus.IN_PROGRESS, TicketStatus.WAITING_VENDOR);
+        expect(workload).toEqual({ totalPoints: 6, activeTickets: 2, resolvedTickets: 0 });
+
+        await service.onTicketStatusChange('t1', TicketStatus.WAITING_VENDOR, TicketStatus.TODO);
+        expect(workload).toEqual({ totalPoints: 10, activeTickets: 3, resolvedTickets: 0 });
+    });
+
+    it.each([TicketStatus.RESOLVED, TicketStatus.CLOSED, TicketStatus.CANCELLED])(
+        'vendor -> %s does not subtract load again', async status => {
+            workload.totalPoints = 6;
+            workload.activeTickets = 2;
+            await service.onTicketStatusChange('t1', TicketStatus.WAITING_VENDOR, status);
+            expect(workload).toEqual({
+                totalPoints: 6, activeTickets: 2,
+                resolvedTickets: status === TicketStatus.CANCELLED ? 0 : 1,
+            });
+        },
+    );
 
     it('IN_PROGRESS -> RESOLVED reduces workload and counts one resolution', async () => {
         await service.onTicketStatusChange('t1', TicketStatus.IN_PROGRESS, TicketStatus.RESOLVED);

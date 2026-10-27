@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
@@ -6,6 +6,8 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 const auth = { user: { id: 'me', role: 'ADMIN', siteId: 's1' } as { id: string; role: string; siteId: string } };
 vi.mock('@/stores/useAuth', () => ({ useAuth: () => auth }));
 const get = vi.fn();
+const preview = vi.fn();
+vi.mock('../../components/PDFPreviewModal', () => ({ usePDFPreview: () => ({ openPreview: preview }), PDFPreviewModal: () => null }));
 vi.mock('@/lib/api', () => ({ default: { get: (...a: unknown[]) => get(...a), post: vi.fn(), patch: vi.fn(), delete: vi.fn() } }));
 vi.mock('recharts', async (orig) => {
     const mod = await orig<typeof import('recharts')>();
@@ -32,7 +34,7 @@ describe('BentoReportsPage (round-2 layout)', () => {
         auth.user = { id: 'me', role: 'ADMIN', siteId: 's1' };
         get.mockReset();
         get.mockImplementation((url: string) => {
-            if (url.startsWith('/reports/monthly')) return Promise.resolve({ data: { month: 10, year: 2026, totalTickets: 277, resolvedTickets: 214, openTickets: 63, avgResolutionTimeHours: '4.33' } });
+            if (url.startsWith('/reports/monthly')) return Promise.resolve({ data: { month: 10, year: 2026, totalTickets: 277, resolvedTickets: 214, openTickets: 63, cancelledTickets: 0, eligibleTickets: 277, resolutionRate: 77, avgResolutionTimeHours: 4.33 } });
             if (url.startsWith('/reports/ticket-volume')) return Promise.resolve({ data: { data: volume } });
             if (url.startsWith('/reports/agent-performance')) return Promise.resolve({ data: { data: [] } });
             return Promise.resolve({ data: [] });
@@ -42,12 +44,31 @@ describe('BentoReportsPage (round-2 layout)', () => {
     it('shows monthly cards from /reports/monthly and breakdown from the month ticket-volume range', async () => {
         renderAt('/reports');
         expect(await screen.findByText('277')).toBeInTheDocument();
-        expect(screen.getByText('77% resolution rate')).toBeInTheDocument();
+        expect(screen.getByText(/77% resolution rate/)).toBeInTheDocument();
         expect(screen.getByText('4j 20m')).toBeInTheDocument();
         await waitFor(() => expect(get).toHaveBeenCalledWith(expect.stringMatching(/^\/reports\/ticket-volume\?startDate=\d{4}-\d{2}-01&endDate=/)));
         expect(await screen.findByRole('img', { name: /Per status: Open 3, In Progress 2/ })).toBeInTheDocument();
         for (const name of ['Pratinjau PDF', 'PDF', 'Excel']) expect(screen.getByRole('button', { name })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Pilih tim' })).toBeInTheDocument();
+    });
+
+    it('scopes monthly JSON, breakdown and exports explicitly to own site', async () => {
+        renderAt('/reports');
+        await screen.findByText('277');
+        const requests = get.mock.calls.map(([url]) => String(url)).filter(url => url.startsWith('/reports/'));
+        expect(requests.length).toBeGreaterThanOrEqual(2);
+        expect(requests.every(url => url.includes('siteId=s1'))).toBe(true);
+        fireEvent.click(screen.getByRole('button', { name: 'Pratinjau PDF' }));
+        expect(preview).toHaveBeenCalledWith(expect.stringContaining('siteId=s1'), expect.any(String), expect.any(String));
+        fireEvent.click(screen.getByRole('button', { name: 'Excel' }));
+        await waitFor(() => expect(get).toHaveBeenCalledWith(expect.stringMatching(/export\/excel\?.*siteId=s1/), { responseType: 'blob' }));
+    });
+
+    it('does not fetch reports for restricted users without a site', async () => {
+        auth.user = { id: 'me', role: 'AGENT', siteId: '' };
+        renderAt('/reports');
+        await waitFor(() => expect(screen.getByText('Site akun belum tersedia')).toBeInTheDocument());
+        expect(get.mock.calls.some(([url]) => String(url).startsWith('/reports/'))).toBe(false);
     });
 
     it('opens the tab from ?tab= and shows the locked team for agents', async () => {

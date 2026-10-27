@@ -50,6 +50,14 @@ describe('TicketVolumeReport (with site filter)', () => {
     expect(calledWithSite).toBe(true);
   });
 
+  it('retains historical cancellations but excludes them from pending and eligible', async () => {
+    const qb = (ticketRepo.createQueryBuilder as jest.Mock)();
+    qb.getMany.mockResolvedValue(['CANCELLED', 'RESOLVED', 'TODO'].map(status => ({ status, createdAt: new Date('2026-01-02') })));
+    const result = await service.generate({ startDate: new Date('2026-01-01'), endDate: new Date('2026-01-03') });
+    expect(result.data.summary).toMatchObject({ totalCreated: 3, totalResolved: 1, totalPending: 1, totalCancelled: 1, totalEligible: 2, resolutionRate: 50 });
+    expect(result.data.daily.reduce((sum, day) => sum + day.pending, 0)).toBe(1);
+  });
+
   it('should return correct report shape', async () => {
     const result = await service.generate(
       { startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') },

@@ -77,6 +77,11 @@ describe('PDFGeneratorService', () => {
             {
                 agentId: 'a1',
                 agentName: 'Agent Alpha',
+                agentSiteId: null, agentSiteName: null,
+                totalCancelled: 0, totalEligible: 30,
+                slaEvaluated: 20, slaCompliant: 19, slaBreached: 1,
+                responseSamples: 30, responseTotalMinutes: 360,
+                resolutionSamples: 28, resolutionTotalMinutes: 3024,
                 totalAssigned: 30,
                 totalResolved: 28,
                 resolutionRate: 93.3,

@@ -26,6 +26,8 @@ const WORKLOAD_TIMEZONE = DEFAULT_TIMEZONE;
 /** Install days can slip past weekends/long holidays before they open. */
 const INSTALL_ACTIVATION_LOOKBACK_DAYS = 14;
 const MS_PER_DAY = 86_400_000;
+/** Vendor waiting retains the PIC but does not consume assignment capacity. */
+const WORKLOAD_ACTIVE_STATUSES = [TicketStatus.TODO, TicketStatus.IN_PROGRESS];
 
 /**
  * Workload day of `at` as a UTC-midnight Date of its WIB calendar date, so the
@@ -402,14 +404,13 @@ export class WorkloadService {
         const today = workloadDay(now);
         const startOfToday = startOfLocalDay(now, WORKLOAD_TIMEZONE);
 
-        // Open tickets only, filtered in SQL. The old `status >= 'TODO'` matched every
-        // status (TODO is the first enum value), loading the agent's whole history.
+        // Workload-bearing tickets only; vendor waiting keeps its assignee but no load.
         const openTickets = await this.ticketRepo.find({
             select: ['id', 'priority', 'status', 'isHardwareInstallation', 'scheduledDate'],
             where: {
                 assignedToId: agentId,
                 siteId: targetSiteId,
-                status: Not(In(TICKET_INACTIVE_STATUSES)),
+                status: In(WORKLOAD_ACTIVE_STATUSES),
             },
         });
 
@@ -635,12 +636,18 @@ export class WorkloadService {
         // lose this increment (PROD-20).
         const priorityPoints = await this.workloadPointsFor(ticket);
         const internalActor: SiteActor = actor ?? { role: UserRole.ADMIN, siteId: ticket.siteId ?? null };
-        const workload = await this.incrementAgentWorkload(
-            internalActor,
-            bestAgent.id,
-            ticket.siteId,
-            priorityPoints,
-        );
+        let workload: AgentDailyWorkload;
+        if (WORKLOAD_ACTIVE_STATUSES.includes(ticket.status)) {
+            workload = await this.incrementAgentWorkload(
+                internalActor, bestAgent.id, ticket.siteId, priorityPoints,
+            );
+        } else {
+            workload = await this.getAgentWorkload(internalActor, bestAgent.id, ticket.siteId);
+            await this.workloadRepo.update(
+                { agentId: bestAgent.id, siteId: ticket.siteId, workDate: workloadDay() },
+                { lastAssignedAt: new Date() },
+            );
+        }
 
         // Emit event
         this.eventEmitter.emit('ticket.auto-assigned', {
@@ -682,20 +689,17 @@ export class WorkloadService {
         const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: ticket.siteId };
         const workload = await this.getAgentWorkload(internalActor, ticket.assignedToId, ticket.siteId);
 
-        // Leaving the active set (-> RESOLVED/CLOSED/CANCELLED) reduces workload once.
-        // Moves between inactive statuses (e.g. RESOLVED -> CLOSED) must not count again.
-        if (
-            TICKET_INACTIVE_STATUSES.includes(newStatus) &&
-            !TICKET_INACTIVE_STATUSES.includes(oldStatus)
-        ) {
-            workload.totalPoints = Math.max(0, workload.totalPoints - priorityPoints);
-            workload.activeTickets = Math.max(0, workload.activeTickets - 1);
-
-            if (TICKET_DONE_STATUSES.includes(newStatus)) {
-                workload.resolvedTickets += 1;
-            }
-
-            await this.workloadRepo.save(workload);
+        const loadDelta = Number(WORKLOAD_ACTIVE_STATUSES.includes(newStatus))
+            - Number(WORKLOAD_ACTIVE_STATUSES.includes(oldStatus));
+        const newlyResolved = TICKET_DONE_STATUSES.includes(newStatus)
+            && !TICKET_DONE_STATUSES.includes(oldStatus);
+        if (loadDelta !== 0 || newlyResolved) {
+            await this.workloadRepo.save({
+                ...workload,
+                totalPoints: Math.max(0, workload.totalPoints + loadDelta * priorityPoints),
+                activeTickets: Math.max(0, workload.activeTickets + loadDelta),
+                resolvedTickets: workload.resolvedTickets + Number(newlyResolved),
+            });
         }
     }
 

@@ -1,6 +1,6 @@
 /**
  * Report team scope — mirrors backend `report-team-scope.util.ts`.
- * Tickets are grouped by handling team; agents by role.
+ * Metrics follow ticket handlingTeam, including contributions from agents whose home site differs.
  */
 export const REPORT_TEAMS = ['OPS_SUPPORT', 'ORACLE_DEV', 'WEB_DEV', 'MOBILE_DEV', 'ALL_DEV'] as const;
 export type ReportTeam = (typeof REPORT_TEAMS)[number];
