@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/stores/useAuth';
+import { SiteSelector } from '@/components/site/SiteSelector';
 import { BarChart3, Calendar, ChartColumn, ChevronDown, Clock, Users } from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
@@ -51,7 +52,13 @@ export const BentoReportsPage: React.FC = () => {
     const lockedTeam = lockedTeamForRole(authUser?.role);
     const [selectedTeam, setSelectedTeam] = useState<ReportTeam | null>(null);
     const team = lockedTeam ?? selectedTeam;
-    const teamParam = teamQueryParam(team);
+    // Matches backend TICKET_CROSS_SITE_ROLES; general module policy intentionally differs.
+    const crossSite = ['ADMIN', 'MANAGER', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV'].includes(authUser?.role ?? '');
+    const [siteSelection, setSiteSelection] = useState<{ actor: string; siteId: string | null } | null>(null);
+    const actorKey = `${authUser?.id}:${authUser?.role}:${authUser?.siteId}`;
+    const siteId = crossSite && siteSelection?.actor === actorKey ? siteSelection.siteId : authUser?.siteId || null;
+    const scopeReady = !!authUser && (crossSite || !!siteId);
+    const teamParam = `${teamQueryParam(team)}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ''}`;
 
     // Monthly Stats Query
     const {
@@ -59,12 +66,12 @@ export const BentoReportsPage: React.FC = () => {
         isLoading: monthlyLoading,
         error: monthlyError,
     } = useQuery<MonthlyStats>({
-        queryKey: ['reports', 'monthly', month, year, team],
+        queryKey: ['reports', 'monthly', month, year, team, actorKey, siteId],
         queryFn: async () => {
             const response = await api.get(`/reports/monthly?month=${month}&year=${year}${teamParam}`);
             return response.data;
         },
-        enabled: activeTab === 'monthly',
+        enabled: scopeReady && activeTab === 'monthly',
         staleTime: 60000, // 1 minute
         retry: 2,
     });
@@ -75,12 +82,12 @@ export const BentoReportsPage: React.FC = () => {
         isLoading: agentLoading,
         error: agentError,
     } = useQuery<{ data: AgentMetrics[] }>({
-        queryKey: ['reports', 'agent-performance', startDate, endDate, team],
+        queryKey: ['reports', 'agent-performance', startDate, endDate, team, actorKey, siteId],
         queryFn: async () => {
             const response = await api.get(`/reports/agent-performance?startDate=${startDate}&endDate=${endDate}${teamParam}`);
             return response.data;
         },
-        enabled: activeTab === 'agent',
+        enabled: scopeReady && activeTab === 'agent',
         staleTime: 60000,
         retry: 2,
     });
@@ -93,12 +100,12 @@ export const BentoReportsPage: React.FC = () => {
         isLoading: volumeLoading,
         error: volumeError,
     } = useQuery<{ data: TicketVolumeData }>({
-        queryKey: ['reports', 'ticket-volume', startDate, endDate, team],
+        queryKey: ['reports', 'ticket-volume', startDate, endDate, team, actorKey, siteId],
         queryFn: async () => {
             const response = await api.get(`/reports/ticket-volume?startDate=${startDate}&endDate=${endDate}${teamParam}`);
             return response.data;
         },
-        enabled: activeTab === 'volume',
+        enabled: scopeReady && activeTab === 'volume',
         staleTime: 60000,
         retry: 2,
     });
@@ -108,12 +115,12 @@ export const BentoReportsPage: React.FC = () => {
     // Monthly breakdown (daily trend, status, priority) from the same ticket-volume endpoint over the month range.
     const monthBounds = useMemo(() => monthRange(Number(month), Number(year)), [month, year]);
     const { data: monthVolumeResponse, isLoading: monthVolumeLoading } = useQuery<{ data: TicketVolumeData }>({
-        queryKey: ['reports', 'ticket-volume', monthBounds.startDate, monthBounds.endDate, team],
+        queryKey: ['reports', 'ticket-volume', monthBounds.startDate, monthBounds.endDate, team, actorKey, siteId],
         queryFn: async () => {
             const response = await api.get(`/reports/ticket-volume?startDate=${monthBounds.startDate}&endDate=${monthBounds.endDate}${teamParam}`);
             return response.data;
         },
-        enabled: activeTab === 'monthly',
+        enabled: scopeReady && activeTab === 'monthly',
         staleTime: 60000,
         retry: 2,
     });
@@ -212,9 +219,17 @@ export const BentoReportsPage: React.FC = () => {
     ];
     const onRange = (s: string, e: string) => { setStartDate(s); setEndDate(e); };
 
+    if (!scopeReady) return <p role="status">{authUser ? 'Site akun belum tersedia' : 'Memuat konteks akun…'}</p>;
+
     return (
         <>
             <div className="res-page mg-page">
+                <div className="res-filters">
+                    <SiteSelector mode="single" variant="pop" disabled={!crossSite} selectedSiteIds={siteId ? [siteId] : []}
+                        onSelectionChange={ids => setSiteSelection({ actor: actorKey, siteId: ids[0] ?? null })} />
+                    {crossSite && <button type="button" className="queue-pop" onClick={() => setSiteSelection({ actor: actorKey, siteId: null })}>Semua site{!siteId ? ' (dipilih)' : ''}</button>}
+                </div>
+                <p className="res-muted">Tiket dibuat dalam periode; status saat laporan diambil</p>
                 <ResHead icon={ChartColumn} tone="green" title="Reports & Analytics" description="Analisis performa, pantau metrik, dan ekspor data"
                     actions={lockedTeam ? (
                         <span className="queue-pop" aria-label={`${REPORT_TEAMS_SCOPE_TITLE}: ${reportTeamLabel(lockedTeam)}`}>
@@ -248,7 +263,7 @@ export const BentoReportsPage: React.FC = () => {
                             disabled={exporting || monthlyLoading} onPreview={handlePreviewMonthlyPDF} onPdf={handleExportMonthlyPDF} onExcel={handleExportMonthlyExcel} />
                     )}
                     {activeTab === 'agent' && (
-                        <AgentTab agents={agentMetrics} loading={agentLoading} startDate={startDate} endDate={endDate} onRange={onRange}
+                        <AgentTab siteId={siteId} agents={agentMetrics} loading={agentLoading} startDate={startDate} endDate={endDate} onRange={onRange}
                             disabled={exporting || agentLoading} onPreview={handlePreviewAgentPDF} onPdf={handleExportAgentPDF} onExcel={handleExportCustomExcel} />
                     )}
                     {activeTab === 'volume' && (

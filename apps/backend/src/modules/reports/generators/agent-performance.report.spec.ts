@@ -3,7 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { AgentPerformanceReport } from './agent-performance.report';
 import { User } from '../../users/entities/user.entity';
 import { HandlingTeam, Ticket } from '../../ticketing/entities/ticket.entity';
-import { UserRole } from '../../users/enums/user-role.enum';
+import { DEV_HANDLING_TEAMS } from '../utils/report-team-scope.util';
 import { ALL_DEV_TEAM } from '../utils/report-team-scope.util';
 import { Repository } from 'typeorm';
 
@@ -18,6 +18,7 @@ describe('AgentPerformanceReport (with site + team filter)', () => {
       select: jest.fn((...args: any[]) => { calls.push({ method: 'select', args }); return qb; }),
       addSelect: jest.fn((...args: any[]) => { calls.push({ method: 'addSelect', args }); return qb; }),
       innerJoin: jest.fn((...args: any[]) => { calls.push({ method: 'innerJoin', args }); return qb; }),
+      leftJoin: jest.fn((...args: any[]) => { calls.push({ method: 'leftJoin', args }); return qb; }),
       where: jest.fn((...args: any[]) => { calls.push({ method: 'where', args }); return qb; }),
       andWhere: jest.fn((...args: any[]) => { calls.push({ method: 'andWhere', args }); return qb; }),
       groupBy: jest.fn((...args: any[]) => { calls.push({ method: 'groupBy', args }); return qb; }),
@@ -79,7 +80,14 @@ describe('AgentPerformanceReport (with site + team filter)', () => {
   });
 
   const teamRolesFilter = () =>
-    mockQB._calls.find((c: any) => c.method === 'andWhere' && String(c.args[0]).includes(':...teamRoles'))?.args[1]?.teamRoles;
+    mockQB._calls.find((c: any) => c.method === 'andWhere' && String(c.args[0]).includes('handlingTeam'))?.args[1];
+
+  it('uses handlingTeam on every query, never the current assignee role', async () => {
+    await service.generate({ startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') }, { team: HandlingTeam.OPS_SUPPORT });
+    expect(teamRolesFilter()).toEqual({ reportTeam: HandlingTeam.OPS_SUPPORT });
+    expect(mockQB._calls.filter((c: any) => c.method === 'andWhere' && String(c.args[0]).includes('handlingTeam'))).toHaveLength(2);
+    expect(mockQB._calls.some((c: any) => String(c.args[0]).includes('user.role'))).toBe(false);
+  });
 
   it('limits agents to IT Support roles when team=OPS_SUPPORT', async () => {
     await service.generate(
@@ -87,10 +95,7 @@ describe('AgentPerformanceReport (with site + team filter)', () => {
       { team: HandlingTeam.OPS_SUPPORT }
     );
 
-    expect(teamRolesFilter()).toEqual(
-      expect.arrayContaining([UserRole.AGENT, UserRole.AGENT_ADMIN, UserRole.AGENT_OPERATIONAL_SUPPORT]),
-    );
-    expect(teamRolesFilter()).not.toContain(UserRole.AGENT_ORACLE);
+    expect(teamRolesFilter()).toEqual({ reportTeam: HandlingTeam.OPS_SUPPORT });
   });
 
   it('limits agents to AGENT_ORACLE when team=ORACLE_DEV', async () => {
@@ -99,7 +104,7 @@ describe('AgentPerformanceReport (with site + team filter)', () => {
       { team: HandlingTeam.ORACLE_DEV }
     );
 
-    expect(teamRolesFilter()).toEqual([UserRole.AGENT_ORACLE]);
+    expect(teamRolesFilter()).toEqual({ reportTeam: HandlingTeam.ORACLE_DEV });
   });
 
   it('includes every dev role when team=ALL_DEV', async () => {
@@ -108,15 +113,35 @@ describe('AgentPerformanceReport (with site + team filter)', () => {
       { team: ALL_DEV_TEAM }
     );
 
-    expect(teamRolesFilter()).toEqual(
-      expect.arrayContaining([UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV]),
-    );
-    expect(teamRolesFilter()).not.toContain(UserRole.AGENT);
+    expect(teamRolesFilter()).toEqual({ reportTeams: DEV_HANDLING_TEAMS });
   });
 
   it('applies no role filter without a team', async () => {
     await service.generate({ startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') });
     expect(teamRolesFilter()).toBeUndefined();
+  });
+
+  it('maps persisted aggregate samples without rounding or inventing missing legacy measurements', async () => {
+    mockQB.getRawMany.mockResolvedValueOnce([
+      { agentId: 'new-pic', agentName: 'B', totalAssigned: '10', totalCancelled: '2', totalResolved: '8',
+        slaEvaluated: '8', slaCompliant: '8', slaBreached: '0', responseSamples: '1', responseTotalMinutes: '0.5', resolutionSamples: '0' },
+      { agentId: 'legacy', agentName: 'A', totalAssigned: '2', totalCancelled: '2', totalResolved: '0' },
+    ]).mockResolvedValueOnce([{ agentId: 'new-pic', priority: 'HIGH', count: '10' }]);
+    const result = await service.generate({ startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') });
+    expect(result.data[0]).toMatchObject({ agentId: 'new-pic', totalAssigned: 10, totalEligible: 8, resolutionRate: 100,
+      slaComplianceRate: 100, avgResponseTimeMinutes: 0.5, avgResolutionTimeMinutes: null, agentSiteId: null,
+      ticketsByPriority: { HIGH: 10 } });
+    expect(result.data[1]).toMatchObject({ resolutionRate: null, slaComplianceRate: null, avgResponseTimeMinutes: null });
+    const expressions = mockQB._calls.filter((c: any) => c.method === 'addSelect').map((c: any) => c.args[0]).join(' ');
+    expect(expressions).toContain('ticket.firstResponseAt');
+    expect(expressions).not.toContain('ticket_messages');
+    expect(expressions).not.toContain('senderId');
+    expect(result.generatedAt).toBe(mockQB._calls.find((c: any) => c.args[1]?.asOf)?.args[1].asOf);
+  });
+
+  it('propagates aggregation failures instead of fabricating zero response', async () => {
+    mockQB.getRawMany.mockRejectedValueOnce(new Error('database unavailable'));
+    await expect(service.generate({ startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') })).rejects.toThrow('database unavailable');
   });
 
   it('should return correct report shape even when filters are applied', async () => {

@@ -7,24 +7,30 @@ import { ResEmpty, ResSkeletonRows, ResRow, ResTable } from '@/components/resour
 import { DashAvatar, DashDonut, DashPanel, DashSeg, CHART_HEX, DashChartTable, DashEmpty, DashLegend, DashTooltip, type ChartSeries } from '@/features/dashboard/components/DashboardParts';
 import { columnAxis, daySlashLabel } from '@/features/dashboard/components/dashboardChart';
 import {
-    ExportTrio, HBars, MonthPop, PriorityBars, QUICK_OPTIONS, RangePop, TrendLines, hoursLabel, matchQuick, minutesLabel, peakLabel, quickRange, statusDonutItems,
+    DAILY_CREATED_LABEL, DAILY_DONE_LABEL, DAILY_TREND_CAPTION, ExportTrio, HBars, MonthPop, PriorityBars, QUICK_OPTIONS, RangePop, TrendLines, hoursLabel, matchQuick, minutesLabel, peakLabel, quickRange, statusDonutItems,
     type QuickRange,
 } from './ReportParts';
 
-export interface MonthlyStats { month: number; year: number; totalTickets: number; resolvedTickets: number; openTickets: number; avgResolutionTimeHours: string }
+export interface MonthlyStats { month: number; year: number; totalTickets: number; resolvedTickets: number; openTickets: number; cancelledTickets: number; eligibleTickets: number; resolutionRate: number | null; avgResolutionTimeHours: number | null }
 export interface AgentMetrics {
-    agentId: string; agentName: string; totalAssigned: number; totalResolved: number; resolutionRate: number;
-    avgResponseTimeMinutes: number; avgResolutionTimeMinutes: number; slaComplianceRate: number;
+    agentId: string; agentName: string; totalAssigned: number; totalResolved: number; resolutionRate: number | null;
+    totalCancelled: number; totalEligible: number; slaEvaluated: number; slaCompliant: number; slaBreached: number;
+    responseSamples: number; responseTotalMinutes: number; resolutionSamples: number; resolutionTotalMinutes: number;
+    agentSiteId: string | null; agentSiteName: string | null;
+    avgResponseTimeMinutes: number | null; avgResolutionTimeMinutes: number | null; slaComplianceRate: number | null;
 }
+
+const rankAgents = (rows: readonly AgentMetrics[]) => [...rows].sort((a, b) => b.totalResolved - a.totalResolved
+    || (b.slaComplianceRate ?? -1) - (a.slaComplianceRate ?? -1) || a.agentName.localeCompare(b.agentName));
+const rateLabel = (rate: number | null | undefined) => rate == null ? '—' : `${nf.format(rate)}%`;
 export interface TicketVolumeData {
     daily: { date: string; created: number; resolved: number; pending: number }[];
     byPriority: Record<string, number>;
     byCategory: Record<string, number>;
     byStatus: Record<string, number>;
-    summary: { totalCreated: number; totalResolved: number; totalPending: number; avgPerDay: number; peakDay: string; peakCount: number };
+    summary: { totalCreated: number; totalResolved: number; totalPending: number; totalCancelled: number; totalEligible: number; resolutionRate: number | null; avgPerDay: number; peakDay: string; peakCount: number };
 }
 
-const pct = (n: number, d: number): number => (d > 0 ? Math.round((n / d) * 100) : 0);
 const TOP_PERFORMERS = 2;
 const PERCENT_MAX = 100;
 const nf = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 });
@@ -50,13 +56,13 @@ export const MonthlyTab: React.FC<MonthlyTabProps> = ({ month, year, years, onMo
                 <section className="res-stats is-four" aria-label="Ringkasan bulanan">
                     <MgStat icon={Layers} tone="neutral" label="Total Tickets" value={stats?.totalTickets ?? 0} isLoading={loading} />
                     <MgStat icon={CircleCheck} tone="green" label="Resolved" value={stats?.resolvedTickets ?? 0} isLoading={loading}
-                        sub={`${pct(stats?.resolvedTickets ?? 0, stats?.totalTickets ?? 0)}% resolution rate`} />
+                        sub={`${rateLabel(stats?.resolutionRate)} resolution rate · ${stats?.cancelledTickets ?? '—'} dibatalkan · ${stats?.eligibleTickets ?? '—'} eligible`} />
                     <MgStat icon={Inbox} tone="blue" label="Open Tickets" value={stats?.openTickets ?? 0} isLoading={loading} />
                     <MgStat icon={Timer} tone="navy" label="Avg Resolution Time" value={hoursLabel(stats?.avgResolutionTimeHours)} isLoading={loading} />
                 </section>
                 <div className="res-grid-main">
                     <DashPanel title="Daily Ticket Trend">
-                        <p className="dash-panel-sub">Tiket dibuat vs diselesaikan per hari</p>
+                        <p className="dash-panel-sub">{DAILY_TREND_CAPTION}</p>
                         {volumeLoading || !volume ? <ResSkeletonRows rows={4} /> : <TrendLines daily={volume.daily} />}
                     </DashPanel>
                     <div className="res-stack">
@@ -82,9 +88,12 @@ const QuickSeg: React.FC<RangeProps> = ({ startDate, endDate, onRange }) => (
         onChange={(q) => { const r = quickRange(q); onRange(r.startDate, r.endDate); }} />
 );
 
-interface AgentTabProps extends ExportProps, RangeProps { agents: readonly AgentMetrics[]; loading: boolean }
-export const AgentTab: React.FC<AgentTabProps> = ({ agents, loading, startDate, endDate, onRange, ...exp }) => {
-    const top = new Set([...agents].filter((a) => a.totalResolved > 0).sort((a, b) => b.totalResolved - a.totalResolved).slice(0, TOP_PERFORMERS).map((a) => a.agentId));
+interface AgentTabProps extends ExportProps, RangeProps { agents: readonly AgentMetrics[]; loading: boolean; siteId?: string | null }
+export const AgentTab: React.FC<AgentTabProps> = ({ agents: input, loading, startDate, endDate, onRange, siteId, ...exp }) => {
+    const agents = rankAgents(input);
+    const top = new Set(agents.filter(a => a.totalResolved > 0).slice(0, TOP_PERFORMERS).map(a => a.agentId));
+    const sum = (key: 'totalResolved' | 'totalEligible' | 'slaCompliant' | 'slaEvaluated') => agents.reduce((s, a) => s + a[key], 0);
+    const resolved = sum('totalResolved'), eligible = sum('totalEligible'), compliant = sum('slaCompliant'), evaluated = sum('slaEvaluated');
     return (
         <>
             <div className="res-filters">
@@ -104,23 +113,27 @@ export const AgentTab: React.FC<AgentTabProps> = ({ agents, loading, startDate, 
                             <ResRow key={a.agentId} className="is-static">
                                 <div className="queue-person">
                                     <DashAvatar name={a.agentName || '?'} />
-                                    <div className="min-w-0"><b>{a.agentName}</b>{top.has(a.agentId) && <small>Top performer</small>}</div>
+                                    <div className="min-w-0"><b>{a.agentName}</b>{top.has(a.agentId) && <small>Penyelesaian terbanyak</small>}
+                                        {a.agentSiteName && <small>{a.agentSiteName}{siteId && a.agentSiteId && siteId !== a.agentSiteId ? ' · lintas site' : ''}</small>}
+                                        <small>{a.totalCancelled} dibatalkan · {a.totalEligible} eligible</small>
+                                    </div>
                                 </div>
                                 <span className="res-cell is-num text-right res-hide-m">{a.totalAssigned}</span>
                                 <span className="res-cell is-num text-right res-hide-m">{a.totalResolved}</span>
-                                <span className="res-cell is-num text-right res-hide-m">{nf.format(a.resolutionRate ?? 0)}%</span>
-                                <span className="res-cell is-num text-right">{nf.format(a.slaComplianceRate ?? 0)}%</span>
+                                <span className="res-cell is-num text-right res-hide-m">{rateLabel(a.resolutionRate)}</span>
+                                <span className="res-cell is-num text-right">{rateLabel(a.slaComplianceRate)}</span>
                                 <span className="res-cell is-num text-right res-hide-m">{minutesLabel(a.avgResponseTimeMinutes)}</span>
                             </ResRow>
                         ))}
                     </ResTable>
                     <DashPanel title="Resolution Rate by Agent">
+                        {!loading && agents.filter(a => a.resolutionRate == null).map(a => <p key={a.agentId} className="res-muted">{a.agentName}: — (belum ada denominator eligible)</p>)}
                         {loading ? <ResSkeletonRows rows={4} /> : (
-                            <HBars max={PERCENT_MAX} suffix="%" rows={agents.map((a) => ({ label: a.agentName.split(' ')[0] || a.agentName, title: `${a.agentName}: ${Math.round(a.resolutionRate ?? 0)}%`, value: Math.round(a.resolutionRate ?? 0) }))} />
+                            <HBars max={PERCENT_MAX} suffix="%" rows={agents.filter(a => a.resolutionRate != null).map((a) => ({ label: a.agentName.split(' ')[0] || a.agentName, title: `${a.agentName}: ${rateLabel(a.resolutionRate)}`, value: a.resolutionRate! }))} />
                         )}
                         {!loading && agents.length > 0 && (
                             <div className="res-note"><Lightbulb aria-hidden="true" />
-                                Rata-rata resolution rate {nf.format(agents.reduce((s, a) => s + (a.resolutionRate ?? 0), 0) / agents.length)}% · SLA {nf.format(agents.reduce((s, a) => s + (a.slaComplianceRate ?? 0), 0) / agents.length)}%
+                                Penyelesaian {rateLabel(eligible ? resolved / eligible * 100 : null)} ({resolved}/{eligible} eligible) · SLA {rateLabel(evaluated ? compliant / evaluated * 100 : null)} ({compliant}/{evaluated} SLA dievaluasi)
                             </div>
                         )}
                     </DashPanel>
@@ -132,8 +145,8 @@ export const AgentTab: React.FC<AgentTabProps> = ({ agents, loading, startDate, 
 
 /* ---------------- Ticket Volume ---------------- */
 const VOLUME_SERIES: readonly ChartSeries[] = [
-    { key: 'created', name: 'Dibuat', color: CHART_HEX.blue },
-    { key: 'resolved', name: 'Diselesaikan', color: CHART_HEX.green },
+    { key: 'created', name: DAILY_CREATED_LABEL, color: CHART_HEX.blue },
+    { key: 'resolved', name: DAILY_DONE_LABEL, color: CHART_HEX.green },
 ];
 const VOLUME_TABLE: readonly ChartSeries[] = [...VOLUME_SERIES, { key: 'pending', name: 'Pending', color: CHART_HEX.blue }];
 const SPARSE_AFTER = 14;
@@ -186,9 +199,9 @@ const PeriodPanel: React.FC<{ daily: TicketVolumeData['daily'] }> = ({ daily }) 
     const [ac, bc, ar, br] = [sum(a, 'created'), sum(b, 'created'), sum(a, 'resolved'), sum(b, 'resolved')];
     return (
         <DashPanel title="Period Performance">
-            <PeriodRow label="Created" current={bc} previous={ac} />
-            <PeriodRow label="Resolved" current={br} previous={ar} />
-            <PeriodRow label="Resolution Rate" current={bc > 0 ? (br / bc) * 100 : 0} previous={ac > 0 ? (ar / ac) * 100 : 0} percent />
+            <PeriodRow label={DAILY_CREATED_LABEL} current={bc} previous={ac} />
+            <PeriodRow label={DAILY_DONE_LABEL} current={br} previous={ar} />
+            <p className="res-muted">Tingkat penyelesaian periode: lihat ringkasan eligible; denominator eligible harian tidak tersedia.</p>
             <PeriodRow label="Avg Daily" current={bc / Math.max(b.length, 1)} previous={ac / Math.max(a.length, 1)} />
         </DashPanel>
     );
@@ -211,8 +224,8 @@ export const VolumeTab: React.FC<VolumeTabProps> = ({ volume, loading, startDate
             ) : (
                 <>
                     <section className="res-stats is-five" aria-label="Ringkasan volume">
-                        <MgStat icon={Plus} tone="blue" label="Total Created" value={s?.totalCreated ?? 0} isLoading={loading} />
-                        <MgStat icon={CircleCheck} tone="green" label="Total Resolved" value={s?.totalResolved ?? 0} isLoading={loading} />
+                        <MgStat icon={Plus} tone="blue" label="Total Created" value={s?.totalCreated ?? 0} isLoading={loading} sub={`${s?.totalCancelled ?? '—'} dibatalkan · ${s?.totalEligible ?? '—'} eligible`} />
+                        <MgStat icon={CircleCheck} tone="green" label="Total Resolved" value={s?.totalResolved ?? 0} isLoading={loading} sub={`${rateLabel(s?.resolutionRate)} dari eligible`} />
                         <MgStat icon={Clock3} tone="amber" label="Pending" value={s?.totalPending ?? 0} isLoading={loading} />
                         <MgStat icon={ChartLine} tone="navy" label="Avg Daily" value={nf.format(s?.avgPerDay ?? 0)} isLoading={loading} />
                         <MgStat icon={CalendarArrowUp} tone="amber" label="Peak Day" value={peakLabel(s?.peakDay)} isLoading={loading} sub={`${s?.peakCount ?? 0} tiket`} />

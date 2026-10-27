@@ -396,10 +396,19 @@ describe('TicketUpdateService — status takeover', () => {
             status: TicketStatus.WAITING_VENDOR, vendorNoteRequest: '  Menunggu spare part  ',
         }, agentB.id);
         expect(waiting.vendorNote).toBe('Menunggu spare part');
+        expect(waiting.assignedToId).toBe(agentB.id);
+        expect(mockWorkloadService.recalculateAgentWorkload).toHaveBeenLastCalledWith(
+            { role: UserRole.ADMIN, siteId: 'site-1' }, agentB.id, 'site-1',
+        );
 
         ticket = { ...waiting };
         const resumed = await service.updateTicket('ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id);
         expect(resumed.vendorNote).toBeNull();
+        expect(resumed.assignedToId).toBe(agentB.id);
+        expect(mockWorkloadService.recalculateAgentWorkload).toHaveBeenCalledTimes(2);
+        expect(mockWorkloadService.recalculateAgentWorkload).toHaveBeenLastCalledWith(
+            { role: UserRole.ADMIN, siteId: 'site-1' }, agentB.id, 'site-1',
+        );
     });
 
     it('updateTicket takeover emits ticket.assigned marked as self-assigned (listener skips assignee-facing notices)', async () => {

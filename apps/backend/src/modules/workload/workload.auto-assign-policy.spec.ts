@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { In } from 'typeorm';
 import { WorkloadService } from './workload.service';
 import { UserRole } from '../users/enums/user-role.enum';
+import { TicketStatus } from '../ticketing/entities/ticket.entity';
 
 /**
  * The reported bug: Oracle/Web/Mobile tickets were being auto-assigned into the
@@ -15,7 +16,7 @@ describe('WorkloadService — per-module auto-assign policy', () => {
     let workloadRepo: any;
     let assignmentPolicy: any;
 
-    const ticket = { id: 't1', siteId: 'site-1', priority: 'MEDIUM', handlingTeam: 'ORACLE_DEV' };
+    const ticket = { id: 't1', siteId: 'site-1', priority: 'MEDIUM', status: TicketStatus.TODO, handlingTeam: 'ORACLE_DEV' };
 
     const policy = (over: Partial<any> = {}) => ({
         module: { name: 'Oracle K2 Request' },
@@ -64,6 +65,21 @@ describe('WorkloadService — per-module auto-assign policy', () => {
             userRepo,
             { emit: jest.fn() } as any,
             assignmentPolicy,
+        );
+    });
+
+    it('assigns vendor PIC without workload increments but records assignment time', async () => {
+        ticketRepo.findOne.mockResolvedValue({ ...ticket, status: TicketStatus.WAITING_VENDOR });
+        assignmentPolicy.resolvePolicy.mockResolvedValue(policy({ autoAssignEnabled: true }));
+        jest.spyOn(service, 'findBestAgentForAssignment').mockResolvedValue({ id: 'u-1' } as any);
+
+        const result = await service.autoAssignTicket('t1');
+
+        expect(result).toMatchObject({ assignedToId: 'u-1', status: TicketStatus.WAITING_VENDOR });
+        expect(workloadRepo.increment).not.toHaveBeenCalled();
+        expect(workloadRepo.update).toHaveBeenCalledWith(
+            { agentId: 'u-1', siteId: 'site-1', workDate: expect.any(Date) },
+            { lastAssignedAt: expect.any(Date) },
         );
     });
 
