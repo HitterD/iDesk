@@ -22,4 +22,15 @@ describe('MemoExportDialog', () => {
         await waitFor(() => expect(mocks.exportMemo).toHaveBeenCalledWith(expect.objectContaining({ periodIds: ['p1'], header: expect.objectContaining({ to: 'Manager ICT', subject: 'Nilai CSI 2026' }) })));
         expect(mocks.download).toHaveBeenCalledWith(expect.any(Blob), 'memo.pdf');
     });
+    it('keeps the opening in sync with the chosen surveys after another field was edited, until the opening itself is edited', async () => {
+        render(<MemoExportDialog scope="ict" open onOpenChange={vi.fn()} />);
+        fireEvent.change(await screen.findByLabelText('Kepada'), { target: { value: 'Manager Baru' } });
+        fireEvent.click(screen.getByRole('checkbox', { name: 'CSI November' }));
+        const opening = screen.getByLabelText('Paragraf pembuka') as HTMLTextAreaElement;
+        expect(opening.value).toContain('Sepanjang');
+        fireEvent.change(opening, { target: { value: 'Teks pembuka sendiri.' } });
+        fireEvent.click(screen.getByRole('checkbox', { name: 'CSI November' }));
+        expect((screen.getByLabelText('Paragraf pembuka') as HTMLTextAreaElement).value).toBe('Teks pembuka sendiri.');
+        expect(screen.getByLabelText('Kepada')).toHaveValue('Manager Baru');
+    });
 });

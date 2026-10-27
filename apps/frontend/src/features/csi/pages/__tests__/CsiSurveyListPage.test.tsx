@@ -54,6 +54,12 @@ describe('CsiSurveyListPage', () => {
         expect(screen.getByRole('link', { name: /Survei HC Q4/ })).not.toHaveTextContent('Lanjutkan');
     });
 
+    it('a shared account still gets a call to fill an already-answered survey for another person', async () => {
+        vi.mocked(CsiApi.active).mockResolvedValue(SURVEYS);
+        renderAt('/client/csi', <CsiSurveyListPage />);
+        expect(await screen.findByRole('link', { name: /Survei HC Q4.*Isi untuk orang lain/ })).toHaveAttribute('href', '/client/csi/p2');
+    });
+
     it('menampilkan empty state bila tidak ada survei', async () => {
         vi.mocked(CsiApi.active).mockResolvedValue([]);
         renderAt('/csi', <CsiSurveyListPage />);

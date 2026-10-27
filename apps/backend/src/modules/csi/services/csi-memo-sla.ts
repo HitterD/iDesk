@@ -7,6 +7,11 @@ const HEADING_SIZE = 12;
 const BODY_SIZE = 9;
 const REPORTER_HEADERS = ['Email', 'Departemen', 'Nama'];
 const REPORTER_WEIGHTS = [40, 30, 30];
+const PERCENT = 100;
+
+/** Spec: "% Responden" = responden / pelapor (uncapped, like the 2025 appendix); null when there is no basis. */
+const respondenPct = (responses: number, basis: number): number | null =>
+    basis > 0 ? Math.round((responses / basis) * PERCENT) : null;
 
 /** Summary box rows: label | value. */
 function summaryRows(survey: MemoSurvey): Array<[string, string]> {
@@ -15,6 +20,7 @@ function summaryRows(survey: MemoSurvey): Array<[string, string]> {
         [sla.mode === CsiRespondentMode.LISTED ? 'Total penilai terdaftar' : 'Total pelapor iDesk', String(sla.basis)],
         [`Target ${sla.targetPct}%`, String(sla.target)],
         ['Total responden CSI', String(sla.responses)],
+        ['% Responden', formatPercent(respondenPct(sla.responses, sla.basis))],
         ['% Pengisi (SLA)', formatPercent(sla.pengisiPct)],
     ];
 }

@@ -63,11 +63,10 @@ export function CsiSurveyListPage() {
                                             )}
                                         </span>
                                     </span>
-                                    {!survey.submitted && (
-                                        <span className="shrink-0 text-[13px] font-semibold text-primary">
-                                            {user && hasDraft(user.id, survey.id) ? 'Lanjutkan' : 'Isi Survei'}
-                                        </span>
-                                    )}
+                                    {/* A shared account (one login, several people) can always answer again under another name. */}
+                                    <span className="shrink-0 text-[13px] font-semibold text-primary">
+                                        {survey.submitted ? 'Isi untuk orang lain' : user && hasDraft(user.id, survey.id) ? 'Lanjutkan' : 'Isi Survei'}
+                                    </span>
                                     <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
                                 </Link>
                             </FadeIn>

@@ -126,6 +126,22 @@ describe('CsiReportService', () => {
         ]);
     });
 
+    it('ratees of a disabled section are left out of the report', async () => {
+        const team = { id: 'rt', periodId: 'p1', kind: 'TEAM', userId: null, displayName: 'Tim IT Support', jobTitle: null, sortOrder: -1 };
+        (service as any).ratees.rows.push(team);
+        periods.rows[0] = { ...periods.rows[0], teamEnabled: false, individualEnabled: true };
+        expect((await service.getReport(ICT, 'p1')).ratees.map((row) => row.displayName)).toEqual(['Budi', 'Sari']);
+        periods.rows[0] = { ...periods.rows[0], teamEnabled: true, individualEnabled: false };
+        expect((await service.getReport(ICT, 'p1')).ratees.map((row) => row.displayName)).toEqual(['Tim IT Support']);
+    });
+
+    it('reset audit log keeps choice and text answers, not only scores', async () => {
+        items.rows.push({ id: 'tx', responseId: 'resp1', periodRateeId: 'r1', periodRateeDimensionId: 'rd1b', score: null, answerLabel: null, answerText: 'Ramah sekali', periodRatee: ratee1, periodRateeDimension: dimB });
+        await service.resetResponse(ICT, 'p1', 'resp1', 'Salah input', { id: 'admin' });
+        const logged = audit.log.mock.calls[0][0].oldValue.scores;
+        expect(logged).toContainEqual(expect.objectContaining({ dimension: 'Ramah', score: null, answerText: 'Ramah sekali' }));
+    });
+
     it('report reads legacy STAR answers', async () => {
         // Legacy rows have no type/options on the snapshot and no answerLabel/answerText on items.
         for (const dimension of [dimA, dimB]) { delete (dimension as any).type; delete (dimension as any).options; }
@@ -233,7 +249,10 @@ describe('CsiReportService', () => {
             oldValue: {
                 periodId: 'p1', respondentId: 'x1', respondentName: 'Andi Nama', departmentName: 'Keuangan',
                 submittedAt: new Date('2026-10-10T03:00:00Z'),
-                scores: [{ ratee: 'Budi', dimension: 'Responsif', score: 5 }, { ratee: 'Budi', dimension: 'Ramah', score: 2 }],
+                scores: [
+                    { ratee: 'Budi', dimension: 'Responsif', score: 5, answerLabel: null, answerText: null },
+                    { ratee: 'Budi', dimension: 'Ramah', score: 2, answerLabel: null, answerText: null },
+                ],
             },
         }));
         expect(audit.log.mock.calls[0][0].description).toContain('Salah isi departemen');

@@ -18,11 +18,16 @@ export function todayWib(): string {
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
+/**
+ * Only the standing header (recipients, number, sender, closing, signers) is reused from the last memo.
+ * Date, subject and opening describe THIS memo, so they always start fresh — a saved value would silently
+ * put last year's date or sites into an official document.
+ */
 export function memoDefaults(saved: Partial<CsiMemoHeader> | undefined, periods: readonly CsiPeriodListItem[], today = todayWib()): CsiMemoHeader {
     return {
         to: saved?.to ?? '', cc: saved?.cc ?? '', number: saved?.number ?? '', from: saved?.from ?? '',
-        subject: saved?.subject || `Nilai CSI ${today.slice(0, 4)}`, date: saved?.date || today,
-        opening: saved?.opening || defaultOpening(periods), closing: saved?.closing || MEMO_CLOSING,
+        subject: `Nilai CSI ${today.slice(0, 4)}`, date: today,
+        opening: defaultOpening(periods), closing: saved?.closing || MEMO_CLOSING,
         signerLeft: saved?.signerLeft ?? { name: '', title: '' }, signerRight: saved?.signerRight ?? { name: '', title: '' },
     };
 }

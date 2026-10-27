@@ -46,6 +46,10 @@ const siteSummaries = (period: CsiPeriod) =>
     (period.sites ?? []).map((row) => ({ id: row.siteId, code: row.site?.code ?? null, name: row.site?.name ?? null }))
         .sort((a, b) => (a.code ?? SORT_LAST).localeCompare(b.code ?? SORT_LAST));
 
+/** A disabled section keeps its rows (re-enabling restores them) but never appears in reports, exports or the memo. */
+const inEnabledSection = (period: CsiPeriod) => (ratee: CsiPeriodRatee) =>
+    ratee.kind === CsiRateeKind.TEAM ? period.teamEnabled === true : period.individualEnabled !== false;
+
 /** TEAM ratee first, then people in their stored order. */
 const teamFirst = (ratees: CsiPeriodRatee[]) =>
     [...ratees].sort((a, b) => Number(b.kind === CsiRateeKind.TEAM) - Number(a.kind === CsiRateeKind.TEAM));
@@ -71,7 +75,7 @@ export class CsiReportService {
 
     async getReport(scope: ServiceScope, periodId: string) {
         const period = await this.findInScope(scope, periodId, { sites: { site: true } });
-        const ratees = await this.ratees.find({ where: { periodId }, order: { sortOrder: 'ASC' } });
+        const ratees = (await this.ratees.find({ where: { periodId }, order: { sortOrder: 'ASC' } })).filter(inEnabledSection(period));
         const rateeIds = ratees.map((ratee) => ratee.id);
         const [dimensions, items, responseCount] = await Promise.all([
             rateeIds.length ? this.rateeDimensions.find({ where: { periodRateeId: In(rateeIds) }, order: { sortOrder: 'ASC' } }) : [],
@@ -144,7 +148,8 @@ export class CsiReportService {
             oldValue: {
                 periodId, respondentId: response.respondentId, respondentName: answer.respondentName,
                 departmentName: answer.departmentName, submittedAt: answer.submittedAt,
-                scores: answer.ratees.flatMap((ratee) => ratee.scores.map(({ dimension, score }) => ({ ratee: ratee.displayName, dimension, score }))),
+                scores: answer.ratees.flatMap((ratee) => ratee.scores.map(({ dimension, score, answerLabel, answerText }) =>
+                    ({ ratee: ratee.displayName, dimension, score, answerLabel, answerText }))),
             },
             description: `Reset jawaban CSI ${answer.respondentName}. Alasan: ${trimmed}`,
             request: req,

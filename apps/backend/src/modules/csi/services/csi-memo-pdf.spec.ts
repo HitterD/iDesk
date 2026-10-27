@@ -38,6 +38,8 @@ describe('renderMemoPdf', () => {
             'SJA Sepanjang & SJA Sukodono — CSI Operational Support 1', 'Timestamp', 'titi yusliyanti', 'SEPANJANG',
             'Lampiran SLA — SJA Karawang', 'Total pelapor iDesk', 'Target 80%', 'Total responden CSI', 'Email', 'Departemen', 'a@sja.co.id',
         ]) expect(text).toContain(expected);
+        // Spec: % Responden = responden / pelapor (2 of 3 -> 67%), next to % Pengisi (SLA) = responden / target.
+        expect(text).toMatch(/% Responden\s*67%/);
     });
 
     it('strips control characters from user strings', async () => {
