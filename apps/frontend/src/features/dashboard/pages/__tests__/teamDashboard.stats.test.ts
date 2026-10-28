@@ -15,12 +15,42 @@ const ticket = (over: Partial<Ticket>): Ticket => ({
 } as Ticket);
 
 const tickets: Ticket[] = [
-    ticket({ status: 'TODO', priority: 'CRITICAL', category: 'HARDWARE', createdAt: at(21), isOverdue: true }),
+    ticket({ status: 'TODO', priority: 'CRITICAL', category: 'HARDWARE', createdAt: at(21), slaTarget: at(21, 10) }),
     ticket({ status: 'IN_PROGRESS', priority: 'HIGH', category: 'HARDWARE', assignedTo: agentA as never, createdAt: at(19) }),
     ticket({ status: 'WAITING_VENDOR', category: 'SOFTWARE', createdAt: at(12), updatedAt: at(12) }),
     ticket({ status: 'RESOLVED', assignedTo: agentB as never, createdAt: at(12), updatedAt: at(20) }),
     ticket({ status: 'CLOSED', priority: 'LOW', assignedTo: agentB as never, createdAt: at(11), updatedAt: at(14) }),
 ];
+
+describe('computeTeamStats — overdue and SLA compliance', () => {
+    it('counts overdue from the live SLA target of workable tickets, never from the stored flag', () => {
+        const s = computeTeamStats([
+            ticket({ status: 'TODO', slaTarget: at(21, 10) }),                          // overdue
+            ticket({ status: 'IN_PROGRESS', slaTarget: at(22) }),                       // target still ahead
+            ticket({ status: 'WAITING_VENDOR', slaTarget: at(19), isOverdue: true }),   // SLA clock paused
+            ticket({ status: 'RESOLVED', slaTarget: at(19), isOverdue: true }),         // already done
+            ticket({ status: 'CANCELLED', slaTarget: at(19), isOverdue: true }),        // withdrawn
+            ticket({ status: 'TODO', isOverdue: true }),                                // stale flag, no target
+        ], 7, NOW);
+        expect(s.overdue).toBe(1);
+    });
+
+    it('measures SLA compliance as done-in-range tickets resolved by their target, to one decimal', () => {
+        const done = (resolvedDay: number, targetDay: number) =>
+            ticket({ status: 'RESOLVED', resolvedAt: at(resolvedDay), updatedAt: at(resolvedDay), slaTarget: at(targetDay) });
+        const s = computeTeamStats([
+            done(20, 21), done(19, 21), done(18, 17),        // 2 on time, 1 late, all in the last 7 days
+            done(1, 2),                                       // done before the range: ignored
+            ticket({ status: 'RESOLVED', resolvedAt: at(20) }), // no SLA target: not measured
+            ticket({ status: 'TODO', slaTarget: at(21, 10) }),  // overdue but not done: not part of compliance
+        ], 7, NOW);
+        expect(s.slaCompliance).toBe(66.7);
+    });
+
+    it('has no SLA compliance when nothing in the range had a target', () => {
+        expect(computeTeamStats([ticket({ status: 'TODO' })], 7, NOW).slaCompliance).toBeNull();
+    });
+});
 
 describe('computeTeamStats', () => {
     const s = computeTeamStats(tickets, 7, NOW);
@@ -29,7 +59,7 @@ describe('computeTeamStats', () => {
         expect(s).toMatchObject({ total: 5, open: 1, inProgress: 1, waitingVendor: 1, resolved: 2, overdue: 1 });
         expect(s.byPriority).toEqual({ CRITICAL: 1, HIGH: 1, MEDIUM: 2, LOW: 1 });
         expect(s.byCategory).toEqual([{ category: 'HARDWARE', count: 2 }, { category: 'GENERAL', count: 2 }, { category: 'SOFTWARE', count: 1 }]);
-        expect(s.slaCompliance).toBe(80);
+        expect(s.slaCompliance).toBeNull();
     });
 
     it('builds one bucket per day of the range, newest last', () => {

@@ -98,6 +98,45 @@ describe('AgentRatingService', () => {
         });
     });
 
+    describe('getAllRatings', () => {
+        beforeEach(() => { dataSource.query.mockResolvedValue([]); });
+        const agentsSql = () => String(dataSource.query.mock.calls[0][0]);
+
+        it('ranks by the unrounded average, then by the number of ratings', async () => {
+            await service.getAllRatings();
+            // Sorting on a rounded value let a 4.97 average (shown as 5.0) sink below every true 5.0.
+            expect(agentsSql()).toMatch(/ORDER BY AVG\(r\.rating\) DESC, COUNT\(\*\) DESC/);
+        });
+
+        it('keeps every site when no site is chosen', async () => {
+            await service.getAllRatings();
+            expect(dataSource.query.mock.calls[0][1]).toEqual([]);
+            expect(agentsSql()).not.toContain('site');
+        });
+
+        it('limits agents and recent ratings to agents whose home site is the chosen site', async () => {
+            ratingRepo.find.mockResolvedValue([]);
+            await service.getAllRatings('SPJ');
+            expect(dataSource.query.mock.calls[0][1]).toEqual(['SPJ']);
+            expect(agentsSql()).toContain('s."code" = $1');
+            expect(ratingRepo.find).toHaveBeenCalledWith(expect.objectContaining({ where: { agent: { site: { code: 'SPJ' } } } }));
+        });
+    });
+
+    describe('getAgentRatings', () => {
+        it('lists one agent\'s ratings newest first with rater, comment and ticket', async () => {
+            ratingRepo.find.mockResolvedValue([{
+                agentId: 'a-1', agent: { fullName: 'Andrew' }, rater: { fullName: 'Mega' }, ticketId: 't-9',
+                ticket: { ticketNumber: '281026-HC-0086' }, rating: 4, comment: 'Cepat', createdAt: new Date('2026-10-28'),
+            }]);
+
+            const rows = await service.getAgentRatings('a-1');
+
+            expect(ratingRepo.find).toHaveBeenCalledWith(expect.objectContaining({ where: { agentId: 'a-1' }, order: { createdAt: 'DESC' } }));
+            expect(rows).toEqual([{ raterName: 'Mega', ticketId: 't-9', ticketNumber: '281026-HC-0086', rating: 4, comment: 'Cepat', createdAt: new Date('2026-10-28') }]);
+        });
+    });
+
     describe('getMySummary', () => {
         it('aggregates the agent ratings without exposing who rated', async () => {
             ratingRepo.createQueryBuilder.mockReturnValue({

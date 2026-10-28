@@ -8,10 +8,33 @@ const TOP_AGENT_LIMIT = 5;
 const RECENT_LIMIT = 10;
 const DAYS_PER_WEEK = 7;
 const PERCENT = 100;
-const FULL_SLA = 100;
+const ONE_DECIMAL = 10;
 
 /** CLOSED is a RESOLVED ticket the requester confirmed (or that auto-closed); both count as done. */
 export const isDoneStatus = (status: string): boolean => status === 'RESOLVED' || status === 'CLOSED';
+
+/** Statuses whose SLA clock is running. WAITING_VENDOR pauses it, so it cannot be overdue. */
+const SLA_RUNNING_STATUSES = new Set(['TODO', 'IN_PROGRESS']);
+
+/**
+ * Overdue now: a ticket still being worked on whose SLA target has passed. Same rule as the
+ * ticket list's overdue filter; the stored isOverdue flag is not used because it lags and is
+ * not cleared when a ticket finishes or waits on a vendor.
+ */
+export function isTicketOverdue(t: Pick<Ticket, 'status' | 'slaTarget'>, now: Date = new Date()): boolean {
+    return SLA_RUNNING_STATUSES.has(t.status) && !!t.slaTarget && new Date(t.slaTarget).getTime() < now.getTime();
+}
+
+/**
+ * Share of tickets finished in the last `range` days that were resolved by their SLA target,
+ * to one decimal. Null when none of them had a target to measure against.
+ */
+function slaCompliance(tickets: readonly Ticket[], from: Date): number | null {
+    const measured = tickets.filter((t) => isDoneStatus(t.status) && t.slaTarget && t.resolvedAt && new Date(t.resolvedAt) >= from);
+    if (measured.length === 0) return null;
+    const onTime = measured.filter((t) => new Date(t.resolvedAt!).getTime() <= new Date(t.slaTarget!).getTime()).length;
+    return Math.round((onTime / measured.length) * PERCENT * ONE_DECIMAL) / ONE_DECIMAL;
+}
 
 export interface TeamAgentStat { id: string; name: string; resolved: number; inProgress: number }
 export interface TeamDay { date: string; created: number; resolved: number }
@@ -32,7 +55,8 @@ export interface TeamStats {
     days: TeamDay[];
     topAgents: TeamAgentStat[];
     recentTickets: Ticket[];
-    slaCompliance: number;
+    /** Done-in-range tickets resolved by their SLA target, in percent; null when none had a target. */
+    slaCompliance: number | null;
     /**
      * Percent change of this week so far (Sunday 00:00 → now) vs the same elapsed span of last week
      * (last Sunday 00:00 → now − 7 days), so a Monday morning is not compared with a full week.
@@ -101,7 +125,9 @@ export function computeTeamStats(tickets: readonly Ticket[], range: number, now:
         categories.set(cat, (categories.get(cat) ?? 0) + 1);
     }
     const total = tickets.length;
-    const overdue = tickets.filter((t) => t.isOverdue).length;
+    const overdue = tickets.filter((t) => isTicketOverdue(t, now)).length;
+    const rangeStart = new Date(today);
+    rangeStart.setDate(today.getDate() - (range - 1));
     const thisWeekTickets = countIn(tickets, weekStart, null, 'createdAt', false);
     const resolvedThisWeek = countIn(tickets, weekStart, null, 'updatedAt', true);
 
@@ -121,7 +147,7 @@ export function computeTeamStats(tickets: readonly Ticket[], range: number, now:
         days: dailySeries(tickets, today, range),
         topAgents: topAgents(tickets),
         recentTickets: [...tickets].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, RECENT_LIMIT),
-        slaCompliance: total > 0 ? Math.round(((total - overdue) / total) * PERCENT) : FULL_SLA,
+        slaCompliance: slaCompliance(tickets, rangeStart),
         weekChange: {
             created: percentChange(thisWeekTickets, countIn(tickets, lastWeekStart, lastWeekSameMoment, 'createdAt', false)),
             resolved: percentChange(resolvedThisWeek, countIn(tickets, lastWeekStart, lastWeekSameMoment, 'updatedAt', true)),

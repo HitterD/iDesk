@@ -18,6 +18,10 @@ _Avoid_: Paused, on hold, dijeda (as a status name)
 A ticket withdrawn before resolution; it never counts as work done or work owed.
 _Avoid_: Batal, voided, deleted
 
+**Agent rating**:
+A requester's 1–5 star score for the agent who handled their ticket, optionally with a comment.
+_Avoid_: Review, feedback, bintang (as a noun for the record)
+
 ### Workload
 
 **Workload points**:

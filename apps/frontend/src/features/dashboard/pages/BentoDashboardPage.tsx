@@ -171,7 +171,7 @@ export const BentoDashboardPage = () => {
                         : `${live.resolvedToday} selesai hari ini`} />
                 <DashStat icon={TriangleAlert} tone="red" label="Overdue" value={live.overdue} attention={live.overdue > 0} zero={live.overdue === 0} to="/tickets/list?overdue=true"
                     sub={live.overdue > 0 ? 'Perlu tindakan' : 'Semua tepat waktu'} />
-                <DashStat icon={Gauge} tone="navy" label="Kepatuhan SLA" value={`${live.slaCompliance}%`}
+                <DashStat icon={Gauge} tone="navy" label="Kepatuhan SLA" value={live.slaCompliance === null ? '—' : `${live.slaCompliance.toLocaleString('id-ID')}%`} zero={live.slaCompliance === null}
                     sub={`Rata-rata selesai ${toIndonesianDuration(stats?.avgResolutionTime)}`} />
             </section>
 
