@@ -26,6 +26,8 @@ import {
     Code2,
     Smartphone,
     Trash2,
+    Star,
+    ClipboardCheck,
     LucideIcon
 } from 'lucide-react';
 import { isAgentRole } from '@/lib/roleHome';
@@ -36,6 +38,10 @@ import { usePermissions as useIctPermissions } from '@/features/hardware-request
 import { usePendingApprovals } from '@/features/request-center/api/eform-request.api';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { useCsiActive } from '@/features/csi/hooks/useCsi';
+import { CSI_PATHS } from '@/features/csi/lib/useCsiBasePath';
+import { csiAdminPath, CSI_ADMIN_PAGE_KEYS } from '@/features/csi/lib/csiAdmin';
+import { canAdminCsi } from '@/features/csi/lib/useCsiAdminAccess';
 import {
     SidebarNavigation,
     SidebarFooter,
@@ -142,6 +148,9 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
     // Fetch user's feature permissions for sidebar filtering (only if user has custom preset)
     const { data: myPermissions, isLoading: permissionsLoading } = useMyPermissions();
     const { isIctRole, isIctLead } = useIctPermissions();
+    // Survey entry exists only while an active survey targets this user (hidden while loading or on error).
+    const { data: activeSurveys } = useCsiActive();
+    const hasActiveSurvey = (activeSurveys?.length ?? 0) > 0;
 
     // Badge resolution helper for navigation items
     const getItemBadge = (key: string): BadgeInfo | null => {
@@ -256,6 +265,8 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
                 },
                 { key: 'notifications', icon: Bell, tone: 'red', label: 'Notifications', path: '/notifications' },
                 { key: 'renewal', icon: CalendarClock, tone: 'orange', label: 'Renewal Hub', path: '/renewal' },
+                { key: CSI_ADMIN_PAGE_KEYS.ict, icon: ClipboardCheck, tone: 'teal', label: 'Admin CSI ICT', path: csiAdminPath(isManager ? CSI_PATHS.manager : CSI_PATHS.staff, 'ict') },
+                { key: CSI_ADMIN_PAGE_KEYS.hc, icon: ClipboardCheck, tone: 'mint', label: 'Admin CSI HC', path: csiAdminPath(isManager ? CSI_PATHS.manager : CSI_PATHS.staff, 'hc') },
             ]
         },
 
@@ -280,6 +291,10 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
 
     // Page access check - uses pageAccess from applied preset
     const canAccessPage = (pageKey: string): boolean => {
+        // CSI admin keys never get the ADMIN bypass: the backend guard requires the explicit page key.
+        if (pageKey === CSI_ADMIN_PAGE_KEYS.ict) return canAdminCsi(user?.role, myPermissions?.pageAccess, 'ict');
+        if (pageKey === CSI_ADMIN_PAGE_KEYS.hc) return canAdminCsi(user?.role, myPermissions?.pageAccess, 'hc');
+
         // Personal dashboard exists only for agents (the API rejects everyone else)
         if (pageKey === 'my_dashboard' && !isAgentRole(user?.role)) return false;
 
@@ -418,6 +433,11 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
                     });
                 }
             }
+        }
+
+        if (hasActiveSurvey) {
+            // No pageKey: eligibility is decided by the backend's active-survey list.
+            nav.push({ key: 'csi', icon: Star, tone: 'teal', label: 'Survei Kepuasan', path: isManager ? CSI_PATHS.manager : CSI_PATHS.staff });
         }
 
         return nav;

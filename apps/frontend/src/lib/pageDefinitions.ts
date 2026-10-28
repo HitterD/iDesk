@@ -33,6 +33,9 @@ export const AGENT_PAGES: PageDefinition[] = [
     { key: 'reports', name: 'Reports', icon: 'BarChart3', route: '/reports' },
     { key: 'renewal', name: 'Renewal Hub', icon: 'RefreshCw', route: '/renewal' },
     { key: 'workloads', name: 'Workloads', icon: 'Activity', route: '/workloads' },
+    // CSI administration is enabled explicitly for managers through presets.
+    { key: 'csi_admin_ict', name: 'Admin CSI ICT', icon: 'Star', route: '/csi/admin/ict', adminOnly: true },
+    { key: 'csi_admin_hc', name: 'Admin CSI HC', icon: 'Star', route: '/csi/admin/hc', adminOnly: true },
     // Admin-only pages
     { key: 'agents', name: 'Agents', icon: 'Users', route: '/agents', adminOnly: true },
     { key: 'automation', name: 'Automation', icon: 'Zap', route: '/automation', adminOnly: true },
@@ -54,6 +57,8 @@ export const MANAGER_PAGES: PageDefinition[] = [
     { key: 'renewal', name: 'Renewal Hub', icon: 'RefreshCw', route: '/renewal' },
     { key: 'notifications', name: 'Notifications', icon: 'Bell', route: '/notifications' },
     { key: 'workloads', name: 'Workloads', icon: 'Activity', route: '/workloads' },
+    { key: 'csi_admin_ict', name: 'Admin CSI ICT', icon: 'Star', route: '/csi/admin/ict', adminOnly: true },
+    { key: 'csi_admin_hc', name: 'Admin CSI HC', icon: 'Star', route: '/csi/admin/hc', adminOnly: true },
 ];
 
 export type TargetRole = 'USER' | 'AGENT' | 'MANAGER' | 'ADMIN';
@@ -74,7 +79,7 @@ export function getDefaultPageAccess(role: TargetRole): Record<string, boolean> 
     const pages = getPagesForRole(role);
     const access: Record<string, boolean> = {};
     // Don't include admin-only pages for non-admin roles
-    pages.filter(p => role === 'ADMIN' || !p.adminOnly).forEach(p => {
+    pages.filter(p => (role === 'ADMIN' || !p.adminOnly) && p.key !== 'csi_admin_hc').forEach(p => {
         access[p.key] = true;
     });
     return access;
@@ -87,8 +92,8 @@ export function getRoleDefaultPageKeys(role: string): string[] {
         AGENT: AGENT_PAGES.filter(p => !p.adminOnly).map(p => p.key),
         AGENT_OPERATIONAL_SUPPORT: AGENT_PAGES.filter(p => !p.adminOnly).map(p => p.key),
         AGENT_ADMIN: AGENT_PAGES.filter(p => !p.adminOnly).map(p => p.key),
-        MANAGER: MANAGER_PAGES.map(p => p.key),
-        ADMIN: AGENT_PAGES.map(p => p.key),
+        MANAGER: MANAGER_PAGES.filter(p => !p.adminOnly).map(p => p.key),
+        ADMIN: AGENT_PAGES.filter(p => p.key !== 'csi_admin_hc').map(p => p.key),
     };
     return roleMap[role] || roleMap['USER'];
 }

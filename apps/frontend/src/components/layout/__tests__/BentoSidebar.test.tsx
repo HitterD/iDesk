@@ -5,12 +5,14 @@ import { MemoryRouter } from 'react-router-dom';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { BentoSidebar } from '../BentoSidebar';
 
+const csiActive = vi.hoisted(() => ({ current: [] as Array<{ id: string; scope: string; title: string; submitted: boolean }> }));
 const ticketModules = vi.hoisted(() => ({ current: [] as Array<{ slug: string; name: string; icon?: string }> }));
 vi.mock('@/lib/api', () => ({
     default: {
         get: vi.fn((url: string) => {
             if (url.startsWith('/notifications/count')) return Promise.resolve({ data: { count: 5 } });
             if (url.startsWith('/ticket-modules')) return Promise.resolve({ data: ticketModules.current });
+            if (url.startsWith('/csi/me/active')) return Promise.resolve({ data: csiActive.current });
             return Promise.resolve({ data: {} });
         }),
     },
@@ -74,6 +76,7 @@ describe('BentoSidebar', () => {
         localStorage.clear();
         pageAccess.current = null;
         ticketModules.current = [];
+        csiActive.current = [];
         authUser.current = { id: 'admin-1', fullName: 'Bagas Developer', role: 'ADMIN' };
     });
 
@@ -99,6 +102,51 @@ describe('BentoSidebar', () => {
         expect(screen.getByText('Administration')).toBeInTheDocument();
         expect(screen.getByText('Settings')).toBeInTheDocument();
         expect(screen.getByText('Bagas Developer')).toBeInTheDocument();
+    });
+
+    it('hides Survei Kepuasan when no survey is active', async () => {
+        renderSidebar('/dashboard');
+        await waitFor(() => expect(screen.getByText('Dashboard Tim')).toBeInTheDocument());
+        expect(screen.queryByRole('link', { name: 'Survei Kepuasan' })).not.toBeInTheDocument();
+    });
+
+    it('shows Survei Kepuasan at /csi when an active survey exists', async () => {
+        csiActive.current = [{ id: 'p1', scope: 'ICT', title: 'Survei ICT', submitted: false }];
+        renderSidebar('/dashboard');
+        expect(await screen.findByRole('link', { name: 'Survei Kepuasan' })).toHaveAttribute('href', '/csi');
+    });
+
+    it('points Survei Kepuasan to the manager layout for managers', async () => {
+        csiActive.current = [{ id: 'p1', scope: 'ICT', title: 'Survei ICT', submitted: true }];
+        authUser.current = { id: 'mgr-1', fullName: 'Manager', role: 'MANAGER' };
+        renderSidebar('/manager/dashboard');
+        expect(await screen.findByRole('link', { name: 'Survei Kepuasan' })).toHaveAttribute('href', '/manager/csi');
+    });
+
+    it('shows Admin CSI HC for ADMIN only when csi_admin_hc is granted (no ADMIN bypass)', () => {
+        pageAccess.current = { ...pageAccess.defaults, csi_admin_ict: true };
+        const { unmount } = renderSidebar('/dashboard');
+        expect(screen.getByRole('link', { name: 'Admin CSI ICT' })).toHaveAttribute('href', '/csi/admin/ict');
+        expect(screen.queryByRole('link', { name: 'Admin CSI HC' })).not.toBeInTheDocument();
+        unmount();
+
+        pageAccess.current = { ...pageAccess.defaults, csi_admin_hc: true };
+        renderSidebar('/dashboard');
+        expect(screen.getByRole('link', { name: 'Admin CSI HC' })).toHaveAttribute('href', '/csi/admin/hc');
+        expect(screen.queryByRole('link', { name: 'Admin CSI ICT' })).not.toBeInTheDocument();
+    });
+
+    it('points Admin CSI to the manager layout and hides it from non-admin roles', () => {
+        authUser.current = { id: 'mgr-1', fullName: 'Manager', role: 'MANAGER' };
+        pageAccess.current = { ...pageAccess.defaults, csi_admin_hc: true };
+        const { unmount } = renderSidebar('/manager/dashboard');
+        expect(screen.getByRole('link', { name: 'Admin CSI HC' })).toHaveAttribute('href', '/manager/csi/admin/hc');
+        unmount();
+
+        authUser.current = { id: 'agent-1', fullName: 'Agent', role: 'AGENT' };
+        pageAccess.current = { ...pageAccess.defaults, csi_admin_ict: true, csi_admin_hc: true };
+        renderSidebar('/dashboard');
+        expect(screen.queryByRole('link', { name: /Admin CSI/ })).not.toBeInTheDocument();
     });
 
     it('highlights only Dashboard Saya on /dashboard/me, not Dashboard Tim too', async () => {

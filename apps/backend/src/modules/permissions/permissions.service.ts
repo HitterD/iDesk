@@ -446,6 +446,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             audit_logs: true,
             system_health: true,
             data_wipe: true,
+            csi_admin_ict: true,
             settings: true,
         },
         permissions: {
