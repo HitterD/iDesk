@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useSocket } from '@/lib/socket';
 import { useAuth } from '@/stores/useAuth';
 import type { Ticket, TicketMessage } from '@/lib/api/types';
@@ -14,6 +14,25 @@ type TicketSocketData = Partial<Ticket> & { id: string };
 export const TICKET_OFFLINE_POLL_MS = 15000;
 /** Window in which the message + notification events for one reply share a single resync. */
 export const TICKET_RESYNC_DEBOUNCE_MS = 500;
+
+/** Tickets open on screen right now: reading them (GET /tickets/:id) clears their unread chat on the server. */
+const openTickets = new Set<string>();
+
+/** Patch every cached ticket list so one ticket's "new message" badge shows read/unread without a refetch. */
+const patchListUnread = (queryClient: QueryClient, ticketId: string, unread: boolean) => {
+    const patch = (t: any) =>
+        t.id !== ticketId
+            ? t
+            : unread
+                ? { ...t, hasUnreadChat: true, unreadMessageCount: (t.unreadMessageCount || 0) + 1 }
+                : { ...t, hasUnreadChat: false, unreadMessageCount: 0 };
+    queryClient.setQueriesData({ queryKey: ['tickets'] }, (oldData: any) => {
+        if (!oldData) return oldData;
+        if (oldData.data && Array.isArray(oldData.data)) return { ...oldData, data: oldData.data.map(patch) };
+        if (Array.isArray(oldData)) return oldData.map(patch);
+        return oldData;
+    });
+};
 
 interface UseTicketSocketOptions {
     ticketId: string | undefined;
@@ -36,6 +55,17 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
         onNewMessageRef.current = onNewMessage;
         onStatusChangeRef.current = onStatusChange;
     }, [onNewMessage, onStatusChange]);
+
+    // Opening the ticket reads its chat: the list badge goes now, and the list refetches when shown again.
+    useEffect(() => {
+        if (!ticketId) return;
+        openTickets.add(ticketId);
+        patchListUnread(queryClient, ticketId, false);
+        return () => {
+            openTickets.delete(ticketId);
+            queryClient.invalidateQueries({ queryKey: ['tickets'], refetchType: 'none' });
+        };
+    }, [ticketId, queryClient]);
 
     // Join ticket room when connected, and auto-rejoin on reconnect
     useEffect(() => {
@@ -308,29 +338,8 @@ export const useTicketListSocket = (options?: {
                 scheduleInvalidate(TICKETS_KEY);
                 return;
             }
-            {
-                queryClient.setQueriesData({ queryKey: ['tickets'] }, (oldData: any) => {
-                    if (!oldData) return oldData;
-                    if (oldData.data && Array.isArray(oldData.data)) {
-                        return {
-                            ...oldData,
-                            data: oldData.data.map((t: any) =>
-                                t.id === ticketId
-                                    ? { ...t, hasUnreadChat: true, unreadMessageCount: (t.unreadMessageCount || 0) + 1 }
-                                    : t
-                            ),
-                        };
-                    }
-                    if (Array.isArray(oldData)) {
-                        return oldData.map((t: any) =>
-                            t.id === ticketId
-                                ? { ...t, hasUnreadChat: true, unreadMessageCount: (t.unreadMessageCount || 0) + 1 }
-                                : t
-                        );
-                    }
-                    return oldData;
-                });
-            }
+            // A ticket open on screen is being read as the message lands: no badge for it.
+            if (!openTickets.has(ticketId)) patchListUnread(queryClient, ticketId, true);
         };
 
         socket.on('tickets:listUpdated', handleListUpdate);
