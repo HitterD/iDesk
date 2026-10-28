@@ -40,6 +40,8 @@ export interface TicketDetail {
     criticalReason?: string;
     createdAt: string;
     updatedAt: string;
+    /** Staff member who filed the ticket on the requester's behalf; absent when the requester filed it. */
+    createdBy?: { id: string; fullName: string } | null;
     slaTarget?: string;
     /** 'requester' = I filed it but don't handle it: view/chat only. */
     viewerAccess?: 'handler' | 'requester';

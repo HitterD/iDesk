@@ -91,6 +91,50 @@ describe('TicketChat surface', () => {
         expect(screen.getByRole('textbox', { name: 'Balas ke IT Support…' })).toBeInTheDocument();
     });
 
+    it('shows the opening report only once when an agent filed the ticket for the requester (older tickets)', () => {
+        const filedByAgent = {
+            ...ticket,
+            description: 'email tidak bisa digunakan',
+            messages: [
+                // Before the fix the opening report was saved with the filing agent as sender.
+                { id: 'g-1', content: 'email tidak bisa digunakan', createdAt: ticket.createdAt, isSystemMessage: false,
+                    attachments: [], sender: { id: 'agent-1', fullName: 'RM BAGASTYO' } },
+                ...ticket.messages!,
+            ],
+        } as unknown as TicketDetail;
+        render(<QueryClientProvider client={new QueryClient()}><TicketChat ticket={filedByAgent} isConnected onSendMessage={vi.fn(() => Promise.resolve())} onImageClick={vi.fn()} /></QueryClientProvider>);
+        // Shown in the requester's "Laporan awal" card only, not again as an agent chat bubble.
+        expect(row('g-1')).toBeNull();
+        expect(row('m-2')).not.toBeNull();
+    });
+
+    it('says who filed the ticket when an agent filed it for the requester', () => {
+        const filed = { ...ticket, createdBy: { id: 'agent-1', fullName: 'RM BAGASTYO' } } as unknown as TicketDetail;
+        render(<QueryClientProvider client={new QueryClient()}><TicketChat ticket={filed} isConnected onSendMessage={vi.fn(() => Promise.resolve())} onImageClick={vi.fn()} /></QueryClientProvider>);
+        const root = document.querySelector('[data-root-issue]') as HTMLElement;
+        expect(within(root).getByText(/Dibuat oleh/)).toHaveTextContent('Dibuat oleh Rm Bagastyo');
+    });
+
+    it('does not show a filer note when the requester filed the ticket themselves', () => {
+        renderChat();
+        const root = document.querySelector('[data-root-issue]') as HTMLElement;
+        expect(within(root).queryByText(/Dibuat oleh/)).toBeNull();
+    });
+
+    it('still shows a later agent reply that happens to repeat the description', () => {
+        const repeated = {
+            ...ticket,
+            description: 'email tidak bisa digunakan',
+            messages: [
+                { id: 'r-1', content: 'email tidak bisa digunakan', createdAt: '2026-10-06T07:00:00Z', isSystemMessage: false,
+                    attachments: [], sender: { id: 'agent-1', fullName: 'RM BAGASTYO' } },
+            ],
+        } as unknown as TicketDetail;
+        render(<QueryClientProvider client={new QueryClient()}><TicketChat ticket={repeated} isConnected onSendMessage={vi.fn(() => Promise.resolve())} onImageClick={vi.fn()} /></QueryClientProvider>);
+        // Not the opening report: posted well after the ticket was created.
+        expect(row('r-1')).not.toBeNull();
+    });
+
     it('keeps system events in the timeline as centered events', () => {
         renderChat();
         const event = document.querySelector('[data-system-event="m-4"]');

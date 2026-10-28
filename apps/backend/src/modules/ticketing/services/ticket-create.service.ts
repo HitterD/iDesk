@@ -152,11 +152,12 @@ export class TicketCreateService {
 
                 const savedTicket = await manager.save(ticket);
 
-                // Save initial message with attachments inside transaction
+                // The opening report (description + attachments) is the requester's, even when an
+                // agent files on their behalf; who filed it is kept in createdById.
                 const message = this.messageRepo.create({
                     content: createTicketDto.description,
                     ticket: savedTicket,
-                    senderId: creator.id,
+                    senderId: user.id,
                     attachments: files,
                     attachmentInfo: attachmentInfo.length > 0 ? attachmentInfo : null,
                 });

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSocket } from '@/lib/socket';
 import { useAuth } from '@/stores/useAuth';
+import api from '@/lib/api';
 import type { Ticket, TicketMessage } from '@/lib/api/types';
 
 // Use TicketMessage from types instead of local interface
@@ -73,6 +74,17 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
         };
         let resyncMessages = false;
 
+        // A message that arrives while the ticket is open has been seen: mark it read so no unread
+        // dot is left behind. One lightweight call per burst, instead of reloading the ticket.
+        let readTimer: ReturnType<typeof setTimeout> | null = null;
+        const scheduleMarkRead = () => {
+            if (readTimer) return;
+            readTimer = setTimeout(() => {
+                readTimer = null;
+                api.post(`/tickets/${ticketId}/read`, undefined, { skipToast: true }).catch(() => undefined);
+            }, TICKET_RESYNC_DEBOUNCE_MS);
+        };
+
         // Listen for new messages
         const handleNewMessage = (data: { ticketId: string; message: Message }) => {
             if (data.ticketId === ticketId) {
@@ -108,8 +120,11 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
                 if (linked?.hardwareRequest) queryClient.invalidateQueries({ queryKey: ['ticket', ticketId, 'hardware-requests'] });
                 if (linked?.eformRequest) queryClient.invalidateQueries({ queryKey: ['ticket', ticketId, 'eform-requests'] });
 
-                // Fail-safe: resync in background so relations/SLA/unread state catch up (debounced).
-                scheduleTicketResync(false);
+                // A plain chat message is fully carried by the socket payload, so it is not followed by a
+                // reload of the whole ticket and its history (that ran for every viewer, per message).
+                // System messages record status/SLA/assignment changes, so those still resync.
+                if (data.message.isSystemMessage) scheduleTicketResync(false);
+                else scheduleMarkRead();
 
                 // Call custom handler if provided
                 onNewMessageRef.current?.(data.message);
@@ -127,6 +142,9 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
                         status: data.status
                     };
                 });
+
+                // A status change can come with a first response or SLA start; reload once to show them.
+                scheduleTicketResync(false);
 
                 onStatusChangeRef.current?.(data.status);
             }
@@ -219,6 +237,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
             }
             socket.off('notification:new', handleNotificationSync);
             if (resyncTimer) clearTimeout(resyncTimer);
+            if (readTimer) clearTimeout(readTimer);
 
             // Clear typing timeouts and the names they guard; a name left without its timer never expires.
             Object.values(typingTimersRef.current).forEach(t => clearTimeout(t));
@@ -246,7 +265,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
  * One ticket change fans out as several socket events (updated, statusChanged, listUpdated...).
  * Invalidations inside this window collapse into a single refetch per query key.
  */
-export const LIST_INVALIDATE_DEBOUNCE_MS = 1000;
+export const LIST_INVALIDATE_DEBOUNCE_MS = 2000;
 const TICKETS_KEY = 'tickets';
 const DASHBOARD_STATS_KEY = 'dashboard-stats';
 

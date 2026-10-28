@@ -65,21 +65,23 @@ describe('TicketMessagingService Oracle scope', () => {
     });
 
     describe('TV board refresh on reply', () => {
-        const buildService = (ticketStatus: TicketStatus) => {
+        const buildService = (ticketStatus: TicketStatus, extra: Record<string, unknown> = {}) => {
             const ticket = {
                 id: 't-1', siteId: 'site-1', userId: 'owner', status: ticketStatus, ticketType: TicketType.SERVICE,
-                category: 'GENERAL', participants: [], slaStartedAt: new Date(), user: { id: 'owner' },
+                category: 'GENERAL', participants: [], slaStartedAt: new Date(), user: { id: 'owner' }, ...extra,
             };
             const manager = {
                 findOne: jest.fn()
                     .mockResolvedValueOnce(ticket)
-                    .mockResolvedValueOnce({ id: 'agent-1', role: UserRole.AGENT, siteId: 'site-1' }),
+                    .mockResolvedValueOnce({ id: 'agent-1', fullName: 'Agen Satu', role: UserRole.AGENT, siteId: 'site-1' }),
                 create: jest.fn((_entity, data) => data),
                 save: jest.fn((_entity, data) => Promise.resolve(data)),
             };
             const dataSource = { transaction: jest.fn((callback) => callback(manager)) };
             const eventsGateway = {
                 notifyNewMessage: jest.fn(),
+                notifyStatusChange: jest.fn(),
+                notifyTicketUpdate: jest.fn(),
                 emitToTicketAudience: jest.fn(),
                 server: { to: jest.fn(() => ({ emit: jest.fn() })) },
             };
@@ -88,7 +90,7 @@ describe('TicketMessagingService Oracle scope', () => {
                 {} as never, {} as never, {} as never, {} as never,
                 dataSource as never, eventsGateway as never, eventEmitter as never, createTestSlaClock(),
             );
-            return { service, eventEmitter };
+            return { service, eventEmitter, eventsGateway };
         };
 
         it('refreshes TV boards when an agent reply starts work on an Open ticket', async () => {
@@ -97,6 +99,33 @@ describe('TicketMessagingService Oracle scope', () => {
             await service.replyToTicket('t-1', 'agent-1', 'on it');
 
             expect(eventEmitter.emit).toHaveBeenCalledWith('tv-board.ticket-changed', { siteId: 'site-1' });
+        });
+
+        it('tells everyone viewing the ticket that the first agent reply moved it to In Progress', async () => {
+            const { service, eventsGateway } = buildService(TicketStatus.TODO);
+
+            await service.replyToTicket('t-1', 'agent-1', 'on it');
+
+            // Viewers no longer reload the ticket after every chat message, so the status change needs its own event.
+            expect(eventsGateway.notifyStatusChange).toHaveBeenCalledWith('t-1', TicketStatus.IN_PROGRESS, 'Agen Satu', 'site-1');
+        });
+
+        it('tells viewers about the first response even when the status does not change', async () => {
+            const { service, eventsGateway } = buildService(TicketStatus.IN_PROGRESS, { firstResponseAt: null });
+
+            await service.replyToTicket('t-1', 'agent-1', 'update');
+
+            expect(eventsGateway.notifyStatusChange).not.toHaveBeenCalled();
+            expect(eventsGateway.notifyTicketUpdate).toHaveBeenCalledWith('t-1', expect.objectContaining({ firstResponseAt: expect.any(Date) }), 'site-1');
+        });
+
+        it('sends no extra ticket event for an ordinary later reply', async () => {
+            const { service, eventsGateway } = buildService(TicketStatus.IN_PROGRESS, { firstResponseAt: new Date() });
+
+            await service.replyToTicket('t-1', 'agent-1', 'update');
+
+            expect(eventsGateway.notifyStatusChange).not.toHaveBeenCalled();
+            expect(eventsGateway.notifyTicketUpdate).not.toHaveBeenCalled();
         });
 
         it('leaves TV boards alone when the ticket was already in progress', async () => {
@@ -160,6 +189,7 @@ describe('TicketMessagingService Oracle scope', () => {
                 update: jest.fn(() => qb),
                 set: jest.fn((v) => { set(v); return qb; }),
                 where: jest.fn(() => qb),
+                andWhere: jest.fn(() => qb),
                 execute: jest.fn().mockResolvedValue({ affected: 1 }),
             };
             const ticketRepo = {
@@ -199,6 +229,29 @@ describe('TicketMessagingService Oracle scope', () => {
 
             expect(set).toHaveBeenLastCalledWith(expect.objectContaining({ userLastReadAt: expect.any(Date) }));
             expect(set.mock.lastCall[0]).not.toHaveProperty('agentLastReadAt');
+        });
+
+        it('only writes when there is something new to mark as read', async () => {
+            const { service, ticketRepo } = build(opsTicket);
+            const qb = ticketRepo.createQueryBuilder();
+
+            await service.markAsRead('t-1', 'owner', UserRole.USER);
+
+            // Re-opening an already-read ticket is a no-op in the database, not a row write.
+            expect(qb.andWhere).toHaveBeenCalledWith(
+                '("userLastReadAt" IS NULL OR ("lastMessageAt" IS NOT NULL AND "lastMessageAt" > "userLastReadAt"))',
+            );
+        });
+
+        it('still tells integrations about every open, even when there was nothing to write', async () => {
+            const { service, ticketRepo, emitter } = build(opsTicket);
+            ticketRepo.createQueryBuilder().execute.mockResolvedValue({ affected: 0 });
+
+            await service.markAsRead('t-1', 'owner', UserRole.USER);
+
+            // Read markers are per side (requester / handling team) but iPop clears notifications per
+            // person: after the filer read the requester side, the requester's own open must still reach iPop.
+            expect(emitter.emit).toHaveBeenCalledWith('ticket.read', { ticketId: 't-1', userId: 'owner' });
         });
 
         // Reading must not look like activity: keep updatedAt and version as they are.

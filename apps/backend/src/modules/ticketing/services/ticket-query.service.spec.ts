@@ -215,6 +215,22 @@ describe('TicketQueryService.findOne', () => {
         expect(result.slaTarget).toEqual(new Date('2026-10-01T01:00:00Z'));
         expect(result.messages.map((m: any) => m.id)).toEqual(['m1']);
     });
+
+    it('names the staff member who filed the ticket, and nothing else about them', async () => {
+        const ticket = {
+            id: 't-1', priority: 'HIGH', createdAt: new Date(), slaTarget: new Date(), userId: 'req-1', siteId: 's-1',
+            handlingTeam: 'OPS_SUPPORT', messages: [], participants: [], user: { id: 'req-1' },
+            createdById: 'agent-1',
+            createdBy: { id: 'agent-1', fullName: 'Rm Bagastyo', email: 'b@x.id', password: 'hash', phoneNumber: '08' },
+        };
+        const ticketRepo = { findOne: jest.fn().mockResolvedValue(ticket) };
+        const service = new TicketQueryService(ticketRepo as any, { findOne: jest.fn() } as any, {} as any);
+
+        const result = await service.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
+
+        expect(ticketRepo.findOne.mock.calls[0][0].relations).toContain('createdBy');
+        expect(result.createdBy).toEqual({ id: 'agent-1', fullName: 'Rm Bagastyo' });
+    });
 });
 
 describe('toPrefixTsQuery', () => {

@@ -663,6 +663,20 @@ export class TicketQueryService {
         return qb;
     }
 
+    /**
+     * Same access rule as opening the ticket (findOne), without loading its conversation.
+     * Throws NotFound / Forbidden like findOne does.
+     */
+    async assertCanView(id: string, user: { id?: string; role: UserRole | string; siteId?: string | null }): Promise<void> {
+        const ticket = await this.ticketRepo.findOne({
+            where: { id },
+            select: ['id', 'userId', 'createdById', 'category', 'ticketType', 'handlingTeam', 'siteId'],
+            relations: ['participants'],
+        });
+        if (!ticket) throw new NotFoundException('Ticket not found');
+        resolveTicketViewerAccess(ticket, user);
+    }
+
     async findOne(id: string, user?: { id?: string; role: UserRole | string; siteId?: string | null }): Promise<any> {
         const ticket = await this.ticketRepo.findOne({
             where: { id },
@@ -670,6 +684,7 @@ export class TicketQueryService {
                 'user',
                 'user.department',
                 'assignedTo',
+                'createdBy',
                 'messages',
                 'messages.sender',
                 'participants',
@@ -714,7 +729,9 @@ export class TicketQueryService {
             }
         }
 
-        return { ...ticket, slaTarget, viewerAccess };
+        // Only who filed it on the requester's behalf, never the rest of that user record.
+        const createdBy = ticket.createdBy ? { id: ticket.createdBy.id, fullName: ticket.createdBy.fullName } : null;
+        return { ...ticket, createdBy, slaTarget, viewerAccess };
     }
 
     async getDashboardStats(

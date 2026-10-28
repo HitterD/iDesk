@@ -9,6 +9,21 @@ import { AGENT_RATING_MAX, AGENT_RATING_MIN, AgentRatingItemDto } from '../dto/t
 /** Requesters may rate agents for this long after the ticket is closed. */
 export const RATING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const RECENT_RATINGS_LIMIT = 20;
+/**
+ * How many neutral ratings every agent starts with for ranking. Few real ratings stay close to
+ * neutral; many real ratings dominate. The neutral value is the middle of the star scale: almost
+ * every rating is 5 stars, so the overall average would be ~5 and could not hold back one lucky 5.
+ */
+export const RATING_PRIOR_WEIGHT = 5;
+export const RATING_PRIOR_MEAN = (AGENT_RATING_MIN + AGENT_RATING_MAX) / 2;
+
+/**
+ * Ranking score (Bayesian average): the agent's average pulled towards the neutral value in
+ * proportion to how few ratings they have. One 5-star rating no longer outranks thirty at 4.97.
+ */
+export function weightedRatingScore(average: number, count: number): number {
+    return (count * average + RATING_PRIOR_WEIGHT * RATING_PRIOR_MEAN) / (count + RATING_PRIOR_WEIGHT);
+}
 
 export const AGENT_RATING_MESSAGES = {
     NOT_OWNER: 'Hanya pemohon tiket yang dapat memberi rating.',
@@ -137,20 +152,21 @@ export class AgentRatingService {
 
     /**
      * Every agent's average and count, best first, plus the latest ratings. With a site code,
-     * only agents whose home site is that site. Ranked on the unrounded average: ranking on the
-     * rounded one let 4.97 (shown as 5.0) sink below every true 5.0.
+     * only agents whose home site is that site. Ranked on weightedRatingScore (same formula in SQL)
+     * so both a high average and many ratings count; the shown average stays the plain one.
      */
     async getAllRatings(siteCode?: string): Promise<{
         agents: Array<{ agentId: string; fullName: string; average: number; count: number }>;
         recent: Array<{ agentId: string; agentName: string; raterName: string; ticketId: string; ticketNumber: string | null; rating: number; comment: string | null; createdAt: Date }>;
     }> {
-        const siteJoin = siteCode ? `JOIN sites s ON s.id = u."siteId" AND s."code" = $1` : '';
+        const siteJoin = siteCode ? `JOIN sites s ON s.id = u."siteId" AND s."code" = $3` : '';
         const [agents, recent] = await Promise.all([
             this.dataSource.query(
-                `SELECT r."agentId", u."fullName", ROUND(AVG(r.rating)::numeric, 2)::float AS average, COUNT(*)::int AS count
+                `SELECT r."agentId", u."fullName", ROUND(AVG(r.rating)::numeric, 2)::float AS average, COUNT(*)::int AS count,
+                        (SUM(r.rating) + $1::numeric * $2::numeric) / (COUNT(*) + $1::numeric) AS score
                  FROM agent_ratings r JOIN users u ON u.id = r."agentId" ${siteJoin}
-                 GROUP BY r."agentId", u."fullName" ORDER BY AVG(r.rating) DESC, COUNT(*) DESC, u."fullName" ASC`,
-                siteCode ? [siteCode] : [],
+                 GROUP BY r."agentId", u."fullName" ORDER BY score DESC, COUNT(*) DESC, u."fullName" ASC`,
+                siteCode ? [RATING_PRIOR_WEIGHT, RATING_PRIOR_MEAN, siteCode] : [RATING_PRIOR_WEIGHT, RATING_PRIOR_MEAN],
             ),
             this.ratingRepo.find({
                 where: siteCode ? { agent: { site: { code: siteCode } } } : undefined,

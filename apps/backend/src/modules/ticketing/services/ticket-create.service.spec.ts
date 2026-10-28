@@ -24,9 +24,10 @@ const buildService = (users: Record<string, unknown>) => {
             }),
         },
     };
+    const messageRepo = { create: jest.fn((data) => ({ ...data })) };
     const service = new TicketCreateService(
         ticketRepo as never,
-        {} as never,
+        messageRepo as never,
         userRepo as never,
         {} as never,
         { notifyDashboardStatsUpdate: jest.fn(), notifyNewTicket: jest.fn() } as never,
@@ -37,7 +38,7 @@ const buildService = (users: Record<string, unknown>) => {
         { logAsync: jest.fn() } as never,
         createTestSlaClock(),
     );
-    return { service, ticketRepo };
+    return { service, ticketRepo, messageRepo };
 };
 
 describe('TicketCreateService', () => {
@@ -68,6 +69,28 @@ describe('TicketCreateService', () => {
             user: requester,
             createdById: 'agent-smg',
             siteId: 'site-krw',
+        }));
+    });
+
+    it('saves the opening report as the requester\'s message, not the filing agent\'s', async () => {
+        const requester = { id: 'user-1', role: UserRole.USER, siteId: 'site-krw', isActive: true };
+        const { service, ticketRepo, messageRepo } = buildService({
+            'agent-smg': { id: 'agent-smg', role: UserRole.AGENT, siteId: 'site-smg', isActive: true },
+            'user-1': requester,
+        });
+        // Run the transaction body so the initial message is actually built.
+        const manager = {
+            save: jest.fn(async (entity: any) => ({ id: 't-1', ...entity })),
+            query: jest.fn().mockResolvedValue([{ next: 1 }]),
+            createQueryBuilder: jest.fn(() => ({ select: () => ({ where: () => ({ getRawOne: async () => ({ max: null }) }) }) })),
+        };
+        ticketRepo.manager.transaction = jest.fn((cb: any) => cb(manager));
+
+        await service.createTicket('agent-smg', { ...ORACLE_DTO, requesterId: 'user-1' }).catch(() => undefined);
+
+        expect(messageRepo.create).toHaveBeenCalledWith(expect.objectContaining({
+            content: ORACLE_DTO.description,
+            senderId: 'user-1',
         }));
     });
 
