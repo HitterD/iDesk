@@ -20,11 +20,11 @@ const latestParams = () => {
     return new URL(calls.at(-1)![0], 'https://idesk.test').searchParams;
 };
 
-function renderPage() {
+function renderPage(path = '/tickets/list') {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return render(
         <QueryClientProvider client={client}>
-            <MemoryRouter><BentoTicketListPage /></MemoryRouter>
+            <MemoryRouter initialEntries={[path]}><BentoTicketListPage /></MemoryRouter>
         </QueryClientProvider>,
     );
 }
@@ -38,9 +38,22 @@ describe('IT Support stat card filters', () => {
         vi.mocked(api.get).mockReset();
         vi.mocked(api.get).mockImplementation(async (url) => ({ data: url.startsWith('/tickets/paginated?')
             ? { data: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } }
-            : url.startsWith('/tickets/dashboard/stats')
+            : url.startsWith('/tickets/queue-stats?')
                 ? { total: 21, open: 3, inProgress: 4, waitingVendor: 5, resolved: 9, overdue: 2, critical: 1 }
                 : [] }));
+    });
+
+    it('counts the stat cards over the same IT Support queue the list shows', async () => {
+        renderPage();
+        await waitFor(() => expect(vi.mocked(api.get)).toHaveBeenCalledWith('/tickets/queue-stats?queue=it-support'));
+        // The all-teams dashboard counter is no longer used here: it counted dev-team tickets the list never shows.
+        expect(vi.mocked(api.get).mock.calls.some(([url]) => url.startsWith('/tickets/dashboard/stats'))).toBe(false);
+    });
+
+    it('re-counts the cards for "Tugas Saya" like the list', async () => {
+        renderPage('/tickets/list?filter=assigned_to_me');
+        await waitFor(() => expect(vi.mocked(api.get)).toHaveBeenCalledWith('/tickets/queue-stats?queue=it-support&assignedToMe=true'));
+        await waitFor(() => expect(latestParams().get('assignedToMe')).toBe('true'));
     });
 
     it('keeps card sorting available for an empty queue and disables select all', async () => {

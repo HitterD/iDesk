@@ -16,10 +16,12 @@ vi.mock('recharts', async (orig) => {
 });
 
 const now = new Date().toISOString();
+const hourAgo = new Date(Date.now() - 3_600_000).toISOString();
+const inAnHour = new Date(Date.now() + 3_600_000).toISOString();
 const tickets = [
-    { id: 't1', ticketNumber: 'A-1', title: 'Printer mati', status: 'TODO', priority: 'CRITICAL', category: 'HARDWARE', isOverdue: true, user: { id: 'u', fullName: 'Nur' }, createdAt: now, updatedAt: now },
+    { id: 't1', ticketNumber: 'A-1', title: 'Printer mati', status: 'TODO', priority: 'CRITICAL', category: 'HARDWARE', isOverdue: false, slaStartedAt: hourAgo, slaTarget: hourAgo, user: { id: 'u', fullName: 'Nur' }, createdAt: now, updatedAt: now },
     { id: 't2', ticketNumber: 'A-2', title: 'Email', status: 'IN_PROGRESS', priority: 'HIGH', category: 'SOFTWARE', isOverdue: false, user: { id: 'u', fullName: 'Nur' }, assignedTo: { id: 'ag', fullName: 'Beny Saputra' }, createdAt: now, updatedAt: now },
-    { id: 't3', ticketNumber: 'A-3', title: 'Wifi', status: 'RESOLVED', priority: 'MEDIUM', isOverdue: false, user: { id: 'u', fullName: 'Nur' }, assignedTo: { id: 'ag', fullName: 'Beny Saputra' }, createdAt: now, updatedAt: now },
+    { id: 't3', ticketNumber: 'A-3', title: 'Wifi', status: 'RESOLVED', priority: 'MEDIUM', isOverdue: false, slaStartedAt: hourAgo, slaTarget: inAnHour, resolvedAt: now, user: { id: 'u', fullName: 'Nur' }, assignedTo: { id: 'ag', fullName: 'Beny Saputra' }, createdAt: now, updatedAt: now },
 ];
 
 const renderPage = () => render(
@@ -47,8 +49,11 @@ describe('BentoDashboardPage (Dashboard Tim)', () => {
         expect(within(stats).getByRole('link', { name: /Total tiket/ })).toHaveTextContent('3');
         expect(within(stats).getByRole('link', { name: /Open & aktif/ })).toHaveAttribute('href', '/tickets/list?status=TODO,IN_PROGRESS');
         expect(within(stats).getByRole('link', { name: /Overdue/ })).toHaveClass('is-attn');
+        // The ticket list reads overdue=1; overdue=true was silently ignored.
+        expect(within(stats).getByRole('link', { name: /Overdue/ })).toHaveAttribute('href', '/tickets/list?overdue=1');
         expect(stats).toHaveTextContent('Rata-rata selesai 4j 20m');
-        expect(stats).toHaveTextContent('67%');
+        // One done ticket, resolved before its target.
+        expect(stats).toHaveTextContent('100%');
     });
 
     it('keeps status, priority, category, live feed and top agents', async () => {

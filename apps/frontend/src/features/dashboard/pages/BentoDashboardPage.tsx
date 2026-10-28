@@ -169,9 +169,9 @@ export const BentoDashboardPage = () => {
                     sub={live.weekChange.resolved
                         ? <><WeekTrend change={live.weekChange.resolved} /> vs periode sama minggu lalu · {live.resolvedToday} hari ini</>
                         : `${live.resolvedToday} selesai hari ini`} />
-                <DashStat icon={TriangleAlert} tone="red" label="Overdue" value={live.overdue} attention={live.overdue > 0} zero={live.overdue === 0} to="/tickets/list?overdue=true"
+                <DashStat icon={TriangleAlert} tone="red" label="Overdue" value={live.overdue} attention={live.overdue > 0} zero={live.overdue === 0} to="/tickets/list?overdue=1"
                     sub={live.overdue > 0 ? 'Perlu tindakan' : 'Semua tepat waktu'} />
-                <DashStat icon={Gauge} tone="navy" label="Kepatuhan SLA" value={`${live.slaCompliance}%`}
+                <DashStat icon={Gauge} tone="navy" label="Kepatuhan SLA" value={live.slaCompliance === null ? '—' : `${live.slaCompliance.toLocaleString('id-ID')}%`} zero={live.slaCompliance === null}
                     sub={`Rata-rata selesai ${toIndonesianDuration(stats?.avgResolutionTime)}`} />
             </section>
 

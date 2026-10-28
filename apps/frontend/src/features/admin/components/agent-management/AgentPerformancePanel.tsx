@@ -406,7 +406,7 @@ export function AgentPerformancePanel({
                     </table>
                 </div>
             )}
-            <AgentRatingsSection />
+            <AgentRatingsSection siteCode={selectedSite} />
             </Collapsible.Content>
         </Collapsible.Root>
     );

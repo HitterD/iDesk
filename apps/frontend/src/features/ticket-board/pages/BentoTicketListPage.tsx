@@ -68,6 +68,7 @@ import { TicketListActiveFilters } from '../components/TicketListActiveFilters';
 import { TicketListPagination } from '../components/TicketListPagination';
 import { Ticket } from '../types/ticket.types';
 import { useTicketListMutations } from '../hooks/useTicketListMutations';
+import { useQueueStats } from '../hooks/useQueueStats';
 import { isHandledByTakeoverDialog, type TakeoverOptions } from '../hooks/useStatusTakeover';
 import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 import { BentoTicketKanban } from '../components/BentoTicketKanban';
@@ -224,23 +225,9 @@ export const BentoTicketListPage: React.FC = () => {
         refetchInterval: isConnected ? false : 60000, // fallback poll only while the socket is down
     });
 
-    // Fetch dashboard stats separately (for stat cards - doesn't need to refetch on pagination)
-    const { data: statsData } = useQuery<{
-        total: number;
-        open: number;
-        inProgress: number;
-        waitingVendor: number;
-        resolved: number;
-        overdue: number;
-        critical: number;
-    }>({
-        queryKey: ['dashboard-stats', { excludeCategory: 'ICT_BUDGET,LOST_ITEM,ACCESS_REQUEST' }],
-        queryFn: async () => {
-            const res = await api.get('/tickets/dashboard/stats?excludeCategory=ICT_BUDGET,LOST_ITEM,ACCESS_REQUEST');
-            return res.data;
-        },
-        staleTime: 30000, // 30 seconds
-    });
+    // Stat cards count the same IT Support queue as the list (team, sites, "Tugas Saya" / "Saya Buat"),
+    // so clicking a card always shows that many tickets. Not refetched on pagination.
+    const { data: statsData } = useQueueStats('it-support', { siteIds: selectedSites, assignedToMe: showAssignedToMe, createdByMe: showCreatedByMe });
 
     const isAdmin = user?.role === 'ADMIN';
     const { data: agents = [] } = useQuery<Agent[]>({

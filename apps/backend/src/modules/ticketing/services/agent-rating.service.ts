@@ -135,17 +135,25 @@ export class AgentRatingService {
         };
     }
 
-    async getAllRatings(): Promise<{
+    /**
+     * Every agent's average and count, best first, plus the latest ratings. With a site code,
+     * only agents whose home site is that site. Ranked on the unrounded average: ranking on the
+     * rounded one let 4.97 (shown as 5.0) sink below every true 5.0.
+     */
+    async getAllRatings(siteCode?: string): Promise<{
         agents: Array<{ agentId: string; fullName: string; average: number; count: number }>;
         recent: Array<{ agentId: string; agentName: string; raterName: string; ticketId: string; ticketNumber: string | null; rating: number; comment: string | null; createdAt: Date }>;
     }> {
+        const siteJoin = siteCode ? `JOIN sites s ON s.id = u."siteId" AND s."code" = $1` : '';
         const [agents, recent] = await Promise.all([
             this.dataSource.query(
                 `SELECT r."agentId", u."fullName", ROUND(AVG(r.rating)::numeric, 2)::float AS average, COUNT(*)::int AS count
-                 FROM agent_ratings r JOIN users u ON u.id = r."agentId"
-                 GROUP BY r."agentId", u."fullName" ORDER BY average DESC, count DESC`,
+                 FROM agent_ratings r JOIN users u ON u.id = r."agentId" ${siteJoin}
+                 GROUP BY r."agentId", u."fullName" ORDER BY AVG(r.rating) DESC, COUNT(*) DESC, u."fullName" ASC`,
+                siteCode ? [siteCode] : [],
             ),
             this.ratingRepo.find({
+                where: siteCode ? { agent: { site: { code: siteCode } } } : undefined,
                 relations: ['agent', 'rater', 'ticket'],
                 order: { createdAt: 'DESC' },
                 take: RECENT_RATINGS_LIMIT,
@@ -164,6 +172,25 @@ export class AgentRatingService {
                 createdAt: r.createdAt,
             })),
         };
+    }
+
+    /** Every rating one agent received, newest first, with who gave it and on which ticket. */
+    async getAgentRatings(agentId: string): Promise<Array<{
+        raterName: string; ticketId: string; ticketNumber: string | null; rating: number; comment: string | null; createdAt: Date;
+    }>> {
+        const rows = await this.ratingRepo.find({
+            where: { agentId },
+            relations: ['rater', 'ticket'],
+            order: { createdAt: 'DESC' },
+        });
+        return rows.map((r) => ({
+            raterName: r.rater?.fullName ?? '-',
+            ticketId: r.ticketId,
+            ticketNumber: r.ticket?.ticketNumber ?? null,
+            rating: r.rating,
+            comment: r.comment,
+            createdAt: r.createdAt,
+        }));
     }
 
     private async loadOwnedTicket(ticketId: string, userId: string): Promise<Ticket> {
