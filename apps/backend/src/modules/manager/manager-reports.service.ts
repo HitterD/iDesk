@@ -254,20 +254,26 @@ export class ManagerReportsService {
         const agentIds = agents.map(a => a.id);
 
         // One grouped count for "assigned in period" instead of one query per agent.
-        const assignedRows = await this.ticketRepo.createQueryBuilder('t')
+        // Cancelled tickets are not work, and only the selected sites' tickets count.
+        const assignedQb = this.ticketRepo.createQueryBuilder('t')
             .select('t.assignedToId', 'agentId')
             .addSelect('COUNT(*)', 'count')
             .where('t.assignedToId IN (:...agentIds)', { agentIds })
             .andWhere('t.createdAt BETWEEN :startDate AND :endDate', { startDate, endDate })
+            .andWhere(`t.status <> '${TicketStatus.CANCELLED}'`);
+        if (siteIds.length) assignedQb.andWhere('t.siteId IN (:...siteIds)', { siteIds });
+        const assignedRows = await assignedQb
             .groupBy('t.assignedToId')
             .getRawMany<{ agentId: string; count: string }>();
         const totalAssignedByAgent = new Map(assignedRows.map(r => [r.agentId, Number(r.count)]));
 
-        // One fetch for every resolved ticket in the period instead of one per agent.
+        // One fetch for every resolved ticket in the period instead of one per agent,
+        // from the same sites so "assigned" and "resolved" describe the same work.
         const resolvedTickets = await this.ticketRepo.find({
             where: {
                 assignedToId: In(agentIds),
                 resolvedAt: Between(startDate, endDate),
+                ...(siteIds.length ? { siteId: In(siteIds) } : {}),
             },
         });
         const resolvedByAgent = new Map<string, typeof resolvedTickets>();

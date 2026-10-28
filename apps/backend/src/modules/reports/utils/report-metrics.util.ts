@@ -2,9 +2,8 @@ import { TICKET_DONE_STATUSES_SQL } from '../../ticketing/utils/ticket-status-sq
 
 export interface MetricCounts {
     agentName: string;
+    /** Tickets given to the agent in the period, excluding cancelled ones ("Tugas"). */
     totalAssigned: number;
-    totalCancelled: number;
-    totalEligible: number;
     totalResolved: number;
     slaEvaluated: number;
     slaCompliant: number;
@@ -20,19 +19,6 @@ export function metricRate(numerator: number, denominator: number): number | nul
     return denominator > 0 ? Math.round(numerator / denominator * 10000) / 100 : null;
 }
 
-/** True when the agent's home site differs from the site the report is scoped to. */
-export function isCrossSiteAgent(agent: { agentSiteId: string | null }, selectedSiteId?: string): boolean {
-    return Boolean(selectedSiteId && agent.agentSiteId && selectedSiteId !== agent.agentSiteId);
-}
-
-export const CROSS_SITE_LABEL = 'lintas site';
-export const NO_VALUE_LABEL = '—';
-
-/** Excel cells that make an agent row reconcilable: [home site, cross-site marker]. */
-export function agentSiteCells(agent: { agentSiteId: string | null; agentSiteName: string | null }, selectedSiteId?: string): [string, string] {
-    return [agent.agentSiteName || NO_VALUE_LABEL, isCrossSiteAgent(agent, selectedSiteId) ? 'Ya' : 'Tidak'];
-}
-
 export function rankAgents<T extends Pick<MetricCounts, 'totalResolved' | 'slaComplianceRate' | 'agentName'>>(rows: readonly T[]): T[] {
     return [...rows].sort((a, b) => b.totalResolved - a.totalResolved
         || (b.slaComplianceRate ?? -1) - (a.slaComplianceRate ?? -1)
@@ -43,16 +29,16 @@ export function summarizeAgentMetrics<T extends MetricCounts>(rows: readonly T[]
     const sum = (key: keyof Omit<MetricCounts, 'agentName' | 'slaComplianceRate'>) => rows.reduce((total, row) => total + row[key], 0);
     const responseSamples = sum('responseSamples');
     const resolutionSamples = sum('resolutionSamples');
-    const totalEligible = sum('totalEligible');
+    const totalAssigned = sum('totalAssigned');
     const totalResolved = sum('totalResolved');
     const slaEvaluated = sum('slaEvaluated');
     const slaCompliant = sum('slaCompliant');
     return {
-        totalAssigned: sum('totalAssigned'), totalCancelled: sum('totalCancelled'), totalEligible, totalResolved,
+        totalAssigned, totalResolved,
         slaEvaluated, slaCompliant, slaBreached: sum('slaBreached'),
         responseSamples, responseTotalMinutes: sum('responseTotalMinutes'),
         resolutionSamples, resolutionTotalMinutes: sum('resolutionTotalMinutes'),
-        resolutionRate: metricRate(totalResolved, totalEligible),
+        resolutionRate: metricRate(totalResolved, totalAssigned),
         slaComplianceRate: metricRate(slaCompliant, slaEvaluated),
         avgResponseTimeMinutes: responseSamples ? sum('responseTotalMinutes') / responseSamples : null,
         avgResolutionTimeMinutes: resolutionSamples ? sum('resolutionTotalMinutes') / resolutionSamples : null,

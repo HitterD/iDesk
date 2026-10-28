@@ -263,7 +263,7 @@ export const BentoReportsPage: React.FC = () => {
                             disabled={exporting || monthlyLoading} onPreview={handlePreviewMonthlyPDF} onPdf={handleExportMonthlyPDF} onExcel={handleExportMonthlyExcel} />
                     )}
                     {activeTab === 'agent' && (
-                        <AgentTab siteId={siteId} agents={agentMetrics} loading={agentLoading} startDate={startDate} endDate={endDate} onRange={onRange}
+                        <AgentTab agents={agentMetrics} loading={agentLoading} startDate={startDate} endDate={endDate} onRange={onRange}
                             disabled={exporting || agentLoading} onPreview={handlePreviewAgentPDF} onPdf={handleExportAgentPDF} onExcel={handleExportCustomExcel} />
                     )}
                     {activeTab === 'volume' && (

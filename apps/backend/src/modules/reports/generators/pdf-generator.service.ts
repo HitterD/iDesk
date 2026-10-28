@@ -3,7 +3,7 @@ import { Response } from 'express';
 import { AgentMetrics } from './agent-performance.report';
 import { TicketVolumeData } from './ticket-volume.report';
 import { generateExecutiveInsights } from '../utils/executive-insights.util';
-import { CROSS_SITE_LABEL, isCrossSiteAgent, metricRate, rankAgents, summarizeAgentMetrics } from '../utils/report-metrics.util';
+import { metricRate, rankAgents, summarizeAgentMetrics } from '../utils/report-metrics.util';
 import { DAILY_TREND_CAPTION, REPORT_COHORT } from './report-pdf-canvas';
 import {
     BarRow,
@@ -33,7 +33,6 @@ export interface PDFReportOptions {
     dateRange?: { startDate: Date; endDate: Date };
     author?: string;
     siteName?: string;
-    siteId?: string;
     docNo?: string;
 }
 
@@ -115,7 +114,7 @@ export class PDFGeneratorService {
         });
         canvas.kpis([
             { label: 'Total tiket', value: fmtInt(total), note: `${monthName} ${stats.year}` },
-            { label: 'Selesai', value: fmtInt(resolved), note: `${fmtPct(rate)} dari tiket eligible`, tone: toneForRate(rate) },
+            { label: 'Selesai', value: fmtInt(resolved), note: `${fmtPct(rate)} dari tiket tidak dibatalkan`, tone: toneForRate(rate) },
             { label: 'Masih terbuka', value: fmtInt(open), note: open > 0 ? 'Perlu ditindaklanjuti' : 'Tidak ada antrean', tone: open > 0 ? 'warn' : 'good' },
             { label: 'Rata-rata penyelesaian', value: fmtHours(avgHours), note: 'per tiket' },
         ]);
@@ -166,7 +165,7 @@ export class PDFGeneratorService {
         });
         canvas.kpis([
             { label: 'Teknisi dievaluasi', value: fmtInt(agents.length), note: `${fmtInt(assigned)} tiket ditugaskan` },
-            { label: 'Tingkat penyelesaian', value: fmtPct(avgRate), note: `${resolved}/${summary.totalEligible} eligible · ${summary.totalCancelled} dibatalkan`, tone: toneForRate(avgRate) },
+            { label: 'Tingkat penyelesaian', value: fmtPct(avgRate), note: `${resolved} dari ${assigned} tiket`, tone: toneForRate(avgRate) },
             { label: 'Kepatuhan SLA', value: fmtPct(avgSla), note: `${summary.slaCompliant}/${summary.slaEvaluated} dievaluasi`, tone: toneForRate(avgSla) },
             { label: 'Penyelesaian terbanyak', value: shortName(best?.agentName), note: best ? `${best.totalResolved} tiket selesai` : undefined },
         ]);
@@ -183,7 +182,7 @@ export class PDFGeneratorService {
                 { header: 'Durasi', width: 1, align: 'right' }, { header: 'SLA', width: 0.9, align: 'right' },
             ],
             agents.map((m) => [
-                { text: `${m.agentName}${m.agentSiteName ? ` · ${m.agentSiteName}${isCrossSiteAgent(m, options.siteId) ? ` (${CROSS_SITE_LABEL})` : ''}` : ''}\n${m.totalCancelled} batal · ${m.totalEligible} eligible`, bold: true },
+                { text: m.agentName, bold: true },
                 { text: fmtInt(m.totalAssigned) },
                 { text: fmtInt(m.totalResolved) },
                 rateCell(m.resolutionRate),
@@ -213,7 +212,7 @@ export class PDFGeneratorService {
         });
         canvas.kpis([
             { label: 'Tiket masuk', value: fmtInt(created), note: 'Selama periode' },
-            { label: 'Terselesaikan', value: fmtInt(resolved), note: `${fmtPct(rate)} dari ${summary.totalEligible} eligible · ${summary.totalCancelled} dibatalkan`, tone: toneForRate(rate) },
+            { label: 'Terselesaikan', value: fmtInt(resolved), note: `${fmtPct(rate)} dari ${summary.totalEligible} tiket tidak dibatalkan · ${summary.totalCancelled} dibatalkan`, tone: toneForRate(rate) },
             { label: 'Masih berjalan', value: fmtInt(pending), note: pending > 0 ? 'Perlu dipantau' : 'Tidak ada antrean', tone: pending > 0 ? 'warn' : 'good' },
             { label: 'Rata-rata per hari', value: (Number(summary.avgPerDay) || 0).toLocaleString('id-ID', { maximumFractionDigits: 1 }),
                 note: summary.peakCount ? `Puncak ${fmtInt(summary.peakCount)} tiket (${summary.peakDay})` : undefined },

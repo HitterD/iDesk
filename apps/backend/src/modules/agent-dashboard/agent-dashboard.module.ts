@@ -5,6 +5,7 @@ import { AgentRating } from '../ticketing/entities/agent-rating.entity';
 import { User } from '../users/entities/user.entity';
 import { AgentDailyWorkload } from '../workload/entities/agent-daily-workload.entity';
 import { AuthModule } from '../auth/auth.module';
+import { WorkloadModule } from '../workload/workload.module';
 import { AgentDashboardController } from './agent-dashboard.controller';
 import { AgentDashboardService } from './agent-dashboard.service';
 
@@ -12,6 +13,7 @@ import { AgentDashboardService } from './agent-dashboard.service';
     imports: [
         TypeOrmModule.forFeature([Ticket, User, AgentDailyWorkload, AgentRating]),
         AuthModule,
+        WorkloadModule, // Live workload points
     ],
     controllers: [AgentDashboardController],
     providers: [AgentDashboardService],

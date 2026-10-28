@@ -1,21 +1,22 @@
 import { metricRate, summarizeAgentMetrics, rankAgents, reportMetricSql } from './report-metrics.util';
 
 const agent = (overrides: Record<string, unknown> = {}) => ({
-    agentId: 'a', agentName: 'A', totalAssigned: 10, totalCancelled: 2, totalEligible: 8,
+    // Cancelled tickets never reach these counts: totalAssigned is already net of them.
+    agentId: 'a', agentName: 'A', totalAssigned: 8,
     totalResolved: 8, slaEvaluated: 8, slaCompliant: 8, slaBreached: 0,
     responseSamples: 1, responseTotalMinutes: 0.5, resolutionSamples: 8,
     resolutionTotalMinutes: 80, slaComplianceRate: 100, ...overrides,
 });
 
 describe('report metrics shared contract', () => {
-    it('excludes cancellations from resolution denominator', () => {
+    it('rates resolution against assigned tickets, which already exclude cancellations', () => {
         expect(summarizeAgentMetrics([agent()]).resolutionRate).toBe(100);
     });
     it('uses summed denominators rather than means of agent rates', () => {
         const summary = summarizeAgentMetrics([
-            agent({ totalAssigned: 500, totalCancelled: 0, totalEligible: 500, totalResolved: 460,
+            agent({ totalAssigned: 500, totalResolved: 460,
                 slaEvaluated: 500, slaCompliant: 460, slaBreached: 40 }),
-            agent({ totalAssigned: 48, totalCancelled: 0, totalEligible: 48, totalResolved: 45,
+            agent({ totalAssigned: 48, totalResolved: 45,
                 slaEvaluated: 48, slaCompliant: 45, slaBreached: 3,
                 responseSamples: 9, responseTotalMinutes: 89.5 }),
         ]);

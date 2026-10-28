@@ -22,7 +22,7 @@ import {
 } from '../entities/scheduled-report-execution.entity';
 
 import { AgentPerformanceReport, DateRange } from './agent-performance.report';
-import { agentSiteCells, rankAgents, summarizeAgentMetrics } from '../utils/report-metrics.util';
+import { rankAgents, summarizeAgentMetrics } from '../utils/report-metrics.util';
 import { fmtPeriod, fmtPct, fmtMinutes, REPORT_COHORT, DAILY_CREATED_LABEL, DAILY_DONE_LONG_LABEL } from './report-pdf-canvas';
 import { TicketVolumeReport } from './ticket-volume.report';
 import { ReportsService } from '../reports.service';
@@ -391,7 +391,7 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
 
     if (config.reportType === ReportType.AGENT_PERFORMANCE) {
       const perf = await this.agentPerformanceReport.generate(dateRange, scope);
-      const buffer = await this.buildPerformanceExcel(perf.data, dateRange, scopeText, config.siteId);
+      const buffer = await this.buildPerformanceExcel(perf.data, dateRange, scopeText);
       const filename = `agent-performance-${config.siteId}-${Date.now()}.xlsx`;
       return {
         buffer,
@@ -407,7 +407,7 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
       this.agentPerformanceReport.generate(dateRange, scope),
     ]);
 
-    const buffer = await this.buildCombinedExcel(volume.data, perf.data, dateRange, scopeText, config.siteId);
+    const buffer = await this.buildCombinedExcel(volume.data, perf.data, dateRange, scopeText);
     const filename = `monthly-summary-${config.siteId}-${Date.now()}.xlsx`;
     return {
       buffer,
@@ -455,7 +455,7 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
       ['Periode Laporan', periodStr],
       ['Total Tiket Masuk (Created)', data.summary.totalCreated ?? 0],
       ['Dibatalkan', data.summary.totalCancelled],
-      ['Tiket eligible', data.summary.totalEligible],
+      ['Tiket tidak dibatalkan', data.summary.totalEligible],
       ['Tingkat penyelesaian', fmtPct(data.summary.resolutionRate)],
       ['Total Tiket Diselesaikan (Resolved)', data.summary.totalResolved ?? 0],
       ['Total Tiket Masih Tertunda (Pending)', data.summary.totalPending ?? 0],
@@ -495,12 +495,12 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
     return (await wb.xlsx.writeBuffer()) as unknown as Buffer;
   }
 
-  private async buildPerformanceExcel(data: any[], dateRange: DateRange, scopeText: string, selectedSiteId?: string): Promise<Buffer> {
+  private async buildPerformanceExcel(data: any[], dateRange: DateRange, scopeText: string): Promise<Buffer> {
     const wb = createStyledWorkbook();
     const periodStr = `${fmtPeriod(dateRange)} · ${REPORT_COHORT}`;
 
     const sheet = wb.addWorksheet('Agent Performance');
-    let curRow = drawCorporateExcelHeader(sheet, 'LAPORAN KINERJA TEKNISI / AGENT TERJADWAL', periodStr, scopeText, 'K');
+    let curRow = drawCorporateExcelHeader(sheet, 'LAPORAN KINERJA TEKNISI / AGENT TERJADWAL', periodStr, scopeText, 'G');
 
     const summary = summarizeAgentMetrics(data);
     const { totalAssigned, totalResolved, slaComplianceRate: avgSla } = summary;
@@ -509,16 +509,16 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
       sheet,
       curRow,
       [
-        { label: 'Total Ditugaskan', value: totalAssigned.toLocaleString('id-ID'), subtext: `${data.length} Teknisi Terdaftar` },
-        { label: 'Total Selesai', value: totalResolved.toLocaleString('id-ID'), subtext: `${fmtPct(summary.resolutionRate)} Resolusi · ${summary.totalCancelled} Dibatalkan · ${summary.totalEligible} eligible` },
+        { label: 'Total Tugas', value: totalAssigned.toLocaleString('id-ID'), subtext: `${data.length} Teknisi Terdaftar` },
+        { label: 'Total Selesai', value: totalResolved.toLocaleString('id-ID'), subtext: `${fmtPct(summary.resolutionRate)} Resolusi` },
         { label: 'Kepatuhan SLA', value: fmtPct(avgSla), subtext: `${summary.slaCompliant}/${summary.slaEvaluated} dievaluasi` },
       ],
-      [['A', 'D'], ['E', 'H'], ['I', 'K']]
+      [['A', 'B'], ['C', 'D'], ['E', 'G']]
     );
 
     const tableHeadRow = curRow;
     const header = sheet.getRow(tableHeadRow);
-    header.values = ['Nama Teknisi', 'Site Asal', 'Lintas Site', 'Ditugaskan', 'Dibatalkan', 'Eligible', 'Selesai', 'Tingkat Resolusi (%)', 'Avg Respon', 'Avg Resolusi', 'Kepatuhan SLA (%)'];
+    header.values = ['Nama Teknisi', 'Tugas', 'Selesai', 'Tingkat Resolusi (%)', 'Avg Respon', 'Avg Resolusi', 'Kepatuhan SLA (%)'];
     applyHeaderStyle(header);
     setupFreezePanes(sheet, tableHeadRow);
     curRow++;
@@ -527,10 +527,7 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
       const r = sheet.getRow(curRow);
       r.values = [
         row.agentName,
-        ...agentSiteCells(row, selectedSiteId),
         row.totalAssigned,
-        row.totalCancelled,
-        row.totalEligible,
         row.totalResolved,
         fmtPct(row.resolutionRate),
         fmtMinutes(row.avgResponseTimeMinutes),
@@ -542,15 +539,15 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
     });
 
     if (data.length > 0) {
-      applyAutoFilter(sheet, 'A', tableHeadRow, 'K', curRow - 1);
-      applyFullBorders(sheet, tableHeadRow, curRow - 1, 11);
+      applyAutoFilter(sheet, 'A', tableHeadRow, 'G', curRow - 1);
+      applyFullBorders(sheet, tableHeadRow, curRow - 1, 7);
     }
     autoFitColumns(sheet, 16, 32);
 
     return (await wb.xlsx.writeBuffer()) as unknown as Buffer;
   }
 
-  private async buildCombinedExcel(volumeData: any, perfData: any[], dateRange: DateRange, scopeText: string, selectedSiteId?: string): Promise<Buffer> {
+  private async buildCombinedExcel(volumeData: any, perfData: any[], dateRange: DateRange, scopeText: string): Promise<Buffer> {
     const wb = createStyledWorkbook();
     const periodStr = `${fmtPeriod(dateRange)} · ${REPORT_COHORT}`;
 
@@ -591,7 +588,7 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
       ['Total Tiket Terdaftar', totalCreated],
       ['Tiket Diselesaikan', totalResolved],
       ['Dibatalkan', volumeData.summary.totalCancelled],
-      ['Tiket eligible', volumeData.summary.totalEligible],
+      ['Tiket tidak dibatalkan', volumeData.summary.totalEligible],
       ['Kepatuhan SLA', fmtPct(summarizeAgentMetrics(perfData).slaComplianceRate)],
       ['Tiket Masih Pending', totalPending],
       ['Rata-rata Tiket Per Hari', volumeData.summary?.avgPerDay ?? 0],
@@ -610,17 +607,14 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
 
     // Sheet 2: Agent Performance
     const agents = wb.addWorksheet('Agent Performance');
-    const aHead = agents.addRow(['Nama Teknisi', 'Site Asal', 'Lintas Site', 'Ditugaskan', 'Dibatalkan', 'Eligible', 'Selesai', 'Tingkat Resolusi (%)', 'Avg Respon', 'Kepatuhan SLA (%)']);
+    const aHead = agents.addRow(['Nama Teknisi', 'Tugas', 'Selesai', 'Tingkat Resolusi (%)', 'Avg Respon', 'Kepatuhan SLA (%)']);
     applyHeaderStyle(aHead);
     setupFreezePanes(agents, 1);
 
     rankAgents(perfData).forEach((a, idx) => {
       const row = agents.addRow([
         a.agentName,
-        ...agentSiteCells(a, selectedSiteId),
         a.totalAssigned,
-        a.totalCancelled,
-        a.totalEligible,
         a.totalResolved,
         fmtPct(a.resolutionRate),
         fmtMinutes(a.avgResponseTimeMinutes),
@@ -630,8 +624,8 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
     });
 
     if (perfData.length > 0) {
-      applyAutoFilter(agents, 'A', 1, 'J', 1 + perfData.length);
-      applyFullBorders(agents, 1, 1 + perfData.length, 10);
+      applyAutoFilter(agents, 'A', 1, 'F', 1 + perfData.length);
+      applyFullBorders(agents, 1, 1 + perfData.length, 6);
     }
     autoFitColumns(agents, 16, 30);
 

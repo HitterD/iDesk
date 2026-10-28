@@ -82,6 +82,40 @@ describe('AgentPerformanceReport (with site + team filter)', () => {
   const teamRolesFilter = () =>
     mockQB._calls.find((c: any) => c.method === 'andWhere' && String(c.args[0]).includes('handlingTeam'))?.args[1];
 
+  const whereClauses = () => mockQB._calls.filter((c: any) => c.method === 'andWhere' || c.method === 'where').map((c: any) => String(c.args[0]));
+
+  const homeSiteClauses = () => mockQB._calls.filter((c: any) => c.method === 'andWhere' && String(c.args[0]).includes('user.siteId = :siteId'));
+
+  it('limits IT Support work in a site report to that site\'s own agents on every query', async () => {
+    await service.generate({ startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') }, { siteId: 'site-spj' });
+
+    // Main metrics query and priority query both keep only the home site, but only for IT Support tickets.
+    const homeSite = homeSiteClauses();
+    expect(homeSite).toHaveLength(2);
+    expect(homeSite[0].args[1]).toMatchObject({ siteId: 'site-spj', devTeams: DEV_HANDLING_TEAMS });
+    expect(String(homeSite[0].args[0])).toContain('ticket.handlingTeam IN (:...devTeams)');
+  });
+
+  it('keeps dev teams in a site report whatever their home site, since they work across sites', async () => {
+    await service.generate({ startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') }, { siteId: 'site-spj', team: HandlingTeam.ORACLE_DEV });
+    expect(homeSiteClauses()).toHaveLength(0);
+  });
+
+  it('applies the home-site rule when the IT Support team is selected', async () => {
+    await service.generate({ startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') }, { siteId: 'site-spj', team: HandlingTeam.OPS_SUPPORT });
+    expect(homeSiteClauses()).toHaveLength(2);
+  });
+
+  it('shows agents from every site when no site is selected', async () => {
+    await service.generate({ startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') });
+    expect(whereClauses().some((w: string) => w.includes('user.siteId'))).toBe(false);
+  });
+
+  it('leaves cancelled tickets out of every query', async () => {
+    await service.generate({ startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') }, { siteId: 'site-spj' });
+    expect(whereClauses().filter((w: string) => w.includes("ticket.status <> 'CANCELLED'"))).toHaveLength(2);
+  });
+
   it('uses handlingTeam on every query, never the current assignee role', async () => {
     await service.generate({ startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') }, { team: HandlingTeam.OPS_SUPPORT });
     expect(teamRolesFilter()).toEqual({ reportTeam: HandlingTeam.OPS_SUPPORT });
@@ -123,14 +157,17 @@ describe('AgentPerformanceReport (with site + team filter)', () => {
 
   it('maps persisted aggregate samples without rounding or inventing missing legacy measurements', async () => {
     mockQB.getRawMany.mockResolvedValueOnce([
-      { agentId: 'new-pic', agentName: 'B', totalAssigned: '10', totalCancelled: '2', totalResolved: '8',
+      // Cancelled tickets never reach the query, so "Tugas" (totalAssigned) is already net of them.
+      { agentId: 'new-pic', agentName: 'B', totalAssigned: '8', totalResolved: '8',
         slaEvaluated: '8', slaCompliant: '8', slaBreached: '0', responseSamples: '1', responseTotalMinutes: '0.5', resolutionSamples: '0' },
-      { agentId: 'legacy', agentName: 'A', totalAssigned: '2', totalCancelled: '2', totalResolved: '0' },
-    ]).mockResolvedValueOnce([{ agentId: 'new-pic', priority: 'HIGH', count: '10' }]);
+      { agentId: 'legacy', agentName: 'A', totalAssigned: '0', totalResolved: '0' },
+    ]).mockResolvedValueOnce([{ agentId: 'new-pic', priority: 'HIGH', count: '8' }]);
     const result = await service.generate({ startDate: new Date('2026-01-01'), endDate: new Date('2026-01-31') });
-    expect(result.data[0]).toMatchObject({ agentId: 'new-pic', totalAssigned: 10, totalEligible: 8, resolutionRate: 100,
-      slaComplianceRate: 100, avgResponseTimeMinutes: 0.5, avgResolutionTimeMinutes: null, agentSiteId: null,
-      ticketsByPriority: { HIGH: 10 } });
+    expect(result.data[0]).toMatchObject({ agentId: 'new-pic', totalAssigned: 8, resolutionRate: 100,
+      slaComplianceRate: 100, avgResponseTimeMinutes: 0.5, avgResolutionTimeMinutes: null,
+      ticketsByPriority: { HIGH: 8 } });
+    expect(result.data[0]).not.toHaveProperty('totalCancelled');
+    expect(result.data[0]).not.toHaveProperty('agentSiteId');
     expect(result.data[1]).toMatchObject({ resolutionRate: null, slaComplianceRate: null, avgResponseTimeMinutes: null });
     const expressions = mockQB._calls.filter((c: any) => c.method === 'addSelect').map((c: any) => c.args[0]).join(' ');
     expect(expressions).toContain('ticket.firstResponseAt');
