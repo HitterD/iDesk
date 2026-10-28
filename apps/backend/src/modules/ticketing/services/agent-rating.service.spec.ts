@@ -1,5 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
-import { AgentRatingService, AGENT_RATING_MESSAGES, RATING_WINDOW_MS } from './agent-rating.service';
+import { AgentRatingService, AGENT_RATING_MESSAGES, RATING_PRIOR_MEAN, RATING_PRIOR_WEIGHT, RATING_WINDOW_MS, weightedRatingScore } from './agent-rating.service';
 import { TicketStatus } from '../entities/ticket.entity';
 
 describe('AgentRatingService', () => {
@@ -102,23 +102,32 @@ describe('AgentRatingService', () => {
         beforeEach(() => { dataSource.query.mockResolvedValue([]); });
         const agentsSql = () => String(dataSource.query.mock.calls[0][0]);
 
-        it('ranks by the unrounded average, then by the number of ratings', async () => {
+        it('ranks by a count-weighted score so one 5-star rating does not beat thirty near-perfect ones', async () => {
             await service.getAllRatings();
-            // Sorting on a rounded value let a 4.97 average (shown as 5.0) sink below every true 5.0.
-            expect(agentsSql()).toMatch(/ORDER BY AVG\(r\.rating\) DESC, COUNT\(\*\) DESC/);
+            expect(agentsSql()).toMatch(/ORDER BY score DESC, COUNT\(\*\) DESC/);
+        });
+
+        it.each([
+            // [average, count] pairs from the user's screenshot.
+            ['30 ratings at 4.97 above a single 5.00', [4.97, 30], [5, 1]],
+            ['14 ratings at 4.93 above a single 5.00', [4.93, 14], [5, 1]],
+            ['33 ratings at 5.00 above 30 at 4.97', [5, 33], [4.97, 30]],
+            ['30 ratings at 5.00 above 3 at 5.00', [5, 30], [5, 3]],
+        ])('weighted score: %s', (_label, better, worse) => {
+            expect(weightedRatingScore(better[0], better[1])).toBeGreaterThan(weightedRatingScore(worse[0], worse[1]));
         });
 
         it('keeps every site when no site is chosen', async () => {
             await service.getAllRatings();
-            expect(dataSource.query.mock.calls[0][1]).toEqual([]);
+            expect(dataSource.query.mock.calls[0][1]).toEqual([RATING_PRIOR_WEIGHT, RATING_PRIOR_MEAN]);
             expect(agentsSql()).not.toContain('site');
         });
 
         it('limits agents and recent ratings to agents whose home site is the chosen site', async () => {
             ratingRepo.find.mockResolvedValue([]);
             await service.getAllRatings('SPJ');
-            expect(dataSource.query.mock.calls[0][1]).toEqual(['SPJ']);
-            expect(agentsSql()).toContain('s."code" = $1');
+            expect(dataSource.query.mock.calls[0][1]).toEqual([RATING_PRIOR_WEIGHT, RATING_PRIOR_MEAN, 'SPJ']);
+            expect(agentsSql()).toContain('s."code" = $3');
             expect(ratingRepo.find).toHaveBeenCalledWith(expect.objectContaining({ where: { agent: { site: { code: 'SPJ' } } } }));
         });
     });

@@ -1,4 +1,4 @@
-import { TicketChatPushListener } from './ticket-chat-push.listener';
+import { CHAT_PUSH_CONCURRENCY, TicketChatPushListener } from './ticket-chat-push.listener';
 import { TicketRepliedEvent } from '../events/ticket-replied.event';
 import { UserRole } from '../../users/enums/user-role.enum';
 
@@ -113,6 +113,36 @@ describe('TicketChatPushListener', () => {
         await listener.onReplied(reply({ content: '', attachments: ['/a.mp4', '/b.png'] }));
 
         expect(push.send.mock.calls[0][0].body).toBe('📎 Mengirim 2 lampiran');
+    });
+
+    it('caps how many recipients are pushed at the same time on a busy ticket', async () => {
+        participants.find.mockResolvedValue(Array.from({ length: 20 }, (_, i) => ({ userId: `user-${i}` })));
+        let running = 0;
+        let peak = 0;
+        push.send.mockImplementation(async () => {
+            running += 1;
+            peak = Math.max(peak, running);
+            await new Promise((resolve) => setTimeout(resolve, 2));
+            running -= 1;
+            return { success: true };
+        });
+
+        await listener.onReplied(reply());
+
+        expect(push.send).toHaveBeenCalledTimes(21); // 20 participants + the requester
+        expect(peak).toBeLessThanOrEqual(CHAT_PUSH_CONCURRENCY);
+    });
+
+    it('still pushes the others when one recipient fails', async () => {
+        participants.find.mockResolvedValue([{ userId: 'user-1' }]);
+        push.send.mockImplementation(async ({ recipient }: any) => {
+            if (recipient === 'requester') throw new Error('network');
+            return { success: true };
+        });
+
+        await listener.onReplied(reply());
+
+        expect(recipients()).toEqual(['requester', 'user-1']);
     });
 
     it('does nothing when push is not configured', async () => {

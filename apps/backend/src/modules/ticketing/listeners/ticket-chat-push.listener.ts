@@ -9,6 +9,7 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { PushChannelService } from '../../notifications/channels/push-channel.service';
 import { NotificationPriority } from '../../notifications/interfaces/notification-channel.interface';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
+import { forEachWithConcurrency } from '../../../shared/core/utils/concurrency.util';
 
 /** Longest message excerpt shown in the toast body. */
 const PREVIEW_LENGTH = 140;
@@ -31,6 +32,9 @@ export function ticketLinkFor(role: UserRole, ticketId: string): string {
     if (role === UserRole.MANAGER) return '/manager/tickets';
     return `/tickets/${ticketId}`;
 }
+
+/** How many recipients of one reply are pushed at the same time; a busy ticket no longer opens them all at once. */
+export const CHAT_PUSH_CONCURRENCY = 5;
 
 /**
  * Web Push (OS toast) for every chat message, iPop-style: one toast per ticket that
@@ -57,7 +61,9 @@ export class TicketChatPushListener {
         try {
             const recipients = await this.resolveRecipients(event);
             const body = chatPushBody(event.message.content, event.message.attachments?.length ?? 0);
-            await Promise.all(recipients.map((user) => this.notify(user, event, body)));
+            await forEachWithConcurrency(recipients, CHAT_PUSH_CONCURRENCY, (user) =>
+                this.notify(user, event, body).catch((error: Error) =>
+                    this.logger.warn(`Chat push to ${user.id} failed: ${error.message}`)));
         } catch (error) {
             this.logger.error(`Chat push failed for ticket ${event.ticketId}: ${(error as Error).message}`);
         }

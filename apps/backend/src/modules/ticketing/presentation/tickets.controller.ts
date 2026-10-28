@@ -297,6 +297,20 @@ export class TicketsController {
         return this.ticketQueryService.findOne(id);
     }
 
+    /**
+     * Mark the ticket read for the caller. The open ticket page calls this when a message arrives
+     * over the socket, so a message seen live does not leave an unread dot, without reloading the
+     * whole ticket and its history.
+     */
+    @Post(':id/read')
+    @ApiOperation({ summary: 'Mark a ticket read for the caller' })
+    @ApiResponse({ status: 201, description: 'Read markers updated.' })
+    async markRead(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
+        const viewer = { id: req.user.userId || req.user.id, role: req.user.role, siteId: req.user.siteId ?? null };
+        await this.ticketQueryService.assertCanView(id, viewer);
+        await this.ticketMessagingService.markAsRead(id, viewer.id, viewer.role, viewer.siteId);
+    }
+
     // Same gate as GET :id: findOne enforces ticket access, and requesters only get PUBLIC articles.
     @Get(':id/kb-suggestions')
     @ApiOperation({ summary: 'Suggest most relevant KB articles for a ticket' })

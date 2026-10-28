@@ -22,6 +22,10 @@ import {
     isOracleDevCategory,
 } from '../utils/oracle-ticket-access.util';
 import { formatResolutionDeadline } from '../utils/resolution-deadline.util';
+import { forEachWithConcurrency } from '../../../shared/core/utils/concurrency.util';
+
+/** How many agents of a pool are emailed at the same time when a ticket is created. */
+export const NOTIFY_FANOUT_CONCURRENCY = 5;
 
 @Injectable()
 export class TicketNotificationListener {
@@ -121,18 +125,13 @@ export class TicketNotificationListener {
                 year: new Date().getFullYear(),
             };
 
-            await Promise.all(
-                targetAgents
-                    .filter(a => !!a.email)
-                    .map(a =>
-                        this.mailDispatch.send({
-                            to: a.email,
-                            subject: `${emailSubjectPrefix}: #${event.ticketNumber} - ${event.title}`,
-                            template: 'notification',
-                            context: emailContext,
-                        }).catch(err => this.logger.error(`Failed to send new ticket email to ${a.email}: ${err.message}`))
-                    )
-            );
+            await forEachWithConcurrency(targetAgents.filter(a => !!a.email), NOTIFY_FANOUT_CONCURRENCY, a =>
+                this.mailDispatch.send({
+                    to: a.email,
+                    subject: `${emailSubjectPrefix}: #${event.ticketNumber} - ${event.title}`,
+                    template: 'notification',
+                    context: emailContext,
+                }).then(() => undefined, err => this.logger.error(`Failed to send new ticket email to ${a.email}: ${err.message}`)));
         } catch (error) {
             this.logger.error('Failed to notify agents about new ticket', error);
         }
