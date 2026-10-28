@@ -16,13 +16,16 @@ export const isDoneStatus = (status: string): boolean => status === 'RESOLVED' |
 /** Statuses whose SLA clock is running. WAITING_VENDOR pauses it, so it cannot be overdue. */
 const SLA_RUNNING_STATUSES = new Set(['TODO', 'IN_PROGRESS']);
 
+/** A real SLA deadline: the clock has started. Otherwise slaTarget is only the API's projection. */
+const hasSlaDeadline = (t: Pick<Ticket, 'slaTarget' | 'slaStartedAt'>): boolean => !!t.slaStartedAt && !!t.slaTarget;
+
 /**
- * Overdue now: a ticket still being worked on whose SLA target has passed. Same rule as the
- * ticket list's overdue filter; the stored isOverdue flag is not used because it lags and is
- * not cleared when a ticket finishes or waits on a vendor.
+ * Overdue now: a ticket being worked on whose started SLA clock has passed its target. Same rule
+ * as the ticket list's overdue filter (OVERDUE_SQL). The stored isOverdue flag
+ * is not used: it lags and is not cleared when a ticket finishes or waits on a vendor.
  */
-export function isTicketOverdue(t: Pick<Ticket, 'status' | 'slaTarget'>, now: Date = new Date()): boolean {
-    return SLA_RUNNING_STATUSES.has(t.status) && !!t.slaTarget && new Date(t.slaTarget).getTime() < now.getTime();
+export function isTicketOverdue(t: Pick<Ticket, 'status' | 'slaTarget' | 'slaStartedAt'>, now: Date = new Date()): boolean {
+    return SLA_RUNNING_STATUSES.has(t.status) && hasSlaDeadline(t) && new Date(t.slaTarget!).getTime() < now.getTime();
 }
 
 /**
@@ -30,7 +33,7 @@ export function isTicketOverdue(t: Pick<Ticket, 'status' | 'slaTarget'>, now: Da
  * to one decimal. Null when none of them had a target to measure against.
  */
 function slaCompliance(tickets: readonly Ticket[], from: Date): number | null {
-    const measured = tickets.filter((t) => isDoneStatus(t.status) && t.slaTarget && t.resolvedAt && new Date(t.resolvedAt) >= from);
+    const measured = tickets.filter((t) => isDoneStatus(t.status) && hasSlaDeadline(t) && t.resolvedAt && new Date(t.resolvedAt) >= from);
     if (measured.length === 0) return null;
     const onTime = measured.filter((t) => new Date(t.resolvedAt!).getTime() <= new Date(t.slaTarget!).getTime()).length;
     return Math.round((onTime / measured.length) * PERCENT * ONE_DECIMAL) / ONE_DECIMAL;

@@ -77,8 +77,28 @@ describe('TicketQueryService', () => {
     it('applies the exported overdue predicate when overdue is true', async () => {
         await service.findAllPaginated('user1', UserRole.ADMIN, null, { overdue: true });
 
-        expect(OVERDUE_SQL).toBe(`ticket.status NOT IN ('RESOLVED', 'CLOSED', 'CANCELLED') AND ticket.status <> 'WAITING_VENDOR' AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW()`);
         expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(OVERDUE_SQL);
+    });
+
+    it.each([
+        ['started TODO past its target', 'TODO', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 1],
+        ['started IN_PROGRESS past its target', 'IN_PROGRESS', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 1],
+        ['target still ahead', 'IN_PROGRESS', '2026-10-28T08:00:00Z', '2026-10-28T13:00:00Z', 0],
+        // Legacy rows got a stored projected target before the clock started; that is not a deadline.
+        ['clock never started, stale stored target', 'TODO', null, '2026-10-28T09:00:00Z', 0],
+        ['waiting on a vendor', 'WAITING_VENDOR', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 0],
+        ['resolved', 'RESOLVED', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 0],
+        ['no target', 'TODO', '2026-10-28T08:00:00Z', null, 0],
+    ])('OVERDUE_SQL: %s', (_label, status, slaStartedAt, slaTarget, expected) => {
+        // Execute the production predicate itself; NOW() pinned to 12:00 for the fixture.
+        const { DatabaseSync } = require('node:sqlite');
+        const db = new DatabaseSync(':memory:');
+        try {
+            db.exec('CREATE TABLE ticket(status TEXT, "slaStartedAt" TEXT, "slaTarget" TEXT)');
+            db.prepare('INSERT INTO ticket VALUES (?, ?, ?)').run(status, slaStartedAt, slaTarget);
+            const sql = OVERDUE_SQL.replace('NOW()', `'2026-10-28T12:00:00Z'`);
+            expect(db.prepare(`SELECT COUNT(*) AS n FROM ticket WHERE ${sql}`).get().n).toBe(expected);
+        } finally { db.close(); }
     });
 
     it('does not add status or overdue filters when absent or false', async () => {

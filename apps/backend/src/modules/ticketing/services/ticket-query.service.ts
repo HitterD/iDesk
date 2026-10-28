@@ -108,8 +108,10 @@ const RESOLVED_AT_SQL = 'COALESCE(ticket."resolvedAt", ticket."updatedAt")';
 const CREATED_WIB_DATE = wibDateSql('ticket."createdAt"');
 const MS_PER_DAY = 86_400_000;
 
-// WAITING_VENDOR pauses the SLA clock, so it is never overdue.
-export const OVERDUE_SQL = `ticket.status NOT IN (${TICKET_INACTIVE_STATUSES_SQL}) AND ticket.status <> 'WAITING_VENDOR' AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW()`;
+// WAITING_VENDOR pauses the SLA clock, so it is never overdue. The clock must have started:
+// older rows stored a projected target before anyone picked the ticket up, which is not a deadline
+// (same condition as the SLA checker that sets isOverdue).
+export const OVERDUE_SQL = `ticket.status NOT IN (${TICKET_INACTIVE_STATUSES_SQL}) AND ticket.status <> 'WAITING_VENDOR' AND ticket."slaStartedAt" IS NOT NULL AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW()`;
 
 /**
  * Prefix tsquery from free text (`printer lt 2` -> `printer:* & lt:* & 2:*`). Tokens are

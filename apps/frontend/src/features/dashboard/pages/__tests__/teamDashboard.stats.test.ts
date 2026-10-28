@@ -15,7 +15,7 @@ const ticket = (over: Partial<Ticket>): Ticket => ({
 } as Ticket);
 
 const tickets: Ticket[] = [
-    ticket({ status: 'TODO', priority: 'CRITICAL', category: 'HARDWARE', createdAt: at(21), slaTarget: at(21, 10) }),
+    ticket({ status: 'TODO', priority: 'CRITICAL', category: 'HARDWARE', createdAt: at(21), slaStartedAt: at(21, 8), slaTarget: at(21, 10) }),
     ticket({ status: 'IN_PROGRESS', priority: 'HIGH', category: 'HARDWARE', assignedTo: agentA as never, createdAt: at(19) }),
     ticket({ status: 'WAITING_VENDOR', category: 'SOFTWARE', createdAt: at(12), updatedAt: at(12) }),
     ticket({ status: 'RESOLVED', assignedTo: agentB as never, createdAt: at(12), updatedAt: at(20) }),
@@ -25,8 +25,10 @@ const tickets: Ticket[] = [
 describe('computeTeamStats — overdue and SLA compliance', () => {
     it('counts overdue from the live SLA target of workable tickets, never from the stored flag', () => {
         const s = computeTeamStats([
-            ticket({ status: 'TODO', slaTarget: at(21, 10) }),                          // overdue
-            ticket({ status: 'IN_PROGRESS', slaTarget: at(22) }),                       // target still ahead
+            ticket({ status: 'TODO', slaStartedAt: at(21, 8), slaTarget: at(21, 10) }),                          // overdue
+            ticket({ status: 'IN_PROGRESS', slaStartedAt: at(21, 8), slaTarget: at(22) }),                       // target still ahead
+            // SLA clock not started yet: the API only projects a display target (createdAt + SLA).
+            ticket({ status: 'TODO', slaStartedAt: null, slaTarget: at(21, 10) }),
             ticket({ status: 'WAITING_VENDOR', slaTarget: at(19), isOverdue: true }),   // SLA clock paused
             ticket({ status: 'RESOLVED', slaTarget: at(19), isOverdue: true }),         // already done
             ticket({ status: 'CANCELLED', slaTarget: at(19), isOverdue: true }),        // withdrawn
@@ -37,12 +39,12 @@ describe('computeTeamStats — overdue and SLA compliance', () => {
 
     it('measures SLA compliance as done-in-range tickets resolved by their target, to one decimal', () => {
         const done = (resolvedDay: number, targetDay: number) =>
-            ticket({ status: 'RESOLVED', resolvedAt: at(resolvedDay), updatedAt: at(resolvedDay), slaTarget: at(targetDay) });
+            ticket({ status: 'RESOLVED', resolvedAt: at(resolvedDay), updatedAt: at(resolvedDay), slaStartedAt: at(1), slaTarget: at(targetDay) });
         const s = computeTeamStats([
             done(20, 21), done(19, 21), done(18, 17),        // 2 on time, 1 late, all in the last 7 days
             done(1, 2),                                       // done before the range: ignored
             ticket({ status: 'RESOLVED', resolvedAt: at(20) }), // no SLA target: not measured
-            ticket({ status: 'TODO', slaTarget: at(21, 10) }),  // overdue but not done: not part of compliance
+            ticket({ status: 'TODO', slaStartedAt: at(21, 8), slaTarget: at(21, 10) }),  // overdue but not done: not part of compliance
         ], 7, NOW);
         expect(s.slaCompliance).toBe(66.7);
     });
