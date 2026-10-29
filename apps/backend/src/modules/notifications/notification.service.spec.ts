@@ -155,6 +155,68 @@ describe('NotificationService - markReadByTarget', () => {
     });
 });
 
+describe('NotificationService - readable ticket notices', () => {
+    const build = () => {
+        const repo = {
+            findOne: jest.fn().mockResolvedValue(null),
+            create: jest.fn((x) => ({ ...x })),
+            save: jest.fn((x) => Promise.resolve({ id: 'n-1', ...x })),
+        };
+        const emit = jest.fn();
+        const eventsGateway = { server: { to: jest.fn().mockReturnValue({ emit }) } };
+        const sja = { dispatchNotification: jest.fn() };
+        const service = new NotificationService(repo as any, eventsGateway as any, sja as any);
+        return { service, repo, emit, sja };
+    };
+
+    it('titles an update with the problem and signs it with the PIC', async () => {
+        const { service, repo, sja } = build();
+        await service.notifyTicketUpdated('u-1', 't-1', '281026-ORD-0012',
+            'Status changed from RESOLVED to CLOSED (otomatis, batas konfirmasi terlewati)',
+            { title: 'Printer lantai 2 tidak bisa print', assigneeName: 'Rizky Ardiansyah' });
+
+        const stored = repo.create.mock.calls[0][0];
+        expect(stored).toMatchObject({
+            title: 'Printer lantai 2 tidak bisa print',
+            message: 'Ditutup otomatis: tidak dikonfirmasi dalam batas waktu · PIC Rizky Ardiansyah',
+        });
+        // Display hints are not columns.
+        expect(stored).not.toHaveProperty('ticketNumber');
+        expect(stored).not.toHaveProperty('senderName');
+        expect(sja.dispatchNotification).toHaveBeenCalledWith(expect.objectContaining({
+            ticketNumber: '281026-ORD-0012', senderName: 'Rizky Ardiansyah',
+        }));
+    });
+
+    it('tells the PIC who reported the ticket', async () => {
+        const { service, repo, emit } = build();
+        await service.notifyTicketAssigned('agent-1', 't-1', '281026-ORD-0012', 'Auto-assign',
+            { title: 'Printer lantai 2 tidak bisa print', requesterName: 'Budi Santoso' });
+
+        expect(repo.create.mock.calls[0][0]).toMatchObject({
+            title: 'Printer lantai 2 tidak bisa print',
+            message: 'Ditugaskan kepada Anda secara otomatis · Dilaporkan oleh Budi Santoso',
+        });
+        expect(emit).toHaveBeenCalledWith('notification:agent-1', expect.objectContaining({ senderName: 'Budi Santoso', ticketNumber: '281026-ORD-0012' }));
+    });
+
+    it('falls back to the ticket number, never an id, without a title', async () => {
+        const { service, repo } = build();
+        await service.notifyTicketUpdated('u-1', 't-1', '281026-ORD-0012', 'Status changed from RESOLVED to CLOSED');
+        expect(repo.create.mock.calls[0][0]).toMatchObject({ title: 'Tiket #281026-ORD-0012', message: 'Status: Selesai → Ditutup' });
+    });
+
+    it('lists a new ticket for agents by its problem and reporter', async () => {
+        const { service, repo } = build();
+        repo.save.mockImplementation((xs: any[]) => Promise.resolve(xs.map((x, i) => ({ id: `n-${i}`, ...x }))));
+        await service.notifyNewTicketToAdmins('t-1', '281026-ORD-0012', 'Printer lantai 2 tidak bisa print', 'HIGH', 'HARDWARE', 'Budi Santoso', ['a-1']);
+        expect(repo.create.mock.calls[0][0]).toMatchObject({
+            title: 'Printer lantai 2 tidak bisa print',
+            message: 'Tiket baru · Urgent · Hardware · Dilaporkan oleh Budi Santoso',
+        });
+    });
+});
+
 describe('NotificationService - critical acknowledgement filter', () => {
     // TypeORM drops `undefined` where-values, which used to turn "unacknowledged" into "all".
     it('queries only unacknowledged critical notifications, with a cap', async () => {

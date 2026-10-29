@@ -7,11 +7,12 @@ import { User } from '../../users/entities/user.entity';
 import { WebhookOutbox } from './entities/webhook-outbox.entity';
 import { IpopTicketService, IpopTicketView, isIpopVisible } from './ipop-ticket.service';
 import { IPOP_TARGET, IpopWebhookService } from './ipop-webhook.service';
-import { PerTicketQueue, TicketWebhookReporter } from '../shared/ticket-webhook-reporter';
+import { ChangeContext, PerTicketQueue, TicketWebhookReporter, changeContextOf } from '../shared/ticket-webhook-reporter';
 
 export { CHAT_PREVIEW_LENGTH as IPOP_PREVIEW_LENGTH, attachmentKinds, chatPreview } from '../shared/ticket-webhook-reporter';
 
-type TicketIdPayload = { ticketId?: string; ticket?: { id?: string } };
+/** Any ticket change event; the actor travels as `userId` (updated, cancelled) or `assignerId` (assigned). */
+type TicketIdPayload = { ticketId?: string; ticket?: { id?: string }; userId?: string; assignerId?: string; closedReason?: string; reason?: string };
 
 /** Turns iDesk ticket events into iPop callbacks (logic shared with connected apps in TicketWebhookReporter). */
 @Injectable()
@@ -42,7 +43,7 @@ export class IpopTicketEventsListener {
     async onChanged(event: TicketIdPayload): Promise<void> {
         const ticketId = event?.ticketId ?? event?.ticket?.id;
         if (!ticketId) return;
-        await this.safely(ticketId, (view) => this.reporter.reportChanges(view));
+        await this.safely(ticketId, (view) => this.reporter.reportChanges(view, changeContextOf(event)));
     }
 
     @OnEvent('ticket.replied', { async: true })
@@ -57,8 +58,8 @@ export class IpopTicketEventsListener {
     }
 
     /** Emits only what differs from the last snapshot iPop received. */
-    reportChanges(view: IpopTicketView): Promise<void> {
-        return this.reporter.reportChanges(view);
+    reportChanges(view: IpopTicketView, context?: ChangeContext): Promise<void> {
+        return this.reporter.reportChanges(view, context);
     }
 
     /** Only tickets iPop may see (iPop-filed, or a requester with a NIK); never breaks the iDesk flow. */

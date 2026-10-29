@@ -8,7 +8,7 @@ import { getCategoryFromType } from './utils/category-mapper';
 import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
 import { SjaAdapterService } from '../sja-adapter/sja-adapter.service';
 import { NotificationPushService } from './notification-push.service';
-import { PRIORITY_LABEL, describeTicketChanges } from './utils/notification-copy.util';
+import { PRIORITY_LABEL, TicketPeople, describeTicketChanges, picOf, withWho } from './utils/notification-copy.util';
 
 /** Socket event telling a user's clients that some of their notifications became read. */
 export const NOTIFICATIONS_READ_EVENT = 'notifications:read';
@@ -17,6 +17,23 @@ export interface NotificationReadTarget {
     ticketId?: string;
     referenceId?: string;
     category?: NotificationCategory;
+}
+
+/**
+ * Display hints a notification carries to the user's clients and the SJA desktop notifier, never stored:
+ * the human ticket number (not the id) and who the notice is from (the PIC, or the requester for agents).
+ */
+export interface NotificationDisplay {
+    ticketNumber?: string;
+    senderName?: string;
+}
+
+/** Ticket context for the ticket notification helpers: title and the people to name. */
+export type TicketNoticeContext = TicketPeople;
+
+/** Notification title for a ticket: its problem title, else its number. */
+function ticketTitle(ticketNumber: string, context?: TicketNoticeContext): string {
+    return context?.title?.trim() || `Tiket #${ticketNumber}`;
 }
 
 /** Upper bound for the critical banner list; the count endpoint reports the real total. */
@@ -44,7 +61,9 @@ export class NotificationService {
         link?: string;
         category?: NotificationCategory;
         requiresAcknowledge?: boolean;
-    }): Promise<Notification> {
+    } & NotificationDisplay): Promise<Notification> {
+        const { ticketNumber, senderName, ...stored } = data;
+        const display: NotificationDisplay = { ...(ticketNumber ? { ticketNumber } : {}), ...(senderName ? { senderName } : {}) };
         // DEDUP 1: Check existing notification with same type + referenceId + userId within 24h
         if (data.referenceId) {
             const existing = await this.notificationRepo.findOne({
@@ -79,7 +98,7 @@ export class NotificationService {
         // Auto-determine category from type if not provided
         const category = data.category || getCategoryFromType(data.type);
         const notification = this.notificationRepo.create({
-            ...data,
+            ...stored,
             category,
             requiresAcknowledge: data.requiresAcknowledge || false,
         });
@@ -104,12 +123,13 @@ export class NotificationService {
             requiresAcknowledge: saved.requiresAcknowledge,
             createdAt: saved.createdAt,
             userId: data.userId,
+            ...display,
         }); } catch (e) { console.warn('Socket emit failed', e); }
 
         // Also emit to general notification channel
         try { this.eventsGateway.server.to(`user:${data.userId}`).emit('notification:new', {
             userId: data.userId,
-            notification: saved,
+            notification: { ...saved, ...display },
         }); } catch (e) { console.warn('Socket emit failed', e); }
 
         // Browser notification (works without the desktop notifier app)
@@ -117,7 +137,7 @@ export class NotificationService {
 
         // Dispatch to SJA Notification Center Outbox
         try {
-            await this.sjaAdapter.dispatchNotification(saved);
+            await this.sjaAdapter.dispatchNotification({ ...saved, ...display });
         } catch (sjaErr) {
             console.warn('SJA dispatch failed', sjaErr);
         }
@@ -372,54 +392,70 @@ export class NotificationService {
     }
 
     // Helper methods for common notification types
+    // Ticket notices: the title is the problem title (never an id), the message a plain sentence plus who.
+
+    /** To the requester. */
     async notifyTicketCreated(userId: string, ticketId: string, ticketNumber: string, title: string) {
         return this.create({
             userId,
             type: NotificationType.TICKET_CREATED,
-            title: 'Tiket dibuat',
-            message: `Tiket #${ticketNumber} "${title}" sudah diterima tim IT.`,
+            title: ticketTitle(ticketNumber, { title }),
+            message: `Tiket #${ticketNumber} sudah diterima tim IT.`,
             ticketId,
+            ticketNumber,
             link: `/tickets/${ticketId}`,
         });
     }
 
-    async notifyTicketAssigned(userId: string, ticketId: string, ticketNumber: string, assignerName: string) {
+    /** To the new PIC: who assigned it, and who reported it. */
+    async notifyTicketAssigned(userId: string, ticketId: string, ticketNumber: string, assignerName: string, context?: TicketNoticeContext) {
         // 'Auto-assign' adalah penanda sistem, bukan nama orang — jangan
         // ditulis seolah-olah seseorang yang menugaskan.
         const byWhom = assignerName === 'Auto-assign'
-            ? 'secara otomatis'
-            : `oleh ${assignerName}`;
+            ? 'Ditugaskan kepada Anda secara otomatis'
+            : `Ditugaskan kepada Anda oleh ${assignerName}`;
+        const requester = context?.requesterName;
 
         return this.create({
             userId,
             type: NotificationType.TICKET_ASSIGNED,
-            title: 'Tiket ditugaskan',
-            message: `Tiket #${ticketNumber} ditugaskan kepada Anda ${byWhom}.`,
+            title: ticketTitle(ticketNumber, context),
+            message: withWho(byWhom, requester ? `Dilaporkan oleh ${requester}` : null),
             ticketId,
+            ticketNumber,
+            senderName: requester ?? undefined,
             link: `/tickets/${ticketId}`,
         });
     }
 
-    async notifyTicketUpdated(userId: string, ticketId: string, ticketNumber: string, changes: string) {
+    /** To the requester side: what changed, and their PIC. */
+    async notifyTicketUpdated(userId: string, ticketId: string, ticketNumber: string, changes: string, context?: TicketNoticeContext) {
+        const sentence = describeTicketChanges(changes) || 'Ada perubahan';
         return this.create({
             userId,
             type: NotificationType.TICKET_UPDATED,
-            title: 'Tiket diperbarui',
-            message: `Tiket #${ticketNumber}: ${describeTicketChanges(changes) || 'ada perubahan'}.`,
+            title: ticketTitle(ticketNumber, context),
+            message: withWho(sentence, picOf(sentence, context?.assigneeName)),
             ticketId,
+            ticketNumber,
+            senderName: context?.assigneeName ?? undefined,
             link: `/tickets/${ticketId}`,
         });
     }
 
-    async notifyTicketResolved(userId: string, ticketId: string, ticketNumber: string, deadlineLabel?: string) {
+    /** To the requester: resolved by the PIC, confirm before the deadline. */
+    async notifyTicketResolved(userId: string, ticketId: string, ticketNumber: string, deadlineLabel?: string, context?: TicketNoticeContext) {
+        const resolved = withWho('Diselesaikan', picOf('', context?.assigneeName));
         return this.create({
             userId,
             type: NotificationType.TICKET_RESOLVED,
-            title: 'Tiket selesai',
+            title: ticketTitle(ticketNumber, context),
             message: deadlineLabel
-                ? `Tiket #${ticketNumber} telah diselesaikan. Konfirmasi atau sanggah sebelum ${deadlineLabel}; setelah itu tiket otomatis ditutup.`
-                : `Tiket #${ticketNumber} telah diselesaikan.`,
+                ? `${resolved}. Konfirmasi atau sanggah sebelum ${deadlineLabel}; setelah itu tiket otomatis ditutup.`
+                : `${resolved}.`,
             ticketId,
+            ticketNumber,
+            senderName: context?.assigneeName ?? undefined,
             link: `/tickets/${ticketId}`,
         });
     }
@@ -517,8 +553,9 @@ export class NotificationService {
                 userId: adminId,
                 type: NotificationType.TICKET_CREATED,
                 category: category_,
-                title: `Tiket baru · ${PRIORITY_LABEL[priority] ?? priority}`,
-                message: `${requesterName}: "${title}"${categoryLabel ? ` · ${categoryLabel}` : ''}`,
+                title: ticketTitle(ticketNumber, { title }),
+                message: [`Tiket baru · ${PRIORITY_LABEL[priority] ?? priority}`, categoryLabel, requesterName ? `Dilaporkan oleh ${requesterName}` : '']
+                    .filter(Boolean).join(' · '),
                 ticketId,
                 link: `/tickets/${ticketId}`,
             })
@@ -539,6 +576,8 @@ export class NotificationService {
                 link: notification.link,
                 isRead: notification.isRead,
                 createdAt: notification.createdAt,
+                ticketNumber,
+                ...(requesterName ? { senderName: requesterName } : {}),
             }); } catch (e) { logger.warn(`Socket emit failed: ${e instanceof Error ? e.message : 'unknown error'}`); }
             this.webPush?.dispatch(notification);
         }

@@ -138,8 +138,9 @@ Responses:
   "module": "it-support",
   "category": "NETWORK",
   "title": "Wifi lantai 2 mati",
-  "assignee": { "name": "Agent Name" },
+  "assignee": { "name": "Agent Name", "nik": "00061058" },
   "slaTarget": "2026-10-04T09:00:00.000Z",
+  "resolutionDeadlineAt": null,
   "visit": null,
   "createdAt": "2026-10-04T01:00:00.000Z",
   "updatedAt": "2026-10-04T02:10:00.000Z",
@@ -151,6 +152,13 @@ Responses:
 
 `status`: `TODO` (open) -> `IN_PROGRESS` -> `WAITING_VENDOR` -> `RESOLVED` (waiting for the
 requester to confirm in iDesk) -> `CLOSED` (final). `CANCELLED` is final too.
+
+`assignee.nik`: the PIC's HRIS NIK, `null` when their iDesk account has none (`assignee` is `null`
+while nobody is assigned).
+
+`resolutionDeadlineAt`: while `RESOLVED`, when the requester's confirmation window ends (UTC); iDesk
+closes the ticket then (`ticket.closed` with `closedReason: "auto_unconfirmed"`). `null` in every
+other status.
 
 `visit`: the ICT visit of a hardware-installation ticket, `null` for every other ticket or
 while no slot is set. Times are UTC; iDesk books slots in WIB. One hour unless the slot has
@@ -222,14 +230,37 @@ trusting the body, and answer `2xx` quickly.
   "event": "ticket.status_changed",
   "occurredAt": "2026-10-04T02:10:00.000Z",
   "previousStatus": "TODO",
+  "actor": { "nik": "00061058", "name": "Rizky Ardiansyah" },
+  "reason": null,
   "ticket": { "...": "same shape as section 4" }
 }
 ```
 
-Events: `ticket.created`, `ticket.assigned` (`previousAssignee`), `ticket.status_changed`,
-`ticket.resolved`, `ticket.closed` (all three with `previousStatus`), `ticket.message_created`
+Events: `ticket.created`, `ticket.assigned` (`previousAssignee`, `previousAssigneeNik`), `ticket.status_changed`
+(`reason`), `ticket.resolved`, `ticket.closed` (`closedReason`) (all three with `previousStatus`), `ticket.message_created`
 (`message` + `recipients`, section 5.1), `ticket.read` (`reader`, section 5.2),
 `ticket.visit_changed` (`previousVisit`; the installation visit was moved, see `visit` in section 4).
+
+Fields added for the PIC's notifications (all optional to read; older events lack them):
+
+| Field | On | Value |
+|---|---|---|
+| `actor` | `assigned`, `status_changed`, `resolved`, `closed`, `visit_changed` | `{ "nik", "name" }` of who made the change (`nik` `null` when they have none); `null` for the system (auto-close, auto-assign) |
+| `previousAssigneeNik` | `assigned` | NIK of the previous PIC, `null` when there was none or it is unknown |
+| `closedReason` | `closed` | `auto_unconfirmed` (requester did not answer before `resolutionDeadlineAt`), `confirmed` (requester confirmed), `manual` (any other close, e.g. requester marked it done) |
+| `reason` | `status_changed` | the requester's comment when they reopen (dispute) a `RESOLVED` ticket, at most 200 characters; `null` for every other status change |
+
+A requester who disputes the resolution sends `ticket.status_changed` `RESOLVED` -> `IN_PROGRESS`
+with themselves as `actor` and their comment as `reason`; a confirmation sends `ticket.closed` with
+`closedReason: "confirmed"`.
+
+```json
+{ "event": "ticket.closed", "previousStatus": "RESOLVED", "actor": null, "closedReason": "auto_unconfirmed", "ticket": { "...": "…" } }
+{ "event": "ticket.status_changed", "previousStatus": "RESOLVED", "actor": { "nik": "00000024", "name": "Budi Santoso" },
+  "reason": "Printer masih error setelah restart", "ticket": { "...": "…" } }
+{ "event": "ticket.assigned", "previousAssignee": "Agent Lama", "previousAssigneeNik": "00010001",
+  "actor": { "nik": "00061058", "name": "Rizky Ardiansyah" }, "ticket": { "assignee": { "name": "Rizky Ardiansyah", "nik": "00061058" }, "...": "…" } }
+```
 They are sent for iDesk-filed tickets too (`ticket.origin = "IDESK"`): match those to the iPop
 user by `ticket.requester.nik`, and to your record by `ticket.ticketId` (no `externalRef`).
 

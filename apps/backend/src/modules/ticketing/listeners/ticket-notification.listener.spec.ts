@@ -252,7 +252,9 @@ describe('TicketNotificationListener', () => {
 
         await listener.handleTicketAssignedEvent(event);
 
-        expect(notificationService.notifyTicketAssigned).toHaveBeenCalledWith('agent-1', 't-8', 'TK-2026-0008', 'Admin Lead');
+        expect(notificationService.notifyTicketAssigned).toHaveBeenCalledWith('agent-1', 't-8', 'TK-2026-0008', 'Admin Lead', {
+            title: 'Network Issue', requesterName: 'Ani User',
+        });
         expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'budi@example.com' }));
         expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'requester@example.com' }));
     });
@@ -272,6 +274,10 @@ describe('TicketNotificationListener', () => {
 
         await listener.handleTicketUpdatedEvent(event);
 
+        // Requester gets an in-app notice titled with the problem and signed by the PIC
+        expect(notificationService.notifyTicketUpdated).toHaveBeenCalledWith('u-1', 't-6', 'TK-2026-0006', 'status', {
+            title: 'VPN Issue', assigneeName: 'Agent Budi',
+        });
         // Requester gets email
         expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({
             to: 'client@example.com',

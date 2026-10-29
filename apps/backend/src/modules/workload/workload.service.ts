@@ -605,7 +605,7 @@ export class WorkloadService {
     async autoAssignTicket(ticketId: string, userId?: string, actor?: SiteActor): Promise<Ticket> {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
-            relations: ['assignedTo'],
+            relations: ['assignedTo', 'user'],
         });
 
         if (!ticket) {
