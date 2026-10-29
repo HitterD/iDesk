@@ -45,6 +45,18 @@ export const setDesktopNotifierPreference = async (pref: Partial<DesktopNotifier
     }
 };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Nomor tiket yang bisa dibaca orang (mis. 281026-ORD-0012), tidak pernah id/GUID tiket. */
+export const readableTicketNumber = (data: { ticketNumber?: string | null; referenceId?: string | null }): string | undefined => {
+    const candidate = data.ticketNumber || data.referenceId || '';
+    return candidate && !UUID.test(candidate) ? candidate : undefined;
+};
+
+/** Pengirim yang ditampilkan: orangnya (PIC, atau pelapor bagi agen) bila diketahui. */
+export const senderOf = (data: { senderName?: string | null; sender?: string | null }): string =>
+    data.senderName || data.sender || 'iDesk';
+
 /**
  * Meneruskan notifikasi WebSocket / in-app iDesk secara otomatis ke SJA Desktop Notifier di Windows
  */
@@ -61,6 +73,8 @@ export const forwardToDesktopNotifier = async (data: any, currentUser?: any): Pr
                 : origin);
 
         const category = data.category || (data.type === 'TICKET_REPLY' || data.type === 'CHAT_MESSAGE_RECEIVED' ? 'TICKET_REPLY' : 'Tiket');
+        const ticketNumber = readableTicketNumber(data);
+        const from = senderOf(data);
 
         const payload = {
             app: 'iDesk',
@@ -72,13 +86,13 @@ export const forwardToDesktopNotifier = async (data: any, currentUser?: any): Pr
             avatar: 'idesk',
             category: category,
             ticketId: data.ticketId || undefined,
-            ticketNumber: data.referenceId || (data.ticketId ? String(data.ticketId) : undefined),
+            ticketNumber,
             metadata: {
-                from: data.sender || 'iDesk System',
+                from,
                 to: currentUser?.name || currentUser?.email || 'Anda',
                 subject: data.title || 'Notifikasi Tiket',
                 category: category,
-                ticketNumber: data.referenceId || data.ticketId || undefined,
+                ticketNumber,
                 ticketId: data.ticketId || undefined
             },
             callbackUrl: 'http://127.0.0.1:18399/reply-ack'

@@ -253,9 +253,11 @@ export class TicketResolutionService {
             await this.notificationService.create({
                 userId: ticket.assignedToId,
                 type: NotificationType.TICKET_UPDATED,
-                title: 'Penyelesaian Disanggah',
-                message: `${requester.fullName} menyanggah penyelesaian tiket #${ticket.ticketNumber}: "${reason.trim()}"`,
+                title: ticket.title || `Tiket #${ticket.ticketNumber}`,
+                message: `Penyelesaian disanggah oleh ${requester.fullName}: "${reason.trim()}"`,
                 ticketId: ticket.id,
+                ticketNumber: ticket.ticketNumber,
+                senderName: requester.fullName,
                 link: `/tickets/${ticket.id}`,
             });
         } catch (error) {
