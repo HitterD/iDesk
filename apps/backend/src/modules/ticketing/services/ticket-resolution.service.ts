@@ -8,7 +8,7 @@ import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { CacheInvalidationService } from '../../../shared/core/cache';
-import { TicketUpdatedEvent } from '../events/ticket-updated.event';
+import { TicketClosedReason, TicketUpdatedEvent } from '../events/ticket-updated.event';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { WorkloadService } from '../../workload/workload.service';
@@ -41,6 +41,10 @@ interface TransitionResult {
     oldStatus: TicketStatus;
     changes: string[];
     messages: TicketMessage[];
+    /** Set when the transition closed the ticket; partners tell the PIC why. */
+    closedReason?: TicketClosedReason;
+    /** The requester's comment when they disputed (reopened) the resolution. */
+    reason?: string;
 }
 
 /**
@@ -74,7 +78,7 @@ export class TicketResolutionService {
             }
             this.close(ticket);
             const note = await this.saveMessage(manager, ticket.id, `System: Penyelesaian tiket dikonfirmasi oleh ${owner.fullName}`, null);
-            return { ticket: await manager.save(Ticket, ticket), oldStatus: TicketStatus.RESOLVED, changes: ['Status changed from RESOLVED to CLOSED (dikonfirmasi pemohon)'], messages: [note] };
+            return { ticket: await manager.save(Ticket, ticket), oldStatus: TicketStatus.RESOLVED, changes: ['Status changed from RESOLVED to CLOSED (dikonfirmasi pemohon)'], messages: [note], closedReason: 'confirmed' as const };
         });
         return this.publish(result, user);
     }
@@ -95,7 +99,7 @@ export class TicketResolutionService {
             // Chat clients render user bubbles from the embedded sender, like a normal reply.
             const reasonWithSender = Object.assign(reasonMessage, { sender: { id: owner.id, fullName: owner.fullName, role: owner.role } });
             const note = await this.saveMessage(manager, ticket.id, `System: ${owner.fullName} menyanggah penyelesaian, tiket dikembalikan ke In Progress`, null);
-            return { ticket: await manager.save(Ticket, ticket), oldStatus: TicketStatus.RESOLVED, changes: ['Status changed from RESOLVED to IN_PROGRESS (disanggah pemohon)'], messages: [reasonWithSender, note] };
+            return { ticket: await manager.save(Ticket, ticket), oldStatus: TicketStatus.RESOLVED, changes: ['Status changed from RESOLVED to IN_PROGRESS (disanggah pemohon)'], messages: [reasonWithSender, note], reason: reason.trim() };
         });
         const saved = await this.publish(result, user);
         await this.notifyAgentOfDispute(saved, user, reason);
@@ -114,7 +118,7 @@ export class TicketResolutionService {
             ticket.resolvedAt = new Date();
             this.close(ticket);
             const note = await this.saveMessage(manager, ticket.id, `System: Tiket ditandai selesai oleh pemohon (${owner.fullName})`, null);
-            return { ticket: await manager.save(Ticket, ticket), oldStatus, changes: [`Status changed from ${oldStatus} to CLOSED (ditandai selesai oleh pemohon)`], messages: [note] };
+            return { ticket: await manager.save(Ticket, ticket), oldStatus, changes: [`Status changed from ${oldStatus} to CLOSED (ditandai selesai oleh pemohon)`], messages: [note], closedReason: 'manual' as const };
         });
         return this.publish(result, user);
     }
@@ -145,7 +149,7 @@ export class TicketResolutionService {
             if (!ticket || ticket.status !== TicketStatus.RESOLVED) return null;
             this.close(ticket);
             const note = await this.saveMessage(manager, ticket.id, 'System: Tiket otomatis ditutup karena tidak ada konfirmasi hingga batas waktu', null);
-            return { ticket: await manager.save(Ticket, ticket), oldStatus: TicketStatus.RESOLVED, changes: ['Status changed from RESOLVED to CLOSED (otomatis, batas konfirmasi terlewati)'], messages: [note] };
+            return { ticket: await manager.save(Ticket, ticket), oldStatus: TicketStatus.RESOLVED, changes: ['Status changed from RESOLVED to CLOSED (otomatis, batas konfirmasi terlewati)'], messages: [note], closedReason: 'auto_unconfirmed' as const };
         });
         if (!result) return false;
         await this.publish(result, null);
@@ -212,7 +216,7 @@ export class TicketResolutionService {
         if (siteId) this.eventEmitter.emit('tv-board.ticket-changed', { siteId });
 
         this.eventEmitter.emit('ticket.updated', new TicketUpdatedEvent(
-            ticket.id, ticket.ticketNumber || ticket.id.split('-')[0], actorId, result.changes, ticket,
+            ticket.id, ticket.ticketNumber || ticket.id.split('-')[0], actorId, result.changes, ticket, result.closedReason, result.reason,
         ));
         this.refreshActionItems(ticket);
 

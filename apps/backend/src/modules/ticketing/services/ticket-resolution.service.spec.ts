@@ -57,7 +57,7 @@ describe('TicketResolutionService', () => {
             expect(closed.closedAt).toBeInstanceOf(Date);
             expect(closed.resolutionDeadlineAt).toBeNull();
             expect(closed.resolvedAt).toEqual(new Date('2026-09-28T02:00:00Z'));
-            expect(deps.eventEmitter.emit).toHaveBeenCalledWith('ticket.updated', expect.objectContaining({ userId: owner.id }));
+            expect(deps.eventEmitter.emit).toHaveBeenCalledWith('ticket.updated', expect.objectContaining({ userId: owner.id, closedReason: 'confirmed' }));
             expect(deps.eventsGateway.notifyStatusChange).toHaveBeenCalledWith('t-1', TicketStatus.CLOSED, 'Budi', 'site-1');
         });
 
@@ -100,6 +100,9 @@ describe('TicketResolutionService', () => {
                 message: expect.stringContaining('Printer masih error'),
             }));
             expect(deps.notificationCenter.emitActionItemsRefresh).toHaveBeenCalledWith('agent-1', 'TICKET', 't-1');
+            expect(deps.eventEmitter.emit).toHaveBeenCalledWith('ticket.updated', expect.objectContaining({
+                userId: owner.id, reason: 'Printer masih error', closedReason: undefined,
+            }));
         });
     });
 
@@ -113,6 +116,7 @@ describe('TicketResolutionService', () => {
             expect(closed.resolvedAt).toBeInstanceOf(Date);
             expect(closed.closedAt).toBeInstanceOf(Date);
             expect(closed.lastPausedAt).toBeNull();
+            expect(deps.eventEmitter.emit).toHaveBeenCalledWith('ticket.updated', expect.objectContaining({ closedReason: 'manual' }));
         });
 
         it.each([TicketStatus.RESOLVED, TicketStatus.CANCELLED])('refuses a %s ticket', async (status) => {
@@ -134,6 +138,7 @@ describe('TicketResolutionService', () => {
             expect(saved.tickets).toHaveLength(1);
             expect(saved.tickets[0].status).toBe(TicketStatus.CLOSED);
             expect(deps.audit.logAsync).toHaveBeenCalledWith(expect.objectContaining({ userId: 'system' }));
+            expect(deps.eventEmitter.emit).toHaveBeenCalledWith('ticket.updated', expect.objectContaining({ userId: 'system', closedReason: 'auto_unconfirmed' }));
         });
 
         it('counts failures without stopping the scan', async () => {
