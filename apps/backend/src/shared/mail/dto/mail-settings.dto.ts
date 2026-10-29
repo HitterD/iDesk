@@ -76,5 +76,6 @@ export class VerifyMailDto {
     @IsOptional() @IsBoolean() authRequired?: boolean;
     @IsOptional() @IsString() @MaxLength(320) username?: string;
     @IsOptional() @IsString() @MaxLength(1024) password?: string;
+    @IsOptional() @IsString() @MaxLength(320) envelopeFrom?: string;
     @IsOptional() @IsBoolean() allowSelfSignedCert?: boolean;
 }
