@@ -16,7 +16,6 @@ export const RESPOND_COPY = {
     missingAnswer: 'Belum dijawab',
     required: 'wajib',
     commentPlaceholder: 'Tulis saran atau apresiasi…',
-    teamSub: 'Penilaian tim',
     reviewTitle: 'Tinjau jawaban',
     reviewHint: 'Periksa kembali sebelum mengirim. Survei hanya bisa dikirim sekali untuk setiap nama.',
     noScore: '—',

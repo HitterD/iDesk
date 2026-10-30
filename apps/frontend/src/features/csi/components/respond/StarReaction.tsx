@@ -43,7 +43,10 @@ function Reaction({ shown, preview, bounce }: { shown: number; preview: boolean;
     );
 }
 
-/** Five stars with an emoji reaction: hover previews, click pops the stars in sequence with a ripple. */
+/**
+ * Five stars with an emoji reaction: hover previews; a click or arrow key pops the stars in sequence with a ripple.
+ * The csi-* animations are switched off by the prefers-reduced-motion block in index.css.
+ */
 export function StarReaction({ value, onChange, label }: StarReactionProps) {
     const buttons = useRef<Array<HTMLButtonElement | null>>([]);
     const [hover, setHover] = useState(0);
@@ -59,7 +62,9 @@ export function StarReaction({ value, onChange, label }: StarReactionProps) {
         const next = keyValue(event.key, star);
         if (next === undefined) return;
         event.preventDefault();
-        onChange(next);
+        // A pointer still resting on a star would otherwise keep showing its stale preview.
+        setHover(0);
+        choose(next);
         buttons.current[next - 1]?.focus();
     };
     return (

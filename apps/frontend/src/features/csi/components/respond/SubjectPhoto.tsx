@@ -42,13 +42,20 @@ function Picture({ ratee }: { ratee: CsiFormRatee }) {
     );
 }
 
-/** Left column of the respondent screen: sticky on wide containers, a 4:3.8 banner above the form below 780 px. */
+/**
+ * Stacked banner (photo above the form) by default. Only from `lg` (no mobile header / bottom nav) and with a
+ * container of at least 780 px does it become the sticky left column; below that a sticky photo would hide its
+ * caption under the fixed bottom nav.
+ */
+export const PHOTO_STACKED = 'relative aspect-[4/3.8] max-h-[64vh] w-full';
+export const PHOTO_STICKY = cn('lg:@min-[780px]:sticky lg:@min-[780px]:top-[var(--csi-stick,64px)] lg:@min-[780px]:aspect-auto lg:@min-[780px]:max-h-[820px] lg:@min-[780px]:min-h-[480px]',
+    'lg:@min-[780px]:h-[calc(100dvh-var(--csi-chrome,0px)-var(--csi-stick,64px)-16px)] lg:@min-[780px]:rounded-l-[22px]');
+
+/** Left column of the respondent screen (see PHOTO_STACKED / PHOTO_STICKY). */
 export function SubjectPhoto({ ratee, index, total, scrollTarget }: SubjectPhotoProps) {
     const KindIcon = ratee.kind === 'TEAM' ? Users : User;
     return (
-        <div className={cn('overflow-hidden rounded-l-[22px] bg-[hsl(var(--idesk-chrome))]',
-            'sticky top-[var(--csi-stick,64px)] h-[calc(100dvh-var(--csi-chrome,0px)-var(--csi-stick,64px)-16px)] min-h-[480px] max-h-[820px]',
-            '@max-[780px]:relative @max-[780px]:top-auto @max-[780px]:aspect-[4/3.8] @max-[780px]:h-auto @max-[780px]:min-h-0 @max-[780px]:max-h-[64vh] @max-[780px]:rounded-none')}>
+        <div data-testid="csi-subject-photo" className={cn('overflow-hidden bg-[hsl(var(--idesk-chrome))]', PHOTO_STACKED, PHOTO_STICKY)}>
             <Picture key={ratee.periodRateeId} ratee={ratee} />
             <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgb(8_14_30/.25)_0,transparent_22%,transparent_46%,rgb(8_14_30/.9)_100%)]" />
             <span className="absolute left-4 top-4 z-[2] rounded-full bg-[rgb(8_14_30/.45)] px-[11px] py-[5px] text-[12px] font-bold tabular-nums text-white backdrop-blur-md">

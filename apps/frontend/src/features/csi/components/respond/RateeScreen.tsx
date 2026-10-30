@@ -76,7 +76,8 @@ export function RateeScreen(props: RateeScreenProps) {
             </div>
 
             <section ref={card} aria-labelledby={`csi-ratee-${ratee.periodRateeId}`} className={cn(CSI_CARD, 'scroll-mt-3 overflow-clip rounded-[22px] @container')}>
-                <div className="grid grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] items-start @max-[780px]:grid-cols-1">
+                {/* Two columns only where the photo can stick (lg viewport and a container of at least 780 px); stacked otherwise. */}
+                <div className="grid grid-cols-1 items-start lg:@min-[780px]:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
                     <SubjectPhoto ratee={ratee} index={index} total={ratees.length} scrollTarget={card} />
                     <div className="flex flex-col gap-3 p-4 [--flow-gutter:1rem] @min-[780px]:p-[clamp(16px,2.2cqi,30px)]">
                         {ratee.dimensions.map((dimension) => (

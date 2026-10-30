@@ -56,4 +56,17 @@ describe('StarReaction', () => {
         fireEvent.keyDown(group().getByRole('radio', { name: '3 bintang' }), { key: 'ArrowRight' });
         expect(onChange).toHaveBeenLastCalledWith(4);
     });
+
+    it('ArrowLeft while hovering shows the new value', async () => {
+        const onChange = vi.fn();
+        const user = userEvent.setup();
+        render(<Harness initial={4} onChange={onChange} />);
+        await user.hover(group().getByRole('radio', { name: '5 bintang' }));
+        expect(screen.getByText('Luar biasa!')).toBeInTheDocument();
+        fireEvent.keyDown(group().getByRole('radio', { name: '4 bintang' }), { key: 'ArrowLeft' });
+        expect(onChange).toHaveBeenLastCalledWith(3);
+        expect(screen.getByText('Cukup')).toBeInTheDocument();
+        expect(screen.getByText('😐')).not.toHaveAttribute('data-preview');
+        expect(screen.queryByText('Luar biasa!')).not.toBeInTheDocument();
+    });
 });
