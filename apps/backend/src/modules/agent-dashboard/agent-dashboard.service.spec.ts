@@ -36,6 +36,7 @@ describe('AgentDashboardService', () => {
     let userRepo: any;
     let ticketRepo: any;
     let workloadRepo: any;
+    let workloadService: any;
     let qb: any;
 
     beforeEach(() => {
@@ -49,13 +50,16 @@ describe('AgentDashboardService', () => {
         };
         userRepo = { findOne: jest.fn() };
         ticketRepo = { createQueryBuilder: jest.fn(() => qb), find: jest.fn().mockResolvedValue([]) };
-        workloadRepo = { find: jest.fn().mockResolvedValue([{ totalPoints: 5 }, { totalPoints: 3 }]) };
+        // A stale stored row (13 points) must not be what the agent sees.
+        workloadRepo = { find: jest.fn().mockResolvedValue([{ totalPoints: 13 }]) };
+        workloadService = { liveWorkloads: jest.fn().mockResolvedValue(new Map([['a', { points: 8, workloadTickets: 2, waitingVendor: 3 }]])) };
         service = new AgentDashboardService(
             ticketRepo,
             userRepo,
             workloadRepo,
             { createQueryBuilder: jest.fn(() => qb) } as any,
             { getOrSet: jest.fn((_key: string, factory: () => Promise<unknown>) => factory()) } as any,
+            workloadService,
         );
     });
 
@@ -74,7 +78,9 @@ describe('AgentDashboardService', () => {
 
         expect(dash.kind).toBe('support');
         expect(dash.stats.periodDays).toBe(7);
+        // Live points across every site the agent holds tickets at; waiting-vendor tickets weigh nothing.
         expect(dash.support?.workloadPointsToday).toBe(8);
+        expect(workloadService.liveWorkloads.mock.calls[0][0]).toEqual(['a']);
         expect(dash.rating).toEqual({ average: 4.5, count: 2 });
         expect(dash.agent.scope).toBe(ServiceScope.ICT);
         expect(qb.where).toHaveBeenCalledWith('ticket.assignedToId = :agentId', { agentId: 'a' });
@@ -87,7 +93,7 @@ describe('AgentDashboardService', () => {
 
         expect(dash.kind).toBe('dev');
         expect(dash.support).toBeNull();
-        expect(workloadRepo.find).not.toHaveBeenCalled();
+        expect(workloadService.liveWorkloads).not.toHaveBeenCalled();
         expect(dash.stats.periodDays).toBe(30);
     });
 });

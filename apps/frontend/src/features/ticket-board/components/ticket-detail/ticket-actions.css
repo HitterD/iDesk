@@ -156,7 +156,7 @@ span.ticket-action-help { display: block; margin-top: 12px; }
     font-size: 12.5px; font-weight: 500; cursor: pointer;
     transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
 }
-.ticket-action-dialog .action-chip:hover:not(:disabled) { background: var(--td-fill-2); }
+.ticket-action-dialog .action-chip:hover:not(:disabled):not(.is-on) { background: var(--td-fill-2); }
 .ticket-action-dialog .action-chip:active:not(:disabled) { transform: scale(.96); }
 .ticket-action-dialog .action-chip.is-on { background: hsl(var(--idesk-sapphire)); color: #fff; box-shadow: 0 1px 2px hsl(var(--idesk-sapphire) / .3); border-radius: 999px; }
 .ticket-action-dialog .action-chip:disabled { opacity: .5; cursor: not-allowed; }
@@ -216,3 +216,8 @@ span.ticket-action-help { display: block; margin-top: 12px; }
     .ticket-action-dialog [class*="justify-between"] { flex-wrap: wrap; }
     .ticket-action-dialog button[aria-pressed]:not(.action-chip):not(.action-select-trigger):not(.dtp-day):not(.dtp-chip) { min-height: 40px; }
 }
+
+/* Vendor note: required marker and character count (VendorVisitDialog). */
+.ticket-action-required { color: hsl(var(--ticket-red-ink)); }
+.ticket-action-count { justify-self: end; font-variant-numeric: tabular-nums; }
+.ticket-action-dialog #vendor-note { min-height: 64px; resize: vertical; }

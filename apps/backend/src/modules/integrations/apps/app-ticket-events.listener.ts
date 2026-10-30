@@ -6,12 +6,13 @@ import type { TicketRepliedEvent } from '../../ticketing/events/ticket-replied.e
 import { User } from '../../users/entities/user.entity';
 import { WebhookOutbox } from '../ipop/entities/webhook-outbox.entity';
 import { IPOP_SOURCE, IpopTicketService, IpopTicketView } from '../ipop/ipop-ticket.service';
-import { PerTicketQueue, TicketWebhookReporter } from '../shared/ticket-webhook-reporter';
+import { PerTicketQueue, TicketWebhookReporter, changeContextOf } from '../shared/ticket-webhook-reporter';
 import { AppWebhookService } from './app-webhook.service';
 import { IntegrationAppsService } from './integration-apps.service';
 import { scopeOf } from './app-scope';
 
-type TicketIdPayload = { ticketId?: string; ticket?: { id?: string } };
+/** Any ticket change event; the actor travels as `userId` (updated, cancelled) or `assignerId` (assigned). */
+type TicketIdPayload = { ticketId?: string; ticket?: { id?: string }; userId?: string; assignerId?: string; closedReason?: string; reason?: string };
 
 /** Same callbacks as iPop gets, for tickets a connected app filed, sent to that app's webhook URL. */
 @Injectable()
@@ -40,7 +41,7 @@ export class AppTicketEventsListener {
     async onChanged(event: TicketIdPayload): Promise<void> {
         const ticketId = event?.ticketId ?? event?.ticket?.id;
         if (!ticketId) return;
-        await this.safely(ticketId, (reporter, view) => reporter.reportChanges(view));
+        await this.safely(ticketId, (reporter, view) => reporter.reportChanges(view, changeContextOf(event)));
     }
 
     @OnEvent('ticket.replied', { async: true })

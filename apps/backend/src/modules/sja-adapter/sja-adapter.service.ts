@@ -60,9 +60,11 @@ export class SjaAdapterService {
       this.logger.warn(`Failed to resolve notification user/ticket: ${err.message}`);
     }
 
-    const finalTicketNumber = ticketNumber || (notification.ticketId ? notification.ticketId.slice(0, 8) : '080926-GEN-0001');
+    // The human ticket number only, never a slice of the ticket id: a GUID means nothing on a toast.
+    const finalTicketNumber = ticketNumber || notification.ticketNumber || (notification.ticketId ? '' : '080926-GEN-0001');
 
-    let replySender = requesterName;
+    // Who the notice is from (the PIC for the requester side, the reporter for agents); the reporter otherwise.
+    let replySender = notification.senderName || requesterName;
     let summaryText = notification.message || notification.title || '';
     if (notification.type === 'TICKET_REPLY') {
       if (notification.title) {
@@ -93,6 +95,8 @@ export class SjaAdapterService {
       ticketCategory,
       requesterName: replySender,
       requesterDepartment,
+      // The person the desktop popup shows as sender instead of "iDesk System" (additive, optional).
+      senderName: replySender || undefined,
       // Kalimat notifikasi asli tetap dikirim terpisah sebagai cadangan untuk
       // event yang tidak punya template khusus. Untuk TICKET_REPLY, berisi murni pesan chat.
       summary: summaryText,

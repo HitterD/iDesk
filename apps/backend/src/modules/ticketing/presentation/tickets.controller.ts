@@ -20,6 +20,7 @@ import {
     Headers,
     UnauthorizedException,
     NotFoundException,
+    ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { timingSafeEqual } from 'crypto';
@@ -31,9 +32,9 @@ import { TicketCreateService } from '../services/ticket-create.service';
 import { TicketUpdateService } from '../services/ticket-update.service';
 import { TicketVendorVisitService } from '../services/ticket-vendor-visit.service';
 import { TicketMessagingService } from '../services/ticket-messaging.service';
-import { TicketQueryService } from '../services/ticket-query.service';
+import { TicketQueryService, QUEUE_KEYS, effectiveQueue } from '../services/ticket-query.service';
 import { CreateTicketDto } from '../dto/create-ticket.dto';
-import { PaginationDto } from '../dto/pagination.dto';
+import { PaginationDto, QueueStatsQueryDto } from '../dto/pagination.dto';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/core/guards/roles.guard';
 import { Roles } from '../../../shared/core/decorators/roles.decorator';
@@ -257,6 +258,20 @@ export class TicketsController {
         );
     }
 
+    /** Status tab counts of one queue page, over the whole queue in the caller's scope. */
+    @Get('queue-stats')
+    @Roles(...TICKET_AGENT_ROLES)
+    @ApiOperation({ summary: 'Get status counts of a ticket queue' })
+    @ApiQuery({ name: 'queue', required: true, enum: QUEUE_KEYS })
+    @ApiResponse({ status: 200, description: 'total, open, inProgress, waitingVendor, resolved, overdue, critical' })
+    async getQueueStats(@Request() req: any, @Query() query: QueueStatsQueryDto) {
+        const role = req.user.role as UserRole;
+        if (query.queue !== 'it-support' && effectiveQueue(query.queue, role) === undefined) {
+            throw new ForbiddenException('Developer queue not available for this role');
+        }
+        return this.ticketQueryService.getQueueStats(query.queue, req.user.userId, role, req.user.siteId ?? null, query);
+    }
+
     @Get('hardware-stats')
     @Roles(UserRole.ADMIN, UserRole.AGENT)
     @ApiOperation({ summary: 'Get hardware installation statistics' })
@@ -280,6 +295,20 @@ export class TicketsController {
             });
         }
         return this.ticketQueryService.findOne(id);
+    }
+
+    /**
+     * Mark the ticket read for the caller. The open ticket page calls this when a message arrives
+     * over the socket, so a message seen live does not leave an unread dot, without reloading the
+     * whole ticket and its history.
+     */
+    @Post(':id/read')
+    @ApiOperation({ summary: 'Mark a ticket read for the caller' })
+    @ApiResponse({ status: 201, description: 'Read markers updated.' })
+    async markRead(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
+        const viewer = { id: req.user.userId || req.user.id, role: req.user.role, siteId: req.user.siteId ?? null };
+        await this.ticketQueryService.assertCanView(id, viewer);
+        await this.ticketMessagingService.markAsRead(id, viewer.id, viewer.role, viewer.siteId);
     }
 
     // Same gate as GET :id: findOne enforces ticket access, and requesters only get PUBLIC articles.
@@ -501,7 +530,7 @@ export class TicketsController {
         @Body() dto: UpdateTicketStatusDto,
         @Request() req: any,
     ) {
-        return this.ticketUpdateService.updateTicket(id, { status: dto.status, vendorVisitRequest: dto.vendorVisitAt }, req.user.userId, {
+        return this.ticketUpdateService.updateTicket(id, { status: dto.status, vendorVisitRequest: dto.vendorVisitAt, vendorNoteRequest: dto.vendorNote }, req.user.userId, {
             takeover: dto.takeover,
             keepAssignee: dto.keepAssignee,
             reason: dto.reason,
@@ -517,7 +546,7 @@ export class TicketsController {
         @Body() dto: UpdateVendorVisitDto,
         @Request() req: any,
     ) {
-        return this.ticketVendorVisitService.reschedule(id, dto.vendorVisitAt, req.user.userId);
+        return this.ticketVendorVisitService.reschedule(id, dto.vendorVisitAt, req.user.userId, dto.vendorNote);
     }
 
     @Patch(':id/priority')

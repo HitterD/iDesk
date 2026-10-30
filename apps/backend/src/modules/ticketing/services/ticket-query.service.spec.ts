@@ -77,8 +77,28 @@ describe('TicketQueryService', () => {
     it('applies the exported overdue predicate when overdue is true', async () => {
         await service.findAllPaginated('user1', UserRole.ADMIN, null, { overdue: true });
 
-        expect(OVERDUE_SQL).toBe(`ticket.status NOT IN ('RESOLVED', 'CLOSED', 'CANCELLED') AND ticket.status <> 'WAITING_VENDOR' AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW()`);
         expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(OVERDUE_SQL);
+    });
+
+    it.each([
+        ['started TODO past its target', 'TODO', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 1],
+        ['started IN_PROGRESS past its target', 'IN_PROGRESS', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 1],
+        ['target still ahead', 'IN_PROGRESS', '2026-10-28T08:00:00Z', '2026-10-28T13:00:00Z', 0],
+        // Legacy rows got a stored projected target before the clock started; that is not a deadline.
+        ['clock never started, stale stored target', 'TODO', null, '2026-10-28T09:00:00Z', 0],
+        ['waiting on a vendor', 'WAITING_VENDOR', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 0],
+        ['resolved', 'RESOLVED', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 0],
+        ['no target', 'TODO', '2026-10-28T08:00:00Z', null, 0],
+    ])('OVERDUE_SQL: %s', (_label, status, slaStartedAt, slaTarget, expected) => {
+        // Execute the production predicate itself; NOW() pinned to 12:00 for the fixture.
+        const { DatabaseSync } = require('node:sqlite');
+        const db = new DatabaseSync(':memory:');
+        try {
+            db.exec('CREATE TABLE ticket(status TEXT, "slaStartedAt" TEXT, "slaTarget" TEXT)');
+            db.prepare('INSERT INTO ticket VALUES (?, ?, ?)').run(status, slaStartedAt, slaTarget);
+            const sql = OVERDUE_SQL.replace('NOW()', `'2026-10-28T12:00:00Z'`);
+            expect(db.prepare(`SELECT COUNT(*) AS n FROM ticket WHERE ${sql}`).get().n).toBe(expected);
+        } finally { db.close(); }
     });
 
     it('does not add status or overdue filters when absent or false', async () => {
@@ -195,6 +215,22 @@ describe('TicketQueryService.findOne', () => {
         expect(result.slaTarget).toEqual(new Date('2026-10-01T01:00:00Z'));
         expect(result.messages.map((m: any) => m.id)).toEqual(['m1']);
     });
+
+    it('names the staff member who filed the ticket, and nothing else about them', async () => {
+        const ticket = {
+            id: 't-1', priority: 'HIGH', createdAt: new Date(), slaTarget: new Date(), userId: 'req-1', siteId: 's-1',
+            handlingTeam: 'OPS_SUPPORT', messages: [], participants: [], user: { id: 'req-1' },
+            createdById: 'agent-1',
+            createdBy: { id: 'agent-1', fullName: 'Rm Bagastyo', email: 'b@x.id', password: 'hash', phoneNumber: '08' },
+        };
+        const ticketRepo = { findOne: jest.fn().mockResolvedValue(ticket) };
+        const service = new TicketQueryService(ticketRepo as any, { findOne: jest.fn() } as any, {} as any);
+
+        const result = await service.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
+
+        expect(ticketRepo.findOne.mock.calls[0][0].relations).toContain('createdBy');
+        expect(result.createdBy).toEqual({ id: 'agent-1', fullName: 'Rm Bagastyo' });
+    });
 });
 
 describe('toPrefixTsQuery', () => {
@@ -207,5 +243,53 @@ describe('toPrefixTsQuery', () => {
 
     it('returns a never-matching query when nothing searchable remains', () => {
         expect(toPrefixTsQuery('() & |')).toBe('!_');
+    });
+});
+
+describe('TicketQueryService queue stats', () => {
+    let service: any;
+    let qb: any;
+
+    beforeEach(() => {
+        const terminals: Record<string, unknown> = { getRawOne: { total: '9', open: '2', waitingVendor: '1', critical: '3' } };
+        qb = new Proxy({} as any, {
+            get(target, prop: string) {
+                if (prop in terminals) return jest.fn().mockResolvedValue(terminals[prop]);
+                target[prop] ??= jest.fn(() => qb);
+                return target[prop];
+            },
+        });
+        service = new TicketQueryService({ createQueryBuilder: jest.fn(() => qb) } as any, {} as any, {} as any);
+    });
+
+    it('counts a developer queue with its team filter and parses every count', async () => {
+        const stats = await service.getQueueStats('oracle', 'dev-1', UserRole.AGENT_ORACLE, null);
+
+        expect(qb.where).toHaveBeenCalledWith(ORACLE_ONLY, ORACLE_FILTER_PARAMS);
+        expect(stats).toEqual({ total: 9, open: 2, inProgress: 0, waitingVendor: 1, resolved: 0, overdue: 0, critical: 3 });
+    });
+
+    it('keeps the IT Support queue on OPS_SUPPORT and out of Request Center categories', async () => {
+        await service.getQueueStats('it-support', 'agent-1', UserRole.AGENT, 'site-1');
+
+        expect(qb.andWhere).toHaveBeenCalledWith(OPS_SUPPORT_ONLY, OPS_SUPPORT_PARAMS);
+        expect(qb.andWhere).toHaveBeenCalledWith('ticket.category NOT IN (:...requestCenterCategories)', {
+            requestCenterCategories: ['ICT_BUDGET', 'LOST_ITEM', 'ACCESS_REQUEST'],
+        });
+        expect(qb.andWhere).toHaveBeenCalledWith('ticket.siteId = :userSiteId', { userSiteId: 'site-1' });
+    });
+
+    it('scopes "Tugas Saya" counts to the caller', async () => {
+        await service.getQueueStats('web-dev', 'dev-1', UserRole.AGENT_WEB_DEV, null, { assignedToMe: true });
+
+        expect(qb.andWhere).toHaveBeenCalledWith('ticket.assignedToId = :assigneeId', { assigneeId: 'dev-1' });
+    });
+
+    it('filters developer queue lists by status list and overdue on the server', async () => {
+        qb.getManyAndCount = jest.fn().mockResolvedValue([[], 0]);
+        await service.findAllPaginatedMobileDev('dev-1', UserRole.AGENT_MOBILE_DEV, null, { status: 'RESOLVED,CLOSED', overdue: true });
+
+        expect(qb.andWhere).toHaveBeenCalledWith('ticket.status IN (:...statuses)', { statuses: ['RESOLVED', 'CLOSED'] });
+        expect(qb.andWhere).toHaveBeenCalledWith(OVERDUE_SQL);
     });
 });

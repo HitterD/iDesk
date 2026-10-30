@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import axios from 'axios';
 import { useAuth } from '../../../stores/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, AlertTriangle, WifiOff, Lock, Sun, Moon, Loader2, Check } from 'lucide-react';
+import { Eye, EyeOff, AlertTriangle, WifiOff, Lock, Sun, Moon, Check } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { getErrorFromResponse, type LoginError, MAX_LOGIN_ATTEMPTS, RATE_LIMIT_WINDOW_SECONDS } from '../utils/loginErrorMapping';
@@ -13,6 +14,7 @@ import { coordinateSession, SessionCoordinationUnavailableError } from '@/lib/se
 import { getRoleHome } from '@/lib/roleHome';
 import { MustChangePasswordDialog } from '../components/MustChangePasswordDialog';
 import { ForgotPasswordDialog } from '../components/ForgotPasswordDialog';
+import '../auth.css';
 
 const ATTEMPT_WARNING_THRESHOLD = 3;
 const CLOCK_TICK_MS = 1_000;
@@ -261,14 +263,13 @@ export const BentoLoginPage = () => {
             const emailMissing = !email.trim();
             setLoginError({
                 type: 'warning',
-                message: emailMissing ? 'NIK / Email is required.' : 'Password is required.',
-                details: 'NIK/Email dan password wajib diisi.',
+                message: emailMissing ? 'NIK / Email wajib diisi.' : 'Password wajib diisi.',
             });
             (emailMissing ? emailRef : passwordRef).current?.focus();
             return;
         }
         if (!isOnline) {
-            setLoginError({ type: 'error', message: 'Network disconnected', details: 'Offline mode active. Connection required for authentication.' });
+            setLoginError({ type: 'error', message: 'Tidak ada koneksi', details: 'Periksa jaringan Anda lalu coba lagi.' });
             return;
         }
         if (rateLimitSeconds > 0) return;
@@ -403,16 +404,27 @@ export const BentoLoginPage = () => {
                 className="flex items-center justify-between px-6 sm:px-9 py-5 shrink-0 relative z-10"
             >
                 <div className="w-8" aria-hidden />
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/80 dark:bg-background/90 backdrop-blur-md border border-border text-foreground shadow-sm">
-                    <span className="text-xs font-mono font-medium tabular-nums text-foreground/85" ref={clockRef} aria-hidden="true">--:--:-- WIB</span>
-                    <div className="w-px h-3 bg-border" aria-hidden />
+                <div className="auth-chip">
+                    <span className="font-mono tabular-nums" ref={clockRef} aria-hidden="true">--:--:-- WIB</span>
+                    <div className="w-px h-3 bg-[hsl(var(--idesk-border))]" aria-hidden />
                     <button
                         type="button"
                         onClick={toggleTheme}
-                        aria-label="Toggle theme"
-                        className="w-6 h-6 grid place-items-center rounded-full hover:bg-muted text-foreground/80 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        aria-label={theme === 'dark' ? 'Gunakan tema terang' : 'Gunakan tema gelap'}
+                        className="w-6 h-6 grid place-items-center rounded-full text-[hsl(var(--idesk-text))] hover:bg-[hsl(var(--idesk-surface-raised))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--idesk-sapphire))]"
                     >
-                        {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-slate-700" />}
+                        <AnimatePresence mode="wait" initial={false}>
+                            <motion.span
+                                key={theme}
+                                initial={{ opacity: 0, rotate: -60, scale: 0.6 }}
+                                animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                                exit={{ opacity: 0, rotate: 60, scale: 0.6 }}
+                                transition={{ duration: 0.2 }}
+                                className="grid place-items-center"
+                            >
+                                {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                            </motion.span>
+                        </AnimatePresence>
                     </button>
                 </div>
             </motion.header>
@@ -431,10 +443,10 @@ export const BentoLoginPage = () => {
                         duration: isSuccessTransition ? 0.38 : 0.4,
                         ease: [0.16, 1, 0.3, 1]
                     }}
-                    className="w-full max-w-[440px] bg-card/95 dark:bg-card/95 backdrop-blur-xl border border-border/90 rounded-2xl shadow-2xl p-8 relative overflow-hidden"
+                    className="auth-card w-full max-w-[420px] rounded-[24px] p-7 sm:p-8 relative overflow-hidden text-[hsl(var(--idesk-text))]"
                 >
                     {/* Corporate Umbrella Branding Pill (Kapal Api Group | PT Santos Jaya Abadi) */}
-                    <div className="bg-white rounded-2xl border border-slate-200/90 py-3.5 px-5 sm:px-6 shadow-xs mb-6 flex items-center justify-between sm:justify-around gap-4 sm:gap-6 select-none">
+                    <div className="bg-white rounded-2xl border border-black/5 py-3 px-5 sm:px-6 shadow-sm mb-5 flex items-center justify-between sm:justify-around gap-4 sm:gap-6 select-none">
                         <img
                             src="/logos/kapal-api-group.webp"
                             alt="Kapal Api Group"
@@ -448,14 +460,12 @@ export const BentoLoginPage = () => {
                         />
                     </div>
 
-                    <div className="flex flex-col items-center justify-center mb-6">
-                        <img
-                            src="/idesk-logo.webp"
-                            alt="iDesk"
-                            className="w-28 sm:w-32 h-auto object-contain transition-transform duration-200 hover:scale-[1.02]"
-                        />
+                    <div className="flex flex-col items-center justify-center mb-6 text-center">
+                        <span className="auth-logo-plate">
+                            <img src="/idesk-logo.webp" alt="iDesk" className="w-24 sm:w-28 h-auto object-contain" />
+                        </span>
+                        <p className="mt-3 text-[13px] text-[hsl(var(--idesk-text-secondary))]">Masuk untuk melanjutkan ke IT Helpdesk</p>
                     </div>
-                    <hr className="border-border mb-6" />
 
                     {expiredNotice && !loginError && rateLimitSeconds === 0 && (
                         <div role="status" className="flex items-start gap-3 p-3 mb-4 rounded-lg border bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400">
@@ -471,8 +481,8 @@ export const BentoLoginPage = () => {
                         <div role="status" className="flex items-start gap-3 p-3 mb-4 bg-secondary/80 border border-border rounded-lg text-muted-foreground">
                             <WifiOff className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" aria-hidden="true" />
                             <div>
-                                <p className="text-sm font-semibold text-foreground">System Offline</p>
-                                <p className="text-xs mt-0.5">Check your network connection to authenticate.</p>
+                                <p className="text-sm font-semibold text-foreground">Anda sedang offline</p>
+                                <p className="text-xs mt-0.5">Periksa koneksi jaringan untuk bisa masuk.</p>
                             </div>
                         </div>
                     )}
@@ -481,8 +491,8 @@ export const BentoLoginPage = () => {
                         <div role="alert" className="flex items-start gap-3 p-3 mb-4 rounded-lg border bg-warning-500/10 border-warning-500/20 text-warning-600 dark:text-warning-500 animate-pulse motion-reduce:animate-none">
                             <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
                             <div>
-                                <p className="text-sm font-semibold">Rate limit exceeded</p>
-                                <p className="text-xs opacity-90 mt-0.5">Wait {rateLimitSeconds} second{rateLimitSeconds === 1 ? '' : 's'}.</p>
+                                <p className="text-sm font-semibold">Terlalu banyak percobaan</p>
+                                <p className="text-xs opacity-90 mt-0.5">Tunggu {rateLimitSeconds} detik.</p>
                             </div>
                         </div>
                     )}
@@ -498,9 +508,9 @@ export const BentoLoginPage = () => {
                     )}
 
                     {failedAttempts >= ATTEMPT_WARNING_THRESHOLD && !loginError && (
-                        <div role="status" className="flex items-center gap-2 text-warning-500 text-xs font-mono mb-2">
+                        <div role="status" className="flex items-center gap-2 text-warning-500 text-xs font-semibold mb-2">
                             <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
-                            {MAX_LOGIN_ATTEMPTS - failedAttempts > 0 ? `WARNING: ${MAX_LOGIN_ATTEMPTS - failedAttempts} ATTEMPT(S) REMAINING` : 'CRITICAL: LOGIN SYSTEM LOCKOUT IMMINENT'}
+                            {MAX_LOGIN_ATTEMPTS - failedAttempts > 0 ? `Sisa ${MAX_LOGIN_ATTEMPTS - failedAttempts} percobaan lagi` : 'Percobaan berikutnya akan mengunci sementara'}
                         </div>
                     )}
 
@@ -515,18 +525,18 @@ export const BentoLoginPage = () => {
                                     className="space-y-4"
                                 >
                                     <div className="space-y-2">
-                                        <label htmlFor="login-email" className="block text-xs font-bold tracking-widest text-muted-foreground uppercase">NIK / Email</label>
-                                        <input id="login-email" ref={emailRef} type="text" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={handleKeyDown} aria-invalid={loginError?.type === 'error' || undefined} aria-describedby={loginError ? 'login-error' : undefined} className={cn('w-full px-4 py-3 bg-background/50 border border-border/50 rounded-lg text-foreground font-medium shadow-sm', 'placeholder:text-muted-foreground/60 transition-colors duration-150', 'focus:outline-none focus:border-primary/60 focus:bg-background focus:ring-2 focus:ring-primary/20', 'hover:border-border', loginError?.type === 'error' && 'border-red-500/50 focus:border-red-500 focus:ring-red-500/20')} placeholder="NIK atau email" autoComplete="username" disabled={isLoading || rateLimitSeconds > 0} />
+                                        <label htmlFor="login-email" className="auth-label">NIK / Email</label>
+                                        <input id="login-email" ref={emailRef} type="text" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={handleKeyDown} aria-invalid={loginError?.type === 'error' || undefined} aria-describedby={loginError ? 'login-error' : undefined} className="auth-input" placeholder="Masukkan NIK atau email" autoComplete="username" disabled={isLoading || rateLimitSeconds > 0} />
                                     </div>
 
                                     <div className="space-y-2">
                                         <div className="flex justify-between items-end">
-                                            <label htmlFor="login-password" className="block text-xs font-bold tracking-widest text-muted-foreground uppercase">Password</label>
-                                            {capsLockOn && <span role="status" className="text-xs font-bold tracking-widest text-warning-500 uppercase flex items-center gap-1 animate-pulse motion-reduce:animate-none"><AlertTriangle className="w-3 h-3" aria-hidden="true" /> Caps Lock is on</span>}
+                                            <label htmlFor="login-password" className="auth-label">Password</label>
+                                            {capsLockOn && <span role="status" className="text-xs font-semibold text-warning-500 flex items-center gap-1"><AlertTriangle className="w-3 h-3" aria-hidden="true" /> Caps Lock aktif</span>}
                                         </div>
                                         <div className="relative">
-                                            <input id="login-password" ref={passwordRef} type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={handleKeyDown} aria-invalid={loginError?.type === 'error' || undefined} aria-describedby={loginError ? 'login-error' : undefined} className={cn('w-full px-4 py-3 bg-background/50 border border-border/50 rounded-lg text-foreground font-medium pr-12 shadow-sm', 'placeholder:text-muted-foreground/60 transition-colors duration-150', 'focus:outline-none focus:border-primary/60 focus:bg-background focus:ring-2 focus:ring-primary/20', 'hover:border-border tracking-[0.2em]', showPassword && 'tracking-normal', loginError?.type === 'error' && 'border-red-500/50 focus:border-red-500 focus:ring-red-500/20')} placeholder="••••••••" autoComplete="current-password" disabled={isLoading || rateLimitSeconds > 0} />
-                                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-1 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-pressed={showPassword} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                                            <input id="login-password" ref={passwordRef} type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={handleKeyDown} aria-invalid={loginError?.type === 'error' || undefined} aria-describedby={loginError ? 'login-error' : undefined} className="auth-input has-toggle" placeholder="Masukkan password" autoComplete="current-password" disabled={isLoading || rateLimitSeconds > 0} />
+                                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-0 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-[hsl(var(--idesk-text-secondary))] hover:text-[hsl(var(--idesk-text))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--idesk-sapphire))]" aria-pressed={showPassword} aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}>
                                                 {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
                                             </button>
                                         </div>
@@ -534,10 +544,10 @@ export const BentoLoginPage = () => {
 
                                     <div className="flex items-center justify-between pt-1">
                                         <label className="flex items-center gap-3 cursor-pointer group">
-                                            <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="w-4 h-4 rounded border-border/80 accent-primary" disabled={isLoading || rateLimitSeconds > 0} />
-                                            <span className="text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors select-none">Keep session active</span>
+                                            <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="auth-check" disabled={isLoading || rateLimitSeconds > 0} />
+                                            <span className="text-[13px] font-medium text-[hsl(var(--idesk-text-secondary))] group-hover:text-[hsl(var(--idesk-text))] transition-colors select-none">Ingat saya</span>
                                         </label>
-                                        <button type="button" onClick={() => setShowForgotPassword(true)} className="text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded" disabled={isLoading}>
+                                        <button type="button" onClick={() => setShowForgotPassword(true)} className="auth-link" disabled={isLoading}>
                                             Lupa password?
                                         </button>
                                     </div>
@@ -547,20 +557,22 @@ export const BentoLoginPage = () => {
 
                         {/* Submit button with Morph Transition */}
                         {!isSuccessTransition ? (
-                            <button
+                            <Button
+                                variant="primary"
+                                size="lg"
                                 type="submit"
-                                disabled={isLoading || !isOnline || rateLimitSeconds > 0}
-                                className="w-full h-12 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/95 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-primary/20"
+                                loading={isLoading}
+                                disabled={!isOnline || rateLimitSeconds > 0}
+                                className="w-full !h-12 active:scale-[0.99]"
                             >
-                                {isLoading && <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
-                                {rateLimitSeconds > 0 ? `Wait (${rateLimitSeconds}s)` : 'Continue'}
-                            </button>
+                                {rateLimitSeconds > 0 ? `Tunggu (${rateLimitSeconds} dtk)` : isLoading ? 'Memverifikasi…' : 'Masuk'}
+                            </Button>
                         ) : (
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.96 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                                className="w-full h-12 rounded-lg bg-emerald-600 text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30"
+                                className="w-full h-12 rounded-xl bg-[hsl(var(--ticket-green-ink))] text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-lg"
                             >
                                 <motion.span
                                     initial={{ scale: 0, rotate: -45 }}
@@ -569,23 +581,23 @@ export const BentoLoginPage = () => {
                                 >
                                     <Check className="w-5 h-5 text-white" />
                                 </motion.span>
-                                <span>Verified • Welcome, {authenticatedUser?.fullName?.split(' ')[0] || 'User'}</span>
+                                <span>Selamat datang, {authenticatedUser?.fullName?.split(' ')[0] || 'User'}</span>
                             </motion.div>
                         )}
                     </form>
 
                     {ipopEnabled && !isSuccessTransition && (
                         <div className="mt-4">
-                            <div className="flex items-center gap-3 mb-4 text-xs text-muted-foreground" aria-hidden>
-                                <div className="flex-1 h-px bg-border" />
+                            <div className="flex items-center gap-3 mb-4 text-xs text-[hsl(var(--idesk-text-secondary))]" aria-hidden>
+                                <div className="flex-1 h-px bg-[hsl(var(--idesk-border))]" />
                                 <span>atau</span>
-                                <div className="flex-1 h-px bg-border" />
+                                <div className="flex-1 h-px bg-[hsl(var(--idesk-border))]" />
                             </div>
                             <button
                                 type="button"
                                 onClick={signInWithIpop}
                                 disabled={!isOnline}
-                                className="w-full h-12 rounded-lg border border-border bg-background/60 text-foreground font-semibold text-sm hover:bg-foreground/5 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                className="idesk-btn is-lg w-full !h-12 active:scale-[0.99]"
                             >
                                 <img src="/logos/ipop-mark.png" alt="" aria-hidden className="w-5 h-5 rounded" />
                                 Masuk dengan iPop
@@ -593,20 +605,6 @@ export const BentoLoginPage = () => {
                         </div>
                     )}
 
-                    <AnimatePresence>
-                        {!isSuccessTransition && (
-                            <motion.div
-                                initial={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.15 }}
-                                className="mt-6 pt-4 border-t border-border flex items-center justify-center gap-3 text-xs font-mono text-muted-foreground"
-                            >
-                                <span><kbd className="px-1.5 py-0.5 rounded border border-border bg-foreground/5">↵</kbd> Enter to continue</span>
-                                <span className="text-border-strong">·</span>
-                                <span><kbd className="px-1.5 py-0.5 rounded border border-border bg-foreground/5">Esc</kbd> Clear</span>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
                 </motion.div>
             </main>
 
@@ -619,10 +617,10 @@ export const BentoLoginPage = () => {
                 transition={{ duration: 0.25 }}
                 className="px-6 sm:px-9 pb-6 shrink-0 relative z-10 flex justify-center"
             >
-                <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-background/80 dark:bg-background/90 backdrop-blur-md border border-border text-[11px] text-muted-foreground font-mono shadow-xs">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    <span className="font-medium text-foreground/80">v3.18.2</span>
-                    <span className="text-border-strong opacity-60">·</span>
+                <div className="auth-chip font-mono opacity-80">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--ticket-green))]" />
+                    <span>v3.18.2</span>
+                    <span aria-hidden>·</span>
                     <span>© 2026 iDesk</span>
                 </div>
             </motion.footer>

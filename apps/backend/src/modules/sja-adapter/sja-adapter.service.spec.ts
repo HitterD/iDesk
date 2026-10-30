@@ -175,6 +175,28 @@ describe('SjaAdapterService', () => {
       expect(sent.ticketId).toBe('ticket-reply-1');
     });
 
+    it('never sends a slice of the ticket id as the ticket number', async () => {
+      const ticketId = 'bb4ed960-03e1-4428-8f64-136f60340381';
+      const unknown = await captureDispatchedEvent(null, { id: 'n-6', userId: 'user-uuid-1', type: 'TICKET_UPDATED', title: 'x', message: 'y', ticketId });
+      expect(unknown.ticketNumber).toBe('');
+      expect(JSON.stringify(unknown)).not.toContain('"bb4ed960"');
+
+      const hinted = await captureDispatchedEvent(null, {
+        id: 'n-7', userId: 'user-uuid-1', type: 'TICKET_UPDATED', title: 'x', message: 'y', ticketId, ticketNumber: '281026-ORD-0012',
+      });
+      expect(hinted.ticketNumber).toBe('281026-ORD-0012');
+    });
+
+    it('names the person the notice is from instead of the system', async () => {
+      const sent = await captureDispatchedEvent(ticket, {
+        id: 'n-8', userId: 'user-uuid-1', type: 'TICKET_UPDATED', title: 'Printer lantai 3 tidak bisa mencetak',
+        message: 'Status: Selesai → Ditutup · PIC Rizky Ardiansyah', ticketId: 'ticket-1', senderName: 'Rizky Ardiansyah',
+      });
+      expect(sent.senderName).toBe('Rizky Ardiansyah');
+      expect(sent.requesterName).toBe('Rizky Ardiansyah');
+      expect(sent.summary).toBe('Status: Selesai → Ditutup · PIC Rizky Ardiansyah');
+    });
+
     it('should include HMAC authentication headers on direct dispatch', async () => {
       const fetchSpy = jest
         .spyOn(global, 'fetch' as any)

@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, HttpStatus, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, HttpStatus, ServiceUnavailableException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PasswordResetService, FORGOT_PASSWORD_MESSAGES } from './password-reset.service';
 import { UsersService } from '../../users/users.service';
@@ -46,78 +46,74 @@ describe('PasswordResetService', () => {
         );
     });
 
-    describe('by NIK', () => {
-        it('sends the temporary password to the typed email without changing the account email', async () => {
+    describe('NIK + registered email', () => {
+        it('sends the temporary password to the registered email once NIK and email match', async () => {
             usersService.findByEmployeeId.mockResolvedValue(regularUser);
 
-            const result = await service.forgotPassword({ identifier: ' 12345 ', email: 'Budi.Pribadi@Gmail.com' });
+            const result = await service.forgotPassword({ identifier: ' 12345 ', email: ' BUDI@KapalApi.co.id ' });
 
             expect(usersService.findByEmployeeId).toHaveBeenCalledWith('12345');
             const mail = mailDispatch.sendNow.mock.calls[0][0];
-            expect(mail.to).toBe('budi.pribadi@gmail.com');
+            expect(mail.to).toBe('budi@kapalapi.co.id');
             expect(mail.template).toBe('password-reset');
             expect(validatePasswordPolicy(mail.context.password).valid).toBe(true);
             expect(bcrypt.hash).toHaveBeenCalledWith(mail.context.password, expect.any(Number));
             expect(usersService.updatePassword).toHaveBeenCalledWith('user-1', 'hashed-temp');
             expect(usersService.update).toHaveBeenCalledWith('user-1', { mustChangePassword: true });
-            expect(usersService.update).not.toHaveBeenCalledWith('user-1', expect.objectContaining({ email: expect.anything() }));
             expect(sessionService.invalidateUser).toHaveBeenCalledWith('user-1');
-            expect(result).toEqual({ message: FORGOT_PASSWORD_MESSAGES.SUCCESS, sentTo: 'budi.pribadi@gmail.com' });
+            expect(result).toEqual({ message: FORGOT_PASSWORD_MESSAGES.SUCCESS, sentTo: 'budi@kapalapi.co.id' });
         });
 
-        it('requires a destination email', async () => {
+        // Regression: a NIK is not secret, so mailing to a typed address let anyone take over
+        // a regular account by sending its temporary password to their own inbox.
+        it('refuses an email that differs from the registered one without touching the account', async () => {
+            usersService.findByEmployeeId.mockResolvedValue(regularUser);
+
+            await expect(service.forgotPassword({ identifier: '12345', email: 'attacker@gmail.com' }))
+                .rejects.toThrow(new BadRequestException(FORGOT_PASSWORD_MESSAGES.MISMATCH));
+            expect(usersService.updatePassword).not.toHaveBeenCalled();
+            expect(sessionService.invalidateUser).not.toHaveBeenCalled();
+            expect(mailDispatch.sendNow).not.toHaveBeenCalled();
+        });
+
+        it('requires the registered email', async () => {
             await expect(service.forgotPassword({ identifier: '12345' })).rejects.toThrow(BadRequestException);
             expect(usersService.findByEmployeeId).not.toHaveBeenCalled();
         });
 
-        it('rejects a placeholder destination that cannot receive mail', async () => {
-            await expect(service.forgotPassword({ identifier: '12345', email: '12345@hris.local' }))
-                .rejects.toThrow(FORGOT_PASSWORD_MESSAGES.PLACEHOLDER_EMAIL);
+        it('no longer accepts an email in place of the NIK', async () => {
+            await expect(service.forgotPassword({ identifier: 'budi@kapalapi.co.id', email: 'budi@kapalapi.co.id' }))
+                .rejects.toThrow(new BadRequestException(FORGOT_PASSWORD_MESSAGES.MISMATCH));
+            expect(usersService.findByEmail).not.toHaveBeenCalled();
         });
 
-        it('reports an unknown NIK', async () => {
+        it('answers an unknown NIK with the same message as a mismatch', async () => {
             usersService.findByEmployeeId.mockResolvedValue(undefined);
             await expect(service.forgotPassword({ identifier: '99999', email: 'x@gmail.com' }))
-                .rejects.toThrow(new NotFoundException(FORGOT_PASSWORD_MESSAGES.NIK_NOT_FOUND));
-        });
-    });
-
-    describe('by registered email', () => {
-        it('sends to the stored email and ignores any typed destination', async () => {
-            usersService.findByEmail.mockResolvedValue(regularUser);
-
-            await service.forgotPassword({ identifier: 'BUDI@kapalapi.co.id', email: 'attacker@gmail.com' });
-
-            expect(usersService.findByEmail).toHaveBeenCalledWith('budi@kapalapi.co.id');
-            expect(mailDispatch.sendNow.mock.calls[0][0].to).toBe('budi@kapalapi.co.id');
+                .rejects.toThrow(new BadRequestException(FORGOT_PASSWORD_MESSAGES.MISMATCH));
         });
 
-        it('reports an unregistered email', async () => {
-            usersService.findByEmail.mockResolvedValue(undefined);
-            await expect(service.forgotPassword({ identifier: 'nobody@gmail.com' }))
-                .rejects.toThrow(new NotFoundException(FORGOT_PASSWORD_MESSAGES.EMAIL_NOT_FOUND));
-        });
-
-        it('rejects a placeholder account email', async () => {
-            await expect(service.forgotPassword({ identifier: '12345@hris.local' }))
-                .rejects.toThrow(FORGOT_PASSWORD_MESSAGES.PLACEHOLDER_EMAIL);
-            expect(usersService.findByEmail).not.toHaveBeenCalled();
+        it('treats a placeholder account email as unmatchable', async () => {
+            usersService.findByEmployeeId.mockResolvedValue({ ...regularUser, email: '12345@hris.local' });
+            await expect(service.forgotPassword({ identifier: '12345', email: '12345@hris.local' }))
+                .rejects.toThrow(new BadRequestException(FORGOT_PASSWORD_MESSAGES.MISMATCH));
+            expect(mailDispatch.sendNow).not.toHaveBeenCalled();
         });
     });
 
     describe('eligibility', () => {
-        it.each([UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_ORACLE, UserRole.MANAGER])('refuses %s accounts', async (role) => {
+        it.each([UserRole.ADMIN, UserRole.AGENT, UserRole.AGENT_ORACLE, UserRole.MANAGER])('refuses %s accounts without revealing the role', async (role) => {
             usersService.findByEmployeeId.mockResolvedValue({ ...regularUser, role });
-            await expect(service.forgotPassword({ identifier: '12345', email: 'x@gmail.com' }))
-                .rejects.toThrow(new ForbiddenException(FORGOT_PASSWORD_MESSAGES.ROLE_NOT_ALLOWED));
+            await expect(service.forgotPassword({ identifier: '12345', email: regularUser.email }))
+                .rejects.toThrow(new BadRequestException(FORGOT_PASSWORD_MESSAGES.MISMATCH));
             expect(mailDispatch.sendNow).not.toHaveBeenCalled();
             expect(usersService.updatePassword).not.toHaveBeenCalled();
         });
 
-        it('refuses disabled accounts', async () => {
+        it('refuses disabled accounts without revealing their state', async () => {
             usersService.findByEmployeeId.mockResolvedValue({ ...regularUser, isActive: false });
-            await expect(service.forgotPassword({ identifier: '12345', email: 'x@gmail.com' }))
-                .rejects.toThrow(new ForbiddenException(FORGOT_PASSWORD_MESSAGES.ACCOUNT_DISABLED));
+            await expect(service.forgotPassword({ identifier: '12345', email: regularUser.email }))
+                .rejects.toThrow(new BadRequestException(FORGOT_PASSWORD_MESSAGES.MISMATCH));
         });
     });
 
@@ -131,7 +127,7 @@ describe('PasswordResetService', () => {
             usersService.updatePassword.mockImplementation(async () => { order.push('save'); });
             mailDispatch.sendNow.mockImplementation(async () => { order.push('mail'); return { success: true }; });
 
-            await service.forgotPassword({ identifier: '12345', email: 'x@gmail.com' });
+            await service.forgotPassword({ identifier: '12345', email: regularUser.email });
 
             expect(order).toEqual(['save', 'mail']);
         });
@@ -139,7 +135,7 @@ describe('PasswordResetService', () => {
         it('reports a failed email and lets the user retry immediately', async () => {
             mailDispatch.sendNow.mockResolvedValue({ success: false, error: 'SMTP down' });
 
-            await expect(service.forgotPassword({ identifier: '12345', email: 'x@gmail.com' }))
+            await expect(service.forgotPassword({ identifier: '12345', email: regularUser.email }))
                 .rejects.toThrow(new ServiceUnavailableException(FORGOT_PASSWORD_MESSAGES.SEND_FAILED));
             expect(cache.delAsync).toHaveBeenCalledWith('auth:forgot-password:cooldown:user-1');
         });
@@ -149,7 +145,7 @@ describe('PasswordResetService', () => {
         it('sends nothing and allows an immediate retry when session invalidation fails', async () => {
             sessionService.invalidateUser.mockRejectedValue(new Error('Redis down'));
 
-            await expect(service.forgotPassword({ identifier: '12345', email: 'x@gmail.com' })).rejects.toThrow('Redis down');
+            await expect(service.forgotPassword({ identifier: '12345', email: regularUser.email })).rejects.toThrow('Redis down');
             expect(mailDispatch.sendNow).not.toHaveBeenCalled();
             expect(cache.delAsync).toHaveBeenCalledWith('auth:forgot-password:cooldown:user-1');
         });
@@ -159,7 +155,7 @@ describe('PasswordResetService', () => {
         beforeEach(() => usersService.findByEmployeeId.mockResolvedValue(regularUser));
 
         it('starts a per-user cooldown before resetting', async () => {
-            await service.forgotPassword({ identifier: '12345', email: 'x@gmail.com' });
+            await service.forgotPassword({ identifier: '12345', email: regularUser.email });
 
             expect(cache.setAsync).toHaveBeenCalledWith('auth:forgot-password:cooldown:user-1', true, 60);
         });
@@ -167,7 +163,7 @@ describe('PasswordResetService', () => {
         it('refuses a repeat request inside the cooldown without touching the password', async () => {
             cache.getAsync.mockResolvedValue(true);
 
-            await expect(service.forgotPassword({ identifier: '12345', email: 'x@gmail.com' }))
+            await expect(service.forgotPassword({ identifier: '12345', email: regularUser.email }))
                 .rejects.toMatchObject({ status: HttpStatus.TOO_MANY_REQUESTS, message: FORGOT_PASSWORD_MESSAGES.COOLDOWN });
             expect(usersService.updatePassword).not.toHaveBeenCalled();
             expect(mailDispatch.sendNow).not.toHaveBeenCalled();

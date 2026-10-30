@@ -199,6 +199,28 @@ describe('TicketsController', () => {
         });
     });
 
+    describe('markRead', () => {
+        it('marks the ticket read for the caller after checking they may see it', async () => {
+            mockTicketQueryService = { assertCanView: jest.fn().mockResolvedValue(undefined) };
+            mockTicketMessagingService.markAsRead = jest.fn().mockResolvedValue(undefined);
+            controller.ticketQueryService = mockTicketQueryService;
+
+            await controller.markRead('t-1', { user: { userId: 'agent-1', role: 'AGENT', siteId: 'site-1' } });
+
+            expect(mockTicketQueryService.assertCanView).toHaveBeenCalledWith('t-1', { id: 'agent-1', role: 'AGENT', siteId: 'site-1' });
+            expect(mockTicketMessagingService.markAsRead).toHaveBeenCalledWith('t-1', 'agent-1', 'AGENT', 'site-1');
+        });
+
+        it('does not mark a ticket the caller may not see', async () => {
+            mockTicketQueryService = { assertCanView: jest.fn().mockRejectedValue(new Error('Forbidden')) };
+            mockTicketMessagingService.markAsRead = jest.fn();
+            controller.ticketQueryService = mockTicketQueryService;
+
+            await expect(controller.markRead('t-1', { user: { userId: 'u-9', role: 'USER', siteId: null } })).rejects.toThrow('Forbidden');
+            expect(mockTicketMessagingService.markAsRead).not.toHaveBeenCalled();
+        });
+    });
+
     describe('resolution confirmation', () => {
         const req = { user: { userId: 'owner-1', role: 'USER' } };
 

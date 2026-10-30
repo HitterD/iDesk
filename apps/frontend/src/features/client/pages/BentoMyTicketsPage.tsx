@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/stores/useAuth';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { CLIENT_ROUTES } from '@/config/routes';
+import { CsiPendingCard } from '@/features/csi/components/CsiPendingCard';
 import {
     CREATE_TICKET_TEXT_LINK,
     HelpBanner,
@@ -262,6 +263,8 @@ export const BentoMyTicketsPage: React.FC = () => {
                     <span className="hidden sm:inline">Muat ulang</span>
                 </button>
             </div>
+
+            <CsiPendingCard />
 
             <HelpBanner />
 

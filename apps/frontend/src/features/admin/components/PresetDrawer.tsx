@@ -38,6 +38,7 @@ import {
     UserCheck,
     Code2,
     Smartphone,
+    Star,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -46,6 +47,7 @@ import api from '@/lib/api';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { lockBodyScroll, unlockBodyScroll } from '@/lib/scrollLock';
 import { ConfirmDialog } from './ConfirmDialog';
+import { AGENT_PAGES, MANAGER_PAGES, USER_PAGES, type TargetRole } from '@/lib/pageDefinitions';
 
 /** Sentinel id for the not-yet-persisted preset being composed in the editor. */
 const NEW_PRESET_ID = '__new__';
@@ -92,6 +94,8 @@ interface PermissionResourceMeta {
     label: string;
     description: string;
     icon: React.ElementType;
+    /** When set, the toggle only applies to presets targeting one of these roles. */
+    allowedRoles?: TargetRole[];
 }
 
 interface PermissionCategory {
@@ -135,6 +139,10 @@ const EMPTY_PRESET: Omit<PermissionPreset, 'id' | 'createdAt'> = {
     pageAccess: {},
     permissions: {},
 };
+
+/** CSI admin access is only honoured by the backend guard for these roles. */
+const CSI_ADMIN_ROLES: TargetRole[] = ['ADMIN', 'MANAGER'];
+const ROLE_RESTRICTED_HINT = 'Hanya untuk role Admin atau Manager';
 
 export const PERMISSION_CATEGORIES: PermissionCategory[] = [
     {
@@ -303,9 +311,44 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
             },
         ],
     },
+    {
+        id: 'csi',
+        title: 'Survei Kepuasan (CSI)',
+        description: 'Administrasi survei kepuasan per unit: master data, periode, dan laporan',
+        icon: Star,
+        resources: [
+            {
+                key: 'csi_admin_ict',
+                label: 'Admin CSI ICT',
+                description: 'Kelola master data, periode, dan laporan survei kepuasan unit ICT',
+                icon: Star,
+                allowedRoles: CSI_ADMIN_ROLES,
+            },
+            {
+                key: 'csi_admin_hc',
+                label: 'Admin CSI HC',
+                description: 'Kelola master data, periode, dan laporan survei kepuasan unit HC',
+                icon: Star,
+                allowedRoles: CSI_ADMIN_ROLES,
+            },
+        ],
+    },
 ];
 
 const ALL_PERMISSION_KEYS = PERMISSION_CATEGORIES.flatMap(cat => cat.resources.map(r => r.key));
+
+/**
+ * Every page key the server accepts, including ones this editor does not render,
+ * so saving a preset never silently drops access granted elsewhere.
+ */
+const VALID_PAGE_KEYS = new Set<string>([
+    ...ALL_PERMISSION_KEYS,
+    ...[...USER_PAGES, ...AGENT_PAGES, ...MANAGER_PAGES].map(p => p.key),
+]);
+
+/** A preset with no target role ("Any Role") may be applied to admins, so it is not restricted. */
+const isAllowedForRole = (meta: PermissionResourceMeta, role?: PermissionPreset['targetRole'] | '') =>
+    !meta.allowedRoles || !role || meta.allowedRoles.includes(role);
 
 /** Sanitize pageAccess object to ensure only valid keys and aliases are sent to server */
 const sanitizePageAccess = (raw?: Record<string, any>): Record<string, boolean> => {
@@ -316,7 +359,7 @@ const sanitizePageAccess = (raw?: Record<string, any>): Record<string, boolean> 
             sanitized['eform_access'] = Boolean(val);
         } else if (key === 'users') {
             sanitized['agents'] = Boolean(val);
-        } else if (ALL_PERMISSION_KEYS.includes(key)) {
+        } else if (VALID_PAGE_KEYS.has(key)) {
             sanitized[key] = Boolean(val);
         }
     }
@@ -330,9 +373,10 @@ interface PermissionCardProps {
     isEnabled: boolean;
     onToggle: (key: string, enabled: boolean) => void;
     disabled?: boolean;
+    hint?: string;
 }
 
-const PermissionCard: React.FC<PermissionCardProps> = ({ meta, isEnabled, onToggle, disabled }) => {
+const PermissionCard: React.FC<PermissionCardProps> = ({ meta, isEnabled, onToggle, disabled, hint }) => {
     const Icon = meta.icon;
 
     return (
@@ -367,6 +411,11 @@ const PermissionCard: React.FC<PermissionCardProps> = ({ meta, isEnabled, onTogg
                     <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
                         {meta.description}
                     </p>
+                    {hint && (
+                        <p className="mt-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                            {hint}
+                        </p>
+                    )}
                 </div>
             </div>
 
@@ -515,7 +564,7 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
         setDraft(prev => {
             const newPageAccess = { ...prev.pageAccess };
             const newPermissions = { ...prev.permissions };
-            resources.forEach(r => {
+            resources.filter(r => isAllowedForRole(r, prev.targetRole)).forEach(r => {
                 newPageAccess[r.key] = targetState;
                 newPermissions[r.key] = {
                     canView: targetState,
@@ -535,17 +584,19 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
 
     const toggleAllGlobal = (targetState: boolean) => {
         setDraft(prev => {
-            const newPageAccess: Record<string, boolean> = {};
-            const newPermissions: PermissionMap = {};
-            ALL_PERMISSION_KEYS.forEach(key => {
-                newPageAccess[key] = targetState;
-                newPermissions[key] = {
-                    canView: targetState,
-                    canCreate: targetState,
-                    canEdit: targetState,
-                    canDelete: targetState,
-                };
-            });
+            const newPageAccess: Record<string, boolean> = { ...prev.pageAccess };
+            const newPermissions: PermissionMap = { ...prev.permissions };
+            PERMISSION_CATEGORIES.flatMap(cat => cat.resources)
+                .filter(r => isAllowedForRole(r, prev.targetRole))
+                .forEach(({ key }) => {
+                    newPageAccess[key] = targetState;
+                    newPermissions[key] = {
+                        canView: targetState,
+                        canCreate: targetState,
+                        canEdit: targetState,
+                        canDelete: targetState,
+                    };
+                });
             return {
                 ...prev,
                 pageAccess: newPageAccess,
@@ -1080,14 +1131,19 @@ export const PresetDrawer: React.FC<PresetDrawerProps> = ({ isOpen, onClose }) =
 
                                                     {/* Grid of Permission Cards */}
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                        {category.resources.map(res => (
-                                                            <PermissionCard
-                                                                key={res.key}
-                                                                meta={res}
-                                                                isEnabled={draft.pageAccess?.[res.key] === true}
-                                                                onToggle={togglePermission}
-                                                            />
-                                                        ))}
+                                                        {category.resources.map(res => {
+                                                            const restricted = !isAllowedForRole(res, draft.targetRole);
+                                                            return (
+                                                                <PermissionCard
+                                                                    key={res.key}
+                                                                    meta={res}
+                                                                    isEnabled={draft.pageAccess?.[res.key] === true}
+                                                                    onToggle={togglePermission}
+                                                                    disabled={restricted}
+                                                                    hint={res.allowedRoles ? ROLE_RESTRICTED_HINT : undefined}
+                                                                />
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
                                             );

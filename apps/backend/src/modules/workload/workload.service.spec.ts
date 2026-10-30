@@ -68,6 +68,26 @@ describe('WorkloadService — query count for multi-agent operations', () => {
         expect(best).not.toBeNull();
     });
 
+    it('recalculation excludes vendor tickets while preserving assignment and resolutions', async () => {
+        ticketRepo.find.mockImplementation(async ({ where }: any) => {
+            const operator = where.status;
+            const statuses = operator.value;
+            return [
+                { priority: 'HIGH', status: 'TODO' },
+                { priority: 'LOW', status: 'IN_PROGRESS' },
+                { priority: 'CRITICAL', status: 'WAITING_VENDOR' },
+            ].filter(ticket => operator.type === 'not' ? !statuses.includes(ticket.status) : statuses.includes(ticket.status));
+        });
+        ticketRepo.count.mockResolvedValue(2);
+        const lastAssignedAt = new Date('2026-10-26T10:00:00Z');
+        workloadRepo.findOne.mockResolvedValue({ lastAssignedAt });
+
+        const result = await service.recalculateAgentWorkload(adminActor, 'a1', 'site-1');
+
+        expect(result).toMatchObject({ totalPoints: 5, activeTickets: 2, resolvedTickets: 2, lastAssignedAt });
+        expect(ticketRepo.find.mock.calls[0][0].where).toMatchObject({ assignedToId: 'a1', siteId: 'site-1' });
+    });
+
     it('recalculateAgentWorkload fetches priority weights once, not once per ticket', async () => {
         ticketRepo.find.mockResolvedValue([
             { priority: 'HIGH', status: 'TODO' },

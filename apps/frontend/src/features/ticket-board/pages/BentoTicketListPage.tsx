@@ -1,6 +1,6 @@
 import { QueueCardToolbar } from '../components/QueueCardToolbar';
 import { Ticket as TicketIcon } from 'lucide-react';
-import { QueueHeader } from '../components/QueueHeader';
+import { QueueHeader, QueueToggles } from '../components/QueueHeader';
 import { QueueFilterBar, PRIORITY_FILTER_OPTIONS } from '../components/QueueFilterBar';
 import { QueueTableHeader } from '../components/QueueTableHeader';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
@@ -68,6 +68,7 @@ import { TicketListActiveFilters } from '../components/TicketListActiveFilters';
 import { TicketListPagination } from '../components/TicketListPagination';
 import { Ticket } from '../types/ticket.types';
 import { useTicketListMutations } from '../hooks/useTicketListMutations';
+import { useQueueStats } from '../hooks/useQueueStats';
 import { isHandledByTakeoverDialog, type TakeoverOptions } from '../hooks/useStatusTakeover';
 import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 import { BentoTicketKanban } from '../components/BentoTicketKanban';
@@ -224,23 +225,9 @@ export const BentoTicketListPage: React.FC = () => {
         refetchInterval: isConnected ? false : 60000, // fallback poll only while the socket is down
     });
 
-    // Fetch dashboard stats separately (for stat cards - doesn't need to refetch on pagination)
-    const { data: statsData } = useQuery<{
-        total: number;
-        open: number;
-        inProgress: number;
-        waitingVendor: number;
-        resolved: number;
-        overdue: number;
-        critical: number;
-    }>({
-        queryKey: ['dashboard-stats', { excludeCategory: 'ICT_BUDGET,LOST_ITEM,ACCESS_REQUEST' }],
-        queryFn: async () => {
-            const res = await api.get('/tickets/dashboard/stats?excludeCategory=ICT_BUDGET,LOST_ITEM,ACCESS_REQUEST');
-            return res.data;
-        },
-        staleTime: 30000, // 30 seconds
-    });
+    // Stat cards count the same IT Support queue as the list (team, sites, "Tugas Saya" / "Saya Buat"),
+    // so clicking a card always shows that many tickets. Not refetched on pagination.
+    const { data: statsData } = useQueueStats('it-support', { siteIds: selectedSites, assignedToMe: showAssignedToMe, createdByMe: showCreatedByMe });
 
     const isAdmin = user?.role === 'ADMIN';
     const { data: agents = [] } = useQuery<Agent[]>({
@@ -509,10 +496,7 @@ export const BentoTicketListPage: React.FC = () => {
 
     return (
         <div className="queue-page space-y-4 pb-28 sm:pb-10 min-w-0">
-            <QueueHeader title="IT Support Tickets" description="Antrian IT Support untuk semua site Anda" icon={TicketIcon} tone="blue"
-                connected={isConnected} canEdit={canEdit}
-                scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
-                onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })} />
+            <QueueHeader title="IT Support Tickets" description="Antrian IT Support untuk semua site Anda" icon={TicketIcon} tone="blue" />
 
             {/* Stats Cards - Horizontally scrollable snap strip on mobile, grid on tablet/desktop */}
             <div className="queue-stats queue-stats-7" aria-label="Ringkasan status">
@@ -586,6 +570,9 @@ export const BentoTicketListPage: React.FC = () => {
                         hasActiveFilters={hasActiveFilters}
                         onClearFilters={clearFilters}
                     />
+                    <QueueToggles canEdit={canEdit}
+                        scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
+                        onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })} />
                 </QueueFilterBar>
 
             {/* Active Filter Chips - P3 MEDIUM: Removable filter badges */}

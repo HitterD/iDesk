@@ -40,6 +40,8 @@ export interface TicketDetail {
     criticalReason?: string;
     createdAt: string;
     updatedAt: string;
+    /** Staff member who filed the ticket on the requester's behalf; absent when the requester filed it. */
+    createdBy?: { id: string; fullName: string } | null;
     slaTarget?: string;
     /** 'requester' = I filed it but don't handle it: view/chat only. */
     viewerAccess?: 'handler' | 'requester';
@@ -49,6 +51,8 @@ export interface TicketDetail {
     lastPausedAt?: string | null;
     /** Agreed vendor visit while WAITING_VENDOR. */
     vendorVisitAt?: string | null;
+    /** Why a WAITING_VENDOR ticket waits (template or typed by the PIC). */
+    vendorNote?: string | null;
     firstResponseRemainingMinutes?: number | null;
     firstResponseAt?: string;
     firstResponseTarget?: string;

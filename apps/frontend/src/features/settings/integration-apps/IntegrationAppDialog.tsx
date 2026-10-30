@@ -3,11 +3,15 @@ import { Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { APP_COLORS, colorForSource, type AppColor } from '@/components/ui/ExternalSourceBadge';
 import { PERMISSIONS, useApiModules, type AppPermission, type IntegrationApp, type IntegrationAppInput } from './api';
 
 const CLIENT_ID_PATTERN = /^[a-z][a-z0-9-]{1,19}$/;
 const RESERVED = ['ipop', 'web', 'email', 'telegram', 'api', 'idesk'];
 const DEFAULT_PERMISSIONS: AppPermission[] = ['tickets:create', 'tickets:read', 'messages:read', 'messages:write'];
+const COLOR_LABELS: Record<AppColor, string> = {
+    blue: 'Biru', sky: 'Langit', teal: 'Teal', amber: 'Kuning', orange: 'Oranye', red: 'Merah', pink: 'Merah muda', slate: 'Abu-abu',
+};
 
 interface IntegrationAppDialogProps {
     open: boolean;
@@ -27,6 +31,8 @@ export const IntegrationAppDialog: React.FC<IntegrationAppDialogProps> = ({ open
     const [picked, setPicked] = useState<string[]>([]);
     const [permissions, setPermissions] = useState<AppPermission[]>(DEFAULT_PERMISSIONS);
     const [webhookUrl, setWebhookUrl] = useState('');
+    /** null = automatic (derived from the client id). */
+    const [color, setColor] = useState<AppColor | null>(null);
 
     useEffect(() => {
         if (!open) return;
@@ -36,6 +42,7 @@ export const IntegrationAppDialog: React.FC<IntegrationAppDialogProps> = ({ open
         setPicked(app?.modules ?? []);
         setPermissions(app?.permissions ?? DEFAULT_PERMISSIONS);
         setWebhookUrl(app?.webhookUrl ?? '');
+        setColor(app?.color ?? null);
     }, [open, app]);
 
     const toggle = <T,>(list: T[], value: T) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
@@ -51,6 +58,7 @@ export const IntegrationAppDialog: React.FC<IntegrationAppDialogProps> = ({ open
             ...(app ? {} : { clientId }),
             name: name.trim(),
             description: description.trim() || null,
+            color,
             modules: picked,
             permissions,
             webhookUrl: webhookUrl.trim() || null,
@@ -88,6 +96,23 @@ export const IntegrationAppDialog: React.FC<IntegrationAppDialogProps> = ({ open
                             <span>Keterangan <em>(opsional)</em></span>
                             <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="mis. Tiket Web Developer dari aplikasi E-BBK" maxLength={300} />
                         </label>
+
+                        <fieldset className="iapp-field">
+                            <legend>Warna label di daftar tiket</legend>
+                            <div className="iapp-colors" role="radiogroup" aria-label="Warna label">
+                                <button type="button" role="radio" aria-checked={color === null} title="Otomatis"
+                                    className={cn('iapp-color is-auto', color === null && 'is-on')} onClick={() => setColor(null)}>
+                                    <span className="src-badge" data-src={colorForSource(clientId || name || 'app')}><i aria-hidden="true" />Otomatis</span>
+                                </button>
+                                {APP_COLORS.map((value) => (
+                                    <button key={value} type="button" role="radio" aria-checked={color === value} aria-label={COLOR_LABELS[value]}
+                                        title={COLOR_LABELS[value]} className={cn('iapp-color', color === value && 'is-on')} onClick={() => setColor(value)}>
+                                        <span className="iapp-swatch" data-src={value} aria-hidden="true" />
+                                    </button>
+                                ))}
+                            </div>
+                            <small>Tiket dari aplikasi ini tampil dengan label <span className="src-badge" data-src={color ?? colorForSource(clientId || name || 'app')}><i aria-hidden="true" />{name.trim() || 'Nama aplikasi'}</span></small>
+                        </fieldset>
 
                         <fieldset className="iapp-field">
                             <legend>Modul yang boleh dipakai</legend>

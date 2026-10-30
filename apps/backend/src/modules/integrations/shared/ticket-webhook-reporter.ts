@@ -1,6 +1,7 @@
 import { In, Repository } from 'typeorm';
 import { TicketStatus } from '../../ticketing/entities/ticket.entity';
 import type { TicketRepliedEvent } from '../../ticketing/events/ticket-replied.event';
+import type { TicketClosedReason } from '../../ticketing/events/ticket-updated.event';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { User } from '../../users/entities/user.entity';
 import { WebhookOutbox } from '../ipop/entities/webhook-outbox.entity';
@@ -18,6 +19,45 @@ export const CHAT_PREVIEW_LENGTH = 100;
 const HTML_ENTITIES: Readonly<Record<string, string>> = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" };
 
 export type EnqueueWebhook = (event: IpopWebhookEvent, view: IpopTicketView, extra?: Record<string, unknown>) => Promise<void>;
+
+/** Actor id the auto-close cron records (TicketResolutionService SYSTEM_ACTOR_ID). */
+const SYSTEM_ACTOR_ID = 'system';
+const CLOSED_REASONS: readonly TicketClosedReason[] = ['auto_unconfirmed', 'confirmed', 'manual'];
+
+/** What the iDesk event that triggered a report says about the change. */
+export interface ChangeContext {
+    /** iDesk user id of who made the change; null/'system' for the scheduler, auto-assign or when unknown. */
+    actorId?: string | null;
+    /** Set by the resolution flow when it closed the ticket. */
+    closedReason?: TicketClosedReason;
+    /** The requester's comment when they reopened (disputed) a resolved ticket. */
+    reason?: string | null;
+}
+
+/** The person who caused a change, so a partner can say "Ditutup oleh …". */
+export type WebhookActor = { nik: string | null; name: string | null } | null;
+
+/**
+ * Who caused a ticket event, read from its payload: `assignerId` of `ticket.assigned`, `userId` of
+ * `ticket.updated` / `ticket.cancelled`. Auto-assign and merge events carry nobody.
+ */
+export function changeContextOf(
+    event: { userId?: unknown; assignerId?: unknown; closedReason?: unknown; reason?: unknown } | null | undefined,
+): ChangeContext {
+    const actorId = typeof event?.assignerId === 'string' ? event.assignerId : typeof event?.userId === 'string' ? event.userId : null;
+    const closedReason = CLOSED_REASONS.find((r) => r === event?.closedReason);
+    const reason = typeof event?.reason === 'string' ? event.reason : null;
+    return { actorId, ...(closedReason ? { closedReason } : {}), ...(reason ? { reason } : {}) };
+}
+
+/** Longest reopen comment a partner gets; the full text stays in the iDesk chat. */
+export const REASON_LENGTH = 200;
+
+function shortReason(reason: string | null | undefined): string | null {
+    const text = (reason ?? '').replace(/\s+/g, ' ').trim();
+    if (!text) return null;
+    return text.length > REASON_LENGTH ? `${text.slice(0, REASON_LENGTH - 1)}…` : text;
+}
 
 /**
  * Turns iDesk ticket events into callbacks for one partner (iPop, or a connected app). Status and assignee are
@@ -45,7 +85,8 @@ export class TicketWebhookReporter {
      */
     async replied(view: IpopTicketView, event: TicketRepliedEvent): Promise<void> {
         const { message } = event;
-        await this.reportChanges(view);
+        // A first agent reply starts the work (TODO -> IN_PROGRESS): that agent made the change.
+        await this.reportChanges(view, { actorId: event.senderId });
         if (message.isInternal || message.isSystemMessage) return;
         // The requester side (requester, the staff who filed it, participants) — replyToTicket reports them as USER.
         const fromRequester = event.senderId === event.ticketOwnerId || event.senderRole === UserRole.USER;
@@ -77,23 +118,46 @@ export class TicketWebhookReporter {
         await this.enqueue('ticket.read', view, { reader });
     }
 
-    /** Emits only what differs from the last snapshot this partner received. */
-    async reportChanges(view: IpopTicketView): Promise<void> {
+    /**
+     * Emits only what differs from the last snapshot this partner received. `context` comes from the iDesk event
+     * being handled: every change event carries `actor` (who did it; null for the system), `ticket.closed` also
+     * `closedReason`.
+     */
+    async reportChanges(view: IpopTicketView, context: ChangeContext = {}): Promise<void> {
         const last = await this.lastSent(view.ticketId);
         const previousStatus = last?.status;
         const previousAssignee = last?.assignee?.name ?? null;
         const assignee = view.assignee?.name ?? null;
-
-        if (assignee && assignee !== previousAssignee) {
-            await this.enqueue('ticket.assigned', view, { previousAssignee });
-        }
-        if (previousStatus && view.status !== previousStatus) {
-            await this.enqueue(STATUS_EVENT[view.status] ?? 'ticket.status_changed', view, { previousStatus });
-        }
+        const assigned = !!assignee && assignee !== previousAssignee;
+        const statusChanged = !!previousStatus && view.status !== previousStatus;
         // Snapshots sent before `visit` existed have no such key: don't report those as moves.
-        if (last && 'visit' in last && !sameVisit(last.visit, view.visit)) {
-            await this.enqueue('ticket.visit_changed', view, { previousVisit: last.visit });
+        const visitMoved = !!last && 'visit' in last && !sameVisit(last.visit, view.visit);
+        if (!assigned && !statusChanged && !visitMoved) return;
+        const actor = await this.actorOf(context.actorId);
+
+        if (assigned) {
+            // Snapshots sent before the assignee NIK existed have none: null, as for an account without a NIK.
+            await this.enqueue('ticket.assigned', view, { previousAssignee, previousAssigneeNik: last?.assignee?.nik ?? null, actor });
         }
+        if (statusChanged) {
+            const event = STATUS_EVENT[view.status] ?? 'ticket.status_changed';
+            await this.enqueue(event, view, {
+                previousStatus,
+                actor,
+                ...(event === 'ticket.closed' ? { closedReason: context.closedReason ?? 'manual' } : {}),
+                // The requester's comment when they reopen (dispute) a resolved ticket; null for other moves.
+                ...(event === 'ticket.status_changed' ? { reason: shortReason(context.reason) } : {}),
+            });
+        }
+        if (visitMoved) {
+            await this.enqueue('ticket.visit_changed', view, { previousVisit: last!.visit, actor });
+        }
+    }
+
+    private async actorOf(actorId: string | null | undefined): Promise<WebhookActor> {
+        if (!actorId || actorId === SYSTEM_ACTOR_ID) return null;
+        const user = await this.userRepo.findOne({ where: { id: actorId }, select: ['id', 'employeeId', 'fullName'] });
+        return user ? { nik: user.employeeId || null, name: user.fullName ?? null } : null;
     }
 
     private async lastSent(ticketId: string): Promise<IpopTicketView | null> {

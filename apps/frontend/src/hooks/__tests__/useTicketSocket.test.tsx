@@ -24,6 +24,9 @@ vi.mock('socket.io-client', () => ({
     io: vi.fn(() => socket),
 }));
 
+const apiPost = vi.fn(() => Promise.resolve({ data: undefined }));
+vi.mock('@/lib/api', () => ({ default: { post: (...args: unknown[]) => apiPost(...(args as [])) } }));
+
 vi.mock('@/stores/useAuth', () => ({
     useAuth: vi.fn(() => ({
         user: { id: 'agent-123', fullName: 'Agent Bagas', role: 'ADMIN' },
@@ -227,7 +230,7 @@ describe('useTicketSocket', () => {
         );
     });
 
-    it('refetches the ticket once when a reply arrives as both a message and a notification', () => {
+    it('refetches the ticket at most once when a reply arrives as both a message and a notification', () => {
         const wrapper = createWrapper();
         const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
         renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper });
@@ -239,7 +242,67 @@ describe('useTicketSocket', () => {
         });
 
         const ticketRefetches = invalidateSpy.mock.calls.filter(([arg]: any) => arg?.queryKey?.[0] === 'ticket');
-        expect(ticketRefetches).toHaveLength(1);
+        expect(ticketRefetches.length).toBeLessThanOrEqual(1);
+    });
+
+    it('does not reload the whole ticket and its history for a chat message the socket already delivered', () => {
+        const wrapper = createWrapper();
+        queryClient.setQueryData(['ticket', 'ticket-1'], { id: 'ticket-1', messages: [] });
+        const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper });
+
+        fire('ticket:newMessage', { ticketId: 'ticket-1', message: { id: 'm-9', content: 'hi', isSystemMessage: false } });
+        act(() => {
+            vi.advanceTimersByTime(TICKET_RESYNC_DEBOUNCE_MS * 4);
+        });
+
+        // Appended from the socket payload: every viewer used to refetch the full history per message.
+        expect((queryClient.getQueryData(['ticket', 'ticket-1']) as any).messages).toEqual([expect.objectContaining({ id: 'm-9' })]);
+        expect(invalidateSpy.mock.calls.filter(([arg]: any) => arg?.queryKey?.[0] === 'ticket' || arg?.queryKey?.[0] === 'ticket-messages')).toHaveLength(0);
+    });
+
+    it('marks a message read when it arrives while the ticket is open, so no unread dot is left behind', async () => {
+        const wrapper = createWrapper();
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper });
+
+        fire('ticket:newMessage', { ticketId: 'ticket-1', message: { id: 'm-1', content: 'a', isSystemMessage: false } });
+        fire('ticket:newMessage', { ticketId: 'ticket-1', message: { id: 'm-2', content: 'b', isSystemMessage: false } });
+        act(() => {
+            vi.advanceTimersByTime(TICKET_RESYNC_DEBOUNCE_MS);
+        });
+
+        // One lightweight read call for the burst, not a reload of the ticket.
+        expect(apiPost).toHaveBeenCalledTimes(1);
+        expect(apiPost).toHaveBeenCalledWith('/tickets/ticket-1/read', undefined, expect.objectContaining({ skipToast: true }));
+    });
+
+    it('reloads the ticket once after a status change, so the response badge and SLA card follow', () => {
+        const wrapper = createWrapper();
+        queryClient.setQueryData(['ticket', 'ticket-1'], { id: 'ticket-1', status: 'TODO', messages: [] });
+        const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper });
+
+        fire('ticket:statusChanged', { ticketId: 'ticket-1', status: 'IN_PROGRESS' });
+        // Status shows at once from the event...
+        expect((queryClient.getQueryData(['ticket', 'ticket-1']) as any).status).toBe('IN_PROGRESS');
+        act(() => {
+            vi.advanceTimersByTime(TICKET_RESYNC_DEBOUNCE_MS);
+        });
+        // ...and one reload brings the first response and SLA start that came with it.
+        expect(invalidateSpy.mock.calls.filter(([arg]: any) => arg?.queryKey?.[0] === 'ticket')).toHaveLength(1);
+    });
+
+    it('still resyncs the ticket for a system message, which can carry status or SLA changes', () => {
+        const wrapper = createWrapper();
+        const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper });
+
+        fire('ticket:newMessage', { ticketId: 'ticket-1', message: { id: 's-1', content: 'Status changed', isSystemMessage: true } });
+        act(() => {
+            vi.advanceTimersByTime(TICKET_RESYNC_DEBOUNCE_MS);
+        });
+
+        expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['ticket', 'ticket-1'] }));
     });
     it('keeps the room joined when the caller passes a new inline callback each render', () => {
         const { rerender } = renderHook(() => useTicketSocket({ ticketId: 'ticket-1', onNewMessage: () => {} }), {
@@ -318,6 +381,10 @@ describe('useTicketListSocket', () => {
         expect(invalidateSpy).toHaveBeenCalledTimes(2);
         expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['tickets'] });
         expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['dashboard-stats'] });
+    });
+
+    it('waits long enough to fold a burst of ticket changes from many users into one refetch', () => {
+        expect(LIST_INVALIDATE_DEBOUNCE_MS).toBeGreaterThanOrEqual(2000);
     });
 
     it('drops pending invalidations on unmount', () => {

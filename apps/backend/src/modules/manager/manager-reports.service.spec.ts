@@ -53,6 +53,28 @@ describe('ManagerReportsService.getAgentPerformance — query count', () => {
         expect(ticketRepo.count).not.toHaveBeenCalled();
     });
 
+    it('counts assigned tickets without cancelled ones and only at the selected sites', async () => {
+        userRepo.find.mockResolvedValue([agent('a1')]);
+        siteRepo.find.mockResolvedValue([{ id: 'site-spj', code: 'SPJ', name: 'Sepanjang' }]);
+
+        await service.generateReport({
+            reportType: ReportType.CONSOLIDATED,
+            siteIds: ['site-spj'],
+            includeTicketStats: false,
+            includeAgentPerformance: true,
+            includeSlaMetrics: false,
+            sections: ['agents'],
+        } as any, MANAGER_ACTOR);
+
+        const qb = ticketRepo.createQueryBuilder.mock.results[0].value;
+        const clauses = qb.andWhere.mock.calls.map((c: any[]) => String(c[0]));
+        expect(clauses).toContain("t.status <> 'CANCELLED'");
+        expect(qb.andWhere).toHaveBeenCalledWith('t.siteId IN (:...siteIds)', { siteIds: ['site-spj'] });
+
+        // Resolved tickets come from the selected sites too, so both columns describe the same work.
+        expect(ticketRepo.find.mock.calls[0][0].where.siteId).toBeDefined();
+    });
+
     it('returns empty performance list without querying tickets when there are no agents', async () => {
         userRepo.find.mockResolvedValue([]);
 

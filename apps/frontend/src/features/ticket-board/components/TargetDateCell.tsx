@@ -4,7 +4,10 @@ import { cn } from '@/lib/utils';
 import { TicketPill } from '@/components/ui/ticket-pill';
 import { format } from 'date-fns';
 import { SlaAdjustment } from './ticket-detail/types';
-import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
+import { offHoursLabel, slaCountdown, useSlaClock, type SlaClockInfo } from '@/lib/slaCountdown';
+import {
+    describeWorkingHours, formatSlaSpan, formatSlaTarget, formatSlaTargetFull, MS_PER_MINUTE, workingDayMinutes,
+} from '@/lib/utils/slaDuration';
 
 export interface TargetDateCellProps {
     ticket?: {
@@ -16,6 +19,8 @@ export interface TargetDateCellProps {
         priority?: string;
         createdAt?: string;
         slaAdjustments?: SlaAdjustment[];
+        vendorVisitAt?: string | null;
+        vendorNote?: string | null;
     };
     slaTarget?: string;
     slaRemainingMinutes?: number | null;
@@ -27,42 +32,33 @@ export interface TargetDateCellProps {
     slaAdjustments?: SlaAdjustment[];
 }
 
-/**
- * Format remaining time as countdown string
- */
-function formatCountdown(remainingMs: number): string {
-    if (remainingMs <= 0) return 'Lewat';
+/** Amber once this much working time is left. */
+const DUE_SOON_MS = 4 * 60 * MS_PER_MINUTE;
+const CLOCK_TICK_MS = 60_000;
+const DEFAULT_SLA_MINUTES: Record<string, number> = { CRITICAL: 120, HIGH: 240, MEDIUM: 480, LOW: 1440 };
 
-    const hours = Math.floor(remainingMs / (1000 * 60 * 60));
-    const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+type SlaTone = 'ok' | 'soon' | 'late' | 'pause';
 
-    if (hours > 24) {
-        const days = Math.floor(hours / 24);
-        return `${days}h ${hours % 24}j`;
-    }
-    if (hours > 0) {
-        return `${hours}j ${minutes}m`;
-    }
-    return `${minutes}m`;
+/** Working-day length for this priority, or null when its SLA counts calendar time. */
+function dayMinutesFor(clock: SlaClockInfo | null, priority?: string): number | null {
+    if (!clock || clock.businessHoursOnly[priority ?? ''] === false) return null;
+    return workingDayMinutes(clock.schedule);
 }
 
+const SlaTwoLine: React.FC<{ tone: SlaTone; icon: React.ElementType; top: string; bottom?: string; title: string; label: string; extended?: number }> = ({
+    tone, icon: Icon, top, bottom, title, label, extended,
+}) => (
+    <span className={cn('sla-cell', `is-${tone}`)} title={title} aria-label={label}>
+        <b><Icon aria-hidden="true" />{top}</b>
+        {bottom && <span>{bottom}</span>}
+        {extended ? <i className="sla-cell-ext" title={`SLA telah diperpanjang ${extended} kali`}><History aria-hidden="true" />+{extended}</i> : null}
+    </span>
+);
+
 /**
- * Format overdue time as string
+ * SLA of a ticket in two lines, readable without hovering: when the target falls (WIB) and how much
+ * working time is left or overdue. The tooltip adds the full date, the working hours and extensions.
  */
-function formatOverdue(overdueMs: number): string {
-    const hours = Math.floor(Math.abs(overdueMs) / (1000 * 60 * 60));
-    const minutes = Math.floor((Math.abs(overdueMs) % (1000 * 60 * 60)) / (1000 * 60));
-
-    if (hours > 24) {
-        const days = Math.floor(hours / 24);
-        return `Lewat ${days}h ${hours % 24}j`;
-    }
-    if (hours > 0) {
-        return `Lewat ${hours}j ${minutes}m`;
-    }
-    return `Lewat ${minutes}m`;
-}
-
 export const TargetDateCell: React.FC<TargetDateCellProps> = ({
     ticket,
     slaTarget,
@@ -74,10 +70,7 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
     slaAdjustments,
     slaRemainingMinutes,
 }) => {
-    const [countdown, setCountdown] = useState<string>('');
-    const [isOverdue, setIsOverdue] = useState(false);
-    const [isApproaching, setIsApproaching] = useState(false);
-    const [offHoursText, setOffHoursText] = useState<string | null>(null);
+    const [now, setNow] = useState(() => new Date());
     const slaClock = useSlaClock();
 
     const effectiveStatus = ticket?.status ?? status ?? '';
@@ -89,101 +82,63 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
     // Determine target date: either explicit slaTarget or derived from createdAt + priority
     let targetDate = ticket?.slaTarget ?? slaTarget;
     if (!targetDate && effectiveCreatedAt && Number.isFinite(Date.parse(effectiveCreatedAt)) && effectivePriority && effectivePriority !== 'HARDWARE_INSTALLATION') {
-        const DEFAULT_MINUTES: Record<string, number> = {
-            CRITICAL: 120,
-            HIGH: 240,
-            MEDIUM: 480,
-            LOW: 1440,
-        };
-        const minutes = DEFAULT_MINUTES[effectivePriority] || 480;
-        targetDate = new Date(new Date(effectiveCreatedAt).getTime() + minutes * 60000).toISOString();
+        const minutes = DEFAULT_SLA_MINUTES[effectivePriority] || DEFAULT_SLA_MINUTES.MEDIUM;
+        targetDate = new Date(new Date(effectiveCreatedAt).getTime() + minutes * MS_PER_MINUTE).toISOString();
     }
 
+    const ticking = Boolean(targetDate) && !['RESOLVED', 'CLOSED', 'CANCELLED', 'WAITING_VENDOR'].includes(effectiveStatus) && !effectiveIsHw;
     useEffect(() => {
-        if (!targetDate || effectiveStatus === 'RESOLVED' || effectiveStatus === 'CLOSED' || effectiveStatus === 'CANCELLED' || effectiveStatus === 'WAITING_VENDOR' || effectiveIsHw) {
-            return;
-        }
-
-        const updateCountdown = () => {
-            const now = new Date();
-            const clock = slaCountdown(targetDate, now, effectivePriority, slaClock);
-            const remaining = clock.remainingMs;
-            setOffHoursText(clock.offHours ? offHoursLabel(clock, now, slaClock) : null);
-
-            setIsOverdue(remaining < 0);
-            setIsApproaching(remaining > 0 && remaining <= 4 * 60 * 60 * 1000); // 4 hours
-
-            if (remaining < 0) {
-                setCountdown(formatOverdue(remaining));
-            } else {
-                setCountdown(formatCountdown(remaining));
-            }
-        };
-
-        updateCountdown();
-        const interval = setInterval(updateCountdown, 60000);
-
+        if (!ticking) return;
+        setNow(new Date());
+        const interval = setInterval(() => setNow(new Date()), CLOCK_TICK_MS);
         return () => clearInterval(interval);
-    }, [targetDate, effectiveStatus, effectiveIsHw, effectivePriority, slaClock]);
+    }, [ticking, targetDate]);
 
-    // Resolved state
+    const dayMinutes = dayMinutesFor(slaClock, effectivePriority);
+    const hoursNote = dayMinutes && slaClock ? `\nDihitung dalam jam kerja ${describeWorkingHours(slaClock.schedule)}.` : '';
+
     if (effectiveStatus === 'RESOLVED' || effectiveStatus === 'CLOSED') {
         return (
-            <TicketPill tone="green"
-                aria-label="Tiket selesai"
-            >
+            <TicketPill tone="green" aria-label="Tiket selesai">
                 <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
                 Selesai
             </TicketPill>
         );
     }
 
-    // Waiting vendor state (SLA paused)
+    // Waiting vendor: the SLA clock is paused; show what is left and when the vendor is due.
     if (effectiveStatus === 'WAITING_VENDOR') {
         const remaining = ticket?.slaRemainingMinutes ?? slaRemainingMinutes;
+        const visit = ticket?.vendorVisitAt ? new Date(ticket.vendorVisitAt) : null;
+        const note = ticket?.vendorNote;
+        const top = remaining != null ? `Dijeda · sisa ${formatSlaSpan(Math.max(0, remaining) * MS_PER_MINUTE, dayMinutes)}` : 'Dijeda';
+        const title = [note, 'SLA berhenti selama menunggu vendor dan berjalan lagi saat status diubah.', visit ? `Janji vendor: ${formatSlaTargetFull(visit)}` : null]
+            .filter(Boolean).join('\n');
         return (
-            <TicketPill tone="amber"
-                title="SLA Timer di-pause selama menunggu vendor"
-                aria-label="SLA Timer Paused"
-            >
-                <Pause className="w-3 h-3" aria-hidden="true" />
-                {remaining != null ? `Dijeda · sisa ${remaining <= 0 ? '0m' : formatCountdown(remaining * 60_000)}` : 'Dijeda'}
-            </TicketPill>
+            <SlaTwoLine tone="pause" icon={Pause} top={top} bottom={visit ? `vendor ${formatSlaTarget(visit, now)}` : undefined}
+                title={title} label="SLA Timer Paused" />
         );
     }
 
     // Hardware installation: show exact installation date
     if (effectiveIsHw && effectiveScheduledDate) {
         const target = new Date(effectiveScheduledDate);
-        const formattedDate = format(target, 'dd MMM yyyy');
+        const full = format(target, 'dd MMMM yyyy');
         return (
-            <TicketPill tone="neutral"
-                title={`Jadwal Pemasangan: ${format(target, 'dd MMMM yyyy')}`}
-                aria-label={`Jadwal Pemasangan: ${format(target, 'dd MMMM yyyy')}`}
-            >
+            <TicketPill tone="neutral" title={`Jadwal Pemasangan: ${full}`} aria-label={`Jadwal Pemasangan: ${full}`}>
                 <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" aria-hidden="true" />
-                <span className="font-medium">{formattedDate}</span>
+                <span className="font-medium">{format(target, 'dd MMM yyyy')}</span>
             </TicketPill>
         );
     }
 
-    // Cancelled state
     if (effectiveStatus === 'CANCELLED') {
-        return (
-            <TicketPill tone="neutral"
-                aria-label="Ticket cancelled"
-            >
-                -
-            </TicketPill>
-        );
+        return <TicketPill tone="neutral" aria-label="Ticket cancelled">-</TicketPill>;
     }
 
-    // No target date set
     if (!targetDate) {
         return (
-            <TicketPill tone="neutral"
-                aria-label="Belum ada target SLA"
-            >
+            <TicketPill tone="neutral" aria-label="Belum ada target SLA">
                 <Clock className="w-3.5 h-3.5" aria-hidden="true" />
                 Tanpa SLA
             </TicketPill>
@@ -191,40 +146,23 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
     }
 
     const target = new Date(targetDate);
-    const fullDate = format(target, 'dd MMMM yyyy HH:mm');
+    const clock = slaCountdown(targetDate, now, effectivePriority, slaClock);
+    const isOverdue = clock.remainingMs < 0;
+    const isDueSoon = !isOverdue && clock.remainingMs <= DUE_SOON_MS;
+    const offHours = clock.offHours ? offHoursLabel(clock, now, slaClock) : null;
     const adjustments = ticket?.slaAdjustments ?? slaAdjustments ?? [];
-    const isExtended = adjustments.length > 0;
-
-    const getIcon = () => {
-        if (isOverdue) return AlertTriangle;
-        return Timer;
-    };
-
-    const Icon = getIcon();
+    const span = formatSlaSpan(clock.remainingMs, dayMinutes);
+    const bottom = isOverdue ? `lewat ${span}` : `sisa ${span}`;
+    const title = [
+        `SLA Target: ${formatSlaTargetFull(target)}`,
+        adjustments.length > 0 ? `Diperpanjang ${adjustments.length}×.` : null,
+        offHours,
+    ].filter(Boolean).join('\n') + hoursNote;
+    const label = `SLA Target: ${formatSlaTargetFull(target)}${isOverdue ? ', overdue' : ''}${isDueSoon ? ', approaching deadline' : ''}`;
 
     return (
-        <div className="inline-flex items-center gap-1.5">
-            <TicketPill tone={isOverdue ? 'red' : isApproaching ? 'amber' : 'blue'} className="cursor-help"
-                title={`SLA Target: ${fullDate}${isExtended ? ` (Diperpanjang ${adjustments.length}x)` : ''}${offHoursText ? `
-${offHoursText}` : ''}`}
-                aria-label={`SLA Target: ${fullDate}${isOverdue ? ', overdue' : ''}${isApproaching ? ', approaching deadline' : ''}`}
-            >
-                {offHoursText
-                    ? <Hourglass className="w-3.5 h-3.5" aria-hidden="true" />
-                    : <Icon className={cn("w-3.5 h-3.5", isOverdue && "animate-pulse")} aria-hidden="true" />}
-                <span className={isOverdue ? undefined : 'font-mono'}>{countdown}</span>
-            </TicketPill>
-
-            {isExtended && (
-                <span
-                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50"
-                    title={`SLA telah diperpanjang ${adjustments.length} kali`}
-                >
-                    <History className="w-2.5 h-2.5" />
-                    <span>+{adjustments.length}</span>
-                </span>
-            )}
-        </div>
+        <SlaTwoLine tone={isOverdue ? 'late' : isDueSoon ? 'soon' : 'ok'} icon={offHours ? Hourglass : isOverdue ? AlertTriangle : Timer}
+            top={formatSlaTarget(target, now)} bottom={bottom} title={title} label={label} extended={adjustments.length} />
     );
 };
 

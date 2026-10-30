@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { wibStartOfToday } from '../../../shared/core/utils/wib-date.util';
 import { localDateKey } from '../../sla-config/business-hours.calc';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository } from 'typeorm';
+import { metricRate } from '../utils/report-metrics.util';
 import { Ticket, TICKET_DONE_STATUSES } from '../../ticketing/entities/ticket.entity';
 import { DateRange, ReportResult } from './agent-performance.report';
 import { ReportTeam, applyTeamFilter } from '../utils/report-team-scope.util';
@@ -24,6 +25,9 @@ export interface TicketVolumeData {
         totalCreated: number;
         totalResolved: number;
         totalPending: number;
+        totalCancelled: number;
+        totalEligible: number;
+        resolutionRate: number | null;
         avgPerDay: number;
         peakDay: string;
         peakCount: number;
@@ -55,6 +59,7 @@ export class TicketVolumeReport {
         dateRange: DateRange,
         options?: { siteId?: string; team?: ReportTeam }
     ): Promise<ReportResult<TicketVolumeData>> {
+        const asOf = new Date();
         // Build query with optional site filter
         // Only the columns we aggregate: loading full entities pulled every description
         // (text) of the whole range into memory.
@@ -65,6 +70,7 @@ export class TicketVolumeReport {
                 startDate: dateRange.startDate,
                 endDate: dateRange.endDate,
             })
+            .andWhere('ticket.createdAt <= :asOf', { asOf })
             .orderBy('ticket.createdAt', 'ASC');
 
         if (options?.siteId) {
@@ -86,7 +92,9 @@ export class TicketVolumeReport {
         // Calculate summary
         const totalCreated = tickets.length;
         const totalResolved = tickets.filter(t => TICKET_DONE_STATUSES.includes(t.status)).length;
-        const totalPending = totalCreated - totalResolved;
+        const totalCancelled = tickets.filter(t => String(t.status) === 'CANCELLED').length;
+        const totalEligible = totalCreated - totalCancelled;
+        const totalPending = tickets.filter(t => ['TODO', 'IN_PROGRESS', 'WAITING_VENDOR'].includes(t.status)).length;
         const avgPerDay = daily.length > 0 ? Math.round(totalCreated / daily.length) : 0;
 
         // Find peak day
@@ -111,12 +119,15 @@ export class TicketVolumeReport {
                     totalCreated,
                     totalResolved,
                     totalPending,
+                    totalCancelled,
+                    totalEligible,
+                    resolutionRate: metricRate(totalResolved, totalEligible),
                     avgPerDay,
                     peakDay,
                     peakCount,
                 },
             },
-            generatedAt: new Date(),
+            generatedAt: asOf,
         };
     }
 
@@ -140,7 +151,7 @@ export class TicketVolumeReport {
                 day.created++;
                 if (TICKET_DONE_STATUSES.includes(ticket.status)) {
                     day.resolved++;
-                } else {
+                } else if (['TODO', 'IN_PROGRESS', 'WAITING_VENDOR'].includes(ticket.status)) {
                     day.pending++;
                 }
             }

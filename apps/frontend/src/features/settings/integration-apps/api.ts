@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import type { AppColor } from '@/components/ui/ExternalSourceBadge';
 
 /** Mirrors the backend APP_PERMISSIONS: what a connected app may do. */
 export type AppPermission = 'tickets:create' | 'tickets:read' | 'messages:read' | 'messages:write';
@@ -9,6 +10,8 @@ export interface IntegrationApp {
     clientId: string;
     name: string;
     description: string | null;
+    /** Source badge dot colour; null = derived from clientId. */
+    color: AppColor | null;
     secretHint: string;
     modules: string[];
     permissions: AppPermission[];
@@ -23,6 +26,7 @@ export interface IntegrationAppInput {
     clientId?: string;
     name: string;
     description?: string | null;
+    color?: AppColor | null;
     modules: string[];
     permissions: AppPermission[];
     webhookUrl?: string | null;
@@ -61,7 +65,11 @@ export function useApiModules() {
 
 export function useIntegrationAppMutations() {
     const queryClient = useQueryClient();
-    const refresh = () => queryClient.invalidateQueries({ queryKey: KEY });
+    const refresh = () => {
+        queryClient.invalidateQueries({ queryKey: KEY });
+        // Ticket source badges read names and colours from here.
+        queryClient.invalidateQueries({ queryKey: ['integration-apps', 'sources'] });
+    };
     return {
         create: useMutation({
             mutationFn: async (input: IntegrationAppInput) => (await api.post<IssuedSecret>(BASE, input)).data,

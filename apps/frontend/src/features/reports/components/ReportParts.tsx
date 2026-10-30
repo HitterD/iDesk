@@ -32,7 +32,9 @@ export function rangeLabel(startDate: string, endDate: string): string {
 
 /** Minutes as "3j 50m" (mockup Avg Response). */
 export function minutesLabel(minutes: number | null | undefined): string {
-    const m = Math.max(0, Math.round(minutes ?? 0));
+    if (minutes == null || !Number.isFinite(minutes) || minutes < 0) return '—';
+    if (minutes < 1) return '<1 menit';
+    const m = Math.round(minutes);
     const h = Math.floor(m / 60);
     return h > 0 ? `${h}j ${String(m % 60).padStart(2, '0')}m` : `${m}m`;
 }
@@ -40,7 +42,7 @@ export function minutesLabel(minutes: number | null | undefined): string {
 /** Hours (number or "4.25"/"4.25h") as "4j 15m". */
 export function hoursLabel(value: string | number | null | undefined): string {
     const num = parseFloat(String(value ?? '').replace(/h$/i, ''));
-    if (!Number.isFinite(num)) return '0m';
+    if (!Number.isFinite(num)) return '—';
     return minutesLabel(num * 60);
 }
 
@@ -209,9 +211,14 @@ export const HBars: React.FC<{ rows: readonly HBarRow[]; max: number; suffix?: s
     </div>
 );
 
+/** Daily "resolved" is counted on the day the ticket was created, so labels must not imply completion-day throughput. */
+export const DAILY_CREATED_LABEL = 'Dibuat';
+export const DAILY_DONE_LABEL = 'Kini selesai';
+export const DAILY_TREND_CAPTION = 'Tiket dibuat per hari, dan dari tiket hari itu berapa yang kini selesai';
+
 const TREND_SERIES: readonly ChartSeries[] = [
-    { key: 'created', name: 'Dibuat', color: CHART_HEX.blue },
-    { key: 'resolved', name: 'Diselesaikan', color: CHART_HEX.green },
+    { key: 'created', name: DAILY_CREATED_LABEL, color: CHART_HEX.blue },
+    { key: 'resolved', name: DAILY_DONE_LABEL, color: CHART_HEX.green },
 ];
 const SPARSE_AFTER = 10;
 const HALF_BAND = 0.5;
@@ -220,7 +227,7 @@ const AREA_OPACITY = 0.1;
 
 interface DailyPoint { date: string; created: number; resolved: number; pending?: number }
 
-/** Mockup `lines()`: created vs resolved per day, light area under the first series, hover crosshair. */
+/** Mockup `lines()`: created per day vs how many of that day's tickets are done now, light area under the first series, hover crosshair. */
 export const TrendLines: React.FC<{ daily: readonly DailyPoint[] }> = ({ daily }) => {
     const rows = useMemo(() => daily.map((d, x) => ({ ...d, x, label: daySlashLabel(d.date) })), [daily]);
     const peak = Math.max(0, ...daily.flatMap((d) => [d.created, d.resolved]));

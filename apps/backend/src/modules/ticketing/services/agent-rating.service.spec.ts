@@ -1,5 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
-import { AgentRatingService, AGENT_RATING_MESSAGES, RATING_WINDOW_MS } from './agent-rating.service';
+import { AgentRatingService, AGENT_RATING_MESSAGES, RATING_PRIOR_MEAN, RATING_PRIOR_WEIGHT, RATING_WINDOW_MS, weightedRatingScore } from './agent-rating.service';
 import { TicketStatus } from '../entities/ticket.entity';
 
 describe('AgentRatingService', () => {
@@ -95,6 +95,54 @@ describe('AgentRatingService', () => {
             ticket.closedAt = new Date(Date.now() - RATING_WINDOW_MS - 1000);
             await expect(service.submitRatings('t-1', 'owner-1', [{ agentId: 'a-1', rating: 5 }]))
                 .rejects.toThrow(AGENT_RATING_MESSAGES.NOT_OPEN);
+        });
+    });
+
+    describe('getAllRatings', () => {
+        beforeEach(() => { dataSource.query.mockResolvedValue([]); });
+        const agentsSql = () => String(dataSource.query.mock.calls[0][0]);
+
+        it('ranks by a count-weighted score so one 5-star rating does not beat thirty near-perfect ones', async () => {
+            await service.getAllRatings();
+            expect(agentsSql()).toMatch(/ORDER BY score DESC, COUNT\(\*\) DESC/);
+        });
+
+        it.each([
+            // [average, count] pairs from the user's screenshot.
+            ['30 ratings at 4.97 above a single 5.00', [4.97, 30], [5, 1]],
+            ['14 ratings at 4.93 above a single 5.00', [4.93, 14], [5, 1]],
+            ['33 ratings at 5.00 above 30 at 4.97', [5, 33], [4.97, 30]],
+            ['30 ratings at 5.00 above 3 at 5.00', [5, 30], [5, 3]],
+        ])('weighted score: %s', (_label, better, worse) => {
+            expect(weightedRatingScore(better[0], better[1])).toBeGreaterThan(weightedRatingScore(worse[0], worse[1]));
+        });
+
+        it('keeps every site when no site is chosen', async () => {
+            await service.getAllRatings();
+            expect(dataSource.query.mock.calls[0][1]).toEqual([RATING_PRIOR_WEIGHT, RATING_PRIOR_MEAN]);
+            expect(agentsSql()).not.toContain('site');
+        });
+
+        it('limits agents and recent ratings to agents whose home site is the chosen site', async () => {
+            ratingRepo.find.mockResolvedValue([]);
+            await service.getAllRatings('SPJ');
+            expect(dataSource.query.mock.calls[0][1]).toEqual([RATING_PRIOR_WEIGHT, RATING_PRIOR_MEAN, 'SPJ']);
+            expect(agentsSql()).toContain('s."code" = $3');
+            expect(ratingRepo.find).toHaveBeenCalledWith(expect.objectContaining({ where: { agent: { site: { code: 'SPJ' } } } }));
+        });
+    });
+
+    describe('getAgentRatings', () => {
+        it('lists one agent\'s ratings newest first with rater, comment and ticket', async () => {
+            ratingRepo.find.mockResolvedValue([{
+                agentId: 'a-1', agent: { fullName: 'Andrew' }, rater: { fullName: 'Mega' }, ticketId: 't-9',
+                ticket: { ticketNumber: '281026-HC-0086' }, rating: 4, comment: 'Cepat', createdAt: new Date('2026-10-28'),
+            }]);
+
+            const rows = await service.getAgentRatings('a-1');
+
+            expect(ratingRepo.find).toHaveBeenCalledWith(expect.objectContaining({ where: { agentId: 'a-1' }, order: { createdAt: 'DESC' } }));
+            expect(rows).toEqual([{ raterName: 'Mega', ticketId: 't-9', ticketNumber: '281026-HC-0086', rating: 4, comment: 'Cepat', createdAt: new Date('2026-10-28') }]);
         });
     });
 

@@ -26,6 +26,8 @@ export const VALID_PAGE_KEYS = [
     'workloads',
     'ict_budget',
     'data_wipe',
+    'csi_admin_ict',
+    'csi_admin_hc',
 ] as const;
 
 // Type for valid page keys
@@ -62,7 +64,7 @@ const DEFAULT_PAGES_BY_ROLE: Record<string, readonly PageKey[]> = {
     AGENT_WEB_DEV: DEVELOPER_AGENT_DEFAULT_PAGES,
     AGENT_MOBILE_DEV: DEVELOPER_AGENT_DEFAULT_PAGES,
     MANAGER: MANAGER_DEFAULT_PAGES,
-    ADMIN: VALID_PAGE_KEYS,
+    ADMIN: VALID_PAGE_KEYS.filter(k => k !== 'csi_admin_hc'),
 };
 
 /**

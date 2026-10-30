@@ -1,0 +1,47 @@
+/* Login + forgot-password surfaces. Built on the --idesk-* tokens so both themes match the app shell. */
+
+.auth-input {
+  width: 100%; height: 44px; padding: 0 14px; border-radius: 12px;
+  font-size: 14px; font-weight: 500; color: hsl(var(--idesk-text));
+  background: hsl(var(--idesk-surface-raised));
+  box-shadow: inset 0 0 0 1px hsl(var(--idesk-border));
+  transition: box-shadow var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.auth-input::placeholder { color: hsl(var(--idesk-text-secondary) / .7); }
+.auth-input:hover:not(:disabled) { box-shadow: inset 0 0 0 1px hsl(var(--idesk-text-secondary) / .45); }
+.auth-input:focus { outline: 0; background: hsl(var(--idesk-surface)); box-shadow: inset 0 0 0 1.5px hsl(var(--idesk-sapphire)), 0 0 0 4px hsl(var(--idesk-sapphire) / .16); }
+.auth-input[aria-invalid="true"] { box-shadow: inset 0 0 0 1.5px hsl(var(--ticket-red)), 0 0 0 4px hsl(var(--ticket-red) / .12); }
+.auth-input:disabled { opacity: .6; cursor: not-allowed; }
+.auth-input.has-icon { padding-left: 40px; }
+.auth-input.has-toggle { padding-right: 48px; }
+
+.auth-label { display: block; font-size: 13px; font-weight: 600; color: hsl(var(--idesk-text)); }
+
+/* Glass card: the plant photo stays visible behind it, but text sits on a solid-enough surface. */
+.auth-card {
+  background: hsl(var(--idesk-surface) / .9);
+  -webkit-backdrop-filter: blur(22px) saturate(1.3); backdrop-filter: blur(22px) saturate(1.3);
+  box-shadow: 0 1px 0 hsl(0 0% 100% / .5) inset, 0 0 0 1px hsl(var(--idesk-border) / .7), 0 30px 70px -20px hsl(225 45% 8% / .55);
+}
+.dark .auth-card {
+  background: hsl(var(--idesk-surface) / .78);
+  box-shadow: 0 1px 0 hsl(0 0% 100% / .06) inset, 0 0 0 1px hsl(0 0% 100% / .08), 0 30px 80px -20px hsl(0 0% 0% / .7);
+}
+
+/* The iDesk wordmark is dark navy; in dark mode it needs a light plate to stay legible. */
+.auth-logo-plate { display: inline-flex; padding: 10px 18px; border-radius: 16px; transition: background-color var(--dur-3) var(--ease-out); }
+.dark .auth-logo-plate { background: hsl(0 0% 100% / .94); box-shadow: 0 8px 24px -10px hsl(0 0% 0% / .6); }
+
+.auth-chip {
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 9999px;
+  font-size: 11px; color: hsl(var(--idesk-text-secondary));
+  background: hsl(var(--idesk-surface) / .62);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  box-shadow: 0 0 0 1px hsl(var(--idesk-border) / .5);
+}
+
+.auth-check { width: 16px; height: 16px; accent-color: hsl(var(--idesk-sapphire)); cursor: pointer; }
+
+.auth-link { font-size: 13px; font-weight: 600; color: hsl(var(--idesk-sapphire)); border-radius: 6px; transition: color var(--dur-1) var(--ease-out); }
+.auth-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.auth-link:focus-visible { outline: 0; box-shadow: 0 0 0 3px hsl(var(--idesk-sapphire) / .38); }

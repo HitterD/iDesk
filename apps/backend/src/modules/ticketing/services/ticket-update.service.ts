@@ -24,7 +24,7 @@ import { validateTicketSiteAccess } from '../utils/site-access.util';
 import { ModuleAssignmentPolicyService } from './module-assignment-policy.service';
 import { computeResolutionDeadline, TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService } from './sla-clock.service';
-import { TicketVendorVisitService, formatVendorVisit } from './ticket-vendor-visit.service';
+import { TicketVendorVisitService, formatVendorVisit, normalizeVendorNote } from './ticket-vendor-visit.service';
 import { TicketSystemEvent, diffActivity, snapshotTicket, systemEvent } from '../utils/ticket-activity.util';
 import {
     AppliedTakeover, ModuleEligibility, TakeoverEffectDeps, TakeoverOptions, applyTakeoverDecision, decideBulkTakeovers,
@@ -63,10 +63,11 @@ export class TicketUpdateService {
     ) { }
 
     async updateTicket(
-        ticketId: string, ticketUpdate: Partial<Ticket> & { vendorVisitRequest?: string }, userId: string, takeoverOpts: TakeoverOptions = {},
+        ticketId: string, ticketUpdate: Partial<Ticket> & { vendorVisitRequest?: string; vendorNoteRequest?: string }, userId: string,
+        takeoverOpts: TakeoverOptions = {},
     ): Promise<Ticket> {
-        // Not a column: the requested vendor appointment only matters to the WAITING_VENDOR transition.
-        const { vendorVisitRequest, ...updateData } = ticketUpdate;
+        // Not columns: the requested vendor appointment and note only matter to the WAITING_VENDOR transition.
+        const { vendorVisitRequest, vendorNoteRequest, ...updateData } = ticketUpdate;
         // P1 fix: status transition, priority change, slaTarget recompute, and
         // ticket save were separate awaits. A crash mid-sequence left the
         // ticket in a half-mutated state. Now atomic via dataSource.transaction.
@@ -107,7 +108,7 @@ export class TicketUpdateService {
                 : null;
 
             if (updateData.status && updateData.status !== ticket.status) {
-                await this.applyStatusTransition(ticket, oldStatus, updateData.status, changes, user, manager, vendorVisitRequest);
+                await this.applyStatusTransition(ticket, oldStatus, updateData.status, changes, user, manager, { visitAt: vendorVisitRequest, note: vendorNoteRequest });
             }
             const takeover = decision ? applyTakeoverDecision(ticket, user, decision, changes) : null;
 
@@ -145,7 +146,7 @@ export class TicketUpdateService {
 
     private async applyStatusTransition(
         ticket: Ticket, oldStatus: TicketStatus, newStatus: TicketStatus, changes: string[], user: User, manager: EntityManager,
-        vendorVisitRequest?: string,
+        vendorRequest: { visitAt?: string; note?: string } = {},
     ): Promise<void> {
         changes.push(`Status changed from ${oldStatus} to ${newStatus}`);
 
@@ -155,12 +156,15 @@ export class TicketUpdateService {
 
         if (newStatus === TicketStatus.WAITING_VENDOR) {
             await this.pauseForVendor(ticket);
-            const visitAt = this.vendorVisit.resolveVisit(vendorVisitRequest);
+            const visitAt = this.vendorVisit.resolveVisit(vendorRequest.visitAt);
             await this.vendorVisit.schedule(manager, ticket, visitAt, user.id);
+            ticket.vendorNote = normalizeVendorNote(vendorRequest.note);
+            if (ticket.vendorNote) changes.push(`Keterangan vendor: ${ticket.vendorNote}`);
             changes.push(`Janji vendor: ${formatVendorVisit(visitAt)}`);
         } else if (oldStatus === TicketStatus.WAITING_VENDOR) {
             this.endVendorPause(ticket);
             await this.vendorVisit.clear(manager, ticket);
+            ticket.vendorNote = null;
         }
 
         if (newStatus === TicketStatus.RESOLVED) {
@@ -241,6 +245,7 @@ export class TicketUpdateService {
         } else if (oldStatus === TicketStatus.WAITING_VENDOR) {
             this.endVendorPause(ticket);
             await this.vendorVisit.clear(manager, ticket);
+            ticket.vendorNote = null;
         }
         if (newStatus === TicketStatus.RESOLVED) {
             await this.openConfirmationWindow(ticket);

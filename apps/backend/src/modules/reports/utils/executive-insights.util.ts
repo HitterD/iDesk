@@ -8,15 +8,17 @@ export interface ReportInsightInput {
     totalTickets?: number;
     resolvedTickets?: number;
     openTickets?: number;
-    resolutionRate?: number;
-    avgResolutionTimeHours?: number | string;
-    avgResponseTimeMinutes?: number | string;
-    slaComplianceRate?: number;
+    cancelledTickets?: number;
+    eligibleTickets?: number;
+    resolutionRate?: number | null;
+    avgResolutionTimeHours?: number | string | null;
+    avgResponseTimeMinutes?: number | string | null;
+    slaComplianceRate?: number | null;
     breachedTickets?: number;
     byPriority?: Record<string, number>;
     byCategory?: Record<string, number>;
     byStatus?: Record<string, number>;
-    topPerformer?: { name: string; resolutionRate?: number; count?: number };
+    topPerformer?: { name: string; resolutionRate?: number | null; count?: number };
     topSite?: { name: string; complianceRate?: number; count?: number };
     siteCount?: number;
     agentCount?: number;
@@ -30,12 +32,11 @@ export function generateExecutiveInsights(data: ReportInsightInput): string[] {
 
     const total = Number(data.totalTickets) || 0;
     const resolved = Number(data.resolvedTickets) || 0;
-    const open = Number(data.openTickets) || Math.max(0, total - resolved);
-    const resRate = data.resolutionRate !== undefined
-        ? Number(data.resolutionRate)
-        : total > 0 ? (resolved / total) * 100 : 0;
+    const open = data.openTickets ?? (data.byStatus ? ['TODO', 'IN_PROGRESS', 'WAITING_VENDOR'].reduce((sum, status) => sum + (data.byStatus?.[status] ?? 0), 0) : null);
+    const eligible = data.eligibleTickets ?? (data.cancelledTickets !== undefined ? total - data.cancelledTickets : total);
+    const resRate = data.resolutionRate !== undefined ? data.resolutionRate : eligible > 0 ? resolved / eligible * 100 : null;
 
-    const slaRate = data.slaComplianceRate !== undefined ? Number(data.slaComplianceRate) : null;
+    const slaRate = data.slaComplianceRate ?? null;
     const avgResHours = parseFloat(String(data.avgResolutionTimeHours || 0));
 
     // 1. Overall Volume & Resolution Rate
@@ -44,8 +45,10 @@ export function generateExecutiveInsights(data: ReportInsightInput): string[] {
         return insights;
     }
 
-    let volumeInsight = `Total ${total.toLocaleString('id-ID')} tiket tercatat pada periode ini dengan tingkat penyelesaian ${resRate.toFixed(1)}% (${resolved.toLocaleString('id-ID')} tiket terselesaikan, ${open.toLocaleString('id-ID')} masih aktif/berjalan).`;
-    if (resRate >= 90) {
+    let volumeInsight = `Total ${total.toLocaleString('id-ID')} tiket tercatat pada periode ini dengan tingkat penyelesaian ${resRate == null ? '—' : `${resRate.toFixed(1)}%`} (${resolved.toLocaleString('id-ID')} tiket terselesaikan${open == null ? '' : `, ${open.toLocaleString('id-ID')} masih aktif/berjalan`}).`;
+    if (resRate == null) {
+        volumeInsight += ' Tidak ada tiket yang tidak dibatalkan untuk menghitung tingkat penyelesaian.';
+    } else if (resRate >= 90) {
         volumeInsight += ' Produktivitas penyelesaian tiket berada pada zona sangat optimal.';
     } else if (resRate >= 75) {
         volumeInsight += ' Produktivitas penyelesaian tiket berada dalam batas normal stabil.';
@@ -59,8 +62,10 @@ export function generateExecutiveInsights(data: ReportInsightInput): string[] {
         let slaInsight = `Tingkat kepatuhan Service Level Agreement (SLA) mencapai ${slaRate.toFixed(1)}%`;
         if (data.breachedTickets && data.breachedTickets > 0) {
             slaInsight += ` dengan ${data.breachedTickets} tiket melewati batas SLA.`;
+        } else if (data.breachedTickets === 0) {
+            slaInsight += ' dengan 0 tiket melanggar SLA pada data yang dievaluasi.';
         } else {
-            slaInsight += ` tanpa adanya pelanggaran SLA mayor.`;
+            slaInsight += '.';
         }
 
         if (!isNaN(avgResHours) && avgResHours > 0) {
@@ -92,11 +97,11 @@ export function generateExecutiveInsights(data: ReportInsightInput): string[] {
 
     // 4. Performer & Site Highlights
     if (data.topPerformer && data.topPerformer.name) {
-        let perfInsight = `Agent dengan kontribusi performa tertinggi: ${data.topPerformer.name}`;
-        if (data.topPerformer.resolutionRate !== undefined) {
-            perfInsight += ` (${data.topPerformer.resolutionRate.toFixed(1)}% tiket selesai)`;
-        } else if (data.topPerformer.count !== undefined) {
+        let perfInsight = `Agent dengan penyelesaian terbanyak: ${data.topPerformer.name}`;
+        if (data.topPerformer.count !== undefined) {
             perfInsight += ` (${data.topPerformer.count} tiket terselesaikan)`;
+        } else if (data.topPerformer.resolutionRate != null) {
+            perfInsight += ` (${data.topPerformer.resolutionRate.toFixed(1)}% tiket selesai)`;
         }
         perfInsight += '.';
         insights.push(perfInsight);

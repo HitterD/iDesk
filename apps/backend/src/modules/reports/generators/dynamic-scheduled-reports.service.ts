@@ -22,6 +22,8 @@ import {
 } from '../entities/scheduled-report-execution.entity';
 
 import { AgentPerformanceReport, DateRange } from './agent-performance.report';
+import { rankAgents, summarizeAgentMetrics } from '../utils/report-metrics.util';
+import { fmtPeriod, fmtPct, fmtMinutes, REPORT_COHORT, DAILY_CREATED_LABEL, DAILY_DONE_LONG_LABEL } from './report-pdf-canvas';
 import { TicketVolumeReport } from './ticket-volume.report';
 import { ReportsService } from '../reports.service';
 import { ReportTeam, rolesForTeam, teamLabel, ALL_TEAM_AGENT_ROLES } from '../utils/report-team-scope.util';
@@ -369,14 +371,15 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
     config: ScheduledReportConfig,
     dateRange: DateRange,
   ): Promise<{ buffer: Buffer; filename: string; subject: string; body: string }> {
-    const periodLabel = `${dateRange.startDate.toLocaleDateString('id-ID')} - ${dateRange.endDate.toLocaleDateString('id-ID')}`;
+    const periodLabel = `${fmtPeriod(dateRange)} · ${REPORT_COHORT}`;
     const team = effectiveTeam(config);
     const scope = { siteId: config.siteId, team };
     const teamText = teamLabel(team);
+    const scopeText = await this.reportsService.scopeLabel(scope);
 
     if (config.reportType === ReportType.TICKET_VOLUME) {
       const volume = await this.ticketVolumeReport.generate(dateRange, scope);
-      const buffer = await this.buildVolumeExcel(volume.data, dateRange);
+      const buffer = await this.buildVolumeExcel(volume.data, dateRange, scopeText);
       const filename = `ticket-volume-${config.siteId}-${Date.now()}.xlsx`;
       return {
         buffer,
@@ -388,7 +391,7 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
 
     if (config.reportType === ReportType.AGENT_PERFORMANCE) {
       const perf = await this.agentPerformanceReport.generate(dateRange, scope);
-      const buffer = await this.buildPerformanceExcel(perf.data, dateRange);
+      const buffer = await this.buildPerformanceExcel(perf.data, dateRange, scopeText);
       const filename = `agent-performance-${config.siteId}-${Date.now()}.xlsx`;
       return {
         buffer,
@@ -404,7 +407,7 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
       this.agentPerformanceReport.generate(dateRange, scope),
     ]);
 
-    const buffer = await this.buildCombinedExcel(volume.data, perf.data, dateRange);
+    const buffer = await this.buildCombinedExcel(volume.data, perf.data, dateRange, scopeText);
     const filename = `monthly-summary-${config.siteId}-${Date.now()}.xlsx`;
     return {
       buffer,
@@ -416,13 +419,13 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
 
   // ---------- Excel builders (in-memory) ----------
 
-  private async buildVolumeExcel(data: any, dateRange: DateRange): Promise<Buffer> {
+  private async buildVolumeExcel(data: any, dateRange: DateRange, scopeText: string): Promise<Buffer> {
     const wb = createStyledWorkbook();
-    const periodStr = `${dateRange.startDate.toLocaleDateString('id-ID')} - ${dateRange.endDate.toLocaleDateString('id-ID')}`;
+    const periodStr = `${fmtPeriod(dateRange)} · ${REPORT_COHORT}`;
 
     // Sheet 1: Summary
     const summary = wb.addWorksheet('Summary');
-    let curRow = drawCorporateExcelHeader(summary, 'LAPORAN VOLUME TIKET TERJADWAL', periodStr, 'Otomatis via Scheduled Report', 'D');
+    let curRow = drawCorporateExcelHeader(summary, 'LAPORAN VOLUME TIKET TERJADWAL', periodStr, scopeText, 'D');
 
     curRow = drawExecutiveKpiCards(
       summary,
@@ -451,6 +454,9 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
     const metricRows = [
       ['Periode Laporan', periodStr],
       ['Total Tiket Masuk (Created)', data.summary.totalCreated ?? 0],
+      ['Dibatalkan', data.summary.totalCancelled],
+      ['Tiket tidak dibatalkan', data.summary.totalEligible],
+      ['Tingkat penyelesaian', fmtPct(data.summary.resolutionRate)],
       ['Total Tiket Diselesaikan (Resolved)', data.summary.totalResolved ?? 0],
       ['Total Tiket Masih Tertunda (Pending)', data.summary.totalPending ?? 0],
       ['Rata-rata Tiket Per Hari', data.summary.avgPerDay ?? 0],
@@ -471,7 +477,7 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
 
     // Sheet 2: Daily Volume
     const daily = wb.addWorksheet('Daily Volume');
-    const dHead = daily.addRow(['Tanggal', 'Tiket Masuk (Created)', 'Tiket Selesai (Resolved)', 'Tiket Pending']);
+    const dHead = daily.addRow(['Tanggal', DAILY_CREATED_LABEL, DAILY_DONE_LONG_LABEL, 'Tiket Pending']);
     applyHeaderStyle(dHead);
     setupFreezePanes(daily, 1);
 
@@ -489,45 +495,44 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
     return (await wb.xlsx.writeBuffer()) as unknown as Buffer;
   }
 
-  private async buildPerformanceExcel(data: any[], dateRange: DateRange): Promise<Buffer> {
+  private async buildPerformanceExcel(data: any[], dateRange: DateRange, scopeText: string): Promise<Buffer> {
     const wb = createStyledWorkbook();
-    const periodStr = `${dateRange.startDate.toLocaleDateString('id-ID')} - ${dateRange.endDate.toLocaleDateString('id-ID')}`;
+    const periodStr = `${fmtPeriod(dateRange)} · ${REPORT_COHORT}`;
 
     const sheet = wb.addWorksheet('Agent Performance');
-    let curRow = drawCorporateExcelHeader(sheet, 'LAPORAN KINERJA TEKNISI / AGENT TERJADWAL', periodStr, 'Otomatis via Scheduled Report', 'G');
+    let curRow = drawCorporateExcelHeader(sheet, 'LAPORAN KINERJA TEKNISI / AGENT TERJADWAL', periodStr, scopeText, 'G');
 
-    const totalAssigned = data.reduce((sum, a) => sum + (a.totalAssigned || 0), 0);
-    const totalResolved = data.reduce((sum, a) => sum + (a.totalResolved || 0), 0);
-    const avgSla = data.length > 0 ? Math.round(data.reduce((sum, a) => sum + (a.slaComplianceRate || 0), 0) / data.length) : 0;
+    const summary = summarizeAgentMetrics(data);
+    const { totalAssigned, totalResolved, slaComplianceRate: avgSla } = summary;
 
     curRow = drawExecutiveKpiCards(
       sheet,
       curRow,
       [
-        { label: 'Total Ditugaskan', value: totalAssigned.toLocaleString('id-ID'), subtext: `${data.length} Teknisi Terdaftar` },
-        { label: 'Total Selesai', value: totalResolved.toLocaleString('id-ID'), subtext: totalAssigned > 0 ? `${((totalResolved / totalAssigned) * 100).toFixed(1)}% Resolusi` : '0%' },
-        { label: 'Rata-rata SLA', value: `${avgSla}%`, subtext: 'Kepatuhan SLA gabungan' },
+        { label: 'Total Tugas', value: totalAssigned.toLocaleString('id-ID'), subtext: `${data.length} Teknisi Terdaftar` },
+        { label: 'Total Selesai', value: totalResolved.toLocaleString('id-ID'), subtext: `${fmtPct(summary.resolutionRate)} Resolusi` },
+        { label: 'Kepatuhan SLA', value: fmtPct(avgSla), subtext: `${summary.slaCompliant}/${summary.slaEvaluated} dievaluasi` },
       ],
       [['A', 'B'], ['C', 'D'], ['E', 'G']]
     );
 
     const tableHeadRow = curRow;
     const header = sheet.getRow(tableHeadRow);
-    header.values = ['Nama Teknisi', 'Ditugaskan', 'Selesai', 'Tingkat Resolusi (%)', 'Avg Respon (Menit)', 'Avg Resolusi (Menit)', 'Kepatuhan SLA (%)'];
+    header.values = ['Nama Teknisi', 'Tugas', 'Selesai', 'Tingkat Resolusi (%)', 'Avg Respon', 'Avg Resolusi', 'Kepatuhan SLA (%)'];
     applyHeaderStyle(header);
     setupFreezePanes(sheet, tableHeadRow);
     curRow++;
 
-    data.forEach((row, idx) => {
+    rankAgents(data).forEach((row, idx) => {
       const r = sheet.getRow(curRow);
       r.values = [
         row.agentName,
         row.totalAssigned,
         row.totalResolved,
-        `${row.resolutionRate}%`,
-        `${row.avgResponseTimeMinutes} m`,
-        `${row.avgResolutionTimeMinutes} m`,
-        `${row.slaComplianceRate}%`,
+        fmtPct(row.resolutionRate),
+        fmtMinutes(row.avgResponseTimeMinutes),
+        fmtMinutes(row.avgResolutionTimeMinutes),
+        fmtPct(row.slaComplianceRate),
       ];
       applyRowStyle(r, idx);
       curRow++;
@@ -542,13 +547,13 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
     return (await wb.xlsx.writeBuffer()) as unknown as Buffer;
   }
 
-  private async buildCombinedExcel(volumeData: any, perfData: any[], dateRange: DateRange): Promise<Buffer> {
+  private async buildCombinedExcel(volumeData: any, perfData: any[], dateRange: DateRange, scopeText: string): Promise<Buffer> {
     const wb = createStyledWorkbook();
-    const periodStr = `${dateRange.startDate.toLocaleDateString('id-ID')} - ${dateRange.endDate.toLocaleDateString('id-ID')}`;
+    const periodStr = `${fmtPeriod(dateRange)} · ${REPORT_COHORT}`;
 
     // Sheet 1: Executive Dashboard / Volume Summary
     const vol = wb.addWorksheet('Executive Summary');
-    let curRow = drawCorporateExcelHeader(vol, 'RINGKASAN EKSEKUTIF & VOLUME TIKET TERJADWAL', periodStr, 'Otomatis via Scheduled Report', 'E');
+    let curRow = drawCorporateExcelHeader(vol, 'RINGKASAN EKSEKUTIF & VOLUME TIKET TERJADWAL', periodStr, scopeText, 'E');
 
     const totalCreated = volumeData.summary?.totalCreated ?? 0;
     const totalResolved = volumeData.summary?.totalResolved ?? 0;
@@ -559,7 +564,7 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
       curRow,
       [
         { label: 'Total Tiket Masuk', value: totalCreated.toLocaleString('id-ID'), subtext: `Rata-rata ${volumeData.summary?.avgPerDay ?? 0} tiket/hari` },
-        { label: 'Total Selesai', value: totalResolved.toLocaleString('id-ID'), subtext: totalCreated > 0 ? `${((totalResolved / totalCreated) * 100).toFixed(1)}% Resolusi` : '0%' },
+        { label: 'Total Selesai', value: totalResolved.toLocaleString('id-ID'), subtext: `${fmtPct(volumeData.summary.resolutionRate)} Resolusi · ${volumeData.summary.totalCancelled} Dibatalkan` },
         { label: 'Tiket Pending', value: totalPending.toLocaleString('id-ID'), subtext: 'Memerlukan tindak lanjut' },
       ],
       [['A', 'B'], ['C', 'D'], ['E', 'E']]
@@ -582,6 +587,9 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
       ['Periode Laporan', periodStr],
       ['Total Tiket Terdaftar', totalCreated],
       ['Tiket Diselesaikan', totalResolved],
+      ['Dibatalkan', volumeData.summary.totalCancelled],
+      ['Tiket tidak dibatalkan', volumeData.summary.totalEligible],
+      ['Kepatuhan SLA', fmtPct(summarizeAgentMetrics(perfData).slaComplianceRate)],
       ['Tiket Masih Pending', totalPending],
       ['Rata-rata Tiket Per Hari', volumeData.summary?.avgPerDay ?? 0],
     ];
@@ -599,18 +607,18 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
 
     // Sheet 2: Agent Performance
     const agents = wb.addWorksheet('Agent Performance');
-    const aHead = agents.addRow(['Nama Teknisi', 'Ditugaskan', 'Selesai', 'Tingkat Resolusi (%)', 'Avg Respon (Menit)', 'Kepatuhan SLA (%)']);
+    const aHead = agents.addRow(['Nama Teknisi', 'Tugas', 'Selesai', 'Tingkat Resolusi (%)', 'Avg Respon', 'Kepatuhan SLA (%)']);
     applyHeaderStyle(aHead);
     setupFreezePanes(agents, 1);
 
-    perfData.forEach((a, idx) => {
+    rankAgents(perfData).forEach((a, idx) => {
       const row = agents.addRow([
         a.agentName,
         a.totalAssigned,
         a.totalResolved,
-        `${a.resolutionRate}%`,
-        `${a.avgResponseTimeMinutes} m`,
-        `${a.slaComplianceRate}%`,
+        fmtPct(a.resolutionRate),
+        fmtMinutes(a.avgResponseTimeMinutes),
+        fmtPct(a.slaComplianceRate),
       ]);
       applyRowStyle(row, idx);
     });
@@ -623,7 +631,7 @@ export class DynamicScheduledReportsService implements OnModuleInit, OnModuleDes
 
     // Sheet 3: Daily Volume
     const daily = wb.addWorksheet('Daily Volume');
-    const dHead = daily.addRow(['Tanggal', 'Tiket Masuk (Created)', 'Tiket Selesai (Resolved)', 'Tiket Pending']);
+    const dHead = daily.addRow(['Tanggal', DAILY_CREATED_LABEL, DAILY_DONE_LONG_LABEL, 'Tiket Pending']);
     applyHeaderStyle(dHead);
     setupFreezePanes(daily, 1);
 

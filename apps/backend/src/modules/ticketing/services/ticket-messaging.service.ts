@@ -140,7 +140,7 @@ export class TicketMessagingService {
         // without its SLA timer started (or its firstResponseAt set). Now atomic
         // via dataSource.transaction. Event emit / WS push moved outside the
         // transaction so listeners only fire on commit.
-        const { savedMessage, ticket, user, startedWork, senderSideRole } = await this.dataSource.transaction(async (manager) => {
+        const { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply } = await this.dataSource.transaction(async (manager) => {
             const ticket = await manager.findOne(Ticket, {
                 where: { id: ticketId },
                 relations: ['user', 'assignedTo', 'participants'],
@@ -218,12 +218,19 @@ export class TicketMessagingService {
             // Save ticket changes
             await manager.save(Ticket, ticket);
 
-            return { savedMessage, ticket, user, startedWork, senderSideRole };
+            return { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply };
         });
 
         // The reply moved the ticket from Open to In Progress; TV boards must show it.
         if (startedWork) {
             this.eventEmitter.emit('tv-board.ticket-changed', { siteId: (ticket as any).siteId });
+        }
+        // Viewers keep the ticket from chat events without reloading it, so a reply that changed the
+        // ticket itself (status, first response, SLA start) announces that change on its own.
+        if (startedWork) {
+            this.eventsGateway.notifyStatusChange(ticketId, ticket.status, user.fullName, (ticket as any).siteId);
+        } else if (isFirstAgentReply) {
+            this.eventsGateway.notifyTicketUpdate(ticketId, { firstResponseAt: ticket.firstResponseAt }, (ticket as any).siteId);
         }
 
         // Notify frontend via WebSocket with full message data (post-commit)
@@ -270,10 +277,8 @@ export class TicketMessagingService {
      */
     async markAsRead(ticketId: string, userId: string, role?: string, userSiteId: string | null = null): Promise<void> {
         const now = new Date();
-        // iPop clears this person's chat notifications for the ticket (listeners skip tickets iPop can't see).
-        this.eventEmitter.emit('ticket.read', { ticketId, userId });
         if (!role || role === UserRole.USER) {
-            await this.touchReadMarkers(ticketId, { userLastReadAt: now });
+            await this.markRead(ticketId, userId, { userLastReadAt: now });
             return;
         }
         // Staff who requested/filed the ticket read the requester side; they clear
@@ -290,7 +295,21 @@ export class TicketMessagingService {
             ...(isRequesterStaff ? { userLastReadAt: now } : {}),
         };
 
-        await this.touchReadMarkers(ticketId, updateData);
+        await this.markRead(ticketId, userId, updateData);
+    }
+
+    /**
+     * Advance each read marker only when there is something unread: opening the ticket page (and
+     * every refresh of it) used to write the row on every single read.
+     */
+    private async markRead(ticketId: string, userId: string, markers: Partial<Pick<Ticket, 'userLastReadAt' | 'agentLastReadAt'>>): Promise<void> {
+        for (const [column, value] of Object.entries(markers) as [keyof typeof markers, Date][]) {
+            await this.touchReadMarker(ticketId, column, value);
+        }
+        // iPop clears this person's chat notifications for the ticket (listeners skip tickets iPop can't
+        // see, and the reporter skips people with nothing to clear). Emitted on every open, not only when a
+        // marker moved: markers are per side, notifications are per person.
+        this.eventEmitter.emit('ticket.read', { ticketId, userId });
     }
 
     /**
@@ -298,13 +317,13 @@ export class TicketMessagingService {
      * @UpdateDateColumn (dashboards/reports treat `updatedAt` as activity time) and the
      * @VersionColumn (spurious optimistic-lock conflicts for whoever is editing it).
      */
-    private async touchReadMarkers(ticketId: string, markers: Partial<Pick<Ticket, 'userLastReadAt' | 'agentLastReadAt'>>): Promise<void> {
-        if (Object.keys(markers).length === 0) return;
+    private async touchReadMarker(ticketId: string, column: 'userLastReadAt' | 'agentLastReadAt', at: Date): Promise<void> {
         await this.ticketRepo
             .createQueryBuilder()
             .update(Ticket)
-            .set({ ...markers, updatedAt: () => '"updatedAt"', version: () => '"version"' })
+            .set({ [column]: at, updatedAt: () => '"updatedAt"', version: () => '"version"' })
             .where('id = :ticketId', { ticketId })
+            .andWhere(`("${column}" IS NULL OR ("lastMessageAt" IS NOT NULL AND "lastMessageAt" > "${column}"))`)
             .execute();
     }
 }

@@ -23,11 +23,11 @@ import { toast } from 'sonner';
 import { TicketDetail } from './types';
 import { STATUS_CONFIG, isTerminalStatus } from './constants';
 import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
-import { formatSlaDuration } from '@/lib/utils/slaDuration';
+import { formatSlaTarget, formatSlaTargetFull } from '@/lib/utils/slaDuration';
 import { PriorityPill, StatusPill } from './TicketPropertyRows';
 import { useTicketHold } from './useTicketHold';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
-import { offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
+import { formatSlaTime, offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ResolveTicketModal } from './ResolveTicketModal';
 import { Button } from '@/components/ui/button';
@@ -58,17 +58,6 @@ type SlaState = 'none' | 'normal' | 'paused' | 'overdue' | 'warning';
 const SLA_TONES: Record<SlaState, TicketPillTone> = { none: 'neutral', normal: 'blue', paused: 'amber', overdue: 'red', warning: 'amber' };
 const SLA_ICONS: Record<SlaState, React.ElementType> = { none: Clock, normal: Clock, paused: Pause, overdue: AlertCircle, warning: Clock };
 
-const formatTimeRemaining = (diffMs: number): string => {
-    if (diffMs <= 0) return 'Overdue';
-    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    const parts = [];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours > 0 || days > 0) parts.push(`${hours}h`);
-    parts.push(`${minutes}m`);
-    return parts.join(' ');
-};
 
 export const TicketHeader: React.FC<TicketHeaderProps> = ({
     ticket,
@@ -219,24 +208,23 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
         }
 
         if (ticket.status === 'WAITING_VENDOR' || ticket.status === 'PENDING') {
-            const held = ticket.slaRemainingMinutes != null
-                ? ` Sisa ${formatTimeRemaining(ticket.slaRemainingMinutes * 60_000)} jam kerja.`
-                : '';
+            const left = ticket.slaRemainingMinutes != null ? formatSlaTime(ticket.slaRemainingMinutes * 60_000, slaClock, ticket.priority) : null;
+            const vendor = ticket.vendorVisitAt ? ` Janji vendor: ${formatSlaTargetFull(new Date(ticket.vendorVisitAt))}.` : '';
             return {
-                resolutionTime: ticket.slaRemainingMinutes != null
-                    ? `SLA dijeda · sisa ${formatSlaDuration(ticket.slaRemainingMinutes * 60_000)}`
-                    : 'SLA dijeda',
-                slaTooltip: `Target SLA ditunda sementara.${held}`,
+                resolutionTime: left ? `SLA dijeda · sisa ${left}` : 'SLA dijeda',
+                slaTooltip: `${ticket.vendorNote ? `${ticket.vendorNote}. ` : ''}Target SLA ditunda sementara.${vendor}`,
                 slaStatus: 'paused' as const,
             };
         }
 
         const countdown = slaCountdown(slaTargetDate, currentTime, ticket.priority, slaClock);
         const diffMs = countdown.remainingMs;
+        const formatTimeRemaining = (ms: number) => formatSlaTime(ms, slaClock, ticket.priority);
+        const due = formatSlaTarget(new Date(slaTargetDate), currentTime);
 
         if (countdown.offHours) {
             return {
-                resolutionTime: `SLA dijeda: ${formatTimeRemaining(diffMs)}`,
+                resolutionTime: `${due} · sisa ${formatTimeRemaining(diffMs)}`,
                 slaTooltip: `${offHoursLabel(countdown, currentTime, slaClock)}. Target: ${formatDateTimeID(slaTargetDate)}`,
                 slaStatus: 'paused' as const,
             };
@@ -244,8 +232,8 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
 
         if (diffMs <= 0) {
             return {
-                resolutionTime: 'SLA Overdue',
-                slaTooltip: `SLA telah lewat ${formatTimeRemaining(Math.abs(diffMs))} (Target: ${formatDateTimeID(slaTargetDate)})`,
+                resolutionTime: `${due} · lewat ${formatTimeRemaining(diffMs)}`,
+                slaTooltip: `SLA telah lewat ${formatTimeRemaining(diffMs)} (Target: ${formatSlaTargetFull(new Date(slaTargetDate))})`,
                 slaStatus: 'overdue' as const,
             };
         }
@@ -255,18 +243,18 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
         // Warning if less than 4 hours remaining
         if (diffMs < 4 * 60 * 60 * 1000) {
             return {
-                resolutionTime: `SLA: ${remainingStr}`,
-                slaTooltip: `Sisa waktu target SLA: ${remainingStr} (Target: ${formatDateTimeID(slaTargetDate)})`,
+                resolutionTime: `${due} · sisa ${remainingStr}`,
+                slaTooltip: `Sisa waktu target SLA: ${remainingStr} (Target: ${formatSlaTargetFull(new Date(slaTargetDate))})`,
                 slaStatus: 'warning' as const,
             };
         }
 
         return {
-            resolutionTime: `SLA: ${remainingStr}`,
-            slaTooltip: `Sisa waktu target SLA: ${remainingStr} (Target: ${formatDateTimeID(slaTargetDate)})`,
+            resolutionTime: `${due} · sisa ${remainingStr}`,
+            slaTooltip: `Sisa waktu target SLA: ${remainingStr} (Target: ${formatSlaTargetFull(new Date(slaTargetDate))})`,
             slaStatus: 'normal' as const,
         };
-    }, [slaTargetDate, ticket.status, ticket.priority, ticket.slaRemainingMinutes, isTerminal, isResolved, currentTime, slaClock]);
+    }, [slaTargetDate, ticket.status, ticket.priority, ticket.slaRemainingMinutes, ticket.vendorNote, ticket.vendorVisitAt, isTerminal, isResolved, currentTime, slaClock]);
 
     // First Response Metric
     const firstResponse = useMemo(() => {
@@ -297,7 +285,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
             };
         }
 
-        const remainingStr = formatTimeRemaining(diffMs);
+        const remainingStr = formatSlaTime(diffMs, slaClock, ticket.priority);
         const offHours = countdown.offHours ? ` — ${offHoursLabel(countdown, currentTime, slaClock)}` : '';
         return {
             text: `Resp: ${remainingStr}`,
@@ -372,7 +360,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                         </TicketPill>
                     )}
                     <PriorityPill priority={ticket.priority} short />
-                    <ExternalSourceBadge source={ticket.source} externalSource={ticket.externalSource} className="rounded-full py-1" />
+                    <ExternalSourceBadge source={ticket.source} externalSource={ticket.externalSource} />
                 </div>
 
                 <div className="td-line">

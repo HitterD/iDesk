@@ -12,12 +12,15 @@ const env: Record<string, string> = {
 const config = { get: (k: string) => env[k] } as any;
 
 /** Users by id for the NIK lookup of chat recipients. */
-const USERS: Record<string, { id: string; employeeId: string | null; isActive: boolean }> = {
-    'u-requester': { id: 'u-requester', employeeId: '00000024', isActive: true },
-    'u-agent': { id: 'u-agent', employeeId: '00061058', isActive: true },
-    'u-nonik': { id: 'u-nonik', employeeId: null, isActive: true },
+const USERS: Record<string, { id: string; employeeId: string | null; fullName: string; isActive: boolean }> = {
+    'u-requester': { id: 'u-requester', employeeId: '00000024', fullName: 'Budi Santoso', isActive: true },
+    'u-agent': { id: 'u-agent', employeeId: '00061058', fullName: 'Rizky Ardiansyah', isActive: true },
+    'u-nonik': { id: 'u-nonik', employeeId: null, fullName: 'Tanpa NIK', isActive: true },
 };
-const users = { find: jest.fn(async ({ where }: any) => (where.id._value as string[]).map((id) => USERS[id]).filter(Boolean)) };
+const users = {
+    find: jest.fn(async ({ where }: any) => (where.id._value as string[]).map((id) => USERS[id]).filter(Boolean)),
+    findOne: jest.fn(async ({ where }: any) => USERS[where.id] ?? null),
+};
 
 const view = (over: Record<string, unknown> = {}) => ({
     ticketId: 't-1', ticketNumber: 'GEN-0001', externalRef: 'REF-1', status: 'TODO', priority: 'MEDIUM',
@@ -74,23 +77,67 @@ describe('IpopTicketEventsListener.reportChanges', () => {
 
     it('reports an assignment once', async () => {
         const { listener, webhooks } = build(view());
-        await listener.reportChanges(view({ assignee: { name: 'Agent A' } }));
-        expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.assigned', expect.anything(), { previousAssignee: null });
+        await listener.reportChanges(view({ assignee: { name: 'Agent A', nik: '00061058' } }));
+        expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.assigned', expect.anything(), { previousAssignee: null, previousAssigneeNik: null, actor: null });
 
-        const again = build(view({ assignee: { name: 'Agent A' } }));
-        await again.listener.reportChanges(view({ assignee: { name: 'Agent A' } }));
+        const again = build(view({ assignee: { name: 'Agent A', nik: '00061058' } }));
+        await again.listener.reportChanges(view({ assignee: { name: 'Agent A', nik: '00061058' } }));
         expect(again.webhooks.enqueue).not.toHaveBeenCalled();
     });
 
     it.each([
         ['IN_PROGRESS', 'ticket.status_changed'],
         ['RESOLVED', 'ticket.resolved'],
-        ['CLOSED', 'ticket.closed'],
         ['CANCELLED', 'ticket.status_changed'],
     ])('maps a status change to %s -> %s', async (status, event) => {
         const { listener, webhooks } = build(view({ status: 'TODO' }));
         await listener.reportChanges(view({ status }));
-        expect(webhooks.enqueue).toHaveBeenCalledWith(event, expect.objectContaining({ status }), { previousStatus: 'TODO' });
+        expect(webhooks.enqueue).toHaveBeenCalledWith(event, expect.objectContaining({ status }), {
+            previousStatus: 'TODO', actor: null, ...(event === 'ticket.status_changed' ? { reason: null } : {}),
+        });
+    });
+
+    it('names who reassigned, with the NIK of both PICs', async () => {
+        const { listener, webhooks } = build(view({ assignee: { name: 'Agent Lama', nik: '00010001' } }));
+        await listener.reportChanges(view({ assignee: { name: 'Rizky Ardiansyah', nik: '00061058' } }), { actorId: 'u-agent' });
+        expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.assigned', expect.objectContaining({ assignee: { name: 'Rizky Ardiansyah', nik: '00061058' } }), {
+            previousAssignee: 'Agent Lama', previousAssigneeNik: '00010001', actor: { nik: '00061058', name: 'Rizky Ardiansyah' },
+        });
+    });
+
+    it('treats an older snapshot without the assignee NIK as unknown', async () => {
+        const { listener, webhooks } = build(view({ assignee: { name: 'Agent Lama' } }));
+        await listener.reportChanges(view({ assignee: { name: 'Agent Baru', nik: '00061058' } }));
+        expect(webhooks.enqueue.mock.calls[0][2]).toMatchObject({ previousAssignee: 'Agent Lama', previousAssigneeNik: null });
+    });
+
+    it.each([
+        ['auto_unconfirmed', 'system', null],
+        ['confirmed', 'u-requester', { nik: '00000024', name: 'Budi Santoso' }],
+    ] as const)('says why a ticket closed (%s) and who closed it', async (closedReason, actorId, actor) => {
+        const { listener, webhooks } = build(view({ status: 'RESOLVED' }));
+        await listener.reportChanges(view({ status: 'CLOSED' }), { actorId, closedReason });
+        expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.closed', expect.anything(), { previousStatus: 'RESOLVED', actor, closedReason });
+    });
+
+    it('marks a close without a resolution-flow reason as manual', async () => {
+        const { listener, webhooks } = build(view({ status: 'IN_PROGRESS' }));
+        await listener.reportChanges(view({ status: 'CLOSED' }), { actorId: 'u-requester' });
+        expect(webhooks.enqueue.mock.calls[0][2]).toMatchObject({ closedReason: 'manual' });
+    });
+
+    it('tells the PIC the requester reopened (disputed) the ticket', async () => {
+        const { listener, webhooks } = build(view({ status: 'RESOLVED' }));
+        await listener.reportChanges(view({ status: 'IN_PROGRESS' }), { actorId: 'u-requester', reason: '  Printer   masih error ' });
+        expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.status_changed', expect.anything(), {
+            previousStatus: 'RESOLVED', actor: { nik: '00000024', name: 'Budi Santoso' }, reason: 'Printer masih error',
+        });
+    });
+
+    it('cuts a long reopen comment to 200 characters', async () => {
+        const { listener, webhooks } = build(view({ status: 'RESOLVED' }));
+        await listener.reportChanges(view({ status: 'IN_PROGRESS' }), { actorId: 'u-requester', reason: 'x'.repeat(300) });
+        expect(webhooks.enqueue.mock.calls[0][2].reason).toBe(`${'x'.repeat(199)}…`);
     });
 
     it('reports a moved installation visit', async () => {
@@ -98,7 +145,7 @@ describe('IpopTicketEventsListener.reportChanges', () => {
         const after = { ...before, start: '2026-10-14T02:00:00.000Z', end: '2026-10-14T03:00:00.000Z' };
         const { listener, webhooks } = build(view({ visit: before }));
         await listener.reportChanges(view({ visit: after }));
-        expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.visit_changed', expect.objectContaining({ visit: after }), { previousVisit: before });
+        expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.visit_changed', expect.objectContaining({ visit: after }), { previousVisit: before, actor: null });
     });
 
     it('does not treat snapshots from before visits existed as a move', async () => {
@@ -111,6 +158,54 @@ describe('IpopTicketEventsListener.reportChanges', () => {
         const { listener, webhooks } = build(view());
         await listener.reportChanges(view({ priority: 'HIGH' }));
         expect(webhooks.enqueue).not.toHaveBeenCalled();
+    });
+});
+
+describe('IpopTicketEventsListener actor from the iDesk event', () => {
+    const build = (current: any) => {
+        const webhooks = { enqueue: jest.fn(), isEnabled: () => true };
+        const outbox = { findOne: jest.fn(async () => ({ payload: { ticket: view({ status: 'RESOLVED' }) } })) };
+        const tickets = { loadTicket: jest.fn(async () => ({ id: 't-1', externalSource: 'IPOP' })), toView: jest.fn(() => current) };
+        return { listener: new IpopTicketEventsListener(tickets as any, webhooks as any, outbox as any, users as any), webhooks };
+    };
+
+    it('reads the actor and close reason of a ticket.updated event', async () => {
+        const { listener, webhooks } = build(view({ status: 'CLOSED' }));
+        await listener.onChanged({ ticketId: 't-1', userId: 'u-requester', closedReason: 'confirmed' });
+        expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.closed', expect.anything(), {
+            previousStatus: 'RESOLVED', actor: { nik: '00000024', name: 'Budi Santoso' }, closedReason: 'confirmed',
+        });
+    });
+
+    it('passes the dispute comment of a ticket.updated event on as reason', async () => {
+        const { listener, webhooks } = build(view({ status: 'IN_PROGRESS' }));
+        await listener.onChanged({ ticketId: 't-1', userId: 'u-requester', reason: 'Masih error' });
+        expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.status_changed', expect.anything(), {
+            previousStatus: 'RESOLVED', actor: { nik: '00000024', name: 'Budi Santoso' }, reason: 'Masih error',
+        });
+    });
+
+    it('reports the auto-close cron as no person', async () => {
+        const { listener, webhooks } = build(view({ status: 'CLOSED' }));
+        await listener.onChanged({ ticketId: 't-1', userId: 'system', closedReason: 'auto_unconfirmed' });
+        expect(webhooks.enqueue.mock.calls[0][2]).toEqual({ previousStatus: 'RESOLVED', actor: null, closedReason: 'auto_unconfirmed' });
+    });
+
+    it('uses the assigner of a ticket.assigned event', async () => {
+        const { listener, webhooks } = build(view({ status: 'RESOLVED', assignee: { name: 'Rizky Ardiansyah', nik: '00061058' } }));
+        await listener.onChanged({ ticketId: 't-1', assignerId: 'u-agent' });
+        expect(webhooks.enqueue.mock.calls[0][2]).toMatchObject({ actor: { nik: '00061058', name: 'Rizky Ardiansyah' } });
+    });
+
+    it('credits the agent whose first reply started the work', async () => {
+        const { listener, webhooks } = build(view({ status: 'IN_PROGRESS' }));
+        await listener.onReplied({
+            ticketId: 't-1', ticketOwnerId: 'u-requester', ticketAssignedToId: 'u-agent', senderId: 'u-agent', senderName: 'Rizky Ardiansyah',
+            senderRole: 'AGENT', message: { id: 'm-1', content: 'x', isInternal: true, isSystemMessage: false, createdAt: new Date() },
+        } as any);
+        expect(webhooks.enqueue).toHaveBeenCalledWith('ticket.status_changed', expect.anything(), {
+            previousStatus: 'RESOLVED', actor: { nik: '00061058', name: 'Rizky Ardiansyah' }, reason: null,
+        });
     });
 });
 

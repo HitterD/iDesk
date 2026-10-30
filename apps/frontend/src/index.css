@@ -373,6 +373,7 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
 .nav-tile[data-tone="brown"] { --tile: 34 25% 50%; }
 .nav-tile[data-tone="green"] { --tile: var(--ticket-green); }
 .nav-tile[data-tone="slate"] { --tile: 215 16% 47%; }
+.nav-tile[data-tone="sky"] { --tile: var(--ticket-sky); }
 /* Navy tile needs separation from the sapphire chrome it sits on. */
 .nav-tile[data-tone="navy"] { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .22), 0 1px 2px rgb(0 0 0 / .18); }
 
@@ -411,18 +412,23 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
   width: calc(100% - 10px); margin-right: 10px; padding: 6px 8px;
   border-radius: 12px; font-size: 13px; font-weight: 500; white-space: nowrap;
   color: hsl(var(--idesk-chrome-foreground) / .92);
-  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), transform var(--dur-2) var(--ease-spring);
+  /* The active tab is a sheet-coloured layer that grows out of the sidebar toward the content
+     (and shrinks back on the item being left), so switching pages reads as one fluid motion. */
+  background-image: linear-gradient(hsl(var(--shell-sheet)), hsl(var(--shell-sheet)));
+  background-repeat: no-repeat; background-position: left center; background-size: 0% 100%;
+  transition: background-color var(--dur-2) var(--ease-out), background-size var(--dur-3) var(--ease-out),
+    color var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-spring);
 }
 .nav-item.is-primary { padding: 7px 8px; font-size: 13.5px; }
 .nav-group.is-quiet .nav-item { padding: 4px 8px; font-size: 12.5px; color: hsl(var(--idesk-chrome-muted)); }
-.nav-item:hover { background: hsl(var(--shell-fill)); color: #fff; }
+.nav-item:hover { background-color: hsl(var(--shell-fill)); color: #fff; }
 .nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .nav-item-icon { justify-content: center; width: 48px; height: 44px; margin-right: 0; padding: 0; cursor: pointer; }
 
 /* Active item: a sheet-coloured tab that joins the content sheet on the right. */
 .nav-item.is-active,
 .nav-group.is-quiet .nav-item.is-active {
-  background: hsl(var(--shell-sheet)); color: hsl(var(--foreground)); font-weight: 600;
+  background-color: transparent; background-size: 100% 100%; color: hsl(var(--foreground)); font-weight: 600;
   width: 100%; margin-right: 0; border-radius: var(--shell-tab-radius) 0 0 var(--shell-tab-radius);
   /* The tab grows 10px into the sheet; pad it back so the label and badge don't shift. */
   padding-right: 18px;
@@ -436,6 +442,10 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
 }
 .nav-item.is-active::before { top: calc(var(--shell-tab-radius) * -1); border-bottom-right-radius: var(--shell-tab-radius); box-shadow: 5px 5px 0 5px hsl(var(--shell-sheet)); }
 .nav-item.is-active::after { bottom: calc(var(--shell-tab-radius) * -1); border-top-right-radius: var(--shell-tab-radius); box-shadow: 5px -5px 0 5px hsl(var(--shell-sheet)); }
+/* The joining curves land last, once the tab has reached the sheet. */
+@keyframes nav-curve-in { from { opacity: 0; transform: scale(.4); } }
+.nav-item.is-active::before { transform-origin: bottom right; animation: nav-curve-in var(--dur-2) var(--ease-out) calc(var(--dur-3) * .55) backwards; }
+.nav-item.is-active::after { transform-origin: top right; animation: nav-curve-in var(--dur-2) var(--ease-out) calc(var(--dur-3) * .55) backwards; }
 /* The first item sits beside the sheet's rounded top corner, where a top joining curve has
    nothing to join and paints a notch under the brand. Drop that curve and square the corner
    so the tab meets the sheet flush. */
@@ -497,13 +507,25 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
 .idesk-topbar { color: hsl(var(--idesk-chrome-foreground)); }
 /* Agent topbar: search centred between equal flexible sides (mockup .search { margin: 0 auto }). */
 .idesk-topbar-agent { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr); align-items: center; column-gap: 16px; }
+/* Queue pages put their title on the left; the search then sits right, next to the actions. */
+.idesk-topbar-agent:has(.topbar-greeting.is-page) { grid-template-columns: minmax(0, 1fr) auto max-content; }
+.idesk-topbar-agent:has(.topbar-greeting.is-page) .idesk-topbar-search-slot { width: clamp(260px, 24vw, 380px); }
 .idesk-topbar-search-slot { width: clamp(280px, 32vw, 520px); min-width: 0; }
 /* Topbar sides (were empty): greeting + WIB clock on the left, live status before the actions on the right. */
 .topbar-greeting { position: relative; isolation: isolate; align-self: stretch; display: flex; flex-direction: column; justify-content: center; min-width: 0; padding-left: 6px; line-height: 1.25; }
 .topbar-greeting b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 650; letter-spacing: -.01em; color: #fff; }
 .topbar-greeting span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: hsl(var(--idesk-chrome-muted)); font-variant-numeric: tabular-nums; }
+.topbar-greeting.is-page { flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; }
+.topbar-greeting.is-page h1 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15.5px; font-weight: 650; letter-spacing: -.01em; color: #fff; }
+.topbar-page-tile { width: 32px; height: 32px; border-radius: 9px; }
+.topbar-page-tile svg { width: 17px; height: 17px; }
 .idesk-topbar-right { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: max-content; }
-@media (max-width: 1279.98px) { .topbar-greeting { visibility: hidden; } }
+@media (max-width: 1279.98px) {
+  .topbar-greeting:not(.is-page) { visibility: hidden; }
+  /* The queue title stays: it is the page heading on desktop. The search narrows instead. */
+  .idesk-topbar-agent:has(.topbar-greeting.is-page) .idesk-topbar-search-slot { width: clamp(200px, 22vw, 280px); }
+  .topbar-greeting.is-page > div > span { display: none; }
+}
 /* Fill stays at .10 in every state so the .9 placeholder keeps >=4.5:1 on the lightest chrome
    (#2D4A8C under the 7% radial highlight = 4.85:1); hover/focus are signalled by border and ring only. */
 .idesk-topbar-search {
@@ -551,18 +573,47 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
 /* ---------- PR2 requester portal (ClientLayout / ClientTopbar): same chrome as a top band, no sidebar ---------- */
 .portal-sheet { border-radius: 22px 22px 0 0; }
 @media (max-width: 1023.98px) { .portal-sheet { border-radius: 18px 18px 0 0; } }
-.portal-tabs { gap: 2px; padding: 3px; border-radius: 12px; background: hsl(0 0% 100% / .08); }
+/* Module tabs: each a visible button with its module's coloured tile (same hues as the agent sidebar). */
+.portal-tabs { gap: 6px; padding: 4px; border-radius: 14px; background: hsl(0 0% 100% / .06); box-shadow: inset 0 0 0 1px hsl(0 0% 100% / .08); }
 .portal-tab {
-  display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 11px; border-radius: 9px;
-  font-size: 13px; font-weight: 500; white-space: nowrap;
-  /* Full chrome foreground (not --idesk-chrome-muted) keeps >=4.5:1 on the .08 fill over #2D4A8C. */
-  color: hsl(var(--idesk-chrome-foreground) / .92);
-  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+  position: relative; display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 13px 0 6px; border-radius: 11px;
+  font-size: 13.5px; font-weight: 550; white-space: nowrap; cursor: pointer;
+  /* Full chrome foreground (not --idesk-chrome-muted) keeps >=4.5:1 on the light fill over #2D4A8C. */
+  color: hsl(var(--idesk-chrome-foreground) / .95);
+  background: hsl(0 0% 100% / .07); box-shadow: inset 0 0 0 1px hsl(0 0% 100% / .10);
+  transition: background-color 150ms var(--ease-out), box-shadow 150ms var(--ease-out), color 150ms var(--ease-out);
 }
-.portal-tab svg { width: 16px; height: 16px; flex: none; }
-.portal-tab:hover { background: hsl(0 0% 100% / .10); color: #fff; }
-.portal-tab.is-active { background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-sapphire)); font-weight: 600; box-shadow: 0 1px 2px rgb(0 0 0 / .18); }
+.portal-tab-tile { width: 26px; height: 26px; border-radius: 8px; transition: transform 150ms var(--ease-out); }
+.portal-tab-tile svg { width: 15px; height: 15px; }
+.portal-tab:hover { background: hsl(0 0% 100% / .14); box-shadow: inset 0 0 0 1px hsl(0 0% 100% / .22); color: #fff; }
+.portal-tab:hover .portal-tab-tile { transform: scale(1.07); }
+.portal-tab.is-active { background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-sapphire)); font-weight: 650; box-shadow: 0 2px 6px rgb(0 0 0 / .22); }
+/* Underline in the module's colour marks where the user is. */
+.portal-tab.is-active::after {
+  content: ""; position: absolute; left: 50%; bottom: 4px; width: 16px; height: 3px; margin-left: -8px; border-radius: 2px;
+  background: hsl(var(--tab-hue, var(--idesk-sapphire)));
+}
+.portal-tab[data-tone="blue"] { --tab-hue: var(--ticket-blue); }
+.portal-tab[data-tone="orange"] { --tab-hue: var(--ticket-amber); }
+.portal-tab[data-tone="mint"] { --tab-hue: 171 100% 33%; }
+.portal-tab[data-tone="sky"] { --tab-hue: var(--ticket-sky); }
+.portal-tab[data-tone="brown"] { --tab-hue: 34 25% 50%; }
+.portal-tab[data-tone="teal"] { --tab-hue: 189 61% 48%; }
 .dark .portal-tab.is-active { background: hsl(0 0% 100% / .16); color: #fff; }
+@media (max-width: 1279.98px) { .portal-tabs { gap: 4px; } .portal-tab { padding-right: 10px; font-size: 13px; } }
+
+/* Requester bottom nav (phones): same module tiles; the active tab gets its module colour underline. */
+.client-bnav-tile { width: 30px; height: 30px; border-radius: 9px; }
+.client-bnav-tile svg { width: 16px; height: 16px; }
+.client-bnav-tab.is-active > span:last-child { font-weight: 650; box-shadow: inset 0 -2px 0 hsl(var(--tab-hue, var(--idesk-sapphire))); }
+.client-bnav-tab[data-tone="blue"] { --tab-hue: var(--ticket-blue); }
+.client-bnav-tab[data-tone="orange"] { --tab-hue: var(--ticket-amber); }
+.client-bnav-tab[data-tone="mint"] { --tab-hue: 171 100% 33%; }
+.client-bnav-tab[data-tone="sky"] { --tab-hue: var(--ticket-sky); }
+.client-bnav-tab[data-tone="brown"] { --tab-hue: 34 25% 50%; }
+.client-bnav-tab[data-tone="teal"] { --tab-hue: 189 61% 48%; }
+.client-bnav-tab[data-tone="gray"] { --tab-hue: var(--ticket-neutral); }
+
 .portal-account {
   display: flex; align-items: center; gap: 8px; flex: none; height: 40px; padding: 0 6px 0 4px; border-radius: 20px; cursor: pointer;
   color: hsl(var(--idesk-chrome-foreground));
@@ -633,8 +684,8 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
 @container (min-width: 1100px) {
   .queue-grid { display: grid; align-items: center; column-gap: 8px; padding: 0 16px; }
   /* Shared header/row tracks fit the 1100px table, including the final created date. */
-  .queue-grid-sites { grid-template-columns: 26px minmax(160px, 2.4fr) 104px 50px 150px minmax(110px, 1.1fr) minmax(160px, 1.3fr) 160px 60px; }
-  .queue-grid-default { grid-template-columns: 26px minmax(160px, 2.4fr) 104px 150px minmax(110px, 1.1fr) minmax(160px, 1.3fr) 160px 60px; }
+  .queue-grid-sites { grid-template-columns: 26px minmax(160px, 2.4fr) 104px 50px 150px minmax(110px, 1.1fr) minmax(150px, 1.3fr) 178px 60px; }
+  .queue-grid-default { grid-template-columns: 26px minmax(160px, 2.4fr) 104px 150px minmax(110px, 1.1fr) minmax(150px, 1.3fr) 178px 60px; }
   /* Selection cell bleeds into the row padding and half the column gap: full row height,
      45px wide (14px pad + 26px column + 5px gap), so no near-miss falls through to the row. */
   .queue-grid > .queue-select-cell { min-width: 0; margin: 0 -5px 0 -16px; padding: 0 5px 0 16px; }
@@ -780,6 +831,15 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
 }
 .ct-back svg { width: 18px; height: 18px; }
 .ct-back:hover { background: hsl(var(--muted)); color: hsl(var(--idesk-text)); }
+.ct-back-link {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; margin: 0 0 12px -4px; padding: 0 12px 0 8px; border-radius: 9999px;
+  cursor: pointer; font-size: 13px; font-weight: 550; color: hsl(var(--idesk-text-secondary));
+  transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
+}
+.ct-back-link svg { width: 16px; height: 16px; transition: transform var(--dur-2) var(--ease-spring); }
+.ct-back-link:hover { background: hsl(var(--muted)); color: hsl(var(--idesk-text)); }
+.ct-back-link:hover svg { transform: translateX(-3px); }
+.ct-back-link:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
 .ct-back:focus-visible, .ct-chip:focus-visible, .ct-seg-btn:focus-visible,
 .ct-clear:focus-visible, .ct-add:focus-visible, .ct-tray button:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
 .ct-catalog-head, .ct-form-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -827,16 +887,27 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
 
 .ct-tile { width: 40px; height: 40px; border-radius: 11px; }
 .ct-tile svg { width: 20px; height: 20px; }
-.ct-templates { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 16px 0 14px; }
-.ct-templates-label { margin-right: 2px; font-size: 12px; color: hsl(var(--idesk-text-secondary)); }
+.ct-templates { display: grid; gap: 8px; margin: 18px 0 14px; }
+.ct-templates-label { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12.5px; color: hsl(var(--idesk-text-secondary)); }
+.ct-templates-label strong { font-weight: 600; color: hsl(var(--idesk-text)); }
+.ct-templates-label svg { width: 14px; height: 14px; flex: none; color: hsl(var(--idesk-sapphire)); }
+.ct-templates-list { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Chips look pressable at rest (surface + border + shadow), lift on hover and settle on press. */
 .ct-chip {
-  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 9999px; cursor: pointer;
-  background: hsl(var(--muted)); font-size: 12px; font-weight: 500; color: hsl(var(--idesk-text-secondary));
-  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+  display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px 0 11px; border-radius: 9999px; cursor: pointer;
+  background: hsl(var(--idesk-surface)); font-size: 12.5px; font-weight: 550; color: hsl(var(--idesk-text));
+  box-shadow: 0 1px 2px hsl(220 40% 20% / .06), inset 0 0 0 1px hsl(var(--idesk-border));
+  transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out),
+    box-shadow var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-spring);
 }
-.ct-chip:hover { color: hsl(var(--idesk-text)); background: hsl(var(--idesk-selection)); }
-.ct-chip[aria-pressed="true"] { background: hsl(var(--idesk-selection)); color: hsl(var(--idesk-sapphire)); font-weight: 600;
-  box-shadow: inset 0 0 0 1px hsl(var(--idesk-sapphire) / .35); }
+.ct-chip svg { width: 15px; height: 15px; flex: none; color: hsl(var(--idesk-sapphire)); transition: transform var(--dur-2) var(--ease-spring); }
+.ct-chip:hover { transform: translateY(-1px); background: hsl(var(--idesk-selection));
+  box-shadow: 0 6px 14px -6px hsl(var(--idesk-sapphire) / .35), inset 0 0 0 1px hsl(var(--idesk-sapphire) / .4); }
+.ct-chip:hover svg { transform: scale(1.12); }
+.ct-chip:active { transform: translateY(0) scale(.97); }
+.ct-chip[aria-pressed="true"] { background: hsl(var(--idesk-sapphire)); color: #fff;
+  box-shadow: 0 4px 12px -4px hsl(var(--idesk-sapphire) / .5); }
+.ct-chip[aria-pressed="true"] svg { color: #fff; }
 .ct-form { display: grid; gap: 14px; }
 .ct-alert { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 12px; font-size: 12.5px; font-weight: 500;
   color: hsl(var(--ticket-red-ink)); background: color-mix(in srgb, hsl(var(--ticket-red)) 9%, hsl(var(--idesk-surface))); }
@@ -983,6 +1054,19 @@ textarea.ct-input { padding: 10px 12px; line-height: 1.5; resize: vertical; }
 :root { --queue-pop-shadow: 0 24px 70px -12px rgb(0 0 0 / .30), 0 0 0 .5px rgb(0 0 0 / .10); --queue-card-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 0 0 .5px rgb(0 0 0 / .07); --queue-card-shadow-2: 0 10px 30px -12px rgb(0 0 0 / .16), 0 0 0 .5px rgb(0 0 0 / .07); }
 .dark { --queue-pop-shadow: 0 24px 70px -12px rgb(0 0 0 / .75), 0 0 0 .5px rgb(255 255 255 / .12); --queue-card-shadow: 0 0 0 .5px rgb(255 255 255 / .07); --queue-card-shadow-2: 0 12px 32px -12px rgb(0 0 0 / .6), 0 0 0 .5px rgb(255 255 255 / .08); }
 .queue-view-toggle .portal-seg-btn { text-decoration: none; }
+.queue-toggles { display: flex; align-items: center; gap: 8px; flex: none; margin-left: auto; }
+.queue-toggles .portal-seg {
+  padding: 3px; border-radius: 11px;
+  background: color-mix(in srgb, hsl(var(--idesk-sapphire)) 10%, hsl(var(--idesk-surface)));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, hsl(var(--idesk-sapphire)) 22%, transparent);
+}
+.queue-toggles .portal-seg-btn { height: 28px; padding: 0 11px; font-weight: 550; color: color-mix(in srgb, hsl(var(--idesk-sapphire)) 80%, hsl(var(--idesk-text-secondary))); }
+.queue-toggles .portal-seg-btn:hover { color: hsl(var(--idesk-sapphire)); background: color-mix(in srgb, hsl(var(--idesk-sapphire)) 12%, transparent); }
+.queue-toggles .portal-seg-btn.is-active { color: #fff; font-weight: 600; }
+.queue-toggles .seg-thumb { background: hsl(var(--idesk-sapphire)); box-shadow: 0 1px 2px hsl(221 50% 20% / .25); }
+.dark .queue-toggles .portal-seg-btn.is-active { color: hsl(222 50% 9%); }
+.dark .queue-toggles .seg-thumb { background: hsl(var(--idesk-sapphire)); box-shadow: 0 1px 2px rgb(0 0 0 / .4); }
+@media (max-width: 860px) { .queue-toggles { flex-wrap: wrap; margin-left: 0; } }
 @media (max-width: 860px) { .queue-view-toggle .portal-seg-btn > span { display: none; } }
 .queue-row { --row-bg: hsl(var(--idesk-surface)); }
 .queue-row:hover, .queue-row.is-selected { --row-bg: hsl(var(--idesk-selection)); }
@@ -1094,6 +1178,24 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   font-family: var(--font-sans); font-size: 10.5px; font-weight: 500; line-height: 17px; color: hsl(var(--idesk-text-secondary)); background: hsl(var(--muted));
 }
 .queue-src svg { width: 11px; height: 11px; }
+/* Ticket source badge (ExternalSourceBadge): neutral chip, the app is told apart by its dot. */
+.src-badge {
+  --src: var(--src-slate);
+  display: inline-flex; align-items: center; gap: 5px; flex: none; height: 18px; padding: 0 7px 0 6px; border-radius: 9px;
+  font-family: var(--font-sans); font-size: 10.5px; font-weight: 600; line-height: 1; white-space: nowrap; letter-spacing: .01em;
+  color: hsl(var(--idesk-text)); background: color-mix(in srgb, hsl(var(--src)) 9%, hsl(var(--idesk-surface)));
+  box-shadow: inset 0 0 0 .5px color-mix(in srgb, hsl(var(--src)) 30%, transparent);
+}
+.src-badge > i { width: 6px; height: 6px; border-radius: 50%; flex: none; background: hsl(var(--src)); }
+.src-badge[data-src="ipop"] { --src: var(--src-ipop); }
+.src-badge[data-src="blue"] { --src: var(--src-blue); }
+.src-badge[data-src="sky"] { --src: var(--src-sky); }
+.src-badge[data-src="teal"] { --src: var(--src-teal); }
+.src-badge[data-src="amber"] { --src: var(--src-amber); }
+.src-badge[data-src="orange"] { --src: var(--src-orange); }
+.src-badge[data-src="red"] { --src: var(--src-red); }
+.src-badge[data-src="pink"] { --src: var(--src-pink); }
+.src-badge[data-src="slate"] { --src: var(--src-slate); }
 .queue-unread {
   display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 7px; border-radius: 9px; flex: none;
   font-family: var(--font-sans); font-size: 10.5px; font-weight: 550; color: hsl(var(--idesk-sapphire));
@@ -1111,6 +1213,23 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .queue-pic > svg:last-child { margin-left: auto; }
 .ticket-pill.queue-pic-empty, .queue-pic-empty { border-style: dashed; padding-left: 10px; color: hsl(var(--idesk-text-secondary)); }
 
+
+/* SLA cell (TargetDateCell): target date on top, working time left below; readable without hovering. */
+.sla-cell {
+  --sla: var(--ticket-blue); --sla-ink: var(--ticket-blue-ink);
+  position: relative; display: inline-grid; gap: 1px; min-width: 0; max-width: 100%; padding: 4px 9px 4px 9px; border-radius: 9px;
+  line-height: 1.25; cursor: default; background: color-mix(in srgb, hsl(var(--sla)) 8%, transparent);
+  box-shadow: inset 2px 0 0 hsl(var(--sla));
+}
+.sla-cell > b { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 12px; font-weight: 600; color: hsl(var(--idesk-text)); white-space: nowrap; }
+.sla-cell > b > svg { width: 12px; height: 12px; flex: none; color: hsl(var(--sla-ink)); }
+.sla-cell > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; font-weight: 550; color: hsl(var(--sla-ink)); font-variant-numeric: tabular-nums; }
+.sla-cell.is-soon, .sla-cell.is-pause { --sla: var(--ticket-amber); --sla-ink: var(--ticket-amber-ink); }
+.sla-cell.is-late { --sla: var(--ticket-red); --sla-ink: var(--ticket-red-ink); }
+.sla-cell-ext { position: absolute; top: -6px; right: -6px; display: inline-flex; align-items: center; gap: 1px; height: 15px; padding: 0 4px; border-radius: 8px;
+  font-style: normal; font-size: 9.5px; font-weight: 700; color: hsl(var(--ticket-amber-ink)); background: hsl(var(--idesk-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, hsl(var(--ticket-amber)) 45%, transparent); }
+.sla-cell-ext svg { width: 9px; height: 9px; }
 
 /* Mockup .live (requester header) and the footer "Per halaman" pop. */
 .portal-live { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; line-height: 1; color: hsl(var(--ticket-green-ink)); }
@@ -1520,16 +1639,8 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .kb-suggest-arrow { width: 16px; height: 16px; flex: none; color: hsl(var(--muted-foreground)); transition: transform var(--dur-2) var(--ease-out), color var(--dur-1) var(--ease-out); }
 .kb-suggest-item:hover .kb-suggest-arrow { transform: translate(2px, -2px); color: hsl(var(--idesk-sapphire)); }
 
-/* Sidebar items: press feedback (never on the active tab) and the active tab sliding from the previous item. */
+/* Sidebar items: press feedback, never on the active tab. */
 .nav-item:not(.is-active):active { transform: scale(.98); }
-.nav-tab-ghost {
-  position: absolute; left: 0; top: 0; width: 100%; pointer-events: none;
-  background: hsl(var(--shell-sheet)); border-radius: var(--shell-tab-radius) 0 0 var(--shell-tab-radius);
-  transition: transform var(--dur-3) var(--ease-out);
-}
-.nav-item.is-active.is-arriving { background: transparent; color: hsl(var(--idesk-chrome-foreground)); }
-.nav-item.is-active.is-arriving::before, .nav-item.is-active.is-arriving::after { opacity: 0; }
-.nav-item.is-active::before, .nav-item.is-active::after { transition: opacity var(--dur-1) var(--ease-out); }
 
 /* Stat cards lift on hover; press settles back without shrinking the hit box below the card. */
 .queue-stat[role="button"]:hover, .portal-stat:hover { transform: translateY(-2px); }
@@ -1770,7 +1881,8 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
     animation-duration: .01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important;
     transition-duration: .01ms !important; scroll-behavior: auto !important;
   }
-  .queue-stat:hover, .portal-stat:hover, .ct-card:hover, .ct-card:hover img, .ct-card:hover .ct-link svg, .card-interactive:hover { transform: none; }
+  .queue-stat:hover, .portal-stat:hover, .ct-card:hover, .ct-card:hover img, .ct-card:hover .ct-link svg, .card-interactive:hover,
+  .portal-tab:hover .portal-tab-tile, .ct-chip:hover, .ct-chip:hover svg, .ct-back-link:hover svg { transform: none; }
   .idesk-spin, .animate-pulse { animation: none !important; }
   /* Scroll-driven edge fade is not motion; a time duration would break its scroll mapping. */
   .portal-seg { animation-duration: auto !important; }

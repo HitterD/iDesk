@@ -3,6 +3,8 @@ import { Response } from 'express';
 import { AgentMetrics } from './agent-performance.report';
 import { TicketVolumeData } from './ticket-volume.report';
 import { generateExecutiveInsights } from '../utils/executive-insights.util';
+import { metricRate, rankAgents, summarizeAgentMetrics } from '../utils/report-metrics.util';
+import { DAILY_TREND_CAPTION, REPORT_COHORT } from './report-pdf-canvas';
 import {
     BarRow,
     Cell,
@@ -53,7 +55,8 @@ const MONTH_NAMES = [
     'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ];
 
-const rateCell = (rate: number, good = 90, warn = 75): Cell => {
+const rateCell = (rate: number | null, good = 90, warn = 75): Cell => {
+    if (rate == null) return { text: '—' };
     const tone = toneForRate(rate, good, warn);
     return { text: fmtPct(rate), bold: true, color: tone === 'good' ? INK.green : tone === 'warn' ? INK.amber : INK.red };
 };
@@ -91,26 +94,27 @@ export class PDFGeneratorService {
 
     async generateMonthlySummaryPDF(
         res: Response,
-        stats: { month: number; year: number; totalTickets: number; resolvedTickets: number; openTickets: number; avgResolutionTimeHours: string | number },
+        stats: { month: number; year: number; totalTickets: number; resolvedTickets: number; openTickets: number; cancelledTickets?: number; eligibleTickets?: number; resolutionRate?: number | null; avgResolutionTimeHours: string | number | null },
         options: PDFReportOptions,
     ): Promise<void> {
         const { doc, canvas } = this.open(res, `monthly-report-${stats.month}-${stats.year}.pdf`);
         const monthName = MONTH_NAMES[stats.month - 1] || `Bulan ${stats.month}`;
         const total = Number(stats.totalTickets) || 0;
         const resolved = Number(stats.resolvedTickets) || 0;
-        const open = Number(stats.openTickets) || Math.max(0, total - resolved);
-        const avgHours = Number.parseFloat(String(stats.avgResolutionTimeHours)) || 0;
-        const rate = total > 0 ? (resolved / total) * 100 : 0;
+        const open = stats.openTickets;
+        const avgHours = stats.avgResolutionTimeHours == null ? null : Number(stats.avgResolutionTimeHours);
+        const cancelled = stats.cancelledTickets ?? 0;
+        const rate = stats.resolutionRate !== undefined ? stats.resolutionRate : metricRate(resolved, stats.eligibleTickets ?? total - cancelled);
 
         canvas.header({
             title: 'Laporan Ringkasan Bulanan',
-            period: `${monthName} ${stats.year}`,
+            period: `${monthName} ${stats.year} · ${REPORT_COHORT}`,
             scope: options.siteName || 'Seluruh site PT Santos Jaya Abadi',
             docNo: options.docNo || `REP-MTH-${stats.year}${String(stats.month).padStart(2, '0')}`,
         });
         canvas.kpis([
             { label: 'Total tiket', value: fmtInt(total), note: `${monthName} ${stats.year}` },
-            { label: 'Selesai', value: fmtInt(resolved), note: `${fmtPct(rate)} dari total`, tone: toneForRate(rate) },
+            { label: 'Selesai', value: fmtInt(resolved), note: `${fmtPct(rate)} dari tiket tidak dibatalkan`, tone: toneForRate(rate) },
             { label: 'Masih terbuka', value: fmtInt(open), note: open > 0 ? 'Perlu ditindaklanjuti' : 'Tidak ada antrean', tone: open > 0 ? 'warn' : 'good' },
             { label: 'Rata-rata penyelesaian', value: fmtHours(avgHours), note: 'per tiket' },
         ]);
@@ -123,6 +127,7 @@ export class PDFGeneratorService {
         canvas.barGroups([{ title: 'Status akhir bulan', rows: [
             { label: 'Selesai', value: resolved, color: INK.green },
             { label: 'Masih terbuka', value: open, color: INK.amber },
+            { label: 'Dibatalkan', value: cancelled, color: INK.gray },
         ] }]);
 
         canvas.section('Ringkasan metrik');
@@ -136,8 +141,8 @@ export class PDFGeneratorService {
                 [{ text: 'Tingkat penyelesaian' }, rateCell(rate)],
                 [{ text: 'Rata-rata waktu penyelesaian' }, { text: fmtHours(avgHours), bold: true }],
                 [{ text: 'Penilaian' }, {
-                    text: rate >= 90 ? 'Sangat baik' : rate >= 75 ? 'Baik, stabil' : 'Perlu perhatian', bold: true,
-                    color: rate >= 90 ? INK.green : rate >= 75 ? INK.brand : INK.red,
+                    text: rate != null && rate >= 90 ? 'Sangat baik' : rate != null && rate >= 75 ? 'Baik, stabil' : 'Perlu perhatian', bold: true,
+                    color: rate != null && rate >= 90 ? INK.green : rate != null && rate >= 75 ? INK.brand : INK.red,
                 }],
             ],
         );
@@ -148,25 +153,21 @@ export class PDFGeneratorService {
 
     async generateAgentPerformancePDF(res: Response, metrics: AgentMetrics[], options: PDFReportOptions): Promise<void> {
         const { doc, canvas } = this.open(res, `agent-performance-${Date.now()}.pdf`);
-        const agents = [...metrics].sort((a, b) => (Number(b.totalResolved) || 0) - (Number(a.totalResolved) || 0));
-        const assigned = agents.reduce((sum, m) => sum + (Number(m.totalAssigned) || 0), 0);
-        const resolved = agents.reduce((sum, m) => sum + (Number(m.totalResolved) || 0), 0);
-        const avg = (pick: (m: AgentMetrics) => number) => (agents.length ? agents.reduce((s, m) => s + (Number(pick(m)) || 0), 0) / agents.length : 0);
-        const avgRate = avg((m) => m.resolutionRate);
-        const avgSla = avg((m) => m.slaComplianceRate);
-        const best = agents.reduce<AgentMetrics | null>((top, m) => (!top || (m.resolutionRate || 0) > (top.resolutionRate || 0) ? m : top), null);
+        const agents = rankAgents(metrics);
+        const summary = summarizeAgentMetrics(agents);
+        const { totalAssigned: assigned, totalResolved: resolved, resolutionRate: avgRate, slaComplianceRate: avgSla, topAgent: best } = summary;
 
         canvas.header({
             title: 'Laporan Kinerja Teknisi',
-            period: fmtPeriod(options.dateRange),
+            period: `${fmtPeriod(options.dateRange)} · ${REPORT_COHORT}`,
             scope: options.siteName || 'Semua site',
             docNo: options.docNo || `REP-AGT-${shortDocId()}`,
         });
         canvas.kpis([
             { label: 'Teknisi dievaluasi', value: fmtInt(agents.length), note: `${fmtInt(assigned)} tiket ditugaskan` },
-            { label: 'Rata-rata penyelesaian', value: fmtPct(avgRate), note: `${fmtInt(resolved)} tiket selesai`, tone: toneForRate(avgRate) },
-            { label: 'Kepatuhan SLA', value: fmtPct(avgSla), note: avgSla >= 90 ? 'Sesuai target' : 'Di bawah target 90%', tone: toneForRate(avgSla) },
-            { label: 'Kinerja terbaik', value: shortName(best?.agentName), note: best ? `${fmtPct(best.resolutionRate || 0)} selesai` : undefined },
+            { label: 'Tingkat penyelesaian', value: fmtPct(avgRate), note: `${resolved} dari ${assigned} tiket`, tone: toneForRate(avgRate) },
+            { label: 'Kepatuhan SLA', value: fmtPct(avgSla), note: `${summary.slaCompliant}/${summary.slaEvaluated} dievaluasi`, tone: toneForRate(avgSla) },
+            { label: 'Penyelesaian terbanyak', value: shortName(best?.agentName), note: best ? `${best.totalResolved} tiket selesai` : undefined },
         ]);
         canvas.highlights(generateExecutiveInsights({
             totalTickets: assigned, resolvedTickets: resolved, resolutionRate: avgRate, slaComplianceRate: avgSla, agentCount: agents.length,
@@ -184,10 +185,10 @@ export class PDFGeneratorService {
                 { text: m.agentName, bold: true },
                 { text: fmtInt(m.totalAssigned) },
                 { text: fmtInt(m.totalResolved) },
-                rateCell(Number(m.resolutionRate) || 0),
+                rateCell(m.resolutionRate),
                 { text: fmtMinutes(m.avgResponseTimeMinutes) },
                 { text: fmtMinutes(m.avgResolutionTimeMinutes) },
-                rateCell(Number(m.slaComplianceRate) || 0),
+                rateCell(m.slaComplianceRate),
             ]),
         );
 
@@ -201,17 +202,17 @@ export class PDFGeneratorService {
         const created = Number(summary.totalCreated) || 0;
         const resolved = Number(summary.totalResolved) || 0;
         const pending = Number(summary.totalPending) || 0;
-        const rate = created > 0 ? (resolved / created) * 100 : 0;
+        const rate = summary.resolutionRate;
 
         canvas.header({
             title: 'Laporan Volume & Distribusi Tiket',
-            period: fmtPeriod(options.dateRange),
+            period: `${fmtPeriod(options.dateRange)} · ${REPORT_COHORT}`,
             scope: options.siteName || 'Semua site',
             docNo: options.docNo || `REP-VOL-${shortDocId()}`,
         });
         canvas.kpis([
             { label: 'Tiket masuk', value: fmtInt(created), note: 'Selama periode' },
-            { label: 'Terselesaikan', value: fmtInt(resolved), note: `${fmtPct(rate)} dari masuk`, tone: toneForRate(rate) },
+            { label: 'Terselesaikan', value: fmtInt(resolved), note: `${fmtPct(rate)} dari ${summary.totalEligible} tiket tidak dibatalkan · ${summary.totalCancelled} dibatalkan`, tone: toneForRate(rate) },
             { label: 'Masih berjalan', value: fmtInt(pending), note: pending > 0 ? 'Perlu dipantau' : 'Tidak ada antrean', tone: pending > 0 ? 'warn' : 'good' },
             { label: 'Rata-rata per hari', value: (Number(summary.avgPerDay) || 0).toLocaleString('id-ID', { maximumFractionDigits: 1 }),
                 note: summary.peakCount ? `Puncak ${fmtInt(summary.peakCount)} tiket (${summary.peakDay})` : undefined },
@@ -222,7 +223,7 @@ export class PDFGeneratorService {
         }));
 
         if (volumeData.daily?.length) {
-            canvas.section('Tren harian', 'Tiket masuk dibanding tiket selesai per hari.');
+            canvas.section('Tren harian', DAILY_TREND_CAPTION);
             canvas.dailyChart(volumeData.daily);
         }
         canvas.section('Distribusi tiket');
@@ -272,7 +273,7 @@ export class PDFGeneratorService {
         }));
 
         if (report.trends?.length) {
-            canvas.section('Tren harian', 'Tiket masuk dibanding tiket selesai per hari.');
+            canvas.section('Tren harian', DAILY_TREND_CAPTION);
             canvas.dailyChart(report.trends);
         }
         if (report.ticketStats) {

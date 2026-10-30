@@ -47,6 +47,8 @@ type Reaction = { emoji: string; count: number; users: string[]; hasReacted: boo
 type ChatMessage = NonNullable<TicketDetail['messages']>[number];
 
 const HIGHLIGHT_MS = 1600;
+/** The opening report message is written in the same transaction as the ticket, so within seconds of it. */
+const GENESIS_WINDOW_MS = 60_000;
 
 const isResolutionStatement = (content?: string) =>
     Boolean(content?.includes('Tiket Dinyatakan Selesai') || content?.includes('Tiket Diselesaikan (Resolved)'));
@@ -166,18 +168,17 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         [ticket.messages],
     );
 
-    // Identify the initial ticket creation message that is already displayed in Root Issue Card
+    // The opening report is already shown in the "Laporan awal" card, so its message is hidden.
+    // It is the first message, repeats the description, and was saved with the ticket. Older
+    // tickets filed by an agent on someone's behalf saved it with the agent as sender, so the
+    // sender is not part of the test; the creation-time check keeps a later reply that repeats
+    // the description visible.
     const genesisMessageId = useMemo(() => {
         if (sortedMessages.length === 0 || !ticket.description) return null;
         const first = sortedMessages[0];
-        if (
-            first.content?.trim() === ticket.description?.trim() &&
-            (!first.sender?.id || first.sender?.id === ticket.user?.id)
-        ) {
-            return first.id;
-        }
-        return null;
-    }, [sortedMessages, ticket.description, ticket.user?.id]);
+        const savedWithTicket = Math.abs(new Date(first.createdAt).getTime() - new Date(ticket.createdAt).getTime()) <= GENESIS_WINDOW_MS;
+        return first.content?.trim() === ticket.description.trim() && savedWithTicket ? first.id : null;
+    }, [sortedMessages, ticket.description, ticket.createdAt]);
 
     // Auto-scroll on new messages
     useEffect(() => {
@@ -352,6 +353,8 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                     isAgentView && <span key="r" className="chat-role">Pemohon</span>,
                                     <time key="t" dateTime={ticket.createdAt} title={formatDateTimeID(ticket.createdAt)}>{formatDateTimeID(ticket.createdAt)}</time>,
                                     <span key="l" className="inline-flex items-center gap-1"><FileText className="h-3 w-3" aria-hidden="true" />Laporan awal</span>,
+                                    // Filed on the requester's behalf: the report is theirs, the filer is named here.
+                                    ticket.createdBy && ticket.createdBy.id !== ticket.user.id && <span key="f">Dibuat oleh {toDisplayName(ticket.createdBy.fullName)}</span>,
                                 ].filter(Boolean);
                                 return rootIsOutgoing ? parts.reverse() : parts;
                             })()}

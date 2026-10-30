@@ -34,12 +34,13 @@ export const ClientBottomNav: React.FC<ClientBottomNavProps> = ({ navItems, isAc
                 to={item.path}
                 title={item.label}
                 aria-current={active ? 'page' : undefined}
+                data-tone={item.tone}
                 className={cn(
-                    'flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 rounded-xl transition-colors duration-150 touch-target',
-                    active ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground active:bg-muted',
+                    'client-bnav-tab flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-1.5 rounded-xl transition-colors duration-150 touch-target',
+                    active ? 'is-active text-foreground' : 'text-muted-foreground hover:text-foreground active:bg-muted',
                 )}
             >
-                <Icon className="w-5 h-5 shrink-0" aria-hidden="true" />
+                <span className="nav-tile client-bnav-tile" data-tone={item.tone}><Icon aria-hidden="true" /></span>
                 <span className="max-w-full truncate text-[11px] font-medium">{item.shortLabel ?? item.label}</span>
             </Link>
         );

@@ -71,8 +71,11 @@ export interface IpopTicketView {
     module: string;
     category: string;
     title: string;
-    assignee: { name: string } | null;
+    /** PIC; `nik` is their HRIS NIK (null when the account has none). */
+    assignee: { name: string; nik: string | null } | null;
     slaTarget: string | null;
+    /** End of the requester's confirmation window while RESOLVED (iDesk closes the ticket after it); else null. */
+    resolutionDeadlineAt: string | null;
     /** ICT visit of a hardware-installation ticket (UTC), so iPop can put it on the requester's calendar. */
     visit: IpopVisit | null;
     createdAt: string;
@@ -271,8 +274,9 @@ export class IpopTicketService {
             module: moduleSlugOf(ticket),
             category: ticket.category,
             title: ticket.title,
-            assignee: ticket.assignedTo ? { name: ticket.assignedTo.fullName } : null,
+            assignee: ticket.assignedTo ? { name: ticket.assignedTo.fullName, nik: ticket.assignedTo.employeeId || null } : null,
             slaTarget: ticket.slaTarget ? new Date(ticket.slaTarget).toISOString() : null,
+            resolutionDeadlineAt: ticket.resolutionDeadlineAt ? new Date(ticket.resolutionDeadlineAt).toISOString() : null,
             visit: visitOf(ticket),
             createdAt: new Date(ticket.createdAt).toISOString(),
             updatedAt: new Date(ticket.updatedAt).toISOString(),

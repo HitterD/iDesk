@@ -16,7 +16,7 @@ import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { CreateTicketDto } from '../dto/create-ticket.dto';
 import { resolveInitialHandlingTeam } from '../utils/oracle-ticket-access.util';
-import { generateNextTicketNumber } from '../utils/ticket-number-generator';
+import { departmentDivision, generateNextTicketNumber, withTicketNumberRetry } from '../utils/ticket-number-generator';
 import { SlaClockService } from './sla-clock.service';
 
 /** An external system that filed the ticket; (source, ref) is unique, so retries are idempotent. */
@@ -108,7 +108,7 @@ export class TicketCreateService {
             } as DeepPartial<Ticket>);
 
             const date = new Date();
-            const division = user.department?.name ? user.department.name.substring(0, 3).toUpperCase() : 'GEN';
+            const division = departmentDivision(user.department, 'GEN');
 
             // === Hardware Installation: Special Handling ===
             const isHardwareInstallation = createTicketDto.category === 'HARDWARE_INSTALLATION' ||
@@ -143,7 +143,7 @@ export class TicketCreateService {
             }
 
             // Wrap in transaction (M7: multiple-write ops)
-            const finalTicket = await this.ticketRepo.manager.transaction(async (manager) => {
+            const finalTicket = await withTicketNumberRetry(this.logger, () => this.ticketRepo.manager.transaction(async (manager) => {
                 // Generate Custom Ticket Number safely within transaction.
                 // Shared locked generator (PROD-19): every creation path serializes
                 // on the same pessimistic_write lock so concurrent creations
@@ -152,18 +152,19 @@ export class TicketCreateService {
 
                 const savedTicket = await manager.save(ticket);
 
-                // Save initial message with attachments inside transaction
+                // The opening report (description + attachments) is the requester's, even when an
+                // agent files on their behalf; who filed it is kept in createdById.
                 const message = this.messageRepo.create({
                     content: createTicketDto.description,
                     ticket: savedTicket,
-                    senderId: creator.id,
+                    senderId: user.id,
                     attachments: files,
                     attachmentInfo: attachmentInfo.length > 0 ? attachmentInfo : null,
                 });
                 await manager.save(message);
 
                 return savedTicket;
-            }); // End of transaction
+            })); // End of transaction
 
             // Domain events + audit fire AFTER commit: listeners must only react
             // to a ticket that actually persisted (no phantom notifications on rollback).

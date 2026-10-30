@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger, ForbiddenException, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger, ForbiddenException, OnModuleInit, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, SelectQueryBuilder } from 'typeorm';
 import * as fs from 'fs';
@@ -21,6 +21,10 @@ import { AuditAction } from '../audit/entities/audit-log.entity';
 import { validatePasswordPolicy } from '../auth/application/password-policy';
 import { PermissionsService } from '../permissions/permissions.service';
 import { isMobileDevCategory, isWebDevCategory, isOracleDevCategory, isOracleK2Category } from '../ticketing/utils/oracle-ticket-access.util';
+import { PriorityWeight } from '../workload/entities/priority-weight.entity';
+import { FALLBACK_SCHEDULE } from '../workload/install-day.util';
+import { BusinessHoursService } from '../sla-config/business-hours.service';
+import { activeTicketWhere, computeLiveWorkloads } from '../workload/live-workload.util';
 
 const OPERATIONAL_AGENT_ROLES = [
     UserRole.AGENT,
@@ -52,6 +56,10 @@ export class UserCrudService implements OnModuleInit {
         private readonly permissionsService: PermissionsService,
         @InjectRepository(TicketModule)
         private readonly ticketModuleRepo?: Repository<TicketModule>,
+        @InjectRepository(PriorityWeight)
+        private readonly priorityWeightRepo?: Repository<PriorityWeight>,
+        @Optional()
+        private readonly businessHours?: BusinessHoursService,
     ) { }
 
     async onModuleInit() {
@@ -554,21 +562,18 @@ export class UserCrudService implements OnModuleInit {
             slaStatsMap.set(stat.agentId, stat);
         }
 
-        // Fetch today's workload points
-        const todayStr = now.toISOString().split('T')[0];
-        const workloadRaw = await this.userRepo.manager
-            .createQueryBuilder()
-            .select('workload."agentId"', 'agentId')
-            .addSelect('workload."totalPoints"', 'activeWorkloadPoints')
-            .from('agent_daily_workload', 'workload')
-            .where('workload."workDate" = :date', { date: todayStr })
-            .andWhere('workload."agentId" IN (:...agentIds)', { agentIds })
-            .getRawMany();
-
-        const workloadMap = new Map<string, any>();
-        for (const stat of workloadRaw) {
-            workloadMap.set(stat.agentId, stat);
-        }
+        // Live workload points from the tickets (waiting vendor weighs nothing), not the stored
+        // daily row, which goes stale.
+        const [liveTickets, weights, schedule] = await Promise.all([
+            this.ticketRepo.find({
+                where: activeTicketWhere(agentIds),
+                select: ['id', 'priority', 'status', 'assignedToId', 'isHardwareInstallation', 'scheduledDate'],
+            }),
+            this.priorityWeightRepo?.find() ?? Promise.resolve([]),
+            // Same configured working days and holidays as the Workload page.
+            this.businessHours?.getSchedule() ?? Promise.resolve(FALLBACK_SCHEDULE),
+        ]);
+        const liveLoad = computeLiveWorkloads(agentIds, liveTickets, new Map(weights.map(w => [w.priority, w.points])), schedule, now);
 
         // Merge agent data with stats (in memory - O(n))
         const agentStats = agents.map(agent => {
@@ -594,7 +599,7 @@ export class UserCrudService implements OnModuleInit {
                 resolvedThisMonth: parseInt(stats.resolvedThisMonth || '0'),
                 slaCompliance,
                 appraisalPoints: agent.appraisalPoints || 0,
-                activeWorkloadPoints: parseInt(workloadMap.get(agent.id)?._activeWorkloadPoints || workloadMap.get(agent.id)?.activeWorkloadPoints || '0'),
+                activeWorkloadPoints: liveLoad.get(agent.id)?.points ?? 0,
             };
         });
 

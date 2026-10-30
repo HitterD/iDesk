@@ -58,12 +58,6 @@ export class DatabaseExceptionFilter implements ExceptionFilter {
                         ? `Required field is missing: ${columnName}`
                         : 'Required field is missing';
                     code = 'MISSING_REQUIRED_FIELD';
-                    // Log full error for debugging
-                    this.logger.error(`NOT NULL violation on column: ${columnName}`, {
-                        table: driverError.table,
-                        column: driverError.column,
-                        detail: driverError.detail,
-                    });
                     break;
 
                 // Check constraint violation
@@ -90,22 +84,26 @@ export class DatabaseExceptionFilter implements ExceptionFilter {
                     break;
 
                 default:
-                    // Log unknown errors for investigation
-                    this.logger.error(
-                        `Unknown database error code: ${driverError.code}`,
-                        exception.stack
-                    );
+                    // Unknown SQLSTATEs retain the generic 500 response.
+                    break;
             }
         }
 
-        // Always log the full error for debugging
-        this.logger.error(`Database Error: ${exception.message}`, exception.stack);
+        // Correlate database failures without logging SQL, bind values or credentials.
+        this.logger.error({
+            message: 'DATABASE_REQUEST_FAILED',
+            correlationId: request.correlationId,
+            method: request.method,
+            path: request.url.split('?')[0],
+            sqlState: exception instanceof QueryFailedError ? (exception.driverError as any).code : undefined,
+        });
 
         const errorResponse = {
             statusCode: status,
             code,
             message,
-            path: request.url,
+            path: request.url.split('?')[0],
+            correlationId: request.correlationId,
             timestamp: new Date().toISOString(),
             // Include error details only in development
             ...((!isProduction) && {

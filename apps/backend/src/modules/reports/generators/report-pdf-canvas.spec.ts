@@ -1,4 +1,6 @@
+import { Logger } from '@nestjs/common';
 import {
+    ReportCanvas,
     categoryRows,
     fmtDateTime,
     fmtMinutes,
@@ -39,5 +41,36 @@ describe('report PDF formatting', () => {
         expect(fmtMinutes(14)).toBe('14 mnt');
         expect(fmtMinutes(95)).toBe('1,6 jam');
         expect(fmtMinutes(60 * 72)).toBe('3,0 hari');
+    });
+
+    describe('table cells', () => {
+        const PDFDocument = require('pdfkit');
+        const columns = [
+            { header: 'Teknisi', width: 3.2 }, { header: 'Tugas', width: 0.9, align: 'right' as const }, { header: 'Selesai', width: 0.95, align: 'right' as const },
+            { header: '% Selesai', width: 1.1, align: 'right' as const }, { header: 'Respon', width: 1, align: 'right' as const },
+            { header: 'Durasi', width: 1, align: 'right' as const }, { header: 'SLA', width: 0.9, align: 'right' as const },
+        ];
+        const drawnTexts = (nameCell: string): string[] => {
+            const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+            doc.on('data', () => undefined);
+            const spy = jest.spyOn(doc, 'text');
+            const canvas = new ReportCanvas(doc, new Logger('test'));
+            canvas.table(columns, [[{ text: nameCell, bold: true }, { text: '14' }, { text: '12' }, { text: '85,7%' }, { text: '14 mnt' }, { text: '1,6 jam' }, { text: '90,0%' }]]);
+            doc.end();
+            return spy.mock.calls.map((call) => String(call[0]));
+        };
+
+        it('keeps the cross-site marker and the eligible count whole in a multi-line name cell', () => {
+            const drawn = drawnTexts('Hasby Tri Ananda · Sepanjang (lintas site)\n2 batal · 12 eligible');
+            expect(drawn.some((t) => t.includes('...'))).toBe(false);
+            expect(drawn.join(' ')).toContain('(lintas site)');
+            expect(drawn).toContain('2 batal · 12 eligible');
+        });
+
+        it('keeps explicit lines whole when the name and site are on separate lines', () => {
+            const drawn = drawnTexts('Hasby Tri Ananda\nSepanjang (lintas site)\n2 batal · 12 eligible');
+            expect(drawn).toEqual(expect.arrayContaining(['Hasby Tri Ananda', 'Sepanjang (lintas site)', '2 batal · 12 eligible']));
+            expect(drawn.some((t) => t.includes('...'))).toBe(false);
+        });
     });
 });

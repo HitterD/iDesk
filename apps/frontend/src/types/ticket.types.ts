@@ -70,7 +70,13 @@ export interface Ticket {
     software?: string;
     criticalReason?: string;
     isOverdue: boolean;
+    /**
+     * Resolution SLA target. Before the clock starts (slaStartedAt null) the API fills in a
+     * projected display target, which must not be read as a real deadline.
+     */
     slaTarget?: string;
+    /** When the resolution SLA clock started; null until an agent picks the ticket up. */
+    slaStartedAt?: string | null;
     responseDeadline?: string;
     user: User;
     assignedTo?: User;

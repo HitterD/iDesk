@@ -41,6 +41,22 @@ describe('getRoleDefaultPageAccess', () => {
         expect(getRoleDefaultPageAccess(null)).toEqual(getRoleDefaultPageAccess('USER'));
     });
 
+    it('grants only ICT CSI administration to ADMIN by default', () => {
+        const access: Record<string, boolean> = getRoleDefaultPageAccess('ADMIN');
+        expect(access.csi_admin_ict).toBe(true);
+        expect(access.csi_admin_hc).toBeUndefined();
+    });
+
+    it('does not grant either CSI administration page to MANAGER by default', () => {
+        const access: Record<string, boolean> = getRoleDefaultPageAccess('MANAGER');
+        expect(access.csi_admin_ict).toBeUndefined();
+        expect(access.csi_admin_hc).toBeUndefined();
+    });
+
+    it.each(['csi_admin_ict', 'csi_admin_hc'])('recognises the CSI page key %s', (key) => {
+        expect(isValidPageKey(key)).toBe(true);
+    });
+
     it('no longer recognises the removed lost_items page', () => {
         expect(isValidPageKey('lost_items')).toBe(false);
     });

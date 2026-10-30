@@ -50,7 +50,7 @@ jobs:
       - name: SQL integration tests
         env:
           TEST_DATABASE_URL: postgres://idesk:idesk@localhost:5432/idesk_test
-        run: npx jest --runInBand -c jest.ci.config.js src/modules/hardware-request/services/request-number.integration.spec.ts src/modules/ticketing/utils/ticket-number-generator.integration.spec.ts
+        run: npx jest --runInBand -c jest.ci.config.js src/modules/hardware-request/services/request-number.integration.spec.ts src/modules/ticketing/utils/ticket-number-generator.integration.spec.ts src/modules/ticketing/utils/ticket-number-guard.integration.spec.ts
 
   frontend:
     name: Frontend (types)

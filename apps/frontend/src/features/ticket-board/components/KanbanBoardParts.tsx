@@ -6,6 +6,7 @@ import {
 import { cn } from '@/lib/utils';
 import { TicketPill, PRIORITY_TONES, STATUS_TONES } from '@/components/ui/ticket-pill';
 import { TicketQuickPreview } from '@/components/ui/TicketQuickPreview';
+import { ExternalSourceBadge } from '@/components/ui/ExternalSourceBadge';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { STATUS_CONFIG, PRIORITY_CONFIG, KANBAN_COLUMNS } from '@/lib/constants/ticket.constants';
 import { TargetDateCell } from './TargetDateCell';
@@ -17,11 +18,17 @@ export interface KanbanTicket {
     title: string;
     description?: string;
     category?: string;
+    source?: string | null;
+    /** Connected app that filed it (source API), e.g. 'EBBK'. */
+    externalSource?: string | null;
     status: 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
     isOverdue?: boolean;
     slaTarget?: string;
     slaRemainingMinutes?: number | null;
+    /** WAITING_VENDOR: agreed vendor time and why the ticket waits. */
+    vendorVisitAt?: string | null;
+    vendorNote?: string | null;
     assignedTo?: { id: string; fullName: string; email?: string; avatarUrl?: string; role?: string };
     user?: { id?: string; fullName: string; avatarUrl?: string; department?: { name: string } };
     site?: { id: string; code: string; name: string };
@@ -81,7 +88,7 @@ export const EnhancedKanbanCard: React.FC<KanbanCardProps> = ({ ticket, index, o
                 >
                     <div className="kanban-id">
                         <span>#{number}</span>
-                        {ticket.category && <span className="src">{ticket.category.replace(/_/g, ' ')}</span>}
+                        <ExternalSourceBadge source={ticket.source} externalSource={ticket.externalSource} />
                         {locked && <span className="kanban-lock" title="Hanya baca"><Lock aria-label="Hanya baca" /></span>}
                     </div>
                     <span className="card-acts">

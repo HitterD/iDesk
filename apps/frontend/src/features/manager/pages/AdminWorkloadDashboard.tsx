@@ -91,7 +91,9 @@ export const AdminWorkloadDashboard: React.FC = () => {
         const activeAgents = totalAgents - standbyAgents;
         const totalPoints = agents.reduce((acc, a) => acc + (a.totalPoints || 0), 0);
         const avgPoints = totalAgents > 0 ? (totalPoints / totalAgents).toFixed(1) : '0';
-        const totalTickets = agents.reduce((acc, a) => acc + (a.activeTicketsCount || a.activeTickets?.length || 0), 0);
+        // Waiting-vendor tickets stay with their PIC but are not workload, so they are counted apart.
+        const totalTickets = agents.reduce((acc, a) => acc + (a.activeTicketsCount || 0), 0);
+        const waitingVendorTickets = agents.reduce((acc, a) => acc + (a.waitingVendorCount || 0), 0);
         
         // Find minimum points for assignment priority identification
         const minPoints = totalAgents > 0 ? Math.min(...agents.map(a => a.totalPoints || 0)) : 0;
@@ -103,6 +105,7 @@ export const AdminWorkloadDashboard: React.FC = () => {
             totalPoints,
             avgPoints,
             totalTickets,
+            waitingVendorTickets,
             minPoints
         };
     }, [agents]);
@@ -132,8 +135,9 @@ export const AdminWorkloadDashboard: React.FC = () => {
             .sort((a, b) => {
                 const pointsA = a.totalPoints || 0;
                 const pointsB = b.totalPoints || 0;
-                const ticketsA = a.activeTicketsCount || a.activeTickets?.length || 0;
-                const ticketsB = b.activeTicketsCount || b.activeTickets?.length || 0;
+                // Workload tickets only, matching the summary card (waiting vendor is not workload).
+                const ticketsA = a.activeTicketsCount || 0;
+                const ticketsB = b.activeTicketsCount || 0;
 
                 switch (sortBy) {
                     case 'POINTS_ASC':
@@ -196,7 +200,9 @@ export const AdminWorkloadDashboard: React.FC = () => {
                     <MgStat icon={Weight} tone="amber" label="Total Akumulasi Poin" value={metrics.totalPoints} isLoading={loading && !agents.length}
                         sub={`rata-rata ${metrics.avgPoints} poin per agen`} />
                     <MgStat icon={CircleDot} tone="blue" label="Tiket Aktif Dalam Proses" value={metrics.totalTickets} isLoading={loading && !agents.length}
-                        sub="dialokasikan di seluruh agen site" />
+                        sub={metrics.waitingVendorTickets > 0
+                            ? `+${metrics.waitingVendorTickets} tunggu vendor, tidak dihitung`
+                            : 'dialokasikan di seluruh agen site'} />
                 </section>
             )}
 

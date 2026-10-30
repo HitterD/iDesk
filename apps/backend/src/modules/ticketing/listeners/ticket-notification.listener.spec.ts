@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { TicketNotificationListener } from './ticket-notification.listener';
+import { NOTIFY_FANOUT_CONCURRENCY, TicketNotificationListener } from './ticket-notification.listener';
 import { NotificationService } from '../../notifications/notification.service';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
@@ -82,6 +82,29 @@ describe('TicketNotificationListener', () => {
             to: 'ops@example.com',
             subject: expect.stringContaining('Tiket Baru: #TK-2026-0001'),
         }));
+    });
+
+    it('handleTicketCreatedEvent emails a large agent pool a few at a time, not all at once', async () => {
+        userRepo.find.mockResolvedValue(Array.from({ length: 30 }, (_, i) => (
+            { id: `ops-${i}`, fullName: `Ops ${i}`, email: `ops${i}@example.com`, role: UserRole.AGENT_OPERATIONAL_SUPPORT })));
+        let running = 0;
+        let peak = 0;
+        mailDispatch.send.mockImplementation(async () => {
+            running += 1;
+            peak = Math.max(peak, running);
+            await new Promise((resolve) => setTimeout(resolve, 2));
+            running -= 1;
+            return { success: true };
+        });
+
+        await listener.handleTicketCreatedEvent(new TicketCreatedEvent(
+            't-1', 'TK-2026-0001', 'Printer Rusak', 'HIGH', 'HARDWARE', 'OPEN',
+            'u-1', 'User Requester', 'user@example.com', new Date(), 'site-spj', 'SERVICE',
+        ));
+
+        expect(mailDispatch.send).toHaveBeenCalledTimes(30);
+        expect(peak).toBeLessThanOrEqual(NOTIFY_FANOUT_CONCURRENCY);
+        mailDispatch.send.mockResolvedValue({ success: true });
     });
 
     it('handleTicketCreatedEvent sends email to AGENT_ORACLE & AGENT_MOBILE_DEV for Oracle/K2 request', async () => {
@@ -229,7 +252,9 @@ describe('TicketNotificationListener', () => {
 
         await listener.handleTicketAssignedEvent(event);
 
-        expect(notificationService.notifyTicketAssigned).toHaveBeenCalledWith('agent-1', 't-8', 'TK-2026-0008', 'Admin Lead');
+        expect(notificationService.notifyTicketAssigned).toHaveBeenCalledWith('agent-1', 't-8', 'TK-2026-0008', 'Admin Lead', {
+            title: 'Network Issue', requesterName: 'Ani User',
+        });
         expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'budi@example.com' }));
         expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'requester@example.com' }));
     });
@@ -249,6 +274,10 @@ describe('TicketNotificationListener', () => {
 
         await listener.handleTicketUpdatedEvent(event);
 
+        // Requester gets an in-app notice titled with the problem and signed by the PIC
+        expect(notificationService.notifyTicketUpdated).toHaveBeenCalledWith('u-1', 't-6', 'TK-2026-0006', 'status', {
+            title: 'VPN Issue', assigneeName: 'Agent Budi',
+        });
         // Requester gets email
         expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({
             to: 'client@example.com',

@@ -14,7 +14,7 @@ import { SlaClockService } from '../../ticketing/services/sla-clock.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { SiteActor } from '../../../shared/core/utils/site-scope.util';
 import { DEFAULT_TIMEZONE } from '../../sla-config/business-hours.calc';
-import { generateNextTicketNumber } from '../../ticketing/utils/ticket-number-generator';
+import { departmentDivision, generateNextTicketNumber, withTicketNumberRetry } from '../../ticketing/utils/ticket-number-generator';
 
 /** Schedule times are shown in WIB; the server clock runs in UTC. */
 const TIME_FORMAT: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', timeZone: DEFAULT_TIMEZONE };
@@ -105,14 +105,12 @@ export class HardwareScheduleTicketListener {
             const slaTarget = await this.slaClock.hardwareTarget(startDate);
 
             // Execute transaction to generate ticket and link schedule
-            const createdTicket = await this.dataSource.transaction(async (manager) => {
+            const createdTicket = await withTicketNumberRetry(this.logger, () => this.dataSource.transaction(async (manager) => {
                 const ticketRepo = manager.getRepository(Ticket);
                 const messageRepo = manager.getRepository(TicketMessage);
                 const schedRepo = manager.getRepository(InstallationSchedule);
 
-                const division = requester?.department?.name
-                    ? requester.department.name.substring(0, 3).toUpperCase()
-                    : 'ICT';
+                const division = departmentDivision(requester?.department, 'ICT');
                 // Shared locked generator: the old inline copy missed soft-deleted tickets and collided ("already exists").
                 const ticketNumber = await generateNextTicketNumber(manager, division);
 
@@ -169,7 +167,7 @@ export class HardwareScheduleTicketListener {
                 });
 
                 return savedTicket;
-            });
+            }));
 
             this.logger.log(`Created installation ticket #${createdTicket.ticketNumber} for request ${req.requestNumber}`);
 

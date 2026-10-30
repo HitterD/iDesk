@@ -27,6 +27,9 @@ const WIB_VISIT_FMT = new Intl.DateTimeFormat('id-ID', {
 
 export const formatVendorVisit = (date: Date): string => `${WIB_VISIT_FMT.format(date)} WIB`;
 
+/** Trimmed vendor note, or null when empty. */
+export const normalizeVendorNote = (note?: string | null): string | null => note?.trim() || null;
+
 /** Next Thursday 09:00 WIB (never today), computed in WIB whatever the server's own timezone is. */
 export function defaultVendorVisit(now: Date = new Date()): Date {
     const wibNow = new Date(now.getTime() + WIB_OFFSET_HOURS * 60 * 60 * 1000);
@@ -87,10 +90,11 @@ export class TicketVendorVisitService {
     }
 
     /** System note posted when the ticket starts waiting, or when the appointment moves. */
-    note(visitAt: Date, actorName: string, rescheduled = false): string {
+    note(visitAt: Date, actorName: string, rescheduled = false, vendorNote?: string | null): string {
         return [
             rescheduled ? '📆 Jadwal kunjungan vendor diubah' : '⏳ Status tiket diubah ke Waiting Vendor',
             '',
+            ...(vendorNote ? [`📝 Keterangan: ${vendorNote}`] : []),
             `📅 Janji vendor: ${formatVendorVisit(visitAt)}`,
             '🔔 PIC diingatkan 30 menit sebelumnya.',
             `👤 Oleh: ${actorName}`,
@@ -99,7 +103,7 @@ export class TicketVendorVisitService {
     }
 
     /** PATCH /tickets/:id/vendor-visit: move the appointment of a ticket that is waiting on a vendor. */
-    async reschedule(ticketId: string, requested: string, actorId: string): Promise<Ticket> {
+    async reschedule(ticketId: string, requested: string, actorId: string, vendorNote?: string): Promise<Ticket> {
         const { ticket, message } = await this.dataSource.transaction(async (manager) => {
             const ticket = await manager.findOne(Ticket, { where: { id: ticketId }, relations: ['participants'] });
             if (!ticket) throw new NotFoundException('Ticket not found');
@@ -115,21 +119,27 @@ export class TicketVendorVisitService {
             }
             const visitAt = this.resolveVisit(requested);
             const previous = ticket.vendorVisitAt ? new Date(ticket.vendorVisitAt).toISOString() : null;
+            const previousNote = ticket.vendorNote ?? null;
             await this.schedule(manager, ticket, visitAt, actorId);
+            // Omitted note keeps the current one; an empty string is not a valid note.
+            if (vendorNote !== undefined) ticket.vendorNote = normalizeVendorNote(vendorNote) ?? previousNote;
             const saved = await manager.save(Ticket, ticket);
             const message = await manager.save(TicketMessage, manager.create(TicketMessage, {
-                content: this.note(visitAt, actor.fullName, true),
+                content: this.note(visitAt, actor.fullName, true, saved.vendorNote),
                 ticket: saved,
                 senderId: actorId,
                 isSystemMessage: true,
-                systemEvent: systemEvent(actor, [{ field: 'vendorVisit', from: previous, to: visitAt.toISOString() }]),
+                systemEvent: systemEvent(actor, [
+                    { field: 'vendorVisit', from: previous, to: visitAt.toISOString() },
+                    ...(previousNote !== saved.vendorNote ? [{ field: 'vendorNote' as const, from: previousNote, to: saved.vendorNote }] : []),
+                ]),
             }));
             return { ticket: saved, message };
         });
 
         await this.cacheInvalidationService.onTicketChange(ticket.id);
         this.eventsGateway.notifyNewMessage(ticket.id, message);
-        this.eventsGateway.notifyTicketUpdate(ticket.id, { vendorVisitAt: ticket.vendorVisitAt }, (ticket as any).siteId ?? null);
+        this.eventsGateway.notifyTicketUpdate(ticket.id, { vendorVisitAt: ticket.vendorVisitAt, vendorNote: ticket.vendorNote }, (ticket as any).siteId ?? null);
         return ticket;
     }
 

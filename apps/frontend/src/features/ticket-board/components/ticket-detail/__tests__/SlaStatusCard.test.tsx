@@ -24,7 +24,7 @@ describe('SlaStatusCard', () => {
         render(<SlaStatusCard ticket={ticket} />);
         expect(screen.queryByText(/^Target:/)).not.toBeInTheDocument();
         expect(screen.getByText(`Dijeda sejak ${formatDateTimeID(ticket.lastPausedAt!)}`, { exact: false })).toBeInTheDocument();
-        expect(screen.getByText(/sisa 2h 0m jam kerja/)).toBeInTheDocument();
+        expect(screen.getByText(/sisa 2 jam/)).toBeInTheDocument();
     });
 
     it('keeps SLA target visible when active', () => {

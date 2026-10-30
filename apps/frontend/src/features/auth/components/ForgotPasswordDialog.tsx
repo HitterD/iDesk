@@ -1,25 +1,42 @@
-import React, { useState } from 'react';
-import { KeyRound, X, CheckCircle2 } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import { KeyRound, X, CheckCircle2, IdCard, Mail, ShieldCheck, AlertCircle } from 'lucide-react';
 import api from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import '../auth.css';
 
 interface ForgotPasswordDialogProps {
     onClose: () => void;
 }
 
-const inputClass = 'w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary/50 outline-none text-slate-800 dark:text-white';
+const FALLBACK_ERROR = 'Gagal reset password. Silakan coba lagi.';
+const VISIBLE_LOCAL_CHARS = 2;
+const EASE_OUT = [0.22, 1, 0.36, 1] as const;
 
-/** An identifier with "@" is the registered email (forgotten NIK); anything else is a NIK. */
-const isEmailIdentifier = (value: string) => value.includes('@');
+/** "budi.santoso@kapalapi.co.id" → "bu***@kapalapi.co.id": confirms the inbox without echoing it in full. */
+export const maskEmail = (email: string): string => {
+    const [local, domain] = email.split('@');
+    if (!domain) return email;
+    return `${local.slice(0, VISIBLE_LOCAL_CHARS)}***@${domain}`;
+};
+
+const FieldIcon: React.FC<{ icon: React.ElementType }> = ({ icon: Icon }) => (
+    <Icon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[hsl(var(--idesk-text-secondary))]" aria-hidden="true" />
+);
 
 export const ForgotPasswordDialog: React.FC<ForgotPasswordDialogProps> = ({ onClose }) => {
-    const [identifier, setIdentifier] = useState('');
+    const [nik, setNik] = useState('');
     const [email, setEmail] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [sentTo, setSentTo] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const dialogRef = useRef<HTMLDivElement>(null);
 
-    const byEmail = isEmailIdentifier(identifier);
-    const canSubmit = identifier.trim().length > 0 && (byEmail || email.trim().length > 0);
+    const dismiss = () => { if (!submitting) onClose(); };
+    useFocusTrap(dialogRef, { onEscape: dismiss });
+
+    const canSubmit = nik.trim().length > 0 && email.trim().length > 0;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -29,79 +46,112 @@ export const ForgotPasswordDialog: React.FC<ForgotPasswordDialogProps> = ({ onCl
         try {
             const res = await api.post(
                 '/auth/forgot-password',
-                { identifier: identifier.trim(), ...(byEmail ? {} : { email: email.trim() }) },
+                { identifier: nik.trim(), email: email.trim() },
                 { skipToast: true },
             );
             setSentTo((res.data as { sentTo: string }).sentTo);
         } catch (err: any) {
             const raw = err?.response?.data?.message;
-            setError((Array.isArray(raw) ? raw[0] : raw) || 'Gagal reset password. Silakan coba lagi.');
+            setError((Array.isArray(raw) ? raw[0] : raw) || FALLBACK_ERROR);
         } finally {
             setSubmitting(false);
         }
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" role="dialog" aria-modal="true" aria-labelledby="fp-title">
-            <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                        <KeyRound className="w-5 h-5 text-primary" />
+        <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+            onClick={dismiss}
+        >
+            <motion.div
+                ref={dialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="fp-title"
+                aria-describedby="fp-desc"
+                className="w-full max-w-md overflow-hidden rounded-[20px] border border-[hsl(var(--idesk-border))] bg-[hsl(var(--idesk-surface))] text-[hsl(var(--idesk-text))] shadow-2xl"
+                initial={{ opacity: 0, y: 12, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.28, ease: EASE_OUT }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-start gap-3 border-b border-[hsl(var(--idesk-border))] px-6 py-5">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--idesk-sapphire)/0.12)]">
+                        <KeyRound className="h-5 w-5 text-[hsl(var(--idesk-sapphire))]" aria-hidden="true" />
                     </div>
-                    <div className="flex-1">
-                        <h2 id="fp-title" className="text-lg font-bold text-slate-800 dark:text-white">Lupa Password</h2>
-                        <p className="text-sm text-slate-500">Password sementara akan dikirim ke email.</p>
+                    <div className="min-w-0 flex-1">
+                        <h2 id="fp-title" className="text-base font-semibold">Lupa Password</h2>
+                        <p id="fp-desc" className="mt-0.5 text-[13px] text-[hsl(var(--idesk-text-secondary))]">
+                            {sentTo ? 'Password sementara sudah dikirim.' : 'Verifikasi akun Anda dengan NIK dan email yang terdaftar.'}
+                        </p>
                     </div>
-                    <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300" aria-label="Tutup">
-                        <X className="w-5 h-5" />
-                    </button>
+                    <Button variant="subtle" size="icon" type="button" onClick={dismiss} disabled={submitting} aria-label="Tutup">
+                        <X aria-hidden="true" />
+                    </Button>
                 </div>
 
                 {sentTo ? (
-                    <div className="p-6 space-y-4">
-                        <div className="flex items-start gap-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl p-3 text-sm text-emerald-700 dark:text-emerald-400">
-                            <CheckCircle2 className="w-5 h-5 shrink-0" />
-                            <span>Password sementara telah dikirim ke <strong>{sentTo}</strong>. Login dengan password tersebut, lalu Anda akan diminta menggantinya.</span>
+                    <motion.div className="space-y-4 p-6" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: EASE_OUT }}>
+                        <div className="flex items-start gap-3 rounded-xl bg-[hsl(var(--ticket-green)/0.12)] p-3.5 text-[13px] leading-relaxed text-[hsl(var(--ticket-green-ink))]">
+                            <CheckCircle2 className="mt-px h-5 w-5 shrink-0" aria-hidden="true" />
+                            <span>
+                                Password sementara dikirim ke <strong>{maskEmail(sentTo)}</strong>. Login dengan password tersebut,
+                                lalu Anda akan diminta membuat password baru.
+                            </span>
                         </div>
-                        <button type="button" onClick={onClose} className="w-full px-4 py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors">
+                        <Button variant="primary" size="lg" type="button" onClick={onClose} className="w-full">
                             Kembali ke Login
-                        </button>
-                    </div>
+                        </Button>
+                    </motion.div>
                 ) : (
-                    <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                        {error && (
-                            <div role="alert" className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 text-sm text-red-700 dark:text-red-400">
-                                {error}
-                            </div>
-                        )}
-
-                        <div>
-                            <label htmlFor="fp-identifier" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                                NIK HRIS
-                            </label>
-                            <input id="fp-identifier" type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)} className={inputClass} placeholder="NIK HRIS" autoComplete="username" autoFocus />
-                            <p className="text-xs text-slate-400 mt-1">Lupa NIK? Masukkan email yang terdaftar di akun Anda.</p>
+                    <form onSubmit={handleSubmit} className="space-y-4 p-6" noValidate>
+                        <div className="flex items-start gap-2.5 rounded-xl bg-[hsl(var(--idesk-selection))] p-3 text-[12.5px] leading-relaxed">
+                            <ShieldCheck className="mt-px h-4 w-4 shrink-0 text-[hsl(var(--idesk-sapphire))]" aria-hidden="true" />
+                            <span>
+                                Kami mencocokkan <strong>NIK</strong> dan <strong>email</strong> Anda dengan data HRIS Anda.
+                                Jika cocok, password sementara dikirim ke email terdaftar tersebut.
+                            </span>
                         </div>
 
-                        {!byEmail && (
-                            <div>
-                                <label htmlFor="fp-email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                                    Kirim ke Email
-                                </label>
-                                <input id="fp-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="email@contoh.com" autoComplete="email" />
+                        {error && (
+                            <div role="alert" className="flex items-start gap-2.5 rounded-xl bg-[hsl(var(--ticket-red)/0.1)] p-3 text-[13px] text-[hsl(var(--ticket-red-ink))]">
+                                <AlertCircle className="mt-px h-4 w-4 shrink-0" aria-hidden="true" />
+                                <span>{error}</span>
                             </div>
                         )}
 
-                        <button
-                            type="submit"
-                            disabled={submitting || !canSubmit}
-                            className="w-full px-4 py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50"
-                        >
-                            {submitting ? 'Mengirim...' : 'Kirim Password Baru'}
-                        </button>
+                        <div className="space-y-1.5">
+                            <label htmlFor="fp-nik" className="auth-label">NIK HRIS</label>
+                            <div className="relative">
+                                <FieldIcon icon={IdCard} />
+                                <input id="fp-nik" type="text" inputMode="numeric" value={nik} onChange={(e) => setNik(e.target.value)}
+                                    className="auth-input has-icon" placeholder="Contoh: 12345" autoComplete="username" autoFocus
+                                    aria-invalid={!!error || undefined} />
+                            </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label htmlFor="fp-email" className="auth-label">Email terdaftar</label>
+                            <div className="relative">
+                                <FieldIcon icon={Mail} />
+                                <input id="fp-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                                    className="auth-input has-icon" placeholder="nama@kapalapi.co.id" autoComplete="email"
+                                    aria-invalid={!!error || undefined} />
+                            </div>
+                        </div>
+
+                        <Button variant="primary" size="lg" type="submit" className="w-full" loading={submitting} disabled={!canSubmit}>
+                            {submitting ? 'Mencocokkan data…' : 'Kirim Password Sementara'}
+                        </Button>
+                        <p className="text-center text-[12px] text-[hsl(var(--idesk-text-secondary))]">
+                            Lupa email yang terdaftar? Hubungi tim IT.
+                        </p>
                     </form>
                 )}
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 };

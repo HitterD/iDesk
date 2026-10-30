@@ -258,8 +258,9 @@ Semua endpoint tiket mengembalikan bentuk yang sama:
   "module": "web-developer",
   "category": "WEB_DEV_REQUEST",
   "title": "Approval transaksi E-BBK lompat BBK_2600064552",
-  "assignee": { "name": "Agent Web" },
+  "assignee": { "name": "Agent Web", "nik": "00061058" },
   "slaTarget": "2026-10-26T09:00:00.000Z",
+  "resolutionDeadlineAt": null,
   "visit": null,
   "createdAt": "2026-10-24T03:00:00.000Z",
   "updatedAt": "2026-10-24T03:10:00.000Z",
@@ -343,10 +344,10 @@ Jika admin mengisi **URL webhook**, iDesk mengirim `POST` ke URL itu setiap ada 
 | `event` | Kapan | Field tambahan |
 |---|---|---|
 | `ticket.created` | Tiket dibuat | – |
-| `ticket.assigned` | PIC berganti | `previousAssignee` |
-| `ticket.status_changed` | Status berubah | `previousStatus` |
-| `ticket.resolved` | Selesai, menunggu konfirmasi pemohon | `previousStatus` |
-| `ticket.closed` | Ditutup | `previousStatus` |
+| `ticket.assigned` | PIC berganti | `previousAssignee`, `previousAssigneeNik`, `actor` |
+| `ticket.status_changed` | Status berubah | `previousStatus`, `actor`, `reason` (komentar pemohon saat menyanggah, maks. 200 karakter; selain itu `null`) |
+| `ticket.resolved` | Selesai, menunggu konfirmasi pemohon | `previousStatus`, `actor` |
+| `ticket.closed` | Ditutup | `previousStatus`, `actor`, `closedReason` (`auto_unconfirmed` / `confirmed` / `manual`) |
 | `ticket.message_created` | Ada balasan publik baru | `message` (preview ≤ 100 karakter), `recipients` (`[{ "nik": "…" }]`, yaitu pihak yang perlu diberi tahu) |
 | `ticket.read` | Seseorang membuka tiket di iDesk | `reader` (`{ "nik": "…" }`), bisa dipakai untuk menghapus badge notifikasi |
 

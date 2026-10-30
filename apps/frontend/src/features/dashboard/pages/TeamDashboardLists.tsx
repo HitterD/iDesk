@@ -5,7 +5,7 @@ import { PRIORITY_CONFIG, STATUS_CONFIG } from '@/lib/constants/ticket.constants
 import type { Ticket } from '@/types/ticket.types';
 import { TicketPill, STATUS_TONES } from '@/components/ui/ticket-pill';
 import { cssVars, DASH_COLORS, DashAvatar, DashEmpty, PRIORITY_DOT } from '../components/DashboardParts';
-import { isDoneStatus, type TeamAgentStat } from './teamDashboard.stats';
+import { isDoneStatus, isTicketOverdue, type TeamAgentStat } from './teamDashboard.stats';
 import { feedAge } from '../components/dashboardChart';
 
 export { feedAge };
@@ -24,7 +24,7 @@ export function feedItem(t: Ticket): FeedItem {
     if (isDoneStatus(t.status)) {
         return { icon: CircleCheck, color: DASH_COLORS.green, detail: `Diselesaikan${t.assignedTo ? ` oleh ${t.assignedTo.fullName}` : ''}`, at: t.updatedAt };
     }
-    if (t.isOverdue) {
+    if (isTicketOverdue(t)) {
         return { icon: TriangleAlert, color: DASH_COLORS.red, detail: `SLA terlewati · ${PRIORITY_CONFIG[t.priority]?.shortLabel ?? t.priority} · ${status}`, at: t.createdAt };
     }
     if (t.assignedTo) {

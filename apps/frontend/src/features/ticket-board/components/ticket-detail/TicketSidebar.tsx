@@ -61,12 +61,13 @@ interface TicketSidebarProps {
     onExtendSla?: () => void;
     onSetReminder?: () => void;
     /** Moves the vendor appointment of a WAITING_VENDOR ticket. */
-    onRescheduleVendorVisit?: (vendorVisitAt: string) => Promise<void>;
+    onRescheduleVendorVisit?: (vendorVisitAt: string, vendorNote: string) => Promise<void>;
 }
 
-/** Extra PATCH /status fields some transitions need (WAITING_VENDOR: the agreed visit time). */
+/** Extra PATCH /status fields some transitions need (WAITING_VENDOR: the agreed visit time and why). */
 export interface StatusChangeExtra {
     vendorVisitAt?: string;
+    vendorNote?: string;
 }
 
 type FieldKey = 'assignee' | 'status' | 'priority' | 'category' | 'device';
@@ -215,9 +216,9 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
         }
     };
 
-    const handleConfirmVendorVisit = async (vendorVisitAt: string) => {
+    const handleConfirmVendorVisit = async (vendorVisitAt: string, vendorNote: string) => {
         if (vendorDialog === 'reschedule') {
-            await onRescheduleVendorVisit?.(vendorVisitAt);
+            await onRescheduleVendorVisit?.(vendorVisitAt, vendorNote);
             setVendorDialog(null);
             return;
         }
@@ -225,7 +226,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
         setLocalStatus('WAITING_VENDOR');
         setSaving(prev => ({ ...prev, status: true }));
         try {
-            await onStatusChange('WAITING_VENDOR', undefined, undefined, { vendorVisitAt });
+            await onStatusChange('WAITING_VENDOR', undefined, undefined, { vendorVisitAt, vendorNote });
             showSaved('status');
         } catch {
             setLocalStatus(ticket.status);
@@ -399,6 +400,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 />
                 <div className="td-kvs">
                     {ticket.status === 'WAITING_VENDOR' ? (<>
+                        {!hold && ticket.vendorNote && <InfoRow label="Keterangan">{ticket.vendorNote}</InfoRow>}
                         {hold ? (
                             <InfoRow label={hold.label}><span title={hold.detail}>{hold.code}</span></InfoRow>
                         ) : <InfoRow label="Janji vendor">
@@ -586,7 +588,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 isOpen={vendorDialog !== null}
                 onClose={() => setVendorDialog(null)}
                 mode={vendorDialog ?? 'start'}
-                ticket={{ id: ticket.id, ticketNumber: ticket.ticketNumber, title: ticket.title, vendorVisitAt: ticket.vendorVisitAt }}
+                ticket={{ id: ticket.id, ticketNumber: ticket.ticketNumber, title: ticket.title, vendorVisitAt: ticket.vendorVisitAt, vendorNote: ticket.vendorNote }}
                 onConfirm={handleConfirmVendorVisit}
                 isLoading={saving.status}
             />

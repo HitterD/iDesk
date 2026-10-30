@@ -22,6 +22,10 @@ import {
     isOracleDevCategory,
 } from '../utils/oracle-ticket-access.util';
 import { formatResolutionDeadline } from '../utils/resolution-deadline.util';
+import { forEachWithConcurrency } from '../../../shared/core/utils/concurrency.util';
+
+/** How many agents of a pool are emailed at the same time when a ticket is created. */
+export const NOTIFY_FANOUT_CONCURRENCY = 5;
 
 @Injectable()
 export class TicketNotificationListener {
@@ -121,18 +125,13 @@ export class TicketNotificationListener {
                 year: new Date().getFullYear(),
             };
 
-            await Promise.all(
-                targetAgents
-                    .filter(a => !!a.email)
-                    .map(a =>
-                        this.mailDispatch.send({
-                            to: a.email,
-                            subject: `${emailSubjectPrefix}: #${event.ticketNumber} - ${event.title}`,
-                            template: 'notification',
-                            context: emailContext,
-                        }).catch(err => this.logger.error(`Failed to send new ticket email to ${a.email}: ${err.message}`))
-                    )
-            );
+            await forEachWithConcurrency(targetAgents.filter(a => !!a.email), NOTIFY_FANOUT_CONCURRENCY, a =>
+                this.mailDispatch.send({
+                    to: a.email,
+                    subject: `${emailSubjectPrefix}: #${event.ticketNumber} - ${event.title}`,
+                    template: 'notification',
+                    context: emailContext,
+                }).then(() => undefined, err => this.logger.error(`Failed to send new ticket email to ${a.email}: ${err.message}`)));
         } catch (error) {
             this.logger.error('Failed to notify agents about new ticket', error);
         }
@@ -146,6 +145,8 @@ export class TicketNotificationListener {
         const deadlineLabel = ticket.status === TicketStatus.RESOLVED && ticket.resolutionDeadlineAt
             ? formatResolutionDeadline(ticket.resolutionDeadlineAt)
             : undefined;
+        // Requester-side notices are titled with the problem and signed by the PIC.
+        const notice = { title: ticket.title, assigneeName: ticket.assignedTo?.fullName ?? null };
 
         // 1. In-App Notification
         if (ticket.user) {
@@ -158,6 +159,7 @@ export class TicketNotificationListener {
                             ticket.id,
                             ticketNumber,
                             deadlineLabel,
+                            notice,
                         );
                     } else {
                         await this.notificationService.notifyTicketUpdated(
@@ -165,6 +167,7 @@ export class TicketNotificationListener {
                             ticket.id,
                             ticketNumber,
                             changes.join(', '),
+                            notice,
                         );
                     }
                 }
@@ -176,6 +179,7 @@ export class TicketNotificationListener {
                         ticket.id,
                         ticketNumber,
                         changes.join(', '),
+                        notice,
                     );
                 }
 
@@ -261,6 +265,7 @@ export class TicketNotificationListener {
                 event.ticketId,
                 event.ticketNumber,
                 event.assignerName,
+                { title: event.ticketTitle, requesterName: event.ticketOwnerName ?? null },
             );
         } catch (error) {
             this.logger.error('Failed to send assignment notification', error);
@@ -482,7 +487,10 @@ export class TicketNotificationListener {
         const agent = event.agent;
         if (!ticket || !agent) return;
         try {
-            await this.notificationService.notifyTicketAssigned(agent.id, ticket.id, ticket.ticketNumber || ticket.id.slice(0, 8), 'Auto-assign');
+            await this.notificationService.notifyTicketAssigned(
+                agent.id, ticket.id, ticket.ticketNumber || ticket.id.slice(0, 8), 'Auto-assign',
+                { title: ticket.title, requesterName: ticket.user?.fullName ?? null },
+            );
         } catch (e) { this.logger.error('Auto-assign in-app notify failed', e); }
         if (agent.email) {
             try {

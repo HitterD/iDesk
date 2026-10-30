@@ -25,3 +25,10 @@ export const RESERVED_CLIENT_IDS = ['ipop', 'web', 'email', 'telegram', 'api', '
 
 /** externalSource stored on tickets filed by this app. */
 export const appSource = (clientId: string) => clientId.toUpperCase();
+
+/**
+ * Dot colour of an app's source badge on tickets. Green is iPop's and violet is off-brand,
+ * so neither is offered. Null = picked from the client id on the frontend.
+ */
+export const APP_COLORS = ['blue', 'sky', 'teal', 'amber', 'orange', 'red', 'pink', 'slate'] as const;
+export type AppColor = typeof APP_COLORS[number];

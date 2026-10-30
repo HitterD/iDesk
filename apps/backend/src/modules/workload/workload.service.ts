@@ -20,6 +20,7 @@ import {
 import { BusinessHoursService } from '../sla-config/business-hours.service';
 import { BusinessSchedule, DEFAULT_TIMEZONE, localDateKey, startOfLocalDay } from '../sla-config/business-hours.calc';
 import { FALLBACK_SCHEDULE, countsTowardsWorkload, installActivationAt } from './install-day.util';
+import { DEFAULT_PRIORITY_WEIGHTS, LiveWorkload, WORKLOAD_ACTIVE_STATUSES, activeTicketWhere, computeLiveWorkloads } from './live-workload.util';
 
 /** Workload days and crons follow WIB, not the server's UTC clock. */
 const WORKLOAD_TIMEZONE = DEFAULT_TIMEZONE;
@@ -38,13 +39,7 @@ export function workloadDay(at: Date = new Date()): Date {
 @Injectable()
 export class WorkloadService {
     // Default priority weights if not configured in DB
-    private readonly DEFAULT_WEIGHTS: Record<string, number> = {
-        LOW: 1,
-        MEDIUM: 2,
-        HIGH: 4,
-        CRITICAL: 8,
-        HARDWARE_INSTALLATION: 3,
-    };
+    private readonly DEFAULT_WEIGHTS = DEFAULT_PRIORITY_WEIGHTS;
 
     constructor(
         private readonly auditService: AuditService,
@@ -76,6 +71,31 @@ export class WorkloadService {
     ): Promise<number> {
         if (!countsTowardsWorkload(ticket, await this.getSchedule(), now)) return 0;
         return this.getPriorityWeight(ticket.priority);
+    }
+
+    /**
+     * Live workload of each agent at one site (or across sites when siteId is
+     * omitted), read from the tickets themselves. Waiting-vendor tickets keep
+     * their PIC but weigh nothing; they are counted separately. Pass already
+     * fetched tickets to avoid a second query.
+     */
+    async liveWorkloads(
+        agentIds: string[],
+        siteId?: string,
+        preloaded?: Ticket[],
+        now: Date = new Date(),
+    ): Promise<Map<string, LiveWorkload>> {
+        if (agentIds.length === 0) return new Map();
+        const [tickets, weights, schedule] = await Promise.all([
+            preloaded ?? this.ticketRepo.find({
+                where: activeTicketWhere(agentIds, siteId),
+                select: ['id', 'priority', 'status', 'assignedToId', 'isHardwareInstallation', 'scheduledDate'],
+            }),
+            this.priorityWeightRepo.find(),
+            this.getSchedule(),
+        ]);
+        const weightByPriority = new Map(weights.map(w => [w.priority, w.points]));
+        return computeLiveWorkloads(agentIds, tickets, weightByPriority, schedule, now);
     }
 
     // ==========================================
@@ -322,20 +342,13 @@ export class WorkloadService {
             created.forEach(w => workloadByAgent.set(w.agentId, w));
         }
 
-        // Active tickets filter — when cross-site with no target, we still scope per agent's site in the result
-        // but to keep query simple and correct, if no targetSiteId we fetch across those agents' sites.
-        const ticketWhere: any = {
-            assignedToId: In(agentIds),
-            status: In([TicketStatus.TODO, TicketStatus.IN_PROGRESS, TicketStatus.WAITING_VENDOR]),
-        };
-        if (targetSiteId) {
-            ticketWhere.siteId = targetSiteId;
-        }
-
+        // One fetch serves both the ticket chips and the live points. With no target site
+        // (cross-site "all") it spans every site of these agents.
         const activeTickets = await this.ticketRepo.find({
-            where: ticketWhere,
-            select: ['id', 'ticketNumber', 'title', 'priority', 'status', 'category', 'assignedToId', 'siteId'],
+            where: activeTicketWhere(agentIds, targetSiteId),
+            select: ['id', 'ticketNumber', 'title', 'priority', 'status', 'category', 'assignedToId', 'siteId', 'isHardwareInstallation', 'scheduledDate'],
         });
+        const liveLoad = await this.liveWorkloads(agentIds, targetSiteId, activeTickets);
         const activeTicketsByAgent = new Map<string, typeof activeTickets>();
         for (const ticket of activeTickets) {
             const agentId = ticket.assignedToId as string;
@@ -346,18 +359,20 @@ export class WorkloadService {
 
         return agents.map(agent => {
             const workload = workloadByAgent.get(agent.id)!;
+            const live = liveLoad.get(agent.id)!;
             return {
                 agentId: agent.id,
                 agentName: agent.fullName,
                 email: agent.email,
                 role: agent.role,
-                totalPoints: workload.totalPoints,
+                totalPoints: live.points,
                 appraisalPoints: agent.appraisalPoints,
                 lastAssignedAt: workload.lastAssignedAt,
                 siteId: agent.siteId,
                 siteCode: agent.site?.code || '',
                 siteName: agent.site?.name || '',
-                activeTicketsCount: workload.activeTickets,
+                activeTicketsCount: live.workloadTickets,
+                waitingVendorCount: live.waitingVendor,
                 activeTickets: activeTicketsByAgent.get(agent.id) ?? [],
             };
         });
@@ -402,14 +417,13 @@ export class WorkloadService {
         const today = workloadDay(now);
         const startOfToday = startOfLocalDay(now, WORKLOAD_TIMEZONE);
 
-        // Open tickets only, filtered in SQL. The old `status >= 'TODO'` matched every
-        // status (TODO is the first enum value), loading the agent's whole history.
+        // Workload-bearing tickets only; vendor waiting keeps its assignee but no load.
         const openTickets = await this.ticketRepo.find({
             select: ['id', 'priority', 'status', 'isHardwareInstallation', 'scheduledDate'],
             where: {
                 assignedToId: agentId,
                 siteId: targetSiteId,
-                status: Not(In(TICKET_INACTIVE_STATUSES)),
+                status: In(WORKLOAD_ACTIVE_STATUSES),
             },
         });
 
@@ -555,11 +569,12 @@ export class WorkloadService {
             created.forEach(w => workloadByAgent.set(w.agentId, w));
         }
 
+        const liveLoad = await this.liveWorkloads(availableAgentIds, siteId);
         const agentWorkloads: { agent: User; points: number; lastAssignedAt: Date | null }[] = availableAgents.map(agent => {
             const workload = workloadByAgent.get(agent.id)!;
             return {
                 agent,
-                points: workload.totalPoints,
+                points: liveLoad.get(agent.id)!.points,
                 lastAssignedAt: workload.lastAssignedAt || null,
             };
         });
@@ -590,7 +605,7 @@ export class WorkloadService {
     async autoAssignTicket(ticketId: string, userId?: string, actor?: SiteActor): Promise<Ticket> {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
-            relations: ['assignedTo'],
+            relations: ['assignedTo', 'user'],
         });
 
         if (!ticket) {
@@ -635,12 +650,18 @@ export class WorkloadService {
         // lose this increment (PROD-20).
         const priorityPoints = await this.workloadPointsFor(ticket);
         const internalActor: SiteActor = actor ?? { role: UserRole.ADMIN, siteId: ticket.siteId ?? null };
-        const workload = await this.incrementAgentWorkload(
-            internalActor,
-            bestAgent.id,
-            ticket.siteId,
-            priorityPoints,
-        );
+        let workload: AgentDailyWorkload;
+        if (WORKLOAD_ACTIVE_STATUSES.includes(ticket.status)) {
+            workload = await this.incrementAgentWorkload(
+                internalActor, bestAgent.id, ticket.siteId, priorityPoints,
+            );
+        } else {
+            workload = await this.getAgentWorkload(internalActor, bestAgent.id, ticket.siteId);
+            await this.workloadRepo.update(
+                { agentId: bestAgent.id, siteId: ticket.siteId, workDate: workloadDay() },
+                { lastAssignedAt: new Date() },
+            );
+        }
 
         // Emit event
         this.eventEmitter.emit('ticket.auto-assigned', {
@@ -682,20 +703,17 @@ export class WorkloadService {
         const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: ticket.siteId };
         const workload = await this.getAgentWorkload(internalActor, ticket.assignedToId, ticket.siteId);
 
-        // Leaving the active set (-> RESOLVED/CLOSED/CANCELLED) reduces workload once.
-        // Moves between inactive statuses (e.g. RESOLVED -> CLOSED) must not count again.
-        if (
-            TICKET_INACTIVE_STATUSES.includes(newStatus) &&
-            !TICKET_INACTIVE_STATUSES.includes(oldStatus)
-        ) {
-            workload.totalPoints = Math.max(0, workload.totalPoints - priorityPoints);
-            workload.activeTickets = Math.max(0, workload.activeTickets - 1);
-
-            if (TICKET_DONE_STATUSES.includes(newStatus)) {
-                workload.resolvedTickets += 1;
-            }
-
-            await this.workloadRepo.save(workload);
+        const loadDelta = Number(WORKLOAD_ACTIVE_STATUSES.includes(newStatus))
+            - Number(WORKLOAD_ACTIVE_STATUSES.includes(oldStatus));
+        const newlyResolved = TICKET_DONE_STATUSES.includes(newStatus)
+            && !TICKET_DONE_STATUSES.includes(oldStatus);
+        if (loadDelta !== 0 || newlyResolved) {
+            await this.workloadRepo.save({
+                ...workload,
+                totalPoints: Math.max(0, workload.totalPoints + loadDelta * priorityPoints),
+                activeTickets: Math.max(0, workload.activeTickets + loadDelta),
+                resolvedTickets: workload.resolvedTickets + Number(newlyResolved),
+            });
         }
     }
 

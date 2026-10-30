@@ -1,4 +1,4 @@
-import { formatResume, slaCountdown, type SlaClockInfo } from '@/lib/slaCountdown';
+import { formatResume, slaCountdown, slaDayMinutes, type SlaClockInfo } from '@/lib/slaCountdown';
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -16,8 +16,10 @@ export interface SlaClockContext {
     info: SlaClockInfo | null | undefined;
 }
 
-function formatDuration(ms: number): string {
-    if (ms >= DAY_MS) return `${Math.floor(ms / DAY_MS)} hari`;
+/** One unit, TV-sized: "3 hari kerja", "2 jam", "5 mnt". A business-hours SLA counts working days. */
+function formatDuration(ms: number, dayMinutes: number | null = null): string {
+    const dayMs = dayMinutes ? dayMinutes * MINUTE_MS : DAY_MS;
+    if (ms >= dayMs) return `${Math.floor(ms / dayMs)} hari${dayMinutes ? ' kerja' : ''}`;
     if (ms >= HOUR_MS) return `${Math.floor(ms / HOUR_MS)} jam`;
     return `${Math.max(1, Math.floor(ms / MINUTE_MS))} mnt`;
 }
@@ -32,15 +34,16 @@ export function formatSlaStatus(slaTarget: string | null, isOverdue: boolean, no
     if (Number.isNaN(new Date(slaTarget).getTime())) return isOverdue ? { label: 'Terlambat', overdue: true } : null;
     const countdown = slaCountdown(slaTarget, now, clock?.priority, clock?.info);
     const diffMs = countdown.remainingMs;
+    const dayMinutes = slaDayMinutes(clock?.info, clock?.priority);
 
     if (isOverdue || diffMs <= 0) {
-        return { label: diffMs < 0 ? `Terlambat ${formatDuration(-diffMs)}` : 'Terlambat', overdue: true };
+        return { label: diffMs < 0 ? `Terlambat ${formatDuration(-diffMs, dayMinutes)}` : 'Terlambat', overdue: true };
     }
     if (countdown.offHours && countdown.resumesAt) {
         const resume = formatResume(countdown.resumesAt, now, clock?.info?.schedule.timezone);
-        return { label: `Sisa ${formatDuration(diffMs)} · dijeda s/d ${resume}`, overdue: false, paused: true };
+        return { label: `Sisa ${formatDuration(diffMs, dayMinutes)} · dijeda s/d ${resume}`, overdue: false, paused: true };
     }
-    return { label: `Sisa ${formatDuration(diffMs)}`, overdue: false };
+    return { label: `Sisa ${formatDuration(diffMs, dayMinutes)}`, overdue: false };
 }
 
 /** Absolute SLA deadline, e.g. "25 Jul 07.00", shown beside the relative text. */

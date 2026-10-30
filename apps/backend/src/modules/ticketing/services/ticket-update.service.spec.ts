@@ -389,6 +389,28 @@ describe('TicketUpdateService — status takeover', () => {
 
     const assignedEvents = () => mockEventEmitter.emit.mock.calls.filter((c: any[]) => c[0] === 'ticket.assigned');
 
+    it('stores the vendor note when the PIC moves the ticket to Waiting Vendor, and clears it when the wait ends', async () => {
+        ticket = { ...makeTicket(), status: TicketStatus.IN_PROGRESS, assignedToId: agentB.id, assignedTo: agentB };
+
+        const waiting = await service.updateTicket('ticket-1', {
+            status: TicketStatus.WAITING_VENDOR, vendorNoteRequest: '  Menunggu spare part  ',
+        }, agentB.id);
+        expect(waiting.vendorNote).toBe('Menunggu spare part');
+        expect(waiting.assignedToId).toBe(agentB.id);
+        expect(mockWorkloadService.recalculateAgentWorkload).toHaveBeenLastCalledWith(
+            { role: UserRole.ADMIN, siteId: 'site-1' }, agentB.id, 'site-1',
+        );
+
+        ticket = { ...waiting };
+        const resumed = await service.updateTicket('ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id);
+        expect(resumed.vendorNote).toBeNull();
+        expect(resumed.assignedToId).toBe(agentB.id);
+        expect(mockWorkloadService.recalculateAgentWorkload).toHaveBeenCalledTimes(2);
+        expect(mockWorkloadService.recalculateAgentWorkload).toHaveBeenLastCalledWith(
+            { role: UserRole.ADMIN, siteId: 'site-1' }, agentB.id, 'site-1',
+        );
+    });
+
     it('updateTicket takeover emits ticket.assigned marked as self-assigned (listener skips assignee-facing notices)', async () => {
         await service.updateTicket('ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id, { takeover: true, reason: 'PIC cuti' });
 
