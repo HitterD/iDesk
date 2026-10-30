@@ -162,7 +162,7 @@ describe('CsiPeriodService', () => {
     let sites: ReturnType<typeof memoryRepository>;
     let departments: ReturnType<typeof memoryRepository>;
     let manager: ReturnType<typeof transactionManager>;
-    let assignments: { applyTemplate: jest.Mock; copyPairs: jest.Mock };
+    let assignments: { applyTemplate: jest.Mock; copyPairs: jest.Mock; hasPairs: jest.Mock };
     let subjects: { createTeam: jest.Mock };
     let service: CsiPeriodService;
 
@@ -193,7 +193,10 @@ describe('CsiPeriodService', () => {
         manager.repositories.set(CsiResponse, responses);
         manager.repositories.set(CsiPeriodRatee, ratees);
         const dataSource = { transaction: jest.fn(async (work: any) => work(manager)) };
-        assignments = { applyTemplate: jest.fn().mockResolvedValue(undefined), copyPairs: jest.fn().mockResolvedValue(undefined) };
+        assignments = {
+            applyTemplate: jest.fn().mockResolvedValue(undefined), copyPairs: jest.fn().mockResolvedValue(undefined),
+            hasPairs: jest.fn().mockResolvedValue(false),
+        };
         const teamNames: Record<string, string> = { 'site-a': 'Tim Sepanjang', 'site-b': 'Tim Semarang' };
         subjects = { createTeam: jest.fn(async (_scope: string, siteId: string) => ({ teamId: `team-${siteId}`, name: teamNames[siteId], siteId })) };
         service = new CsiPeriodService(
@@ -251,12 +254,10 @@ describe('CsiPeriodService', () => {
             expect(modes).toEqual([CsiRespondentMode.LISTED, CsiRespondentMode.LISTED]);
         });
 
-        it('a new period without a source gets its pairs from the template; a copied one from the source pairs', async () => {
-            const dates = { startDate: '2026-11-01', endDate: '2026-11-30' };
-            await service.create(ICT, createDto(dates), 'admin');
-            expect(assignments.applyTemplate).toHaveBeenCalledWith(ICT, savedPeriod().id);
+        it('a copied period takes the source pairs at create; the template waits for members (see assignment spec)', async () => {
+            await service.create(ICT, createDto({ startDate: '2026-11-01', endDate: '2026-11-30' }), 'admin');
             expect(assignments.copyPairs).not.toHaveBeenCalled();
-            assignments.applyTemplate.mockClear();
+            expect(assignments.applyTemplate).not.toHaveBeenCalled();
             manager.saved.length = 0;
             await service.create(ICT, { startDate: '2026-12-01', endDate: '2026-12-31', copyFromPeriodId: 'p1' }, 'admin');
             expect(assignments.copyPairs).toHaveBeenCalledWith(ICT, 'p1', savedPeriod().id);

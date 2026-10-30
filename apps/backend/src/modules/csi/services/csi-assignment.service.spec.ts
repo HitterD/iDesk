@@ -11,6 +11,7 @@ import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiRaterAssignment } from '../entities/csi-rater-assignment.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiSubjectProfile } from '../entities/csi-subject-profile.entity';
+import { Site } from '../../sites/entities/site.entity';
 import { CsiAssignmentService } from './csi-assignment.service';
 import { CsiPeriodService } from './csi-period.service';
 
@@ -23,8 +24,12 @@ function matches(row: Record<string, any>, where: Record<string, any> = {}): boo
     return Object.entries(where).every(([key, value]): boolean => {
         if (value && typeof value === 'object' && '_type' in value) {
             if (value._type === 'in') return value._value.includes(row[key]);
+            if (value._type === 'not') return row[key] !== value._value;
+            if (value._type === 'lessThanOrEqual') return row[key] <= value._value;
+            if (value._type === 'moreThanOrEqual') return row[key] >= value._value;
             throw new Error(`Unsupported operator ${value._type}`);
         }
+        if (Array.isArray(row[key])) return row[key].some((child: Record<string, any>) => matches(child, value));
         if (value && typeof value === 'object') return matches(row[key] ?? {}, value);
         return row[key] === value;
     });
@@ -228,6 +233,47 @@ describe('CsiAssignmentService', () => {
         expect(db.table(CsiPeriodRaterRatee).filter((pair) => pair.periodId === 'p3').map((pair) => `${pair.periodRaterId}>${pair.periodRateeId}`))
             .toEqual(['pr3-spj1>re3-team-spj']);
         expect(db.table(CsiPeriodRaterRatee).filter((pair) => pair.periodId === 'p1')).toHaveLength(3);
+    });
+
+    describe('template applied to a new, still unmapped period', () => {
+        let periods: CsiPeriodService;
+        let newId: string;
+
+        beforeEach(async () => {
+            db.table(Site).push({ id: SPJ, code: 'SPJ', name: 'Sepanjang' });
+            db.table(User).push(user('u-r', SPJ), user('u-s', SPJ), user('u-t', SPJ));
+            db.table(CsiDimension).push({ id: 'd1', scope: ICT, isActive: true, name: 'Ramah', type: 'STAR', required: true, options: [] });
+            db.table(CsiRaterAssignment).push({ id: 'tpl', scope: ICT, raterUserId: 'u-r', subjectKey: 'user:u-s' });
+            periods = new CsiPeriodService(
+                db.repo(CsiPeriod) as any, db.repo(CsiPeriodRatee) as any, db.repo(CsiPeriodRateeDimension) as any,
+                db.repo(CsiPeriodRater) as any, db.repo(CsiResponse) as any, db.repo(CsiDimension) as any, db.repo(User) as any,
+                db.repo(Site) as any, {} as any, db.dataSource as any, service, {} as any,
+            );
+            jest.spyOn(periods, 'get').mockResolvedValue({} as any);
+            await periods.create(ICT, { siteIds: [SPJ], title: 'Baru', startDate: '2026-12-01', endDate: '2026-12-31' }, 'admin');
+            newId = db.table(CsiPeriod).find((row) => row.title === 'Baru')!.id;
+        });
+        const rateeIdOf = (userId: string) => db.table(CsiPeriodRatee).find((row) => row.periodId === newId && row.userId === userId)!.id;
+
+        it('create → setRatees → setRaters fills the pairs from the scope template', async () => {
+            expect(db.table(CsiPeriodRaterRatee).filter((pair) => pair.periodId === newId)).toHaveLength(0);
+            await periods.setRatees(ICT, newId, [{ userId: 'u-s', dimensionIds: ['d1'] }]);
+            await periods.setRaters(ICT, newId, ['u-r']);
+            await expect(service.pairsFor(newId, 'u-r')).resolves.toEqual(new Set([rateeIdOf('u-s')]));
+        });
+
+        it('once pairs exist a later setRatees does not re-apply the template (admin edits are kept)', async () => {
+            await periods.setRatees(ICT, newId, [{ userId: 'u-s', dimensionIds: ['d1'] }, { userId: 'u-t', dimensionIds: ['d1'] }]);
+            await periods.setRaters(ICT, newId, ['u-r']);
+            const raterId = db.table(CsiPeriodRater).find((row) => row.periodId === newId && row.userId === 'u-r')!.id;
+            // The admin re-maps the rater from u-s to u-t only.
+            await service.setPairs(ICT, newId, [{ periodRaterId: raterId, periodRateeId: rateeIdOf('u-t') }]);
+            await periods.setRatees(ICT, newId, [{ userId: 'u-t', dimensionIds: ['d1'] }, { userId: 'u-s', dimensionIds: ['d1'] }]);
+            // setRatees re-creates the people, so the FK cascade drops the old pairs; the template must not come back.
+            const pairsOfNew = db.table(CsiPeriodRaterRatee).filter((pair) => pair.periodId === newId);
+            expect(pairsOfNew.some((pair) => pair.periodRateeId === rateeIdOf('u-s'))).toBe(false);
+            expect(pairsOfNew).toHaveLength(0);
+        });
     });
 
     it('deleting a period ratee removes its pairs', async () => {

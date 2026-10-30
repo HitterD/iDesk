@@ -224,9 +224,9 @@ export class CsiPeriodService {
             await this.writeRaters(manager, saved.id, copied.raterIds);
             return saved.id;
         });
-        // Mapping: a copied period takes the source's pairs, a fresh one the scope template (both keep only members).
+        // A copied period takes the source's pairs; a fresh one gets the scope template once it has members
+        // (see applyTemplateWhileUnmapped in setRatees/setRaters).
         if (source) await this.assignments.copyPairs(scope, source.id, periodId);
-        else await this.assignments.applyTemplate(scope, periodId);
         return this.get(scope, periodId);
     }
 
@@ -271,12 +271,14 @@ export class CsiPeriodService {
     async setRatees(scope: ServiceScope, id: string, assignments: RateeAssignmentDto[]) {
         await this.findInScope(scope, id);
         const ratees = await this.resolveRatees(scope, assignments);
+        const unmapped = !(await this.assignments.hasPairs(id));
         await this.dataSource.transaction(async (manager) => {
             await lockUnlockedPeriod(manager, id);
             // Only people are replaced; the TEAM ratee is managed by setTeamQuestions.
             await manager.delete(CsiPeriodRatee, { periodId: id, kind: CsiRateeKind.PERSON });
             await this.writeRatees(manager, id, ratees);
         });
+        await this.applyTemplateWhileUnmapped(scope, id, unmapped);
         return this.get(scope, id);
     }
 
@@ -344,12 +346,23 @@ export class CsiPeriodService {
         const ids = [...new Set(userIds)];
         const active = await this.activeUsers(ids);
         if (active.size !== ids.length) throw new BadRequestException(INACTIVE_USER_MESSAGE);
+        const unmapped = !(await this.assignments.hasPairs(id));
         await this.dataSource.transaction(async (manager) => {
             await lockUnlockedPeriod(manager, id);
             await manager.delete(CsiPeriodRater, { periodId: id });
             await this.writeRaters(manager, id, ids);
         });
+        await this.applyTemplateWhileUnmapped(scope, id, unmapped);
         return this.get(scope, id);
+    }
+
+    /**
+     * "Periode baru: pemetaan disalin dari template master". Applied only when the period had no pairs before the edit
+     * (checked before writing, because replacing people/raters cascades their pairs away): admin mappings and pairs
+     * copied from a source period are never overwritten.
+     */
+    private async applyTemplateWhileUnmapped(scope: ServiceScope, id: string, unmapped: boolean) {
+        if (unmapped) await this.assignments.applyTemplate(scope, id);
     }
 
     private async findInScope(scope: ServiceScope, id: string, relations?: FindOptionsRelations<CsiPeriod>) {

@@ -192,7 +192,8 @@ export class CsiRespondentService {
             if (!rater) return null;
         }
         const rows = await readers.ratees.find({ where: { periodId: period.id }, order: { sortOrder: 'ASC' } });
-        const pairs = await this.pairsWithin(readers, period.id, respondent.id);
+        // The rater mapping applies to LISTED periods only; OPEN keeps the old "every visible ratee" behaviour.
+        const pairs = period.respondentMode === CsiRespondentMode.LISTED ? await this.pairsWithin(readers, period.id, respondent.id) : null;
         const visible = rows.filter((ratee) => isRateeVisible(ratee, period, respondent.id) && (!pairs || pairs.has(ratee.id)));
         if (!visible.length) return null;
         const dimensions = await this.dimensionsOf(readers, visible);

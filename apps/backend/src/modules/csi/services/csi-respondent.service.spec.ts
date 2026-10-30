@@ -394,6 +394,15 @@ describe('CsiRespondentService', () => {
                 .resolves.toMatchObject({ submitted: true });
         });
 
+        it('an OPEN period ignores the mapping', async () => {
+            periodRaters.rows.push({ id: 'pr-u1', periodId: 'p1', userId: 'u1' });
+            pairs.rows.push({ id: 'pp1', periodId: 'p1', periodRaterId: 'pr-u1', periodRateeId: 'r2' });
+            const form: any = await service.getForm(me, 'p1', NOW);
+            expect(form.ratees.map((ratee: any) => ratee.periodRateeId)).toEqual(['r1', 'r2']);
+            expect(await service.listActive(me, NOW)).toHaveLength(1);
+            await expect(service.submit(me, 'p1', dto(), NOW)).resolves.toMatchObject({ submitted: true });
+        });
+
         it('a listed rater with zero pairs in a mapped period is not eligible', async () => {
             listedWithRaters();
             pairs.rows.push({ id: 'pp1', periodId: 'p1', periodRaterId: 'pr-u1', periodRateeId: 'r2' });

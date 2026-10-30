@@ -159,6 +159,11 @@ export class CsiAssignmentService {
         await this.replacePairs(periodId, uniquePairs(pairs));
     }
 
+    /** True once the period has at least one pair. */
+    async hasPairs(periodId: string): Promise<boolean> {
+        return (await this.pairs.count({ where: { periodId } })) > 0;
+    }
+
     /** `null` when the period has no pairs at all (legacy: rate every visible subject); otherwise the rater's ratee ids. */
     async pairsFor(periodId: string, raterUserId: string): Promise<Set<string> | null> {
         const total = await this.pairs.count({ where: { periodId } });
