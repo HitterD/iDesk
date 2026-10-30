@@ -1,4 +1,3 @@
-import type { ElementType, ReactNode } from 'react';
 import { ArrowLeftRight, Check, Search, Star, UserPlus, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -6,30 +5,15 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { cn } from '@/lib/utils';
 import { useCsiUserSearch, useSetCsiRaters } from '../../../hooks/useCsi';
 import { CSI_SEARCH_DEBOUNCE_MS } from '../../../lib/csiAdmin';
-import { toneClasses, type CsiTone } from '../../../lib/csiTone';
+import { toneClasses } from '../../../lib/csiTone';
 import type { CsiScopeParam } from '../../../types';
 import { MUTED_TEXT } from '../AdminParts';
+import { StatCard } from '../StatCard';
 import type { MatrixStats } from './matrixModel';
 
 const MIN_ADD_TERM = 2;
 const MAX_SUGGESTIONS = 5;
 export const ALL_SITES = 'all';
-
-function StatCard({ tone, icon: Icon, label, value, hint, attention }: {
-    tone: CsiTone; icon: ElementType; label: string; value: number; hint: ReactNode; attention?: boolean;
-}) {
-    const classes = toneClasses(tone);
-    return (
-        <div role="group" aria-label={label} className={cn('min-w-0 rounded-[18px] bg-[hsl(var(--idesk-surface))] px-4 py-3.5 shadow-[var(--dash-shadow-1)]', attention && classes.soft)}>
-            <div className="flex items-start justify-between gap-2">
-                <span className={cn('grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full', classes.soft, classes.ink)}><Icon className="h-4 w-4" aria-hidden="true" /></span>
-                <span className={cn('text-[22px] font-[650] leading-tight tracking-[-.03em] tabular-nums', attention && classes.ink)}>{value}</span>
-            </div>
-            <div className="mt-1.5 text-[13px] font-semibold">{label}</div>
-            <div className={cn(MUTED_TEXT, 'text-[12px]')}>{hint}</div>
-        </div>
-    );
-}
 
 export function MatrixStatCards({ stats }: { stats: MatrixStats }) {
     return (

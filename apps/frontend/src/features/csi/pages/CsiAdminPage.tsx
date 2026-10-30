@@ -4,6 +4,7 @@ import { ShieldAlert, Star } from 'lucide-react';
 import { ResHead } from '@/components/resources/ResourceParts';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { cn } from '@/lib/utils';
+import { CsiDashboard } from '../components/admin/dashboard/CsiDashboard';
 import { MasterDataPanel } from '../components/admin/MasterDataPanel';
 import { PeriodDetail } from '../components/admin/PeriodDetail';
 import { PeriodsTab } from '../components/admin/PeriodsTab';
@@ -16,8 +17,9 @@ import { useCsiAdminAccess } from '../lib/useCsiAdminAccess';
 import { useCsiBasePath } from '../lib/useCsiBasePath';
 import type { CsiPeriodListItem, CsiScopeParam } from '../types';
 
-type AdminArea = 'surveys' | 'subjects' | 'master';
+type AdminArea = 'dashboard' | 'surveys' | 'subjects' | 'master';
 const AREAS = [
+    { value: 'dashboard', label: 'Dashboard' },
     { value: 'surveys', label: 'Survei' },
     { value: 'subjects', label: 'Subjek & foto' },
     { value: 'master', label: 'Master data' },
@@ -48,6 +50,7 @@ function SurveysArea({ scope, route }: { scope: CsiScopeParam; route: AdminRoute
 
 function AreaBody({ area, scope, route }: { area: AdminArea; scope: CsiScopeParam; route: AdminRoute }) {
     switch (area) {
+        case 'dashboard': return <CsiDashboard scope={scope} />;
         case 'subjects': return <SubjectsTab scope={scope} />;
         case 'master': return <MasterDataPanel scope={scope} />;
         case 'surveys': return <SurveysArea scope={scope} route={route} />;
@@ -56,7 +59,7 @@ function AreaBody({ area, scope, route }: { area: AdminArea; scope: CsiScopePara
 
 function ScopeAdmin({ scope }: { scope: CsiScopeParam }) {
     const route = useAdminRoute();
-    const [area, setArea] = useState<AdminArea>('surveys');
+    const [area, setArea] = useState<AdminArea>('dashboard');
     const inSurvey = route.wizard !== undefined || !!route.periodId;
     const selectArea = (value: AdminArea) => { setArea(value); if (inSurvey) route.closeAll(); };
 

@@ -132,6 +132,12 @@ export function useSendCsiReminders(scope: CsiScopeParam, periodId: string) {
 export function useCsiDashboard(scope: CsiScopeParam) {
     return useQuery({ queryKey: keys.dashboard(scope), queryFn: () => CsiApi.dashboard(scope) });
 }
+/** Dashboard reminders span several active periods, so the period comes with each call. */
+export function useSendCsiDashboardReminders(scope: CsiScopeParam) {
+    return useCsiMutation(({ periodId, userIds }: { periodId: string; userIds: string[] }) =>
+        CsiApi.sendReminders(scope, periodId, { userIds }),
+    ({ periodId }) => [keys.respondents(scope, periodId), keys.dashboard(scope)]);
+}
 
 // Subject master edits show up in every period detail of the scope.
 const subjectKeys = (scope: CsiScopeParam): QueryKey[] => [keys.subjects(scope), keys.periodDetails(scope)];

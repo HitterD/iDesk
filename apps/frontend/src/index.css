@@ -1898,6 +1898,9 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .csi-done-pop { animation: csi-done-pop 600ms var(--ease-spring); }
 .csi-draw-check { stroke-dasharray: 30; stroke-dashoffset: 30; animation: csi-draw-check 600ms 200ms var(--ease-out) forwards; }
 .csi-confetti { animation: csi-confetti-fall 1.6s var(--ease-out) forwards; }
+/* CSI dashboard trend: each site line draws itself once (pathLength=1). */
+@keyframes csi-draw-line { to { stroke-dashoffset: 0; } }
+.csi-draw-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: csi-draw-line 1s var(--ease-out) forwards; }
 
 /* One switch for everyone who asked for less motion: tokens collapse, ambient loops stop. Unlayered and last on purpose. */
 @media (prefers-reduced-motion: reduce) {
@@ -1910,7 +1913,7 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   .portal-tab:hover .portal-tab-tile, .ct-chip:hover, .ct-chip:hover svg, .ct-back-link:hover svg { transform: none; }
   .idesk-spin, .animate-pulse { animation: none !important; }
   .csi-kenburns, .csi-photo-in, .csi-cap-in, .csi-star-pop, .csi-emo-pop, .csi-rail-in, .csi-pop-in, .csi-done-pop { animation: none !important; }
-  .csi-draw-check { animation: none !important; stroke-dashoffset: 0; }
+  .csi-draw-check, .csi-draw-line { animation: none !important; stroke-dashoffset: 0; }
   .csi-ripple, .csi-confetti { display: none; }
   /* Scroll-driven edge fade is not motion; a time duration would break its scroll mapping. */
   .portal-seg { animation-duration: auto !important; }
