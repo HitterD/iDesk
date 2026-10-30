@@ -20,6 +20,10 @@ import { CsiAdminReportController } from './presentation/csi-admin-report.contro
 import { CsiMemoSetting } from './entities/csi-memo-setting.entity';
 import { CsiMemoService } from './services/csi-memo.service';
 import { CsiAdminMemoController } from './presentation/csi-admin-memo.controller';
+import { CsiSubjectService } from './services/csi-subject.service';
+import { CsiAssignmentService } from './services/csi-assignment.service';
+import { CsiAdminSubjectController } from './presentation/csi-admin-subject.controller';
+import { CsiAdminAssignmentController } from './presentation/csi-admin-assignment.controller';
 import { CsiTeam } from './entities/csi-team.entity';
 import { CsiSubjectProfile } from './entities/csi-subject-profile.entity';
 import { CsiRaterAssignment } from './entities/csi-rater-assignment.entity';
@@ -47,7 +51,11 @@ import { CsiResponseComment } from './entities/csi-response-comment.entity';
         AuthModule,
         AuditModule,
     ],
-    controllers: [CsiAdminMasterController, CsiAdminPeriodController, CsiAdminReportController, CsiAdminMemoController, CsiMeController],
-    providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService, CsiMemoService],
+    controllers: [
+        CsiAdminMasterController, CsiAdminPeriodController, CsiAdminReportController, CsiAdminMemoController, CsiMeController,
+        CsiAdminSubjectController, CsiAdminAssignmentController,
+    ],
+    providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService, CsiMemoService,
+        CsiSubjectService, CsiAssignmentService],
 })
 export class CsiModule { }

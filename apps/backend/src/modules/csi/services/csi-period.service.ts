@@ -450,7 +450,7 @@ function teamSnapshot(label: string, dimensions: CsiDimension[]): RateeSnapshot 
  * Locks the period row (serialising with respondent submissions, which take the same lock)
  * and rejects with 409 once any response exists. Must run inside the caller's transaction.
  */
-async function lockUnlockedPeriod(manager: EntityManager, periodId: string) {
+export async function lockUnlockedPeriod(manager: EntityManager, periodId: string) {
     await lockPeriodRow(manager, periodId);
     const responseCount = await manager.getRepository(CsiResponse).count({ where: { periodId } });
     if (responseCount > 0) throw new ConflictException(LOCKED_MESSAGE);
