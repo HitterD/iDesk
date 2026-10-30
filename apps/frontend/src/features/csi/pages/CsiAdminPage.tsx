@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { MasterDataPanel } from '../components/admin/MasterDataPanel';
 import { PeriodDetail } from '../components/admin/PeriodDetail';
 import { PeriodsTab } from '../components/admin/PeriodsTab';
+import { SubjectsTab } from '../components/admin/subjects/SubjectsTab';
 import { ADMIN_PANEL, MUTED_TEXT } from '../components/admin/AdminParts';
 import { WizardRoute } from '../components/wizard/WizardRoute';
 import { csiAdminPath, CSI_SCOPE_OF, isCsiScopeParam } from '../lib/csiAdmin';
@@ -15,9 +16,10 @@ import { useCsiAdminAccess } from '../lib/useCsiAdminAccess';
 import { useCsiBasePath } from '../lib/useCsiBasePath';
 import type { CsiPeriodListItem, CsiScopeParam } from '../types';
 
-type AdminArea = 'surveys' | 'master';
+type AdminArea = 'surveys' | 'subjects' | 'master';
 const AREAS = [
     { value: 'surveys', label: 'Survei' },
+    { value: 'subjects', label: 'Subjek & foto' },
     { value: 'master', label: 'Master data' },
 ] as const;
 
@@ -44,6 +46,14 @@ function SurveysArea({ scope, route }: { scope: CsiScopeParam; route: AdminRoute
     return <PeriodsTab scope={scope} onOpen={open} onCreate={() => route.openWizard(null, 'info')} />;
 }
 
+function AreaBody({ area, scope, route }: { area: AdminArea; scope: CsiScopeParam; route: AdminRoute }) {
+    switch (area) {
+        case 'subjects': return <SubjectsTab scope={scope} />;
+        case 'master': return <MasterDataPanel scope={scope} />;
+        case 'surveys': return <SurveysArea scope={scope} route={route} />;
+    }
+}
+
 function ScopeAdmin({ scope }: { scope: CsiScopeParam }) {
     const route = useAdminRoute();
     const [area, setArea] = useState<AdminArea>('surveys');
@@ -56,7 +66,7 @@ function ScopeAdmin({ scope }: { scope: CsiScopeParam }) {
                 description="Buat survei langkah demi langkah, terbitkan, lalu pantau hasilnya." />
             <SegmentedControl aria-label="Bagian Admin CSI" className="res-tabs" options={AREAS}
                 value={inSurvey ? 'surveys' : area} onValueChange={selectArea} />
-            {area === 'master' && !inSurvey ? <MasterDataPanel scope={scope} /> : <SurveysArea scope={scope} route={route} />}
+            <AreaBody area={inSurvey ? 'surveys' : area} scope={scope} route={route} />
         </div>
     );
 }

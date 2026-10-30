@@ -30,6 +30,7 @@ vi.mock('../../components/admin/PeriodDetail', () => ({
     ),
 }));
 vi.mock('../../components/admin/MasterDataPanel', () => ({ MasterDataPanel: () => <p>master-data</p> }));
+vi.mock('../../components/admin/subjects/SubjectsTab', () => ({ SubjectsTab: ({ scope }: { scope: string }) => <p>{`subjects:${scope}`}</p> }));
 vi.mock('../../components/wizard/WizardRoute', () => ({
     WizardRoute: ({ route }: { route: { wizard: string | null; step: string | null; closeAll: () => void } }) => (
         <div><p>{`wizard:${route.wizard ?? 'new'}:${route.step ?? 'resume'}`}</p><button type="button" onClick={route.closeAll}>tutup</button></div>
@@ -63,6 +64,17 @@ describe('CsiAdminPage', () => {
         await userEvent.setup().click(screen.getByRole('button', { name: 'Master data' }));
         expect(screen.getByText('master-data')).toBeInTheDocument();
         expect(screen.queryByText('periods:ict')).not.toBeInTheDocument();
+    });
+
+    it('Subjek & foto menampilkan tab subjek, lalu membuka survei kembali ke Survei', async () => {
+        const actor = userEvent.setup();
+        access.pageAccess = { csi_admin_ict: true };
+        renderAt('/csi/admin/ict');
+        await actor.click(screen.getByRole('button', { name: 'Subjek & foto' }));
+        expect(screen.getByText('subjects:ict')).toBeInTheDocument();
+        expect(screen.queryByText('periods:ict')).not.toBeInTheDocument();
+        await actor.click(screen.getByRole('button', { name: 'Survei' }));
+        expect(screen.getByText('periods:ict')).toBeInTheDocument();
     });
 
     it('Buat Survei membuka wizard baru, draft melanjutkan wizard, terbit membuka detail', async () => {
