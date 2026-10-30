@@ -32,6 +32,8 @@ export interface CsiDepartment extends CsiTimestamps {
 
 export interface CsiDimension extends CsiDepartment {
     description: string | null;
+    /** Short label for reports (max 40); null falls back to `name`. */
+    shortLabel?: string | null;
     type: CsiQuestionType;
     required: boolean;
     options: CsiOption[];
@@ -174,6 +176,8 @@ export interface CsiSubmitResult { submitted: true; thankYou: string }
 export interface CsiDistributionBucket { label: string; count: number }
 export interface CsiQuestionStat {
     name: string;
+    /** Report label = `shortLabel ?? name`. */
+    shortLabel: string | null;
     type: CsiQuestionType;
     average: number | null;
     count: number;
@@ -184,9 +188,13 @@ export interface CsiReportRatee {
     kind: CsiRateeKind;
     displayName: string;
     jobTitle: string | null;
+    siteId: string | null;
+    photoUrl: string | null;
     respondentCount: number;
     average: number | null;
     indexPct: number | null;
+    /** Count of STAR answers per score: index 0 = 1 star … index 4 = 5 stars. */
+    starDistribution: number[];
     questions: CsiQuestionStat[];
 }
 export interface CsiSlaReporter { email: string; department: string | null; fullName: string }
@@ -203,6 +211,8 @@ export interface CsiSla {
 export interface CsiReport {
     period: CsiPeriod;
     overall: { average: number | null; respondentCount: number };
+    /** Overall average of the latest earlier published period (same site when filtered); null when none. */
+    previousAverage: number | null;
     ratees: CsiReportRatee[];
     sla: CsiSla;
 }
@@ -256,6 +266,7 @@ export type UpdateCsiDepartment = Partial<CreateCsiDepartment>;
 export interface CreateCsiDimension {
     name: string;
     description?: string | null;
+    shortLabel?: string | null;
     type: CsiQuestionType;
     required?: boolean;
     options?: CsiOption[];
@@ -282,6 +293,8 @@ export interface CreateCsiPeriod {
 export type UpdateCsiPeriod = Partial<Omit<CreateCsiPeriod, 'copyFromPeriodId'>>;
 export interface SetCsiRatees { ratees: Array<{ userId: string; dimensionIds: string[] }> }
 export interface SetCsiTeamQuestions { siteId: string; questionIds: string[] }
+/** Per-period ratee override; `photoUrl: null` resets the photo, an empty tagline falls back to the master. */
+export interface UpdateCsiPeriodRatee { siteId?: string; photoUrl?: null; tagline?: string | null }
 export interface SubmitCsiItem {
     periodRateeDimensionId: string;
     score?: number;
@@ -296,3 +309,61 @@ export interface SubmitCsiResponse {
 }
 export interface ResetCsiResponse { reason: string }
 export interface CsiResetResult { reset: true }
+
+// ─── Subjects (master photo / tagline per person and per site team) ─────────
+export interface CsiSubjectView {
+    /** `user:<userId>` or `team:<teamId>`. */
+    key: string;
+    kind: CsiRateeKind;
+    userId: string | null;
+    teamId: string | null;
+    siteId: string;
+    name: string;
+    jobTitle: string | null;
+    photoUrl: string | null;
+    tagline: string | null;
+}
+export interface CsiSubjectGroup {
+    siteId: string;
+    siteCode: string;
+    siteName: string;
+    team: CsiSubjectView | null;
+    people: CsiSubjectView[];
+}
+/** Empty / null clears tagline and jobTitle; `name` applies to team subjects only. */
+export interface UpdateCsiSubject { tagline?: string | null; jobTitle?: string | null; name?: string }
+export interface CreateCsiTeam { siteId: string }
+
+// ─── Rater → subject mapping per period ──────────────────────────────────────
+export interface CsiPair { periodRaterId: string; periodRateeId: string }
+export interface CsiAssignments {
+    raters: Array<{ periodRaterId: string; userId: string; fullName: string; department: string | null; siteId: string | null }>;
+    ratees: Array<{ periodRateeId: string; kind: CsiRateeKind; name: string; siteId: string | null; photoUrl: string | null }>;
+    pairs: CsiPair[];
+}
+export interface SetCsiAssignments { pairs: CsiPair[] }
+
+// ─── Reminders ───────────────────────────────────────────────────────────────
+/** Omitted / empty `userIds` = every rater who has not answered yet. */
+export interface SendCsiReminders { userIds?: string[] }
+export interface CsiReminderResult { sent: number; skipped: number }
+
+// ─── Dashboard ───────────────────────────────────────────────────────────────
+export interface CsiDashboardActive {
+    periodId: string; title: string; siteId: string; siteCode: string | null; siteName: string | null;
+    responses: number; basis: number; target: number; targetPct: number; average: number | null; endDate: string;
+}
+export interface CsiDashboardTrend {
+    siteId: string; siteCode: string | null;
+    points: Array<{ periodId: string; label: string; average: number | null }>;
+}
+export interface CsiDashboardPersonDelta { name: string; photoUrl: string | null; siteId: string; delta: number }
+export interface CsiDashboardPending { userId: string; fullName: string; department: string | null; siteId: string | null; periodId: string }
+export interface CsiDashboardComment { text: string; subjectName: string; siteId: string | null; createdAt: string }
+export interface CsiDashboard {
+    active: CsiDashboardActive[];
+    trend: CsiDashboardTrend[];
+    peopleDelta: CsiDashboardPersonDelta[];
+    pending: CsiDashboardPending[];
+    comments: CsiDashboardComment[];
+}

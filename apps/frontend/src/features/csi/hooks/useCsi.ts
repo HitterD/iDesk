@@ -2,9 +2,9 @@ import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/
 import { queryKeys } from '@/lib/queryKeys';
 import { CsiApi } from '../api/csi.api';
 import type {
-    CsiMemoHeader, CsiMemoRequest, CsiScopeParam, CsiUserIds, CreateCsiDepartment, CreateCsiDimension,
-    CreateCsiPeriod, ResetCsiResponse, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
-    UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod,
+    CsiMemoHeader, CsiMemoRequest, CsiPair, CsiScopeParam, CsiUserIds, CreateCsiDepartment, CreateCsiDimension,
+    CreateCsiPeriod, CreateCsiTeam, ResetCsiResponse, SendCsiReminders, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
+    UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject,
 } from '../types';
 
 const keys = queryKeys.csi;
@@ -116,8 +116,57 @@ export function useSetCsiTeamQuestions(scope: CsiScopeParam, id: string) {
 export function useSetCsiRaters(scope: CsiScopeParam, id: string) {
     return useCsiMutation((payload: CsiUserIds) => CsiApi.setRaters(scope, id, payload), () => periodKeys(scope, id));
 }
-export function useCsiReport(scope: CsiScopeParam, id: string) {
-    return useQuery({ queryKey: keys.report(scope, id), queryFn: () => CsiApi.report(scope, id), enabled: !!id });
+export function useUpdateCsiPeriodRatee(scope: CsiScopeParam, id: string) {
+    return useCsiMutation(({ periodRateeId, payload }: { periodRateeId: string; payload: UpdateCsiPeriodRatee }) =>
+        CsiApi.updatePeriodRatee(scope, id, periodRateeId, payload), () => periodKeys(scope, id));
+}
+export function useCsiReport(scope: CsiScopeParam, id: string, siteId?: string) {
+    return useQuery({ queryKey: keys.report(scope, id, siteId), queryFn: () => CsiApi.report(scope, id, siteId), enabled: !!id });
+}
+export function useSendCsiReminders(scope: CsiScopeParam, periodId: string) {
+    return useCsiMutation((payload: SendCsiReminders = {}) => CsiApi.sendReminders(scope, periodId, payload),
+        () => [keys.respondents(scope, periodId)]);
+}
+export function useCsiDashboard(scope: CsiScopeParam) {
+    return useQuery({ queryKey: keys.dashboard(scope), queryFn: () => CsiApi.dashboard(scope) });
+}
+
+// Subject master edits show up in every period detail of the scope.
+const subjectKeys = (scope: CsiScopeParam): QueryKey[] => [keys.subjects(scope), keys.periodDetails(scope)];
+export function useCsiSubjects(scope: CsiScopeParam) {
+    return useQuery({ queryKey: keys.subjects(scope), queryFn: () => CsiApi.subjects(scope) });
+}
+export function useUpdateCsiSubject(scope: CsiScopeParam) {
+    return useCsiMutation(({ key, payload }: { key: string; payload: UpdateCsiSubject }) => CsiApi.updateSubject(scope, key, payload),
+        () => subjectKeys(scope));
+}
+export function useUploadCsiSubjectPhoto(scope: CsiScopeParam) {
+    return useCsiMutation(({ key, file }: { key: string; file: File }) => CsiApi.uploadSubjectPhoto(scope, key, file),
+        () => subjectKeys(scope));
+}
+export function useCreateCsiTeam(scope: CsiScopeParam) {
+    return useCsiMutation((payload: CreateCsiTeam) => CsiApi.createTeam(scope, payload), () => subjectKeys(scope));
+}
+
+// The mapping decides which subjects each rater sees, so the respondent status changes with it.
+const assignmentKeys = (scope: CsiScopeParam, periodId: string): QueryKey[] =>
+    [keys.assignments(scope, periodId), keys.respondents(scope, periodId)];
+export function useCsiAssignments(scope: CsiScopeParam, periodId: string) {
+    return useQuery({ queryKey: keys.assignments(scope, periodId), queryFn: () => CsiApi.assignments(scope, periodId), enabled: !!periodId });
+}
+export function useSaveCsiAssignments(scope: CsiScopeParam, periodId: string) {
+    return useCsiMutation((pairs: CsiPair[]) => CsiApi.setAssignments(scope, periodId, { pairs }), () => assignmentKeys(scope, periodId));
+}
+export function useAutoCsiAssignments(scope: CsiScopeParam, periodId: string) {
+    return useCsiMutation(() => CsiApi.autoAssignSameSite(scope, periodId), () => assignmentKeys(scope, periodId));
+}
+/** Writes the scope template only; the period's own pairs are unchanged. */
+export function useSaveCsiTemplate(scope: CsiScopeParam, periodId: string) {
+    return useCsiMutation(() => CsiApi.saveAssignmentTemplate(scope, periodId), () => [keys.assignments(scope, periodId)]);
+}
+/** Named apart from useApplyCsiTemplate, which applies the default question set. */
+export function useApplyCsiAssignmentTemplate(scope: CsiScopeParam, periodId: string) {
+    return useCsiMutation(() => CsiApi.applyAssignmentTemplate(scope, periodId), () => assignmentKeys(scope, periodId));
 }
 export function useCsiRespondents(scope: CsiScopeParam, id: string) {
     return useQuery({ queryKey: keys.respondents(scope, id), queryFn: () => CsiApi.respondents(scope, id), enabled: !!id });
