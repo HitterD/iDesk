@@ -22,6 +22,7 @@ describe('CsiDashboardService', () => {
     let responses: any[];
     let comments: any[];
     let sla: { compute: jest.Mock };
+    let paired: Map<string, Set<string>>;
     let service: CsiDashboardService;
 
     beforeEach(() => {
@@ -48,7 +49,9 @@ describe('CsiDashboardService', () => {
         const periodRaters = { find: jest.fn(async () => raters) };
         const responseRepo = { find: jest.fn(async () => responses) };
         const commentRepo = { find: jest.fn(async () => comments) };
-        service = new CsiDashboardService(periods as any, periodRaters as any, responseRepo as any, commentRepo as any, reports as any, sla as any);
+        paired = new Map();
+        const assignments = { ratersWithPairs: jest.fn(async (periodId: string) => paired.get(periodId) ?? null) };
+        service = new CsiDashboardService(periods as any, periodRaters as any, responseRepo as any, commentRepo as any, reports as any, sla as any, assignments as any);
     });
 
     it('labels a period by the quarter of its end date', () => {
@@ -129,6 +132,30 @@ describe('CsiDashboardService', () => {
         expect(pending).toHaveLength(10);
         expect(pending.slice(0, 4).map((row) => row.periodId)).toEqual(['p-soon', 'p-soon', 'p-soon', 'p-late']);
         expect(pending[0]).toEqual({ userId: 's1', fullName: 'User s1', department: 'Keuangan', siteId: SPJ.id, periodId: 'p-soon' });
+    });
+
+    describe('pending in mapped LISTED periods', () => {
+        const user = (id: string) => ({ id, fullName: `User ${id}`, siteId: SPJ.id, department: null });
+        beforeEach(() => {
+            rows.push(period('p-mapped', '2026-10-01', '2026-10-31', [SPJ], { respondentMode: CsiRespondentMode.LISTED }));
+            rows.push(period('p-free', '2026-10-01', '2026-11-30', [SPJ], { respondentMode: CsiRespondentMode.LISTED }));
+            raters = [
+                { id: 'pr-a', periodId: 'p-mapped', userId: 'a', user: user('a') },
+                { id: 'pr-b', periodId: 'p-mapped', userId: 'b', user: user('b') },
+                { id: 'pr-c', periodId: 'p-free', userId: 'c', user: user('c') },
+            ];
+        });
+
+        it('raters without pairs are excluded when the period is mapped', async () => {
+            paired.set('p-mapped', new Set(['pr-a']));
+            const { pending } = await service.getDashboard(ICT, NOW);
+            expect(pending.map((row) => row.userId)).toEqual(['a', 'c']);
+        });
+
+        it('no filtering when the period has no pairs', async () => {
+            const { pending } = await service.getDashboard(ICT, NOW);
+            expect(pending.map((row) => row.userId)).toEqual(['a', 'b', 'c']);
+        });
     });
 
     it('comments are the 5 newest non-empty ones of active periods', async () => {

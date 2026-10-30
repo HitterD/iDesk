@@ -14,7 +14,8 @@ const basePeriod = (over: Record<string, unknown> = {}) => ({
 
 describe('CsiReminderService', () => {
     let period: Record<string, unknown> | null;
-    let raters: Array<{ userId: string }>;
+    let raters: Array<{ id: string; userId: string }>;
+    let paired: Set<string> | null;
     let answered: Array<{ respondentId: string }>;
     let recent: Array<{ userId: string; createdAt: Date }>;
     let notifications: { create: jest.Mock };
@@ -22,7 +23,8 @@ describe('CsiReminderService', () => {
 
     beforeEach(() => {
         period = basePeriod();
-        raters = [{ userId: 'u1' }, { userId: 'u2' }, { userId: 'u3' }];
+        raters = [{ id: 'pr1', userId: 'u1' }, { id: 'pr2', userId: 'u2' }, { id: 'pr3', userId: 'u3' }];
+        paired = null;
         answered = [];
         recent = [];
         notifications = { create: jest.fn(async (data: any) => ({ id: `n-${data.userId}`, createdAt: new Date(NOW.getTime() + 1000) })) };
@@ -30,7 +32,8 @@ describe('CsiReminderService', () => {
         const periodRaters = { find: jest.fn(async () => raters) };
         const responses = { find: jest.fn(async () => answered) };
         const notificationRepo = { find: jest.fn(async () => recent) };
-        service = new CsiReminderService(periods as any, periodRaters as any, responses as any, notificationRepo as any, notifications as any);
+        const assignments = { ratersWithPairs: jest.fn(async () => paired) };
+        service = new CsiReminderService(periods as any, periodRaters as any, responses as any, notificationRepo as any, notifications as any, assignments as any);
     });
 
     it('sends to listed raters who have not answered', async () => {
@@ -46,6 +49,18 @@ describe('CsiReminderService', () => {
         await expect(service.send(ICT, 'p1', ['u2', 'u2'], NOW)).resolves.toEqual({ sent: 1, skipped: 0 });
         expect(notifications.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u2' }));
         await expect(service.send(ICT, 'p1', ['u9'], NOW)).rejects.toThrow(BadRequestException);
+    });
+
+    it('raters without pairs are excluded when the period is mapped', async () => {
+        paired = new Set(['pr1', 'pr3']);
+        await expect(service.send(ICT, 'p1', undefined, NOW)).resolves.toEqual({ sent: 2, skipped: 1 });
+        expect(notifications.create).not.toHaveBeenCalledWith(expect.objectContaining({ userId: 'u2' }));
+        await expect(service.send(ICT, 'p1', ['u2'], NOW)).resolves.toEqual({ sent: 0, skipped: 1 });
+    });
+
+    it('no filtering when the period has no pairs', async () => {
+        paired = null;
+        await expect(service.send(ICT, 'p1', ['u2'], NOW)).resolves.toEqual({ sent: 1, skipped: 0 });
     });
 
     it('skips raters who already answered', async () => {

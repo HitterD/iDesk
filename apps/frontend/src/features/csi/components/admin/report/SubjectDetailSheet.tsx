@@ -92,7 +92,7 @@ export function SubjectDetailSheet({ ratee, siteName, siteCode, onClose }: {
                                     {ratee.comments.map((comment, index) => (
                                         <li key={`${comment.submittedAt}-${index}`} className="rounded-xl bg-[hsl(var(--muted)/.6)] px-3 py-2.5 text-[13px]">
                                             <p className="whitespace-pre-line break-words">{`“${comment.text}”`}</p>
-                                            <p className={cn(MUTED_TEXT, 'mt-1 text-[12px]')}>{`${comment.departmentName} · ${formatDate(comment.submittedAt.slice(0, 10))}`}</p>
+                                            <p className={cn(MUTED_TEXT, 'mt-1 text-[12px]')}>{`${comment.departmentName} · ${formatDate(comment.submittedAt)}`}</p>
                                         </li>
                                     ))}
                                 </ul>

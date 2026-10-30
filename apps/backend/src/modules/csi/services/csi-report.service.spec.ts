@@ -64,6 +64,7 @@ describe('CsiReportService', () => {
     let deleted: Array<{ target: unknown; criteria: any }>;
     let sla: { compute: jest.Mock };
     let subjects: { viewsFor: jest.Mock };
+    let paired: Set<string> | null;
     let service: CsiReportService;
 
     beforeEach(() => {
@@ -104,12 +105,15 @@ describe('CsiReportService', () => {
         };
         const dataSource = { transaction: jest.fn(async (work: (m: any) => unknown) => work(manager)) };
         sla = { compute: jest.fn(async () => ({ basis: 0, pengisiPct: null })) };
+        paired = null;
+        const assignments = { ratersWithPairs: jest.fn(async () => paired) };
         subjects = { viewsFor: jest.fn(async (_scope: unknown, rows: any[]) => new Map(rows.map((row) => [row.id, {
             siteId: row.siteId ?? null, siteCode: null, photoUrl: row.id === 'r1' ? '/uploads/csi/budi.jpg' : null, tagline: null, jobTitle: null,
         }]))) };
         service = new CsiReportService(
             periods as any, ratees as any, rateeDimensions as any, periodRaters as any,
             responses as any, items, comments as any, dataSource as any, audit as any, sla as any, subjects as any,
+            assignments as any,
         );
     });
 
@@ -221,6 +225,29 @@ describe('CsiReportService', () => {
             { userId: 'x3', fullName: 'Yudi', department: 'Gudang', siteId: 'site-a' },
         ]);
         expect(result.totals).toEqual({ submitted: 2, pending: 2 });
+    });
+
+    describe('pending in a mapped LISTED period', () => {
+        beforeEach(() => {
+            periods.rows[0].respondentMode = CsiRespondentMode.LISTED;
+            periodRaters.rows.push(
+                { id: 'pr3', periodId: 'p1', userId: 'x3', user: { id: 'x3', fullName: 'Yudi' } },
+                { id: 'pr4', periodId: 'p1', userId: 'x4', user: { id: 'x4', fullName: 'Citra' } },
+            );
+        });
+
+        it('raters without pairs are excluded when the period is mapped', async () => {
+            paired = new Set(['pr3']);
+            const result = await service.getRespondents(ICT, 'p1');
+            expect(result.pending!.map((row) => row.userId)).toEqual(['x3']);
+            expect(result.totals.pending).toBe(1);
+        });
+
+        it('no filtering when the period has no pairs', async () => {
+            paired = null;
+            const result = await service.getRespondents(ICT, 'p1');
+            expect(result.pending!.map((row) => row.userId)).toEqual(['x4', 'x3']);
+        });
     });
 
     it('pending is null for OPEN', async () => {

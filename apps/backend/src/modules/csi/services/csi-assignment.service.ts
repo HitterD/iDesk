@@ -164,6 +164,16 @@ export class CsiAssignmentService {
         return (await this.pairs.count({ where: { periodId } })) > 0;
     }
 
+    /**
+     * Period rater ids (csi_period_raters.id) that have at least one pair; `null` when the period has no pairs at all
+     * (unmapped: every rater is in the audience, so callers must not filter). A rater without pairs in a mapped period
+     * cannot see the survey, so pending lists, the SLA basis and reminders leave them out.
+     */
+    async ratersWithPairs(periodId: string): Promise<Set<string> | null> {
+        const rows = await this.pairs.find({ where: { periodId }, select: { periodRaterId: true } });
+        return rows.length ? new Set(rows.map((row) => row.periodRaterId)) : null;
+    }
+
     /** `null` when the period has no pairs at all (legacy: rate every visible subject); otherwise the rater's ratee ids. */
     async pairsFor(periodId: string, raterUserId: string): Promise<Set<string> | null> {
         const total = await this.pairs.count({ where: { periodId } });

@@ -249,6 +249,8 @@ export class CsiPeriodService {
                 if (sitesChanged) {
                     await manager.delete(CsiPeriodSite, { periodId: id });
                     await manager.save(CsiPeriodSite, siteIds.map((siteId) => ({ periodId: id, siteId })));
+                    // A team belongs to one period site: drop the teams of removed sites (their pairs/questions cascade).
+                    await manager.delete(CsiPeriodRatee, { periodId: id, kind: CsiRateeKind.TEAM, siteId: Not(In(siteIds)) });
                 }
                 // teamLabel is kept for compatibility only: team ratees are named after their csi_teams master.
                 await manager.getRepository(CsiPeriod).save(next);

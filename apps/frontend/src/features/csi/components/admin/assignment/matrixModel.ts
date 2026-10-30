@@ -84,6 +84,17 @@ export function stats(a: MatrixData, pairs: ReadonlySet<PairKey>): MatrixStats {
     return { raters: a.raters.length, subjects: a.ratees.length, teams, people: a.ratees.length - teams, pairs: valid.length, cross };
 }
 
+/**
+ * Raters without any pair while the period has at least one (0 when there are no pairs at all). Mirrors the server:
+ * in a mapped period such raters are not in the audience and never see the survey.
+ */
+export function unpairedRaterCount(a: MatrixData, pairs: ReadonlySet<PairKey>): number {
+    const valid = toPairs(a, pairs);
+    if (!valid.length) return 0;
+    const paired = new Set(valid.map((pair) => pair.periodRaterId));
+    return a.raters.filter((rater) => !paired.has(rater.periodRaterId)).length;
+}
+
 /** Same members and same pairs → nothing to save. */
 export function samePairs(a: ReadonlySet<PairKey>, b: ReadonlySet<PairKey>): boolean {
     return a.size === b.size && [...a].every((key) => b.has(key));

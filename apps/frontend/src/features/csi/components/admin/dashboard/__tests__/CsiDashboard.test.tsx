@@ -77,6 +77,20 @@ describe('CsiDashboard', () => {
         expect(fx.mutateAsync).toHaveBeenCalledWith({ periodId: 'p2', userIds: ['u2'] });
     });
 
+    it('labels the bulk reminder "Ingatkan semua" when the list is complete', () => {
+        renderDashboard();
+        expect(screen.getByRole('button', { name: 'Ingatkan semua' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Ingatkan yang tampil' })).not.toBeInTheDocument();
+    });
+
+    it('labels the bulk reminder "Ingatkan yang tampil" when the list may be truncated (10 rows)', () => {
+        const pending = Array.from({ length: 10 }, (_, i) => ({ userId: `u${i}`, fullName: `Orang ${i}`, department: null, siteId: 's1', periodId: 'p1' }));
+        fx.data = { ...DATA, pending };
+        renderDashboard();
+        expect(screen.getByRole('button', { name: 'Ingatkan yang tampil' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Ingatkan semua' })).not.toBeInTheDocument();
+    });
+
     it('empty state when there is no active period', () => {
         fx.data = { ...DATA, active: [], pending: [], comments: [] };
         renderDashboard();

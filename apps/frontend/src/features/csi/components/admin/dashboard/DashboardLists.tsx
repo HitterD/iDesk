@@ -7,7 +7,7 @@ import type { CsiDashboard, CsiDashboardPending, CsiScopeParam } from '../../../
 import { RateeAvatar } from '../../respond/RateeAvatar';
 import { AdminSection, MUTED_TEXT } from '../AdminParts';
 import { SiteBadge } from '../report/reportParts';
-import { reminderKey, siteCodes } from './dashboardModel';
+import { reminderKey, remindAllLabel, siteCodes } from './dashboardModel';
 import { useDashboardReminders } from './useDashboardReminders';
 
 export const LIST_ITEM = 'flex min-w-0 items-center gap-2.5 border-b border-[hsl(var(--idesk-border))] py-2.5 last:border-b-0';
@@ -42,7 +42,7 @@ export function PendingPanel({ scope, data, className }: { scope: CsiScopeParam;
     const open = data.pending.filter((row) => !reminders.reminded.has(reminderKey(row.periodId, row.userId)));
     const remindAll = open.length > 0 && (
         <Button variant="soft" size="sm" onClick={() => reminders.remindAll(open)} loading={reminders.allBusy}>
-            {!reminders.allBusy && <BellRing aria-hidden="true" />}Ingatkan semua
+            {!reminders.allBusy && <BellRing aria-hidden="true" />}{remindAllLabel(data.pending.length)}
         </Button>
     );
     return (

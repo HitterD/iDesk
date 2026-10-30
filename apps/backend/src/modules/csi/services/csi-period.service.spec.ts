@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { In, QueryFailedError } from 'typeorm';
+import { In, Not, QueryFailedError } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
@@ -406,6 +406,15 @@ describe('CsiPeriodService', () => {
             expect(manager.save).toHaveBeenCalledWith(CsiPeriodSite, [{ periodId: 'p2', siteId: 'site-b' }]);
             const builder = periods.createQueryBuilder.mock.results.at(-1)!.value;
             expect(builder.setLock).toHaveBeenCalledWith('pessimistic_write');
+        });
+
+        it("removing a site from a period removes that site's team", async () => {
+            periods.rows.push(basePeriod({
+                id: 'p4', startDate: '2027-01-01', endDate: '2027-03-31',
+                sites: [{ siteId: 'site-a', site } as any, { siteId: 'site-b', site: siteB } as any],
+            }));
+            await service.update(ICT, 'p4', { siteIds: ['site-a'] });
+            expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRatee, { periodId: 'p4', kind: CsiRateeKind.TEAM, siteId: Not(In(['site-a'])) });
         });
 
         it('both sections disabled → 400 on update', async () => {

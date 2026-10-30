@@ -76,6 +76,11 @@ export function groupByPeriod(rows: readonly CsiDashboardPending[]): Map<string,
 
 export const reminderKey = (periodId: string, userId: string) => `${periodId}:${userId}`;
 
+/** The backend returns at most this many pending raters (csi-dashboard.service PENDING_MAX). */
+export const PENDING_MAX = 10;
+/** A full list may be truncated, so the bulk action only promises the people shown. */
+export const remindAllLabel = (pendingCount: number) => pendingCount >= PENDING_MAX ? 'Ingatkan yang tampil' : 'Ingatkan semua';
+
 // ─── Trend chart ─────────────────────────────────────────────────────────────
 export interface TrendColumn { periodId: string; label: string }
 export interface ChartPoint { column: number; average: number }

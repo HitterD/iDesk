@@ -195,6 +195,20 @@ describe('CsiAssignmentService', () => {
         await expect(service.pairsFor('p1', 'u-spj2')).resolves.toEqual(new Set());
     });
 
+    it('ratersWithPairs is null when the period has no pairs (no filtering)', async () => {
+        await expect(service.ratersWithPairs('p1')).resolves.toBeNull();
+    });
+
+    it('ratersWithPairs returns the period rater ids that have at least one pair', async () => {
+        await service.setPairs(ICT, 'p1', [
+            { periodRaterId: 'pr-spj1', periodRateeId: 're-team-spj' },
+            { periodRaterId: 'pr-spj1', periodRateeId: 're-spj2' },
+            { periodRaterId: 'pr-krw', periodRateeId: 're-team-krw' },
+        ]);
+        await expect(service.ratersWithPairs('p1')).resolves.toEqual(new Set(['pr-spj1', 'pr-krw']));
+        await expect(service.ratersWithPairs('p2')).resolves.toBeNull();
+    });
+
     it('saveTemplate rewrites the scope template from the period pairs', async () => {
         db.table(CsiRaterAssignment).push({ id: 'old', scope: ICT, raterUserId: 'u-gone', subjectKey: 'user:u-gone2' });
         await service.setPairs(ICT, 'p1', [

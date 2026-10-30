@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardCopy, Eraser, Info, Save, Zap } from 'lucide-react';
+import { AlertTriangle, ClipboardCopy, Eraser, Info, Save, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -14,7 +14,7 @@ import { SubjectEditSheet, type SubjectEditTarget } from '../subjects/SubjectEdi
 import { MatrixTable, NO_SITE, type MatrixTableProps, type SiteInfo } from './MatrixTable';
 import { ALL_SITES, MatrixFilterBar, MatrixStatCards } from './MatrixToolbar';
 import {
-    colCells, groupBySite, rowCells, sameSiteCells, samePairs, siteCells, stats, toggleCells, toPairs, toPairSet, withRateeUsers,
+    colCells, groupBySite, rowCells, sameSiteCells, samePairs, siteCells, stats, toggleCells, toPairs, toPairSet, unpairedRaterCount, withRateeUsers,
     type MatrixData, type PairKey,
 } from './matrixModel';
 
@@ -82,6 +82,16 @@ function OpenModeNote() {
     );
 }
 
+/** Mapped period with raters left out: they are not in the audience, so they will not see the survey. */
+function UnpairedRatersNote({ count }: { count: number }) {
+    return (
+        <p role="note" className={cn('flex items-start gap-2 rounded-2xl px-4 py-3 text-[13px] font-medium', toneClasses('amber').soft, toneClasses('amber').ink)}>
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            {`${count} penilai belum punya subjek — mereka tidak akan melihat survei ini.`}
+        </p>
+    );
+}
+
 /** Period-ratee override → master-mode sheet shape (`key` = periodRateeId). */
 function periodTarget(period: CsiPeriodDetail, data: MatrixData, rateeId: string, siteOf: (id: string | null) => SiteInfo): SubjectEditTarget | null {
     const ratee = data.ratees.find((item) => item.periodRateeId === rateeId);
@@ -130,10 +140,12 @@ export function AssignmentMatrix({ scope, period, onDirtyChange }: AssignmentMat
         ...groupBySite(data.raters, order).flatMap((group) => (group.siteId ? [{ value: group.siteId, label: siteOf(group.siteId).code ?? siteOf(group.siteId).name }] : []))];
     const onToggle = (kind: Toggle[0], id: string) => setPairs((current) => toggleCells(current, cellsFor(data, kind, id)));
     const submit = () => save.mutate(toPairs(data, pairs), { onSuccess: () => toast.success(SAVED_TOAST) });
+    const unpaired = open ? 0 : unpairedRaterCount(data, pairs);
 
     return (
         <div className="grid gap-4">
             {open && <OpenModeNote />}
+            {unpaired > 0 && <UnpairedRatersNote count={unpaired} />}
             <MatrixStatCards stats={stats(data, pairs)} />
             <section aria-label="Siapa menilai siapa" className={cn(ADMIN_PANEL, 'grid gap-3 p-4 sm:p-5')}>
                 <MatrixFilterBar scope={scope} periodId={period.id} search={search} onSearch={setSearch} site={site} onSite={setSite} siteOptions={siteOptions}

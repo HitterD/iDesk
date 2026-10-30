@@ -16,6 +16,7 @@ import { CsiResponse } from '../entities/csi-response.entity';
 import { lockPeriodRow } from './csi-period-lock.util';
 import { CsiItemRow, itemsForSite, overallStats, rateeStats } from './csi-report.calc';
 import { assertPeriodInScope } from './csi-scope.util';
+import { CsiAssignmentService } from './csi-assignment.service';
 import { CsiSlaService } from './csi-sla.service';
 import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
 
@@ -81,6 +82,7 @@ export class CsiReportService {
         private readonly audit: AuditService,
         private readonly sla: CsiSlaService,
         private readonly subjects: CsiSubjectService,
+        private readonly assignments: CsiAssignmentService,
     ) { }
 
     private get readers(): ItemReaders {
@@ -175,7 +177,10 @@ export class CsiReportService {
         if (period.respondentMode === CsiRespondentMode.LISTED) {
             const answered = new Set(responses.map((response) => response.respondentId));
             const raters = await this.periodRaters.find({ where: { periodId }, relations: { user: { department: true } } });
-            pending = sortBy(raters.filter((rater) => !answered.has(rater.userId)), (rater) => rater.user.fullName)
+            // In a mapped period a rater without pairs cannot see the survey, so they are not pending.
+            const paired = await this.assignments.ratersWithPairs(periodId);
+            const audience = raters.filter((rater) => !answered.has(rater.userId) && (!paired || paired.has(rater.id)));
+            pending = sortBy(audience, (rater) => rater.user.fullName)
                 .map((rater) => ({
                     userId: rater.userId, fullName: rater.user.fullName,
                     department: rater.user.department?.name ?? null, siteId: rater.user.siteId ?? null,

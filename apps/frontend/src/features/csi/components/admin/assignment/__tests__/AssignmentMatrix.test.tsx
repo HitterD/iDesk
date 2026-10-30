@@ -115,6 +115,17 @@ describe('AssignmentMatrix', () => {
         expect(fx.updateRatee).toHaveBeenCalledWith({ periodRateeId: 'e1', payload: { tagline: 'Khusus' } }, expect.anything());
     });
 
+    it('warns about raters without subjects once the period has a pair', () => {
+        renderMatrix();
+        expect(screen.getByText('2 penilai belum punya subjek — mereka tidak akan melihat survei ini.')).toHaveAttribute('role', 'note');
+    });
+
+    it('no unpaired-rater warning when the period has no pairs', () => {
+        fx.view = { ...view(), pairs: [] };
+        renderMatrix();
+        expect(screen.queryByText(/belum punya subjek/)).not.toBeInTheDocument();
+    });
+
     it('OPEN mode: info callout and a read-only matrix', () => {
         renderMatrix({ respondentMode: 'OPEN' });
         expect(screen.getByText(/Mode terbuka: semua user aktif di site dapat mengisi dan menilai semua subjek\./)).toBeInTheDocument();

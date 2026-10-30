@@ -8,6 +8,7 @@ import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
+import { CsiAssignmentService } from './csi-assignment.service';
 import { CsiReportService, CsiSiteStats } from './csi-report.service';
 import { round2 } from './csi-score.util';
 import { CsiSlaService } from './csi-sla.service';
@@ -55,6 +56,7 @@ export class CsiDashboardService {
         @InjectRepository(CsiResponseComment) private readonly comments: Repository<CsiResponseComment>,
         private readonly reports: CsiReportService,
         private readonly sla: CsiSlaService,
+        private readonly assignments: CsiAssignmentService,
     ) { }
 
     async getDashboard(scope: ServiceScope, now: Date = new Date()): Promise<CsiDashboard> {
@@ -87,19 +89,28 @@ export class CsiDashboardService {
         return rows.sort((a, b) => a.endDate.localeCompare(b.endDate) || byCode(a, b));
     }
 
-    /** LISTED raters without a response, earliest-ending period first (names alphabetical within a period). */
+    /**
+     * LISTED raters without a response, earliest-ending period first (names alphabetical within a period). In a mapped
+     * period, raters without pairs are left out (they cannot see the survey).
+     */
     private async pendingOf(active: CsiPeriod[]): Promise<CsiDashboardPending[]> {
         const listed = active.filter((period) => period.respondentMode === CsiRespondentMode.LISTED);
         if (!listed.length) return [];
         const periodIds = listed.map((period) => period.id);
-        const [raters, responses] = await Promise.all([
+        const [raters, responses, paired] = await Promise.all([
             this.periodRaters.find({ where: { periodId: In(periodIds) }, relations: { user: { department: true } } }),
             this.responses.find({ where: { periodId: In(periodIds) }, select: { periodId: true, respondentId: true } }),
+            Promise.all(periodIds.map(async (periodId) => [periodId, await this.assignments.ratersWithPairs(periodId)] as const)),
         ]);
         const answered = new Set(responses.map((row) => `${row.periodId}:${row.respondentId}`));
+        const pairedBy = new Map(paired);
+        const inAudience = (rater: CsiPeriodRater) => {
+            const set = pairedBy.get(rater.periodId);
+            return !set || set.has(rater.id);
+        };
         const order = new Map(listed.map((period, index) => [period.id, index]));
         return raters
-            .filter((rater) => !answered.has(`${rater.periodId}:${rater.userId}`))
+            .filter((rater) => inAudience(rater) && !answered.has(`${rater.periodId}:${rater.userId}`))
             .sort((a, b) => order.get(a.periodId)! - order.get(b.periodId)! || a.user.fullName.localeCompare(b.user.fullName, 'id'))
             .slice(0, PENDING_MAX)
             .map((rater) => ({
