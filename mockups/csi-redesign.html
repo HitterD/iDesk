@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mockup — CSI Redesign v3 (iDesk)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="csi-redesign.css">
+</head>
+<body>
+
+<div class="mk-bar">
+  <b>Mockup CSI v3</b>
+  <nav class="mk-nav" id="mkNav">
+    <button data-s="rsp" class="on">1 · Form Responden</button>
+    <button data-s="subj">2 · Subjek &amp; Foto</button>
+    <button data-s="mx">3 · Matriks Penilai</button>
+    <button data-s="rep">4 · Laporan</button>
+    <button data-s="st">5 · Status Responden</button>
+    <button data-s="dash">6 · Dashboard CSI</button>
+  </nav>
+  <span class="mk-note">Data dummy · label oranye = catatan desain</span>
+</div>
+
+<!-- ==================== 1. RESPONDEN ==================== -->
+<section class="screen on" id="rsp">
+  <div class="head">
+    <div class="tile t-amber"><i data-ic="star"></i></div>
+    <div class="ttl"><h1>Customer Satisfaction Index ICT — Sepanjang</h1><div class="muted">Halo Hasby, penilaian Anda membantu tim ICT melayani lebih baik. Sekitar 1 menit per orang.</div></div>
+    <div class="actions">
+      <div class="seg" id="cntSeg" title="Uji tampilan untuk jumlah subjek berbeda"><button data-n="4">4 subjek</button><button class="on" data-n="8">8 subjek</button><button data-n="15">15 subjek</button></div>
+      <div class="seg" id="devSeg"><button class="on" data-d="desk">Desktop</button><button data-d="mob">Mobile</button></div>
+    </div>
+  </div>
+
+  <div class="rsp-frame" id="rspFrame">
+    <div class="rail-top">
+      <div class="lead"><b id="railTitle"></b><span class="small muted" id="railSub"></span></div>
+      <div class="progress" aria-hidden="true"><i class="pd" id="progDone"></i><i class="pc" id="progCur"></i></div>
+      <span class="saved"><i data-ic="cloud"></i>Tersimpan otomatis</span>
+    </div>
+    <div class="rail-wrap" id="railWrap">
+      <button class="rail-nav" id="railPrev" aria-label="Geser kiri"><i data-ic="chevL"></i></button>
+      <div class="rail" id="rail"></div>
+      <button class="rail-nav" id="railNext" aria-label="Geser kanan"><i data-ic="chevR"></i></button>
+      <button class="btn all-btn" id="allBtn" aria-haspopup="true"><i data-ic="grid"></i><span class="lbl">Semua</span> <b id="allCnt"></b></button>
+      <div class="pop" id="allPop" role="dialog" aria-label="Semua subjek"></div>
+    </div>
+
+    <div class="rsp" id="rspCard">
+      <div class="photo-col ann" data-ann="Foto besar + caption ICT">
+        <div class="photo enter" id="photo"></div>
+        <span class="photo-count" id="photoCount"></span>
+        <div class="caption" id="caption"></div>
+      </div>
+      <div class="form-col" id="formCol"></div>
+    </div>
+    <div class="panel done" id="doneScreen" hidden></div>
+  </div>
+  <p class="legend-note">Coba: hover bintang (emoji pratinjau), klik (pop + riak + emoji memantul, kartu berubah warna). Jumlah subjek banyak → rail avatar dengan cincin progres, panah geser, dan tombol "Semua" untuk lompat. Ganti 4 / 8 / 15 subjek di kanan atas.</p>
+</section>
+
+<!-- ==================== 2. SUBJEK & FOTO ==================== -->
+<section class="screen" id="subj">
+  <div class="head">
+    <div class="tile t-teal"><i data-ic="image"></i></div>
+    <div class="ttl"><h1>Subjek yang dinilai</h1><div class="muted">Foto &amp; tagline melekat ke orang/tim. Bisa di-override per periode.</div></div>
+    <div class="actions"><label class="search"><i data-ic="search"></i><input id="subjSearch" placeholder="Cari nama…"></label></div>
+  </div>
+  <div class="callout t-sky"><i data-ic="info"></i><span>Site diambil otomatis dari profil user. Setiap site punya <b>satu tim</b> + anggota individu. Klik kartu untuk mengganti foto dan tagline.</span></div>
+  <div id="subjSites"></div>
+</section>
+
+<!-- ==================== 3. MATRIKS ==================== -->
+<section class="screen" id="mx">
+  <div class="head">
+    <div class="tile t-green"><i data-ic="matrix"></i></div>
+    <div class="ttl"><h1>Siapa menilai siapa</h1><div class="muted">CSI ICT Q4 2026 · 28 – 31 Okt 2026 · Hanya penilai terpilih yang dapat mengisi</div></div>
+    <div class="actions"><button class="btn"><i data-ic="copy"></i>Salin dari template</button><button class="btn primary"><i data-ic="plus"></i>Tambah penilai</button></div>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(170px,45%),1fr))">
+    <div class="stat t-sky"><div class="top"><div class="num" id="mxRaters">0</div><span class="bub"><i data-ic="users"></i></span></div><div class="lbl">Penilai terpilih</div><div class="small muted">dari 312 user aktif</div></div>
+    <div class="stat t-teal"><div class="top"><div class="num" id="mxSubj">0</div><span class="bub"><i data-ic="star"></i></span></div><div class="lbl">Subjek</div><div class="small muted" id="mxSubjSub"></div></div>
+    <div class="stat t-green"><div class="top"><div class="num" id="mxPairs">0</div><span class="bub"><i data-ic="check"></i></span></div><div class="lbl">Pasangan penilaian</div><div class="small muted">≈ jumlah form yang akan diisi</div></div>
+    <div class="stat t-amber attn"><div class="top"><div class="num" id="mxCross">0</div><span class="bub"><i data-ic="swap"></i></span></div><div class="lbl">Lintas site</div><div class="small muted">pengecualian manual</div></div>
+  </div>
+  <div class="panel" style="margin-top:14px">
+    <div class="toolbar">
+      <label class="search ann" data-ann="Cari &amp; pilih penilai"><i data-ic="search"></i><input id="mxSearch" placeholder="Cari penilai (nama, dept)…"></label>
+      <div class="seg" id="mxSite"><button class="on" data-f="all">Semua site</button><button data-f="SPJ">SPJ</button><button data-f="KRW">KRW</button></div>
+      <div class="legend" style="margin-left:auto"><span class="row" style="gap:6px"><span class="cell on"><i data-ic="check"></i></span>Sama site</span><span class="row" style="gap:6px"><span class="cell on x"><i data-ic="check"></i></span>Lintas site</span><span class="row" style="gap:6px"><span class="cell self">–</span>Diri sendiri</span></div>
+    </div>
+    <div class="toolbar" style="margin:12px 0">
+      <button class="btn" onclick="mxAuto()"><i data-ic="bolt"></i>Isi otomatis: sama site</button>
+      <button class="btn" onclick="mxClear()"><i data-ic="eraser"></i>Kosongkan</button>
+      <span class="small muted">Klik nama penilai = satu baris · klik foto subjek = satu kolom · tombol di header site = semua penilai site itu</span>
+    </div>
+    <div class="mx-wrap"><table class="mx" id="mxTable"></table></div>
+  </div>
+</section>
+
+<!-- ==================== 4. LAPORAN ==================== -->
+<section class="screen" id="rep">
+  <div class="head">
+    <div class="tile t-amber"><i data-ic="chart"></i></div>
+    <div class="ttl"><h1>Laporan — CSI ICT Q4 2026</h1><div class="muted row" style="gap:8px;flex-wrap:wrap">28 – 31 Okt 2026 <span class="pill t-green"><span class="dot"></span>Aktif</span></div></div>
+    <div class="actions"><div class="seg" id="repSite"><button class="on" data-f="all">Semua site</button><button data-f="SPJ">SPJ</button><button data-f="KRW">KRW</button></div><button class="btn"><i data-ic="download"></i>Excel</button><button class="btn"><i data-ic="file"></i>Memo PDF</button></div>
+  </div>
+  <div class="rep-hero" id="repHero"></div>
+  <div class="row" style="margin:22px 0 10px;flex-wrap:wrap"><h2>Hasil per subjek</h2><span class="small muted" id="repCount"></span><div class="seg" style="margin-left:auto" id="repTab"><button class="on" data-t="rank">Kartu</button><button data-t="heat">Perbandingan</button></div></div>
+  <div id="repRank" class="rank"></div>
+  <div id="repHeat" class="panel" hidden><div class="heat-wrap"><table class="heat" id="heatTbl"></table></div>
+    <p class="legend-note">Judul kolom memakai "label singkat" dari master pertanyaan; teks lengkap muncul saat hover. Hijau ≥ 4,5 · kuning 4,0–4,49 · merah &lt; 4,0.</p></div>
+</section>
+
+<!-- ==================== 5. STATUS ==================== -->
+<section class="screen" id="st">
+  <div class="head">
+    <div class="tile t-sky"><i data-ic="userCheck"></i></div>
+    <div class="ttl"><h1>Status responden</h1><div class="muted">CSI ICT Q4 2026 · sisa <b>1 hari</b> (berakhir 31 Okt 2026)</div></div>
+    <div class="actions"><button class="btn primary" id="remindAll"><i data-ic="bell"></i>Ingatkan semua yang belum</button></div>
+  </div>
+  <div class="panel st-hero" id="stHero"></div>
+  <div class="panel" style="margin-top:14px">
+    <div class="toolbar">
+      <div class="seg" id="stTab"></div>
+      <div class="seg" id="stSite"><button class="on" data-f="all">Semua site</button><button data-f="SPJ">SPJ</button><button data-f="KRW">KRW</button></div>
+      <label class="search" style="margin-left:auto"><i data-ic="search"></i><input id="stSearch" placeholder="Cari penilai…"></label>
+    </div>
+    <div class="plist" id="plist" style="margin-top:8px"></div>
+  </div>
+</section>
+
+<!-- ==================== 6. DASHBOARD ==================== -->
+<section class="screen" id="dash">
+  <div class="head">
+    <div class="tile t-navy"><i data-ic="layout"></i></div>
+    <div class="ttl"><h1>Dashboard CSI</h1><div class="muted">Ringkasan survei kepuasan ICT di semua site</div></div>
+    <div class="actions"><div class="seg" id="dashTab"><button class="on" data-t="live">Periode aktif</button><button data-t="trend">Tren</button></div></div>
+  </div>
+  <div id="dashLive" class="dgrid"></div>
+  <div id="dashTrend" class="dgrid" hidden></div>
+</section>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-modal="true" role="dialog"></aside>
+
+<script src="csi-redesign.js"></script>
+</body>
+</html>
