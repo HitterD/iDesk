@@ -1,13 +1,13 @@
 import { useEffect, useId, useRef, useState, type DragEvent } from 'react';
-import { Upload } from 'lucide-react';
+import { ImageOff, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { useUpdateCsiSubject, useUploadCsiSubjectPhoto } from '../../../hooks/useCsi';
+import { useUpdateCsiPeriodRatee, useUpdateCsiSubject, useUploadCsiSubjectPhoto } from '../../../hooks/useCsi';
 import { toneClasses } from '../../../lib/csiTone';
-import type { CsiFormRatee, CsiScopeParam, CsiSubjectGroup, CsiSubjectView, UpdateCsiSubject } from '../../../types';
+import type { CsiFormRatee, CsiScopeParam, CsiSubjectGroup, CsiSubjectView, UpdateCsiPeriodRatee, UpdateCsiSubject } from '../../../types';
 import { FlowChromeContext } from '../../respond/FlowChrome';
 import { SubjectPhoto } from '../../respond/SubjectPhoto';
 import { FIELD_LABEL, MUTED_TEXT } from '../AdminParts';
@@ -87,7 +87,7 @@ function EditForm({ scope, subject, group, onClose }: { scope: CsiScopeParam; su
     useRevokeOnChange(photo);
     const file = photo?.file ?? null;
     const isTeam = subject.kind === 'TEAM';
-    const ids = { tagline: useId(), jobTitle: useId(), name: useId() };
+    const ids = { jobTitle: useId(), name: useId() };
     const set = (field: keyof typeof draft) => (value: string) => setDraft((prev) => ({ ...prev, [field]: value }));
     const pick = (next: File) => { const error = photoError(next); setFileError(error); setPhoto(error ? null : pickPhoto(next)); };
 
@@ -109,35 +109,93 @@ function EditForm({ scope, subject, group, onClose }: { scope: CsiScopeParam; su
                     </div>
                 </FlowChromeContext.Provider>
                 <PhotoDropzone fileName={file?.name ?? null} error={fileError} onPick={pick} />
-                <div className="grid gap-1.5">
-                    <label htmlFor={ids.tagline} className={FIELD_LABEL}>Tagline / caption (tampil persis di bawah foto)</label>
-                    <Textarea id={ids.tagline} rows={2} maxLength={CSI_TAGLINE_MAX} value={draft.tagline} onChange={(event) => set('tagline')(event.target.value)} />
-                    <span className={cn(MUTED_TEXT, 'justify-self-end text-[12px] tabular-nums')}>{`${draft.tagline.length}/${CSI_TAGLINE_MAX}`}</span>
-                </div>
+                <TaglineField value={draft.tagline} onChange={set('tagline')} />
                 <TextField id={ids.jobTitle} label="Jabatan yang ditampilkan" value={draft.jobTitle} onChange={set('jobTitle')} />
                 {isTeam && <TextField id={ids.name} label="Nama tim" value={draft.name} onChange={set('name')} />}
             </div>
-            <div className="flex justify-end gap-2 border-t border-[hsl(var(--idesk-border)/.7)] px-6 py-4">
-                <Button variant="subtle" onClick={onClose}>Batal</Button>
-                <Button variant="primary" onClick={save} loading={pending} disabled={isTeam && !draft.name.trim()}>Simpan</Button>
-            </div>
+            <SheetFooter onClose={onClose} onSave={save} pending={pending} disabled={isTeam && !draft.name.trim()} />
         </>
     );
 }
 
-export interface SubjectEditTarget { subject: CsiSubjectView; group: CsiSubjectGroup }
+function SheetFooter({ onClose, onSave, pending, disabled }: { onClose: () => void; onSave: () => void; pending: boolean; disabled?: boolean }) {
+    return (
+        <div className="flex justify-end gap-2 border-t border-[hsl(var(--idesk-border)/.7)] px-6 py-4">
+            <Button variant="subtle" onClick={onClose}>Batal</Button>
+            <Button variant="primary" onClick={onSave} loading={pending} disabled={disabled}>Simpan</Button>
+        </div>
+    );
+}
 
-export function SubjectEditSheet({ scope, scopeLabel, target, onClose }: {
-    scope: CsiScopeParam; scopeLabel: string; target: SubjectEditTarget | null; onClose: () => void;
-}) {
+function TaglineField({ value, onChange, hint }: { value: string; onChange: (value: string) => void; hint?: string }) {
+    const id = useId();
+    return (
+        <div className="grid gap-1.5">
+            <label htmlFor={id} className={FIELD_LABEL}>Tagline / caption (tampil persis di bawah foto)</label>
+            <Textarea id={id} rows={2} maxLength={CSI_TAGLINE_MAX} value={value} placeholder={hint} onChange={(event) => onChange(event.target.value)} />
+            <span className={cn(MUTED_TEXT, 'justify-self-end text-[12px] tabular-nums')}>{`${value.length}/${CSI_TAGLINE_MAX}`}</span>
+        </div>
+    );
+}
+
+/** Period mode: tagline override and "Pakai foto master" only (no upload); saved on the period ratee. */
+function PeriodEditForm({ scope, periodId, target, onClose }: { scope: CsiScopeParam; periodId: string; target: SubjectEditTarget; onClose: () => void }) {
+    const update = useUpdateCsiPeriodRatee(scope, periodId);
+    const { subject, group } = target;
+    const [tagline, setTagline] = useState(subject.tagline ?? '');
+    const [resetPhoto, setResetPhoto] = useState(false);
+    const save = () => {
+        const payload: UpdateCsiPeriodRatee = { tagline: orNull(tagline), ...(resetPhoto ? { photoUrl: null } : {}) };
+        update.mutate({ periodRateeId: subject.key, payload }, { onSuccess: onClose });
+    };
+    const preview = toPreviewRatee(subject, group.siteCode, { name: subject.name, jobTitle: subject.jobTitle ?? '', tagline, photoUrl: resetPhoto ? null : subject.photoUrl });
+    return (
+        <>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
+                <FlowChromeContext.Provider value={PREVIEW_CHROME}>
+                    <div aria-label="Pratinjau" role="group" className="@container overflow-hidden rounded-2xl">
+                        <SubjectPhoto ratee={preview} index={0} total={1} />
+                    </div>
+                </FlowChromeContext.Provider>
+                {target.photoOverride && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="soft" onClick={() => setResetPhoto(true)} disabled={resetPhoto}><ImageOff aria-hidden="true" />Pakai foto master</Button>
+                        {resetPhoto && <span role="status" className={MUTED_TEXT}>Foto master dipakai setelah disimpan.</span>}
+                    </div>
+                )}
+                <TaglineField value={tagline} onChange={setTagline} hint="Kosong = pakai tagline master" />
+                <p className={MUTED_TEXT}>Hanya berlaku untuk periode ini; master data tidak berubah. Foto diubah di tab Subjek &amp; foto.</p>
+            </div>
+            <SheetFooter onClose={onClose} onSave={save} pending={update.isPending} />
+        </>
+    );
+}
+
+export interface SubjectEditTarget {
+    subject: CsiSubjectView;
+    group: CsiSubjectGroup;
+    /** Period mode: the ratee has its own photo for this period ("Pakai foto master" resets it). */
+    photoOverride?: boolean;
+}
+
+type SubjectEditSheetProps = { scope: CsiScopeParam; scopeLabel: string; target: SubjectEditTarget | null; onClose: () => void }
+    & ({ mode?: 'master' } | { mode: 'period'; periodId: string });
+
+/** `master` edits the scope's subject master; `period` edits one period ratee (`subject.key` = periodRateeId). */
+export function SubjectEditSheet(props: SubjectEditSheetProps) {
+    const { scope, scopeLabel, target, onClose } = props;
+    const isPeriod = props.mode === 'period';
+    const description = target ? [SUBJECT_KIND_LABEL[target.subject.kind], `${scopeLabel} ${target.group.siteName}`, isPeriod ? 'Khusus periode ini' : null].filter(Boolean).join(' · ') : '';
     return (
         <Sheet open={!!target} onOpenChange={(open) => { if (!open) onClose(); }}>
             <SheetContent side="right" className="max-w-lg">
                 <SheetHeader className="pr-12">
-                    <SheetTitle>Edit subjek</SheetTitle>
-                    <SheetDescription>{target ? `${SUBJECT_KIND_LABEL[target.subject.kind]} · ${scopeLabel} ${target.group.siteName}` : ''}</SheetDescription>
+                    <SheetTitle>{isPeriod ? `Tampilan ${target?.subject.name ?? ''} untuk periode ini` : 'Edit subjek'}</SheetTitle>
+                    <SheetDescription>{description}</SheetDescription>
                 </SheetHeader>
-                {target && <EditForm key={target.subject.key} scope={scope} subject={target.subject} group={target.group} onClose={onClose} />}
+                {target && (props.mode === 'period'
+                    ? <PeriodEditForm key={target.subject.key} scope={scope} periodId={props.periodId} target={target} onClose={onClose} />
+                    : <EditForm key={target.subject.key} scope={scope} subject={target.subject} group={target.group} onClose={onClose} />)}
             </SheetContent>
         </Sheet>
     );

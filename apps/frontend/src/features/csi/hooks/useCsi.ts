@@ -107,18 +107,20 @@ export function useDeleteCsiPeriod(scope: CsiScopeParam) {
     // Not the detail keys: the open detail view would refetch a deleted period (404 toast) before navigating away.
     return useCsiMutation((id: string) => CsiApi.deletePeriod(scope, id), () => [keys.periods(scope), keys.active()]);
 }
+// Member edits add/remove matrix rows and columns (and may apply the template), so the mapping view refreshes too.
+const memberKeys = (scope: CsiScopeParam, id: string): QueryKey[] => [...periodKeys(scope, id), ...assignmentKeys(scope, id)];
 export function useSetCsiRatees(scope: CsiScopeParam, id: string) {
-    return useCsiMutation((payload: SetCsiRatees) => CsiApi.setRatees(scope, id, payload), () => periodKeys(scope, id));
+    return useCsiMutation((payload: SetCsiRatees) => CsiApi.setRatees(scope, id, payload), () => memberKeys(scope, id));
 }
 export function useSetCsiTeamQuestions(scope: CsiScopeParam, id: string) {
     return useCsiMutation((payload: SetCsiTeamQuestions) => CsiApi.setTeamQuestions(scope, id, payload), () => periodKeys(scope, id));
 }
 export function useSetCsiRaters(scope: CsiScopeParam, id: string) {
-    return useCsiMutation((payload: CsiUserIds) => CsiApi.setRaters(scope, id, payload), () => periodKeys(scope, id));
+    return useCsiMutation((payload: CsiUserIds) => CsiApi.setRaters(scope, id, payload), () => memberKeys(scope, id));
 }
 export function useUpdateCsiPeriodRatee(scope: CsiScopeParam, id: string) {
     return useCsiMutation(({ periodRateeId, payload }: { periodRateeId: string; payload: UpdateCsiPeriodRatee }) =>
-        CsiApi.updatePeriodRatee(scope, id, periodRateeId, payload), () => periodKeys(scope, id));
+        CsiApi.updatePeriodRatee(scope, id, periodRateeId, payload), () => memberKeys(scope, id));
 }
 export function useCsiReport(scope: CsiScopeParam, id: string, siteId?: string) {
     return useQuery({ queryKey: keys.report(scope, id, siteId), queryFn: () => CsiApi.report(scope, id, siteId), enabled: !!id });

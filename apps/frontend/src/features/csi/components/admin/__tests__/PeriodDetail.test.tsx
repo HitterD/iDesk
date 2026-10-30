@@ -2,7 +2,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PeriodDetail } from '../PeriodDetail';
-import type { CsiPeriodDetail } from '../../../types';
+import type { CsiAssignments, CsiPeriodDetail } from '../../../types';
 
 const fx = vi.hoisted(() => ({
     STAMP: { createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z' },
@@ -11,12 +11,27 @@ const fx = vi.hoisted(() => ({
     unpublish: { mutate: vi.fn(), isPending: false },
     remove: { mutate: vi.fn(), isPending: false },
     toast: { success: vi.fn() },
+    assignments: {
+        raters: [{ periodRaterId: 'r1', userId: 'u1', fullName: 'Andi', department: 'ICT', siteId: 's1' }],
+        ratees: [{ periodRateeId: 't1', kind: 'TEAM', name: 'Tim SPJ', siteId: 's1', photoUrl: null }],
+        pairs: [],
+    } as CsiAssignments,
 }));
 
 vi.mock('../../../hooks/useCsi', () => ({
     useCsiPeriod: () => ({ data: fx.period, isLoading: false, isError: false, refetch: () => undefined }),
     usePublishCsiPeriod: () => fx.publish, useUnpublishCsiPeriod: () => fx.unpublish,
     useDeleteCsiPeriod: () => fx.remove,
+    useCsiAssignments: () => ({ data: fx.assignments, isLoading: false, isError: false, refetch: () => undefined }),
+    useSaveCsiAssignments: () => ({ mutate: vi.fn(), isPending: false }),
+    useSaveCsiTemplate: () => ({ mutate: vi.fn(), isPending: false }),
+    useApplyCsiAssignmentTemplate: () => ({ mutate: vi.fn(), isPending: false }),
+    useSetCsiRaters: () => ({ mutate: vi.fn(), isPending: false }),
+    useCsiUserSearch: () => ({ data: [], isFetching: false }),
+    useUpdateCsiPeriodRatee: () => ({ mutate: vi.fn(), isPending: false }),
+    useCsiReport: () => ({ data: undefined, isLoading: true, isError: false, refetch: () => undefined }),
+    useCsiRespondents: () => ({ data: undefined, isLoading: true, isError: false, refetch: () => undefined }),
+    useCsiResponseDetail: () => ({ data: undefined, isLoading: false, isError: false }),
 }));
 vi.mock('sonner', () => ({ toast: fx.toast }));
 
@@ -111,5 +126,32 @@ describe('PeriodDetail', () => {
         fx.period = period(over);
         renderDetail();
         expect(screen.queryByText('Survei terbit tetapi belum lengkap — responden tidak dapat mengisi sampai checklist terpenuhi.')).not.toBeInTheDocument();
+    });
+});
+
+describe('PeriodDetail · tab Penilai', () => {
+    it('shows the matrix and confirms before leaving with unsaved pairs', async () => {
+        const actor = userEvent.setup();
+        fx.period = period({ respondentMode: 'LISTED' });
+        renderDetail();
+        await actor.click(screen.getByRole('button', { name: 'Penilai' }));
+        await actor.click(screen.getByRole('checkbox', { name: 'Andi menilai Tim SPJ' }));
+        await actor.click(screen.getByRole('button', { name: 'Kelengkapan' }));
+        expect(screen.getByText('Perubahan belum disimpan. Tinggalkan?')).toBeInTheDocument();
+        await actor.click(screen.getByRole('button', { name: 'Tetap di sini' }));
+        expect(screen.getByRole('checkbox', { name: 'Andi menilai Tim SPJ' })).toHaveAttribute('aria-checked', 'true');
+        await actor.click(screen.getByRole('button', { name: 'Kelengkapan' }));
+        await actor.click(screen.getByRole('button', { name: 'Tinggalkan' }));
+        expect(screen.queryByRole('checkbox', { name: 'Andi menilai Tim SPJ' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Ubah info survei' })).toBeInTheDocument();
+    });
+
+    it('leaves without asking when nothing changed', async () => {
+        const actor = userEvent.setup();
+        renderDetail();
+        await actor.click(screen.getByRole('button', { name: 'Penilai' }));
+        expect(screen.getByText(/Mode terbuka/)).toBeInTheDocument();
+        await actor.click(screen.getByRole('button', { name: 'Kelengkapan' }));
+        expect(screen.queryByText('Perubahan belum disimpan. Tinggalkan?')).not.toBeInTheDocument();
     });
 });
