@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { QueryFailedError } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
@@ -161,6 +162,8 @@ describe('CsiPeriodService', () => {
     let sites: ReturnType<typeof memoryRepository>;
     let departments: ReturnType<typeof memoryRepository>;
     let manager: ReturnType<typeof transactionManager>;
+    let assignments: { applyTemplate: jest.Mock; copyPairs: jest.Mock };
+    let subjects: { createTeam: jest.Mock };
     let service: CsiPeriodService;
 
     beforeEach(() => {
@@ -176,8 +179,8 @@ describe('CsiPeriodService', () => {
             { id: 'd-hc', scope: HC, name: 'HC', isActive: true, ...STAR_SNAPSHOT },
         ]);
         users = memoryRepository<any>([
-            { id: 'u1', fullName: 'Budi Baru', jobTitle: 'Staf IT', isActive: true },
-            { id: 'u2', fullName: 'Sari', jobTitle: null, isActive: true },
+            { id: 'u1', fullName: 'Budi Baru', jobTitle: 'Staf IT', siteId: 'site-a', isActive: true },
+            { id: 'u2', fullName: 'Sari', jobTitle: null, siteId: 'site-b', isActive: true },
             { id: 'u-off', fullName: 'Nonaktif', jobTitle: 'X', isActive: false },
         ]);
         sites = memoryRepository<any>([site, siteB]);
@@ -190,9 +193,13 @@ describe('CsiPeriodService', () => {
         manager.repositories.set(CsiResponse, responses);
         manager.repositories.set(CsiPeriodRatee, ratees);
         const dataSource = { transaction: jest.fn(async (work: any) => work(manager)) };
+        assignments = { applyTemplate: jest.fn().mockResolvedValue(undefined), copyPairs: jest.fn().mockResolvedValue(undefined) };
+        const teamNames: Record<string, string> = { 'site-a': 'Tim Sepanjang', 'site-b': 'Tim Semarang' };
+        subjects = { createTeam: jest.fn(async (_scope: string, siteId: string) => ({ teamId: `team-${siteId}`, name: teamNames[siteId], siteId })) };
         service = new CsiPeriodService(
             periods as any, ratees as any, rateeDimensions as any, periodRaters as any, responses as any,
             dimensions as any, users as any, sites as any, departments as any, dataSource as any,
+            assignments as any, subjects as any,
         );
     });
 
@@ -236,12 +243,24 @@ describe('CsiPeriodService', () => {
             expect(savedPeriod()).toMatchObject({ title: 'Q4', intro: '', thankYou: '' });
         });
 
-        it('default respondentMode is OPEN for ICT and LISTED for HC when omitted', async () => {
+        it('new ICT period defaults to LISTED (HC too) when omitted', async () => {
             const dates = { startDate: '2026-11-01', endDate: '2026-11-30' };
             await service.create(ICT, createDto(dates), 'admin');
             await service.create(HC, createDto(dates), 'admin');
             const modes = manager.saved.filter((entry) => entry.target === CsiPeriod).map((entry) => entry.value.respondentMode);
-            expect(modes).toEqual([CsiRespondentMode.OPEN, CsiRespondentMode.LISTED]);
+            expect(modes).toEqual([CsiRespondentMode.LISTED, CsiRespondentMode.LISTED]);
+        });
+
+        it('a new period without a source gets its pairs from the template; a copied one from the source pairs', async () => {
+            const dates = { startDate: '2026-11-01', endDate: '2026-11-30' };
+            await service.create(ICT, createDto(dates), 'admin');
+            expect(assignments.applyTemplate).toHaveBeenCalledWith(ICT, savedPeriod().id);
+            expect(assignments.copyPairs).not.toHaveBeenCalled();
+            assignments.applyTemplate.mockClear();
+            manager.saved.length = 0;
+            await service.create(ICT, { startDate: '2026-12-01', endDate: '2026-12-31', copyFromPeriodId: 'p1' }, 'admin');
+            expect(assignments.copyPairs).toHaveBeenCalledWith(ICT, 'p1', savedPeriod().id);
+            expect(assignments.applyTemplate).not.toHaveBeenCalled();
         });
 
         it('with copyFromPeriodId copies texts, ratees+dimensions, raters but not responses', async () => {
@@ -262,7 +281,9 @@ describe('CsiPeriodService', () => {
             expect(savedPeriod()).toMatchObject({ title: 'Q3', intro: 'Baru', thankYou: 'Terima kasih', sites: [{ siteId: 'site-b' }] });
             const periodId = savedPeriod().id;
             const savedRatees = manager.saved.find((entry) => entry.target === CsiPeriodRatee)!.value;
-            expect(savedRatees).toEqual([expect.objectContaining({ periodId, userId: 'u1', displayName: 'Budi Baru', jobTitle: 'Staf IT', sortOrder: 0 })]);
+            expect(savedRatees).toEqual([expect.objectContaining({
+                periodId, userId: 'u1', displayName: 'Budi Baru', jobTitle: 'Staf IT', sortOrder: 0, siteId: 'site-a', teamId: null, photoUrl: null, tagline: null,
+            })]);
             const savedDims = manager.saved.find((entry) => entry.target === CsiPeriodRateeDimension)!.value;
             expect(savedDims).toEqual([expect.objectContaining({ periodRateeId: savedRatees[0].id, dimensionId: 'd2', dimensionName: 'Ramah', sortOrder: 0 })]);
             expect(manager.saved.find((entry) => entry.target === CsiPeriodRater)!.value)
@@ -297,7 +318,8 @@ describe('CsiPeriodService', () => {
                 teamEnabled: true, teamLabel: 'Tim Lama', slaTargetPct: 90,
             });
             ratees.rows.push(
-                { id: 'r-team', periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, displayName: 'Tim Lama', jobTitle: null, sortOrder: -1 },
+                { id: 'r-team', periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, siteId: 'site-a', teamId: 'team-site-a',
+                    displayName: 'Tim Lama', jobTitle: null, sortOrder: -1, photoUrl: '/uploads/csi/override.jpg', tagline: 'Override lama' },
                 { id: 'r1', periodId: 'p1', kind: CsiRateeKind.PERSON, userId: 'u1', displayName: 'Budi', jobTitle: null, sortOrder: 0 },
             );
             rateeDimensions.rows.push(
@@ -309,7 +331,9 @@ describe('CsiPeriodService', () => {
             expect(savedPeriod()).toMatchObject({ sites: [{ siteId: 'site-a' }, { siteId: 'site-b' }], teamEnabled: true, teamLabel: 'Tim Lama', slaTargetPct: 90 });
             const savedRatees = manager.saved.filter((entry) => entry.target === CsiPeriodRatee).flatMap((entry) => entry.value);
             expect(savedRatees).toEqual([
-                expect.objectContaining({ kind: CsiRateeKind.TEAM, userId: null, displayName: 'Tim Lama', sortOrder: -1 }),
+                expect.objectContaining({
+                    kind: CsiRateeKind.TEAM, userId: null, displayName: 'Tim Sepanjang', sortOrder: -1, siteId: 'site-a', teamId: 'team-site-a', photoUrl: null, tagline: null,
+                }),
                 expect.objectContaining({ kind: CsiRateeKind.PERSON, userId: 'u1', displayName: 'Budi Baru', sortOrder: 0 }),
             ]);
             const teamId = savedRatees[0].id;
@@ -389,19 +413,16 @@ describe('CsiPeriodService', () => {
             expect(periods.save).toHaveBeenCalledWith(expect.objectContaining({ teamEnabled: true, individualEnabled: false }));
         });
 
-        it('teamLabel update renames TEAM ratee inside the locked transaction', async () => {
+        it('teamLabel update is saved under the lock but no longer renames the per-site TEAM ratees', async () => {
             const txRatees = memoryRepository<any>(ratees.rows);
             const txPeriods = memoryRepository<any>(periods.rows);
             manager.repositories.set(CsiPeriodRatee, txRatees);
             manager.repositories.set(CsiPeriod, txPeriods);
             await service.update(ICT, 'p1', { teamLabel: 'Tim Helpdesk' });
-            expect(txRatees.update).toHaveBeenCalledWith({ periodId: 'p1', kind: CsiRateeKind.TEAM }, { displayName: 'Tim Helpdesk' });
             expect(txPeriods.createQueryBuilder.mock.results.at(-1)!.value.setLock).toHaveBeenCalledWith('pessimistic_write');
-            expect(txPeriods.save.mock.invocationCallOrder[0]).toBeLessThan(txRatees.update.mock.invocationCallOrder[0]);
+            expect(txPeriods.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', teamLabel: 'Tim Helpdesk' }));
+            expect(txRatees.update).not.toHaveBeenCalled();
             expect(ratees.update).not.toHaveBeenCalled();
-            expect(periods.save).not.toHaveBeenCalled();
-            await service.update(ICT, 'p1', { title: 'Tanpa label' });
-            expect(txRatees.update).toHaveBeenCalledTimes(1);
         });
 
         describe('immutable once the period has answers', () => {
@@ -447,8 +468,11 @@ describe('CsiPeriodService', () => {
             expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRatee, { periodId: 'p1', kind: CsiRateeKind.PERSON });
             const savedRatees = manager.saved.find((entry) => entry.target === CsiPeriodRatee)!.value;
             expect(savedRatees).toEqual([
-                expect.objectContaining({ periodId: 'p1', kind: CsiRateeKind.PERSON, userId: 'u1', displayName: 'Budi Baru', jobTitle: 'Staf IT', sortOrder: 0 }),
-                expect.objectContaining({ periodId: 'p1', kind: CsiRateeKind.PERSON, userId: 'u2', displayName: 'Sari', jobTitle: null, sortOrder: 1 }),
+                expect.objectContaining({
+                    periodId: 'p1', kind: CsiRateeKind.PERSON, userId: 'u1', displayName: 'Budi Baru', jobTitle: 'Staf IT', sortOrder: 0,
+                    siteId: 'site-a', teamId: null, photoUrl: null, tagline: null,
+                }),
+                expect.objectContaining({ periodId: 'p1', kind: CsiRateeKind.PERSON, userId: 'u2', displayName: 'Sari', jobTitle: null, sortOrder: 1, siteId: 'site-b' }),
             ]);
             const savedDims = manager.saved.find((entry) => entry.target === CsiPeriodRateeDimension)!.value;
             expect(savedDims).toEqual([
@@ -494,12 +518,14 @@ describe('CsiPeriodService', () => {
             expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRatee, { periodId: 'p1', kind: CsiRateeKind.PERSON });
         });
 
-        it('setTeamQuestions creates one TEAM ratee with snapshots', async () => {
+        it('setTeamQuestions creates the TEAM ratee of a site from its csi_teams master, with snapshots', async () => {
             periods.rows[0] = basePeriod({ teamEnabled: true, teamLabel: 'Tim Helpdesk' });
-            await service.setTeamQuestions(ICT, 'p1', ['d2', 'd1']);
+            await service.setTeamQuestions(ICT, 'p1', 'site-a', ['d2', 'd1']);
+            expect(subjects.createTeam).toHaveBeenCalledWith(ICT, 'site-a');
             const savedRatees = manager.saved.filter((entry) => entry.target === CsiPeriodRatee).map((entry) => entry.value);
             expect(savedRatees).toEqual([expect.objectContaining({
-                periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, displayName: 'Tim Helpdesk', jobTitle: null, sortOrder: -1,
+                periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, displayName: 'Tim Sepanjang', jobTitle: null, sortOrder: -1,
+                siteId: 'site-a', teamId: 'team-site-a', photoUrl: null, tagline: null,
             })]);
             expect(manager.saved.find((entry) => entry.target === CsiPeriodRateeDimension)!.value).toEqual([
                 expect.objectContaining({ periodRateeId: savedRatees[0].id, dimensionId: 'd2', dimensionName: 'Ramah', type: CsiQuestionType.SCALE, required: false, options: SCALE_OPTIONS, sortOrder: 0 }),
@@ -510,29 +536,75 @@ describe('CsiPeriodService', () => {
         });
 
         it('setTeamQuestions replaces the snapshots of an existing TEAM ratee', async () => {
-            ratees.rows.push({ id: 'r-team', periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, displayName: 'Lama', jobTitle: null, sortOrder: -1 });
-            await service.setTeamQuestions(ICT, 'p1', ['d1']);
+            ratees.rows.push({
+                id: 'r-team', periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, siteId: 'site-a', teamId: 'team-site-a',
+                displayName: 'Lama', jobTitle: null, sortOrder: -1, tagline: 'Override', photoUrl: null,
+            });
+            await service.setTeamQuestions(ICT, 'p1', 'site-a', ['d1']);
             expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRateeDimension, { periodRateeId: 'r-team' });
             expect(manager.saved.find((entry) => entry.target === CsiPeriodRatee)!.value)
-                .toMatchObject({ id: 'r-team', kind: CsiRateeKind.TEAM, displayName: 'Tim IT Support', sortOrder: -1 });
+                .toMatchObject({ id: 'r-team', kind: CsiRateeKind.TEAM, displayName: 'Tim Sepanjang', sortOrder: -1, siteId: 'site-a', tagline: 'Override' });
             expect(manager.saved.find((entry) => entry.target === CsiPeriodRateeDimension)!.value)
                 .toEqual([expect.objectContaining({ periodRateeId: 'r-team', dimensionId: 'd1', sortOrder: 0 })]);
         });
 
-        it('setTeamQuestions [] removes TEAM ratee', async () => {
-            await service.setTeamQuestions(ICT, 'p1', []);
-            expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRatee, { periodId: 'p1', kind: CsiRateeKind.TEAM });
+        it('setTeamQuestions [] removes only the TEAM ratee of that site', async () => {
+            await service.setTeamQuestions(ICT, 'p1', 'site-a', []);
+            expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRatee, { periodId: 'p1', kind: CsiRateeKind.TEAM, siteId: 'site-a' });
             expect(manager.save).not.toHaveBeenCalled();
         });
 
+        it("setTeamQuestions creates one team ratee per site and keeps the other site's team", async () => {
+            periods.rows[0] = basePeriod({ teamEnabled: true, sites: [{ siteId: 'site-a', site } as any, { siteId: 'site-b', site: siteB } as any] });
+            ratees.rows.push({ id: 'r-team-a', periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, siteId: 'site-a', teamId: 'team-site-a', displayName: 'Tim Sepanjang', jobTitle: null, sortOrder: -1 });
+            await service.setTeamQuestions(ICT, 'p1', 'site-b', ['d1']);
+            const savedRatees = manager.saved.filter((entry) => entry.target === CsiPeriodRatee).map((entry) => entry.value);
+            expect(savedRatees).toEqual([expect.objectContaining({ kind: CsiRateeKind.TEAM, siteId: 'site-b', teamId: 'team-site-b', displayName: 'Tim Semarang' })]);
+            expect(savedRatees[0].id).not.toBe('r-team-a');
+            expect(manager.delete).not.toHaveBeenCalledWith(CsiPeriodRatee, expect.anything());
+            expect(manager.delete).not.toHaveBeenCalledWith(CsiPeriodRateeDimension, { periodRateeId: 'r-team-a' });
+        });
+
+        it('setTeamQuestions rejects a site outside the period (400)', async () => {
+            await expect(service.setTeamQuestions(ICT, 'p1', 'site-b', ['d1'])).rejects.toBeInstanceOf(BadRequestException);
+            expect(manager.save).not.toHaveBeenCalled();
+        });
+
+        it('two teams of the same site are rejected', async () => {
+            // A concurrent request created the site team first: the partial unique index answers with 23505.
+            const violation = new QueryFailedError('INSERT', [], Object.assign(new Error('duplicate'), { code: '23505' }));
+            manager.save.mockRejectedValueOnce(violation);
+            await expect(service.setTeamQuestions(ICT, 'p1', 'site-a', ['d1'])).rejects.toBeInstanceOf(ConflictException);
+            // Moving another TEAM ratee onto a site that already has a team is rejected up front.
+            periods.rows[0] = basePeriod({ sites: [{ siteId: 'site-a', site } as any, { siteId: 'site-b', site: siteB } as any] });
+            ratees.rows.push(
+                { id: 'r-team-a', periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, siteId: 'site-a', teamId: 'ta', displayName: 'A', jobTitle: null, sortOrder: -1 },
+                { id: 'r-team-b', periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, siteId: 'site-b', teamId: 'tb', displayName: 'B', jobTitle: null, sortOrder: -1 },
+            );
+            await expect(service.updateRatee(ICT, 'p1', 'r-team-b', { siteId: 'site-a' })).rejects.toBeInstanceOf(ConflictException);
+        });
+
+        it('ratee override stores tagline only for the period', async () => {
+            ratees.rows.push({ id: 'r1', periodId: 'p1', kind: CsiRateeKind.PERSON, userId: 'u1', siteId: 'site-a', displayName: 'Budi', jobTitle: null, sortOrder: 0, photoUrl: null, tagline: null });
+            await service.updateRatee(ICT, 'p1', 'r1', { tagline: '  Khusus Q4  ' });
+            expect(ratees.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'r1', tagline: 'Khusus Q4' }));
+            expect(subjects.createTeam).not.toHaveBeenCalled();
+            await service.updateRatee(ICT, 'p1', 'r1', { tagline: '', photoUrl: null });
+            expect(ratees.save).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'r1', tagline: null, photoUrl: null }));
+            await expect(service.updateRatee(ICT, 'p1', 'r1', { tagline: 'x'.repeat(91) })).rejects.toBeInstanceOf(BadRequestException);
+            await expect(service.updateRatee(ICT, 'p1', 'r1', { siteId: 'site-b' })).rejects.toBeInstanceOf(BadRequestException);
+            await expect(service.updateRatee(ICT, 'p1', 'nope', { tagline: 'a' })).rejects.toBeInstanceOf(NotFoundException);
+            await expect(service.updateRatee(HC, 'p1', 'r1', { tagline: 'a' })).rejects.toBeInstanceOf(NotFoundException);
+        });
+
         it('setTeamQuestions rejects inactive, other-scope or duplicate questions (400) and locked periods (409)', async () => {
-            await expect(service.setTeamQuestions(ICT, 'p1', ['d-off'])).rejects.toBeInstanceOf(BadRequestException);
-            await expect(service.setTeamQuestions(ICT, 'p1', ['d-hc'])).rejects.toBeInstanceOf(BadRequestException);
-            await expect(service.setTeamQuestions(ICT, 'p1', ['d1', 'd1'])).rejects.toBeInstanceOf(BadRequestException);
+            await expect(service.setTeamQuestions(ICT, 'p1', 'site-a', ['d-off'])).rejects.toBeInstanceOf(BadRequestException);
+            await expect(service.setTeamQuestions(ICT, 'p1', 'site-a', ['d-hc'])).rejects.toBeInstanceOf(BadRequestException);
+            await expect(service.setTeamQuestions(ICT, 'p1', 'site-a', ['d1', 'd1'])).rejects.toBeInstanceOf(BadRequestException);
             expect(manager.save).not.toHaveBeenCalled();
             responses.rows.push({ id: 'resp', periodId: 'p1' });
-            await expect(service.setTeamQuestions(ICT, 'p1', ['d1'])).rejects.toThrow(new ConflictException('Periode sudah memiliki jawaban'));
-            await expect(service.setTeamQuestions(HC, 'p1', ['d-hc'])).rejects.toBeInstanceOf(NotFoundException);
+            await expect(service.setTeamQuestions(ICT, 'p1', 'site-a', ['d1'])).rejects.toThrow(new ConflictException('Periode sudah memiliki jawaban'));
+            await expect(service.setTeamQuestions(HC, 'p1', 'site-a', ['d-hc'])).rejects.toBeInstanceOf(NotFoundException);
         });
 
         it('get lists the TEAM ratee first, then people by sortOrder', async () => {

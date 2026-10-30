@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
-import { CreatePeriodDto, PeriodListQueryDto, SetPeriodRatersDto, SetRateesDto, SetTeamQuestionsDto, UpdatePeriodDto } from '../dto/period.dto';
+import { CreatePeriodDto, PeriodListQueryDto, SetPeriodRatersDto, SetRateesDto, SetTeamQuestionsDto, UpdatePeriodDto, UpdatePeriodRateeDto } from '../dto/period.dto';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiPeriodService } from '../services/csi-period.service';
 
@@ -57,7 +57,15 @@ export class CsiAdminPeriodController {
 
     @Put(':id/team')
     setTeamQuestions(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Body() dto: SetTeamQuestionsDto) {
-        return this.periods.setTeamQuestions(req.csiScope, id, dto.questionIds);
+        return this.periods.setTeamQuestions(req.csiScope, id, dto.siteId, dto.questionIds);
+    }
+
+    @Patch(':id/ratees/:periodRateeId')
+    updateRatee(
+        @Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string,
+        @Param('periodRateeId', CSI_ID_PIPE) periodRateeId: string, @Body() dto: UpdatePeriodRateeDto,
+    ) {
+        return this.periods.updateRatee(req.csiScope, id, periodRateeId, dto);
     }
 
     @Put(':id/raters')

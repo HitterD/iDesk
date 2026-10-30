@@ -36,7 +36,7 @@ describe('periodForm', () => {
         const form = { ...initialState('ict'), siteIds: ['s1', 's2'], title: ' Q4 ', startDate: '2026-11-01', endDate: '2026-11-30', teamEnabled: true };
         expect(toCreatePayload(form)).toEqual({
             title: 'Q4', intro: '', thankYou: '', startDate: '2026-11-01', endDate: '2026-11-30', slaTargetPct: 80,
-            siteIds: ['s1', 's2'], respondentMode: 'OPEN', teamEnabled: true, individualEnabled: true, teamLabel: 'Tim IT Support',
+            siteIds: ['s1', 's2'], respondentMode: 'LISTED', teamEnabled: true, individualEnabled: true, teamLabel: 'Tim IT Support',
         });
     });
 

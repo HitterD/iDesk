@@ -214,6 +214,22 @@ describe('CsiAssignmentService', () => {
         expect(view.pairs).toHaveLength(2);
     });
 
+    it('copyPairs maps the source pairs onto the new period by rater user and subject', async () => {
+        await service.setPairs(ICT, 'p1', [
+            { periodRaterId: 'pr-spj1', periodRateeId: 're-team-spj' },
+            { periodRaterId: 'pr-spj1', periodRateeId: 're-spj2' },
+            { periodRaterId: 'pr-krw', periodRateeId: 're-team-krw' },
+        ]);
+        db.table(CsiPeriod).push(period({ id: 'p3' }));
+        // The new period kept u-spj1 (rater) and the SPJ team, but not u-spj2 nor the KRW team/rater.
+        db.table(CsiPeriodRater).push(rater('pr3-spj1', 'p3', 'u-spj1', SPJ));
+        db.table(CsiPeriodRatee).push(team('re3-team-spj', 'p3', 'team-spj', SPJ), person('re3-other', 'p3', 'u-y', SPJ));
+        await service.copyPairs(ICT, 'p1', 'p3');
+        expect(db.table(CsiPeriodRaterRatee).filter((pair) => pair.periodId === 'p3').map((pair) => `${pair.periodRaterId}>${pair.periodRateeId}`))
+            .toEqual(['pr3-spj1>re3-team-spj']);
+        expect(db.table(CsiPeriodRaterRatee).filter((pair) => pair.periodId === 'p1')).toHaveLength(3);
+    });
+
     it('deleting a period ratee removes its pairs', async () => {
         await service.setPairs(ICT, 'p1', [
             { periodRaterId: 'pr-spj1', periodRateeId: 're-spj2' },
@@ -224,7 +240,7 @@ describe('CsiAssignmentService', () => {
         const periods = new CsiPeriodService(
             db.repo(CsiPeriod) as any, db.repo(CsiPeriodRatee) as any, db.repo(CsiPeriodRateeDimension) as any,
             db.repo(CsiPeriodRater) as any, db.repo(CsiResponse) as any, db.repo(CsiDimension) as any, db.repo(User) as any,
-            {} as any, {} as any, db.dataSource as any,
+            {} as any, {} as any, db.dataSource as any, service, {} as any,
         );
         jest.spyOn(periods, 'get').mockResolvedValue({} as any);
 

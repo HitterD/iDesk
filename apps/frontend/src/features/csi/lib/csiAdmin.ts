@@ -15,7 +15,7 @@ export const CSI_ADMIN_ROLES: readonly string[] = ['ADMIN', 'MANAGER'];
 export const CSI_SCOPE_OF: Readonly<Record<CsiScopeParam, CsiScope>> = { ict: 'ICT', hc: 'HC' };
 
 /** Mirrors backend `DEFAULT_RESPONDENT_MODE`. */
-export const CSI_DEFAULT_MODE: Readonly<Record<CsiScopeParam, CsiRespondentMode>> = { ict: 'OPEN', hc: 'LISTED' };
+export const CSI_DEFAULT_MODE: Readonly<Record<CsiScopeParam, CsiRespondentMode>> = { ict: 'LISTED', hc: 'LISTED' };
 
 export const CSI_MODE_LABELS: Readonly<Record<CsiRespondentMode, string>> = {
     OPEN: 'Semua user di site',

@@ -101,6 +101,12 @@ export interface CsiPeriodRatee extends CsiTimestamps {
     displayName: string;
     jobTitle: string | null;
     sortOrder: number;
+    /** PERSON: User.siteId at snapshot time; TEAM: the team's site (one team per site). */
+    siteId?: string | null;
+    teamId?: string | null;
+    /** Per-period overrides; null means the master value applies. */
+    photoUrl?: string | null;
+    tagline?: string | null;
     dimensions: CsiPeriodRateeDimension[];
 }
 
@@ -140,7 +146,12 @@ export interface CsiFormRatee {
     kind: CsiRateeKind;
     displayName: string;
     jobTitle: string | null;
+    /** Kept for compatibility; equals photoUrl. */
     avatarUrl: string | null;
+    siteId: string | null;
+    siteCode: string | null;
+    tagline: string | null;
+    photoUrl: string | null;
     dimensions: CsiFormDimension[];
 }
 
@@ -270,7 +281,7 @@ export interface CreateCsiPeriod {
 }
 export type UpdateCsiPeriod = Partial<Omit<CreateCsiPeriod, 'copyFromPeriodId'>>;
 export interface SetCsiRatees { ratees: Array<{ userId: string; dimensionIds: string[] }> }
-export interface SetCsiTeamQuestions { questionIds: string[] }
+export interface SetCsiTeamQuestions { siteId: string; questionIds: string[] }
 export interface SubmitCsiItem {
     periodRateeDimensionId: string;
     score?: number;

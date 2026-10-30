@@ -7,6 +7,8 @@ import { Site } from '../../sites/entities/site.entity';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { CSI_JOB_TITLE_MAX, CSI_TAGLINE_MAX, CSI_TEAM_NAME_MAX, UpdateSubjectDto } from '../dto/subject.dto';
+import { CsiRateeKind } from '../csi.constants';
+import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiSubjectProfile } from '../entities/csi-subject-profile.entity';
 import { CsiTeam } from '../entities/csi-team.entity';
 import { parseSubjectKey, teamSubjectKey, userSubjectKey } from './csi-subject-key.util';
@@ -40,6 +42,21 @@ const personView = (user: SubjectUser, profile: CsiSubjectProfile | undefined): 
 const teamView = (team: CsiTeam): CsiSubjectView => ({
     key: teamSubjectKey(team.id), kind: 'TEAM', userId: null, teamId: team.id, siteId: team.siteId, name: team.name,
     jobTitle: team.jobTitle ?? null, photoUrl: team.photoUrl ?? null, tagline: team.tagline ?? null,
+});
+
+/** Resolved display profile of one period ratee. */
+export type CsiRateeView = { siteId: string | null; siteCode: string | null; photoUrl: string | null; tagline: string | null; jobTitle: string | null };
+type RateeMaster = { siteId: string | null; photoUrl: string | null; tagline: string | null; jobTitle: string | null };
+
+const unique = (ids: string[]) => [...new Set(ids)];
+const teamMaster = (team: CsiTeam | undefined): RateeMaster => ({
+    siteId: team?.siteId ?? null, photoUrl: team?.photoUrl ?? null, tagline: team?.tagline ?? null, jobTitle: team?.jobTitle ?? null,
+});
+const personMaster = (user: SubjectUser | undefined, profile: CsiSubjectProfile | undefined): RateeMaster => ({
+    siteId: user?.siteId ?? null,
+    photoUrl: profile?.photoUrl ?? user?.avatarUrl ?? null,
+    tagline: profile?.tagline ?? null,
+    jobTitle: profile?.jobTitle ?? null,
 });
 
 /** Service-side copy of the DTO limits, so non-HTTP callers get the same 400s. */
@@ -85,6 +102,46 @@ export class CsiSubjectService {
                     .map((user) => personView(user, profileByUser.get(user.id))),
             };
         });
+    }
+
+    /**
+     * Display profile of period ratees (one query per table): per-period override (csi_period_ratees.photoUrl/tagline)
+     * → master (team: csi_teams; person: csi_subject_profiles, photo falling back to User.avatarUrl). Master values are
+     * resolved on read and never copied into the period row.
+     */
+    async viewsFor(scope: ServiceScope, ratees: CsiPeriodRatee[]): Promise<Map<string, CsiRateeView>> {
+        const teamIds = unique(ratees.flatMap((ratee) => (ratee.kind === CsiRateeKind.TEAM && ratee.teamId ? [ratee.teamId] : [])));
+        const userIds = unique(ratees.flatMap((ratee) => (ratee.kind !== CsiRateeKind.TEAM && ratee.userId ? [ratee.userId] : [])));
+        const teams = teamIds.length ? await this.teams.find({ where: { id: In(teamIds) } }) : [];
+        const users = userIds.length ? await this.users.find({ where: { id: In(userIds) }, select: USER_FIELDS }) : [];
+        const profiles = userIds.length ? await this.profiles.find({ where: { scope, userId: In(userIds) } }) : [];
+        const teamById = new Map(teams.map((team) => [team.id, team]));
+        const userById = new Map(users.map((user) => [user.id, user]));
+        const profileByUser = new Map(profiles.map((profile) => [profile.userId, profile]));
+        const masters = new Map(ratees.map((ratee) => [ratee.id, ratee.kind === CsiRateeKind.TEAM
+            ? teamMaster(ratee.teamId ? teamById.get(ratee.teamId) : undefined)
+            : personMaster(ratee.userId ? userById.get(ratee.userId) : undefined, ratee.userId ? profileByUser.get(ratee.userId) : undefined)]));
+        const siteIds = unique(ratees.flatMap((ratee) => {
+            const siteId = ratee.siteId ?? masters.get(ratee.id)!.siteId;
+            return siteId ? [siteId] : [];
+        }));
+        const sites = siteIds.length ? await this.sites.find({ where: { id: In(siteIds) } }) : [];
+        const codeOf = new Map(sites.map((site) => [site.id, site.code]));
+        return new Map(ratees.map((ratee) => {
+            const master = masters.get(ratee.id)!;
+            const siteId = ratee.siteId ?? master.siteId;
+            return [ratee.id, {
+                siteId, siteCode: siteId ? codeOf.get(siteId) ?? null : null,
+                photoUrl: ratee.photoUrl ?? master.photoUrl,
+                tagline: ratee.tagline ?? master.tagline,
+                jobTitle: master.jobTitle ?? ratee.jobTitle ?? null,
+            }];
+        }));
+    }
+
+    /** Single-ratee form of `viewsFor`. */
+    async viewFor(scope: ServiceScope, ratee: CsiPeriodRatee): Promise<CsiRateeView> {
+        return (await this.viewsFor(scope, [ratee])).get(ratee.id)!;
     }
 
     /** Edits tagline/jobTitle (person → csi_subject_profiles upsert) or also name (team → csi_teams). */

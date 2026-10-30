@@ -158,11 +158,12 @@ describe('toPreviewForm', () => {
             respondent: { fullName: 'Admin' },
             departments: [{ id: 'g2', name: 'Produksi' }, { id: 'g1', name: 'Finance' }],
             ratees: [
-                { periodRateeId: 'r1', kind: 'PERSON', displayName: 'Admin', jobTitle: 'Support', avatarUrl: null, dimensions: [
+                { periodRateeId: 'r1', kind: 'PERSON', displayName: 'Admin', jobTitle: 'Support', avatarUrl: null,
+                    siteId: null, siteCode: null, tagline: null, photoUrl: null, dimensions: [
                     { periodRateeDimensionId: 'x1', name: 'Respons tersimpan', description: 'Cepat ditanggapi', type: 'STAR' as const, required: true, options: [] },
                     { periodRateeDimensionId: 'x2', name: 'Solusi', description: null, type: 'STAR' as const, required: true, options: [] },
                 ] },
-                { periodRateeId: 'r2', kind: 'PERSON', displayName: 'Budi', jobTitle: null, avatarUrl: null, dimensions: [] },
+                { periodRateeId: 'r2', kind: 'PERSON', displayName: 'Budi', jobTitle: null, avatarUrl: null, siteId: null, siteCode: null, tagline: null, photoUrl: null, dimensions: [] },
             ],
         });
         expect(source.ratees.map((ratee) => ratee.id)).toEqual(['r2', 'r1']);

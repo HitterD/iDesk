@@ -10,7 +10,7 @@ import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiRaterAssignment } from '../entities/csi-rater-assignment.entity';
 import { CsiSubjectProfile } from '../entities/csi-subject-profile.entity';
-import { lockUnlockedPeriod } from './csi-period.service';
+import { lockUnlockedPeriod } from './csi-period-lock.util';
 import { assertPeriodInScope } from './csi-scope.util';
 import { teamSubjectKey, userSubjectKey } from './csi-subject-key.util';
 
@@ -132,6 +132,31 @@ export class CsiAssignmentService {
         });
         await this.replacePairs(periodId, uniquePairs(pairs));
         return this.get(scope, periodId);
+    }
+
+    /**
+     * Copies the pairs of a source period onto a new one, matched by rater userId and subject (user / team); pairs whose
+     * rater or subject did not survive the copy are dropped. Used instead of the template when a period is copied.
+     */
+    async copyPairs(scope: ServiceScope, sourceId: string, periodId: string) {
+        await this.findInScope(scope, sourceId);
+        await this.findInScope(scope, periodId);
+        const source = await this.loadMembers(sourceId);
+        const target = await this.loadMembers(periodId);
+        const sourceRaterUser = new Map(source.raters.map((rater) => [rater.id, rater.userId]));
+        const sourceSubject = new Map(source.ratees.map((ratee) => [ratee.id, subjectKeyOf(ratee)]));
+        const raterByUser = new Map(target.raters.map((rater) => [rater.userId, rater]));
+        const rateeBySubject = new Map(target.ratees.flatMap((ratee) => {
+            const key = subjectKeyOf(ratee);
+            return key ? [[key, ratee] as const] : [];
+        }));
+        const pairs = (await this.pairs.find({ where: { periodId: sourceId } })).flatMap((pair) => {
+            const rater = raterByUser.get(sourceRaterUser.get(pair.periodRaterId) ?? '');
+            const ratee = rateeBySubject.get(sourceSubject.get(pair.periodRateeId) ?? '');
+            if (!rater || !ratee || ratee.userId === rater.userId) return [];
+            return [{ periodRaterId: rater.id, periodRateeId: ratee.id }];
+        });
+        await this.replacePairs(periodId, uniquePairs(pairs));
     }
 
     /** `null` when the period has no pairs at all (legacy: rate every visible subject); otherwise the rater's ratee ids. */

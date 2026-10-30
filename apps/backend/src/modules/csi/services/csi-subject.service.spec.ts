@@ -111,6 +111,21 @@ describe('CsiSubjectService', () => {
         expect(unlink).toHaveBeenCalledWith('./uploads/csi/old.jpg');
     });
 
+    it('viewFor resolves period override, then master, then the user avatar', async () => {
+        const ratee = (over: Record<string, unknown>) => ({
+            id: 'r', periodId: 'p1', kind: 'PERSON', userId: U1, siteId: null, teamId: null, photoUrl: null, tagline: null,
+            displayName: 'X', jobTitle: 'Snapshot', sortOrder: 0, ...over,
+        }) as any;
+        expect(await service.viewFor(ICT, ratee({}))).toEqual({
+            siteId: SPJ.id, siteCode: 'SPJ', photoUrl: '/uploads/avatars/u1.jpg', tagline: null, jobTitle: 'Snapshot',
+        });
+        profiles.rows.push({ id: 'pf1', scope: ICT, userId: U1, photoUrl: '/uploads/csi/u1.jpg', tagline: 'Master', jobTitle: 'Lead' });
+        expect(await service.viewFor(ICT, ratee({ tagline: 'Periode' }))).toMatchObject({ photoUrl: '/uploads/csi/u1.jpg', tagline: 'Periode', jobTitle: 'Lead' });
+        teams.rows[0] = { ...teams.rows[0], photoUrl: '/uploads/csi/team.jpg', tagline: 'Tim master' };
+        expect(await service.viewFor(ICT, ratee({ kind: 'TEAM', userId: null, teamId: T1, siteId: KRW.id, photoUrl: '/uploads/csi/p.jpg' })))
+            .toEqual({ siteId: KRW.id, siteCode: 'KRW', photoUrl: '/uploads/csi/p.jpg', tagline: 'Tim master', jobTitle: 'Snapshot' });
+    });
+
     it('does not unlink an avatar outside /uploads/csi', async () => {
         const view = await service.setPhoto(ICT, `user:${U1}`, '/uploads/csi/new.jpg');
         expect(view.photoUrl).toBe('/uploads/csi/new.jpg');

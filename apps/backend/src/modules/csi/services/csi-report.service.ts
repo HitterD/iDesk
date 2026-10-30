@@ -13,7 +13,7 @@ import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
-import { lockPeriodRow } from './csi-period.service';
+import { lockPeriodRow } from './csi-period-lock.util';
 import { overallStats, rateeStats } from './csi-report.calc';
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiSlaService } from './csi-sla.service';

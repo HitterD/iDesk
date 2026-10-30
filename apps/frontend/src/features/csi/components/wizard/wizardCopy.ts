@@ -67,7 +67,9 @@ export const SECTION_COPY = {
 
 export const TEAM_COPY = {
     title: 'Penilaian tim',
-    description: 'Pilih pertanyaan yang dipakai untuk menilai tim, lalu atur urutannya.',
+    description: 'Satu tim per site. Pilih pertanyaan untuk tiap tim, lalu atur urutannya.',
+    siteTeam: (siteName: string) => `Tim ${siteName}`,
+    noSites: 'Pilih site periode terlebih dahulu di langkah Info.',
     pick: 'Pilih pertanyaan penilaian tim',
     selected: 'Urutan pertanyaan tim',
     handleNoun: 'pertanyaan tim',

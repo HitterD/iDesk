@@ -12,13 +12,17 @@ import { CsiDepartment } from '../entities/csi-department.entity';
 import { CsiDimension } from '../entities/csi-dimension.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
+import { CsiPeriodRaterRatee } from '../entities/csi-period-rater-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriodSite } from '../entities/csi-period-site.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
-import { computeStatus, lockPeriodRow } from './csi-period.service';
+import { CsiAssignmentService } from './csi-assignment.service';
+import { lockPeriodRow } from './csi-period-lock.util';
+import { computeStatus } from './csi-period.service';
+import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
 
 /** Only the user id is taken from the token; site and active flag are always re-read from the database. */
 export type CsiRespondentRef = { id: string };
@@ -42,6 +46,8 @@ type AssignmentReaders = {
     ratees: Repository<CsiPeriodRatee>;
     rateeDimensions: Repository<CsiPeriodRateeDimension>;
     departments: Repository<CsiDepartment>;
+    /** Only set inside the submit transaction (outside it, CsiAssignmentService reads the pairs). */
+    pairs?: Repository<CsiPeriodRaterRatee>;
 };
 
 const readersOf = (manager: EntityManager): AssignmentReaders => ({
@@ -49,6 +55,7 @@ const readersOf = (manager: EntityManager): AssignmentReaders => ({
     ratees: manager.getRepository(CsiPeriodRatee),
     rateeDimensions: manager.getRepository(CsiPeriodRateeDimension),
     departments: manager.getRepository(CsiDepartment),
+    pairs: manager.getRepository(CsiPeriodRaterRatee),
 });
 
 @Injectable()
@@ -63,6 +70,8 @@ export class CsiRespondentService {
         @InjectRepository(User) private readonly users: Repository<User>,
         @InjectRepository(CsiDimension) private readonly dimensions: Repository<CsiDimension>,
         @InjectDataSource() private readonly dataSource: DataSource,
+        private readonly assignments: CsiAssignmentService,
+        private readonly subjects: CsiSubjectService,
     ) { }
 
     private get readers(): AssignmentReaders {
@@ -97,9 +106,9 @@ export class CsiRespondentService {
     async getForm(user: CsiRespondentRef, periodId: string, now: Date = new Date()) {
         const { period, audience } = await this.resolveEligible(user, periodId);
         if (computeStatus(period, now) !== 'ACTIVE') throw new NotFoundException(NOT_FOUND_MESSAGE);
-        const [departments, avatars, submittedNames] = await Promise.all([
+        const [departments, views, submittedNames] = await Promise.all([
             this.departments.find({ where: { scope: period.scope, isActive: true }, order: { sortOrder: 'ASC', name: 'ASC' } }),
-            this.avatarsOf(audience.ratees),
+            this.subjects.viewsFor(period.scope, audience.ratees),
             this.submittedNames(period.id, audience.respondent.id),
         ]);
         const descriptions = await this.descriptionsOf(audience.dimensions);
@@ -110,8 +119,7 @@ export class CsiRespondentService {
             submittedNames,
             departments: departments.map((department) => ({ id: department.id, name: department.name })),
             ratees: audience.ratees.map((ratee) => ({
-                periodRateeId: ratee.id, kind: ratee.kind ?? CsiRateeKind.PERSON, displayName: ratee.displayName, jobTitle: ratee.jobTitle,
-                avatarUrl: ratee.userId ? avatars.get(ratee.userId) ?? null : null,
+                ...formProfile(ratee, views.get(ratee.id)),
                 dimensions: audience.dimensions.filter((row) => row.periodRateeId === ratee.id).map((row) => ({
                     periodRateeDimensionId: row.id, name: row.dimensionName, description: descriptions.get(row.dimensionId) ?? null,
                     type: row.type, required: row.required, options: row.options ?? [],
@@ -184,11 +192,12 @@ export class CsiRespondentService {
             if (!rater) return null;
         }
         const rows = await readers.ratees.find({ where: { periodId: period.id }, order: { sortOrder: 'ASC' } });
-        const visible = rows.filter((ratee) => isRateeVisible(ratee, period, respondent.id));
+        const pairs = await this.pairsWithin(readers, period.id, respondent.id);
+        const visible = rows.filter((ratee) => isRateeVisible(ratee, period, respondent.id) && (!pairs || pairs.has(ratee.id)));
         if (!visible.length) return null;
         const dimensions = await this.dimensionsOf(readers, visible);
         const withQuestions = new Set(dimensions.map((row) => row.periodRateeId));
-        const ratees = visible.filter((ratee) => withQuestions.has(ratee.id)).sort(teamFirst);
+        const ratees = visible.filter((ratee) => withQuestions.has(ratee.id)).sort(rateeOrder(respondent.siteId));
         return ratees.length ? { respondent, ratees, dimensions } : null;
     }
 
@@ -198,11 +207,17 @@ export class CsiRespondentService {
         });
     }
 
-    /** Current avatar per ratee user (one query); ratee rows only snapshot name and job title. */
-    private async avatarsOf(ratees: CsiPeriodRatee[]) {
-        const userIds = ratees.map((ratee) => ratee.userId).filter((id): id is string => id !== null);
-        const rows = await this.users.find({ where: { id: In([...new Set(userIds)]) }, select: { id: true, avatarUrl: true } });
-        return new Map(rows.map((user) => [user.id, user.avatarUrl ?? null]));
+    /**
+     * Mapping of the rater (null = the period has no mapping at all). Inside the submit transaction the read goes through
+     * the transaction's connection; otherwise CsiAssignmentService.pairsFor is the single implementation.
+     */
+    private async pairsWithin(readers: AssignmentReaders, periodId: string, raterUserId: string): Promise<Set<string> | null> {
+        if (!readers.pairs) return this.assignments.pairsFor(periodId, raterUserId);
+        if (!(await readers.pairs.count({ where: { periodId } }))) return null;
+        const rater = await readers.periodRaters.findOne({ where: { periodId, userId: raterUserId } });
+        if (!rater) return new Set();
+        const rows = await readers.pairs.find({ where: { periodId, periodRaterId: rater.id } });
+        return new Set(rows.map((row) => row.periodRateeId));
     }
 
     /** Current master description per dimension id (one query); a deleted master yields no entry. */
@@ -249,7 +264,21 @@ function assertSubmittable(period: CsiPeriod, now: Date) {
 
 const has = (value: unknown) => value !== undefined && value !== null;
 const isTeam = (ratee: CsiPeriodRatee) => ratee.kind === CsiRateeKind.TEAM;
-const teamFirst = (a: CsiPeriodRatee, b: CsiPeriodRatee) => Number(isTeam(b)) - Number(isTeam(a));
+/** Teams first (the respondent's own site team before other sites), then by sortOrder. */
+const rateeOrder = (siteId: string) => (a: CsiPeriodRatee, b: CsiPeriodRatee) =>
+    Number(isTeam(b)) - Number(isTeam(a))
+    || Number(isTeam(b) && b.siteId === siteId) - Number(isTeam(a) && a.siteId === siteId)
+    || a.sortOrder - b.sortOrder;
+
+/** Form fields of a ratee; `avatarUrl` is kept for older clients and equals the resolved `photoUrl`. */
+function formProfile(ratee: CsiPeriodRatee, view: CsiRateeView | undefined) {
+    const photoUrl = view?.photoUrl ?? null;
+    return {
+        periodRateeId: ratee.id, kind: ratee.kind ?? CsiRateeKind.PERSON, displayName: ratee.displayName,
+        jobTitle: view?.jobTitle ?? ratee.jobTitle, avatarUrl: photoUrl,
+        siteId: view?.siteId ?? null, siteCode: view?.siteCode ?? null, tagline: view?.tagline ?? null, photoUrl,
+    };
+}
 
 function isRateeVisible(ratee: CsiPeriodRatee, period: CsiPeriod, respondentId: string) {
     if (isTeam(ratee)) return period.teamEnabled === true;
