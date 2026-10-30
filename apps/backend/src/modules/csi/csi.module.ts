@@ -20,6 +20,10 @@ import { CsiAdminReportController } from './presentation/csi-admin-report.contro
 import { CsiMemoSetting } from './entities/csi-memo-setting.entity';
 import { CsiMemoService } from './services/csi-memo.service';
 import { CsiAdminMemoController } from './presentation/csi-admin-memo.controller';
+import { CsiTeam } from './entities/csi-team.entity';
+import { CsiSubjectProfile } from './entities/csi-subject-profile.entity';
+import { CsiRaterAssignment } from './entities/csi-rater-assignment.entity';
+import { CsiPeriodRaterRatee } from './entities/csi-period-rater-ratee.entity';
 import { CsiDimension } from './entities/csi-dimension.entity';
 import { CsiDepartment } from './entities/csi-department.entity';
 import { CsiRater } from './entities/csi-rater.entity';
@@ -37,7 +41,8 @@ import { CsiResponseComment } from './entities/csi-response-comment.entity';
         TypeOrmModule.forFeature([
             CsiDimension, CsiDepartment, CsiRater, CsiPeriod, CsiPeriodSite, CsiPeriodRatee,
             CsiPeriodRateeDimension, CsiPeriodRater, CsiResponse, CsiResponseItem, CsiResponseComment,
-            CsiMemoSetting, User, PermissionPreset, Site, Ticket,
+            CsiMemoSetting, CsiTeam, CsiSubjectProfile, CsiRaterAssignment, CsiPeriodRaterRatee,
+            User, PermissionPreset, Site, Ticket,
         ]),
         AuthModule,
         AuditModule,

@@ -15,6 +15,9 @@ export class CsiDimension {
     @Column({ type: 'varchar', length: 300 })
     name: string;
 
+    @Column({ type: 'varchar', length: 40, nullable: true })
+    shortLabel: string | null;
+
     @Column({ type: 'varchar', length: 300, nullable: true })
     description: string | null;
 
