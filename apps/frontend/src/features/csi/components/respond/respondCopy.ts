@@ -36,7 +36,7 @@ export const summaryText = (people: number, minutes: number, teamLabel: string |
 export const deadlineText = (date: string) => `Tersedia sampai ${date}`;
 export const submittedNote = (names: string[]) => `Akun ini sudah mengisi atas nama: ${names.join(', ')}.`;
 export const positionText = (index: number, total: number) => `Langkah ${index} dari ${total}`;
-export const missingText = (count: number) => `Jawab ${count} pertanyaan wajib lagi`;
+export const missingText = (count: number) => `${count} pertanyaan wajib belum dijawab`;
 export const commentLabel = (name: string) => `Saran untuk ${name} (opsional)`;
 export const ratingLabel = (question: string, name: string) => `${question} untuk ${name}`;
 export const averageLabel = (value: string) => `Rata-rata ${value} dari 5`;

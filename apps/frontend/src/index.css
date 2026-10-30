@@ -1874,6 +1874,20 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   }
 }
 
+/* CSI respondent screen (spec "Form responden"). Every name carries the csi- prefix so nothing collides with component classes. */
+@keyframes csi-kenburns { from { transform: scale(1.04); } to { transform: scale(1.12); } }
+@keyframes csi-photo-in { from { opacity: 0; transform: scale(1.06) translateX(24px); } }
+@keyframes csi-cap-in { from { opacity: 0; transform: translateY(10px); } }
+@keyframes csi-star-pop { 40% { transform: scale(1.35) rotate(-8deg); } }
+@keyframes csi-emo-pop { 0% { transform: scale(.4) rotate(-20deg); } 55% { transform: scale(1.25) rotate(8deg); } 100% { transform: none; } }
+@keyframes csi-ripple { from { transform: scale(.5); opacity: .9; } to { transform: scale(1.9); opacity: 0; } }
+.csi-kenburns { animation: csi-kenburns 14s ease-out both; }
+.csi-photo-in { animation: csi-photo-in 520ms var(--ease-out) both; }
+.csi-cap-in { animation: csi-cap-in 600ms var(--ease-out) both; }
+.csi-star-pop { animation: csi-star-pop 380ms var(--ease-spring) both; }
+.csi-emo-pop { animation: csi-emo-pop 520ms var(--ease-spring); }
+.csi-ripple { animation: csi-ripple 560ms var(--ease-out) forwards; }
+
 /* One switch for everyone who asked for less motion: tokens collapse, ambient loops stop. Unlayered and last on purpose. */
 @media (prefers-reduced-motion: reduce) {
   :root { --dur-1: 0ms; --dur-2: 0ms; --dur-3: 0ms; }
@@ -1884,6 +1898,8 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   .queue-stat:hover, .portal-stat:hover, .ct-card:hover, .ct-card:hover img, .ct-card:hover .ct-link svg, .card-interactive:hover,
   .portal-tab:hover .portal-tab-tile, .ct-chip:hover, .ct-chip:hover svg, .ct-back-link:hover svg { transform: none; }
   .idesk-spin, .animate-pulse { animation: none !important; }
+  .csi-kenburns, .csi-photo-in, .csi-cap-in, .csi-star-pop, .csi-emo-pop { animation: none !important; }
+  .csi-ripple { display: none; }
   /* Scroll-driven edge fade is not motion; a time duration would break its scroll mapping. */
   .portal-seg { animation-duration: auto !important; }
 }

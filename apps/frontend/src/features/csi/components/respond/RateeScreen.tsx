@@ -1,17 +1,24 @@
-import { Users } from 'lucide-react';
+import { useRef } from 'react';
+import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { CSI_COMMENT_MAX, type CsiAnswer, type CsiAnswers } from '../../lib/csiForm';
 import type { CsiOpenForm } from '../../types';
 import { CSI_CARD } from '../CsiSurveyParts';
-import { FlowFooter, ScreenHeading } from './FlowChrome';
+import { FlowFooter } from './FlowChrome';
 import { QuestionField } from './QuestionField';
-import { RateeAvatar } from './RateeAvatar';
 import { RateeChips } from './RateeChips';
 import { commentLabel, missingText, positionText, RESPOND_COPY } from './respondCopy';
+import { SubjectPhoto } from './SubjectPhoto';
 
 type Ratee = CsiOpenForm['ratees'][number];
+
+/**
+ * Sticky photo offsets. The topbar (h-14 = 56px in BentoTopbar and ClientTopbar) sits outside the page scroller,
+ * so the photo sticks a small gap below the scroller's top and its height leaves room for the topbar.
+ */
+const STICKY_VARS = '[--csi-chrome:56px] [--csi-stick:12px]';
 
 interface RateeScreenProps {
     ratees: Ratee[];
@@ -29,66 +36,66 @@ interface RateeScreenProps {
     onNext: () => void;
 }
 
-function RateeHeader({ ratee, teamLabel }: { ratee: Ratee; teamLabel: string }) {
-    const team = ratee.kind === 'TEAM';
+/** "Lanjut · <next name>"; the name hides when the screen container is narrower than 780 px. */
+function NextButton({ next, onNext }: { next: Ratee | undefined; onNext: () => void }) {
     return (
-        <header className="flex items-center gap-4">
-            {team ? (
-                <span aria-hidden="true" className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-[hsl(var(--idesk-sapphire)/.12)] text-[hsl(var(--idesk-sapphire))]">
-                    <Users className="h-6 w-6" />
-                </span>
-            ) : <RateeAvatar name={ratee.displayName} avatarUrl={ratee.avatarUrl} />}
-            <div className="min-w-0">
-                <ScreenHeading id={`csi-ratee-${ratee.periodRateeId}`} className="break-words text-xl font-semibold tracking-tight">
-                    {team ? teamLabel : ratee.displayName}
-                </ScreenHeading>
-                {team && <p className="text-[14px] text-muted-foreground">{RESPOND_COPY.teamSub}</p>}
-                {!team && ratee.jobTitle && <p className="break-words text-[14px] text-muted-foreground">{ratee.jobTitle}</p>}
-            </div>
-        </header>
+        <button type="button" className="idesk-cta ct-submit min-w-0 max-w-full flex-1 justify-center sm:ml-auto sm:flex-none" onClick={onNext}>
+            {next ? (
+                <>
+                    {RESPOND_COPY.next}{' '}
+                    <span className="max-w-[180px] truncate font-semibold opacity-75 @max-[780px]:hidden">· {next.displayName}</span>
+                </>
+            ) : RESPOND_COPY.toReview}
+            <ArrowRight aria-hidden="true" />
+        </button>
     );
 }
 
+function CommentField({ ratee, comment, onComment }: { ratee: Ratee; comment: string; onComment: (text: string) => void }) {
+    const commentId = `csi-comment-${ratee.periodRateeId}`;
+    return (
+        <div className="space-y-2">
+            <label htmlFor={commentId} className="text-[13px] font-medium text-muted-foreground">{commentLabel(ratee.displayName)}</label>
+            <Textarea id={commentId} value={comment} maxLength={CSI_COMMENT_MAX} rows={3}
+                onChange={(event) => onComment(event.target.value)}
+                placeholder={RESPOND_COPY.commentPlaceholder} className="rounded-xl bg-card resize-y" />
+        </div>
+    );
+}
+
+/** One subject: large sticky photo on the left, questions on the right. The page is the only scroller. */
 export function RateeScreen(props: RateeScreenProps) {
     const { ratees, index, teamLabel, answers, comment, missing, isComplete, onAnswer, onComment, onSelect, onBack, onNext } = props;
+    const card = useRef<HTMLElement>(null);
     const ratee = ratees[index];
-    const isLast = index === ratees.length - 1;
-    const commentId = `csi-comment-${ratee.periodRateeId}`;
-    const name = ratee.kind === 'TEAM' ? teamLabel : ratee.displayName;
     return (
-        <div className="space-y-6">
+        <div className={cn('space-y-4', STICKY_VARS)}>
             <div className="space-y-3">
                 <p className="text-[13px] font-semibold uppercase tracking-wide text-[hsl(var(--idesk-sapphire))]">{positionText(index + 1, ratees.length)}</p>
                 <RateeChips ratees={ratees} current={index} teamLabel={teamLabel} isComplete={isComplete} onSelect={onSelect} />
             </div>
 
-            <section aria-labelledby={`csi-ratee-${ratee.periodRateeId}`} className={cn(CSI_CARD, 'p-6 sm:p-10')}>
-                <RateeHeader ratee={ratee} teamLabel={teamLabel} />
-                <div className="mt-8 space-y-8">
-                    {ratee.dimensions.map((dimension) => (
-                        <QuestionField key={dimension.periodRateeDimensionId} dimension={dimension} rateeName={name}
-                            answer={answers[dimension.periodRateeDimensionId]} missing={missing.has(dimension.periodRateeDimensionId)}
-                            onChange={(answer) => onAnswer(dimension.periodRateeDimensionId, answer)} />
-                    ))}
-                    <div className="space-y-2 px-3 sm:px-4">
-                        <label htmlFor={commentId} className="text-[14px] font-medium text-muted-foreground">{commentLabel(name)}</label>
-                        <Textarea id={commentId} value={comment} maxLength={CSI_COMMENT_MAX} rows={3}
-                            onChange={(event) => onComment(event.target.value)}
-                            placeholder={RESPOND_COPY.commentPlaceholder} className="rounded-xl bg-card resize-y" />
+            <section ref={card} aria-labelledby={`csi-ratee-${ratee.periodRateeId}`} className={cn(CSI_CARD, 'scroll-mt-3 overflow-clip rounded-[22px] @container')}>
+                <div className="grid grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] items-start @max-[780px]:grid-cols-1">
+                    <SubjectPhoto ratee={ratee} index={index} total={ratees.length} scrollTarget={card} />
+                    <div className="flex flex-col gap-3 p-4 [--flow-gutter:1rem] @min-[780px]:p-[clamp(16px,2.2cqi,30px)]">
+                        {ratee.dimensions.map((dimension) => (
+                            <QuestionField key={dimension.periodRateeDimensionId} dimension={dimension} rateeName={ratee.displayName}
+                                answer={answers[dimension.periodRateeDimensionId]} missing={missing.has(dimension.periodRateeDimensionId)}
+                                onChange={(answer) => onAnswer(dimension.periodRateeDimensionId, answer)} />
+                        ))}
+                        <CommentField ratee={ratee} comment={comment} onComment={onComment} />
+                        <FlowFooter note={(
+                            <p role="status" className="text-center text-[13px] font-medium text-[hsl(var(--ticket-amber-ink))] text-balance sm:text-right [&:not(:empty)]:mb-2.5">
+                                {missing.size > 0 ? missingText(missing.size) : ''}
+                            </p>
+                        )}>
+                            <Button type="button" variant="soft" size="lg" onClick={onBack}>{RESPOND_COPY.back}</Button>
+                            <NextButton next={ratees[index + 1]} onNext={onNext} />
+                        </FlowFooter>
                     </div>
                 </div>
             </section>
-
-            <FlowFooter note={(
-                <p role="status" className="text-center text-[13px] font-medium text-[hsl(var(--ticket-red-ink))] sm:text-right [&:not(:empty)]:mb-2.5">
-                    {missing.size > 0 ? missingText(missing.size) : ''}
-                </p>
-            )}>
-                <Button type="button" variant="soft" size="lg" onClick={onBack}>{RESPOND_COPY.back}</Button>
-                <button type="button" className="idesk-cta ct-submit flex-1 justify-center sm:ml-auto sm:flex-none" onClick={onNext}>
-                    {isLast ? RESPOND_COPY.toReview : RESPOND_COPY.next}
-                </button>
-            </FlowFooter>
         </div>
     );
 }

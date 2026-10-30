@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SurveyFlow } from '../SurveyFlow';
-import { button, chips, choose, FORM, LONG_NAME, rate, startFilling } from './surveyFlowFixture';
+import { button, chips, choose, FORM, LONG_NAME, NEXT, rate, startFilling } from './surveyFlowFixture';
 
 const renderFlow = (props: Partial<Parameters<typeof SurveyFlow>[0]> = {}) =>
     render(<SurveyFlow form={FORM} userId="u1" {...props} />);
@@ -68,7 +68,10 @@ describe('SurveyFlow screens', () => {
         renderFlow();
         await startFilling(user);
         expect(screen.getByRole('heading', { name: 'Tim IT Support' })).toBeInTheDocument();
-        expect(screen.getByText('Penilaian tim')).toBeInTheDocument();
+        expect(screen.getByText('Penilaian tim · SPJ')).toBeInTheDocument();
+        expect(screen.getByText('1 / 3')).toBeInTheDocument();
+        expect(screen.getByText('“Selalu siap membantu”')).toBeInTheDocument();
+        expect(button(NEXT)).toHaveAccessibleName('Lanjut · Andi');
         expect(screen.getByText('Langkah 1 dari 3')).toBeInTheDocument();
         expect(chips().getAllByRole('button').map((chip) => chip.textContent)).toEqual(['Tim IT Support', 'Andi', LONG_NAME]);
     });
@@ -88,16 +91,16 @@ describe('SurveyFlow screens', () => {
         const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView');
         renderFlow();
         await startFilling(user);
-        await user.click(button('Lanjut'));
-        expect(screen.getByRole('status')).toHaveTextContent('Jawab 1 pertanyaan wajib lagi');
+        await user.click(button(NEXT));
+        expect(screen.getByRole('status')).toHaveTextContent('1 pertanyaan wajib belum dijawab');
         expect(document.querySelectorAll('[data-missing]')).toHaveLength(1);
         expect(scrollSpy).toHaveBeenCalled();
         await choose(user, 'Kualitas layanan untuk Tim IT Support', 'Sangat baik');
         // The optional CHOICE question stays unanswered.
-        await user.click(button('Lanjut'));
+        await user.click(button(NEXT));
         expect(screen.getByRole('heading', { name: 'Andi' })).toBeInTheDocument();
-        await user.click(button('Lanjut'));
-        expect(screen.getByRole('status')).toHaveTextContent('Jawab 2 pertanyaan wajib lagi');
+        await user.click(button(NEXT));
+        expect(screen.getByRole('status')).toHaveTextContent('2 pertanyaan wajib belum dijawab');
         scrollSpy.mockRestore();
     });
 
@@ -122,7 +125,7 @@ describe('SurveyFlow screens', () => {
         await rate(user, `Kecepatan untuk ${LONG_NAME}`, 3);
         await user.click(button('Tinjau jawaban'));
         expect(screen.getByRole('heading', { name: 'Andi' })).toBeInTheDocument();
-        expect(screen.getByRole('status')).toHaveTextContent('Jawab 2 pertanyaan wajib lagi');
+        expect(screen.getByRole('status')).toHaveTextContent('2 pertanyaan wajib belum dijawab');
     });
 
     it('avatar falls back to the initial when the photo fails', async () => {

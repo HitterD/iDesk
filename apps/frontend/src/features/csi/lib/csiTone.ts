@@ -25,6 +25,15 @@ export function scoreTone(avg: number | null): CsiTone {
     return avg >= CSI_SCORE_FAIR ? 'amber' : 'red';
 }
 
+/** Star or scale points (1–5): 1–2 red, 3 amber, 4–5 green; nothing chosen = neutral. */
+const STAR_LOW_MAX = 2;
+const STAR_MID = 3;
+export function starTone(points: number | null | undefined): CsiTone {
+    if (!points) return 'neutral';
+    if (points <= STAR_LOW_MAX) return 'red';
+    return points === STAR_MID ? 'amber' : 'green';
+}
+
 export function questionTone(index: number): CsiTone {
     const length = QUESTION_TONES.length;
     return QUESTION_TONES[((index % length) + length) % length];

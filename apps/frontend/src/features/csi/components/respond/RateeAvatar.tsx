@@ -17,7 +17,7 @@ const SIZES = {
 } as const;
 
 /** Same rule as UserAvatar: relative upload paths are served by the API origin. */
-const imageUrl = (url: string) =>
+export const imageUrl = (url: string) =>
     /^(https?:|blob:|data:)/.test(url) ? url : `${import.meta.env.VITE_API_URL || ''}${url}`;
 
 /** Deterministic: the same name always gets the same tone. */

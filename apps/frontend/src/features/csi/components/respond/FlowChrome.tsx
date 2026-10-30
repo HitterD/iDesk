@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { m, useReducedMotion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -22,16 +22,19 @@ const SLIDE_EASE = [0.22, 1, 0.36, 1] as const;
 /**
  * Title of the current screen. After navigation it scrolls itself into view (works in any layout's
  * scroll container) and takes focus so screen readers announce the new step. Nothing happens on first mount.
+ * `scrollTarget` scrolls another element instead (a heading inside a sticky photo is a poor scroll anchor).
  */
-export function ScreenHeading({ id, className, as, children }: { id?: string; className?: string; as?: HeadingLevel; children: ReactNode }) {
+export function ScreenHeading({ id, className, as, scrollTarget, children }: {
+    id?: string; className?: string; as?: HeadingLevel; scrollTarget?: RefObject<HTMLElement | null>; children: ReactNode;
+}) {
     const { navigated, headingLevel = 'h1' } = useContext(FlowChromeContext);
     const reduce = useReducedMotion();
     const ref = useRef<HTMLHeadingElement>(null);
     useEffect(() => {
         if (!navigated) return;
-        ref.current?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+        (scrollTarget?.current ?? ref.current)?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
         ref.current?.focus({ preventScroll: true });
-    }, [navigated, reduce]);
+    }, [navigated, reduce, scrollTarget]);
     const Tag = as ?? headingLevel;
     return (
         <Tag ref={ref} id={id} tabIndex={-1} className={cn('scroll-mt-24 text-foreground outline-none', className)}>{children}</Tag>

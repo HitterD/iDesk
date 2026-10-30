@@ -56,7 +56,7 @@ const renderPage = () => {
 
 type User = ReturnType<typeof userEvent.setup>;
 const rate = async (user: User, group: string, stars: number) =>
-    user.click(within(screen.getByRole('radiogroup', { name: group })).getByRole('radio', { name: `${stars} dari 5` }));
+    user.click(within(screen.getByRole('radiogroup', { name: group })).getByRole('radio', { name: `${stars} bintang` }));
 
 /** Intro → Andi → Budi → review, then press "Kirim". */
 const fillAndSubmit = async (user: User, comment?: string) => {
@@ -66,7 +66,7 @@ const fillAndSubmit = async (user: User, comment?: string) => {
     await rate(user, 'Kecepatan untuk Andi', 5);
     await rate(user, 'Keramahan untuk Andi', 4);
     if (comment) await user.type(screen.getByLabelText('Saran untuk Andi (opsional)'), comment);
-    await user.click(screen.getByRole('button', { name: 'Lanjut' }));
+    await user.click(screen.getByRole('button', { name: /^Lanjut/ }));
     await rate(user, 'Kecepatan untuk Budi', 3);
     await user.click(screen.getByRole('button', { name: 'Tinjau jawaban' }));
     await user.click(screen.getByRole('button', { name: 'Kirim' }));
@@ -160,7 +160,7 @@ describe('CsiSurveyPage', () => {
         expect(screen.queryByText('Melanjutkan isian sebelumnya')).not.toBeInTheDocument();
         await user.type(screen.getByLabelText('Nama'), 'Sari');
         await user.click(screen.getByRole('button', { name: 'Mulai mengisi' }));
-        expect(within(screen.getByRole('radiogroup', { name: 'Kecepatan untuk Andi' })).getByRole('radio', { name: '5 dari 5' }))
+        expect(within(screen.getByRole('radiogroup', { name: 'Kecepatan untuk Andi' })).getByRole('radio', { name: '5 bintang' }))
             .toHaveAttribute('aria-checked', 'false');
     });
 

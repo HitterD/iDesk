@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { questionTone, scoreTone, scoreWord, siteTone, STAR_EMOJI, STAR_LABELS, toneClasses } from '../csiTone';
+import { questionTone, scoreTone, scoreWord, siteTone, STAR_EMOJI, STAR_LABELS, starTone, toneClasses } from '../csiTone';
+
+describe('starTone', () => {
+    it('1–2 merah, 3 amber, 4–5 hijau, kosong netral', () => {
+        expect([1, 2, 3, 4, 5].map(starTone)).toEqual(['red', 'red', 'amber', 'green', 'green']);
+        expect(starTone(undefined)).toBe('neutral');
+        expect(starTone(null)).toBe('neutral');
+    });
+});
 
 describe('scoreTone', () => {
     it('memakai batas 4,5 hijau dan 4,0 amber', () => {
