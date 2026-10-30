@@ -6,10 +6,13 @@ import {
     AlertTriangle,
     Terminal,
     AlertCircle,
+    CheckCircle2,
     Circle,
-    CheckCircle,
     ZoomIn,
-    Maximize2
+    Maximize2,
+    Lightbulb,
+    ShieldAlert,
+    ExternalLink
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ImageLightboxModal } from './ImageLightboxModal';
@@ -21,8 +24,16 @@ interface ArticleMarkdownViewerProps {
     onToggleStep?: (stepNumber: string) => void;
 }
 
+export function stripEmojis(str: string): string {
+    if (!str) return '';
+    return str
+        .replace(/[\p{Extended_Pictographic}\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{2300}-\u{23FF}\u{200D}\u{FE0E}\u{FE0F}]/gu, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+}
+
 export function slugify(text: string): string {
-    return text
+    return stripEmojis(text)
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)+/g, '');
@@ -61,9 +72,11 @@ export const ArticleMarkdownViewer: React.FC<ArticleMarkdownViewerProps> = ({
     };
 
     return (
-        <div className={cn("space-y-6 text-foreground leading-relaxed text-sm md:text-[15px]", className)}>
+        <div className={cn("article-prose space-y-6 text-foreground/90 leading-relaxed text-[15px] max-w-none", className)}>
             {sections.map((section, idx) => {
-                if (section.type === 'code') {
+                if (section.type === 'hr') {
+                    return <hr key={idx} className="my-8 border-t border-border/70" />;
+                } else if (section.type === 'code') {
                     return <CodeBlockViewer key={idx} code={section.raw} language={section.language} />;
                 } else if (section.type === 'table') {
                     return <TableViewer key={idx} tableLines={section.lines} />;
@@ -76,6 +89,15 @@ export const ArticleMarkdownViewer: React.FC<ArticleMarkdownViewerProps> = ({
                             variant={section.variant}
                             onImageClick={handleImageClick}
                         />
+                    );
+                } else if (section.type === 'quote') {
+                    return (
+                        <blockquote
+                            key={idx}
+                            className="my-5 pl-4 border-l-3 border-primary/60 bg-muted/20 py-3 pr-4 rounded-r-xl text-foreground/80 italic text-[14px] leading-relaxed"
+                        >
+                            <TextSectionViewer text={section.raw} onImageClick={handleImageClick} />
+                        </blockquote>
                     );
                 } else if (section.type === 'step') {
                     return (
@@ -119,12 +141,16 @@ export const ArticleMarkdownViewer: React.FC<ArticleMarkdownViewerProps> = ({
 };
 
 // Section types
+type CalloutVariant = 'info' | 'warning' | 'diagnostic' | 'tip' | 'important' | 'caution';
+
 type Section =
     | { type: 'text'; raw: string }
+    | { type: 'hr' }
+    | { type: 'quote'; raw: string }
     | { type: 'code'; raw: string; language?: string }
     | { type: 'table'; lines: string[] }
     | { type: 'step'; stepNumber: string; title: string; body: string }
-    | { type: 'callout'; title: string; body: string; variant: 'info' | 'warning' | 'diagnostic' }
+    | { type: 'callout'; title: string; body: string; variant: CalloutVariant }
     | { type: 'image'; src: string; alt?: string; caption?: string; align?: 'left' | 'center' | 'right' | 'full'; size?: '25' | '50' | '75' | '100' };
 
 function parseContentSections(content: string): Section[] {
@@ -141,7 +167,7 @@ function parseContentSections(content: string): Section[] {
         if (currentTextLines.length > 0) {
             const raw = currentTextLines.join('\n').trim();
             if (raw) {
-                // Callout detection
+                // Conventional Callout detection
                 if (/^##\s*(Catatan|Note)/i.test(raw)) {
                     sections.push({
                         type: 'callout',
@@ -171,7 +197,7 @@ function parseContentSections(content: string): Section[] {
                         sections.push({
                             type: 'step',
                             stepNumber: stepMatch[1],
-                            title: stepMatch[2].trim() || `Langkah ${stepMatch[1]}`,
+                            title: stripEmojis(stepMatch[2].trim() || `Langkah ${stepMatch[1]}`),
                             body: linesAfterTitle,
                         });
                     } else {
@@ -193,14 +219,15 @@ function parseContentSections(content: string): Section[] {
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        const trimmed = line.trim();
 
         // Code block toggle
-        if (line.trim().startsWith('```')) {
+        if (trimmed.startsWith('```')) {
             if (!inCodeBlock) {
                 flushText();
                 flushTable();
                 inCodeBlock = true;
-                codeLanguage = line.trim().replace(/^```/, '').trim();
+                codeLanguage = trimmed.replace(/^```/, '').trim();
                 currentCodeLines = [];
             } else {
                 inCodeBlock = false;
@@ -219,28 +246,83 @@ function parseContentSections(content: string): Section[] {
             continue;
         }
 
+        // Horizontal rule: ---, ***, ___
+        if (/^(?:---|[*]{3,}|_{3,})$/.test(trimmed)) {
+            flushText();
+            flushTable();
+            sections.push({ type: 'hr' });
+            continue;
+        }
+
+        // GitHub Alert syntax: > [!NOTE], > [!TIP], > [!IMPORTANT], > [!WARNING], > [!CAUTION]
+        const ghAlertMatch = trimmed.match(/^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i);
+        if (ghAlertMatch) {
+            flushText();
+            flushTable();
+            const alertType = ghAlertMatch[1].toUpperCase();
+            const variantMap: Record<string, { variant: CalloutVariant; defaultTitle: string }> = {
+                NOTE: { variant: 'info', defaultTitle: 'Catatan' },
+                TIP: { variant: 'tip', defaultTitle: 'Tips & Saran' },
+                IMPORTANT: { variant: 'important', defaultTitle: 'Penting' },
+                WARNING: { variant: 'warning', defaultTitle: 'Peringatan' },
+                CAUTION: { variant: 'caution', defaultTitle: 'Perhatian' },
+            };
+            const meta = variantMap[alertType] || { variant: 'info', defaultTitle: 'Informasi' };
+
+            // Gather all subsequent lines starting with >
+            const alertLines: string[] = [];
+            while (i + 1 < lines.length && lines[i + 1].trim().startsWith('>')) {
+                i++;
+                alertLines.push(lines[i].trim().replace(/^>\s?/, ''));
+            }
+
+            sections.push({
+                type: 'callout',
+                title: meta.defaultTitle,
+                body: alertLines.join('\n').trim(),
+                variant: meta.variant,
+            });
+            continue;
+        }
+
+        // Blockquote: > line
+        if (trimmed.startsWith('> ')) {
+            flushText();
+            flushTable();
+            const quoteLines = [trimmed.replace(/^>\s?/, '')];
+            while (i + 1 < lines.length && lines[i + 1].trim().startsWith('>')) {
+                i++;
+                quoteLines.push(lines[i].trim().replace(/^>\s?/, ''));
+            }
+            sections.push({
+                type: 'quote',
+                raw: quoteLines.join('\n'),
+            });
+            continue;
+        }
+
         // Table row check
-        if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+        if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
             flushText();
             inTable = true;
-            currentTableLines.push(line.trim());
+            currentTableLines.push(trimmed);
             continue;
         } else if (inTable) {
             flushTable();
         }
 
         // Split on Step headers to make each step its own block
-        if (line.trim().match(/^###\s*(?:Step|Langkah)\s*\d+/i)) {
+        if (trimmed.match(/^###\s*(?:Step|Langkah)\s*\d+/i)) {
             flushText();
         }
 
         // Split on major H2 headers
-        if (line.trim().startsWith('## ')) {
+        if (trimmed.startsWith('## ')) {
             flushText();
         }
 
         // Standalone image line detection: ![alt](url){options}
-        const imgMatch = line.trim().match(/^!\[([^\]]*)\]\(([^)]+)\)(?:\{([^}]+)\})?$/);
+        const imgMatch = trimmed.match(/^!\[([^\]]*)\]\(([^)]+)\)(?:\{([^}]+)\})?$/);
         if (imgMatch) {
             flushText();
             const rawAlt = imgMatch[1] || '';
@@ -251,7 +333,6 @@ function parseContentSections(content: string): Section[] {
             let size: '25' | '50' | '75' | '100' = '100';
             let caption = '';
 
-            // Check if alt contains pipe for caption (e.g. ![Alt text|Caption di bawah gambar](url))
             if (rawAlt.includes('|')) {
                 const parts = rawAlt.split('|');
                 caption = parts.slice(1).join('|').trim();
@@ -306,32 +387,32 @@ export const ImageBlockViewer: React.FC<{
     }[size] || 'w-full';
 
     const containerAlignClass = {
-        left: 'flex justify-start my-4',
-        center: 'flex justify-center my-4',
-        right: 'flex justify-end my-4',
-        full: 'w-full my-4',
-    }[align] || 'flex justify-center my-4';
+        left: 'flex justify-start my-6',
+        center: 'flex justify-center my-6',
+        right: 'flex justify-end my-6',
+        full: 'w-full my-6',
+    }[align] || 'flex justify-center my-6';
 
     return (
         <figure className={cn("clear-both transition-all group", containerAlignClass)}>
-            <div className={cn("space-y-2", sizeClass)}>
+            <div className={cn("space-y-2.5", sizeClass)}>
                 <div
                     onClick={() => onImageClick?.(fullUrl, alt, caption)}
-                    className="relative overflow-hidden rounded-2xl border border-border/80 bg-muted/20 shadow-2xs hover:shadow-md transition-all cursor-zoom-in group/img"
+                    className="relative overflow-hidden rounded-2xl border border-border/80 bg-muted/10 shadow-2xs hover:shadow-md transition-all cursor-zoom-in group/img"
                 >
                     <img
                         src={fullUrl}
                         alt={alt}
                         loading="lazy"
-                        className="w-full h-auto object-contain max-h-[520px] rounded-2xl transition-transform duration-300 group-hover/img:scale-[1.01]"
+                        className="w-full h-auto object-contain max-h-[540px] rounded-2xl transition-transform duration-300 group-hover/img:scale-[1.005]"
                     />
-                    <div className="absolute top-3 right-3 p-1.5 rounded-lg bg-black/60 text-white backdrop-blur-xs opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center gap-1 text-[11px] font-medium shadow-sm">
+                    <div className="absolute top-3 right-3 p-1.5 rounded-lg bg-black/60 text-white backdrop-blur-xs opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center gap-1.5 text-[11px] font-medium shadow-sm">
                         <Maximize2 className="w-3.5 h-3.5" />
                         <span className="hidden sm:inline">Perbesar</span>
                     </div>
                 </div>
                 {caption && (
-                    <figcaption className="text-center text-xs text-muted-foreground italic font-medium px-2">
+                    <figcaption className="text-center text-xs text-muted-foreground font-medium px-2">
                         {caption}
                     </figcaption>
                 )}
@@ -340,7 +421,7 @@ export const ImageBlockViewer: React.FC<{
     );
 };
 
-// Step Card Viewer
+// Step Card Viewer (Clean, Non-Bulky Enterprise Step)
 const StepCardViewer: React.FC<{
     stepNumber: string;
     title: string;
@@ -356,24 +437,25 @@ const StepCardViewer: React.FC<{
     onToggle,
     onImageClick,
 }) => {
-    const slug = slugify(`step-${stepNumber}-${title}`);
+    const cleanTitle = stripEmojis(title);
+    const slug = slugify(`step-${stepNumber}-${cleanTitle}`);
     return (
         <div
             id={slug}
             className={cn(
-                "my-5 rounded-2xl border transition-all duration-200 p-5 md:p-6 shadow-2xs space-y-3.5 scroll-mt-24",
+                "my-6 rounded-2xl border transition-all duration-200 p-5 md:p-6 scroll-mt-24 space-y-4 shadow-2xs",
                 isCompleted
-                    ? "bg-emerald-500/5 border-emerald-500/40 shadow-emerald-500/5"
-                    : "bg-card border-border hover:border-border/90"
+                    ? "bg-emerald-500/5 border-emerald-500/30"
+                    : "bg-card/70 border-border/80 hover:border-border hover:bg-card"
             )}
         >
             <div className="flex items-center justify-between gap-3 pb-3 border-b border-border/60">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
                     <span className={cn(
-                        "px-2.5 py-1 rounded-lg font-mono text-xs font-bold tracking-wider transition-colors",
+                        "px-2.5 py-0.5 rounded-md font-mono text-xs font-bold tracking-wide transition-colors",
                         isCompleted
                             ? "bg-emerald-600 text-white"
-                            : "bg-foreground text-background"
+                            : "bg-muted text-foreground border border-border"
                     )}>
                         LANGKAH {stepNumber}
                     </span>
@@ -381,7 +463,7 @@ const StepCardViewer: React.FC<{
                         "font-bold text-base md:text-lg tracking-tight transition-colors",
                         isCompleted ? "text-emerald-700 dark:text-emerald-400 line-through opacity-85" : "text-foreground"
                     )}>
-                        {title}
+                        {cleanTitle}
                     </h3>
                 </div>
 
@@ -390,21 +472,21 @@ const StepCardViewer: React.FC<{
                         type="button"
                         onClick={onToggle}
                         className={cn(
-                            "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border",
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border shadow-2xs",
                             isCompleted
                                 ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25"
-                                : "bg-muted/60 text-muted-foreground border-border hover:text-foreground hover:bg-muted"
+                                : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted"
                         )}
                         title={isCompleted ? 'Tandai belum selesai' : 'Tandai langkah ini sudah selesai'}
                     >
                         {isCompleted ? (
                             <>
-                                <CheckCircle className="w-4 h-4 text-emerald-500" />
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                                 <span>Selesai</span>
                             </>
                         ) : (
                             <>
-                                <Circle className="w-4 h-4" />
+                                <Circle className="w-4 h-4 text-muted-foreground" />
                                 <span>Tandai Selesai</span>
                             </>
                         )}
@@ -412,7 +494,7 @@ const StepCardViewer: React.FC<{
                 )}
             </div>
 
-            <div className={cn("space-y-2.5 text-xs md:text-sm transition-opacity", isCompleted ? "opacity-75" : "text-foreground/90")}>
+            <div className={cn("space-y-3 text-[14px] md:text-[15px] transition-opacity", isCompleted ? "opacity-75" : "text-foreground/90")}>
                 <TextSectionViewer text={content} onImageClick={onImageClick} />
             </div>
         </div>
@@ -434,9 +516,9 @@ const CodeBlockViewer: React.FC<{ code: string; language?: string }> = ({ code, 
     };
 
     return (
-        <div className="my-4 rounded-xl overflow-hidden border border-border bg-slate-950 text-slate-100 shadow-xs">
-            <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 text-xs">
-                <div className="flex items-center gap-2 text-slate-400 font-mono">
+        <div className="my-5 rounded-2xl overflow-hidden border border-border/80 bg-slate-950 text-slate-100 shadow-xs">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-slate-900/90 border-b border-slate-800 text-xs">
+                <div className="flex items-center gap-2 text-slate-400 font-mono text-[11px]">
                     <Terminal className="w-3.5 h-3.5 text-slate-300" />
                     <span>{language || 'perintah / command'}</span>
                 </div>
@@ -483,22 +565,22 @@ const TableViewer: React.FC<{ tableLines: string[] }> = ({ tableLines }) => {
     const dataRows = rows.slice(1);
 
     return (
-        <div className="my-5 overflow-x-auto rounded-xl border border-border bg-card shadow-2xs">
+        <div className="my-6 overflow-x-auto rounded-xl border border-border/80 bg-card shadow-2xs">
             <table className="w-full text-xs md:text-sm text-left border-collapse">
                 <thead>
                     <tr className="border-b border-border bg-muted/60 text-foreground font-semibold">
                         {header.map((col, idx) => (
-                            <th key={idx} className="p-3">
+                            <th key={idx} className="p-3.5 font-semibold text-xs uppercase tracking-wider text-muted-foreground">
                                 {col}
                             </th>
                         ))}
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-border/60 text-muted-foreground">
+                <tbody className="divide-y divide-border/60">
                     {dataRows.map((row, rIdx) => (
-                        <tr key={rIdx} className="hover:bg-muted/20 transition-colors">
+                        <tr key={rIdx} className="hover:bg-muted/30 transition-colors">
                             {row.map((cell, cIdx) => (
-                                <td key={cIdx} className="p-3 text-foreground/90 font-medium">
+                                <td key={cIdx} className="p-3.5 text-foreground/90 font-normal leading-relaxed">
                                     {cell}
                                 </td>
                             ))}
@@ -510,11 +592,11 @@ const TableViewer: React.FC<{ tableLines: string[] }> = ({ tableLines }) => {
     );
 };
 
-// Callout Box Viewer (Diagnostic / Warning / Info)
+// Callout Box Viewer (GitHub Alerts & Documentation Notes)
 const CalloutViewer: React.FC<{
     title: string;
     body: string;
-    variant: 'info' | 'warning' | 'diagnostic';
+    variant: CalloutVariant;
     onImageClick?: (url: string, alt?: string, caption?: string) => void;
 }> = ({
     title,
@@ -522,43 +604,65 @@ const CalloutViewer: React.FC<{
     variant,
     onImageClick,
 }) => {
-    const isWarning = variant === 'warning';
-    const isDiagnostic = variant === 'diagnostic';
-    const slug = slugify(title);
+    const cleanTitle = stripEmojis(title);
+    const slug = slugify(cleanTitle);
+
+    const configMap: Record<CalloutVariant, {
+        containerClass: string;
+        iconClass: string;
+        icon: React.ReactNode;
+    }> = {
+        info: {
+            containerClass: "bg-blue-500/5 border-blue-500/25 text-foreground",
+            iconClass: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20",
+            icon: <Info className="w-4 h-4" />,
+        },
+        tip: {
+            containerClass: "bg-emerald-500/5 border-emerald-500/25 text-foreground",
+            iconClass: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+            icon: <Lightbulb className="w-4 h-4" />,
+        },
+        important: {
+            containerClass: "bg-purple-500/5 border-purple-500/25 text-foreground",
+            iconClass: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/20",
+            icon: <AlertCircle className="w-4 h-4" />,
+        },
+        warning: {
+            containerClass: "bg-amber-500/5 border-amber-500/25 text-foreground",
+            iconClass: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20",
+            icon: <AlertTriangle className="w-4 h-4" />,
+        },
+        caution: {
+            containerClass: "bg-rose-500/5 border-rose-500/25 text-foreground",
+            iconClass: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/20",
+            icon: <ShieldAlert className="w-4 h-4" />,
+        },
+        diagnostic: {
+            containerClass: "bg-muted/40 border-border/80 text-foreground",
+            iconClass: "bg-muted border-border text-foreground",
+            icon: <AlertCircle className="w-4 h-4" />,
+        },
+    };
+
+    const config = configMap[variant] || configMap.info;
 
     return (
         <div
             id={slug}
             className={cn(
-                "my-5 p-5 rounded-2xl border flex items-start gap-3.5 scroll-mt-24 shadow-2xs",
-                isDiagnostic
-                    ? "bg-card border-border text-foreground"
-                    : isWarning
-                    ? "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200"
-                    : "bg-muted/40 border-border text-foreground"
+                "my-6 p-4 md:p-5 rounded-2xl border flex items-start gap-3.5 scroll-mt-24 shadow-2xs",
+                config.containerClass
             )}
         >
-            <div className="mt-0.5 shrink-0">
-                {isDiagnostic ? (
-                    <div className="w-8 h-8 rounded-lg bg-muted border border-border flex items-center justify-center text-foreground">
-                        <AlertCircle className="w-4 h-4" />
-                    </div>
-                ) : isWarning ? (
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-600 flex items-center justify-center">
-                        <AlertTriangle className="w-4 h-4" />
-                    </div>
-                ) : (
-                    <div className="w-8 h-8 rounded-lg bg-muted border border-border flex items-center justify-center text-foreground">
-                        <Info className="w-4 h-4" />
-                    </div>
-                )}
+            <div className={cn("w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 mt-0.5", config.iconClass)}>
+                {config.icon}
             </div>
 
-            <div className="space-y-2 flex-1 min-w-0">
+            <div className="space-y-1.5 flex-1 min-w-0">
                 <h4 className="font-bold text-sm md:text-base text-foreground tracking-tight">
-                    {title}
+                    {cleanTitle}
                 </h4>
-                <div className="text-xs md:text-sm text-foreground/90 space-y-1.5 leading-relaxed">
+                <div className="text-xs md:text-sm text-foreground/85 space-y-1.5 leading-relaxed">
                     <TextSectionViewer text={body} onImageClick={onImageClick} />
                 </div>
             </div>
@@ -574,10 +678,15 @@ const TextSectionViewer: React.FC<{
     const lines = text.split('\n');
 
     return (
-        <div className="space-y-2.5">
+        <div className="space-y-3">
             {lines.map((line, idx) => {
                 const trimmed = line.trim();
-                if (!trimmed) return <div key={idx} className="h-1" />;
+                if (!trimmed) return <div key={idx} className="h-1.5" />;
+
+                // Horizontal rule check within text block
+                if (/^(?:---|[*]{3,}|_{3,})$/.test(trimmed)) {
+                    return <hr key={idx} className="my-8 border-t border-border/70" />;
+                }
 
                 // Inline image in text line
                 const inlineImgMatch = trimmed.match(/^!\[([^\]]*)\]\(([^)]+)\)(?:\{([^}]+)\})?$/);
@@ -619,9 +728,9 @@ const TextSectionViewer: React.FC<{
 
                 // H1
                 if (trimmed.startsWith('# ')) {
-                    const title = trimmed.replace(/^#\s*/, '');
+                    const title = stripEmojis(trimmed.replace(/^#\s*/, ''));
                     return (
-                        <h1 key={idx} id={slugify(title)} className="text-2xl md:text-3xl font-extrabold text-foreground tracking-tight pt-4 pb-2 border-b border-border/80 scroll-mt-24">
+                        <h1 key={idx} id={slugify(title)} className="text-2xl md:text-3xl font-bold text-foreground tracking-tight pt-6 pb-2 border-b border-border/70 scroll-mt-24">
                             {title}
                         </h1>
                     );
@@ -629,9 +738,9 @@ const TextSectionViewer: React.FC<{
 
                 // H2
                 if (trimmed.startsWith('## ')) {
-                    const title = trimmed.replace(/^##\s*/, '');
+                    const title = stripEmojis(trimmed.replace(/^##\s*/, ''));
                     return (
-                        <h2 key={idx} id={slugify(title)} className="text-lg md:text-xl font-bold text-foreground tracking-tight pt-5 pb-2 border-b border-border/60 scroll-mt-24">
+                        <h2 key={idx} id={slugify(title)} className="text-xl md:text-2xl font-semibold text-foreground tracking-tight pt-6 pb-2 border-b border-border/50 scroll-mt-24">
                             {title}
                         </h2>
                     );
@@ -639,9 +748,9 @@ const TextSectionViewer: React.FC<{
 
                 // H3 (Non-step)
                 if (trimmed.startsWith('### ')) {
-                    const title = trimmed.replace(/^###\s*/, '');
+                    const title = stripEmojis(trimmed.replace(/^###\s*/, ''));
                     return (
-                        <h3 key={idx} id={slugify(title)} className="text-sm md:text-base font-bold text-foreground tracking-tight pt-3 scroll-mt-24">
+                        <h3 key={idx} id={slugify(title)} className="text-base md:text-lg font-semibold text-foreground tracking-tight pt-4 scroll-mt-24">
                             {title}
                         </h3>
                     );
@@ -650,8 +759,8 @@ const TextSectionViewer: React.FC<{
                 // H4
                 if (trimmed.startsWith('#### ')) {
                     return (
-                        <h4 key={idx} className="text-xs md:text-sm font-semibold text-foreground pt-1.5">
-                            {trimmed.replace(/^####\s*/, '')}
+                        <h4 key={idx} className="text-sm font-semibold text-foreground pt-2">
+                            {stripEmojis(trimmed.replace(/^####\s*/, ''))}
                         </h4>
                     );
                 }
@@ -660,36 +769,36 @@ const TextSectionViewer: React.FC<{
                 const orderedMatch = trimmed.match(/^(\d+)\.\s*(.*)$/);
                 if (orderedMatch) {
                     const num = orderedMatch[1];
-                    const content = orderedMatch[2];
+                    const content = stripEmojis(orderedMatch[2]);
                     return (
-                        <div key={idx} className="flex items-start gap-3 pl-1 my-1.5">
+                        <div key={idx} className="flex items-start gap-3 pl-1 my-2">
                             <span className="w-5 h-5 rounded-md bg-muted border border-border text-foreground font-mono text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
                                 {num}
                             </span>
-                            <span className="text-foreground/90 text-xs md:text-sm leading-relaxed flex-1 pt-0.5">
+                            <div className="text-foreground/90 text-sm md:text-[15px] leading-relaxed flex-1 pt-0.5">
                                 {formatInlineStyles(content, onImageClick)}
-                            </span>
+                            </div>
                         </div>
                     );
                 }
 
                 // Unordered list item (- or *)
                 if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-                    const item = trimmed.replace(/^[-*]\s*/, '');
+                    const item = stripEmojis(trimmed.replace(/^[-*]\s*/, ''));
                     return (
-                        <div key={idx} className="flex items-start gap-2.5 pl-2 my-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-foreground/60 shrink-0 mt-2" />
-                            <span className="text-foreground/90 text-xs md:text-sm leading-relaxed flex-1">
+                        <div key={idx} className="flex items-start gap-3 pl-2 my-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-foreground/70 shrink-0 mt-2.5" />
+                            <div className="text-foreground/90 text-sm md:text-[15px] leading-relaxed flex-1">
                                 {formatInlineStyles(item, onImageClick)}
-                            </span>
+                            </div>
                         </div>
                     );
                 }
 
                 // Regular Paragraph
                 return (
-                    <p key={idx} className="text-xs md:text-sm text-foreground/80 leading-relaxed">
-                        {formatInlineStyles(trimmed, onImageClick)}
+                    <p key={idx} className="text-sm md:text-[15px] text-foreground/85 leading-relaxed">
+                        {formatInlineStyles(stripEmojis(trimmed), onImageClick)}
                     </p>
                 );
             })}
@@ -697,7 +806,7 @@ const TextSectionViewer: React.FC<{
     );
 };
 
-// Inline Markdown Parser: **bold**, `code`, [link](url), and inline images
+// Inline Markdown Parser: **bold**, `code`, [link](url), raw URLs, <kbd>, and inline images
 function formatInlineStyles(
     text: string,
     onImageClick?: (url: string, alt?: string, caption?: string) => void
@@ -721,12 +830,12 @@ function formatInlineStyles(
             <span
                 key={`img-${match.index}`}
                 onClick={() => onImageClick?.(fullUrl, alt)}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-1 rounded-lg border border-border bg-muted/30 hover:bg-muted/70 cursor-zoom-in text-xs text-foreground font-medium transition-colors"
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 mx-1 rounded-lg border border-border bg-muted/40 hover:bg-muted cursor-zoom-in text-xs text-foreground font-medium transition-colors"
                 title="Klik untuk melihat gambar"
             >
-                <ZoomIn className="w-3 h-3 text-primary shrink-0" />
+                <ZoomIn className="w-3.5 h-3.5 text-primary shrink-0" />
                 <img src={fullUrl} alt={alt} className="w-4 h-4 object-cover rounded shrink-0" />
-                <span className="truncate max-w-[120px]">{alt}</span>
+                <span className="truncate max-w-[140px]">{alt}</span>
             </span>
         );
 
@@ -741,23 +850,76 @@ function formatInlineStyles(
 }
 
 function renderFormattedSubtext(subtext: string): React.ReactNode {
-    const subParts = subtext.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+    // Tokenizer matching markdown links [text](url), bold **bold**, code `code`, keyboard <kbd>text</kbd>, and raw urls https?://
+    const tokenRegex = /(\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|`[^`]+`|<kbd>[^<]+<\/kbd>|https?:\/\/[^\s<)]+)/g;
+    const tokens = subtext.split(tokenRegex);
 
-    return subParts.map((part, i) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
+    return tokens.map((token, i) => {
+        if (!token) return null;
+
+        // Markdown link [text](url)
+        const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+        if (linkMatch) {
+            const label = linkMatch[1];
+            const href = linkMatch[2];
+            const isExternal = href.startsWith('http://') || href.startsWith('https://');
+            return (
+                <a
+                    key={i}
+                    href={href}
+                    target={isExternal ? '_blank' : undefined}
+                    rel={isExternal ? 'noopener noreferrer' : undefined}
+                    className="text-primary font-medium underline underline-offset-4 decoration-primary/40 hover:decoration-primary transition-colors inline-flex items-center gap-0.5"
+                >
+                    <span>{label}</span>
+                    {isExternal && <ExternalLink className="w-3 h-3 text-primary/70 shrink-0 inline" />}
+                </a>
+            );
+        }
+
+        // Bold **text**
+        if (token.startsWith('**') && token.endsWith('**')) {
             return (
                 <strong key={i} className="font-semibold text-foreground">
-                    {part.slice(2, -2)}
+                    {stripEmojis(token.slice(2, -2))}
                 </strong>
             );
         }
-        if (part.startsWith('`') && part.endsWith('`')) {
+
+        // Inline Code `code`
+        if (token.startsWith('`') && token.endsWith('`')) {
             return (
-                <code key={i} className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs text-foreground font-medium border border-border/80">
-                    {part.slice(1, -1)}
+                <code key={i} className="px-1.5 py-0.5 rounded-md bg-muted font-mono text-xs text-foreground font-semibold border border-border/80">
+                    {token.slice(1, -1)}
                 </code>
             );
         }
-        return part;
+
+        // Keyboard tag <kbd>text</kbd>
+        if (token.startsWith('<kbd>') && token.endsWith('</kbd>')) {
+            return (
+                <kbd key={i} className="px-1.5 py-0.5 rounded-md bg-muted border border-border text-foreground font-mono text-[11px] font-semibold shadow-2xs">
+                    {token.slice(5, -6)}
+                </kbd>
+            );
+        }
+
+        // Standalone URL https://...
+        if (/^https?:\/\/[^\s<)]+$/.test(token)) {
+            return (
+                <a
+                    key={i}
+                    href={token}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary font-mono text-xs underline underline-offset-4 decoration-primary/40 hover:decoration-primary transition-colors inline-flex items-center gap-0.5 break-all"
+                >
+                    <span>{token}</span>
+                    <ExternalLink className="w-3 h-3 text-primary/70 shrink-0 inline" />
+                </a>
+            );
+        }
+
+        return stripEmojis(token);
     });
 }

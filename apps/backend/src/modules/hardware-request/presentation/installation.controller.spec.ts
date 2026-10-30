@@ -79,6 +79,38 @@ describe('InstallationController', () => {
         expect(res.data.id).toBe('r1');
     });
 
+    describe('owner-or-ICT routes', () => {
+        it.each(['AGENT_OPERATIONAL_SUPPORT', 'AGENT_ADMIN', 'ADMIN', 'MANAGER'])(
+            'lets %s request a reschedule without owning the request',
+            async (role) => {
+                (mutualSchedSvc.requestReschedule as jest.Mock).mockResolvedValue({ id: 's1' });
+                const req = { user: { userId: 'agent-1', role } };
+
+                await ctrl.requestReschedule('r1', 's1', { reason: 'x' } as any, req);
+
+                expect(querySvc.getById).not.toHaveBeenCalled();
+                expect(mutualSchedSvc.requestReschedule).toHaveBeenCalled();
+            },
+        );
+
+        it('still rejects a user who does not own the request', async () => {
+            (querySvc.getById as jest.Mock).mockResolvedValue({ requesterId: 'someone-else' });
+
+            await expect(
+                ctrl.selectSlot('r1', 's1', { slotIndex: 0 } as any, { user: { userId: 'u1', role: 'USER' } }),
+            ).rejects.toThrow('not request owner');
+            expect(mutualSchedSvc.selectSlot).not.toHaveBeenCalled();
+        });
+
+        it('lets the requester act on their own request', async () => {
+            (querySvc.getById as jest.Mock).mockResolvedValue({ requesterId: 'u1' });
+
+            await ctrl.selectSlot('r1', 's1', { slotIndex: 0 } as any, { user: { userId: 'u1', role: 'USER' } });
+
+            expect(mutualSchedSvc.selectSlot).toHaveBeenCalled();
+        });
+    });
+
     it('scan barcode calls assetSvc', async () => {
         (assetSvc.createAsset as jest.Mock).mockResolvedValue({ id: 'a1' } as any);
         const res = await ctrl.scan('r1', 'i1', { barcode: 'BC-123' }, mockReq);

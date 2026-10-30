@@ -1,0 +1,136 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: idesk-postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE:-idesk_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - idesk-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: idesk-redis
+    restart: always
+    command: >
+      redis-server --appendonly yes --maxmemory-policy noeviction
+      --requirepass "${REDIS_PASSWORD}"
+    volumes:
+      - redis_data:/data
+    networks:
+      - idesk-network
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ghcr.io/hitterd/idesk-backend:latest
+    container_name: idesk-backend
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 5050
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: ${DB_DATABASE:-idesk_db}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: 60m
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      EFORM_ENCRYPTION_KEY: ${EFORM_ENCRYPTION_KEY}
+      FRONTEND_URL: ${FRONTEND_URL:-http://192.168.2.136:3080,https://idesk.santos.co.id}
+      WS_CORS_ORIGIN: ${WS_CORS_ORIGIN:-http://192.168.2.136:3080,https://idesk.santos.co.id}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      REDIS_ENABLED: "true"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      ZOOM_ACCOUNT_ID: ${ZOOM_ACCOUNT_ID:-}
+      ZOOM_CLIENT_ID: ${ZOOM_CLIENT_ID:-}
+      ZOOM_CLIENT_SECRET: ${ZOOM_CLIENT_SECRET:-}
+      HRIS_GATEWAY_BASE_URL: ${HRIS_GATEWAY_BASE_URL:-}
+      HRIS_GATEWAY_API_KEY: ${HRIS_GATEWAY_API_KEY:-}
+      HRIS_LOGIN_VERIFY_ENABLED: ${HRIS_LOGIN_VERIFY_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-mail.kapalapi.co.id}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER:-sysadmin.sja@kapalapi.co.id}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-iDesk Support <sysadmin.sja@kapalapi.co.id>}
+      # Menu Hapus Data: nyalakan hanya saat go-live, lalu kembalikan ke false.
+      ALLOW_DATA_WIPE: ${ALLOW_DATA_WIPE:-false}
+      DATA_WIPE_ALLOWED_EMAILS: ${DATA_WIPE_ALLOWED_EMAILS:-}
+      # Web Push (Windows toast untuk chat tiket). Kosong = push nonaktif.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:ict@santos.co.id}
+      # Sign in with iPop (OIDC). Secret kosong = tombol disembunyikan, fitur nonaktif.
+      IPOP_OIDC_ISSUER: ${IPOP_OIDC_ISSUER:-https://ipop.santos.co.id}
+      IPOP_OIDC_CLIENT_ID: ${IPOP_OIDC_CLIENT_ID:-idesk}
+      IPOP_OIDC_CLIENT_SECRET: ${IPOP_OIDC_CLIENT_SECRET:-}
+      IPOP_OIDC_REDIRECT_URI: ${IPOP_OIDC_REDIRECT_URI:-https://idesk.santos.co.id/api/v1/auth/oidc/callback}
+      IPOP_OIDC_PASSWORD_LOGIN: ${IPOP_OIDC_PASSWORD_LOGIN:-true}
+    volumes:
+      - backend_uploads:/app/uploads
+      # Backup pengaman pra-wipe (/app/backups/pre-wipe) harus selamat dari recreate container.
+      - backend_backups:/app/backups
+      - notifier_dist:/app/apps/sja-notification-app/dist-package
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - idesk-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:5050/v1/health/live || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  frontend:
+    image: ghcr.io/hitterd/idesk-frontend:latest
+    container_name: idesk-frontend
+    restart: always
+    ports:
+      - "3080:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - idesk-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  postgres_data:
+  redis_data:
+  backend_uploads:
+  backend_backups:
+  notifier_dist:
+
+networks:
+  idesk-network:
+    driver: bridge

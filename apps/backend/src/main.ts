@@ -1,4 +1,5 @@
 import 'dotenv/config'; // Load .env first
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger, VersioningType } from '@nestjs/common';
@@ -13,14 +14,18 @@ import { LoggingInterceptor } from './shared/core/interceptors/logging.intercept
 import { CorrelationMiddleware } from './shared/core/middleware/correlation.middleware';
 // import { CsrfMiddleware } from './shared/core/middleware/csrf.middleware'; // Disabled - SameSite cookies provide CSRF protection
 import { NestExpressApplication } from '@nestjs/platform-express';
-import * as path from 'path';
 import { join } from 'path';
 import * as express from 'express';
 import { validateAuthEnvironment } from './config/auth.config';
+import { createUploadsFileHandler } from './modules/ticketing/presentation/middleware/uploads-file.handler';
+import { TicketAttachmentAccessService } from './modules/ticketing/services/ticket-attachment-access.service';
 
 function validateEnvironment(): void {
     validateAuthEnvironment(process.env);
 }
+
+/** 5 attachments x 10 MB, base64-encoded (+33%), plus the ticket fields. */
+const IPOP_JSON_LIMIT = '70mb';
 
 async function bootstrap() {
     validateEnvironment();
@@ -71,7 +76,9 @@ async function bootstrap() {
                 /^https?:\/\/([a-zA-Z0-9-]+\.)*santos\.co\.id(:[0-9]+)?$/.test(origin) ||
                 /^https?:\/\/localhost(:[0-9]+)?$/.test(origin) ||
                 /^https?:\/\/127\.0\.0\.1(:[0-9]+)?$/.test(origin) ||
-                (!isProd && /^https?:\/\/10\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$/.test(origin));
+                /^https?:\/\/192\.168\.[0-9]+\.[0-9]+(:[0-9]+)?$/.test(origin) ||
+                /^https?:\/\/10\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$/.test(origin) ||
+                /^https?:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]+\.[0-9]+(:[0-9]+)?$/.test(origin);
             if (isAllowed) {
                 callback(null, true);
             } else {
@@ -110,6 +117,17 @@ async function bootstrap() {
         referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     }));
 
+    // iPop and connected apps (EBBK, ...): keep the exact request bytes for the HMAC check, and allow the
+    // base64 attachments they send inline (registered first so the global parser skips it).
+    // Both prefixes: the /api -> /v1 rewrite below runs after this parser.
+    app.use([
+        '/v1/integrations/ipop', '/api/v1/integrations/ipop',
+        '/v1/integrations/apps', '/api/v1/integrations/apps',
+    ], express.json({
+        limit: IPOP_JSON_LIMIT,
+        verify: (req: any, _res, buf) => { req.rawBody = Buffer.from(buf); },
+    }));
+
     // Body size limits - DoS protection (P0: defaults allow 100KB JSON, unlimited urlencoded)
     app.use(express.json({ limit: '2mb' }));
     app.use(express.urlencoded({ limit: '1mb', extended: true }));
@@ -137,7 +155,6 @@ async function bootstrap() {
     const uploadDirs = [
         './uploads',
         './uploads/kb',
-        './uploads/telegram',
         './uploads/avatars',
         './uploads/contracts',
         './uploads/documents',
@@ -153,56 +170,9 @@ async function bootstrap() {
     // Serve static files from uploads directory with fallback resolution for subfolders
     const uploadRoot = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
 
-    app.use('/uploads', (req: express.Request, res: express.Response, next: express.NextFunction) => {
-        if (req.method !== 'GET' && req.method !== 'HEAD') {
-            return next();
-        }
-
-        const relativeReqPath = req.path.replace(/^[/\\]+/, '');
-        const targetPath = join(uploadRoot, relativeReqPath);
-
-        const resolvedRoot = path.resolve(uploadRoot);
-        const resolvedTarget = path.resolve(targetPath);
-        const relFromRoot = path.relative(resolvedRoot, resolvedTarget);
-
-        // Security check: ensure targetPath stays within uploadRoot
-        if (relFromRoot.startsWith('..') || path.isAbsolute(relFromRoot)) {
-            return res.status(403).send('Forbidden');
-        }
-
-        // 1. Direct file match
-        if (fs.existsSync(resolvedTarget) && fs.statSync(resolvedTarget).isFile()) {
-            return res.sendFile(path.resolve(resolvedTarget));
-        }
-
-        // 2. Fallback: Flat filename request (e.g., /uploads/mrypa342-5ak8sy4r.png)
-        const filename = relativeReqPath.split(/[/\\]/).pop();
-        if (filename && filename !== 'uploads') {
-            // Check in tickets/unscoped/
-            const unscopedPath = join(uploadRoot, 'tickets', 'unscoped', filename);
-            if (fs.existsSync(unscopedPath) && fs.statSync(unscopedPath).isFile()) {
-                return res.sendFile(path.resolve(unscopedPath));
-            }
-
-            // Check in tickets/<ticketId>/ subdirectories
-            const ticketsDir = join(uploadRoot, 'tickets');
-            if (fs.existsSync(ticketsDir)) {
-                try {
-                    const subdirs = fs.readdirSync(ticketsDir);
-                    for (const dir of subdirs) {
-                        const candidate = join(ticketsDir, dir, filename);
-                        if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
-                            return res.sendFile(path.resolve(candidate));
-                        }
-                    }
-                } catch {
-                    // Ignore directory read errors
-                }
-            }
-        }
-
-        next();
-    });
+    // Ticket chat attachments are checked against ticket access before anything is served;
+    // the static middlewares below only ever see non-ticket files.
+    app.use('/uploads', createUploadsFileHandler(uploadRoot, app.get(TicketAttachmentAccessService)));
 
     app.useStaticAssets(uploadRoot, {
         prefix: '/uploads/',
@@ -225,6 +195,52 @@ async function bootstrap() {
     app.use(new CorrelationMiddleware().use);
 
     app.useGlobalInterceptors(new LoggingInterceptor());
+
+    // URL compatibility middleware: strip /api prefix from /api/v1/ endpoints
+    // so clients or webhooks configured with either /api/v1/ or /v1/ reach Nest controllers seamlessly
+    app.use((req: any, res: any, next: any) => {
+        if (req.url && req.url.startsWith('/api/v1/')) {
+            req.url = req.url.replace(/^\/api/, '');
+        }
+        next();
+    });
+
+    // SJA Notification Proxy: forward /v1/devices/activation/* and /v1/devices/auth/* to SJA Backend
+    app.use(async (req: any, res: any, next: any) => {
+        // Endpoint SJA devices proxy (termasuk verifikasi sesi aktivasi berotentikasi)
+        const path = req.path || '';
+        if (path.startsWith('/v1/devices/activation/approve')) {
+            return res.status(403).json({
+                success: false,
+                statusCode: 403,
+                error: 'Forbidden',
+                message: 'Endpoint aktivasi perangkat tanpa otentikasi telah dinonaktifkan. Gunakan /v1/notifications/devices/activation/approve dengan sesi login iDesk.',
+            });
+        }
+        if (path.startsWith('/v1/devices/activation/') || path.startsWith('/v1/devices/auth/') || path === '/v1/devices') {
+            const rawSjaUrl = process.env.SJA_BACKEND_URL || process.env.SJA_SERVER_URL || 'http://127.0.0.1:18302';
+            const sjaUrl = rawSjaUrl.replace(/\/$/, '');
+            try {
+                const targetUrl = `${sjaUrl.replace(/\/$/, '')}${req.url}`;
+                const fetchOptions: any = {
+                    method: req.method,
+                    headers: { 'Content-Type': 'application/json' },
+                };
+                if (req.method !== 'GET' && req.method !== 'HEAD' && req.body && Object.keys(req.body).length > 0) {
+                    fetchOptions.body = JSON.stringify(req.body);
+                }
+                const proxyResp = await fetch(targetUrl, fetchOptions);
+                const data = await proxyResp.json();
+                return res.status(proxyResp.status).json(data);
+            } catch (err: any) {
+                return res.status(502).json({
+                    success: false,
+                    error: `SJA Backend proxy error: ${err.message}`,
+                });
+            }
+        }
+        next();
+    });
 
     // Deprecation shim: ict-budget module replaced by hardware-requests
     app.use((req: any, res: any, next: any) => {

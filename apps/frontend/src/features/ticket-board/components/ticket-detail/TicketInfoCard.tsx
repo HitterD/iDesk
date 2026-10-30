@@ -4,6 +4,7 @@ import { TicketDetail } from './types';
 import { formatRelativeTime, formatDateTimeID } from '@/lib/utils/dateFormat';
 import { getAttachmentUrl, isImageUrl } from './utils';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 
 interface TicketInfoCardProps {
     ticket: TicketDetail;
@@ -37,9 +38,7 @@ export const TicketInfoCard: React.FC<TicketInfoCardProps> = ({ ticket, onImageC
             {/* Requester & Submission Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 mb-3.5 border-b border-slate-100 dark:border-slate-800/80">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-sm shadow-xs shrink-0">
-                        {ticket.user.fullName.charAt(0).toUpperCase()}
-                    </div>
+                    <UserAvatar user={ticket.user} size="md" className="rounded-xl shadow-xs" />
                     <div>
                         <div className="flex items-center gap-2">
                             <span className="text-sm font-bold text-slate-900 dark:text-white">
@@ -93,7 +92,7 @@ export const TicketInfoCard: React.FC<TicketInfoCardProps> = ({ ticket, onImageC
                             type="button"
                             onClick={() => setExpanded(v => !v)}
                             aria-expanded={expanded}
-                            className="mt-2 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                            className="mt-2 text-xs font-bold text-primary hover:underline cursor-pointer"
                         >
                             {expanded ? 'Show less' : 'Read full description'}
                         </button>
@@ -124,7 +123,7 @@ export const TicketInfoCard: React.FC<TicketInfoCardProps> = ({ ticket, onImageC
                                     <div className="flex items-center gap-2.5 min-w-0">
                                         <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/80 flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0">
                                             {isImg ? (
-                                                <ImageIcon className="w-4 h-4 text-blue-500" />
+                                                <ImageIcon className="w-4 h-4 text-primary" />
                                             ) : isPdf ? (
                                                 <FileText className="w-4 h-4 text-rose-500" />
                                             ) : (
@@ -141,7 +140,7 @@ export const TicketInfoCard: React.FC<TicketInfoCardProps> = ({ ticket, onImageC
                                             <button
                                                 type="button"
                                                 onClick={() => onImageClick(fullUrl)}
-                                                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-600 transition-colors"
+                                                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-primary transition-colors"
                                                 title="View Image"
                                             >
                                                 <ExternalLink className="w-3.5 h-3.5" />

@@ -129,7 +129,7 @@ kubectl -n idesk-prod create secret generic idesk-backend-secrets \
   --from-literal=REDIS_PASSWORD='<redis-password>'
 ```
 
-Add SMTP, Telegram, cookie-domain, and other required secrets using the same secure mechanism. Production config must fail startup when required secrets are absent.
+Add SMTP, cookie-domain, and other required secrets using the same secure mechanism. Production config must fail startup when required secrets are absent.
 
 Check that secret names exist without printing values:
 

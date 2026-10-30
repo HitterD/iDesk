@@ -1,12 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Ticket, TicketStatus, TicketType, HandlingTeam } from '../entities/ticket.entity';
+import { Ticket, TicketStatus, TicketType, HandlingTeam, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { WorkloadService } from '../../workload/workload.service';
-import { BusinessHoursService } from '../../sla-config/business-hours.service';
+import { SlaClockService } from './sla-clock.service';
 
 /**
  * Move a ticket between the ops-support, Oracle/Dev, and Mobile Dev teams.
@@ -31,7 +32,9 @@ export class TicketForwardService {
         private readonly slaConfigRepo: Repository<SlaConfig>,
         private readonly eventsGateway: EventsGateway,
         private readonly workloadService: WorkloadService,
-        private readonly businessHoursService: BusinessHoursService,
+        private readonly slaClock: SlaClockService,
+        @Optional()
+        private readonly eventEmitter?: EventEmitter2,
     ) {}
 
     async forwardTicket(
@@ -44,8 +47,8 @@ export class TicketForwardService {
             throw new NotFoundException(`Ticket with ID ${ticketId} not found`);
         }
 
-        if (ticket.status === TicketStatus.RESOLVED || ticket.status === TicketStatus.CANCELLED) {
-            throw new ConflictException('Cannot forward a resolved or cancelled ticket');
+        if (TICKET_INACTIVE_STATUSES.includes(ticket.status)) {
+            throw new ConflictException('Cannot forward a resolved, closed or cancelled ticket');
         }
 
         if (ticket.handlingTeam === dto.targetTeam) {
@@ -118,6 +121,8 @@ export class TicketForwardService {
         this.eventsGateway.server
             .to(`site:${(saved as any).siteId}`)
             .emit('ticket:updated', { ticketId });
+        // The card moves between the site board and the dev hub board.
+        this.eventEmitter?.emit('tv-board.ticket-changed', { siteId: saved.siteId });
 
         this.logger.log(
             `Ticket ${ticket.ticketNumber || ticketId} forwarded ${previousTeam} -> ${dto.targetTeam} by ${actor.fullName} (${actor.userId})`,
@@ -135,27 +140,15 @@ export class TicketForwardService {
      */
     private async resetResolutionSla(ticket: Ticket, notes: string[]): Promise<void> {
         const now = new Date();
-        const slaConfig = await this.slaConfigRepo.findOne({
-            where: { priority: ticket.priority },
-        });
-
         ticket.slaStartedAt = now;
         ticket.isOverdue = false;
         ticket.isFirstResponseBreached = false;
 
         if (ticket.status === TicketStatus.IN_PROGRESS || ticket.status === TicketStatus.TODO) {
+            const slaConfig = await this.slaClock.startResolution(ticket, now);
             if (slaConfig) {
-                if (this.businessHoursService) {
-                    ticket.slaTarget = await this.businessHoursService.calculateSlaTarget(
-                        now,
-                        slaConfig.resolutionTimeMinutes,
-                    );
-                } else {
-                    ticket.slaTarget = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60000);
-                }
-                ticket.originalSlaTarget = new Date(ticket.slaTarget);
                 notes.push(
-                    `SLA reset. Target: ${ticket.slaTarget.toISOString()} (${slaConfig.resolutionTimeMinutes} minutes for ${ticket.priority})`,
+                    `SLA reset. Target: ${ticket.slaTarget!.toISOString()} (${slaConfig.resolutionTimeMinutes} minutes for ${ticket.priority})`,
                 );
             } else {
                 ticket.slaTarget = null;
@@ -163,21 +156,15 @@ export class TicketForwardService {
                 notes.push('SLA reset (no SlaConfig for this priority)');
             }
         } else if (ticket.status === TicketStatus.WAITING_VENDOR) {
-            // Paused at the vendor: keep the original anchor so that resumeFromVendor
-            // (ticket-update.service.ts) can shift slaTarget by the paused duration
-            // when the vendor answers. Nulling originalSlaTarget here would make the
-            // resolution clock unable to re-arm after resume.
-            if (!ticket.originalSlaTarget) {
-                ticket.originalSlaTarget = ticket.slaTarget
-                    ? new Date(ticket.slaTarget)
-                    : null;
-            }
-            ticket.slaTarget = null;
-            notes.push('SLA held for waiting-vendor; originalSlaTarget preserved');
+            // Paused at the vendor: restart with the full budget, held until the vendor answers.
+            const slaConfig = await this.slaClock.startResolution(ticket, now);
+            ticket.slaRemainingMinutes = slaConfig ? slaConfig.resolutionTimeMinutes : null;
+            notes.push('SLA reset and held for waiting-vendor');
         } else {
             // Not actively worked on: clear the clock so it restarts when work resumes.
             ticket.slaTarget = null;
             ticket.originalSlaTarget = null;
+            ticket.slaRemainingMinutes = null;
             notes.push('SLA cleared (ticket not in progress)');
         }
     }

@@ -11,7 +11,6 @@ import {
     Req,
     UseGuards,
 } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { HardwareRoleGuard, pickRole } from '../guards/hardware-role.guard';
 import { HardwareRequestCommandService } from '../services/hardware-request-command.service';
@@ -64,7 +63,6 @@ export class HardwareRequestController {
     }
 
     @Post()
-    @Throttle({ default: { limit: 10, ttl: 60000 } })
     async create(@Req() req: any, @Body() dto: CreateRequestDto) {
         const siteId: string | null = req.user.siteId ?? null;
         const userRole: UserRole = req.user.role;
@@ -86,7 +84,6 @@ export class HardwareRequestController {
 
     @Post(':id/submit')
     @HttpCode(200)
-    @Throttle({ default: { limit: 30, ttl: 60000 } })
     async submit(@Req() req: any, @Param('id', new ParseUUIDPipe()) id: string) {
         const data = await this.commands.submit(req.user.userId, id);
         return { success: true, data };
@@ -94,7 +91,6 @@ export class HardwareRequestController {
 
     @Post(':id/cancel')
     @HttpCode(200)
-    @Throttle({ default: { limit: 30, ttl: 60000 } })
     async cancel(@Req() req: any, @Param('id', new ParseUUIDPipe()) id: string) {
         const data = await this.commands.cancel({ id: req.user.userId, role: pickRole(req.user) as string }, id);
         return { success: true, data };
@@ -119,7 +115,6 @@ export class HardwareRequestController {
     @Post(':id/approve')
     @HttpCode(200)
     @HardwareRoles(HardwareRole.ICT_STAFF)
-    @Throttle({ default: { limit: 30, ttl: 60000 } })
     async approve(@Req() req: any, @Param('id', new ParseUUIDPipe()) id: string) {
         const data = await this.commands.approve(req.user.userId, id);
         return { success: true, data };
@@ -128,7 +123,6 @@ export class HardwareRequestController {
     @Post(':id/reject')
     @HttpCode(200)
     @HardwareRoles(HardwareRole.ICT_STAFF)
-    @Throttle({ default: { limit: 30, ttl: 60000 } })
     async reject(
         @Req() req: any,
         @Param('id', new ParseUUIDPipe()) id: string,

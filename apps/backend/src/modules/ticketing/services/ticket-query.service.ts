@@ -1,16 +1,127 @@
-import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Ticket, TicketType, HandlingTeam, TicketStatus } from '../entities/ticket.entity';
+import { Ticket, TicketType, HandlingTeam, TicketStatus, TICKET_DONE_STATUSES } from '../entities/ticket.entity';
 import { TicketModule } from '../entities/ticket-module.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { CacheService, CacheKeys } from '../../../shared/core/cache';
-import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
-import { applySiteFilter, siteScopeKey, validateTicketSiteAccess } from '../utils/site-access.util';
+import { resolveTicketViewerAccess, TicketViewerAccess } from './ticket-oracle-access';
+import { applySiteFilter, siteScopeKey } from '../utils/site-access.util';
+import { applyServiceScopeFilter } from '../../../shared/core/utils/service-scope.util';
+import { TICKET_ACTIVE_STATUSES_SQL, TICKET_DONE_STATUSES_SQL, TICKET_INACTIVE_STATUSES_SQL } from '../utils/ticket-status-sql.util';
+import { addSlaMinutes, isBusinessHoursOnly, SlaClockService, SlaSnapshot } from './sla-clock.service';
+import { wibDateSql, wibStartOfMonth, wibStartOfToday, wibStartOfWeek } from '../../../shared/core/utils/wib-date.util';
+import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
 
 const AGENT_ROLES_NON_ORACLE = [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT, UserRole.AGENT_ADMIN] as const;
 const ORACLE_FILTER_PARAMS = { oracleTeam: 'ORACLE_DEV' } as const;
+
+/** Roles that may open the developer queues (mirrors the frontend route guards). */
+const DEV_QUEUE_ROLES: readonly UserRole[] = [UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV, UserRole.ADMIN];
+const DEV_QUEUES = ['oracle', 'web-dev', 'mobile-dev'];
+
+export type DevQueue = 'oracle' | 'web-dev' | 'mobile-dev';
+export type QueueKey = 'it-support' | DevQueue;
+export const QUEUE_KEYS: readonly QueueKey[] = ['it-support', 'oracle', 'web-dev', 'mobile-dev'];
+
+const DEV_TICKET_TYPES = [TicketType.ORACLE_REQUEST, TicketType.WEB_DEV_REQUEST, TicketType.MOBILE_DEV_REQUEST];
+/** Request Center tickets live on their own pages, never in the IT Support queue. */
+const REQUEST_CENTER_CATEGORIES = ['ICT_BUDGET', 'LOST_ITEM', 'ACCESS_REQUEST'];
+
+type SqlPredicate = { sql: string; params: Record<string, unknown> };
+/** Which tickets belong to each developer queue: owning team, then ticket type/category. */
+const DEV_QUEUE_FILTERS: Record<DevQueue, { team: SqlPredicate; type: SqlPredicate }> = {
+    oracle: {
+        team: { sql: '(ticket."handlingTeam" = :oracleTeam)', params: ORACLE_FILTER_PARAMS },
+        type: {
+            sql: '(ticket.ticketType = :oracleType OR ticket.category = :oracleCategory OR (ticket.category ILIKE :oracleLike AND (ticket.ticketType IS NULL OR ticket.ticketType NOT IN (:...otherDevTypes))))',
+            params: { oracleType: 'ORACLE_REQUEST', oracleCategory: 'ORACLE_REQUEST', oracleLike: '%oracle%', otherDevTypes: ['WEB_DEV_REQUEST', 'MOBILE_DEV_REQUEST'] },
+        },
+    },
+    'web-dev': {
+        team: { sql: '(ticket."handlingTeam" = :oracleTeam OR ticket."handlingTeam" = :webTeam)', params: { ...ORACLE_FILTER_PARAMS, webTeam: 'WEB_DEV' } },
+        type: {
+            sql: '(ticket.ticketType = :webDevType OR ticket.category = :webDevCategory OR ticket.category ILIKE :webDevLike)',
+            params: { webDevType: 'WEB_DEV_REQUEST', webDevCategory: 'WEB_DEV_REQUEST', webDevLike: '%web%' },
+        },
+    },
+    'mobile-dev': {
+        team: { sql: '(ticket."handlingTeam" = :oracleTeam OR ticket."handlingTeam" = :mobileTeam)', params: { ...ORACLE_FILTER_PARAMS, mobileTeam: 'MOBILE_DEV' } },
+        type: {
+            sql: '(ticket.ticketType = :mobileDevType OR ticket.category = :mobileDevCategory OR ticket.category ILIKE :mobileDevLike)',
+            params: { mobileDevType: 'MOBILE_DEV_REQUEST', mobileDevCategory: 'MOBILE_DEV_REQUEST', mobileDevLike: '%mobile%' },
+        },
+    },
+};
+
+export interface DevQueueOptions {
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'ASC' | 'DESC';
+    status?: string;
+    overdue?: boolean;
+    priority?: string;
+    search?: string;
+    siteId?: string;
+    siteIds?: string[];
+    startDate?: string;
+    endDate?: string;
+    createdByMe?: boolean;
+    assignedToMe?: boolean;
+}
+
+type DevQueuePage = { data: Ticket[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean } };
+
+export interface QueueStats {
+    total: number;
+    open: number;
+    inProgress: number;
+    waitingVendor: number;
+    resolved: number;
+    overdue: number;
+    critical: number;
+}
+
+/** Comma-separated TicketStatus list (e.g. `RESOLVED,CLOSED`); anything else is a 400. */
+function applyStatusFilter(qb: import('typeorm').SelectQueryBuilder<Ticket>, status?: string): void {
+    if (!status) return;
+    const statuses = status.split(',').map((value) => value.trim()).filter(Boolean);
+    if (!statuses.length || statuses.some((value) => !Object.values(TicketStatus).includes(value as TicketStatus))) {
+        throw new BadRequestException('Invalid ticket status');
+    }
+    qb.andWhere('ticket.status IN (:...statuses)', { statuses });
+}
+
+/** A dev queue asked for by any other role is ignored, so the caller gets their normal role-scoped list. */
+export function effectiveQueue(queue: string | undefined, role: UserRole): string | undefined {
+    if (queue && DEV_QUEUES.includes(queue) && !DEV_QUEUE_ROLES.includes(role)) return undefined;
+    return queue;
+}
+
+/**
+ * When a ticket was resolved. `updatedAt` moves on any later write (auto-close,
+ * edits), so it only stands in for legacy rows that predate `resolvedAt`.
+ */
+const RESOLVED_AT_SQL = 'COALESCE(ticket."resolvedAt", ticket."updatedAt")';
+const CREATED_WIB_DATE = wibDateSql('ticket."createdAt"');
+const MS_PER_DAY = 86_400_000;
+
+// WAITING_VENDOR pauses the SLA clock, so it is never overdue. The clock must have started:
+// older rows stored a projected target before anyone picked the ticket up, which is not a deadline
+// (same condition as the SLA checker that sets isOverdue).
+export const OVERDUE_SQL = `ticket.status NOT IN (${TICKET_INACTIVE_STATUSES_SQL}) AND ticket.status <> 'WAITING_VENDOR' AND ticket."slaStartedAt" IS NOT NULL AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW()`;
+
+/**
+ * Prefix tsquery from free text (`printer lt 2` -> `printer:* & lt:* & 2:*`). Tokens are
+ * reduced to letters/digits first: raw input like `a(b` is a tsquery syntax error (500).
+ * Returns an always-false query when nothing searchable is left.
+ */
+export function toPrefixTsQuery(text: string): string {
+    const tokens = text.split(/\s+/).map((t) => t.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
+    return tokens.length ? tokens.map((t) => `${t}:*`).join(' & ') : '!_';
+}
 
 export function isNonOracleAgent(role: UserRole): boolean {
     return (AGENT_ROLES_NON_ORACLE as readonly UserRole[]).includes(role);
@@ -43,10 +154,16 @@ const DEFAULT_SLA_MINUTES: Record<string, number> = {
     LOW: 1440,
 };
 
-export function ensureSlaTarget(ticket: Ticket): Date | null {
+/**
+ * Display target for tickets whose resolution clock has not stored one yet.
+ * With a snapshot it follows the priority's config and business hours.
+ */
+export function ensureSlaTarget(ticket: Ticket, sla?: SlaSnapshot): Date | null {
     if (ticket.slaTarget) return ticket.slaTarget;
     if (ticket.priority && ticket.createdAt && (ticket.priority as any) !== 'HARDWARE_INSTALLATION') {
-        const mins = DEFAULT_SLA_MINUTES[ticket.priority] || 480;
+        const config = sla?.configs.get(ticket.priority);
+        const mins = config?.resolutionTimeMinutes ?? DEFAULT_SLA_MINUTES[ticket.priority] ?? 480;
+        if (sla) return addSlaMinutes(new Date(ticket.createdAt), mins, isBusinessHoursOnly(config), sla.schedule);
         return new Date(new Date(ticket.createdAt).getTime() + mins * 60000);
     }
     return null;
@@ -63,12 +180,21 @@ export class TicketQueryService {
         @Optional()
         @InjectRepository(TicketModule)
         private readonly moduleRepo?: Repository<TicketModule>,
+        @Optional()
+        private readonly slaClock?: SlaClockService,
     ) { }
+
+    /** SLA config + schedule, loaded only when some ticket still needs a projected target. */
+    private async slaSnapshotFor(tickets: Ticket[]): Promise<SlaSnapshot | undefined> {
+        if (!this.slaClock || tickets.every(t => t.slaTarget)) return undefined;
+        return this.slaClock.snapshot();
+    }
 
     private createFilteredTicketQb(role: UserRole, userSiteId: string | null, excludeCategory?: string): import('typeorm').SelectQueryBuilder<Ticket> {
         const qb = this.ticketRepo.createQueryBuilder('ticket');
         applyOracleFilter(qb, role);
         applySiteFilter(qb, role, userSiteId);
+        applyServiceScopeFilter(qb, role);
         if (excludeCategory) {
             const excludedCategories = excludeCategory.split(',').map((cat) => cat.trim());
             if (excludedCategories.length > 0) {
@@ -92,6 +218,7 @@ export class TicketQueryService {
             .orderBy('ticket.createdAt', 'DESC')
             .take(500); // Safety limit to prevent full table dumps
 
+        queue = effectiveQueue(queue, role);
         if (queue === 'oracle') {
             query.where('(ticket."handlingTeam" = :oracleTeam)', ORACLE_FILTER_PARAMS);
             query.andWhere(
@@ -147,10 +274,12 @@ export class TicketQueryService {
             });
         }
 
+        applyServiceScopeFilter(query, role);
         const rawTickets = await query.getMany();
+        const sla = await this.slaSnapshotFor(rawTickets);
         return rawTickets.map((ticket) => ({
             ...ticket,
-            slaTarget: ensureSlaTarget(ticket),
+            slaTarget: ensureSlaTarget(ticket, sla),
             hasUnreadChat: computeHasUnreadChat(ticket, role),
             isParticipant: role === UserRole.USER && ticket.userId !== userId,
         })) as Ticket[];
@@ -176,6 +305,9 @@ export class TicketQueryService {
             ticketType?: string;
             startDate?: string;
             endDate?: string;
+            createdByMe?: boolean; // Requested/filed by the caller, across teams and sites
+            assignedToMe?: boolean; // Assigned to the caller (filtered server-side so paging and totals stay right)
+            overdue?: boolean;
         } = {}
     ) {
         const {
@@ -194,6 +326,9 @@ export class TicketQueryService {
             ticketType,
             startDate,
             endDate,
+            createdByMe,
+            assignedToMe,
+            overdue,
         } = options;
 
         const qb = this.ticketRepo
@@ -203,21 +338,34 @@ export class TicketQueryService {
             .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
             .leftJoinAndSelect('ticket.site', 'site');
 
-        // Client My Tickets includes every ticket owned by the requester.
-        // IT Support list must strictly show OPS_SUPPORT tickets only and exclude
-        // developer requests (Oracle, Web Dev, Mobile Dev).
-        if (role !== UserRole.USER) {
+        // "Tiket yang saya buat": requester-side access follows the ticket to any
+        // team or site, so the team/site scoping below does not apply.
+        if (createdByMe) {
+            // Separate params: userId is uuid, createdById is varchar, and one shared
+            // bind param gets a single inferred type -> "character varying = uuid".
+            qb.andWhere('(ticket.userId = :userId OR ticket."createdById" = :filerId)', { userId, filerId: userId });
+        } else if (role !== UserRole.USER) {
+            // IT Support list must strictly show OPS_SUPPORT tickets only and exclude
+            // developer requests (Oracle, Web Dev, Mobile Dev).
             qb.andWhere(
                 '(ticket."handlingTeam" = :opsTeam OR ticket."handlingTeam" IS NULL)',
                 { opsTeam: HandlingTeam.OPS_SUPPORT },
             );
             qb.andWhere(
                 '(ticket.ticketType NOT IN (:...devTypes) OR ticket.ticketType IS NULL)',
-                { devTypes: [TicketType.ORACLE_REQUEST, TicketType.WEB_DEV_REQUEST, TicketType.MOBILE_DEV_REQUEST] }
+                { devTypes: DEV_TICKET_TYPES }
             );
+            // Site isolation: cross-site roles may narrow by site, everyone else is
+            // pinned to their own — and fail closed when they have none.
+            applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
+            applyServiceScopeFilter(qb, role);
         }
 
-        // Role-based filtering
+        if (assignedToMe) {
+            qb.andWhere('ticket.assignedToId = :assigneeId', { assigneeId: userId });
+        }
+
+        // Client My Tickets includes every ticket owned by or shared with the requester.
         if (role === UserRole.USER) {
             qb.andWhere('(ticket.userId = :userId OR EXISTS (SELECT 1 FROM ticket_participants tp WHERE tp."ticketId" = ticket.id AND tp."userId" = :userId))', { userId });
 
@@ -227,15 +375,12 @@ export class TicketQueryService {
                     excludedTypes: ['ICT_BUDGET', 'HARDWARE_INSTALLATION']
                 });
             }
-        } else {
-            // Site isolation: cross-site roles may narrow by site, everyone else is
-            // pinned to their own — and fail closed when they have none.
-            applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
         }
 
         // Status filter
-        if (status) {
-            qb.andWhere('ticket.status = :status', { status });
+        applyStatusFilter(qb, status);
+        if (overdue) {
+            qb.andWhere(OVERDUE_SQL);
         }
 
         // Priority filter
@@ -330,12 +475,15 @@ export class TicketQueryService {
           );
         }
 
+        const sla = await this.slaSnapshotFor(data);
         const enrichedTickets = data.map((ticket) => ({
           ...ticket,
-          slaTarget: ensureSlaTarget(ticket),
+          slaTarget: ensureSlaTarget(ticket, sla),
           ictBudgetRequestId: hwScheduleMap.get(ticket.id) || null,
-          hasUnreadChat: computeHasUnreadChat(ticket, role),
+          // In "created by me" the caller reads as the requester side.
+          hasUnreadChat: computeHasUnreadChat(ticket, createdByMe ? UserRole.USER : role),
           isParticipant: role === UserRole.USER && ticket.userId !== userId,
+          isFiledByMe: ticket.createdById === userId,
         }));
 
         return {
@@ -351,62 +499,65 @@ export class TicketQueryService {
         };
     }
 
-    async findAllPaginatedOracle(
+    /**
+     * Scoping shared by the developer queues (Oracle/K2, Web Dev, Mobile Dev); the team
+     * filter is applied by each caller. "Created by me" skips site and service scoping,
+     * like the IT Support list: the caller's own tickets are always visible to them.
+     */
+    private applyDevQueueScope(
+        qb: import('typeorm').SelectQueryBuilder<Ticket>,
         userId: string,
         role: UserRole,
         userSiteId: string | null,
-        options: {
-            page?: number;
-            limit?: number;
-            sortBy?: string;
-            sortOrder?: 'ASC' | 'DESC';
-            status?: string;
-            priority?: string;
-            search?: string;
-            siteId?: string;
-            siteIds?: string[];
-            startDate?: string;
-            endDate?: string;
-        } = {},
-    ): Promise<{ data: Ticket[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean } }> {
-        const {
-            page = 1,
-            limit = 20,
-            sortBy = 'createdAt',
-            sortOrder = 'DESC',
-            status,
-            priority,
-            search,
-            siteId,
-            siteIds,
-            startDate,
-            endDate,
-        } = options;
+        options: { siteId?: string; siteIds?: string[]; createdByMe?: boolean; assignedToMe?: boolean },
+    ): void {
+        if (options.createdByMe) {
+            // Separate params: userId is uuid, createdById is varchar.
+            qb.andWhere('(ticket.userId = :userId OR ticket."createdById" = :filerId)', { userId, filerId: userId });
+        } else {
+            applySiteFilter(qb, role, userSiteId, { siteId: options.siteId, siteIds: options.siteIds });
+            applyServiceScopeFilter(qb, role);
+        }
+        if (options.assignedToMe) {
+            qb.andWhere('ticket.assignedToId = :assigneeId', { assigneeId: userId });
+        }
+    }
 
-        const qb = this.ticketRepo
-            .createQueryBuilder('ticket')
+    async findAllPaginatedOracle(userId: string, role: UserRole, userSiteId: string | null, options: DevQueueOptions = {}): Promise<DevQueuePage> {
+        return this.findAllPaginatedDevQueue('oracle', userId, role, userSiteId, options);
+    }
+
+    async findAllPaginatedWebDev(userId: string, role: UserRole, userSiteId: string | null, options: DevQueueOptions = {}): Promise<DevQueuePage> {
+        return this.findAllPaginatedDevQueue('web-dev', userId, role, userSiteId, options);
+    }
+
+    async findAllPaginatedMobileDev(userId: string, role: UserRole, userSiteId: string | null, options: DevQueueOptions = {}): Promise<DevQueuePage> {
+        return this.findAllPaginatedDevQueue('mobile-dev', userId, role, userSiteId, options);
+    }
+
+    /** Team + type predicate of one developer queue, in the caller's scope (no list filters). */
+    private devQueueQb(queue: DevQueue, userId: string, role: UserRole, userSiteId: string | null, options: DevQueueOptions): import('typeorm').SelectQueryBuilder<Ticket> {
+        const filter = DEV_QUEUE_FILTERS[queue];
+        const qb = this.ticketRepo.createQueryBuilder('ticket')
+            // handlingTeam is the source of truth, so a ticket forwarded to OPS_SUPPORT leaves the queue.
+            .where(filter.team.sql, filter.team.params)
+            .andWhere(filter.type.sql, filter.type.params);
+        this.applyDevQueueScope(qb, userId, role, userSiteId, options);
+        return qb;
+    }
+
+    private async findAllPaginatedDevQueue(queue: DevQueue, userId: string, role: UserRole, userSiteId: string | null, options: DevQueueOptions): Promise<DevQueuePage> {
+        const { page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'DESC', status, overdue, priority, search, startDate, endDate } = options;
+
+        const qb = this.devQueueQb(queue, userId, role, userSiteId, options)
             .leftJoinAndSelect('ticket.user', 'user')
             .leftJoinAndSelect('user.department', 'department')
             .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
-            .leftJoinAndSelect('ticket.site', 'site')
-            // Strict Oracle/K2 filter — handlingTeam is the source of truth,
-            // so a ticket forwarded to OPS_SUPPORT disappears from this list.
-            .where('(ticket."handlingTeam" = :oracleTeam)', ORACLE_FILTER_PARAMS)
-            .andWhere(
-                '(ticket.ticketType = :oracleType OR ticket.category = :oracleCategory OR (ticket.category ILIKE :oracleLike AND (ticket.ticketType IS NULL OR ticket.ticketType NOT IN (:...otherDevTypes))))',
-                {
-                    oracleType: 'ORACLE_REQUEST',
-                    oracleCategory: 'ORACLE_REQUEST',
-                    oracleLike: '%oracle%',
-                    otherDevTypes: ['WEB_DEV_REQUEST', 'MOBILE_DEV_REQUEST'],
-                },
-            );
+            .leftJoinAndSelect('ticket.site', 'site');
 
-        // Site isolation (matches findAllPaginated behaviour)
-        applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
-
-        if (status) {
-            qb.andWhere('ticket.status = :status', { status });
+        applyStatusFilter(qb, status);
+        if (overdue) {
+            qb.andWhere(OVERDUE_SQL);
         }
         if (priority) {
             qb.andWhere('ticket.priority = :priority', { priority });
@@ -432,7 +583,6 @@ export class TicketQueryService {
             qb.andWhere('ticket.createdAt <= :endDate', { endDate });
         }
 
-        // Whitelisted sort fields (matches existing service)
         const validSortFields = ['createdAt', 'updatedAt', 'status', 'priority', 'title'];
         const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
         const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
@@ -444,9 +594,10 @@ export class TicketQueryService {
         const [data, total] = await qb.getManyAndCount();
         const totalPages = Math.ceil(total / limit);
 
+        const sla = await this.slaSnapshotFor(data);
         const enrichedTickets = data.map((ticket) => ({
             ...ticket,
-            slaTarget: ensureSlaTarget(ticket),
+            slaTarget: ensureSlaTarget(ticket, sla),
             hasUnreadChat: computeHasUnreadChat(ticket, role),
         }));
 
@@ -463,218 +614,67 @@ export class TicketQueryService {
         };
     }
 
-    async findAllPaginatedWebDev(
-        userId: string,
-        role: UserRole,
-        userSiteId: string | null,
-        options: {
-            page?: number;
-            limit?: number;
-            sortBy?: string;
-            sortOrder?: 'ASC' | 'DESC';
-            status?: string;
-            priority?: string;
-            search?: string;
-            siteId?: string;
-            siteIds?: string[];
-            startDate?: string;
-            endDate?: string;
-        } = {},
-    ): Promise<{ data: Ticket[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean } }> {
-        const {
-            page = 1,
-            limit = 20,
-            sortBy = 'createdAt',
-            sortOrder = 'DESC',
-            status,
-            priority,
-            search,
-            siteId,
-            siteIds,
-            startDate,
-            endDate,
-        } = options;
+    /**
+     * Status tabs of a queue page: every count is computed by the server over the whole queue in
+     * the caller's scope (site, "Tugas Saya", "Saya Buat"), so the tabs never depend on paging.
+     */
+    async getQueueStats(queue: QueueKey, userId: string, role: UserRole, userSiteId: string | null, options: DevQueueOptions = {}): Promise<QueueStats> {
+        const qb = queue === 'it-support'
+            ? this.itSupportQueueQb(userId, role, userSiteId, options)
+            : this.devQueueQb(queue, userId, role, userSiteId, options);
 
-        const qb = this.ticketRepo
-            .createQueryBuilder('ticket')
-            .leftJoinAndSelect('ticket.user', 'user')
-            .leftJoinAndSelect('user.department', 'department')
-            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
-            .leftJoinAndSelect('ticket.site', 'site')
-            .where('(ticket."handlingTeam" = :oracleTeam OR ticket."handlingTeam" = :webTeam)', { ...ORACLE_FILTER_PARAMS, webTeam: 'WEB_DEV' })
-            .andWhere(
-                '(ticket.ticketType = :webDevType OR ticket.category = :webDevCategory OR ticket.category ILIKE :webDevLike)',
-                {
-                    webDevType: 'WEB_DEV_REQUEST',
-                    webDevCategory: 'WEB_DEV_REQUEST',
-                    webDevLike: '%web%',
-                },
-            );
+        const raw = await qb
+            .select('COUNT(*)', 'total')
+            .addSelect(`SUM(CASE WHEN ticket.status = 'TODO' THEN 1 ELSE 0 END)`, 'open')
+            .addSelect(`SUM(CASE WHEN ticket.status = 'IN_PROGRESS' THEN 1 ELSE 0 END)`, 'inProgress')
+            .addSelect(`SUM(CASE WHEN ticket.status = 'WAITING_VENDOR' THEN 1 ELSE 0 END)`, 'waitingVendor')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
+            .addSelect(`SUM(CASE WHEN ${OVERDUE_SQL} THEN 1 ELSE 0 END)`, 'overdue')
+            .addSelect(`SUM(CASE WHEN ticket.priority = 'CRITICAL' AND ticket.status IN (${TICKET_ACTIVE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'critical')
+            .getRawOne();
 
-        applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
-
-        if (status) {
-            qb.andWhere('ticket.status = :status', { status });
-        }
-        if (priority) {
-            qb.andWhere('ticket.priority = :priority', { priority });
-        }
-        if (search) {
-            const searchTerm = search.trim();
-            if (searchTerm.length <= 3 || /^\d{6}-/.test(searchTerm)) {
-                qb.andWhere(
-                    '(ticket.title ILIKE :search OR ticket.description ILIKE :search OR ticket."ticketNumber" ILIKE :search)',
-                    { search: `%${searchTerm}%` },
-                );
-            } else {
-                qb.andWhere(
-                    `(to_tsvector('indonesian', COALESCE(ticket.title, '') || ' ' || COALESCE(ticket.description, '')) @@ plainto_tsquery('indonesian', :search) OR ticket."ticketNumber" ILIKE :ticketSearch)`,
-                    { search: searchTerm, ticketSearch: `%${searchTerm}%` },
-                );
-            }
-        }
-        if (startDate) {
-            qb.andWhere('ticket.createdAt >= :startDate', { startDate });
-        }
-        if (endDate) {
-            qb.andWhere('ticket.createdAt <= :endDate', { endDate });
-        }
-
-        const validSortFields = ['createdAt', 'updatedAt', 'status', 'priority', 'title'];
-        const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
-        const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
-
-        qb.orderBy(`ticket.${safeSortBy}`, safeSortOrder)
-          .skip((page - 1) * limit)
-          .take(limit);
-
-        const [data, total] = await qb.getManyAndCount();
-        const totalPages = Math.ceil(total / limit);
-
-        const enrichedTickets = data.map((ticket) => ({
-            ...ticket,
-            slaTarget: ensureSlaTarget(ticket),
-            hasUnreadChat: computeHasUnreadChat(ticket, role),
-        }));
-
+        const count = (key: string) => parseInt(raw?.[key]) || 0;
         return {
-            data: enrichedTickets as any,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPrevPage: page > 1,
-            },
+            total: count('total'),
+            open: count('open'),
+            inProgress: count('inProgress'),
+            waitingVendor: count('waitingVendor'),
+            resolved: count('resolved'),
+            overdue: count('overdue'),
+            critical: count('critical'),
         };
     }
 
-    async findAllPaginatedMobileDev(
-        userId: string,
-        role: UserRole,
-        userSiteId: string | null,
-        options: {
-            page?: number;
-            limit?: number;
-            sortBy?: string;
-            sortOrder?: 'ASC' | 'DESC';
-            status?: string;
-            priority?: string;
-            search?: string;
-            siteId?: string;
-            siteIds?: string[];
-            startDate?: string;
-            endDate?: string;
-        } = {},
-    ): Promise<{ data: Ticket[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean } }> {
-        const {
-            page = 1,
-            limit = 20,
-            sortBy = 'createdAt',
-            sortOrder = 'DESC',
-            status,
-            priority,
-            search,
-            siteId,
-            siteIds,
-            startDate,
-            endDate,
-        } = options;
-
-        const qb = this.ticketRepo
-            .createQueryBuilder('ticket')
-            .leftJoinAndSelect('ticket.user', 'user')
-            .leftJoinAndSelect('user.department', 'department')
-            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
-            .leftJoinAndSelect('ticket.site', 'site')
-            .where('(ticket."handlingTeam" = :oracleTeam OR ticket."handlingTeam" = :mobileTeam)', { ...ORACLE_FILTER_PARAMS, mobileTeam: 'MOBILE_DEV' })
-            .andWhere(
-                '(ticket.ticketType = :mobileDevType OR ticket.category = :mobileDevCategory OR ticket.category ILIKE :mobileDevLike)',
-                {
-                    mobileDevType: 'MOBILE_DEV_REQUEST',
-                    mobileDevCategory: 'MOBILE_DEV_REQUEST',
-                    mobileDevLike: '%mobile%',
-                },
-            );
-
-        applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
-
-        if (status) {
-            qb.andWhere('ticket.status = :status', { status });
+    /** Scope of the IT Support list (findAllPaginated for staff, minus Request Center) without its list filters. */
+    private itSupportQueueQb(userId: string, role: UserRole, userSiteId: string | null, options: DevQueueOptions): import('typeorm').SelectQueryBuilder<Ticket> {
+        const qb = this.ticketRepo.createQueryBuilder('ticket');
+        if (options.createdByMe) {
+            qb.andWhere('(ticket.userId = :userId OR ticket."createdById" = :filerId)', { userId, filerId: userId });
+        } else {
+            qb.andWhere('(ticket."handlingTeam" = :opsTeam OR ticket."handlingTeam" IS NULL)', { opsTeam: HandlingTeam.OPS_SUPPORT });
+            qb.andWhere('(ticket.ticketType NOT IN (:...devTypes) OR ticket.ticketType IS NULL)', { devTypes: DEV_TICKET_TYPES });
+            applySiteFilter(qb, role, userSiteId, { siteId: options.siteId, siteIds: options.siteIds });
+            applyServiceScopeFilter(qb, role);
         }
-        if (priority) {
-            qb.andWhere('ticket.priority = :priority', { priority });
+        if (options.assignedToMe) {
+            qb.andWhere('ticket.assignedToId = :assigneeId', { assigneeId: userId });
         }
-        if (search) {
-            const searchTerm = search.trim();
-            if (searchTerm.length <= 3 || /^\d{6}-/.test(searchTerm)) {
-                qb.andWhere(
-                    '(ticket.title ILIKE :search OR ticket.description ILIKE :search OR ticket."ticketNumber" ILIKE :search)',
-                    { search: `%${searchTerm}%` },
-                );
-            } else {
-                qb.andWhere(
-                    `(to_tsvector('indonesian', COALESCE(ticket.title, '') || ' ' || COALESCE(ticket.description, '')) @@ plainto_tsquery('indonesian', :search) OR ticket."ticketNumber" ILIKE :ticketSearch)`,
-                    { search: searchTerm, ticketSearch: `%${searchTerm}%` },
-                );
-            }
-        }
-        if (startDate) {
-            qb.andWhere('ticket.createdAt >= :startDate', { startDate });
-        }
-        if (endDate) {
-            qb.andWhere('ticket.createdAt <= :endDate', { endDate });
-        }
+        qb.andWhere('ticket.category NOT IN (:...requestCenterCategories)', { requestCenterCategories: REQUEST_CENTER_CATEGORIES });
+        return qb;
+    }
 
-        const validSortFields = ['createdAt', 'updatedAt', 'status', 'priority', 'title'];
-        const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
-        const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
-
-        qb.orderBy(`ticket.${safeSortBy}`, safeSortOrder)
-          .skip((page - 1) * limit)
-          .take(limit);
-
-        const [data, total] = await qb.getManyAndCount();
-        const totalPages = Math.ceil(total / limit);
-
-        const enrichedTickets = data.map((ticket) => ({
-            ...ticket,
-            slaTarget: ensureSlaTarget(ticket),
-            hasUnreadChat: computeHasUnreadChat(ticket, role),
-        }));
-
-        return {
-            data: enrichedTickets as any,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPrevPage: page > 1,
-            },
-        };
+    /**
+     * Same access rule as opening the ticket (findOne), without loading its conversation.
+     * Throws NotFound / Forbidden like findOne does.
+     */
+    async assertCanView(id: string, user: { id?: string; role: UserRole | string; siteId?: string | null }): Promise<void> {
+        const ticket = await this.ticketRepo.findOne({
+            where: { id },
+            select: ['id', 'userId', 'createdById', 'category', 'ticketType', 'handlingTeam', 'siteId'],
+            relations: ['participants'],
+        });
+        if (!ticket) throw new NotFoundException('Ticket not found');
+        resolveTicketViewerAccess(ticket, user);
     }
 
     async findOne(id: string, user?: { id?: string; role: UserRole | string; siteId?: string | null }): Promise<any> {
@@ -684,6 +684,7 @@ export class TicketQueryService {
                 'user',
                 'user.department',
                 'assignedTo',
+                'createdBy',
                 'messages',
                 'messages.sender',
                 'participants',
@@ -704,31 +705,33 @@ export class TicketQueryService {
             throw new NotFoundException('Ticket not found');
         }
 
+        let viewerAccess: TicketViewerAccess | undefined;
         if (user) {
-            validateTicketAccess(user, ticket);
-            const isOwner = ticket.userId === user.id;
-            const isParticipant = ticket.participants?.some((p: any) => p.userId === user.id);
-            if (!isOwner && !isParticipant) {
-                validateTicketSiteAccess(user.role as UserRole, user.siteId ?? null, (ticket as any).siteId ?? null);
+            viewerAccess = resolveTicketViewerAccess(ticket, user);
+            if (viewerAccess === 'requester') {
+                ticket.messages = (ticket.messages ?? []).filter((m) => !m.isInternal);
             }
         }
 
-        // Use stored SLA Target if available, otherwise calculate it (for backwards compatibility)
+        // Use stored SLA Target if available, otherwise calculate it for display only.
+        // Never persist from this read path: saving the loaded entity would also cascade the
+        // (requester-filtered) messages relation, and a stored target on a ticket whose SLA clock
+        // has not started makes it count as overdue.
         let slaTarget = ticket.slaTarget;
         if (!slaTarget && ticket.priority) {
             const slaConfig = await this.slaConfigRepo.findOne({ where: { priority: ticket.priority } });
             if (slaConfig) {
                 const createdAt = new Date(ticket.createdAt);
                 const pausedMinutes = ticket.totalPausedMinutes || 0;
-                slaTarget = new Date(createdAt.getTime() + (slaConfig.resolutionTimeMinutes + pausedMinutes) * 60000);
-
-                // Save calculated SLA target to ticket for future reference
-                ticket.slaTarget = slaTarget;
-                await this.ticketRepo.save(ticket);
+                slaTarget = this.slaClock
+                    ? await this.slaClock.targetFor(ticket.priority, createdAt, slaConfig.resolutionTimeMinutes)
+                    : new Date(createdAt.getTime() + (slaConfig.resolutionTimeMinutes + pausedMinutes) * 60000);
             }
         }
 
-        return { ...ticket, slaTarget };
+        // Only who filed it on the requester's behalf, never the rest of that user record.
+        const createdBy = ticket.createdBy ? { id: ticket.createdBy.id, fullName: ticket.createdBy.fullName } : null;
+        return { ...ticket, createdBy, slaTarget, viewerAccess };
     }
 
     async getDashboardStats(
@@ -748,13 +751,12 @@ export class TicketQueryService {
     }
 
     private async computeDashboardStats(role: UserRole, userSiteId: string | null, excludeCategory?: string, chartDays: number = 7) {
+        // Day/week/month boundaries in WIB (the process runs in UTC, so local Date math would start days at 07:00 WIB).
         const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const thisWeekStart = new Date(today);
-        thisWeekStart.setDate(today.getDate() - today.getDay());
-        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        const lastDaysStart = new Date(today);
-        lastDaysStart.setDate(today.getDate() - (chartDays - 1));
+        const today = wibStartOfToday(now);
+        const thisWeekStart = wibStartOfWeek(now);
+        const thisMonthStart = wibStartOfMonth(now);
+        const lastDaysStart = new Date(today.getTime() - (chartDays - 1) * MS_PER_DAY);
 
         // Use QueryBuilder for efficient aggregations
         const qb = this.createFilteredTicketQb(role, userSiteId, excludeCategory);
@@ -765,8 +767,9 @@ export class TicketQueryService {
             .addSelect(`SUM(CASE WHEN ticket.status = 'TODO' THEN 1 ELSE 0 END)`, 'open')
             .addSelect(`SUM(CASE WHEN ticket.status = 'IN_PROGRESS' THEN 1 ELSE 0 END)`, 'inProgress')
             .addSelect(`SUM(CASE WHEN ticket.status = 'WAITING_VENDOR' THEN 1 ELSE 0 END)`, 'waitingVendor')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'resolved')
-            .addSelect(`SUM(CASE WHEN ticket.status != 'RESOLVED' AND ticket.status != 'CANCELLED' AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW() THEN 1 ELSE 0 END)`, 'overdue')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
+            .addSelect(`SUM(CASE WHEN ${OVERDUE_SQL} THEN 1 ELSE 0 END)`, 'overdue')
+            .addSelect(`SUM(CASE WHEN ticket.priority = 'CRITICAL' AND ticket.status IN (${TICKET_ACTIVE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'activeCritical')
             .getRawOne();
 
         const total = parseInt(statusCounts.total) || 0;
@@ -775,6 +778,7 @@ export class TicketQueryService {
         const waitingVendor = parseInt(statusCounts.waitingVendor) || 0;
         const resolved = parseInt(statusCounts.resolved) || 0;
         const overdue = parseInt(statusCounts.overdue) || 0;
+        const activeCritical = parseInt(statusCounts.activeCritical) || 0;
         const slaCompliance = total > 0 ? Math.round(((total - overdue) / total) * 100) : 100;
 
         // 2. Priority counts - single query
@@ -814,8 +818,8 @@ export class TicketQueryService {
             .select(`SUM(CASE WHEN ticket."createdAt" >= :today THEN 1 ELSE 0 END)`, 'todayTickets')
             .addSelect(`SUM(CASE WHEN ticket."createdAt" >= :thisWeek THEN 1 ELSE 0 END)`, 'thisWeekTickets')
             .addSelect(`SUM(CASE WHEN ticket."createdAt" >= :thisMonth THEN 1 ELSE 0 END)`, 'thisMonthTickets')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' AND ticket."updatedAt" >= :today THEN 1 ELSE 0 END)`, 'resolvedToday')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' AND ticket."updatedAt" >= :thisWeek THEN 1 ELSE 0 END)`, 'resolvedThisWeek')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ${RESOLVED_AT_SQL} >= :today THEN 1 ELSE 0 END)`, 'resolvedToday')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ${RESOLVED_AT_SQL} >= :thisWeek THEN 1 ELSE 0 END)`, 'resolvedThisWeek')
             .setParameters({ today, thisWeek: thisWeekStart, thisMonth: thisMonthStart })
             .getRawOne();
 
@@ -827,30 +831,30 @@ export class TicketQueryService {
 
         // 5. Last N days - single query with date grouping
         const dailyStats = await this.createFilteredTicketQb(role, userSiteId, excludeCategory)
-            .select(`DATE(ticket."createdAt")`, 'date')
+            .select(`to_char(${CREATED_WIB_DATE}, 'YYYY-MM-DD')`, 'date')
             .addSelect('COUNT(*)', 'created')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'resolved')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
             .andWhere(`ticket."createdAt" >= :start`, { start: lastDaysStart })
-            .groupBy(`DATE(ticket."createdAt")`)
-            .orderBy(`DATE(ticket."createdAt")`, 'ASC')
+            .groupBy(CREATED_WIB_DATE)
+            .orderBy(CREATED_WIB_DATE, 'ASC')
             .getRawMany();
 
         // Build last N days array
         const dailyActivityData: { date: string; created: number; resolved: number }[] = [];
         const dailyMap = new Map(dailyStats.map(d => [
-            new Date(d.date).toDateString(),
+            d.date as string,
             { created: parseInt(d.created) || 0, resolved: parseInt(d.resolved) || 0 }
         ]));
 
         for (let i = (chartDays - 1); i >= 0; i--) {
-            const date = new Date(today);
-            date.setDate(today.getDate() - i);
-            const stats = dailyMap.get(date.toDateString()) || { created: 0, resolved: 0 };
+            // Noon WIB of that day: safe to format in any zone without slipping a day.
+            const date = new Date(today.getTime() - i * MS_PER_DAY + MS_PER_DAY / 2);
+            const stats = dailyMap.get(localDateKey(date)) || { created: 0, resolved: 0 };
             
             // For longer ranges, format date as 'D MMM' instead of weekday
             const formatStr = chartDays > 7 
-                ? date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) 
-                : date.toLocaleDateString('en-US', { weekday: 'short' });
+                ? date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', timeZone: DEFAULT_TIMEZONE }) 
+                : date.toLocaleDateString('en-US', { weekday: 'short', timeZone: DEFAULT_TIMEZONE });
                 
             dailyActivityData.push({
                 date: formatStr,
@@ -889,7 +893,7 @@ export class TicketQueryService {
             .innerJoin('ticket.assignedTo', 'agent')
             .select('agent.id', 'agentId')
             .addSelect('agent.fullName', 'name')
-            .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'resolved')
+            .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
             .addSelect(`SUM(CASE WHEN ticket.status = 'IN_PROGRESS' THEN 1 ELSE 0 END)`, 'inProgress')
             .groupBy('agent.id')
             .addGroupBy('agent.fullName')
@@ -905,8 +909,8 @@ export class TicketQueryService {
 
         // 8. Average resolution time - SQL calculation
         const avgTimeResult = await this.createFilteredTicketQb(role, userSiteId, excludeCategory)
-            .select(`AVG(EXTRACT(EPOCH FROM (ticket."updatedAt" - ticket."createdAt")) / 60)`, 'avgMinutes')
-            .andWhere(`ticket.status = 'RESOLVED'`)
+            .select(`AVG(EXTRACT(EPOCH FROM (${RESOLVED_AT_SQL} - ticket."createdAt")) / 60)`, 'avgMinutes')
+            .andWhere(`ticket.status IN (${TICKET_DONE_STATUSES_SQL})`)
             .getRawOne();
 
         const avgResolutionMinutes = Math.round(parseFloat(avgTimeResult?.avgMinutes) || 0);
@@ -921,7 +925,7 @@ export class TicketQueryService {
             waitingVendor,
             resolved,
             overdue,
-            critical: byPriority.CRITICAL,
+            critical: activeCritical,
             slaCompliance,
             byPriority,
             byCategory,
@@ -1014,6 +1018,7 @@ export class TicketQueryService {
 
         // Cross-site filter if applicable
         applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
+        applyServiceScopeFilter(qb, role);
 
         if (status) qb.andWhere('ticket.status = :status', { status });
         if (priority) qb.andWhere('ticket.priority = :priority', { priority });
@@ -1032,7 +1037,7 @@ export class TicketQueryService {
             if (searchTerm.includes('-') || /^[A-Z0-9#-]+$/i.test(searchTerm)) {
                 qb.andWhere('ticket.ticketNumber ILIKE :exactSearch', { exactSearch: `%${searchTerm}%` });
             } else {
-                const formattedQuery = searchTerm.split(/\s+/).filter(Boolean).map(t => `${t}:*`).join(' & ');
+                const formattedQuery = toPrefixTsQuery(searchTerm);
                 qb.andWhere(
                     `(to_tsvector('simple', COALESCE(ticket.title, '') || ' ' || COALESCE(ticket.description, '')) @@ to_tsquery('simple', :ftsQuery) OR ticket.ticketNumber ILIKE :fuzzySearch OR user.fullName ILIKE :fuzzySearch)`,
                     { ftsQuery: formattedQuery, fuzzySearch: `%${searchTerm}%` }
@@ -1075,12 +1080,13 @@ export class TicketQueryService {
             statsQb.andWhere('ticket.category IN (:...cats)', { cats: module.categories });
         }
         applySiteFilter(statsQb, role, userSiteId, { siteId, siteIds });
+        applyServiceScopeFilter(statsQb, role); // same scope as the list, or the counts do not match it
 
         const [totalCount, openCount, inProgressCount, resolvedCount] = await Promise.all([
             statsQb.clone().getCount(),
             statsQb.clone().andWhere('ticket.status = :s', { s: TicketStatus.TODO }).getCount(),
             statsQb.clone().andWhere('ticket.status = :s', { s: TicketStatus.IN_PROGRESS }).getCount(),
-            statsQb.clone().andWhere('ticket.status = :s', { s: TicketStatus.RESOLVED }).getCount(),
+            statsQb.clone().andWhere('ticket.status IN (:...s)', { s: TICKET_DONE_STATUSES }).getCount(),
         ]);
 
         return {

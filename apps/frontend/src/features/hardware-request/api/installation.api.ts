@@ -101,6 +101,12 @@ export async function proposeSchedule(
   return res.data.data;
 }
 
+/** The other side accepts a single proposed time (e.g. after ICT moved the installation). */
+export async function confirmProposedSchedule(requestId: string): Promise<InstallationSchedule> {
+  const res = await api.post(`/hardware-requests/${requestId}/schedule/confirm`);
+  return res.data.data;
+}
+
 export async function selectScheduleSlot(
   requestId: string,
   scheduleId: string,

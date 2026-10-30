@@ -9,6 +9,8 @@ export const HR_EVT = {
     SCHEDULE_RESCHEDULED:  'hardware-request.schedule.rescheduled',
     INSTALL_STARTED:       'hardware-request.install.started',
     INSTALL_COMPLETED:     'hardware-request.install.completed',
+    /** The requester checked the installation and reported a problem: the job goes back to installation. */
+    INSTALL_ISSUE_REPORTED: 'hardware-request.install.issue-reported',
     COMMENTED:             'hardware-request.commented',
     AGING_FLAGGED:         'hardware-request.aging.flagged',
     CLOSED:                'hardware-request.closed',
@@ -27,6 +29,7 @@ export interface HrScheduleConfirmed extends HrEventBase { scheduleId: string; c
 export interface HrScheduleRescheduled extends HrEventBase { oldId: string; newId: string; reason?: string; technicianId: string; requesterId: string; }
 export interface HrInstallStarted extends HrEventBase { scheduleId: string; requesterId: string; }
 export interface HrInstallCompleted extends HrEventBase { requesterId: string; }
+export interface HrInstallIssueReported extends HrEventBase { requesterId: string; comments: string | null; }
 export interface HrCommented extends HrEventBase { commentId: string; body: string; subscribers: string[]; }
 export interface HrAgingFlagged extends HrEventBase { requesterId: string; daysInStatus: number; status: string; }
 export interface HrClosed extends HrEventBase { requesterId: string; }

@@ -20,7 +20,6 @@ export interface NotificationJobData {
     };
     recipient: {
         email?: string;
-        telegramChatId?: string;
         pushTokens?: string[];
     };
 }
@@ -55,7 +54,7 @@ export class NotificationProcessor {
             notificationId,
             channel,
             status: DeliveryStatus.PENDING,
-            recipient: recipient.email || recipient.telegramChatId || recipient.pushTokens?.[0] || '',
+            recipient: recipient.email || recipient.pushTokens?.[0] || '',
         });
         await this.logRepo.save(log);
 

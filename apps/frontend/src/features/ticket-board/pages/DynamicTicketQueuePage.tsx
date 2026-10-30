@@ -11,7 +11,6 @@ import {
     Ticket as TicketIcon,
     Search,
     RefreshCw,
-    Plus,
     Clock,
     CheckCircle2,
     AlertCircle,
@@ -23,10 +22,15 @@ import {
 } from 'lucide-react';
 import { TargetDateCell } from '../components/TargetDateCell';
 import { BulkActionsBar } from '../components/BulkActionsBar';
+import { isHandledByTakeoverDialog, type TakeoverOptions } from '../hooks/useStatusTakeover';
+import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 import { BulkAssignDialog } from '../components/BulkAssignDialog';
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
 import { MergeTicketsModal } from '../components/MergeTicketsModal';
 import { useTicketListSocket } from '@/hooks/useTicketSocket';
+import { PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
+
+const QUEUE_PRIORITY_OPTIONS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const;
 
 export const DynamicTicketQueuePage: React.FC = () => {
     const { slug } = useParams<{ slug: string }>();
@@ -145,17 +149,19 @@ export const DynamicTicketQueuePage: React.FC = () => {
         }
     };
 
-    const handleBulkStatusChange = async (status: string) => {
+    const handleBulkStatusChange = async (status: string, takeover?: TakeoverOptions) => {
         try {
             await api.patch('/tickets/bulk/update', {
                 ticketIds: selectedTicketIds,
                 status,
-            });
+                ...takeover,
+            }, { skipToast: true });
             queryClient.invalidateQueries({ queryKey: ['tickets', 'module', slug] });
             setSelectedTicketIds([]);
             toast.success(`Status ${selectedTicketIds.length} tiket berhasil diperbarui`);
-        } catch {
-            toast.error('Gagal memperbarui status tiket');
+        } catch (error) {
+            if (isHandledByTakeoverDialog(error, takeover)) throw error;
+            toast.error(getApiErrorMessage(error, 'Gagal memperbarui status tiket'));
         }
     };
 
@@ -184,7 +190,7 @@ export const DynamicTicketQueuePage: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6">
             {/* Header Banner */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
                 <div className="flex items-center gap-4">
@@ -216,14 +222,6 @@ export const DynamicTicketQueuePage: React.FC = () => {
                         title="Refresh"
                     >
                         <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-                    </button>
-
-                    <button
-                        onClick={() => navigate('/tickets/create')}
-                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-md shadow-blue-500/20 hover:shadow-lg transition-all"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Buat Tiket
                     </button>
                 </div>
             </div>
@@ -299,6 +297,7 @@ export const DynamicTicketQueuePage: React.FC = () => {
                         <option value="IN_PROGRESS">In Progress</option>
                         <option value="WAITING_VENDOR">Waiting Vendor</option>
                         <option value="RESOLVED">Resolved</option>
+                        <option value="CLOSED">Closed</option>
                         <option value="CANCELLED">Cancelled</option>
                     </select>
 
@@ -312,10 +311,9 @@ export const DynamicTicketQueuePage: React.FC = () => {
                         className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                         <option value="ALL">Semua Prioritas</option>
-                        <option value="CRITICAL">Critical</option>
-                        <option value="HIGH">High</option>
-                        <option value="MEDIUM">Medium</option>
-                        <option value="LOW">Low</option>
+                        {QUEUE_PRIORITY_OPTIONS.map((key) => (
+                            <option key={key} value={key}>{PRIORITY_CONFIG[key].shortLabel}</option>
+                        ))}
                     </select>
                 </div>
             </div>

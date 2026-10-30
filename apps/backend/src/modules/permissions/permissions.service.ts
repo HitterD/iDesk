@@ -7,9 +7,9 @@ import { PermissionPreset, PermissionSet, PageAccess, PresetTargetRole } from '.
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { FeaturePermissionDto } from './dto/update-permissions.dto';
-import { CacheService, CacheKeys } from '../../shared/core/cache/cache.service';
+import { CacheService } from '../../shared/core/cache/cache.service';
 import { PermissionsGateway } from './permissions.gateway';
-import { isValidPageKey } from '../../shared/core/types/page-access.types';
+import { getRoleDefaultPageAccess, isValidPageKey } from '../../shared/core/types/page-access.types';
 
 // ============================================
 // NEW: SIMPLIFIED PAGE-BASED ACCESS SYSTEM
@@ -30,7 +30,6 @@ const USER_PAGES: PageDefinition[] = [
     { key: 'tickets', name: 'My Tickets', icon: 'Ticket', route: '/tickets', roles: ['USER'] },
     { key: 'hardware_requests', name: 'Hardware Requests', icon: 'MonitorSmartphone', route: '/hardware-requests', roles: ['USER'] },
     { key: 'eform_access', name: 'E-Form Access', icon: 'FileText', route: '/eform-access', roles: ['USER'] },
-    { key: 'lost_items', name: 'Lost Items', icon: 'Search', route: '/lost-items', roles: ['USER'] },
     { key: 'zoom_calendar', name: 'Zoom Booking', icon: 'Video', route: '/zoom-calendar', roles: ['USER'] },
     { key: 'knowledge_base', name: 'Knowledge Base', icon: 'BookOpen', route: '/kb', roles: ['USER'] },
     { key: 'notifications', name: 'Notifications', icon: 'Bell', route: '/notifications', roles: ['USER'] },
@@ -39,10 +38,10 @@ const USER_PAGES: PageDefinition[] = [
 // Pages available for AGENT role (16 pages - includes admin-only pages for ADMIN)
 const AGENT_PAGES: PageDefinition[] = [
     { key: 'dashboard', name: 'Dashboard', icon: 'LayoutDashboard', route: '/dashboard', roles: ['AGENT', 'ADMIN'] },
+    { key: 'my_dashboard', name: 'Dashboard Saya', icon: 'UserRound', route: '/dashboard/me', roles: ['AGENT'] },
     { key: 'tickets', name: 'All Tickets', icon: 'Ticket', route: '/tickets', roles: ['AGENT', 'ADMIN'] },
     { key: 'hardware_requests', name: 'Hardware Requests', icon: 'MonitorSmartphone', route: '/hardware-requests', roles: ['AGENT', 'ADMIN'] },
     { key: 'eform_access', name: 'E-Form Access', icon: 'FileText', route: '/eform-access', roles: ['AGENT', 'ADMIN'] },
-    { key: 'lost_items', name: 'Lost Items', icon: 'Search', route: '/lost-items', roles: ['AGENT', 'ADMIN'] },
     { key: 'zoom_calendar', name: 'Zoom Management', icon: 'Video', route: '/zoom-calendar', roles: ['AGENT', 'ADMIN'] },
     { key: 'knowledge_base', name: 'KB Management', icon: 'BookOpen', route: '/kb', roles: ['AGENT', 'ADMIN'] },
     { key: 'notifications', name: 'Notifications', icon: 'Bell', route: '/notifications', roles: ['AGENT', 'ADMIN'] },
@@ -57,6 +56,7 @@ const AGENT_PAGES: PageDefinition[] = [
     { key: 'automation', name: 'Automation', icon: 'Zap', route: '/automation', roles: ['ADMIN'] },
     { key: 'audit_logs', name: 'Audit Logs', icon: 'Shield', route: '/audit-logs', roles: ['ADMIN'] },
     { key: 'system_health', name: 'System Health', icon: 'Activity', route: '/system-health', roles: ['ADMIN'] },
+    { key: 'data_wipe', name: 'Hapus Data', icon: 'Trash2', route: '/data-wipe', roles: ['ADMIN'] },
     { key: 'settings', name: 'Settings', icon: 'Settings', route: '/settings', roles: ['ADMIN'] },
 ];
 
@@ -66,7 +66,6 @@ const MANAGER_PAGES: PageDefinition[] = [
     { key: 'tickets', name: 'Team Tickets', icon: 'Ticket', route: '/tickets', roles: ['MANAGER'] },
     { key: 'hardware_requests', name: 'Hardware Requests', icon: 'MonitorSmartphone', route: '/hardware-requests', roles: ['MANAGER'] },
     { key: 'eform_access', name: 'E-Form Access', icon: 'FileText', route: '/eform-access', roles: ['MANAGER'] },
-    { key: 'lost_items', name: 'Lost Items', icon: 'Search', route: '/lost-items', roles: ['MANAGER'] },
     { key: 'zoom_calendar', name: 'Zoom Calendar', icon: 'Video', route: '/zoom-calendar', roles: ['MANAGER'] },
     { key: 'reports', name: 'Reports', icon: 'BarChart3', route: '/reports', roles: ['MANAGER'] },
     { key: 'knowledge_base', name: 'Knowledge Base', icon: 'BookOpen', route: '/kb', roles: ['MANAGER'] },
@@ -76,24 +75,12 @@ const MANAGER_PAGES: PageDefinition[] = [
 ];
 
 const ORACLE_PAGES: PageDefinition[] = [
+    { key: 'my_dashboard', name: 'Dashboard Saya', icon: 'UserRound', route: '/dashboard/me', roles: ['AGENT'] },
     { key: 'oracle_k2_tickets', name: 'Oracle K2 Request', icon: 'Database', route: '/tickets/oracle-k2', roles: ['AGENT'] },
     { key: 'web_dev_tickets', name: 'Web Developer Request', icon: 'Code2', route: '/tickets/web-developer', roles: ['AGENT'] },
     { key: 'mobile_dev_tickets', name: 'Mobile Developer Request', icon: 'Smartphone', route: '/tickets/mobile-developer', roles: ['AGENT'] },
     { key: 'notifications', name: 'Notifications', icon: 'Bell', route: '/notifications', roles: ['AGENT'] },
 ];
-
-// Get default page access for each role
-function getDefaultPageAccess(role: PresetTargetRole): PageAccess {
-    const pages = role === 'USER' ? USER_PAGES :
-        role === 'MANAGER' ? MANAGER_PAGES :
-            AGENT_PAGES;
-
-    const access: PageAccess = {};
-    for (const page of pages) {
-        access[page.key] = true;
-    }
-    return access;
-}
 
 // Get page definitions for a role
 function getPagesForRole(role: PresetTargetRole): PageDefinition[] {
@@ -136,9 +123,6 @@ const DEFAULT_FEATURES: Partial<FeatureDefinition>[] = [
     { key: 'ict_budget.view', name: 'View ICT Budget', description: 'View ICT budget items', category: 'Finance', icon: 'DollarSign', appliesToRoles: ['AGENT'], sortOrder: 40 },
     { key: 'ict_budget.manage', name: 'Manage ICT Budget', description: 'Create and manage budget items', category: 'Finance', icon: 'Calculator', appliesToRoles: ['AGENT'], sortOrder: 41 },
 
-    // Lost Item
-    { key: 'lost_item.view', name: 'View Lost Items', description: 'View lost item reports', category: 'Operations', icon: 'Search', appliesToRoles: ['USER', 'AGENT'], sortOrder: 50 },
-    { key: 'lost_item.manage', name: 'Manage Lost Items', description: 'Manage lost item reports', category: 'Operations', icon: 'Package', appliesToRoles: ['AGENT'], sortOrder: 51 },
 
     // Access Request
     { key: 'access_request.view', name: 'View Access Requests', description: 'View access requests', category: 'Security', icon: 'Key', appliesToRoles: ['USER', 'AGENT'], sortOrder: 60 },
@@ -172,7 +156,6 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             notifications: true,
             hardware_requests: true,
             eform_access: true,
-            lost_items: true,
         },
         permissions: {
             // Ticketing - create and edit own only
@@ -184,8 +167,6 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             'zoom_calendar.book': { canView: true, canCreate: true, canEdit: false, canDelete: false },
             // Knowledge Base - view only
             'knowledge_base.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
-            // Lost Item - view and report
-            'lost_item.view': { canView: true, canCreate: true, canEdit: false, canDelete: false },
             // Access Request - view and create
             'access_request.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
             'access_request.create': { canView: true, canCreate: true, canEdit: false, canDelete: false },
@@ -209,7 +190,6 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             notifications: true,
             hardware_requests: true,
             eform_access: true,
-            lost_items: true,
         },
         permissions: {
             'ticketing.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
@@ -218,7 +198,6 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             'zoom_calendar.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
             'zoom_calendar.book': { canView: true, canCreate: true, canEdit: false, canDelete: false },
             'knowledge_base.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
-            'lost_item.view': { canView: true, canCreate: true, canEdit: false, canDelete: false },
             'access_request.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
             'access_request.create': { canView: true, canCreate: true, canEdit: false, canDelete: false },
             'notifications.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
@@ -234,6 +213,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         isSystem: true,
         targetRole: 'AGENT',
         pageAccess: {
+            my_dashboard: true,
             dashboard: true,
             tickets: true,
             zoom_calendar: true,
@@ -241,7 +221,6 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             notifications: true,
             hardware_requests: true,
             eform_access: true,
-            lost_items: true,
             reports: true,
             renewal: true,
         },
@@ -263,9 +242,6 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             // Reports - view
             'reports.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
             'reports.dashboard': { canView: true, canCreate: false, canEdit: false, canDelete: false },
-            // Lost Item - manage
-            'lost_item.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
-            'lost_item.manage': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             // Access Request - view
             'access_request.view': { canView: true, canCreate: true, canEdit: false, canDelete: false },
             'access_request.create': { canView: true, canCreate: true, canEdit: false, canDelete: false },
@@ -284,6 +260,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         isSystem: true,
         targetRole: 'AGENT',
         pageAccess: {
+            my_dashboard: true,
             dashboard: true,
             tickets: true,
             zoom_calendar: true,
@@ -291,7 +268,6 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             notifications: true,
             hardware_requests: true,
             eform_access: true,
-            lost_items: true,
             reports: true,
             renewal: true,
         },
@@ -309,8 +285,6 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             'knowledge_base.edit': { canView: true, canCreate: false, canEdit: true, canDelete: false },
             'reports.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
             'reports.dashboard': { canView: true, canCreate: false, canEdit: false, canDelete: false },
-            'lost_item.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
-            'lost_item.manage': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'access_request.view': { canView: true, canCreate: true, canEdit: false, canDelete: false },
             'access_request.create': { canView: true, canCreate: true, canEdit: false, canDelete: false },
             'renewal.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
@@ -326,10 +300,12 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         isSystem: true,
         targetRole: 'AGENT',
         pageAccess: {
+            my_dashboard: true,
             oracle_k2_tickets: true,
             web_dev_tickets: true,
             mobile_dev_tickets: true,
             notifications: true,
+            reports: true,
         },
         permissions: {
             'ticketing.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
@@ -338,6 +314,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             'ticketing.manage': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'ticketing.assign': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'notifications.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'reports.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
         },
     },
 
@@ -348,10 +325,12 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         isSystem: true,
         targetRole: 'AGENT',
         pageAccess: {
+            my_dashboard: true,
             oracle_k2_tickets: true,
             web_dev_tickets: true,
             mobile_dev_tickets: true,
             notifications: true,
+            reports: true,
         },
         permissions: {
             'ticketing.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
@@ -360,6 +339,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             'ticketing.manage': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'ticketing.assign': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'notifications.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'reports.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
         },
     },
 
@@ -370,10 +350,12 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         isSystem: true,
         targetRole: 'AGENT',
         pageAccess: {
+            my_dashboard: true,
             oracle_k2_tickets: true,
             web_dev_tickets: true,
             mobile_dev_tickets: true,
             notifications: true,
+            reports: true,
         },
         permissions: {
             'ticketing.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
@@ -382,6 +364,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             'ticketing.manage': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'ticketing.assign': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'notifications.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'reports.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
         },
     },
 
@@ -398,11 +381,11 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             zoom_calendar: true,
             hardware_requests: true,
             eform_access: true,
-            lost_items: true,
             reports: true,
             knowledge_base: true,
             notifications: true,
             renewal: true,
+            workloads: true,
         },
         permissions: {
             // Ticketing - full including delete
@@ -427,9 +410,6 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             'reports.export': { canView: true, canCreate: true, canEdit: false, canDelete: false },
             // ICT Budget - view
             'ict_budget.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
-            // Lost Item - manage
-            'lost_item.view': { canView: true, canCreate: true, canEdit: true, canDelete: true },
-            'lost_item.manage': { canView: true, canCreate: true, canEdit: true, canDelete: true },
             // Access Request - approve
             'access_request.view': { canView: true, canCreate: true, canEdit: true, canDelete: false },
             'access_request.create': { canView: true, canCreate: true, canEdit: true, canDelete: false },
@@ -458,13 +438,15 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             notifications: true,
             hardware_requests: true,
             eform_access: true,
-            lost_items: true,
             reports: true,
             renewal: true,
+            workloads: true,
             agents: true,
             automation: true,
             audit_logs: true,
             system_health: true,
+            data_wipe: true,
+            csi_admin_ict: true,
             settings: true,
         },
         permissions: {
@@ -491,9 +473,6 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             // ICT Budget - full
             'ict_budget.view': { canView: true, canCreate: true, canEdit: true, canDelete: true },
             'ict_budget.manage': { canView: true, canCreate: true, canEdit: true, canDelete: true },
-            // Lost Item - full
-            'lost_item.view': { canView: true, canCreate: true, canEdit: true, canDelete: true },
-            'lost_item.manage': { canView: true, canCreate: true, canEdit: true, canDelete: true },
             // Access Request - full
             'access_request.view': { canView: true, canCreate: true, canEdit: true, canDelete: true },
             'access_request.create': { canView: true, canCreate: true, canEdit: true, canDelete: true },
@@ -691,21 +670,7 @@ export class PermissionsService implements OnModuleInit {
         }
 
         // Otherwise return default page access for their role
-        const role = user.role as UserRole;
-        if (
-            role === UserRole.AGENT_ORACLE ||
-            role === UserRole.AGENT_WEB_DEV ||
-            role === UserRole.AGENT_MOBILE_DEV
-        ) {
-            return {
-                oracle_k2_tickets: true,
-                web_dev_tickets: true,
-                mobile_dev_tickets: true,
-                notifications: true,
-            };
-        }
-        const normalizedRole = (user.role || 'USER').startsWith('AGENT_') ? 'AGENT' : (user.role || 'USER') as PresetTargetRole;
-        return getDefaultPageAccess(normalizedRole);
+        return getRoleDefaultPageAccess(user.role);
     }
 
     async resolveDefaultPresetId(role: UserRole): Promise<string | null> {
@@ -776,6 +741,7 @@ export class PermissionsService implements OnModuleInit {
             updated++;
         }
 
+        await this.invalidatePermissionCache(userId);
         return { updated };
     }
 
@@ -824,7 +790,7 @@ export class PermissionsService implements OnModuleInit {
         await this.userRepo.save(user);
 
         // Invalidate page access cache for this user
-        await this.cacheService.delAsync(CacheKeys.pageAccess(userId));
+        await this.invalidatePermissionCache(userId);
 
         // FI-8: Notify user via WebSocket for real-time update
         this.permissionsGateway.notifyPresetChange(userId, preset.id, preset.name);
@@ -849,7 +815,7 @@ export class PermissionsService implements OnModuleInit {
         user.appliedPresetName = null;
         await this.userRepo.save(user);
 
-        await this.cacheService.delAsync(CacheKeys.pageAccess(userId));
+        await this.invalidatePermissionCache(userId);
         this.permissionsGateway.notifyPresetChange(userId, '', '');
 
         this.logger.log(`Removed applied preset from user ${userId}`);
@@ -1076,8 +1042,8 @@ export class PermissionsService implements OnModuleInit {
         });
 
         for (const user of usersWithPreset) {
-            // Invalidate page access cache
-            await this.cacheService.delAsync(CacheKeys.pageAccess(user.id));
+            // Invalidate page-access and per-feature permission caches
+            await this.invalidatePermissionCache(user.id);
 
             // Notify user via WebSocket for real-time update
             this.permissionsGateway.notifyPresetChange(user.id, preset.id, preset.name);

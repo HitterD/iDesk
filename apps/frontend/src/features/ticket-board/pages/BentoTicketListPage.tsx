@@ -1,15 +1,20 @@
+import { QueueCardToolbar } from '../components/QueueCardToolbar';
+import { Ticket as TicketIcon } from 'lucide-react';
+import { QueueHeader, QueueToggles } from '../components/QueueHeader';
+import { QueueFilterBar, PRIORITY_FILTER_OPTIONS } from '../components/QueueFilterBar';
+import { QueueTableHeader } from '../components/QueueTableHeader';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import {
     Columns3,
     TableProperties,
     UserCheck,
-    Search,
+    FilePen,
     AlertTriangle,
     CheckCircle2,
     CircleDot,
+    Hourglass,
     MessageSquare,
-    X,
     ChevronRight,
     ChevronLeft,
     ChevronsLeft,
@@ -50,8 +55,8 @@ import type { Ticket as ApiTicket } from '@/lib/api/types';
 import { StatsCard } from '../components/StatsCard';
 import { CustomDropdown, PriorityDropdown, StatusDropdown } from '../components/TicketDropdowns';
 import { TargetDateCell } from '../components/TargetDateCell';
-import { SortableHeader, SortField, SortOrder } from '../components/SortableHeader';
-import { BulkActionsBar, SelectCheckbox } from '../components/BulkActionsBar';
+import type { SortField, SortOrder } from '../components/SortableHeader';
+import { BulkActionsBar } from '../components/BulkActionsBar';
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
 import { MergeTicketsModal } from '../components/MergeTicketsModal';
 import { SecondaryFiltersMenu } from '../components/SecondaryFiltersMenu';
@@ -63,7 +68,12 @@ import { TicketListActiveFilters } from '../components/TicketListActiveFilters';
 import { TicketListPagination } from '../components/TicketListPagination';
 import { Ticket } from '../types/ticket.types';
 import { useTicketListMutations } from '../hooks/useTicketListMutations';
+import { useQueueStats } from '../hooks/useQueueStats';
+import { isHandledByTakeoverDialog, type TakeoverOptions } from '../hooks/useStatusTakeover';
+import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 import { BentoTicketKanban } from '../components/BentoTicketKanban';
+import { ACTIVE_STATUS_FILTER, DONE_STATUS_FILTER } from '../constants/statusFilters';
+import { useResetPageOnChange, useTicketListUrlState } from '../hooks/useTicketListUrlState';
 import { SiteSelector } from '@/components/site/SiteSelector';
 
 const CROSS_SITE_ROLES = ['ADMIN','MANAGER','AGENT_ORACLE'] as const;
@@ -113,13 +123,18 @@ export const BentoTicketListPage: React.FC = () => {
     }, [user, navigate, playNewTicketSound, playCriticalSound]);
 
     const { isConnected } = useTicketListSocket({ onNewTicket: handleNewTicket });
-    const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<string>('');
-    const [priorityFilter, setPriorityFilter] = useState<string>('');
-    const [selectedSites, setSelectedSites] = useState<string[]>([]);
-    const [currentPage, setCurrentPage] = useState(1);
+    const {
+        searchQuery, setSearchQuery,
+        statusFilter, setStatusFilter,
+        priorityFilter, setPriorityFilter,
+        overdueFilter, setOverdueFilter,
+        selectedSites, setSelectedSites,
+        currentPage, setCurrentPage,
+    } = useTicketListUrlState();
     const ITEMS_PER_PAGE = 20;
     const showAssignedToMe = searchParams.get('filter') === 'assigned_to_me';
+    // Tickets I filed (for myself or on behalf of someone), from any team.
+    const showCreatedByMe = searchParams.get('filter') === 'created_by_me';
 
     // Sorting state
     const [sortBy, setSortBy] = useState<SortField>('createdAt');
@@ -170,9 +185,7 @@ export const BentoTicketListPage: React.FC = () => {
     };
 
     // Reset to page 1 when filters change (before the query)
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [debouncedSearch, statusFilter, priorityFilter, showAssignedToMe, selectedSites]);
+    useResetPageOnChange([debouncedSearch, statusFilter, priorityFilter, overdueFilter, showAssignedToMe, showCreatedByMe, selectedSites], setCurrentPage);
 
     // Server-side paginated tickets query
     const { data: paginatedData, isLoading, isFetching } = useQuery<PaginatedResponse>({
@@ -181,9 +194,11 @@ export const BentoTicketListPage: React.FC = () => {
             limit: ITEMS_PER_PAGE,
             status: statusFilter || undefined,
             priority: priorityFilter || undefined,
+            overdue: overdueFilter || undefined,
             search: debouncedSearch || undefined,
             siteIds: selectedSites.length > 0 ? selectedSites : undefined,
             assignedToMe: showAssignedToMe || undefined,
+            createdByMe: showCreatedByMe || undefined,
             sortBy: sortBy || 'createdAt',
             sortOrder: sortOrder || 'DESC',
         }],
@@ -194,35 +209,25 @@ export const BentoTicketListPage: React.FC = () => {
             params.append('excludeCategory', 'ICT_BUDGET,LOST_ITEM,ACCESS_REQUEST'); // Exclude Request Center categories
             if (statusFilter) params.append('status', statusFilter);
             if (priorityFilter) params.append('priority', priorityFilter);
+            if (overdueFilter) params.append('overdue', 'true');
             if (debouncedSearch) params.append('search', debouncedSearch);
             if (selectedSites.length > 0) {
                 selectedSites.forEach(siteId => params.append('siteIds', siteId));
             }
             if (sortBy) params.append('sortBy', sortBy);
             params.append('sortOrder', sortOrder);
+            if (showCreatedByMe) params.append('createdByMe', 'true');
+            if (showAssignedToMe) params.append('assignedToMe', 'true');
             const res = await api.get(`/tickets/paginated?${params.toString()}`);
             return res.data;
         },
         placeholderData: (previousData) => previousData, // Keep previous data while fetching
-        refetchInterval: 60000, // Auto-poll every 60s as fallback
+        refetchInterval: isConnected ? false : 60000, // fallback poll only while the socket is down
     });
 
-    // Fetch dashboard stats separately (for stat cards - doesn't need to refetch on pagination)
-    const { data: statsData } = useQuery<{
-        total: number;
-        open: number;
-        inProgress: number;
-        resolved: number;
-        overdue: number;
-        critical: number;
-    }>({
-        queryKey: ['dashboard-stats', { excludeCategory: 'ICT_BUDGET,LOST_ITEM,ACCESS_REQUEST' }],
-        queryFn: async () => {
-            const res = await api.get('/tickets/dashboard/stats?excludeCategory=ICT_BUDGET,LOST_ITEM,ACCESS_REQUEST');
-            return res.data;
-        },
-        staleTime: 30000, // 30 seconds
-    });
+    // Stat cards count the same IT Support queue as the list (team, sites, "Tugas Saya" / "Saya Buat"),
+    // so clicking a card always shows that many tickets. Not refetched on pagination.
+    const { data: statsData } = useQueueStats('it-support', { siteIds: selectedSites, assignedToMe: showAssignedToMe, createdByMe: showCreatedByMe });
 
     const isAdmin = user?.role === 'ADMIN';
     const { data: agents = [] } = useQuery<Agent[]>({
@@ -245,8 +250,8 @@ export const BentoTicketListPage: React.FC = () => {
         [updatePriorityMutation]
     );
     const handleUpdateStatus = useCallback(
-        (ticketId: string, status: string, resolutionNote?: string, files?: File[]) =>
-            updateStatusMutation.mutate({ ticketId, status, resolutionNote, files }),
+        (ticketId: string, status: string, resolutionNote?: string, files?: File[], takeover?: TakeoverOptions) =>
+            updateStatusMutation.mutateAsync({ ticketId, status, resolutionNote, files, takeover }),
         [updateStatusMutation]
     );
     const handleAssign = useCallback(
@@ -259,15 +264,8 @@ export const BentoTicketListPage: React.FC = () => {
     const tickets = paginatedData?.data || [];
     const paginationMeta = paginatedData?.meta;
 
-    // Client-side filter for "My Tasks" (assigned to me)
-    const filteredTickets = useMemo(() => {
-        let result = tickets;
-
-        if (showAssignedToMe) {
-            result = result.filter((t) => t.assignedTo?.id === user?.id);
-        }
-        return result;
-    }, [tickets, showAssignedToMe, user?.id]);
+    // "My Tasks" is filtered by the server, so paging and totals match what is shown.
+    const filteredTickets = tickets;
 
     // Pagination info from server
     const paginationInfo = useMemo(() => {
@@ -289,15 +287,23 @@ export const BentoTicketListPage: React.FC = () => {
         total: statsData?.total || 0,
         open: statsData?.open || 0,
         inProgress: statsData?.inProgress || 0,
+        waitingVendor: statsData?.waitingVendor || 0,
         resolved: statsData?.resolved || 0,
         overdue: statsData?.overdue || 0,
         critical: statsData?.critical || 0,
     }), [statsData]);
 
+    const applyCardFilters = (status: string, priority = '', overdue = false) => {
+        setStatusFilter(status);
+        setPriorityFilter(priority);
+        setOverdueFilter(overdue);
+    };
+
     const clearFilters = () => {
         setSearchQuery('');
         setStatusFilter('');
         setPriorityFilter('');
+        setOverdueFilter(false);
         setSelectedSites([]);
         setSearchParams({});
         setCurrentPage(1);
@@ -359,16 +365,17 @@ export const BentoTicketListPage: React.FC = () => {
         }
     }, [selectedTickets, queryClient, clearSelection]);
 
-    const handleBulkStatusChange = useCallback(async (status: string) => {
+    const handleBulkStatusChange = useCallback(async (status: string, takeover?: TakeoverOptions) => {
         const ticketIds = Array.from(selectedTickets);
         try {
-            await api.patch('/tickets/bulk/update', { ticketIds, status });
+            await api.patch('/tickets/bulk/update', { ticketIds, status, ...takeover }, { skipToast: true });
             toast.success(`${ticketIds.length} tickets updated to ${status}`);
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
             clearSelection();
         } catch (error) {
-            toast.error('Failed to update tickets');
+            if (isHandledByTakeoverDialog(error, takeover)) throw error;
+            toast.error(getApiErrorMessage(error, 'Failed to update tickets'));
         }
     }, [selectedTickets, queryClient, clearSelection]);
 
@@ -457,11 +464,11 @@ export const BentoTicketListPage: React.FC = () => {
     }, [paginationInfo]);
 
     const currentView = searchParams.get('view') === 'kanban' ? 'kanban' : 'table';
-    const hasActiveFilters = Boolean(searchQuery || statusFilter || priorityFilter || showAssignedToMe || selectedSites.length > 0);
+    const hasActiveFilters = Boolean(searchQuery || statusFilter || priorityFilter || overdueFilter || showAssignedToMe || showCreatedByMe || selectedSites.length > 0);
     const canEdit = user?.role === 'ADMIN' || Boolean(user?.role && user.role.startsWith('AGENT')) || user?.role === 'MANAGER';
     const showSiteColumn = isCrossSiteRole(user?.role);
 
-    if (user?.role === 'AGENT_ORACLE') {
+    if (user?.role === 'AGENT_ORACLE' && !showCreatedByMe) {
         return <Navigate to="/tickets/oracle-k2" replace />;
     }
 
@@ -488,154 +495,47 @@ export const BentoTicketListPage: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6 pb-28 sm:pb-10">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-                <div>
-                    <div className="flex items-center gap-2.5">
-                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">IT Support Tickets</h1>
-                        {isConnected && (
-                            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                Live
-                            </span>
-                        )}
-                    </div>
-                    <p className="text-muted-foreground text-xs sm:text-sm font-medium mt-0.5 sm:mt-1">View and manage all support requests</p>
-                </div>
-                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                    {/* New Ticket Button */}
-                    <button
-                        onClick={() => navigate('/tickets/create')}
-                        className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-primary text-primary-foreground rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-xs active:scale-[0.98]"
-                    >
-                        <Plus className="w-4 h-4" />
-                        <span>New Ticket</span>
-                    </button>
-
-                    {/* My Tasks Filter */}
-                    {canEdit && (
-                        <button
-                            onClick={() => {
-                                if (showAssignedToMe) {
-                                    setSearchParams({});
-                                } else {
-                                    setSearchParams({ filter: 'assigned_to_me' });
-                                }
-                            }}
-                            className={cn(
-                                "flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all duration-150 text-xs sm:text-sm font-semibold shadow-xs border active:scale-[0.98] cursor-pointer",
-                                showAssignedToMe
-                                    ? 'bg-primary text-primary-foreground border-primary'
-                                    : 'bg-card border-border hover:bg-muted/50 text-foreground'
-                            )}
-                        >
-                            <UserCheck className="w-4 h-4" />
-                            <span>My Tasks</span>
-                        </button>
-                    )}
-
-                    {/* View Toggle */}
-                    <div className="flex bg-card border border-border p-1 rounded-xl shadow-xs">
-                        <button
-                            onClick={() => {
-                                setSearchParams(prev => {
-                                    const next = new URLSearchParams(prev);
-                                    next.set('view', 'kanban');
-                                    return next;
-                                });
-                            }}
-                            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 text-muted-foreground hover:text-primary rounded-lg transition-colors cursor-pointer"
-                            title="Kanban Board"
-                        >
-                            <Columns3 className="w-4 h-4" />
-                            <span className="text-xs font-semibold hidden md:inline">Kanban</span>
-                        </button>
-                        <button
-                            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-primary/10 text-primary rounded-lg font-bold"
-                            title="Table View"
-                        >
-                            <TableProperties className="w-4 h-4" />
-                            <span className="text-xs font-semibold hidden md:inline">Table</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
+        <div className="queue-page space-y-4 pb-28 sm:pb-10 min-w-0">
+            <QueueHeader title="IT Support Tickets" description="Antrian IT Support untuk semua site Anda" icon={TicketIcon} tone="blue" />
 
             {/* Stats Cards - Horizontally scrollable snap strip on mobile, grid on tablet/desktop */}
-            <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1.5 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 lg:grid-cols-6 sm:gap-3 lg:gap-4 snap-x">
-                <StatsCard icon={TrendingUp} label="Total" value={stats.total} color="text-primary dark:text-blue-400" bgColor="bg-[hsl(var(--primary))]/10 dark:bg-[hsl(var(--primary))]/20" animationIndex={0} onClick={() => { setStatusFilter(''); setPriorityFilter(''); }} isActive={!statusFilter && !priorityFilter} />
-                <StatsCard icon={Inbox} label="Open" value={stats.open} color="text-[hsl(var(--info-500))]" bgColor="bg-[hsl(var(--info-500))]/10" animationIndex={1} onClick={() => setStatusFilter('TODO')} isActive={statusFilter === 'TODO'} />
-                <StatsCard icon={CircleDot} label="In Progress" value={stats.inProgress} color="text-[hsl(var(--warning-500))]" bgColor="bg-[hsl(var(--warning-500))]/10" animationIndex={2} onClick={() => setStatusFilter('IN_PROGRESS')} isActive={statusFilter === 'IN_PROGRESS'} />
-                <StatsCard icon={CheckCircle2} label="Resolved" value={stats.resolved} color="text-[hsl(var(--success-500))]" bgColor="bg-[hsl(var(--success-500))]/10" animationIndex={3} onClick={() => setStatusFilter('RESOLVED')} isActive={statusFilter === 'RESOLVED'} />
-                <StatsCard icon={AlertTriangle} label="Overdue" value={stats.overdue} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={4} />
-                <StatsCard icon={Flame} label="Critical" value={stats.critical} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={5} onClick={() => setPriorityFilter('CRITICAL')} isActive={priorityFilter === 'CRITICAL'} />
+            <div className="queue-stats queue-stats-7" aria-label="Ringkasan status">
+                <StatsCard icon={TrendingUp} tone="neutral" label="Total" value={stats.total} color="text-primary dark:text-blue-400" bgColor="bg-[hsl(var(--primary))]/10 dark:bg-[hsl(var(--primary))]/20" animationIndex={0} onClick={() => applyCardFilters('')} isActive={!statusFilter && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={Inbox} tone="sky" label="Open" value={stats.open} color="text-[hsl(var(--info-500))]" bgColor="bg-[hsl(var(--info-500))]/10" animationIndex={1} onClick={() => applyCardFilters('TODO')} isActive={statusFilter === 'TODO' && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={CircleDot} tone="navy" label="In Progress" value={stats.inProgress} color="text-[hsl(var(--warning-500))]" bgColor="bg-[hsl(var(--warning-500))]/10" animationIndex={2} onClick={() => applyCardFilters('IN_PROGRESS')} isActive={statusFilter === 'IN_PROGRESS' && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={Hourglass} tone="amber" label="Waiting Vendor" highlight value={stats.waitingVendor} color="text-amber-600 dark:text-amber-400" bgColor="bg-amber-500/10" animationIndex={3} onClick={() => applyCardFilters('WAITING_VENDOR')} isActive={statusFilter === 'WAITING_VENDOR' && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={CheckCircle2} tone="green" label="Resolved" value={stats.resolved} color="text-[hsl(var(--success-500))]" bgColor="bg-[hsl(var(--success-500))]/10" animationIndex={4} onClick={() => applyCardFilters(DONE_STATUS_FILTER)} isActive={statusFilter === DONE_STATUS_FILTER && !priorityFilter && !overdueFilter} />
+                <StatsCard icon={AlertTriangle} tone="red" label="Overdue" value={stats.overdue} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={5} onClick={() => applyCardFilters('', '', !overdueFilter)} isActive={overdueFilter && !statusFilter && !priorityFilter} />
+                <StatsCard icon={Flame} tone="red" label="Critical" value={stats.critical} color="text-[hsl(var(--error-500))]" bgColor="bg-[hsl(var(--error-500))]/10" highlight animationIndex={6} onClick={() => applyCardFilters(ACTIVE_STATUS_FILTER, 'CRITICAL')} isActive={priorityFilter === 'CRITICAL' && statusFilter === ACTIVE_STATUS_FILTER && !overdueFilter} />
             </div>
 
             {/* Search & Filters */}
-            <div
-                className="flex flex-col lg:flex-row lg:items-center gap-3 p-2 bg-card rounded-2xl border border-border relative z-20 shadow-xs"
-                role="search"
-                aria-label="Ticket search and filters"
-            >
-                <div className="relative flex-1 bg-muted/40 rounded-xl transition-all focus-within:ring-1 focus-within:ring-primary focus-within:bg-background border border-transparent focus-within:border-primary/50">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
-                    <input
-                        type="search"
-                        id="ticket-search"
-                        name="search"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search tickets by title, number, or requester..."
-                        aria-label="Search tickets"
-                        aria-describedby="search-hint"
-                        autoComplete="off"
-                        className="w-full pl-10 pr-10 py-2.5 bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground text-sm font-medium"
-                    />
-                    {searchQuery && (
-                        <button
-                            type="button"
-                            onClick={() => setSearchQuery('')}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground rounded transition-colors cursor-pointer"
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
-                    )}
-                    <span id="search-hint" className="sr-only">
-                        Type to search tickets. Results will update automatically.
-                    </span>
-                </div>
-
-                <div className="w-px h-8 bg-border hidden lg:block mx-1" />
+            <QueueFilterBar id="ticket-search" search={searchQuery} onSearch={setSearchQuery}>
 
 
-                {/* Primary Filters - Horizontal row */}
-                <div className="flex items-center gap-2 px-1 pb-1 lg:pb-0 shrink-0 overflow-x-auto no-scrollbar">
+                
                     <CustomDropdown
                         value={statusFilter}
                         onChange={(val) => setStatusFilter(val === "ALL" ? "" : val)}
-                        placeholder="All Status"
+                        placeholder="Semua" filterKey="Status"
                         options={[
-                            { value: 'ALL', label: 'All Status' },
+                            { value: 'ALL', label: 'Semua' },
                             { value: 'TODO', label: 'Open' },
                             { value: 'IN_PROGRESS', label: 'In Progress' },
                             { value: 'WAITING_VENDOR', label: 'Waiting Vendor' },
                             { value: 'RESOLVED', label: 'Resolved' },
+                            { value: 'CLOSED', label: 'Closed' },
+                            { value: DONE_STATUS_FILTER, label: 'Selesai (Resolved + Closed)' },
+                            { value: ACTIVE_STATUS_FILTER, label: 'Aktif' },
                         ]}
                     />
 
                     <CustomDropdown
                         value={priorityFilter}
                         onChange={(val) => setPriorityFilter(val === "ALL" ? "" : val)}
-                        placeholder="All Priority"
+                        placeholder="Semua" filterKey="Prioritas"
                         icon={AlertTriangle}
-                        options={[
-                            { value: 'ALL', label: 'All Priority' },
-                            { value: 'LOW', label: 'Low' },
-                            { value: 'MEDIUM', label: 'Medium' },
-                            { value: 'HIGH', label: 'High' },
-                            { value: 'CRITICAL', label: 'Critical' },
-                        ]}
+                        options={PRIORITY_FILTER_OPTIONS}
                     />
 
                     {/* Site Selector - cross-site roles only */}
@@ -644,11 +544,11 @@ export const BentoTicketListPage: React.FC = () => {
                             selectedSiteIds={selectedSites}
                             onSelectionChange={setSelectedSites}
                             mode="multi"
-                            className="h-10"
+                            variant="pop"
                         />
                     )}
 
-                    <div className="w-[1px] h-6 bg-border mx-1 hidden sm:block" />
+                    <span className="queue-filters-spacer" aria-hidden="true" />
 
                     {/* Secondary Filters Menu - Saved Filters, Export */}
                     <SecondaryFiltersMenu
@@ -670,12 +570,15 @@ export const BentoTicketListPage: React.FC = () => {
                         hasActiveFilters={hasActiveFilters}
                         onClearFilters={clearFilters}
                     />
-                </div>
-
-            </div>
+                    <QueueToggles canEdit={canEdit}
+                        scope={showAssignedToMe ? 'assigned_to_me' : showCreatedByMe ? 'created_by_me' : 'all'}
+                        onScopeChange={(scope) => setSearchParams(scope === 'all' ? {} : { filter: scope })} />
+                </QueueFilterBar>
 
             {/* Active Filter Chips - P3 MEDIUM: Removable filter badges */}
             <TicketListActiveFilters
+                overdueFilter={overdueFilter}
+                setOverdueFilter={setOverdueFilter}
                 statusFilter={statusFilter}
                 setStatusFilter={setStatusFilter}
                 priorityFilter={priorityFilter}
@@ -691,7 +594,7 @@ export const BentoTicketListPage: React.FC = () => {
 
             {/* Tickets List Table */}
             <div
-                className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl overflow-hidden relative shadow-sm"
+                className="queue-table"
                 role="region"
                 aria-label="Tickets list"
                 aria-busy={isFetching}
@@ -706,6 +609,9 @@ export const BentoTicketListPage: React.FC = () => {
                         <span className="sr-only">Loading tickets...</span>
                     </div>
                 )}
+                <QueueCardToolbar sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort}
+                    canEdit={canEdit} ticketCount={filteredTickets.length} isAllSelected={isAllSelected}
+                    isIndeterminate={isIndeterminate} onSelectAll={handleSelectAll} />
                 {filteredTickets.length === 0 && !isFetching ? (
                     <div className="p-12 text-center" role="status" aria-live="polite">
                         <Inbox className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" aria-hidden="true" />
@@ -713,64 +619,9 @@ export const BentoTicketListPage: React.FC = () => {
                     </div>
                 ) : (
                     <>
-                        {/* Table Header */}
-                        <div
-                            className={cn(
-                                "sticky top-0 z-20 hidden lg:grid items-center gap-4 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-[hsl(var(--border))]",
-                                showSiteColumn
-                                    ? "lg:grid-cols-[32px_minmax(280px,2fr)_112px_80px_144px_minmax(120px,1fr)_minmax(140px,1fr)_minmax(100px,1fr)_80px]"
-                                    : "lg:grid-cols-[32px_minmax(280px,2fr)_112px_144px_minmax(120px,1fr)_minmax(140px,1fr)_minmax(100px,1fr)_80px]"
-                            )}
-                            role="row"
-                            aria-label="Table headers"
-                        >
-                            {/* Checkbox column */}
-                            {canEdit && (
-                                <div className="w-8 shrink-0">
-                                    <SelectCheckbox
-                                        checked={isAllSelected}
-                                        indeterminate={isIndeterminate}
-                                        onChange={handleSelectAll}
-                                    />
-                                </div>
-                            )}
-                            <SortableHeader
-                                label="Ticket"
-                                field="title"
-                                currentSortBy={sortBy}
-                                currentSortOrder={sortOrder}
-                                onSort={handleSort}
-                                className=""
-                            />
-                            <SortableHeader
-                                label="Priority"
-                                field="priority"
-                                currentSortBy={sortBy}
-                                currentSortOrder={sortOrder}
-                                onSort={handleSort}
-                                className=""
-                            />
-                            {showSiteColumn && <div className="">Site</div>}
-                            <SortableHeader
-                                label="Status"
-                                field="status"
-                                currentSortBy={sortBy}
-                                currentSortOrder={sortOrder}
-                                onSort={handleSort}
-                                className=""
-                            />
-                            <div className="">Requester</div>
-                            <div className="">Assigned To</div>
-                            <div className="">Target Date</div>
-                            <SortableHeader
-                                label="Created"
-                                field="createdAt"
-                                currentSortBy={sortBy}
-                                currentSortOrder={sortOrder}
-                                onSort={handleSort}
-                                className=""
-                            />
-                        </div>
+                        <QueueTableHeader showSiteColumn={showSiteColumn} canEdit={canEdit}
+                            isAllSelected={isAllSelected} isIndeterminate={isIndeterminate} onSelectAll={handleSelectAll}
+                            sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
 
                         <VirtualizedTicketList
                             tickets={filteredTickets}
@@ -798,8 +649,8 @@ export const BentoTicketListPage: React.FC = () => {
                             {/* Results Count (when no pagination needed) */}
                             {
                                 !paginationInfo.showPagination && filteredTickets.length > 0 && (
-                                    <div className="text-center text-sm text-slate-400 mt-4">
-                                        Showing {filteredTickets.length} of {paginationInfo.totalItems || tickets.length} tickets
+                                    <div className="text-center text-sm text-muted-foreground mt-4">
+                                        Menampilkan {filteredTickets.length} dari {paginationInfo.totalItems || tickets.length} tiket
                                     </div>
                                 )
                             }

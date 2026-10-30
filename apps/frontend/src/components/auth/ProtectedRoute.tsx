@@ -3,6 +3,8 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../stores/useAuth';
 import { useHasPermission, useHasPageAccess } from '@/hooks/usePermissions';
 import { ShieldAlert } from 'lucide-react';
+import { getRoleHome, portalEquivalent } from '@/lib/roleHome';
+import { restoreSession } from '@/hooks/useSessionRestore';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
@@ -15,15 +17,6 @@ interface ProtectedRouteProps {
     requiredPageAccess?: string;
 }
 
-// Redirect to role-appropriate home when page access is denied
-// Prevents /unauthorized for preset-based denials (hide, don't block)
-const getRoleHome = (role: string): string => {
-    if (role === 'MANAGER') return '/manager/dashboard';
-    if (role === 'USER') return '/client/my-tickets';
-    if (role === 'AGENT_ORACLE') return '/tickets/oracle-k2';
-    return '/dashboard'; // AGENT / fallback
-};
-
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     children,
     allowedRoles,
@@ -31,7 +24,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     permissionAction = 'view',
     requiredPageAccess,
 }) => {
-    const { isAuthenticated, user, isSessionExpired } = useAuth();
+    const { isAuthenticated, user, restoreError, sessionRejected, isRestoringSession } = useAuth();
     const location = useLocation();
 
     // Check feature permission if specified
@@ -45,9 +38,20 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
         requiredPageAccess || ''
     );
 
+    if (isRestoringSession) return <p role="status">Memulihkan sesi...</p>;
+
+    if (restoreError) {
+        return <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-4">
+            <p>{restoreError}</p>
+            <button onClick={() => { void restoreSession(); }} className="px-4 py-2 bg-primary text-white rounded-xl">Coba lagi</button>
+        </div>;
+    }
+
     // Not logged in - token is in HttpOnly cookie, we check auth state
     if (!isAuthenticated || !user) {
-        return <Navigate to="/login" state={{ from: location }} replace />;
+        // ?next= is what the login page reads to return here (deep links from email/iPop).
+        const next = `next=${encodeURIComponent(location.pathname + location.search)}`;
+        return <Navigate to={sessionRejected ? `/login?reason=expired&${next}` : `/login?${next}`} state={{ from: location }} replace />;
     }
 
     // ADMIN bypasses all checks
@@ -86,9 +90,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             );
         }
 
-        // Page access denied - redirect to role-aware home
+        // Page access denied - redirect to role-aware home (hide, don't block),
+        // unless the denied page IS that home: then redirecting would loop.
         if (!hasPageAccess) {
-            return <Navigate to={getRoleHome(user.role)} replace />;
+            const home = getRoleHome(user.role);
+            return <Navigate to={location.pathname === home ? '/unauthorized' : home} replace />;
         }
 
         // Has page access - allow through (skip role check)
@@ -97,7 +103,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
     // Role-based check (existing behavior - only if no requiredPageAccess)
     if (allowedRoles && !allowedRoles.includes(user.role)) {
-        return <Navigate to="/unauthorized" replace />;
+        const here = location.pathname + location.search + location.hash;
+        const other = portalEquivalent(here, user.role);
+        return <Navigate to={other && other !== here ? other : '/unauthorized'} replace />;
     }
 
     // Feature permission check (existing behavior)

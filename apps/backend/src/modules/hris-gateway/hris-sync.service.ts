@@ -26,6 +26,10 @@ export interface HrisDisableSummary {
 }
 
 const MAX_PAGES = 500;
+/** Abort the departed sweep if it would disable more than this share of active HRIS users at once. */
+const MAX_DISABLE_RATIO = 0.2;
+/** Below this many linked users the ratio guard is too coarse to be meaningful. */
+const MIN_USERS_FOR_RATIO_GUARD = 10;
 
 @Injectable()
 export class HrisSyncService {
@@ -118,31 +122,12 @@ export class HrisSyncService {
         if (!employee.nik_hris || employee.tgl_keluar) return 'skipped';
 
         const existing = await this.userRepo.findOne({ where: { employeeId: employee.nik_hris } });
-        if (!existing) {
-            await this.provisionEmployeeFromSiteMap(employee, siteByCode);
-            return 'created';
+        if (existing) {
+            return 'skipped';
         }
 
-        // NOTE: `email` is deliberately absent from this update. A user (or an
-        // admin on their behalf) may change the address via PATCH /users/me/email,
-        // and re-applying the HRIS address here would silently revert it on the
-        // next nightly run. Locked by hris-sync.service.email-preservation.spec.ts.
-        const siteId = this.resolveSiteId(employee.lokasi, siteByCode);
-        existing.fullName = employee.nama_karyawan || existing.fullName;
-        existing.jobTitle = employee.nama_jabatan ?? existing.jobTitle;
-        existing.siteId = siteId as unknown as string;
-        existing.departmentId = (await this.findOrCreateDepartment(employee.nama_departemen, siteId)) as unknown as string;
-        if (!existing.appliedPresetId) {
-            const presetId = await this.permissionsService.resolveDefaultPresetId(existing.role as UserRole);
-            if (!presetId) {
-                throw new Error(`No active default permission preset for role ${existing.role}`);
-            }
-            const { presetName } = await this.permissionsService.applyPresetToUser(existing.id, presetId);
-            existing.appliedPresetId = presetId;
-            existing.appliedPresetName = presetName;
-        }
-        await this.userRepo.save(existing);
-        return 'updated';
+        await this.provisionEmployeeFromSiteMap(employee, siteByCode);
+        return 'created';
     }
 
     private async provisionEmployeeFromSiteMap(employee: HrisEmployee, siteByCode: Map<string, Site>): Promise<User> {
@@ -189,14 +174,26 @@ export class HrisSyncService {
             return summary;
         }
 
-        const departedUsers = await this.userRepo
+        const linkedUsers = await this.userRepo
             .createQueryBuilder('user')
             .where('user.employeeId IS NOT NULL')
             .andWhere('user.isActive = :isActive', { isActive: true })
             .getMany();
+        const departedUsers = linkedUsers.filter((user) => !activeNiks.has(user.employeeId));
+
+        // Fail closed: a Gateway glitch must not look like a mass resignation.
+        if (
+            linkedUsers.length >= MIN_USERS_FOR_RATIO_GUARD &&
+            departedUsers.length > linkedUsers.length * MAX_DISABLE_RATIO
+        ) {
+            summary.errors.push(
+                `aborted: ${departedUsers.length}/${linkedUsers.length} users would be disabled (limit ${MAX_DISABLE_RATIO * 100}%)`,
+            );
+            this.logger.error(`HRIS departed sweep aborted: ${summary.errors[0]}`);
+            return summary;
+        }
 
         for (const user of departedUsers) {
-            if (activeNiks.has(user.employeeId)) continue;
             try {
                 if (!user.appliedPresetId) {
                     const presetId = await this.permissionsService.resolveDefaultPresetId(user.role as UserRole);
@@ -238,6 +235,15 @@ export class HrisSyncService {
             }
         }
 
+        // An empty or truncated roster is a Gateway problem, not a mass departure.
+        if (niks.size === 0) {
+            summary.errors.push('aborted: Gateway returned no active employees');
+            return null;
+        }
+        if (fetched < total) {
+            summary.errors.push(`aborted: roster truncated (${fetched}/${total})`);
+            return null;
+        }
         return niks;
     }
 
@@ -266,23 +272,34 @@ export class HrisSyncService {
     }
 
     private async resolveUniqueEmail(employee: HrisEmployee): Promise<string> {
-        const fallback = `${employee.nik_hris}@hris.local`;
+        const baseNik = (employee.nik_hris || 'user').trim().replace(/\s+/g, '.').toLowerCase();
         const email = employee.email?.trim().toLowerCase();
-        if (!email) return fallback;
+        if (email) {
+            const existing = await this.userRepo.findOne({
+                where: { email, employeeId: Not(employee.nik_hris) },
+            });
+            if (!existing) return email;
 
-        const existing = await this.userRepo.findOne({
-            where: { email, employeeId: Not(employee.nik_hris) },
+            this.logger.warn(
+                `HRIS email ${maskIdentifier(email)} for NIK ${maskIdentifier(employee.nik_hris)} ` +
+                `is already used by another user; falling back to @hris.local`,
+            );
+        }
+
+        const fallback = `${baseNik}@hris.local`;
+        const existingFallback = await this.userRepo.findOne({
+            where: { email: fallback, employeeId: Not(employee.nik_hris) },
         });
-        if (!existing) return email;
+        if (!existingFallback) return fallback;
 
-        // Now reachable in normal operation: another user may have claimed this
-        // address through the self-service email change. Provisioning still
-        // succeeds on the @hris.local fallback, but without this line an admin
-        // has no way to tell why a new hire has no real email.
-        this.logger.warn(
-            `HRIS email ${maskIdentifier(email)} for NIK ${maskIdentifier(employee.nik_hris)} ` +
-            `is already used by another user; falling back to ${maskIdentifier(fallback)}`,
-        );
-        return fallback;
+        for (let i = 1; i <= 100; i++) {
+            const candidate = `${baseNik}.${i}@hris.local`;
+            const taken = await this.userRepo.findOne({
+                where: { email: candidate, employeeId: Not(employee.nik_hris) },
+            });
+            if (!taken) return candidate;
+        }
+
+        return `${baseNik}.${Date.now()}@hris.local`;
     }
 }

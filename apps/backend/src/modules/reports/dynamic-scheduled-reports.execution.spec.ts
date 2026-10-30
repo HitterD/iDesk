@@ -1,7 +1,7 @@
 // apps/backend/src/modules/reports/dynamic-scheduled-reports.execution.spec.ts
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { Repository } from 'typeorm';
-import { DynamicScheduledReportsService } from './generators/dynamic-scheduled-reports.service';
+import { DynamicScheduledReportsService, computeReportDateRange } from './generators/dynamic-scheduled-reports.service';
 import { MailDispatchService } from '../../shared/mail/mail-dispatch.service';
 import {
   ScheduledReportConfig,
@@ -12,6 +12,7 @@ import {
 import { ScheduledReportExecution, ExecutionStatus } from './entities/scheduled-report-execution.entity';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
+import { HandlingTeam } from '../ticketing/entities/ticket.entity';
 import { AgentPerformanceReport } from './generators/agent-performance.report';
 import { TicketVolumeReport } from './generators/ticket-volume.report';
 import { ReportsService } from './reports.service';
@@ -28,6 +29,7 @@ function makeConfig(overrides: Partial<ScheduledReportConfig> = {}): ScheduledRe
     siteId: SITE_SPJ,
     recipientUserIds: ['u1', 'u2'],
     targetAgentCategory: null,
+    targetTeam: null,
     isActive: true,
     createdById: 'admin-1',
     lastRunAt: null,
@@ -88,7 +90,7 @@ describe('DynamicScheduledReportsService execution', () => {
       generate: jest.fn().mockResolvedValue({
         data: {
           daily: [],
-          summary: { totalCreated: 0, totalResolved: 0, totalPending: 0, avgPerDay: 0, peakDay: '', peakCount: 0 },
+          summary: { totalCreated: 0, totalResolved: 0, totalPending: 0, totalCancelled: 0, totalEligible: 0, resolutionRate: null, avgPerDay: 0, peakDay: '', peakCount: 0 },
         },
       }),
     } as any;
@@ -97,7 +99,7 @@ describe('DynamicScheduledReportsService execution', () => {
       generate: jest.fn().mockResolvedValue({ data: [] }),
     } as any;
 
-    reportsService = {} as any;
+    reportsService = { scopeLabel: jest.fn().mockResolvedValue('Sepanjang (SPJ) — Semua tim') } as any;
 
     mailDispatch = {
       send: jest.fn().mockResolvedValue(undefined),
@@ -195,12 +197,35 @@ describe('DynamicScheduledReportsService execution', () => {
     // Generator called with REGULAR category
     expect(agentPerformanceReport.generate).toHaveBeenCalledWith(
       expect.any(Object),
-      expect.objectContaining({ siteId: SITE_SPJ, agentCategory: 'REGULAR' }),
+      expect.objectContaining({ siteId: SITE_SPJ, team: 'OPS_SUPPORT' }),
     );
 
     // Only regular should receive
     expect(mailDispatch.send).toHaveBeenCalledTimes(1);
     expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'reg@ex.com' }));
+  });
+
+  it('scopes every report to targetTeam and sends to that team only (dev agents from any site)', async () => {
+    const cfg = makeConfig({
+      reportType: ReportType.TICKET_VOLUME,
+      targetTeam: HandlingTeam.WEB_DEV,
+      recipientUserIds: ['u-reg', 'u-web', 'u-mobile'],
+    });
+    configRepo.findOne.mockResolvedValue(cfg);
+
+    const reg = makeUser('u-reg', { role: UserRole.AGENT, siteId: SITE_SPJ, email: 'reg@ex.com' });
+    const web = makeUser('u-web', { role: UserRole.AGENT_WEB_DEV, siteId: 'other-site', email: 'web@ex.com' });
+    const mobile = makeUser('u-mobile', { role: UserRole.AGENT_MOBILE_DEV, siteId: SITE_SPJ, email: 'mobile@ex.com' });
+    userRepo.findByIds.mockResolvedValue([reg, web, mobile]);
+
+    await service.runReport('cfg-1');
+
+    expect(ticketVolumeReport.generate).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ siteId: SITE_SPJ, team: 'WEB_DEV' }),
+    );
+    expect(mailDispatch.send).toHaveBeenCalledTimes(1);
+    expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'web@ex.com' }));
   });
 
   it('always logs an execution even on failure', async () => {
@@ -234,4 +259,27 @@ describe('DynamicScheduledReportsService execution', () => {
     expect(ticketVolumeReport.generate).not.toHaveBeenCalled();
     expect(executionRepo.save).not.toHaveBeenCalled();
   });
+});
+
+describe('computeReportDateRange (WIB)', () => {
+    // 06:00 WIB on Thu Oct 8 2026 = 23:00 UTC Oct 7: "yesterday" must still be Oct 7 WIB.
+    const NOW = new Date('2026-10-07T23:00:00.000Z');
+
+    it('DAILY covers the whole previous WIB day', () => {
+        const { startDate, endDate } = computeReportDateRange(ScheduleType.DAILY, NOW);
+        expect(startDate.toISOString()).toBe('2026-10-06T17:00:00.000Z');
+        expect(endDate.toISOString()).toBe('2026-10-07T16:59:59.999Z');
+    });
+
+    it('WEEKLY covers the 7 WIB days before today', () => {
+        const { startDate, endDate } = computeReportDateRange(ScheduleType.WEEKLY, NOW);
+        expect(startDate.toISOString()).toBe('2026-09-30T17:00:00.000Z');
+        expect(endDate.toISOString()).toBe('2026-10-07T16:59:59.999Z');
+    });
+
+    it('MONTHLY covers the previous WIB calendar month', () => {
+        const { startDate, endDate } = computeReportDateRange(ScheduleType.MONTHLY, NOW);
+        expect(startDate.toISOString()).toBe('2026-08-31T17:00:00.000Z');
+        expect(endDate.toISOString()).toBe('2026-09-30T16:59:59.999Z');
+    });
 });

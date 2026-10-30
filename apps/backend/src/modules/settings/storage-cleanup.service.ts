@@ -3,12 +3,17 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, In } from 'typeorm';
 import { TicketMessage } from '../ticketing/entities/ticket-message.entity';
-import { Ticket } from '../ticketing/entities/ticket.entity';
+import { Ticket, TICKET_INACTIVE_STATUSES } from '../ticketing/entities/ticket.entity';
 import { SettingsService, StorageSettings } from './settings.service';
 import { UploadService } from '../../shared/upload/upload.service';
 import * as path from 'path';
 import * as fs from 'fs';
-import sharp from 'sharp';
+let sharp: any;
+try {
+    sharp = require('sharp');
+} catch (e) {
+    sharp = null;
+}
 
 export interface CleanupPreview {
     attachments: { count: number; sizeBytes: number; files: string[] };
@@ -70,7 +75,7 @@ export class StorageCleanupService {
     }
 
     // Run daily at 2 AM
-    @Cron('0 2 * * *')
+    @Cron('0 2 * * *', { timeZone: 'Asia/Jakarta' })
     async runScheduledCleanup(): Promise<void> {
         const settings = await this.settingsService.getStorageSettings();
 
@@ -221,6 +226,7 @@ export class StorageCleanupService {
         };
 
         try {
+            // 'telegram' holds photos from the retired Telegram bot; still counted until cleaned up.
             const folders = ['attachments', 'avatars', 'telegram'];
             for (const folder of folders) {
                 const folderPath = path.join(this.uploadDir, folder);
@@ -265,7 +271,7 @@ export class StorageCleanupService {
 
     private async getResolvedTicketIds(): Promise<string[]> {
         const tickets = await this.ticketRepo.find({
-            where: { status: In(['RESOLVED', 'CANCELLED']) },
+            where: { status: In(TICKET_INACTIVE_STATUSES) },
             select: ['id'],
         });
         return tickets.map(t => t.id);
@@ -484,6 +490,20 @@ export class StorageCleanupService {
         quality?: number;
         maxWidth?: number;
     }): Promise<ImageCompressionResult> {
+        if (!sharp) {
+            this.logger.warn('Sharp library not available on this platform. Image compression skipped.');
+            return {
+                totalScanned: 0,
+                compressedCount: 0,
+                skippedCount: 0,
+                originalSizeBytes: 0,
+                compressedSizeBytes: 0,
+                freedBytes: 0,
+                savingsPercentage: 0,
+                errors: ['Sharp library is not available on this runtime environment'],
+                executedAt: new Date(),
+            };
+        }
         const olderThanDays = options.olderThanDays ?? 90;
         const quality = options.quality ?? 80;
         const maxWidth = options.maxWidth ?? 1600;

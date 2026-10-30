@@ -71,6 +71,20 @@ describe('ZoomBookingService.checkAvailability', () => {
         });
     });
 
+    // Office hours/working days in stored settings used to reject bookings outside them.
+    it('accepts any day and evening times even when stored settings restrict to office hours', async () => {
+        settingsRepo.findOne.mockResolvedValue({
+            ...settings,
+            workingDays: [],
+            slotStartTime: '08:00:00',
+            slotEndTime: '17:00:00',
+        });
+
+        const result = await service.checkAvailability(futureDate(), '19:00', 120);
+
+        expect(result).toEqual({ available: true });
+    });
+
     it('returns unavailable for a blocked date', async () => {
         const date = futureDate();
         settingsRepo.findOne.mockResolvedValue({ ...settings, blockedDates: [date] });

@@ -23,7 +23,17 @@ export enum TicketStatus {
     WAITING_VENDOR = 'WAITING_VENDOR',
     RESOLVED = 'RESOLVED',
     CANCELLED = 'CANCELLED',
+    // Final: set only by the requester's confirmation, self-resolve, or the auto-close
+    // cron once the post-resolve confirmation window expires. Locked for everyone.
+    CLOSED = 'CLOSED',
 }
+
+/** Statuses that count as "done" for stats: agent-resolved (awaiting confirmation) or closed. */
+export const TICKET_DONE_STATUSES: TicketStatus[] = [TicketStatus.RESOLVED, TicketStatus.CLOSED];
+/** Statuses where no more work happens on the ticket. */
+export const TICKET_INACTIVE_STATUSES: TicketStatus[] = [...TICKET_DONE_STATUSES, TicketStatus.CANCELLED];
+/** Statuses where the ticket still needs work, including a paused vendor wait. */
+export const TICKET_ACTIVE_STATUSES: TicketStatus[] = [TicketStatus.TODO, TicketStatus.IN_PROGRESS, TicketStatus.WAITING_VENDOR];
 
 export enum TicketPriority {
     LOW = 'LOW',
@@ -34,9 +44,14 @@ export enum TicketPriority {
 }
 
 export enum TicketSource {
+    /** Legacy: tickets created by the retired Telegram bot. */
     TELEGRAM = 'TELEGRAM',
     WEB = 'WEB',
     EMAIL = 'EMAIL',
+    /** Filed by the iPop app through the integration API. */
+    IPOP = 'IPOP',
+    /** Filed by another connected app (Settings > Integrasi aplikasi); the app is in externalSource. */
+    API = 'API',
 }
 
 export enum TicketType {
@@ -62,6 +77,9 @@ export enum HandlingTeam {
     MOBILE_DEV = 'MOBILE_DEV',
     WEB_DEV = 'WEB_DEV',
 }
+
+/** Longest vendor note a PIC can save (column length and DTO limit). */
+export const VENDOR_NOTE_MAX_LENGTH = 300;
 
 @Entity('tickets')
 @Index(['status', 'priority']) // Composite index for filtering
@@ -114,6 +132,14 @@ export class Ticket {
         default: TicketSource.WEB,
     })
     source: TicketSource;
+
+    /** External system that filed the ticket (e.g. 'IPOP'); with externalRef it makes creation idempotent. */
+    @Column({ type: 'varchar', length: 20, nullable: true })
+    externalSource: string | null;
+
+    /** The caller's own id for this ticket (unique per externalSource). */
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    externalRef: string | null;
 
     @CreateDateColumn()
     createdAt: Date;
@@ -174,6 +200,14 @@ export class Ticket {
     @Column({ type: 'varchar', nullable: true })
     assignedToId: string | null;
 
+    /** Who filed the ticket when it differs from the requester (an agent filing on someone's behalf). */
+    @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'createdById' })
+    createdBy: User | null;
+
+    @Column({ type: 'uuid', nullable: true })
+    createdById: string | null;
+
     @Column({ type: 'int', default: 0 })
     totalPausedMinutes: number;
 
@@ -208,8 +242,39 @@ export class Ticket {
     @Column({ type: 'timestamp', nullable: true })
     resolvedAt: Date | null;
 
+    /** Requester must confirm or dispute before this; the auto-close cron closes it afterwards. */
+    @Column({ type: 'timestamp', nullable: true })
+    resolutionDeadlineAt: Date | null;
+
+    /** Set when the requester disputes a resolution; cleared on the next resolve. Drives the agent's action item. */
+    @Column({ type: 'timestamp', nullable: true })
+    disputedAt: Date | null;
+
+    @Column({ type: 'timestamp', nullable: true })
+    closedAt: Date | null;
+
     @Column({ type: 'timestamp', nullable: true })
     waitingVendorAt: Date | null;
+
+    /** Agreed vendor visit / response time while WAITING_VENDOR; null otherwise. */
+    @Column({ type: 'timestamp', nullable: true })
+    vendorVisitAt: Date | null;
+
+    /** Why the ticket waits on the vendor (template or typed by the PIC); null when not WAITING_VENDOR. */
+    @Column({ type: 'varchar', length: VENDOR_NOTE_MAX_LENGTH, nullable: true })
+    vendorNote: string | null;
+
+    /** Pending ticket reminder that warns the PIC before vendorVisitAt; cancelled on reschedule or status change. */
+    @Column({ type: 'uuid', nullable: true })
+    vendorVisitReminderId: string | null;
+
+    /** Resolution SLA minutes left when the clock was paused (waiting vendor or resolved); null while running. */
+    @Column({ type: 'int', nullable: true })
+    slaRemainingMinutes: number | null;
+
+    /** First-response SLA minutes left when the clock was paused; null while running. */
+    @Column({ type: 'int', nullable: true })
+    firstResponseRemainingMinutes: number | null;
 
     @Column({ type: 'int', default: 0 })
     totalWaitingVendorMinutes: number;

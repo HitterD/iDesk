@@ -14,7 +14,7 @@ import { useHardwareBasePath } from '../../hooks/useHardwareBasePath';
 import { cn } from '@/lib/utils';
 
 const schema = z.object({
-    requestType: z.enum(['BUDGET_ANNUAL', 'NON_BUDGET']),
+    requestType: z.enum(['BUDGET_ANNUAL', 'NON_BUDGET', 'HARDWARE_INSTALLATION']),
     division: z.string().min(1, 'Divisi penerima wajib diisi'),
     recipientNames: z.array(z.string()),
     recipientName: z.string().optional(),
@@ -60,10 +60,15 @@ export function CreateWizard() {
     const onSubmit = async (values: CreateFormValues, action: 'draft' | 'submit') => {
         try {
             setSaving(true);
+            const prefix = values.requestType === 'HARDWARE_INSTALLATION'
+                ? '[PENJADWALAN PEMASANGAN]'
+                : values.requestType === 'NON_BUDGET'
+                ? '[NON-BUDGET]'
+                : '[BUDGET TAHUNAN]';
             const payload = {
                 division: values.division,
                 recipientName: values.recipientNames?.length ? values.recipientNames.join(', ') : values.recipientName,
-                justification: `[${values.requestType === 'NON_BUDGET' ? 'NON-BUDGET' : 'BUDGET TAHUNAN'}] ${values.justification}`,
+                justification: `${prefix} ${values.justification}`,
                 items: values.items.map((i) => ({
                     catalogId: i.catalogId,
                     quantity: i.quantity,
@@ -100,7 +105,7 @@ export function CreateWizard() {
 
     return (
         <FormProvider {...form}>
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6 animate-fade-in-up pb-16">
+            <div className="max-w-[1480px] mx-auto w-full space-y-6 pt-1 pb-16">
                 {/* Header */}
                 <div className="flex items-center gap-3.5 border-b border-border pb-5">
                     <div className="size-11 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
@@ -192,7 +197,7 @@ export function CreateWizard() {
                         <button
                             type="button"
                             onClick={next}
-                            className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs sm:text-sm font-bold transition-all shadow-xs active:scale-[0.98] cursor-pointer flex items-center gap-1.5"
+                            className="idesk-btn is-primary is-lg"
                         >
                             <span>Lanjut</span>
                             <ArrowRight className="size-4" />
@@ -203,7 +208,7 @@ export function CreateWizard() {
                                 type="button"
                                 disabled={saving}
                                 onClick={form.handleSubmit((v) => onSubmit(v as CreateFormValues, 'draft'))}
-                                className="px-4 py-2.5 rounded-xl border border-border bg-card hover:bg-muted/60 text-xs sm:text-sm font-semibold text-foreground transition-all shadow-xs active:scale-[0.98] cursor-pointer flex items-center gap-1.5"
+                                className="idesk-btn is-soft is-lg"
                             >
                                 <Save className="size-4" />
                                 <span>Simpan Draft</span>
@@ -212,7 +217,7 @@ export function CreateWizard() {
                                 type="button"
                                 disabled={saving}
                                 onClick={form.handleSubmit((v) => onSubmit(v as CreateFormValues, 'submit'))}
-                                className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs sm:text-sm font-bold transition-all shadow-xs active:scale-[0.98] cursor-pointer flex items-center gap-1.5"
+                                className="idesk-btn is-primary is-lg"
                             >
                                 <Send className="size-4" />
                                 <span>{saving ? 'Mengirim...' : 'Submit Request'}</span>

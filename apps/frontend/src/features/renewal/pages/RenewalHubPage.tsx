@@ -3,8 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     CalendarClock,
-    Key,
-    Cloud,
+    Files,
+    ShieldCheck,
     RefreshCw,
     CheckCircle2,
     AlertCircle,
@@ -16,10 +16,19 @@ import { useGoogleSyncStatus, useTriggerSyncAll } from '../../google-sync/hooks/
 import { useRenewalStats } from '../hooks/useRenewalApi';
 import { useVpnStats } from '../../vpn-access/hooks/useVpnAccess';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import type { SegmentedOption } from '@/components/ui/segmented-control';
+import { ResBub, ResHead } from '@/components/resources/ResourceParts';
+import { MgPanel, MgTabs, useTabDirection } from '@/components/management/MgmtParts';
 import { FeatureErrorBoundary } from '@/components/ui/FeatureErrorBoundary';
+import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
+import { NotificationCategory } from '@/components/notifications/types/notification.types';
+
+/** Opening this page counts as reading its notifications. */
+const RENEWAL_NOTIFICATIONS = { category: NotificationCategory.CATEGORY_RENEWAL };
 
 type TabId = 'contracts' | 'vpn' | 'sync';
+const TAB_ORDER: readonly TabId[] = ['contracts', 'vpn', 'sync'];
 
 interface Tab {
     id: TabId;
@@ -32,27 +41,30 @@ const TABS: Tab[] = [
     {
         id: 'contracts',
         label: 'Contracts',
-        icon: CalendarClock,
+        icon: Files,
         description: 'Manage renewal contracts and expiry reminders',
     },
     {
         id: 'vpn',
         label: 'VPN Access',
-        icon: Key,
+        icon: ShieldCheck,
         description: 'Track VPN access records and expiry alerts',
     },
     {
         id: 'sync',
         label: 'Sync Settings',
-        icon: Cloud,
+        icon: RefreshCw,
         description: 'Configure Google Sheets synchronization',
     },
 ];
 
 export const RenewalHubPage = () => {
+    useMarkNotificationsRead(RENEWAL_NOTIFICATIONS);
     const [searchParams, setSearchParams] = useSearchParams();
-    const initialTab = (searchParams.get('tab') as TabId) || 'contracts';
+    const rawTab = searchParams.get('tab');
+    const initialTab: TabId = TAB_ORDER.includes(rawTab as TabId) ? (rawTab as TabId) : 'contracts';
     const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+    const tabDir = useTabDirection(TAB_ORDER, activeTab);
     const [isSyncingUI, setIsSyncingUI] = useState(false);
 
     const { data: syncStatus } = useGoogleSyncStatus();
@@ -97,129 +109,47 @@ export const RenewalHubPage = () => {
 
     const currentTab = TABS.find(t => t.id === activeTab) || TABS[0];
 
+    const tabOptions: SegmentedOption<TabId>[] = TABS.map((t) => ({
+        value: t.id,
+        icon: t.icon,
+        label: <>{t.label}{tabBadges[t.id] > 0 && <span className="res-tab-count is-alert" aria-label={`${tabBadges[t.id]} perlu perhatian`}>{tabBadges[t.id]}</span>}</>,
+    }));
+
     return (
-        <div className="min-h-screen bg-[hsl(var(--background))] transition-colors duration-300">
-            {/* Header */}
-            <div className="border-b border-[hsl(var(--border))] transition-colors duration-300">
-                <div className="px-4 md:px-8 pt-8 flex flex-col gap-6">
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                            <CalendarClock className="w-8 h-8 text-primary shrink-0" />
-                            <div>
-                                <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-                                    Renewal Hub
-                                </h1>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mt-1">
-                                    Manage renewal contracts, track VPN expiry, and sync settings
-                                </p>
-                            </div>
-                        </div>
+        <div className="res-page mg-page">
+            <ResHead icon={CalendarClock} tone="orange" title="Renewal Hub" description="Kelola kontrak renewal dan pengingat masa berlaku"
+                actions={(
+                    <>
+                        {/* Real availability from /google-sync status, not a decorative pulse */}
+                        <ResBub color={syncStatus?.isAvailable ? 'var(--dash-green)' : 'var(--dash-gray)'} ink={syncStatus?.isAvailable ? 'var(--dash-ink-green)' : undefined}>
+                            {syncStatus?.isAvailable ? 'G-SYNC ON' : 'SYNC DISABLED'}
+                        </ResBub>
+                        <Button variant="soft" onClick={handleSyncAll} disabled={!syncStatus?.isAvailable || triggerSyncAll.isPending || isSyncingUI}
+                            loading={triggerSyncAll.isPending || isSyncingUI}>
+                            {!(triggerSyncAll.isPending || isSyncingUI) && <RefreshCw aria-hidden="true" />}Sync All
+                        </Button>
+                    </>
+                )} />
 
-                        {/* Sync Status & Actions */}
-                        <div className="flex items-center gap-6">
-                            {/* Sync Status Indicator */}
-                            <div className={cn(
-                                "flex items-center gap-2.5 text-xs font-extrabold transition-colors uppercase tracking-widest",
-                                syncStatus?.isAvailable
-                                    ? "text-[hsl(var(--success-600))] dark:text-[hsl(var(--success-400))]"
-                                    : "text-slate-500 dark:text-slate-400"
-                            )}>
-                                {syncStatus?.isAvailable ? (
-                                    <>
-                                        <div className="w-2 h-2 rounded-full bg-[hsl(var(--success-500))] shadow-[0_0_8px_hsl(var(--success-500))] animate-pulse" />
-                                        <span>G-SYNC ON</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600" />
-                                        <span>SYNC DISABLED</span>
-                                    </>
-                                )}
-                            </div>
+            <div className="mb-4"><MgTabs label="Renewal Hub" options={tabOptions} value={activeTab} onChange={setActiveTab} /></div>
 
-                            {/* Sync All Button */}
-                            <button
-                                onClick={handleSyncAll}
-                                disabled={!syncStatus?.isAvailable || triggerSyncAll.isPending || isSyncingUI}
-                                className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-sm font-bold rounded-none hover:bg-slate-800 dark:hover:bg-slate-100 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out shadow-sm disabled:opacity-50 disabled:cursor-not-allowed border border-transparent dark:border-slate-200"
-                            >
-                                <RefreshCw className={cn("w-4 h-4", (triggerSyncAll.isPending || isSyncingUI) && "animate-spin")} />
-                                Sync All
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Minimalist Tabs */}
-                    <div className="flex gap-8 relative mt-2 md:mt-0">
-                        {TABS.map((tab) => {
-                            const isActive = activeTab === tab.id;
-                            const badgeCount = tabBadges[tab.id];
-
-                            return (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={cn(
-                                        "relative flex items-center gap-2 pb-4 text-sm font-bold transition-colors group",
-                                        isActive
-                                            ? "text-primary"
-                                            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
-                                    )}
-                                >
-                                    <span>{tab.label}</span>
-
-                                    {/* Urgency Badge */}
-                                    {badgeCount > 0 && (
-                                        <span className={cn(
-                                            "ml-1 px-1.5 py-0.5 text-xs font-extrabold rounded-md flex items-center justify-center min-w-[20px]",
-                                            isActive
-                                                ? "bg-[hsl(var(--error-50))] text-[hsl(var(--error-600))] dark:bg-[hsl(var(--error-900))]/30 dark:text-[hsl(var(--error-400))]"
-                                                : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-700"
-                                        )}>
-                                            {badgeCount}
-                                        </span>
-                                    )}
-                                    
-                                    {/* Active Indicator Underline */}
-                                    {isActive && (
-                                        <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
-                                    )}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
-
-            {/* Tab Content */}
-            <div className="p-4 md:p-6 min-h-[calc(100vh-180px)]">
-                <AnimatePresence mode="wait">
-                    <motion.div
-                        key={activeTab}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.2 }}
-                        className="h-full"
-                    >
-                        {activeTab === 'contracts' && (
-                            <FeatureErrorBoundary featureName="Contracts">
-                                <RenewalDashboardPage />
-                            </FeatureErrorBoundary>
-                        )}
-                        {activeTab === 'vpn' && (
-                            <FeatureErrorBoundary featureName="VPN Access">
-                                <VpnAccessPage />
-                            </FeatureErrorBoundary>
-                        )}
-                        {activeTab === 'sync' && (
-                            <FeatureErrorBoundary featureName="Google Sync">
-                                <GoogleSyncSettingsPage />
-                            </FeatureErrorBoundary>
-                        )}
-                    </motion.div>
-                </AnimatePresence>
-            </div>
+            <MgPanel key={activeTab} dir={tabDir} label={currentTab.label}>
+                {activeTab === 'contracts' && (
+                    <FeatureErrorBoundary featureName="Contracts">
+                        <RenewalDashboardPage />
+                    </FeatureErrorBoundary>
+                )}
+                {activeTab === 'vpn' && (
+                    <FeatureErrorBoundary featureName="VPN Access">
+                        <VpnAccessPage />
+                    </FeatureErrorBoundary>
+                )}
+                {activeTab === 'sync' && (
+                    <FeatureErrorBoundary featureName="Google Sync">
+                        <GoogleSyncSettingsPage />
+                    </FeatureErrorBoundary>
+                )}
+            </MgPanel>
 
             {/* Sync Loading Overlay */}
             <AnimatePresence>

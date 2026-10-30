@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { wibStartOfToday } from '../../shared/core/utils/wib-date.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, MoreThanOrEqual, LessThanOrEqual, ILike } from 'typeorm';
-import { AuditLog, AuditAction } from './entities/audit-log.entity';
+import { AuditLog, AuditAction, AuditSeverity } from './entities/audit-log.entity';
 import { Request } from 'express';
 import * as ExcelJS from 'exceljs';
 import { extractClientIp } from '../../shared/security/client-ip';
@@ -15,6 +16,8 @@ export interface LogOptions {
     newValue?: Record<string, any>;
     description?: string;
     request?: Request;
+    /** Defaults to the column default (MEDIUM) when omitted. */
+    severity?: AuditSeverity;
 }
 
 export interface QueryOptions {
@@ -37,6 +40,9 @@ export interface AuditStats {
     topActions: { action: string; count: number }[];
 }
 
+/** Most recent audit entries returned for a single entity's history panel. */
+const MAX_ENTITY_HISTORY = 500;
+
 @Injectable()
 export class AuditService {
     private readonly logger = new Logger(AuditService.name);
@@ -50,7 +56,7 @@ export class AuditService {
      * Log an audit event (synchronous)
      */
     async log(options: LogOptions): Promise<AuditLog> {
-        const { userId, action, entityType, entityId, oldValue, newValue, description, request } = options;
+        const { userId, action, entityType, entityId, oldValue, newValue, description, request, severity } = options;
 
         const resolvedIp = request ? this.getClientIp(request) : null;
         if (request && (action === AuditAction.USER_LOGIN || action === AuditAction.USER_LOGOUT)) {
@@ -69,6 +75,7 @@ export class AuditService {
             description,
             ipAddress: resolvedIp,
             userAgent: request?.headers['user-agent'] || null,
+            ...(severity ? { severity } : {}),
         } as Partial<AuditLog>);
 
         const saved = await this.auditRepo.save(auditLog);
@@ -165,7 +172,7 @@ export class AuditService {
      */
     async getStats(): Promise<AuditStats> {
         const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayStart = wibStartOfToday(now);
         const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
@@ -319,6 +326,7 @@ export class AuditService {
             where: { entityType, entityId },
             relations: ['user'],
             order: { createdAt: 'DESC' },
+            take: MAX_ENTITY_HISTORY,
         });
     }
 

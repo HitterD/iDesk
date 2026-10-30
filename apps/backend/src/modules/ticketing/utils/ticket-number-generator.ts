@@ -1,20 +1,69 @@
-import { EntityManager } from 'typeorm';
-import { Ticket } from '../entities/ticket.entity';
+import { Logger } from '@nestjs/common';
+import { EntityManager, QueryFailedError } from 'typeorm';
+import { DEPARTMENT_CODE_PATTERN } from '../../users/dto/create-department.dto';
 
 /**
  * Shared daily ticket-number generator.
  *
- * The number is per-day and monotonically increasing: `DDMMYY-DIV-0001`.
- * It MUST be called inside a transaction, and it takes a `pessimistic_write`
- * lock on the newest of today's ticket rows so concurrently-created tickets
- * (web or Telegram) serialize on the same lock and never reuse a number.
- * Previously the Telegram path used `COUNT()+1` with no lock, which raced the
- * web path (which already used this lock): two concurrent creations both read
- * the same count, and the loser hit the unique `ticketNumber` constraint with
- * a failed insert — a lost ticket for the Telegram user (PROD-19).
+ * The number is per-day and monotonically increasing: `DDMMYY-DIV-0001`, one sequence shared by every division.
+ * It MUST be called inside a transaction: it takes a transaction-scoped advisory lock for the day, so concurrent
+ * creations serialize and never reuse a number (PROD-19).
  */
 
+/** Namespace for pg_advisory_xact_lock so ticket numbering never collides with other locks. */
+const NUMBERING_LOCK_KEY = 'ticket-number';
+
 export const TICKET_NUMBER_WIDTH = 4;
+
+const DIVISION_CODE_LENGTH = 3;
+const NON_ALPHANUMERIC = /[^A-Z0-9]/g;
+/** A department code usable as-is in a ticket number; anything else (HRIS full names, `IT-SPJ`) falls back to the name. */
+const CLEAN_DEPARTMENT_CODE = DEPARTMENT_CODE_PATTERN;
+const PG_UNIQUE_VIOLATION = '23505';
+const TICKET_NUMBER_KEY = '("ticketNumber")';
+
+/** Uppercased, alphanumeric-only division segment, or `fallback` when nothing is left. */
+function sanitizeDivision(raw: string | null | undefined, fallback: string): string {
+    return (raw ?? '').toUpperCase().replace(NON_ALPHANUMERIC, '') || fallback;
+}
+
+/**
+ * Division segment derived from a department name: its first 3 characters, uppercased, alphanumeric only.
+ * A raw slice of "HC Dept" gave "HC " — the space broke the sequence read below and caused "already exists".
+ */
+export function divisionCode(departmentName: string | null | undefined, fallback: string): string {
+    return sanitizeDivision((departmentName ?? '').substring(0, DIVISION_CODE_LENGTH), fallback);
+}
+
+/** Division segment for a department: its `code` when that is clean, else derived from its name. */
+export function departmentDivision(
+    department: { code?: string | null; name?: string | null } | null | undefined,
+    fallback: string,
+): string {
+    const code = department?.code?.trim().toUpperCase();
+    return code && CLEAN_DEPARTMENT_CODE.test(code) ? code : divisionCode(department?.name, fallback);
+}
+
+function isTicketNumberCollision(error: unknown): boolean {
+    const driverError = (error as { driverError?: { code?: string; detail?: string } })?.driverError;
+    return error instanceof QueryFailedError
+        && driverError?.code === PG_UNIQUE_VIOLATION
+        && (driverError.detail ?? '').includes(TICKET_NUMBER_KEY);
+}
+
+/**
+ * Runs a ticket-creating transaction, retrying once if its ticket number collided. The generator should make that
+ * impossible, so a collision is logged as an error (a numbering bug to fix) while the user is not blocked by it.
+ */
+export async function withTicketNumberRetry<T>(logger: Logger, create: () => Promise<T>): Promise<T> {
+    try {
+        return await create();
+    } catch (error) {
+        if (!isTicketNumberCollision(error)) throw error;
+        logger.error(`Ticket number collision, retrying once: ${(error as any).driverError.detail}`);
+        return create();
+    }
+}
 
 /** `DDMMYY` segment of a ticket number. */
 export function dateSegment(now: Date): string {
@@ -22,15 +71,6 @@ export function dateSegment(now: Date): string {
     const month = (now.getMonth() + 1).toString().padStart(2, '0');
     const year = now.getFullYear().toString().slice(-2);
     return `${day}${month}${year}`;
-}
-
-/** Last daily sequence parsed from a ticket number (`DDMMYY-DIV-0001` → 1), or 0. */
-export function lastDailySequence(ticketNumber: string | null | undefined): number {
-    if (!ticketNumber) return 0;
-    const parts = ticketNumber.split('-');
-    if (parts.length !== 3) return 0;
-    const last = parseInt(parts[2], 10);
-    return Number.isNaN(last) ? 0 : last;
 }
 
 /** Builds a full ticket number from its parts. */
@@ -41,11 +81,11 @@ export function formatTicketNumber(dateStr: string, division: string, sequence: 
 /**
  * Returns the next ticket number for today in a race-safe fashion.
  *
- * `division` is the 3-letter department code (callers already compute their
- * own default — e.g. 'GEN' for the web path, 'TLG' for Telegram).
+ * `division` is the department's division segment (see `departmentDivision`; callers pick their own
+ * default — e.g. 'GEN' for the web path).
  *
  * @param manager the transaction's EntityManager (the lock is transaction-scoped!)
- * @param division 3-letter department code
+ * @param division division segment, sanitised to alphanumerics here
  * @param now optional clock override (tests/determinism); defaults to `new Date()`
  */
 export async function generateNextTicketNumber(
@@ -54,16 +94,20 @@ export async function generateNextTicketNumber(
     now: Date = new Date(),
 ): Promise<string> {
     const dateStr = dateSegment(now);
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-
-    const latestTicket: Ticket | null = await manager
-        .createQueryBuilder(Ticket, 'ticket')
-        .where('ticket.createdAt >= :todayStart', { todayStart })
-        .orderBy('ticket.createdAt', 'DESC')
-        .setLock('pessimistic_write')
-        .getOne();
-
-    const next = lastDailySequence(latestTicket?.ticketNumber) + 1;
-    return formatTicketNumber(dateStr, division, next);
+    // Sanitised here too, so no caller can ever mint a number the sequence read cannot parse back.
+    const safeDivision = sanitizeDivision(division, 'GEN');
+    // An advisory lock, not FOR UPDATE on the newest row: that row lock neither covers the first ticket of the day
+    // (no row to lock) nor lets a waiter see the row its predecessor inserted, so both read the same "latest".
+    await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`${NUMBERING_LOCK_KEY}:${dateStr}`]);
+    // Raw SQL on purpose: the unique constraint still holds soft-deleted tickets, but the entity query hid them, so
+    // deleting today's newest ticket made every later creation reuse its number ("already exists") until midnight.
+    // MAX over the number itself, not the newest createdAt, so any row of today counts regardless of insert order.
+    // The division part is matched loosely (`.+`) so legacy numbers with odd divisions ("HC ") still count.
+    const rows: { maxSeq: string | null }[] = await manager.query(
+        `SELECT MAX(CAST(SUBSTRING("ticketNumber" FROM '[0-9]+$') AS INTEGER)) AS "maxSeq"
+           FROM tickets
+          WHERE "ticketNumber" LIKE $1 AND "ticketNumber" ~ '^[0-9]{6}-.+-[0-9]+$'`,
+        [`${dateStr}-%`],
+    );
+    return formatTicketNumber(dateStr, safeDivision, Number(rows[0]?.maxSeq ?? 0) + 1);
 }

@@ -1,45 +1,52 @@
 // apps/backend/src/modules/hardware-request/services/request-number.service.spec.ts
-import { Test } from '@nestjs/testing';
-import { Repository } from 'typeorm';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { RequestNumberService } from './request-number.service';
-import { HardwareRequest } from '../domain/entities/hardware-request.entity';
 
 describe('RequestNumberService', () => {
-    let service: RequestNumberService;
-    let repoCount: jest.Mock;
-
-    beforeEach(async () => {
-        repoCount = jest.fn();
-        const moduleRef = await Test.createTestingModule({
-            providers: [
-                RequestNumberService,
-                {
-                    provide: getRepositoryToken(HardwareRequest),
-                    useValue: { count: repoCount } as Partial<Repository<HardwareRequest>>,
-                },
-            ],
-        }).compile();
-        service = moduleRef.get(RequestNumberService);
+    const managerWith = (maxSeq: string | null) => ({
+        query: jest.fn(async (sql: string, _params?: unknown[]) => (sql.includes('pg_advisory_xact_lock') ? [] : [{ maxSeq }])),
     });
+    const now = new Date('2026-04-17T10:00:00Z');
 
     it('generates HR-YYYY-0001 when no requests exist this year', async () => {
-        repoCount.mockResolvedValue(0);
-        const now = new Date('2026-04-17T10:00:00Z');
-        const num = await service.generate(now);
-        expect(num).toBe('HR-2026-0001');
+        const mgr = managerWith(null);
+        const service = new RequestNumberService({ manager: mgr } as any);
+        expect(await service.generate(now)).toBe('HR-2026-0001');
     });
 
-    it('increments sequence based on count this year', async () => {
-        repoCount.mockResolvedValue(42);
-        const now = new Date('2026-04-17T10:00:00Z');
-        const num = await service.generate(now);
-        expect(num).toBe('HR-2026-0043');
+    it('continues from the highest number this year (not the row count)', async () => {
+        const mgr = managerWith('42');
+        const service = new RequestNumberService({} as any);
+        expect(await service.generate(now, mgr as any)).toBe('HR-2026-0043');
     });
 
     it('pads to 4 digits minimum', async () => {
-        repoCount.mockResolvedValue(9999);
-        const num = await service.generate(new Date('2026-01-01Z'));
-        expect(num).toBe('HR-2026-10000');
+        const service = new RequestNumberService({ manager: managerWith('9999') } as any);
+        expect(await service.generate(new Date('2026-01-01Z'))).toBe('HR-2026-10000');
+    });
+
+    // An untyped $2 made Postgres pick substring(text FROM regex): '9' or NULL instead of the
+    // sequence, so MAX stuck at 9 and every new request reused HR-YYYY-0010.
+    it('casts the substring start to int so Postgres reads it as a position, not a regex', async () => {
+        const mgr = managerWith('5');
+        const service = new RequestNumberService({} as any);
+
+        await service.generate(now, mgr as any);
+
+        const sql: string = mgr.query.mock.calls[1][0];
+        const untypedFrom = sql.match(/FROM \$2(?!::int)/g);
+        expect(untypedFrom).toBeNull();
+        expect(sql).toContain('FROM $2::int');
+    });
+
+    // Two drafts at once used to read the same count and collide on the unique number.
+    it('takes a per-year advisory lock inside the caller transaction before reading', async () => {
+        const mgr = managerWith('5');
+        const service = new RequestNumberService({} as any);
+
+        await service.generate(now, mgr as any);
+
+        expect(mgr.query.mock.calls[0][0]).toContain('pg_advisory_xact_lock');
+        expect(mgr.query.mock.calls[0][1]).toEqual(['hardware-request-number:2026']);
+        expect(mgr.query.mock.calls[1][0]).toContain('MAX(');
     });
 });

@@ -23,6 +23,18 @@ describe('JwtStrategy', () => {
             role: UserRole.USER,
             fullName: 'User',
             siteId: null,
+            employeeId: null,
+        });
+    });
+
+    it('preserves employeeId claim when present in access token', async () => {
+        await expect(strategy().validate({ ...claims, employeeId: '00061058' })).resolves.toEqual({
+            userId: 'user-1',
+            username: 'user@example.com',
+            role: UserRole.USER,
+            fullName: 'User',
+            siteId: null,
+            employeeId: '00061058',
         });
     });
 

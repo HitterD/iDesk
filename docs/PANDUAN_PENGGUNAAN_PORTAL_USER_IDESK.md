@@ -1,10 +1,10 @@
-# 📘 Panduan Lengkap Penggunaan iDesk — Portal Karyawan & User
+# Panduan Lengkap Penggunaan iDesk — Portal Karyawan & User
 
 Selamat datang di **Portal Layanan Mandiri iDesk Enterprise**. Dokumen ini dirancang sebagai panduan komprehensif bagi seluruh karyawan dan pengguna (**Role: USER / Client**) dalam memanfaatkan seluruh fitur layanan teknologi informasi, mulai dari proses autentikasi (login), pengelolaan tiket multi-divisi, interaksi chat langsung dengan teknisi, pemesanan ruang meeting Zoom, pengajuan E-Form akses sistem/VPN, hingga pusat bantuan mandiri (*Knowledge Base*).
 
 ---
 
-## 📑 Daftar Isi Cepat
+## Daftar Isi Cepat
 1. [Bab 1: Login & Akses Masuk Sistem](#bab-1-login--akses-masuk-sistem)
 2. [Bab 2: Dashboard Tiket Saya (My Tickets)](#bab-2-dashboard-tiket-saya-my-tickets)
 3. [Bab 3: Pembuatan Tiket Bantuan & Layanan](#bab-3-pembuatan-tiket-bantuan--layanan)
@@ -27,15 +27,10 @@ Untuk mengakses portal iDesk, buka peramban web (*browser*) Anda dan kunjungi UR
 
 ![Halaman Login iDesk](assets/user-guide/01_login_page.png)
 
-### 📌 Langkah-Langkah Login:
-1. **Masukkan Identitas Akun**:
-   - Ketik **NIK Karyawan** (Nomor Induk Karyawan) atau **Alamat Email Perusahaan** terdaftar pada kolom `NIK / EMAIL`.
-2. **Masukkan Kata Sandi**:
-   - Masukkan kata sandi akun Anda pada kolom `PASSWORD`. Anda dapat menekan ikon mata (*eye icon*) untuk memeriksa ketepatan karakter kata sandi yang diketik.
-3. **Pilihan Tetap Masuk (Opsional)**:
-   - Centang opsi `Keep session active` jika Anda menggunakan komputer kantor pribadi agar sesi Anda tidak cepat kedaluwarsa.
-4. **Masuk ke Portal**:
-   - Klik tombol **`Continue`** atau tekan tombol **`Enter`** pada keyboard Anda.
+### Penjelasan Langkah-Langkah Login:
+- **[1] NIK / Email Karyawan**: Ketik **NIK Karyawan** (Nomor Induk Karyawan) atau **Alamat Email Perusahaan** terdaftar pada kolom `NIK / EMAIL` (contoh: `user.spj@idesk.com`).
+- **[2] Kata Sandi Default (123456)**: Masukkan kata sandi akun Anda pada kolom `PASSWORD`. Untuk login pertama kali, gunakan kata sandi default `123456`. Anda dapat menekan ikon mata (*eye icon*) untuk memeriksa ketepatan karakter kata sandi yang diketik.
+- **[3] Tombol Continue / Tekan Enter**: Klik tombol **`Continue`** atau tekan tombol **`Enter`** pada keyboard Anda untuk langsung masuk ke portal. Centang opsi `Keep session active` jika menggunakan komputer kantor pribadi.
 
 > [!TIP]
 > **Pintasan Keyboard**: Tekan tombol `Enter` untuk langsung mengirim formulir login, atau tekan tombol `Esc` untuk mengosongkan seluruh kolom input dengan cepat.
@@ -48,20 +43,15 @@ Setelah berhasil login, Anda akan langsung diarahkan ke halaman utama **My Ticke
 
 ![Dashboard My Tickets](assets/user-guide/02_my_tickets.png)
 
-### 🔍 Fitur-Fitur Utama Dashboard:
-1. **Ringkasan Kartu Metrik (Bento Stat Cards)**:
-   - **Total Tiket**: Akumulasi seluruh tiket yang pernah Anda buat.
-   - **Open (Aktif)**: Tiket yang baru dikirimkan dan menunggu penugasan teknisi.
-   - **In Progress (Diproses)**: Tiket yang sedang dalam penanganan aktif oleh tim IT Support / Developer.
-   - **Resolved (Selesai)**: Tiket yang telah berhasil diselesaikan oleh tim IT.
-2. **Pencarian Cepat & Filter Status**:
-   - Gunakan kotak **`Search by title or ticket ID...`** untuk menemukan tiket berdasarkan judul masalah atau nomor tiket (misal: `#010926-GEN-0001`).
-   - Gunakan tombol filter status (`All Status`, `Open`, `In Progress`, `Resolved`) untuk memfilter daftar tiket secara instan.
-3. **Daftar Tabel Tiket Interaktif**:
-   - Menampilkan nomor tiket, badge kategori layanan, judul kendala, tingkat prioritas (*Low, Medium, High, Critical*), nama teknisi yang bertugas (*Assigned Agent*), serta waktu pembaruan terakhir.
-   - Klik pada baris tiket mana pun untuk membuka detail tiket dan ruang percakapan.
-4. **Tombol Tindakan Cepat**:
-   - Klik **`+ New Ticket`** di sudut kanan atas untuk membuka halaman pengajuan tiket baru.
+### Penjelasan Elemen Dashboard:
+- **[1] Metrik Status Tiket**: Kartu ringkasan metrik real-time yang memuat:
+  - **Total Tiket**: Akumulasi seluruh tiket yang pernah Anda buat.
+  - **Open**: Tiket baru yang menunggu penugasan teknisi.
+  - **In Progress**: Tiket yang sedang ditangani aktif oleh tim IT Support / Developer.
+  - **Resolved**: Tiket yang telah selesai ditangani.
+- **[2] Cari & Filter Status**: Kotak pencarian instan (*Search by title or ticket ID...*) untuk menemukan tiket berdasarkan judul kendala atau ID tiket (contoh: `#160926-GEN-0001`), dilengkapi tombol filter cepat (*All Status, Open, In Progress, Resolved*).
+- **[3] Buat Tiket Baru (+ New Ticket)**: Tombol tindakan utama di sudut kanan atas untuk membuka katalog permohonan bantuan baru.
+- **[4] Tabel Riwayat Tiket**: Daftar tabel riwayat tiket lengkap yang menampilkan nomor ID tiket, badge kategori, ringkasan masalah, tingkat prioritas, teknisi bertugas (*Assigned Agent*), dan waktu pembaruan terakhir. Klik pada baris mana pun untuk membuka halaman detail tiket dan ruang chat.
 
 ---
 
@@ -72,12 +62,11 @@ Saat Anda menekan tombol **`+ New Ticket`**, Anda akan disajikan menu pilihan ka
 
 ![Pemilihan Kategori Tiket](assets/user-guide/03_create_ticket_selection.png)
 
-#### Pilihan Kategori yang Tersedia:
-- 🎫 **01 - Service Ticket (General Support)**: Layanan IT kantor umum, mencakup permasalahan komputer, laptop, software standar, printer, email, dan jaringan lokal.
-- 🌐 **03 - Access Request (E-Form Access)**: Permintaan izin akses akun VPN, jaringan khusus, atau sistem kerja terproteksi.
-- 📦 **04 - Oracle / K2 Request (Enterprise System)**: Bantuan modul sistem ERP Oracle EBS, update peran (*role*) K2 Workflow, maupun kendala validasi data bisnis.
-- 💻 **05 - Web Developer Request**: Permintaan perbaikan bug, penambahan fitur, atau integrasi pada portal web internal perusahaan.
-- 📱 **06 - Mobile Developer Request**: Laporan kendala aplikasi mobile Android/iOS, error sinkronisasi data lapangan, atau update versi APK.
+#### Penjelasan Kategori Layanan:
+- **[1] Service Ticket (IT Support)**: Layanan IT kantor umum, mencakup permasalahan komputer, laptop, software standar, printer, email kantor, dan koneksi jaringan lokal.
+- **[2] Oracle / K2 ERP Request**: Bantuan teknis modul sistem ERP Oracle EBS, update peran (*role*) approval K2 Workflow, maupun kendala validasi data transaksi bisnis.
+- **[3] Web / Mobile Dev Request**: Permintaan perbaikan bug, penambahan fitur portal web internal perusahaan, atau kendala operasional aplikasi mobile Android/iOS.
+- **[4] Access Request (E-Form VPN/WiFi)**: Permohonan izin akses akun VPN kantor, jaringan khusus, maupun sistem kerja terproteksi.
 
 ---
 
@@ -86,25 +75,12 @@ Jika Anda memilih kartu **Service Ticket**, Anda akan diarahkan ke formulir pemb
 
 ![Form Tiket IT Support](assets/user-guide/04_create_it_support_form.png)
 
-### 📌 Langkah Pengisian:
-1. **Template Cepat (*Quick Template*)**:
-   - Tersedia tombol shortcut di bagian atas: `Email Issue`, `Printer Fault`, `Slow System`, `No Network`, `Software Error`, dan `Login Issue`. Klik salah satu tombol template untuk mengisi subjek dan detail secara otomatis.
-2. **Subject / Judul Tiket (Wajib)**:
-   - Tuliskan ringkasan kendala dengan jelas (maksimal 200 karakter). Contoh: *"Komputer tidak bisa terhubung ke printer lantai 2"*.
-3. **Detail Masalah / Kebutuhan (Wajib)**:
-   - Uraikan kronologi kejadian, pesan error yang muncul, atau langkah yang telah dicoba.
-4. **Lampiran Berkas / Screenshot**:
-   - Klik tombol **`Lampirkan`** atau cukup tekan **`Ctrl + V`** untuk menempelkan (*paste*) tangkapan layar error langsung ke formulir (mendukung hingga 5 berkas, maks. 10MB/file).
-5. **Kategori, Perangkat, & Aplikasi**:
-   - Pilih dropdown **Category** (`Hardware`, `Software`, `Network`, `General`).
-   - Pilih spesifikasi perangkat (`PC`, `Laptop`, `Printer`, dll.) dan aplikasi terkait jika diperlukan.
-6. **Tingkat Urgensi (Priority Level)**:
-   - **LOW**: Kendala ringan yang tidak menghentikan pekerjaan utama.
-   - **MEDIUM**: Kendala operasional reguler (Default).
-   - **HIGH**: Kendala mendesak yang menghambat produktivitas kerja divisi.
-   - **CRITICAL**: Sistem operasional kritis terhenti total (*down*).
-7. **Kirim Tiket**:
-   - Klik tombol **`KIRIM SERVICE TIKET`** untuk mengirim permohonan ke antrean teknisi.
+### Penjelasan Bagian Formulir:
+- **[1] Template Masalah Cepat**: Tombol template siap pakai (*Email Issue, Printer Fault, Slow System, No Network, Software Error, Login Issue*) untuk mengisi format keluhan secara otomatis tanpa mengetik dari awal.
+- **[2] Subjek & Detail Kendala**: Kolom isian untuk menguraikan permasalahan secara lengkap, lokasi kerja, pesan error yang tampil di layar, dan tindakan yang sudah dicoba. Subjek tiket akan di-generate otomatis oleh sistem.
+- **[3] Lampiran File / Ctrl+V**: Tombol untuk melampirkan berkas atau cukup tekan kombinasi **`Ctrl + V`** pada keyboard untuk menempelkan screenshot error secara instan (mendukung hingga 5 berkas, maks. 10MB/file).
+- **[4] Kategori & Prioritas**: Dropdown penentuan kategori (*Hardware, Software, Network, General*), spesifikasi perangkat/aplikasi terkait, dan tingkat prioritas (*Low, Normal, Urgent, Blocker*).
+- **[5] Kirim Service Ticket**: Tombol konfirmasi untuk mengirimkan tiket permohonan langsung ke antrean teknisi IT Support on-site.
 
 ---
 
@@ -113,10 +89,11 @@ Untuk kebutuhan sistem perusahaan atau pengembangan perangkat lunak, pilih kateg
 
 ![Form Tiket Oracle K2 / Dev Request](assets/user-guide/05_create_dev_ticket_form.png)
 
-### 📌 Karakteristik Form Dev & Enterprise:
-- **Template Khusus**: Dilengkapi template siap pakai seperti `Login Issue`, `Role Update`, `System Error`, dan `Sync Error`.
-- **Subject & Kebutuhan Modul**: Masukkan nama modul Oracle / menu web / fungsi mobile yang bermasalah.
-- **Pintasan Keyboard Cepat**: Tekan kombinasi tombol **`Ctrl + Enter`** pada keyboard untuk mengirim tiket tanpa perlu menggeser mouse.
+### Penjelasan Bagian Formulir Dev:
+- **[1] Template Khusus ERP**: Pilihan template siap pakai modul enterprise seperti *Login Issue, Role Update, System Error, Sync Error*.
+- **[2] Modul, Dokumen & Pesan Error**: Kolom untuk menguraikan modul sistem, nomor dokumen transaksi (contoh: *PO Raw Material #PO-SPJ-2026-09-0012*), dan kode error sistem (contoh: *Error Code K2-504*).
+- **[3] Tingkat Urgensi Tiket**: Skala prioritas penanganan kendala (*Low, Normal, Urgent, Blocker*) berdasarkan dampak gangguan terhadap rantai pasok dan operasional pabrik/kantor.
+- **[4] Kirim Tiket (Ctrl+Enter)**: Tombol pengiriman tiket dengan dukungan pintasan keyboard cepat **`Ctrl + Enter`** tanpa perlu menggerakkan kursor mouse.
 
 ---
 
@@ -126,21 +103,11 @@ Setelah tiket dikirim, Anda dapat memantau perkembangan penanganan secara real-t
 
 ![Detail Tiket & Chat Interaktif](assets/user-guide/06_ticket_detail_chat_rating.png)
 
-### 🌟 Elemen & Fungsi pada Halaman Detail Tiket:
-1. **Header Tiket & SLA Countdown**:
-   - Menampilkan nomor tiket unik, status saat ini, badge prioritas, dan **SLA Timer** (*Service Level Agreement*) yang menghitung mundur target waktu penyelesaian layanan.
-2. **Riwayat Percakapan (Conversation Thread)**:
-   - Komunikasi dua arah langsung antara Anda dan teknisi/agent yang ditugaskan.
-   - Terdapat penanda pesan (*User Bubble* warna biru gelap vs *Agent Bubble*).
-3. **Catatan Penting (*Pinned Notes*)**:
-   - Bagian atas ruang chat menampilkan informasi awal masalah serta lampiran dokumen/gambar yang Anda sertakan.
-4. **Input Chat & Stiker Interaktif**:
-   - Ketik pesan balasan pada kotak input di bagian bawah.
-   - Mendukung penempelan screenshot langsung (**`Ctrl + V`**), lampirkan berkas, maupun stiker respon cepat.
-5. **Panel Kanan (Properti & Anggota Tiket)**:
-   - **Assigned Agent**: Menampilkan nama dan foto teknisi yang bertanggung jawab.
-   - **Anggota Tiket**: Anda dapat menambahkan rekan kerja lain (*Collaborator*) ke dalam tiket dengan menekan tombol **`+ Tambah`**.
-   - **Status & Kategori**: Informasi siklus hidup tiket dari *Open* → *In Progress* → *Resolved*.
+### Penjelasan Elemen Halaman Detail Tiket:
+- **[1] Header Tiket & Status SLA**: Menampilkan nomor unik tiket, status saat ini, badge prioritas, dan **SLA Countdown Timer** yang menghitung mundur target respon dan penyelesaian tiket oleh tim IT.
+- **[2] Ruang Chat Dua Arah Langsung**: Ruang percakapan interaktif langsung antara Anda dan teknisi penanggung jawab (*Assigned Agent*) untuk bertukar pesan, klarifikasi kendala, dan koordinasi perbaikan.
+- **[3] Teknisi Bertugas & Kolaborator**: Panel informasi nama teknisi bertugas, rincian properti tiket, serta tombol **`+ Tambah`** untuk mengundang rekan kerja satu divisi agar dapat ikut memantau proses penanganan tiket.
+- **[4] Balas Chat & Lampiran (Ctrl+V)**: Kolom pengetikan pesan balasan yang dilengkapi tombol lampiran berkas serta dukungan penempelan gambar screenshot langsung menggunakan pintasan **`Ctrl + V`**.
 
 > [!IMPORTANT]
 > **Rating Kepuasan Pengguna**: Ketika teknisi telah menyelesaikan masalah dan mengubah status tiket menjadi **Resolved**, jendela evaluasi bintang (*1-5 Stars Satisfaction Rating*) akan muncul. Berikan ulasan objektif Anda untuk membantu peningkatan kualitas layanan tim IT.
@@ -153,32 +120,25 @@ Portal iDesk menyediakan integrasi jadwal meeting virtual melalui menu **Zoom Ca
 
 ![Tata Letak Pemesanan Ruang Zoom](assets/user-guide/07_zoom_booking_calendar.png)
 
-### 📌 Prosedur 5 Langkah Pemesanan Ruang Zoom:
-1. **Isi Topik / Judul Meeting (Wajib)**:
-   - Masukkan judul atau agenda meeting pada kolom *Judul meeting* (Contoh: `Weekly Coordination Meeting - Tim Santos`).
-2. **Tentukan Tanggal & Jam Mulai (Wajib)**:
-   - **Pilih Tanggal**: Klik kolom tanggal untuk membuka kalender dan pilih hari meeting.
-   - **Pilih Jam Mulai**: Tentukan jam mulai meeting melalui dropdown waktu (tersedia interval per 15/30 menit, contoh: `09:00`).
-3. **Pilih Durasi Meeting**:
-   - Tentukan estimasi durasi meeting yang dibutuhkan melalui dropdown durasi (contoh: `30 menit`, `60 menit (1 jam)`, `90 menit`, `120 menit`). Sistem akan otomatis menampilkan badge konfirmasi rentang waktu (misal: `09:00 - 10:00 WIB`).
-4. **Aktifkan Opsi Berulang / Recurring (Jika Rutin)**:
-   - Jika meeting diadakan secara berkala (misal: rapat mingguan atau bulanan), klik sakelar toggle **`Berulang?`** hingga aktif (berwarna ungu).
-   - Tentukan interval frekuensi (contoh: *Setiap 1 Minggu*) dan batas akhir tanggal perulangan (*sampai Tanggal*).
-5. **Klik Tombol "Buat meeting 🎥"**:
-   - Tekan tombol **`Buat meeting 🎥`**. Sistem iDesk akan secara otomatis mengalokasikan akun lisensi Zoom korporat yang tersedia dan menghasilkan tautan meeting (*Join URL*), *Meeting ID*, serta *Passcode* secara instan.
+### Penjelasan 5 Langkah Pemesanan Ruang Zoom:
+- **[1] Topik / Judul Meeting Zoom**: Masukkan agenda atau topik rapat pada kolom isian *Judul meeting* (contoh: *Weekly Sync Meeting - Operasional SPJ*).
+- **[2] Tanggal & Waktu Pelaksanaan**: Tentukan tanggal rapat pada kalender, jam mulai meeting (interval per 15/30 menit), dan estimasi durasi rapat (contoh: 60 menit).
+- **[3] Undangan Peserta & Rapat Berulang**: Masukkan email peserta rapat (opsional) dan aktifkan sakelar toggle **`Berulang?`** jika meeting diselenggarakan secara rutin berkala (misal: setiap 1 minggu).
+- **[4] Konfirmasi Buat Meeting**: Tekan tombol **`Buat meeting`**. Sistem iDesk secara otomatis mengalokasikan lisensi Zoom korporat yang tersedia dan menghasilkan tautan *Join URL*, *Meeting ID*, serta *Passcode* secara instan.
+- **[5] Kalender Jadwal & Ketersediaan Zoom**: Tampilan kalender interaktif untuk memantau slot waktu yang tersedia dan jadwal rapat yang telah diagendakan.
 
 ---
 
-### 💡 Simulasi Formulir Pemesanan & Opsi Berulang (Recurring)
+### Simulasi Formulir Pemesanan & Opsi Berulang (Recurring)
 
 Berikut adalah contoh simulasi formulir pemesanan Zoom yang telah diisi lengkap dengan opsi jadwal berulang aktif serta sinkronisasi daftar meeting:
 
 ![Simulasi Pemesanan Zoom Terisi Lengkap](assets/user-guide/07b_zoom_booking_simulated.png)
 
-#### 📝 Catatan Simulasi & Fitur Tambahan:
-- **Deskripsi & Agenda (Opsional)**: Anda dapat menambahkan poin-poin pembahasan rapat agar peserta memahami agenda meeting sebelum bergabung.
-- **Daftar Peserta (Opsional)**: Masukkan alamat email peserta (pisahkan dengan tanda koma). Sistem dapat mengirimkan notifikasi undangan rapat otomatis ke email peserta.
-- **Monitoring Daftar Meeting (Panel Kanan)**: Seluruh jadwal meeting Anda yang telah dibuat akan langsung terdaftar pada tab **`Mendatang`**, **`Semua`**, atau **`Selesai`**. Anda dapat menyalin tautan (*Copy Link*) atau membatalkan meeting langsung dari kartu jadwal.
+#### Catatan Simulasi & Fitur Tambahan:
+- **[1] Formulir Rapat Berulang Terisi**: Contoh pengisian formulir meeting mingguan lengkap dengan rincian durasi dan tanggal berakhirnya jadwal berulang.
+- **[2] Daftar Email Undangan Peserta**: Kolom penambahan email rekan kerja yang akan otomatis menerima undangan rapat dan kalender digital (.ics).
+- **[3] Kalender Jadwal Terjadwal Otomatis**: Panel kalender kanan yang langsung memperbarui slot waktu rapat secara real-time.
 
 ---
 
@@ -191,8 +151,10 @@ Halaman ini menampilkan seluruh formulir permohonan akses yang pernah Anda ajuka
 
 ![Daftar E-Form Access](assets/user-guide/08_eform_access_list.png)
 
-- **Kartu Ringkasan Status**: Memantau jumlah total permohonan, tiket yang *Menunggu Atasan*, *Diproses ICT*, *Akses Siap*, maupun *Ditolak*.
-- **Tombol Ajukan Akses**: Klik tombol **`+ Ajukan Akses`** di kanan atas untuk membuat permohonan baru.
+### Penjelasan Elemen Daftar E-Form:
+- **[1] Metrik Status Permohonan**: Kartu pemantauan jumlah pengajuan: *Total Permohonan*, *Menunggu Atasan*, *Diproses ICT*, *Akses Siap*, dan *Ditolak*.
+- **[2] Ajukan Akses Baru**: Tombol tindakan cepat di sudut kanan atas untuk membuka formulir permohonan izin akses baru.
+- **[3] Tabel Riwayat Permohonan & Approval**: Tabel riwayat pengajuan lengkap dengan ID permohonan, jenis akses, nama pemohon, masa berlaku, dan status alur persetujuan (*Approval Status*).
 
 ---
 
@@ -201,39 +163,24 @@ Halaman pengajuan akses baru (**`/client/eform-access/new`**) memiliki alur vali
 
 ![Form Pengajuan E-Form Akses](assets/user-guide/09_eform_access_new.png)
 
-### 📌 Langkah Pengisian Formulir:
-1. **Pilih Jenis Akses**:
-   - 🛡️ **Akses VPN**: Akses koneksi remote dari luar kantor menuju server perusahaan.
-   - 🌐 **Akses Website**: Pembukaan filter/whitelist situs web kerja tertentu.
-   - 📶 **Akses Jaringan**: Hak akses WiFi atau VLAN divisi khusus.
-2. **Identitas Pemohon**:
-   - Nama lengkap dan departemen Anda akan terisi otomatis berdasarkan data kepegawaian.
-3. **Periode Masa Berlaku Akses**:
-   - Tentukan tanggal mulai (`Dari Tanggal`) dan tanggal selesai (`Sampai Tanggal`).
-   - Tersedia tombol cepat: `+1 Bln`, `+3 Bln`, `+6 Bln`, atau `+12 Bln` (Maksimal masa berlaku adalah 12 bulan per pengajuan).
-4. **Kebutuhan & Alasan Pengajuan**:
-   - Pilih skenario kebutuhan (misal: *Remote PC Kantor*, *Akses Database*).
-   - Pilih atau ketik alasan operasional (misal: *Work From Home*, *Penugasan Dinas Luar Kantor*).
-5. **Kirim Permohonan**:
-   - Tekan tombol kirim. Sistem akan meneruskan notifikasi persetujuan (*Approval Workflow*) secara berjenjang ke email Head of Department (HOD) Anda sebelum dieksekusi oleh tim ICT Security.
+### Penjelasan Langkah Pengisian Formulir:
+- **[1] Pilih Jenis Akses (VPN/Web)**: Pilih salah satu kartu akses yang dibutuhkan: *Akses VPN*, *Akses Website*, *Akses Jaringan*, atau *Akses Flashdisk*.
+- **[2] Identitas & Masa Berlaku**: Data kepegawaian pemohon terisi otomatis. Tentukan rentang tanggal akses menggunakan tombol cepat: `+1 Bln`, `+3 Bln`, `+6 Bln`, atau `+12 Bln` (maksimal 12 bulan per pengajuan).
+- **[3] Alasan & Keperluan Akses**: Pilih skenario kebutuhan (misal: *Remote PC Kantor*) dan uraikan alasan operasional secara jelas (misal: *Monitoring telemetri mesin roasting & sinkronisasi data operasional Plant Sidoarjo*).
+- **[4] Ringkasan & Kirim Pengajuan**: Panel ringkasan data permohonan di sebelah kanan. Pastikan seluruh kolom bertanda bintang telah terisi, lalu klik **`Kirim Pengajuan`** untuk meneruskan form ke email Head of Department (HOD) Anda.
 
 ---
 
 ## Bab 7: Pusat Bantuan & Solusi Mandiri (Knowledge Base)
 
-Sebelum membuat tiket baru, Anda sangat disarankan untuk mencari solusi cepat pada portal **Knowledge Base (`/client/kb`)**. Halaman ini memuat ratusan artikel panduan teknis yang disusun oleh tim IT Support.
+Sebelum membuat tiket baru, Anda sangat disarankan untuk mencari solusi cepat pada portal **Knowledge Base (`/client/kb`)**. Halaman ini memuat artikel panduan teknis resmi yang disusun oleh tim IT Support.
 
 ![Portal Knowledge Base iDesk](assets/user-guide/10_client_knowledge_base.png)
 
-### 🔍 Cara Menggunakan Knowledge Base:
-1. **Kotak Pencarian Pintar**:
-   - Ketik kata kunci kendala Anda pada kotak pencarian (contoh: `wifi`, `vpn`, `printer`, `outlook`, `password`, `teams`).
-2. **Kategori & Topik Populer**:
-   - Gunakan pill navigasi kategori: `Semua Kategori`, `Network`, `Security`, `Hardware`, `Software`, atau `General`.
-   - Klik tag tagar populer (*#wifi*, *#wg-ssl*, *#printer*, *#outlook*) untuk melihat artikel spesifik.
-3. **Membaca & Mencetak Artikel**:
-   - Klik pada kartu artikel untuk membuka konten panduan langkah demi langkah lengkap dengan gambar dan instruksi penanganan mandiri (*Self-Resolution*).
-   - Anda dapat menekan tombol *Helpful (Bermanfaat)* jika artikel tersebut berhasil menyelesaikan kendala Anda.
+### Penjelasan Fitur Knowledge Base:
+- **[1] Pencarian Pintar (Ctrl+K)**: Kotak penelusuran cepat dengan tombol pintasan `Ctrl + K`. Masukkan kata kunci kendala yang dihadapi (contoh: *wifi, vpn, printer, outlook, password*).
+- **[2] Spotlight Panduan Utama**: Kartu sorotan panduan resmi terlengkap mengenai seluruh alur penggunaan portal iDesk Enterprise. Klik tombol **`Baca Sekarang`** untuk membuka artikel.
+- **[3] Topik Populer & SOP**: Kartu akses cepat kategori kendala yang paling sering dicari (*VPN & Jaringan, Akun & Keamanan, Email & Aplikasi, Hardware & Printer*).
 
 ---
 
@@ -243,25 +190,19 @@ Anda dapat mempersonalisasi akun dan memantau pembaruan tiket melalui halaman **
 
 ![Pengaturan Profil Pengguna](assets/user-guide/11_notification_and_profile.png)
 
-### ⚙️ Menu Pengaturan Akun:
-1. **Tab Profil (`Profile`)**:
-   - Memeriksa nama lengkap, email resmi, nomor telepon, dan jabatan (*Job Title*).
-   - Anda dapat memperbarui nomor WhatsApp/telepon aktif agar teknisi dapat menghubungi Anda saat koordinasi perbaikan di lapangan.
-2. **Tab Kata Sandi (`Password`)**:
-   - Mengubah kata sandi login secara berkala demi menjaga keamanan data perusahaan.
-3. **Tab Telegram & Notifikasi (`Telegram / Sound`)**:
-   - Menghubungkan akun Telegram Anda dengan iDesk Bot untuk menerima notifikasi status tiket langsung di smartphone secara instan.
-4. **Tema Tampilan (`Appearance`)**:
-   - Mengganti tema antarmuka antara **Light Mode** (Mode Terang) dan **Dark Mode** (Mode Gelap) sesuai kenyamanan visual Anda melalui tombol toggle di sudut kanan atas bar navigasi.
+### Penjelasan Pengaturan Akun:
+- **[1] Data Diri & No. WhatsApp**: Kolom data kepegawaian (Nama Lengkap, Email Kantor, Nomor Telepon, Jabatan). Perbarui nomor kontak WhatsApp aktif Anda agar teknisi dapat menghubungi Anda dengan cepat saat koordinasi perbaikan di lapangan.
+- **[2] Tab Ganti Password**: Tab navigasi untuk mengganti kata sandi akun iDesk secara berkala demi menjaga keamanan data perusahaan.
+- **[3] Mode Terang / Gelap**: Tombol pengalih tema tampilan antarmuka (*Light Mode / Dark Mode*) di bilah navigasi kanan atas untuk kenyamanan visual Anda.
 
 ---
 
-## 📞 Butuh Bantuan Tambahan?
+## Butuh Bantuan Tambahan?
 Jika Anda mengalami kendala yang tidak tercantum dalam panduan ini atau membutuhkan bantuan darurat (*Emergency IT Support*):
 - **Portal Helpdesk**: [Buat Tiket Layanan di iDesk](https://idesk.santos.co.id/client/create)
 - **Email IT Support**: `it.support@santos.co.id`
 - **Operasional Layanan**: Senin – Jumat, 08:00 – 17:00 WIB
 
 ---
-*Dokumentasi Resmi iDesk Enterprise Platform — PT Santos Jaya Abadi (Kapal Api Group)*
+*Dokumentasi Resmi iDesk Enterprise Platform — PT Santos Jaya Abadi (Kapal Api Group)*  
 *Versi: 3.18.2 — Terakhir Diperbarui: September 2026*

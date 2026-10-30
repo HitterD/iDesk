@@ -115,6 +115,7 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ onClose, isModal = f
             case 'TODO': return 'bg-blue-500/20 text-blue-400';
             case 'IN_PROGRESS': return 'bg-yellow-500/20 text-yellow-400';
             case 'RESOLVED': return 'bg-green-500/20 text-green-400';
+            case 'CLOSED': return 'bg-slate-500/20 text-slate-300';
             case 'CANCELLED': return 'bg-red-500/20 text-red-400';
             default: return 'bg-slate-500/20 text-slate-400';
         }

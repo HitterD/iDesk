@@ -6,6 +6,10 @@ describe('HealthSamplerService', () => {
     const healthService = {
         getFastSystemMetrics: jest.fn(),
         checkDatabaseHealth: jest.fn(),
+        // Wajib ada: refreshFastTier menyusun array Promise.allSettled, jadi method yang
+        // hilang melempar sinkron sebelum allSettled memasang handler — promise lain yang
+        // sudah terlanjur dibuat jadi unhandled rejection dan membunuh proses Node.
+        checkSjaNotificationHealth: jest.fn(),
         checkBackupStatus: jest.fn(),
         getServicesStatus: jest.fn(),
         getDiskUsage: jest.fn(),
@@ -16,6 +20,7 @@ describe('HealthSamplerService', () => {
         pushFast: jest.fn(),
         pushSlow: jest.fn(),
         pushIncident: jest.fn(),
+        hasSubscribers: jest.fn().mockReturnValue(true),
     };
 
     beforeEach(() => {
@@ -25,6 +30,7 @@ describe('HealthSamplerService', () => {
             platform: 'win32', arch: 'x64', nodeVersion: 'v24', loadAverage: [0, 0, 0],
         });
         healthService.checkDatabaseHealth.mockResolvedValue({ status: 'connected', latency: 3 });
+        healthService.checkSjaNotificationHealth.mockResolvedValue({ status: 'connected', latency: 1 });
         healthService.checkBackupStatus.mockResolvedValue({ configured: false });
         healthService.getServicesStatus.mockResolvedValue([]);
         healthService.getDiskUsage.mockResolvedValue({ usage: 50, total: 1000, free: 500 });
@@ -44,6 +50,34 @@ describe('HealthSamplerService', () => {
         expect(healthService.checkDatabaseHealth).toHaveBeenCalledTimes(1);
         expect(healthService.getServicesStatus).not.toHaveBeenCalled();
         expect(gateway.pushFast).toHaveBeenCalledWith(expect.objectContaining({ uptime: expect.any(Number) }));
+    });
+
+    it('skips scheduled fast probes while no client watches the health page', async () => {
+        gateway.hasSubscribers.mockReturnValueOnce(false);
+        const sampler = new HealthSamplerService(
+            healthService as any,
+            gateway as any,
+            { get: jest.fn().mockReturnValue('false') } as unknown as ConfigService,
+        );
+
+        await sampler.scheduledFastRefresh();
+
+        expect(healthService.getFastSystemMetrics).not.toHaveBeenCalled();
+        expect(gateway.pushFast).not.toHaveBeenCalled();
+    });
+
+    it('refreshes stale fast metrics on demand but reuses fresh ones', async () => {
+        const sampler = new HealthSamplerService(
+            healthService as any,
+            gateway as any,
+            { get: jest.fn().mockReturnValue('false') } as unknown as ConfigService,
+        );
+        (sampler as any).sampledAt.fast = new Date(0).toISOString();
+
+        await sampler.ensureFreshFastTier();
+        await sampler.ensureFreshFastTier();
+
+        expect(healthService.getFastSystemMetrics).toHaveBeenCalledTimes(1);
     });
 
     it('keeps only HISTORY_SIZE values in oldest-to-newest order', async () => {

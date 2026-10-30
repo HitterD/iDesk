@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Hardware Requests</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=20">
+<link rel="stylesheet" href="pages.css?v=20">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=20"></script>
+<script src="mock-state.js?v=20"></script>
+<script src="shell.js?v=20"></script>
+<script src="motion.js?v=20"></script>
+<script src="pages.js?v=20"></script>
+</head>
+<body data-page="hardware" data-crumb="Request Center" data-title="Hardware Requests">
+<!-- Production source: apps/frontend/src/features/hardware-request/layouts/HardwareRequestsLayout.tsx, components/common/HardwareRequestsTabs.tsx,
+     pages/HardwareRequestListPage.tsx (+ list/RequestTable, RequestFilters), components/dashboard/*, components/calendar/InstallationCalendarPage.tsx,
+     components/catalog/CatalogAdminPage.tsx, utils/status.util.ts -->
+<script>
+const { ic, caret, av, bub, donut, hbars } = iDeskPages;
+const HW_STATUS = {
+  SUBMITTED: ['Submitted', 'var(--blue)'], UNDER_REVIEW: ['Under Review', 'var(--orange)'], APPROVED: ['Approved', 'var(--green)'],
+  PROCUREMENT: ['SPP Issued', 'var(--navy)'], AWAITING_DELIVERY: ['Awaiting Delivery', 'var(--teal)'], INSTALLATION: ['Installation', 'var(--accent)'],
+  AWAITING_USER_CONFIRMATION: ['Awaiting User', 'var(--sea)'], COMPLETED: ['Completed', 'var(--green)'], REJECTED: ['Rejected', 'var(--red)'],
+};
+const REVIEW = ['SUBMITTED', 'UNDER_REVIEW'], DONE = ['COMPLETED'], CLOSED = ['COMPLETED', 'REJECTED'];
+// Synthetic sample data
+const ROWS = [
+  { no: 'HR-2610-0031', j: 'Printer finance rusak, butuh pengganti', req: ['Maria Yuliani Br Purba', 'Finance'], items: 'Printer LaserJet M404 · 1 unit', site: 'SPJ', s: 'UNDER_REVIEW', age: '2 hari', up: '20 Okt' },
+  { no: 'HR-2610-0029', j: 'Kebutuhan meeting online tim L&E', req: ['Shanon Maria', 'Learning & Engagement'], items: 'Webcam 1080p · 2 unit', site: 'SPJ', s: 'SUBMITTED', age: '1 hari', up: '20 Okt' },
+  { no: 'HR-2610-0027', j: 'PC operator line 3 sudah tidak layak', req: ['Nur Ayni', 'Production 1'], items: 'PC Desktop i5 · 1 unit, Monitor 24" · 1 unit', site: 'JTB', s: 'PROCUREMENT', age: '6 hari', up: '19 Okt' },
+  { no: 'HR-2610-0024', j: 'UPS ruang server HSE sering mati', req: ['Agung Permadhi', 'HSE'], items: 'UPS 1200VA · 1 unit', site: 'SPJ', s: 'AWAITING_DELIVERY', age: '9 hari', up: '18 Okt', aging: true },
+  { no: 'HR-2610-0022', j: 'Scanner QC tambahan untuk shift malam', req: ['Yusuf Wijaya', 'QC AB Reguler'], items: 'Barcode scanner · 3 unit', site: 'SMG', s: 'INSTALLATION', age: '11 hari', up: '18 Okt', aging: true },
+  { no: 'HR-2610-0019', j: 'Laptop untuk karyawan baru Operation', req: ['Tjan Siauw Hwa', 'Operation'], items: 'Laptop 14" · 1 unit', site: 'SPJ', s: 'AWAITING_USER_CONFIRMATION', age: '13 hari', up: '17 Okt' },
+  { no: 'HR-2610-0015', j: 'Penggantian perangkat input rusak', req: ['Dwi Esti Ariyanti', 'Production 1'], items: 'Keyboard & mouse · 4 set', site: 'JTB', s: 'COMPLETED', age: '—', up: '15 Okt' },
+  { no: 'HR-2610-0012', j: 'Tablet untuk presentasi training', req: ['Merda Della Sovira', 'HC Development'], items: 'Tablet 11" · 1 unit', site: 'SPJ', s: 'REJECTED', age: '—', up: '12 Okt' },
+];
+const CATALOG = [['PC-DT-I5', 'PC Desktop i5', 'Komputer', true, 1], ['LT-14', 'Laptop 14"', 'Komputer', true, 2], ['MON-24', 'Monitor 24"', 'Display', true, 3], ['PRN-LJ', 'Printer LaserJet', 'Printer', true, 4], ['UPS-1200', 'UPS 1200VA', 'Kelistrikan', true, 5], ['WEB-1080', 'Webcam 1080p', 'Aksesoris', true, 6], ['TAB-11', 'Tablet 11"', 'Komputer', false, 7]];
+const WEEK = [['Sen', 20, 2], ['Sel', 21, 3], ['Rab', 22, 1], ['Kam', 23, 4], ['Jum', 24, 2]];
+const AGENDA = [
+  ['21', 'Sel', true, [['13.30', 'Instalasi PC baru · Finance lt. 2', 'HR-2610-0027', 'Beny Saputra', 'var(--accent)'], ['15.00', 'Pasang barcode scanner QC', 'HR-2610-0022', 'Yudi Arta Trirensila', 'var(--accent)']]],
+  ['22', 'Rab', false, [['09.00', 'Serah terima laptop · Operation', 'HR-2610-0019', 'Alphin Santoso H.', 'var(--sea)']]],
+  ['23', 'Kam', false, [['10.00', 'Pasang UPS ruang server HSE', 'HR-2610-0024', 'Beny Saputra', 'var(--teal)'], ['14.00', 'Penjadwalan ulang diminta · webcam', 'HR-2610-0029', 'Belum ditentukan', 'var(--orange)']]],
+];
+const statusBub = (s) => bub(HW_STATUS[s][0], HW_STATUS[s][1]);
+let state = { status: 'all', q: '', stat: 'all' };
+const matchStat = (r, k) => k === 'all' || (k === 'review' && REVIEW.includes(r.s)) || (k === 'process' && !REVIEW.includes(r.s) && !CLOSED.includes(r.s)) || (k === 'done' && DONE.includes(r.s));
+const STATS = [['all', 'Total', 'layers', 'var(--gray)'], ['review', 'Menunggu Review', 'inbox', 'var(--orange)'], ['process', 'Dalam Proses', 'loader', 'var(--navy)'], ['done', 'Selesai', 'circle-check', 'var(--green)']];
+const COLS = '--cols:minmax(170px,1.2fr) minmax(170px,1.1fr) minmax(200px,1.6fr) 56px 170px 78px 74px;--cols-m:minmax(0,1fr) auto';
+
+function rowHtml(r) {
+  return `<div class="row" tabindex="0" data-demo="Detail hardware request ${r.no} adalah contoh; halaman detail belum dibuat di mockup.">
+    <div class="tk"><div class="id">${r.no}</div><div class="title">${r.j}</div></div>
+    <div class="person hide-m">${av(r.req[0])}<div style="min-width:0"><b>${r.req[0]}</b><small>${r.req[1]}</small></div></div>
+    <span class="cell hide-m">${r.items}</span>
+    <span class="hide-m"><span class="bub neutral mono">${r.site}</span></span>
+    <span>${statusBub(r.s)}</span>
+    <span class="hide-m">${r.aging ? bub(r.age, 'var(--orange)', { icon: 'hourglass', ink: 'var(--ink-orange)' }) : `<span class="muted">${r.age}</span>`}</span>
+    <span class="date hide-m">${r.up}</span>
+  </div>`;
+}
+function renderList() {
+  const q = state.q.toLowerCase();
+  const rows = ROWS.filter((r) => matchStat(r, state.stat) && (state.status === 'all' || r.s === state.status) && (!q || (r.no + r.req[0] + r.items + r.j).toLowerCase().includes(q)));
+  document.getElementById('hwStats').innerHTML = STATS.map(([k, n, i, c]) => `<button class="stat${state.stat === k ? ' on' : ''}${k === 'review' ? ' attn' : ''}" data-k="${k}" aria-pressed="${state.stat === k}" style="--c:${c};--ink:${k === 'review' ? 'var(--ink-orange)' : 'var(--text)'}"><span class="top"><span class="ic">${ic(i)}</span><span class="n">${ROWS.filter((r) => matchStat(r, k)).length}</span></span><span class="name">${n}</span></button>`).join('');
+  document.getElementById('hwRows').innerHTML = rows.map(rowHtml).join('');
+  document.getElementById('hwEmpty').classList.toggle('show', rows.length === 0);
+  document.getElementById('hwShowing').textContent = `Menampilkan ${rows.length} dari ${ROWS.length} request contoh`;
+  document.querySelector('#hwStatus .v').textContent = state.status === 'all' ? 'Semua' : HW_STATUS[state.status][0];
+  iDeskPages.wireDemo(document.getElementById('hwRows'));
+  lucide.createIcons();
+}
+
+const LIST = `
+  <section class="stats four" id="hwStats" aria-label="Ringkasan request"></section>
+  <div class="filters">
+    <label class="field">${ic('search')}<input id="hwQ" placeholder="Cari nomor request, pemohon, atau justifikasi..." aria-label="Cari hardware request"></label>
+    <button class="pop" id="hwStatus"><span class="k">Status</span><span class="v">Semua</span>${caret}</button>
+    <button class="pop icon-pop" aria-label="Segarkan data" data-demo="Data contoh tidak diambil ulang dari server.">${ic('refresh-cw')}</button>
+  </div>
+  <section class="table d" style="${COLS}" aria-label="Daftar hardware request">
+    <div class="thead"><span>Nomor</span><span>Requester</span><span>Items</span><span>Site</span><span>Status</span><span>Umur</span><span>Updated</span></div>
+    <div id="hwRows"></div>
+    <div class="empty-state" id="hwEmpty"><div class="ic">${ic('package-search')}</div><b>Belum ada request</b>Coba ubah filter atau kata kunci.</div>
+    <div class="foot"><span id="hwShowing"></span><span class="muted">Request baru diajukan lewat “Buat Tiket Baru” → Hardware &amp; Budget</span></div>
+  </section>`;
+
+const OVERVIEW = `
+  <section class="kpis" aria-label="KPI hardware">
+    <div class="kpi"><span>Total Request Aktif</span><span class="n">6</span><p>Dalam alur proses berjalan</p></div>
+    <div class="kpi"><span>Dalam Pengadaan</span><span class="n">2</span><p>Menunggu PO / Vendor / Tiba</p></div>
+    <div class="kpi"><span>Menunggu Instalasi</span><span class="n">1</span><p>Siap &amp; terjadwal ke teknisi</p></div>
+    <div class="kpi" style="--ink:var(--ink-green)"><span>Selesai Bulan Ini</span><span class="n">9</span><p>Telah terpasang &amp; dikonfirmasi</p></div>
+  </section>
+  <div class="grid2">
+    <section class="panel"><h3>Distribusi Status Request</h3><p class="panel-sub">Proporsi request berdasarkan tahapan</p>
+      ${donut({ unit: 'request', label: 'Distribusi status request', items: [{ label: 'Review', v: 2, c: 'var(--orange)' }, { label: 'Pengadaan', v: 2, c: 'var(--navy)' }, { label: 'Instalasi', v: 1, c: 'var(--blue)' }, { label: 'Konfirmasi user', v: 1, c: 'var(--teal)' }] })}</section>
+    <section class="panel"><h3>Permintaan per Kategori</h3><p class="panel-sub">Kategori hardware yang paling sering diminta · gunakan untuk proyeksi stok</p>
+      ${hbars([{ label: 'Komputer', v: 14 }, { label: 'Printer', v: 9 }, { label: 'Aksesoris', v: 7 }, { label: 'Display', v: 5 }, { label: 'Kelistrikan', v: 3 }], { suffix: ' unit' })}</section>
+    <section class="panel"><h3>Beban Kerja Teknisi</h3><p class="panel-sub">Kapasitas dan beban instalasi harian</p>
+      ${hbars([{ label: 'Beny Saputra', v: 4, c: 'var(--orange)' }, { label: 'Yudi Arta Trirensila', v: 2 }, { label: 'Alphin Santoso H.', v: 1 }], { max: 5 })}
+      <div class="note-line">${ic('info')}Teknisi dengan beban tertinggi disarankan tidak ditugaskan dulu.</div></section>
+    <section class="panel"><h3>SLA &amp; Aging Request</h3><p class="panel-sub">Durasi usia request yang sedang aktif</p>
+      ${hbars([{ label: '0-3 hari', v: 2, c: 'var(--green)' }, { label: '3-7 hari', v: 1, c: 'var(--orange)' }, { label: '> 7 hari', v: 3, c: 'var(--red)' }])}
+      <div class="note-line">${ic('info')}Prioritaskan penyelesaian pada request yang mendekati batas waktu SLA.</div></section>
+  </div>`;
+
+const CALENDAR = `
+  <section class="stats four" aria-label="Ringkasan jadwal">
+    ${[['Hari Ini', 2, 'calendar-check', 'var(--accent)'], ['Scheduled', 5, 'calendar-days', 'var(--navy)'], ['Unscheduled', 1, 'calendar-x', 'var(--gray)'], ['Reschedule', 1, 'calendar-sync', 'var(--orange)']].map(([n, v, i, c]) => `<div class="stat" style="--c:${c};--ink:var(--text)"><span class="top"><span class="ic">${ic(i)}</span><span class="n">${v}</span></span><span class="name">${n}</span></div>`).join('')}
+  </section>
+  <div class="grid-main">
+    <section class="panel"><h3>Jadwal Instalasi <small>Kalender operasional hardware ICT · 20–24 Okt 2026</small><button class="pop" style="margin-left:auto" id="techFilter"><span class="k">Teknisi</span><span class="v">Semua</span>${caret}</button></h3>
+      ${AGENDA.map(([d, w, today, items]) => `<div class="agenda-day${today ? ' today' : ''}"><div><b>${d}</b><small>${w}${today ? ' · hari ini' : ''}</small></div><div class="list">${items.map(([t, title, no, tech, c]) => `<button class="li" data-demo="Pratinjau jadwal ${no} hanya contoh."><span class="pdot" style="--c:${c}"></span><div class="grow1"><b>${title}</b><small class="mono">${no} · ${tech}</small></div><span class="date">${t}</span></button>`).join('')}</div></div>`).join('')}
+    </section>
+    <div class="stack">
+      <section class="panel"><h3>Proyeksi 7 hari ke depan</h3>${hbars(WEEK.map(([d, n, v]) => ({ label: `${d} ${n}`, v })), { max: 5 })}</section>
+      <section class="panel"><h3>Antrean</h3><div class="list"><button class="li" data-demo="Penjadwalan hanya contoh."><span class="ico" style="--c:var(--gray)">${ic('calendar-x')}</span><div class="grow1"><b>Kebutuhan kabel type A to B</b><small class="mono">HR-2610-0030 · belum dijadwalkan</small></div></button></div></section>
+    </div>
+  </div>`;
+
+const CATALOG_PANEL = `
+  <section class="stats four" aria-label="Ringkasan katalog">
+    ${[['Total Item', 7, 'package', 'var(--gray)'], ['Item Aktif', 6, 'circle-check', 'var(--green)'], ['Item Nonaktif', 1, 'circle-slash', 'var(--gray)'], ['Kategori Terisi', 5, 'folder', 'var(--navy)']].map(([n, v, i, c]) => `<div class="stat" style="--c:${c};--ink:var(--text)"><span class="top"><span class="ic">${ic(i)}</span><span class="n">${v}</span></span><span class="name">${n}</span></div>`).join('')}
+  </section>
+  <section class="table d" style="--cols:60px 120px minmax(180px,1.5fr) minmax(120px,1fr) 110px 84px;--cols-m:minmax(0,1fr) auto" aria-label="Katalog hardware">
+    <div class="table-tools"><label class="field">${ic('search')}<input placeholder="Cari kode atau nama item hardware..." aria-label="Cari item katalog"></label><button class="btn" data-demo="Form tambah item katalog belum dibuat di mockup.">${ic('plus')}Tambah Item Baru</button></div>
+    <div class="thead"><span class="hide-m">Urutan</span><span class="hide-m">Kode Perangkat</span><span>Nama Item</span><span class="hide-m">Kategori</span><span>Status Form</span><span class="hide-m" style="text-align:right">Aksi</span></div>
+    ${CATALOG.map(([code, name, cat, on, ord]) => `<div class="row static"><span class="cell num hide-m" style="text-align:left">${ord}</span><span class="cell mono hide-m">${code}</span><span class="cell"><b>${name}</b></span><span class="cell hide-m">${cat}</span><span>${on ? bub('Aktif', 'var(--green)') : bub('Nonaktif', 'var(--gray)')}</span><span class="act hide-m"><button class="icon-btn" aria-label="Edit item" data-demo="Edit katalog hanya contoh.">${ic('pencil')}</button><button class="icon-btn" aria-label="Hapus item" data-demo="Penghapusan katalog memerlukan konfirmasi di produksi; di mockup tidak ada perubahan.">${ic('trash-2')}</button></span></div>`).join('')}
+    <div class="foot"><span>7 item contoh</span><span class="muted">Tab ini hanya untuk ICT Lead</span></div>
+  </section>`;
+
+iDeskPages.mount(`
+<main class="content page">
+  <div class="head">
+    <span class="tile ptile" style="--c:var(--orange)">${ic('monitor-smartphone')}</span>
+    <div><h2>Hardware Requests</h2><p>Pengadaan, instalasi, dan katalog perangkat ICT</p></div>
+  </div>
+  <div class="seg page-tabs" data-tabs="hwPanels" aria-label="Navigasi hardware request">
+    <button data-tab="list" class="on">${ic('list')}Daftar Request<span class="count">${ROWS.filter((r) => !CLOSED.includes(r.s)).length}</span></button>
+    <button data-tab="dashboard">${ic('chart-column')}Overview</button>
+    <button data-tab="calendar">${ic('calendar-days')}Jadwal Instalasi</button>
+    <button data-tab="catalog">${ic('book-open')}HR Catalog</button>
+  </div>
+  <div id="hwPanels">
+    <div class="tab-panel" data-panel="list">${LIST}</div>
+    <div class="tab-panel" data-panel="dashboard" hidden>${OVERVIEW}</div>
+    <div class="tab-panel" data-panel="calendar" hidden>${CALENDAR}</div>
+    <div class="tab-panel" data-panel="catalog" hidden>${CATALOG_PANEL}</div>
+  </div>
+</main>`);
+
+document.getElementById('hwQ').addEventListener('input', (e) => { state = { ...state, q: e.target.value.trim() }; renderList(); });
+document.getElementById('hwStats').addEventListener('click', (e) => { const b = e.target.closest('.stat'); if (!b) return; state = { ...state, stat: state.stat === b.dataset.k ? 'all' : b.dataset.k }; renderList(); });
+iDeskDropdown.bind(document.getElementById('hwStatus'), { title: 'Filter status', options: [{ value: 'all', label: 'Semua' }, ...Object.entries(HW_STATUS).map(([value, [label, color]]) => ({ value, label, color }))], value: () => state.status, onSelect: (v) => { state = { ...state, status: v }; renderList(); } });
+iDeskDropdown.bind(document.getElementById('techFilter'), { title: 'Filter teknisi', options: iDeskMock.choices(['Semua', 'Beny Saputra', 'Yudi Arta Trirensila', 'Alphin Santoso H.']), value: 'Semua', onSelect: (v) => { document.querySelector('#techFilter .v').textContent = v; iDeskDropdown.notice('Filter teknisi hanya contoh tampilan.'); } });
+renderList();
+</script>
+</body>
+</html>

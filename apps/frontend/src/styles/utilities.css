@@ -35,7 +35,8 @@
     textarea:focus,
     select:focus {
         border-color: hsl(210, 100%, 55%);
-        box-shadow: 0 0 0 2px hsla(210, 100%, 55%, 0.15);
+        /* No box-shadow here: components draw their own focus ring (often on a :focus-within wrapper), and a
+           blanket ring on the inner field doubled it. */
     }
 
     /* Better dividers */
@@ -100,18 +101,7 @@
     top: 0;
 }
 
-/* Reduced motion preference */
-@media (prefers-reduced-motion: reduce) {
-
-    *,
-    *::before,
-    *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-        scroll-behavior: auto !important;
-    }
-}
+/* Reduced motion: single block at the end of index.css. */
 
 /* Screen reader only */
 .sr-only {

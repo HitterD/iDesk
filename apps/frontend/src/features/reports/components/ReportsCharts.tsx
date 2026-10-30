@@ -12,11 +12,12 @@ import {
     CartesianGrid,
     Tooltip,
     Legend,
-    ResponsiveContainer,
     Area,
     AreaChart,
 } from 'recharts';
+import { ResponsiveChart } from '@/components/ui/responsive-chart';
 import { cn } from '@/lib/utils';
+import { STATUS_CHART_HEX } from '@/lib/constants/ticket.constants';
 
 // Color palette for charts
 const CHART_COLORS = {
@@ -39,10 +40,11 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-    TODO: '#94A3B8',
-    IN_PROGRESS: '#3B82F6',
+    TODO: STATUS_CHART_HEX.TODO,
+    IN_PROGRESS: STATUS_CHART_HEX.IN_PROGRESS,
     WAITING_VENDOR: '#F59E0B',
     RESOLVED: '#10B981',
+    CLOSED: '#475569',
     CANCELLED: '#6B7280',
 };
 
@@ -88,7 +90,7 @@ export const TicketVolumeChart: React.FC<TicketVolumeChartProps> = ({
 
     return (
         <div className="w-full" style={{ height }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveChart width="100%" height="100%">
                 {showArea ? (
                     <AreaChart data={formattedData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                         <defs>
@@ -188,7 +190,7 @@ export const TicketVolumeChart: React.FC<TicketVolumeChartProps> = ({
                         />
                     </LineChart>
                 )}
-            </ResponsiveContainer>
+            </ResponsiveChart>
         </div>
     );
 };
@@ -250,7 +252,7 @@ export const AgentPerformanceChart: React.FC<AgentPerformanceChartProps> = ({
 
     return (
         <div className="w-full" style={{ height }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveChart width="100%" height="100%">
                 <BarChart
                     data={sortedData}
                     layout="vertical"
@@ -300,7 +302,7 @@ export const AgentPerformanceChart: React.FC<AgentPerformanceChartProps> = ({
                         ))}
                     </Bar>
                 </BarChart>
-            </ResponsiveContainer>
+            </ResponsiveChart>
         </div>
     );
 };
@@ -395,7 +397,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({
                     {title}
                 </h4>
             )}
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveChart width="100%" height="100%">
                 <PieChart>
                     <Pie
                         data={chartData}
@@ -433,7 +435,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({
                         />
                     )}
                 </PieChart>
-            </ResponsiveContainer>
+            </ResponsiveChart>
         </div>
     );
 };

@@ -65,6 +65,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
         color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
         icon: CheckCircle2 
     },
+    CLOSED: { 
+        label: 'Closed', 
+        color: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
+        icon: CheckCircle2 
+    },
     CANCELLED: { 
         label: 'Cancelled', 
         color: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400',
@@ -72,11 +77,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
     },
 };
 
-const PRIORITY_CONFIG: Record<string, { label: string; dot: string; bar: string }> = {
-    LOW: { label: 'Low', dot: 'bg-slate-400', bar: 'bg-slate-400' },
-    MEDIUM: { label: 'Medium', dot: 'bg-blue-500', bar: 'bg-blue-500' },
-    HIGH: { label: 'High', dot: 'bg-orange-500', bar: 'bg-orange-500' },
-    CRITICAL: { label: 'Critical', dot: 'bg-red-500', bar: 'bg-red-500' },
+const PRIORITY_CONFIG: Record<string, { label: string; shortLabel?: string; dot: string; bar: string }> = {
+    LOW: { label: 'Low (Minor/Cosmetic)', shortLabel: 'Low', dot: 'bg-slate-400', bar: 'bg-slate-400' },
+    MEDIUM: { label: 'Normal (Moderate)', shortLabel: 'Normal', dot: 'bg-blue-500', bar: 'bg-blue-500' },
+    HIGH: { label: 'Urgent (Major Impact)', shortLabel: 'Urgent', dot: 'bg-orange-500', bar: 'bg-orange-500' },
+    CRITICAL: { label: 'Blocker (Critical)', shortLabel: 'Blocker', dot: 'bg-red-500', bar: 'bg-red-500' },
 };
 
 export const MyTicketsPage: React.FC = () => {
@@ -128,7 +133,7 @@ export const MyTicketsPage: React.FC = () => {
             open: baseTickets.filter(t => t.status === 'TODO').length,
             inProgress: baseTickets.filter(t => t.status === 'IN_PROGRESS').length,
             waiting: baseTickets.filter(t => t.status === 'WAITING_VENDOR').length,
-            resolved: baseTickets.filter(t => t.status === 'RESOLVED').length,
+            resolved: baseTickets.filter(t => t.status === 'RESOLVED' || t.status === 'CLOSED').length,
         };
     }, [tickets]);
 
@@ -259,6 +264,7 @@ export const MyTicketsPage: React.FC = () => {
                         <option value="IN_PROGRESS">In Progress</option>
                         <option value="WAITING_VENDOR">Waiting Vendor</option>
                         <option value="RESOLVED">Resolved</option>
+                        <option value="CLOSED">Closed</option>
                         <option value="CANCELLED">Cancelled</option>
                     </select>
                     <button
@@ -369,9 +375,9 @@ export const MyTicketsPage: React.FC = () => {
 
                                         {/* Priority */}
                                         <div className="w-24 flex items-center justify-center">
-                                            <span className="inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                                            <span className="inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap" title={priority.label}>
                                                 <span className={cn("w-2.5 h-2.5 rounded-full", priority.dot)} />
-                                                {priority.label}
+                                                {priority.shortLabel || priority.label}
                                             </span>
                                         </div>
 

@@ -3,12 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull, In } from 'typeorm';
-import { Ticket, TicketStatus } from './entities/ticket.entity';
+import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from './entities/ticket.entity';
 import { MailDispatchService } from '../../shared/mail/mail-dispatch.service';
 
-import { CustomerSession } from '../users/entities/customer-session.entity';
 import { SlaConfigService } from './sla-config.service';
-import { TelegramService } from '../telegram/telegram.service';
 
 @Injectable()
 export class SlaCheckerService {
@@ -17,13 +15,9 @@ export class SlaCheckerService {
     constructor(
         @InjectRepository(Ticket)
         private ticketRepo: Repository<Ticket>,
-        @InjectRepository(CustomerSession)
-        private sessionRepo: Repository<CustomerSession>,
         private readonly mailDispatch: MailDispatchService,
         private readonly slaConfigService: SlaConfigService,
         private readonly configService: ConfigService,
-        @Optional() @Inject(forwardRef(() => TelegramService))
-        private readonly telegramService: TelegramService,
     ) { }
 
     @Cron(CronExpression.EVERY_10_MINUTES)
@@ -111,7 +105,7 @@ export class SlaCheckerService {
             .andWhere('ticket."firstResponseTarget" IS NOT NULL')
             .andWhere('ticket."isFirstResponseBreached" = false')
             .andWhere('ticket.status NOT IN (:...excludedStatuses)', {
-                excludedStatuses: [TicketStatus.RESOLVED, TicketStatus.CANCELLED, TicketStatus.WAITING_VENDOR]
+                excludedStatuses: [...TICKET_INACTIVE_STATUSES, TicketStatus.WAITING_VENDOR]
             })
             .andWhere('ticket."firstResponseTarget" < :now', { now })
             .getMany();
@@ -180,31 +174,7 @@ export class SlaCheckerService {
             this.logger.error(`Failed to send SLA email: ${e.message}`);
         }
 
-        // 2. Telegram notification to assigned agent
-        if (this.telegramService && ticket.assignedTo) {
-            try {
-                const session = await this.sessionRepo.findOne({
-                    where: { userId: ticket.assignedTo.id }
-                });
-
-                if (session?.telegramId) {
-                    const emoji = type === 'resolution' ? '🚨' : '⚠️';
-                    const telegramMsg =
-                        `${emoji} <b>${type === 'resolution' ? 'SLA OVERDUE' : 'First Response SLA Breach'}</b>\n\n` +
-                        `Tiket #${ticketNumber}\n` +
-                        `📌 ${ticket.title}\n` +
-                        `Priority: ${ticket.priority}\n\n` +
-                        `<b>Segera tindak lanjuti tiket ini!</b>`;
-
-                    await this.telegramService.sendNotification(session.telegramId, telegramMsg);
-                    this.logger.log(`SLA breach Telegram notification sent to agent ${ticket.assignedTo.fullName}`);
-                }
-            } catch (error) {
-                this.logger.error(`Failed to send Telegram notification: ${error.message}`);
-            }
-        }
-
-        // 3. Log for monitoring
+        // 2. Log for monitoring
         this.logger.log(`[SLA BREACH] Type: ${type}, Ticket: #${ticketNumber}, Priority: ${ticket.priority}`);
     }
 }

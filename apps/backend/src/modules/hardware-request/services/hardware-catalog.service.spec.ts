@@ -76,6 +76,24 @@ describe('HardwareCatalogService', () => {
         expect(repo.remove).toHaveBeenCalledWith(existing);
     });
 
+    it('update allows changing item code', async () => {
+        const existing = { id: 'c1', code: 'LAPTOP_STD', name: 'Laptop Standard', active: true } as any;
+        repo.findOne.mockResolvedValueOnce(existing) // for getById
+                    .mockResolvedValueOnce(null);     // for duplicate check
+        const result = await service.update('c1', { code: 'LAPTOP_STD_V2' });
+        expect(repo.save).toHaveBeenCalledWith(expect.objectContaining({ code: 'LAPTOP_STD_V2' }));
+        expect(result.code).toBe('LAPTOP_STD_V2');
+    });
+
+    it('update rejects duplicate code if already used by another item', async () => {
+        const existing = { id: 'c1', code: 'LAPTOP_STD', name: 'Laptop Standard', active: true } as any;
+        repo.findOne.mockResolvedValueOnce(existing) // for getById
+                    .mockResolvedValueOnce({ id: 'c2', code: 'LAPTOP_DESIGN' } as any); // duplicate found
+        await expect(
+            service.update('c1', { code: 'LAPTOP_DESIGN' }),
+        ).rejects.toThrow(/already exists/i);
+    });
+
     it('ensureActive throws CatalogItemInactiveError when inactive', async () => {
         repo.findOne.mockResolvedValue({ id: 'c1', active: false } as any);
         await expect(service.ensureActive('c1')).rejects.toMatchObject({

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import type { SlaClockInfo } from '@/lib/slaCountdown';
 
 export interface TvBoardCard {
     id: string;
@@ -16,6 +17,8 @@ export interface TvBoardCard {
     handlingTeam?: 'OPS_SUPPORT' | 'ORACLE_DEV' | 'WEB_DEV' | 'MOBILE_DEV' | string;
     category?: string | null;
     ticketType?: string | null;
+    /** Origin site code; absent from older servers. */
+    siteCode?: string | null;
 }
 
 export interface TvBoardRingtones {
@@ -32,16 +35,28 @@ export interface TvBoardRingtones {
 export interface TvBoardData {
     siteName: string;
     siteCode: string;
+    /** Dev-team hub board: also shows dev tickets from every site. */
+    showsDevTickets?: boolean;
+    theme?: 'light' | 'dark';
     open: TvBoardCard[];
     inProgress: TvBoardCard[];
     waitingVendorCount: number;
     ringtones: TvBoardRingtones;
+    /** Working schedule for SLA countdowns; absent from older servers. */
+    slaClock?: SlaClockInfo;
 }
 
 interface UseTvBoardSocketReturn {
     boardData: TvBoardData | null;
     isConnected: boolean;
+    /** The server says this TV link was revoked or never existed. */
+    isTokenInvalid: boolean;
 }
+
+/** Wait before retrying a join the server could not finish (e.g. a slow database). */
+export const JOIN_RETRY_DELAY_MS = 5000;
+/** Wait before reconnecting after the server dropped the socket (e.g. a backend restart). */
+export const SERVER_DISCONNECT_RETRY_MS = 3000;
 
 const rawSocketUrl = import.meta.env.VITE_SOCKET_URL ||
     import.meta.env.VITE_API_URL ||
@@ -54,10 +69,18 @@ const SOCKET_URL = rawSocketUrl
 export function useTvBoardSocket(token: string | undefined): UseTvBoardSocketReturn {
     const [boardData, setBoardData] = useState<TvBoardData | null>(null);
     const [isConnected, setIsConnected] = useState(false);
+    const [isTokenInvalid, setIsTokenInvalid] = useState(false);
     const socketRef = useRef<Socket | null>(null);
 
     useEffect(() => {
         if (!token) return;
+
+        let retryTimer: ReturnType<typeof setTimeout> | undefined;
+        let tokenRejected = false;
+        const retryLater = (action: () => void, delayMs: number) => {
+            clearTimeout(retryTimer);
+            retryTimer = setTimeout(action, delayMs);
+        };
 
         const socket = io(`${SOCKET_URL}/tv-board`, {
             reconnection: true,
@@ -66,14 +89,31 @@ export function useTvBoardSocket(token: string | undefined): UseTvBoardSocketRet
             reconnectionDelayMax: 5000,
             timeout: 10000,
         });
+        const join = () => socket.emit('tv-board:join', { token });
 
-        socket.on('connect', () => {
+        socket.on('connect', join);
+
+        // Connected only counts once the server has joined us to the site and sent the board.
+        socket.on('tv-board:update', (data: TvBoardData) => {
             setIsConnected(true);
-            socket.emit('tv-board:join', { token });
+            setBoardData(data);
         });
 
-        socket.on('disconnect', () => {
+        socket.on('tv-board:join-error', () => {
+            if (socket.connected) retryLater(join, JOIN_RETRY_DELAY_MS);
+        });
+
+        socket.on('tv-board:invalid-token', () => {
+            tokenRejected = true;
+            setIsTokenInvalid(true);
+        });
+
+        socket.on('disconnect', (reason) => {
             setIsConnected(false);
+            // socket.io never reconnects on its own after a server-side disconnect.
+            if (reason === 'io server disconnect' && !tokenRejected) {
+                retryLater(() => socket.connect(), SERVER_DISCONNECT_RETRY_MS);
+            }
         });
 
         socket.on('connect_error', (err) => {
@@ -81,18 +121,15 @@ export function useTvBoardSocket(token: string | undefined): UseTvBoardSocketRet
             setIsConnected(false);
         });
 
-        socket.on('tv-board:update', (data: TvBoardData) => {
-            setBoardData(data);
-        });
-
         socketRef.current = socket;
 
         return () => {
+            clearTimeout(retryTimer);
             socket.removeAllListeners();
             socket.disconnect();
             socketRef.current = null;
         };
     }, [token]);
 
-    return { boardData, isConnected };
+    return { boardData, isConnected, isTokenInvalid };
 }

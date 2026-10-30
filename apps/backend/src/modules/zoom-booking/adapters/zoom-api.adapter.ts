@@ -8,14 +8,33 @@ interface ZoomTokenResponse {
     expires_in: number;
 }
 
-interface ZoomMeetingRequest {
+export interface ZoomRecurrenceRequest {
+    type: 1 | 2 | 3; // 1: Daily, 2: Weekly, 3: Monthly
+    repeat_interval: number;
+    weekly_days?: string; // 1: Sunday, 2: Monday, ..., 7: Saturday
+    monthly_day?: number;
+    monthly_week?: number;
+    monthly_week_day?: number;
+    end_times?: number;
+    end_date_time?: string; // UTC ISO string e.g. 2026-09-30T23:59:59Z
+}
+
+export interface ZoomMeetingOccurrence {
+    occurrence_id: string;
+    start_time: string;
+    duration: number;
+    status: string;
+}
+
+export interface ZoomMeetingRequest {
     topic: string;
-    type: 2; // Scheduled meeting
+    type: 2 | 8; // 2: Scheduled meeting, 8: Recurring meeting with fixed time
     start_time: string;
     duration: number;
     timezone: string;
     password?: string;
     agenda?: string;
+    recurrence?: ZoomRecurrenceRequest;
     settings?: {
         host_video?: boolean;
         participant_video?: boolean;
@@ -26,7 +45,7 @@ interface ZoomMeetingRequest {
     };
 }
 
-interface ZoomMeetingResponse {
+export interface ZoomMeetingResponse {
     id: number;
     host_id: string;
     host_email: string;
@@ -43,6 +62,7 @@ interface ZoomMeetingResponse {
     h323_password: string;
     pmi: number;
     settings: Record<string, any>;
+    occurrences?: ZoomMeetingOccurrence[];
 }
 
 interface ZoomUserResponse {
@@ -67,12 +87,45 @@ export interface ZoomMeetingListItem {
     agenda?: string;
 }
 
+/** Safety bound: 20 x 100 meetings per host is far beyond real usage. */
+const MAX_MEETING_PAGES = 20;
+
 export interface ZoomMeetingListResponse {
     page_count: number;
     page_number: number;
     page_size: number;
     total_records: number;
+    next_page_token?: string;
     meetings: ZoomMeetingListItem[];
+}
+
+export interface ZoomRecordingFile {
+    id: string;
+    meeting_id: string;
+    recording_start: string;
+    recording_end: string;
+    file_type: string;
+    file_extension?: string;
+    file_size: number;
+    play_url?: string;
+    download_url?: string;
+    status: string;
+    recording_type: string;
+}
+
+export interface ZoomRecordingResponse {
+    id: number | string;
+    uuid: string;
+    account_id: string;
+    host_id: string;
+    topic: string;
+    start_time: string;
+    duration: number;
+    total_size: number;
+    recording_count: number;
+    share_url: string;
+    recording_play_passcode?: string;
+    recording_files?: ZoomRecordingFile[];
 }
 
 @Injectable()
@@ -81,6 +134,7 @@ export class ZoomApiAdapter implements OnModuleInit {
     private axiosInstance: AxiosInstance;
     private accessToken: string | null = null;
     private tokenExpiresAt: Date | null = null;
+    private recordingScopeAvailable: boolean = true;
 
     private readonly accountId: string;
     private readonly clientId: string;
@@ -95,6 +149,13 @@ export class ZoomApiAdapter implements OnModuleInit {
             baseURL: 'https://api.zoom.us/v2',
             timeout: 30000,
         });
+    }
+
+    /**
+     * Check if Zoom cloud recording scopes are available on current credentials
+     */
+    isRecordingScopeAvailable(): boolean {
+        return this.recordingScopeAvailable;
     }
 
     async onModuleInit() {
@@ -144,6 +205,7 @@ export class ZoomApiAdapter implements OnModuleInit {
 
             this.accessToken = response.data.access_token;
             this.tokenExpiresAt = new Date(Date.now() + response.data.expires_in * 1000);
+            this.recordingScopeAvailable = true; // Reset on token refresh to allow re-checking if new scopes were granted
 
             this.logger.debug('Zoom access token refreshed successfully');
             return this.accessToken;
@@ -168,6 +230,7 @@ export class ZoomApiAdapter implements OnModuleInit {
         endpoint: string,
         data?: any,
         retries: number = 3,
+        options?: { suppressErrorLog?: boolean },
     ): Promise<T> {
         const token = await this.getAccessToken();
 
@@ -192,10 +255,12 @@ export class ZoomApiAdapter implements OnModuleInit {
                 const delay = Math.pow(2, 3 - retries) * 1000; // 1s, 2s, 4s
                 this.logger.warn(`Zoom API ${status} error, retrying in ${delay}ms... (${retries} retries left)`);
                 await this.sleep(delay);
-                return this.request<T>(method, endpoint, data, retries - 1);
+                return this.request<T>(method, endpoint, data, retries - 1, options);
             }
 
-            this.logger.error(`Zoom API error: ${method} ${endpoint} - ${errorMessage}`);
+            if (!options?.suppressErrorLog) {
+                this.logger.error(`Zoom API error: ${method} ${endpoint} - ${errorMessage}`);
+            }
             throw error;
         }
     }
@@ -239,6 +304,7 @@ export class ZoomApiAdapter implements OnModuleInit {
         startTime: Date,
         durationMinutes: number,
         agenda?: string,
+        recurrence?: ZoomRecurrenceRequest,
     ): Promise<ZoomMeetingResponse> {
         // Zoom API expects start_time in the specified timezone's LOCAL format
         // When timezone is 'Asia/Jakarta', we need to send the time as it appears in Jakarta
@@ -260,15 +326,16 @@ export class ZoomApiAdapter implements OnModuleInit {
         // Format: 2024-12-18T20:00:00 (Jakarta local time, no Z suffix)
         const formattedStartTime = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 
-        this.logger.log(`Zoom API createMeeting: topic=${topic}, start_time=${formattedStartTime}, timezone=Asia/Jakarta`);
+        this.logger.log(`Zoom API createMeeting: topic=${topic}, start_time=${formattedStartTime}, timezone=Asia/Jakarta, recurring=${Boolean(recurrence)}`);
 
         const meetingRequest: ZoomMeetingRequest = {
             topic,
-            type: 2, // Scheduled meeting
+            type: recurrence ? 8 : 2, // 8: Recurring with fixed time, 2: Scheduled meeting
             start_time: formattedStartTime, // Local time in Jakarta timezone
             duration: durationMinutes,
             timezone: 'Asia/Jakarta',
             agenda,
+            ...(recurrence ? { recurrence } : {}),
             settings: {
                 host_video: true,
                 participant_video: true,
@@ -292,25 +359,82 @@ export class ZoomApiAdapter implements OnModuleInit {
     /**
      * List meetings for a user
      */
-    async listMeetings(hostEmail: string, type: 'scheduled' | 'upcoming' | 'upcoming_meetings' = 'scheduled'): Promise<ZoomMeetingListResponse> {
-        return this.request<ZoomMeetingListResponse>('GET', `/users/${encodeURIComponent(hostEmail)}/meetings?type=${type}&page_size=100`);
-    }
-
     /**
-     * Delete/Cancel a meeting
+     * All meetings of a host, following `next_page_token` (Zoom returns 100 per page). Callers
+     * that delete "stale" rows must see every page, or meetings past page 1 look deleted.
      */
-    async deleteMeeting(meetingId: string | number): Promise<void> {
-        await this.request<void>('DELETE', `/meetings/${meetingId}`);
+    async listMeetings(hostEmail: string, type: 'scheduled' | 'upcoming' | 'upcoming_meetings' = 'scheduled'): Promise<ZoomMeetingListResponse> {
+        const base = `/users/${encodeURIComponent(hostEmail)}/meetings?type=${type}&page_size=100`;
+        const first = await this.request<ZoomMeetingListResponse>('GET', base);
+        const meetings = [...(first.meetings || [])];
+        let token = first.next_page_token;
+        for (let page = 1; token && page < MAX_MEETING_PAGES; page++) {
+            const next = await this.request<ZoomMeetingListResponse>('GET', `${base}&next_page_token=${encodeURIComponent(token)}`);
+            meetings.push(...(next.meetings || []));
+            token = next.next_page_token;
+        }
+        if (token) throw new Error(`Zoom meeting list for ${hostEmail} exceeds ${MAX_MEETING_PAGES} pages`);
+        return { ...first, meetings, next_page_token: undefined };
     }
 
     /**
-     * Update a meeting
+     * Delete/Cancel a meeting (optionally a specific occurrence)
+     */
+    async deleteMeeting(meetingId: string | number, occurrenceId?: string): Promise<void> {
+        const query = occurrenceId ? `?occurrence_id=${occurrenceId}` : '';
+        await this.request<void>('DELETE', `/meetings/${meetingId}${query}`);
+    }
+
+    /**
+     * Update a meeting (optionally a specific occurrence)
      */
     async updateMeeting(
         meetingId: string | number,
         updates: Partial<ZoomMeetingRequest>,
+        occurrenceId?: string,
     ): Promise<void> {
-        await this.request<void>('PATCH', `/meetings/${meetingId}`, updates);
+        const query = occurrenceId ? `?occurrence_id=${occurrenceId}` : '';
+        await this.request<void>('PATCH', `/meetings/${meetingId}${query}`, updates);
+    }
+
+    /**
+     * Get cloud recordings for a meeting
+     * Returns null if no recordings found (404) or if cloud recording scope is not granted (4711)
+     */
+    async getMeetingRecordings(meetingId: string | number): Promise<ZoomRecordingResponse | null> {
+        if (!this.recordingScopeAvailable) {
+            return null;
+        }
+
+        try {
+            return await this.request<ZoomRecordingResponse>(
+                'GET',
+                `/meetings/${meetingId}/recordings`,
+                undefined,
+                3,
+                { suppressErrorLog: true },
+            );
+        } catch (error: any) {
+            if (error?.response?.status === 404 || error?.status === 404) {
+                this.logger.debug(`No recordings found for meeting ${meetingId}`);
+                return null;
+            }
+
+            if (this.isScopeError(error)) {
+                if (this.recordingScopeAvailable) {
+                    this.recordingScopeAvailable = false;
+                    this.logger.warn(
+                        'Zoom Server-to-Server OAuth credentials lack cloud recording scopes (cloud_recording:read:list_recording_files). Cloud recording synchronization is paused until token refresh or scope grant in Zoom Marketplace.',
+                    );
+                }
+                return null;
+            }
+
+            const errorData = error.response?.data;
+            const errorMessage = errorData ? (typeof errorData === 'object' ? JSON.stringify(errorData) : errorData) : error.message;
+            this.logger.error(`Zoom API error: GET /meetings/${meetingId}/recordings - ${errorMessage}`);
+            throw error;
+        }
     }
 
     /**

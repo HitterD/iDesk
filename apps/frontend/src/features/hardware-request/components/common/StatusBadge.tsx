@@ -1,16 +1,10 @@
-import { getStatusMeta } from '../../utils/status.util';
+import { ResBub } from '@/components/resources/ResourceParts';
+import { STATUS_BUB, getStatusMeta } from '../../utils/status.util';
 import type { RequestStatus } from '../../types';
 
-export function StatusBadge({ status, size = 'sm' }: { status: RequestStatus; size?: 'sm' | 'md' | 'lg' }) {
-    const m = getStatusMeta(status);
-    const sz = size === 'lg' ? 'text-sm px-3 py-1.5' : size === 'md' ? 'text-xs px-2.5 py-1' : 'text-xs px-2 py-0.5';
-    return (
-        <span className={`inline-flex items-center gap-1.5 rounded-full ring-1 ${m.tone} ${sz} font-medium tracking-tight`}>
-            <span
-                className="size-1.5 rounded-full shrink-0"
-                style={{ backgroundColor: m.tone.includes('text-white') ? '#ffffff' : m.hex }}
-            />
-            {m.label}
-        </span>
-    );
+/** Mockup `.bub` status pill (hardware.html HW_STATUS hues). `size` is kept for callers; one size. */
+export function StatusBadge({ status }: { status: RequestStatus; size?: 'sm' | 'md' | 'lg' }) {
+    const bub = STATUS_BUB[status];
+    if (!bub) return <ResBub color="var(--dash-gray)">{getStatusMeta(status).label}</ResBub>;
+    return <ResBub color={bub.color} ink={bub.ink}>{bub.label}</ResBub>;
 }

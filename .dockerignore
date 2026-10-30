@@ -15,10 +15,14 @@
 **/.env.*
 !**/.env.example
 **/*.pem
+# Public company root CA (not a key): the backend must trust internal TLS (ipop.santos.co.id).
+!apps/backend/certs/sja-root-ca.pem
 **/*.key
 
 # Uploads/backups/logs — data runtime
-**/uploads
+/uploads
+apps/backend/uploads
+!**/src/**/uploads
 **/backups
 **/logs
 **/*.log

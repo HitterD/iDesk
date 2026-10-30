@@ -1,11 +1,14 @@
 import React, { lazy, Suspense } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import * as Tabs from '@radix-ui/react-tabs';
-import { User, Lock, Palette, Moon, Sun, MessageCircle, Bell, Clock, Loader2, HardDrive, Shield, Video, Volume2, MonitorPlay, Mail, Zap, Boxes } from 'lucide-react';
+import { User, Lock, Palette, Bell, Clock, Loader2, HardDrive, Shield, Video, Volume2, MonitorPlay, Mail, Zap, Boxes, Radio, Settings, Plug } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { SetHead } from '../components/SettingsParts';
+import { ResHead } from '@/components/resources/ResourceParts';
+import '@/components/management/management.css';
 import { useAuth } from '../../../stores/useAuth';
 import { ProfileSettingsForm } from '../components/ProfileSettingsForm';
 import { SecuritySettingsForm } from '../components/SecuritySettingsForm';
-import { TelegramSettingsForm } from '../components/TelegramSettingsForm';
 import { NotificationSettings } from '../components/NotificationSettings';
 import { CannedResponsesManager } from '../../../components/ui/CannedResponses';
 import { useTheme } from '../../../components/theme-provider';
@@ -19,7 +22,16 @@ const ZoomSettingsTab = lazy(() => import('../../zoom-booking/pages/ZoomSettings
 const SoundSettingsTab = lazy(() => import('./SoundSettingsPage').then(m => ({ default: m.SoundSettingsPage })));
 const TvBoardSettingsTab = lazy(() => import('../components/TvBoardSettings').then(m => ({ default: m.TvBoardSettings })));
 const MailSettingsTab = lazy(() => import('./MailSettingsPage').then(m => ({ default: m.MailSettingsPage })));
+const WebhookIntegrationHubTab = lazy(() => import('../components/WebhookIntegrationHub'));
+const IntegrationAppsTab = lazy(() => import('../integration-apps/IntegrationAppsTab'));
 
+
+const TabFallback: React.FC = () => (
+    <div className="flex items-center justify-center h-64" role="status" aria-live="polite">
+        <Loader2 className="w-5 h-5 animate-spin text-[hsl(var(--idesk-sapphire))]" aria-hidden="true" />
+        <span className="ml-2 text-sm text-[var(--td-text-3)]">Memuat…</span>
+    </div>
+);
 
 export const BentoSettingsPage: React.FC = () => {
     const { user } = useAuth();
@@ -36,22 +48,17 @@ export const BentoSettingsPage: React.FC = () => {
     };
 
     return (
-        <div className="space-y-8 animate-fade-in-up">
-            {/* Header */}
+        <div className="res-page mg-page settings-page">
+            <ResHead icon={Settings} tone="slate" title="Settings" description="Kelola preferensi akun dan konfigurasi sistem" />
             <div>
-                <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">Settings</h1>
-                <p className="text-slate-500 dark:text-slate-400">Manage your account preferences and system configurations</p>
-            </div>
-
-            <div className="bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-3xl shadow-xl overflow-hidden min-h-[700px]">
-                <Tabs.Root value={currentTab} onValueChange={handleTabChange} className="flex flex-col md:flex-row h-full">
+                <Tabs.Root value={currentTab} onValueChange={handleTabChange} className="settings-layout">
 
                     {/* Sidebar Navigation */}
-                    <div className="w-full md:w-72 bg-white/80 dark:bg-slate-900/60 border-r border-slate-200 dark:border-slate-700/80 p-5 flex flex-col gap-6 flex-shrink-0">
+                    <div className="settings-nav">
 
                         {/* Personal Settings Section */}
                         <div className="space-y-1">
-                            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-2">
+                            <h3 className="settings-group">
                                 Personal
                             </h3>
                             <Tabs.List className="flex flex-col w-full gap-1">
@@ -61,16 +68,15 @@ export const BentoSettingsPage: React.FC = () => {
                                     { value: 'security', icon: Lock, label: 'Security' },
                                     { value: 'notifications', icon: Bell, label: 'Notifications' },
                                     { value: 'sound', icon: Volume2, label: 'Sound Settings' },
-                                    { value: 'telegram', icon: MessageCircle, label: 'Telegram' },
                                     { value: 'appearance', icon: Palette, label: 'Appearance' },
                                 ].map((tab) => (
                                     <Tabs.Trigger
                                         key={tab.value}
                                         value={tab.value}
-                                        className="group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors duration-150 border-l-2 border-transparent data-[state=active]:bg-blue-50 dark:data-[state=active]:bg-blue-950/40 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-400 data-[state=active]:border-blue-600 dark:data-[state=active]:border-blue-500 data-[state=active]:font-semibold text-left outline-none"
+                                        className="settings-tab"
                                     >
-                                        <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 bg-slate-100 dark:bg-slate-800 group-data-[state=active]:bg-blue-100 dark:group-data-[state=active]:bg-blue-900/50 transition-colors duration-150">
-                                            <tab.icon className="w-4 h-4 text-slate-500 dark:text-slate-400 group-data-[state=active]:text-blue-600 dark:group-data-[state=active]:text-blue-400 transition-colors duration-150" />
+                                        <div className="settings-tab-icon">
+                                            <tab.icon className="h-4 w-4" />
                                         </div>
                                         {tab.label}
                                     </Tabs.Trigger>
@@ -81,7 +87,7 @@ export const BentoSettingsPage: React.FC = () => {
                         {/* Administration Settings Section */}
                         {user?.role === 'ADMIN' && (
                             <div className="space-y-1">
-                                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-2">
+                                <h3 className="settings-group">
                                     Administration
                                 </h3>
                                 <Tabs.List className="flex flex-col w-full gap-1">
@@ -93,14 +99,16 @@ export const BentoSettingsPage: React.FC = () => {
                                         { value: 'zoom', icon: Video, label: 'Zoom Settings' },
                                         { value: 'mail', icon: Mail, label: 'Email' },
                                         { value: 'tv-board', icon: MonitorPlay, label: 'TV Board' },
+                                        { value: 'desktop-webhook', icon: Radio, label: 'Desktop & Webhook Hub' },
+                                        { value: 'integration-apps', icon: Plug, label: 'Integrasi Aplikasi' },
                                     ].map((tab) => (
                                         <Tabs.Trigger
                                             key={tab.value}
                                             value={tab.value}
-                                            className="group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors duration-150 border-l-2 border-transparent data-[state=active]:bg-blue-50 dark:data-[state=active]:bg-blue-950/40 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-400 data-[state=active]:border-blue-600 dark:data-[state=active]:border-blue-500 data-[state=active]:font-semibold text-left outline-none"
+                                            className="settings-tab"
                                         >
-                                            <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 bg-slate-100 dark:bg-slate-800 group-data-[state=active]:bg-blue-100 dark:group-data-[state=active]:bg-blue-900/50 transition-colors duration-150">
-                                                <tab.icon className="w-4 h-4 text-slate-500 dark:text-slate-400 group-data-[state=active]:text-blue-600 dark:group-data-[state=active]:text-blue-400 transition-colors duration-150" />
+                                            <div className="settings-tab-icon">
+                                                <tab.icon className="h-4 w-4" />
                                             </div>
                                             {tab.label}
                                         </Tabs.Trigger>
@@ -111,196 +119,119 @@ export const BentoSettingsPage: React.FC = () => {
                     </div>
 
                     {/* Content Area */}
-                    <div className="flex-1 p-6 lg:p-8 overflow-y-auto bg-slate-50/30 dark:bg-slate-950/10">
+                    <div className="settings-content dash-panel">
                         {/* ... other tabs ... */}
-                        <Tabs.Content value="profile" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <Tabs.Content value="profile" className="settings-tab-panel">
                             <div className="max-w-4xl">
-                                <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">Profile Information</h2>
                                 <ProfileSettingsForm user={user} />
                             </div>
                         </Tabs.Content>
 
-                        <Tabs.Content value="quick-replies" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <Tabs.Content value="quick-replies" className="settings-tab-panel">
                             <div className="max-w-4xl">
                                 <CannedResponsesManager />
                             </div>
                         </Tabs.Content>
 
-                        <Tabs.Content value="security" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <Tabs.Content value="security" className="settings-tab-panel">
                             <div className="max-w-4xl">
-                                <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">Security Settings</h2>
                                 <SecuritySettingsForm />
                             </div>
                         </Tabs.Content>
 
-                        <Tabs.Content value="notifications" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <Tabs.Content value="notifications" className="settings-tab-panel">
                             <div className="max-w-4xl">
-                                <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">Notification Preferences</h2>
                                 <NotificationSettings />
                             </div>
                         </Tabs.Content>
 
-                        <Tabs.Content value="telegram" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="max-w-4xl">
-                                <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">Telegram Integration</h2>
-                                <TelegramSettingsForm />
-                            </div>
-                        </Tabs.Content>
-
-                        <Tabs.Content value="appearance" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="max-w-2xl">
-                                <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">Theme Preference</h2>
-                                <div className="grid grid-cols-2 gap-6">
-                                    <button
-                                        onClick={() => setTheme('dark')}
-                                        className={`p-6 rounded-[2rem] border-2 transition-colors duration-150 text-left space-y-4 group hover-lift ${theme === 'dark'
-                                            ? 'border-primary bg-primary/5'
-                                            : 'border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-700'
-                                            }`}
-                                    >
-                                        <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white group-hover:scale-110 transition-transform shadow-sm">
-                                            <Moon className="w-6 h-6" />
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-slate-800 dark:text-white">Dark Mode</p>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">High contrast theme</p>
-                                        </div>
+                        <Tabs.Content value="appearance" className="settings-tab-panel">
+                            <SetHead title="Theme Preference" sub="Pilih tampilan yang nyaman untuk mata Anda." />
+                            <div className="mg-theme-cards set-narrow">
+                                {([['light', 'Light Mode', 'Bersih dan terang'], ['dark', 'Dark Mode', 'Kontras tinggi, nyaman malam hari']] as const).map(([value, name, sub]) => (
+                                    <button key={value} type="button" onClick={() => setTheme(value)} aria-pressed={theme === value}
+                                        className={cn('mg-theme-card', value === 'dark' && 'is-dark', theme === value && 'is-on')}>
+                                        <span className="mg-pv" aria-hidden="true" />
+                                        <span><b>{name}</b><small>{sub}</small></span>
                                     </button>
-                                    <button
-                                        onClick={() => setTheme('light')}
-                                        className={`p-6 rounded-[2rem] border-2 transition-colors duration-150 text-left space-y-4 group hover-lift ${theme === 'light'
-                                            ? 'border-primary bg-primary/5'
-                                            : 'border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-white dark:hover:bg-slate-700'
-                                            }`}
-                                    >
-                                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-amber-500 shadow-sm border border-slate-200">
-                                            <Sun className="w-6 h-6" />
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-slate-800 dark:text-white">Light Mode</p>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Clean, bright interface</p>
-                                        </div>
-                                    </button>
-                                </div>
+                                ))}
                             </div>
                         </Tabs.Content>
 
                         {user?.role === 'ADMIN' && (
-                            <Tabs.Content value="sla" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <Suspense fallback={
-                                    <div className="flex items-center justify-center h-64">
-                                        <div className="flex flex-col items-center gap-3">
-                                            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                                            <p className="text-sm text-slate-400">Memuat...</p>
-                                        </div>
-                                    </div>
-                                }>
+                            <Tabs.Content value="sla" className="settings-tab-panel">
+                                <Suspense fallback={<TabFallback />}>
                                     <SlaSettingsTab />
                                 </Suspense>
                             </Tabs.Content>
                         )}
 
                         {user?.role === 'ADMIN' && (
-                            <Tabs.Content value="storage" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <Suspense fallback={
-                                    <div className="flex items-center justify-center h-64">
-                                        <div className="flex flex-col items-center gap-3">
-                                            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                                            <p className="text-sm text-slate-400">Memuat...</p>
-                                        </div>
-                                    </div>
-                                }>
+                            <Tabs.Content value="storage" className="settings-tab-panel">
+                                <Suspense fallback={<TabFallback />}>
                                     <StorageSettingsTab />
                                 </Suspense>
                             </Tabs.Content>
                         )}
 
-                        <Tabs.Content value="sound" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <Suspense fallback={
-                                <div className="flex items-center justify-center h-64">
-                                    <div className="flex flex-col items-center gap-3">
-                                        <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                                        <p className="text-sm text-slate-400">Memuat...</p>
-                                    </div>
-                                </div>
-                            }>
+                        <Tabs.Content value="sound" className="settings-tab-panel">
+                            <Suspense fallback={<TabFallback />}>
                                 <SoundSettingsTab />
                             </Suspense>
                         </Tabs.Content>
 
                         {user?.role === 'ADMIN' && (
-                            <Tabs.Content value="ip-whitelist" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-200 dark:border-slate-700">
-                                    <Suspense fallback={
-                                        <div className="flex items-center justify-center h-64">
-                                            <div className="flex flex-col items-center gap-3">
-                                                <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                                                <p className="text-sm text-slate-400">Memuat...</p>
-                                            </div>
-                                        </div>
-                                    }>
-                                        <IpWhitelistSettingsTab />
-                                    </Suspense>
-                                </div>
+                            <Tabs.Content value="ip-whitelist" className="settings-tab-panel">
+                                <Suspense fallback={<TabFallback />}>
+                                    <IpWhitelistSettingsTab />
+                                </Suspense>
                             </Tabs.Content>
                         )}
 
                         {user?.role === 'ADMIN' && (
-                            <Tabs.Content value="zoom" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <Suspense fallback={
-                                    <div className="flex items-center justify-center h-64">
-                                        <div className="flex flex-col items-center gap-3">
-                                            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                                            <p className="text-sm text-slate-400">Memuat...</p>
-                                        </div>
-                                    </div>
-                                }>
+                            <Tabs.Content value="zoom" className="settings-tab-panel">
+                                <Suspense fallback={<TabFallback />}>
                                     <ZoomSettingsTab />
                                 </Suspense>
                             </Tabs.Content>
                         )}
 
                         {user?.role === 'ADMIN' && (
-                            <Tabs.Content value="mail" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <Suspense fallback={
-                                    <div className="flex items-center justify-center h-64">
-                                        <div className="flex flex-col items-center gap-3">
-                                            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                                            <p className="text-sm text-slate-400">Memuat...</p>
-                                        </div>
-                                    </div>
-                                }>
+                            <Tabs.Content value="mail" className="settings-tab-panel">
+                                <Suspense fallback={<TabFallback />}>
                                     <MailSettingsTab />
                                 </Suspense>
                             </Tabs.Content>
                         )}
 
                         {user?.role === 'ADMIN' && (
-                            <Tabs.Content value="tv-board" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <Suspense fallback={
-                                    <div className="flex items-center justify-center h-64">
-                                        <div className="flex flex-col items-center gap-3">
-                                            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                                            <p className="text-sm text-slate-400">Memuat...</p>
-                                        </div>
-                                    </div>
-                                }>
+                            <Tabs.Content value="tv-board" className="settings-tab-panel">
+                                <Suspense fallback={<TabFallback />}>
                                     <TvBoardSettingsTab />
                                 </Suspense>
                             </Tabs.Content>
                         )}
 
                         {user?.role === 'ADMIN' && (
-                            <Tabs.Content value="ticket-modules" className="outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <Suspense fallback={
-                                    <div className="flex items-center justify-center h-64">
-                                        <div className="flex flex-col items-center gap-3">
-                                            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                                            <p className="text-sm text-slate-400">Memuat...</p>
-                                        </div>
-                                    </div>
-                                }>
+                            <Tabs.Content value="ticket-modules" className="settings-tab-panel">
+                                <Suspense fallback={<TabFallback />}>
                                     <TicketModulesSettingsTab />
+                                </Suspense>
+                            </Tabs.Content>
+                        )}
+
+                        {user?.role === 'ADMIN' && (
+                            <Tabs.Content value="integration-apps" className="settings-tab-panel">
+                                <Suspense fallback={<TabFallback />}>
+                                    <IntegrationAppsTab />
+                                </Suspense>
+                            </Tabs.Content>
+                        )}
+
+                        {user?.role === 'ADMIN' && (
+                            <Tabs.Content value="desktop-webhook" className="settings-tab-panel">
+                                <Suspense fallback={<TabFallback />}>
+                                    <WebhookIntegrationHubTab />
                                 </Suspense>
                             </Tabs.Content>
                         )}

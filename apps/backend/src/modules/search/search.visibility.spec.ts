@@ -1,6 +1,9 @@
 import { SearchService } from './search.service';
 import { ArticleVisibility } from '../knowledge-base/entities/article.entity';
 import { CacheService } from '../../shared/core/cache';
+import { UserRole } from '../users/enums/user-role.enum';
+
+const ADMIN = { userId: 'admin-1', role: UserRole.ADMIN, siteId: null };
 
 const AND_WHERE_CALLS = 'andWhereCalls';
 const GET_MANY_RESULT = 'getManyResult';
@@ -68,7 +71,7 @@ describe('SearchService article visibility enforcement', () => {
         const articleRepo = makeRepo([{ id: 'a1', title: 'Printer error', category: 'General', tags: [], viewCount: 1, createdAt: new Date() }]);
         const { service } = buildService(articleRepo);
 
-        await service.search({ q: 'printer', scope: ['articles'] });
+        await service.search({ q: 'printer', scope: ['articles'] }, [ArticleVisibility.PUBLIC], ADMIN);
 
         const vis = articleRepo.__calls.filter(c => c.sql.includes('article.visibility IN'));
         expect(vis).toHaveLength(1);
@@ -82,6 +85,7 @@ describe('SearchService article visibility enforcement', () => {
         await service.search(
             { q: 'printer', scope: ['articles'] },
             [ArticleVisibility.PUBLIC, ArticleVisibility.INTERNAL],
+            ADMIN,
         );
 
         const vis = articleRepo.__calls.filter(c => c.sql.includes('article.visibility IN'));
@@ -93,7 +97,7 @@ describe('SearchService article visibility enforcement', () => {
         const articleRepo = makeRepo([internal]);
         const { service } = buildService(articleRepo);
 
-        const result = await service.search({ q: 'how-to', scope: ['articles'] });
+        const result = await service.search({ q: 'how-to', scope: ['articles'] }, [ArticleVisibility.PUBLIC], ADMIN);
 
         // With PUBLIC only, getMany still returns, but the query carried the
         // visibility restriction; the SQL is what enforces it server-side.
@@ -106,7 +110,7 @@ describe('SearchService article visibility enforcement', () => {
         const articleRepo = makeRepo([]);
         const { service } = buildService(articleRepo);
 
-        const result = await service.search({ q: 'x', scope: ['tickets'] }, [ArticleVisibility.PUBLIC]);
+        const result = await service.search({ q: 'x', scope: ['tickets'] }, [ArticleVisibility.PUBLIC], ADMIN);
 
         expect(result.articles).toEqual([]);
         const vis = articleRepo.__calls.filter(c => c.sql.includes('article.visibility IN'));
@@ -117,7 +121,7 @@ describe('SearchService article visibility enforcement', () => {
         const articleRepo = makeRepo([]);
         const { service } = buildService(articleRepo);
 
-        await service.getSuggestions('prin', 10, [ArticleVisibility.PUBLIC, ArticleVisibility.INTERNAL]);
+        await service.getSuggestions('prin', 10, [ArticleVisibility.PUBLIC, ArticleVisibility.INTERNAL], ADMIN);
 
         const vis = articleRepo.__calls.filter(c => c.sql.includes('article.visibility IN'));
         expect(vis).toHaveLength(1);
@@ -128,15 +132,69 @@ describe('SearchService article visibility enforcement', () => {
         const articleRepo = makeRepo([]);
         const { service, cacheSet } = buildService(articleRepo);
 
-        await service.search({ q: 'printer', scope: ['articles'] }, [ArticleVisibility.PUBLIC]);
-        await service.search({ q: 'printer', scope: ['articles'] }, [ArticleVisibility.PUBLIC, ArticleVisibility.INTERNAL]);
-        await service.getSuggestions('prin', 10, [ArticleVisibility.PUBLIC]);
-        await service.getSuggestions('prin', 10, [ArticleVisibility.PUBLIC, ArticleVisibility.INTERNAL]);
+        await service.search({ q: 'printer', scope: ['articles'] }, [ArticleVisibility.PUBLIC], ADMIN);
+        await service.search({ q: 'printer', scope: ['articles'] }, [ArticleVisibility.PUBLIC, ArticleVisibility.INTERNAL], ADMIN);
+        await service.getSuggestions('prin', 10, [ArticleVisibility.PUBLIC], ADMIN);
+        await service.getSuggestions('prin', 10, [ArticleVisibility.PUBLIC, ArticleVisibility.INTERNAL], ADMIN);
 
         const keys = cacheSet.mock.calls.map(c => c[0]);
-        expect(keys).toContain('search:{"q":"printer","scope":["articles"]}:public');
-        expect(keys).toContain('search:{"q":"printer","scope":["articles"]}:public,internal');
-        expect(keys).toContain('suggestions:prin:public');
-        expect(keys).toContain('suggestions:prin:public,internal');
+        expect(keys).toContain('search:{"q":"printer","scope":["articles"]}:public:ADMIN:all');
+        expect(keys).toContain('search:{"q":"printer","scope":["articles"]}:public,internal:ADMIN:all');
+        expect(keys).toContain('suggestions:prin:public:ADMIN:all');
+        expect(keys).toContain('suggestions:prin:public,internal:ADMIN:all');
+    });
+});
+
+describe('SearchService caller isolation', () => {
+    const USER = { userId: 'user-1', role: UserRole.USER, siteId: 'site-a' };
+    const AGENT = { userId: 'agent-1', role: UserRole.AGENT, siteId: 'site-a' };
+    const sqlOf = (repo: any) => repo.__calls.map((c: any) => c.sql).join(' | ');
+
+    it('limits a requester to their own tickets and hardware requests, and hides the user directory', async () => {
+        const ticketRepo = makeRepo([]);
+        const userRepo = makeRepo([{ id: 'u2', fullName: 'Other', email: 'o@x', role: 'USER' }]);
+        const hardwareRequestRepo = makeRepo([]);
+        const { service } = buildService(makeRepo([]), { ticketRepo, userRepo, hardwareRequestRepo });
+
+        const result = await service.search({ q: 'laptop' }, [ArticleVisibility.PUBLIC], USER);
+
+        expect(sqlOf(ticketRepo)).toContain('ticket.userId = :searchUserId');
+        expect(sqlOf(hardwareRequestRepo)).toContain('hw.requesterId = :searchUserId');
+        expect(result.users).toEqual([]);
+        expect(userRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('pins a site-locked agent to their own site for tickets, users and hardware', async () => {
+        const ticketRepo = makeRepo([]);
+        const userRepo = makeRepo([]);
+        const hardwareRequestRepo = makeRepo([]);
+        const { service } = buildService(makeRepo([]), { ticketRepo, userRepo, hardwareRequestRepo });
+
+        await service.search({ q: 'laptop' }, [ArticleVisibility.PUBLIC], AGENT);
+
+        expect(sqlOf(ticketRepo)).toContain('ticket.siteId = :userSiteId');
+        expect(sqlOf(userRepo)).toContain('user.siteId = :searchSiteId');
+        expect(sqlOf(hardwareRequestRepo)).toContain('hw.siteId = :searchSiteId');
+    });
+
+    it('matches nothing for a site-locked agent without a site', async () => {
+        const ticketRepo = makeRepo([]);
+        const userRepo = makeRepo([]);
+        const { service } = buildService(makeRepo([]), { ticketRepo, userRepo });
+
+        await service.search({ q: 'laptop' }, [ArticleVisibility.PUBLIC], { ...AGENT, siteId: null });
+
+        expect(sqlOf(ticketRepo)).toContain('1 = 0');
+        expect(sqlOf(userRepo)).toContain('1 = 0');
+    });
+
+    it('never shares a cache entry between two requesters', async () => {
+        const { service, cacheSet } = buildService(makeRepo([]));
+
+        await service.search({ q: 'x', scope: ['tickets'] }, [ArticleVisibility.PUBLIC], USER);
+        await service.search({ q: 'x', scope: ['tickets'] }, [ArticleVisibility.PUBLIC], { ...USER, userId: 'user-2' });
+
+        const keys = cacheSet.mock.calls.map((c: any) => c[0]);
+        expect(new Set(keys).size).toBe(2);
     });
 });

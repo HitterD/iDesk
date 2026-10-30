@@ -5,19 +5,26 @@ import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { SlaAdjustment, SlaAdjustmentType, SlaAdjustmentReasonCategory } from '../entities/sla-adjustment.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
-import { BusinessHoursService } from '../../sla-config/business-hours.service';
+import { SlaClockService } from './sla-clock.service';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 
-/**
- * A ticket may only be extended when the SLA clock is actually running.
- */
-const EXTENDABLE_STATUSES: TicketStatus[] = [TicketStatus.IN_PROGRESS, TicketStatus.TODO];
+/** Tickets with a started resolution clock, including a vendor hold, may be extended. */
+const EXTENDABLE_STATUSES: TicketStatus[] = [TicketStatus.IN_PROGRESS, TicketStatus.TODO, TicketStatus.WAITING_VENDOR];
 
-/** 8 business hours, in minutes: the flat part of the extension cap. */
-const EIGHT_BUSINESS_HOURS_MINUTES = 480;
+/** Calendar-day sanity ceiling, allowing external obstacles without far-future typos. */
+const MAX_EXTENSION_CALENDAR_DAYS = 90;
+const MS_PER_MINUTE = 60_000;
+const MS_PER_DAY = 24 * 60 * MS_PER_MINUTE;
 
-/** Absolute safety ceiling when no SlaConfig row exists for the priority. */
-const FALLBACK_CAP_MINUTES = 10080; // 7 * 24 * 60
+interface ExtendSlaInput {
+    reasonCategory: SlaAdjustmentReasonCategory;
+    reasonText: string;
+    minutes?: number;
+    newTargetDate?: string;
+}
+
+type ExtensionActor = { userId: string; role: string; fullName?: string };
+type Extension = { previousTarget: Date | null; newTarget: Date | null; minutes: number };
 
 const CATEGORY_LABELS: Record<string, string> = {
     [SlaAdjustmentReasonCategory.WAITING_USER]: 'Menunggu Respon / Feedback Pengguna',
@@ -41,132 +48,131 @@ export class TicketSlaExtendService {
         private readonly slaConfigRepo: Repository<SlaConfig>,
         @InjectRepository(TicketMessage)
         private readonly messageRepo: Repository<TicketMessage>,
-        private readonly businessHoursService: BusinessHoursService,
+        private readonly slaClock: SlaClockService,
         @Optional()
         private readonly eventsGateway?: EventsGateway,
     ) {}
 
-    /**
-     * Extend the resolution SLA target of a ticket by N business minutes or a manual date,
-     * recording why. Only the resolution target moves; the first-response
-     * target never does.
-     */
+    /** Extends resolution time, preserving held targets and the first-response clock. */
     async extendSla(
         ticketId: string,
-        dto: {
-            reasonCategory: SlaAdjustmentReasonCategory;
-            reasonText: string;
-            minutes?: number;
-            newTargetDate?: string;
-        },
-        actor: { userId: string; role: string; fullName?: string },
+        dto: ExtendSlaInput,
+        actor: ExtensionActor,
     ): Promise<{ ticket: Ticket; adjustment: SlaAdjustment }> {
         const ticket = await this.ticketRepo.findOne({ where: { id: ticketId } });
-        if (!ticket) {
-            throw new NotFoundException(`Ticket with ID ${ticketId} not found`);
-        }
-
+        if (!ticket) throw new NotFoundException(`Ticket with ID ${ticketId} not found`);
         if (!EXTENDABLE_STATUSES.includes(ticket.status)) {
             throw new ConflictException(
                 `Ticket is ${ticket.status}; SLA can only be extended for ${EXTENDABLE_STATUSES.join(' or ')} tickets`,
             );
         }
-
-        if (ticket.slaTarget == null || ticket.slaStartedAt == null) {
+        const held = ticket.slaRemainingMinutes != null;
+        if (ticket.slaStartedAt == null || (!held && ticket.slaTarget == null)) {
             throw new BadRequestException('SLA clock has not started for this ticket');
         }
-
-        const previousTarget = new Date(ticket.slaTarget);
-        let newTarget: Date;
-        let minutes: number;
-
-        if (dto.newTargetDate) {
-            const parsedTarget = new Date(dto.newTargetDate);
-            if (isNaN(parsedTarget.getTime())) {
-                throw new BadRequestException('Format tanggal deadline baru tidak valid');
-            }
-            if (parsedTarget.getTime() <= new Date().getTime()) {
-                throw new BadRequestException('Target deadline baru harus lebih lama dari waktu saat ini');
-            }
-
-            const calculatedMinutes = await this.businessHoursService.calculateBusinessMinutes(
-                previousTarget,
-                parsedTarget,
-            );
-
-            minutes = calculatedMinutes > 0
-                ? calculatedMinutes
-                : Math.max(1, Math.round((parsedTarget.getTime() - previousTarget.getTime()) / 60000));
-            newTarget = parsedTarget;
-        } else if (dto.minutes && dto.minutes > 0) {
-            minutes = dto.minutes;
-            newTarget = await this.businessHoursService.calculateSlaTarget(previousTarget, minutes);
-        } else {
-            throw new BadRequestException('Harap tentukan menit perpanjangan atau tanggal deadline baru');
-        }
-
-        const startedAt = new Date(ticket.slaStartedAt);
         const now = new Date();
-        const elapsedBusinessMinutes = await this.businessHoursService.calculateBusinessMinutes(
-            startedAt,
-            now,
-        );
-        const alreadyExtended = await this.totalExtendedMinutes(ticketId);
+        const maxAllowedTarget = new Date(now.getTime() + MAX_EXTENSION_CALENDAR_DAYS * MS_PER_DAY);
+        const previousTarget = ticket.slaTarget == null ? null : new Date(ticket.slaTarget);
+        const extension = held
+            ? await this.extendHeld(ticket, dto, now, maxAllowedTarget, previousTarget)
+            : await this.extendRunning(ticket, dto, now, maxAllowedTarget, previousTarget!);
 
-        const allowed = await this.allowedExtensionBusinessMinutes(ticket.priority);
-        const projected = elapsedBusinessMinutes + alreadyExtended + minutes;
-        if (projected > allowed) {
-            throw new BadRequestException(
-                `Perpanjangan melebihi batas yang diizinkan (Maksimal ${allowed} menit kerja; ` +
-                `${elapsedBusinessMinutes} berjalan + ${alreadyExtended} perpanjangan sebelumnya + ${minutes} permintaan baru = ${projected} menit)`,
-            );
-        }
-
-        if (!ticket.originalSlaTarget) {
-            ticket.originalSlaTarget = previousTarget;
-        }
-
-        ticket.slaTarget = newTarget;
+        if (!ticket.originalSlaTarget) ticket.originalSlaTarget = previousTarget;
+        if (!held) ticket.slaTarget = extension.newTarget;
         // Extending removes the overdue marker; the checker re-evaluates after the new target passes.
         ticket.isOverdue = false;
-
         const saved = await this.ticketRepo.save(ticket);
+        const adjustment = await this.recordAdjustment(ticketId, dto, actor, extension);
+        await this.postSystemMessage(saved, dto, actor, extension, held);
+        this.emitUpdate(saved);
+        this.logger.log(
+            `SLA extended for ticket ${ticket.ticketNumber || ticketId}: +${extension.minutes} business minutes ` +
+            `(${dto.reasonCategory}) by ${actor.userId}`,
+        );
+        return { ticket: saved, adjustment };
+    }
+
+    private async extendHeld(
+        ticket: Ticket, dto: ExtendSlaInput, now: Date, maxAllowedTarget: Date, previousTarget: Date | null,
+    ): Promise<Extension> {
+        if (dto.newTargetDate) {
+            throw new BadRequestException('SLA sedang dijeda; perpanjang dengan jumlah menit, bukan tanggal');
+        }
+        const minutes = this.extensionMinutes(dto);
+        const remaining = ticket.slaRemainingMinutes! + minutes;
+        this.validateCeiling(await this.slaClock.targetFor(ticket.priority, now, remaining), maxAllowedTarget);
+        ticket.slaRemainingMinutes = remaining;
+        return { previousTarget, newTarget: previousTarget, minutes };
+    }
+
+    private async extendRunning(
+        ticket: Ticket, dto: ExtendSlaInput, now: Date, maxAllowedTarget: Date, previousTarget: Date,
+    ): Promise<Extension> {
+        let newTarget: Date;
+        let minutes: number;
+        if (dto.newTargetDate) {
+            newTarget = new Date(dto.newTargetDate);
+            if (isNaN(newTarget.getTime())) {
+                throw new BadRequestException('Format tanggal deadline baru tidak valid');
+            }
+            if (newTarget.getTime() <= now.getTime()) {
+                throw new BadRequestException('Target deadline baru harus lebih lama dari waktu saat ini');
+            }
+            this.validateCeiling(newTarget, maxAllowedTarget);
+            const calculatedMinutes = await this.slaClock.minutesBetween(ticket.priority, previousTarget, newTarget);
+            minutes = calculatedMinutes > 0
+                ? calculatedMinutes
+                : Math.max(1, Math.round((newTarget.getTime() - previousTarget.getTime()) / MS_PER_MINUTE));
+        } else {
+            minutes = this.extensionMinutes(dto);
+            newTarget = await this.slaClock.targetFor(ticket.priority, previousTarget, minutes);
+            this.validateCeiling(newTarget, maxAllowedTarget);
+        }
+        return { previousTarget, newTarget, minutes };
+    }
+
+    private extensionMinutes(dto: ExtendSlaInput): number {
+        if (dto.minutes && dto.minutes > 0) return dto.minutes;
+        throw new BadRequestException('Harap tentukan menit perpanjangan atau tanggal deadline baru');
+    }
+
+    private validateCeiling(target: Date, maxAllowedTarget: Date): void {
+        if (target.getTime() > maxAllowedTarget.getTime()) {
+            throw new BadRequestException(`Target deadline baru tidak boleh melebihi ${MAX_EXTENSION_CALENDAR_DAYS} hari ke depan`);
+        }
+    }
+
+    private async recordAdjustment(
+        ticketId: string, dto: ExtendSlaInput, actor: ExtensionActor, extension: Extension,
+    ): Promise<SlaAdjustment> {
         const adjustment = this.adjustmentRepo.create({
             ticketId,
             type: SlaAdjustmentType.EXTEND,
-            minutes,
+            ...extension,
             reasonCategory: dto.reasonCategory,
             reasonText: dto.reasonText.trim(),
-            previousTarget,
-            newTarget,
             actorId: actor.userId,
             approvedById: null,
         });
-        const savedAdjustment = await this.adjustmentRepo.save(adjustment);
+        return this.adjustmentRepo.save(adjustment);
+    }
 
-        // Auto-post transparent system message to ticket chat
+    private async postSystemMessage(
+        ticket: Ticket, dto: ExtendSlaInput, actor: ExtensionActor, extension: Extension, held: boolean,
+    ): Promise<void> {
         try {
             const categoryLabel = CATEGORY_LABELS[dto.reasonCategory] || dto.reasonCategory;
-            const formattedNewDate = newTarget.toLocaleDateString('id-ID', {
-                timeZone: 'Asia/Jakarta',
-                weekday: 'long',
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric',
-            }) + ' ' + newTarget.toLocaleTimeString('id-ID', {
-                timeZone: 'Asia/Jakarta',
-                hour: '2-digit',
-                minute: '2-digit',
-            }) + ' WIB';
-
-            const systemMessageContent = `⏱️ **Target SLA Diperpanjang**\n\n` +
-                `📅 **Deadline Baru:** ${formattedNewDate}\n` +
-                `🏷️ **Kategori Kendala:** ${categoryLabel}\n` +
-                `📝 **Penjelasan:** ${dto.reasonText.trim()}`;
-
+            const deadline = held
+                ? `SLA ditambah ${extension.minutes} menit (dijeda)`
+                : `Deadline Baru: ${this.formatTarget(extension.newTarget!)}`;
+            const systemMessageContent = `Target SLA Diperpanjang\n\n` +
+                `${deadline}\n` +
+                `Kategori Kendala: ${categoryLabel}\n` +
+                `Penjelasan: ${dto.reasonText.trim()}\n` +
+                `Diperpanjang oleh: ${actor.fullName || 'Teknisi'}`;
             const message = this.messageRepo.create({
                 content: systemMessageContent,
-                ticket: saved,
+                ticket,
                 senderId: actor.userId,
                 isSystemMessage: true,
             });
@@ -174,49 +180,31 @@ export class TicketSlaExtendService {
         } catch (msgErr) {
             this.logger.warn(`Failed to post SLA extension system message: ${msgErr}`);
         }
+    }
 
-        // Emit realtime websocket updates
-        if (this.eventsGateway?.server) {
-            try {
-                this.eventsGateway.server
-                    .to(`ticket:${ticketId}`)
-                    .emit('ticket:updated', { ticketId });
-                if (saved.siteId) {
-                    this.eventsGateway.server
-                        .to(`site:${saved.siteId}`)
-                        .emit('ticket:updated', { ticketId });
-                }
-            } catch (wsErr) {
-                this.logger.warn(`Failed to emit websocket event: ${wsErr}`);
+    private formatTarget(target: Date): string {
+        return target.toLocaleDateString('id-ID', {
+            timeZone: 'Asia/Jakarta',
+            weekday: 'long',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+        }) + ' ' + target.toLocaleTimeString('id-ID', {
+            timeZone: 'Asia/Jakarta',
+            hour: '2-digit',
+            minute: '2-digit',
+        }) + ' WIB';
+    }
+
+    private emitUpdate(ticket: Ticket): void {
+        if (!this.eventsGateway?.server) return;
+        try {
+            this.eventsGateway.server.to(`ticket:${ticket.id}`).emit('ticket:updated', { ticketId: ticket.id });
+            if (ticket.siteId) {
+                this.eventsGateway.server.to(`site:${ticket.siteId}`).emit('ticket:updated', { ticketId: ticket.id });
             }
+        } catch (wsErr) {
+            this.logger.warn(`Failed to emit websocket event: ${wsErr}`);
         }
-
-        this.logger.log(
-            `SLA extended for ticket ${ticket.ticketNumber || ticketId}: +${minutes} business minutes ` +
-            `(${dto.reasonCategory}) by ${actor.userId}`,
-        );
-
-        return { ticket: saved, adjustment: savedAdjustment };
-    }
-
-    /** Sum of all recorded EXTEND minutes on this ticket. */
-    private async totalExtendedMinutes(ticketId: string): Promise<number> {
-        const row = await this.adjustmentRepo
-            .createQueryBuilder('a')
-            .select('COALESCE(SUM(a.minutes), 0)', 'total')
-            .where('a."ticketId" = :ticketId', { ticketId })
-            .getRawOne();
-        return Number(row?.total || 0);
-    }
-
-    /** Cap: 2x the priority resolution budget + 8 business hours. */
-    private async allowedExtensionBusinessMinutes(priority: string): Promise<number> {
-        const slaConfig = await this.slaConfigRepo.findOne({ where: { priority } });
-        if (!slaConfig) {
-            this.logger.warn(`No SlaConfig for priority ${priority}; using fallback cap`);
-            return FALLBACK_CAP_MINUTES;
-        }
-        return (slaConfig.resolutionTimeMinutes ?? 0) * 2 + EIGHT_BUSINESS_HOURS_MINUTES;
     }
 }
-

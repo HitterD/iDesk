@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { HR_EVT } from '../domain/events/hardware-request.events';
 import { InstallationSchedule } from '../domain/entities/installation-schedule.entity';
@@ -13,6 +13,9 @@ import { HardwareActivityService } from './hardware-activity.service';
 import { CalendarQueryDto } from '../dto/calendar-query.dto';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { SiteActor, resolveSiteScope, assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
+
+/** Schedule states an installation can be completed from. */
+const COMPLETABLE_STATUSES: InstallStatus[] = [InstallStatus.CONFIRMED, InstallStatus.IN_PROGRESS];
 
 export interface ActingUser {
   id: string;
@@ -80,9 +83,9 @@ export class InstallationScheduleService {
     }
 
     async confirm(requestId: string, actor: ActingUser): Promise<InstallationSchedule> {
-        const sched = await this.repo.findOne({ where: { requestId } });
-        if (!sched) throw new NotFoundException('schedule not found');
-        if (sched.status !== InstallStatus.PROPOSED) throw new ConflictException('invalid state: must be PROPOSED');
+        // A reschedule retires the old row and adds a new PROPOSED one: confirm that one, not whichever row comes first.
+        const sched = await this.repo.findOne({ where: { requestId, status: InstallStatus.PROPOSED }, order: { createdAt: 'DESC' } });
+        if (!sched || sched.status !== InstallStatus.PROPOSED) throw new ConflictException('invalid state: must be PROPOSED');
 
         const req = await this.reqRepo.findOne({ where: { id: requestId } });
         if (!req) throw new NotFoundException('request');
@@ -202,29 +205,20 @@ export class InstallationScheduleService {
         return this.dataSource.transaction(async (mgr) => {
             const repo = mgr.getRepository(InstallationSchedule);
 
-            let sched = await repo.findOne({
-                where: { requestId },
+            // Only an agreed slot can be finished. Completing from a pending proposal or a
+            // reschedule request used to force that row to DONE (or invent a new one), which
+            // closed installations nobody had actually scheduled.
+            const sched = await repo.findOne({
+                where: { requestId, status: In(COMPLETABLE_STATUSES) },
                 order: { createdAt: 'DESC' },
             });
-
-            if (!sched || INSTALL_TERMINAL.has(sched.status)) {
-                sched = repo.create({
-                    requestId, technicianId: actor.id,
-                    scheduledStart: new Date(), scheduledEnd: new Date(),
-                    status: InstallStatus.IN_PROGRESS,
-                    proposedBy: actor.id, confirmedBy: actor.id,
-                    startedAt: new Date(),
-                });
-                sched = await repo.save(sched);
-            } else if (sched.status !== InstallStatus.IN_PROGRESS) {
-                sched.status = InstallStatus.IN_PROGRESS;
-                sched.startedAt = new Date();
-                sched = await repo.save(sched);
+            if (!sched) {
+                throw new ConflictException('Belum ada jadwal terkonfirmasi untuk pemasangan ini');
             }
 
+            sched.startedAt = sched.startedAt ?? new Date();
             sched.status = InstallStatus.DONE;
             sched.completedAt = new Date();
-            sched.technicianId = actor.id;
             const saved = await repo.save(sched);
             await this.activity.log(requestId, actor.id, 'INSTALL_SCHEDULE_DONE', { scheduleId: saved.id });
 

@@ -15,6 +15,9 @@ import {
 import { TicketDetail, SlaAdjustment } from './types';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { cn } from '@/lib/utils';
+import { isTerminalStatus } from './constants';
+import { formatSlaTime, offHoursLabel, slaCountdown, SlaCountdown, useSlaClock } from '@/lib/slaCountdown';
+import { formatSlaSpan } from '@/lib/utils/slaDuration';
 
 interface SlaStatusCardProps {
     ticket: TicketDetail & {
@@ -38,33 +41,8 @@ const CATEGORY_LABELS: Record<string, string> = {
     OTHER: 'Alasan Lainnya',
 };
 
-const formatTimeRemaining = (diffMs: number): string => {
-    if (diffMs <= 0) return 'Overdue';
-
-    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-    const parts = [];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours > 0) parts.push(`${hours}h`);
-    parts.push(`${minutes}m`);
-
-    return parts.join(' ');
-};
-
-const formatDuration = (diffMs: number): string => {
-    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-    const parts = [];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours > 0) parts.push(`${hours}h`);
-    parts.push(`${minutes}m`);
-
-    return parts.join(' ');
-};
+/** Wall-clock duration (time to first response, measured from creation): "2 hari 3 jam", "45 mnt". */
+const formatDuration = (diffMs: number): string => formatSlaSpan(diffMs, null);
 
 export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
     ticket,
@@ -74,9 +52,13 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
     const [resolutionTimeRemaining, setResolutionTimeRemaining] = useState<string>('');
     const [firstResponseTimeRemaining, setFirstResponseTimeRemaining] = useState<string>('');
     const [percentRemaining, setPercentRemaining] = useState<number>(100);
+    const [resolutionClock, setResolutionClock] = useState<SlaCountdown | null>(null);
+    const [responseClock, setResponseClock] = useState<SlaCountdown | null>(null);
+    const [now, setNow] = useState<Date>(() => new Date());
+    const slaClock = useSlaClock();
     const [showHistory, setShowHistory] = useState<boolean>(false);
 
-    const isResolved = ticket.status === 'RESOLVED' || ticket.status === 'CANCELLED';
+    const isResolved = isTerminalStatus(ticket.status);
     const isPaused = ticket.status === 'WAITING_VENDOR';
     const slaNotStarted = !ticket.slaStartedAt;
     const adjustments = ticket.slaAdjustments || [];
@@ -84,28 +66,27 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
     useEffect(() => {
         const calculateTimes = () => {
             const now = new Date();
+            setNow(now);
 
-            // Calculate Resolution Time
+            // Calculate Resolution Time (working time only for business-hours priorities)
             if (ticket.slaTarget && !isResolved) {
-                const target = new Date(ticket.slaTarget);
-                const diff = target.getTime() - now.getTime();
-                setResolutionTimeRemaining(formatTimeRemaining(diff));
+                const clock = slaCountdown(ticket.slaTarget, now, ticket.priority, slaClock);
+                setResolutionClock(clock);
+                setResolutionTimeRemaining(clock.remainingMs <= 0 ? 'Overdue' : formatSlaTime(clock.remainingMs, slaClock, ticket.priority));
 
                 // Calculate percentage based on slaStartedAt
                 if (ticket.slaStartedAt) {
-                    const started = new Date(ticket.slaStartedAt);
-                    const totalTime = target.getTime() - started.getTime();
-                    const elapsed = now.getTime() - started.getTime();
-                    const percent = Math.max(0, Math.min(100, ((totalTime - elapsed) / totalTime) * 100));
+                    const total = slaCountdown(ticket.slaTarget, new Date(ticket.slaStartedAt), ticket.priority, slaClock).remainingMs;
+                    const percent = total > 0 ? Math.max(0, Math.min(100, (clock.remainingMs / total) * 100)) : 0;
                     setPercentRemaining(percent);
                 }
             }
 
             // Calculate First Response Time
             if (ticket.firstResponseTarget && !ticket.firstResponseAt && !isResolved) {
-                const target = new Date(ticket.firstResponseTarget);
-                const diff = target.getTime() - now.getTime();
-                setFirstResponseTimeRemaining(formatTimeRemaining(diff));
+                const clock = slaCountdown(ticket.firstResponseTarget, now, ticket.priority, slaClock);
+                setResponseClock(clock);
+                setFirstResponseTimeRemaining(clock.remainingMs <= 0 ? 'Overdue' : formatSlaTime(clock.remainingMs, slaClock, ticket.priority));
             }
         };
 
@@ -113,20 +94,19 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
         const interval = setInterval(calculateTimes, 60000);
 
         return () => clearInterval(interval);
-    }, [ticket, isResolved]);
+    }, [ticket, isResolved, slaClock]);
 
     // Get Resolution Status
     const getResolutionStatus = () => {
         if (isResolved) return { status: 'resolved', text: 'Selesai', color: 'green' };
         if (isPaused) return { status: 'paused', text: 'Paused (Menunggu Vendor)', color: 'orange' };
         if (slaNotStarted) return { status: 'pending', text: 'Belum Dimulai', color: 'gray' };
-        if (!ticket.slaTarget) return { status: 'none', text: 'SLA Tidak Diset', color: 'gray' };
+        if (!ticket.slaTarget || !resolutionClock) return { status: 'none', text: 'SLA Tidak Diset', color: 'gray' };
 
-        const now = new Date();
-        const target = new Date(ticket.slaTarget);
-        const diff = target.getTime() - now.getTime();
+        const diff = resolutionClock.remainingMs;
 
         if (diff <= 0) return { status: 'overdue', text: 'OVERDUE', color: 'red' };
+        if (resolutionClock.offHours) return { status: 'offhours', text: resolutionTimeRemaining, color: 'gray' };
         if (diff < 4 * 60 * 60 * 1000) return { status: 'warning', text: resolutionTimeRemaining, color: 'yellow' };
         return { status: 'ok', text: resolutionTimeRemaining, color: 'blue' };
     };
@@ -147,11 +127,11 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
 
         if (isPaused) return { status: 'paused', text: 'Paused', color: 'orange' };
 
-        const now = new Date();
-        const target = new Date(ticket.firstResponseTarget);
-        const diff = target.getTime() - now.getTime();
+        if (!responseClock) return null;
+        const diff = responseClock.remainingMs;
 
         if (diff <= 0) return { status: 'breached', text: 'DILANGGAR - Belum Ada Respon', color: 'red' };
+        if (responseClock.offHours) return { status: 'offhours', text: firstResponseTimeRemaining, color: 'gray' };
         if (diff < 1 * 60 * 60 * 1000) return { status: 'warning', text: firstResponseTimeRemaining, color: 'yellow' };
         return { status: 'pending', text: firstResponseTimeRemaining, color: 'blue' };
     };
@@ -193,9 +173,9 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
                 };
             default:
                 return {
-                    bg: 'bg-blue-50 dark:bg-blue-900/20',
-                    border: 'border-blue-200 dark:border-blue-800',
-                    text: 'text-blue-700 dark:text-blue-400',
+                    bg: 'bg-primary/10 dark:bg-primary/20',
+                    border: 'border-primary/20 dark:border-primary/30',
+                    text: 'text-primary',
                 };
         }
     };
@@ -206,7 +186,7 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
         <div className="bg-white dark:bg-slate-800/95 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 p-4 space-y-3 shadow-2xs">
             <div className="flex items-center justify-between">
                 <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-xs uppercase tracking-wider">
-                    <Clock className="w-4 h-4 text-blue-500" />
+                    <Clock className="w-4 h-4 text-primary" />
                     Status SLA
                 </h3>
 
@@ -252,7 +232,7 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
                                 <div
                                     className={`h-full transition-[opacity,transform,colors] duration-200 ease-out ${resolution.color === 'red' ? 'bg-red-500' :
                                         resolution.color === 'yellow' ? 'bg-yellow-500' :
-                                            'bg-blue-500'
+                                            'bg-primary'
                                         }`}
                                     style={{ width: `${percentRemaining}%` }}
                                 />
@@ -268,7 +248,7 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
                     )}
 
                     {/* Show target time */}
-                    {ticket.slaTarget && !isResolved && (
+                    {ticket.slaTarget && !isResolved && !isPaused && (
                         <p className="text-xs text-slate-500">
                             Target: {formatDateTimeID(ticket.slaTarget)}
                         </p>
@@ -286,7 +266,15 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
                     {isPaused && (
                         <p className="text-xs text-orange-600 mt-1.5 flex items-center gap-1">
                             <Pause className="w-3 h-3" />
-                            Paused (Vendor)
+                            {ticket.lastPausedAt ? `Dijeda sejak ${formatDateTimeID(ticket.lastPausedAt)}` : 'Dijeda'}
+                            {ticket.slaRemainingMinutes != null && ` — sisa ${formatSlaTime(ticket.slaRemainingMinutes * 60000, slaClock, ticket.priority)}`}
+                        </p>
+                    )}
+
+                    {resolution.status === 'offhours' && resolutionClock && (
+                        <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1">
+                            <Pause className="w-3 h-3" />
+                            {offHoursLabel(resolutionClock, now, slaClock)}
                         </p>
                     )}
 
@@ -325,8 +313,15 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
                             </p>
                         )}
 
+                        {firstResponse.status === 'offhours' && responseClock && (
+                            <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1">
+                                <Pause className="w-3 h-3" />
+                                {offHoursLabel(responseClock, now, slaClock)}
+                            </p>
+                        )}
+
                         {/* Show target if not responded */}
-                        {!ticket.firstResponseAt && ticket.firstResponseTarget && (
+                        {!isPaused && !ticket.firstResponseAt && ticket.firstResponseTarget && (
                             <p className="text-xs text-slate-500 mt-1.5">
                                 Target: {formatDateTimeID(ticket.firstResponseTarget)}
                             </p>
@@ -339,7 +334,7 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
                     <button
                         type="button"
                         onClick={onOpenExtendSla}
-                        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-900/50 active:scale-[0.98] transition-all cursor-pointer shadow-2xs"
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 active:scale-[0.98] transition-all cursor-pointer shadow-2xs"
                     >
                         <CalendarPlus className="w-3.5 h-3.5" />
                         <span>Perpanjang Target SLA</span>
@@ -350,7 +345,7 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
                 {showHistory && adjustments.length > 0 && (
                     <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 space-y-2.5 animate-in fade-in duration-200">
                         <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                            <History className="w-3.5 h-3.5 text-blue-500" />
+                            <History className="w-3.5 h-3.5 text-primary" />
                             <span>Riwayat Perpanjangan SLA</span>
                         </div>
 
@@ -360,7 +355,7 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
                                 return (
                                     <div key={adj.id || index} className={cn("text-xs space-y-1", index > 0 && "pt-2")}>
                                         <div className="flex items-center justify-between text-[11px]">
-                                            <span className="font-bold px-1.5 py-0.5 rounded bg-blue-100/70 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+                                            <span className="font-bold px-1.5 py-0.5 rounded bg-primary/10 dark:bg-primary/20 text-primary border border-primary/20 dark:border-primary/30">
                                                 {categoryLabel}
                                             </span>
                                             <span className="text-slate-400 font-mono">
@@ -373,7 +368,7 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
                                                 {adj.previousTarget ? formatDateTimeID(adj.previousTarget) : '-'}
                                             </span>
                                             <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
-                                            <span className="font-bold text-blue-600 dark:text-blue-400 truncate">
+                                            <span className="font-bold text-primary truncate">
                                                 {adj.newTarget ? formatDateTimeID(adj.newTarget) : '-'}
                                             </span>
                                         </div>

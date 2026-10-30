@@ -18,7 +18,7 @@ React 18 + Vite + TailwindCSS (Frontend), NestJS 10 + TypeORM + PostgreSQL (Back
 
 ## Product Purpose
 
-Sistem helpdesk dan ticketing IT enterprise full-stack yang mengelola seluruh siklus hidup permintaan support IT dengan integrasi multi-channel (Telegram bot, Zoom calendar booking, Knowledge Base, SLA tracking, dan contract renewal).
+Sistem helpdesk dan ticketing IT enterprise full-stack yang mengelola seluruh siklus hidup permintaan support IT dengan integrasi multi-channel (email, Zoom calendar booking, Knowledge Base, SLA tracking, dan contract renewal).
 
 ## Positioning
 
@@ -32,7 +32,7 @@ Lingkungan operasional helpdesk IT perusahaan dengan kebutuhan pemantauan tiket 
 
 - Terbagi menjadi 3 portal utama: Client Portal (`/client`), Admin/Agent Portal (`/`), dan Manager Portal (`/manager`).
 - Real-time updates via Socket.IO WebSocket.
-- Integrasi Telegram Bot (Telegraf) dan Zoom Calendar booking.
+- Integrasi Zoom Calendar booking.
 - Dukungan PWA (Vite PWA) dan export laporan PDF/Excel.
 
 ## Brand Commitments

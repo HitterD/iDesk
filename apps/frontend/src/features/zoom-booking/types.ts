@@ -42,11 +42,22 @@ export interface ZoomBooking {
     };
     isExternal?: boolean;
     externalZoomMeetingId?: string;
+    joinUrl?: string;
     seriesId?: string;
     recurrencePattern?: string;
     isDoubleBooking?: boolean;
+    participants?: ZoomParticipant[];
     createdAt: string;
     updatedAt: string;
+}
+
+export interface ZoomParticipant {
+    id: string;
+    zoomBookingId: string;
+    email: string;
+    fullName?: string;
+    department?: string;
+    createdAt?: string;
 }
 
 export interface ZoomMeeting {
@@ -57,6 +68,11 @@ export interface ZoomMeeting {
     startUrl: string;
     password?: string;
     hostEmail: string;
+    recordingUrl?: string | null;
+    recordingPasscode?: string | null;
+    recordingDuration?: number | null;
+    recordingFiles?: Array<any> | null;
+    recordedAt?: string | null;
     createdAt: string;
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, LayoutDashboard, Ticket, Video, BookOpen, Bell, BarChart3, RefreshCw, DollarSign, Search, KeyRound, Users, Zap, Shield, Activity, Settings, Lock, MonitorSmartphone, FileText } from 'lucide-react';
+import { X, Save, LayoutDashboard, Ticket, Video, BookOpen, Bell, BarChart3, RefreshCw, DollarSign, Search, KeyRound, Users, Zap, Shield, Activity, Settings, Lock, MonitorSmartphone, FileText, Trash2 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { toast } from 'sonner';
@@ -18,7 +18,7 @@ import {
 const ICON_MAP: Record<string, React.ElementType> = {
     LayoutDashboard, Ticket, Video, BookOpen, Bell, BarChart3,
     RefreshCw, DollarSign, Search, KeyRound, Users, Zap, Shield, Activity, Settings,
-    MonitorSmartphone, FileText
+    MonitorSmartphone, FileText, Trash2
 };
 
 interface PageAccess {

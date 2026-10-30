@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 
 export const MentionList = forwardRef((props: any, ref) => {
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -52,9 +53,7 @@ export const MentionList = forwardRef((props: any, ref) => {
                             }`}
                         onClick={() => selectItem(index)}
                     >
-                        <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold">
-                            {item.fullName.charAt(0)}
-                        </div>
+                        <UserAvatar user={item} size="xs" />
                         <span>{item.fullName}</span>
                     </button>
                 ))

@@ -1,11 +1,45 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 
 const logger = new Logger('NotificationService');
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, MoreThan, IsNull } from 'typeorm';
 import { Notification, NotificationType, NotificationCategory } from './entities/notification.entity';
 import { getCategoryFromType } from './utils/category-mapper';
 import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
+import { SjaAdapterService } from '../sja-adapter/sja-adapter.service';
+import { NotificationPushService } from './notification-push.service';
+import { PRIORITY_LABEL, TicketPeople, describeTicketChanges, picOf, withWho } from './utils/notification-copy.util';
+
+/** Socket event telling a user's clients that some of their notifications became read. */
+export const NOTIFICATIONS_READ_EVENT = 'notifications:read';
+
+export interface NotificationReadTarget {
+    ticketId?: string;
+    referenceId?: string;
+    category?: NotificationCategory;
+}
+
+/**
+ * Display hints a notification carries to the user's clients and the SJA desktop notifier, never stored:
+ * the human ticket number (not the id) and who the notice is from (the PIC, or the requester for agents).
+ */
+export interface NotificationDisplay {
+    ticketNumber?: string;
+    senderName?: string;
+}
+
+/** Ticket context for the ticket notification helpers: title and the people to name. */
+export type TicketNoticeContext = TicketPeople;
+
+/** Notification title for a ticket: its problem title, else its number. */
+function ticketTitle(ticketNumber: string, context?: TicketNoticeContext): string {
+    return context?.title?.trim() || `Tiket #${ticketNumber}`;
+}
+
+/** Upper bound for the critical banner list; the count endpoint reports the real total. */
+const MAX_CRITICAL_BANNER = 50;
+/** Upper bound for the unread list; the unread count endpoint reports the real total. */
+const MAX_UNREAD_LIST = 100;
 
 @Injectable()
 export class NotificationService {
@@ -13,6 +47,8 @@ export class NotificationService {
         @InjectRepository(Notification)
         private readonly notificationRepo: Repository<Notification>,
         private readonly eventsGateway: EventsGateway,
+        private readonly sjaAdapter: SjaAdapterService,
+        @Optional() private readonly webPush?: NotificationPushService,
     ) { }
 
     async create(data: {
@@ -25,8 +61,10 @@ export class NotificationService {
         link?: string;
         category?: NotificationCategory;
         requiresAcknowledge?: boolean;
-    }): Promise<Notification> {
-        // DEDUP: Check existing notification with same type + referenceId + userId within 24h
+    } & NotificationDisplay): Promise<Notification> {
+        const { ticketNumber, senderName, ...stored } = data;
+        const display: NotificationDisplay = { ...(ticketNumber ? { ticketNumber } : {}), ...(senderName ? { senderName } : {}) };
+        // DEDUP 1: Check existing notification with same type + referenceId + userId within 24h
         if (data.referenceId) {
             const existing = await this.notificationRepo.findOne({
                 where: {
@@ -40,12 +78,27 @@ export class NotificationService {
                 // Skip duplicate — return existing notification
                 return existing;
             }
+        } else {
+            // DEDUP 2 (Fallback): Prevent rapid duplicate notifications for same user + type + title + message within 5 minutes
+            const existing = await this.notificationRepo.findOne({
+                where: {
+                    userId: data.userId,
+                    type: data.type,
+                    title: data.title,
+                    message: data.message,
+                    createdAt: MoreThan(new Date(Date.now() - 5 * 60 * 1000)),
+                },
+            });
+            if (existing) {
+                // Skip duplicate — return existing notification
+                return existing;
+            }
         }
 
         // Auto-determine category from type if not provided
         const category = data.category || getCategoryFromType(data.type);
         const notification = this.notificationRepo.create({
-            ...data,
+            ...stored,
             category,
             requiresAcknowledge: data.requiresAcknowledge || false,
         });
@@ -57,7 +110,7 @@ export class NotificationService {
             : `notification:${data.userId}`;
 
         // Emit real-time notification via WebSocket
-        try { this.eventsGateway.server.emit(eventType, {
+        try { this.eventsGateway.server.to(`user:${data.userId}`).emit(eventType, {
             id: saved.id,
             type: saved.type,
             category: saved.category,
@@ -70,13 +123,24 @@ export class NotificationService {
             requiresAcknowledge: saved.requiresAcknowledge,
             createdAt: saved.createdAt,
             userId: data.userId,
+            ...display,
         }); } catch (e) { console.warn('Socket emit failed', e); }
 
         // Also emit to general notification channel
-        try { this.eventsGateway.server.emit('notification:new', {
+        try { this.eventsGateway.server.to(`user:${data.userId}`).emit('notification:new', {
             userId: data.userId,
-            notification: saved,
+            notification: { ...saved, ...display },
         }); } catch (e) { console.warn('Socket emit failed', e); }
+
+        // Browser notification (works without the desktop notifier app)
+        this.webPush?.dispatch(saved);
+
+        // Dispatch to SJA Notification Center Outbox
+        try {
+            await this.sjaAdapter.dispatchNotification({ ...saved, ...display });
+        } catch (sjaErr) {
+            console.warn('SJA dispatch failed', sjaErr);
+        }
 
         return saved;
     }
@@ -134,6 +198,49 @@ export class NotificationService {
             .where('id IN (:...ids)', { ids })
             .andWhere('userId = :userId', { userId })
             .execute();
+        this.emitRead(userId);
+    }
+
+    /**
+     * Marks the user's unread notifications about one thing as read: a ticket, a referenced
+     * item (hardware request, e-form, ...) or a whole category. Called when the user opens
+     * the page for that thing, so they do not have to clear the bell by hand.
+     */
+    async markReadByTarget(userId: string, target: NotificationReadTarget): Promise<number> {
+        const query = this.notificationRepo
+            .createQueryBuilder()
+            .update(Notification)
+            .set({ isRead: true })
+            .where('"userId" = :userId', { userId })
+            .andWhere('"isRead" = false');
+
+        if (target.ticketId) {
+            query.andWhere('"ticketId" = :ticketId', { ticketId: target.ticketId });
+        } else if (target.referenceId) {
+            // Hardware requests key each workflow step as `<id>_<step>`.
+            query.andWhere('("referenceId" = :referenceId OR "referenceId" LIKE :referencePrefix)', {
+                referenceId: target.referenceId,
+                referencePrefix: `${target.referenceId}\\_%`,
+            });
+        } else if (target.category) {
+            query.andWhere('"category" = :category', { category: target.category });
+        } else {
+            return 0;
+        }
+
+        const result = await query.execute();
+        const updated = result.affected ?? 0;
+        if (updated > 0) this.emitRead(userId);
+        return updated;
+    }
+
+    /** Lets the user's other tabs and devices refresh their badge and lists. */
+    private emitRead(userId: string): void {
+        try {
+            this.eventsGateway.server.to(`user:${userId}`).emit(NOTIFICATIONS_READ_EVENT, { userId });
+        } catch (e) {
+            logger.warn(`Socket emit failed: ${(e as Error).message}`);
+        }
     }
 
     async countUnreadByCategory(userId: string): Promise<Record<NotificationCategory, number>> {
@@ -189,6 +296,7 @@ export class NotificationService {
         return this.notificationRepo.find({
             where: { userId, isRead: false },
             order: { createdAt: 'DESC' },
+            take: MAX_UNREAD_LIST,
         });
     }
 
@@ -205,7 +313,9 @@ export class NotificationService {
         if (!notification) return null;
 
         notification.isRead = true;
-        return this.notificationRepo.save(notification);
+        const saved = await this.notificationRepo.save(notification);
+        this.emitRead(userId);
+        return saved;
     }
 
     async markAllAsRead(userId: string): Promise<void> {
@@ -213,6 +323,7 @@ export class NotificationService {
             { userId, isRead: false },
             { isRead: true },
         );
+        this.emitRead(userId);
     }
 
     async delete(id: string, userId: string): Promise<void> {
@@ -233,9 +344,10 @@ export class NotificationService {
             where: {
                 userId,
                 requiresAcknowledge: true,
-                acknowledgedAt: undefined,
+                acknowledgedAt: IsNull(),
             },
             order: { createdAt: 'DESC' },
+            take: MAX_CRITICAL_BANNER,
         });
     }
 
@@ -258,7 +370,7 @@ export class NotificationService {
         const saved = await this.notificationRepo.save(notification);
 
         // Emit acknowledgment event
-        try { this.eventsGateway.server.emit(`notification:acknowledged:${userId}`, {
+        try { this.eventsGateway.server.to(`user:${userId}`).emit(`notification:acknowledged:${userId}`, {
             notificationId: saved.id,
             acknowledgedAt: saved.acknowledgedAt,
         }); } catch (e) { console.warn('Socket emit failed', e); }
@@ -274,62 +386,99 @@ export class NotificationService {
             where: {
                 userId,
                 requiresAcknowledge: true,
-                acknowledgedAt: undefined,
+                acknowledgedAt: IsNull(),
             },
         });
     }
 
     // Helper methods for common notification types
+    // Ticket notices: the title is the problem title (never an id), the message a plain sentence plus who.
+
+    /** To the requester. */
     async notifyTicketCreated(userId: string, ticketId: string, ticketNumber: string, title: string) {
         return this.create({
             userId,
             type: NotificationType.TICKET_CREATED,
-            title: 'Ticket Created',
-            message: `Ticket #${ticketNumber} "${title}" has been created`,
+            title: ticketTitle(ticketNumber, { title }),
+            message: `Tiket #${ticketNumber} sudah diterima tim IT.`,
             ticketId,
+            ticketNumber,
             link: `/tickets/${ticketId}`,
         });
     }
 
-    async notifyTicketAssigned(userId: string, ticketId: string, ticketNumber: string, assignerName: string) {
+    /** To the new PIC: who assigned it, and who reported it. */
+    async notifyTicketAssigned(userId: string, ticketId: string, ticketNumber: string, assignerName: string, context?: TicketNoticeContext) {
+        // 'Auto-assign' adalah penanda sistem, bukan nama orang — jangan
+        // ditulis seolah-olah seseorang yang menugaskan.
+        const byWhom = assignerName === 'Auto-assign'
+            ? 'Ditugaskan kepada Anda secara otomatis'
+            : `Ditugaskan kepada Anda oleh ${assignerName}`;
+        const requester = context?.requesterName;
+
         return this.create({
             userId,
             type: NotificationType.TICKET_ASSIGNED,
-            title: 'Ticket Assigned',
-            message: `You have been assigned to ticket #${ticketNumber} by ${assignerName}`,
+            title: ticketTitle(ticketNumber, context),
+            message: withWho(byWhom, requester ? `Dilaporkan oleh ${requester}` : null),
             ticketId,
+            ticketNumber,
+            senderName: requester ?? undefined,
             link: `/tickets/${ticketId}`,
         });
     }
 
-    async notifyTicketUpdated(userId: string, ticketId: string, ticketNumber: string, changes: string) {
+    /** To the requester side: what changed, and their PIC. */
+    async notifyTicketUpdated(userId: string, ticketId: string, ticketNumber: string, changes: string, context?: TicketNoticeContext) {
+        const sentence = describeTicketChanges(changes) || 'Ada perubahan';
         return this.create({
             userId,
             type: NotificationType.TICKET_UPDATED,
-            title: 'Ticket Updated',
-            message: `Ticket #${ticketNumber} has been updated: ${changes}`,
+            title: ticketTitle(ticketNumber, context),
+            message: withWho(sentence, picOf(sentence, context?.assigneeName)),
             ticketId,
+            ticketNumber,
+            senderName: context?.assigneeName ?? undefined,
             link: `/tickets/${ticketId}`,
         });
     }
 
-    async notifyTicketResolved(userId: string, ticketId: string, ticketNumber: string) {
+    /** To the requester: resolved by the PIC, confirm before the deadline. */
+    async notifyTicketResolved(userId: string, ticketId: string, ticketNumber: string, deadlineLabel?: string, context?: TicketNoticeContext) {
+        const resolved = withWho('Diselesaikan', picOf('', context?.assigneeName));
         return this.create({
             userId,
             type: NotificationType.TICKET_RESOLVED,
-            title: 'Ticket Resolved',
-            message: `Ticket #${ticketNumber} has been resolved`,
+            title: ticketTitle(ticketNumber, context),
+            message: deadlineLabel
+                ? `${resolved}. Konfirmasi atau sanggah sebelum ${deadlineLabel}; setelah itu tiket otomatis ditutup.`
+                : `${resolved}.`,
             ticketId,
+            ticketNumber,
+            senderName: context?.assigneeName ?? undefined,
             link: `/tickets/${ticketId}`,
         });
     }
 
-    async notifyTicketReply(userId: string, ticketId: string, ticketNumber: string, senderName: string) {
+    async notifyTicketReply(
+        userId: string,
+        ticketId: string,
+        ticketNumber: string,
+        senderName: string,
+        contentSnippet?: string,
+    ) {
+        const cleanSnippet = contentSnippet
+            ? (contentSnippet.length > 140 ? contentSnippet.slice(0, 137) + '...' : contentSnippet)
+            : '';
+        const message = cleanSnippet
+            ? `${senderName}: "${cleanSnippet}"`
+            : `${senderName} membalas tiket #${ticketNumber}`;
+
         return this.create({
             userId,
             type: NotificationType.TICKET_REPLY,
-            title: 'New Reply',
-            message: `${senderName} replied to ticket #${ticketNumber}`,
+            title: `[#${ticketNumber}] Pesan Baru dari ${senderName}`,
+            message,
             ticketId,
             link: `/tickets/${ticketId}`,
         });
@@ -339,8 +488,8 @@ export class NotificationService {
         return this.create({
             userId,
             type: NotificationType.CHAT_MESSAGE_RECEIVED,
-            title: 'New Chat Message',
-            message: `${senderName} sent a message in ticket #${ticketNumber}`,
+            title: 'Pesan baru',
+            message: `${senderName} mengirim pesan di tiket #${ticketNumber}.`,
             ticketId,
             link: `/tickets/${ticketId}`,
         });
@@ -350,8 +499,8 @@ export class NotificationService {
         return this.create({
             userId,
             type: NotificationType.MENTION,
-            title: 'You were mentioned',
-            message: `${mentionedBy} mentioned you in ticket #${ticketNumber}`,
+            title: 'Anda disebut',
+            message: `${mentionedBy} menyebut Anda di tiket #${ticketNumber}.`,
             ticketId,
             link: `/tickets/${ticketId}`,
         });
@@ -361,8 +510,8 @@ export class NotificationService {
         return this.create({
             userId,
             type: NotificationType.SLA_WARNING,
-            title: 'SLA Warning',
-            message: `Ticket #${ticketNumber} SLA will expire in ${timeRemaining}`,
+            title: 'SLA hampir habis',
+            message: `SLA tiket #${ticketNumber} berakhir dalam ${timeRemaining}.`,
             ticketId,
             link: `/tickets/${ticketId}`,
         });
@@ -372,8 +521,8 @@ export class NotificationService {
         return this.create({
             userId,
             type: NotificationType.SLA_BREACHED,
-            title: 'SLA Breached',
-            message: `Ticket #${ticketNumber} has breached its SLA target`,
+            title: 'SLA terlewati',
+            message: `Tiket #${ticketNumber} melewati target SLA.`,
             ticketId,
             link: `/tickets/${ticketId}`,
         });
@@ -395,6 +544,8 @@ export class NotificationService {
         if (adminIds.length === 0) return [];
 
         const category_ = getCategoryFromType(NotificationType.TICKET_CREATED);
+        // "HARDWARE" -> "Hardware"
+        const categoryLabel = category ? category.charAt(0) + category.slice(1).toLowerCase().replace(/_/g, ' ') : '';
 
         // Create all notification entities in memory
         const notificationEntities = adminIds.map(adminId =>
@@ -402,8 +553,9 @@ export class NotificationService {
                 userId: adminId,
                 type: NotificationType.TICKET_CREATED,
                 category: category_,
-                title: 'New Ticket',
-                message: `New ${priority} ticket from ${requesterName}: "${title}" [${category}]`,
+                title: ticketTitle(ticketNumber, { title }),
+                message: [`Tiket baru · ${PRIORITY_LABEL[priority] ?? priority}`, categoryLabel, requesterName ? `Dilaporkan oleh ${requesterName}` : '']
+                    .filter(Boolean).join(' · '),
                 ticketId,
                 link: `/tickets/${ticketId}`,
             })
@@ -414,7 +566,7 @@ export class NotificationService {
 
         // Emit real-time notifications
         for (const notification of savedNotifications) {
-            try { this.eventsGateway.server.emit(`notification:${notification.userId}`, {
+            try { this.eventsGateway.server.to(`user:${notification.userId}`).emit(`notification:${notification.userId}`, {
                 id: notification.id,
                 type: notification.type,
                 category: notification.category,
@@ -424,7 +576,10 @@ export class NotificationService {
                 link: notification.link,
                 isRead: notification.isRead,
                 createdAt: notification.createdAt,
+                ticketNumber,
+                ...(requesterName ? { senderName: requesterName } : {}),
             }); } catch (e) { logger.warn(`Socket emit failed: ${e instanceof Error ? e.message : 'unknown error'}`); }
+            this.webPush?.dispatch(notification);
         }
 
         return savedNotifications;

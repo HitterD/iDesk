@@ -11,11 +11,9 @@ import { NotificationService } from '../../notifications/notification.service';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
 import { buildAppUrl } from '../../../shared/mail/app-url.util';
-import { TelegramService } from '../../telegram/telegram.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { TicketStatus } from '../entities/ticket.entity';
 import { NotificationType } from '../../notifications/entities/notification.entity';
-import { TelegramChatBridgeService } from '../../telegram/telegram-chat-bridge.service';
 import { User } from '../../users/entities/user.entity';
 import { NotificationPreference } from '../../notifications/entities/notification-preference.entity';
 import {
@@ -23,6 +21,11 @@ import {
     isWebDevCategory,
     isOracleDevCategory,
 } from '../utils/oracle-ticket-access.util';
+import { formatResolutionDeadline } from '../utils/resolution-deadline.util';
+import { forEachWithConcurrency } from '../../../shared/core/utils/concurrency.util';
+
+/** How many agents of a pool are emailed at the same time when a ticket is created. */
+export const NOTIFY_FANOUT_CONCURRENCY = 5;
 
 @Injectable()
 export class TicketNotificationListener {
@@ -32,8 +35,6 @@ export class TicketNotificationListener {
         private readonly notificationService: NotificationService,
         private readonly notificationCenterService: NotificationCenterService,
         private readonly mailDispatch: MailDispatchService,
-        private readonly telegramService: TelegramService,
-        private readonly telegramChatBridge: TelegramChatBridgeService,
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
         @InjectRepository(NotificationPreference)
@@ -124,18 +125,13 @@ export class TicketNotificationListener {
                 year: new Date().getFullYear(),
             };
 
-            await Promise.all(
-                targetAgents
-                    .filter(a => !!a.email)
-                    .map(a =>
-                        this.mailDispatch.send({
-                            to: a.email,
-                            subject: `${emailSubjectPrefix}: #${event.ticketNumber} - ${event.title}`,
-                            template: 'notification',
-                            context: emailContext,
-                        }).catch(err => this.logger.error(`Failed to send new ticket email to ${a.email}: ${err.message}`))
-                    )
-            );
+            await forEachWithConcurrency(targetAgents.filter(a => !!a.email), NOTIFY_FANOUT_CONCURRENCY, a =>
+                this.mailDispatch.send({
+                    to: a.email,
+                    subject: `${emailSubjectPrefix}: #${event.ticketNumber} - ${event.title}`,
+                    template: 'notification',
+                    context: emailContext,
+                }).then(() => undefined, err => this.logger.error(`Failed to send new ticket email to ${a.email}: ${err.message}`)));
         } catch (error) {
             this.logger.error('Failed to notify agents about new ticket', error);
         }
@@ -146,17 +142,48 @@ export class TicketNotificationListener {
         this.logger.log(`Handling ticket.updated event for ticket ${event.ticketId}`);
         const { ticket, changes } = event;
         const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
+        const deadlineLabel = ticket.status === TicketStatus.RESOLVED && ticket.resolutionDeadlineAt
+            ? formatResolutionDeadline(ticket.resolutionDeadlineAt)
+            : undefined;
+        // Requester-side notices are titled with the problem and signed by the PIC.
+        const notice = { title: ticket.title, assigneeName: ticket.assignedTo?.fullName ?? null };
 
         // 1. In-App Notification
         if (ticket.user) {
             try {
-                if (ticket.status === TicketStatus.RESOLVED) {
-                    await this.notificationService.notifyTicketResolved(
-                        ticket.user.id,
+                const isActorRequester = event.userId === ticket.user?.id;
+                if (!isActorRequester) {
+                    if (ticket.status === TicketStatus.RESOLVED) {
+                        await this.notificationService.notifyTicketResolved(
+                            ticket.user.id,
+                            ticket.id,
+                            ticketNumber,
+                            deadlineLabel,
+                            notice,
+                        );
+                    } else {
+                        await this.notificationService.notifyTicketUpdated(
+                            ticket.user.id,
+                            ticket.id,
+                            ticketNumber,
+                            changes.join(', '),
+                            notice,
+                        );
+                    }
+                }
+
+                // Staff who filed it on the requester's behalf follow its progress too.
+                if (ticket.createdById && ticket.createdById !== event.userId && ticket.createdById !== ticket.user.id) {
+                    await this.notificationService.notifyTicketUpdated(
+                        ticket.createdById,
                         ticket.id,
                         ticketNumber,
+                        changes.join(', '),
+                        notice,
                     );
+                }
 
+                if (ticket.status === TicketStatus.RESOLVED) {
                     // Auto-resolve: emit refresh ke semua pihak yang terlibat
                     if (ticket.user?.id) {
                         this.notificationCenterService.emitActionItemsRefresh(ticket.user.id, 'TICKET', ticket.id);
@@ -164,13 +191,6 @@ export class TicketNotificationListener {
                     if (ticket.assignedToId) {
                         this.notificationCenterService.emitActionItemsRefresh(ticket.assignedToId, 'TICKET', ticket.id);
                     }
-                } else {
-                    await this.notificationService.notifyTicketUpdated(
-                        ticket.user.id,
-                        ticket.id,
-                        ticketNumber,
-                        changes.join(', '),
-                    );
                 }
             } catch (error) {
                 this.logger.error('Failed to send ticket update notification', error);
@@ -215,6 +235,8 @@ export class TicketNotificationListener {
                             ticketNumber,
                             status: ticket.status,
                             title: ticket.title,
+                            // Only the requester can confirm; the agent copy just shows the status.
+                            confirmationDeadline: r.email === ticket.user?.email ? deadlineLabel : undefined,
                             link: buildAppUrl(`/tickets/${ticket.id}`),
                             year: new Date().getFullYear(),
                         },
@@ -224,25 +246,18 @@ export class TicketNotificationListener {
         } catch (error) {
             this.logger.error('Failed to send ticket update emails', error);
         }
-
-        // 3. Telegram Notification
-        if (ticket.user) {
-            try {
-                let updateType = 'STATUS_CHANGED';
-                if (ticket.status === TicketStatus.RESOLVED) updateType = 'RESOLVED';
-                else if (ticket.status === TicketStatus.IN_PROGRESS) updateType = 'STATUS_CHANGED';
-
-                await this.telegramService.notifyTicketUpdate(ticket.user.id, ticket, updateType);
-            } catch (error) {
-                this.logger.error('Failed to send Telegram notification', error);
-            }
-        }
     }
 
     @OnEvent('ticket.assigned')
     async handleTicketAssignedEvent(event: TicketAssignedEvent) {
         this.logger.log(`Handling ticket.assigned event for ticket ${event.ticketId}`);
+        // Self-assign (takeover / start by status, manual self-assign): no "assigned to you" notices.
+        const isSelfAssign = Boolean(event.assignerId) && event.assignerId === event.assigneeId;
+        if (!isSelfAssign) await this.notifyAssignee(event);
+        await this.notifyRequesterOfAssignment(event);
+    }
 
+    private async notifyAssignee(event: TicketAssignedEvent): Promise<void> {
         // 1. In-App Notification
         try {
             await this.notificationService.notifyTicketAssigned(
@@ -250,6 +265,7 @@ export class TicketNotificationListener {
                 event.ticketId,
                 event.ticketNumber,
                 event.assignerName,
+                { title: event.ticketTitle, requesterName: event.ticketOwnerName ?? null },
             );
         } catch (error) {
             this.logger.error('Failed to send assignment notification', error);
@@ -286,7 +302,9 @@ export class TicketNotificationListener {
                 this.logger.error(`Failed to send assignment email to ${event.assigneeEmail}`, error);
             }
         }
+    }
 
+    private async notifyRequesterOfAssignment(event: TicketAssignedEvent): Promise<void> {
         // 3. Email Notification to Requester (Ticket Owner)
         if (event.ticketOwnerEmail && event.ticketOwnerEmail !== event.assigneeEmail) {
             try {
@@ -354,24 +372,50 @@ export class TicketNotificationListener {
             }
         }
 
-        // 2. In-App Notification for Reply
+        // 2. In-App & SJA Desktop Toast Notification for Ticket Conversation Reply
         try {
-            // Notify ticket owner if agent/admin replies
-            if ((event.senderRole === UserRole.AGENT || event.senderRole === UserRole.ADMIN) && event.ticketOwnerId !== event.senderId) {
+            const isInternalNote = event.message?.isInternal === true;
+            const contentSnippet = event.message?.content || '';
+
+            // Rule A: Notify ticket requester/owner ONLY IF:
+            // - It is NOT an internal note (!isInternalNote)
+            // - The sender is NOT the ticket owner themself
+            if (!isInternalNote && event.ticketOwnerId && event.senderId !== event.ticketOwnerId) {
                 await this.notificationService.notifyTicketReply(
                     event.ticketOwnerId,
                     event.ticketId,
                     event.ticketNumber,
                     event.senderName,
+                    contentSnippet,
                 );
             }
-            // Notify assigned agent if requester replies
-            if (event.senderRole === UserRole.USER && event.ticketAssignedToId && event.ticketAssignedToId !== event.senderId) {
+
+            // Rule A2: the staff member who filed it on the requester's behalf, same terms.
+            if (
+                !isInternalNote &&
+                event.ticketCreatorId &&
+                event.ticketCreatorId !== event.senderId &&
+                event.ticketCreatorId !== event.ticketOwnerId
+            ) {
+                await this.notificationService.notifyTicketReply(
+                    event.ticketCreatorId,
+                    event.ticketId,
+                    event.ticketNumber,
+                    event.senderName,
+                    contentSnippet,
+                );
+            }
+
+            // Rule B: Notify assigned agent ONLY IF:
+            // - The ticket HAS an assigned agent (event.ticketAssignedToId)
+            // - The sender is NOT that assigned agent themself
+            if (event.ticketAssignedToId && event.senderId !== event.ticketAssignedToId) {
                 await this.notificationService.notifyTicketReply(
                     event.ticketAssignedToId,
                     event.ticketId,
                     event.ticketNumber,
                     event.senderName,
+                    contentSnippet,
                 );
             }
 
@@ -390,25 +434,7 @@ export class TicketNotificationListener {
             this.logger.error('Failed to send reply notification', error);
         }
 
-        // 3. Telegram Notification (Forward Agent Reply)
-        if (this.telegramChatBridge && (event.senderRole === UserRole.AGENT || event.senderRole === UserRole.ADMIN)) {
-            if (event.ticketOwnerId !== event.senderId) {
-                try {
-                    const sender = await this.userRepo.findOne({ where: { id: event.senderId } });
-                    if (sender) {
-                        await this.telegramChatBridge.forwardAgentReplyToTelegram({
-                            ticketId: event.ticketId,
-                            message: event.message,
-                            sender: sender,
-                        });
-                    }
-                } catch (error) {
-                    this.logger.error('Failed to send Telegram message', error);
-                }
-            }
-        }
-
-        // 4. Email Notification (Bidirectional: Agent -> Requester, Requester -> Assignee)
+        // 3. Email Notification (Bidirectional: Agent -> Requester, Requester -> Assignee)
         try {
             if (event.senderRole === UserRole.AGENT || event.senderRole === UserRole.ADMIN) {
                 if (event.ticketOwnerEmail && (!event.mentionedUserIds || !event.mentionedUserIds.includes(event.ticketOwnerId))) {
@@ -461,7 +487,10 @@ export class TicketNotificationListener {
         const agent = event.agent;
         if (!ticket || !agent) return;
         try {
-            await this.notificationService.notifyTicketAssigned(agent.id, ticket.id, ticket.ticketNumber || ticket.id.slice(0, 8), 'Auto-assign');
+            await this.notificationService.notifyTicketAssigned(
+                agent.id, ticket.id, ticket.ticketNumber || ticket.id.slice(0, 8), 'Auto-assign',
+                { title: ticket.title, requesterName: ticket.user?.fullName ?? null },
+            );
         } catch (e) { this.logger.error('Auto-assign in-app notify failed', e); }
         if (agent.email) {
             try {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -16,6 +16,14 @@ import {
 import { useSocket } from '@/lib/socket';
 import { useAuth } from '@/stores/useAuth';
 import { cn } from '@/lib/utils';
+import { forwardToDesktopNotifier } from '@/lib/desktopNotifier';
+import { useQueryClient } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { getNotificationRedirectPath, type UserRole } from './utils/notificationRouter';
+import { NotificationCategory, type Notification } from './types/notification.types';
+
+/** Only toasts backed by a stored notification carry a uuid id; synthetic ones cannot be marked read. */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface InAppNotification {
     id: string;
@@ -44,7 +52,7 @@ const NOTIFICATION_ICONS: Record<string, React.ElementType> = {
 
 const NOTIFICATION_COLORS: Record<string, { bg: string; icon: string; border: string }> = {
     TICKET_CREATED: { bg: 'bg-blue-500/10', icon: 'text-blue-400', border: 'border-blue-500/30' },
-    TICKET_ASSIGNED: { bg: 'bg-purple-500/10', icon: 'text-purple-400', border: 'border-purple-500/30' },
+    TICKET_ASSIGNED: { bg: 'bg-sky-500/10', icon: 'text-sky-400', border: 'border-sky-500/30' },
     TICKET_UPDATED: { bg: 'bg-sky-500/10', icon: 'text-sky-400', border: 'border-sky-500/30' },
     TICKET_RESOLVED: { bg: 'bg-green-500/10', icon: 'text-green-400', border: 'border-green-500/30' },
     TICKET_REPLY: { bg: 'bg-indigo-500/10', icon: 'text-indigo-400', border: 'border-indigo-500/30' },
@@ -169,14 +177,35 @@ const NotificationToast: React.FC<NotificationToastProps> = ({
 
 export const InAppNotificationToast: React.FC = () => {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const { socket } = useSocket();
     const { user } = useAuth();
     const [notifications, setNotifications] = useState<InAppNotification[]>([]);
 
+    const recentNotifIdsRef = useRef<Map<string, number>>(new Map());
+
     // Handle new notification
     const addNotification = useCallback((data: any) => {
+        const notifId = data.id || data.notificationId || (data.ticketId ? `ticket-${data.ticketId}-${data.type}` : '');
+        const now = Date.now();
+
+        // Prevent duplicate processing within 6 seconds
+        if (notifId) {
+            const lastSeen = recentNotifIdsRef.current.get(notifId);
+            if (lastSeen && now - lastSeen < 6000) {
+                return;
+            }
+            recentNotifIdsRef.current.set(notifId, now);
+
+            if (recentNotifIdsRef.current.size > 50) {
+                for (const [k, v] of recentNotifIdsRef.current.entries()) {
+                    if (now - v > 60000) recentNotifIdsRef.current.delete(k);
+                }
+            }
+        }
+
         const notification: InAppNotification = {
-            id: data.id || `${Date.now()}-${Math.random()}`,
+            id: data.id || notifId || `${Date.now()}-${Math.random()}`,
             type: data.type || 'SYSTEM',
             title: data.title || 'New Notification',
             message: data.message || '',
@@ -186,11 +215,15 @@ export const InAppNotificationToast: React.FC = () => {
         };
 
         setNotifications((prev) => {
+            if (prev.some((n) => n.id === notification.id)) return prev;
             // Remove oldest if max reached
             const updated = [notification, ...prev];
             return updated.slice(0, MAX_VISIBLE_NOTIFICATIONS);
         });
-    }, []);
+
+        // Automatically trigger Windows SJA Desktop Notifier (Toast/Popup based on user preference)
+        forwardToDesktopNotifier(data, user);
+    }, [user]);
 
     // Remove notification
     const removeNotification = useCallback((id: string) => {
@@ -200,15 +233,20 @@ export const InAppNotificationToast: React.FC = () => {
     // Handle notification click
     const handleClick = useCallback((notification: InAppNotification) => {
         removeNotification(notification.id);
-
-        // Navigate based on notification type
-        if (notification.link) {
-            navigate(notification.link);
-        } else if (notification.ticketId) {
-            const basePath = user?.role === 'USER' ? '/client/tickets' : '/tickets';
-            navigate(`${basePath}/${notification.ticketId}`);
+        if (UUID_PATTERN.test(notification.id)) {
+            api.patch(`/notifications/${notification.id}/read`, undefined, { skipToast: true })
+                .then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] }))
+                .catch(() => undefined);
         }
-    }, [navigate, removeNotification, user?.role]);
+
+        // Same routing as the bell: links are written for agents, requesters and managers have their own pages.
+        if (notification.link || notification.ticketId) {
+            navigate(getNotificationRedirectPath(
+                { link: notification.link, ticketId: notification.ticketId, category: NotificationCategory.CATEGORY_TICKET } as Notification,
+                (user?.role ?? 'USER') as UserRole,
+            ));
+        }
+    }, [navigate, removeNotification, user?.role, queryClient]);
 
     // Listen for real-time notifications
     useEffect(() => {
@@ -221,24 +259,28 @@ export const InAppNotificationToast: React.FC = () => {
             }
         };
 
-        // Listen to user-specific channel
-        socket.on(`notification:${user.id}`, handleNewNotification);
-        // Also listen to general notification event
-        socket.on('notification:new', (data: any) => {
+        const handleGeneralNotification = (data: any) => {
             if (data.userId === user.id) {
                 addNotification(data.notification || data);
             }
-        });
+        };
+
+        // Listen to user-specific channel
+        socket.on(`notification:${user.id}`, handleNewNotification);
+        // Also listen to general notification event
+        socket.on('notification:new', handleGeneralNotification);
 
         return () => {
             socket.off(`notification:${user.id}`, handleNewNotification);
-            socket.off('notification:new');
+            // Remove only our handler: other hooks (useTicketSocket) listen to the same event.
+            socket.off('notification:new', handleGeneralNotification);
         };
     }, [socket, user, addNotification]);
 
     return (
         <div
             className="fixed top-4 right-4 z-[100] flex flex-col gap-3 pointer-events-none"
+            role="region"
             aria-live="polite"
             aria-label="Notifications"
         >

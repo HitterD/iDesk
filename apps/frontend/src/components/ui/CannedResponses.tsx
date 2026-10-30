@@ -1,26 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import {
-  Zap,
-  Search,
-  Plus,
-  Edit2,
-  Trash2,
-  Folder,
-  X,
-  Sparkles,
-  MessageSquare,
-  Clock,
-  CheckCircle2,
-  HelpCircle,
-  CornerDownLeft,
-  RotateCcw,
-  Tag,
-  Hash,
-  User,
-  ShieldCheck,
-  Check,
-  AlertTriangle,
-} from 'lucide-react';
+import { Zap, Search, Plus, Edit2, Trash2, Folder, X, Sparkles, MessageSquare, Clock, CheckCircle2, HelpCircle, CornerDownLeft, RotateCcw, Tag, Hash, User, ShieldCheck, Check, AlertTriangle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Dialog,
@@ -80,36 +59,36 @@ const CATEGORY_META: Record<string, { label: string; icon: React.ElementType; ba
     label: 'Semua',
     icon: Sparkles,
     badgeClass: 'bg-muted text-muted-foreground hover:bg-muted/80',
-    activeBadgeClass: 'bg-blue-600 text-white font-semibold shadow-xs',
+    activeBadgeClass: 'bg-brand text-white font-semibold shadow-xs',
     textClass: 'text-muted-foreground',
   },
   General: {
     label: 'General',
     icon: MessageSquare,
-    badgeClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 hover:bg-blue-500/15',
-    activeBadgeClass: 'bg-blue-600 text-white font-semibold shadow-xs',
-    textClass: 'text-blue-600 dark:text-blue-400',
+    badgeClass: 'bg-brand/10 text-brand border-brand/20 hover:bg-brand/15',
+    activeBadgeClass: 'bg-brand text-white font-semibold shadow-xs',
+    textClass: 'text-brand',
   },
   'Status Update': {
     label: 'Status Update',
     icon: Clock,
-    badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/15',
-    activeBadgeClass: 'bg-amber-600 text-white font-semibold shadow-xs',
-    textClass: 'text-amber-600 dark:text-amber-400',
+    badgeClass: 'bg-warn/10 text-warn-ink border-warn/20 hover:bg-warn/15',
+    activeBadgeClass: 'bg-warn text-white font-semibold shadow-xs',
+    textClass: 'text-warn-ink',
   },
   Closing: {
     label: 'Closing',
     icon: CheckCircle2,
-    badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/15',
-    activeBadgeClass: 'bg-emerald-600 text-white font-semibold shadow-xs',
-    textClass: 'text-emerald-600 dark:text-emerald-400',
+    badgeClass: 'bg-ok/10 text-ok-ink border-ok/20 hover:bg-ok/15',
+    activeBadgeClass: 'bg-ok text-white font-semibold shadow-xs',
+    textClass: 'text-ok-ink',
   },
   'How To': {
     label: 'How To',
     icon: HelpCircle,
-    badgeClass: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 hover:bg-purple-500/15',
-    activeBadgeClass: 'bg-purple-600 text-white font-semibold shadow-xs',
-    textClass: 'text-purple-600 dark:text-purple-400',
+    badgeClass: 'bg-brand/10 text-brand border-brand/20 hover:bg-brand/15',
+    activeBadgeClass: 'bg-brand text-white font-semibold shadow-xs',
+    textClass: 'text-brand',
   },
 };
 
@@ -215,17 +194,17 @@ export const SlashCommandAutocomplete: React.FC<SlashCommandAutocompleteProps> =
   return (
     <div
       className={cn(
-        "absolute bottom-full mb-2 left-0 w-[380px] max-w-[calc(100vw-32px)] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-800/80 p-1.5 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150 select-none",
+        "absolute bottom-full mb-2 left-0 w-[380px] max-w-[calc(100vw-32px)] bg-surface/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-line p-1.5 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150 select-none",
         className
       )}
     >
-      <div className="px-3 py-1.5 flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 mb-1">
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-          <Zap className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+      <div className="px-3 py-1.5 flex items-center justify-between border-b border-line mb-1">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-2">
+          <Zap className="w-3.5 h-3.5 text-warn animate-pulse" />
           <span>Quick Reply Shortcut</span>
         </div>
-        <div className="flex items-center gap-1 text-[10px] text-slate-400">
-          <kbd className="px-1 py-0.2 bg-slate-100 dark:bg-slate-800 rounded font-mono border border-slate-200 dark:border-slate-700">↵ Enter / Tab</kbd>
+        <div className="flex items-center gap-1 text-[10px] text-ink-3">
+          <kbd className="px-1 py-0.2 bg-fill rounded font-mono border border-line">↵ Enter / Tab</kbd>
           <span>Pilih</span>
         </div>
       </div>
@@ -246,8 +225,8 @@ export const SlashCommandAutocomplete: React.FC<SlashCommandAutocompleteProps> =
               className={cn(
                 "w-full flex items-start justify-between gap-2.5 px-3 py-2 text-left rounded-xl transition-all duration-100 cursor-pointer border",
                 isSelected
-                  ? "bg-blue-50/90 dark:bg-blue-950/50 border-blue-500/30 text-blue-950 dark:text-blue-100 shadow-2xs"
-                  : "border-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50"
+                  ? "bg-brand/10 border-brand/30 text-brand shadow-2xs"
+                  : "border-transparent text-ink hover:bg-fill"
               )}
             >
               <div className="flex-1 min-w-0">
@@ -256,8 +235,8 @@ export const SlashCommandAutocomplete: React.FC<SlashCommandAutocompleteProps> =
                     <kbd className={cn(
                       "px-1.5 py-0.5 text-[10px] font-mono font-bold rounded border shadow-2xs transition-colors",
                       isSelected
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                        ? "bg-brand text-white border-brand"
+                        : "bg-fill text-ink border-line"
                     )}>
                       {item.shortcut}
                     </kbd>
@@ -272,7 +251,7 @@ export const SlashCommandAutocomplete: React.FC<SlashCommandAutocompleteProps> =
                     {item.category || 'General'}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 leading-normal">
+                <p className="text-[11px] text-ink-2 line-clamp-1 leading-normal">
                   {previewText}
                 </p>
               </div>
@@ -280,7 +259,7 @@ export const SlashCommandAutocomplete: React.FC<SlashCommandAutocompleteProps> =
               <div className="shrink-0 pt-1">
                 <CornerDownLeft className={cn(
                   "w-3.5 h-3.5 transition-opacity",
-                  isSelected ? "opacity-100 text-blue-600 dark:text-blue-400" : "opacity-0"
+                  isSelected ? "opacity-100 text-brand" : "opacity-0"
                 )} />
               </div>
             </button>
@@ -299,12 +278,15 @@ interface CannedResponsePickerProps {
   onSelect: (content: string) => void;
   variables?: TicketVariables;
   className?: string;
+  /** Icon-only trigger, for placing the picker inside a composer. */
+  compact?: boolean;
 }
 
 export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
   onSelect,
   variables,
   className,
+  compact = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -396,19 +378,29 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
             type="button"
             aria-label="Buka template quick reply"
             className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer border select-none",
-              isOpen
-                ? "bg-blue-600/10 border-blue-500/30 text-blue-600 dark:text-blue-400 shadow-xs"
-                : "border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800",
+              compact
+                ? "inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors cursor-pointer select-none"
+                : "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer border select-none",
+              compact
+                ? (isOpen ? "bg-primary/10 text-primary" : "text-ink-3 hover:text-ink hover:bg-fill")
+                : isOpen
+                  ? "bg-brand/10 border-brand/30 text-brand shadow-xs"
+                  : "border-transparent text-ink-2 hover:text-ink hover:bg-fill",
               className
             )}
             title="Quick reply templates (Ketik / di chat)"
           >
-            <Zap className={cn("w-3.5 h-3.5 transition-colors", isOpen ? "text-blue-600 dark:text-blue-400" : "text-amber-500")} aria-hidden="true" />
-            <span>Quick Reply</span>
-            <kbd className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-mono font-medium rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-              /
-            </kbd>
+            {compact ? (
+              <Zap className="w-[18px] h-[18px]" aria-hidden="true" />
+            ) : (
+              <>
+                <Zap className={cn("w-3.5 h-3.5 transition-colors", isOpen ? "text-brand" : "text-warn")} aria-hidden="true" />
+                <span>Quick Reply</span>
+                <kbd className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-mono font-medium rounded bg-fill text-ink-2 border border-line">
+                  /
+                </kbd>
+              </>
+            )}
           </button>
         </PopoverTrigger>
 
@@ -417,21 +409,21 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
           align="start"
           sideOffset={10}
           collisionPadding={16}
-          className="w-[420px] max-w-[calc(100vw-32px)] p-0 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-2xl overflow-hidden z-50 animate-in fade-in-0 zoom-in-95 data-[side=top]:slide-in-from-bottom-2"
+          className="w-[420px] max-w-[calc(100vw-32px)] p-0 rounded-2xl border border-line bg-surface/95 backdrop-blur-xl shadow-2xl overflow-hidden z-50 animate-in fade-in-0 zoom-in-95 data-[side=top]:slide-in-from-bottom-2"
           onKeyDown={handleKeyDown}
         >
           {/* Search Header */}
-          <div className="p-3 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/40">
+          <div className="p-3 border-b border-line bg-fill">
             <div className="flex items-center gap-2 mb-2.5">
               <div className="relative flex-1 flex items-center">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Cari template atau ketik /shortcut..."
                   aria-label="Cari template quick reply"
-                  className="w-full pl-8.5 pr-8 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400 text-slate-900 dark:text-white transition-all shadow-2xs"
+                  className="w-full pl-8.5 pr-8 py-1.5 text-xs bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand placeholder:text-ink-3 text-ink transition-all shadow-2xs"
                   autoFocus
                 />
                 {search && (
@@ -439,7 +431,7 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
                     type="button"
                     onClick={() => setSearch('')}
                     aria-label="Clear search"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-3 hover:text-ink-2 rounded-lg transition-colors"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -452,7 +444,7 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
                   setIsOpen(false);
                   setIsManageModalOpen(true);
                 }}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-xl transition-colors shrink-0 cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-brand hover:bg-brand/10 border border-brand/30 rounded-xl transition-colors shrink-0 cursor-pointer"
                 title="Kelola & Tambah Template"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -466,8 +458,8 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
                 const meta = CATEGORY_META[cat] || {
                   label: cat,
                   icon: Folder,
-                  badgeClass: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400',
-                  activeBadgeClass: 'bg-blue-600 text-white font-semibold',
+                  badgeClass: 'bg-fill text-ink-2',
+                  activeBadgeClass: 'bg-brand text-white font-semibold',
                 };
                 const CatIcon = meta.icon;
                 const isActive = selectedCategory === cat;
@@ -493,16 +485,16 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
           {/* Scrollable Templates List */}
           <div ref={listRef} className="max-h-72 overflow-y-auto p-2 space-y-1 custom-scrollbar">
             {filteredResponses.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-400 space-y-2">
-                <Zap className="w-7 h-7 mx-auto text-slate-300 dark:text-slate-600" />
-                <p className="font-semibold text-slate-700 dark:text-slate-300">Tidak ada template ditemukan</p>
+              <div className="py-8 text-center text-xs text-ink-3 space-y-2">
+                <Zap className="w-7 h-7 mx-auto text-ink-3" />
+                <p className="font-semibold text-ink">Tidak ada template ditemukan</p>
                 <button
                   type="button"
                   onClick={() => {
                     setIsOpen(false);
                     setIsManageModalOpen(true);
                   }}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 transition-colors cursor-pointer"
+                  className="idesk-btn is-primary"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Buat Template Baru
@@ -525,13 +517,13 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
                     className={cn(
                       "w-full flex items-start justify-between gap-3 p-2.5 text-left rounded-xl transition-all duration-150 group cursor-pointer border",
                       isSelected
-                        ? "bg-blue-50/90 dark:bg-blue-950/50 border-blue-500/30 shadow-2xs"
-                        : "border-transparent hover:bg-slate-100/80 dark:hover:bg-slate-800/60"
+                        ? "bg-brand/10 border-brand/30 shadow-2xs"
+                        : "border-transparent hover:bg-fill"
                     )}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold text-slate-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        <span className="text-xs font-bold text-ink truncate group-hover:text-brand transition-colors">
                           {response.title}
                         </span>
                         <span className={cn(
@@ -542,20 +534,20 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
                           {response.category || 'General'}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                      <p className="text-[11px] text-ink-2 line-clamp-2 leading-relaxed">
                         {previewContent}
                       </p>
                     </div>
 
                     <div className="flex flex-col items-end gap-1.5 shrink-0 pt-0.5">
                       {response.shortcut && (
-                        <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700 shadow-2xs group-hover:border-blue-500/40 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-fill text-ink rounded border border-line shadow-2xs group-hover:border-brand/40 group-hover:text-brand transition-colors">
                           {response.shortcut}
                         </kbd>
                       )}
                       <CornerDownLeft className={cn(
                         "w-3.5 h-3.5 transition-opacity",
-                        isSelected ? "opacity-100 text-blue-600 dark:text-blue-400" : "opacity-0 group-hover:opacity-60 text-slate-400"
+                        isSelected ? "opacity-100 text-brand" : "opacity-0 group-hover:opacity-60 text-ink-3"
                       )} />
                     </div>
                   </button>
@@ -565,22 +557,22 @@ export const CannedResponsePicker: React.FC<CannedResponsePickerProps> = ({
           </div>
 
           {/* Footer Shortcut Helper */}
-          <div className="px-3 py-2 bg-slate-50/50 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800/80 text-[10px] text-slate-400 flex items-center justify-between select-none">
+          <div className="px-3 py-2 bg-fill border-t border-line text-[10px] text-ink-3 flex items-center justify-between select-none">
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1">
-                <kbd className="px-1 py-0.2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded font-mono text-[9px]">↑↓</kbd>
+                <kbd className="px-1 py-0.2 bg-surface border border-line rounded font-mono text-[9px]">↑↓</kbd>
                 <span>Navigasi</span>
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1 py-0.2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded font-mono text-[9px]">↵</kbd>
+                <kbd className="px-1 py-0.2 bg-surface border border-line rounded font-mono text-[9px]">↵</kbd>
                 <span>Pilih</span>
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1 py-0.2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded font-mono text-[9px]">Esc</kbd>
+                <kbd className="px-1 py-0.2 bg-surface border border-line rounded font-mono text-[9px]">Esc</kbd>
                 <span>Tutup</span>
               </span>
             </div>
-            <span className="font-medium text-slate-600 dark:text-slate-300 font-mono">
+            <span className="font-medium text-ink-2 font-mono">
               {filteredResponses.length} template
             </span>
           </div>
@@ -693,13 +685,13 @@ export const CannedResponseFormModal: React.FC<CannedResponseFormModalProps> = (
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-xl p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl">
+      <DialogContent className="sm:max-w-xl p-6 bg-surface rounded-3xl border border-line shadow-2xl">
         <DialogHeader className="space-y-1">
-          <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Zap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <DialogTitle className="text-xl font-bold text-ink flex items-center gap-2">
+            <Zap className="w-5 h-5 text-brand" />
             <span>{initialData ? 'Edit Template Quick Reply' : 'Buat Template Quick Reply Baru'}</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
+          <DialogDescription className="text-xs text-ink-2">
             Template ini akan tersimpan khusus untuk profil Anda dan dapat dipanggil dengan shortcut di kotak chat.
           </DialogDescription>
         </DialogHeader>
@@ -708,23 +700,23 @@ export const CannedResponseFormModal: React.FC<CannedResponseFormModalProps> = (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Title */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Judul Template <span className="text-rose-500">*</span>
+              <label className="block text-xs font-bold text-ink mb-1">
+                Judul Template <span className="text-bad">*</span>
               </label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="cth: Greeting Pelanggan"
-                className="w-full px-3.5 py-2 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-900 dark:text-white transition-all shadow-2xs"
+                className="w-full px-3.5 py-2 text-xs bg-fill border border-line rounded-xl outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand text-ink transition-all shadow-2xs"
                 required
               />
             </div>
 
             {/* Shortcut */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Shortcut Slash <span className="text-slate-400 font-normal">(opsional)</span>
+              <label className="block text-xs font-bold text-ink mb-1">
+                Shortcut Slash <span className="text-ink-3 font-normal">(opsional)</span>
               </label>
               <div className="relative">
                 <input
@@ -736,7 +728,7 @@ export const CannedResponseFormModal: React.FC<CannedResponseFormModalProps> = (
                     setShortcut(val);
                   }}
                   placeholder="/hi"
-                  className="w-full px-3.5 py-2 text-xs font-mono font-bold bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-blue-600 dark:text-blue-400 transition-all shadow-2xs"
+                  className="w-full px-3.5 py-2 text-xs font-mono font-bold bg-fill border border-line rounded-xl outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand text-brand transition-all shadow-2xs"
                 />
               </div>
             </div>
@@ -744,7 +736,7 @@ export const CannedResponseFormModal: React.FC<CannedResponseFormModalProps> = (
 
           {/* Category Selection */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+            <label className="block text-xs font-bold text-ink mb-1.5">
               Kategori
             </label>
             <div className="flex flex-wrap gap-2">
@@ -761,8 +753,8 @@ export const CannedResponseFormModal: React.FC<CannedResponseFormModalProps> = (
                     className={cn(
                       "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border",
                       isSelected
-                        ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                        : "bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                        ? "bg-brand text-white border-brand shadow-xs"
+                        : "bg-fill text-ink-2 border-line hover:bg-fill"
                     )}
                   >
                     <CatIcon className="w-3.5 h-3.5" />
@@ -776,11 +768,11 @@ export const CannedResponseFormModal: React.FC<CannedResponseFormModalProps> = (
           {/* Dynamic Variable Chips */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                <Tag className="w-3 h-3 text-blue-600" />
+              <label className="text-xs font-bold text-ink flex items-center gap-1">
+                <Tag className="w-3 h-3 text-brand" />
                 <span>Sisipkan Variabel Otomatis:</span>
               </label>
-              <span className="text-[10px] text-slate-400">Klik untuk menyisipkan ke isi pesan</span>
+              <span className="text-[10px] text-ink-3">Klik untuk menyisipkan ke isi pesan</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {DYNAMIC_TAGS.map((tagItem) => {
@@ -790,12 +782,12 @@ export const CannedResponseFormModal: React.FC<CannedResponseFormModalProps> = (
                     key={tagItem.tag}
                     type="button"
                     onClick={() => handleInsertTag(tagItem.tag)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800/80 rounded-lg text-[11px] font-mono font-medium transition-colors cursor-pointer group"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-brand/10 text-brand hover:bg-brand/15 border border-brand/30 rounded-lg text-[11px] font-mono font-medium transition-colors cursor-pointer group"
                     title={tagItem.desc}
                   >
-                    <Icon className="w-3 h-3 text-blue-500 group-hover:scale-110 transition-transform" />
+                    <Icon className="w-3 h-3 text-brand group-hover:scale-110 transition-transform" />
                     <span>{tagItem.tag}</span>
-                    <span className="text-[10px] text-blue-500/80 font-sans ml-0.5 font-normal">({tagItem.label})</span>
+                    <span className="text-[10px] text-brand/80 font-sans ml-0.5 font-normal">({tagItem.label})</span>
                   </button>
                 );
               })}
@@ -805,10 +797,10 @@ export const CannedResponseFormModal: React.FC<CannedResponseFormModalProps> = (
           {/* Content Textarea */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Isi Pesan Template <span className="text-rose-500">*</span>
+              <label className="text-xs font-bold text-ink">
+                Isi Pesan Template <span className="text-bad">*</span>
               </label>
-              <span className="text-[11px] text-slate-400 font-mono">
+              <span className="text-[11px] text-ink-3 font-mono">
                 {content.length} karakter
               </span>
             </div>
@@ -818,7 +810,7 @@ export const CannedResponseFormModal: React.FC<CannedResponseFormModalProps> = (
               onChange={(e) => setContent(e.target.value)}
               rows={5}
               placeholder="Tulis format balasan template di sini..."
-              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-900 dark:text-white transition-all resize-none shadow-2xs leading-relaxed"
+              className="w-full px-3.5 py-2.5 text-xs bg-fill border border-line rounded-2xl outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand text-ink transition-all resize-none shadow-2xs leading-relaxed"
               required
             />
           </div>
@@ -827,14 +819,14 @@ export const CannedResponseFormModal: React.FC<CannedResponseFormModalProps> = (
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              className="px-4 py-2 text-xs font-semibold text-ink-2 hover:bg-fill rounded-xl transition-colors cursor-pointer"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={isPending || !title.trim() || !content.trim()}
-              className="inline-flex items-center gap-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+              className="idesk-btn is-primary disabled:opacity-50"
             >
               {isPending ? (
                 <span>Menyimpan...</span>
@@ -867,13 +859,13 @@ export const CannedResponseModalDialog: React.FC<CannedResponseModalDialogProps>
 }) => {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-3xl max-h-[85vh] p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[85vh] p-6 bg-surface rounded-3xl border border-line shadow-2xl overflow-y-auto">
         <DialogHeader className="space-y-1">
-          <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Zap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <DialogTitle className="text-xl font-bold text-ink flex items-center gap-2">
+            <Zap className="w-5 h-5 text-brand" />
             <span>Kelola Quick Reply Profil Anda</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
+          <DialogDescription className="text-xs text-ink-2">
             Daftar respons cepat pribadi yang dapat Anda gunakan di ruang chat tiket.
           </DialogDescription>
         </DialogHeader>
@@ -949,34 +941,31 @@ export const CannedResponsesManager: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-            <Zap className="w-5 h-5 text-amber-500" />
-            <span>Kustom Quick Reply Profil</span>
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Kelola template balasan instan pribadi Anda. Shortcut dapat dipanggil dengan mengetik <code className="font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-blue-600 font-bold">/</code> di obrolan tiket.
+    <div className="space-y-4">
+      {/* Top Header & Actions (mockup settings.html "Quick Reply") */}
+      <div className="set-head">
+        <div className="min-w-0">
+          <h2 className="set-title">Quick Reply</h2>
+          <p className="set-sub">
+            Balasan siap pakai di composer tiket (ikon petir). Panggil cepat dengan mengetik <code className="font-mono bg-fill px-1 py-0.5 rounded text-brand font-bold">/</code> di obrolan tiket.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="set-head-acts">
           <button
             type="button"
             onClick={() => setResetConfirmOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl transition-colors cursor-pointer"
+            className="idesk-btn is-soft"
             title="Reset ke template default bawaan"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+            <RotateCcw className="w-3.5 h-3.5 text-ink-3" />
             <span>Reset Default</span>
           </button>
 
           <button
             type="button"
             onClick={handleCreateNew}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs cursor-pointer"
+            className="idesk-btn is-primary"
           >
             <Plus className="w-4 h-4" />
             <span>Tambah Template</span>
@@ -987,19 +976,19 @@ export const CannedResponsesManager: React.FC = () => {
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Cari template berdasarkan judul, isi, atau shortcut..."
-            className="w-full pl-9 pr-8 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400 text-slate-900 dark:text-white transition-all shadow-2xs"
+            className="w-full pl-9 pr-8 py-2 text-xs bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand placeholder:text-ink-3 text-ink transition-all shadow-2xs"
           />
           {search && (
             <button
               type="button"
               onClick={() => setSearch('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-ink-3 hover:text-ink-2 rounded"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -1012,8 +1001,8 @@ export const CannedResponsesManager: React.FC = () => {
             const meta = CATEGORY_META[cat] || {
               label: cat,
               icon: Folder,
-              badgeClass: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400',
-              activeBadgeClass: 'bg-blue-600 text-white font-semibold',
+              badgeClass: 'bg-fill text-ink-2',
+              activeBadgeClass: 'bg-brand text-white font-semibold',
             };
             const CatIcon = meta.icon;
             const isActive = categoryFilter === cat;
@@ -1040,24 +1029,24 @@ export const CannedResponsesManager: React.FC = () => {
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-36 bg-slate-100 dark:bg-slate-800/40 rounded-2xl animate-pulse border border-slate-200/50 dark:border-slate-800/50" />
+            <div key={i} className="h-36 bg-fill rounded-2xl animate-pulse border border-line" />
           ))}
         </div>
       ) : filteredList.length === 0 ? (
-        <div className="py-14 text-center bg-white dark:bg-slate-800/50 rounded-3xl border border-slate-200 dark:border-slate-700/60 p-8 space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto border border-blue-200 dark:border-blue-800">
+        <div className="py-14 text-center bg-surface rounded-3xl border border-line p-8 space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-brand/10 text-brand flex items-center justify-center mx-auto border border-brand/30">
             <Zap className="w-6 h-6" />
           </div>
           <div>
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white">Belum Ada Template</h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1">
+            <h4 className="text-sm font-bold text-ink">Belum Ada Template</h4>
+            <p className="text-xs text-ink-2 max-w-sm mx-auto mt-1">
               Buat template balasan instan pribadi Anda agar dapat merespons tiket dengan jauh lebih cepat.
             </p>
           </div>
           <button
             type="button"
             onClick={handleCreateNew}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs cursor-pointer"
+            className="idesk-btn is-primary"
           >
             <Plus className="w-4 h-4" />
             <span>Buat Template Pertama</span>
@@ -1072,16 +1061,16 @@ export const CannedResponsesManager: React.FC = () => {
             return (
               <div
                 key={response.id}
-                className="bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-4 hover:shadow-md transition-all flex flex-col justify-between group"
+                className="bg-surface rounded-2xl border border-line p-4 hover:shadow-md transition-all flex flex-col justify-between group"
               >
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                      <h4 className="text-sm font-bold text-ink">
                         {response.title}
                       </h4>
                       {response.shortcut && (
-                        <kbd className="px-2 py-0.5 text-xs font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-800 shadow-2xs">
+                        <kbd className="px-2 py-0.5 text-xs font-mono font-bold bg-brand/10 text-brand rounded-lg border border-brand/30 shadow-2xs">
                           {response.shortcut}
                         </kbd>
                       )}
@@ -1099,7 +1088,7 @@ export const CannedResponsesManager: React.FC = () => {
                         type="button"
                         onClick={() => handleEdit(response)}
                         aria-label={`Edit ${response.title}`}
-                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-colors cursor-pointer"
+                        className="p-1.5 text-ink-3 hover:text-brand hover:bg-brand/10 rounded-lg transition-colors cursor-pointer"
                         title="Edit Template"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
@@ -1108,7 +1097,7 @@ export const CannedResponsesManager: React.FC = () => {
                         type="button"
                         onClick={() => setDeleteConfirmId(response.id)}
                         aria-label={`Hapus ${response.title}`}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
+                        className="p-1.5 text-ink-3 hover:text-bad-ink hover:bg-bad/10 rounded-lg transition-colors cursor-pointer"
                         title="Hapus Template"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -1116,13 +1105,13 @@ export const CannedResponsesManager: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="text-xs text-slate-600 dark:text-slate-300 whitespace-pre-wrap line-clamp-3 leading-relaxed font-normal bg-slate-50/50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                  <div className="text-xs text-ink-2 whitespace-pre-wrap line-clamp-3 leading-relaxed font-normal bg-fill p-2.5 rounded-xl border border-line">
                     {response.content}
                   </div>
                 </div>
 
-                <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-                  <span>Ketik <code className="font-mono font-bold text-blue-600 dark:text-blue-400">{response.shortcut || `/${response.title.toLowerCase().replace(/\s+/g, '')}`}</code></span>
+                <div className="mt-3 pt-2 border-t border-line flex items-center justify-between text-[11px] text-ink-3">
+                  <span>Ketik <code className="font-mono font-bold text-brand">{response.shortcut || `/${response.title.toLowerCase().replace(/\s+/g, '')}`}</code></span>
                   <span>Personal Agent</span>
                 </div>
               </div>
@@ -1143,13 +1132,13 @@ export const CannedResponsesManager: React.FC = () => {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
-        <DialogContent className="sm:max-w-md p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl">
+        <DialogContent className="sm:max-w-md p-6 bg-surface rounded-3xl border border-line shadow-2xl">
           <DialogHeader className="space-y-1">
-            <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-rose-500" />
+            <DialogTitle className="text-lg font-bold text-ink flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-bad" />
               <span>Hapus Template Quick Reply?</span>
             </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
+            <DialogDescription className="text-xs text-ink-2">
               Template ini akan dihapus permanen dari profil Anda. Tindakan ini tidak dapat dibatalkan.
             </DialogDescription>
           </DialogHeader>
@@ -1158,7 +1147,7 @@ export const CannedResponsesManager: React.FC = () => {
             <button
               type="button"
               onClick={() => setDeleteConfirmId(null)}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              className="px-4 py-2 text-xs font-semibold text-ink-2 hover:bg-fill rounded-xl transition-colors cursor-pointer"
             >
               Batal
             </button>
@@ -1166,7 +1155,7 @@ export const CannedResponsesManager: React.FC = () => {
               type="button"
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
               disabled={deleteMutation.isPending}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+              className="idesk-btn is-danger is-solid"
             >
               {deleteMutation.isPending ? 'Menghapus...' : 'Ya, Hapus Template'}
             </button>
@@ -1176,13 +1165,13 @@ export const CannedResponsesManager: React.FC = () => {
 
       {/* Reset Confirmation Dialog */}
       <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
-        <DialogContent className="sm:max-w-md p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl">
+        <DialogContent className="sm:max-w-md p-6 bg-surface rounded-3xl border border-line shadow-2xl">
           <DialogHeader className="space-y-1">
-            <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <RotateCcw className="w-5 h-5 text-amber-500" />
+            <DialogTitle className="text-lg font-bold text-ink flex items-center gap-2">
+              <RotateCcw className="w-5 h-5 text-warn" />
               <span>Reset ke Template Default?</span>
             </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
+            <DialogDescription className="text-xs text-ink-2">
               Semua template kustom saat ini akan digantikan kembali dengan template bawaan sistem (/hi, /info, /esc, /vendor, /done, /pwd).
             </DialogDescription>
           </DialogHeader>
@@ -1191,7 +1180,7 @@ export const CannedResponsesManager: React.FC = () => {
             <button
               type="button"
               onClick={() => setResetConfirmOpen(false)}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              className="px-4 py-2 text-xs font-semibold text-ink-2 hover:bg-fill rounded-xl transition-colors cursor-pointer"
             >
               Batal
             </button>
@@ -1199,7 +1188,7 @@ export const CannedResponsesManager: React.FC = () => {
               type="button"
               onClick={handleResetDefaults}
               disabled={resetMutation.isPending}
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+              className="px-4 py-2 bg-warn hover:bg-warn/90 text-white text-xs font-bold rounded-xl transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
             >
               {resetMutation.isPending ? 'Mereset...' : 'Ya, Reset ke Default'}
             </button>

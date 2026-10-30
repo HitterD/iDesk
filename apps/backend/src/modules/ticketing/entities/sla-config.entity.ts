@@ -17,4 +17,8 @@ export class SlaConfig {
 
     @Column({ type: 'int', default: 60 })
     responseTimeMinutes: number;
+
+    /** Count the SLA in business hours only; false runs it around the clock (e.g. CRITICAL). */
+    @Column({ default: true })
+    businessHoursOnly: boolean;
 }

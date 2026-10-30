@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Automation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=20">
+<link rel="stylesheet" href="pages.css?v=20">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=20"></script>
+<script src="mock-state.js?v=20"></script>
+<script src="shell.js?v=20"></script>
+<script src="motion.js?v=20"></script>
+<script src="pages.js?v=20"></script>
+</head>
+<body data-page="automation" data-crumb="Administration" data-title="Automation">
+<!-- Production source: apps/frontend/src/features/automation/pages/AutomationRulesPage.tsx, RuleBuilder.tsx (TRIGGER_OPTIONS, ACTION_OPTIONS) -->
+<script>
+const { ic, bub } = iDeskPages;
+const TRIG = { TICKET_CREATED: ['Ticket Created', 'plus', 'var(--green)'], STATUS_CHANGED: ['Status Changed', 'arrow-right', 'var(--navy)'], PRIORITY_CHANGED: ['Priority Changed', 'triangle-alert', 'var(--orange)'], ASSIGNMENT_CHANGED: ['Assignment Changed', 'user', 'var(--teal)'], MESSAGE_RECEIVED: ['Message Received', 'message-square', 'var(--blue)'], SLA_BREACH_IMMINENT: ['SLA Warning', 'clock', 'var(--orange)'], SLA_BREACHED: ['SLA Breached', 'triangle-alert', 'var(--red)'] };
+// Synthetic sample data: [name, trigger, conditions[], actions[], active, runs, last]
+let rules = [
+  ['Eskalasi Blocker ke ICT Lead', 'TICKET_CREATED', ['priority equals CRITICAL'], ['Send Notification', 'Add Internal Note'], true, 41, '20 Okt 2026'],
+  ['Peringatan SLA 1 jam sebelum habis', 'SLA_BREACH_IMMINENT', [], ['Send Notification'], true, 128, '21 Okt 2026'],
+  ['Auto-assign tiket printer', 'TICKET_CREATED', ['title contains printer', 'category equals HARDWARE'], ['Assign Ticket'], true, 63, '21 Okt 2026'],
+  ['Naikkan prioritas saat SLA terlewati', 'SLA_BREACHED', [], ['Change Priority', 'Send Notification'], false, 12, '02 Okt 2026'],
+  ['Buka ulang saat pemohon membalas', 'MESSAGE_RECEIVED', ['status equals RESOLVED'], ['Change Status'], true, 27, '19 Okt 2026'],
+];
+function render() {
+  document.getElementById('ruleSub').textContent = `${rules.length} rules • ${rules.filter((r) => r[4]).length} active`;
+  document.getElementById('rules').innerHTML = rules.map(([n, t, conds, acts, on, runs, last], i) => { const [tl, ti, tc] = TRIG[t]; return `<div class="ccard${on ? ' lift' : ' off'}">
+    <div class="top"><span class="tile" style="--c:${tc};width:32px;height:32px;border-radius:10px">${ic(ti)}</span><div><b>${n}</b><small>Prioritas ${i + 1}</small></div><button class="switch" aria-checked="${on}" aria-label="Aktifkan ${n}" data-rule="${i}"></button></div>
+    <div class="rule-flow">${bub(tl, tc)}${conds.length ? `${ic('chevron-right')}<span class="mini">${conds.length} condition${conds.length > 1 ? 's' : ''}</span>` : ''}${ic('chevron-right')}<span>${acts.join(', ')}</span></div>
+    <div class="foot2">${ic('play')}${runs} runs<span>·</span>${ic('clock')}${last}${on ? '<span style="margin-left:auto">' + bub('Active', 'var(--green)', { ink: 'var(--ink-green)' }) + '</span>' : ''}</div></div>`; }).join('');
+  iDeskPages.wireSwitches(document.getElementById('rules'));
+  lucide.createIcons();
+}
+iDeskPages.mount(`
+<main class="content page">
+  <div class="head">
+    <span class="tile ptile" style="--c:var(--orange)">${ic('zap')}</span>
+    <div><h2>Automation Rules</h2><p id="ruleSub"></p></div>
+    <span class="spacer"></span>
+    <div class="head-actions"><button class="btn" data-demo="Galeri template rule belum dibuat di mockup.">${ic('layout-template')}Templates</button><button class="btn primary" data-demo="Rule builder (trigger → condition → action) belum dibuat di mockup.">${ic('plus')}Create Rule</button></div>
+  </div>
+  <div class="cards" id="rules" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr))"></div>
+  <div class="note-line" style="max-width:720px">${ic('info')}Rule dijalankan berurutan sesuai prioritas. Trigger: ${Object.values(TRIG).map((x) => x[0]).join(', ')}.</div>
+</main>`);
+document.getElementById('rules').addEventListener('toggle', (e) => {
+  const i = Number(e.target.dataset.rule);
+  rules = rules.map((r, j) => (j === i ? [...r.slice(0, 4), e.detail, ...r.slice(5)] : r));
+  render();
+  iDeskDropdown.notice(`Rule ${e.detail ? 'enabled' : 'disabled'} · contoh lokal, tidak disimpan.`);
+});
+render();
+</script>
+</body>
+</html>

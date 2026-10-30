@@ -1,4 +1,4 @@
-import { EventsGateway, buildCorsOrigin } from './events.gateway';
+import { EventsGateway, TICKET_CROSS_SITE_ROOM, buildCorsOrigin, ticketStaffRoom } from './events.gateway';
 import { UserRole } from '../../../users/enums/user-role.enum';
 
 describe('EventsGateway security boundary', () => {
@@ -49,13 +49,24 @@ describe('EventsGateway security boundary', () => {
         expect(gateway.handleIdentify(client, 'user-2')).toEqual({ status: 'error', message: 'Unauthorized' });
     });
 
+    // handleJoinTicket menolak id non-UUID sebelum menyentuh DB (tickets.id adalah
+    // PrimaryGeneratedColumn('uuid')), jadi fixture wajib UUID asli — bukan 'ticket-1'.
+    const TICKET_UUID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+
     it('allows owner ticket room and rejects another user', async () => {
         const client = socket();
         client.data = { userId: 'user-1', role: UserRole.USER, siteId: 'site-1' };
-        tickets.findById.mockResolvedValue({ id: 'ticket-1', userId: 'user-1', category: 'GENERAL', ticketType: 'SERVICE', siteId: 'site-1' });
-        await expect(gateway.handleJoinTicket(client, 'ticket-1')).resolves.toMatchObject({ status: 'ok' });
+        tickets.findById.mockResolvedValue({ id: TICKET_UUID, userId: 'user-1', category: 'GENERAL', ticketType: 'SERVICE', siteId: 'site-1' });
+        await expect(gateway.handleJoinTicket(client, TICKET_UUID)).resolves.toMatchObject({ status: 'ok' });
         client.data.userId = 'user-2';
-        await expect(gateway.handleJoinTicket(client, 'ticket-1')).resolves.toMatchObject({ status: 'error', message: 'Forbidden' });
+        await expect(gateway.handleJoinTicket(client, TICKET_UUID)).resolves.toMatchObject({ status: 'error', message: 'Forbidden' });
+    });
+
+    it('rejects a non-UUID ticket id before querying the database', async () => {
+        const client = socket();
+        client.data = { userId: 'user-1', role: UserRole.USER, siteId: 'site-1' };
+        await expect(gateway.handleJoinTicket(client, 'ticket-1')).resolves.toEqual({ status: 'error', message: 'Invalid ticket ID format' });
+        expect(tickets.findById).not.toHaveBeenCalled();
     });
 
     it('rejects non-admin admin-room join', () => {
@@ -140,6 +151,60 @@ describe('EventsGateway presence', () => {
         expect(client.data.userId).toBe('user-1');
     });
 
+    it('joins the cross-site ticket room only for cross-site roles', () => {
+        const manager = connectAs('socket-m', 'manager-1', UserRole.MANAGER);
+        const agent = connectAs('socket-a', 'agent-1', UserRole.AGENT);
+
+        expect(manager.join).toHaveBeenCalledWith(TICKET_CROSS_SITE_ROOM);
+        expect(agent.join).not.toHaveBeenCalledWith(TICKET_CROSS_SITE_ROOM);
+    });
+
+    it('joins the staff room only for non-requester roles', async () => {
+        const TICKET_UUID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+        const owner = socket('socket-owner');
+        owner.data = { userId: 'user-1', role: UserRole.USER, siteId: 'site-1' };
+        const agent = socket('socket-agent');
+        agent.data = { userId: 'agent-1', role: UserRole.AGENT, siteId: 'site-1' };
+        tickets.findById.mockResolvedValue({ id: TICKET_UUID, userId: 'user-1', category: 'GENERAL', ticketType: 'SERVICE', siteId: 'site-1' });
+
+        await gateway.handleJoinTicket(owner, TICKET_UUID);
+        await gateway.handleJoinTicket(agent, TICKET_UUID);
+
+        expect(owner.join).not.toHaveBeenCalledWith(ticketStaffRoom(TICKET_UUID));
+        expect(agent.join).toHaveBeenCalledWith(ticketStaffRoom(TICKET_UUID));
+    });
+
+    it('pushes internal notes to the staff room only', () => {
+        gateway.notifyNewMessage('t-1', { id: 'm-1', isInternal: true });
+        gateway.notifyNewMessage('t-1', { id: 'm-2', isInternal: false });
+
+        expect(gateway.server.to).toHaveBeenNthCalledWith(1, ticketStaffRoom('t-1'));
+        expect(gateway.server.to).toHaveBeenNthCalledWith(2, 'ticket:t-1');
+    });
+
+    it('reports whether any of the user\'s tabs has the ticket open', async () => {
+        const inRoom = jest.fn().mockReturnValue({
+            fetchSockets: jest.fn().mockResolvedValue([
+                { rooms: new Set(['user:user-1']) },
+                { rooms: new Set(['user:user-1', 'ticket:t-1']) },
+            ]),
+        });
+        gateway.server = { in: inRoom } as any;
+
+        await expect(gateway.isViewingTicket('user-1', 't-1')).resolves.toBe(true);
+        await expect(gateway.isViewingTicket('user-1', 't-2')).resolves.toBe(false);
+        expect(inRoom).toHaveBeenCalledWith('user:user-1');
+    });
+
+    it('emits ticket events to the site and cross-site rooms, never globally', () => {
+        gateway.emitToTicketAudience('site-1', 'tickets:listUpdated', { ticketId: 't-1' });
+        gateway.emitToTicketAudience(null, 'tickets:listUpdated', { ticketId: 't-2' });
+
+        expect(gateway.server.to).toHaveBeenCalledWith(['site:site-1', TICKET_CROSS_SITE_ROOM]);
+        expect(gateway.server.to).toHaveBeenCalledWith([TICKET_CROSS_SITE_ROOM]);
+        expect(gateway.server.emit).not.toHaveBeenCalled();
+    });
+
     it('returns the roster to an identified client', () => {
         const client = connectAs('socket-1', 'user-1');
         connectAs('socket-2', 'user-2');
@@ -189,25 +254,8 @@ describe('EventsGateway presence', () => {
         return client;
     };
 
-    it('gives each proxied client its own connection bucket when the proxy is trusted', () => {
-        const previous = process.env.TRUST_PROXY;
-        process.env.TRUST_PROXY = 'true';
-        try {
-            const clients = Array.from({ length: 40 }, (_, i) => connectBehindProxy(gateway, i));
-            expect(clients.filter((c) => c.disconnect.mock.calls.length > 0)).toEqual([]);
-        } finally {
-            process.env.TRUST_PROXY = previous;
-        }
-    });
-
-    it('ignores client-supplied forwarding headers when the proxy is not trusted', () => {
-        const previous = process.env.TRUST_PROXY;
-        delete process.env.TRUST_PROXY;
-        try {
-            const clients = Array.from({ length: 40 }, (_, i) => connectBehindProxy(gateway, i));
-            expect(clients.some((c) => c.disconnect.mock.calls.length > 0)).toBe(true);
-        } finally {
-            process.env.TRUST_PROXY = previous;
-        }
+    it('never rejects connections from a shared office IP', () => {
+        const clients = Array.from({ length: 40 }, (_, i) => connectBehindProxy(gateway, i));
+        expect(clients.filter((c) => c.disconnect.mock.calls.length > 0)).toEqual([]);
     });
 });

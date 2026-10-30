@@ -30,6 +30,7 @@ import {
     Info,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 
 interface ManagerTicketActivityModalProps {
     ticketId: string | null;
@@ -38,18 +39,19 @@ interface ManagerTicketActivityModalProps {
 }
 
 const STATUS_BADGE_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-    TODO: { label: 'To Do', color: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700', dot: 'bg-slate-400' },
-    IN_PROGRESS: { label: 'In Progress', color: 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800', dot: 'bg-blue-500' },
+    TODO: { label: 'To Do', color: STATUS_TONE_CLASSES.TODO.pill, dot: STATUS_TONE_CLASSES.TODO.dot },
+    IN_PROGRESS: { label: 'In Progress', color: STATUS_TONE_CLASSES.IN_PROGRESS.pill, dot: STATUS_TONE_CLASSES.IN_PROGRESS.dot },
     WAITING_VENDOR: { label: 'Waiting Vendor', color: 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800', dot: 'bg-amber-500' },
     RESOLVED: { label: 'Resolved', color: 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800', dot: 'bg-emerald-500' },
+    CLOSED: { label: 'Closed', color: 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600', dot: 'bg-slate-500' },
     CANCELLED: { label: 'Cancelled', color: 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800', dot: 'bg-red-500' },
 };
 
-const PRIORITY_BADGE_CONFIG: Record<string, { label: string; color: string }> = {
-    LOW: { label: 'Low', color: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400' },
-    MEDIUM: { label: 'Medium', color: 'bg-yellow-50 dark:bg-yellow-950/50 text-yellow-700 dark:text-yellow-400' },
-    HIGH: { label: 'High', color: 'bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-400' },
-    CRITICAL: { label: 'Critical', color: 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-400' },
+const PRIORITY_BADGE_CONFIG: Record<string, { label: string; shortLabel?: string; color: string }> = {
+    LOW: { label: 'Low (Minor/Cosmetic)', shortLabel: 'Low', color: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400' },
+    MEDIUM: { label: 'Normal (Moderate)', shortLabel: 'Normal', color: 'bg-yellow-50 dark:bg-yellow-950/50 text-yellow-700 dark:text-yellow-400' },
+    HIGH: { label: 'Urgent (Major Impact)', shortLabel: 'Urgent', color: 'bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-400' },
+    CRITICAL: { label: 'Blocker (Critical)', shortLabel: 'Blocker', color: 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-400' },
 };
 
 export const ManagerTicketActivityModal: React.FC<ManagerTicketActivityModalProps> = ({

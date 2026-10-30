@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDesk mockup — Daftar tiket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="idesk.css?v=20">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="dropdown.js?v=20"></script>
+<script src="mock-state.js?v=20"></script>
+<script src="shell.js?v=20"></script>
+<script src="motion.js?v=20"></script>
+</head>
+<body data-crumb="Request Center" data-live="1">
+<!--
+THESIS: one quiet queue for every request type (IT Support, Oracle K2, Web, Mobile) — same counters, same table, same dropdown vocabulary; colour only marks state that needs a human.
+OWN-WORLD: macOS source list + unified toolbar, soft white rounded panels on #f5f5f7, sapphire as the only accent, state as 7px dots and 10% tints, popup buttons for every editable cell.
+STORY: the agent sees what needs them (attention counters tint softly), filters with one click, changes status or PIC inline from the row.
+FIRST VIEWPORT: sidebar · toolbar · title with queue tile and scope segments · 7 counters · filter bar of popup buttons · table.
+FORM: user-pinned Apple design language, softened per review round 2.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+-->
+<script src="queue.js?v=20"></script>
+<script src="actions.js?v=20"></script>
+<script src="queue-actions.js?v=20"></script>
+<script>
+const { ic, caret, av, ACTIVE, STATUS, slaBub, priParts, displayId } = iDeskQueue;
+const QA = iDeskQueueActions;
+const SKELETON_ROWS = 5;
+const TABLE = `
+  <section class="table" aria-label="Daftar tiket">
+    <div class="thead"><span class="check" id="selectAll" role="checkbox" aria-checked="false" aria-label="Pilih semua tiket yang tampil" tabindex="0"><span class="box">${ic('check')}</span></span><span>Tiket</span><span class="col-pri">Prioritas</span><span class="col-site">Site</span><span>Status</span><span class="col-req">Pemohon</span><span>PIC</span><span>SLA</span><span class="sort col-date">Dibuat${ic('arrow-down')}</span></div>
+    <div id="rows"></div>
+    <div class="empty-state" id="empty"><div class="ic">${ic('inbox')}</div><b>Tidak ada tiket yang cocok</b>Coba hapus filter atau ubah kata kunci pencarian.</div>
+    <div class="foot"><span id="showing"></span><span class="muted">Satu halaman data contoh</span></div>
+  </section>
+  ${QA.BULK_HTML}`;
+let selected = new Set();
+function rowHtml(r) {
+  const active = ACTIVE.includes(r.s);
+  const flag = active && (r.p === 'CRITICAL' || (r.overdue && r.s !== 'WAITING_VENDOR'));
+  const pri = priParts(r); const [sl, sc, si] = STATUS[r.s];
+  const pic = r.pic
+    ? `<button class="bub pic" aria-label="Ganti PIC">${av(r.pic)}<span class="v">${r.pic}</span>${caret}</button>`
+    : `<button class="bub pic empty">${ic('user-round-plus')}<span class="v">Tetapkan PIC</span>${caret}</button>`;
+  const on = selected.has(r.id);
+  return `<div class="row ${flag ? 'flag' : ''}${on ? ' selected' : ''}" data-record="${r.id}" role="row" tabindex="0">
+      <span class="check" data-select role="checkbox" aria-checked="${on}" aria-label="Pilih ${displayId(r)}" tabindex="-1"><span class="box">${ic('check')}</span></span>
+      <div class="tk"><div class="id">#${displayId(r)}${r.src ? `<span class="src">${r.src}</span>` : ''}${QA.hwLinkHtml(r)}</div><div class="title">${r.t}</div>${QA.rowActionsHtml(r)}</div>
+      <span class="col-pri"><button class="bub" data-edit="p" style="--c:${pri.color};--ink:${pri.ink}">${pri.icon}<span class="v">${pri.label}</span>${active ? caret : ''}</button></span>
+      <span class="col-site"><span class="bub neutral mono">${r.site}</span></span>
+      <span class="col-st"><button class="bub" style="--c:${sc}${si ? `;--ink:${si}` : ''}" aria-label="Ganti status"><span class="dot"></span><span class="v">${sl}</span>${caret}</button></span>
+      <div class="person col-req">${av(r.req[0])}<div style="min-width:0"><b>${r.req[0]}</b><small>${r.req[1]}</small></div></div>
+      <div class="col-pic">${pic}</div>
+      <div class="col-sla">${slaBub(r)}</div>
+      <span class="date col-date">${r.d}</span>
+    </div>`;
+}
+function renderRows(rows) {
+  const host = document.getElementById('rows');
+  host.classList.remove('loading');
+  host.innerHTML = rows.map(rowHtml).join('');
+  document.getElementById('empty').classList.toggle('show', rows.length === 0);
+  document.getElementById('showing').textContent = `Menampilkan ${rows.length} dari ${iDeskQueue.count()} tiket contoh`;
+  bindRows(rows);
+  visibleIds = rows.map((r) => r.id);
+  const alive = new Set(iDeskQueue.records().map((r) => r.id));
+  selected = new Set([...selected].filter((id) => alive.has(id)));
+  paintSelection();
+}
+function skeleton() {
+  const host = document.getElementById('rows');
+  host.classList.add('loading');
+  host.innerHTML = Array.from({ length: SKELETON_ROWS }, () => '<div class="row skeleton-row" aria-hidden="true"><span></span><i class="sk w60"></i><i class="sk w40"></i><i class="sk w30"></i><i class="sk w50"></i><i class="sk w70"></i><i class="sk w60"></i><i class="sk w40"></i></div>').join('');
+  document.getElementById('showing').textContent = 'Memuat contoh…';
+}
+function bindRows(rows) {
+  rows.forEach((record) => {
+    const row = document.querySelector('[data-record="' + record.id + '"]');
+    const fields = [['p', '[data-edit="p"]', iDeskMock.priorities], ['s', '.col-st button', iDeskMock.editableStatuses], ['pic', '.col-pic button', iDeskMock.pics]];
+    fields.forEach(([key, selector, options]) => {
+      const button = row.querySelector(selector); button.id = 'edit-' + record.id + '-' + key;
+      iDeskMock.bindEditor(button, record, key, options, iDeskQueue.commit, key === 'pic' ? 'Cari PIC…' : undefined);
+    });
+    QA.bindRecordActions(row, record, { isOn: (id) => selected.has(id), toggle: (id) => setSelected(toggled(id)) });
+    row.onclick = (event) => {
+      if (event.target.closest('button')) return;
+      if (event.target.closest('[data-select]')) { toggleSelect(record.id); return; }
+      location.href = 'ticket.html';
+    };
+    row.onkeydown = (event) => {
+      if (event.target !== row) return;
+      if (event.key === 'Enter') location.href = 'ticket.html';
+      if (event.key === ' ') { event.preventDefault(); toggleSelect(record.id); }
+    };
+  });
+}
+let visibleIds = [];
+const toggled = (id) => { const next = new Set(selected); if (next.has(id)) next.delete(id); else next.add(id); return next; };
+function toggleSelect(id) { setSelected(toggled(id)); }
+function setSelected(next) { selected = next; paintSelection(); }
+function paintSelection() {
+  document.querySelectorAll('#rows .row[data-record]').forEach((row) => {
+    const on = selected.has(row.dataset.record);
+    row.classList.toggle('selected', on);
+    row.querySelector('[data-select]').setAttribute('aria-checked', String(on));
+  });
+  const shown = visibleIds.filter((id) => selected.has(id)).length;
+  const all = document.getElementById('selectAll');
+  all.setAttribute('aria-checked', shown === 0 ? 'false' : shown === visibleIds.length ? 'true' : 'mixed');
+  all.querySelector('.box').innerHTML = `<i data-lucide="${shown && shown < visibleIds.length ? 'minus' : 'check'}"></i>`;
+  lucide.createIcons();
+  paintBulk();
+}
+function toggleAll() {
+  const allOn = visibleIds.length && visibleIds.every((id) => selected.has(id));
+  setSelected(allOn ? new Set([...selected].filter((id) => !visibleIds.includes(id))) : new Set([...selected, ...visibleIds]));
+}
+let paintBulk = () => {};
+iDeskQueue.mount({ view: 'list', body: TABLE, onRender: renderRows, skeleton });
+paintBulk = QA.mountBulk({ getSelected: () => selected, setSelected });
+const selectAll = document.getElementById('selectAll');
+selectAll.onclick = toggleAll;
+selectAll.onkeydown = (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleAll(); } };
+paintSelection();
+</script>
+</body>
+</html>

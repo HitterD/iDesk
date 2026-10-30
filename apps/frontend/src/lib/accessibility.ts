@@ -64,6 +64,7 @@ export const getStatusLabel = (status: string): string => {
         IN_PROGRESS: 'In Progress',
         WAITING_VENDOR: 'Waiting for Vendor',
         RESOLVED: 'Resolved',
+        CLOSED: 'Closed',
         CANCELLED: 'Cancelled',
     };
     return labels[status] || status;
@@ -71,10 +72,11 @@ export const getStatusLabel = (status: string): string => {
 
 export const getPriorityLabel = (priority: string): string => {
     const labels: Record<string, string> = {
-        CRITICAL: 'Critical Priority',
-        HIGH: 'High Priority',
-        MEDIUM: 'Medium Priority',
-        LOW: 'Low Priority',
+        CRITICAL: 'Blocker (Critical)',
+        HIGH: 'Urgent (Major Impact)',
+        MEDIUM: 'Normal (Moderate)',
+        LOW: 'Low (Minor/Cosmetic)',
+        HARDWARE_INSTALLATION: 'Hardware Installation',
     };
     return labels[priority] || priority;
 };

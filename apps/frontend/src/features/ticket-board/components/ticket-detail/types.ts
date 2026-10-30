@@ -1,3 +1,6 @@
+import type { AttachmentInfo } from './attachmentKind';
+import type { TicketSystemEvent } from './ActivityEvent';
+
 export interface TicketParticipant {
     id: string;
     ticketId: string;
@@ -30,11 +33,27 @@ export interface TicketDetail {
     ticketType?: string;
     handlingTeam?: 'OPS_SUPPORT' | 'ORACLE_DEV' | 'MOBILE_DEV' | 'WEB_DEV' | string;
     device?: string;
+    /** WEB, EMAIL or IPOP (filed through the iPop integration). */
+    source?: string;
+    /** Connected app that filed it (source API), e.g. 'EBBK'. */
+    externalSource?: string | null;
     criticalReason?: string;
     createdAt: string;
     updatedAt: string;
+    /** Staff member who filed the ticket on the requester's behalf; absent when the requester filed it. */
+    createdBy?: { id: string; fullName: string } | null;
     slaTarget?: string;
+    /** 'requester' = I filed it but don't handle it: view/chat only. */
+    viewerAccess?: 'handler' | 'requester';
     slaStartedAt?: string;
+    /** Business minutes left while the SLA clock is held (waiting vendor, resolved). */
+    slaRemainingMinutes?: number | null;
+    lastPausedAt?: string | null;
+    /** Agreed vendor visit while WAITING_VENDOR. */
+    vendorVisitAt?: string | null;
+    /** Why a WAITING_VENDOR ticket waits (template or typed by the PIC). */
+    vendorNote?: string | null;
+    firstResponseRemainingMinutes?: number | null;
     firstResponseAt?: string;
     firstResponseTarget?: string;
     isFirstResponseBreached?: boolean;
@@ -45,6 +64,10 @@ export interface TicketDetail {
     scheduledTime?: string;
     hardwareType?: string;
     userAcknowledged?: boolean;
+    /** Requester confirmation window while status is RESOLVED; auto-closes after this. */
+    resolutionDeadlineAt?: string | null;
+    closedAt?: string | null;
+    disputedAt?: string | null;
     user: {
         /** Present in the findOne payload via the `user` relation; drives the presence dot. */
         id?: string;
@@ -58,7 +81,6 @@ export interface TicketDetail {
             name: string;
             code?: string;
         };
-        telegramChatId?: string;
     };
     assignedTo?: {
         id: string;
@@ -71,8 +93,11 @@ export interface TicketDetail {
         content: string;
         createdAt: string;
         isSystemMessage: boolean;
+        /** Structured activity (who changed what); absent on older system messages. */
+        systemEvent?: TicketSystemEvent | null;
         isInternal?: boolean;
         attachments: string[];
+        attachmentInfo?: AttachmentInfo[] | null;
         sender?: {
             id?: string;
             fullName: string;

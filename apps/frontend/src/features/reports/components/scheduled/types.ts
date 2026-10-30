@@ -1,5 +1,8 @@
+import type { ReportTeam } from '../../reportTeams';
+
 export type ReportType = 'MONTHLY_SUMMARY' | 'AGENT_PERFORMANCE' | 'TICKET_VOLUME';
 export type ScheduleType = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+/** Legacy; superseded by targetTeam. */
 export type TargetAgentCategory = 'REGULAR' | 'ORACLE' | null;
 
 export interface ScheduledReportConfig {
@@ -16,6 +19,8 @@ export interface ScheduledReportConfig {
     };
     recipientUserIds: string[];
     targetAgentCategory: TargetAgentCategory;
+    /** Team the report covers; null = every team. */
+    targetTeam?: ReportTeam | null;
     isActive: boolean;
     lastRunAt?: string | null;
     createdAt: string;

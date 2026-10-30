@@ -38,30 +38,16 @@ export function AuditActionFilter({ value, onChange }: AuditActionFilterProps) {
         <div ref={containerRef} className="relative">
             {/* Trigger Button */}
             <button
+                type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className={`
-                    flex items-center gap-2 px-3 py-2 min-w-[140px]
-                    bg-white dark:bg-[hsl(var(--card))]
-                    border border-[hsl(var(--border))]
-                    rounded-lg text-xs font-medium
-                    hover:border-primary/40 transition-colors
-                    ${isOpen ? 'ring-2 ring-primary/20 border-primary/40' : ''}
-                `}
+                className={`queue-pop ${isOpen ? 'is-open' : ''}`}
+                aria-haspopup="listbox"
+                aria-expanded={isOpen}
+                aria-label={`Action: ${selectedConfig ? selectedConfig.label : 'Semua'}`}
             >
-                {selectedConfig ? (
-                    <>
-                        <span className="text-base">{selectedConfig.icon}</span>
-                        <span className="text-slate-800 dark:text-white truncate flex-1 text-left">
-                            {selectedConfig.label}
-                        </span>
-                    </>
-                ) : (
-                    <>
-                        <Zap className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="text-slate-500 dark:text-slate-400 flex-1 text-left">All Actions</span>
-                    </>
-                )}
-                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                <span className="queue-pop-k">Action</span>
+                <span className="queue-pop-v">{selectedConfig ? selectedConfig.label : 'Semua'}</span>
+                <ChevronDown aria-hidden="true" />
             </button>
 
             {/* Dropdown */}

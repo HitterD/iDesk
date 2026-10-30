@@ -77,7 +77,7 @@ export function CompleteInstallWizard({ open, requestId, items, onClose }: Props
                 <button
                   type="button"
                   onClick={() => setScanFor(i.id)}
-                  className="text-xs px-2 py-1 rounded-md border border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                  className="text-xs px-2 py-1 rounded-md border border-primary/30 text-primary hover:bg-primary/5"
                 >
                   Scan
                 </button>

@@ -12,6 +12,7 @@ import { Notification } from './notification.entity';
 export enum DeliveryChannel {
     IN_APP = 'IN_APP',
     EMAIL = 'EMAIL',
+    /** Legacy: logs from the retired Telegram channel. */
     TELEGRAM = 'TELEGRAM',
     PUSH = 'PUSH',
     SMS = 'SMS',

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { createElement } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { io, Socket } from 'socket.io-client';
@@ -25,6 +25,7 @@ const ic = (Cmp: typeof CalendarPlus) => createElement(Cmp, { className: 'h-4 w-
 export function useZoomSocket(accountId?: string) {
     const queryClient = useQueryClient();
     const socketRef = useRef<Socket | null>(null);
+    const [isConnected, setIsConnected] = useState(false);
 
     // Handle calendar update
     const handleCalendarUpdate = useCallback((data: { accountId: string; action: string }) => {
@@ -84,7 +85,8 @@ export function useZoomSocket(accountId?: string) {
             queryClient.invalidateQueries({ queryKey: ['admin-zoom-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['my-upcoming-zoom-bookings'] });
             queryClient.invalidateQueries({ queryKey: ['my-zoom-bookings'] });
-            toast.info(`Calendar synced with Zoom (${data.updatedCount} updates)`, {
+            toast.info(`Jadwal Zoom diperbarui (${data.updatedCount} perubahan)`, {
+                id: 'zoom-calendar-sync',
                 icon: ic(RefreshCw),
             });
         }
@@ -99,18 +101,23 @@ export function useZoomSocket(accountId?: string) {
 
         socketRef.current = socket;
 
-        socket.on('connect', () => {
+        const handleConnect = () => {
             console.log('[Zoom Socket] Connected', { accountId });
+            setIsConnected(true);
 
             // Subscribe to specific account if provided
             if (accountId) {
                 socket.emit('subscribe:account', accountId);
             }
-        });
+        };
 
-        socket.on('disconnect', () => {
+        const handleDisconnect = () => {
             console.log('[Zoom Socket] Disconnected');
-        });
+            setIsConnected(false);
+        };
+
+        socket.on('connect', handleConnect);
+        socket.on('disconnect', handleDisconnect);
 
         // Register event handlers
         socket.on('calendar:updated', handleCalendarUpdate);
@@ -124,6 +131,13 @@ export function useZoomSocket(accountId?: string) {
             if (accountId) {
                 socket.emit('unsubscribe:account', accountId);
             }
+            socket.off('connect', handleConnect);
+            socket.off('disconnect', handleDisconnect);
+            socket.off('calendar:updated', handleCalendarUpdate);
+            socket.off('settings:updated', handleSettingsUpdate);
+            socket.off('booking:created', handleBookingCreated);
+            socket.off('booking:cancelled', handleBookingCancelled);
+            socket.off('sync:completed', handleSyncCompleted);
             socket.disconnect();
         };
     }, [accountId, handleCalendarUpdate, handleSettingsUpdate, handleBookingCreated, handleBookingCancelled, handleSyncCompleted]);
@@ -144,6 +158,6 @@ export function useZoomSocket(accountId?: string) {
     return {
         subscribeToAccount,
         unsubscribeFromAccount,
-        isConnected: socketRef.current?.connected ?? false,
+        isConnected,
     };
 }

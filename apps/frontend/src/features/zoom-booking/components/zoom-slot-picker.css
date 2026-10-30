@@ -1,0 +1,112 @@
+/* ZoomSlotPicker: day strip, typeable start-time list, duration chips on the app tokens (sapphire selection, --td-* fills). */
+.zsp { display: flex; flex-direction: column; gap: 16px; }
+.zsp-row { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* Start and end side by side: the meeting reads as a range ("10.00 → 11.30"), not a length to add up. */
+.zsp-times { display: grid; grid-template-columns: repeat(2, minmax(0, 280px)); gap: 12px 16px; }
+@media (max-width: 520px) { .zsp-times { grid-template-columns: 1fr; } }
+.zsp-label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: hsl(var(--idesk-text)); }
+.zsp-spin { width: 14px; height: 14px; color: var(--td-text-3); animation: spin 1s linear infinite; }
+
+.zsp-strip-wrap { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.zsp-nav { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 999px; color: hsl(var(--idesk-sapphire)); transition: background-color var(--dur-1) var(--ease-out); }
+.zsp-nav:hover { background: var(--td-accent-soft); }
+.zsp-nav svg { width: 17px; height: 17px; }
+.zsp-strip { display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding: 2px; min-width: 0; flex: 1; }
+.zsp-strip::-webkit-scrollbar { display: none; }
+.zsp-day {
+  flex: none; display: flex; flex-direction: column; align-items: center; gap: 1px; width: 58px; padding: 7px 0 6px;
+  border-radius: 14px; background: var(--td-fill); scroll-snap-align: center; color: hsl(var(--idesk-text));
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+.zsp-day small { font-size: 10.5px; font-weight: 500; color: hsl(var(--idesk-text-secondary)); }
+.zsp-day b { font-size: 18px; font-weight: 650; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.zsp-day:hover:not(:disabled):not(.is-selected) { background: var(--td-fill-2); }
+.zsp-day:active:not(:disabled) { transform: scale(.95); }
+.zsp-day:disabled { opacity: .38; cursor: default; }
+.zsp-day.is-current:not(.is-selected) { box-shadow: inset 0 0 0 1.5px hsl(var(--idesk-sapphire) / .45); }
+.zsp-day.is-selected { background: hsl(var(--idesk-sapphire)); color: #fff; }
+.zsp-day.is-selected small { color: rgb(255 255 255 / .85); }
+.dark .zsp-day.is-selected { color: #0b1426; }
+.dark .zsp-day.is-selected small { color: rgb(11 20 38 / .8); }
+
+.zsp-combo { position: relative; max-width: 280px; }
+.zsp-field {
+  display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 4px 0 12px; border-radius: 10px;
+  background: hsl(var(--idesk-surface)); box-shadow: inset 0 0 0 1px hsl(var(--idesk-border));
+  transition: box-shadow var(--dur-1) var(--ease-out);
+}
+.zsp-field:hover { box-shadow: inset 0 0 0 1px hsl(var(--idesk-text-secondary) / .45); }
+.zsp-field:focus-within { box-shadow: inset 0 0 0 1px hsl(var(--idesk-sapphire)), 0 0 0 3px hsl(var(--idesk-sapphire) / .16); }
+.zsp-field.is-invalid { box-shadow: inset 0 0 0 1px hsl(var(--ticket-red)), 0 0 0 3px hsl(var(--ticket-red) / .14); }
+.zsp-field > svg { width: 16px; height: 16px; flex: none; color: hsl(var(--idesk-text-secondary)); }
+/* !important: .zb-form normalises every input to a bordered field; here the wrapper is the field. */
+.zsp-field input {
+  flex: 1; min-width: 0; height: 100% !important; border: 0 !important; box-shadow: none !important; background: transparent !important;
+  padding: 0 !important; outline: 0; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; color: hsl(var(--idesk-text));
+}
+.zsp-field input:focus, .zsp-field input:focus-visible { outline: 0 !important; box-shadow: none !important; }
+.zsp-field input::placeholder { font-weight: 400; color: var(--td-text-3); }
+.zsp-field button { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; color: hsl(var(--idesk-text-secondary)); }
+.zsp-field button:hover { background: var(--td-fill); }
+.zsp-field button svg { width: 16px; height: 16px; transition: transform var(--dur-2) var(--ease-out); }
+.zsp-combo:has([aria-expanded="true"]) .zsp-field button svg { transform: rotate(180deg); }
+.zsp-list {
+  position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; right: 0; max-height: 248px; overflow-y: auto; padding: 4px;
+  border-radius: 12px; background: var(--zb-sheet); box-shadow: 0 12px 32px hsl(220 40% 10% / .18), inset 0 0 0 1px hsl(var(--idesk-border));
+  animation: idesk-pop-in var(--dur-2) var(--ease-out); transform-origin: top center;
+}
+.zsp-list.is-up { top: auto; bottom: calc(100% + 6px); transform-origin: bottom center; }
+.zsp-opt { display: flex; align-items: baseline; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.zsp-opt b { width: 44px; font-weight: 600; font-variant-numeric: tabular-nums; color: hsl(var(--idesk-text)); }
+.zsp-opt span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: hsl(var(--idesk-text-secondary)); }
+.zsp-opt.is-active { background: var(--td-accent-soft); }
+.zsp-opt[aria-selected="true"] { background: hsl(var(--idesk-sapphire)); }
+.zsp-opt[aria-selected="true"] b, .zsp-opt[aria-selected="true"] span { color: #fff; }
+.dark .zsp-opt[aria-selected="true"] b, .dark .zsp-opt[aria-selected="true"] span { color: #0b1426; }
+.zsp-opt.is-busy span { color: hsl(var(--ticket-red-ink)); }
+.zsp-opt[aria-disabled="true"] { cursor: not-allowed; }
+.zsp-opt[aria-disabled="true"] b { color: var(--td-text-3); text-decoration: line-through; }
+.zsp-list-empty { padding: 10px; font-size: 12.5px; color: hsl(var(--idesk-text-secondary)); }
+.zsp-error { margin-top: 6px; font-size: 12px; color: hsl(var(--ticket-red-ink)); }
+.zsp-durations { display: flex; flex-wrap: wrap; gap: 6px; }
+.zsp-chip {
+  height: 32px; padding: 0 13px; border-radius: 999px; background: var(--td-fill); font-size: 13px; font-weight: 550;
+  color: hsl(var(--idesk-text)); transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.zsp-chip:hover:not(:disabled):not(.is-selected) { background: var(--td-fill-2); }
+.zsp-chip.is-selected { background: var(--td-accent-soft); color: hsl(var(--idesk-sapphire)); box-shadow: inset 0 0 0 1px hsl(var(--idesk-sapphire) / .4); }
+.zsp-chip:disabled { opacity: .4; cursor: not-allowed; }
+.zsp-empty { padding: 12px 14px; border-radius: 12px; background: var(--td-fill); font-size: 13px; color: hsl(var(--idesk-text-secondary)); }
+.zsp-summary {
+  padding: 10px 14px; border-radius: 12px; background: var(--td-accent-soft); font-size: 13.5px; font-weight: 550;
+  color: hsl(var(--idesk-sapphire));
+}
+.zsp-summary.is-clash { background: color-mix(in srgb, var(--td-amber) 13%, transparent); color: #9a5b00; }
+.dark .zsp-summary.is-clash { color: #ffc56b; }
+
+.zsp :focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .zsp-day { transition: none; } .zsp-list { animation: none; } }
+
+/* Reschedule view */
+.zr { display: flex; flex-direction: column; gap: 18px; padding: 18px 20px 0; }
+.zr-current { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--td-fill); }
+.zr-current b { font-size: 14px; font-weight: 600; }
+.zr-current small { font-size: 12.5px; color: hsl(var(--idesk-text-secondary)); }
+.zr-ico { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 10px; background: var(--td-accent-soft); color: hsl(var(--idesk-sapphire)); }
+.zr-ico svg { width: 17px; height: 17px; }
+.zr-scope { display: flex; flex-direction: column; gap: 8px; }
+.zr-compare { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; box-shadow: inset 0 0 0 1px hsl(var(--idesk-border)); }
+.zr-compare > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.zr-compare small { font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--td-text-3); }
+.zr-compare b { font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.zr-compare > span:first-child b { color: hsl(var(--idesk-text-secondary)); text-decoration: line-through; text-decoration-color: var(--td-text-3); }
+.zr-compare > svg { flex: none; width: 16px; height: 16px; color: var(--td-text-3); }
+.zr-note { font-size: 12.5px; line-height: 1.5; color: hsl(var(--idesk-text-secondary)); }
+/* Same fill as DialogContent (bg-white / dark:bg-slate-900), so sticky footers don't read as a second panel. */
+:root { --zb-sheet: #fff; }
+.dark { --zb-sheet: #0f172a; }
+/* Sticks to the dialog's bottom edge so Save stays reachable while scrolling the time grid. */
+.zr-actions {
+  position: sticky; bottom: 0; z-index: 1; display: flex; justify-content: flex-end; gap: 8px;
+  margin: 0 -20px; padding: 12px 20px 16px; background: var(--zb-sheet); border-top: .5px solid var(--td-line-strong);
+}

@@ -20,7 +20,7 @@ export class VpnSchedulerService {
         private readonly notificationService: NotificationService,
     ) { }
 
-    @Cron('0 8 * * *', { name: 'vpn-reminder-check' })
+    @Cron('0 8 * * *', { name: 'vpn-reminder-check', timeZone: 'Asia/Jakarta' })
     async checkVpnExpirations() {
         this.logger.log('Checking VPN expirations (H-1 User / H+1 ICT)...');
 

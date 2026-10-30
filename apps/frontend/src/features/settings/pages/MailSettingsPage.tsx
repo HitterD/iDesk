@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Mail, Save, Send, TestTube, Loader2, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { Save, Send, TestTube, Loader2, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../../lib/api';
+import { SetHead } from '../components/SettingsParts';
 
 interface MailConfig {
     enabled: boolean;
@@ -147,18 +148,10 @@ export const MailSettingsPage = () => {
 
     return (
         <div className="space-y-6 max-w-3xl">
-            <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-sky-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-                    <Mail className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Email (SMTP)</h1>
-                    <p className="text-sm text-slate-500">Konfigurasi pengiriman email notifikasi</p>
-                </div>
-            </div>
+            <SetHead title="Email" sub="Server SMTP untuk notifikasi dan reply-by-email." />
 
             {verifyError && (
-                <div className="flex gap-3 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl text-sm text-amber-800 dark:text-amber-200">
+                <div className="flex gap-3 p-4 bg-warn/10 border border-warn/30 rounded-xl text-sm text-warn-ink">
                     <AlertTriangle className="w-5 h-5 flex-shrink-0" />
                     <div>
                         <strong>Verifikasi gagal:</strong> {verifyError}. Konfigurasi tetap tersimpan.
@@ -166,7 +159,7 @@ export const MailSettingsPage = () => {
                 </div>
             )}
 
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 space-y-5">
+            <div className="bg-surface rounded-2xl border border-line p-6 space-y-5">
                 <label className="flex items-center gap-3 cursor-pointer">
                     <input
                         type="checkbox"
@@ -174,26 +167,26 @@ export const MailSettingsPage = () => {
                         onChange={(e) => set('enabled', e.target.checked)}
                         className="w-5 h-5 rounded"
                     />
-                    <span className="font-medium text-slate-700 dark:text-slate-200">Aktifkan pengiriman email notifikasi</span>
+                    <span className="font-medium text-ink">Aktifkan pengiriman email notifikasi</span>
                 </label>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="md:col-span-2">
-                        <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Host</label>
+                        <label className="text-sm font-medium text-ink-2">Host</label>
                         <input
                             value={effective.host || ''}
                             onChange={(e) => set('host', e.target.value)}
                             placeholder="mail.kapalapi.co.id"
-                            className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                            className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
                         />
                     </div>
                     <div>
-                        <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Port</label>
+                        <label className="text-sm font-medium text-ink-2">Port</label>
                         <input
                             type="number"
                             value={effective.port ?? 465}
                             onChange={(e) => set('port', Number(e.target.value))}
-                            className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                            className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
                         />
                     </div>
                 </div>
@@ -219,46 +212,46 @@ export const MailSettingsPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Username</label>
+                        <label className="text-sm font-medium text-ink-2">Username</label>
                         <input
                             value={effective.username || ''}
                             onChange={(e) => set('username', e.target.value)}
                             placeholder="noreply@kapalapi.co.id"
-                            className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                            className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
                         />
                     </div>
                     <div>
-                        <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Password</label>
+                        <label className="text-sm font-medium text-ink-2">Password</label>
                         <div className="mt-1 relative">
                             <input
                                 type={showPass ? 'text' : 'password'}
                                 value={(effective as { password?: string }).password || ''}
                                 onChange={(e) => set('password', e.target.value)}
                                 placeholder={effective.passwordSet ? '••••••••' : ''}
-                                className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 pr-10 text-sm"
+                                className="w-full rounded-lg border border-line bg-surface px-3 py-2 pr-10 text-sm"
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowPass((v) => !v)}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink-2"
                             >
                                 {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                         </div>
-                        {effective.passwordSet && <p className="text-xs text-slate-400 mt-1">Kosongkan untuk tidak mengubah</p>}
+                        {effective.passwordSet && <p className="text-xs text-ink-3 mt-1">Kosongkan untuk tidak mengubah</p>}
                     </div>
                 </div>
 
                 <div>
-                    <label className="text-sm font-medium text-slate-600 dark:text-slate-300">From address</label>
+                    <label className="text-sm font-medium text-ink-2">From address</label>
                     <input
                         value={effective.fromAddress || ''}
                         onChange={(e) => set('fromAddress', e.target.value)}
                         placeholder={account ? '"iDesk Support" <' + account + '>' : '"iDesk Support" <akun@domain>'}
-                        className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                        className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
                     />
                     {headerMismatch && (
-                        <div className="mt-2 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+                        <div className="mt-2 flex items-start gap-2 text-xs text-warn-ink">
                             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                             <div>
                                 Header From memakai <strong>{headerFrom}</strong>, sedangkan akun SMTP adalah{' '}
@@ -278,21 +271,21 @@ export const MailSettingsPage = () => {
                 </div>
 
                 <div>
-                    <label className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                        Envelope sender <span className="font-normal text-slate-400">(opsional)</span>
+                    <label className="text-sm font-medium text-ink-2">
+                        Envelope sender <span className="font-normal text-ink-3">(opsional)</span>
                     </label>
                     <input
                         value={effective.envelopeFrom || ''}
                         onChange={(e) => set('envelopeFrom', e.target.value)}
                         placeholder={account || 'kosongkan untuk memakai From address'}
-                        className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                        className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
                     />
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-ink-3 mt-1">
                         Alamat pada perintah SMTP <code>MAIL FROM</code>. Isi hanya bila relay menolak
                         pengiriman atas nama From address.
                     </p>
                     {envelopeMismatch && (
-                        <div className="mt-2 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+                        <div className="mt-2 flex items-start gap-2 text-xs text-warn-ink">
                             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                             <div>
                                 Pengiriman memakai <strong>{envelope}</strong> sebagai envelope sender, sedangkan akun
@@ -314,43 +307,43 @@ export const MailSettingsPage = () => {
                 <div className="flex flex-wrap gap-2 pt-2">
                     <button
                         onClick={applyPreset}
-                        className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700"
+                        className="idesk-btn is-soft"
                     >
                         Preset mail.kapalapi.co.id
                     </button>
                     <button
                         onClick={() => verifyMut.mutate()}
                         disabled={verifyMut.isPending}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+                        className="idesk-btn is-soft"
                     >
                         {verifyMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <TestTube className="w-4 h-4" />} Verifikasi Koneksi
                     </button>
                     <button
                         onClick={() => saveMut.mutate(buildSavePayload())}
                         disabled={saveMut.isPending}
-                        className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 ml-auto"
+                        className="idesk-btn is-primary ml-auto"
                     >
                         {saveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Simpan
                     </button>
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 space-y-3">
-                <h3 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+            <div className="bg-surface rounded-2xl border border-line p-6 space-y-3">
+                <h3 className="font-semibold text-ink flex items-center gap-2">
                     <Send className="w-4 h-4" /> Kirim Email Tes
                 </h3>
-                <p className="text-sm text-slate-500">Mengirim email tes via konfigurasi yang tersimpan.</p>
+                <p className="text-sm text-ink-2">Mengirim email tes via konfigurasi yang tersimpan.</p>
                 <div className="flex gap-2">
                     <input
                         value={testTo}
                         onChange={(e) => setTestTo(e.target.value)}
                         placeholder="admin@kapalapi.co.id"
-                        className="flex-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                        className="flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm"
                     />
                     <button
                         onClick={() => testMut.mutate()}
                         disabled={!testTo || testMut.isPending}
-                        className="px-4 py-2 rounded-lg bg-slate-800 dark:bg-slate-700 text-white text-sm font-medium disabled:opacity-50"
+                        className="idesk-btn is-soft"
                     >
                         {testMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Kirim'}
                     </button>

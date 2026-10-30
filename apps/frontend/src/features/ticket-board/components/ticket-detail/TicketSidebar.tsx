@@ -10,54 +10,42 @@ import {
     Hash,
     Monitor,
     Building,
-    Calendar,
     Wrench,
-    CheckCircle2,
-    Loader2,
-    Mail,
     Copy,
-    Clock,
-    Shield,
     Check,
-    MapPin,
-    Tag,
     ChevronDown,
-    UserX,
-    UserPlus,
-    X,
-    ArrowLeftRight,
-    ArrowUpRight,
     CalendarPlus,
     History,
     ChevronUp,
     ArrowRight,
     Bell,
+    BellRing,
+    Lock,
 } from 'lucide-react';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 import { toast } from 'sonner';
 import { PresenceDot } from '@/components/ui/PresenceDot';
 import { TicketDetail } from './types';
-import { STATUS_OPTIONS, STATUS_CONFIG, PRIORITY_CONFIG } from './constants';
+import { isTerminalStatus, buildPriorityOptions } from './constants';
+import { PriorityDropdown, StatusDropdown } from '../TicketDropdowns';
+import { AssigneeBubble, CategoryBubble, DeviceBubble, NO_DEVICE_VALUE, PropertyRow } from './TicketPropertyRows';
 import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
-import { AgentSelectList, type Agent } from '../AgentSelectList';
+import type { Agent } from '../AgentSelectList';
 import { ReassignConfirmDialog, type TargetAgentInfo } from '../ReassignConfirmDialog';
 import { TicketForwardDialog, type ForwardTargetTeam } from '../TicketForwardDialog';
 import { TicketParticipantsSection } from './TicketParticipantsSection';
 import { ResolveTicketModal } from './ResolveTicketModal';
+import { VendorVisitDialog } from './VendorVisitDialog';
 import { SetTicketReminderModal } from './SetTicketReminderModal';
+import { SidebarCard, InfoRow, CardBadge, sidebarPanelClass } from './SidebarCard';
+import { SlaProgress } from './SlaProgress';
+import { toDisplayName } from './messageThread';
 import { useAuth } from '@/stores/useAuth';
+import { Button } from '@/components/ui/button';
+import { TicketHardwareSection } from '../ticket-hardware';
+import { TicketEFormSection } from '../ticket-eform';
+import { useTicketHold } from './useTicketHold';
 
 interface TicketSidebarProps {
     ticket: TicketDetail;
@@ -65,38 +53,24 @@ interface TicketSidebarProps {
     slaConfigs: { id: string; priority: string; resolutionTimeMinutes: number }[];
     attributes: { categories: { id: string; value: string }[]; devices: { id: string; value: string }[]; software: any[] };
     onAssigneeChange: (value: string, reason?: string) => Promise<void>;
-    onStatusChange: (value: string, resolutionNote?: string, files?: File[]) => Promise<void>;
+    onStatusChange: (value: string, resolutionNote?: string, files?: File[], extra?: StatusChangeExtra) => Promise<void>;
     onPriorityChange: (value: string) => Promise<void>;
     onCategoryChange: (value: string) => Promise<void>;
     onDeviceChange: (value: string) => Promise<void>;
     onForward?: (targetTeam: ForwardTargetTeam, reason: string) => Promise<void> | void;
     onExtendSla?: () => void;
     onSetReminder?: () => void;
+    /** Moves the vendor appointment of a WAITING_VENDOR ticket. */
+    onRescheduleVendorVisit?: (vendorVisitAt: string, vendorNote: string) => Promise<void>;
+}
+
+/** Extra PATCH /status fields some transitions need (WAITING_VENDOR: the agreed visit time and why). */
+export interface StatusChangeExtra {
+    vendorVisitAt?: string;
+    vendorNote?: string;
 }
 
 type FieldKey = 'assignee' | 'status' | 'priority' | 'category' | 'device';
-
-const PropertyRow: React.FC<{
-    icon: React.ElementType;
-    label: string;
-    saving: boolean;
-    saved: boolean;
-    children: React.ReactNode;
-}> = ({ icon: Icon, label, saving, saved, children }) => (
-    <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            <span className="flex items-center gap-1.5">
-                <Icon className="w-3.5 h-3.5 text-slate-400" />
-                {label}
-            </span>
-            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />}
-            {!saving && saved && (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 animate-in fade-in zoom-in duration-200" />
-            )}
-        </div>
-        {children}
-    </div>
-);
 
 export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     ticket,
@@ -111,23 +85,31 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     onForward,
     onExtendSla,
     onSetReminder,
+    onRescheduleVendorVisit,
 }) => {
     const { user } = useAuth();
     const isAdmin = user?.role === 'ADMIN';
-    const isClosed = ticket.status === 'CANCELLED' || ticket.status === 'RESOLVED';
+    const isClosed = isTerminalStatus(ticket.status);
+    // Requester-side viewers (e.g. the agent who filed it) can't change properties.
+    const isLocked = isClosed || ticket.viewerAccess === 'requester';
+    const hold = useTicketHold(ticket);
     const [copiedEmail, setCopiedEmail] = useState(false);
-    const [agentPickerOpen, setAgentPickerOpen] = useState(false);
     const [forwardOpen, setForwardOpen] = useState(false);
     const [reminderModalOpen, setReminderModalOpen] = useState(false);
     const [showSlaHistory, setShowSlaHistory] = useState(false);
 
-    const isAgentOracle = user?.role === 'AGENT_ORACLE';
-    const canManageParticipants = isAgentOracle || isAdmin;
+    const isStaff =
+        isAdmin ||
+        user?.role === 'AGENT' ||
+        Boolean(user?.role?.startsWith('AGENT_')) ||
+        user?.role === 'MANAGER' ||
+        ticket.assignedTo?.id === user?.id;
+    const canManageParticipants = isStaff && ticket.viewerAccess !== 'requester';
     const isOracleTicket = ticket.handlingTeam === 'ORACLE_DEV' ||
         ticket.handlingTeam === 'MOBILE_DEV' ||
         ticket.handlingTeam === 'WEB_DEV' ||
         (ticket.handlingTeam == null && (ticket.category === 'ORACLE_REQUEST' || ticket.ticketType === 'ORACLE_REQUEST' || ticket.ticketType === 'WEB_DEV_REQUEST' || ticket.ticketType === 'MOBILE_DEV_REQUEST'));
-    const canAddParticipants = isOracleTicket && (canManageParticipants || ticket.user?.id === user?.id || Boolean(ticket.participants?.some(p => p.userId === user?.id)));
+    const canAddParticipants = canManageParticipants || ticket.user?.id === user?.id || Boolean(ticket.participants?.some(p => p.userId === user?.id));
 
     // Local optimistic state per field
     const [localAssigneeId, setLocalAssigneeId] = useState(ticket.assignedTo?.id || '');
@@ -187,7 +169,6 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     };
 
     const handleAgentSelect = async (agentId: string) => {
-        setAgentPickerOpen(false);
         const actualVal = agentId === 'unassigned' ? '' : agentId;
         if (localAssigneeId === actualVal) return;
 
@@ -206,6 +187,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     };
 
     const [resolveModalOpen, setResolveModalOpen] = useState(false);
+    const [vendorDialog, setVendorDialog] = useState<'start' | 'reschedule' | null>(null);
 
     const handleConfirmReassign = async (reason: string) => {
         const val = targetAgentToAssign ? targetAgentToAssign.id : '';
@@ -222,7 +204,35 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
             setResolveModalOpen(true);
             return;
         }
-        await handleStatusChange(value);
+        if (value === 'WAITING_VENDOR') {
+            setVendorDialog('start');
+            return;
+        }
+        try {
+            await handleStatusChange(value);
+        } catch {
+            // Cancelled takeover or failed save (already reported): show the server status again.
+            setLocalStatus(ticket.status);
+        }
+    };
+
+    const handleConfirmVendorVisit = async (vendorVisitAt: string, vendorNote: string) => {
+        if (vendorDialog === 'reschedule') {
+            await onRescheduleVendorVisit?.(vendorVisitAt, vendorNote);
+            setVendorDialog(null);
+            return;
+        }
+        setVendorDialog(null);
+        setLocalStatus('WAITING_VENDOR');
+        setSaving(prev => ({ ...prev, status: true }));
+        try {
+            await onStatusChange('WAITING_VENDOR', undefined, undefined, { vendorVisitAt, vendorNote });
+            showSaved('status');
+        } catch {
+            setLocalStatus(ticket.status);
+        } finally {
+            setSaving(prev => ({ ...prev, status: false }));
+        }
     };
 
     const handleConfirmResolve = async (note: string, files: File[]) => {
@@ -238,7 +248,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     };
 
     const handleDeviceChange = async (value: string) => {
-        const actualVal = value === 'none' ? '' : value;
+        const actualVal = value === NO_DEVICE_VALUE ? '' : value;
         setLocalDevice(actualVal);
         setSaving(prev => ({ ...prev, device: true }));
         try {
@@ -259,11 +269,8 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     };
 
     const assignedAgent = agents.find(a => a.id === localAssigneeId) || (ticket.assignedTo as Agent | undefined);
-    const currentStatusConfig = STATUS_CONFIG[localStatus] || STATUS_CONFIG.TODO;
-    const StatusIcon = currentStatusConfig.icon;
-    const currentPriorityConfig = PRIORITY_CONFIG[localPriority] || PRIORITY_CONFIG.MEDIUM;
-    const currentSla = slaConfigs.find(s => s.priority === localPriority);
-    const currentSlaHours = currentSla ? Math.round(currentSla.resolutionTimeMinutes / 60) : null;
+    const priorityOptions = useMemo(() => buildPriorityOptions(slaConfigs), [slaConfigs]);
+    const currentSlaHours = priorityOptions.find(o => o.value === localPriority)?.slaHours ?? null;
 
     // Active Scheduled Reminders Query
     const { data: reminders = [] } = useQuery<any[]>({
@@ -284,151 +291,177 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
         )[0];
     }, [reminders]);
 
-    return (
-        <div className="p-4 space-y-4 select-none">
+    const openReminder = () => {
+        if (onSetReminder) onSetReminder();
+        else setReminderModalOpen(true);
+    };
 
-            {/* 1. SLA & Tracking Card (Prominently Placed at Top) */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-200/60 dark:border-blue-800/60 shadow-2xs">
-                            <Clock className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
-                            SLA & Tracking
-                        </span>
+    return (
+        <div className={cn(sidebarPanelClass, "select-none")}>
+
+            {/* Pemohon */}
+            <SidebarCard title="Pemohon">
+                <div className="td-person">
+                    <div className="relative shrink-0">
+                        <UserAvatar user={ticket.user} size="sm" className="h-9 w-9 rounded-full" />
+                        <PresenceDot userId={ticket.user.id} userName={ticket.user.fullName} ringed className="absolute -bottom-0.5 -right-0.5" />
                     </div>
+                    <div className="min-w-0 flex-1">
+                        <b>{toDisplayName(ticket.user.fullName)}</b>
+                        <small>
+                            <span className="truncate">
+                                {[ticket.user.email, ticket.user.department?.name, ticket.user.site?.name].filter(Boolean).join(' · ') || 'Tanpa departemen'}
+                            </span>
+                            {ticket.user.email && (
+                                <button type="button" onClick={handleCopyEmail} className="shrink-0 cursor-pointer p-0.5 transition-colors hover:text-primary"
+                                    title="Salin email" aria-label="Salin email">
+                                    {copiedEmail ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                                </button>
+                            )}
+                        </small>
+                    </div>
+                </div>
+            </SidebarCard>
+
+            {/* Ticket properties */}
+            <SidebarCard
+                title="Properti"
+                accessory={isLocked ? (
+                    <CardBadge tone="amber"><Lock className="w-3 h-3" />Terkunci</CardBadge>
+                ) : undefined}
+            >
+                <PropertyRow icon={UserCheck} label="PIC" saving={saving.assignee} saved={saved.assignee}>
+                    <AssigneeBubble agent={assignedAgent} agents={agents} isAdmin={isAdmin} locked={isLocked}
+                        disabled={saving.assignee} onSelect={handleAgentSelect} />
+                </PropertyRow>
+                <PropertyRow icon={Activity} label="Status" saving={saving.status} saved={saved.status}>
+                    <StatusDropdown value={localStatus} onChange={handleStatusSelectChange} disabled={isLocked || saving.status} />
+                </PropertyRow>
+                <PropertyRow icon={AlertCircle} label="Prioritas" saving={saving.priority} saved={saved.priority}>
+                    <span title={currentSlaHours ? `${currentSlaHours}h SLA` : undefined}>
+                        <PriorityDropdown value={localPriority} onChange={handlePriorityChange} disabled={isLocked || saving.priority} />
+                    </span>
+                </PropertyRow>
+
+                {/* Critical Priority Justification Card */}
+                {(ticket.priority === 'CRITICAL' || localPriority === 'CRITICAL') && (
+                    <div className="my-1 p-2.5 bg-red-50 dark:bg-red-950/30 rounded-xl space-y-1 animate-in fade-in duration-200">
+                        <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span className="text-xs font-semibold">Justifikasi critical</span>
+                        </div>
+                        <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed">
+                            {ticket.criticalReason || 'Tidak ada catatan justifikasi tertulis dari requester.'}
+                        </p>
+                    </div>
+                )}
+
+                <PropertyRow icon={Hash} label="Kategori" saving={saving.category} saved={saved.category}>
+                    <CategoryBubble value={localCategory} categories={attributes.categories} locked={isLocked}
+                        disabled={saving.category} onChange={handleCategoryChange} />
+                </PropertyRow>
+                <PropertyRow icon={Monitor} label="Perangkat" saving={saving.device} saved={saved.device}>
+                    <DeviceBubble value={localDevice} devices={attributes.devices} locked={isLocked}
+                        disabled={saving.device} onChange={handleDeviceChange} />
+                </PropertyRow>
+            </SidebarCard>
+
+            {/* SLA & Tracking */}
+            <SidebarCard
+                title="SLA"
+                accessory={
                     <div className="flex items-center gap-1.5">
                         {ticket.slaAdjustments && ticket.slaAdjustments.length > 0 && (
                             <button
                                 type="button"
                                 onClick={() => setShowSlaHistory(!showSlaHistory)}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 shadow-2xs hover:bg-amber-100 transition-colors cursor-pointer"
+                                className="cursor-pointer"
                                 title="Lihat riwayat perpanjangan SLA"
+                                aria-expanded={showSlaHistory}
                             >
-                                <History className="w-2.5 h-2.5" />
-                                <span>{ticket.slaAdjustments.length}x Diundur</span>
-                                {showSlaHistory ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
+                                <CardBadge tone="amber">
+                                    <History className="w-3 h-3" />
+                                    {ticket.slaAdjustments.length}x diundur
+                                    {showSlaHistory ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                </CardBadge>
                             </button>
                         )}
-                        {ticket.slaTarget && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/50">
-                                Active SLA
-                            </span>
-                        )}
                     </div>
-                </div>
-
-                <div className="space-y-2 text-xs">
-                    <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
-                        <span className="text-slate-400 dark:text-slate-500">Created At</span>
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">
-                            {formatDateTimeID(ticket.createdAt)}
-                        </span>
-                    </div>
-
-                    <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
-                        <span className="text-slate-400 dark:text-slate-500">Last Activity</span>
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">
-                            {formatRelativeTime(ticket.updatedAt)}
-                        </span>
-                    </div>
-
-                    {ticket.slaTarget && (
-                        <div className="flex items-center justify-between py-1">
-                            <span className="text-slate-400 dark:text-slate-500">SLA Target</span>
-                            <span className="font-bold text-blue-600 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/50 px-2 py-0.5 rounded-md border border-blue-200/50 dark:border-blue-800/50 text-right">
-                                {formatDateTimeID(ticket.slaTarget)}
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Scheduled Reminder Hint Card */}
-                    {nextReminder && (
-                        <div
-                            onClick={() => {
-                                if (onSetReminder) onSetReminder();
-                                else setReminderModalOpen(true);
-                            }}
-                            className="group p-2.5 rounded-xl bg-purple-50/90 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/70 hover:border-purple-300 dark:hover:border-purple-600 transition-all cursor-pointer shadow-2xs space-y-1"
-                            title="Klik untuk melihat atau mengubah jadwal pengingat email"
-                        >
-                            <div className="flex items-center justify-between">
-                                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-purple-700 dark:text-purple-300">
-                                    <Bell className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 fill-purple-600/20" />
-                                    <span>Pengingat Terjadwal</span>
+                }
+            >
+                <SlaProgress
+                    status={ticket.status}
+                    priority={ticket.priority}
+                    createdAt={ticket.createdAt}
+                    slaStartedAt={ticket.slaStartedAt}
+                    slaTarget={ticket.slaTarget}
+                    slaRemainingMinutes={ticket.slaRemainingMinutes}
+                    pausedAt={ticket.lastPausedAt}
+                />
+                <div className="td-kvs">
+                    {ticket.status === 'WAITING_VENDOR' ? (<>
+                        {!hold && ticket.vendorNote && <InfoRow label="Keterangan">{ticket.vendorNote}</InfoRow>}
+                        {hold ? (
+                            <InfoRow label={hold.label}><span title={hold.detail}>{hold.code}</span></InfoRow>
+                        ) : <InfoRow label="Janji vendor">
+                            <span className="td-vendor-visit">
+                                <span className={cn(ticket.vendorVisitAt && new Date(ticket.vendorVisitAt) < new Date() && 'is-late')}>
+                                    {ticket.vendorVisitAt ? formatDateTimeID(ticket.vendorVisitAt) : 'Belum dijadwalkan'}
                                 </span>
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-200/70 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200">
-                                    {formatDistanceToNow(new Date(nextReminder.remindAt), { addSuffix: true, locale: idLocale })}
-                                </span>
-                            </div>
-                            <div className="flex items-center justify-between text-xs">
-                                <span className="font-bold text-slate-800 dark:text-slate-200">
-                                    {formatDateTimeID(nextReminder.remindAt)}
-                                </span>
-                                <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 group-hover:underline">
-                                    Ubah →
-                                </span>
-                            </div>
-                            {nextReminder.note && (
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400 italic truncate pt-0.5 border-t border-purple-200/60 dark:border-purple-900/40">
-                                    "{nextReminder.note}"
-                                </p>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Actions: Perpanjang SLA & Atur Pengingat */}
-                    {!isClosed && (
-                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                                {onExtendSla && (isAdmin || user?.role?.startsWith('AGENT')) && (
-                                    <button
-                                        type="button"
-                                        onClick={onExtendSla}
-                                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/50 border border-blue-200/70 dark:border-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors shadow-2xs cursor-pointer"
-                                        title="Perpanjang target SLA"
-                                    >
-                                        <CalendarPlus className="w-3.5 h-3.5" />
-                                        <span>Perpanjang SLA</span>
+                                {!isLocked && onRescheduleVendorVisit && (
+                                    <button type="button" className="td-vendor-visit-edit" onClick={() => setVendorDialog('reschedule')}>
+                                        {ticket.vendorVisitAt ? 'Ubah' : 'Atur'}
                                     </button>
                                 )}
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (onSetReminder) onSetReminder();
-                                        else setReminderModalOpen(true);
-                                    }}
-                                    className={cn(
-                                        "w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer",
-                                        nextReminder
-                                            ? "text-blue-700 dark:text-blue-300 bg-blue-100/90 dark:bg-blue-950/60 border border-blue-300/90 dark:border-blue-700/80 hover:bg-blue-200/80 dark:hover:bg-blue-900/60"
-                                            : "text-slate-700 dark:text-slate-300 bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 hover:bg-slate-200/70 dark:hover:bg-slate-700/60"
-                                    )}
-                                    title="Atur pengingat email untuk agent"
-                                >
-                                    <Bell className={cn("w-3.5 h-3.5 text-blue-600 dark:text-blue-400", nextReminder && "fill-blue-600 dark:fill-blue-400")} />
-                                    <span>{nextReminder ? 'Ubah Reminder' : 'Set Reminder'}</span>
-                                    {nextReminder && (
-                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse" />
-                                    )}
-                                </button>
-                            </div>
+                            </span>
+                        </InfoRow>}
+                        <InfoRow label="Dijeda sejak">
+                            {ticket.lastPausedAt ? formatDateTimeID(ticket.lastPausedAt) : '—'}
+                        </InfoRow>
+                    </>) : ticket.slaTarget && (
+                        <InfoRow label="Target SLA">{formatDateTimeID(ticket.slaTarget)}</InfoRow>
+                    )}
+                    <InfoRow label="Dibuat">{formatDateTimeID(ticket.createdAt)}</InfoRow>
+                    <InfoRow label="Aktivitas terakhir">{formatRelativeTime(ticket.updatedAt)}</InfoRow>
+                </div>
+
+                    {/* Actions: Perpanjang SLA & Set Reminder (mockup .actions.pair, secondary) */}
+                    {!isLocked && (
+                        <div className="td-pair">
+                            {onExtendSla && (isAdmin || user?.role?.startsWith('AGENT')) && (
+                                <Button variant="soft" className="ticket-action-sla" onClick={onExtendSla} title="Perpanjang target SLA">
+                                    <CalendarPlus aria-hidden="true" /><span>Perpanjang SLA</span>
+                                </Button>
+                            )}
+                            <Button variant="soft" className="ticket-action-reminder" onClick={openReminder} title="Atur pengingat email untuk agent">
+                                <Bell aria-hidden="true" /><span>{nextReminder ? 'Ubah pengingat' : 'Atur pengingat'}</span>
+                            </Button>
                         </div>
+                    )}
+
+                    {/* Scheduled reminder (mockup .reminder-chip) */}
+                    {nextReminder && (
+                        <button type="button" onClick={openReminder} className="td-reminder-chip"
+                            title={nextReminder.note ? `"${nextReminder.note}"` : 'Lihat atau ubah jadwal pengingat email'}>
+                            <BellRing aria-hidden="true" />
+                            <span className="min-w-0 truncate">
+                                Reminder: {formatDateTimeID(nextReminder.remindAt)} · {formatDistanceToNow(new Date(nextReminder.remindAt), { addSuffix: true, locale: idLocale })}
+                            </span>
+                        </button>
                     )}
 
                     {/* Expandable History Accordion */}
                     {showSlaHistory && ticket.slaAdjustments && ticket.slaAdjustments.length > 0 && (
-                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-2">
-                            <div className="flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                                <History className="w-3 h-3 text-blue-500" />
+                        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                            <div className="flex items-center gap-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                <History className="w-3 h-3 text-primary" />
                                 <span>Riwayat Penundaan Target</span>
                             </div>
                             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                                 {ticket.slaAdjustments.map((adj, idx) => (
                                     <div key={adj.id || idx} className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 space-y-1 text-[11px]">
                                         <div className="flex items-center justify-between">
-                                            <span className="font-bold text-blue-600 dark:text-blue-400">
+                                            <span className="font-bold text-primary">
                                                 +{adj.minutes}m ({adj.reasonCategory})
                                             </span>
                                             <span className="text-[10px] text-slate-400">
@@ -450,292 +483,29 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                             </div>
                         </div>
                     )}
-                </div>
-            </div>
+            </SidebarCard>
 
-            {/* 2. Requester Profile Card */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/95 border border-slate-200/80 dark:border-slate-700/60 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700/60">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                        Requester Profile
-                    </span>
-                    <span className="text-[11px] font-semibold text-slate-400">
-                        User
-                    </span>
-                </div>
+            {/* 3. Ticket Participants (All Tickets / Multi-user Group) */}
+            <TicketParticipantsSection
+                ticketId={ticket.id}
+                creator={ticket.user}
+                participants={ticket.participants}
+                canManageUsers={canManageParticipants}
+                canAddUsers={canAddParticipants}
+                isClosed={isClosed}
+            />
 
-                <div className="flex items-center gap-3">
-                    <div className="relative shrink-0">
-                        <div className="w-11 h-11 rounded-2xl bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-sm shadow-xs">
-                            {ticket.user.fullName.charAt(0).toUpperCase()}
-                        </div>
-                        <PresenceDot userId={ticket.user.id} userName={ticket.user.fullName} ringed className="absolute -bottom-0.5 -right-0.5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                            {ticket.user.fullName}
-                        </h4>
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 truncate">
-                            <span className="truncate">{ticket.user.email}</span>
-                            <button
-                                type="button"
-                                onClick={handleCopyEmail}
-                                className="p-0.5 hover:text-blue-600 transition-colors shrink-0 cursor-pointer"
-                                title="Copy Email"
-                            >
-                                {copiedEmail ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
-                    <div className="flex items-center justify-between">
-                        <span className="text-slate-400 flex items-center gap-1.5">
-                            <Building className="w-3.5 h-3.5" /> Department
-                        </span>
-                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[140px]">
-                            {ticket.user.department?.name || 'No Department'}
-                        </span>
-                    </div>
-
-                    {ticket.user.site?.name && (
-                        <div className="flex items-center justify-between">
-                            <span className="text-slate-400 flex items-center gap-1.5">
-                                <MapPin className="w-3.5 h-3.5" /> Site / Branch
-                            </span>
-                            <span className="font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[140px]">
-                                {ticket.user.site.name}
-                            </span>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* 3. Ticket Participants (Oracle Tickets / Multi-user Group) */}
-            {(isOracleTicket || (ticket.participants && ticket.participants.length > 0)) && (
-                <TicketParticipantsSection
-                    ticketId={ticket.id}
-                    creator={ticket.user}
-                    participants={ticket.participants}
-                    canManageUsers={canManageParticipants}
-                    canAddUsers={canAddParticipants}
-                    isClosed={isClosed}
-                />
-            )}
-
-            {/* 4. Ticket Properties & Assignment Card */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/95 border border-slate-200/80 dark:border-slate-700/60 shadow-2xs space-y-4">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700/60">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                        Ticket Properties
-                    </span>
-                    {isClosed && (
-                        <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-                            Ticket Closed (Locked)
-                        </span>
-                    )}
-                </div>
-
-                {/* Assigned Agent */}
-                <PropertyRow icon={UserCheck} label="Assigned Agent" saving={saving.assignee} saved={saved.assignee}>
-                    <Popover open={agentPickerOpen} onOpenChange={setAgentPickerOpen}>
-                        <PopoverTrigger asChild>
-                            <button
-                                type="button"
-                                disabled={isClosed || saving.assignee}
-                                className={cn(
-                                    "w-full min-h-[44px] px-3 py-2 text-left rounded-xl transition-all border shadow-2xs cursor-pointer flex items-center justify-between gap-2.5",
-                                    assignedAgent
-                                        ? "bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 text-foreground"
-                                        : "bg-slate-50/40 dark:bg-slate-900/40 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 border-dashed border-slate-300 dark:border-slate-700 text-muted-foreground",
-                                    (isClosed || saving.assignee) && "opacity-60 cursor-not-allowed"
-                                )}
-                            >
-                                {assignedAgent ? (
-                                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                        <div className="relative shrink-0">
-                                            <div className="w-7 h-7 rounded-xl bg-blue-600/10 dark:bg-blue-500/20 border border-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-xs shadow-2xs">
-                                                {assignedAgent.fullName.charAt(0).toUpperCase()}
-                                            </div>
-                                            <PresenceDot userId={assignedAgent.id} size="sm" className="absolute -bottom-0.5 -right-0.5" />
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="text-xs font-bold text-slate-900 dark:text-white truncate leading-snug">
-                                                {assignedAgent.fullName}
-                                            </div>
-                                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                                                {assignedAgent.site?.code && (
-                                                    <span className="font-mono font-semibold px-1 py-0.2 rounded bg-slate-200/70 dark:bg-slate-700/70 text-slate-700 dark:text-slate-300 border border-slate-300/50 dark:border-slate-600/50">
-                                                        Site {assignedAgent.site.code}
-                                                    </span>
-                                                )}
-                                                <span className="truncate opacity-75">{assignedAgent.email}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center gap-2 text-xs font-medium text-slate-400 dark:text-slate-500">
-                                        <UserPlus className="w-4 h-4 text-slate-400" />
-                                        <span>Pilih teknisi / agent...</span>
-                                    </div>
-                                )}
-                                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 transition-transform duration-150" />
-                            </button>
-                        </PopoverTrigger>
-                        <PopoverContent align="start" className="p-0 w-[300px] rounded-2xl border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden bg-card" sideOffset={6}>
-                            <AgentSelectList
-                                agents={agents}
-                                selectedId={localAssigneeId}
-                                isAdmin={isAdmin}
-                                onSelect={handleAgentSelect}
-                            />
-                        </PopoverContent>
-                    </Popover>
-                </PropertyRow>
-
-                {/* Status */}
-                <PropertyRow icon={Activity} label="Status" saving={saving.status} saved={saved.status}>
-                    <Select value={localStatus} onValueChange={handleStatusSelectChange} disabled={isClosed || saving.status}>
-                        <SelectTrigger className="w-full h-10 px-3 text-xs font-medium bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 rounded-xl transition-all shadow-2xs cursor-pointer">
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                                <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold shrink-0", currentStatusConfig.color)}>
-                                    <StatusIcon className="w-3.5 h-3.5 shrink-0" />
-                                    <span>{currentStatusConfig.label}</span>
-                                </span>
-                            </div>
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 shadow-xl p-1 min-w-[180px]">
-                            {STATUS_OPTIONS.map((opt) => {
-                                const cfg = STATUS_CONFIG[opt.value] || STATUS_CONFIG.TODO;
-                                const OptIcon = cfg.icon;
-                                return (
-                                    <SelectItem key={opt.value} value={opt.value} className="text-xs rounded-lg py-2 cursor-pointer font-medium">
-                                        <div className="flex items-center gap-2">
-                                            <span className={cn(
-                                                "w-2 h-2 rounded-full shrink-0",
-                                                opt.value === 'TODO' ? 'bg-slate-400' :
-                                                opt.value === 'IN_PROGRESS' ? 'bg-blue-500' :
-                                                opt.value === 'WAITING_VENDOR' ? 'bg-amber-500' :
-                                                opt.value === 'RESOLVED' ? 'bg-emerald-500' : 'bg-rose-500'
-                                            )} />
-                                            <span className="flex items-center gap-1.5 font-medium">
-                                                <OptIcon className="w-3.5 h-3.5 opacity-70" />
-                                                {opt.label}
-                                            </span>
-                                        </div>
-                                    </SelectItem>
-                                );
-                            })}
-                        </SelectContent>
-                    </Select>
-                </PropertyRow>
-
-                {/* Priority */}
-                <PropertyRow icon={AlertCircle} label="Priority" saving={saving.priority} saved={saved.priority}>
-                    {ticket.priority === 'HARDWARE_INSTALLATION' ? (
-                        <div className="h-10 flex items-center px-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40 text-xs font-bold text-amber-700 dark:text-amber-400 rounded-xl">
-                            Hardware Installation
-                        </div>
-                    ) : (
-                        <Select value={localPriority} onValueChange={handlePriorityChange} disabled={isClosed || saving.priority}>
-                            <SelectTrigger className="w-full h-10 px-3 text-xs font-medium bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 rounded-xl transition-all shadow-2xs cursor-pointer">
-                                <div className="flex items-center justify-between w-full min-w-0 pr-1">
-                                    <div className="flex items-center gap-2 truncate">
-                                        <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", currentPriorityConfig.dot)} />
-                                        <span className="font-bold text-slate-900 dark:text-white">{currentPriorityConfig.label}</span>
-                                    </div>
-                                    {currentSlaHours && (
-                                        <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-700/60 px-2 py-0.5 rounded-md border border-slate-300/40 dark:border-slate-600/40 shrink-0">
-                                            {currentSlaHours}h SLA
-                                        </span>
-                                    )}
-                                </div>
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 shadow-xl p-1 min-w-[200px]">
-                                {slaConfigs.map((sla) => {
-                                    const pCfg = PRIORITY_CONFIG[sla.priority] || PRIORITY_CONFIG.MEDIUM;
-                                    return (
-                                        <SelectItem key={sla.id} value={sla.priority} className="text-xs rounded-lg py-2 cursor-pointer font-medium">
-                                            <div className="flex items-center justify-between w-full gap-3">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={cn("w-2 h-2 rounded-full shrink-0", pCfg.dot)} />
-                                                    <span className="font-semibold">{pCfg.label}</span>
-                                                </div>
-                                                <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
-                                                    {Math.round(sla.resolutionTimeMinutes / 60)}h SLA
-                                                </span>
-                                            </div>
-                                        </SelectItem>
-                                    );
-                                })}
-                            </SelectContent>
-                        </Select>
-                    )}
-                </PropertyRow>
-
-                {/* Critical Priority Justification Card */}
-                {(ticket.priority === 'CRITICAL' || localPriority === 'CRITICAL') && (
-                    <div className="p-3 bg-red-50 dark:bg-red-950/30 rounded-2xl border border-red-200 dark:border-red-900/40 space-y-2 animate-in fade-in duration-200">
-                        <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400">
-                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                            <span className="text-[10px] font-bold uppercase tracking-wider">Critical Justification</span>
-                        </div>
-                        <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed font-medium bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-red-100 dark:border-red-900/30 shadow-xs">
-                            {ticket.criticalReason || 'Tidak ada catatan justifikasi tertulis dari requester.'}
-                        </p>
-                    </div>
-                )}
-
-                {/* Category */}
-                <PropertyRow icon={Hash} label="Category" saving={saving.category} saved={saved.category}>
-                    <Select value={localCategory} onValueChange={handleCategoryChange} disabled={isClosed || saving.category}>
-                        <SelectTrigger className="w-full h-10 px-3 text-xs font-medium bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 rounded-xl transition-all shadow-2xs cursor-pointer">
-                            <div className="flex items-center gap-2 truncate">
-                                <Tag className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                                <span className="font-semibold text-slate-900 dark:text-white truncate">{localCategory}</span>
-                            </div>
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 shadow-xl p-1 min-w-[180px]">
-                            <SelectItem value="GENERAL" className="text-xs rounded-lg py-2 cursor-pointer font-medium">General</SelectItem>
-                            <SelectItem value="HARDWARE" className="text-xs rounded-lg py-2 cursor-pointer font-medium">Hardware</SelectItem>
-                            <SelectItem value="SOFTWARE" className="text-xs rounded-lg py-2 cursor-pointer font-medium">Software</SelectItem>
-                            <SelectItem value="NETWORK" className="text-xs rounded-lg py-2 cursor-pointer font-medium">Network</SelectItem>
-                            {attributes.categories.map((attr: any) => (
-                                <SelectItem key={attr.id} value={attr.value} className="text-xs rounded-lg py-2 cursor-pointer font-medium">{attr.value}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </PropertyRow>
-
-                {/* Device */}
-                <PropertyRow icon={Monitor} label="Device / Hardware" saving={saving.device} saved={saved.device}>
-                    <Select value={localDevice || 'none'} onValueChange={handleDeviceChange} disabled={isClosed || saving.device}>
-                        <SelectTrigger className="w-full h-10 px-3 text-xs font-medium bg-slate-50/80 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/90 dark:border-slate-700 rounded-xl transition-all shadow-2xs cursor-pointer">
-                            <div className="flex items-center gap-2 truncate">
-                                <Monitor className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                                <span className={cn("truncate font-semibold", localDevice ? "text-slate-900 dark:text-white" : "text-slate-400")}>
-                                    {localDevice || 'None (Tidak Ada)'}
-                                </span>
-                            </div>
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 shadow-xl p-1 min-w-[180px]">
-                            <SelectItem value="none" className="text-xs text-slate-400 rounded-lg py-2 cursor-pointer">None (Tidak Ada)</SelectItem>
-                            {attributes.devices.map((dev: any) => (
-                                <SelectItem key={dev.id} value={dev.value} className="text-xs rounded-lg py-2 cursor-pointer font-medium">{dev.value}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </PropertyRow>
-            </div>
+            {/* Hardware requests and e-form access proposed from this ticket */}
+            <TicketHardwareSection ticketId={ticket.id} />
+            <TicketEFormSection ticketId={ticket.id} />
 
             {/* 4. Hardware Installation Schedule (if applicable) */}
             {ticket.isHardwareInstallation && (
-                <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 shadow-2xs space-y-3">
+                <div className="p-4 rounded-2xl bg-amber-50/80 dark:bg-amber-950/20 ring-1 ring-amber-200/70 dark:ring-amber-900/50 space-y-3">
                     <div className="flex items-center gap-1.5 pb-2 border-b border-amber-200/60 dark:border-amber-900/40">
                         <Wrench className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-                            Hardware Installation
+                        <span className="text-[13px] font-semibold text-amber-700 dark:text-amber-400">
+                            Instalasi hardware
                         </span>
                     </div>
 
@@ -749,13 +519,13 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
 
                         <div className="grid grid-cols-2 gap-2 pt-1">
                             <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/50 rounded-xl p-2.5">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Date</span>
+                                <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Tanggal</span>
                                 <span className="text-xs font-bold text-slate-900 dark:text-white">
                                     {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
                                 </span>
                             </div>
                             <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/50 rounded-xl p-2.5">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Time</span>
+                                <span className="text-[11px] font-medium text-slate-400 block mb-0.5">Jam</span>
                                 <span className="text-xs font-bold text-slate-900 dark:text-white">
                                     {ticket.scheduledTime || '-'}
                                 </span>
@@ -812,6 +582,15 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                 }}
                 targetAgent={targetAgentToAssign}
                 onConfirm={handleConfirmReassign}
+            />
+
+            <VendorVisitDialog
+                isOpen={vendorDialog !== null}
+                onClose={() => setVendorDialog(null)}
+                mode={vendorDialog ?? 'start'}
+                ticket={{ id: ticket.id, ticketNumber: ticket.ticketNumber, title: ticket.title, vendorVisitAt: ticket.vendorVisitAt, vendorNote: ticket.vendorNote }}
+                onConfirm={handleConfirmVendorVisit}
+                isLoading={saving.status}
             />
 
             {/* Resolve Confirmation Modal with Explanation and Proof Attachments */}

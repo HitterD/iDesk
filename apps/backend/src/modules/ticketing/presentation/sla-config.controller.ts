@@ -6,6 +6,8 @@ import { Roles } from '../../../shared/core/decorators/roles.decorator';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
+export const SLA_CONFIG_READER_ROLES: readonly UserRole[] = Object.values(UserRole).filter((role) => role !== UserRole.USER);
+
 @ApiTags('SLA Config')
 @Controller('sla-config')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -13,7 +15,10 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 export class SlaConfigController {
     constructor(private readonly slaConfigService: SlaConfigService) { }
 
+    /** Read-only SLA targets: the ticket detail page shows them next to each priority for every staff role.
+     *  Writes below stay ADMIN-only (class-level @Roles). */
     @Get()
+    @Roles(...SLA_CONFIG_READER_ROLES)
     @ApiOperation({ summary: 'Get all SLA configurations' })
     async findAll() {
         return this.slaConfigService.findAll();
@@ -23,15 +28,15 @@ export class SlaConfigController {
     @ApiOperation({ summary: 'Update SLA configuration' })
     async update(
         @Param('id') id: string,
-        @Body() body: { resolutionTimeMinutes?: number; responseTimeMinutes?: number },
+        @Body() body: { resolutionTimeMinutes?: number; responseTimeMinutes?: number; businessHoursOnly?: boolean },
     ) {
         return this.slaConfigService.update(id, body);
     }
 
     @Post()
     @ApiOperation({ summary: 'Create new SLA configuration' })
-    async create(@Body() body: { priority: string; resolutionTimeMinutes: number; responseTimeMinutes?: number }) {
-        return this.slaConfigService.create(body.priority, body.resolutionTimeMinutes, body.responseTimeMinutes);
+    async create(@Body() body: { priority: string; resolutionTimeMinutes: number; responseTimeMinutes?: number; businessHoursOnly?: boolean }) {
+        return this.slaConfigService.create(body.priority, body.resolutionTimeMinutes, body.responseTimeMinutes, body.businessHoursOnly !== false);
     }
 
     @Post('reset')

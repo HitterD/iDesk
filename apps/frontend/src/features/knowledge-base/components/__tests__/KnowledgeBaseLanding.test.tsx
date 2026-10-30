@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -103,62 +103,87 @@ describe('KnowledgeBaseLanding Component', () => {
             </QueryClientProvider>,
         );
 
-    it('renders the header, title, and action buttons', async () => {
+    const searchBox = () => screen.getByRole('searchbox', { name: /cari artikel panduan/i }) as HTMLInputElement;
+
+    it('renders the mockup hero (Pusat Panduan), search and author actions', async () => {
         renderComponent();
 
-        expect(screen.getByText('Pusat Panduan')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 1, name: 'Pusat Panduan' })).toBeInTheDocument();
         expect(screen.getByText(/Cari solusi mandiri/i)).toBeInTheDocument();
+        expect(searchBox()).toBeInTheDocument();
         expect(screen.getByText('Buat Artikel')).toBeInTheDocument();
         expect(screen.getByText('Kelola')).toBeInTheDocument();
     });
 
-    it('renders search input and quick suggestion chips', async () => {
+    it('shows one filter surface: topics from the database, no chips or view toggle', async () => {
         renderComponent();
 
-        const searchInput = screen.getByPlaceholderText(/Cari solusi atau kata kunci panduan/i);
-        expect(searchInput).toBeInTheDocument();
-
-        expect(screen.getByText('VPN WatchGuard')).toBeInTheDocument();
-        expect(screen.getByText('Reset Password')).toBeInTheDocument();
+        const topics = await screen.findByRole('navigation', { name: /topik panduan/i });
+        for (const category of mockCategories) {
+            expect(within(topics).getByRole('button', { name: category })).toBeInTheDocument();
+        }
+        expect(screen.queryByText('VPN WatchGuard')).not.toBeInTheDocument();
+        expect(screen.queryByText('Semua Kategori')).not.toBeInTheDocument();
+        expect(screen.queryByTitle(/Tampilan Baris/i)).not.toBeInTheDocument();
     });
 
-    it('renders quick topics bento and spotlight card when browsing', async () => {
+    it('renders the featured guide as a "Mulai di sini" row and the popular list', async () => {
         renderComponent();
 
-        await waitFor(() => {
-            expect(screen.getByText('Spotlight Panduan Utama')).toBeInTheDocument();
-            expect(screen.getByText('VPN & Jaringan')).toBeInTheDocument();
-            expect(screen.getByText('Akun & Keamanan')).toBeInTheDocument();
-        });
+        expect(await screen.findByText(mockFeatured.title)).toBeInTheDocument();
+        expect(screen.getByText(/Mulai di sini/)).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Artikel populer' })).toBeInTheDocument();
+        expect(await screen.findByText('Panduan Setting WatchGuard VPN')).toBeInTheDocument();
     });
 
-    it('switches between Grid and List view mode', async () => {
+    it('switches to results mode when a topic is picked (topic pressed), and back on reset', async () => {
         renderComponent();
 
-        await waitFor(() => {
-            expect(screen.getByText('Panduan Setting WatchGuard VPN')).toBeInTheDocument();
-        });
+        const topics = await screen.findByRole('navigation', { name: /topik panduan/i });
+        fireEvent.click(within(topics).getByRole('button', { name: 'Network' }));
 
-        const listButton = screen.getByTitle('Tampilan Baris (List)');
-        fireEvent.click(listButton);
+        expect(screen.getByRole('heading', { name: 'Network' })).toBeInTheDocument();
+        expect(within(topics).getByRole('button', { name: 'Network' })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.queryByText(mockFeatured.title)).not.toBeInTheDocument();
+        await waitFor(() =>
+            expect(api.get).toHaveBeenCalledWith('/kb/articles', expect.objectContaining({
+                params: expect.objectContaining({ category: 'Network' }),
+            })),
+        );
 
-        expect(screen.getByText('Panduan Setting WatchGuard VPN')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /kembali ke semua topik/i }));
+        expect(await screen.findByRole('heading', { name: 'Artikel populer' })).toBeInTheDocument();
+        expect(within(topics).getByRole('button', { name: 'Network' })).toHaveAttribute('aria-pressed', 'false');
     });
 
-    it('updates search query when clicking a quick suggestion chip', async () => {
+    it('shows a results heading with the count when searching', async () => {
         renderComponent();
 
-        const vpnChip = screen.getByText('VPN WatchGuard');
-        fireEvent.click(vpnChip);
+        fireEvent.change(searchBox(), { target: { value: 'VPN' } });
 
-        const searchInput = screen.getByPlaceholderText(/Cari solusi atau kata kunci panduan/i) as HTMLInputElement;
-        expect(searchInput.value).toBe('VPN');
+        expect(await screen.findByText('2 hasil')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: '“VPN”' })).toBeInTheDocument();
     });
 
-    it('renders support escalation bridge at the bottom', async () => {
+    it('changes sort via the segmented control', async () => {
         renderComponent();
 
-        expect(screen.getByText(/Belum menemukan solusi untuk kendala Anda/i)).toBeInTheDocument();
-        expect(screen.getByText(/Rata-rata respon IT < 15 menit/i)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('radio', { name: 'Terbaru' }));
+
+        expect(screen.getByRole('radio', { name: 'Terbaru' })).toHaveAttribute('aria-checked', 'true');
+        expect(screen.getByRole('heading', { name: 'Artikel terbaru' })).toBeInTheDocument();
+    });
+
+    it('renders the help card at the bottom', async () => {
+        renderComponent();
+
+        expect(screen.getByRole('heading', { name: 'Masih butuh bantuan?' })).toBeInTheDocument();
+        const cta = screen.getByRole('link', { name: /buat tiket/i });
+        expect(cta).toHaveAttribute('href', '/tickets/create');
+        // Single amber CTA rule: the help card entry is a sapphire text link, not a button.
+        expect(cta).toHaveClass('idesk-text-link');
+        expect(screen.getByText('Operasional Senin–Jumat, 08:00–17:00 WIB')).toBeInTheDocument();
+        // No response-time promise without an SLA policy behind it.
+        expect(screen.queryByText(/15 menit/i)).not.toBeInTheDocument();
     });
 });

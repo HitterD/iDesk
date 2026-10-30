@@ -17,10 +17,8 @@ import { NotificationType } from './entities/notification.entity';
 class UpdatePreferencesDto {
     inAppEnabled?: boolean;
     emailEnabled?: boolean;
-    telegramEnabled?: boolean;
     pushEnabled?: boolean;
     emailAddress?: string;
-    telegramChatId?: string;
     digestEnabled?: boolean;
     digestFrequency?: DigestFrequency;
     digestTime?: string;
@@ -35,7 +33,6 @@ class UpdateTypePreferenceDto {
     channels: {
         inApp?: boolean;
         email?: boolean;
-        telegram?: boolean;
         push?: boolean;
     };
 }
@@ -69,7 +66,7 @@ export class NotificationPreferencesController {
     @ApiResponse({ status: 200, description: 'Channel settings updated' })
     async updateChannels(
         @Request() req: any,
-        @Body() dto: Partial<Pick<UpdatePreferencesDto, 'inAppEnabled' | 'emailEnabled' | 'telegramEnabled' | 'pushEnabled'>>
+        @Body() dto: Partial<Pick<UpdatePreferencesDto, 'inAppEnabled' | 'emailEnabled' | 'pushEnabled'>>
     ): Promise<NotificationPreference> {
         return this.notificationCenter.updatePreferences(req.user.userId, dto);
     }
@@ -105,7 +102,6 @@ export class NotificationPreferencesController {
 
         if (dto.channels.inApp !== undefined) channelSettings['in_app'] = dto.channels.inApp;
         if (dto.channels.email !== undefined) channelSettings['email'] = dto.channels.email;
-        if (dto.channels.telegram !== undefined) channelSettings['telegram'] = dto.channels.telegram;
         if (dto.channels.push !== undefined) channelSettings['push'] = dto.channels.push;
 
         return this.notificationCenter.updateTypePreference(
@@ -165,6 +161,8 @@ export class NotificationPreferencesController {
                 [NotificationType.EFORM_ICT_CONFIRMED]: 'E-Form request confirmed by ICT',
                 [NotificationType.EFORM_REJECTED]: 'E-Form request rejected',
                 [NotificationType.EFORM_CREDENTIALS_READY]: 'E-Form VPN credentials are ready',
+                [NotificationType.EFORM_DIRECT_TO_ICT]: 'When an access request reaches IT without manager approval',
+                [NotificationType.EFORM_FULFILLED]: 'When IT grants access on an account you already have',
             },
         };
     }

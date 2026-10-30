@@ -3,6 +3,7 @@ import { TicketUpdateService } from './ticket-update.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { Ticket, TicketStatus, TicketPriority } from '../entities/ticket.entity';
+import { createTestSlaClock } from './sla-clock.testing';
 
 describe('TicketUpdateService.bulkSoftDelete', () => {
     let service: any;
@@ -55,7 +56,6 @@ describe('TicketUpdateService.bulkSoftDelete', () => {
             {} as any,
             { emit: jest.fn() } as any,
             null as any,
-            null as any,
             mockAuditService,
             mockDataSource as any,
             {} as any,
@@ -63,8 +63,7 @@ describe('TicketUpdateService.bulkSoftDelete', () => {
                 isUserEligible: jest.fn().mockResolvedValue(true),
                 describeModule: jest.fn().mockResolvedValue('modul ini'),
                 toAssignable: jest.fn((t: any) => t),
-            } as any,
-        );
+            } as any, createTestSlaClock(), { resolveVisit: () => new Date(Date.now() + 86_400_000), schedule: jest.fn(), clear: jest.fn(), note: () => '' } as any);
     });
 
     it('soft-deletes every requested ticket for an ADMIN', async () => {

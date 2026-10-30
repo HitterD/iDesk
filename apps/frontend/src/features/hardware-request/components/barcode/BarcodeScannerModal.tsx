@@ -40,7 +40,7 @@ export function BarcodeScannerModal({ open, onClose, onCapture }: Props) {
             )}
             <div className="mt-3 flex justify-between">
               {!state.isScanning ? (
-                <button onClick={start} className="px-3 py-2 text-sm rounded-md bg-indigo-600 text-white">
+                <button onClick={start} className="px-3 py-2 text-sm rounded-md bg-primary text-white">
                   Mulai Scan
                 </button>
               ) : (
@@ -50,7 +50,7 @@ export function BarcodeScannerModal({ open, onClose, onCapture }: Props) {
               )}
               <button
                 onClick={() => { stop(); setManual(true); }}
-                className="px-3 py-2 text-sm rounded-md text-indigo-600 hover:underline"
+                className="px-3 py-2 text-sm rounded-md text-primary hover:underline"
               >
                 Input manual
               </button>
@@ -66,7 +66,7 @@ export function BarcodeScannerModal({ open, onClose, onCapture }: Props) {
             />
             <button
               onClick={() => setManual(false)}
-              className="text-xs text-indigo-600 hover:underline"
+              className="text-xs text-primary hover:underline"
             >
               ← Kembali ke kamera
             </button>

@@ -11,6 +11,7 @@ describe('NotificationCenterService Action Items', () => {
     };
     const eventsGateway = {
         server: {
+            to: jest.fn().mockReturnThis(),
             emit: jest.fn(),
         },
     };
@@ -24,7 +25,6 @@ describe('NotificationCenterService Action Items', () => {
     const logRepo = {} as any;
     const userRepo = {} as any;
     const emailChannel = {} as any;
-    const telegramChannel = {} as any;
     const inAppChannel = {} as any;
     const pushChannel = {} as any;
     const entityManager = {
@@ -44,7 +44,6 @@ describe('NotificationCenterService Action Items', () => {
             logRepo,
             userRepo,
             emailChannel,
-            telegramChannel,
             inAppChannel,
             pushChannel,
             entityManager as any,
@@ -57,6 +56,7 @@ describe('NotificationCenterService Action Items', () => {
         service.emitActionItemsRefresh('u-1', 'TICKET', 't-1');
 
         expect(cacheService.delByPattern).toHaveBeenCalledWith('action-items:u-1:*');
+        expect(eventsGateway.server.to).toHaveBeenCalledWith('user:u-1');
         expect(eventsGateway.server.emit).toHaveBeenCalledWith('action-items:refresh:u-1', {
             entityType: 'TICKET',
             entityId: 't-1',
@@ -99,7 +99,7 @@ describe('NotificationCenterService Action Items', () => {
         entityManager.query.mockImplementation((sql: string) => {
             if (sql.includes('tickets') && sql.includes("status = 'RESOLVED'")) {
                 return Promise.resolve([
-                    { id: 't-2', ticketNumber: 'TK-002', title: 'Printer Issue', updatedAt: new Date() },
+                    { id: 't-2', ticketNumber: 'TK-002', title: 'Printer Issue', updatedAt: new Date(), resolutionDeadlineAt: new Date('2026-09-30T03:00:00Z') },
                 ]);
             }
             if (sql.includes('hardware_requests') && sql.includes('AWAITING_USER_CONFIRMATION')) {
@@ -117,7 +117,9 @@ describe('NotificationCenterService Action Items', () => {
                 expect.objectContaining({
                     entityType: ActionItemEntityType.TICKET,
                     title: 'Ticket Resolved: TK-002',
-                    urgency: ActionItemUrgency.NORMAL,
+                    // The requester has a deadline before auto-close, so it is urgent.
+                    urgency: ActionItemUrgency.HIGH,
+                    description: expect.stringContaining('sebelum'),
                 }),
                 expect.objectContaining({
                     entityType: ActionItemEntityType.HARDWARE_REQUEST,
@@ -126,5 +128,27 @@ describe('NotificationCenterService Action Items', () => {
                 }),
             ])
         );
+    });
+
+    it('getActionItems returns disputed tickets to the assigned agent', async () => {
+        entityManager.query.mockImplementation((sql: string) => {
+            if (sql.includes('"disputedAt" IS NOT NULL')) {
+                return Promise.resolve([{ id: 't-3', ticketNumber: 'TK-003', title: 'VPN', disputedAt: new Date() }]);
+            }
+            return Promise.resolve([]);
+        });
+
+        const result = await service.getActionItems('agent-1', UserRole.AGENT_OPERATIONAL_SUPPORT, 'site-1');
+
+        expect(result.items).toEqual([
+            expect.objectContaining({ id: 'tkt-dispute-t-3', title: 'Resolusi Disanggah: TK-003', urgency: ActionItemUrgency.HIGH }),
+        ]);
+    });
+
+    it('does not count closed tickets as SLA breached', async () => {
+        entityManager.query.mockResolvedValue([]);
+        await service.getActionItems('agent-1', UserRole.AGENT_OPERATIONAL_SUPPORT, 'site-1');
+        const slaSql = entityManager.query.mock.calls.map((c: any[]) => c[0]).find((sql: string) => sql.includes('slaTarget'));
+        expect(slaSql).toContain("'CLOSED'");
     });
 });

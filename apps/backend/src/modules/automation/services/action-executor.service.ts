@@ -1,7 +1,7 @@
 import { Injectable, Logger, Inject, forwardRef, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Ticket } from '../../ticketing/entities/ticket.entity';
+import { Ticket, TICKET_INACTIVE_STATUSES } from '../../ticketing/entities/ticket.entity';
 import { User } from '../../users/entities/user.entity';
 import { TicketMessage } from '../../ticketing/entities/ticket-message.entity';
 import { WorkflowAction, ActionType, AssignmentType, NotificationRecipient } from '../types/workflow.types';
@@ -12,6 +12,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
  * ActionExecutor Service
  * Executes workflow actions on tickets
  */
+const WEBHOOK_TIMEOUT_MS = 10_000;
+
 @Injectable()
 export class ActionExecutorService {
     private readonly logger = new Logger(ActionExecutorService.name);
@@ -201,7 +203,7 @@ export class ActionExecutorService {
             .createQueryBuilder('t')
             .select('t.assignedToId', 'agentId')
             .addSelect('COUNT(*)', 'ticketCount')
-            .where('t.status NOT IN (:...closedStatuses)', { closedStatuses: ['RESOLVED', 'CANCELLED'] })
+            .where('t.status NOT IN (:...closedStatuses)', { closedStatuses: TICKET_INACTIVE_STATUSES })
             .andWhere('t.assignedToId IS NOT NULL')
             .groupBy('t.assignedToId')
             .orderBy('COUNT(*)', 'ASC');
@@ -335,6 +337,7 @@ export class ActionExecutorService {
                     ...config.webhookHeaders,
                 },
                 body,
+                signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
             });
 
             this.logger.log(`Workflow: Webhook sent to ${config.webhookUrl}, status: ${response.status}`);

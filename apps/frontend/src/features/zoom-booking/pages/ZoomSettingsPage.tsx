@@ -1,17 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import {
-    Video,
-    Settings,
-    Calendar,
-    Users,
-    Save,
-    RefreshCw,
-    Check,
-    X,
-    FileText,
-    CalendarX
-} from 'lucide-react';
+import { Video, Settings, Calendar, Users, Save, RefreshCw, Check, FileText, CalendarX } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,12 +29,12 @@ import { ZoomBookingsTableSkeleton } from '../components/ZoomSkeletons';
 import { BlockedDatesPicker } from '../components/BlockedDatesPicker';
 import { ZoomAuditLogsViewer } from '../components/ZoomAuditLogsViewer';
 import type { ZoomAccount, ZoomSettings as ZoomSettingsType, ZoomBooking } from '../types';
+import { ACCOUNT_PALETTE } from '../utils/accountColors';
+import { SetHead } from '@/features/settings/components/SettingsParts';
+import '@/components/management/management.css';
 
-// Color palette for accounts
-const COLOR_PALETTE = [
-    '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-    '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
-];
+// Color palette for accounts (Executive Zero-Purple Palette)
+const COLOR_PALETTE: readonly string[] = ACCOUNT_PALETTE;
 
 export function ZoomSettingsPage() {
     const [editingAccount, setEditingAccount] = useState<ZoomAccount | null>(null);
@@ -136,68 +125,58 @@ export function ZoomSettingsPage() {
             const res = await syncMeetings.mutateAsync();
             refreshAll();
             if (res && res.updatedCount === 0) {
-                toast.success('Sinkronisasi selesai (tidak ada pembaruan)', {
-                    description: 'Jadwal Anda saat ini sudah yang paling baru.'
+                toast.info('Sinkronisasi selesai, data sudah mutakhir', {
+                    id: 'zoom-calendar-sync',
                 });
             }
         } catch (error) {
-            toast.error('Gagal melakukan sinkronisasi dengan Zoom');
+            toast.error('Gagal melakukan sinkronisasi dengan Zoom', {
+                id: 'zoom-calendar-sync',
+            });
         }
     };
 
     return (
-        <div className="space-y-8 animate-fade-in-up max-w-7xl mx-auto pb-12">
+        <div className="space-y-5 pb-12">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2.5 text-slate-900 dark:text-white">
-                        <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-xl">
-                            <Video className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        Zoom Configurations
-                    </h1>
-                    <p className="text-slate-500 dark:text-slate-400 mt-1">
-                        Manage your organization's Zoom accounts, routing rules, and historical logs.
-                    </p>
-                </div>
-                <div className="flex items-center gap-3">
-                    <Button variant="outline" className="border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-400 dark:hover:bg-blue-900/20 bg-white dark:bg-slate-900 shadow-sm" onClick={handleSyncMeetings} disabled={syncMeetings.isPending}>
-                        <RefreshCw className={cn("h-4 w-4 mr-2", syncMeetings.isPending && "animate-spin")} />
-                        {syncMeetings.isPending ? 'Syncing...' : 'Sync Data'}
+            <SetHead title="Zoom Settings" sub="Akun Zoom perusahaan yang dapat dibooking, aturan booking, dan riwayat sinkronisasi."
+                actions={<>
+                    <Button variant="soft" onClick={handleSyncMeetings} disabled={syncMeetings.isPending}>
+                        <RefreshCw aria-hidden="true" className={cn(syncMeetings.isPending && "animate-spin")} />
+                        {syncMeetings.isPending ? 'Menyinkronkan…' : 'Sync Data'}
                     </Button>
-                    <Button variant="outline" onClick={refreshAll} className="bg-white dark:bg-slate-900 shadow-sm" size="icon">
-                        <RefreshCw className="h-4 w-4" />
+                    <Button variant="subtle" onClick={refreshAll} size="icon" aria-label="Muat ulang data Zoom" title="Muat ulang data Zoom">
+                        <RefreshCw aria-hidden="true" />
                     </Button>
-                </div>
-            </div>
+                </>} />
 
             {/* Tabs */}
             <Tabs.Root defaultValue="settings" className="space-y-8">
-                <Tabs.List className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-100/80 dark:bg-slate-800/60 p-1 text-slate-500 dark:text-slate-400 max-w-full overflow-x-auto no-scrollbar border border-slate-200/50 dark:border-slate-700/50">
+                <Tabs.List className="inline-flex h-11 items-center justify-center rounded-xl bg-fill p-1 text-ink-2 max-w-full overflow-x-auto no-scrollbar border border-line">
                     <Tabs.Trigger
                         value="settings"
-                        className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-5 py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
+                        className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-5 py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-surface data-[state=active]:text-brand data-[state=active]:shadow-sm"
                     >
                         <Settings className="h-4 w-4 mr-2" />
                         Settings
                     </Tabs.Trigger>
                     <Tabs.Trigger
                         value="accounts"
-                        className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-5 py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
+                        className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-5 py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-surface data-[state=active]:text-brand data-[state=active]:shadow-sm"
                     >
                         <Users className="h-4 w-4 mr-2" />
                         Accounts
                     </Tabs.Trigger>
                     <Tabs.Trigger
                         value="bookings"
-                        className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-5 py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
+                        className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-5 py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-surface data-[state=active]:text-brand data-[state=active]:shadow-sm"
                     >
                         <Calendar className="h-4 w-4 mr-2" />
                         Bookings
                     </Tabs.Trigger>
                     <Tabs.Trigger
                         value="logs"
-                        className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-5 py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
+                        className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-5 py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-surface data-[state=active]:text-brand data-[state=active]:shadow-sm"
                     >
                         <FileText className="h-4 w-4 mr-2" />
                         Audit Logs
@@ -206,16 +185,16 @@ export function ZoomSettingsPage() {
 
                 {/* Settings Tab (Split-Pane Design) */}
                 <Tabs.Content value="settings" className="space-y-6 outline-none focus:ring-0">
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                    <div className="bg-surface rounded-2xl border border-line shadow-sm overflow-hidden">
                         {/* Settings Header */}
-                        <div className="px-6 py-5 md:px-8 md:py-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div className="px-6 py-5 md:px-8 md:py-6 border-b border-line bg-fill flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Booking Rules & Constraints</h3>
-                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                <h3 className="text-lg font-semibold text-ink">Booking Rules & Constraints</h3>
+                                <p className="text-sm text-ink-2 mt-1">
                                     Configure operational hours, durations, and limitations for all Zoom bookings.
                                 </p>
                             </div>
-                            <Button onClick={handleSaveSettings} disabled={updateSettings.isPending} className="shrink-0 transition-all shadow-sm">
+                            <Button variant="primary" onClick={handleSaveSettings} disabled={updateSettings.isPending} className="shrink-0">
                                 <Save className="h-4 w-4 mr-2" />
                                 {updateSettings.isPending ? 'Saving...' : 'Save Changes'}
                             </Button>
@@ -223,21 +202,21 @@ export function ZoomSettingsPage() {
 
                         {settingsLoading ? (
                             <div className="flex justify-center py-16">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand" />
                             </div>
                         ) : (
-                            <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                            <div className="divide-y divide-line">
                                 {/* Section 1: General Options */}
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 p-6 md:p-8">
                                     <div className="lg:col-span-1 space-y-1.5">
-                                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Duration & Lead Time</h4>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                                        <h4 className="text-sm font-semibold text-ink">Duration & Lead Time</h4>
+                                        <p className="text-sm text-ink-2 leading-relaxed">
                                             Set the default meeting length and determine how far in advance users can book a schedule.
                                         </p>
                                     </div>
                                     <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
                                         <div className="space-y-2.5">
-                                            <Label className="text-slate-700 dark:text-slate-300 font-medium">Default Duration</Label>
+                                            <Label className="text-ink font-medium">Default Duration</Label>
                                             <Select
                                                 value={String(settingsForm.defaultDurationMinutes || 60)}
                                                 onValueChange={(v) => setSettingsForm({
@@ -245,7 +224,7 @@ export function ZoomSettingsPage() {
                                                     defaultDurationMinutes: Number(v)
                                                 })}
                                             >
-                                                <SelectTrigger className="bg-slate-50 dark:bg-slate-900/50 h-11 border-slate-200 dark:border-slate-800">
+                                                <SelectTrigger className="bg-fill h-11 border-line">
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -258,18 +237,18 @@ export function ZoomSettingsPage() {
                                         </div>
 
                                         <div className="space-y-2.5">
-                                            <Label className="text-slate-700 dark:text-slate-300 font-medium">Advance Booking Days</Label>
+                                            <Label className="text-ink font-medium">Advance Booking Days</Label>
                                             <div className="relative">
                                                 <Input
                                                     type="number"
-                                                    className="bg-slate-50 dark:bg-slate-900/50 h-11 border-slate-200 dark:border-slate-800 pr-12"
+                                                    className="bg-fill h-11 border-line pr-12"
                                                     value={settingsForm.advanceBookingDays || 30}
                                                     onChange={(e) => setSettingsForm({
                                                         ...settingsForm,
                                                         advanceBookingDays: Number(e.target.value)
                                                     })}
                                                 />
-                                                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400 text-sm">
+                                                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-ink-3 text-sm">
                                                     days
                                                 </div>
                                             </div>
@@ -280,17 +259,17 @@ export function ZoomSettingsPage() {
                                 {/* Section 2: Working Hours */}
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 p-6 md:p-8">
                                     <div className="lg:col-span-1 space-y-1.5">
-                                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Operational Hours</h4>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                                        <h4 className="text-sm font-semibold text-ink">Operational Hours</h4>
+                                        <p className="text-sm text-ink-2 leading-relaxed">
                                             Define the daily time window when bookings are permitted to be scheduled.
                                         </p>
                                     </div>
                                     <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
                                         <div className="space-y-2.5">
-                                            <Label className="text-slate-700 dark:text-slate-300 font-medium">Start Time</Label>
+                                            <Label className="text-ink font-medium">Start Time</Label>
                                             <Input
                                                 type="time"
-                                                className="bg-slate-50 dark:bg-slate-900/50 h-11 border-slate-200 dark:border-slate-800"
+                                                className="bg-fill h-11 border-line"
                                                 value={settingsForm.slotStartTime || '08:00'}
                                                 onChange={(e) => setSettingsForm({
                                                     ...settingsForm,
@@ -300,10 +279,10 @@ export function ZoomSettingsPage() {
                                         </div>
 
                                         <div className="space-y-2.5">
-                                            <Label className="text-slate-700 dark:text-slate-300 font-medium">End Time</Label>
+                                            <Label className="text-ink font-medium">End Time</Label>
                                             <Input
                                                 type="time"
-                                                className="bg-slate-50 dark:bg-slate-900/50 h-11 border-slate-200 dark:border-slate-800"
+                                                className="bg-fill h-11 border-line"
                                                 value={settingsForm.slotEndTime || '18:00'}
                                                 onChange={(e) => setSettingsForm({
                                                     ...settingsForm,
@@ -317,27 +296,30 @@ export function ZoomSettingsPage() {
                                 {/* Section 3: Limits */}
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 p-6 md:p-8">
                                     <div className="lg:col-span-1 space-y-1.5">
-                                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Fair Usage Limits</h4>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                                        <h4 className="text-sm font-semibold text-ink">Fair Usage Limits</h4>
+                                        <p className="text-sm text-ink-2 leading-relaxed">
                                             Prevent monopolization by limiting bookings per user and adjusting the intervals between slots.
                                         </p>
                                     </div>
                                     <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
                                         <div className="space-y-2.5">
-                                            <Label className="text-slate-700 dark:text-slate-300 font-medium">Max Bookings Per Day / User</Label>
+                                            <Label className="text-ink font-medium">Max Bookings Per Day / User</Label>
                                             <Input
                                                 type="number"
-                                                className="bg-slate-50 dark:bg-slate-900/50 h-11 border-slate-200 dark:border-slate-800"
+                                                className="bg-fill h-11 border-line"
                                                 value={settingsForm.maxBookingPerUserPerDay || 5}
                                                 onChange={(e) => setSettingsForm({
                                                     ...settingsForm,
                                                     maxBookingPerUserPerDay: Number(e.target.value)
                                                 })}
                                             />
+                                            <p className="text-xs text-ink-2 mt-1">
+                                                Khusus role ADMIN tidak dibatasi kuota harian (unlimited booking/hari).
+                                            </p>
                                         </div>
 
                                         <div className="space-y-2.5">
-                                            <Label className="text-slate-700 dark:text-slate-300 font-medium">Slot Interval</Label>
+                                            <Label className="text-ink font-medium">Slot Interval</Label>
                                             <Select
                                                 value={String(settingsForm.slotIntervalMinutes || 30)}
                                                 onValueChange={(v) => setSettingsForm({
@@ -345,7 +327,7 @@ export function ZoomSettingsPage() {
                                                     slotIntervalMinutes: Number(v)
                                                 })}
                                             >
-                                                <SelectTrigger className="bg-slate-50 dark:bg-slate-900/50 h-11 border-slate-200 dark:border-slate-800">
+                                                <SelectTrigger className="bg-fill h-11 border-line">
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -361,16 +343,16 @@ export function ZoomSettingsPage() {
                                 {/* Section 4: Preferences */}
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 p-6 md:p-8">
                                     <div className="lg:col-span-1 space-y-1.5">
-                                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Additional Preferences</h4>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                                        <h4 className="text-sm font-semibold text-ink">Additional Preferences</h4>
+                                        <p className="text-sm text-ink-2 leading-relaxed">
                                             Toggle specific behavioral rules for the booking process.
                                         </p>
                                     </div>
                                     <div className="lg:col-span-2">
-                                        <div className="flex items-start justify-between p-5 bg-slate-50/80 dark:bg-slate-800/30 rounded-xl border border-slate-200/60 dark:border-slate-800 transition-colors">
+                                        <div className="flex items-start justify-between p-5 bg-fill rounded-xl border border-line transition-colors">
                                             <div className="space-y-1 mr-6">
-                                                <Label className="text-base text-slate-900 dark:text-white">Require Description</Label>
-                                                <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                <Label className="text-base text-ink">Require Description</Label>
+                                                <p className="text-sm text-ink-2 leading-relaxed">
                                                     Mandate users to provide a detailed reason or description when creating a booking.
                                                 </p>
                                             </div>
@@ -389,13 +371,13 @@ export function ZoomSettingsPage() {
                                 {/* Section 5: Blocked Dates */}
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 p-6 md:p-8">
                                     <div className="lg:col-span-1 space-y-1.5">
-                                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Exception Dates</h4>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                                        <h4 className="text-sm font-semibold text-ink">Exception Dates</h4>
+                                        <p className="text-sm text-ink-2 leading-relaxed">
                                             Block specific dates (e.g., holidays or maintenance periods) from being booked by users.
                                         </p>
                                     </div>
                                     <div className="lg:col-span-2">
-                                        <div className="bg-slate-50/50 dark:bg-slate-800/20 p-5 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                                        <div className="bg-fill p-5 rounded-xl border border-line">
                                             <BlockedDatesPicker
                                                 blockedDates={settingsForm.blockedDates || []}
                                                 onChange={handleBlockedDatesChange}
@@ -411,10 +393,10 @@ export function ZoomSettingsPage() {
 
                 {/* Accounts Tab */}
                 <Tabs.Content value="accounts" className="outline-none focus:ring-0">
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                        <div className="px-6 py-5 md:px-8 md:py-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
-                            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Zoom Accounts</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    <div className="bg-surface rounded-2xl border border-line shadow-sm overflow-hidden">
+                        <div className="px-6 py-5 md:px-8 md:py-6 border-b border-line bg-fill">
+                            <h3 className="text-lg font-semibold text-ink">Zoom Accounts</h3>
+                            <p className="text-sm text-ink-2 mt-1">
                                 Manage the list of Zoom credentials used as round-robin resources.
                             </p>
                             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
@@ -438,7 +420,7 @@ export function ZoomSettingsPage() {
                                         {COLOR_PALETTE.map((color) => <SelectItem key={color} value={color}>{color}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
-                                <Button
+                                <Button variant="primary"
                                     onClick={handleCreateAccount}
                                     disabled={createAccount.isPending || !newAccount.name.trim() || !newAccount.email.trim()}
                                 >
@@ -449,28 +431,28 @@ export function ZoomSettingsPage() {
                         
                         {accountsLoading ? (
                             <div className="flex justify-center py-16">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand" />
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-sm whitespace-nowrap">
-                                    <thead className="bg-slate-50/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800">
+                                    <thead className="bg-fill border-b border-line">
                                         <tr>
-                                            <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">#</th>
-                                            <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">Name</th>
-                                            <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">Email</th>
-                                            <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">Color ID</th>
-                                            <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">Status</th>
-                                            <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400 text-right">Actions</th>
+                                            <th className="px-6 py-4 font-semibold text-ink-2">#</th>
+                                            <th className="px-6 py-4 font-semibold text-ink-2">Name</th>
+                                            <th className="px-6 py-4 font-semibold text-ink-2">Email</th>
+                                            <th className="px-6 py-4 font-semibold text-ink-2">Color ID</th>
+                                            <th className="px-6 py-4 font-semibold text-ink-2">Status</th>
+                                            <th className="px-6 py-4 font-semibold text-ink-2 text-right">Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                                    <tbody className="divide-y divide-line">
                                         {accounts?.map((account, index) => (
-                                            <tr key={account.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
-                                                <td className="px-6 py-4 text-slate-400">
+                                            <tr key={account.id} className="hover:bg-fill transition-colors group">
+                                                <td className="px-6 py-4 text-ink-3">
                                                     {index + 1}
                                                 </td>
-                                                <td className="px-6 py-4 font-medium text-slate-900 dark:text-slate-200">
+                                                <td className="px-6 py-4 font-medium text-ink">
                                                     {editingAccount?.id === account.id ? (
                                                         <Input
                                                             value={editingAccount.name}
@@ -478,7 +460,7 @@ export function ZoomSettingsPage() {
                                                                 ...editingAccount,
                                                                 name: e.target.value
                                                             })}
-                                                            className="w-40 h-9 bg-white dark:bg-slate-950"
+                                                            className="w-40 h-9 bg-surface"
                                                         />
                                                     ) : (
                                                         <div className="flex items-center gap-3">
@@ -490,7 +472,7 @@ export function ZoomSettingsPage() {
                                                         </div>
                                                     )}
                                                 </td>
-                                                <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
+                                                <td className="px-6 py-4 text-ink-2">
                                                     {editingAccount?.id === account.id ? (
                                                         <Input
                                                             value={editingAccount.email}
@@ -498,7 +480,7 @@ export function ZoomSettingsPage() {
                                                                 ...editingAccount,
                                                                 email: e.target.value
                                                             })}
-                                                            className="w-56 h-9 bg-white dark:bg-slate-950"
+                                                            className="w-56 h-9 bg-surface"
                                                         />
                                                     ) : (
                                                         account.email
@@ -506,14 +488,14 @@ export function ZoomSettingsPage() {
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     {editingAccount?.id === account.id ? (
-                                                        <div className="flex gap-1.5 p-1.5 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 w-fit">
+                                                        <div className="flex gap-1.5 p-1.5 bg-fill rounded-lg border border-line w-fit">
                                                             {COLOR_PALETTE.map((color) => (
                                                                 <button
                                                                     key={color}
                                                                     className={cn(
                                                                         'w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 cursor-pointer',
                                                                         editingAccount.colorHex === color
-                                                                            ? 'border-slate-900 dark:border-white ring-2 ring-slate-200 dark:ring-slate-700'
+                                                                            ? 'border-line-strong ring-2 ring-line-strong'
                                                                             : 'border-transparent'
                                                                     )}
                                                                     style={{ backgroundColor: color }}
@@ -534,7 +516,7 @@ export function ZoomSettingsPage() {
                                                 <td className="px-6 py-4">
                                                     <Badge variant={account.isActive ? 'default' : 'secondary'} className={cn(
                                                         "font-medium shadow-none",
-                                                        account.isActive ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400" : ""
+                                                        account.isActive ? "bg-ok/15 text-ok-ink hover:bg-ok/25" : ""
                                                     )}>
                                                         {account.isActive ? 'Active' : 'Inactive'}
                                                     </Badge>
@@ -544,16 +526,16 @@ export function ZoomSettingsPage() {
                                                         <div className="flex gap-2 justify-end">
                                                             <Button
                                                                 size="sm"
-                                                                variant="default"
-                                                                className="h-8 px-3"
+                                                                variant="primary"
+                                                               
                                                                 onClick={() => handleUpdateAccount(account.id, editingAccount)}
                                                             >
                                                                 <Check className="h-4 w-4 mr-1.5" /> Save
                                                             </Button>
                                                             <Button
                                                                 size="sm"
-                                                                variant="outline"
-                                                                className="h-8 px-3"
+                                                                variant="soft"
+                                                               
                                                                 onClick={() => setEditingAccount(null)}
                                                             >
                                                                 Cancel
@@ -562,8 +544,8 @@ export function ZoomSettingsPage() {
                                                     ) : (
                                                         <Button
                                                             size="sm"
-                                                            variant="ghost"
-                                                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                                                            variant="subtle"
+                                                            className="text-brand"
                                                             onClick={() => setEditingAccount(account)}
                                                         >
                                                             Edit
@@ -581,10 +563,10 @@ export function ZoomSettingsPage() {
 
                 {/* Bookings Tab */}
                 <Tabs.Content value="bookings" className="outline-none focus:ring-0">
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                        <div className="px-6 py-5 md:px-8 md:py-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
-                            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">All Bookings Registry</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    <div className="bg-surface rounded-2xl border border-line shadow-sm overflow-hidden">
+                        <div className="px-6 py-5 md:px-8 md:py-6 border-b border-line bg-fill">
+                            <h3 className="text-lg font-semibold text-ink">All Bookings Registry</h3>
+                            <p className="text-sm text-ink-2 mt-1">
                                 Comprehensive history and upcoming scheduled Zoom meetings.
                             </p>
                         </div>
@@ -597,23 +579,23 @@ export function ZoomSettingsPage() {
                             <>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left text-sm whitespace-nowrap">
-                                        <thead className="bg-slate-50/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800">
+                                        <thead className="bg-fill border-b border-line">
                                             <tr>
-                                                <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">Meeting Title</th>
-                                                <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">Assigned Account</th>
-                                                <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">Date & Time</th>
-                                                <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">Organizer</th>
-                                                <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">Status</th>
-                                                <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400 text-right">Action</th>
+                                                <th className="px-6 py-4 font-semibold text-ink-2">Meeting Title</th>
+                                                <th className="px-6 py-4 font-semibold text-ink-2">Assigned Account</th>
+                                                <th className="px-6 py-4 font-semibold text-ink-2">Date & Time</th>
+                                                <th className="px-6 py-4 font-semibold text-ink-2">Organizer</th>
+                                                <th className="px-6 py-4 font-semibold text-ink-2">Status</th>
+                                                <th className="px-6 py-4 font-semibold text-ink-2 text-right">Action</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                                        <tbody className="divide-y divide-line">
                                             {bookingsData?.data?.map((booking) => (
-                                                <tr key={booking.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                                                    <td className="px-6 py-4 font-medium text-slate-900 dark:text-slate-200">
+                                                <tr key={booking.id} className="hover:bg-fill transition-colors">
+                                                    <td className="px-6 py-4 font-medium text-ink">
                                                         {booking.title}
                                                     </td>
-                                                    <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
+                                                    <td className="px-6 py-4 text-ink-2">
                                                         <div className="flex items-center gap-2.5">
                                                             <div
                                                                 className="w-2.5 h-2.5 rounded-full shadow-sm"
@@ -622,13 +604,13 @@ export function ZoomSettingsPage() {
                                                             {booking.zoomAccount?.name}
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
+                                                    <td className="px-6 py-4 text-ink-2">
                                                         <div className="flex flex-col gap-0.5">
                                                             <span className="font-medium">{booking.bookingDate}</span>
-                                                            <span className="text-xs text-slate-400">{booking.startTime} - {booking.endTime}</span>
+                                                            <span className="text-xs text-ink-3">{booking.startTime} - {booking.endTime}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
+                                                    <td className="px-6 py-4 text-ink-2">
                                                         {booking.bookedBy?.fullName || booking.bookedByUser?.fullName || '-'}
                                                     </td>
                                                     <td className="px-6 py-4 flex items-center gap-2">
@@ -637,12 +619,12 @@ export function ZoomSettingsPage() {
                                                                 booking.status === 'CANCELLED' ? 'destructive' : 'secondary'
                                                         } className={cn(
                                                             "font-medium shadow-none",
-                                                            booking.status === 'CONFIRMED' ? "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400" : ""
+                                                            booking.status === 'CONFIRMED' ? "bg-brand/15 text-brand hover:bg-brand/25" : ""
                                                         )}>
                                                             {booking.status}
                                                         </Badge>
                                                         {booking.isExternal && (
-                                                            <Badge variant="outline" className="border-slate-200 text-slate-500 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs h-5 px-1.5 font-medium shadow-none">
+                                                            <Badge variant="outline" className="border-line text-ink-2 bg-fill text-xs h-5 px-1.5 font-medium shadow-none">
                                                                 Ext
                                                             </Badge>
                                                         )}
@@ -651,8 +633,8 @@ export function ZoomSettingsPage() {
                                                         {!booking.isExternal && booking.status !== 'CANCELLED' && (
                                                             <Button
                                                                 size="sm"
-                                                                variant="ghost"
-                                                                className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                                                                variant="subtle"
+                                                                className="text-bad-ink"
                                                                 onClick={() => setCancellingBooking(booking)}
                                                             >
                                                                 Revoke
@@ -663,7 +645,7 @@ export function ZoomSettingsPage() {
                                             ))}
                                             {(!bookingsData?.data || bookingsData.data.length === 0) && (
                                                 <tr>
-                                                    <td colSpan={6} className="text-center py-12 text-slate-500 dark:text-slate-400">
+                                                    <td colSpan={6} className="text-center py-12 text-ink-2">
                                                         <CalendarX className="h-8 w-8 mx-auto mb-3 opacity-20" />
                                                         No bookings discovered in the registry.
                                                     </td>
@@ -675,25 +657,25 @@ export function ZoomSettingsPage() {
 
                                 {/* Pagination Controls */}
                                 {totalBookingsPages > 1 && (
-                                    <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 px-6 py-4 bg-slate-50/30 dark:bg-slate-900/30">
-                                        <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                                    <div className="flex items-center justify-between border-t border-line px-6 py-4 bg-fill">
+                                        <div className="text-sm font-medium text-ink-2">
                                             Page {bookingsPage} of {totalBookingsPages}
                                             {bookingsData?.total && <span className="ml-1 opacity-70">({bookingsData.total} items)</span>}
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <Button
-                                                variant="outline"
+                                                variant="soft"
                                                 size="sm"
-                                                className="bg-white dark:bg-slate-900 h-9"
+                                               
                                                 onClick={() => setBookingsPage(p => Math.max(1, p - 1))}
                                                 disabled={bookingsPage === 1}
                                             >
                                                 Previous
                                             </Button>
                                             <Button
-                                                variant="outline"
+                                                variant="soft"
                                                 size="sm"
-                                                className="bg-white dark:bg-slate-900 h-9"
+                                               
                                                 onClick={() => setBookingsPage(p => Math.min(totalBookingsPages, p + 1))}
                                                 disabled={bookingsPage === totalBookingsPages}
                                             >

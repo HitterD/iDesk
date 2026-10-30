@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit, forwardRef, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, forwardRef, Inject, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, LessThan, MoreThan } from 'typeorm';
 import { Notification, NotificationType } from './entities/notification.entity';
@@ -14,15 +14,17 @@ import {
     INotificationChannel,
 } from './interfaces/notification-channel.interface';
 import { EmailChannelService } from './channels/email-channel.service';
-import { TelegramChannelService } from './channels/telegram-channel.service';
 import { InAppChannelService } from './channels/inapp-channel.service';
 import { PushChannelService } from './channels/push-channel.service';
+import { NotificationPushService } from './notification-push.service';
+import { getCategoryFromType } from './utils/category-mapper';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EntityManager } from 'typeorm';
 import { ActionItemDto, ActionItemUrgency, ActionItemEntityType, ActionItemsResponseDto } from './dto/action-item.dto';
 import { CacheService } from '../../shared/core/cache/cache.service';
+import { formatResolutionDeadline } from '../ticketing/utils/resolution-deadline.util';
 
 @Injectable()
 export class NotificationCenterService implements OnModuleInit {
@@ -46,17 +48,16 @@ export class NotificationCenterService implements OnModuleInit {
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
         private readonly emailChannel: EmailChannelService,
-        private readonly telegramChannel: TelegramChannelService,
         private readonly inAppChannel: InAppChannelService,
         private readonly pushChannel: PushChannelService,
         private readonly entityManager: EntityManager,
         private readonly cacheService: CacheService,
+        @Optional() private readonly webPush?: NotificationPushService,
     ) { }
 
     onModuleInit() {
         // Register available channels
         this.channels.set(DeliveryChannel.EMAIL, this.emailChannel);
-        this.channels.set(DeliveryChannel.TELEGRAM, this.telegramChannel);
         this.channels.set(DeliveryChannel.IN_APP, this.inAppChannel);
         this.channels.set(DeliveryChannel.PUSH, this.pushChannel);
 
@@ -84,6 +85,7 @@ export class NotificationCenterService implements OnModuleInit {
 
         // Create notification record
         const notification = await this.createNotification(payload);
+        this.webPush?.dispatch(notification);
 
         // Determine channels based on payload and preferences
         const channels = this.resolveChannels(payload, preferences);
@@ -184,27 +186,37 @@ export class NotificationCenterService implements OnModuleInit {
     async getOrCreatePreferences(userId: string): Promise<NotificationPreference> {
         let prefs = await this.preferenceRepo.findOne({ where: { userId } });
 
-        if (!prefs) {
-            // Get user to populate defaults
-            const user = await this.userRepo.findOne({ where: { id: userId } });
-
-            prefs = this.preferenceRepo.create({
-                userId,
-                inAppEnabled: true,
-                emailEnabled: true,
-                emailAddress: user?.email || undefined,
-                telegramEnabled: !!user?.telegramChatId,
-                telegramChatId: user?.telegramChatId || undefined,
-                pushEnabled: false,
-                digestEnabled: false,
-                digestFrequency: DigestFrequency.REALTIME,
-                quietHoursEnabled: false,
-                timezone: 'Asia/Jakarta',
-            });
-
-            await this.preferenceRepo.save(prefs);
+        if (prefs) {
+            return this.syncAccountEmail(prefs);
         }
 
+        // Get user to populate defaults
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        prefs = this.preferenceRepo.create({
+            userId,
+            inAppEnabled: true,
+            emailEnabled: true,
+            emailAddress: user?.email || undefined,
+            pushEnabled: false,
+            digestEnabled: false,
+            digestFrequency: DigestFrequency.REALTIME,
+            quietHoursEnabled: false,
+            timezone: 'Asia/Jakarta',
+        });
+        await this.preferenceRepo.save(prefs);
+        return prefs;
+    }
+
+    /**
+     * The email channel always uses the account email. emailAddress used to be a copy taken when the
+     * preferences row was first created, so after an email change (self-service, admin, HRIS) mail kept
+     * going to the old address and the settings page kept showing it. Re-sync it whenever it is read.
+     */
+    private async syncAccountEmail(prefs: NotificationPreference): Promise<NotificationPreference> {
+        const user = await this.userRepo.findOne({ where: { id: prefs.userId }, select: ['id', 'email'] });
+        if (!user?.email || user.email === prefs.emailAddress) return prefs;
+        prefs.emailAddress = user.email;
+        await this.preferenceRepo.update(prefs.id, { emailAddress: user.email });
         return prefs;
     }
 
@@ -213,7 +225,9 @@ export class NotificationCenterService implements OnModuleInit {
         updates: Partial<NotificationPreference>
     ): Promise<NotificationPreference> {
         const prefs = await this.getOrCreatePreferences(userId);
-        return this.preferenceRepo.save({ ...prefs, ...updates });
+        // The address follows the account email (see syncAccountEmail); a client cannot fork it.
+        const { emailAddress: _ignored, ...allowed } = updates;
+        return this.preferenceRepo.save({ ...prefs, ...allowed });
     }
 
     async updateTypePreference(
@@ -247,7 +261,7 @@ export class NotificationCenterService implements OnModuleInit {
             this.cacheService.delByPattern(`action-items:${userId}:*`).catch(err => {
                 this.logger.warn(`Failed to clear action-items cache for user ${userId}:`, err);
             });
-            this.eventsGateway.server.emit(`action-items:refresh:${userId}`, { entityType, entityId });
+            this.eventsGateway.server.to(`user:${userId}`).emit(`action-items:refresh:${userId}`, { entityType, entityId });
         } catch (error) {
             this.logger.warn(`Failed to emit action-items refresh for user ${userId}:`, error);
         }
@@ -340,6 +354,7 @@ export class NotificationCenterService implements OnModuleInit {
             slaBreachedTickets,
             unrespondedTickets,
             resolvedTickets,
+            disputedTickets,
             pendingHw,
             userHwConfirmation,
             agentHwInstallation,
@@ -348,7 +363,7 @@ export class NotificationCenterService implements OnModuleInit {
             zoomBookings,
         ] = await Promise.all([
             isAgentOrAdmin ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "createdAt", "updatedAt" FROM tickets WHERE "assignedToId" = $1 AND status != 'RESOLVED' AND status != 'CANCELLED' AND "slaTarget" < $2 AND "deletedAt" IS NULL ORDER BY "slaTarget" ASC LIMIT 50`,
+                `SELECT id, "ticketNumber", title, "createdAt", "updatedAt" FROM tickets WHERE "assignedToId" = $1 AND status NOT IN ('RESOLVED', 'CLOSED', 'CANCELLED') AND "slaTarget" < $2 AND "deletedAt" IS NULL ORDER BY "slaTarget" ASC LIMIT 50`,
                 [userId, now]
             ).catch(() => []) : Promise.resolve([]),
             isAgentOrAdmin ? this.entityManager.query(
@@ -356,7 +371,12 @@ export class NotificationCenterService implements OnModuleInit {
                 [userId, oneHourAgo]
             ).catch(() => []) : Promise.resolve([]),
             isUser ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "updatedAt" FROM tickets WHERE "userId" = $1 AND status = 'RESOLVED' AND "deletedAt" IS NULL ORDER BY "updatedAt" DESC LIMIT 50`,
+                `SELECT id, "ticketNumber", title, "updatedAt", "resolutionDeadlineAt" FROM tickets WHERE "userId" = $1 AND status = 'RESOLVED' AND "deletedAt" IS NULL ORDER BY "updatedAt" DESC LIMIT 50`,
+                [userId]
+            ).catch(() => []) : Promise.resolve([]),
+            // The requester disputed the resolution: the assigned agent must pick it up again.
+            isAgentOrAdmin ? this.entityManager.query(
+                `SELECT id, "ticketNumber", title, "disputedAt" FROM tickets WHERE "assignedToId" = $1 AND status = 'IN_PROGRESS' AND "disputedAt" IS NOT NULL AND "deletedAt" IS NULL ORDER BY "disputedAt" DESC LIMIT 50`,
                 [userId]
             ).catch(() => []) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(
@@ -389,6 +409,7 @@ export class NotificationCenterService implements OnModuleInit {
             slaBreachedTickets,
             unrespondedTickets,
             resolvedTickets,
+            disputedTickets,
             pendingHw,
             userHwConfirmation,
             agentHwInstallation,
@@ -414,7 +435,15 @@ export class NotificationCenterService implements OnModuleInit {
 
         data.resolvedTickets?.forEach((t: any) => items.push({
             id: `tkt-res-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Ticket Resolved: ${t.ticketNumber}`,
-            description: 'Please confirm resolution', urgency: ActionItemUrgency.NORMAL, entityId: t.id, link: `/client/tickets/${t.id}`, createdAt: t.updatedAt, isSnoozed: false
+            description: t.resolutionDeadlineAt
+                ? `Konfirmasi selesai atau sanggah sebelum ${formatResolutionDeadline(t.resolutionDeadlineAt)}`
+                : 'Konfirmasi apakah tiket sudah selesai',
+            urgency: ActionItemUrgency.HIGH, entityId: t.id, link: `/client/tickets/${t.id}`, createdAt: t.updatedAt, isSnoozed: false
+        }));
+
+        data.disputedTickets?.forEach((t: any) => items.push({
+            id: `tkt-dispute-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Resolusi Disanggah: ${t.ticketNumber}`,
+            description: t.title, urgency: ActionItemUrgency.HIGH, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.disputedAt, isSnoozed: false
         }));
 
         data.pendingHw?.forEach((hw: any) => items.push({
@@ -624,8 +653,6 @@ export class NotificationCenterService implements OnModuleInit {
                 return userId;
             case DeliveryChannel.EMAIL:
                 return preferences.emailAddress || null;
-            case DeliveryChannel.TELEGRAM:
-                return preferences.telegramChatId || null;
             case DeliveryChannel.PUSH:
                 return userId; // Push uses userId, subscriptions are looked up by PushChannelService
             default:
@@ -679,8 +706,6 @@ export class NotificationCenterService implements OnModuleInit {
                 return preferences.inAppEnabled;
             case DeliveryChannel.EMAIL:
                 return preferences.emailEnabled;
-            case DeliveryChannel.TELEGRAM:
-                return preferences.telegramEnabled;
             case DeliveryChannel.PUSH:
                 return preferences.pushEnabled;
             default:
@@ -753,12 +778,12 @@ export class NotificationCenterService implements OnModuleInit {
         await this.processDigests(DigestFrequency.HOURLY);
     }
 
-    @Cron('0 9 * * *') // Every day at 9 AM
+    @Cron('0 9 * * *', { timeZone: 'Asia/Jakarta' }) // Every day at 09:00 WIB
     async processDailyDigests(): Promise<void> {
         await this.processDigests(DigestFrequency.DAILY);
     }
 
-    @Cron('0 9 * * 1') // Every Monday at 9 AM
+    @Cron('0 9 * * 1', { timeZone: 'Asia/Jakarta' }) // Every Monday at 09:00 WIB
     async processWeeklyDigests(): Promise<void> {
         await this.processDigests(DigestFrequency.WEEKLY);
     }
@@ -779,7 +804,7 @@ export class NotificationCenterService implements OnModuleInit {
             if (!buffer || buffer.length === 0) continue;
 
             try {
-                await this.sendDigest(pref, buffer);
+                await this.sendDigest(await this.syncAccountEmail(pref), buffer);
                 this.digestBuffer.delete(pref.userId);
             } catch (error) {
                 this.logger.error(`Failed to send digest to user ${pref.userId}:`, error);
@@ -809,20 +834,6 @@ export class NotificationCenterService implements OnModuleInit {
                 });
             }
         }
-
-        // Send via Telegram if enabled
-        if (preferences.telegramEnabled && preferences.telegramChatId) {
-            const telegramChannel = this.channels.get(DeliveryChannel.TELEGRAM);
-            if (telegramChannel) {
-                await telegramChannel.send({
-                    notificationId: `digest-${Date.now()}`,
-                    recipient: preferences.telegramChatId,
-                    title: `📬 ${digestTitle}`,
-                    body: digestBody,
-                    data: { isDigest: true, count: notifications.length },
-                });
-            }
-        }
     }
 
     // =====================
@@ -836,6 +847,9 @@ export class NotificationCenterService implements OnModuleInit {
             title: payload.title,
             message: payload.message,
             ticketId: payload.ticketId,
+            // Kept so "opened the target page" can mark it read, and so it lands in the right category tab.
+            referenceId: payload.referenceId,
+            category: getCategoryFromType(payload.type),
             link: payload.link,
             isRead: false,
         });

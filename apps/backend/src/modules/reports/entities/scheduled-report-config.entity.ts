@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { Site } from '../../sites/entities/site.entity';
 import { User } from '../../users/entities/user.entity';
+import type { ReportTeam } from '../utils/report-team-scope.util';
 
 /**
  * Report types supported by the scheduled reports system.
@@ -30,8 +31,8 @@ export enum ScheduleType {
 }
 
 /**
- * Target agent category for AGENT_PERFORMANCE reports.
- * Allows explicit separation of regular agents vs AGENT_ORACLE.
+ * Legacy target agent category for AGENT_PERFORMANCE reports.
+ * Superseded by `targetTeam`; still accepted and mapped to a team.
  */
 export enum TargetAgentCategory {
   ALL = 'ALL',
@@ -100,6 +101,13 @@ export class ScheduledReportConfig {
     nullable: true,
   })
   targetAgentCategory: TargetAgentCategory | null;
+
+  /**
+   * Team the report covers (tickets by handling team, agents by role) and
+   * whose agents may receive it. Null = every team.
+   */
+  @Column({ type: 'varchar', length: 12, nullable: true })
+  targetTeam: ReportTeam | null;
 
   @Column({ default: true })
   isActive: boolean;

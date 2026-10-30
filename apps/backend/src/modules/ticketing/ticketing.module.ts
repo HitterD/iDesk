@@ -10,7 +10,6 @@ import { TicketParticipant } from './entities/ticket-participant.entity';
 import { TicketTemplate } from './entities/ticket-template.entity';
 import { TicketModule as TicketModuleEntity } from './entities/ticket-module.entity';
 import { User } from '../users/entities/user.entity';
-import { CustomerSession } from '../users/entities/customer-session.entity';
 import { EventsGateway } from './presentation/gateways/events.gateway';
 import { SlaCheckerService } from './sla-checker.service';
 import { TicketSlaExtendService } from './services/ticket-sla-extend.service';
@@ -22,10 +21,11 @@ import { SlaConfig } from './entities/sla-config.entity';
 import { SlaConfigService } from './sla-config.service';
 import { SlaConfigController } from './presentation/sla-config.controller';
 import { AuthModule } from '../auth/auth.module';
-import { TelegramModule } from '../telegram/telegram.module';
 import { NotificationModule } from '../notifications/notification.module';
 import { SlaConfigModule } from '../sla-config/sla-config.module';
+import { SlaClockService } from './services/sla-clock.service';
 import { WorkloadModule } from '../workload/workload.module';
+import { TicketLinkedRequestService } from './services/ticket-linked-request.service';
 import { ModuleAssignmentPolicyModule } from './module-assignment-policy.module';
 
 import { SavedReply } from './entities/saved-reply.entity';
@@ -44,6 +44,7 @@ import { TicketCreateService } from './services/ticket-create.service';
 import { TicketUpdateService } from './services/ticket-update.service';
 import { TicketMessagingService } from './services/ticket-messaging.service';
 import { TicketQueryService } from './services/ticket-query.service';
+import { TicketAttachmentAccessService } from './services/ticket-attachment-access.service';
 import { TicketTemplateService } from './services/ticket-template.service';
 import { TicketModulesService } from './services/ticket-modules.service';
 import { TicketMergeService } from './services/ticket-merge.service';
@@ -59,10 +60,18 @@ import { TicketRepository } from './repositories/ticket.repository';
 import { TicketNotificationService } from './services/ticket-notification.service';
 import { TicketStatsService } from './services/ticket-stats.service';
 import { TicketNotificationListener } from './listeners/ticket-notification.listener';
+import { TicketChatPushListener } from './listeners/ticket-chat-push.listener';
 
 import { TicketReminder } from './entities/ticket-reminder.entity';
 import { TicketReminderService } from './services/ticket-reminder.service';
+import { TicketVendorVisitService } from './services/ticket-vendor-visit.service';
 import { TicketReminderSchedulerService } from './services/ticket-reminder-scheduler.service';
+import { TicketAssignment } from './entities/ticket-assignment.entity';
+import { AgentRating } from './entities/agent-rating.entity';
+import { TicketResolutionService } from './services/ticket-resolution.service';
+import { AgentRatingService } from './services/agent-rating.service';
+import { TicketAutoCloseCron } from './services/ticket-auto-close.cron';
+import { AgentRatingsController } from './presentation/agent-ratings.controller';
 
 @Module({
     imports: [
@@ -73,7 +82,6 @@ import { TicketReminderSchedulerService } from './services/ticket-reminder-sched
             TicketTemplate,
             TicketModuleEntity,
             User,
-            CustomerSession,
             SlaConfig,
             SavedReply,
             TicketSurvey,
@@ -82,6 +90,8 @@ import { TicketReminderSchedulerService } from './services/ticket-reminder-sched
             NotificationPreference,
             SlaAdjustment,
             TicketReminder,
+            TicketAssignment,
+            AgentRating,
         ]),
         ReportsModule,
         KnowledgeBaseModule,
@@ -90,7 +100,6 @@ import { TicketReminderSchedulerService } from './services/ticket-reminder-sched
         SlaConfigModule,  // Provides BusinessHoursService for SLA calculation
         WorkloadModule,   // Provides WorkloadService for auto-assignment
         ModuleAssignmentPolicyModule, // Provides the per-module assignment guard
-        forwardRef(() => TelegramModule),
         forwardRef(() => NotificationModule),
         CacheModule.register(),
     ],
@@ -103,13 +112,17 @@ import { TicketReminderSchedulerService } from './services/ticket-reminder-sched
         SurveysController,
         TicketAttributesController,
         TimeTrackingController,
+        AgentRatingsController,
     ],
     providers: [
         // Core services (Split)
+        TicketLinkedRequestService,
         TicketCreateService,
         TicketUpdateService,
+        SlaClockService,
         TicketMessagingService,
         TicketQueryService,
+        TicketAttachmentAccessService,
         TicketTemplateService,
         TicketModulesService,
         TicketMergeService,
@@ -118,7 +131,11 @@ import { TicketReminderSchedulerService } from './services/ticket-reminder-sched
         TicketForwardService,
         TicketReminderService,
         TicketReminderSchedulerService,
+        TicketVendorVisitService,
         TimeTrackingService,
+        TicketResolutionService,
+        AgentRatingService,
+        TicketAutoCloseCron,
 
         SlaCheckerService,
         SlaConfigService,
@@ -131,10 +148,14 @@ import { TicketReminderSchedulerService } from './services/ticket-reminder-sched
         TicketNotificationService,
         TicketStatsService,
         TicketNotificationListener,
+        TicketChatPushListener,
     ],
     exports: [
+        TicketLinkedRequestService,
         TicketCreateService,
         TicketUpdateService,
+        SlaClockService,
+        TicketVendorVisitService,
         TicketMessagingService,
         TicketQueryService,
         TicketTemplateService,

@@ -14,6 +14,7 @@ export interface TimeSlotOption {
     totalAccountsCount?: number;
     reason?: string;
     exceedsOperatingHours?: boolean;
+    isOngoing?: boolean;
 }
 
 export interface ZoomTimeSelectProps {
@@ -238,11 +239,21 @@ export function ZoomTimeSelect({
                                         </div>
                                     ) : (
                                         <div className="shrink-0 flex items-center gap-1">
-                                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                                                {opt.availableAccountsCount !== undefined
-                                                    ? `Tersedia · ${opt.availableAccountsCount} akun`
-                                                    : 'Tersedia'}
-                                            </span>
+                                            {opt.isOngoing ? (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                                    <span>Sekarang</span>
+                                                    {opt.availableAccountsCount !== undefined && (
+                                                        <span className="font-normal opacity-80">· {opt.availableAccountsCount} akun</span>
+                                                    )}
+                                                </span>
+                                            ) : (
+                                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                                    {opt.availableAccountsCount !== undefined
+                                                        ? `Tersedia · ${opt.availableAccountsCount} akun`
+                                                        : 'Tersedia'}
+                                                </span>
+                                            )}
                                         </div>
                                     )}
                                 </li>

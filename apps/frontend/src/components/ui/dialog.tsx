@@ -19,7 +19,7 @@ const DialogOverlay = React.forwardRef<
     <DialogPrimitive.Overlay
         ref={ref}
         className={cn(
-            "fixed inset-0 z-50 bg-black/60 backdrop-blur-sm",
+            "idesk-dialog-overlay fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             "duration-300",
@@ -42,7 +42,7 @@ const DialogContent = React.forwardRef<
             ref={ref}
             className={cn(
                 // Base positioning
-                "fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%]",
+                "idesk-dialog-content fixed left-[50%] top-[50%] z-[100] translate-x-[-50%] translate-y-[-50%]",
                 // Layout
                 "grid w-full gap-4 p-6",
                 // Size variants
@@ -68,7 +68,7 @@ const DialogContent = React.forwardRef<
             {children}
             <DialogPrimitive.Close className="absolute right-4 top-4 p-1.5 rounded-lg opacity-70 hover:opacity-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-[transform,box-shadow,border-color,opacity,background-color] duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:pointer-events-none">
                 <X className="h-4 w-4" />
-                <span className="sr-only">Close</span>
+                <span className="sr-only">Tutup</span>
             </DialogPrimitive.Close>
         </DialogPrimitive.Content>
     </DialogPortal>

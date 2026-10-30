@@ -1,22 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-    Plus,
-    LayoutGrid,
-    Cpu,
-    RotateCw,
-    TrendingUp,
-    Clock,
-    CheckCircle2,
-    Wrench,
-    ChevronLeft,
-    ChevronRight,
-    ChevronsLeft,
-    ChevronsRight,
-    X,
-} from 'lucide-react';
-import { AnimatePresence } from 'framer-motion';
+import { ArrowRight, ChevronDown, CircleCheck, Inbox, Layers, Loader, PackageSearch, X } from 'lucide-react';
 import { useHardwareRequestList } from '../hooks/useHardwareRequestList';
 import { useHardwareRole } from '../hooks/usePermissions';
 import { useHardwareGlobalRealtime } from '../hooks/useHardwareRequestRealtime';
@@ -24,12 +9,9 @@ import { useHardwareStats } from '../hooks/useHardwareStats';
 import { RequestFilters } from '../components/list/RequestFilters';
 import { RequestTable } from '../components/list/RequestTable';
 import { RequestCard } from '../components/list/RequestCard';
-import { RequestListSkeleton } from '../components/list/RequestListSkeleton';
-import { EmptyState } from '../components/common/EmptyState';
 import { useHardwareBasePath } from '../hooks/useHardwareBasePath';
-import { StatsCard } from '@/features/ticket-board/components/StatsCard';
+import { ResEmpty, ResPager, ResSkeletonRows, ResStat, ResTable } from '@/components/resources/ResourceParts';
 import type { ListFilters, RequestStatus } from '../types';
-import { cn } from '@/lib/utils';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 
@@ -93,245 +75,75 @@ export default function HardwareRequestListPage() {
     const totalPages = meta ? Math.ceil(meta.total / meta.pageSize) : 1;
     const currentPage = meta?.page ?? 1;
 
+    const isFiltered = !!filters.search || (filters.status?.length ?? 0) > 0 || (filters.category?.length ?? 0) > 0;
+    const statsLoading = isStatsLoading && !statsData;
+    const total = statsData?.total ?? meta?.total ?? 0;
+    const rows = data?.rows ?? [];
+
+    const foot = meta && rows.length > 0 ? (
+        <>
+            <span>Menampilkan {rows.length} dari {meta.total} request</span>
+            <span className="res-foot-right">
+                <span className="res-muted hidden lg:inline">Request baru diajukan lewat “Buat Tiket Baru” → Hardware &amp; Budget</span>
+                <label className="queue-pop portal-page-size" htmlFor="hr-page-size">
+                    <span className="queue-pop-k">Per halaman</span>
+                    <select id="hr-page-size" value={filters.pageSize ?? 10} onChange={(e) => handlePageSizeChange(Number(e.target.value))}>
+                        {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
+                    </select>
+                    <ChevronDown aria-hidden="true" />
+                </label>
+                <ResPager page={currentPage} totalPages={totalPages} disabled={isFetching}
+                    onChange={(page) => setFilters((prev) => ({ ...prev, page }))} />
+            </span>
+        </>
+    ) : undefined;
+
+    const empty = (
+        <ResEmpty icon={PackageSearch} title="Belum ada request"
+            cta={isFiltered ? (
+                <button type="button" className="idesk-btn is-soft" onClick={() => setFilters(defaults)}><X aria-hidden="true" />Reset filter</button>
+            ) : role === 'USER' ? (
+                <Link to={`${basePath}/new`} className="idesk-text-link">Buat request baru<ArrowRight aria-hidden="true" /></Link>
+            ) : undefined}>
+            {isFiltered ? 'Coba ubah filter atau kata kunci.'
+                : filters.scope === 'my' ? 'Mulai buat request hardware baru untuk kebutuhan perangkat kerja Anda.'
+                    : 'Belum ada request hardware terdaftar di sistem.'}
+        </ResEmpty>
+    );
+
     return (
-        <div className="space-y-6 animate-fade-in-up pb-12">
-            {/* ── HEADER AREA ── */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                        <Cpu className="size-6 text-primary" />
+        <div className="pb-12">
+            <section className="res-stats is-four" aria-label="Ringkasan request">
+                <ResStat icon={Layers} tone="neutral" label="Total" value={total} isLoading={statsLoading}
+                    active={isTotalActive} onClick={() => handleFilterStatusCategory('all')} />
+                <ResStat icon={Inbox} tone="amber" label="Menunggu Review" value={statsData?.review ?? 0} isLoading={statsLoading}
+                    attention={(statsData?.review ?? 0) > 0} zero={(statsData?.review ?? 0) === 0}
+                    active={isReviewActive} onClick={() => handleFilterStatusCategory(isReviewActive ? 'all' : 'review')} />
+                <ResStat icon={Loader} tone="navy" label="Dalam Proses" value={statsData?.inProgress ?? 0} isLoading={statsLoading}
+                    zero={(statsData?.inProgress ?? 0) === 0}
+                    active={isInProgressActive} onClick={() => handleFilterStatusCategory(isInProgressActive ? 'all' : 'inProgress')} />
+                <ResStat icon={CircleCheck} tone="green" label="Selesai" value={statsData?.completed ?? 0} isLoading={statsLoading}
+                    zero={(statsData?.completed ?? 0) === 0}
+                    active={isCompletedActive} onClick={() => handleFilterStatusCategory(isCompletedActive ? 'all' : 'completed')} />
+            </section>
+
+            <RequestFilters value={filters} onChange={setFilters} scopeVisible={role !== 'USER'}
+                view={view} onViewChange={setView} onRefresh={handleRefresh} isRefreshing={isFetching} />
+
+            {isLoading ? (
+                <ResTable label="Daftar hardware request" cols="minmax(0,1fr)"><ResSkeletonRows rows={6} /></ResTable>
+            ) : rows.length === 0 ? (
+                <ResTable label="Daftar hardware request" cols="minmax(0,1fr)">{empty}</ResTable>
+            ) : view === 'card' ? (
+                <>
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                        {rows.map((r) => <RequestCard key={r.id} r={r} />)}
                     </div>
-                    <div>
-                        <div className="flex items-center gap-2.5">
-                            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-                                Hardware Requests
-                            </h1>
-                            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                Live
-                            </span>
-                        </div>
-                        <p className="text-xs sm:text-sm font-medium text-muted-foreground mt-0.5 sm:mt-1">
-                            Kelola permintaan, jadwal instalasi, dan monitoring pengiriman hardware
-                        </p>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                    <button
-                        type="button"
-                        onClick={handleRefresh}
-                        className="p-2 sm:px-3 sm:py-2.5 bg-card border border-border hover:bg-muted/50 rounded-xl text-xs sm:text-sm font-semibold text-foreground transition-colors shadow-xs active:scale-[0.98] flex items-center gap-1.5 cursor-pointer"
-                        title="Segarkan data"
-                    >
-                        <RotateCw
-                            className={cn('size-4', (isFetching || isStatsLoading) && 'animate-spin text-primary')}
-                            aria-hidden="true"
-                        />
-                        <span className="hidden sm:inline">Refresh</span>
-                    </button>
-
-                    {role === 'USER' && (
-                        <Link
-                            to={`${basePath}/new`}
-                            className="flex items-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-primary text-primary-foreground rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all duration-200 shadow-xs active:scale-[0.98]"
-                        >
-                            <Plus className="size-4" aria-hidden="true" />
-                            <span>Request Baru</span>
-                        </Link>
-                    )}
-                </div>
-            </div>
-
-            {/* ── BENTO STATS CARDS ── */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 lg:gap-4">
-                <StatsCard
-                    icon={TrendingUp}
-                    label="Total"
-                    value={statsData?.total ?? meta?.total ?? 0}
-                    color="text-primary dark:text-blue-400"
-                    bgColor="bg-primary/10 dark:bg-primary/20"
-                    animationIndex={0}
-                    onClick={() => handleFilterStatusCategory('all')}
-                    isActive={isTotalActive}
-                    isLoading={isStatsLoading && !statsData}
-                />
-                <StatsCard
-                    icon={Clock}
-                    label="Menunggu Review"
-                    value={statsData?.review ?? 0}
-                    color="text-[hsl(var(--warning-500))]"
-                    bgColor="bg-[hsl(var(--warning-500))]/10"
-                    animationIndex={1}
-                    onClick={() => handleFilterStatusCategory('review')}
-                    isActive={isReviewActive}
-                    isLoading={isStatsLoading && !statsData}
-                />
-                <StatsCard
-                    icon={Wrench}
-                    label="Dalam Proses"
-                    value={statsData?.inProgress ?? 0}
-                    color="text-[hsl(var(--info-500))]"
-                    bgColor="bg-[hsl(var(--info-500))]/10"
-                    animationIndex={2}
-                    onClick={() => handleFilterStatusCategory('inProgress')}
-                    isActive={isInProgressActive}
-                    isLoading={isStatsLoading && !statsData}
-                />
-                <StatsCard
-                    icon={CheckCircle2}
-                    label="Selesai"
-                    value={statsData?.completed ?? 0}
-                    color="text-[hsl(var(--success-500))]"
-                    bgColor="bg-[hsl(var(--success-500))]/10"
-                    animationIndex={3}
-                    onClick={() => handleFilterStatusCategory('completed')}
-                    isActive={isCompletedActive}
-                    isLoading={isStatsLoading && !statsData}
-                />
-            </div>
-
-            {/* ── TOOLBAR (SEARCH & FILTERS) ── */}
-            <RequestFilters
-                value={filters}
-                onChange={setFilters}
-                scopeVisible={role !== 'USER'}
-                view={view}
-                onViewChange={setView}
-            />
-
-            {/* ── CONTENT (TABLE / CARD GRID) ── */}
-            <div>
-                {isLoading ? (
-                    <RequestListSkeleton />
-                ) : !data?.rows?.length ? (
-                    <EmptyState
-                        icon={<LayoutGrid className="size-12 text-slate-300 dark:text-slate-600" />}
-                        title="Belum ada request"
-                        desc={
-                            filters.search || (filters.status && filters.status.length > 0)
-                                ? 'Tidak ada hardware request yang cocok dengan filter atau kata kunci pencarian.'
-                                : filters.scope === 'my'
-                                ? 'Mulai buat request hardware baru untuk kebutuhan perangkat kerja Anda.'
-                                : 'Belum ada request hardware terdaftar di sistem.'
-                        }
-                        cta={
-                            filters.search || (filters.status && filters.status.length > 0) ? (
-                                <button
-                                    type="button"
-                                    onClick={() => setFilters(defaults)}
-                                    className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-border hover:bg-muted/50 rounded-xl text-xs font-bold text-foreground transition-all active:scale-[0.98] cursor-pointer mt-4"
-                                >
-                                    <X className="size-4" />
-                                    <span>Reset Filter</span>
-                                </button>
-                            ) : role === 'USER' ? (
-                                <Link
-                                    to={`${basePath}/new`}
-                                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all shadow-xs active:scale-[0.98] mt-4"
-                                >
-                                    <Plus className="size-4" />
-                                    <span>Buat Request Baru</span>
-                                </Link>
-                            ) : undefined
-                        }
-                    />
-                ) : (
-                    <>
-                        {/* Mobile view: Always render touch-friendly cards on small screens */}
-                        <div className="md:hidden space-y-3">
-                            {data.rows.map((r) => (
-                                <RequestCard key={r.id} r={r} />
-                            ))}
-                        </div>
-
-                        {/* Desktop view: Respects table vs card view preference */}
-                        <div className="hidden md:block">
-                            {view === 'table' ? (
-                                <div className="bg-white dark:bg-[hsl(var(--card))] border border-border rounded-2xl shadow-xs overflow-hidden">
-                                    <RequestTable rows={data.rows} />
-                                </div>
-                            ) : (
-                                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                                    {data.rows.map((r) => (
-                                        <RequestCard key={r.id} r={r} />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </>
-                )}
-            </div>
-
-            {/* ── BENTO PAGINATION FOOTER ── */}
-            <AnimatePresence>
-                {meta && data?.rows && data.rows.length > 0 && (
-                    <div className="p-4 bg-card border border-border rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
-                        {/* Left: page size selector */}
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-                            <label htmlFor="hr-page-size">Menampilkan</label>
-                            <select
-                                id="hr-page-size"
-                                value={filters.pageSize ?? 10}
-                                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                                className="px-2.5 py-1 min-h-[36px] rounded-lg bg-card border border-border text-foreground outline-none font-medium focus:ring-1 focus:ring-primary cursor-pointer shadow-xs"
-                            >
-                                {PAGE_SIZE_OPTIONS.map((size) => (
-                                    <option key={size} value={size}>
-                                        {size}
-                                    </option>
-                                ))}
-                            </select>
-                            <span>dari {meta.total} request</span>
-                        </div>
-
-                        {/* Right: navigation buttons */}
-                        {totalPages > 1 && (
-                            <div className="flex items-center gap-1">
-                                <button
-                                    type="button"
-                                    onClick={() => setFilters((prev) => ({ ...prev, page: 1 }))}
-                                    disabled={currentPage <= 1 || isFetching}
-                                    aria-label="Halaman pertama"
-                                    className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                >
-                                    <ChevronsLeft className="size-4" aria-hidden="true" />
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setFilters((prev) => ({ ...prev, page: Math.max(1, currentPage - 1) }))}
-                                    disabled={currentPage <= 1 || isFetching}
-                                    aria-label="Halaman sebelumnya"
-                                    className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                >
-                                    <ChevronLeft className="size-4" aria-hidden="true" />
-                                </button>
-                                <span className="px-3 py-1 bg-primary/10 text-primary font-bold text-xs rounded-lg tabular-nums">
-                                    {currentPage} / {totalPages}
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => setFilters((prev) => ({ ...prev, page: Math.min(totalPages, currentPage + 1) }))}
-                                    disabled={currentPage >= totalPages || isFetching}
-                                    aria-label="Halaman berikutnya"
-                                    className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                >
-                                    <ChevronRight className="size-4" aria-hidden="true" />
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setFilters((prev) => ({ ...prev, page: totalPages }))}
-                                    disabled={currentPage >= totalPages || isFetching}
-                                    aria-label="Halaman terakhir"
-                                    className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                >
-                                    <ChevronsRight className="size-4" aria-hidden="true" />
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </AnimatePresence>
+                    {foot && <div className="res-foot mt-3 rounded-2xl bg-[hsl(var(--idesk-surface))]" style={{ boxShadow: 'var(--dash-shadow-1)', borderTop: 0 }}>{foot}</div>}
+                </>
+            ) : (
+                <RequestTable rows={rows} foot={foot} />
+            )}
         </div>
     );
 }

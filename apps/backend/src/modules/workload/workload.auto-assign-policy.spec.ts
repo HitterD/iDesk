@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { In } from 'typeorm';
 import { WorkloadService } from './workload.service';
 import { UserRole } from '../users/enums/user-role.enum';
+import { TicketStatus } from '../ticketing/entities/ticket.entity';
 
 /**
  * The reported bug: Oracle/Web/Mobile tickets were being auto-assigned into the
@@ -15,7 +16,7 @@ describe('WorkloadService — per-module auto-assign policy', () => {
     let workloadRepo: any;
     let assignmentPolicy: any;
 
-    const ticket = { id: 't1', siteId: 'site-1', priority: 'MEDIUM', handlingTeam: 'ORACLE_DEV' };
+    const ticket = { id: 't1', siteId: 'site-1', priority: 'MEDIUM', status: TicketStatus.TODO, handlingTeam: 'ORACLE_DEV' };
 
     const policy = (over: Partial<any> = {}) => ({
         module: { name: 'Oracle K2 Request' },
@@ -32,7 +33,10 @@ describe('WorkloadService — per-module auto-assign policy', () => {
             find: jest.fn().mockResolvedValue([]),
             count: jest.fn().mockResolvedValue(0),
         };
-        userRepo = { find: jest.fn().mockResolvedValue([]) };
+        userRepo = {
+            find: jest.fn().mockResolvedValue([]),
+            findOne: jest.fn().mockResolvedValue(null),
+        };
         workloadRepo = {
             find: jest.fn().mockResolvedValue([]),
             findOne: jest.fn().mockResolvedValue({ id: 'w1', totalPoints: 2 }),
@@ -61,6 +65,21 @@ describe('WorkloadService — per-module auto-assign policy', () => {
             userRepo,
             { emit: jest.fn() } as any,
             assignmentPolicy,
+        );
+    });
+
+    it('assigns vendor PIC without workload increments but records assignment time', async () => {
+        ticketRepo.findOne.mockResolvedValue({ ...ticket, status: TicketStatus.WAITING_VENDOR });
+        assignmentPolicy.resolvePolicy.mockResolvedValue(policy({ autoAssignEnabled: true }));
+        jest.spyOn(service, 'findBestAgentForAssignment').mockResolvedValue({ id: 'u-1' } as any);
+
+        const result = await service.autoAssignTicket('t1');
+
+        expect(result).toMatchObject({ assignedToId: 'u-1', status: TicketStatus.WAITING_VENDOR });
+        expect(workloadRepo.increment).not.toHaveBeenCalled();
+        expect(workloadRepo.update).toHaveBeenCalledWith(
+            { agentId: 'u-1', siteId: 'site-1', workDate: expect.any(Date) },
+            { lastAssignedAt: expect.any(Date) },
         );
     });
 
@@ -117,5 +136,77 @@ describe('WorkloadService — per-module auto-assign policy', () => {
         expect(userRepo.find).toHaveBeenCalledWith({
             where: { role: In([UserRole.AGENT_OPERATIONAL_SUPPORT]), siteId: 'site-1', isActive: true },
         });
+    });
+
+    it('strictly excludes ADMIN and AGENT_ADMIN even if they are in curated userIds', async () => {
+        assignmentPolicy.resolvePolicy.mockResolvedValue(
+            policy({ autoAssignEnabled: true, userIds: ['admin-1', 'agent-admin-1', 'ops-1'], module: { name: 'IT Support Tickets' } }),
+        );
+        userRepo.find.mockResolvedValue([
+            { id: 'admin-1', fullName: 'Sys Admin', role: UserRole.ADMIN, siteId: 'site-1', isActive: true },
+            { id: 'agent-admin-1', fullName: 'Alfith', role: UserRole.AGENT_ADMIN, siteId: 'site-1', isActive: true },
+            { id: 'ops-1', fullName: 'Beny', role: UserRole.AGENT_OPERATIONAL_SUPPORT, siteId: 'site-1', isActive: true },
+        ]);
+
+        const result = await service.autoAssignTicket('t1');
+
+        expect(result.assignedToId).toBe('ops-1');
+        expect(result.assignedTo?.fullName).toBe('Beny');
+    });
+
+    it('filters out ADMIN and AGENT_ADMIN from module roles so they are never queried', async () => {
+        assignmentPolicy.resolvePolicy.mockResolvedValue(
+            policy({
+                autoAssignEnabled: true,
+                userIds: [],
+                roles: [UserRole.ADMIN, UserRole.AGENT_ADMIN, UserRole.AGENT_OPERATIONAL_SUPPORT],
+                module: { name: 'IT Support Tickets' },
+            }),
+        );
+        userRepo.find.mockResolvedValue([
+            { id: 'ops-1', fullName: 'Beny', role: UserRole.AGENT_OPERATIONAL_SUPPORT, siteId: 'site-1', isActive: true },
+        ]);
+
+        const result = await service.autoAssignTicket('t1');
+
+        expect(result.assignedToId).toBe('ops-1');
+        // Role query must NOT contain ADMIN or AGENT_ADMIN
+        expect(userRepo.find).toHaveBeenCalledWith({
+            where: { role: In([UserRole.AGENT_OPERATIONAL_SUPPORT]), siteId: 'site-1', isActive: true },
+        });
+    });
+
+    it('never auto-assigns across department scope: an HC module gets no ICT agents', async () => {
+        assignmentPolicy.resolvePolicy.mockResolvedValue(
+            policy({
+                autoAssignEnabled: true,
+                userIds: ['ops-1'],
+                module: { name: 'HC Requests', scope: 'HC' },
+            }),
+        );
+        userRepo.find.mockResolvedValue([
+            { id: 'ops-1', fullName: 'Beny', role: UserRole.AGENT_OPERATIONAL_SUPPORT, siteId: 'site-1', isActive: true },
+        ]);
+
+        await expect(service.autoAssignTicket('t1')).rejects.toThrow('No available agents for this ticket module');
+        expect(ticketRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('does not increment workload or write to DB when target agent is ADMIN or AGENT_ADMIN', async () => {
+        userRepo.findOne = jest.fn().mockResolvedValue({
+            id: 'admin-1',
+            role: UserRole.ADMIN,
+            fullName: 'Sys Admin',
+        });
+
+        const workload = await service.incrementAgentWorkload(
+            { role: UserRole.ADMIN, siteId: 'site-1' },
+            'admin-1',
+            'site-1',
+            5,
+        );
+
+        expect(workload.totalPoints).toBe(0);
+        expect(workloadRepo.increment).not.toHaveBeenCalled();
     });
 });

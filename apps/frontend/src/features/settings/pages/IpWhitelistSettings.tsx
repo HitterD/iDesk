@@ -2,19 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api from '@/lib/api';
-import {
-    Shield,
-    Plus,
-    Trash2,
-    Edit2,
-    Globe,
-    X,
-    Check,
-    AlertTriangle,
-    Loader2,
-    Server,
-    RefreshCw,
-} from 'lucide-react';
+import { Plus, Trash2, Edit2, Globe, X, Check, AlertTriangle, Loader2, Server, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Types
@@ -50,9 +38,9 @@ const TYPE_CONFIG: Record<IpType, { label: string; example: string }> = {
 };
 
 const SCOPE_CONFIG: Record<IpScope, { label: string; color: string }> = {
-    GLOBAL: { label: 'Global', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-    ADMIN_ONLY: { label: 'Admin Only', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
-    API: { label: 'API Access', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+    GLOBAL: { label: 'Global', color: 'bg-brand/15 text-brand' },
+    ADMIN_ONLY: { label: 'Admin Only', color: 'bg-warn/15 text-warn-ink' },
+    API: { label: 'API Access', color: 'bg-ok/15 text-ok-ink' },
 };
 
 export const IpWhitelistSettings: React.FC = () => {
@@ -205,18 +193,13 @@ export const IpWhitelistSettings: React.FC = () => {
         <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                        <Shield className="w-5 h-5 text-primary" />
-                        IP Whitelist Management
-                    </h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Control which IP addresses can access the system
-                    </p>
+                <div className="min-w-0">
+                    <h2 className="set-title">IP Whitelist</h2>
+                    <p className="set-sub">Batasi akses agent/admin ke jaringan tertentu.</p>
                 </div>
                 <button
                     onClick={() => openModal()}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-medium rounded-xl hover:bg-primary/90 transition-colors"
+                    className="idesk-btn is-primary"
                 >
                     <Plus className="w-4 h-4" />
                     Add Rule
@@ -227,20 +210,20 @@ export const IpWhitelistSettings: React.FC = () => {
             {stats && (
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="glass-card p-4 rounded-2xl">
-                        <div className="text-sm text-slate-500 mb-1">Total Rules</div>
-                        <div className="text-2xl font-bold text-slate-800 dark:text-white">{stats.total}</div>
+                        <div className="text-sm text-ink-2 mb-1">Total Rules</div>
+                        <div className="text-2xl font-bold text-ink">{stats.total}</div>
                     </div>
                     <div className="glass-card p-4 rounded-2xl">
-                        <div className="text-sm text-slate-500 mb-1">Active</div>
-                        <div className="text-2xl font-bold text-green-600">{stats.active}</div>
+                        <div className="text-sm text-ink-2 mb-1">Active</div>
+                        <div className="text-2xl font-bold text-ok-ink">{stats.active}</div>
                     </div>
                     <div className="glass-card p-4 rounded-2xl">
-                        <div className="text-sm text-slate-500 mb-1">Expired</div>
-                        <div className="text-2xl font-bold text-red-500">{stats.expired}</div>
+                        <div className="text-sm text-ink-2 mb-1">Expired</div>
+                        <div className="text-2xl font-bold text-bad">{stats.expired}</div>
                     </div>
                     <div className="glass-card p-4 rounded-2xl">
-                        <div className="text-sm text-slate-500 mb-1">Mode</div>
-                        <div className="text-lg font-bold text-slate-800 dark:text-white">
+                        <div className="text-sm text-ink-2 mb-1">Mode</div>
+                        <div className="text-lg font-bold text-ink">
                             {stats.total === 0 ? 'Open (Allow All)' : 'Whitelist'}
                         </div>
                     </div>
@@ -249,18 +232,18 @@ export const IpWhitelistSettings: React.FC = () => {
 
             {/* IP Tester */}
             <div className="glass-card p-4 rounded-2xl">
-                <h3 className="font-medium text-slate-800 dark:text-white mb-3">Test IP Address</h3>
+                <h3 className="font-medium text-ink mb-3">Test IP Address</h3>
                 <div className="flex gap-3">
                     <input
                         type="text"
                         placeholder="Enter IP to test (e.g., 192.168.1.100)"
                         value={testIp}
                         onChange={(e) => setTestIp(e.target.value)}
-                        className="flex-1 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white"
+                        className="flex-1 px-4 py-2 bg-surface border border-line rounded-xl text-ink"
                     />
                     <button
                         onClick={handleTestIp}
-                        className="px-4 py-2 bg-slate-800 dark:bg-slate-700 text-white font-medium rounded-xl hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors"
+                        className="idesk-btn is-soft"
                     >
                         Test
                     </button>
@@ -268,7 +251,7 @@ export const IpWhitelistSettings: React.FC = () => {
                 {testResult && (
                     <div className={cn(
                         "mt-3 p-3 rounded-xl flex items-center gap-2",
-                        testResult.allowed ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
+                        testResult.allowed ? "bg-ok/15 text-ok-ink" : "bg-bad/15 text-bad-ink"
                     )}>
                         {testResult.allowed ? <Check className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
                         <span>{testResult.allowed ? `Allowed: ${testResult.matchedRule}` : 'Not in whitelist'}</span>
@@ -278,13 +261,13 @@ export const IpWhitelistSettings: React.FC = () => {
 
             {/* Entries Table */}
             <div className="glass-card rounded-2xl overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <h3 className="font-bold text-slate-800 dark:text-white">Whitelist Rules</h3>
+                <div className="px-6 py-4 border-b border-line flex items-center justify-between">
+                    <h3 className="font-bold text-ink">Whitelist Rules</h3>
                     <button
                         onClick={() => refetch()}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                        className="p-2 hover:bg-fill rounded-lg transition-colors"
                     >
-                        <RefreshCw className="w-4 h-4 text-slate-500" />
+                        <RefreshCw className="w-4 h-4 text-ink-2" />
                     </button>
                 </div>
 
@@ -294,39 +277,39 @@ export const IpWhitelistSettings: React.FC = () => {
                     </div>
                 ) : entries.length === 0 ? (
                     <div className="p-8 text-center">
-                        <Globe className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-                        <p className="text-slate-500 dark:text-slate-400 mb-2">No whitelist rules configured</p>
-                        <p className="text-sm text-slate-400 dark:text-slate-500">All IP addresses are currently allowed</p>
+                        <Globe className="w-12 h-12 text-ink-3 mx-auto mb-3" />
+                        <p className="text-ink-2 mb-2">No whitelist rules configured</p>
+                        <p className="text-sm text-ink-3">All IP addresses are currently allowed</p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="bg-slate-50 dark:bg-slate-800/50">
+                            <thead className="bg-fill">
                                 <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Name</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">IP / Range</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Type</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Scope</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Hits</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Actions</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-2 uppercase">Name</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-2 uppercase">IP / Range</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-2 uppercase">Type</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-2 uppercase">Scope</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-2 uppercase">Hits</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-2 uppercase">Status</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-ink-2 uppercase">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                            <tbody className="divide-y divide-line">
                                 {entries.map((entry) => (
-                                    <tr key={entry.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                    <tr key={entry.id} className="hover:bg-fill">
                                         <td className="px-6 py-4">
-                                            <div className="font-medium text-slate-800 dark:text-white">{entry.name}</div>
+                                            <div className="font-medium text-ink">{entry.name}</div>
                                             {entry.description && (
-                                                <div className="text-xs text-slate-500 truncate max-w-[200px]">{entry.description}</div>
+                                                <div className="text-xs text-ink-2 truncate max-w-[200px]">{entry.description}</div>
                                             )}
                                         </td>
                                         <td className="px-6 py-4">
-                                            <code className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-sm font-mono text-slate-700 dark:text-slate-300">
+                                            <code className="px-2 py-1 bg-fill rounded text-sm font-mono text-ink">
                                                 {entry.ipAddress}
                                             </code>
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                                        <td className="px-6 py-4 text-sm text-ink-2">
                                             {TYPE_CONFIG[entry.type].label}
                                         </td>
                                         <td className="px-6 py-4">
@@ -334,7 +317,7 @@ export const IpWhitelistSettings: React.FC = () => {
                                                 {SCOPE_CONFIG[entry.scope].label}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                                        <td className="px-6 py-4 text-sm text-ink-2">
                                             {entry.hitCount.toLocaleString()}
                                         </td>
                                         <td className="px-6 py-4">
@@ -342,11 +325,11 @@ export const IpWhitelistSettings: React.FC = () => {
                                                 onClick={() => toggleMutation.mutate({ id: entry.id, isActive: !entry.isActive })}
                                                 className={cn(
                                                     "w-10 h-5 rounded-full transition-colors relative",
-                                                    entry.isActive ? "bg-green-500" : "bg-slate-300 dark:bg-slate-600"
+                                                    entry.isActive ? "bg-ok" : "bg-ink-3"
                                                 )}
                                             >
                                                 <div className={cn(
-                                                    "w-4 h-4 bg-white rounded-full absolute top-0.5 transition-transform",
+                                                    "w-4 h-4 bg-surface rounded-full absolute top-0.5 transition-transform",
                                                     entry.isActive ? "translate-x-5" : "translate-x-0.5"
                                                 )} />
                                             </button>
@@ -355,9 +338,9 @@ export const IpWhitelistSettings: React.FC = () => {
                                             <div className="flex items-center justify-end gap-2">
                                                 <button
                                                     onClick={() => openModal(entry)}
-                                                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                                    className="p-1.5 hover:bg-fill rounded-lg transition-colors"
                                                 >
-                                                    <Edit2 className="w-4 h-4 text-slate-500" />
+                                                    <Edit2 className="w-4 h-4 text-ink-2" />
                                                 </button>
                                                 <button
                                                     onClick={() => {
@@ -365,9 +348,9 @@ export const IpWhitelistSettings: React.FC = () => {
                                                             deleteMutation.mutate(entry.id);
                                                         }
                                                     }}
-                                                    className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                                                    className="p-1.5 hover:bg-bad/15 rounded-lg transition-colors"
                                                 >
-                                                    <Trash2 className="w-4 h-4 text-red-500" />
+                                                    <Trash2 className="w-4 h-4 text-bad" />
                                                 </button>
                                             </div>
                                         </td>
@@ -380,12 +363,12 @@ export const IpWhitelistSettings: React.FC = () => {
             </div>
 
             {/* Info Box */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-4">
+            <div className="bg-brand/10 border border-brand/30 rounded-2xl p-4">
                 <div className="flex gap-3">
-                    <Server className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+                    <Server className="w-5 h-5 text-brand shrink-0 mt-0.5" />
                     <div>
-                        <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-1">How IP Whitelist Works</h4>
-                        <ul className="text-sm text-blue-700 dark:text-blue-400 space-y-1">
+                        <h4 className="font-medium text-brand mb-1">How IP Whitelist Works</h4>
+                        <ul className="text-sm text-brand space-y-1">
                             <li>• When no rules exist, all IPs are allowed (open mode)</li>
                             <li>• Add rules to restrict access to specific IPs only</li>
                             <li>• Supports single IPs, IP ranges, and CIDR notation</li>
@@ -398,18 +381,18 @@ export const IpWhitelistSettings: React.FC = () => {
             {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-                        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                            <h3 className="font-bold text-slate-800 dark:text-white">
+                    <div className="bg-surface rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+                        <div className="px-6 py-4 border-b border-line flex items-center justify-between">
+                            <h3 className="font-bold text-ink">
                                 {editingEntry ? 'Edit Rule' : 'Add Whitelist Rule'}
                             </h3>
-                            <button onClick={closeModal} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
-                                <X className="w-5 h-5 text-slate-500" />
+                            <button onClick={closeModal} className="p-1 hover:bg-fill rounded-lg">
+                                <X className="w-5 h-5 text-ink-2" />
                             </button>
                         </div>
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                <label className="block text-sm font-medium text-ink mb-1">
                                     Name *
                                 </label>
                                 <input
@@ -418,17 +401,17 @@ export const IpWhitelistSettings: React.FC = () => {
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     placeholder="e.g., Office Network"
-                                    className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                                    className="w-full px-4 py-2 bg-surface border border-line rounded-xl"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                <label className="block text-sm font-medium text-ink mb-1">
                                     Type
                                 </label>
                                 <select
                                     value={formData.type}
                                     onChange={(e) => setFormData({ ...formData, type: e.target.value as IpType })}
-                                    className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                                    className="w-full px-4 py-2 bg-surface border border-line rounded-xl"
                                 >
                                     {Object.entries(TYPE_CONFIG).map(([key, config]) => (
                                         <option key={key} value={key}>{config.label} ({config.example})</option>
@@ -436,7 +419,7 @@ export const IpWhitelistSettings: React.FC = () => {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                <label className="block text-sm font-medium text-ink mb-1">
                                     IP Address *
                                 </label>
                                 <input
@@ -445,17 +428,17 @@ export const IpWhitelistSettings: React.FC = () => {
                                     value={formData.ipAddress}
                                     onChange={(e) => setFormData({ ...formData, ipAddress: e.target.value })}
                                     placeholder={TYPE_CONFIG[formData.type].example}
-                                    className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono"
+                                    className="w-full px-4 py-2 bg-surface border border-line rounded-xl font-mono"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                <label className="block text-sm font-medium text-ink mb-1">
                                     Scope
                                 </label>
                                 <select
                                     value={formData.scope}
                                     onChange={(e) => setFormData({ ...formData, scope: e.target.value as IpScope })}
-                                    className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                                    className="w-full px-4 py-2 bg-surface border border-line rounded-xl"
                                 >
                                     {Object.entries(SCOPE_CONFIG).map(([key, config]) => (
                                         <option key={key} value={key}>{config.label}</option>
@@ -463,7 +446,7 @@ export const IpWhitelistSettings: React.FC = () => {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                <label className="block text-sm font-medium text-ink mb-1">
                                     Description
                                 </label>
                                 <textarea
@@ -471,18 +454,18 @@ export const IpWhitelistSettings: React.FC = () => {
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                     placeholder="Optional description..."
                                     rows={2}
-                                    className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl resize-none"
+                                    className="w-full px-4 py-2 bg-surface border border-line rounded-xl resize-none"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                <label className="block text-sm font-medium text-ink mb-1">
                                     Expires At (optional)
                                 </label>
                                 <input
                                     type="date"
                                     value={formData.expiresAt}
                                     onChange={(e) => setFormData({ ...formData, expiresAt: e.target.value })}
-                                    className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                                    className="w-full px-4 py-2 bg-surface border border-line rounded-xl"
                                 />
                             </div>
                             <div className="flex items-center gap-2">
@@ -491,9 +474,9 @@ export const IpWhitelistSettings: React.FC = () => {
                                     id="isActive"
                                     checked={formData.isActive}
                                     onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                                    className="w-4 h-4 rounded border-slate-300"
+                                    className="w-4 h-4 rounded border-line-strong"
                                 />
-                                <label htmlFor="isActive" className="text-sm text-slate-700 dark:text-slate-300">
+                                <label htmlFor="isActive" className="text-sm text-ink">
                                     Enable this rule
                                 </label>
                             </div>
@@ -501,14 +484,14 @@ export const IpWhitelistSettings: React.FC = () => {
                                 <button
                                     type="button"
                                     onClick={closeModal}
-                                    className="flex-1 px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
+                                    className="idesk-btn is-soft flex-1"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={createMutation.isPending || updateMutation.isPending}
-                                    className="flex-1 px-4 py-2 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
+                                    className="idesk-btn is-primary flex-1 disabled:opacity-50"
                                 >
                                     {(createMutation.isPending || updateMutation.isPending) && (
                                         <Loader2 className="w-4 h-4 animate-spin" />

@@ -53,7 +53,7 @@ export class PushSubscriptionController {
     @Post('subscribe')
     @HttpCode(HttpStatus.OK)
     async subscribe(@Req() req: any, @Body() dto: SubscribeDto) {
-        const userId = req.user.id;
+        const userId = req.user.userId;
         const userAgent = req.headers['user-agent'];
 
         if (!dto.subscription?.endpoint || !dto.subscription?.keys?.p256dh || !dto.subscription?.keys?.auth) {
@@ -80,7 +80,7 @@ export class PushSubscriptionController {
     @Post('unsubscribe')
     @HttpCode(HttpStatus.OK)
     async unsubscribe(@Req() req: any, @Body() dto: UnsubscribeDto) {
-        const userId = req.user.id;
+        const userId = req.user.userId;
 
         if (!dto.endpoint) {
             throw new BadRequestException('Endpoint is required');
@@ -102,7 +102,7 @@ export class PushSubscriptionController {
     @Delete('unsubscribe-all')
     @HttpCode(HttpStatus.OK)
     async unsubscribeAll(@Req() req: any) {
-        const userId = req.user.id;
+        const userId = req.user.userId;
         await this.pushChannelService.unsubscribeAll(userId);
 
         return {
@@ -116,7 +116,7 @@ export class PushSubscriptionController {
      */
     @Get('subscriptions')
     async getSubscriptions(@Req() req: any) {
-        const userId = req.user.id;
+        const userId = req.user.userId;
         const subscriptions = await this.pushChannelService.getSubscriptions(userId);
 
         // Return sanitized subscription info (without sensitive keys)
@@ -133,7 +133,7 @@ export class PushSubscriptionController {
      */
     @Get('count')
     async getSubscriptionCount(@Req() req: any) {
-        const userId = req.user.id;
+        const userId = req.user.userId;
         const count = await this.pushChannelService.getSubscriptionCount(userId);
 
         return { count };
@@ -144,7 +144,7 @@ export class PushSubscriptionController {
      */
     @Get('status')
     async getStatus(@Req() req: any) {
-        const userId = req.user.id;
+        const userId = req.user.userId;
         const isConfigured = this.pushChannelService.isAvailable();
         const subscriptionCount = await this.pushChannelService.getSubscriptionCount(userId);
 
@@ -154,6 +154,23 @@ export class PushSubscriptionController {
             subscriptionCount,
             publicKey: isConfigured ? this.pushChannelService.getVapidPublicKey() : null,
         };
+    }
+
+    /**
+     * Sends a test toast to every browser this user subscribed, so they can see it works without a real event.
+     * Throttled with the user's other pushes (10 per minute).
+     */
+    @Post('test')
+    @HttpCode(HttpStatus.OK)
+    async sendTest(@Req() req: any) {
+        const result = await this.pushChannelService.send({
+            notificationId: `test-${Date.now()}`,
+            recipient: req.user.userId,
+            title: 'Notifikasi uji',
+            body: 'Notifikasi browser iDesk aktif di perangkat ini.',
+            data: { link: '/notifications', type: 'PUSH_TEST' },
+        });
+        return { delivered: result.success, error: result.success ? null : result.error ?? null };
     }
 
     /**

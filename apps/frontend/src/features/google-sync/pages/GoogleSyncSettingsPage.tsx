@@ -18,6 +18,10 @@ import {
     Clock,
     Zap,
 } from 'lucide-react';
+import { MgStat } from '@/components/management/MgmtParts';
+import { ResBub } from '@/components/resources/ResourceParts';
+import { Button } from '@/components/ui/button';
+import { DashSeg } from '@/features/dashboard/components/DashboardParts';
 import {
     useGoogleSyncStatus,
     useSpreadsheetConfigs,
@@ -82,40 +86,16 @@ export default function GoogleSyncSettingsPage() {
     };
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="mb-8">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-                            <Cloud className="w-8 h-8 text-[hsl(var(--success-500))]" />
-                            Google Sheets Sync
-                        </h1>
-                        <p className="text-slate-500 dark:text-slate-400 mt-1">
-                            Konfigurasi sinkronisasi data dengan Google Spreadsheet
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        {/* Status Indicator */}
-                        <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border font-medium ${status?.isAvailable
-                            ? 'bg-[hsl(var(--success-50))] border-[hsl(var(--success-200))] text-[hsl(var(--success-700))] dark:bg-[hsl(var(--success-900))]/20 dark:border-[hsl(var(--success-800))] dark:text-[hsl(var(--success-400))]'
-                            : 'bg-[hsl(var(--error-50))] border-[hsl(var(--error-200))] text-[hsl(var(--error-700))] dark:bg-[hsl(var(--error-900))]/20 dark:border-[hsl(var(--error-800))] dark:text-[hsl(var(--error-400))]'
-                            }`}>
-                            <div className={`w-2 h-2 rounded-full ${status?.isAvailable ? 'bg-[hsl(var(--success-500))] animate-pulse' : 'bg-[hsl(var(--error-500))]'}`} />
-                            {status?.isAvailable ? 'API Connected' : 'API Disconnected'}
-                        </div>
-                        <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => setShowAddModal(true)}
-                            disabled={!status?.isAvailable}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-[hsl(var(--success-500))] hover:bg-[hsl(var(--success-600))] text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                        >
-                            <Plus className="w-5 h-5" />
-                            Tambah Spreadsheet
-                        </motion.button>
-                    </div>
-                </div>
+        <div>
+            {/* Toolbar (the hub owns the page h1) */}
+            <div className="res-filters">
+                <h2 className="m-0 text-[15px] font-semibold flex items-center gap-2"><Cloud className="w-4 h-4 text-[var(--dash-ink-green)]" aria-hidden="true" />Google Sheets Sync</h2>
+                <span className="res-muted text-xs">Konfigurasi sinkronisasi data dengan Google Spreadsheet</span>
+                <span className="res-spacer" />
+                <ResBub color={status?.isAvailable ? 'var(--dash-green)' : 'var(--dash-red)'} ink={status?.isAvailable ? 'var(--dash-ink-green)' : 'var(--dash-ink-red)'}>
+                    {status?.isAvailable ? 'API Connected' : 'API Disconnected'}
+                </ResBub>
+                <Button variant="primary" onClick={() => setShowAddModal(true)} disabled={!status?.isAvailable}><Plus aria-hidden="true" />Tambah Spreadsheet</Button>
             </div>
 
             {/* Setup Wizard Banner - when Google API is not connected */}
@@ -171,86 +151,18 @@ export default function GoogleSyncSettingsPage() {
                 </motion.div>
             )}
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl p-5 shadow-sm overflow-hidden relative group"
-                >
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[hsl(var(--success-500))]/50"></div>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Spreadsheets</p>
-                            <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{status?.activeSpreadsheets || 0}</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-xl bg-[hsl(var(--success-50))] dark:bg-[hsl(var(--success-900))]/20 flex items-center justify-center">
-                            <Table2 className="w-5 h-5 text-[hsl(var(--success-600))] dark:text-[hsl(var(--success-500))]" />
-                        </div>
-                    </div>
-                </motion.div>
+            <section className="res-stats is-three" aria-label="Ringkasan sinkronisasi">
+                <MgStat icon={Table2} tone="green" label="Spreadsheets" value={status?.activeSpreadsheets || 0} />
+                <MgStat icon={Zap} tone="blue" label="Active Syncs" value={status?.activeSyncSheets || 0} />
+                <MgStat icon={Clock} tone="navy" label="Last Sync"
+                    value={<span className="text-base">{logs[0] ? formatDistanceToNow(new Date(logs[0].syncedAt), { addSuffix: true, locale: localeId }) : '-'}</span>} />
+            </section>
 
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl p-5 shadow-sm overflow-hidden relative group"
-                >
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500/50"></div>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Active Syncs</p>
-                            <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{status?.activeSyncSheets || 0}</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
-                            <Zap className="w-5 h-5 text-blue-500" />
-                        </div>
-                    </div>
-                </motion.div>
-
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl p-5 shadow-sm overflow-hidden relative group"
-                >
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-purple-500/50"></div>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Last Sync</p>
-                            <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                                {logs[0] ? formatDistanceToNow(new Date(logs[0].syncedAt), { addSuffix: true, locale: localeId }) : '-'}
-                            </p>
-                        </div>
-                        <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center">
-                            <Clock className="w-5 h-5 text-purple-500" />
-                        </div>
-                    </div>
-                </motion.div>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex gap-2 mb-6">
-                <button
-                    onClick={() => setActiveTab('configs')}
-                    className={`px-5 py-2.5 rounded-xl font-bold transition-colors duration-150 ${activeTab === 'configs'
-                        ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800'
-                        }`}
-                >
-                    <Settings className="w-4 h-4 inline mr-2" />
-                    Konfigurasi
-                </button>
-                <button
-                    onClick={() => setActiveTab('logs')}
-                    className={`px-5 py-2.5 rounded-xl font-bold transition-colors duration-150 ${activeTab === 'logs'
-                        ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800'
-                        }`}
-                >
-                    <History className="w-4 h-4 inline mr-2" />
-                    Sync Logs
-                </button>
+            <div className="mb-4">
+                <DashSeg aria-label="Google Sync" value={activeTab} onChange={setActiveTab} options={[
+                    { value: 'configs', label: 'Konfigurasi' },
+                    { value: 'logs', label: 'Sync Logs' },
+                ]} />
             </div>
 
             {/* Content */}
@@ -269,7 +181,7 @@ export default function GoogleSyncSettingsPage() {
                                 Loading...
                             </div>
                         ) : configs.length === 0 ? (
-                            <div className="text-center py-16 bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl shadow-sm">
+                            <div className="text-center py-16 dash-panel">
                                 <Cloud className="w-12 h-12 mx-auto mb-3 text-slate-400 dark:text-slate-500" />
                                 <p className="text-slate-500 dark:text-slate-400 mb-4 font-medium">Belum ada spreadsheet yang dikonfigurasi</p>
                                 <button
@@ -287,7 +199,7 @@ export default function GoogleSyncSettingsPage() {
                                     key={config.id}
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className="bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl overflow-hidden shadow-sm"
+                                    className="dash-panel !p-0 overflow-hidden"
                                 >
                                     {/* Config Header */}
                                     <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))]">

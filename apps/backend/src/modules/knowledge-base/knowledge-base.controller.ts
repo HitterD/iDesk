@@ -2,13 +2,17 @@ import { Controller, Get, Post, Put, Delete, Patch, Body, Param, Query, UseGuard
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync } from 'fs';
 
 // Ensure upload directory exists
 const uploadDir = join(process.cwd(), 'uploads', 'kb');
-if (!existsSync(uploadDir)) {
-    mkdirSync(uploadDir, { recursive: true });
+try {
+    if (!existsSync(uploadDir)) {
+        mkdirSync(uploadDir, { recursive: true });
+    }
+} catch {
+    // Directory is initialized by container entrypoint or on first upload
 }
 import { KnowledgeBaseService, ArticleFilters, ArticleSort } from './knowledge-base.service';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
@@ -103,6 +107,14 @@ export class KnowledgeBaseController {
     @ApiOperation({ summary: 'Get the pinned "start here" article, if any' })
     async getFeatured(@Request() req: any) {
         return this.kbService.findFeatured(allowedVisibilities(req.user?.role));
+    }
+
+    @Get('articles/portal-guidebook')
+    @ApiBearerAuth()
+    @UseGuards(JwtAuthGuard)
+    @ApiOperation({ summary: 'Get portal guidebook article for user onboarding' })
+    async getPortalGuidebook(@Request() req: any) {
+        return this.kbService.findPortalGuidebook(allowedVisibilities(req.user?.role));
     }
 
     @Get('articles/popular')
@@ -268,7 +280,7 @@ export class KnowledgeBaseController {
             storage: diskStorage({
                 destination: uploadDir,
                 filename: (req, file, callback) => {
-                    const uniqueSuffix = uuidv4();
+                    const uniqueSuffix = randomUUID();
                     const ext = extname(file.originalname);
                     callback(null, `kb-${uniqueSuffix}${ext}`);
                 },
@@ -308,7 +320,7 @@ export class KnowledgeBaseController {
             storage: diskStorage({
                 destination: uploadDir,
                 filename: (req, file, callback) => {
-                    const uniqueSuffix = uuidv4();
+                    const uniqueSuffix = randomUUID();
                     const ext = extname(file.originalname);
                     callback(null, `kb-${uniqueSuffix}${ext}`);
                 },

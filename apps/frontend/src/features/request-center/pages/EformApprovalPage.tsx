@@ -7,6 +7,7 @@ import { useEformDetail, useApproveByManager } from '../api/eform-request.api';
 import { EFormStatus } from '../components/eform/EformStatusPipeline';
 import { EformStatusBadge, EformTypeBadge, getTypeConfig } from '../components/eform/eform-vocabulary';
 import { useAuth } from '@/stores/useAuth';
+import { useEformBasePath } from '../hooks/useEformBasePath';
 import { toast } from 'sonner';
 
 const formatSignedAt = (value?: string | null) =>
@@ -20,6 +21,8 @@ export const EformApprovalPage: React.FC = () => {
   const { user } = useAuth();
   const { data: eform, isLoading } = useEformDetail(id!);
   const approveMutation = useApproveByManager();
+  const basePath = useEformBasePath();
+  const backToDetail = () => navigate(`${basePath}/${id}`, { replace: true });
 
   const [signatureData, setSignatureData] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
@@ -39,7 +42,7 @@ export const EformApprovalPage: React.FC = () => {
     try {
       await approveMutation.mutateAsync({ id: id!, action: 'APPROVE', signatureData });
       toast.success('Permintaan disetujui');
-      navigate(-1);
+      backToDetail();
     } catch {
       toast.error('Gagal menyetujui permintaan');
     }
@@ -53,7 +56,7 @@ export const EformApprovalPage: React.FC = () => {
     try {
       await approveMutation.mutateAsync({ id: id!, action: 'REJECT', rejectionReason });
       toast.success('Permintaan ditolak');
-      navigate(-1);
+      backToDetail();
     } catch {
       toast.error('Gagal menolak permintaan');
     }
@@ -67,7 +70,7 @@ export const EformApprovalPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+      <div className="mx-auto max-w-2xl space-y-6 pt-1 pb-8">
         <div className="h-9 w-28 animate-pulse rounded-xl bg-muted" />
         <div className="space-y-4 rounded-2xl border border-border bg-card p-8">
           <div className="h-6 w-56 animate-pulse rounded bg-muted" />
@@ -105,7 +108,7 @@ export const EformApprovalPage: React.FC = () => {
   ];
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8 animate-fade-in-up">
+    <div className="mx-auto max-w-2xl space-y-6 pt-1 pb-8">
       <div className="flex items-center justify-between gap-3">
         {backButton}
         <EformStatusBadge status={eform.status} />

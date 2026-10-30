@@ -15,7 +15,7 @@ async function main() {
     const userResult = await dataSource.query(`
         UPDATE permission_presets 
         SET "targetRole" = 'USER',
-            "pageAccess" = '{"dashboard": true, "tickets": true, "zoom_calendar": true, "knowledge_base": true, "notifications": true, "hardware_requests": true, "eform_access": true, "lost_items": true}'::jsonb
+            "pageAccess" = '{"dashboard": true, "tickets": true, "zoom_calendar": true, "knowledge_base": true, "notifications": true, "hardware_requests": true, "eform_access": true}'::jsonb
         WHERE name = 'User' AND "isSystem" = true
         RETURNING name, "targetRole"
     `);
@@ -25,7 +25,7 @@ async function main() {
     const agentResult = await dataSource.query(`
         UPDATE permission_presets 
         SET "targetRole" = 'AGENT',
-            "pageAccess" = '{"dashboard": true, "tickets": true, "zoom_calendar": true, "knowledge_base": true, "notifications": true, "reports": true, "renewal": true, "hardware_requests": true, "eform_access": true, "lost_items": true}'::jsonb
+            "pageAccess" = '{"dashboard": true, "tickets": true, "zoom_calendar": true, "knowledge_base": true, "notifications": true, "reports": true, "renewal": true, "hardware_requests": true, "eform_access": true}'::jsonb
         WHERE name = 'Agent' AND "isSystem" = true
         RETURNING name, "targetRole"
     `);
@@ -35,7 +35,7 @@ async function main() {
     const managerResult = await dataSource.query(`
         UPDATE permission_presets 
         SET "targetRole" = 'MANAGER',
-            "pageAccess" = '{"dashboard": true, "tickets": true, "zoom_calendar": true, "reports": true, "knowledge_base": true, "hardware_requests": true, "eform_access": true, "lost_items": true, "renewal": true, "workloads": true}'::jsonb
+            "pageAccess" = '{"dashboard": true, "tickets": true, "zoom_calendar": true, "reports": true, "knowledge_base": true, "hardware_requests": true, "eform_access": true, "renewal": true, "workloads": true}'::jsonb
         WHERE name = 'Manager' AND "isSystem" = true
         RETURNING name, "targetRole"
     `);
@@ -45,7 +45,7 @@ async function main() {
     const adminResult = await dataSource.query(`
         UPDATE permission_presets 
         SET "targetRole" = 'ADMIN',
-            "pageAccess" = '{"dashboard": true, "tickets": true, "zoom_calendar": true, "knowledge_base": true, "notifications": true, "reports": true, "renewal": true, "agents": true, "automation": true, "audit_logs": true, "system_health": true, "settings": true, "hardware_requests": true, "eform_access": true, "lost_items": true, "workloads": true}'::jsonb
+            "pageAccess" = '{"dashboard": true, "tickets": true, "zoom_calendar": true, "knowledge_base": true, "notifications": true, "reports": true, "renewal": true, "agents": true, "automation": true, "audit_logs": true, "system_health": true, "settings": true, "hardware_requests": true, "eform_access": true, "workloads": true}'::jsonb
         WHERE name = 'Admin' AND "isSystem" = true
         RETURNING name, "targetRole"
     `);

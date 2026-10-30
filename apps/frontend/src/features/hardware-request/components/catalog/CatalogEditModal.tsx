@@ -50,14 +50,21 @@ export function CatalogEditModal({ open, initial, onClose, onSubmit, isSubmittin
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    onSubmit({
+    const payload: Partial<HardwareCatalog> = {
       code: code.trim(),
       name: name.trim(),
       category,
       active,
       displayOrder: initial?.displayOrder ?? 0,
-      requiredFields: {},
-    });
+    };
+    if (initial) {
+      if (Array.isArray(initial.requiredFields)) {
+        payload.requiredFields = initial.requiredFields;
+      }
+    } else {
+      payload.requiredFields = [];
+    }
+    onSubmit(payload);
   };
 
   const modalContent = (
@@ -111,15 +118,14 @@ export function CatalogEditModal({ open, initial, onClose, onSubmit, isSubmittin
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-foreground flex items-center justify-between">
-                  <span>Kode Item</span>
-                  {initial && <span className="text-[10px] text-muted-foreground font-normal">(Tidak dapat diubah)</span>}
+                  <span>Kode Item (Perangkat)</span>
+                  <span className="text-[10px] text-muted-foreground font-medium">Unik / Master ID</span>
                 </label>
                 <input
                   value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase().replace(/\s+/g, '-'))}
-                  disabled={!!initial}
-                  placeholder="Contoh: LAPTOP-01"
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs font-mono font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all disabled:opacity-60 disabled:bg-muted"
+                  onChange={(e) => setCode(e.target.value.toUpperCase().replace(/\s+/g, '_'))}
+                  placeholder="Contoh: LAPTOP_STD"
+                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs font-mono font-bold text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-muted-foreground/50"
                 />
               </div>
 
@@ -129,7 +135,7 @@ export function CatalogEditModal({ open, initial, onClose, onSubmit, isSubmittin
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Contoh: Laptop Developer Pro"
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-muted-foreground/60"
+                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs font-semibold text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-muted-foreground/50"
                 />
               </div>
             </div>

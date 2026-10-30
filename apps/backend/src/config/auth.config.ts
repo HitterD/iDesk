@@ -41,7 +41,6 @@ export function validateAuthEnvironment(env: NodeJS.ProcessEnv = process.env): A
     if (production && env.REDIS_ENABLED === 'true' && !env.REDIS_PASSWORD) errors.push('REDIS_PASSWORD is required when Redis is enabled');
     if (production && (!env.ENCRYPTION_KEY || !/^[0-9a-fA-F]{64}$/.test(env.ENCRYPTION_KEY))) errors.push('ENCRYPTION_KEY must be a 32-byte hex key in production');
     if (production && (!env.EFORM_ENCRYPTION_KEY || !/^[0-9a-fA-F]{64}$/.test(env.EFORM_ENCRYPTION_KEY))) errors.push('EFORM_ENCRYPTION_KEY must be a 32-byte hex key in production');
-    if (production && env.TELEGRAM_USE_WEBHOOK === 'true' && !env.TELEGRAM_WEBHOOK_SECRET) errors.push('TELEGRAM_WEBHOOK_SECRET is required when Telegram webhook is enabled');
     if (env.DB_SYNCHRONIZE === 'true' && production) errors.push('DB_SYNCHRONIZE=true is forbidden in production');
 
     if (errors.length) throw new Error(`Invalid authentication environment: ${errors.join('; ')}`);

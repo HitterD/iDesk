@@ -46,7 +46,14 @@ export class HardwareRequestCommandService {
         private readonly emitter: EventEmitter2,
     ) {}
 
-    async createDraft(userId: string, siteId: string | null, userRole: UserRole, dto: CreateRequestDto): Promise<HardwareRequest> {
+    /**
+     * `origin` marks a draft that ICT staff proposed from an IT support ticket on the requester's behalf
+     * (`userId` is then that requester); the requester confirms it by submitting.
+     */
+    async createDraft(
+        userId: string, siteId: string | null, userRole: UserRole, dto: CreateRequestDto,
+        origin?: { sourceTicketId: string; proposedById: string },
+    ): Promise<HardwareRequest> {
         return this.dataSource.transaction(async (mgr) => {
             const requestRepo = mgr.getRepository(HardwareRequest);
             const activityRepo = mgr.getRepository(HardwareRequestActivity);
@@ -83,7 +90,7 @@ export class HardwareRequestCommandService {
                 }
             }
 
-            const requestNumber = await this.numberer.generate();
+            const requestNumber = await this.numberer.generate(new Date(), mgr);
             const entity = requestRepo.create({
                 requestNumber,
                 requesterId: userId,
@@ -94,16 +101,18 @@ export class HardwareRequestCommandService {
                 justification: dto.justification,
                 status: RequestStatus.DRAFT,
                 items: itemsWithSnapshot as any,
+                sourceTicketId: origin?.sourceTicketId ?? null,
+                proposedById: origin?.proposedById ?? null,
             });
             const saved = await requestRepo.save(entity);
 
             const activity = activityRepo.create({
                 requestId: saved.id,
-                actorId: userId,
+                actorId: origin?.proposedById ?? userId,
                 action: ActivityAction.CREATED,
                 fromStatus: null,
                 toStatus: RequestStatus.DRAFT,
-                metadata: { requestNumber: saved.requestNumber },
+                metadata: origin ? { requestNumber: saved.requestNumber, sourceTicketId: origin.sourceTicketId } : { requestNumber: saved.requestNumber },
             });
             await activityRepo.save(activity);
 
@@ -213,8 +222,20 @@ export class HardwareRequestCommandService {
                 });
             }
 
-            existing.status = RequestStatus.SUBMITTED;
+            const isDirectInstallation = String(existing.justification || '').includes('[PENJADWALAN PEMASANGAN]');
+            const targetStatus = isDirectInstallation ? RequestStatus.INSTALLATION : RequestStatus.SUBMITTED;
+
+            existing.status = targetStatus;
             existing.submittedAt = new Date();
+            if (isDirectInstallation) {
+                existing.approvedAt = new Date();
+                const itemRepo = mgr.getRepository(HardwareRequestItem);
+                for (const item of existing.items) {
+                    item.deliveryStatus = 'ARRIVED';
+                    item.arrivedAt = new Date();
+                }
+                await itemRepo.save(existing.items);
+            }
             const saved = await requestRepo.save(existing);
 
             await activityRepo.save(activityRepo.create({
@@ -222,8 +243,8 @@ export class HardwareRequestCommandService {
                 actorId: userId,
                 action: ActivityAction.SUBMITTED,
                 fromStatus: RequestStatus.DRAFT,
-                toStatus: RequestStatus.SUBMITTED,
-                metadata: {},
+                toStatus: targetStatus,
+                metadata: isDirectInstallation ? { directInstallation: true } : {},
             }));
 
             this.emitter.emit(HR_EVT.SUBMITTED, {
@@ -321,8 +342,16 @@ export class HardwareRequestCommandService {
         });
     }
 
+    /**
+     * Loads a request for a state transition, row-locked for the rest of the transaction:
+     * two concurrent approve/review/reject calls otherwise both pass the status check
+     * and double-log + double-notify. Lock first (FOR UPDATE cannot sit on the nullable
+     * side of the items join), then read with relations.
+     */
     private async loadRequestOrThrow(mgr: any, id: string): Promise<HardwareRequest> {
         const repo = mgr.getRepository(HardwareRequest);
+        const locked = await repo.findOne({ where: { id }, lock: { mode: 'pessimistic_write' } });
+        if (!locked) throw new HardwareRequestNotFoundError(id);
         const found = await repo.findOne({ where: { id }, relations: { items: true } });
         if (!found) throw new HardwareRequestNotFoundError(id);
         return found;
@@ -506,6 +535,7 @@ export class HardwareRequestCommandService {
                 actorId: actor.id,
                 occurredAt: new Date(),
                 requesterId: req.requesterId,
+                status: RequestStatus.AWAITING_USER_CONFIRMATION,
             });
 
             return saved;
@@ -517,8 +547,16 @@ export class HardwareRequestCommandService {
             const requestRepo = mgr.getRepository(HardwareRequest);
             const activityRepo = mgr.getRepository(HardwareRequestActivity);
 
-            const req = await requestRepo.findOne({ where: { id: requestId } });
+            const req = await requestRepo.findOne({
+                where: { id: requestId },
+                lock: { mode: 'pessimistic_write' },
+            });
             if (!req) throw new HardwareRequestNotFoundError(requestId);
+
+            if (req.status === RequestStatus.COMPLETED) {
+                // Already completed by another concurrent worker / confirmation
+                return req;
+            }
 
             if (req.status !== RequestStatus.AWAITING_USER_CONFIRMATION) {
                 throw new InvalidStateTransitionError(req.status, RequestStatus.COMPLETED);
@@ -546,6 +584,7 @@ export class HardwareRequestCommandService {
                 occurredAt: new Date(),
                 requesterId: req.requesterId,
                 auto: true,
+                status: RequestStatus.COMPLETED,
             });
 
             return saved;
@@ -553,49 +592,76 @@ export class HardwareRequestCommandService {
     }
 
     async confirmInstallation(requestId: string, userId: string, payload: { kind: 'ACCEPT_AS_IS' | 'REPORT_ISSUE', comments?: string }): Promise<HardwareRequest> {
-        const req = await this.requestRepo.findOne({
-            where: { id: requestId },
-        });
-        if (!req) throw new HardwareRequestNotFoundError(requestId);
+        return this.dataSource.transaction(async (mgr) => {
+            const requestRepo = mgr.getRepository(HardwareRequest);
+            const activityRepo = mgr.getRepository(HardwareRequestActivity);
 
-        if (req.requesterId !== userId) {
-            throw new PermissionDeniedError('confirm installation for this request');
-        }
+            const req = await requestRepo.findOne({
+                where: { id: requestId },
+                lock: { mode: 'pessimistic_write' },
+            });
+            if (!req) throw new HardwareRequestNotFoundError(requestId);
 
-        if (req.status !== RequestStatus.AWAITING_USER_CONFIRMATION) {
-            throw new InvalidStateTransitionError(req.status, RequestStatus.COMPLETED);
-        }
+            if (req.requesterId !== userId) {
+                throw new PermissionDeniedError('confirm installation for this request');
+            }
 
-        req.userConfirmedAt = new Date();
-        req.userConfirmationKind = payload.kind;
+            if (req.status !== RequestStatus.AWAITING_USER_CONFIRMATION) {
+                throw new InvalidStateTransitionError(req.status, RequestStatus.COMPLETED);
+            }
 
-        const fromStatus = req.status;
-        let toStatus: RequestStatus;
+            req.userConfirmedAt = new Date();
+            req.userConfirmationKind = payload.kind;
 
-        if (payload.kind === 'ACCEPT_AS_IS') {
-            toStatus = RequestStatus.COMPLETED;
-            req.completedAt = new Date();
-        } else {
-            toStatus = RequestStatus.INSTALLATION;
-        }
+            const fromStatus = req.status;
+            let toStatus: RequestStatus;
 
-        req.status = toStatus;
-        const saved = await this.requestRepo.save(req);
+            if (payload.kind === 'ACCEPT_AS_IS') {
+                toStatus = RequestStatus.COMPLETED;
+                req.completedAt = new Date();
+            } else {
+                toStatus = RequestStatus.INSTALLATION;
+            }
 
-        await this.activityRepo.save(this.activityRepo.create({
-            requestId: req.id, actorId: userId, action: ActivityAction.USER_CONFIRMED,
-            metadata: { kind: payload.kind, comments: payload.comments },
-            fromStatus: fromStatus, toStatus: toStatus,
-        }));
+            req.status = toStatus;
+            const saved = await requestRepo.save(req);
 
-        if (payload.comments) {
-            await this.activityRepo.save(this.activityRepo.create({
-                requestId: req.id, actorId: userId, action: ActivityAction.COMMENTED,
-                metadata: { text: payload.comments },
-                fromStatus: toStatus, toStatus: toStatus,
+            await activityRepo.save(activityRepo.create({
+                requestId: req.id, actorId: userId, action: ActivityAction.USER_CONFIRMED,
+                metadata: { kind: payload.kind, comments: payload.comments },
+                fromStatus: fromStatus, toStatus: toStatus,
             }));
-        }
 
-        return saved;
+            if (payload.comments) {
+                await activityRepo.save(activityRepo.create({
+                    requestId: req.id, actorId: userId, action: ActivityAction.COMMENTED,
+                    metadata: { text: payload.comments },
+                    fromStatus: toStatus, toStatus: toStatus,
+                }));
+            }
+
+            if (toStatus === RequestStatus.INSTALLATION) {
+                this.emitter.emit(HR_EVT.INSTALL_ISSUE_REPORTED, {
+                    requestId: req.id,
+                    actorId: userId,
+                    occurredAt: new Date(),
+                    requesterId: req.requesterId,
+                    comments: payload.comments?.trim() || null,
+                });
+            }
+
+            if (toStatus === RequestStatus.COMPLETED) {
+                this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
+                    requestId: req.id,
+                    actorId: userId,
+                    occurredAt: new Date(),
+                    requesterId: req.requesterId,
+                    auto: false,
+                    status: RequestStatus.COMPLETED,
+                });
+            }
+
+            return saved;
+        });
     }
 }

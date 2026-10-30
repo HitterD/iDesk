@@ -52,8 +52,6 @@ function generateDefaultSeedLogs(): IncidentLogItem[] {
     yesterdayEve.setHours(22, 45, 12);
     const yesterdayAfternoon = new Date(now.getTime() - 24 * 3600 * 1000);
     yesterdayAfternoon.setHours(14, 20, 45);
-    const twoDaysAgo = new Date(now.getTime() - 48 * 3600 * 1000);
-    twoDaysAgo.setHours(11, 10, 0);
 
     return [
         {
@@ -108,19 +106,6 @@ function generateDefaultSeedLogs(): IncidentLogItem[] {
             message: 'Redis command PING took 245ms (>50ms SLA threshold). Background AOF rewrite in progress caused brief latency spike.',
             rootCause: 'Proses background disk sync (AOF rewrite) menggunakan I/O tinggi saat proses re-indexing artikel knowledge base.',
             remediation: 'Setel `no-appendfsync-on-rewrite yes` pada konfigurasi redis.conf untuk mencegah disk I/O bottleneck.',
-            resolved: true,
-        },
-        {
-            id: 'inc-past-01',
-            timestamp: format(twoDaysAgo, 'HH:mm:ss'),
-            isoDate: twoDaysAgo.toISOString(),
-            relativeTime: '2 hari lalu',
-            severity: 'warning',
-            service: 'notification-dispatcher',
-            errorType: 'TelegramWebhookDeliveryFailed: 429 RateLimit',
-            message: 'Telegram Bot API returned HTTP 429 Too Many Requests. Retry-After: 45 seconds.',
-            rootCause: 'Broadcast notifikasi massal ke seluruh agent IT melebihi batas rate limit Telegram 30 pesan/detik.',
-            remediation: 'Aktifkan delay throttler pada BullMQ queue `notification-telegram-queue` dengan batch delay 50ms.',
             resolved: true,
         },
     ];
@@ -346,24 +331,24 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
     const warningCount = filteredLogs.filter((i) => i.severity === 'warning').length;
 
     return (
-        <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] shadow-xs overflow-hidden">
+        <div className="hl-card overflow-hidden">
             {/* Header: Title, Counts, and Actions */}
-            <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 space-y-3.5">
+            <div className="p-4 sm:p-5 border-b border-line bg-fill space-y-3.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
-                        <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/60">
+                        <div className="p-2 rounded-xl bg-brand/10 text-brand border border-brand/30">
                             <ShieldAlert className="w-5 h-5" />
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                                <h3 className="text-sm font-extrabold text-ink">
                                     Incident & Error Diagnostic Logs
                                 </h3>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200/80 dark:bg-slate-800 font-mono font-bold text-slate-700 dark:text-slate-300">
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-fill-2 font-mono font-bold text-ink">
                                     {persistedLogs.length} Tersimpan
                                 </span>
                             </div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            <p className="text-xs text-ink-2 mt-0.5">
                                 Rekam jejak insiden tersimpan di browser, analisis penyebab teknis, dan panduan perbaikan
                             </p>
                         </div>
@@ -372,23 +357,23 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                     {/* Quick Counts Pill & Log Actions */}
                     <div className="flex items-center gap-2 flex-wrap">
                         {criticalCount > 0 ? (
-                            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold animate-pulse">
+                            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-bad/10 border border-bad/30 text-bad-ink text-xs font-bold animate-pulse">
                                 <AlertTriangle className="w-3.5 h-3.5" />
                                 <span>{criticalCount} Critical</span>
                             </span>
                         ) : (
-                            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-bold">
+                            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-ok/10 border border-ok/30 text-ok-ink text-xs font-bold">
                                 <CheckCircle className="w-3.5 h-3.5" />
                                 <span>0 Critical Incidents</span>
                             </span>
                         )}
 
-                        <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                        <div className="flex items-center gap-1 bg-surface p-0.5 rounded-lg border border-line shadow-2xs">
                             <button
                                 type="button"
                                 onClick={handleExportLogs}
                                 title="Ekspor seluruh log sebagai JSON"
-                                className="p-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors cursor-pointer"
+                                className="p-1.5 text-ink-2 hover:text-ink hover:bg-fill rounded-md transition-colors cursor-pointer"
                             >
                                 <Download className="w-3.5 h-3.5" />
                             </button>
@@ -396,7 +381,7 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                                 type="button"
                                 onClick={handleResetLogs}
                                 title="Reset data acuan insiden (Hari Ini & Kemarin)"
-                                className="p-1.5 text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors cursor-pointer"
+                                className="p-1.5 text-ink-2 hover:text-brand hover:bg-fill rounded-md transition-colors cursor-pointer"
                             >
                                 <RotateCcw className="w-3.5 h-3.5" />
                             </button>
@@ -404,7 +389,7 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                                 type="button"
                                 onClick={handleClearAllLogs}
                                 title="Bersihkan seluruh log"
-                                className="p-1.5 text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors cursor-pointer"
+                                className="p-1.5 text-ink-2 hover:text-bad-ink hover:bg-fill rounded-md transition-colors cursor-pointer"
                             >
                                 <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -416,9 +401,9 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                 <div className="space-y-2.5 pt-1">
                     {/* Baris 1: Date Filter Tabs (Hari Ini / Kemarin / Semua) */}
                     <div className="flex flex-wrap items-center justify-between gap-2.5">
-                        <div className="flex items-center gap-1 bg-white dark:bg-slate-850 p-1 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-                            <span className="text-[11px] font-bold text-slate-400 px-2 flex items-center gap-1 select-none">
-                                <Calendar className="w-3 h-3 text-blue-500" />
+                        <div className="flex items-center gap-1 bg-surface p-1 rounded-xl border border-line shadow-2xs">
+                            <span className="text-[11px] font-bold text-ink-3 px-2 flex items-center gap-1 select-none">
+                                <Calendar className="w-3 h-3 text-brand" />
                                 <span>Periode:</span>
                             </span>
 
@@ -428,8 +413,8 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                                 className={cn(
                                     "px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
                                     dateFilter === 'all'
-                                        ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs font-bold"
-                                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                                        ? "bg-code text-white shadow-xs font-bold"
+                                        : "text-ink-2 hover:text-ink"
                                 )}
                             >
                                 <span>Semua Tanggal</span>
@@ -442,14 +427,14 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                                 className={cn(
                                     "px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
                                     dateFilter === 'today'
-                                        ? "bg-blue-600 text-white shadow-xs font-bold"
-                                        : "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                                        ? "bg-brand text-white shadow-xs font-bold"
+                                        : "text-brand hover:bg-brand/10"
                                 )}
                             >
                                 <span>Hari Ini</span>
                                 <span className={cn(
                                     "text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold",
-                                    dateFilter === 'today' ? "bg-white/20 text-white" : "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300"
+                                    dateFilter === 'today' ? "bg-surface/20 text-white" : "bg-brand/15 text-brand"
                                 )}>
                                     {dateCounts.today}
                                 </span>
@@ -461,14 +446,14 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                                 className={cn(
                                     "px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
                                     dateFilter === 'yesterday'
-                                        ? "bg-blue-600 text-white shadow-xs font-bold"
-                                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                        ? "bg-brand text-white shadow-xs font-bold"
+                                        : "text-ink-2 hover:text-ink hover:bg-fill"
                                 )}
                             >
                                 <span>Kemarin</span>
                                 <span className={cn(
                                     "text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold",
-                                    dateFilter === 'yesterday' ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                                    dateFilter === 'yesterday' ? "bg-surface/20 text-white" : "bg-fill text-ink-2"
                                 )}>
                                     {dateCounts.yesterday}
                                 </span>
@@ -480,8 +465,8 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                                 className={cn(
                                     "px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
                                     dateFilter === 'older'
-                                        ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs font-bold"
-                                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                                        ? "bg-code text-white shadow-xs font-bold"
+                                        : "text-ink-2 hover:text-ink"
                                 )}
                             >
                                 <span>Lebih Lama</span>
@@ -491,21 +476,21 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
 
                         {/* Search Input */}
                         <div className="relative w-full sm:w-72">
-                            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
                             <input
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Cari service, error, atau Trace ID..."
-                                className="w-full pl-8.5 pr-3 py-1.5 text-xs rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
+                                className="w-full pl-8.5 pr-3 py-1.5 text-xs rounded-xl bg-surface border border-line focus:outline-none focus:ring-1 focus:ring-brand shadow-2xs"
                             />
                         </div>
                     </div>
 
                     {/* Baris 2: Severity Filter Tabs */}
-                    <div className="flex items-center gap-1 bg-white dark:bg-slate-850 p-1 rounded-xl border border-slate-200 dark:border-slate-800 w-full sm:w-auto overflow-x-auto custom-scrollbar shadow-2xs">
-                        <span className="text-[11px] font-bold text-slate-400 px-2 flex items-center gap-1 select-none">
-                            <Filter className="w-3 h-3 text-slate-400" />
+                    <div className="flex items-center gap-1 bg-surface p-1 rounded-xl border border-line w-full sm:w-auto overflow-x-auto custom-scrollbar shadow-2xs">
+                        <span className="text-[11px] font-bold text-ink-3 px-2 flex items-center gap-1 select-none">
+                            <Filter className="w-3 h-3 text-ink-3" />
                             <span>Tingkat:</span>
                         </span>
                         <button
@@ -514,8 +499,8 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                             className={cn(
                                 "px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0",
                                 severityFilter === 'all'
-                                    ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs"
-                                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                                    ? "bg-code text-white shadow-xs"
+                                    : "text-ink-2 hover:text-ink"
                             )}
                         >
                             Semua ({filteredLogs.length})
@@ -526,8 +511,8 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                             className={cn(
                                 "px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0",
                                 severityFilter === 'critical'
-                                    ? "bg-rose-600 text-white shadow-xs"
-                                    : "text-rose-600 dark:text-rose-400 hover:bg-rose-50"
+                                    ? "bg-bad text-white shadow-xs"
+                                    : "text-bad-ink hover:bg-bad/10"
                             )}
                         >
                             Critical ({criticalCount})
@@ -538,8 +523,8 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                             className={cn(
                                 "px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0",
                                 severityFilter === 'warning'
-                                    ? "bg-amber-600 text-white shadow-xs"
-                                    : "text-amber-600 dark:text-amber-400 hover:bg-amber-50"
+                                    ? "bg-warn text-white shadow-xs"
+                                    : "text-warn-ink hover:bg-warn/10"
                             )}
                         >
                             Warnings ({warningCount})
@@ -550,8 +535,8 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                             className={cn(
                                 "px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0",
                                 severityFilter === 'resolved'
-                                    ? "bg-emerald-600 text-white shadow-xs"
-                                    : "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50"
+                                    ? "bg-ok text-white shadow-xs"
+                                    : "text-ok-ink hover:bg-ok/10"
                             )}
                         >
                             Healthy / Resolved
@@ -561,7 +546,7 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
             </div>
 
             {/* Log Items Stream / Table */}
-            <div className="divide-y divide-slate-100 dark:divide-slate-800/80 max-h-[500px] overflow-y-auto custom-scrollbar">
+            <div className="divide-y divide-line max-h-[500px] overflow-y-auto custom-scrollbar">
                 {filteredLogs.map((item) => {
                     const isCritical = item.severity === 'critical';
                     const isWarning = item.severity === 'warning';
@@ -570,7 +555,7 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                     return (
                         <div
                             key={item.id}
-                            className="p-4 hover:bg-slate-50/80 dark:hover:bg-slate-900/50 transition-colors space-y-3"
+                            className="p-4 hover:bg-fill transition-colors space-y-3"
                         >
                             {/* Top row: Timestamp, Service, Error Badge, and Actions */}
                             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -579,25 +564,25 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                                     <span className={cn(
                                         "text-[10px] font-mono px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1",
                                         isCritical
-                                            ? "bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900"
+                                            ? "bg-bad/15 text-bad-ink border border-bad/30"
                                             : isWarning
-                                                ? "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900"
-                                                : "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900"
+                                                ? "bg-warn/15 text-warn-ink border border-warn/30"
+                                                : "bg-ok/15 text-ok-ink border border-ok/30"
                                     )}>
                                         {isCritical ? <AlertTriangle className="w-3 h-3" /> : isWarning ? <Clock className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
                                         <span>{item.severity}</span>
                                     </span>
 
                                     {/* Service Badge */}
-                                    <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                    <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-fill text-ink border border-line">
                                         {item.service}
                                     </span>
 
                                     {/* Relative Date & Timestamp */}
-                                    <span className="text-xs font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                    <span className="text-xs font-mono text-ink-2 flex items-center gap-1">
                                         <Calendar className="w-3 h-3 opacity-60" />
                                         <span>{item.relativeTime}</span>
-                                        <span className="text-slate-300 dark:text-slate-600">·</span>
+                                        <span className="text-ink-3">·</span>
                                         <span>{item.timestamp}</span>
                                     </span>
                                 </div>
@@ -607,9 +592,9 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                                     <button
                                         type="button"
                                         onClick={() => handleCopyLog(item)}
-                                        className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                        className="text-xs text-ink-2 hover:text-ink px-2.5 py-1 rounded-lg border border-line hover:bg-fill transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                                     >
-                                        {copiedId === item.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                        {copiedId === item.id ? <Check className="w-3.5 h-3.5 text-ok" /> : <Copy className="w-3.5 h-3.5" />}
                                         <span>{copiedId === item.id ? "Copied" : "Copy Log"}</span>
                                     </button>
 
@@ -617,9 +602,9 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                                         <button
                                             type="button"
                                             onClick={() => onSelectTrace(item.traceId!)}
-                                            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/80 hover:bg-blue-100 dark:hover:bg-blue-900/80 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                            className="text-xs font-bold text-brand hover:text-brand px-2.5 py-1 rounded-lg bg-brand/10 border border-brand/30 hover:bg-brand/15 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                                         >
-                                            <Zap className="w-3.5 h-3.5 text-blue-500" />
+                                            <Zap className="w-3.5 h-3.5 text-brand" />
                                             <span>Investigate in Map</span>
                                         </button>
                                     )}
@@ -630,11 +615,11 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                             <div className="space-y-1">
                                 <h4 className={cn(
                                     "text-xs font-mono font-bold",
-                                    isCritical ? "text-rose-700 dark:text-rose-300" : isWarning ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300"
+                                    isCritical ? "text-bad-ink" : isWarning ? "text-warn-ink" : "text-ok-ink"
                                 )}>
                                     {item.errorType}
                                 </h4>
-                                <p className="text-xs text-slate-700 dark:text-slate-300 font-mono bg-slate-50 dark:bg-slate-900/90 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800">
+                                <p className="text-xs text-ink font-mono bg-fill p-2.5 rounded-xl border border-line">
                                     {item.message}
                                 </p>
                             </div>
@@ -643,23 +628,23 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                             {!isInfo && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
                                     {/* Root Cause (Penyebab) */}
-                                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs space-y-1">
-                                        <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
+                                    <div className="p-3 rounded-xl bg-fill border border-line text-xs space-y-1">
+                                        <span className="text-[10px] uppercase font-bold text-ink-3 flex items-center gap-1">
                                             <span>🔍</span>
                                             <span>Penyebab Masalah (Root Cause)</span>
                                         </span>
-                                        <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                                        <p className="text-[11px] text-ink-2 leading-relaxed">
                                             {item.rootCause}
                                         </p>
                                     </div>
 
                                     {/* Remediation (Langkah Perbaikan) */}
-                                    <div className="p-3 rounded-xl bg-blue-50/40 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/40 text-xs space-y-1">
-                                        <span className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                                    <div className="p-3 rounded-xl bg-brand/10 border border-brand/30 text-xs space-y-1">
+                                        <span className="text-[10px] uppercase font-bold text-brand flex items-center gap-1">
                                             <Wrench className="w-3.5 h-3.5" />
                                             <span>Langkah Perbaikan (Remediation)</span>
                                         </span>
-                                        <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed font-mono">
+                                        <p className="text-[11px] text-ink leading-relaxed font-mono">
                                             {item.remediation}
                                         </p>
                                     </div>
@@ -670,7 +655,7 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                 })}
 
                 {filteredLogs.length === 0 && (
-                    <div className="p-8 text-center text-slate-400 text-xs space-y-2">
+                    <div className="p-8 text-center text-ink-3 text-xs space-y-2">
                         <p>Tidak ada log insiden yang cocok dengan filter tanggal & kata kunci pencarian.</p>
                         <button
                             type="button"
@@ -679,7 +664,7 @@ export const IncidentLogTable: React.FC<IncidentLogTableProps> = ({
                                 setSeverityFilter('all');
                                 setSearchQuery('');
                             }}
-                            className="text-xs text-blue-600 dark:text-blue-400 underline hover:no-underline cursor-pointer"
+                            className="text-xs text-brand underline hover:no-underline cursor-pointer"
                         >
                             Reset semua filter
                         </button>

@@ -79,12 +79,10 @@ describe('POST manager/reports/generate — payload mapping & section selection'
 
         const [, startDate, endDate] = spyGenerate.mock.calls[0] as unknown as [unknown, Date, Date];
         // setHours(0,0,0,0) memakai zona lokal — bandingkan dengan Date yang dinormalisasi sama.
-        const expectedStart = new Date('2026-08-01');
-        expectedStart.setHours(0, 0, 0, 0);
-        expect(startDate.toISOString()).toBe(expectedStart.toISOString());
+        // Whole WIB days, independent of the machine's timezone (prod and CI run in UTC).
+        expect(startDate.toISOString()).toBe('2026-07-31T17:00:00.000Z'); // 2026-08-01 00:00 WIB
         expect(endDate).toEqual(expect.any(Date));
-        expect(endDate.getHours()).toBe(23);
-        expect(endDate.getMinutes()).toBe(59);
+        expect(endDate.toISOString()).toMatch(/T16:59:59\.999Z$/); // 23:59:59.999 WIB
     });
 
     // Kasus 3: hanya 'tickets' dipilih → SLA/agent/trends/critical tidak dihitung
@@ -198,6 +196,7 @@ describe('POST manager/reports/generate — payload mapping & section selection'
 describe('POST manager/reports/generate — normalization & empty period', () => {
     let service: ManagerReportsService;
     let ticketRepo: any;
+    let userRepo: any;
 
     beforeEach(() => {
         ticketRepo = {
@@ -215,9 +214,10 @@ describe('POST manager/reports/generate — normalization & empty period', () =>
             count: jest.fn().mockResolvedValue(0),
         };
 
+        userRepo = { find: jest.fn().mockResolvedValue([]) };
         service = new ManagerReportsService(
             ticketRepo,
-            { find: jest.fn().mockResolvedValue([]) } as any,
+            userRepo,
             { find: jest.fn().mockResolvedValue([]) } as any,
         );
     });
@@ -250,5 +250,36 @@ describe('POST manager/reports/generate — normalization & empty period', () =>
 
         // PER_SITE memicu siteComparison
         expect(ticketRepo.find).toHaveBeenCalled();
+    });
+
+    // Report per tim: tiket difilter handlingTeam, agent difilter role tim
+    it('scopes tickets and agents to the requested team', async () => {
+        const report = await service.generateReport(
+            {
+                reportType: ReportType.CONSOLIDATED,
+                sections: ['tickets', 'agents'],
+                team: 'WEB_DEV',
+            } as any,
+            { role: UserRole.MANAGER, siteId: null },
+        );
+
+        expect(report.team).toBe('Web Dev');
+        const ticketWhere = ticketRepo.find.mock.calls[0][0].where;
+        expect(ticketWhere.handlingTeam).toBeDefined();
+        const agentWhere = userRepo.find.mock.calls[0][0].where;
+        expect(agentWhere.role.value).toEqual([UserRole.AGENT_WEB_DEV]);
+    });
+
+    it('counts every agent role (not only AGENT) when no team is given', async () => {
+        const report = await service.generateReport(
+            { reportType: ReportType.CONSOLIDATED, sections: ['agents'] } as any,
+            { role: UserRole.MANAGER, siteId: null },
+        );
+
+        expect(report.team).toBe('Semua Tim');
+        const agentWhere = userRepo.find.mock.calls[0][0].where;
+        expect(agentWhere.role.value).toEqual(
+            expect.arrayContaining([UserRole.AGENT, UserRole.AGENT_ORACLE, UserRole.AGENT_MOBILE_DEV]),
+        );
     });
 });

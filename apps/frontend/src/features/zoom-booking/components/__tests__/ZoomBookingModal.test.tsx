@@ -64,8 +64,8 @@ describe('ZoomBookingModal', () => {
             { wrapper }
         );
 
-        // Accessible-name "Close" should match exactly once
-        const closeButtons = screen.getAllByRole('button', { name: /^close$/i });
+        // Accessible-name "Tutup" should match exactly once
+        const closeButtons = screen.getAllByRole('button', { name: /^tutup$/i });
         expect(closeButtons).toHaveLength(1);
     });
 
@@ -82,11 +82,11 @@ describe('ZoomBookingModal', () => {
             />,
             { wrapper }
         );
-        await user.click(screen.getByRole('button', { name: /^close$/i }));
+        await user.click(screen.getByRole('button', { name: /^tutup$/i }));
         expect(onClose).toHaveBeenCalled();
     });
 
-    it('renders estimated end time pill when start time is provided', () => {
+    it('summarises the chosen slot (date, start-end, duration) when a start time is preselected', () => {
         render(
             <ZoomBookingModal
                 open
@@ -100,8 +100,9 @@ describe('ZoomBookingModal', () => {
             { wrapper }
         );
 
-        expect(screen.getByText(/Estimasi:/i)).toBeInTheDocument();
-        expect(screen.getByText(/09:00 - 10:00 WIB/i)).toBeInTheDocument();
-        expect(screen.getByText(/Selesai pukul 10:00/i)).toBeInTheDocument();
+        // Default one hour after the preselected start, shown in the picker summary.
+        expect(screen.getByRole('status')).toHaveTextContent(/kamis, 3 sep · 09\.00–10\.00 WIB · 1 jam/i);
+        expect(screen.getByRole('combobox', { name: /^Jam mulai/ })).toHaveValue('09.00');
+        expect(screen.getByRole('combobox', { name: 'Jam selesai' })).toHaveValue('10.00');
     });
 });

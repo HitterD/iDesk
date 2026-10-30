@@ -12,24 +12,40 @@ import type { MergedCalendarDay, MergedCalendarSlot } from '../hooks/useZoomBook
  * The remaining visible bookings are kept in `slot.extraBookings` and the
  * overflow count is preserved as `slot.overflowCount`.
  */
-export function mergedDayToCalendarDay(day: MergedCalendarDay): CalendarDay {
+export function mergedDayToCalendarDay(
+    day: MergedCalendarDay,
+    filteredAccountIds?: Set<string>,
+): CalendarDay {
     return {
         date: day.date,
         dayOfWeek: day.dayOfWeek,
         isWorkingDay: day.isWorkingDay,
         isBlocked: day.isBlocked,
-        slots: day.slots.map(mergedSlotToCalendarSlot),
+        slots: day.slots.map((slot) => mergedSlotToCalendarSlot(slot, filteredAccountIds)),
     };
 }
 
-function mergedSlotToCalendarSlot(slot: MergedCalendarSlot): CalendarSlot {
-    const first = slot.bookings[0];
-    const rest = slot.bookings.slice(1);
+function mergedSlotToCalendarSlot(
+    slot: MergedCalendarSlot,
+    filteredAccountIds?: Set<string>,
+): CalendarSlot {
+    const applicableBookings = filteredAccountIds
+        ? slot.bookings.filter((b) => filteredAccountIds.has(b.zoomAccountId))
+        : slot.bookings;
+
+    const first = applicableBookings[0];
+    const rest = applicableBookings.slice(1);
+    const hasBookings = Boolean(first);
+
     return {
         date: slot.date,
         time: slot.time,
         endTime: slot.endTime,
-        status: slot.status === 'my_booking' ? 'my_booking' : slot.status,
+        status: hasBookings
+            ? slot.status === 'my_booking'
+                ? 'my_booking'
+                : slot.status
+            : 'available',
         booking: first
             ? {
                   id: first.id,
@@ -63,7 +79,7 @@ function mergedSlotToCalendarSlot(slot: MergedCalendarSlot): CalendarSlot {
                     colorHex: r.accountColorHex,
                 },
             })),
-            overflowCount: slot.bookingsOverflow + rest.length,
+            overflowCount: filteredAccountIds ? rest.length : slot.bookingsOverflow + rest.length,
             isMyBooking: slot.isMyBooking,
         } as Partial<MergedCalendarSlot>),
     } as CalendarSlot;
@@ -74,7 +90,8 @@ function mergedSlotToCalendarSlot(slot: MergedCalendarSlot): CalendarSlot {
  */
 export function mergedCalendarToCalendar(
     days: MergedCalendarDay[] | undefined,
+    filteredAccountIds?: Set<string>,
 ): CalendarDay[] | undefined {
     if (!days) return undefined;
-    return days.map(mergedDayToCalendarDay);
+    return days.map((d) => mergedDayToCalendarDay(d, filteredAccountIds));
 }

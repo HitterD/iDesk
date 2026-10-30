@@ -104,3 +104,6 @@ roster.json
 hallways.json
 roster-backups/
 kb-landing-desktop.png
+
+# Local Redis snapshots (may hold session data)
+dump.rdb

@@ -16,6 +16,9 @@ import { SessionService } from './application/session.service';
 import { CredentialValidatorService } from './application/credential-validator.service';
 import { HrisProvisioningService } from './application/hris-provisioning.service';
 import { AuthEventPublisher } from './application/auth-events';
+import { PasswordResetService } from './application/password-reset.service';
+import { IpopOidcClient } from './infrastructure/ipop-oidc.client';
+import { IpopAccountLinker } from './application/ipop-account-linker.service';
 import { AuthMetricsService } from './monitoring/auth-metrics.service';
 import { AUTH_EVENT } from './application/auth-events';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -41,6 +44,7 @@ export class AuthMetricsListener {
     onReuse(payload: AuthEventPayload) { this.metrics.recordEvent(AUTH_EVENT.REFRESH_REUSED, payload); }
 }
 import { OptionalJwtAuthGuard } from './infrastructure/guards/optional-jwt-auth.guard';
+import { S2sAuthGuard } from './infrastructure/guards/s2s-auth.guard';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { assertRefreshSessionConfig } from '../../shared/core/config/security.config';
 
@@ -76,16 +80,20 @@ assertRefreshSessionConfig();
         JwtStrategy,
         LocalStrategy,
         OptionalJwtAuthGuard,
+        S2sAuthGuard,
         RefreshSessionStore,
         TokenService,
         SessionService,
         CredentialValidatorService,
         HrisProvisioningService,
+        PasswordResetService,
+        IpopOidcClient,
+        IpopAccountLinker,
         AuthEventPublisher,
         AuthMetricsService,
         AuthMetricsListener,
     ],
     controllers: [AuthController],
-    exports: [AuthService, PassportModule, JwtModule, AuthEventPublisher, OptionalJwtAuthGuard],
+    exports: [AuthService, PassportModule, JwtModule, AuthEventPublisher, OptionalJwtAuthGuard, S2sAuthGuard],
 })
 export class AuthModule { }

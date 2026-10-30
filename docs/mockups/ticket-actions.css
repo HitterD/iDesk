@@ -1,0 +1,81 @@
+/* Scoped ticket-action prototype; shared font/theme tokens remain authoritative. */
+.ta-page { --ta-brand: #2d4a8c; --ta-green: #237547; --ta-green-soft: #edf6ef; --ta-red: #b52e29; --ta-red-soft: #fcf0ef; --ta-amber: #865800; --ta-amber-soft: #fbf4e5; --ta-teal: #176c68; --ta-teal-soft: #edf6f5; }
+:root[data-theme="dark"] .ta-page { --ta-green: #83d3a1; --ta-green-soft: #23392d; --ta-red: #ffaaa4; --ta-red-soft: #402826; --ta-amber: #ebc477; --ta-amber-soft: #393122; --ta-teal: #8ed4ce; --ta-teal-soft: #233735; }
+.ta-page .ta-button.ta-resolve { color: var(--ta-green); background: var(--ta-green-soft); border-color: transparent; }
+.ta-page .ta-button.ta-forward { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.ta-page .ta-button.ta-destructive { color: var(--ta-red); background: var(--ta-red-soft); border-color: transparent; }
+.ta-page .ta-button.ta-reminder { color: var(--ta-amber); background: var(--ta-amber-soft); border-color: transparent; }
+.ta-page .ta-button.ta-extend { color: var(--ta-teal); background: var(--ta-teal-soft); border-color: transparent; }
+.ta-page .ta-button.ta-primary.ta-resolve { color: #fff; background: #237547; }
+.ta-page .ta-button.ta-primary.ta-resolve:hover { background: #1c603a; }
+.ta-page .ta-specimens { border-top: 1px solid var(--line); margin-top: 28px; padding-top: 20px; }
+.ta-page .ta-specimens h2 { font-size: 14px; margin: 0 0 6px; }
+.ta-page .ta-specimens p { font-size: 12px; margin: 0 0 14px; }
+.ta-page .ta-samples { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.ta-page .ta-state-samples { margin-top: 14px; }
+.ta-page .ta-state-samples > span { font-size: 12px; color: var(--text-2); margin-right: 4px; }
+.ta-page .ta-specimens [aria-disabled="true"] { cursor: default; }
+.ta-page .ta-stage { max-width: 1040px; margin: auto; padding: 32px; }
+.ta-page .ta-nav { display: flex; justify-content: space-between; align-items: center; gap: 16px; color: var(--text-2); }
+.ta-page .ta-nav a:hover { text-decoration: underline; }
+.ta-page .ta-ticket { margin-top: 56px; padding: 28px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 18px; }
+.ta-page h1 { font: 650 26px/1.25 var(--font-display); letter-spacing: -.025em; margin: 10px 0; }
+.ta-page .ta-number { font: 12px/1.5 var(--mono); }
+.ta-page .ta-muted, .ta-page .ta-help, .ta-page .ta-disclaimer { color: var(--text-2); }
+.ta-page .ta-launch { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+.ta-page .ta-disclaimer { margin: 24px 0 0; font-size: 12px; }
+.ta-page .ta-button { min-height: 36px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 14px; font-weight: 550; background: var(--surface); white-space: nowrap; }
+.ta-page .ta-button:hover { background: var(--fill); }
+.ta-page .ta-button.ta-primary { background: var(--ta-brand); color: #fff; border-color: transparent; }
+.ta-page .ta-button.ta-primary:hover { background: #233b70; }
+.ta-page .ta-button:disabled { opacity: .5; cursor: not-allowed; }
+.ta-page .ta-dialog { width: min(540px, calc(100vw - 48px)); max-height: calc(100dvh - 64px); padding: 0; border: 1px solid var(--line-strong); border-radius: 16px; background: var(--surface); color: var(--text); box-shadow: 0 16px 48px -16px rgb(0 0 0 / 28%); overflow: hidden; }
+.ta-page .ta-dialog::backdrop { background: rgb(0 0 0 / 32%); }
+.ta-page .ta-form { display: flex; flex-direction: column; max-height: calc(100dvh - 66px); margin: 0; }
+.ta-page .ta-header { flex: none; padding: 24px 26px 18px; border-bottom: 1px solid var(--line); }
+.ta-page .ta-header h2 { font: 650 21px/1.25 var(--font-display); letter-spacing: -.025em; margin: 0 0 7px; }
+.ta-page .ta-header p { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.6; }
+.ta-page .ta-body { padding: 22px 26px 24px; overflow: auto; overscroll-behavior: contain; min-height: 0; scrollbar-width: thin; }
+.ta-page .ta-field + .ta-field, .ta-page .ta-attachments { margin-top: 20px; }
+.ta-page .ta-field label, .ta-page .ta-teams legend { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.ta-page label .ta-muted, .ta-page legend .ta-muted { font-weight: 400; }
+.ta-page textarea, .ta-page select { width: 100%; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); padding: 10px 11px; font-size: 13px; line-height: 1.5; }
+.ta-page textarea { display: block; resize: vertical; min-height: 86px; }
+.ta-page textarea::placeholder { color: var(--text-2); }
+.ta-page select { min-height: 40px; padding-right: 26px; text-overflow: ellipsis; }
+.ta-page [aria-invalid="true"] { border-color: var(--ink-red); }
+.ta-page .ta-help { margin: 9px 0 0; font-size: 11px; line-height: 1.6; }
+.ta-page .ta-files { list-style: none; padding: 0; margin: 8px 0 0; }
+.ta-page .ta-files li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.ta-page .ta-files li span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ta-page .ta-files button { color: var(--accent); min-height: 36px; padding: 4px 8px; }
+.ta-page .ta-current { margin: 0 0 20px; color: var(--text-2); font-size: 12px; }
+.ta-page .ta-current strong { font-weight: 500; }
+.ta-page .ta-teams { border: 0; padding: 0; margin: 0 0 20px; min-width: 0; }
+.ta-page .ta-team { display: flex; gap: 11px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.ta-page .ta-team input { margin: 0; accent-color: var(--ta-brand); width: 17px; height: 17px; flex: none; }
+.ta-page .ta-team b { display: block; font-size: 13px; font-weight: 550; }
+.ta-page .ta-team small { display: block; font-size: 12px; color: var(--text-2); margin-top: 3px; }
+.ta-page .ta-team:has(input:disabled) { cursor: not-allowed; }
+.ta-page .ta-team:has(input:disabled) b { color: var(--text-2); }
+.ta-page .ta-error { color: var(--ink-red); font-size: 12px; margin: 8px 0 0; }
+.ta-page .ta-preview { color: var(--text); border-top: 1px solid var(--line-strong); padding-top: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ta-page .ta-footer { flex: none; border-top: 1px solid var(--line); padding: 14px 26px 18px; background: var(--surface-2); }
+.ta-page .ta-footer p { margin: 0 0 10px; font-size: 11px; color: var(--text-2); }
+.ta-page .ta-footer > div { display: flex; justify-content: flex-end; gap: 8px; }
+@media (max-width: 600px) {
+  .ta-page .ta-stage { padding: 18px; }
+  .ta-page .ta-ticket { margin-top: 32px; padding: 20px; }
+  .ta-page h1 { font-size: 22px; }
+  .ta-page .ta-dialog { width: 100%; max-width: none; max-height: calc(100dvh - 24px); margin: auto 0 0; border-radius: 18px 18px 0 0; border-bottom: 0; }
+  .ta-page .ta-header { padding: 20px 20px 14px; }
+  .ta-page .ta-header h2 { font-size: 20px; }
+  .ta-page .ta-form { max-height: calc(100dvh - 26px); }
+  .ta-page .ta-body { padding: 18px 20px; }
+  .ta-page textarea, .ta-page select { font-size: 16px; }
+  .ta-page .ta-button { min-height: 44px; }
+  .ta-page .ta-team { padding: 11px 0; min-height: 58px; }
+  .ta-page .ta-footer { padding: 12px 20px max(16px, env(safe-area-inset-bottom)); }
+  .ta-page .ta-footer > div { display: grid; grid-template-columns: 1fr 1.8fr; }
+}
+@media (prefers-reduced-motion: reduce) { .ta-page *, .ta-page *::before, .ta-page *::after { scroll-behavior: auto; animation: none; transition: none; } }

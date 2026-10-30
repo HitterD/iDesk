@@ -3,6 +3,7 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { TicketMessagingService } from '../services/ticket-messaging.service';
 import { TicketQueryService } from '../services/ticket-query.service';
 import { TicketUpdateService } from '../services/ticket-update.service';
+import { createTestSlaClock } from '../services/sla-clock.testing';
 
 describe('Ticket Authorization Object Checks', () => {
     let messagingService: TicketMessagingService;
@@ -55,7 +56,7 @@ describe('Ticket Authorization Object Checks', () => {
             {} as any,
             dataSource,
             { server: { emit: jest.fn() } } as any,
-            { emit: jest.fn() } as any,
+            { emit: jest.fn() } as any, createTestSlaClock(),
         );
 
         queryService = new TicketQueryService(
@@ -75,7 +76,6 @@ describe('Ticket Authorization Object Checks', () => {
             { invalidateTicketCache: jest.fn() } as any,
             { emit: jest.fn() } as any,
             null as any,
-            null as any,
             { logAsync: jest.fn() } as any,
             dataSource,
             { recalculateAgentWorkload: jest.fn() } as any,
@@ -83,8 +83,7 @@ describe('Ticket Authorization Object Checks', () => {
                 isUserEligible: jest.fn().mockResolvedValue(true),
                 describeModule: jest.fn().mockResolvedValue('modul ini'),
                 toAssignable: jest.fn((t: any) => t),
-            } as any,
-        );
+            } as any, createTestSlaClock(), { resolveVisit: () => new Date(Date.now() + 86_400_000), schedule: jest.fn(), clear: jest.fn(), note: () => '' } as any);
     });
 
     it('prevents non-Oracle agent from fetching messages of Oracle ticket', async () => {

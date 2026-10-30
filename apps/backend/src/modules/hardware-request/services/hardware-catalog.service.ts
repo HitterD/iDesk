@@ -101,6 +101,15 @@ export class HardwareCatalogService {
 
     async update(id: string, dto: UpdateCatalogDto): Promise<HardwareCatalog> {
         const existing = await this.getById(id);
+        if (dto.code && dto.code !== existing.code) {
+            const dup = await this.repo.findOne({ where: { code: dto.code } });
+            if (dup && dup.id !== id) {
+                throw new BadRequestException({
+                    code: 'HR_CATALOG_DUPLICATE_CODE',
+                    message: `Catalog code ${dto.code} already exists`,
+                });
+            }
+        }
         Object.assign(existing, dto);
         const saved = await this.repo.save(existing);
         await this.invalidateListCaches();

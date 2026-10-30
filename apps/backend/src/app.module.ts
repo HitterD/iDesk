@@ -19,7 +19,6 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 import { User } from './modules/users/entities/user.entity';
 import { Ticket } from './modules/ticketing/entities/ticket.entity';
 import { TicketMessage } from './modules/ticketing/entities/ticket-message.entity';
-import { CustomerSession } from './modules/users/entities/customer-session.entity';
 import { Department } from './modules/users/entities/department.entity';
 import { SlaConfig } from './modules/ticketing/entities/sla-config.entity';
 import { SavedReply } from './modules/ticketing/entities/saved-reply.entity';
@@ -32,10 +31,8 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
 import { SlaConfigModule } from './modules/sla-config/sla-config.module';
 import { NotificationModule } from './modules/notifications/notification.module';
-import { TelegramModule } from './modules/telegram/telegram.module';
 
 import { TicketAttribute } from './modules/ticketing/entities/ticket-attribute.entity';
-import { TelegramSession } from './modules/telegram/entities/telegram-session.entity';
 import { Article } from './modules/knowledge-base/entities/article.entity';
 import { ArticleView } from './modules/knowledge-base/entities/article-view.entity';
 import { Notification } from './modules/notifications/entities/notification.entity';
@@ -62,7 +59,6 @@ import { SystemSettings } from './modules/settings/entities/system-settings.enti
 // New entities for Phase 0
 import { Site } from './modules/sites/entities/site.entity';
 
-import { LostItemReport } from './modules/lost-item/entities/lost-item-report.entity';
 import { AccessType } from './modules/access-request/entities/access-type.entity';
 import { AccessRequest } from './modules/access-request/entities/access-request.entity';
 import { InstallationSchedule } from './modules/hardware-request/domain/entities/installation-schedule.entity';
@@ -78,15 +74,19 @@ import { SitesModule } from './modules/sites/sites.module';
 import { TvBoardModule } from './modules/tv-board/tv-board.module';
 
 // New modules for Phase 2
-import { LostItemModule } from './modules/lost-item/lost-item.module';
 import { AccessRequestModule } from './modules/access-request/access-request.module';
 
 // New modules for Phase 3
 import { WorkloadModule } from './modules/workload/workload.module';
+import { CsiModule } from './modules/csi/csi.module';
+import { AgentDashboardModule } from './modules/agent-dashboard/agent-dashboard.module';
+import { IpopIntegrationModule } from './modules/integrations/ipop/ipop.module';
+import { IntegrationAppsModule } from './modules/integrations/apps/integration-apps.module';
 
 // New modules for Phase 4
 import { SoundModule } from './modules/sound/sound.module';
 import { SynologyModule } from './modules/synology/synology.module';
+import { DataWipeModule } from './modules/data-wipe/data-wipe.module';
 
 // New modules for Phase 6
 import { ManagerModule } from './modules/manager/manager.module';
@@ -127,6 +127,7 @@ import { EFormRequest, EFormApproval, EFormSignature, EFormCredential } from './
 import { SharedGuardsModule } from './shared/core/shared-guards.module';
 import { HardwareRequestModule } from './modules/hardware-request/hardware-request.module';
 import { HrisGatewayModule } from './modules/hris-gateway/hris-gateway.module';
+import { SjaAdapterModule } from './modules/sja-adapter/sja-adapter.module';
 import authConfig from './config/auth.config';
 import { validateAuthEnvironment } from './config/auth.config';
 
@@ -158,7 +159,7 @@ import { validateAuthEnvironment } from './config/auth.config';
             synchronize: process.env.DB_SYNCHRONIZE === 'true' && process.env.NODE_ENV !== 'production',
             // Enable migrations for production
             migrationsRun: process.env.NODE_ENV === 'production',
-            migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
+            migrations: [join(__dirname, 'migrations', '!(*.spec).{ts,js}')],
             // Slow query logging with custom logger
             logging: ['error', 'warn', 'schema', 'migration'],
             logger: new CustomTypeOrmLogger(),
@@ -213,7 +214,6 @@ import { validateAuthEnvironment } from './config/auth.config';
         UploadsModule,
         NotificationModule,
         ScheduleModule.forRoot(),
-        TelegramModule,
         HealthModule,
         SearchModule,
         RenewalModule,
@@ -226,11 +226,15 @@ import { validateAuthEnvironment } from './config/auth.config';
         SitesModule, // Phase 1: Multi-Site System
         TvBoardModule,
 
-        LostItemModule, // Phase 2: Ticket Types
         AccessRequestModule, // Phase 2: Ticket Types
         WorkloadModule, // Phase 3: Auto-Assignment
+        CsiModule,
+        AgentDashboardModule, // Per-agent personal dashboard
+        IpopIntegrationModule, // iPop server-to-server ticket API + status webhooks
+        IntegrationAppsModule, // Other office apps (EBBK, ...): same ticket API, per-app secret, modules and permissions
         SoundModule, // Phase 4: Sound Notifications
         SynologyModule, // Phase 4: Synology Backup
+        DataWipeModule, // Danger zone: wipe transactional data for go-live
         ManagerModule, // Phase 6: Manager Dashboard
         IpWhitelistModule, // Phase 7: IP Whitelist Management
         ZoomBookingModule, // Phase 8: Zoom Booking Calendar
@@ -241,8 +245,10 @@ import { validateAuthEnvironment } from './config/auth.config';
         SharedGuardsModule, // Provides PageAccessGuard and FeatureAccessGuard with dependencies
         HardwareRequestModule,
         HrisGatewayModule,
+        SjaAdapterModule, // SJA Notification Center Outbox Adapter
         MailModule, // Database-backed SMTP transport
         EncryptionModule, // Provides CredentialCipherService (AES-256-GCM) for at-rest credential protection
+        // Opt-in only: CustomThrottlerGuard skips handlers without @Throttle.
         ThrottlerModule.forRoot([{
             ttl: 60000, // 1 minute
             limit: 120, // 120 requests per minute

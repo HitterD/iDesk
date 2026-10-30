@@ -20,7 +20,7 @@ export interface HardwareCatalog {
     id: string; code: string; name: string;
     category: ItemCategory;
     defaultSpecs?: Record<string, unknown>;
-    requiredFields?: Record<string, { type: 'string'|'number'|'select'; label: string; options?: string[]; required?: boolean }>;
+    requiredFields?: Array<{ key: string; label: string; type: string; options?: string[]; required?: boolean }> | any[];
     active: boolean; displayOrder: number;
 }
 
@@ -94,6 +94,8 @@ export interface HardwareRequest {
     completedAt?: string | null;
     reviewedBy?: string | null; approvedBy?: string | null; procuredBy?: string | null;
     rejectReason?: string | null;
+    /** IT support ticket it was proposed from; that ticket follows its progress. */
+    sourceTicketId?: string | null;
     version: number;
     items: HardwareRequestItem[];
     installationSchedule?: InstallationSchedule | null;

@@ -1,8 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, expect } from 'vitest';
 import { BentoMobileDevTicketsPage } from '../BentoMobileDevTicketsPage';
+
+const useMobileDevTicketsSpy = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/api', () => ({
     default: {
@@ -13,7 +15,9 @@ vi.mock('@/lib/api', () => ({
 }));
 
 vi.mock('@/features/ticket-board/hooks/useMobileDevTickets', () => ({
-    useMobileDevTickets: () => ({
+    useMobileDevTickets: (params: unknown) => {
+        useMobileDevTicketsSpy(params);
+        return ({
         data: {
             data: [
                 {
@@ -35,7 +39,8 @@ vi.mock('@/features/ticket-board/hooks/useMobileDevTickets', () => ({
         isFetching: false,
         isError: false,
         refetch: vi.fn(),
-    }),
+    });
+    },
 }));
 
 vi.mock('@/stores/useAuth', () => ({
@@ -61,7 +66,10 @@ describe('BentoMobileDevTicketsPage', () => {
         );
 
         expect(screen.getByText('Mobile Developer Request')).toBeInTheDocument();
-        expect(screen.getByText('New Mobile Dev Request')).toBeInTheDocument();
+        // Single CTA: create lives in the topbar / mobile FAB, never in the queue header.
+        expect(screen.queryByRole('button', { name: 'Buat Tiket Baru' })).not.toBeInTheDocument();
+        expect(screen.queryByText(/berdasarkan halaman yang dimuat/)).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Semua' })).toHaveAttribute('aria-pressed', 'true');
         expect(screen.getByTitle('Kanban Board')).toBeInTheDocument();
     });
 
@@ -75,6 +83,38 @@ describe('BentoMobileDevTicketsPage', () => {
             </QueryClientProvider>
         );
 
-        expect(await screen.findByText('Mobile Developer Kanban')).toBeInTheDocument();
+        expect(await screen.findByRole('region', { name: 'Kanban tiket' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Tampilan Kanban' })).toHaveAttribute('aria-current', 'page');
+    });
+    it('"Saya Buat" asks the server for my tickets in this queue', () => {
+        const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        render(
+            <QueryClientProvider client={qc}>
+                <MemoryRouter>
+                    <BentoMobileDevTicketsPage />
+                </MemoryRouter>
+            </QueryClientProvider>
+        );
+
+        const button = screen.getByRole('button', { name: /Saya Buat/ });
+        expect(button).toHaveAttribute('aria-pressed', 'false');
+
+        fireEvent.click(button);
+
+        expect(button).toHaveAttribute('aria-pressed', 'true');
+        expect(useMobileDevTicketsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ createdByMe: true, assignedToMe: false }));
+    });
+
+    it('"Tugas Saya" is filtered on the server', () => {
+        const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        render(
+            <QueryClientProvider client={qc}>
+                <MemoryRouter initialEntries={['/?filter=assigned_to_me']}>
+                    <BentoMobileDevTicketsPage />
+                </MemoryRouter>
+            </QueryClientProvider>
+        );
+
+        expect(useMobileDevTicketsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ assignedToMe: true, createdByMe: false }));
     });
 });

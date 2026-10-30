@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/stores/useAuth';
@@ -47,16 +47,18 @@ const getInitials = (name?: string): string => {
     return parts[0]?.[0]?.toUpperCase() || '?';
 };
 
-const gradientColors = [
-    'from-blue-500 to-indigo-600',
-    'from-purple-500 to-pink-600',
+/** Initials fallback. No purple-family hues (PR2 spec); darker stops are 600-700 for legible white initials. */
+export const AVATAR_GRADIENTS = [
+    'from-blue-500 to-blue-700',
+    'from-teal-500 to-teal-700',
     'from-green-500 to-teal-600',
     'from-orange-500 to-red-600',
     'from-cyan-500 to-blue-600',
-    'from-pink-500 to-rose-600',
+    'from-slate-500 to-slate-700',
     'from-amber-500 to-orange-600',
     'from-emerald-500 to-green-600',
-];
+] as const;
+const gradientColors = AVATAR_GRADIENTS;
 
 const getGradientColor = (name?: string): string => {
     if (!name) return gradientColors[0];
@@ -78,6 +80,11 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     const avatarUrl = getImageUrl(user?.avatarUrl);
     const initials = getInitials(user?.fullName);
     const gradient = getGradientColor(user?.fullName);
+
+    // A newly uploaded photo gets a new URL; give it a fresh chance even if the old one failed.
+    useEffect(() => {
+        setImgError(false);
+    }, [avatarUrl]);
 
     const handleImageError = () => {
         setImgError(true);

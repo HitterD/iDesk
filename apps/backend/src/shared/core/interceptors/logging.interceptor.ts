@@ -15,7 +15,7 @@ import { tap, catchError } from 'rxjs/operators';
  * - Logs all HTTP requests with correlation ID for tracing
  * - Detects and warns about slow requests exceeding threshold
  * - Logs errors with full context for debugging
- * - Skips non-HTTP contexts (WebSocket, Telegram, etc.)
+ * - Skips non-HTTP contexts (WebSocket, etc.)
  */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -25,7 +25,7 @@ export class LoggingInterceptor implements NestInterceptor {
     private readonly SLOW_REQUEST_THRESHOLD_MS = 3000;
 
     intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-        // Skip logging for non-HTTP contexts (like Telegram)
+        // Skip logging for non-HTTP contexts (like WebSocket)
         if (context.getType() !== 'http') {
             return next.handle();
         }

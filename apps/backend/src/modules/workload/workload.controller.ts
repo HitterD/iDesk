@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { WorkloadService } from './workload.service';
-import { UpdatePriorityWeightDto, AssignTicketDto } from './dto';
+import { UpdatePriorityWeightDto, AutoAssignTicketDto } from './dto';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/core/guards/roles.guard';
 import { Roles } from '../../shared/core/decorators/roles.decorator';
@@ -128,7 +128,7 @@ export class WorkloadController {
         UserRole.AGENT_ADMIN,
         UserRole.AGENT,
     )
-    autoAssignTicket(@Body() dto: AssignTicketDto, @Req() req: any) {
+    autoAssignTicket(@Body() dto: AutoAssignTicketDto, @Req() req: any) {
         const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
         return this.workloadService.autoAssignTicket(dto.ticketId, req.user?.id || req.user?.userId, actor);
     }

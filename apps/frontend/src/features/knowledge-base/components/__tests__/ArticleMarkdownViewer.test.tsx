@@ -79,4 +79,37 @@ Jangan bagikan password kepada siapa pun.
         expect(screen.getByText('Tips Keamanan & Peringatan')).toBeInTheDocument();
         expect(screen.getByText('Jangan bagikan password kepada siapa pun.')).toBeInTheDocument();
     });
+
+    it('renders horizontal rule without leaking raw --- text', () => {
+        const content = `
+Bagian Satu
+---
+Bagian Dua
+        `.trim();
+
+        const { container } = render(<ArticleMarkdownViewer content={content} />);
+        expect(screen.getByText('Bagian Satu')).toBeInTheDocument();
+        expect(screen.getByText('Bagian Dua')).toBeInTheDocument();
+        expect(screen.queryByText('---')).toBeNull();
+        expect(container.querySelector('hr')).toBeInTheDocument();
+    });
+
+    it('renders markdown links and GitHub alerts', () => {
+        const content = `
+> [!NOTE]
+> Ini adalah informasi tambahan.
+
+Kunjungi [Portal Resmi](https://idesk.santos.co.id/login) sekarang.
+        `.trim();
+
+        render(<ArticleMarkdownViewer content={content} />);
+
+        expect(screen.getByText('Catatan')).toBeInTheDocument();
+        expect(screen.getByText('Ini adalah informasi tambahan.')).toBeInTheDocument();
+
+        const link = screen.getByRole('link', { name: /Portal Resmi/i });
+        expect(link).toBeInTheDocument();
+        expect(link).toHaveAttribute('href', 'https://idesk.santos.co.id/login');
+    });
 });
+

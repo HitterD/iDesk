@@ -5,11 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useEformDetail, useGetCredentials, useSubmitCredentials } from '../api/eform-request.api';
 import { EFormStatus } from '../components/eform/EformStatusPipeline';
-import { EformTypeBadge, getTypeConfig } from '../components/eform/eform-vocabulary';
+import { EformTypeBadge, getTypeConfig, ICT_ROLES } from '../components/eform/eform-vocabulary';
 import { useAuth } from '@/stores/useAuth';
 import { toast } from 'sonner';
-
-const ICT_ROLES = ['ADMIN', 'AGENT_ADMIN'];
 
 const MASK = '••••••••••';
 
@@ -19,7 +17,7 @@ export const EformCredentialPage: React.FC = () => {
   const { user } = useAuth();
   const { data: eform, isLoading } = useEformDetail(id!);
 
-  const isICT = ICT_ROLES.includes(user?.role || '');
+  const isICT = (ICT_ROLES as readonly string[]).includes(user?.role || '');
   const isRequester = eform?.requesterId === user?.id;
   const canView = isICT || isRequester;
 
@@ -63,7 +61,7 @@ export const EformCredentialPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+      <div className="mx-auto max-w-2xl space-y-6 pt-1 pb-8">
         <div className="h-9 w-28 animate-pulse rounded-xl bg-muted" />
         <div className="space-y-4 rounded-2xl border border-border bg-card p-8">
           <div className="h-6 w-48 animate-pulse rounded bg-muted" />
@@ -103,16 +101,24 @@ export const EformCredentialPage: React.FC = () => {
 
   const credentialRows = credentials
     ? [
-        { label: 'Username', value: credentials.username, sensitive: false },
+        {
+          label: eform?.formType === 'EMAIL' ? 'Alamat Email Resmi' : 'Username',
+          value: credentials.username,
+          sensitive: false,
+        },
         { label: 'Password Awal', value: credentials.password, sensitive: true },
         ...(credentials.vpnServer
-          ? [{ label: 'VPN Server', value: credentials.vpnServer, sensitive: false }]
+          ? [{
+              label: eform?.formType === 'SYNOLOGY_NAS' ? 'Host / Path Folder NAS' : 'VPN Server',
+              value: credentials.vpnServer,
+              sensitive: false,
+            }]
           : []),
       ]
     : [];
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8 animate-fade-in-up">
+    <div className="mx-auto max-w-2xl space-y-6 pt-1 pb-8">
       {backButton}
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -148,13 +154,19 @@ export const EformCredentialPage: React.FC = () => {
 
                 <div className="space-y-2">
                   <label htmlFor="cred-username" className="block text-sm font-semibold text-foreground">
-                    Username <span className="text-destructive">*</span>
+                    {eform.formType === 'EMAIL' ? 'Alamat Email Resmi (@kapalapi.co.id)' : 'Username'} <span className="text-destructive">*</span>
                   </label>
                   <Input
                     id="cred-username"
                     value={username}
                     onChange={e => setUsername(e.target.value)}
-                    placeholder="nama.user@company.vpn"
+                    placeholder={
+                      eform.formType === 'EMAIL'
+                        ? 'nama.karyawan@kapalapi.co.id'
+                        : eform.formType === 'SYNOLOGY_NAS'
+                          ? 'nama.user atau grup-sharing'
+                          : 'nama.user@company.vpn'
+                    }
                     className="h-11 rounded-xl font-mono"
                   />
                 </div>
@@ -183,18 +195,24 @@ export const EformCredentialPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label htmlFor="cred-server" className="block text-sm font-semibold text-foreground">
-                    VPN server / host
-                  </label>
-                  <Input
-                    id="cred-server"
-                    value={vpnServer}
-                    onChange={e => setVpnServer(e.target.value)}
-                    placeholder="vpn.company.com:1194"
-                    className="h-11 rounded-xl font-mono"
-                  />
-                </div>
+                {eform.formType !== 'EMAIL' && (
+                  <div className="space-y-2">
+                    <label htmlFor="cred-server" className="block text-sm font-semibold text-foreground">
+                      {eform.formType === 'SYNOLOGY_NAS' ? 'Host / Path Folder NAS (opsional)' : 'VPN server / host'}
+                    </label>
+                    <Input
+                      id="cred-server"
+                      value={vpnServer}
+                      onChange={e => setVpnServer(e.target.value)}
+                      placeholder={
+                        eform.formType === 'SYNOLOGY_NAS'
+                          ? '\\\\192.168.x.x\\SharedFolder atau nas.santos.co.id'
+                          : 'vpn.company.com:1194'
+                      }
+                      className="h-11 rounded-xl font-mono"
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <label htmlFor="cred-notes" className="block text-sm font-semibold text-foreground">
@@ -312,7 +330,7 @@ export const EformCredentialPage: React.FC = () => {
             <div className="rounded-xl border border-dashed border-border bg-muted/20 px-6 py-10 text-center">
               <p className="text-sm font-semibold text-foreground">Kredensial belum tersedia</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Akses baru disiapkan setelah permintaan disetujui atasan dan diproses tim ICT.
+                Akses baru disiapkan setelah permintaan disetujui atasan dan GM, lalu diproses tim ICT.
               </p>
             </div>
           )}

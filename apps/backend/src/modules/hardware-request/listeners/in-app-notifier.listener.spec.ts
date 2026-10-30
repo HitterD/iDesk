@@ -60,6 +60,29 @@ describe('InAppNotifierListener', () => {
         expect(perm.listUsersWithRole).toHaveBeenCalledWith('ICT_STAFF', 's1');
     });
 
+    describe('mutual-scheduling (v2) events', () => {
+        it('a new slot proposal asks the requester to pick a slot', async () => {
+            await listener.onSlotsProposed({ requestId: 'r1', scheduleId: 's1', ownerId: 'u1', technicianId: 't1', slots: [] });
+            expect(notif.create).toHaveBeenCalledWith(expect.objectContaining({
+                userId: 'u1', type: NotificationType.HARDWARE_REQUEST_SCHEDULE_PROPOSED, link: '/hardware-requests/r1',
+            }));
+        });
+
+        it('a picked slot notifies requester and technician', async () => {
+            q.findById.mockResolvedValue({ id: 'r1', requesterId: 'u1' });
+            await listener.onSlotConfirmed({ requestId: 'r1', scheduleId: 's1', technicianId: 't1', scheduledStart: new Date(), scheduledEnd: new Date() });
+            const users = notif.create.mock.calls.map((c: any[]) => c[0].userId);
+            expect(users).toEqual(expect.arrayContaining(['u1', 't1']));
+        });
+
+        it('a reschedule request tells the technician why', async () => {
+            await listener.onRescheduleRequested({ requestId: 'r1', scheduleId: 's1', technicianId: 't1', reason: 'cuti', rescheduleCount: 1 });
+            expect(notif.create).toHaveBeenCalledWith(expect.objectContaining({
+                userId: 't1', type: NotificationType.HARDWARE_REQUEST_SCHEDULE_RESCHEDULED, message: expect.stringContaining('cuti'),
+            }));
+        });
+    });
+
     it('onCommented notifies subscribers except author', async () => {
         await listener.onCommented({
             requestId: 'r1', actorId: 'u1', commentId: 'c1', body: 'halo',

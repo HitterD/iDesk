@@ -16,7 +16,10 @@ export interface AgentWorkloadDto {
     siteId: string;
     siteCode: string;
     siteName: string;
+    /** Tickets that carry workload points (excludes waiting-vendor tickets). */
     activeTicketsCount: number;
+    /** Tickets the agent is still PIC of while they wait on a vendor; they carry no points. */
+    waitingVendorCount?: number;
     activeTickets: Array<{
         id: string;
         ticketNumber: string;

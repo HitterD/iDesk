@@ -11,7 +11,20 @@ describe('BentoLoginPage smoke', () => {
       </MemoryRouter>
     );
     expect(screen.getByPlaceholderText(/nik atau email/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/•+/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /continue|sign in|authenticate/i })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/masukkan password/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^masuk$/i })).toBeInTheDocument();
+  });
+
+  it('renders only the first two background slides, as compressed WebP', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <BentoLoginPage />
+      </MemoryRouter>
+    );
+    const slides = Array.from(container.querySelectorAll<HTMLImageElement>('img[src^="/login-plants/"]'));
+    expect(slides.map((img) => img.getAttribute('src'))).toEqual([
+      '/login-plants/sidoarjo-plant.webp',
+      '/login-plants/sukodono-plant.webp',
+    ]);
   });
 });

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { downloadBlob } from '@/lib/utils/downloadBlob';
 import { Download, FileSpreadsheet, BarChart3 } from 'lucide-react';
 import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,13 +48,7 @@ export const ReportsPage = () => {
             const response = await api.get(`/reports/export/excel?month=${month}&year=${year}`, {
                 responseType: 'blob',
             });
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `report-${month}-${year}.xlsx`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
+            downloadBlob(new Blob([response.data]), `report-${month}-${year}.xlsx`);
         } catch (error) {
             console.error('Failed to download report:', error);
         }

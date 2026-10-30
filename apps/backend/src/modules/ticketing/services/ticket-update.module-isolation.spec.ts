@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { TicketUpdateService } from './ticket-update.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { Ticket, TicketStatus, TicketPriority, HandlingTeam } from '../entities/ticket.entity';
+import { createTestSlaClock } from './sla-clock.testing';
 
 /**
  * The curated assignee list must bind the API, not only the dropdown.
@@ -66,12 +67,10 @@ describe('TicketUpdateService.assignTicket — per-module assignee isolation', (
             {} as any,
             { emit: jest.fn() } as any,
             null as any,
-            null as any,
             { logAsync: jest.fn() } as any,
             {} as any,
             { recalculateAgentWorkload: jest.fn() } as any,
-            assignmentPolicy,
-        );
+            assignmentPolicy, createTestSlaClock(), { resolveVisit: () => new Date(Date.now() + 86_400_000), schedule: jest.fn(), clear: jest.fn(), note: () => '' } as any);
     });
 
     it('rejects an assignee who is not on the module list, naming the module', async () => {

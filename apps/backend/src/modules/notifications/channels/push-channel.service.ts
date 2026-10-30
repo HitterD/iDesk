@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as webpush from 'web-push';
@@ -12,44 +12,87 @@ import {
 import { DeliveryChannel } from '../entities/notification-log.entity';
 import { PushSubscription } from '../entities/push-subscription.entity';
 import { CacheService } from '../../../shared/core/cache/cache.service';
+import { CredentialCipherService } from '../../../shared/core/encryption/credential-cipher.service';
+import { SystemSettings } from '../../settings/entities/system-settings.entity';
 
 // Maximum failed attempts before auto-unsubscribe
 const MAX_FAILED_ATTEMPTS = 3;
 // P1: cap the number of pushes a single user can receive per minute to
 // avoid notification storms (e.g. a misbehaving upstream emitter).
 const PUSH_LIMIT_PER_MIN = 10;
+/** system_settings row holding the generated VAPID pair when none is configured in the environment. */
+export const VAPID_SETTING_KEY = 'webpush.vapid';
+/** Shipped in apps/frontend/public; shown by the OS next to the notification. */
+const PUSH_ICON = '/idesk-icon.png';
+
+interface VapidKeys { publicKey: string; privateKey: string }
 
 @Injectable()
-export class PushChannelService implements INotificationChannel {
+export class PushChannelService implements INotificationChannel, OnApplicationBootstrap {
     private readonly logger = new Logger(PushChannelService.name);
     readonly channelType = DeliveryChannel.PUSH;
     private isConfigured = false;
+    private publicKey: string | null = null;
 
     constructor(
         @InjectRepository(PushSubscription)
         private readonly pushSubscriptionRepo: Repository<PushSubscription>,
         private readonly configService: ConfigService,
         private readonly cacheService: CacheService,
-    ) {
-        this.initializeVapid();
+        private readonly cipher: CredentialCipherService,
+    ) {}
+
+    /**
+     * After every module is initialised (the cipher derives its key in onModuleInit): VAPID keys come from the
+     * environment when set; otherwise a pair is generated once and kept, encrypted, in system_settings, so browser
+     * notifications work on a deployment that never configured them. Push stays off (logged) if both fail.
+     */
+    async onApplicationBootstrap(): Promise<void> {
+        const subject = this.configService.get<string>('VAPID_SUBJECT') || 'mailto:admin@idesk.com';
+        try {
+            const keys = this.environmentKeys() ?? (await this.storedKeys());
+            webpush.setVapidDetails(subject, keys.publicKey, keys.privateKey);
+            this.publicKey = keys.publicKey;
+            this.isConfigured = true;
+            this.logger.log('Web Push VAPID configured');
+        } catch (error) {
+            this.logger.error(`Web Push disabled: ${(error as Error).message}`);
+        }
     }
 
-    private initializeVapid(): void {
+    private environmentKeys(): VapidKeys | null {
         const publicKey = this.configService.get<string>('VAPID_PUBLIC_KEY');
         const privateKey = this.configService.get<string>('VAPID_PRIVATE_KEY');
-        const subject = this.configService.get<string>('VAPID_SUBJECT') || 'mailto:admin@idesk.com';
+        return publicKey && privateKey ? { publicKey, privateKey } : null;
+    }
 
-        if (publicKey && privateKey) {
-            try {
-                webpush.setVapidDetails(subject, publicKey, privateKey);
-                this.isConfigured = true;
-                this.logger.log('Web Push VAPID configured successfully');
-            } catch (error) {
-                this.logger.error('Failed to configure VAPID:', error);
-            }
-        } else {
-            this.logger.warn('VAPID keys not configured. Push notifications will be disabled.');
-        }
+    private async storedKeys(): Promise<VapidKeys> {
+        const settings = this.pushSubscriptionRepo.manager.getRepository(SystemSettings);
+        const read = async (): Promise<VapidKeys | null> => {
+            const row = await settings.findOne({ where: { key: VAPID_SETTING_KEY } });
+            const value = row?.value as { publicKey?: string; privateKey?: string } | undefined;
+            return value?.publicKey && value.privateKey
+                ? { publicKey: value.publicKey, privateKey: this.cipher.decrypt(value.privateKey) }
+                : null;
+        };
+        const existing = await read();
+        if (existing) return existing;
+
+        const generated = webpush.generateVAPIDKeys();
+        await settings.query(
+            `INSERT INTO system_settings (key, value, description, category, "updatedBy")
+             VALUES ($1, $2::jsonb, $3, 'notifications', 'system') ON CONFLICT (key) DO NOTHING`,
+            [
+                VAPID_SETTING_KEY,
+                JSON.stringify({ publicKey: generated.publicKey, privateKey: this.cipher.encrypt(generated.privateKey) }),
+                'Web Push VAPID key pair (generated because VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY are not set)',
+            ],
+        );
+        this.logger.warn('VAPID keys not set in the environment; using a generated pair stored in system_settings');
+        // Re-read: with several instances booting at once, the first insert wins and everyone uses that pair.
+        const stored = await read();
+        if (!stored) throw new Error('could not store generated VAPID keys');
+        return stored;
     }
 
     async send(payload: ChannelDeliveryPayload): Promise<DeliveryResult> {
@@ -111,9 +154,12 @@ export class PushChannelService implements INotificationChannel {
             const pushPayload = JSON.stringify({
                 title: payload.title,
                 body: payload.body,
-                icon: '/logo192.png',
-                badge: '/badge.png',
-                tag: payload.notificationId,
+                icon: PUSH_ICON,
+                badge: PUSH_ICON,
+                // Lets the service worker mark the stored notification read when the toast is clicked.
+                notificationId: payload.data?.notificationId ?? null,
+                // Same tag replaces the toast already on screen (e.g. one per ticket chat).
+                tag: payload.data?.tag || payload.notificationId,
                 url: payload.data?.link || '/',
                 type: payload.data?.type,
                 ticketId: payload.data?.ticketId,
@@ -286,7 +332,7 @@ export class PushChannelService implements INotificationChannel {
     }
 
     getVapidPublicKey(): string | null {
-        return this.configService.get<string>('VAPID_PUBLIC_KEY') || null;
+        return this.publicKey;
     }
 
     // Cleanup old/inactive subscriptions (can be called via cron)

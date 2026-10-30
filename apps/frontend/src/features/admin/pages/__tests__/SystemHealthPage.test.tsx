@@ -82,6 +82,26 @@ describe('SystemHealthPage', () => {
         });
     });
 
+    it('uses the approved telemetry header and retains all navigation tabs', () => {
+        render(<QueryClientProvider client={queryClient}><SystemHealthPage /></QueryClientProvider>);
+        expect(screen.getByText('Observabilitas operasional, metrik infrastruktur, dan integritas layanan')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Jeda stream' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Snapshot' })).toBeInTheDocument();
+        expect(screen.getByTestId('tab-storage-forecasting')).toBeInTheDocument();
+    });
+
+    it('renders when telemetry does not supply a Node.js version', () => {
+        const version = healthSnapshotWithRedis.system.nodeVersion;
+        healthSnapshotWithRedis.system.nodeVersion = '';
+        try {
+            render(<QueryClientProvider client={queryClient}><SystemHealthPage /></QueryClientProvider>);
+            expect(screen.getByRole('heading', { name: 'System Health & Telemetry' })).toBeInTheDocument();
+            expect(screen.getAllByText('Tidak tersedia').length).toBeGreaterThan(0);
+        } finally {
+            healthSnapshotWithRedis.system.nodeVersion = version;
+        }
+    });
+
     it('shows ticking uptime and Redis queue depth', async () => {
         render(
             <QueryClientProvider client={queryClient}>

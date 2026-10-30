@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuth } from '@/stores/useAuth';
 import { AgentSelectList } from '../AgentSelectList';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 
 interface Agent {
     id: string;
@@ -62,9 +63,7 @@ export const AssigneeSelect = ({ value, onChange, disabled, category, ticketType
                 >
                     {selectedAgent ? (
                         <div className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold">
-                                {selectedAgent.fullName.charAt(0)}
-                            </div>
+                            <UserAvatar user={selectedAgent} size="xs" className="w-5 h-5 text-[10px]" />
                             <span className="truncate">{selectedAgent.fullName}</span>
                         </div>
                     ) : (

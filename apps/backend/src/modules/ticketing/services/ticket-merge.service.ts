@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
-import { Ticket, TicketStatus } from '../entities/ticket.entity';
+import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { TicketParticipant } from '../entities/ticket-participant.entity';
 import { User } from '../../users/entities/user.entity';
@@ -23,6 +24,7 @@ export class TicketMergeService {
         private readonly dataSource: DataSource,
         private readonly eventsGateway: EventsGateway,
         private readonly auditService: AuditService,
+        @Optional() private readonly eventEmitter?: EventEmitter2,
     ) {}
 
     async mergeTickets(
@@ -75,8 +77,8 @@ export class TicketMergeService {
 
             // Pre-validate status before any writes
             for (const secondaryTicket of secondaryTickets) {
-                if (secondaryTicket.status === TicketStatus.RESOLVED || secondaryTicket.status === TicketStatus.CANCELLED) {
-                    throw new BadRequestException(`Cannot merge resolved or cancelled ticket: ${secondaryTicket.ticketNumber}`);
+                if (TICKET_INACTIVE_STATUSES.includes(secondaryTicket.status)) {
+                    throw new BadRequestException(`Cannot merge resolved, closed or cancelled ticket: ${secondaryTicket.ticketNumber}`);
                 }
             }
 
@@ -133,6 +135,7 @@ export class TicketMergeService {
                         senderId: message.senderId,
                         content: `[Merged from #${secondaryTicket.ticketNumber}] ${message.content}`,
                         attachments: message.attachments,
+                        attachmentInfo: message.attachmentInfo,
                         isSystemMessage: message.isSystemMessage,
                         createdAt: message.createdAt,
                     }),
@@ -184,12 +187,14 @@ export class TicketMergeService {
             relations: ['user', 'assignedTo', 'messages', 'messages.sender'],
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
-        this.eventsGateway.server.emit('ticket:updated', { ticketId: primaryTicketId });
-        if ((ticket as any).siteId) {
-            this.eventsGateway.server.to(`site:${(ticket as any).siteId}`).emit('ticket:updated', { ticketId: primaryTicketId });
-        }
+        this.eventsGateway.server.to(`ticket:${primaryTicketId}`).emit('ticket:updated', { ticketId: primaryTicketId });
+        this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'ticket:updated', { ticketId: primaryTicketId });
         this.eventsGateway.notifyTicketListUpdate((ticket as any).siteId ?? null);
         this.eventsGateway.notifyDashboardStatsUpdate((ticket as any).siteId ?? null);
+        // The merged-away tickets are now CANCELLED; integrations (iPop) track that status.
+        for (const secondaryId of secondaryTicketIds) {
+            this.eventEmitter?.emit('ticket.merged', { ticketId: secondaryId, mergedInto: primaryTicketId });
+        }
         return ticket;
     }
 }

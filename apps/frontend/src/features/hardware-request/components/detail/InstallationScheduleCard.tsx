@@ -26,6 +26,10 @@ interface InstallationScheduleCardProps {
     onSelectSlot?: (schedule: InstallationSchedule) => void;
     onReschedule?: (schedule: InstallationSchedule) => void;
     onProposeNewSlots?: (schedule: InstallationSchedule) => void;
+    /** The viewer; a single proposed time is confirmed by whoever did not propose it. */
+    viewerId?: string;
+    onConfirmProposed?: () => void;
+    confirming?: boolean;
 }
 
 const INSTALL_STATUS_CONFIG: Record<InstallStatus, { label: string; bg: string; text: string; border: string; icon: any }> = {
@@ -73,9 +77,9 @@ const INSTALL_STATUS_CONFIG: Record<InstallStatus, { label: string; bg: string; 
     },
     RESCHEDULED: {
         label: 'Jadwal Diubah',
-        bg: 'bg-purple-500/10 dark:bg-purple-500/20',
-        text: 'text-purple-700 dark:text-purple-300',
-        border: 'border-purple-500/30',
+        bg: 'bg-sky-500/10 dark:bg-sky-500/20',
+        text: 'text-sky-700 dark:text-sky-300',
+        border: 'border-sky-500/30',
         icon: CalendarClock,
     },
     CANCELLED: {
@@ -94,6 +98,9 @@ export function InstallationScheduleCard({
     onSelectSlot,
     onReschedule,
     onProposeNewSlots,
+    viewerId,
+    onConfirmProposed,
+    confirming = false,
 }: InstallationScheduleCardProps) {
     const statusCfg = INSTALL_STATUS_CONFIG[schedule.status] || INSTALL_STATUS_CONFIG.PROPOSED;
     const StatusIcon = statusCfg.icon;
@@ -173,10 +180,44 @@ export function InstallationScheduleCard({
                                     className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-card hover:bg-muted border border-border text-foreground transition-all shadow-2xs cursor-pointer shrink-0"
                                 >
                                     <RotateCcw className="size-3.5 text-muted-foreground" />
-                                    <span>Ajukan Jadwal Ulang</span>
+                                    <span>{isStaff ? 'Usulkan Jadwal Baru' : 'Ajukan Jadwal Ulang'}</span>
                                 </button>
                             )}
                         </div>
+                    </div>
+                )}
+
+                {/* ── ONE PROPOSED TIME (e.g. after ICT moved the installation): the other side confirms it ── */}
+                {schedule.status === 'PROPOSED' && startDate && (
+                    <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 sm:p-5 space-y-3">
+                        <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200 text-xs sm:text-sm font-extrabold uppercase tracking-wider">
+                            <CalendarClock className="size-4 text-amber-600 dark:text-amber-400" />
+                            <span>Usulan Waktu Pemasangan</span>
+                        </div>
+                        <p className="text-sm font-bold text-foreground">
+                            {startDate.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                            <span className="font-semibold text-muted-foreground"> · {formatTimeRange(schedule.scheduledStart, schedule.scheduledEnd)} WIB</span>
+                        </p>
+                        {schedule.rescheduleReason && (
+                            <p className="text-xs text-muted-foreground">Alasan perubahan: {schedule.rescheduleReason}</p>
+                        )}
+                        {viewerId && viewerId !== schedule.proposedBy && onConfirmProposed ? (
+                            <div className="flex flex-wrap items-center justify-end gap-3 pt-2 border-t border-amber-500/20">
+                                {!isStaff && (
+                                    <button type="button" onClick={() => onReschedule?.(schedule)}
+                                        className="text-xs font-bold text-amber-800 dark:text-amber-300 hover:underline cursor-pointer mr-auto">
+                                        Waktu tidak cocok? Ajukan jadwal lain
+                                    </button>
+                                )}
+                                <button type="button" onClick={onConfirmProposed} disabled={confirming}
+                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all shadow-xs active:scale-[0.98] cursor-pointer disabled:opacity-60">
+                                    <CheckCircle2 className="size-3.5" />
+                                    <span>{confirming ? 'Menyimpan…' : 'Setujui jadwal ini'}</span>
+                                </button>
+                            </div>
+                        ) : (
+                            <p className="text-xs text-amber-800 dark:text-amber-300">Menunggu konfirmasi dari pihak lain.</p>
+                        )}
                     </div>
                 )}
 
@@ -343,24 +384,24 @@ export function InstallationScheduleCard({
 
                 {/* ── LINKED TICKET BAR ── */}
                 {schedule.ticketId && (
-                    <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs">
-                        <div className="flex items-center gap-2 min-w-0">
-                            <div className="size-6 rounded-lg bg-purple-600 text-white flex items-center justify-center shrink-0">
+                    <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-muted/30 border border-border/70 text-xs">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="size-6 rounded-lg bg-primary text-white flex items-center justify-center shrink-0">
                                 <Wrench className="size-3.5" />
                             </div>
                             <div className="min-w-0">
-                                <span className="font-extrabold text-purple-900 dark:text-purple-200">
+                                <span className="font-bold text-foreground">
                                     Tiket Pemasangan Hardware Telah Dibuat
                                 </span>
-                                <p className="text-[11px] text-purple-700 dark:text-purple-300 truncate">
-                                    Tiket otomatis terhubung pada Ticket Board dan di-assign ke Agent.
+                                <p className="text-[11px] text-muted-foreground truncate">
+                                    Tiket otomatis terhubung pada Ticket Board dan di-assign ke teknisi.
                                 </p>
                             </div>
                         </div>
 
                         <Link
                             to={`/tickets/${schedule.ticketId}`}
-                            className="inline-flex items-center gap-1 font-bold text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 bg-white dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-purple-300 dark:border-purple-700 shadow-2xs hover:shadow-xs transition-all shrink-0 cursor-pointer"
+                            className="inline-flex items-center gap-1 font-semibold text-primary hover:text-primary/80 bg-card hover:bg-muted px-2.5 py-1.5 rounded-lg border border-border shadow-2xs transition-all shrink-0 cursor-pointer"
                         >
                             <span>Buka Tiket</span>
                             <ExternalLink className="size-3" />

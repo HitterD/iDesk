@@ -8,12 +8,14 @@ import { Ticket } from '../ticketing/entities/ticket.entity';
 import { User } from '../users/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { AuditModule } from '../audit/audit.module';
+import { SlaConfigModule } from '../sla-config/sla-config.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([AccessRequest, AccessType, Ticket, User]),
         AuthModule,
         AuditModule,
+        SlaConfigModule, // BusinessHoursService for the resolution confirmation deadline
     ],
     controllers: [AccessRequestController],
     providers: [AccessRequestService],

@@ -57,8 +57,26 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, signerName }
 
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
     if (isLocked) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    let clientX: number;
+    let clientY: number;
+
+    if ('touches' in e) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(clientX - rect.left, clientY - rect.top);
     setIsDrawing(true);
-    draw(e);
   };
 
   const stopDrawing = () => {

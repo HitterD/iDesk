@@ -57,6 +57,7 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
         database: { status: 'disconnected', latency: 0 },
         redis: { status: 'disabled' },
         websocket: { status: 'active', clients: 0 },
+        sjaNotification: { status: 'connected', latency: 1, activeDevices: 1, onlineSockets: 1, authProtocol: 'DPAPI + HMAC-SHA256' },
     };
 
     private slowSnapshot: HealthSlowUpdate = {
@@ -108,6 +109,8 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
 
     @Interval(FAST_INTERVAL_MS)
     async scheduledFastRefresh(): Promise<void> {
+        // Fast probes only feed the live dashboard; skip them while nobody is watching.
+        if (!this.gateway.hasSubscribers()) return;
         await this.refreshFastTier().catch((err) =>
             this.logger.error(`Scheduled fast refresh error: ${err.message}`)
         );
@@ -172,10 +175,11 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
     }
 
     async refreshFastTier(): Promise<void> {
-        const [metricsRes, dbRes, redisRes] = await Promise.allSettled([
+        const [metricsRes, dbRes, redisRes, sjaRes] = await Promise.allSettled([
             this.healthService.getFastSystemMetrics(),
             this.healthService.checkDatabaseHealth(),
             this.pingRedis(),
+            this.healthService.checkSjaNotificationHealth(),
         ]);
 
         const serverTime = new Date().toISOString();
@@ -204,6 +208,11 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
                 ? redisRes.value
                 : { status: 'error' as const };
 
+        const sjaNotification =
+            sjaRes.status === 'fulfilled'
+                ? sjaRes.value
+                : { status: 'disconnected' as const, latency: 0 };
+
         this.appendHistory('cpu', metrics.cpuUsage);
         this.appendHistory('memory', metrics.memoryUsage);
         this.appendHistory('dbLatency', database.latency || 0);
@@ -229,6 +238,7 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
                 status: 'active',
                 clients: (this.healthService as any).wsClientCount || 0,
             },
+            sjaNotification,
         };
 
         this.sampledAt.fast = serverTime;
@@ -294,6 +304,18 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
                 this.gateway.pushIncident(latest);
             }
         }
+    }
+
+    /**
+     * Refresh the fast tier on demand when the scheduled sampler is idle,
+     * so REST consumers never read metrics older than one fast interval.
+     */
+    async ensureFreshFastTier(): Promise<void> {
+        const ageMs = Date.now() - new Date(this.sampledAt.fast).getTime();
+        if (ageMs < FAST_INTERVAL_MS) return;
+        await this.refreshFastTier().catch((err) =>
+            this.logger.error(`On-demand fast refresh error: ${err.message}`)
+        );
     }
 
     /**
@@ -369,6 +391,7 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
                 redis: this.fastSnapshot.redis,
                 websocket: this.fastSnapshot.websocket,
                 backup: this.slowSnapshot.backup,
+                sjaNotification: this.fastSnapshot.sjaNotification,
             },
             services: this.slowSnapshot.services,
             recentIncidents: this.healthService.getRecentIncidents(10),
@@ -392,6 +415,7 @@ export class HealthSamplerService implements OnModuleInit, OnModuleDestroy {
             database: this.fastSnapshot.database,
             redis: this.fastSnapshot.redis,
             websocket: this.fastSnapshot.websocket,
+            sjaNotification: this.fastSnapshot.sjaNotification,
         };
     }
 

@@ -244,16 +244,25 @@ export function ZoomClientMonthCalendar({
                                                 borderLeftWidth: '3px',
                                                 borderLeftColor: accColor,
                                             }}
-                                            title={`${timeDisplay} ${b.title || 'Zoom Meeting'} (${b.zoomAccount?.name || 'Zoom'})`}
+                                            title={`${timeDisplay} ${b.title || 'Zoom Meeting'} (${b.zoomAccount?.name || 'Zoom'})${b.meeting?.recordingUrl ? ' • [Rekaman Tersedia]' : ''}`}
                                         >
                                             {timeDisplay && (
                                                 <span className="font-mono text-[9.5px] font-semibold text-muted-foreground shrink-0 group-hover/chip:text-blue-600 dark:group-hover/chip:text-blue-400">
                                                     {timeDisplay}
                                                 </span>
                                             )}
-                                            <span className="truncate text-[10px] font-medium">
+                                            <span className="truncate text-[10px] font-medium flex-1">
                                                 {b.title || 'Zoom Meeting'}
                                             </span>
+                                            {b.meeting?.recordingUrl && (
+                                                <span
+                                                    className="shrink-0 inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 text-[8.5px] font-bold border border-emerald-300/50 dark:border-emerald-800"
+                                                    title="Rekaman Cloud Zoom Tersedia"
+                                                >
+                                                    <Video className="w-2.5 h-2.5 fill-current" />
+                                                    <span className="hidden xl:inline">REC</span>
+                                                </span>
+                                            )}
                                         </div>
                                     );
                                 })}

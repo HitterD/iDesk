@@ -1,0 +1,38 @@
+/* Control-level micro-interactions: one rule per control kind, so every instance of a control answers the same way.
+   Unlayered (beats Tailwind utilities), driven by the --dur-* / --ease-* tokens, so prefers-reduced-motion (which
+   zeroes the tokens in index.css) turns all of it into instant state changes. Uses the individual `translate` /
+   `scale` properties so it composes with any transform a component already sets. */
+
+@keyframes mi-pop { from { opacity: 0; scale: .5; } }
+@keyframes mi-badge { from { scale: .4; } }
+@keyframes mi-rise { from { opacity: 0; translate: 0 -3px; } }
+
+/* Switches (Radix Switch, .res-switch and hand-rolled role="switch" buttons): the thumb travels on a spring and
+   stretches toward its destination while pressed, like iOS. The track itself must not shrink with the global press. */
+button[role="switch"]:active { transform: none; }
+button[role="switch"] > span {
+  transform-origin: left center;
+  transition: translate var(--dur-3) var(--ease-spring), transform var(--dur-3) var(--ease-spring), scale var(--dur-2) var(--ease-out);
+}
+button[role="switch"][aria-checked="true"] > span { transform-origin: right center; }
+button[role="switch"]:not(:disabled):active > span { scale: 1.22 1; }
+.res-switch::after { transition: transform var(--dur-3) var(--ease-spring), width var(--dur-2) var(--ease-out); }
+.res-switch:not(:disabled):active::after { width: 22px; }
+.res-switch[aria-checked="true"]:not(:disabled):active::after { transform: translateX(12px); }
+
+/* Checkboxes: the Radix indicator pops in on a spring; native boxes and radios give under the finger and spring back. */
+button[role="checkbox"] > span[data-state="checked"] { animation: mi-pop var(--dur-2) var(--ease-spring); }
+input:is([type="checkbox"], [type="radio"]) { transition: transform var(--dur-2) var(--ease-spring); }
+input:is([type="checkbox"], [type="radio"]):not(:disabled):active { transform: scale(.86); transition-duration: var(--dur-1); }
+
+/* Copy buttons: the Copy -> Check icon swap lands instead of blinking. */
+button:is([aria-label^="Salin" i], [aria-label^="Copy" i], [title^="Salin" i], [title^="Copy" i]) svg {
+  animation: mi-pop var(--dur-2) var(--ease-spring);
+}
+
+/* Counters: a badge whose number changes is re-keyed by its component and pops once. */
+.mi-badge { animation: mi-badge var(--dur-3) var(--ease-spring); }
+
+/* Field errors settle in under the field. Deliberately no shake: these forms validate while typing, and shaking on
+   every keystroke punishes the user; submit-time rejection (login) keeps its own shake. */
+.ct-field-error, .iapp-field small.is-error { animation: mi-rise var(--dur-2) var(--ease-out); }

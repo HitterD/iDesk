@@ -52,6 +52,14 @@ export interface InfrastructureStatus {
         connected?: boolean;
         lastBackup?: string;
     };
+    sjaNotification?: {
+        status: 'connected' | 'degraded' | 'disconnected';
+        latency?: number; // ms
+        activeDevices?: number;
+        onlineSockets?: number;
+        authProtocol?: string;
+        hubUrl?: string;
+    };
 }
 
 export interface ServiceStatus {
@@ -138,6 +146,7 @@ export interface HealthFastUpdate {
     database: InfrastructureStatus['database'];
     redis: InfrastructureStatus['redis'];
     websocket: InfrastructureStatus['websocket'];
+    sjaNotification?: InfrastructureStatus['sjaNotification'];
 }
 
 export interface HealthSlowUpdate {

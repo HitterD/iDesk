@@ -12,7 +12,6 @@ import {
 } from 'typeorm';
 import { Ticket } from '../../ticketing/entities/ticket.entity';
 import { TicketMessage } from '../../ticketing/entities/ticket-message.entity';
-import { CustomerSession } from './customer-session.entity';
 import { Department } from './department.entity';
 import { UserRole } from '../enums/user-role.enum';
 import { Site } from '../../sites/entities/site.entity';
@@ -54,6 +53,7 @@ export class User {
     })
     role: UserRole;
 
+    @Index('IDX_users_employee_id_unique', { unique: true, where: '"employeeId" IS NOT NULL' })
     @Column({ type: 'varchar', nullable: true })
     employeeId: string;
 
@@ -69,16 +69,6 @@ export class User {
     @Column({ type: 'varchar', nullable: true })
     avatarUrl: string;
 
-    // Telegram Integration
-    @Column({ type: 'bigint', nullable: true, unique: true })
-    telegramId: string | null;
-
-    @Column({ type: 'bigint', nullable: true })
-    telegramChatId: string | null;
-
-    @Column({ default: true })
-    telegramNotifications: boolean;
-
     @Column({ default: true })
     isActive: boolean;
 
@@ -89,6 +79,10 @@ export class User {
     // Wajib ganti password saat login (default 123456 / first login / reset admin)
     @Column({ default: false })
     mustChangePassword: boolean;
+
+    // Timestamp konfirmasi panduan portal pengguna (role USER)
+    @Column({ type: 'timestamp', nullable: true })
+    guidebookAcknowledgedAt: Date | null;
 
     /**
      * Legacy refresh-token bcrypt hash. Superseded by the Redis refresh-session store
@@ -129,9 +123,6 @@ export class User {
 
     // @OneToMany(() => TicketMessage, (message) => message.sender)
     // messages: TicketMessage[];
-
-    // @OneToOne(() => CustomerSession, (session) => session.user)
-    // customerSession: CustomerSession;
 
     @CreateDateColumn()
     createdAt: Date;

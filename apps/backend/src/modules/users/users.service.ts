@@ -75,6 +75,10 @@ export class UsersService {
         return this.userCrudService.findById(id);
     }
 
+    async acknowledgeGuidebook(userId: string): Promise<{ success: boolean; acknowledgedAt: Date }> {
+        return this.userCrudService.acknowledgeGuidebook(userId);
+    }
+
     async findByEmail(email: string): Promise<User | undefined> {
         return this.userCrudService.findByEmail(email);
     }

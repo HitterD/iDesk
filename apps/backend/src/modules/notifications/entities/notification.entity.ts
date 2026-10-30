@@ -65,6 +65,8 @@ export enum NotificationType {
     EFORM_ICT_CONFIRMED = 'EFORM_ICT_CONFIRMED',
     EFORM_REJECTED = 'EFORM_REJECTED',
     EFORM_CREDENTIALS_READY = 'EFORM_CREDENTIALS_READY',
+    EFORM_DIRECT_TO_ICT = 'EFORM_DIRECT_TO_ICT',
+    EFORM_FULFILLED = 'EFORM_FULFILLED',
 }
 
 @Entity('notifications')
@@ -107,9 +109,10 @@ export class Notification {
     @Column({ type: 'varchar', nullable: true })
     ticketId?: string;
 
-    // Generic reference ID for any entity (renewal contracts, etc.)
+    // Generic reference ID for any entity (renewal contracts, etc.). Hardware requests append
+    // a step suffix (`<id>_submitted`), so this is varchar rather than uuid.
     @Index('idx_notification_reference')
-    @Column({ type: 'uuid', nullable: true })
+    @Column({ type: 'varchar', nullable: true })
     referenceId?: string;
 
     @Column({ type: 'varchar', nullable: true })

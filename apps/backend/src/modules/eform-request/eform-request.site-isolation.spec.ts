@@ -1,3 +1,4 @@
+import { In, Not } from 'typeorm';
 import { ForbiddenException } from '@nestjs/common';
 import { EFormRequestService } from './eform-request.service';
 import { UserRole } from '../users/enums/user-role.enum';
@@ -77,7 +78,7 @@ describe('EFormRequestService site isolation (P0 credential protection)', () => 
       await service.findAll({ role, siteId: SITE_SPJ });
 
       expect(eformRepo.find).toHaveBeenCalledWith({
-        where: { siteId: SITE_SPJ },
+        where: { siteId: SITE_SPJ, status: Not(In([EFormStatus.DRAFT, EFormStatus.CANCELLED])) },
         order: { createdAt: 'DESC' },
       });
     });
@@ -96,7 +97,9 @@ describe('EFormRequestService site isolation (P0 credential protection)', () => 
       const result = await service.findAll({ role, siteId: null });
 
       // Should have called without site filter (or with all)
+      // No site filter; unsigned ticket proposals are still left out.
       expect(eformRepo.find).toHaveBeenCalledWith({
+        where: { status: Not(In([EFormStatus.DRAFT, EFormStatus.CANCELLED])) },
         order: { createdAt: 'DESC' },
       });
       expect(result.length).toBeGreaterThanOrEqual(0);
@@ -122,6 +125,25 @@ describe('EFormRequestService site isolation (P0 credential protection)', () => 
       const result = await service.getDetails({ role: UserRole.ADMIN, siteId: null }, 'eform-1');
       expect(result.siteId).toBe(SITE_SMG);
     });
+
+    it('allows approver with role USER to view request assigned to them', async () => {
+      eformRepo.findOne.mockResolvedValue(makeEform({ currentApproverId: 'u-approver', siteId: SITE_SPJ }));
+      const result = await service.getDetails({ role: UserRole.USER, siteId: SITE_SPJ }, 'eform-1', 'u-approver');
+      expect(result.id).toBe('eform-1');
+    });
+
+    it('allows requester with role USER to view their own request', async () => {
+      eformRepo.findOne.mockResolvedValue(makeEform({ requesterId: 'u-requester', siteId: SITE_SPJ }));
+      const result = await service.getDetails({ role: UserRole.USER, siteId: SITE_SPJ }, 'eform-1', 'u-requester');
+      expect(result.id).toBe('eform-1');
+    });
+
+    it('blocks unrelated user with role USER from accessing request', async () => {
+      eformRepo.findOne.mockResolvedValue(makeEform({ requesterId: 'u-requester', currentApproverId: 'u-approver', siteId: SITE_SPJ }));
+      await expect(
+        service.getDetails({ role: UserRole.USER, siteId: SITE_SPJ }, 'eform-1', 'u-stranger'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
   });
 
   describe('generatePdf (P0: no decrypt before site check)', () => {
@@ -143,6 +165,36 @@ describe('EFormRequestService site isolation (P0 credential protection)', () => 
 
       const buf = await service.generatePdf({ role: UserRole.AGENT, siteId: SITE_SPJ }, 'eform-1');
       expect(buf).toBeInstanceOf(Buffer);
+    });
+
+    it('allows approver with role USER to generate PDF without exposing credentials', async () => {
+      eformRepo.findOne.mockResolvedValue(makeEform({ currentApproverId: 'u-approver', siteId: SITE_SPJ }));
+      credRepo.findOne.mockResolvedValue({
+        eformRequestId: 'eform-1',
+        encryptedUsername: 'enc-u',
+        encryptedPassword: 'enc-p',
+      });
+
+      const buf = await service.generatePdf({ role: UserRole.USER, siteId: SITE_SPJ }, 'eform-1', 'u-approver');
+      expect(buf).toBeInstanceOf(Buffer);
+      expect(credentialService.decrypt).not.toHaveBeenCalled();
+    });
+
+    it('allows requester with role USER to generate PDF with decrypted credentials', async () => {
+      eformRepo.findOne.mockResolvedValue(makeEform({ requesterId: 'u-requester', siteId: SITE_SPJ }));
+      credRepo.findOne.mockResolvedValue({
+        eformRequestId: 'eform-1',
+        encryptedUsername: 'enc-u',
+        encryptedPassword: 'enc-p',
+        iv: 'iv',
+        authTag: 'tag',
+        passwordIv: 'piv',
+        passwordAuthTag: 'ptag',
+      });
+
+      const buf = await service.generatePdf({ role: UserRole.USER, siteId: SITE_SPJ }, 'eform-1', 'u-requester');
+      expect(buf).toBeInstanceOf(Buffer);
+      expect(credentialService.decrypt).toHaveBeenCalled();
     });
   });
 
@@ -177,6 +229,30 @@ describe('EFormRequestService site isolation (P0 credential protection)', () => 
       const result = await service.getCredentials(ictActor, 'eform-1', 'ict-user', UserRole.AGENT_ADMIN);
       expect(result.username).toBe('decrypted-u');
       expect(credentialService.decrypt).toHaveBeenCalled();
+    });
+  });
+
+  describe('submitCredentials (ICT-only + site check)', () => {
+    const dto = { username: 'u', password: 'p' } as any;
+
+    it.each([UserRole.USER, UserRole.MANAGER, UserRole.AGENT])(
+      'rejects non-ICT role %s before storing anything',
+      async (role) => {
+        eformRepo.findOne.mockResolvedValue(makeEform({ siteId: SITE_SPJ }));
+        await expect(
+          service.submitCredentials({ role, siteId: SITE_SPJ }, 'eform-1', 'u-x', role, dto),
+        ).rejects.toThrow(ForbiddenException);
+        expect(credentialService.encrypt).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rejects ICT on another site', async () => {
+      eformRepo.findOne.mockResolvedValue(makeEform({ siteId: SITE_SMG }));
+      const role = UserRole.AGENT_OPERATIONAL_SUPPORT;
+      await expect(
+        service.submitCredentials({ role, siteId: SITE_SPJ }, 'eform-1', 'u-ict', role, dto),
+      ).rejects.toThrow(ForbiddenException);
+      expect(credentialService.encrypt).not.toHaveBeenCalled();
     });
   });
 });

@@ -6,6 +6,9 @@ import {
     UpdateDateColumn,
 } from 'typeorm';
 
+export const TV_THEMES = ['light', 'dark'] as const;
+export type TvTheme = (typeof TV_THEMES)[number];
+
 @Entity('sites')
 export class Site {
     @PrimaryGeneratedColumn('uuid')
@@ -61,6 +64,14 @@ export class Site {
 
     @Column({ type: 'varchar', length: 5, nullable: true })
     closingTime: string | null;
+
+    /** TV board hub for the dev teams: also shows Oracle/Web/Mobile Dev tickets from every site. */
+    @Column({ default: false })
+    tvShowsDevTickets: boolean;
+
+    /** Default TV board palette; a screen can override it locally. */
+    @Column({ type: 'varchar', length: 5, default: 'light' })
+    tvTheme: TvTheme;
 
     @CreateDateColumn()
     createdAt: Date;

@@ -6,10 +6,10 @@ import { UserRole } from './enums/user-role.enum';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Department } from './entities/department.entity';
+import { CreateDepartmentDto } from './dto/create-department.dto';
 
 @Controller('departments')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.MANAGER)
+@UseGuards(JwtAuthGuard)
 export class DepartmentsController {
     constructor(
         @InjectRepository(Department)
@@ -33,7 +33,9 @@ export class DepartmentsController {
         return this.departmentRepo.find();
     }
     @Post()
-    async create(@Body() body: { name: string; code: string }) {
+    @UseGuards(RolesGuard)
+    @Roles(UserRole.ADMIN, UserRole.MANAGER)
+    async create(@Body() body: CreateDepartmentDto) {
         const department = this.departmentRepo.create(body);
         return this.departmentRepo.save(department);
     }

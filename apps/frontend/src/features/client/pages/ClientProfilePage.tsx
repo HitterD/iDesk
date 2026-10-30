@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { User, Mail, Phone, Building, Lock, Save, Camera, MessageCircle, Palette, Moon, Sun, Volume2, Bell } from 'lucide-react';
+import { User, Mail, Phone, Building, Lock, Save, Camera, Palette, Moon, Sun, Volume2, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { useAuth } from '@/stores/useAuth';
-import { TelegramSettingsForm } from '../../settings/components/TelegramSettingsForm';
 import { ChangeEmailDialog } from '../../settings/components/ChangeEmailDialog';
 import { SoundSettingsPage } from '../../settings/pages/SoundSettingsPage';
 import { NotificationSettings } from '../../settings/components/NotificationSettings';
 import { PASSWORD_POLICY, getPasswordRequirements, translatePasswordPolicyError, validatePasswordLocal, passwordPolicyMessage } from '@/lib/passwordPolicy';
 import { useTheme } from '@/components/theme-provider';
 import { UserAvatar } from '@/components/ui/UserAvatar';
+import { cn } from '@/lib/utils';
 
 interface UserProfile {
     id: string;
@@ -28,16 +28,19 @@ export const ClientProfilePage: React.FC = () => {
     const queryClient = useQueryClient();
     const { theme, setTheme } = useTheme();
     const [searchParams, setSearchParams] = useSearchParams();
-    const queryTab = searchParams.get('tab') as 'profile' | 'password' | 'telegram' | 'appearance' | 'sounds' | 'notifications' | null;
-    const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'telegram' | 'appearance' | 'sounds' | 'notifications'>(
-        queryTab || 'profile'
+    const queryTab = searchParams.get('tab') as 'profile' | 'password' | 'appearance' | 'sounds' | 'notifications' | 'telegram' | null;
+    const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'appearance' | 'sounds' | 'notifications'>(
+        (queryTab && ['profile', 'password', 'appearance', 'sounds', 'notifications'].includes(queryTab as any)) ? (queryTab as any) : 'profile'
     );
 
     useEffect(() => {
-        if (queryTab && ['profile', 'password', 'telegram', 'appearance', 'sounds', 'notifications'].includes(queryTab)) {
-            setActiveTab(queryTab);
+        if (queryTab && ['profile', 'password', 'appearance', 'sounds', 'notifications'].includes(queryTab as any)) {
+            setActiveTab(queryTab as 'profile' | 'password' | 'appearance' | 'sounds' | 'notifications');
+        } else if (queryTab === 'telegram') {
+            setActiveTab('profile');
+            setSearchParams({ tab: 'profile' });
         }
-    }, [queryTab]);
+    }, [queryTab, setSearchParams]);
 
     const handleTabSelect = (tab: typeof activeTab) => {
         setActiveTab(tab);
@@ -166,7 +169,7 @@ export const ClientProfilePage: React.FC = () => {
     };
 
     return (
-        <div className="max-w-2xl mx-auto space-y-6">
+        <div className={cn("mx-auto space-y-6 transition-[max-width] duration-200", activeTab === 'notifications' ? "max-w-4xl" : "max-w-2xl")}>
             {/* Header */}
             <div>
                 <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Profile Settings</h1>
@@ -253,18 +256,6 @@ export const ClientProfilePage: React.FC = () => {
                         <span className="flex items-center gap-2">
                             <Lock className="w-4 h-4" />
                             Password
-                        </span>
-                    </button>
-                    <button
-                        onClick={() => handleTabSelect('telegram')}
-                        className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-150 ${activeTab === 'telegram'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
-                            }`}
-                    >
-                        <span className="flex items-center gap-2">
-                            <MessageCircle className="w-4 h-4" />
-                            Telegram
                         </span>
                     </button>
                     <button
@@ -462,11 +453,6 @@ export const ClientProfilePage: React.FC = () => {
                     </form>
                 )}
 
-                {/* Telegram Settings */}
-                {activeTab === 'telegram' && (
-                    <TelegramSettingsForm />
-                )}
-
                 {/* Appearance Settings */}
                 {activeTab === 'appearance' && (
                     <div className="space-y-4">
@@ -511,7 +497,7 @@ export const ClientProfilePage: React.FC = () => {
                 {/* Notification Settings */}
                 {activeTab === 'notifications' && (
                     <div className="pt-2">
-                        <NotificationSettings />
+                        <NotificationSettings showAdminTools={false} />
                     </div>
                 )}
 

@@ -3,35 +3,42 @@ import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api from '@/lib/api';
-import { useTicketSocket } from '@/hooks/useTicketSocket';
+import { TICKET_OFFLINE_POLL_MS, useTicketSocket } from '@/hooks/useTicketSocket';
 import { useAuth } from '@/stores/useAuth';
 import { TicketDetail, Agent } from '../components/ticket-detail/types';
+import { isTerminalStatus } from '../components/ticket-detail/constants';
 import { ImageLightbox } from '../components/ticket-detail/ImageLightbox';
 import { TicketHeader } from '../components/ticket-detail/TicketHeader';
 import { TicketChat } from '../components/ticket-detail/TicketChat';
 import { TicketHistory } from '../components/ticket-detail/TicketHistory';
-import { TicketSidebar } from '../components/ticket-detail/TicketSidebar';
+import { TicketSidebar, type StatusChangeExtra } from '../components/ticket-detail/TicketSidebar';
 import { TicketForwardDialog, type ForwardTargetTeam } from '../components/TicketForwardDialog';
 import { ExtendSlaModal } from '../components/ticket-detail/ExtendSlaModal';
 import { SetTicketReminderModal } from '../components/ticket-detail/SetTicketReminderModal';
 import { TicketDetailSkeleton } from '../components/TicketDetailSkeleton';
 import { KbSuggestionDialog } from '../components/KbSuggestionDialog';
 import { useTicketShortcuts } from '@/hooks/useTicketShortcuts';
-import { MessageSquare, History, SlidersHorizontal, Info, AlertTriangle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { AlertTriangle } from 'lucide-react';
+import { DetailTabs, countChatMessages, type DetailTab } from '../components/ticket-detail/DetailTabs';
 import { TicketAttributes } from '../types';
-import { validateFiles, FILE_SIZE_LIMITS } from '@/lib/file-validation';
+import { toUploadPercent, validateFiles } from '@/lib/file-validation';
+import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 import { PDFPreviewModal, usePDFPreview } from '@/features/reports/components/PDFPreviewModal';
+import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
+import { isHandledByTakeoverDialog, useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
+import { ReassignConfirmDialog } from '../components/ReassignConfirmDialog';
+import { StatusChangeCancelledError } from '../components/ticket-detail/statusChangeCancelled';
 
 export const BentoTicketDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
+    useMarkNotificationsRead(id ? { ticketId: id } : null);
     const queryClient = useQueryClient();
     const { user } = useAuth();
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const [forwardOpen, setForwardOpen] = useState(false);
     const [extendSlaOpen, setExtendSlaOpen] = useState(false);
     const [reminderOpen, setReminderOpen] = useState(false);
-    const [mainTab, setMainTab] = useState<'chat' | 'details' | 'activity'>('chat');
+    const [mainTab, setMainTab] = useState<DetailTab>('chat');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [suggestionsOpen, setSuggestionsOpen] = useState(false);
     const chatInputRef = useRef<HTMLTextAreaElement>(null);
@@ -78,6 +85,8 @@ export const BentoTicketDetailPage: React.FC = () => {
             return res.data;
         },
         staleTime: 5000,
+        // Socket is the primary channel; poll only while it's down so replies still arrive.
+        refetchInterval: isConnected ? false : TICKET_OFFLINE_POLL_MS,
     });
 
     const isAdmin = user?.role === 'ADMIN';
@@ -132,7 +141,7 @@ export const BentoTicketDetailPage: React.FC = () => {
         onPriority: () => toast.info('Priority shortcut pressed'),
         onReply: () => chatInputRef.current?.focus(),
         onResolve: () => {
-            if (ticket && ticket.status !== 'RESOLVED') {
+            if (ticket && !isTerminalStatus(ticket.status)) {
                 handleFieldChange('status', 'RESOLVED');
             }
         },
@@ -142,7 +151,7 @@ export const BentoTicketDetailPage: React.FC = () => {
     const [isResolving, setIsResolving] = useState(false);
 
     const handleResolveTicket = useCallback(async (resolutionNote?: string, files?: File[]) => {
-        if (!ticket || ticket.status === 'RESOLVED') return;
+        if (!ticket || isTerminalStatus(ticket.status)) return;
 
         setIsResolving(true);
         try {
@@ -176,28 +185,52 @@ export const BentoTicketDetailPage: React.FC = () => {
         }
     }, [ticket, id, queryClient]);
 
+    const statusTakeover = useStatusTakeover();
+    const { request: requestStatusTakeover } = statusTakeover;
+
+    // Status changes go through the PIC takeover confirmation (skipToast: its 409 opens a dialog).
+    const handleStatusChange = useCallback(async (status: string, extra?: StatusChangeExtra) => {
+        if (!ticket) return;
+        const send = async (takeover: TakeoverOptions) => {
+            try {
+                await api.patch(`/tickets/${id}/status`, { status, ...takeover, ...extra }, { skipToast: true });
+            } catch (err) {
+                if (!isHandledByTakeoverDialog(err, takeover)) toast.error(getApiErrorMessage(err, 'Failed to update status'));
+                throw err;
+            }
+        };
+        const applied = await requestStatusTakeover(ticket, status, send);
+        if (!applied) throw new StatusChangeCancelledError();
+        queryClient.invalidateQueries({ queryKey: ['ticket', id] });
+        queryClient.invalidateQueries({ queryKey: ['tickets'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    }, [ticket, id, queryClient, requestStatusTakeover]);
+
     // Auto-save per-field handler
     const handleFieldChange = useCallback(async (
         field: 'assignee' | 'status' | 'priority' | 'category' | 'device',
         value: string,
         reasonOrNote?: string,
-        files?: File[]
+        files?: File[],
+        extra?: StatusChangeExtra,
     ) => {
         if (field === 'status' && value === 'RESOLVED') {
             await handleResolveTicket(reasonOrNote, files);
             return;
         }
+        if (field === 'status') {
+            await handleStatusChange(value, extra);
+            return;
+        }
 
         const endpointMap = {
             assignee: `/tickets/${id}/assign`,
-            status: `/tickets/${id}/status`,
             priority: `/tickets/${id}/priority`,
             category: `/tickets/${id}/category`,
             device: `/tickets/${id}/device`,
         };
         const bodyMap = {
             assignee: { assigneeId: value || undefined, reason: reasonOrNote },
-            status: { status: value },
             priority: { priority: value },
             category: { category: value },
             device: { device: value },
@@ -206,14 +239,26 @@ export const BentoTicketDetailPage: React.FC = () => {
             await api.patch(endpointMap[field], bodyMap[field]);
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
-            if (field === 'status' || field === 'assignee') {
+            if (field === 'assignee') {
                 queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
             }
         } catch {
             toast.error(`Failed to update ${field}`);
             throw new Error(`Failed to update ${field}`);
         }
-    }, [id, queryClient, handleResolveTicket]);
+    }, [id, queryClient, handleResolveTicket, handleStatusChange]);
+
+    const handleRescheduleVendorVisit = useCallback(async (vendorVisitAt: string, vendorNote: string) => {
+        try {
+            await api.patch(`/tickets/${id}/vendor-visit`, { vendorVisitAt, vendorNote }, { skipToast: true });
+            toast.success('Jadwal vendor diperbarui');
+            queryClient.invalidateQueries({ queryKey: ['ticket', id] });
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+        } catch (err) {
+            toast.error(getApiErrorMessage(err, 'Gagal mengubah jadwal vendor'));
+            throw err;
+        }
+    }, [id, queryClient]);
 
     const handleForwardTicket = useCallback(async (targetTeam: ForwardTargetTeam, reason: string) => {
         try {
@@ -248,19 +293,23 @@ export const BentoTicketDetailPage: React.FC = () => {
         cancelMutation.mutate(undefined);
     };
 
-    const handleSendMessage = async (content: string, files?: FileList | null, isInternal: boolean = false) => {
+    const handleSendMessage = async (
+        content: string,
+        files?: FileList | null,
+        isInternal: boolean = false,
+        onUploadProgress?: (percent: number) => void,
+    ) => {
         if (files && files.length > 0) {
-            const validation = validateFiles(Array.from(files), {
-                maxSize: FILE_SIZE_LIMITS.ATTACHMENT,
-                maxFiles: 5,
-            });
+            const validation = validateFiles(Array.from(files));
             if (!validation.valid) {
                 toast.error(validation.error);
-                return;
+                // Reject (not return) so TicketChat keeps the draft instead of clearing it.
+                throw new Error(validation.error);
             }
         }
 
         // Optimistic update
+        const previewUrls = files ? Array.from(files).map((f) => URL.createObjectURL(f)) : [];
         const optimisticMessage = {
             id: `temp-${Date.now()}`,
             content,
@@ -271,7 +320,7 @@ export const BentoTicketDetailPage: React.FC = () => {
                 id: currentUser.id,
                 fullName: currentUser.fullName,
             },
-            attachments: files ? Array.from(files).map((f) => URL.createObjectURL(f)) : [],
+            attachments: previewUrls,
         };
 
         queryClient.setQueryData(['ticket', id], (oldData: TicketDetail | undefined) => {
@@ -295,16 +344,21 @@ export const BentoTicketDetailPage: React.FC = () => {
 
             await api.post(`/tickets/${id}/reply`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
+                skipToast: true,
+                onUploadProgress: (e) => onUploadProgress?.(toUploadPercent(e.loaded, e.total)),
             });
 
             if (!isInternal) {
                 toast.success('Message sent');
             }
-            queryClient.invalidateQueries({ queryKey: ['ticket', id] });
+            await queryClient.invalidateQueries({ queryKey: ['ticket', id] });
         } catch (error) {
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
-            toast.error('Failed to send message');
+            toast.error(getApiErrorMessage(error, 'Gagal mengirim pesan'));
             throw error;
+        } finally {
+            // The optimistic previews are replaced by server URLs once the ticket refetches.
+            previewUrls.forEach((url) => URL.revokeObjectURL(url));
         }
     };
 
@@ -343,9 +397,11 @@ export const BentoTicketDetailPage: React.FC = () => {
     }
     if (!ticket) return <div className="p-8 text-center text-rose-500 font-medium">Ticket not found</div>;
 
-    const isClosed = ticket.status === 'CANCELLED' || ticket.status === 'RESOLVED';
-    const canExtendSla = !isClosed && (isAdmin || Boolean(user?.role?.startsWith('AGENT')));
-    const messageCount = ticket.messages?.filter(m => !m.isSystemMessage).length || 0;
+    const isClosed = isTerminalStatus(ticket.status);
+    // Filed by me but handled by another team: view & chat only.
+    const isRequesterView = ticket.viewerAccess === 'requester';
+    const canAct = !isClosed && !isRequesterView;
+    const canExtendSla = canAct && (isAdmin || Boolean(user?.role?.startsWith('AGENT')));
 
     const handleToggleSidebar = () => {
         if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -356,24 +412,27 @@ export const BentoTicketDetailPage: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden bg-slate-100/50 dark:bg-slate-950 text-slate-900 dark:text-slate-200">
-            {/* ── Top Header with SLA + Quick Actions ── */}
+        <div className="flex h-full w-full flex-col overflow-hidden text-slate-900 dark:text-slate-200">
+          <div className="ticket-detail">
+            <section className="ticket-detail-surface flex-1" aria-label="Percakapan">
+            {/* ── Compact header: number, readonly bubbles, title, actions ── */}
             <TicketHeader
                 ticket={ticket}
-                onCancel={!isClosed ? handleCancelTicket : undefined}
+                onCancel={canAct ? handleCancelTicket : undefined}
                 isCancelling={cancelMutation.isPending}
-                onResolve={!isClosed ? handleResolveTicket : undefined}
+                onResolve={canAct ? handleResolveTicket : undefined}
                 isResolving={isResolving}
-                onForward={!isClosed ? () => setForwardOpen(true) : undefined}
+                onForward={canAct ? () => setForwardOpen(true) : undefined}
                 onExtendSla={canExtendSla ? () => setExtendSlaOpen(true) : undefined}
-                onSetReminder={!isClosed ? () => setReminderOpen(true) : undefined}
+                onSetReminder={canAct ? () => setReminderOpen(true) : undefined}
                 isSidebarOpen={isSidebarOpen || mainTab === 'details'}
                 onToggleSidebar={handleToggleSidebar}
+                tabs={<DetailTabs value={mainTab} onChange={setMainTab} messageCount={countChatMessages(ticket.messages)} />}
             />
 
             {/* Critical Priority Banner Alert for Agents */}
             {ticket.priority === 'CRITICAL' && (
-                <div className="shrink-0 bg-red-500/10 dark:bg-red-950/40 border-b border-red-500/30 px-5 py-3 flex items-center justify-between gap-4 animate-in fade-in duration-300">
+                <div className="shrink-0 bg-red-500/10 dark:bg-red-950/40 border-b border-red-500/30 px-5 py-3 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 min-w-0">
                         <div className="p-2 rounded-xl bg-red-500/20 text-red-600 dark:text-red-400 shrink-0 ring-1 ring-red-500/30 animate-pulse">
                             <AlertTriangle className="w-5 h-5" />
@@ -396,109 +455,11 @@ export const BentoTicketDetailPage: React.FC = () => {
                 </div>
             )}
 
-            {/* ── Main Work Area ── */}
-            <div className="flex flex-1 min-h-0 overflow-hidden">
-
-                {/* LEFT & CENTER: Conversation Timeline / Activity / Mobile Details */}
-                <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-slate-100/60 dark:bg-[#090d16]">
-
-                    {/* Navigation Tabs Header */}
-                    <div className="flex items-center justify-between border-b border-slate-200/90 dark:border-slate-800 px-3 sm:px-6 shrink-0 bg-slate-50/90 dark:bg-slate-900/95 backdrop-blur-md">
-                        {/* Desktop Tabs (>= lg) */}
-                        <div className="hidden lg:flex gap-6">
-                            <button
-                                type="button"
-                                onClick={() => setMainTab('chat')}
-                                className={cn(
-                                    "py-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2",
-                                    mainTab === 'chat'
-                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
-                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                                <span>Conversation</span>
-                                <span className={cn(
-                                    "px-2 py-0.5 rounded-full text-[10px] font-bold",
-                                    mainTab === 'chat'
-                                        ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300"
-                                        : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                                )}>
-                                    {messageCount}
-                                </span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setMainTab('activity')}
-                                className={cn(
-                                    "py-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2",
-                                    mainTab === 'activity'
-                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
-                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                <History className="w-3.5 h-3.5" />
-                                <span>Activity Logs</span>
-                            </button>
-                        </div>
-
-                        {/* Mobile Tabs (< lg) */}
-                        <div className="flex lg:hidden items-center justify-around w-full gap-1">
-                            <button
-                                type="button"
-                                onClick={() => setMainTab('chat')}
-                                className={cn(
-                                    "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
-                                    mainTab === 'chat'
-                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
-                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                                <span>Chat</span>
-                                <span className={cn(
-                                    "px-1.5 py-0.2 rounded-full text-[10px] font-bold",
-                                    mainTab === 'chat'
-                                        ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300"
-                                        : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                                )}>
-                                    {messageCount}
-                                </span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setMainTab('details')}
-                                className={cn(
-                                    "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
-                                    mainTab === 'details'
-                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
-                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                <SlidersHorizontal className="w-3.5 h-3.5" />
-                                <span>Properties</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setMainTab('activity')}
-                                className={cn(
-                                    "flex-1 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
-                                    mainTab === 'activity'
-                                        ? "border-blue-600 text-blue-600 dark:text-blue-400"
-                                        : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                )}
-                            >
-                                <History className="w-3.5 h-3.5" />
-                                <span>Logs</span>
-                            </button>
-                        </div>
-                    </div>
+                {/* Conversation / Activity / Mobile Details */}
+                <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
 
                     {/* Tab Content */}
-                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-slate-100/60 dark:bg-[#090d16]" ref={chatSectionRef}>
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden" ref={chatSectionRef}>
                         {mainTab === 'chat' ? (
                             <TicketChat
                                 ticket={ticket}
@@ -510,50 +471,53 @@ export const BentoTicketDetailPage: React.FC = () => {
                                 onTypingStop={sendTypingStop}
                             />
                         ) : mainTab === 'details' ? (
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 bg-slate-100/70 dark:bg-slate-900/70">
+                            <div className="chat-stream flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4">
                                 <TicketSidebar
                                     ticket={ticket}
                                     agents={agents}
                                     slaConfigs={slaConfigs}
                                     attributes={attributes}
                                     onAssigneeChange={(v, reason) => handleFieldChange('assignee', v, reason)}
-                                    onStatusChange={(v, note, files) => handleFieldChange('status', v, note, files)}
+                                    onStatusChange={(v, note, files, extra) => handleFieldChange('status', v, note, files, extra)}
+                                    onRescheduleVendorVisit={handleRescheduleVendorVisit}
                                     onPriorityChange={(v) => handleFieldChange('priority', v)}
                                     onCategoryChange={(v) => handleFieldChange('category', v)}
                                     onDeviceChange={(v) => handleFieldChange('device', v)}
-                                    onForward={handleForwardTicket}
+                                    onForward={canAct ? handleForwardTicket : undefined}
                                     onExtendSla={canExtendSla ? () => setExtendSlaOpen(true) : undefined}
-                                    onSetReminder={!isClosed ? () => setReminderOpen(true) : undefined}
+                                    onSetReminder={canAct ? () => setReminderOpen(true) : undefined}
                                 />
                             </div>
                         ) : (
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 bg-slate-100/50 dark:bg-slate-900/50">
+                            <div className="chat-stream flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6">
                                 <TicketHistory ticket={ticket} />
                             </div>
                         )}
                     </div>
                 </div>
+            </section>
 
-                {/* RIGHT: Desktop Ticket Inspector & Properties Sidebar (>= lg only) */}
+                {/* Desktop inspector panels (>= lg only) */}
                 {isSidebarOpen && (
-                    <aside className="hidden lg:flex w-80 lg:w-88 shrink-0 flex-col bg-slate-100/70 dark:bg-slate-900/70 border-l border-slate-200/90 dark:border-slate-800 overflow-y-auto custom-scrollbar">
+                    <aside className="ticket-detail-inspector hidden lg:flex custom-scrollbar" aria-label="Info tiket">
                         <TicketSidebar
                             ticket={ticket}
                             agents={agents}
                             slaConfigs={slaConfigs}
                             attributes={attributes}
                             onAssigneeChange={(v, reason) => handleFieldChange('assignee', v, reason)}
-                            onStatusChange={(v, note, files) => handleFieldChange('status', v, note, files)}
+                            onStatusChange={(v, note, files, extra) => handleFieldChange('status', v, note, files, extra)}
+                                    onRescheduleVendorVisit={handleRescheduleVendorVisit}
                             onPriorityChange={(v) => handleFieldChange('priority', v)}
                             onCategoryChange={(v) => handleFieldChange('category', v)}
                             onDeviceChange={(v) => handleFieldChange('device', v)}
-                            onForward={handleForwardTicket}
+                            onForward={canAct ? handleForwardTicket : undefined}
                             onExtendSla={canExtendSla ? () => setExtendSlaOpen(true) : undefined}
-                            onSetReminder={!isClosed ? () => setReminderOpen(true) : undefined}
+                            onSetReminder={canAct ? () => setReminderOpen(true) : undefined}
                         />
                     </aside>
                 )}
-            </div>
+          </div>
 
             {/* Lightbox for Images */}
             {lightboxImage && (
@@ -615,12 +579,17 @@ export const BentoTicketDetailPage: React.FC = () => {
                         ticketNumber: ticket.ticketNumber,
                         title: ticket.title,
                         slaTarget: ticket.slaTarget,
+                        status: ticket.status,
+                        slaRemainingMinutes: ticket.slaRemainingMinutes,
                         priority: ticket.priority,
                     }}
                     onConfirm={handleExtendSla}
                     isLoading={extendSlaMutation.isPending}
                 />
             )}
+
+            {/* PIC takeover confirmation when starting a ticket handled by another agent */}
+            {statusTakeover.dialogProps && <ReassignConfirmDialog {...statusTakeover.dialogProps} />}
 
             {/* KB suggestion popup after visiting a fresh ticket */}
             <KbSuggestionDialog

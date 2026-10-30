@@ -1,18 +1,26 @@
-import React from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, FileText, Download, Calendar, ShieldCheck,
   Activity, CheckCircle2, ClipboardCheck, Database,
+  Server, Eye, FileEdit, Ban, Loader2, Image as ImageIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useEformDetail, useGetEformPdf } from '../api/eform-request.api';
+import { useEformDetail, useGetEformPdf, useFulfillRequest, useRejectRequest } from '../api/eform-request.api';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
 import { EformStatusPipeline, EFormStatus } from '../components/eform/EformStatusPipeline';
-import { EformTypeBadge, getTypeConfig } from '../components/eform/eform-vocabulary';
+import { EformTypeBadge, getTypeConfig, ICT_ROLES } from '../components/eform/eform-vocabulary';
+import { DocumentNumberField, GmApprovalPanel } from '../components/eform/EformPaperwork';
 import { useAuth } from '@/stores/useAuth';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+import { useEformBasePath } from '../hooks/useEformBasePath';
+import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
 
-const ICT_ROLES = ['ADMIN', 'AGENT_ADMIN'];
 
 const SIGNER_ROLE_LABELS: Record<string, string> = {
   REQUESTER: 'Pemohon',
@@ -22,31 +30,78 @@ const SIGNER_ROLE_LABELS: Record<string, string> = {
 
 export const EformAccessDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  useMarkNotificationsRead(id ? { referenceId: id } : null);
   const navigate = useNavigate();
-  const location = useLocation();
   const { user } = useAuth();
   const { data: request, isPending, isError } = useEformDetail(id!);
   const downloadPdf = useGetEformPdf(id!);
 
   const isCurrentApprover = request?.currentApproverId === user?.id;
   const isRequester = request?.requesterId === user?.id;
-  const isICT = ICT_ROLES.includes(user?.role || '');
+  const isICT = (ICT_ROLES as readonly string[]).includes(user?.role || '');
 
-  const basePath = location.pathname.startsWith('/client') ? '/client'
-    : location.pathname.startsWith('/manager') ? '/manager'
-    : '';
+  const basePath = useEformBasePath();
+
+  const fulfillMutation = useFulfillRequest();
+  const rejectMutation = useRejectRequest();
+
+  const [fulfillOpen, setFulfillOpen] = useState(false);
+  const [fulfillNotes, setFulfillNotes] = useState('');
+  const [fulfillAccountName, setFulfillAccountName] = useState('');
+
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [selectedLightboxImage, setSelectedLightboxImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (request) {
+      setFulfillAccountName(request.formData?.synologyAccountName || request.formData?.fulfilledAccountName || '');
+    }
+  }, [request]);
+
+  const handleFulfill = async () => {
+    if (!fulfillNotes.trim()) {
+      toast.error('Catatan realisasi wajib diisi');
+      return;
+    }
+    try {
+      await fulfillMutation.mutateAsync({
+        id: id!,
+        notes: fulfillNotes.trim(),
+        accountName: fulfillAccountName.trim() || undefined,
+      });
+      toast.success('Permintaan akses folder berhasil direalisasikan');
+      setFulfillOpen(false);
+    } catch {
+      toast.error('Gagal merealisasikan permintaan akses');
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectReason.trim()) {
+      toast.error('Alasan penolakan wajib diisi');
+      return;
+    }
+    try {
+      await rejectMutation.mutateAsync({
+        id: id!,
+        reason: rejectReason.trim(),
+      });
+      toast.success('Permintaan berhasil ditolak');
+      setRejectOpen(false);
+    } catch {
+      toast.error('Gagal menolak permintaan');
+    }
+  };
 
   if (isPending) {
     return (
-      <div className="mx-auto max-w-4xl space-y-8 px-4 py-8">
-        <div className="flex items-center justify-between">
-          <div className="h-9 w-28 animate-pulse rounded-xl bg-muted" />
-          <div className="h-9 w-36 animate-pulse rounded-xl bg-muted" />
-        </div>
-        <div className="h-36 animate-pulse rounded-2xl bg-muted" />
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-          <div className="h-80 animate-pulse rounded-2xl bg-muted lg:col-span-2" />
-          <div className="h-56 animate-pulse rounded-2xl bg-muted" />
+      <div className="mx-auto max-w-4xl space-y-6 pt-1 pb-8 animate-pulse">
+        <div className="h-8 w-48 rounded-xl bg-muted" />
+        <div className="h-64 rounded-2xl border border-border bg-card p-6" />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="h-96 rounded-2xl border border-border bg-card p-6 lg:col-span-2" />
+          <div className="h-96 rounded-2xl border border-border bg-card p-6" />
         </div>
       </div>
     );
@@ -66,6 +121,15 @@ export const EformAccessDetailPage: React.FC = () => {
   }
 
   const type = getTypeConfig(request.formType);
+  const screenshots: string[] =
+    Array.isArray(request.formData?.screenshots)
+      ? request.formData.screenshots
+      : (Array.isArray(request.formData?.folderScreenshots) ? request.formData.folderScreenshots : []);
+  const hasScreenshots = request.formType === 'SYNOLOGY_NAS' && screenshots.length > 0;
+  const hasNasSelections =
+    request.formType === 'SYNOLOGY_NAS' &&
+    Array.isArray(request.formData?.nasSelections) &&
+    request.formData.nasSelections.length > 0;
 
   const detailBlocks = [
     request.formType === 'VPN' && request.formData?.kebutuhanAkses
@@ -77,11 +141,53 @@ export const EformAccessDetailPage: React.FC = () => {
     request.formType === 'NETWORK' && request.networkPurpose
       ? { label: 'Tujuan akses jaringan', value: request.networkPurpose }
       : null,
+    request.formType === 'FLASHDISK' && request.formData?.hostname
+      ? { label: 'Hostname / Nama Komputer', value: request.formData.hostname }
+      : null,
+    request.formType === 'FLASHDISK' && request.formData?.accessLevel
+      ? {
+          label: 'Tipe Akses USB',
+          value: request.formData.accessLevel === 'READ_WRITE'
+            ? 'Read & Write (Baca & Tulis)'
+            : 'Read Only (Hanya Baca)',
+        }
+      : null,
+    request.formType === 'FLASHDISK' && request.formData?.flashdiskInfo
+      ? { label: 'Keterangan Flashdisk', value: request.formData.flashdiskInfo }
+      : null,
+    request.formType === 'EMAIL' && request.formData?.proposedEmail
+      ? {
+          label: 'Usulan Email',
+          value: request.formData.proposedEmail.includes('@')
+            ? request.formData.proposedEmail
+            : `${request.formData.proposedEmail}${request.formData?.emailDomain || '@kapalapi.co.id'}`,
+        }
+      : null,
+    request.formType === 'EMAIL' && request.formData?.accountType
+      ? {
+          label: 'Tipe Akun Email',
+          value: request.formData.accountType === 'SHARING' ? 'Sharing / Departemen' : 'Personal / Karyawan',
+        }
+      : null,
+    request.formType === 'SYNOLOGY_NAS' && !hasNasSelections && request.formData?.folderPath
+      ? { label: 'Folder / Path NAS', value: request.formData.folderPath }
+      : null,
+    request.formType === 'SYNOLOGY_NAS' && !hasNasSelections && request.formData?.accessLevel
+      ? {
+          label: 'Hak Akses NAS',
+          value: request.formData.accessLevel === 'READ_WRITE'
+            ? 'Read & Write (Baca & Tulis)'
+            : 'Read Only (Hanya Baca)',
+        }
+      : null,
+    request.formType === 'SYNOLOGY_NAS'
+      ? { label: 'Tipe Akun', value: 'Akun Sharing (Shared Folder)' }
+      : null,
     { label: 'Alasan pengajuan', value: request.formData?.alasan || '—' },
   ].filter(Boolean) as Array<{ label: string; value: string }>;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 px-3 sm:px-6 py-6 sm:py-8 animate-fade-in-up">
+    <div className="mx-auto max-w-4xl space-y-6 pt-1 pb-8">
       {/* Header */}
       <div className="flex items-center justify-between gap-2.5">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="rounded-xl font-semibold cursor-pointer shrink-0">
@@ -113,7 +219,7 @@ export const EformAccessDetailPage: React.FC = () => {
             <div>
               <p className="font-bold text-sm text-foreground">Pengajuan Akses Telah Terealisasi (ACC)</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Dokumen resmi F-ICT-04 telah lengkap dengan tanda tangan pemohon, atasan, dan verifikasi ICT.
+                Dokumen resmi {request.documentNumber ?? 'F-ICT-04'} telah lengkap dengan tanda tangan pemohon, atasan{request.gmApprovalFileName ? ', GM' : ''}, dan verifikasi ICT.
               </p>
             </div>
           </div>
@@ -136,26 +242,44 @@ export const EformAccessDetailPage: React.FC = () => {
         />
       </div>
 
+      <GmApprovalPanel request={request} isICT={isICT} onReject={() => setRejectOpen(true)} />
+
       {/* Contextual action */}
       {isCurrentApprover && request.status === EFormStatus.PENDING_MANAGER && (
         <Button
-          onClick={() => navigate(`${basePath}/eform-access/${id}/approve`)}
+          onClick={() => navigate(`${basePath}/${id}/approve`)}
           className="h-12 w-full rounded-xl text-sm font-bold shadow-md cursor-pointer"
         >
           <ClipboardCheck className="mr-2 h-4 w-4" /> Tinjau &amp; setujui permintaan
         </Button>
       )}
       {isICT && request.status === EFormStatus.PENDING_ICT && (
-        <Button
-          onClick={() => navigate(`${basePath}/eform-access/${id}/credentials`)}
-          className="h-12 w-full rounded-xl text-sm font-bold shadow-md cursor-pointer"
-        >
-          <Database className="mr-2 h-4 w-4" /> Siapkan kredensial akses
-        </Button>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Button
+            onClick={() => navigate(`${basePath}/${id}/credentials`)}
+            className="h-12 rounded-xl text-sm font-bold shadow-md cursor-pointer"
+          >
+            <Database className="mr-2 h-4 w-4" /> Siapkan kredensial akses
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setFulfillOpen(true)}
+            className="h-12 rounded-xl text-sm font-bold cursor-pointer"
+          >
+            <CheckCircle2 className="mr-2 h-4 w-4" /> Realisasi tanpa kredensial
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setRejectOpen(true)}
+            className="h-12 rounded-xl border-destructive/40 text-sm font-bold text-destructive hover:bg-destructive/5 cursor-pointer"
+          >
+            <Ban className="mr-2 h-4 w-4" /> Tolak
+          </Button>
+        </div>
       )}
       {isRequester && request.status === EFormStatus.CONFIRMED && (
         <Button
-          onClick={() => navigate(`${basePath}/eform-access/${id}/credentials`)}
+          onClick={() => navigate(`${basePath}/${id}/credentials`)}
           className="h-12 w-full rounded-xl text-sm font-bold shadow-md cursor-pointer"
         >
           <ShieldCheck className="mr-2 h-4 w-4" /> Lihat kredensial akses
@@ -179,10 +303,9 @@ export const EformAccessDetailPage: React.FC = () => {
                 <dd className="mt-1 text-sm font-bold text-foreground">{request.requesterName}</dd>
               </div>
               <div>
-                <dt className="text-xs font-semibold text-muted-foreground">ID transaksi</dt>
-                <dd className="mt-1 font-mono text-sm font-bold text-primary">
-                  #{request.id.slice(0, 8).toUpperCase()}
-                </dd>
+                <dt className="text-xs font-semibold text-muted-foreground">Nomor dokumen</dt>
+                <DocumentNumberField request={request} canEdit={isICT} />
+                <p className="mt-0.5 font-mono text-xs text-muted-foreground">ID #{request.id.slice(0, 8).toUpperCase()}</p>
               </div>
               <div>
                 <dt className="text-xs font-semibold text-muted-foreground">Masa berlaku</dt>
@@ -198,6 +321,110 @@ export const EformAccessDetailPage: React.FC = () => {
                 </dd>
               </div>
             </dl>
+
+            {/* NAS Selections Table */}
+            {hasNasSelections && (
+              <div className="space-y-3 border-t border-border pt-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="flex items-center gap-2 text-sm font-bold text-foreground">
+                    <Server size={16} className="text-primary" />
+                    Daftar Folder Synology NAS ({request.formData.nasSelections.length} folder)
+                  </h3>
+                </div>
+                <div className="overflow-hidden rounded-xl border border-border">
+                  <table className="w-full text-left text-xs">
+                    <thead className="border-b border-border bg-muted/50 font-semibold text-muted-foreground">
+                      <tr>
+                        <th className="py-2.5 px-3 w-12 text-center">No</th>
+                        <th className="py-2.5 px-3">Lokasi NAS</th>
+                        <th className="py-2.5 px-3">Direktori / Path Folder</th>
+                        <th className="py-2.5 px-3 text-right sm:text-left">Hak Akses</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border bg-card">
+                      {request.formData.nasSelections.map((sel: any, idx: number) => {
+                        const isRW = sel.accessLevel === 'READ_WRITE';
+                        return (
+                          <tr key={idx} className="hover:bg-muted/30 transition-colors">
+                            <td className="py-2.5 px-3 text-center text-muted-foreground font-mono">
+                              {idx + 1}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
+                                <Server size={13} className="text-primary/70 shrink-0" />
+                                {sel.nasName || `Synology ${sel.nasId}`}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 font-mono text-xs text-foreground/90 break-all">
+                              {sel.folderPath}
+                            </td>
+                            <td className="py-2.5 px-3 text-right sm:text-left">
+                              <span
+                                className={cn(
+                                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border',
+                                  isRW
+                                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                                    : 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30'
+                                )}
+                              >
+                                {isRW ? (
+                                  <>
+                                    <FileEdit size={11} className="shrink-0" />
+                                    <span>Read &amp; Write</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Eye size={11} className="shrink-0" />
+                                    <span>Read Only</span>
+                                  </>
+                                )}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Lampiran Bukti Folder (Tangkapan Layar) */}
+            {hasScreenshots && (
+              <div className="space-y-3 border-t border-border pt-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="flex items-center gap-2 text-sm font-bold text-foreground">
+                    <ImageIcon size={16} className="text-primary" />
+                    Lampiran Bukti Folder ({screenshots.length} screenshot)
+                  </h3>
+                  <span className="text-[11px] text-muted-foreground">
+                    Klik gambar untuk memperbesar
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {screenshots.map((url: string, idx: number) => (
+                    <div
+                      key={idx}
+                      onClick={() => setSelectedLightboxImage(url)}
+                      className="group relative aspect-video rounded-xl border border-border bg-muted/20 overflow-hidden cursor-pointer shadow-2xs hover:border-primary/50 transition-all"
+                    >
+                      <img
+                        src={url}
+                        alt={`Screenshot folder ${idx + 1}`}
+                        className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1.5 text-xs font-semibold">
+                        <Eye size={16} />
+                        <span>Perbesar</span>
+                      </div>
+                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-1.5 text-[10px] text-white/90 font-mono">
+                        Bukti #{idx + 1}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <dl className="space-y-3 border-t border-border pt-6">
               {detailBlocks.map(({ label, value }) => (
@@ -253,10 +480,146 @@ export const EformAccessDetailPage: React.FC = () => {
           </div>
 
           <p className="px-1 text-xs leading-relaxed text-muted-foreground">
-            {type.description}. Permintaan diteruskan ke atasan Anda, lalu ke tim ICT untuk disiapkan.
+            {type.description}. {request.formType === 'SYNOLOGY_NAS'
+              ? 'Permintaan langsung disiapkan tim ICT.'
+              : 'Permintaan diteruskan ke atasan Anda, ditandatangani GM, lalu disiapkan tim ICT.'}
           </p>
         </aside>
       </div>
+      {/* Dialog Fulfill Request (ICT Realization) */}
+      <Dialog open={fulfillOpen} onOpenChange={setFulfillOpen}>
+        <DialogContent size="default">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-foreground">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              Realisasi Akses Folder Synology
+            </DialogTitle>
+            <DialogDescription>
+              Konfirmasikan bahwa folder yang diminta telah ditambahkan ke akun Synology pemohon tanpa perlu menerbitkan kredensial login baru.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Nama Akun Synology
+              </label>
+              <Input
+                value={fulfillAccountName}
+                onChange={e => setFulfillAccountName(e.target.value)}
+                placeholder="Nama akun pemohon di Synology"
+                className="font-mono text-sm"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Nama akun yang diberikan izin folder (default dari isian form pemohon).
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Catatan Realisasi ICT <span className="text-destructive">*</span>
+              </label>
+              <Textarea
+                value={fulfillNotes}
+                onChange={e => setFulfillNotes(e.target.value)}
+                placeholder="Contoh: Hak akses Read & Write ke folder IT_Projects telah diberikan pada akun bagas.pratama."
+                className="min-h-[90px] text-sm resize-none"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setFulfillOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              onClick={handleFulfill}
+              disabled={fulfillMutation.isPending || !fulfillNotes.trim()}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+            >
+              {fulfillMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Menyimpan…
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="mr-2 h-4 w-4" /> Selesaikan Akses
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Reject Request */}
+      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+        <DialogContent size="default">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Ban className="h-5 w-5" />
+              Tolak Permintaan Akses
+            </DialogTitle>
+            <DialogDescription>
+              Berikan alasan mengapa permintaan akses ini ditolak. Alasan ini akan tercatat dalam audit trail dan ditampilkan pada pemohon.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 py-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Alasan Penolakan <span className="text-destructive">*</span>
+            </label>
+            <Textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="Contoh: Folder yang diminta tidak sesuai dengan otorisasi departemen pemohon..."
+              className="min-h-[100px] text-sm resize-none"
+            />
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setRejectOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleReject}
+              disabled={rejectMutation.isPending || !rejectReason.trim()}
+              className="font-bold"
+            >
+              {rejectMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Memproses…
+                </>
+              ) : (
+                <>
+                  <Ban className="mr-2 h-4 w-4" /> Tolak Permintaan
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lightbox Modal for Screenshots */}
+      <Dialog open={!!selectedLightboxImage} onOpenChange={open => !open && setSelectedLightboxImage(null)}>
+        <DialogContent className="max-w-4xl w-full p-4 rounded-2xl bg-card">
+          <DialogHeader className="border-b border-border/60 pb-2">
+            <DialogTitle className="text-sm font-bold flex items-center gap-2">
+              <ImageIcon className="text-primary h-4 w-4" />
+              <span>Pratinjau Bukti Screenshot Folder</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center p-2 max-h-[75vh] overflow-auto">
+            {selectedLightboxImage && (
+              <img
+                src={selectedLightboxImage}
+                alt="Bukti screenshot folder"
+                className="max-w-full max-h-[70vh] object-contain rounded-xl border border-border shadow-md"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

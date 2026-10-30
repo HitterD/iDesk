@@ -24,6 +24,17 @@ import { RolesGuard } from '../../shared/core/guards/roles.guard';
 import { Roles } from '../../shared/core/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 
+const SITE_READ_ROLES = [
+    UserRole.ADMIN,
+    UserRole.MANAGER,
+    UserRole.AGENT,
+    UserRole.AGENT_ADMIN,
+    UserRole.AGENT_OPERATIONAL_SUPPORT,
+    UserRole.AGENT_ORACLE,
+    UserRole.AGENT_WEB_DEV,
+    UserRole.AGENT_MOBILE_DEV,
+] as const;
+
 @ApiTags('Sites')
 @ApiBearerAuth()
 @Controller('sites')
@@ -33,57 +44,28 @@ export class SitesController {
 
     @Get()
     @ApiOperation({ summary: 'Get all sites' })
-    @Roles(
-        UserRole.ADMIN,
-        UserRole.MANAGER,
-        UserRole.AGENT_ORACLE,
-        UserRole.AGENT_OPERATIONAL_SUPPORT,
-        UserRole.AGENT_ADMIN,
-        UserRole.AGENT,
-    )
+    @Roles(...SITE_READ_ROLES)
     findAll() {
         return this.sitesService.findAll();
     }
 
     @Get('active')
     @ApiOperation({ summary: 'Get all active sites' })
-    @Roles(
-        UserRole.ADMIN,
-        UserRole.MANAGER,
-        UserRole.AGENT,
-        UserRole.AGENT_OPERATIONAL_SUPPORT,
-        UserRole.AGENT_ORACLE,
-        UserRole.AGENT_ADMIN,
-        UserRole.USER,
-    )
+    @Roles(...SITE_READ_ROLES, UserRole.USER)
     findActive() {
         return this.sitesService.findActive();
     }
 
     @Get('stats')
     @ApiOperation({ summary: 'Get site statistics' })
-    @Roles(
-        UserRole.ADMIN,
-        UserRole.MANAGER,
-        UserRole.AGENT_ORACLE,
-        UserRole.AGENT_OPERATIONAL_SUPPORT,
-        UserRole.AGENT_ADMIN,
-        UserRole.AGENT,
-    )
+    @Roles(...SITE_READ_ROLES)
     getSiteStats() {
         return this.sitesService.getSiteStats();
     }
 
     @Get(':id')
     @ApiOperation({ summary: 'Get site by ID' })
-    @Roles(
-        UserRole.ADMIN,
-        UserRole.MANAGER,
-        UserRole.AGENT_ORACLE,
-        UserRole.AGENT_OPERATIONAL_SUPPORT,
-        UserRole.AGENT_ADMIN,
-        UserRole.AGENT,
-    )
+    @Roles(...SITE_READ_ROLES)
     findOne(@Param('id', ParseUUIDPipe) id: string) {
         return this.sitesService.findOne(id);
     }

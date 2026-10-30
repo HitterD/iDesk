@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM node:18-alpine as builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -17,18 +17,14 @@ ENV VITE_SOCKET_URL=$VITE_SOCKET_URL
 RUN npm run build --prefix apps/frontend
 
 # Stage 2: Serve
-FROM nginx:1.25-alpine
+FROM nginx:1.28-alpine
 
-# M10 Security: Configure Nginx to run as non-root user
-RUN chown -R nginx:nginx /var/cache/nginx /var/run /var/log/nginx && \
-    sed -i '/user  nginx;/d' /etc/nginx/nginx.conf
-
-# Add non-root user
-USER nginx
-
-COPY --from=builder --chown=nginx:nginx /app/apps/frontend/dist /usr/share/nginx/html
-COPY --chown=nginx:nginx apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/apps/frontend/dist /usr/share/nginx/html
+COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 8080
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -q --spider http://127.0.0.1:8080/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

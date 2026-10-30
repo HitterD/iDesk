@@ -1,11 +1,12 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DeepPartial, MoreThanOrEqual } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { Ticket, TicketStatus, TicketSource, TicketPriority, TicketType, HandlingTeam } from '../entities/ticket.entity';
-import { TicketMessage } from '../entities/ticket-message.entity';
+import { AttachmentInfo, TicketMessage } from '../entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
+import { UserRole } from '../../users/enums/user-role.enum';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { CacheService, CacheInvalidationService } from '../../../shared/core/cache';
@@ -15,8 +16,16 @@ import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { CreateTicketDto } from '../dto/create-ticket.dto';
 import { resolveInitialHandlingTeam } from '../utils/oracle-ticket-access.util';
-import { generateNextTicketNumber } from '../utils/ticket-number-generator';
-import { assertTicketRoleAccess } from './ticket-oracle-access';
+import { departmentDivision, generateNextTicketNumber, withTicketNumberRetry } from '../utils/ticket-number-generator';
+import { SlaClockService } from './sla-clock.service';
+
+/** An external system that filed the ticket; (source, ref) is unique, so retries are idempotent. */
+export interface ExternalTicketRef {
+    source: string;
+    ref: string;
+    /** Someone else who submitted it in that system for the requester; keeps requester-side access. */
+    filedById?: string | null;
+}
 
 @Injectable()
 export class TicketCreateService {
@@ -37,27 +46,47 @@ export class TicketCreateService {
         private readonly eventEmitter: EventEmitter2,
         private readonly workloadService: WorkloadService,
         private readonly auditService: AuditService,
+        private readonly slaClock: SlaClockService,
     ) { }
 
-    async createTicket(userId: string, createTicketDto: CreateTicketDto, files: string[] = []): Promise<Ticket> {
+    /** The requester: the caller, or (staff only) the active user they file for. */
+    private async resolveRequester(creator: User, requesterId?: string): Promise<User> {
+        if (!requesterId || requesterId === creator.id) return creator;
+        if (creator.role === UserRole.USER) {
+            throw new ForbiddenException('Only staff can file tickets on behalf of another user');
+        }
+        const requester = await this.userRepo.findOne({
+            where: { id: requesterId },
+            relations: ['department'],
+        });
+        if (!requester || !requester.isActive) {
+            throw new BadRequestException('Requester not found or inactive');
+        }
+        return requester;
+    }
+
+    async createTicket(
+        userId: string,
+        createTicketDto: CreateTicketDto,
+        files: string[] = [],
+        attachmentInfo: AttachmentInfo[] = [],
+        external?: ExternalTicketRef,
+    ): Promise<Ticket> {
         try {
-            const user = await this.userRepo.findOne({
+            const creator = await this.userRepo.findOne({
                 where: { id: userId },
                 relations: ['department']
             });
-            if (!user) {
+            if (!creator) {
                 throw new NotFoundException('User not found');
             }
+            // Anyone may submit to any team (handling stays with that team);
+            // the filer keeps requester-level access via userId/createdById.
+            const user = await this.resolveRequester(creator, createTicketDto.requesterId);
             const handlingTeam = resolveInitialHandlingTeam(
                 createTicketDto.category,
                 createTicketDto.ticketType,
             );
-
-            assertTicketRoleAccess({
-                category: createTicketDto.category || 'GENERAL',
-                ticketType: createTicketDto.ticketType || TicketType.SERVICE,
-                handlingTeam,
-            }, user.role);
 
             const ticket = this.ticketRepo.create({
                 title: createTicketDto.title,
@@ -70,13 +99,16 @@ export class TicketCreateService {
                 device: createTicketDto.device,
                 software: createTicketDto.software,
                 user,
+                createdById: external?.filedById && external.filedById !== user.id ? external.filedById : creator.id === user.id ? null : creator.id,
                 status: TicketStatus.TODO,
-                siteId: user.siteId, // Auto-assign user's site
+                siteId: user.siteId, // Auto-assign the requester's site
                 criticalReason: createTicketDto.criticalReason || null,
+                externalSource: external?.source ?? null,
+                externalRef: external?.ref ?? null,
             } as DeepPartial<Ticket>);
 
             const date = new Date();
-            const division = user.department?.name ? user.department.name.substring(0, 3).toUpperCase() : 'GEN';
+            const division = departmentDivision(user.department, 'GEN');
 
             // === Hardware Installation: Special Handling ===
             const isHardwareInstallation = createTicketDto.category === 'HARDWARE_INSTALLATION' ||
@@ -95,22 +127,15 @@ export class TicketCreateService {
                 // Hardware installation tickets: SLA is based on scheduled date, not creation time
                 // SLA Target = scheduled date + 1 day (auto-resolve H+1)
                 if (ticket.scheduledDate) {
-                    const slaTarget = new Date(ticket.scheduledDate);
-                    slaTarget.setDate(slaTarget.getDate() + 1);
-                    slaTarget.setHours(17, 0, 0, 0); // End of business day H+1
-                    ticket.slaTarget = slaTarget;
+                    ticket.slaTarget = await this.slaClock.hardwareTarget(ticket.scheduledDate);
                 }
                 ticket.slaStartedAt = new Date();
                 ticket.firstResponseTarget = null; // No first response SLA for hardware installation
             } else {
                 // === Standard SLA Logic ===
                 const priority = createTicketDto.priority || 'MEDIUM';
-                const slaConfig = await this.slaConfigRepo.findOne({ where: { priority } });
-                if (slaConfig) {
-                    const now = new Date();
-                    // First Response Target - starts counting from ticket creation
-                    ticket.firstResponseTarget = new Date(now.getTime() + slaConfig.responseTimeMinutes * 60000);
-                }
+                // First Response Target - counts from creation (or the next working hour)
+                ticket.firstResponseTarget = await this.slaClock.firstResponseTarget(priority);
 
                 // Resolution SLA will only start when agent picks up the ticket (status -> IN_PROGRESS)
                 ticket.slaStartedAt = null;
@@ -118,26 +143,28 @@ export class TicketCreateService {
             }
 
             // Wrap in transaction (M7: multiple-write ops)
-            const finalTicket = await this.ticketRepo.manager.transaction(async (manager) => {
+            const finalTicket = await withTicketNumberRetry(this.logger, () => this.ticketRepo.manager.transaction(async (manager) => {
                 // Generate Custom Ticket Number safely within transaction.
-                // Shared locked generator (PROD-19): web + Telegram serialize
+                // Shared locked generator (PROD-19): every creation path serializes
                 // on the same pessimistic_write lock so concurrent creations
                 // can never collide on the unique ticketNumber.
                 ticket.ticketNumber = await generateNextTicketNumber(manager, division, date);
 
                 const savedTicket = await manager.save(ticket);
 
-                // Save initial message with attachments inside transaction
+                // The opening report (description + attachments) is the requester's, even when an
+                // agent files on their behalf; who filed it is kept in createdById.
                 const message = this.messageRepo.create({
                     content: createTicketDto.description,
                     ticket: savedTicket,
                     senderId: user.id,
                     attachments: files,
+                    attachmentInfo: attachmentInfo.length > 0 ? attachmentInfo : null,
                 });
                 await manager.save(message);
 
                 return savedTicket;
-            }); // End of transaction
+            })); // End of transaction
 
             // Domain events + audit fire AFTER commit: listeners must only react
             // to a ticket that actually persisted (no phantom notifications on rollback).

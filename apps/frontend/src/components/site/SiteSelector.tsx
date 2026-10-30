@@ -1,24 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Check, ChevronDown, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-    DropdownMenu,
-    DropdownMenuCheckboxItem,
-    DropdownMenuContent,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
+import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
 import { cn } from '@/lib/utils';
-import api from '@/lib/api';
-
-interface Site {
-    id: string;
-    code: string;
-    name: string;
-    isActive: boolean;
-}
+import { useActiveSites } from './useActiveSites';
 
 interface SiteSelectorProps {
     selectedSiteIds: string[];
@@ -26,13 +13,12 @@ interface SiteSelectorProps {
     mode?: 'single' | 'multi';
     className?: string;
     disabled?: boolean;
+    /** Mockup filter pop ("Site Semua"): no icon, key + value. Empty selection reads "Semua". */
+    variant?: 'default' | 'pop';
 }
 
-const SITE_COLORS: Record<string, string> = {
-    SPJ: 'bg-blue-500',
-    SMG: 'bg-green-500',
-    KRW: 'bg-orange-500',
-    JTB: 'bg-purple-500',
+const SITE_TONES: Record<string, TicketPillTone> = {
+    SPJ: 'blue', SMG: 'green', KRW: 'amber', JTB: 'teal',
 };
 
 export const SiteSelector = ({
@@ -41,29 +27,10 @@ export const SiteSelector = ({
     mode = 'multi',
     className,
     disabled = false,
+    variant = 'default',
 }: SiteSelectorProps) => {
-    const {
-        data: sites = [],
-        isLoading: loading,
-        isError,
-        refetch,
-    } = useQuery<Site[]>({
-        queryKey: ['sites', 'active'],
-        queryFn: async () => {
-            try {
-                const res = await api.get('/sites/active');
-                return Array.isArray(res.data) ? res.data : [];
-            } catch (err: any) {
-                if (err.response?.status === 403 || err.response?.status === 404) {
-                    const fallbackRes = await api.get('/sites');
-                    return Array.isArray(fallbackRes.data) ? fallbackRes.data : [];
-                }
-                throw err;
-            }
-        },
-        staleTime: 5 * 60 * 1000,
-        refetchOnWindowFocus: false,
-    });
+    const [open, setOpen] = useState(false);
+    const { data: sites = [], isLoading: loading, isError, refetch } = useActiveSites();
 
     const error = isError ? 'Gagal memuat sites' : null;
 
@@ -129,45 +96,47 @@ export const SiteSelector = ({
     }
 
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild disabled={disabled}>
-                <Button variant="outline" className={cn('min-w-[140px] justify-between', className)}>
-                    <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4" />
-                        <span>{getSelectedLabel()}</span>
-                    </div>
-                    <ChevronDown className="h-4 w-4 opacity-50" />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[200px]">
-                <DropdownMenuLabel className="flex items-center justify-between">
+        <Popover open={open && !disabled} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <button type="button" disabled={disabled} aria-label={`Filter Site: ${getSelectedLabel()}`}
+                    className={cn(variant === 'pop' ? 'ticket-pill ticket-tone-neutral picker-trigger queue-pop'
+                        : 'ticket-pill ticket-tone-neutral picker-trigger min-h-9 min-w-[140px]', className)}
+                    onKeyDown={event => {
+                        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setOpen(true); }
+                    }}>
+                    {variant === 'pop' ? <>
+                        <span className="queue-pop-k">Site</span>
+                        <span className="queue-pop-v">{selectedSiteIds.length === 0 ? 'Semua' : getSelectedLabel()}</span>
+                    </> : <>
+                        <Building2 aria-hidden="true" className="h-4 w-4 shrink-0" />
+                        <span className="min-w-0 truncate">{getSelectedLabel()}</span>
+                    </>}
+                    <ChevronDown aria-hidden="true" className="h-3 w-3 shrink-0 opacity-60" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" collisionPadding={12} sideOffset={8} className="picker-panel p-1.5" aria-label="Filter Site">
+                <div className="flex items-center justify-between gap-3 px-2 py-2 text-xs">
                     <span>Filter Site</span>
-                    {mode === 'multi' && (
-                        <button
-                            onClick={handleSelectAll}
-                            className="text-xs text-primary hover:underline"
-                        >
-                            {selectedSiteIds.length === sites.length ? 'Clear All' : 'Select All'}
-                        </button>
-                    )}
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {sites.map((site) => (
-                    <DropdownMenuCheckboxItem
-                        key={site.id}
-                        checked={selectedSiteIds.includes(site.id)}
-                        onCheckedChange={() => handleSiteToggle(site.id)}
-                        className="cursor-pointer"
-                    >
-                        <div className="flex items-center gap-2 w-full">
-                            <div className={cn('w-2 h-2 rounded-full', SITE_COLORS[site.code] || 'bg-gray-500')} />
-                            <span className="font-medium">{site.code}</span>
-                            <span className="text-muted-foreground text-sm">- {site.name}</span>
-                        </div>
-                    </DropdownMenuCheckboxItem>
-                ))}
-            </DropdownMenuContent>
-        </DropdownMenu>
+                    {mode === 'multi' && <button type="button" onClick={handleSelectAll}
+                        className="text-[hsl(var(--idesk-sapphire))] hover:underline">
+                        {selectedSiteIds.length === sites.length ? 'Clear All' : 'Select All'}
+                    </button>}
+                </div>
+                <Command label="Cari site…" className="picker-command" loop>
+                    <CommandInput placeholder="Cari site…" aria-label="Cari site…" autoFocus />
+                    <CommandList className="picker-list" aria-multiselectable={mode === 'multi'}>
+                        <CommandEmpty>Tidak ditemukan. Coba kata lain.</CommandEmpty>
+                        {sites.map(site => <CommandItem key={site.id} value={site.id} keywords={[site.code, site.name]}
+                            data-checked={selectedSiteIds.includes(site.id)} aria-checked={selectedSiteIds.includes(site.id)} className="picker-option"
+                            onSelect={() => handleSiteToggle(site.id)}>
+                            <SiteBadge code={site.code} />
+                            <span className="min-w-0 flex-1 break-words">{site.name}</span>
+                            {selectedSiteIds.includes(site.id) && <Check aria-hidden="true" className="h-4 w-4 shrink-0" />}
+                        </CommandItem>)}
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
     );
 };
 
@@ -178,16 +147,7 @@ interface SiteBadgeProps {
 }
 
 export const SiteBadge = ({ code, className }: SiteBadgeProps) => {
-    const colorClass = SITE_COLORS[code] || 'bg-gray-500';
-
-    return (
-        <Badge
-            variant="secondary"
-            className={cn('text-white font-medium', colorClass, className)}
-        >
-            {code}
-        </Badge>
-    );
+    return <TicketPill tone={SITE_TONES[code] || 'neutral'} className={className}>{code}</TicketPill>;
 };
 
 export default SiteSelector;

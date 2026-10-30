@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSocket } from '@/lib/socket';
+import { useAuth } from '@/stores/useAuth';
+import api from '@/lib/api';
 import type { Ticket, TicketMessage } from '@/lib/api/types';
 
 // Use TicketMessage from types instead of local interface
@@ -8,6 +10,11 @@ type Message = TicketMessage;
 
 // Ticket data type for socket events
 type TicketSocketData = Partial<Ticket> & { id: string };
+
+/** How often a ticket page refetches while the socket is down, so missed messages still show up. */
+export const TICKET_OFFLINE_POLL_MS = 15000;
+/** Window in which the message + notification events for one reply share a single resync. */
+export const TICKET_RESYNC_DEBOUNCE_MS = 500;
 
 interface UseTicketSocketOptions {
     ticketId: string | undefined;
@@ -17,19 +24,75 @@ interface UseTicketSocketOptions {
 
 export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseTicketSocketOptions) => {
     const { socket, isConnected } = useSocket();
+    const { user } = useAuth();
     const queryClient = useQueryClient();
     const [typingUsers, setTypingUsers] = useState<{ [key: string]: string }>({});
+    const typingTimersRef = useRef<{ [socketId: string]: ReturnType<typeof setTimeout> }>({});
 
-    // Join ticket room when connected
+    // Callbacks live in refs so a caller passing inline functions doesn't re-run the room effect.
+    // Every re-run leaves and re-joins the room, and events sent in that gap were being lost.
+    const onNewMessageRef = useRef(onNewMessage);
+    const onStatusChangeRef = useRef(onStatusChange);
     useEffect(() => {
-        if (!ticketId || !isConnected) return;
+        onNewMessageRef.current = onNewMessage;
+        onStatusChangeRef.current = onStatusChange;
+    }, [onNewMessage, onStatusChange]);
 
-        // Join the ticket room
-        socket.emit('join:ticket', ticketId);
+    // Join ticket room when connected, and auto-rejoin on reconnect
+    useEffect(() => {
+        if (!ticketId) return;
+
+        // Auto-rejoin ticket room on every connect and reconnect
+        const joinTicketRoom = () => {
+            if (socket.connected) {
+                socket.emit('join:ticket', ticketId);
+            }
+        };
+
+        // After a reconnect, anything sent while we were offline was missed: refetch it.
+        const handleReconnect = () => {
+            joinTicketRoom();
+            queryClient.invalidateQueries({ queryKey: ['ticket', ticketId], refetchType: 'active' });
+            queryClient.invalidateQueries({ queryKey: ['ticket-messages', ticketId], refetchType: 'active' });
+        };
+
+        joinTicketRoom();
+        socket.on('connect', handleReconnect);
+
+        // One new message arrives as both `ticket:newMessage` and a `notification:*` event:
+        // coalesce their background resync into a single refetch of the ticket.
+        let resyncTimer: ReturnType<typeof setTimeout> | null = null;
+        const scheduleTicketResync = (includeMessages: boolean) => {
+            if (includeMessages) resyncMessages = true;
+            if (resyncTimer) return;
+            resyncTimer = setTimeout(() => {
+                resyncTimer = null;
+                queryClient.invalidateQueries({ queryKey: ['ticket', ticketId], refetchType: 'active' });
+                if (resyncMessages) queryClient.invalidateQueries({ queryKey: ['ticket-messages', ticketId], refetchType: 'active' });
+                resyncMessages = false;
+            }, TICKET_RESYNC_DEBOUNCE_MS);
+        };
+        let resyncMessages = false;
+
+        // A message that arrives while the ticket is open has been seen: mark it read so no unread
+        // dot is left behind. One lightweight call per burst, instead of reloading the ticket.
+        let readTimer: ReturnType<typeof setTimeout> | null = null;
+        const scheduleMarkRead = () => {
+            if (readTimer) return;
+            readTimer = setTimeout(() => {
+                readTimer = null;
+                api.post(`/tickets/${ticketId}/read`, undefined, { skipToast: true }).catch(() => undefined);
+            }, TICKET_RESYNC_DEBOUNCE_MS);
+        };
 
         // Listen for new messages
         const handleNewMessage = (data: { ticketId: string; message: Message }) => {
             if (data.ticketId === ticketId) {
+                // Clear any typing indicator for this ticket immediately upon message arrival
+                Object.values(typingTimersRef.current).forEach(t => clearTimeout(t));
+                typingTimersRef.current = {};
+                setTypingUsers({});
+
                 // Optimistically update the main ticket cache
                 queryClient.setQueryData(['ticket', ticketId], (oldData: Ticket | undefined) => {
                     if (!oldData) return oldData;
@@ -52,10 +115,19 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
                     return [...oldMessages, data.message];
                 });
 
+                // A step of a request raised from this ticket: its card and sidebar read the request's live state.
+                const linked = (data.message as { systemEvent?: { hardwareRequest?: unknown; eformRequest?: unknown } }).systemEvent;
+                if (linked?.hardwareRequest) queryClient.invalidateQueries({ queryKey: ['ticket', ticketId, 'hardware-requests'] });
+                if (linked?.eformRequest) queryClient.invalidateQueries({ queryKey: ['ticket', ticketId, 'eform-requests'] });
+
+                // A plain chat message is fully carried by the socket payload, so it is not followed by a
+                // reload of the whole ticket and its history (that ran for every viewer, per message).
+                // System messages record status/SLA/assignment changes, so those still resync.
+                if (data.message.isSystemMessage) scheduleTicketResync(false);
+                else scheduleMarkRead();
+
                 // Call custom handler if provided
-                if (onNewMessage) {
-                    onNewMessage(data.message);
-                }
+                onNewMessageRef.current?.(data.message);
             }
         };
 
@@ -71,9 +143,10 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
                     };
                 });
 
-                if (onStatusChange) {
-                    onStatusChange(data.status);
-                }
+                // A status change can come with a first response or SLA start; reload once to show them.
+                scheduleTicketResync(false);
+
+                onStatusChangeRef.current?.(data.status);
             }
         };
 
@@ -85,20 +158,56 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
             }
         };
 
-        // Typing indicators
+        // Typing indicators with 3.5s auto-expire TTL to eliminate ghost typing
         const handleTypingStart = (data: { ticketId: string; user: { fullName: string }; socketId: string }) => {
-            if (data.ticketId === ticketId) {
-                setTypingUsers(prev => ({ ...prev, [data.socketId]: data.user.fullName }));
+            if (data.ticketId === ticketId && data.socketId) {
+                setTypingUsers(prev => ({ ...prev, [data.socketId]: data.user?.fullName || 'User' }));
+
+                // Reset auto-expire timer for this socket
+                if (typingTimersRef.current[data.socketId]) {
+                    clearTimeout(typingTimersRef.current[data.socketId]);
+                }
+
+                typingTimersRef.current[data.socketId] = setTimeout(() => {
+                    setTypingUsers(prev => {
+                        const newState = { ...prev };
+                        delete newState[data.socketId];
+                        return newState;
+                    });
+                    delete typingTimersRef.current[data.socketId];
+                }, 3500);
             }
         };
 
-        const handleTypingStop = (data: { ticketId: string; socketId: string }) => {
-            if (data.ticketId === ticketId) {
-                setTypingUsers(prev => {
-                    const newState = { ...prev };
-                    delete newState[data.socketId];
-                    return newState;
-                });
+        const handleTypingStop = (data?: { ticketId?: string; socketId?: string }) => {
+            if (!data || !data.ticketId || data.ticketId === ticketId) {
+                if (data?.socketId) {
+                    if (typingTimersRef.current[data.socketId]) {
+                        clearTimeout(typingTimersRef.current[data.socketId]);
+                        delete typingTimersRef.current[data.socketId];
+                    }
+                    setTypingUsers(prev => {
+                        const newState = { ...prev };
+                        delete newState[data.socketId!];
+                        return newState;
+                    });
+                } else {
+                    // Global clear for this ticket
+                    Object.values(typingTimersRef.current).forEach(t => clearTimeout(t));
+                    typingTimersRef.current = {};
+                    setTypingUsers({});
+                }
+            }
+        };
+
+        // Fail-safe synchronization: when in-app notification for this ticket arrives, sync query & clear typing
+        const handleNotificationSync = (notifData: any) => {
+            const incomingTicketId = notifData?.ticketId || notifData?.notification?.ticketId;
+            if (incomingTicketId === ticketId) {
+                Object.values(typingTimersRef.current).forEach(t => clearTimeout(t));
+                typingTimersRef.current = {};
+                setTypingUsers({});
+                scheduleTicketResync(true);
             }
         };
 
@@ -108,16 +217,34 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
         socket.on('typing:start', handleTypingStart);
         socket.on('typing:stop', handleTypingStop);
 
+        if (user?.id) {
+            socket.on(`notification:${user.id}`, handleNotificationSync);
+        }
+        socket.on('notification:new', handleNotificationSync);
+
         // Cleanup
         return () => {
+            socket.off('connect', handleReconnect);
             socket.emit('leave:ticket', ticketId);
             socket.off('ticket:newMessage', handleNewMessage);
             socket.off('ticket:statusChanged', handleStatusChange);
             socket.off('ticket:updated', handleTicketUpdate);
             socket.off('typing:start', handleTypingStart);
             socket.off('typing:stop', handleTypingStop);
+
+            if (user?.id) {
+                socket.off(`notification:${user.id}`, handleNotificationSync);
+            }
+            socket.off('notification:new', handleNotificationSync);
+            if (resyncTimer) clearTimeout(resyncTimer);
+            if (readTimer) clearTimeout(readTimer);
+
+            // Clear typing timeouts and the names they guard; a name left without its timer never expires.
+            Object.values(typingTimersRef.current).forEach(t => clearTimeout(t));
+            typingTimersRef.current = {};
+            setTypingUsers({});
         };
-    }, [ticketId, isConnected, socket, queryClient, onNewMessage, onStatusChange]);
+    }, [ticketId, socket, queryClient, user?.id]);
 
     const sendTypingStart = (user: { fullName: string }) => {
         if (ticketId && isConnected) {
@@ -133,6 +260,14 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
 
     return { isConnected, typingUsers, sendTypingStart, sendTypingStop };
 };
+
+/**
+ * One ticket change fans out as several socket events (updated, statusChanged, listUpdated...).
+ * Invalidations inside this window collapse into a single refetch per query key.
+ */
+export const LIST_INVALIDATE_DEBOUNCE_MS = 2000;
+const TICKETS_KEY = 'tickets';
+const DASHBOARD_STATS_KEY = 'dashboard-stats';
 
 // Hook for ticket list real-time updates
 export const useTicketListSocket = (options?: {
@@ -153,22 +288,32 @@ export const useTicketListSocket = (options?: {
     useEffect(() => {
         if (!isConnected) return;
 
+        const pendingKeys = new Set<string>();
+        let flushTimer: ReturnType<typeof setTimeout> | null = null;
+        const scheduleInvalidate = (...keys: string[]) => {
+            keys.forEach((key) => pendingKeys.add(key));
+            if (flushTimer) return;
+            flushTimer = setTimeout(() => {
+                flushTimer = null;
+                const keysToFlush = Array.from(pendingKeys);
+                pendingKeys.clear();
+                keysToFlush.forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
+            }, LIST_INVALIDATE_DEBOUNCE_MS);
+        };
+
         const handleListUpdate = () => {
-            queryClient.invalidateQueries({ queryKey: ['tickets'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+            scheduleInvalidate(TICKETS_KEY, DASHBOARD_STATS_KEY);
         };
 
         const handleNewTicket = (ticket: Ticket) => {
-            queryClient.invalidateQueries({ queryKey: ['tickets'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+            scheduleInvalidate(TICKETS_KEY, DASHBOARD_STATS_KEY);
             if (onNewTicketRef.current) {
                 onNewTicketRef.current(ticket);
             }
         };
 
         const handleTicketUpdated = (data: any) => {
-            queryClient.invalidateQueries({ queryKey: ['tickets'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+            scheduleInvalidate(TICKETS_KEY, DASHBOARD_STATS_KEY);
             if (onTicketUpdatedRef.current) {
                 onTicketUpdatedRef.current(data);
             }
@@ -176,8 +321,13 @@ export const useTicketListSocket = (options?: {
 
         const handleNewMessage = (data: any) => {
             const ticketId = data.ticketId || data.message?.ticketId;
-            queryClient.invalidateQueries({ queryKey: ['tickets'] });
-            if (ticketId) {
+            // Unknown ticket: fall back to a refetch. Otherwise the cache patch below is enough;
+            // invalidating would refetch every mounted ticket list just to show an unread dot.
+            if (!ticketId) {
+                scheduleInvalidate(TICKETS_KEY);
+                return;
+            }
+            {
                 queryClient.setQueriesData({ queryKey: ['tickets'] }, (oldData: any) => {
                     if (!oldData) return oldData;
                     if (oldData.data && Array.isArray(oldData.data)) {
@@ -210,11 +360,11 @@ export const useTicketListSocket = (options?: {
         socket.on('ticket:updated', handleTicketUpdated);
         socket.on('ticket:newMessage', handleNewMessage);
         socket.on('NEW_MESSAGE', handleNewMessage);
-        socket.on('dashboard:stats:update', () => {
-            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-        });
+        const handleStatsUpdate = () => scheduleInvalidate(DASHBOARD_STATS_KEY);
+        socket.on('dashboard:stats:update', handleStatsUpdate);
 
         return () => {
+            if (flushTimer) clearTimeout(flushTimer);
             socket.off('tickets:listUpdated', handleListUpdate);
             socket.off('tickets:statusChanged', handleListUpdate);
             socket.off('ticket:assigned', handleListUpdate);
@@ -223,7 +373,7 @@ export const useTicketListSocket = (options?: {
             socket.off('ticket:updated', handleTicketUpdated);
             socket.off('ticket:newMessage', handleNewMessage);
             socket.off('NEW_MESSAGE', handleNewMessage);
-            socket.off('dashboard:stats:update');
+            socket.off('dashboard:stats:update', handleStatsUpdate);
         };
     }, [isConnected, socket, queryClient]);
 

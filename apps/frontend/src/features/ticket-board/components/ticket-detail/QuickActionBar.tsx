@@ -15,6 +15,7 @@ import {
     MoreHorizontal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { isTerminalStatus } from './constants';
 
 interface QuickActionBarProps {
     ticketStatus: string;
@@ -31,7 +32,7 @@ export const QuickActionBar: React.FC<QuickActionBarProps> = ({
     onAssign,
     isDisabled = false,
 }) => {
-    const isTerminal = ticketStatus === 'RESOLVED' || ticketStatus === 'CANCELLED';
+    const isTerminal = isTerminalStatus(ticketStatus);
 
     if (isTerminal) return null;
 
@@ -41,7 +42,7 @@ export const QuickActionBar: React.FC<QuickActionBarProps> = ({
             icon: MessageSquare,
             label: 'Reply',
             onClick: onScrollToChat,
-            color: 'text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30',
+            color: 'text-primary hover:bg-primary/10',
         },
         {
             id: 'in-progress',

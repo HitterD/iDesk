@@ -3,6 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Calendar, Check, Copy, Cpu, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { confirmProposedSchedule } from '../api/installation.api';
 import { useHardwareRequest } from '../hooks/useHardwareRequest';
 import { useHardwareRequestRealtime } from '../hooks/useHardwareRequestRealtime';
 import { useHardwareRole } from '../hooks/usePermissions';
@@ -20,11 +22,23 @@ import { SlotPickerModal } from '../components/scheduling/SlotPickerModal';
 import { RescheduleRequestModal } from '../components/scheduling/RescheduleRequestModal';
 import { ScheduleProposeModal } from '../components/scheduling/ScheduleProposeModal';
 import type { InstallationSchedule } from '../types';
+import { pickActiveSchedule } from '../utils/active-schedule.util';
+import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
 
 export default function HardwareRequestDetailPage() {
     const { id } = useParams<{ id: string }>();
+    useMarkNotificationsRead(id ? { referenceId: id } : null);
     const { data: r, isLoading, isError } = useHardwareRequest(id);
     const { userId, role } = useHardwareRole();
+    const queryClient = useQueryClient();
+    const confirmProposed = useMutation({
+        mutationFn: () => confirmProposedSchedule(id!),
+        onSuccess: () => {
+            toast.success('Jadwal pemasangan disetujui');
+            queryClient.invalidateQueries({ queryKey: ['hardware-requests', 'detail', id] });
+        },
+        onError: (error: Error) => toast.error(error.message || 'Gagal menyetujui jadwal'),
+    });
     const basePath = useHardwareBasePath();
     const [copied, setCopied] = useState(false);
     useHardwareRequestRealtime(id);
@@ -55,9 +69,7 @@ export default function HardwareRequestDetailPage() {
     const isStaff = role === 'ICT_STAFF';
     const caps = capsFor({ id: userId, role }, r);
 
-    const activeSchedule = (r.schedules && r.schedules.length > 0)
-        ? [...r.schedules].reverse().find((s) => s.status !== 'CANCELLED') || r.schedules[r.schedules.length - 1]
-        : r.installationSchedule;
+    const activeSchedule = pickActiveSchedule(r);
 
     const arrivedItems = (r.items ?? []).filter((i) => i.deliveryStatus === 'ARRIVED');
 
@@ -69,15 +81,15 @@ export default function HardwareRequestDetailPage() {
     };
 
     return (
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 pb-16 animate-fade-in-up">
+        <div className="max-w-[1480px] mx-auto w-full pb-16">
             {/* ── STICKY TOPBAR ── */}
             <motion.div
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, ease: 'easeOut' }}
-                className="sticky top-0 z-20 bg-background/90 backdrop-blur-md py-3 -mx-2 sm:-mx-4 px-2 sm:px-4 border-b border-border mb-6"
+                className="sticky top-0 z-20 bg-background/90 backdrop-blur-md py-3 border-b border-border mb-6"
             >
-                <div className="flex items-center justify-between gap-3 max-w-7xl mx-auto">
+                <div className="flex items-center justify-between gap-3">
                     {/* Back button & Title */}
                     <div className="flex items-center gap-2.5 min-w-0">
                         <Link
@@ -152,8 +164,13 @@ export default function HardwareRequestDetailPage() {
                             schedule={activeSchedule}
                             isStaff={isStaff}
                             onSelectSlot={(s: InstallationSchedule) => setPickerSched(s)}
-                            onReschedule={(s: InstallationSchedule) => setRescheduleSched(s)}
+                            // ICT moves the slot by proposing new ones (the old slot is retired
+                            // server-side); requesters file a reschedule request instead.
+                            onReschedule={(s: InstallationSchedule) => (isStaff ? setProposeOpen(true) : setRescheduleSched(s))}
                             onProposeNewSlots={() => setProposeOpen(true)}
+                            viewerId={userId}
+                            onConfirmProposed={() => confirmProposed.mutate()}
+                            confirming={confirmProposed.isPending}
                         />
                     )}
 
@@ -222,7 +239,7 @@ export default function HardwareRequestDetailPage() {
 
 function DetailSkeleton() {
     return (
-        <div className="max-w-7xl mx-auto px-4 py-6 space-y-5 animate-pulse">
+        <div className="max-w-[1480px] mx-auto w-full space-y-5 animate-pulse">
             <div className="h-12 bg-muted/40 rounded-2xl" />
             <div className="h-44 bg-muted/40 rounded-3xl" />
             <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-6">

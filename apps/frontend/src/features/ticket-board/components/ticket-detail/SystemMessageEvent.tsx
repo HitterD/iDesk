@@ -13,6 +13,8 @@ import {
     UserPlus,
     UserMinus,
     Share2,
+    Truck,
+    UserRoundCog,
     Calendar,
     Hourglass,
     Info,
@@ -24,7 +26,9 @@ import {
     FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { formatRelativeTime, formatDateTimeID } from '@/lib/utils/dateFormat';
+import { formatMessageTime, toDisplayName } from './messageThread';
 
 interface SystemMessageEventProps {
     content: string;
@@ -32,24 +36,26 @@ interface SystemMessageEventProps {
     attachments?: string[];
     onImageClick?: (url: string) => void;
     className?: string;
+    /** Requester copy hides staff-only details (SLA pause note, actor). */
+    audience?: 'staff' | 'requester';
 }
 
 // Config for status badges with Indonesian labels & tailored colors
 const STATUS_MAP: Record<string, { label: string; bg: string; text: string; border: string; dot: string; icon: React.ComponentType<{ className?: string }> }> = {
     TODO: {
         label: 'Baru (TODO)',
-        bg: 'bg-blue-50 dark:bg-blue-950/50',
-        text: 'text-blue-700 dark:text-blue-300',
-        border: 'border-blue-200 dark:border-blue-800/70',
-        dot: 'bg-blue-500',
+        bg: STATUS_TONE_CLASSES.TODO.bg,
+        text: STATUS_TONE_CLASSES.TODO.text,
+        border: STATUS_TONE_CLASSES.TODO.border,
+        dot: STATUS_TONE_CLASSES.TODO.dot,
         icon: Clock,
     },
     IN_PROGRESS: {
         label: 'Sedang Dikerjakan',
-        bg: 'bg-indigo-50 dark:bg-indigo-950/50',
-        text: 'text-indigo-700 dark:text-indigo-300',
-        border: 'border-indigo-200 dark:border-indigo-800/70',
-        dot: 'bg-indigo-500',
+        bg: STATUS_TONE_CLASSES.IN_PROGRESS.bg,
+        text: STATUS_TONE_CLASSES.IN_PROGRESS.text,
+        border: STATUS_TONE_CLASSES.IN_PROGRESS.border,
+        dot: STATUS_TONE_CLASSES.IN_PROGRESS.dot,
         icon: PlayCircle,
     },
     PENDING: {
@@ -94,11 +100,11 @@ const STATUS_MAP: Record<string, { label: string; bg: string; text: string; bord
     },
 };
 
-const PRIORITY_MAP: Record<string, { label: string; bg: string; text: string; border: string }> = {
-    LOW: { label: 'Low', bg: 'bg-emerald-50 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800' },
-    MEDIUM: { label: 'Medium', bg: 'bg-blue-50 dark:bg-blue-950/40', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-800' },
-    HIGH: { label: 'High', bg: 'bg-amber-50 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800' },
-    CRITICAL: { label: 'Critical', bg: 'bg-red-50 dark:bg-red-950/40', text: 'text-red-700 dark:text-red-300', border: 'border-red-200 dark:border-red-800' },
+const PRIORITY_MAP: Record<string, { label: string; shortLabel?: string; bg: string; text: string; border: string }> = {
+    LOW: { label: 'Low (Minor/Cosmetic)', shortLabel: 'Low', bg: 'bg-emerald-50 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800' },
+    MEDIUM: { label: 'Normal (Moderate)', shortLabel: 'Normal', bg: 'bg-primary/10 dark:bg-primary/20', text: 'text-primary', border: 'border-primary/20 dark:border-primary/30' },
+    HIGH: { label: 'Urgent (Major Impact)', shortLabel: 'Urgent', bg: 'bg-amber-50 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800' },
+    CRITICAL: { label: 'Blocker (Critical)', shortLabel: 'Blocker', bg: 'bg-red-50 dark:bg-red-950/40', text: 'text-red-700 dark:text-red-300', border: 'border-red-200 dark:border-red-800' },
 };
 
 export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
@@ -107,6 +113,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
     attachments = [],
     onImageClick,
     className,
+    audience = 'staff',
 }) => {
     // 0. Detect Resolution Statement Notice
     const isResolvedStatement =
@@ -121,35 +128,35 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
 
         return (
             <div className={cn("w-full flex justify-center my-3.5 px-2", className)}>
-                <div className="w-full max-w-lg bg-gradient-to-b from-emerald-50/80 via-white to-emerald-50/30 dark:from-slate-900/95 dark:via-slate-900 dark:to-emerald-950/20 rounded-2xl border border-emerald-300/90 dark:border-emerald-800/70 shadow-lg hover:shadow-xl transition-all duration-200 overflow-hidden">
+                <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/[0.04] dark:ring-white/[0.06] overflow-hidden text-left">
                     {/* Header Banner */}
-                    <div className="bg-emerald-500/10 dark:bg-emerald-950/50 px-4 py-3 border-b border-emerald-200/80 dark:border-emerald-800/60 flex items-center justify-between">
+                    <div className="px-4 pt-3.5 pb-2 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                            <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
                                 <CheckCircle2 className="w-4.5 h-4.5" />
                             </div>
                             <div>
-                                <h4 className="text-xs font-bold text-emerald-900 dark:text-emerald-200 uppercase tracking-wide flex items-center gap-1.5">
+                                <h4 className="text-[13px] font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
                                     Tiket Dinyatakan Selesai (Resolved)
                                 </h4>
-                                <p className="text-[11px] text-emerald-700/90 dark:text-emerald-400">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
                                     Pekerjaan &amp; solusi perbaikan telah diselesaikan
                                 </p>
                             </div>
                         </div>
-                        <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/60 rounded-full border border-emerald-200/80 dark:border-emerald-800/60">
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0">
                             {formatRelativeTime(createdAt)}
                         </span>
                     </div>
 
                     {/* Content Details */}
-                    <div className="p-3.5 sm:p-4 space-y-3 text-xs text-slate-700 dark:text-slate-200">
-                        <div className="p-3 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/70 shadow-2xs">
-                            <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-1.5">
+                    <div className="px-4 pb-3.5 space-y-3 text-xs text-slate-700 dark:text-slate-200">
+                        <div className="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/25">
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-1">
                                 <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                                 <span>Tindakan &amp; Penjelasan Solusi:</span>
                             </div>
-                            <p className="text-xs leading-relaxed whitespace-pre-wrap text-slate-800 dark:text-slate-100 font-medium">
+                            <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-slate-800 dark:text-slate-100">
                                 {solutionText || 'Tiket telah diselesaikan sesuai instruksi.'}
                             </p>
                         </div>
@@ -157,7 +164,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                         {/* Attachments / Bukti Foto */}
                         {attachments && attachments.length > 0 && (
                             <div className="space-y-1.5 pt-1">
-                                <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
                                     <Paperclip className="w-3.5 h-3.5 text-emerald-600" />
                                     <span>Bukti Foto / Lampiran Penyelesaian ({attachments.length}):</span>
                                 </div>
@@ -167,7 +174,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                                         return (
                                             <div
                                                 key={idx}
-                                                className="group relative rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-pointer shadow-2xs hover:shadow-md transition-all h-24"
+                                                className="group relative rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-pointer transition-all h-24"
                                                 onClick={() => onImageClick && onImageClick(url)}
                                             >
                                                 {isPdf ? (
@@ -197,19 +204,128 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                     </div>
 
                     {/* Footer */}
-                    <div className="px-4 py-2.5 bg-slate-50/90 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <div className="px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 text-[11px] text-slate-500 dark:text-slate-400">
                         {actorMatch ? (
                             <div className="flex items-center gap-1.5">
                                 <UserIcon className="w-3 h-3 text-emerald-600" />
-                                <span>Diselesaikan oleh <strong className="text-slate-800 dark:text-slate-200">{actorMatch[1].trim()}</strong></span>
+                                <span>Diselesaikan oleh <strong className="font-medium text-slate-800 dark:text-slate-200">{toDisplayName(actorMatch[1].trim())}</strong></span>
                             </div>
                         ) : (
                             <div className="flex items-center gap-1.5">
                                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                <span>Status Tiket: <strong>RESOLVED</strong></span>
+                                <span>Status tiket: <strong className="font-medium">Resolved</strong></span>
                             </div>
                         )}
                         <span>{formatDateTimeID(createdAt)}</span>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // 0.1 Detect SLA Extension Notice
+    const isSlaExtensionNotice =
+        content.includes('Target SLA Diperpanjang') ||
+        content.includes('SLA Diperpanjang') ||
+        (content.includes('Deadline Baru') && content.includes('Kategori'));
+
+    if (isSlaExtensionNotice) {
+        // Strip emojis and markdown asterisks for a clean Apple look
+        const sanitize = (text: string) =>
+            text
+                .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, '')
+                .replace(/\*\*/g, '')
+                .trim();
+
+        const deadlineMatch = content.match(/(?:Deadline Baru|Target Baru):\s*([^\n\r]+)/i);
+        const categoryMatch = content.match(/(?:Kategori Kendala|Kategori Alasan|Kategori):\s*([^\n\r]+)/i);
+        const explanationMatch = content.match(/(?:Penjelasan|Alasan|Rincian):\s*([\s\S]+?)(?:\n\s*(?:Diperpanjang oleh|Diubah oleh|Oleh|$)|$)/i);
+        const actorMatch = content.match(/(?:Diperpanjang oleh|Diubah oleh|Oleh):\s*([^\n\r]+)/i);
+
+        const deadline = deadlineMatch ? sanitize(deadlineMatch[1]) : '';
+        const category = categoryMatch ? sanitize(categoryMatch[1]) : '';
+        const explanation = explanationMatch ? sanitize(explanationMatch[1]) : '';
+        const actor = actorMatch ? sanitize(actorMatch[1]) : '';
+
+        return (
+            <div className={cn("w-full flex justify-center my-3.5 px-2", className)}>
+                <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/[0.04] dark:ring-white/[0.06] overflow-hidden text-left">
+                    {/* Header (Apple Sheet Style) */}
+                    <div className="px-4 pt-3.5 pb-1 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                                <Clock className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0">
+                                <h4 className="text-[13px] font-semibold text-slate-900 dark:text-white">
+                                    Target SLA Diperpanjang
+                                </h4>
+                            </div>
+                        </div>
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0">
+                            {formatRelativeTime(createdAt)}
+                        </span>
+                    </div>
+
+                    {/* Body */}
+                    <div className="p-3.5 space-y-2.5 text-xs">
+                        {/* Target Deadline Baru & Kategori */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {deadline && (
+                                <div className="p-2.5 rounded-xl bg-slate-100/70 dark:bg-white/[0.04] flex items-start gap-2">
+                                    <Calendar className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                                    <div className="min-w-0">
+                                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">
+                                            Target Baru
+                                        </span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
+                                            {deadline}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {category && (
+                                <div className="p-2.5 rounded-xl bg-slate-100/70 dark:bg-white/[0.04] flex items-start gap-2">
+                                    <AlertCircle className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                                    <div className="min-w-0">
+                                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">
+                                            Kategori Kendala
+                                        </span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs truncate block">
+                                            {category}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Penjelasan Alasan */}
+                        {explanation && (
+                            <div className="p-3 rounded-xl bg-slate-100/70 dark:bg-white/[0.04] space-y-1">
+                                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">
+                                    Rincian Kendala
+                                </span>
+                                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                                    "{explanation}"
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 text-[11px] text-slate-400 dark:text-slate-500">
+                        {actor ? (
+                            <div className="flex items-center gap-1.5 min-w-0">
+                                <UserIcon className="w-3 h-3 text-slate-400 shrink-0" />
+                                <span className="truncate">
+                                    Diperpanjang oleh <strong className="font-medium">{toDisplayName(actor)}</strong>
+                                </span>
+                            </div>
+                        ) : (
+                            <span>Pembaruan SLA Otomatis</span>
+                        )}
+                        <span className="shrink-0">{formatDateTimeID(createdAt)}</span>
                     </div>
                 </div>
             </div>
@@ -232,87 +348,33 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         const isSlaPaused = content.includes('SLA Timer di-pause') || content.includes('pause');
 
         return (
-            <div className={cn("w-full flex justify-center my-3.5 px-2", className)}>
-                <div className="w-full max-w-lg bg-gradient-to-b from-orange-50/70 via-white to-orange-50/30 dark:from-slate-900/90 dark:via-slate-900 dark:to-orange-950/20 rounded-2xl border border-orange-200/90 dark:border-orange-800/60 shadow-md hover:shadow-lg transition-all duration-200 overflow-hidden">
-                    {/* Header Banner */}
-                    <div className="bg-orange-500/10 dark:bg-orange-950/40 px-4 py-2.5 border-b border-orange-200/80 dark:border-orange-800/50 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-orange-500 text-white flex items-center justify-center shadow-xs">
-                                <Store className="w-4 h-4" />
-                            </div>
-                            <div>
-                                <h4 className="text-xs font-bold text-orange-900 dark:text-orange-200 uppercase tracking-wide">
-                                    Status: Menunggu Kunjungan Vendor
-                                </h4>
-                                <p className="text-[11px] text-orange-700/80 dark:text-orange-400">
-                                    Tiket diteruskan ke jadwal penanganan vendor luar
-                                </p>
-                            </div>
-                        </div>
-                        <span className="text-[10px] text-orange-700 dark:text-orange-400 font-medium px-2 py-0.5 bg-orange-100/80 dark:bg-orange-900/50 rounded-full">
-                            {formatRelativeTime(createdAt)}
-                        </span>
-                    </div>
-
-                    {/* Content Details */}
-                    <div className="p-3.5 sm:p-4 space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
-                        {descriptionMatch && (
-                            <div className="flex items-start gap-2 text-slate-600 dark:text-slate-400 pb-1">
-                                <Info className="w-3.5 h-3.5 text-orange-500 shrink-0 mt-0.5" />
-                                <span className="font-medium text-slate-800 dark:text-slate-200">{descriptionMatch[1].trim()}</span>
-                            </div>
-                        )}
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                            {scheduleMatch && (
-                                <div className="flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/60">
-                                    <Calendar className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                                    <div>
-                                        <div className="text-[10px] text-slate-400 font-semibold uppercase">Jadwal Vendor</div>
-                                        <div className="font-semibold text-slate-800 dark:text-slate-100">{scheduleMatch[1].trim()}</div>
-                                    </div>
-                                </div>
+            <div className={cn('chat-event', className)}>
+                <div className="chat-event-h">
+                    <span className="chat-event-ic"><Truck aria-hidden="true" /></span>
+                    <div className="min-w-0">
+                        <b>Menunggu kunjungan vendor</b>
+                        <small>
+                            {audience === 'requester' ? 'Teknisi vendor akan datang ke lokasi Anda' : 'Ditambahkan ke jadwal vendor luar'}
+                            {actorMatch && audience !== 'requester' && (
+                                <> · oleh <strong className="font-medium">{toDisplayName(actorMatch[1].trim())}</strong></>
                             )}
-
-                            {visitMatch && (
-                                <div className="flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/60">
-                                    <Hourglass className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                                    <div>
-                                        <div className="text-[10px] text-slate-400 font-semibold uppercase">Perkiraan Kunjungan</div>
-                                        <div className="font-bold text-orange-600 dark:text-orange-400">{visitMatch[1].trim()}</div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {waitMatch && (
-                            <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 px-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                                <span>Estimasi waktu tunggu: <strong className="text-slate-700 dark:text-slate-300">{waitMatch[1].trim()}</strong></span>
-                            </div>
-                        )}
-
-                        {isSlaPaused && (
-                            <div className="flex items-center gap-2 p-2 rounded-xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-300/60 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 font-medium text-[11px]">
-                                <Pause className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                                <span>Perhitungan waktu SLA di-pause sementara menunggu kehadiran vendor.</span>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Card Footer */}
-                    <div className="px-4 py-2 bg-slate-50/80 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                        {actorMatch ? (
-                            <div className="flex items-center gap-1.5">
-                                <UserIcon className="w-3 h-3 text-slate-400" />
-                                <span>Diubah oleh <strong className="text-slate-700 dark:text-slate-200">{actorMatch[1].trim()}</strong></span>
-                            </div>
-                        ) : (
-                            <span>Notifikasi Sistem</span>
-                        )}
-                        <span>{formatDateTimeID(createdAt)}</span>
+                            {' · '}{formatMessageTime(createdAt)}
+                        </small>
                     </div>
                 </div>
+                {descriptionMatch && <p className="chat-event-note m-0"><Info aria-hidden="true" />{descriptionMatch[1].trim()}</p>}
+                {(scheduleMatch || visitMatch) && (
+                    <div className="chat-event-kv">
+                        {scheduleMatch && <div><small>Jadwal vendor</small><b>{scheduleMatch[1].trim()}</b></div>}
+                        {visitMatch && <div><small>Perkiraan kunjungan</small><b>{visitMatch[1].trim()}</b></div>}
+                    </div>
+                )}
+                {waitMatch && (
+                    <p className="chat-event-note m-0"><Hourglass aria-hidden="true" />Estimasi waktu tunggu: <strong className="font-semibold">{waitMatch[1].trim()}</strong></p>
+                )}
+                {isSlaPaused && audience !== 'requester' && (
+                    <p className="chat-event-note m-0"><Pause aria-hidden="true" />Perhitungan waktu SLA di-pause sampai vendor datang dan tiket dilanjutkan.</p>
+                )}
             </div>
         );
     }
@@ -328,19 +390,19 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         const actor = statusMatch[3]?.trim();
 
         const fromConfig = STATUS_MAP[fromKey] || { label: fromKey, bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-300 dark:border-slate-700', dot: 'bg-slate-400', icon: Clock };
-        const toConfig = STATUS_MAP[toKey] || { label: toKey, bg: 'bg-blue-100 dark:bg-blue-950/60', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-300 dark:border-blue-800', dot: 'bg-blue-500', icon: CheckCircle2 };
+        const toConfig = STATUS_MAP[toKey] || { label: toKey, bg: 'bg-primary/10 dark:bg-primary/20', text: 'text-primary', border: 'border-primary/20 dark:border-primary/30', dot: 'bg-primary', icon: CheckCircle2 };
         const ToIcon = toConfig.icon;
 
         return (
-            <div className={cn("flex flex-col items-center my-2.5 px-2", className)}>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/95 dark:bg-slate-800/95 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs hover:shadow-xs transition-all">
-                    <ToIcon className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+            <div className={cn("chat-sys", className)}>
+                <span className="chat-sys-ic"><ToIcon aria-hidden="true" /></span>
+                <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed">
                     <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Status:</span>
 
                     {/* From Badge */}
                     <span className={cn(
-                        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border",
-                        fromConfig.bg, fromConfig.text, fromConfig.border
+                        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium opacity-70",
+                        fromConfig.bg, fromConfig.text
                     )}>
                         <span className={cn("w-1.5 h-1.5 rounded-full", fromConfig.dot)} />
                         {fromConfig.label}
@@ -350,61 +412,61 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
 
                     {/* To Badge */}
                     <span className={cn(
-                        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border shadow-2xs",
-                        toConfig.bg, toConfig.text, toConfig.border
+                        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold",
+                        toConfig.bg, toConfig.text
                     )}>
-                        <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", toConfig.dot)} />
+                        <span className={cn("w-1.5 h-1.5 rounded-full", toConfig.dot)} />
                         {toConfig.label}
                     </span>
                 </div>
 
                 {/* Subtitle / Actor Info */}
-                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                <small className="flex items-center gap-1">
                     {actor && (
                         <>
-                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-semibold">{actor}</strong></span>
+                            <span>oleh <strong className="font-medium">{toDisplayName(actor)}</strong></span>
                             <span>·</span>
                         </>
                     )}
-                    <span>{formatRelativeTime(createdAt)}</span>
-                </div>
+                    <span>{formatMessageTime(createdAt)}</span>
+                </small>
             </div>
         );
     }
 
-    // 3. Parse Assignment Change (e.g. "System: Ticket assigned to BAGAS by ANDREW ALFONSO SETIAWAN")
-    const assignMatch = cleanContent.match(/Ticket assigned to (.+?)(?:\s*\(was\s*(.+?)\))?(?:\s+by\s+([^,.]+))?$/i) ||
+    // 3. Parse Assignment Change, e.g. "Ticket reassigned to B (was A) by C. Alasan: ..." (status-takeover.ts)
+    const assignMatch = cleanContent.match(/Ticket (?:re)?assigned to (.+?)(?:\s*\(was\s*(.+?)\))?(?:\s+by\s+(.+?))?(?:\.?\s*\(?Alasan:\s*(.+?)\)?)?$/i) ||
         cleanContent.match(/Assigned to:\s*([^,.]+)(?:\s+by\s+([^,.]+))?/i);
 
     if (assignMatch) {
         const to = assignMatch[1].trim();
-        const from = assignMatch[2]?.trim();
+        const rawFrom = assignMatch[2]?.trim();
+        const from = rawFrom && !['none', 'unassigned'].includes(rawFrom.toLowerCase()) ? rawFrom : undefined;
         const actor = assignMatch[3]?.trim();
+        const reason = assignMatch[4]?.trim();
+        const requesterView = audience === 'requester';
 
         return (
-            <div className={cn("flex flex-col items-center my-2.5 px-2", className)}>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-purple-50/90 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/60 text-purple-900 dark:text-purple-200 text-xs shadow-2xs">
-                    <UserCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
-                    <span>Penugasan Teknisi:</span>
-                    {from && from.toLowerCase() !== 'none' && from.toLowerCase() !== 'unassigned' && (
-                        <>
-                            <span className="line-through text-purple-400 dark:text-purple-500 text-[11px]">{from}</span>
-                            <ArrowRight className="w-3 h-3 text-purple-400 shrink-0" />
-                        </>
+            <div className={cn("chat-sys", className)}>
+                <span className="chat-sys-ic"><UserRoundCog aria-hidden="true" /></span>
+                <span>
+                    {requesterView ? (
+                        <>Tiket Anda sekarang ditangani <b>{toDisplayName(to)}</b></>
+                    ) : from ? (
+                        <>PIC dialihkan dari {toDisplayName(from)} ke <b>{toDisplayName(to)}</b>{reason && <> · Alasan: {reason}</>}</>
+                    ) : (
+                        <>Penugasan Teknisi: <b>{to}</b>{reason && <> · Alasan: {reason}</>}</>
                     )}
-                    <span className="font-bold bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-purple-200 dark:border-purple-700/60 shadow-2xs">
-                        {to}
-                    </span>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                    {actor && (
+                </span>
+                <small className="flex items-center gap-1">
+                    {actor && !requesterView && (
                         <>
-                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-semibold">{actor}</strong></span>
+                            <span>oleh <strong className="font-medium">{toDisplayName(actor)}</strong></span>
                             <span>·</span>
                         </>
                     )}
-                    <span>{formatRelativeTime(createdAt)}</span>
-                </div>
+                    <span>{formatMessageTime(createdAt)}</span>
+                </small>
             </div>
         );
     }
@@ -420,27 +482,27 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         const toCfg = PRIORITY_MAP[toP] || { label: toP, bg: 'bg-amber-100 dark:bg-amber-950/60', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-300 dark:border-amber-800' };
 
         return (
-            <div className={cn("flex flex-col items-center my-2.5 px-2", className)}>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs shadow-2xs">
-                    <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <div className={cn("chat-sys", className)}>
+                <span className="chat-sys-ic"><AlertCircle aria-hidden="true" /></span>
+                <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed">
                     <span className="font-medium text-slate-500 dark:text-slate-400">Prioritas:</span>
-                    <span className={cn("px-1.5 py-0.5 rounded text-[11px] font-semibold border", fromCfg.bg, fromCfg.text, fromCfg.border)}>
+                    <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-medium opacity-70", fromCfg.bg, fromCfg.text)}>
                         {fromCfg.label}
                     </span>
                     <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
-                    <span className={cn("px-1.5 py-0.5 rounded text-[11px] font-bold border shadow-2xs", toCfg.bg, toCfg.text, toCfg.border)}>
+                    <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-semibold", toCfg.bg, toCfg.text)}>
                         {toCfg.label}
                     </span>
                 </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                <small className="flex items-center gap-1">
                     {actor && (
                         <>
-                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-semibold">{actor}</strong></span>
+                            <span>oleh <strong className="font-medium">{toDisplayName(actor)}</strong></span>
                             <span>·</span>
                         </>
                     )}
-                    <span>{formatRelativeTime(createdAt)}</span>
-                </div>
+                    <span>{formatMessageTime(createdAt)}</span>
+                </small>
             </div>
         );
     }
@@ -452,23 +514,21 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         const actor = forwardMatch[2]?.trim();
 
         return (
-            <div className={cn("flex flex-col items-center my-2.5 px-2", className)}>
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 text-indigo-900 dark:text-indigo-200 text-xs shadow-2xs">
-                    <Share2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <div className={cn("chat-sys", className)}>
+                <span className="chat-sys-ic"><Share2 aria-hidden="true" /></span>
+                <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed">
                     <span>Tiket Diteruskan ke:</span>
-                    <span className="font-bold bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-700/60 shadow-2xs">
-                        {target}
-                    </span>
+                    <b>{target}</b>
                 </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                <small className="flex items-center gap-1">
                     {actor && (
                         <>
-                            <span>oleh <strong className="text-slate-600 dark:text-slate-300 font-semibold">{actor}</strong></span>
+                            <span>oleh <strong className="font-medium">{toDisplayName(actor)}</strong></span>
                             <span>·</span>
                         </>
                     )}
-                    <span>{formatRelativeTime(createdAt)}</span>
-                </div>
+                    <span>{formatMessageTime(createdAt)}</span>
+                </small>
             </div>
         );
     }
@@ -477,10 +537,10 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
     if (content.includes('\n')) {
         return (
             <div className={cn("w-full flex justify-center my-3 px-2", className)}>
-                <div className="w-full max-w-md bg-slate-50 dark:bg-slate-800/90 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-3.5 shadow-2xs text-xs text-slate-700 dark:text-slate-300">
-                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/60 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400">
+                <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl ring-1 ring-slate-900/[0.04] dark:ring-white/[0.06] p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.06)] text-[13px] text-slate-700 dark:text-slate-300">
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
                         <span className="font-semibold flex items-center gap-1.5">
-                            <Info className="w-3.5 h-3.5 text-blue-500" />
+                            <Info className="w-3.5 h-3.5 text-primary" />
                             Notifikasi Sistem
                         </span>
                         <span>{formatRelativeTime(createdAt)}</span>
@@ -497,17 +557,17 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
 
     return (
         <div className={cn("flex justify-center my-2 px-2", className)}>
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 text-xs font-medium text-slate-700 dark:text-slate-300 shadow-2xs">
+            <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed">
                 {isAdd ? (
                     <UserPlus className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                 ) : isRemove ? (
                     <UserMinus className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                 ) : (
-                    <Info className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                    <Info className="w-3.5 h-3.5 text-primary shrink-0" />
                 )}
                 <span>{cleanContent}</span>
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">
-                    · {formatRelativeTime(createdAt)}
+                <span className="text-[11px] text-slate-400 dark:text-slate-500 font-normal">
+                    · {formatMessageTime(createdAt)}
                 </span>
             </div>
         </div>

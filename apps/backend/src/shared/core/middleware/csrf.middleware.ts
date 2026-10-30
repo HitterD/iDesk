@@ -67,6 +67,7 @@ export class CsrfMiddleware implements NestMiddleware {
             '/v1/auth/register',
             '/v1/auth/logout',
             '/v1/auth/change-password',
+            '/v1/auth/forgot-password',
             // Health check endpoints
             '/v1/health',
             '/api/health',
@@ -112,8 +113,6 @@ export class CsrfMiddleware implements NestMiddleware {
             '/v1/manager',
             // IP Whitelist - protected by JwtAuthGuard + RolesGuard (ADMIN)
             '/v1/ip-whitelist',
-            // Lost Item - protected by JwtAuthGuard  
-            '/v1/lost-item',
             // Access Request - protected by JwtAuthGuard
             '/v1/access-request',
             // Synology Backup - protected by JwtAuthGuard + RolesGuard
@@ -123,12 +122,8 @@ export class CsrfMiddleware implements NestMiddleware {
             '/v1/sounds',
             // Workload - protected by JwtAuthGuard + RolesGuard
             '/v1/workload',
-            // Telegram - protected by JwtAuthGuard
-            '/v1/telegram',
             // Saved replies - protected by JwtAuthGuard
             '/v1/saved-replies',
-            // Customer sessions - protected by JwtAuthGuard
-            '/v1/customer-sessions',
         ];
 
         const currentPath = req.originalUrl || req.url;

@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { wibStartOfToday } from '../../../shared/core/utils/wib-date.util';
+import { localDateKey } from '../../sla-config/business-hours.calc';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
-import { Ticket } from '../../ticketing/entities/ticket.entity';
+import { Repository } from 'typeorm';
+import { metricRate } from '../utils/report-metrics.util';
+import { Ticket, TICKET_DONE_STATUSES } from '../../ticketing/entities/ticket.entity';
 import { DateRange, ReportResult } from './agent-performance.report';
+import { ReportTeam, applyTeamFilter } from '../utils/report-team-scope.util';
 
 export interface VolumeDataPoint {
     date: string;
@@ -21,6 +25,9 @@ export interface TicketVolumeData {
         totalCreated: number;
         totalResolved: number;
         totalPending: number;
+        totalCancelled: number;
+        totalEligible: number;
+        resolutionRate: number | null;
         avgPerDay: number;
         peakDay: string;
         peakCount: number;
@@ -31,6 +38,8 @@ export interface TicketVolumeData {
  * Ticket Volume Report Generator
  * Generates volume statistics for tickets over a date range
  */
+const MS_PER_DAY = 86_400_000;
+
 @Injectable()
 export class TicketVolumeReport {
     constructor(
@@ -44,23 +53,30 @@ export class TicketVolumeReport {
      * @param dateRange - Start and end dates (inclusive on start, exclusive-ish on end depending on caller)
      * @param options - Optional filters
      * @param options.siteId - Filter tickets to a specific site (required for scheduled reports site isolation)
+     * @param options.team - Only tickets handled by this team
      */
     async generate(
         dateRange: DateRange,
-        options?: { siteId?: string }
+        options?: { siteId?: string; team?: ReportTeam }
     ): Promise<ReportResult<TicketVolumeData>> {
+        const asOf = new Date();
         // Build query with optional site filter
+        // Only the columns we aggregate: loading full entities pulled every description
+        // (text) of the whole range into memory.
         const qb = this.ticketRepo
             .createQueryBuilder('ticket')
+            .select(['ticket.id', 'ticket.createdAt', 'ticket.status', 'ticket.priority', 'ticket.category', 'ticket.source'])
             .where('ticket.createdAt BETWEEN :startDate AND :endDate', {
                 startDate: dateRange.startDate,
                 endDate: dateRange.endDate,
             })
+            .andWhere('ticket.createdAt <= :asOf', { asOf })
             .orderBy('ticket.createdAt', 'ASC');
 
         if (options?.siteId) {
             qb.andWhere('ticket.siteId = :siteId', { siteId: options.siteId });
         }
+        applyTeamFilter(qb, 'ticket', options?.team);
 
         const tickets = await qb.getMany();
 
@@ -75,8 +91,10 @@ export class TicketVolumeReport {
 
         // Calculate summary
         const totalCreated = tickets.length;
-        const totalResolved = tickets.filter(t => t.status === 'RESOLVED').length;
-        const totalPending = totalCreated - totalResolved;
+        const totalResolved = tickets.filter(t => TICKET_DONE_STATUSES.includes(t.status)).length;
+        const totalCancelled = tickets.filter(t => String(t.status) === 'CANCELLED').length;
+        const totalEligible = totalCreated - totalCancelled;
+        const totalPending = tickets.filter(t => ['TODO', 'IN_PROGRESS', 'WAITING_VENDOR'].includes(t.status)).length;
         const avgPerDay = daily.length > 0 ? Math.round(totalCreated / daily.length) : 0;
 
         // Find peak day
@@ -101,12 +119,15 @@ export class TicketVolumeReport {
                     totalCreated,
                     totalResolved,
                     totalPending,
+                    totalCancelled,
+                    totalEligible,
+                    resolutionRate: metricRate(totalResolved, totalEligible),
                     avgPerDay,
                     peakDay,
                     peakCount,
                 },
             },
-            generatedAt: new Date(),
+            generatedAt: asOf,
         };
     }
 
@@ -117,23 +138,20 @@ export class TicketVolumeReport {
         const daily: VolumeDataPoint[] = [];
         const dailyMap = new Map<string, { created: number; resolved: number; pending: number }>();
 
-        // Initialize all days in range
-        const currentDate = new Date(dateRange.startDate);
-        while (currentDate <= dateRange.endDate) {
-            const dateKey = currentDate.toISOString().split('T')[0];
-            dailyMap.set(dateKey, { created: 0, resolved: 0, pending: 0 });
-            currentDate.setDate(currentDate.getDate() + 1);
+        // Initialize all WIB days in range (UTC keys put 00:00-07:00 WIB on the previous day)
+        for (let at = wibStartOfToday(dateRange.startDate).getTime(); at <= dateRange.endDate.getTime(); at += MS_PER_DAY) {
+            dailyMap.set(localDateKey(new Date(at)), { created: 0, resolved: 0, pending: 0 });
         }
 
         // Count tickets per day
         for (const ticket of tickets) {
-            const createdDate = new Date(ticket.createdAt).toISOString().split('T')[0];
+            const createdDate = localDateKey(new Date(ticket.createdAt));
             const day = dailyMap.get(createdDate);
             if (day) {
                 day.created++;
-                if (ticket.status === 'RESOLVED') {
+                if (TICKET_DONE_STATUSES.includes(ticket.status)) {
                     day.resolved++;
-                } else {
+                } else if (['TODO', 'IN_PROGRESS', 'WAITING_VENDOR'].includes(ticket.status)) {
                     day.pending++;
                 }
             }

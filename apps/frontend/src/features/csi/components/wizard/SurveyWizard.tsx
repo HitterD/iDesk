@@ -1,0 +1,93 @@
+import { useCallback, useRef, useState } from 'react';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { cn } from '@/lib/utils';
+import { useCsiDimensions, useCsiPeriod } from '../../hooks/useCsi';
+import { nextStep, previousStep, stepComplete, visibleSteps, type WizardStepKey } from '../../lib/wizard';
+import type { CsiPeriodDetail, CsiScopeParam } from '../../types';
+import { ADMIN_PANEL } from '../admin/AdminParts';
+import type { PeriodEditorStatus } from '../admin/PeriodEditor';
+import { WizardFooter } from './WizardFooter';
+import { WizardHeader } from './WizardHeader';
+import { WizardStepBody } from './WizardStepBody';
+import { WizardStepper } from './WizardStepper';
+
+export interface SurveyWizardProps {
+    scope: CsiScopeParam;
+    /** `null` while creating: only the info step is available until the draft exists. */
+    periodId: string | null;
+    step: WizardStepKey;
+    onStepChange: (step: WizardStepKey) => void;
+    onClose: () => void;
+    /** The draft was created; the caller moves the URL to the new period's questions step. */
+    onCreated: (periodId: string) => void;
+    /** Published from the review step; the caller opens the detail view. */
+    onPublished: (periodId: string) => void;
+}
+
+/** What a successful info save leads to: the next step, closing the wizard, or a step picked in the stepper. */
+type InfoIntent = 'next' | 'exit' | WizardStepKey;
+const IDLE_INFO: PeriodEditorStatus = { canSubmit: false, dirty: false, pending: false };
+
+/** A hidden or not-yet-reachable step falls back to one the wizard can show. */
+function effectiveStep(step: WizardStepKey, steps: readonly WizardStepKey[], period: CsiPeriodDetail | undefined): WizardStepKey {
+    if (!period) return 'info';
+    return steps.includes(step) ? step : 'review';
+}
+
+/** Unsaved ratee/rater drafts block navigation; the flag belongs to the step that reported it. */
+function useStepDirty(step: WizardStepKey) {
+    const [dirty, setDirty] = useState<{ step: WizardStepKey; value: boolean }>({ step, value: false });
+    const report = useCallback((value: boolean) => setDirty({ step, value }), [step]);
+    return [dirty.step === step && dirty.value, report] as const;
+}
+
+export function SurveyWizard({ scope, periodId, step, onStepChange, onClose, onCreated, onPublished }: SurveyWizardProps) {
+    const query = useCsiPeriod(scope, periodId ?? '');
+    const { data: dimensions = [] } = useCsiDimensions(scope);
+    const activeQuestions = dimensions.length;
+    const { isLoading, isError, refetch } = query;
+    const period = periodId ? query.data : undefined;
+    const formRef = useRef<HTMLFormElement>(null);
+    const intent = useRef<InfoIntent>('next');
+    const [info, setInfo] = useState(IDLE_INFO);
+    const steps = visibleSteps(period ?? null);
+    const current = effectiveStep(step, steps, period);
+    const [stepDirty, reportDirty] = useStepDirty(current);
+    const infoDirty = current === 'info' && info.dirty;
+    // Dirty info is saved on the way out; when it cannot be saved yet, navigation waits like a dirty ratee draft.
+    const blocked = stepDirty || (!!period && infoDirty && !info.canSubmit && !info.pending);
+
+    if (periodId && isLoading) return <div className={cn(ADMIN_PANEL, 'h-64 animate-pulse motion-reduce:animate-none')} aria-busy="true" aria-label="Memuat survei" />;
+    if (periodId && (isError || !period)) return <ErrorState message="Gagal memuat survei." onRetry={() => refetch()} />;
+
+    const submitInfo = (next: InfoIntent) => { intent.current = next; formRef.current?.requestSubmit(); };
+    const infoSaved = (saved: CsiPeriodDetail) => {
+        if (intent.current === 'exit') onClose();
+        else if (!periodId) onCreated(saved.id);
+        else onStepChange(intent.current === 'next' ? nextStep(saved, 'info') ?? 'review' : intent.current);
+    };
+    const goNext = () => current === 'info' ? submitInfo('next') : onStepChange(nextStep(period ?? null, current) ?? 'review');
+    const exit = () => infoDirty ? submitInfo('exit') : onClose();
+    const select = (key: WizardStepKey) => infoDirty ? submitInfo(key) : onStepChange(key);
+
+    return (
+        <div className="grid gap-5">
+            <WizardHeader scope={scope} period={period} onBack={period ? exit : onClose} backDisabled={blocked || info.pending} onDeleted={onClose} />
+            <div className="grid items-start gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
+                <div className={cn(ADMIN_PANEL, 'p-2.5 lg:sticky lg:top-4')}>
+                    <WizardStepper steps={steps} current={current} canNavigate={!!period && !blocked && !info.pending}
+                        isComplete={(key) => !!period && stepComplete(key, period, activeQuestions)} onSelect={select} />
+                </div>
+                <div className="grid min-w-0 gap-4">
+                    <WizardStepBody scope={scope} step={current} period={period} formRef={formRef}
+                        onInfoStatus={setInfo} onInfoSaved={infoSaved} onDirtyChange={reportDirty}
+                        onEditStep={onStepChange} onPublished={onPublished} />
+                    <WizardFooter showBack={current !== 'info'} showNext={current !== 'review'} blocked={blocked}
+                        nextDisabled={current === 'info' && !info.canSubmit} exitDisabled={current === 'info' && info.dirty && !info.canSubmit}
+                        pending={current === 'info' && info.pending}
+                        onBack={() => onStepChange(previousStep(period ?? null, current) ?? 'info')} onNext={goNext} onExit={exit} />
+                </div>
+            </div>
+        </div>
+    );
+}

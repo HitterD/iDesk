@@ -8,6 +8,13 @@ export interface OracleK2TicketsParams {
     sortBy: string;
     sortOrder: 'ASC' | 'DESC';
     search: string;
+    /** Server-side "Tiket yang saya buat" / "My Tasks" filters, so paging and totals stay right. */
+    createdByMe?: boolean;
+    assignedToMe?: boolean;
+    /** List filters, applied by the server so they cover every page (status may be a comma list). */
+    status?: string;
+    priority?: string;
+    siteIds?: string[];
 }
 
 export interface OracleK2TicketsResponse {
@@ -30,14 +37,21 @@ async function fetchOracleK2Tickets(params: OracleK2TicketsParams): Promise<Orac
             sortBy: params.sortBy,
             sortOrder: params.sortOrder,
             search: params.search || undefined,
+            createdByMe: params.createdByMe || undefined,
+            assignedToMe: params.assignedToMe || undefined,
+            status: params.status || undefined,
+            priority: params.priority || undefined,
+            siteIds: params.siteIds?.length ? params.siteIds : undefined,
         },
+        // siteIds=a&siteIds=b, as PaginationDto expects.
+        paramsSerializer: { indexes: null },
     });
     return response.data;
 }
 
 export function useOracleK2Tickets(params: OracleK2TicketsParams) {
     return useQuery({
-        queryKey: ['tickets', 'oracle-k2', params.page, params.limit, params.sortBy, params.sortOrder, params.search],
+        queryKey: ['tickets', 'oracle-k2', params.page, params.limit, params.sortBy, params.sortOrder, params.search, params.createdByMe ?? false, params.assignedToMe ?? false, params.status ?? '', params.priority ?? '', params.siteIds ?? []],
         queryFn: () => fetchOracleK2Tickets(params),
         placeholderData: keepPreviousData,
         staleTime: 30_000,

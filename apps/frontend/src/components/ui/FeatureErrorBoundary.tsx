@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { isStaleChunkError, reloadOnce } from '@/lib/appUpdate';
 
 interface Props {
     children: ReactNode;
@@ -29,6 +30,9 @@ export class FeatureErrorBoundary extends Component<Props, State> {
 
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         console.error(`[${this.props.featureName || 'Feature'}] Error:`, error, errorInfo);
+
+        // A page chunk from before a deploy: reloading fetches the new build.
+        if (isStaleChunkError(error)) reloadOnce();
 
         // Call optional error handler (for logging services)
         if (this.props.onError) {

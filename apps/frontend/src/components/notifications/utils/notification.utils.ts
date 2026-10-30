@@ -11,39 +11,21 @@ export const stripEmoji = (text: string): string => {
         .trim();
 };
 
-/**
- * Formats a date string into a relative time ago format (e.g. "5m ago", "2h ago")
- */
+const DATE_ONLY = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short', year: 'numeric' });
+
+/** Relative time in Indonesian: "Baru saja", "5 mnt lalu", "2 jam lalu", "3 hari lalu", then the date. */
 export const formatTimeAgo = (dateString: string): string => {
     const date = new Date(dateString);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    if (diffInSeconds < 60) {
-        return 'Just now';
-    }
-
-    const diffInMinutes = Math.floor(diffInSeconds / 60);
-    if (diffInMinutes < 60) {
-        return `${diffInMinutes}m ago`;
-    }
-
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) {
-        return `${diffInHours}h ago`;
-    }
-
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) {
-        return `${diffInDays}d ago`;
-    }
-
-    const diffInWeeks = Math.floor(diffInDays / 7);
-    if (diffInWeeks < 4) {
-        return `${diffInWeeks}w ago`;
-    }
-
-    return date.toLocaleDateString();
+    if (Number.isNaN(date.getTime())) return '';
+    const minutes = Math.floor((Date.now() - date.getTime()) / 60_000);
+    if (minutes < 1) return 'Baru saja';
+    if (minutes < 60) return `${minutes} mnt lalu`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} jam lalu`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days} hari lalu`;
+    if (days < 28) return `${Math.floor(days / 7)} mgg lalu`;
+    return DATE_ONLY.format(date);
 };
 
 /**

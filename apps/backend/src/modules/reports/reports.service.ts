@@ -3,7 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Response } from 'express';
 import { Ticket } from '../ticketing/entities/ticket.entity';
+import { TICKET_DONE_STATUSES_SQL } from '../ticketing/utils/ticket-status-sql.util';
 import { User } from '../users/entities/user.entity';
+import { Site } from '../sites/entities/site.entity';
 import { AgentPerformanceReport } from './generators/agent-performance.report';
 import { TicketVolumeReport } from './generators/ticket-volume.report';
 import { PDFGeneratorService } from './generators/pdf-generator.service';
@@ -26,8 +28,15 @@ import {
     applyFullBorders,
 } from './utils/excel-styles.util';
 import { generateExecutiveInsights } from './utils/executive-insights.util';
+import { ReportScope, applyTeamFilter, teamLabel } from './utils/report-team-scope.util';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
+import { wibMonthRange } from '../../shared/core/utils/wib-date.util';
+import { metricRate, reportMetricSql, summarizeAgentMetrics, rankAgents } from './utils/report-metrics.util';
+import { fmtDate, fmtPeriod, fmtPct, fmtHours, fmtMinutes, REPORT_COHORT, DAILY_CREATED_LABEL, DAILY_DONE_LONG_LABEL } from './generators/report-pdf-canvas';
+
+/** 1-based column of 'Kepatuhan SLA (%)' on the agent sheet; also the last column of its filter and borders. */
+const AGENT_SHEET_SLA_COLUMN = 7;
 
 @Injectable()
 export class ReportsService {
@@ -51,40 +60,50 @@ export class ReportsService {
      *
      * @param month - Month number (1-12)
      * @param year - Year (e.g., 2026)
-     * @param siteId - Optional site filter for site-scoped scheduled reports
+     * @param scope - Optional site and team filters
      */
-    async getMonthlyStats(month: number, year: number, siteId?: string) {
-        const cacheKey = `reports:monthly:${year}-${month}:${siteId || 'all'}`;
+    async getMonthlyStats(month: number, year: number, scope: ReportScope = {}) {
+        const { siteId, team } = scope;
+        const cacheKey = `reports:monthly:v2:${year}-${month}:${siteId || 'all'}:${team || 'all'}`;
 
         return this.cacheService.getOrSet(cacheKey, async () => {
-            const startDate = new Date(year, month - 1, 1);
-            const endDate = new Date(year, month, 0, 23, 59, 59);
+            const { startDate, endDate } = wibMonthRange(year, month);
+            const asOf = new Date();
+            const sql = reportMetricSql();
 
             // Single optimized query with SQL aggregations
             const qb = this.ticketRepo
                 .createQueryBuilder('ticket')
                 .select('COUNT(*)', 'totalTickets')
-                .addSelect(`SUM(CASE WHEN ticket.status = 'RESOLVED' THEN 1 ELSE 0 END)`, 'resolvedTickets')
-                .addSelect(`SUM(CASE WHEN ticket.status != 'RESOLVED' THEN 1 ELSE 0 END)`, 'openTickets')
-                .addSelect(`AVG(CASE WHEN ticket.status = 'RESOLVED' THEN EXTRACT(EPOCH FROM (ticket."updatedAt" - ticket."createdAt")) / 3600 ELSE NULL END)`, 'avgResolutionTimeHours')
-                .where('ticket."createdAt" BETWEEN :startDate AND :endDate', { startDate, endDate });
+                .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolvedTickets')
+                .addSelect(`SUM(CASE WHEN ${sql.pending} THEN 1 ELSE 0 END)`, 'openTickets')
+                .addSelect("SUM(CASE WHEN ticket.status = 'CANCELLED' THEN 1 ELSE 0 END)", 'cancelledTickets')
+                .addSelect(`AVG((${sql.resolutionMinutes}) / 60)`, 'avgResolutionTimeHours')
+                .where('ticket.createdAt BETWEEN :startDate AND :endDate', { startDate, endDate })
+                .andWhere('ticket.createdAt <= :asOf', { asOf });
 
             if (siteId) {
                 qb.andWhere('ticket.siteId = :siteId', { siteId });
             }
+            applyTeamFilter(qb, 'ticket', team);
 
             const stats = await qb.getRawOne();
 
             const parsedHours = parseFloat(stats?.avgResolutionTimeHours);
-            const avgResHours = isNaN(parsedHours) ? 0 : parsedHours;
+            const avgResHours = Number.isFinite(parsedHours) ? parsedHours : null;
+            const totalTickets = Number(stats?.totalTickets) || 0;
+            const cancelledTickets = Number(stats?.cancelledTickets) || 0;
+            const eligibleTickets = totalTickets - cancelledTickets;
+            const resolvedTickets = Number(stats?.resolvedTickets) || 0;
 
             return {
                 month,
                 year,
-                totalTickets: parseInt(stats?.totalTickets) || 0,
-                resolvedTickets: parseInt(stats?.resolvedTickets) || 0,
+                totalTickets, cancelledTickets, eligibleTickets, resolvedTickets,
+                resolutionRate: metricRate(resolvedTickets, eligibleTickets),
                 openTickets: parseInt(stats?.openTickets) || 0,
-                avgResolutionTimeHours: avgResHours.toFixed(2),
+                avgResolutionTimeHours: avgResHours,
+                asOf,
             };
         }, 300); // 5 minutes cache
     }
@@ -92,9 +111,9 @@ export class ReportsService {
     /**
      * Generate Monthly Report Excel (Executive Dashboard + Ticket Details)
      */
-    async generateExcelReport(res: Response, month: number, year: number, userId?: string, siteId?: string) {
-        const startDate = new Date(year, month - 1, 1);
-        const endDate = new Date(year, month, 0, 23, 59, 59);
+    async generateExcelReport(res: Response, month: number, year: number, userId?: string, scope: ReportScope = {}) {
+        const { siteId, team } = scope;
+        const { startDate, endDate } = wibMonthRange(year, month);
         const monthName = MONTH_NAMES[month - 1] || `Bulan ${month}`;
 
         const qb = this.ticketRepo
@@ -107,14 +126,15 @@ export class ReportsService {
         if (siteId) {
             qb.andWhere('ticket.siteId = :siteId', { siteId });
         }
+        applyTeamFilter(qb, 'ticket', team);
 
         const tickets = await qb.getMany();
-        const stats = await this.getMonthlyStats(month, year, siteId);
+        const stats = await this.getMonthlyStats(month, year, scope);
         const total = stats.totalTickets;
         const resolved = stats.resolvedTickets;
         const open = stats.openTickets;
-        const resRate = total > 0 ? (resolved / total) * 100 : 0;
-        const avgHours = parseFloat(String(stats.avgResolutionTimeHours)) || 0;
+        const resRate = stats.resolutionRate;
+        const avgHours = stats.avgResolutionTimeHours;
 
         // Breakdown stats
         const byPriority: Record<string, number> = {};
@@ -142,7 +162,7 @@ export class ReportsService {
             summarySheet,
             `LAPORAN EKSEKUTIF BULANAN (MONTHLY REPORT) — ${monthName.toUpperCase()} ${year}`,
             `${monthName} ${year}`,
-            siteId ? `Site Filtered (${siteId})` : 'PT Santos Jaya Abadi — All Sites',
+            await this.scopeLabel(scope, 'PT Santos Jaya Abadi — All Sites'),
             'F'
         );
 
@@ -152,7 +172,7 @@ export class ReportsService {
             curRow,
             [
                 { label: 'Total Tiket Masuk', value: total.toLocaleString('id-ID'), subtext: `${monthName} ${year}` },
-                { label: 'Tiket Terselesaikan', value: resolved.toLocaleString('id-ID'), subtext: `${resRate.toFixed(1)}% Resolution Rate` },
+                { label: 'Tiket Terselesaikan', value: resolved.toLocaleString('id-ID'), subtext: `${fmtPct(resRate)} Resolution Rate · ${stats.cancelledTickets} Dibatalkan` },
                 { label: 'Tiket Terbuka / Aktif', value: open.toLocaleString('id-ID'), subtext: 'Dalam Antrean / Proses' },
             ],
             [['A', 'B'], ['C', 'D'], ['E', 'F']]
@@ -182,12 +202,14 @@ export class ReportsService {
         curRow++;
 
         const summaryRows: Array<[string, string | number, string]> = [
-            ['Periode Laporan', `${monthName} ${year}`, `${startDate.toLocaleDateString('id-ID')} s/d ${endDate.toLocaleDateString('id-ID')}`],
+            ['Periode Laporan', `${monthName} ${year}`, `${fmtPeriod({ startDate, endDate })} · ${REPORT_COHORT}`],
+            ['Dibatalkan', stats.cancelledTickets, 'Tidak masuk denominator penyelesaian'],
+            ['Tiket tidak dibatalkan', stats.eligibleTickets, 'Total dikurangi pembatalan'],
             ['Total Tiket Terdaftar', total, 'Jumlah seluruh tiket yang masuk pada periode ini'],
             ['Tiket Berhasil Diselesaikan', resolved, 'Tiket berstatus RESOLVED / CLOSED'],
             ['Tiket Masih Aktif / Terbuka', open, 'Tiket berstatus OPEN, IN_PROGRESS, atau WAITING_VENDOR'],
-            ['Tingkat Penyelesaian (Resolution Rate)', `${resRate.toFixed(1)}%`, 'Persentase tiket terselesaikan dibanding total tiket'],
-            ['Rata-rata Durasi Resolusi', `${avgHours.toFixed(2)} jam`, 'Rata-rata waktu dari tiket dibuat hingga selesai'],
+            ['Tingkat Penyelesaian (Resolution Rate)', fmtPct(resRate), 'Persentase tiket terselesaikan dibanding tiket yang tidak dibatalkan'],
+            ['Rata-rata Durasi Resolusi', fmtHours(avgHours), 'Rata-rata waktu dari tiket dibuat hingga selesai'],
         ];
 
         summarySheet.getRow(curRow).values = ['Parameter Metrik', 'Nilai Realisasi', 'Keterangan'];
@@ -255,8 +277,8 @@ export class ReportsService {
                 category: ticket.category || 'General',
                 createdBy: ticket.user?.fullName || 'Unknown',
                 assignedTo: ticket.assignedTo?.fullName || 'Unassigned',
-                createdAt: ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString('id-ID') : '—',
-                updatedAt: ticket.updatedAt ? new Date(ticket.updatedAt).toLocaleDateString('id-ID') : '—',
+                createdAt: ticket.createdAt ? fmtDate(new Date(ticket.createdAt)) : '—',
+                updatedAt: ticket.updatedAt ? fmtDate(new Date(ticket.updatedAt)) : '—',
             });
 
             applyRowStyle(row, idx);
@@ -293,31 +315,38 @@ export class ReportsService {
         res.end();
     }
 
-    async getAgentPerformance(startDate: Date, endDate: Date, siteId?: string, agentCategory?: 'REGULAR' | 'ORACLE' | 'DEV' | 'ALL') {
-        return this.agentPerformanceReport.generate(
-            { startDate, endDate },
-            { siteId, agentCategory }
-        );
+    async getAgentPerformance(startDate: Date, endDate: Date, scope: ReportScope = {}) {
+        return this.agentPerformanceReport.generate({ startDate, endDate }, scope);
     }
 
     /**
      * Get ticket volume report for a date range
      */
-    async getTicketVolume(startDate: Date, endDate: Date, siteId?: string) {
-        return this.ticketVolumeReport.generate({ startDate, endDate }, { siteId });
+    async getTicketVolume(startDate: Date, endDate: Date, scope: ReportScope = {}) {
+        return this.ticketVolumeReport.generate({ startDate, endDate }, scope);
+    }
+
+    /** Header label for exports: "<site name> (<code>) — <team>", never the raw site id. */
+    async scopeLabel(scope: ReportScope, allSitesLabel = 'Semua Site'): Promise<string> {
+        let siteLabel = allSitesLabel;
+        if (scope.siteId) {
+            const site = await this.ticketRepo.manager.findOne(Site, { where: { id: scope.siteId }, select: ['id', 'code', 'name'] });
+            siteLabel = site ? `${site.name} (${site.code})` : 'Site tidak dikenal';
+        }
+        return `${siteLabel} — ${teamLabel(scope.team)}`;
     }
 
     /**
      * Generate Agent Performance PDF
      */
-    async generateAgentPerformancePDF(res: Response, startDate: Date, endDate: Date, userId?: string, siteId?: string, agentCategory?: 'REGULAR' | 'ORACLE' | 'DEV' | 'ALL') {
-        const report = await this.agentPerformanceReport.generate({ startDate, endDate }, { siteId, agentCategory });
-        const categoryLabel = agentCategory === 'ORACLE' ? 'Divisi Oracle Support' : agentCategory === 'DEV' ? 'Divisi Web & Mobile Dev' : agentCategory === 'REGULAR' ? 'Divisi Operational Support' : 'Semua Divisi Teknisi';
+    async generateAgentPerformancePDF(res: Response, startDate: Date, endDate: Date, userId?: string, scope: ReportScope = {}) {
+        const report = await this.agentPerformanceReport.generate({ startDate, endDate }, scope);
+        const categoryLabel = teamLabel(scope.team);
 
         await this.pdfGenerator.generateAgentPerformancePDF(res, report.data, {
             title: 'Laporan Kinerja Teknisi (Agent Performance)',
             dateRange: { startDate, endDate },
-            siteName: `${siteId || 'Semua Site'} — ${categoryLabel}`,
+            siteName: await this.scopeLabel(scope),
         });
 
         if (userId) {
@@ -334,12 +363,12 @@ export class ReportsService {
     /**
      * Generate PDF for Ticket Volume
      */
-    async generateTicketVolumePDF(res: Response, startDate: Date, endDate: Date, userId?: string, siteId?: string) {
-        const report = await this.ticketVolumeReport.generate({ startDate, endDate }, { siteId });
+    async generateTicketVolumePDF(res: Response, startDate: Date, endDate: Date, userId?: string, scope: ReportScope = {}) {
+        const report = await this.ticketVolumeReport.generate({ startDate, endDate }, scope);
         await this.pdfGenerator.generateTicketVolumePDF(res, report.data, {
             title: 'Laporan Volume & Distribusi Tiket',
             dateRange: { startDate, endDate },
-            siteName: siteId || 'Semua Site',
+            siteName: await this.scopeLabel(scope),
         });
 
         if (userId) {
@@ -348,7 +377,7 @@ export class ReportsService {
                 action: AuditAction.REPORT_GENERATE,
                 entityType: 'Report',
                 entityId: 'TicketVolume-PDF',
-                description: `Generated Ticket Volume PDF Report`,
+                description: `Generated Ticket Volume PDF Report (${teamLabel(scope.team)})`,
             });
         }
     }
@@ -356,14 +385,14 @@ export class ReportsService {
     /**
      * Generate Monthly Summary PDF
      */
-    async generateMonthlySummaryPDF(res: Response, month: number, year: number, userId?: string, siteId?: string) {
-        const stats = await this.getMonthlyStats(month, year, siteId);
+    async generateMonthlySummaryPDF(res: Response, month: number, year: number, userId?: string, scope: ReportScope = {}) {
+        const stats = await this.getMonthlyStats(month, year, scope);
         const monthName = MONTH_NAMES[month - 1] || `Bulan ${month}`;
 
         await this.pdfGenerator.generateMonthlySummaryPDF(res, stats, {
             title: 'Laporan Ringkasan Bulanan (Monthly Summary)',
             subtitle: `${monthName} ${year}`,
-            siteName: siteId || 'Seluruh Site PT Santos Jaya Abadi',
+            siteName: await this.scopeLabel(scope, 'Seluruh Site PT Santos Jaya Abadi'),
         });
 
         if (userId) {
@@ -381,30 +410,24 @@ export class ReportsService {
      * Generate Custom Date Range Comprehensive Excel Report
      * Executive Dashboard + Multi-Sheet Breakdown
      */
-    async generateCustomRangeExcel(res: Response, startDate: Date, endDate: Date, userId?: string) {
+    async generateCustomRangeExcel(res: Response, startDate: Date, endDate: Date, userId?: string, scope: ReportScope = {}) {
         const [performanceReport, volumeReport] = await Promise.all([
-            this.agentPerformanceReport.generate({ startDate, endDate }),
-            this.ticketVolumeReport.generate({ startDate, endDate }),
+            this.agentPerformanceReport.generate({ startDate, endDate }, scope),
+            this.ticketVolumeReport.generate({ startDate, endDate }, scope),
         ]);
 
         const workbook = createStyledWorkbook();
-        const startStr = startDate.toLocaleDateString('id-ID');
-        const endStr = endDate.toLocaleDateString('id-ID');
-        const periodText = `${startStr} — ${endStr}`;
+        const periodText = `${fmtPeriod({ startDate, endDate })} · ${REPORT_COHORT}`;
 
         const totalCreated = volumeReport.data.summary.totalCreated || 0;
         const totalResolved = volumeReport.data.summary.totalResolved || 0;
         const totalPending = volumeReport.data.summary.totalPending || 0;
         const avgPerDay = volumeReport.data.summary.avgPerDay || 0;
-        const resRate = totalCreated > 0 ? (totalResolved / totalCreated) * 100 : 0;
+        const resRate = volumeReport.data.summary.resolutionRate;
         const totalAgents = performanceReport.data.length;
-        const avgSLA = totalAgents > 0
-            ? performanceReport.data.reduce((sum, a) => sum + (Number(a.slaComplianceRate) || 0), 0) / totalAgents
-            : 0;
-
-        const bestAgent = totalAgents > 0
-            ? performanceReport.data.reduce((b, a) => (a.resolutionRate || 0) > (b.resolutionRate || 0) ? a : b, performanceReport.data[0])
-            : undefined;
+        const agentSummary = summarizeAgentMetrics(performanceReport.data);
+        const avgSLA = agentSummary.slaComplianceRate;
+        const bestAgent = agentSummary.topAgent;
 
         // ══════════════════════════════════════════════════════════
         // SHEET 1: EXECUTIVE DASHBOARD
@@ -415,7 +438,7 @@ export class ReportsService {
             dashSheet,
             'LAPORAN KOMPREHENSIF LAYANAN IT (COMPREHENSIVE REPORT)',
             periodText,
-            'PT Santos Jaya Abadi — All Sites',
+            await this.scopeLabel(scope, 'PT Santos Jaya Abadi — All Sites'),
             'F'
         );
 
@@ -424,8 +447,8 @@ export class ReportsService {
             curRow,
             [
                 { label: 'Total Tiket Masuk', value: totalCreated.toLocaleString('id-ID'), subtext: `Rata-rata: ${avgPerDay.toFixed(1)}/hari` },
-                { label: 'Tiket Terselesaikan', value: totalResolved.toLocaleString('id-ID'), subtext: `${resRate.toFixed(1)}% Tingkat Resolusi` },
-                { label: 'Kepatuhan SLA Rata-rata', value: `${avgSLA.toFixed(1)}%`, subtext: `${totalAgents} Teknisi Aktif` },
+                { label: 'Tiket Terselesaikan', value: totalResolved.toLocaleString('id-ID'), subtext: `${fmtPct(resRate)} Tingkat Resolusi` },
+                { label: 'Kepatuhan SLA', value: fmtPct(avgSLA), subtext: `${agentSummary.slaCompliant}/${agentSummary.slaEvaluated} dievaluasi` },
             ],
             [['A', 'B'], ['C', 'D'], ['E', 'F']]
         );
@@ -456,12 +479,14 @@ export class ReportsService {
         const dashRows: Array<[string, string | number, string]> = [
             ['Rentang Periode Laporan', periodText, 'Periode tanggal yang dievaluasi'],
             ['Total Tiket Masuk (Created)', totalCreated, 'Jumlah total tiket yang terbuat pada periode'],
+            ['Dibatalkan', volumeReport.data.summary.totalCancelled, 'Tidak masuk denominator penyelesaian'],
+            ['Tiket tidak dibatalkan', volumeReport.data.summary.totalEligible, 'Total dikurangi pembatalan'],
             ['Total Tiket Selesai (Resolved)', totalResolved, 'Jumlah tiket yang berhasil diselesaikan'],
             ['Tiket Masih Pending / Berjalan', totalPending, 'Tiket aktif yang belum terselesaikan'],
             ['Rata-rata Tiket Per Hari', `${avgPerDay.toFixed(1)} tiket/hari`, 'Rata-rata volume harian'],
             ['Hari Puncak (Peak Volume)', `${volumeReport.data.summary.peakCount || 0} tiket (${volumeReport.data.summary.peakDay || '—'})`, 'Volume harian tertinggi tercatat'],
             ['Total Teknisi yang Dievaluasi', `${totalAgents} teknisi`, 'Jumlah teknisi dengan penugasan'],
-            ['Rata-rata Kepatuhan SLA Tim', `${avgSLA.toFixed(1)}%`, 'Tingkat kepatuhan SLA rata-rata seluruh teknisi'],
+            ['Kepatuhan SLA Tim', fmtPct(avgSLA), `${agentSummary.slaCompliant}/${agentSummary.slaEvaluated} dievaluasi; ${agentSummary.slaBreached} melanggar`],
         ];
 
         dashSheet.getRow(curRow).values = ['Parameter Metrik', 'Nilai Realisasi', 'Keterangan'];
@@ -506,44 +531,41 @@ export class ReportsService {
         const agentSheet = workbook.addWorksheet('Kinerja Teknisi');
         agentSheet.columns = [
             { header: 'Nama Teknisi', key: 'agentName', width: 26 },
-            { header: 'Ditugaskan', key: 'totalAssigned', width: 14 },
+            { header: 'Tugas', key: 'totalAssigned', width: 12 },
             { header: 'Diselesaikan', key: 'totalResolved', width: 14 },
             { header: 'Tingkat Resolusi (%)', key: 'resolutionRate', width: 20 },
-            { header: 'Avg Respon (Menit)', key: 'avgResponseTimeMinutes', width: 20 },
-            { header: 'Avg Resolusi (Menit)', key: 'avgResolutionTimeMinutes', width: 20 },
+            { header: 'Avg Respon', key: 'avgResponseTimeMinutes', width: 16 },
+            { header: 'Avg Resolusi', key: 'avgResolutionTimeMinutes', width: 16 },
             { header: 'Kepatuhan SLA (%)', key: 'slaComplianceRate', width: 18 },
         ];
 
         applyHeaderStyle(agentSheet, 1);
         setupFreezePanes(agentSheet, 1);
 
-        performanceReport.data.forEach((agent, idx) => {
+        rankAgents(performanceReport.data).forEach((agent, idx) => {
             const row = agentSheet.addRow({
                 agentName: agent.agentName,
                 totalAssigned: agent.totalAssigned || 0,
                 totalResolved: agent.totalResolved || 0,
-                resolutionRate: `${(agent.resolutionRate || 0).toFixed(1)}%`,
-                avgResponseTimeMinutes: `${agent.avgResponseTimeMinutes || 0} m`,
-                avgResolutionTimeMinutes: `${agent.avgResolutionTimeMinutes || 0} m`,
-                slaComplianceRate: `${(agent.slaComplianceRate || 0).toFixed(1)}%`,
+                resolutionRate: fmtPct(agent.resolutionRate),
+                avgResponseTimeMinutes: fmtMinutes(agent.avgResponseTimeMinutes),
+                avgResolutionTimeMinutes: fmtMinutes(agent.avgResolutionTimeMinutes),
+                slaComplianceRate: fmtPct(agent.slaComplianceRate),
             });
 
             applyRowStyle(row, idx);
 
-            const slaCell = row.getCell(7);
-            const slaVal = Number(agent.slaComplianceRate) || 0;
-            if (slaVal >= 90) {
-                slaCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: EXCEL_COLORS.positive } };
-            } else if (slaVal >= 70) {
-                slaCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: EXCEL_COLORS.caution } };
-            } else {
-                slaCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: EXCEL_COLORS.critical } };
+            // SLA not evaluated (null) stays uncoloured: no data is not a failure.
+            if (agent.slaComplianceRate != null) {
+                const slaCell = row.getCell(AGENT_SHEET_SLA_COLUMN);
+                const slaColor = agent.slaComplianceRate >= 90 ? EXCEL_COLORS.positive : agent.slaComplianceRate >= 70 ? EXCEL_COLORS.caution : EXCEL_COLORS.critical;
+                slaCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: slaColor } };
             }
         });
 
         if (performanceReport.data.length > 0) {
             applyAutoFilter(agentSheet, 'A', 1, 'G', performanceReport.data.length + 1);
-            applyFullBorders(agentSheet, 1, performanceReport.data.length + 1, 7);
+            applyFullBorders(agentSheet, 1, performanceReport.data.length + 1, AGENT_SHEET_SLA_COLUMN);
         }
         autoFitColumns(agentSheet, 14, 35);
 
@@ -553,8 +575,8 @@ export class ReportsService {
         const dailySheet = workbook.addWorksheet('Volume Harian');
         dailySheet.columns = [
             { header: 'Tanggal', key: 'date', width: 16 },
-            { header: 'Tiket Masuk', key: 'created', width: 15 },
-            { header: 'Tiket Selesai', key: 'resolved', width: 15 },
+            { header: DAILY_CREATED_LABEL, key: 'created', width: 15 },
+            { header: DAILY_DONE_LONG_LABEL, key: 'resolved', width: 24 },
             { header: 'Tiket Pending', key: 'pending', width: 15 },
         ];
         applyHeaderStyle(dailySheet, 1);

@@ -32,6 +32,7 @@ export class TokenService {
             type: 'access',
             fullName: user.fullName,
             siteId: user.siteId ?? null,
+            employeeId: user.employeeId ?? null,
         };
         return {
             token: this.jwtService.sign(payload, { expiresIn: expiresIn as JwtExpiry }),
@@ -54,6 +55,7 @@ export class TokenService {
             type: 'refresh',
             fullName: user.fullName,
             siteId: user.siteId ?? null,
+            employeeId: user.employeeId ?? null,
             rememberMe,
             tokenId,
             familyId,
@@ -81,6 +83,25 @@ export class TokenService {
             throw new Error('Invalid refresh token');
         }
         return claims;
+    }
+
+    private readonly ssoTickets = new Map<string, { userId: string; expiresAt: number }>();
+
+    generateOneTimeTicket(userId: string): string {
+        const ticket = randomUUID().replace(/-/g, '');
+        this.ssoTickets.set(ticket, {
+            userId,
+            expiresAt: Date.now() + 60000, // 60 seconds TTL
+        });
+        return ticket;
+    }
+
+    consumeOneTimeTicket(ticket: string): string | null {
+        const entry = this.ssoTickets.get(ticket);
+        if (!entry) return null;
+        this.ssoTickets.delete(ticket);
+        if (Date.now() > entry.expiresAt) return null;
+        return entry.userId;
     }
 
     private getExpirationByRole(role: string): string {

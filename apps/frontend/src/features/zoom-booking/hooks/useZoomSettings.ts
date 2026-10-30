@@ -11,6 +11,8 @@ export interface PublicZoomSettings {
 }
 
 const STALE_TIME = 60_000;
+/** Zoom is bookable every day; used until settings load so no day flashes as blocked. */
+export const ALL_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
 
 export function useZoomSettings(enabled = true) {
     return useQuery<PublicZoomSettings>({

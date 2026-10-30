@@ -1,17 +1,26 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, DeepPartial } from 'typeorm';
+import { Repository, DataSource, DeepPartial, Not, IsNull } from 'typeorm';
 import { HardwareEvents, ScheduleConfirmedPayload } from '../domain/events/hardware-request.events';
 import { HardwareRequest } from '../domain/entities/hardware-request.entity';
 import { InstallationSchedule } from '../domain/entities/installation-schedule.entity';
-import { Ticket, TicketPriority, TicketSource, TicketStatus, TicketType } from '../../ticketing/entities/ticket.entity';
+import { Ticket, TicketPriority, TicketSource, TicketStatus, TicketType, TICKET_INACTIVE_STATUSES } from '../../ticketing/entities/ticket.entity';
 import { TicketMessage } from '../../ticketing/entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
 import { WorkloadService } from '../../workload/workload.service';
 import { EventsGateway } from '../../ticketing/presentation/gateways/events.gateway';
+import { SlaClockService } from '../../ticketing/services/sla-clock.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { SiteActor } from '../../../shared/core/utils/site-scope.util';
+import { DEFAULT_TIMEZONE } from '../../sla-config/business-hours.calc';
+import { departmentDivision, generateNextTicketNumber, withTicketNumberRetry } from '../../ticketing/utils/ticket-number-generator';
+
+/** Schedule times are shown in WIB; the server clock runs in UTC. */
+const TIME_FORMAT: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', timeZone: DEFAULT_TIMEZONE };
+const DATE_FORMAT: Intl.DateTimeFormatOptions = {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: DEFAULT_TIMEZONE,
+};
 
 @Injectable()
 export class HardwareScheduleTicketListener {
@@ -29,6 +38,7 @@ export class HardwareScheduleTicketListener {
         private readonly dataSource: DataSource,
         private readonly workloadService: WorkloadService,
         private readonly eventsGateway: EventsGateway,
+        private readonly slaClock: SlaClockService,
     ) {}
 
     @OnEvent(HardwareEvents.ScheduleConfirmed)
@@ -54,6 +64,10 @@ export class HardwareScheduleTicketListener {
                 return;
             }
 
+            // Raised from an IT support ticket: that ticket follows the request (TicketHardwareSyncListener),
+            // so no separate installation ticket.
+            if (req.sourceTicketId) return;
+
             // Check if ticket already created for this schedule to avoid duplicate
             if (sched.ticketId) {
                 this.logger.log(`Ticket already exists for schedule ${sched.id}: ${sched.ticketId}`);
@@ -70,9 +84,15 @@ export class HardwareScheduleTicketListener {
             const startDate = new Date(payload.scheduledStart);
             const endDate = new Date(payload.scheduledEnd);
             
-            const startHour = startDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-            const endHour = endDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            const startHour = startDate.toLocaleTimeString('id-ID', TIME_FORMAT);
+            const endHour = endDate.toLocaleTimeString('id-ID', TIME_FORMAT);
             const scheduledTime = `${startHour} - ${endHour}`;
+
+            // A reschedule confirms a new schedule row for the same request: move
+            // the existing installation ticket instead of opening a second one.
+            if (await this.syncRescheduledTicket(sched, payload, startDate, scheduledTime)) {
+                return;
+            }
 
             // Build item summary
             const scheduledItemNames = (sched.items && sched.items.length > 0)
@@ -81,48 +101,18 @@ export class HardwareScheduleTicketListener {
             
             const itemSummary = Array.from(new Set(scheduledItemNames)).join(', ');
 
-            // Calculate SLA Target: H+1 from scheduledDate
-            const slaTarget = new Date(startDate);
-            slaTarget.setDate(slaTarget.getDate() + 1);
-            slaTarget.setHours(17, 0, 0, 0);
+            // SLA Target: closing time of the first working day after the schedule
+            const slaTarget = await this.slaClock.hardwareTarget(startDate);
 
             // Execute transaction to generate ticket and link schedule
-            const createdTicket = await this.dataSource.transaction(async (manager) => {
+            const createdTicket = await withTicketNumberRetry(this.logger, () => this.dataSource.transaction(async (manager) => {
                 const ticketRepo = manager.getRepository(Ticket);
                 const messageRepo = manager.getRepository(TicketMessage);
                 const schedRepo = manager.getRepository(InstallationSchedule);
 
-                const date = new Date();
-                const day = date.getDate().toString().padStart(2, '0');
-                const month = (date.getMonth() + 1).toString().padStart(2, '0');
-                const year = date.getFullYear().toString().slice(-2);
-                const dateStr = `${day}${month}${year}`;
-
-                const division = requester?.department?.name
-                    ? requester.department.name.substring(0, 3).toUpperCase()
-                    : 'ICT';
-
-                const todayStart = new Date(date);
-                todayStart.setHours(0, 0, 0, 0);
-
-                const latestTicket = await manager.createQueryBuilder(Ticket, 'ticket')
-                    .where('ticket.createdAt >= :todayStart', { todayStart })
-                    .orderBy('ticket.createdAt', 'DESC')
-                    .setLock('pessimistic_write')
-                    .getOne();
-
-                let newNumber = 1;
-                if (latestTicket && latestTicket.ticketNumber) {
-                    const parts = latestTicket.ticketNumber.split('-');
-                    if (parts.length === 3) {
-                        const lastNumber = parseInt(parts[2], 10);
-                        if (!isNaN(lastNumber)) {
-                            newNumber = lastNumber + 1;
-                        }
-                    }
-                }
-                const numberStr = newNumber.toString().padStart(4, '0');
-                const ticketNumber = `${dateStr}-${division}-${numberStr}`;
+                const division = departmentDivision(requester?.department, 'ICT');
+                // Shared locked generator: the old inline copy missed soft-deleted tickets and collided ("already exists").
+                const ticketNumber = await generateNextTicketNumber(manager, division);
 
                 const title = `[Hardware Installation] ${req.requestNumber} - ${itemSummary}`;
                 const description = [
@@ -130,7 +120,7 @@ export class HardwareScheduleTicketListener {
                     `Lokasi Site: ${req.site?.name || '—'}`,
                     `Pemohon: ${requester?.fullName || '—'} (${requester?.email || '—'})`,
                     `Penerima: ${req.recipientName || requester?.fullName || '—'}`,
-                    `Jadwal Terkonfirmasi: ${startDate.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} pk ${scheduledTime}`,
+                    `Jadwal Terkonfirmasi: ${startDate.toLocaleDateString('id-ID', DATE_FORMAT)} pk ${scheduledTime}`,
                     `Agent Teknisi: ${technician?.fullName || '—'}`,
                     `Item yang dipasang: ${itemSummary}`,
                     `Justifikasi: "${req.justification || '—'}"`,
@@ -177,7 +167,7 @@ export class HardwareScheduleTicketListener {
                 });
 
                 return savedTicket;
-            });
+            }));
 
             this.logger.log(`Created installation ticket #${createdTicket.ticketNumber} for request ${req.requestNumber}`);
 
@@ -199,10 +189,11 @@ export class HardwareScheduleTicketListener {
                 createdAt: createdTicket.createdAt,
             });
 
-            // Update workload points for the assigned agent
+            // Update workload for the assigned agent. Points stay 0 until the
+            // install day opens; WorkloadService's activation job adds them then.
             if (payload.technicianId && createdTicket.siteId) {
                 try {
-                    const priorityPoints = await this.workloadService.getPriorityWeight(TicketPriority.HARDWARE_INSTALLATION);
+                    const priorityPoints = await this.workloadService.workloadPointsFor(createdTicket);
                     const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: createdTicket.siteId };
                     // Atomic increment — a concurrent auto-assignment to the same agent
                     // must not lose this increment (PROD-20).
@@ -220,5 +211,49 @@ export class HardwareScheduleTicketListener {
         } catch (error: any) {
             this.logger.error(`Error in HardwareScheduleTicketListener: ${error.message}`, error.stack);
         }
+    }
+
+    /**
+     * Point the request's still-open installation ticket at the newly confirmed
+     * slot (date, time, SLA, technician) and recompute affected workloads.
+     * @returns false when there is no open ticket to move.
+     */
+    private async syncRescheduledTicket(
+        sched: InstallationSchedule,
+        payload: ScheduleConfirmedPayload,
+        startDate: Date,
+        scheduledTime: string,
+    ): Promise<boolean> {
+        const previous = await this.schedRepo.findOne({
+            where: { requestId: sched.requestId, ticketId: Not(IsNull()) },
+            order: { createdAt: 'DESC' },
+        });
+        if (!previous?.ticketId) return false;
+
+        const ticket = await this.ticketRepo.findOne({ where: { id: previous.ticketId } });
+        if (!ticket || TICKET_INACTIVE_STATUSES.includes(ticket.status)) return false;
+
+        const previousAssigneeId = ticket.assignedToId;
+        ticket.scheduledDate = startDate;
+        ticket.scheduledTime = scheduledTime;
+        ticket.slaTarget = await this.slaClock.hardwareTarget(startDate);
+        if (payload.technicianId) ticket.assignedToId = payload.technicianId;
+        await this.ticketRepo.save(ticket);
+        await this.schedRepo.update(sched.id, { ticketId: ticket.id });
+        this.logger.log(`Rescheduled installation ticket #${ticket.ticketNumber} to ${startDate.toISOString()}`);
+
+        if (ticket.siteId) {
+            const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: ticket.siteId };
+            const agentIds = new Set([previousAssigneeId, ticket.assignedToId].filter((id): id is string => !!id));
+            for (const agentId of agentIds) {
+                try {
+                    await this.workloadService.recalculateAgentWorkload(internalActor, agentId, ticket.siteId);
+                } catch (wlErr: any) {
+                    this.logger.warn(`Failed to recalculate workload for agent ${agentId}: ${wlErr.message}`);
+                }
+            }
+        }
+        this.eventsGateway.notifyDashboardStatsUpdate(ticket.siteId ?? null);
+        return true;
     }
 }

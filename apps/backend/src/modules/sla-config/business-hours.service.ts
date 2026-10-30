@@ -5,89 +5,27 @@ import { BusinessHours } from './entities/business-hours.entity';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 
-// Indonesian National Holidays for 2025
-const INDONESIAN_HOLIDAYS_2025 = [
-    // Tahun Baru
-    '2025-01-01',
-    // Isra Mi'raj
-    '2025-01-27',
-    // Imlek
-    '2025-01-29',
-    // Hari Raya Nyepi
-    '2025-03-29',
-    // Wafat Isa Al-Masih
-    '2025-04-18',
-    // Hari Raya Idul Fitri (Lebaran)
-    '2025-03-31',
-    '2025-04-01',
-    // Cuti Bersama Lebaran (perkiraan)
-    '2025-03-28',
-    '2025-04-02',
-    '2025-04-03',
-    '2025-04-04',
-    // Hari Buruh
-    '2025-05-01',
-    // Kenaikan Isa Al-Masih
-    '2025-05-29',
-    // Hari Raya Waisak
-    '2025-05-12',
-    // Pancasila
-    '2025-06-01',
-    // Hari Raya Idul Adha
-    '2025-06-07',
-    // Tahun Baru Islam
-    '2025-06-27',
-    // Hari Kemerdekaan
-    '2025-08-17',
-    // Maulid Nabi
-    '2025-09-05',
-    // Natal
-    '2025-12-25',
-    // Cuti Bersama Natal
-    '2025-12-26',
-];
+import { DEFAULT_HOLIDAYS } from './default-holidays';
+import { addBusinessMinutes, businessMinutesBetween, BusinessSchedule, DEFAULT_TIMEZONE } from './business-hours.calc';
 
-// Indonesian National Holidays for 2026
+const SCHEDULE_CACHE_TTL_MS = 60_000;
 
-const INDONESIAN_HOLIDAYS_2026 = [
-    // Tahun Baru
-    '2026-01-01',
-    // Imlek
-    '2026-02-17',
-    // Isra Mi'raj (perkiraan)
-    '2026-01-16',
-    // Hari Raya Nyepi
-    '2026-03-19',
-    // Wafat Isa Al-Masih
-    '2026-04-03',
-    // Hari Raya Idul Fitri
-    '2026-03-20',
-    '2026-03-21',
-    // Hari Buruh
-    '2026-05-01',
-    // Kenaikan Isa Al-Masih
-    '2026-05-14',
-    // Hari Raya Waisak
-    '2026-05-31',
-    // Pancasila
-    '2026-06-01',
-    // Hari Raya Idul Adha
-    '2026-05-27',
-    // Tahun Baru Islam
-    '2026-06-17',
-    // Hari Kemerdekaan
-    '2026-08-17',
-    // Maulid Nabi
-    '2026-08-26',
-    // Natal
-    '2026-12-25',
-];
-
-const DEFAULT_HOLIDAYS = [...INDONESIAN_HOLIDAYS_2025, ...INDONESIAN_HOLIDAYS_2026];
+/** Plain schedule used by the pure calculations. */
+export function toBusinessSchedule(config: BusinessHours): BusinessSchedule {
+    return {
+        workDays: config.workDays ?? [],
+        startTime: config.startTime,
+        endTime: config.endTime,
+        timezone: config.timezone || DEFAULT_TIMEZONE,
+        holidays: config.holidays ?? [],
+    };
+}
 
 @Injectable()
 export class BusinessHoursService {
     private readonly logger = new Logger(BusinessHoursService.name);
+    /** SLA math reads the schedule on every ticket mutation; it rarely changes. */
+    private cached: { config: BusinessHours; expiresAt: number } | null = null;
 
     constructor(
         @InjectRepository(BusinessHours)
@@ -100,6 +38,7 @@ export class BusinessHoursService {
      * Creates default if not exists
      */
     async getDefault(): Promise<BusinessHours> {
+        if (this.cached && this.cached.expiresAt > Date.now()) return this.cached.config;
         let config = await this.repo.findOne({ where: { isDefault: true } });
 
         if (!config) {
@@ -110,14 +49,20 @@ export class BusinessHoursService {
                 workDays: [1, 2, 3, 4, 5],  // Mon-Fri
                 startTime: 480,  // 8:00 AM
                 endTime: 1020,   // 5:00 PM
-                timezone: 'Asia/Jakarta',
+                timezone: DEFAULT_TIMEZONE,
                 holidays: DEFAULT_HOLIDAYS,
             });
             await this.repo.save(config);
             this.logger.log('Created default business hours configuration with Indonesian holidays');
         }
 
+        this.cached = { config, expiresAt: Date.now() + SCHEDULE_CACHE_TTL_MS };
         return config;
+    }
+
+    /** Default schedule as plain data for the pure calculations. */
+    async getSchedule(): Promise<BusinessSchedule> {
+        return toBusinessSchedule(await this.getDefault());
     }
 
     /**
@@ -133,6 +78,7 @@ export class BusinessHoursService {
     async update(id: string, data: Partial<BusinessHours>, userId?: string): Promise<BusinessHours> {
         const oldValue = await this.repo.findOne({ where: { id } });
         await this.repo.update(id, data);
+        this.cached = null;
         const saved = await this.repo.findOne({ where: { id } });
 
         if (userId && saved && oldValue) {
@@ -160,6 +106,7 @@ export class BusinessHoursService {
             config.holidays.push(date);
             config.holidays.sort();
             await this.repo.save(config);
+            this.cached = null;
 
             if (userId) {
                 this.auditService.logAsync({
@@ -184,6 +131,7 @@ export class BusinessHoursService {
         if (config) {
             config.holidays = config.holidays.filter(h => h !== date);
             await this.repo.save(config);
+            this.cached = null;
 
             if (userId) {
                 this.auditService.logAsync({
@@ -201,150 +149,22 @@ export class BusinessHoursService {
     }
 
     /**
-     * Calculate SLA target considering business hours
-     * @param startTime - When the SLA clock starts
-     * @param minutesToAdd - Total business minutes to add
-     * @returns Target date/time
+     * Instant reached after `minutesToAdd` working minutes from `startTime`,
+     * evaluated in the schedule's timezone.
      */
     async calculateSlaTarget(startTime: Date, minutesToAdd: number): Promise<Date> {
         if (!minutesToAdd || minutesToAdd <= 0 || !Number.isFinite(minutesToAdd)) {
             return new Date(startTime);
         }
-
-        const config = await this.getDefault();
-        const holidaySet = new Set(config.holidays || []);
-        let current = new Date(startTime);
-        let remainingMinutes = minutesToAdd;
-
-        // Safety limit to prevent infinite loops
-        const maxIterations = 365; // Max 1 year of iterations
-        let iterations = 0;
-
-        while (remainingMinutes > 0 && iterations < maxIterations) {
-            iterations++;
-
-            // Skip if not a work day
-            if (!this.isWorkDay(current, config, holidaySet)) {
-                current.setDate(current.getDate() + 1);
-                current.setHours(Math.floor(config.startTime / 60), config.startTime % 60, 0, 0);
-                continue;
-            }
-
-            const currentMinutes = current.getHours() * 60 + current.getMinutes();
-
-            // Before work hours - jump to start
-            if (currentMinutes < config.startTime) {
-                current.setHours(Math.floor(config.startTime / 60), config.startTime % 60, 0, 0);
-            }
-            // After work hours - jump to next day
-            else if (currentMinutes >= config.endTime) {
-                current.setDate(current.getDate() + 1);
-                current.setHours(Math.floor(config.startTime / 60), config.startTime % 60, 0, 0);
-                continue;
-            }
-
-            // Calculate remaining minutes in current work day
-            const currentMinsInDay = current.getHours() * 60 + current.getMinutes();
-            const minutesLeftToday = config.endTime - currentMinsInDay;
-
-            if (remainingMinutes <= minutesLeftToday) {
-                // Finish within today
-                current.setMinutes(current.getMinutes() + remainingMinutes);
-                remainingMinutes = 0;
-            } else {
-                // Move to next day
-                remainingMinutes -= minutesLeftToday;
-                current.setDate(current.getDate() + 1);
-                current.setHours(Math.floor(config.startTime / 60), config.startTime % 60, 0, 0);
-            }
-        }
-
-        if (iterations >= maxIterations) {
-            this.logger.warn('SLA calculation exceeded max iterations, returning approximate target');
-        }
-
-        return current;
+        return addBusinessMinutes(startTime, minutesToAdd, toBusinessSchedule(await this.getDefault()));
     }
 
     /**
-     * Check if a date is a work day
-     */
-    private isWorkDay(date: Date, config: BusinessHours, holidaySet?: Set<string>): boolean {
-        const dayOfWeek = date.getDay();
-
-        // Check if it's a work day
-        if (!config.workDays.includes(dayOfWeek)) {
-            return false;
-        }
-
-        // Check if it's a holiday (O(1) with Set, fallback to array scan)
-        const dateStr = this.formatDate(date);
-        if (holidaySet ? holidaySet.has(dateStr) : config.holidays?.includes(dateStr)) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Format date as YYYY-MM-DD
-     */
-    private formatDate(date: Date): string {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    }
-
-    /**
-     * Calculate business minutes between two dates
+     * Working minutes between two instants
      */
     async calculateBusinessMinutes(startDate: Date, endDate: Date): Promise<number> {
-        if (!startDate || !endDate || startDate.getTime() >= endDate.getTime()) {
-            return 0;
-        }
-
-        const config = await this.getDefault();
-        const holidaySet = new Set(config.holidays || []);
-        let current = new Date(startDate);
-        let totalMinutes = 0;
-
-        const maxIterations = 365;
-        let iterations = 0;
-
-        while (current < endDate && iterations < maxIterations) {
-            iterations++;
-
-            if (!this.isWorkDay(current, config, holidaySet)) {
-                current.setDate(current.getDate() + 1);
-                current.setHours(Math.floor(config.startTime / 60), config.startTime % 60, 0, 0);
-                continue;
-            }
-
-            const currentMinutes = current.getHours() * 60 + current.getMinutes();
-            const endMinutes = endDate.getHours() * 60 + endDate.getMinutes();
-
-            // Get effective start for this day
-            const dayStart = Math.max(currentMinutes, config.startTime);
-
-            // Check if end date is same day
-            if (this.formatDate(current) === this.formatDate(endDate)) {
-                const dayEnd = Math.min(endMinutes, config.endTime);
-                if (dayEnd > dayStart) {
-                    totalMinutes += dayEnd - dayStart;
-                }
-                break;
-            } else {
-                // Full work day
-                if (dayStart < config.endTime) {
-                    totalMinutes += config.endTime - dayStart;
-                }
-                current.setDate(current.getDate() + 1);
-                current.setHours(Math.floor(config.startTime / 60), config.startTime % 60, 0, 0);
-            }
-        }
-
-        return totalMinutes;
+        if (!startDate || !endDate) return 0;
+        return businessMinutesBetween(startDate, endDate, toBusinessSchedule(await this.getDefault()));
     }
 
     /**

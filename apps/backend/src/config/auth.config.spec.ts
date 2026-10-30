@@ -53,8 +53,4 @@ describe('validateAuthEnvironment', () => {
     it('rejects non-hex EForm encryption key', () => {
         expect(() => validateAuthEnvironment({ ...base, EFORM_ENCRYPTION_KEY: 'x'.repeat(64) })).toThrow('EFORM_ENCRYPTION_KEY');
     });
-
-    it('requires Telegram webhook secret in production webhook mode', () => {
-        expect(() => validateAuthEnvironment({ ...base, TELEGRAM_USE_WEBHOOK: 'true' })).toThrow('TELEGRAM_WEBHOOK_SECRET');
-    });
 });

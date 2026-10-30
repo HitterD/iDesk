@@ -106,6 +106,17 @@ describe('InstallationScheduleService', () => {
                 .rejects.toThrow(/counterparty/i);
         });
 
+        it('confirms the newest PROPOSED schedule, not a retired one (after a reschedule)', async () => {
+            scheduleRepo.findOne.mockResolvedValue({
+                id: 'sch-2', requestId: 'r1', status: InstallStatus.PROPOSED, proposedBy: 't1', technicianId: 't1',
+            });
+            requestRepo.findOne.mockResolvedValue({ id: 'r1', status: RequestStatus.INSTALLATION, requesterId: 'u1' });
+            await svc.confirm('r1', { id: 'u1', role: 'USER' });
+            expect(scheduleRepo.findOne).toHaveBeenCalledWith({
+                where: { requestId: 'r1', status: InstallStatus.PROPOSED }, order: { createdAt: 'DESC' },
+            });
+        });
+
         it('rejects confirm when not in PROPOSED', async () => {
             scheduleRepo.findOne.mockResolvedValue({
                 id: 'sch-1', requestId: 'r1', status: InstallStatus.CONFIRMED, proposedBy: 'u1', technicianId: 't1',
@@ -188,6 +199,38 @@ describe('InstallationScheduleService', () => {
             const res = await svc.completeInstallation('r1', { id: 't1', role: 'ICT_STAFF' });
             expect(res.status).toBe(InstallStatus.DONE);
             expect(res.completedAt).toBeDefined();
+        });
+
+        it('CONFIRMED → DONE and keeps the scheduled technician', async () => {
+            scheduleRepo.findOne.mockResolvedValue({
+                id: 'sch-1', requestId: 'r1', status: InstallStatus.CONFIRMED, technicianId: 'tech-a',
+            });
+
+            const res = await svc.completeInstallation('r1', { id: 'admin-1', role: 'ICT_STAFF' });
+
+            expect(res.status).toBe(InstallStatus.DONE);
+            expect(res.technicianId).toBe('tech-a');
+        });
+
+        it('only looks at confirmed or in-progress schedules', async () => {
+            scheduleRepo.findOne.mockResolvedValue({ id: 'sch-1', requestId: 'r1', status: InstallStatus.CONFIRMED });
+
+            await svc.completeInstallation('r1', { id: 't1', role: 'ICT_STAFF' });
+
+            expect(scheduleRepo.findOne).toHaveBeenCalledWith(expect.objectContaining({
+                where: expect.objectContaining({ requestId: 'r1' }),
+            }));
+            const where = scheduleRepo.findOne.mock.calls[0][0].where;
+            expect(where.status.value).toEqual([InstallStatus.CONFIRMED, InstallStatus.IN_PROGRESS]);
+        });
+
+        it('refuses when there is no confirmed schedule (e.g. user asked to reschedule)', async () => {
+            scheduleRepo.findOne.mockResolvedValue(null);
+
+            await expect(svc.completeInstallation('r1', { id: 't1', role: 'ICT_STAFF' }))
+                .rejects.toThrow(/jadwal terkonfirmasi/i);
+            expect(scheduleRepo.save).not.toHaveBeenCalled();
+            expect(scheduleRepo.create).not.toHaveBeenCalled();
         });
     });
 });

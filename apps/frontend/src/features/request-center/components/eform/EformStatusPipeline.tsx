@@ -13,11 +13,18 @@ interface Step {
   detail: string;
 }
 
-const pipelineSteps: Step[] = [
+const standardSteps: Step[] = [
   { id: EFormStatus.DRAFT, label: 'Diajukan', detail: 'Formulir dikirim pemohon' },
   { id: EFormStatus.PENDING_MANAGER, label: 'Atasan', detail: 'Menunggu persetujuan' },
+  { id: EFormStatus.PENDING_GM, label: 'GM', detail: 'Tanda tangan GM' },
   { id: EFormStatus.PENDING_ICT, label: 'Tim ICT', detail: 'Akses disiapkan' },
   { id: EFormStatus.CONFIRMED, label: 'Selesai', detail: 'Kredensial tersedia' },
+];
+
+const directIctSteps: Step[] = [
+  { id: EFormStatus.DRAFT, label: 'Diajukan', detail: 'Formulir dikirim pemohon' },
+  { id: EFormStatus.PENDING_ICT, label: 'Tim ICT', detail: 'Akses disiapkan' },
+  { id: EFormStatus.CONFIRMED, label: 'Selesai', detail: 'Akses siap digunakan' },
 ];
 
 interface EformStatusPipelineProps {
@@ -28,16 +35,21 @@ interface EformStatusPipelineProps {
 
 export const EformStatusPipeline: React.FC<EformStatusPipelineProps> = ({
   currentStatus,
+  formType,
   rejectionReason,
 }) => {
   const isRejected = currentStatus === EFormStatus.REJECTED;
+  const isDirectIct = formType === 'SYNOLOGY_NAS';
+  const steps = isDirectIct ? directIctSteps : standardSteps;
 
   const currentIndex = isRejected
-    ? pipelineSteps.findIndex(s => s.id === EFormStatus.PENDING_MANAGER)
-    : pipelineSteps.findIndex(s => s.id === currentStatus);
+    ? (isDirectIct
+        ? steps.findIndex(s => s.id === EFormStatus.PENDING_ICT)
+        : steps.findIndex(s => s.id === EFormStatus.PENDING_MANAGER))
+    : steps.findIndex(s => s.id === currentStatus);
 
   const status = getStatusConfig(currentStatus);
-  const progressPct = currentIndex <= 0 ? 0 : (currentIndex / (pipelineSteps.length - 1)) * 100;
+  const progressPct = currentIndex <= 0 ? 0 : (currentIndex / (steps.length - 1)) * 100;
 
   return (
     <div className="w-full">
@@ -57,7 +69,7 @@ export const EformStatusPipeline: React.FC<EformStatusPipelineProps> = ({
           )}
         </div>
 
-        {pipelineSteps.map((step, index) => {
+        {steps.map((step, index) => {
           const isActive = index === currentIndex && !isRejected;
           const isCompleted = index < currentIndex && !isRejected;
 

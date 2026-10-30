@@ -5,37 +5,6 @@ import {
 } from 'class-validator';
 
 /**
- * Validates that a string does not contain SQL injection patterns
- */
-export function NoSqlInjection(validationOptions?: ValidationOptions) {
-    return function (object: object, propertyName: string) {
-        registerDecorator({
-            name: 'noSqlInjection',
-            target: object.constructor,
-            propertyName: propertyName,
-            options: validationOptions,
-            validator: {
-                validate(value: any) {
-                    if (typeof value !== 'string') return true;
-                    
-                    const sqlPatterns = [
-                        /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|ALTER|CREATE|TRUNCATE)\b)/i,
-                        /(--)|(\/\*)|(\*\/)/,
-                        /(;|\||&&)/,
-                        /(\bOR\b|\bAND\b)\s*['"]/i,
-                    ];
-                    
-                    return !sqlPatterns.some(pattern => pattern.test(value));
-                },
-                defaultMessage(args: ValidationArguments) {
-                    return `${args.property} contains potentially harmful content`;
-                },
-            },
-        });
-    };
-}
-
-/**
  * Validates that a string is a safe search query
  */
 export function IsSafeSearch(validationOptions?: ValidationOptions) {

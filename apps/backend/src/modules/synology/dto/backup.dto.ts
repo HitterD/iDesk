@@ -103,8 +103,13 @@ export class TestConnectionDto {
     @IsString()
     synologyUsername: string;
 
+    @IsOptional()
     @IsString()
-    synologyPassword: string;
+    synologyPassword?: string;
+
+    @IsOptional()
+    @IsString()
+    configId?: string;
 
     @IsOptional()
     @IsString()
@@ -130,8 +135,13 @@ export class ListFoldersDto {
     @IsString()
     synologyUsername: string;
 
+    @IsOptional()
     @IsString()
-    synologyPassword: string;
+    synologyPassword?: string;
+
+    @IsOptional()
+    @IsString()
+    configId?: string;
 
     @IsOptional()
     @IsString()

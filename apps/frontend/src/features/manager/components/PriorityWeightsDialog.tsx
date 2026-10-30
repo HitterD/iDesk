@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Settings, Save, RefreshCw, AlertCircle } from 'lucide-react';
+import { Settings, Save, RefreshCw, AlertCircle, SlidersHorizontal } from 'lucide-react';
 import { workloadApi } from '@/lib/api/workload.api';
 import { toast } from 'sonner';
 
@@ -13,6 +13,14 @@ const DEFAULT_WEIGHTS: Record<string, number> = {
     HIGH: 4,
     CRITICAL: 8,
     HARDWARE_INSTALLATION: 3,
+};
+
+const PRIORITY_LABELS: Record<string, string> = {
+    CRITICAL: 'Blocker (Critical)',
+    HIGH: 'Urgent (Major Impact)',
+    MEDIUM: 'Normal (Moderate)',
+    LOW: 'Low (Minor/Cosmetic)',
+    HARDWARE_INSTALLATION: 'Hardware Installation',
 };
 
 export const PriorityWeightsDialog = () => {
@@ -82,16 +90,16 @@ export const PriorityWeightsDialog = () => {
         if (key.includes('CRITICAL')) return 'text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900';
         if (key.includes('HIGH')) return 'text-orange-600 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-900';
         if (key.includes('MEDIUM')) return 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-900';
-        if (key.includes('HARDWARE')) return 'text-purple-600 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-900';
+        if (key.includes('HARDWARE')) return 'text-[#2d4a8c] bg-[#2d4a8c]/10 dark:text-[#a9bdf0] border-[#2d4a8c]/25';
         return 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900';
     };
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2 shrink-0 rounded-xl bg-[hsl(var(--card))] hover:bg-slate-50 dark:hover:bg-slate-800/50 border-[hsl(var(--border))] shadow-sm text-slate-700 dark:text-slate-300">
-                    <Settings className="w-4 h-4 text-slate-500" />
-                    <span className="font-medium">Pengaturan Bobot</span>
+                <Button variant="soft">
+                    <SlidersHorizontal aria-hidden="true" />
+                    Pengaturan Bobot
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden rounded-xl border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-xl">
@@ -123,8 +131,8 @@ export const PriorityWeightsDialog = () => {
                             {Object.entries(weights).map(([key, value]) => (
                                 <div className="group flex items-center justify-between gap-4 p-3 rounded-lg border border-[hsl(var(--border))] bg-slate-50/50 dark:bg-slate-900/50 hover:bg-[hsl(var(--card))] transition-colors duration-200" key={key}>
                                     <div className="flex items-center gap-3">
-                                        <div className={`px-2.5 py-1 rounded-md text-xs font-bold border ${getPriorityColor(key)} uppercase tracking-wider`}>
-                                            {key.replace(/_/g, ' ')}
+                                        <div className={`px-2.5 py-1 rounded-md text-xs font-bold border ${getPriorityColor(key)} tracking-wide`}>
+                                            {PRIORITY_LABELS[key] || key.replace(/_/g, ' ')}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">

@@ -31,12 +31,11 @@ describe('ZoomCalendarSubBar', () => {
         expect(screen.queryByTestId('view-switcher')).not.toBeInTheDocument();
     });
 
-    it('renders legend chips', () => {
+    it('does not render legend chips (simplified UI)', () => {
         render(<ZoomCalendarSubBar {...baseProps} />, { wrapper });
-        expect(screen.getAllByText(/saya/i).length).toBeGreaterThan(0);
-        expect(screen.getAllByText(/tim/i).length).toBeGreaterThan(0);
-        expect(screen.getAllByText(/external/i).length).toBeGreaterThan(0);
-        expect(screen.getAllByText(/blokir/i).length).toBeGreaterThan(0);
+        expect(screen.queryByText(/^tim$/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/^external$/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/^blokir$/i)).not.toBeInTheDocument();
     });
 
     it('shows Live indicator when isLive is true', () => {
@@ -81,5 +80,76 @@ describe('ZoomCalendarSubBar', () => {
         render(<ZoomCalendarSubBar {...baseProps} onOpenSettings={onOpenSettings} />, { wrapper });
         await user.click(screen.getByRole('button', { name: /^settings$/i }));
         expect(onOpenSettings).toHaveBeenCalledOnce();
+    });
+
+    it('renders interactive account filter chips with count and handles toggle in Gabungan mode', async () => {
+        const onToggle = vi.fn();
+        const accounts = [
+            { id: 'acc-1', name: 'Zoom 1', colorHex: '#ef4444', meetingsCount: 12 },
+            { id: 'acc-2', name: 'Zoom 2', colorHex: '#3b82f6', meetingsCount: 5 },
+        ];
+        const user = userEvent.setup();
+
+        render(
+            <ZoomCalendarSubBar
+                {...baseProps}
+                accounts={accounts}
+                activeFilterAccountIds={new Set(['acc-1', 'acc-2'])}
+                onToggleAccountFilter={onToggle}
+            />,
+            { wrapper }
+        );
+
+        expect(screen.getByText('Zoom 1')).toBeInTheDocument();
+        expect(screen.getByText('12')).toBeInTheDocument();
+        expect(screen.getByText('Zoom 2')).toBeInTheDocument();
+        expect(screen.getByText('5')).toBeInTheDocument();
+
+        await user.click(screen.getByText('Zoom 1'));
+        expect(onToggle).toHaveBeenCalledWith('acc-1');
+    });
+
+    it('renders Reset button when filters are active in Gabungan mode and calls onSelectAllAccounts', async () => {
+        const onSelectAll = vi.fn();
+        const accounts = [
+            { id: 'acc-1', name: 'Zoom 1', colorHex: '#ef4444', meetingsCount: 12 },
+            { id: 'acc-2', name: 'Zoom 2', colorHex: '#3b82f6', meetingsCount: 5 },
+        ];
+        const user = userEvent.setup();
+
+        render(
+            <ZoomCalendarSubBar
+                {...baseProps}
+                accounts={accounts}
+                activeFilterAccountIds={new Set(['acc-1'])} // acc-2 unselected
+                onSelectAllAccounts={onSelectAll}
+            />,
+            { wrapper }
+        );
+
+        const resetBtn = screen.getByRole('button', { name: /reset/i });
+        expect(resetBtn).toBeInTheDocument();
+        await user.click(resetBtn);
+        expect(onSelectAll).toHaveBeenCalledOnce();
+    });
+
+    it('in single account mode, renders button to switch back to Gabungan', async () => {
+        const onSelectAccount = vi.fn();
+        const user = userEvent.setup();
+
+        render(
+            <ZoomCalendarSubBar
+                {...baseProps}
+                accountScope="acc-1"
+                activeAccountName="Zoom Admin 1"
+                onSelectAccount={onSelectAccount}
+            />,
+            { wrapper }
+        );
+
+        const gabunganBtn = screen.getByRole('button', { name: /ke mode gabungan/i });
+        expect(gabunganBtn).toBeInTheDocument();
+        await user.click(gabunganBtn);
+        expect(onSelectAccount).toHaveBeenCalledWith('gabungan');
     });
 });

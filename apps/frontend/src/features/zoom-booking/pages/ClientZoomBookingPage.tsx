@@ -1,17 +1,27 @@
 import { useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { format, parseISO, isFuture, isToday, isPast } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { CalendarPlus, Video, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { SimpleBookingForm, ZoomMyBookingsView } from '../components';
+import { BookingDetailsModal, SimpleBookingForm, ZoomMyBookingsView } from '../components';
 import { useMyBookings } from '../hooks';
+import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
+import { NotificationCategory } from '@/components/notifications/types/notification.types';
+
+/** Opening this page counts as reading its notifications. */
+const ZOOM_NOTIFICATIONS = { category: NotificationCategory.CATEGORY_ZOOM };
 
 export function ClientZoomBookingPage() {
+    useMarkNotificationsRead(ZOOM_NOTIFICATIONS);
     const [mobileTab, setMobileTab] = useState<'form' | 'bookings'>('form');
     const [isFormVisible, setIsFormVisible] = useState(true);
     const [selectedDate, setSelectedDate] = useState<string>('');
+    // Detail modal: a booking just created, or one opened by deep link (iPop calendar, /zoom-booking/:id).
+    const [searchParams] = useSearchParams();
+    const [detailBookingId, setDetailBookingId] = useState<string | null>(() => searchParams.get('booking'));
     const { data: bookings } = useMyBookings();
 
     const upcomingCount = useMemo(() => {
@@ -64,19 +74,33 @@ export function ClientZoomBookingPage() {
     };
 
     return (
-        <div className="w-full space-y-4 lg:space-y-6 animate-fade-in-up">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-1">
-                <header className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
-                        Zoom
-                    </p>
-                    <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                        Booking Zoom
-                    </h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Buat jadwal meeting Zoom baru dan kelola seluruh daftar meeting Anda.
-                    </p>
-                </header>
+        <div className="w-full space-y-4 lg:space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-1">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="relative shrink-0">
+                        <img
+                            src="/characters/mascot-calendar.png"
+                            alt="Zoom Calendar Mascot"
+                            className="w-14 h-14 sm:w-16 sm:h-16 object-contain filter drop-shadow-sm transition-transform hover:scale-105 duration-200"
+                            onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                            }}
+                        />
+                    </div>
+                    <header className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">
+                                Zoom Schedule
+                            </span>
+                        </div>
+                        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-slate-50">
+                            Booking Zoom
+                        </h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Buat jadwal meeting Zoom baru dan kelola seluruh daftar meeting Anda.
+                        </p>
+                    </header>
+                </div>
 
                 {/* Desktop Toggle: Focus Matrix / Expand View */}
                 <div className="hidden lg:flex items-center gap-2">
@@ -149,25 +173,35 @@ export function ClientZoomBookingPage() {
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12 lg:gap-6">
+            <div className="flex flex-col items-stretch gap-4 lg:flex-row lg:items-start lg:gap-5">
                 {/* Form Section: Shown on desktop when isFormVisible, or mobile when mobileTab === 'form' */}
                 <section
                     id="booking-form-section"
                     aria-labelledby="booking-form-heading"
                     className={cn(
-                        "rounded-2xl bg-card p-5 shadow-[0_14px_35px_rgba(15,23,42,0.055)] dark:shadow-none border border-border/50 lg:sticky lg:top-6 lg:col-span-4 xl:col-span-3.5 2xl:col-span-3",
+                        "rounded-2xl bg-card p-5 shadow-[0_14px_35px_rgba(15,23,42,0.055)] dark:shadow-none border border-border/50 lg:sticky lg:top-6 lg:w-[320px] xl:w-[340px] lg:shrink-0",
                         mobileTab === 'form' ? 'block' : 'hidden',
                         isFormVisible ? 'lg:block' : 'lg:hidden'
                     )}
                 >
                     <div className="mb-5 flex items-center justify-between">
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
-                                Detail meeting
-                            </p>
-                            <h2 id="booking-form-heading" className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
-                                Buat meeting
-                            </h2>
+                        <div className="flex items-center gap-2.5">
+                            <img
+                                src="/characters/mascot-calendar.png"
+                                alt=""
+                                className="w-8 h-8 object-contain shrink-0 filter drop-shadow-xs"
+                                onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                }}
+                            />
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                                    Detail meeting
+                                </p>
+                                <h2 id="booking-form-heading" className="mt-0.5 text-base font-semibold text-slate-900 dark:text-slate-100">
+                                    Buat meeting
+                                </h2>
+                            </div>
                         </div>
                         <Button
                             type="button"
@@ -183,7 +217,7 @@ export function ClientZoomBookingPage() {
                     <SimpleBookingForm
                         selectedDate={selectedDate}
                         onDateChange={setSelectedDate}
-                        onSuccessViewBookings={() => setMobileTab('bookings')}
+                        onBookingCreated={setDetailBookingId}
                     />
                 </section>
 
@@ -191,10 +225,7 @@ export function ClientZoomBookingPage() {
                 <section
                     aria-label="Daftar meeting saya"
                     className={cn(
-                        "min-h-[540px] lg:min-h-[660px] flex-col overflow-hidden rounded-2xl bg-card shadow-[0_14px_35px_rgba(15,23,42,0.055)] dark:shadow-none border border-border/50",
-                        isFormVisible
-                            ? "lg:col-span-8 xl:col-span-8.5 2xl:col-span-9"
-                            : "lg:col-span-12",
+                        "min-h-[540px] lg:min-h-[660px] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-card shadow-[0_14px_35px_rgba(15,23,42,0.055)] dark:shadow-none border border-border/50",
                         mobileTab === 'bookings' ? 'flex' : 'hidden lg:flex'
                     )}
                 >
@@ -204,6 +235,14 @@ export function ClientZoomBookingPage() {
                     />
                 </section>
             </div>
+
+            {detailBookingId && (
+                <BookingDetailsModal
+                    isOpen
+                    bookingId={detailBookingId}
+                    onClose={() => setDetailBookingId(null)}
+                />
+            )}
         </div>
     );
 }

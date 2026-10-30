@@ -22,6 +22,8 @@ import { ZoomEndTimeSelect, type EndTimeOption } from './ZoomEndTimeSelect';
 import { ZoomParticipantPicker } from './ZoomParticipantPicker';
 
 
+const DEFAULT_SLOT_INTERVAL_MINUTES = 30;
+
 function calculateEndTime(startTime: string, durationMinutes: number): string {
     if (!startTime) return '';
     const [h, m] = startTime.split(':').map(Number);
@@ -75,7 +77,7 @@ export function computeEndTimeOptions(
     if (isNaN(sh) || isNaN(sm)) return [];
 
     const startMins = sh * 60 + sm;
-    const endH = Number(settings?.slotEndTime?.split(':')[0] || '18');
+    const endH = Number(settings?.slotEndTime?.split(':')[0] || '24');
     const endM = Number(settings?.slotEndTime?.split(':')[1] || '00');
     const closingMins = (endH === 0 && endM === 0) ? 24 * 60 : (endH * 60 + endM);
 
@@ -84,12 +86,24 @@ export function computeEndTimeOptions(
         : [30, 60, 90, 120, 150, 180, 210, 240];
 
     const isTodayBooking = bookingDate ? isSameDay(parseISO(bookingDate), new Date()) : false;
-    const nowStr = format(new Date(), 'HH:mm');
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
     const intervalStep = settings?.slotIntervalMinutes || 30;
 
+    // Check if the chosen startTime itself has completely finished in the past.
+    // If slots are provided and the startTime slot has reason 'Waktu sudah lewat',
+    // or if the slot's entire duration ended before now (e.g. startMins + intervalStep <= nowMinutes),
+    // then startTime is not ongoing but completely in the past.
+    const startSlotData = slots?.find((s) => s.time === startTime);
+    const isStartTimeCompletelyPast = isTodayBooking && (
+        startSlotData
+            ? (!startSlotData.available && (startSlotData.reason === 'Waktu sudah lewat' || startSlotData.reason === 'Waktu sudah terlewat'))
+            : (startMins + intervalStep <= nowMinutes)
+    );
+
     const options: EndTimeOption[] = [];
-    let encounterBlocker = false;
-    let blockerReason = '';
+    let encounterBlocker = isStartTimeCompletelyPast;
+    let blockerReason = isStartTimeCompletelyPast ? 'Waktu sudah terlewat' : '';
 
     for (const dur of intervals) {
         const endTotal = startMins + dur;
@@ -97,7 +111,7 @@ export function computeEndTimeOptions(
         const m = endTotal % 60;
         const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 
-        // 1. If an earlier sub-slot was already full/blocked, all subsequent end times are also blocked
+        // 1. If an earlier sub-slot was already full/blocked or start time completely past, all subsequent end times are also blocked
         if (encounterBlocker) {
             options.push({
                 value: timeStr,
@@ -124,7 +138,20 @@ export function computeEndTimeOptions(
             continue;
         }
 
-        // 3. Verify all sub-slots from startMins to endTotal
+        // 3. Check if this specific end time has already elapsed in today's clock
+        const isEndTimePast = isTodayBooking && (endTotal <= nowMinutes);
+        if (isEndTimePast) {
+            options.push({
+                value: timeStr,
+                time: timeStr,
+                durationMinutes: dur,
+                isUnavailable: true,
+                reason: 'Waktu sudah terlewat',
+            });
+            continue;
+        }
+
+        // 4. Verify all sub-slots from startMins to endTotal for real account conflicts
         let intervalBlocked = false;
         let intervalReason = '';
 
@@ -133,13 +160,6 @@ export function computeEndTimeOptions(
             const curH = Math.floor(curSlotMins / 60);
             const curM = curSlotMins % 60;
             const curSlotTime = `${curH.toString().padStart(2, '0')}:${curM.toString().padStart(2, '0')}`;
-
-            const isPast = isTodayBooking && curSlotTime < nowStr;
-            if (isPast) {
-                intervalBlocked = true;
-                intervalReason = 'Waktu sudah terlewat';
-                break;
-            }
 
             if (slots && slots.length > 0) {
                 const slotData = slots.find((s) => s.time === curSlotTime);
@@ -150,9 +170,13 @@ export function computeEndTimeOptions(
                         break;
                     }
                     if (!slotData.available || slotData.availableAccountsCount === 0) {
-                        intervalBlocked = true;
-                        intervalReason = slotData.reason || (slotData.totalAccountsCount ? `Penuh (${slotData.totalAccountsCount} akun)` : 'Penuh');
-                        break;
+                        // Skip if unavailable purely because of 'Waktu sudah lewat' on an ongoing slot
+                        const isPastReason = slotData.reason === 'Waktu sudah lewat' || slotData.reason === 'Waktu sudah terlewat';
+                        if (!isPastReason) {
+                            intervalBlocked = true;
+                            intervalReason = slotData.reason || (slotData.totalAccountsCount ? `Penuh (${slotData.totalAccountsCount} akun)` : 'Penuh');
+                            break;
+                        }
                     }
                 }
             }
@@ -185,13 +209,14 @@ export function computeEndTimeOptions(
 
 
 interface SimpleBookingFormProps {
-    onSuccessViewBookings?: () => void;
+    /** Called with the created booking id (first occurrence for recurring series). */
+    onBookingCreated?: (bookingId: string) => void;
     selectedDate?: string;
     onDateChange?: (date: string) => void;
 }
 
 export function SimpleBookingForm({
-    onSuccessViewBookings,
+    onBookingCreated,
     selectedDate,
     onDateChange,
 }: SimpleBookingFormProps = {}) {
@@ -206,8 +231,6 @@ export function SimpleBookingForm({
     const [interval, setInterval] = useState(1);
     const [until, setUntil] = useState('');
     const [allowDoubleBooking, setAllowDoubleBooking] = useState(false);
-    const [bookingSucceeded, setBookingSucceeded] = useState(false);
-    const [successJoinUrl, setSuccessJoinUrl] = useState<string | null>(null);
 
     // Duration is dynamically derived from startTime and endTime
     const duration = useMemo(() => {
@@ -231,6 +254,11 @@ export function SimpleBookingForm({
     const createBooking = useCreateBooking();
     const availability = useCheckAvailability(bookingDate || undefined, startTime || undefined, duration);
     const daySlotsQuery = useDaySlotsAvailability(bookingDate || undefined, duration);
+    // End-time options walk the range in sub-slots, so each row must cover exactly one
+    // sub-slot. Rows for the chosen duration flagged late sub-slots as past closing time
+    // (e.g. 16:00 + 8h) and locked every end time from 17:00 on.
+    const subSlotMinutes = settings?.slotIntervalMinutes || DEFAULT_SLOT_INTERVAL_MINUTES;
+    const subSlotsQuery = useDaySlotsAvailability(bookingDate || undefined, subSlotMinutes);
 
     // Current slot details
     const currentSlot = useMemo(() => {
@@ -250,8 +278,8 @@ export function SimpleBookingForm({
 
     // Build time options based on real-time availability from settings & daySlotsQuery
     const timeOptions: TimeSlotOption[] = useMemo(() => {
-        const startH = Number(settings?.slotStartTime?.split(':')[0] || '08');
-        const endH = Number(settings?.slotEndTime?.split(':')[0] || '18');
+        const startH = Number(settings?.slotStartTime?.split(':')[0] || '00');
+        const endH = Number(settings?.slotEndTime?.split(':')[0] || '24');
         const interval = settings?.slotIntervalMinutes || 30;
 
         if (!bookingDate) {
@@ -268,17 +296,22 @@ export function SimpleBookingForm({
         }
 
         const isTodayBooking = isSameDay(parseISO(bookingDate), new Date());
-        const nowStr = format(new Date(), 'HH:mm');
+        const now = new Date();
+        const nowStr = format(now, 'HH:mm');
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
         if (daySlotsQuery.data?.slots?.length) {
             return daySlotsQuery.data.slots.map((slot) => {
-                const isPastSlot = isTodayBooking && slot.time < nowStr;
+                const isCompletelyPast = isTodayBooking && (slot.endTime ? slot.endTime <= nowStr : slot.time < nowStr);
+                const isOngoing = isTodayBooking && slot.time <= nowStr && (slot.endTime ? slot.endTime > nowStr : true);
+
                 return {
                     time: slot.time,
-                    isUnavailable: !slot.available || isPastSlot,
-                    availableAccountsCount: isPastSlot ? 0 : slot.availableAccountsCount,
+                    isUnavailable: !slot.available || isCompletelyPast,
+                    isOngoing: isOngoing && slot.available,
+                    availableAccountsCount: isCompletelyPast ? 0 : slot.availableAccountsCount,
                     totalAccountsCount: slot.totalAccountsCount,
-                    reason: isPastSlot ? 'Waktu sudah terlewat' : slot.reason,
+                    reason: isCompletelyPast ? 'Waktu sudah terlewat' : slot.reason,
                     exceedsOperatingHours: slot.exceedsOperatingHours,
                 };
             });
@@ -291,7 +324,16 @@ export function SimpleBookingForm({
         while (cur < end) {
             const h = Math.floor(cur / 60).toString().padStart(2, '0');
             const m = (cur % 60).toString().padStart(2, '0');
-            opts.push({ time: `${h}:${m}` });
+            const timeStr = `${h}:${m}`;
+            const slotEndMins = cur + interval;
+            const isCompletelyPast = isTodayBooking && slotEndMins <= nowMinutes;
+            const isOngoing = isTodayBooking && cur <= nowMinutes && slotEndMins > nowMinutes;
+            opts.push({
+                time: timeStr,
+                isUnavailable: isCompletelyPast,
+                isOngoing,
+                reason: isCompletelyPast ? 'Waktu sudah terlewat' : undefined,
+            });
             cur += interval;
         }
         return opts;
@@ -304,9 +346,9 @@ export function SimpleBookingForm({
             bookingDate,
             settings,
             durationOptions,
-            daySlotsQuery.data?.slots
+            subSlotsQuery.data?.slots
         );
-    }, [startTime, bookingDate, settings, durationOptions, daySlotsQuery.data]);
+    }, [startTime, bookingDate, settings, durationOptions, subSlotsQuery.data]);
 
     const handleStartTimeChange = (newStart: string) => {
         setStartTime(newStart);
@@ -320,7 +362,7 @@ export function SimpleBookingForm({
             bookingDate,
             settings,
             durationOptions,
-            daySlotsQuery.data?.slots
+            subSlotsQuery.data?.slots
         );
 
         // Try candidate with active duration or default +60 mins
@@ -423,55 +465,14 @@ export function SimpleBookingForm({
             if (allowDoubleBooking || (booking as any)?.isDoubleBooking) {
                 toast.success('Meeting berhasil dibuat dalam Mode Dobel Booking (Tanpa Claim Host & Tanpa Rekam).');
             } else {
-                toast.success(`Booking berhasil! ${count > 1 ? `${count} jadwal berulang dibuat.` : 'Link Zoom dikirim via email.'}`);
+                toast.success(count > 1 ? `Meeting dibuat — ${count} jadwal berulang.` : 'Meeting berhasil dibuat.');
             }
-            setSuccessJoinUrl(booking?.meeting?.joinUrl ?? null);
-            setBookingSucceeded(true);
             resetForm();
+            if (booking?.id) onBookingCreated?.(booking.id);
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Gagal membuat booking. Coba ubah jam dan submit ulang.');
         }
     };
-
-    if (bookingSucceeded) {
-        return (
-            <div className="flex flex-col items-center gap-4 p-6 text-center">
-                <CheckCircle2 className="h-12 w-12 text-emerald-500" />
-                <div>
-                    <h2 className="text-lg font-bold">Booking Berhasil!</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">Link Zoom akan dikirim via email.</p>
-                </div>
-                {successJoinUrl && (
-                    <Button className="w-full" onClick={() => window.open(successJoinUrl, '_blank')}>
-                        Join Meeting Sekarang
-                    </Button>
-                )}
-                {onSuccessViewBookings && (
-                    <Button
-                        className="w-full font-medium"
-                        onClick={() => {
-                            setBookingSucceeded(false);
-                            setSuccessJoinUrl(null);
-                            onSuccessViewBookings();
-                        }}
-                        variant="secondary"
-                    >
-                        Lihat Daftar Meeting
-                    </Button>
-                )}
-                <Button
-                    className="w-full"
-                    onClick={() => {
-                        setBookingSucceeded(false);
-                        setSuccessJoinUrl(null);
-                    }}
-                    variant="outline"
-                >
-                    Buat Booking Baru
-                </Button>
-            </div>
-        );
-    }
 
     const availabilityClassName = availability.isLoading
         ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
@@ -606,7 +607,9 @@ export function SimpleBookingForm({
                             ? "bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-800/40 text-emerald-950 dark:text-emerald-100"
                             : bookingDate && !isAllAccountsFull && availability.data?.available === false
                                 ? "bg-rose-50/70 dark:bg-rose-950/20 border-rose-200/80 dark:border-rose-800/40 text-rose-950 dark:text-rose-100"
-                                : "bg-blue-50/70 dark:bg-blue-950/20 border-blue-200/80 dark:border-blue-800/40 text-blue-950 dark:text-blue-100"
+                                : bookingDate && !isAllAccountsFull && availability.isError
+                                    ? "bg-amber-50/70 dark:bg-amber-950/20 border-amber-200/80 dark:border-amber-800/40 text-amber-950 dark:text-amber-100"
+                                    : "bg-blue-50/70 dark:bg-blue-950/20 border-blue-200/80 dark:border-blue-800/40 text-blue-950 dark:text-blue-100"
                     )}>
                         <div className="flex items-center justify-between gap-2">
                             <span className="font-medium text-slate-600 dark:text-slate-400">Waktu meeting:</span>
@@ -618,6 +621,8 @@ export function SimpleBookingForm({
                             <div className="flex items-center gap-1.5 pt-1 border-t border-slate-200/60 dark:border-slate-700/60 font-medium">
                                 {availability.isLoading ? (
                                     <><Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" /><span className="text-muted-foreground">Mengecek ketersediaan...</span></>
+                                ) : availability.isError ? (
+                                    <><AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" /><span className="font-semibold text-amber-700 dark:text-amber-300">Gagal mengecek ketersediaan jam</span></>
                                 ) : availability.data?.available ? (
                                     <><CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" /><span className="font-semibold text-emerald-700 dark:text-emerald-300">Jam ini tersedia</span></>
                                 ) : (

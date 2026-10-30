@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TicketSurvey } from './entities/ticket-survey.entity';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { MailDispatchService } from '../../shared/mail/mail-dispatch.service';
 import { Ticket } from './entities/ticket.entity';
 
@@ -24,7 +24,7 @@ export class SurveysService {
             return existingSurvey;
         }
 
-        const token = uuidv4();
+        const token = randomUUID();
         const survey = this.surveyRepo.create({
             ticketId: ticket.id,
             token,

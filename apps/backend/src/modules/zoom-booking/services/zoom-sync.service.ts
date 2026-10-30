@@ -1,32 +1,57 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Like, Repository } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { ConfigService } from '@nestjs/config';
 import { ZoomBooking, ZoomAccount, ZoomMeeting } from '../entities';
 import { ZoomApiAdapter, ZoomMeetingListItem } from '../adapters/zoom-api.adapter';
 import { BookingStatus } from '../enums/booking-status.enum';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
+/** Stored key for one occurrence: `<meetingId>_<WIB date>_<HH:mm>` (must match what sync writes). */
+export function externalOccurrenceKey(meetingId: string | number, startTime: string): string {
+    const start = new Date(startTime);
+    const dateStr = start.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+    const timeStr = start.toLocaleTimeString('en-US', { timeZone: 'Asia/Jakarta', hour12: false, hour: '2-digit', minute: '2-digit' });
+    return `${meetingId}_${dateStr}_${timeStr.slice(0, 5)}`;
+}
+
+/** Recording lookups per sync run (one Zoom API call each). */
+const RECORDING_SYNC_BATCH = 30;
+
 @Injectable()
 export class ZoomSyncService {
     private readonly logger = new Logger(ZoomSyncService.name);
+    private syncRunning = false;
 
     constructor(
         @InjectRepository(ZoomBooking)
         private readonly bookingRepo: Repository<ZoomBooking>,
         @InjectRepository(ZoomAccount)
         private readonly accountRepo: Repository<ZoomAccount>,
+        @InjectRepository(ZoomMeeting)
+        private readonly meetingRepo: Repository<ZoomMeeting>,
         private readonly zoomApi: ZoomApiAdapter,
         private readonly eventEmitter: EventEmitter2,
+        @Optional() private readonly configService?: ConfigService,
     ) { }
 
     @Cron(CronExpression.EVERY_5_MINUTES)
     async handleCronSync() {
+        // A slow Zoom API (retries on 429) must not stack a second run on top of this one.
+        if (this.syncRunning) {
+            this.logger.debug('Zoom sync skipped - previous run still in progress');
+            return;
+        }
+        this.syncRunning = true;
         this.logger.log('Starting automated 5-minute Zoom background sync...');
         try {
             await this.syncAllAccounts();
+            await this.syncRecentRecordings();
         } catch (error) {
             this.logger.error('Error during scheduled Zoom sync', error);
+        } finally {
+            this.syncRunning = false;
         }
     }
 
@@ -65,6 +90,13 @@ export class ZoomSyncService {
             const response = await this.zoomApi.listMeetings(account.email, 'upcoming');
             const externalMeetingKeys: string[] = [];
 
+            // One IN query for every occurrence key instead of a lookup per meeting (same match as before).
+            const occurrenceKeys = (response.meetings || []).map((m) => externalOccurrenceKey(m.id, m.start_time));
+            const storedExternal = occurrenceKeys.length
+                ? await this.bookingRepo.find({ where: { externalZoomMeetingId: In(occurrenceKeys) } })
+                : [];
+            const externalByKey = new Map(storedExternal.map((b) => [b.externalZoomMeetingId, b]));
+
             for (const meeting of (response.meetings || [])) {
                 try {
                     const startDateTime = new Date(meeting.start_time);
@@ -75,13 +107,13 @@ export class ZoomSyncService {
                     const externalKey = `${meeting.id}_${dateStr}_${timeStr.slice(0, 5)}`;
                     externalMeetingKeys.push(externalKey);
 
-                    const existingExternal = await this.bookingRepo.findOne({
-                        where: { externalZoomMeetingId: externalKey },
-                    });
+                    const existingExternal = externalByKey.get(externalKey) ?? null;
 
                     if (existingExternal) {
-                        await this.upsertExternalMeeting(existingExternal, meeting, account, externalKey, dateStr, timeStr);
-                        syncedCount++;
+                        const updated = await this.upsertExternalMeeting(existingExternal, meeting, account, externalKey, dateStr, timeStr);
+                        if (updated) {
+                            syncedCount++;
+                        }
                         continue;
                     }
 
@@ -94,8 +126,10 @@ export class ZoomSyncService {
 
                     if (!isInternal) {
                         // It's a brand new external meeting from Zoom
-                        await this.upsertExternalMeeting(null, meeting, account, externalKey, dateStr, timeStr);
-                        syncedCount++;
+                        const created = await this.upsertExternalMeeting(null, meeting, account, externalKey, dateStr, timeStr);
+                        if (created) {
+                            syncedCount++;
+                        }
                     }
                 } catch (meetingErr) {
                     this.logger.warn(`Failed to process Zoom meeting ${meeting.id} for ${account.email}: ${meetingErr.message}`);
@@ -103,7 +137,8 @@ export class ZoomSyncService {
             }
 
             // Remove stale external meetings for this account (meetings that were deleted in Zoom)
-            await this.removeStaleExternalMeetings(account.id, externalMeetingKeys);
+            const removedCount = await this.removeStaleExternalMeetings(account.id, externalMeetingKeys);
+            syncedCount += removedCount;
 
         } catch (error) {
             this.logger.error(`Error syncing account ${account.email}`, error);
@@ -131,26 +166,47 @@ export class ZoomSyncService {
         externalKey: string,
         dateStr: string,
         timeStr: string,
-    ) {
+    ): Promise<boolean> {
         const durationMinutes = zoomData.duration || 60;
         const endStr = this.calculateSafeEndTime(timeStr, durationMinutes);
         const title = (zoomData.topic || 'Zoom Meeting').slice(0, 100);
+        const description = zoomData.agenda || 'External meeting scheduled directly via Zoom';
 
         if (existingBooking) {
+            const existingDate = typeof existingBooking.bookingDate === 'string'
+                ? existingBooking.bookingDate
+                : new Date(existingBooking.bookingDate).toISOString().split('T')[0];
+
+            const isUnchanged =
+                existingBooking.title === title &&
+                existingDate === dateStr &&
+                existingBooking.startTime === timeStr &&
+                existingBooking.endTime === endStr &&
+                existingBooking.durationMinutes === durationMinutes &&
+                existingBooking.description === description &&
+                existingBooking.zoomAccountId === account.id;
+
+            if (isUnchanged) {
+                return false;
+            }
+
             // Update existing external meeting
             existingBooking.title = title;
+            existingBooking.description = description;
             existingBooking.bookingDate = dateStr as any;
             existingBooking.startTime = timeStr;
             existingBooking.endTime = endStr;
             existingBooking.durationMinutes = durationMinutes;
+            existingBooking.zoomAccountId = account.id;
 
             await this.bookingRepo.save(existingBooking);
+            return true;
         } else {
             // Create new external booking
             const newBooking = this.bookingRepo.create({
                 zoomAccountId: account.id,
                 title,
-                description: zoomData.agenda || 'External meeting scheduled directly via Zoom',
+                description,
                 bookingDate: dateStr as any,
                 startTime: timeStr,
                 endTime: endStr,
@@ -161,10 +217,11 @@ export class ZoomSyncService {
             });
 
             await this.bookingRepo.save(newBooking);
+            return true;
         }
     }
 
-    private async removeStaleExternalMeetings(accountId: string, activeExternalZoomKeys: string[]) {
+    private async removeStaleExternalMeetings(accountId: string, activeExternalZoomKeys: string[]): Promise<number> {
         const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
         
         const qb = this.bookingRepo.createQueryBuilder('booking')
@@ -183,7 +240,9 @@ export class ZoomSyncService {
                 await this.bookingRepo.delete(meeting.id);
                 this.logger.log(`Removed stale external meeting: ${meeting.title} (${meeting.externalZoomMeetingId})`);
             }
+            return staleMeetings.length;
         }
+        return 0;
     }
     
     // Webhook Handlers (For feature completeness)
@@ -232,8 +291,10 @@ export class ZoomSyncService {
         });
 
         if (existingExternal) {
-            await this.upsertExternalMeeting(existingExternal, meetingData as any, account, externalKey, dateStr, timeStr);
-            this.eventEmitter.emit('zoom.sync.completed', { updatedCount: 1 });
+            const updated = await this.upsertExternalMeeting(existingExternal, meetingData as any, account, externalKey, dateStr, timeStr);
+            if (updated) {
+                this.eventEmitter.emit('zoom.sync.completed', { updatedCount: 1 });
+            }
         }
     }
 
@@ -242,8 +303,12 @@ export class ZoomSyncService {
         const meetingData = payload.object;
         const zoomMeetingIdStr = meetingData.id.toString();
         
+        // Keys are per occurrence (`<id>_<date>_<HH:mm>`); older rows still hold the bare id.
         const existingExternal = await this.bookingRepo.find({
-            where: { externalZoomMeetingId: zoomMeetingIdStr },
+            where: [
+                { externalZoomMeetingId: zoomMeetingIdStr },
+                { externalZoomMeetingId: Like(`${zoomMeetingIdStr}\\_%`) },
+            ],
         });
 
         if (existingExternal && existingExternal.length > 0) {
@@ -252,6 +317,120 @@ export class ZoomSyncService {
             }
             this.logger.log(`Webhook: Removed external meeting instances for ID: ${zoomMeetingIdStr}`);
             this.eventEmitter.emit('zoom.sync.completed', { updatedCount: existingExternal.length });
+        }
+    }
+
+    async handleWebhookRecordingCompleted(payload: any): Promise<void> {
+        if (!payload || !payload.object) return;
+        const recordingData = payload.object;
+        const zoomMeetingId = recordingData.id?.toString();
+        if (!zoomMeetingId) return;
+
+        this.logger.log(`Webhook: Processing recording.completed for Zoom meeting ${zoomMeetingId}`);
+
+        const shareUrl = recordingData.share_url;
+        const passcode = recordingData.recording_play_passcode || null;
+        const duration = recordingData.duration || null;
+        const files = recordingData.recording_files || null;
+        const recordedAt = recordingData.start_time ? new Date(recordingData.start_time) : new Date();
+
+        const meetings = await this.meetingRepo.find({
+            where: { zoomMeetingId },
+            relations: ['booking'],
+        });
+
+        if (meetings && meetings.length > 0) {
+            for (const meeting of meetings) {
+                meeting.recordingUrl = shareUrl;
+                meeting.recordingPasscode = passcode;
+                meeting.recordingDuration = duration;
+                meeting.recordingFiles = files;
+                meeting.recordedAt = recordedAt;
+                await this.meetingRepo.save(meeting);
+                this.logger.log(`Webhook: Successfully saved recording for meeting ${meeting.id} (Booking: ${meeting.zoomBookingId})`);
+            }
+            this.eventEmitter.emit('zoom.sync.completed', { updatedCount: meetings.length });
+        } else {
+            this.logger.warn(`Webhook: No internal ZoomMeeting found with zoomMeetingId ${zoomMeetingId}`);
+        }
+    }
+
+    /**
+     * Periodically sync cloud recordings for recent completed/scheduled meetings
+     * that do not have a recordingUrl yet. This works via outbound HTTPS even if
+     * Zoom webhooks cannot reach an intranet or private IP address.
+     */
+    async syncRecentRecordings(daysBack: number = 14): Promise<number> {
+        if (!this.zoomApi.isConfigured()) return 0;
+
+        const isRecordingSyncEnabled = this.configService
+            ? this.configService.get<string>('ZOOM_RECORDING_SYNC_ENABLED', 'true') !== 'false'
+            : process.env.ZOOM_RECORDING_SYNC_ENABLED !== 'false';
+
+        if (!isRecordingSyncEnabled) {
+            this.logger.debug('Zoom recording sync is disabled via ZOOM_RECORDING_SYNC_ENABLED configuration.');
+            return 0;
+        }
+
+        if (!this.zoomApi.isRecordingScopeAvailable()) {
+            return 0;
+        }
+
+        try {
+            const targetDate = new Date();
+            targetDate.setDate(targetDate.getDate() - daysBack);
+            const dateStr = targetDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+
+            // Only meetings that have already happened can have a recording: bound the range
+            // at today (WIB) and cap the batch, so future bookings are not polled every 5 min.
+            const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+            const pendingMeetings = await this.meetingRepo.createQueryBuilder('meeting')
+                .innerJoinAndSelect('meeting.booking', 'booking')
+                .where('meeting.recordingUrl IS NULL')
+                .andWhere('booking.bookingDate >= :dateStr', { dateStr })
+                .andWhere('booking.bookingDate <= :todayStr', { todayStr })
+                .andWhere('booking.status != :cancelled', { cancelled: BookingStatus.CANCELLED })
+                .orderBy('booking.bookingDate', 'DESC')
+                .take(RECORDING_SYNC_BATCH)
+                .getMany();
+
+            let syncedCount = 0;
+            for (const meeting of pendingMeetings) {
+                if (!meeting.zoomMeetingId) continue;
+                if (!this.zoomApi.isRecordingScopeAvailable()) {
+                    break;
+                }
+
+                try {
+                    const rec = await this.zoomApi.getMeetingRecordings(meeting.zoomMeetingId);
+                    if (!this.zoomApi.isRecordingScopeAvailable()) {
+                        // Scope error was caught during request, halt further meeting checks immediately
+                        break;
+                    }
+
+                    if (rec && rec.share_url) {
+                        meeting.recordingUrl = rec.share_url;
+                        meeting.recordingPasscode = rec.recording_play_passcode || null;
+                        meeting.recordingDuration = rec.duration || null;
+                        meeting.recordingFiles = rec.recording_files || null;
+                        meeting.recordedAt = rec.start_time ? new Date(rec.start_time) : new Date();
+                        await this.meetingRepo.save(meeting);
+                        syncedCount++;
+                        this.logger.log(`Auto-synced recording for Zoom meeting ${meeting.zoomMeetingId} (Booking: ${meeting.zoomBookingId})`);
+                    }
+                } catch (err: any) {
+                    // Ignore 404 (recording not created or not ready yet)
+                    this.logger.debug(`No recording found yet for meeting ${meeting.zoomMeetingId}`);
+                }
+            }
+
+            if (syncedCount > 0) {
+                this.eventEmitter.emit('zoom.sync.completed', { updatedCount: syncedCount });
+            }
+            return syncedCount;
+        } catch (error: any) {
+            this.logger.error(`Failed to auto-sync recent recordings: ${error.message}`);
+            return 0;
         }
     }
 }

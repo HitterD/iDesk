@@ -1,158 +1,65 @@
-// iDesk Service Worker for Push Notifications
-// This file handles incoming push notifications and notification clicks
+// iDesk service worker: shows Web Push notifications as OS toasts and routes their clicks.
+// Works on its own; the SJA desktop notifier is an optional extra, never a requirement.
 
-const CACHE_NAME = 'idesk-push-v1';
+const ICON = '/idesk-icon.png';
+const SLA_TYPES = ['SLA_WARNING', 'SLA_BREACHED'];
+/** "Kirim uji" is clicked from a focused iDesk tab, and must still show. */
+const TEST_TYPE = 'PUSH_TEST';
 
-// Handle push events
-self.addEventListener('push', function (event) {
-    console.log('[SW] Push received:', event);
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
 
-    let data = {
-        title: 'iDesk Notification',
-        body: 'You have a new notification',
-        icon: '/logo192.png',
-        badge: '/badge.png',
-        tag: 'default',
-        url: '/',
-    };
+self.addEventListener('push', (event) => {
+    event.waitUntil(showPush(event.data));
+});
 
+async function showPush(data) {
+    let payload = {};
     try {
-        if (event.data) {
-            const payload = event.data.json();
-            data = {
-                title: payload.title || data.title,
-                body: payload.body || data.body,
-                icon: payload.icon || data.icon,
-                badge: payload.badge || data.badge,
-                tag: payload.tag || payload.notificationId || data.tag,
-                url: payload.url || payload.link || data.url,
-                type: payload.type,
-                ticketId: payload.ticketId,
-                timestamp: payload.timestamp,
-            };
-        }
-    } catch (e) {
-        console.error('[SW] Error parsing push data:', e);
+        payload = data ? data.json() : {};
+    } catch (error) {
+        payload = { body: data ? data.text() : '' };
     }
 
-    // Build notification options
-    const options = {
-        body: data.body,
-        icon: data.icon,
-        badge: data.badge,
-        tag: data.tag,
-        data: {
-            url: data.url,
-            type: data.type,
-            ticketId: data.ticketId,
-        },
-        requireInteraction: data.type === 'SLA_WARNING' || data.type === 'SLA_BREACHED',
-        vibrate: [200, 100, 200],
-        actions: getNotificationActions(data.type, data.ticketId),
-    };
+    // A tab the user is looking at already shows this as an in-app toast; a second OS toast is noise.
+    // (Allowed with userVisibleOnly: the browser only insists on a notification when no page is visible.)
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const focused = windows.some((client) => client.visibilityState === 'visible' && client.focused);
+    if (focused && payload.type !== TEST_TYPE) return;
 
-    event.waitUntil(
-        self.registration.showNotification(data.title, options)
-    );
-});
-
-// Handle notification click
-self.addEventListener('notificationclick', function (event) {
-    console.log('[SW] Notification clicked:', event);
-
-    event.notification.close();
-
-    const urlToOpen = event.notification.data?.url || '/';
-    const action = event.action;
-
-    let finalUrl = urlToOpen;
-
-    // Handle action buttons
-    if (action === 'view') {
-        finalUrl = urlToOpen;
-    } else if (action === 'dismiss') {
-        return; // Just close the notification
-    }
-
-    event.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true })
-            .then(function (windowClients) {
-                // Check if the app is already open
-                for (let client of windowClients) {
-                    if (client.url.includes(self.registration.scope)) {
-                        // Focus existing window and navigate
-                        return client.focus().then(function (focusedClient) {
-                            if ('navigate' in focusedClient) {
-                                return focusedClient.navigate(finalUrl);
-                            }
-                        });
-                    }
-                }
-                // Open new window if app not open
-                return clients.openWindow(finalUrl);
-            })
-    );
-});
-
-// Handle notification close
-self.addEventListener('notificationclose', function (event) {
-    console.log('[SW] Notification closed:', event);
-    // Could track analytics here
-});
-
-// Handle service worker installation
-self.addEventListener('install', function (event) {
-    console.log('[SW] Installing service worker...');
-    self.skipWaiting();
-});
-
-// Handle service worker activation
-self.addEventListener('activate', function (event) {
-    console.log('[SW] Service worker activated');
-    event.waitUntil(
-        Promise.all([
-            // Claim all clients
-            self.clients.claim(),
-            // Clean up old caches
-            caches.keys().then(function (cacheNames) {
-                return Promise.all(
-                    cacheNames.filter(function (cacheName) {
-                        return cacheName !== CACHE_NAME;
-                    }).map(function (cacheName) {
-                        return caches.delete(cacheName);
-                    })
-                );
-            })
-        ])
-    );
-});
-
-// Helper function to get notification actions based on type
-function getNotificationActions(type, ticketId) {
-    const actions = [];
-
-    if (ticketId) {
-        actions.push({
-            action: 'view',
-            title: 'View Ticket',
-            icon: '/icons/view.png',
-        });
-    }
-
-    actions.push({
-        action: 'dismiss',
-        title: 'Dismiss',
-        icon: '/icons/close.png',
+    const tag = payload.tag || payload.notificationId || undefined;
+    return self.registration.showNotification(payload.title || 'iDesk', {
+        body: payload.body || '',
+        icon: payload.icon || ICON,
+        badge: payload.badge || ICON,
+        tag,
+        // Same tag replaces the toast on screen (one per ticket chat); still alert for the new one.
+        renotify: Boolean(tag),
+        timestamp: payload.timestamp ? Date.parse(payload.timestamp) : Date.now(),
+        requireInteraction: SLA_TYPES.includes(payload.type),
+        data: { url: payload.url || payload.link || '/', notificationId: payload.notificationId || null },
     });
-
-    return actions;
 }
 
-// Handle messages from the main app
-self.addEventListener('message', function (event) {
-    console.log('[SW] Message received:', event.data);
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const { url, notificationId } = event.notification.data || {};
+    const target = new URL(url || '/', self.location.origin);
+    if (target.origin !== self.location.origin) return;
+    // The app marks this notification read when it sees ?nid= (useNotificationClickRead).
+    if (notificationId) target.searchParams.set('nid', notificationId);
+    event.waitUntil(openInApp(target));
+});
 
-    if (event.data && event.data.type === 'SKIP_WAITING') {
-        self.skipWaiting();
-    }
+async function openInApp(target) {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const tab = windows.find((client) => new URL(client.url).origin === self.location.origin);
+    if (!tab) return self.clients.openWindow(target.href);
+    await tab.focus();
+    // Route inside the running app (no reload); the app listens for this message.
+    tab.postMessage({ type: 'notification-click', url: target.pathname + target.search + target.hash });
+}
+
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });

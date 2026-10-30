@@ -9,6 +9,7 @@ import { User } from '../users/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { AuditModule } from '../audit/audit.module';
 import { ModuleAssignmentPolicyModule } from '../ticketing/module-assignment-policy.module';
+import { SlaConfigModule } from '../sla-config/sla-config.module';
 
 @Module({
     imports: [
@@ -16,6 +17,7 @@ import { ModuleAssignmentPolicyModule } from '../ticketing/module-assignment-pol
         AuthModule,
         AuditModule,
         ModuleAssignmentPolicyModule, // Provides the per-module auto-assign guard
+        SlaConfigModule, // Business hours: install-day workload activation
     ],
     controllers: [WorkloadController],
     providers: [WorkloadService],

@@ -262,32 +262,6 @@ class ApiTester {
     }
 
 
-    async testLostItem() {
-        console.log('\n📦 LOST ITEM TESTS');
-        await this.login('user.spj@idesk.com', 'admin123');
-
-        await this.test('Create Lost Item report', async () => {
-            const res = await this.request('POST', '/lost-item', {
-                itemType: 'Laptop',
-                itemName: 'Dell Laptop Black',
-                lastSeenLocation: 'Meeting Room 3rd Floor',
-                lastSeenDatetime: new Date().toISOString(),
-                circumstances: 'Left after meeting',
-            });
-            if (res.status === 200 || res.status === 201) {
-                this.log(`Created Lost Item: ${res.data.id}`);
-                return true;
-            }
-            console.log('    Failed:', res.status, res.data?.message);
-            return false;
-        });
-
-        await this.test('List Lost Item reports', async () => {
-            const res = await this.request('GET', '/lost-item');
-            return res.status === 200;
-        });
-    }
-
     async testAccessRequest() {
         console.log('\n🔐 ACCESS REQUEST TESTS');
         await this.login('admin@idesk.com', 'admin123');
@@ -339,7 +313,6 @@ class ApiTester {
         await this.testSoundModule();
         await this.testSynologyModule();
         await this.testWorkloadModule();
-        await this.testLostItem();
         await this.testAccessRequest();
 
         this.printSummary();

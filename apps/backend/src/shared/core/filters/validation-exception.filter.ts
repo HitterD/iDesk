@@ -67,10 +67,10 @@ export class ValidationExceptionFilter implements ExceptionFilter {
         });
 
         // Generate summary
-        const fieldCount = Object.keys(errors).length;
-        const summary = fieldCount === 1
-            ? `Validation failed for ${Object.keys(errors)[0]}`
-            : `Validation failed for ${fieldCount} fields`;
+        const fields = Object.keys(errors);
+        const summary = fields.length === 1
+            ? `Validation failed for ${fields[0]}: ${errors[fields[0]][0]}`
+            : `Validation failed for ${fields.length} fields`;
 
         return { summary, errors };
     }

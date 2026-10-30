@@ -7,7 +7,9 @@ export const queryClient = new QueryClient({
             gcTime: 5 * 60 * 1000,
             refetchOnWindowFocus: true,
             refetchOnReconnect: true,
-            retry: 1,
+            // Don't retry rate-limited (429) queries; it only prolongs the lockout.
+            retry: (failureCount, error) =>
+                (error as { response?: { status?: number } })?.response?.status !== 429 && failureCount < 1,
             retryDelay: 1000,
         },
     },

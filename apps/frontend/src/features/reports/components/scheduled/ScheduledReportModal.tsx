@@ -29,6 +29,17 @@ import {
     RecipientUser,
     SiteOption
 } from './types';
+import { REPORT_TEAMS, ReportTeam, reportTeamLabel, ALL_TEAMS_LABEL, REPORT_TEAMS_SCOPE_TITLE } from '../../reportTeams';
+
+const SUPPORT_ROLES = ['AGENT', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT'];
+
+/** Team of a config; older configs only carry the legacy agent category. */
+function configTeam(config: ScheduledReportConfig): ReportTeam | null {
+    if (config.targetTeam) return config.targetTeam;
+    if (config.targetAgentCategory === 'REGULAR') return 'OPS_SUPPORT';
+    if (config.targetAgentCategory === 'ORACLE') return 'ORACLE_DEV';
+    return null;
+}
 
 interface ScheduledReportModalProps {
     isOpen: boolean;
@@ -43,6 +54,7 @@ interface ScheduledReportModalProps {
         siteId: string;
         recipientUserIds: string[];
         targetAgentCategory: TargetAgentCategory;
+        targetTeam: ReportTeam | null;
     }) => void;
     isSaving: boolean;
 }
@@ -62,11 +74,11 @@ export const ScheduledReportModal: React.FC<ScheduledReportModalProps> = ({
     const [sendTime, setSendTime] = useState('08:00');
     const [siteId, setSiteId] = useState('');
     const [recipientUserIds, setRecipientUserIds] = useState<string[]>([]);
-    const [targetAgentCategory, setTargetAgentCategory] = useState<TargetAgentCategory>(null);
+    const [targetTeam, setTargetTeam] = useState<ReportTeam | null>(null);
 
     // UI state
     const [recipientSearch, setRecipientSearch] = useState('');
-    const [activeRecipientTab, setActiveRecipientTab] = useState<'ALL' | 'REGULAR' | 'ORACLE'>('ALL');
+    const [activeRecipientTab, setActiveRecipientTab] = useState<'ALL' | 'SUPPORT' | 'DEV'>('ALL');
 
     // Body scroll lock on open
     useEffect(() => {
@@ -88,7 +100,7 @@ export const ScheduledReportModal: React.FC<ScheduledReportModalProps> = ({
                 setSendTime(editingConfig.sendTime || '08:00');
                 setSiteId(editingConfig.siteId || currentSiteId || '');
                 setRecipientUserIds([...(editingConfig.recipientUserIds || [])]);
-                setTargetAgentCategory(editingConfig.targetAgentCategory || null);
+                setTargetTeam(configTeam(editingConfig));
             } else {
                 setName('');
                 setReportType('MONTHLY_SUMMARY');
@@ -96,7 +108,7 @@ export const ScheduledReportModal: React.FC<ScheduledReportModalProps> = ({
                 setSendTime('08:00');
                 setSiteId(currentSiteId || '');
                 setRecipientUserIds([]);
-                setTargetAgentCategory(null);
+                setTargetTeam(null);
             }
             setRecipientSearch('');
             setActiveRecipientTab('ALL');
@@ -137,10 +149,11 @@ export const ScheduledReportModal: React.FC<ScheduledReportModalProps> = ({
         success: boolean;
         data: RecipientUser[];
     }>({
-        queryKey: ['reports', 'scheduled', 'recipients', siteId],
+        queryKey: ['reports', 'scheduled', 'recipients', siteId, targetTeam],
         queryFn: async () => {
             if (!siteId) return { success: true, data: [] };
-            const response = await api.get(`/reports/scheduled/recipients?siteId=${encodeURIComponent(siteId)}`);
+            const teamParam = targetTeam ? `&team=${targetTeam}` : '';
+            const response = await api.get(`/reports/scheduled/recipients?siteId=${encodeURIComponent(siteId)}${teamParam}`);
             return response.data;
         },
         enabled: isOpen && !!siteId,
@@ -149,22 +162,33 @@ export const ScheduledReportModal: React.FC<ScheduledReportModalProps> = ({
 
     const siteUsers = useMemo(() => recipientsData?.data || [], [recipientsData]);
 
-    const regularAgents = useMemo(
-        () => siteUsers.filter((u) => u.role !== 'AGENT_ORACLE'),
+    // Drop selected recipients who are not eligible for the chosen site/team
+    // (the server would skip them at send time anyway).
+    useEffect(() => {
+        if (!recipientsData) return;
+        const eligible = new Set(siteUsers.map((u) => u.id));
+        setRecipientUserIds((prev) => {
+            const next = prev.filter((id) => eligible.has(id));
+            return next.length === prev.length ? prev : next;
+        });
+    }, [recipientsData, siteUsers]);
+
+    const supportAgents = useMemo(
+        () => siteUsers.filter((u) => SUPPORT_ROLES.includes(u.role)),
         [siteUsers]
     );
-    const oracleAgents = useMemo(
-        () => siteUsers.filter((u) => u.role === 'AGENT_ORACLE'),
+    const devAgents = useMemo(
+        () => siteUsers.filter((u) => !SUPPORT_ROLES.includes(u.role)),
         [siteUsers]
     );
 
     // Filter agents by search query & tab
     const filteredAgents = useMemo(() => {
         let list = siteUsers;
-        if (activeRecipientTab === 'REGULAR') {
-            list = regularAgents;
-        } else if (activeRecipientTab === 'ORACLE') {
-            list = oracleAgents;
+        if (activeRecipientTab === 'SUPPORT') {
+            list = supportAgents;
+        } else if (activeRecipientTab === 'DEV') {
+            list = devAgents;
         }
 
         if (!recipientSearch.trim()) return list;
@@ -176,7 +200,7 @@ export const ScheduledReportModal: React.FC<ScheduledReportModalProps> = ({
                 u.email.toLowerCase().includes(q) ||
                 u.role.toLowerCase().includes(q)
         );
-    }, [siteUsers, regularAgents, oracleAgents, activeRecipientTab, recipientSearch]);
+    }, [siteUsers, supportAgents, devAgents, activeRecipientTab, recipientSearch]);
 
     // Toggle single recipient
     const toggleRecipient = (userId: string) => {
@@ -209,7 +233,9 @@ export const ScheduledReportModal: React.FC<ScheduledReportModalProps> = ({
             sendTime,
             siteId,
             recipientUserIds,
-            targetAgentCategory: reportType === 'AGENT_PERFORMANCE' ? targetAgentCategory : null,
+            // Legacy category is cleared; targetTeam now drives every report type.
+            targetAgentCategory: null,
+            targetTeam,
         });
     };
 
@@ -373,35 +399,30 @@ export const ScheduledReportModal: React.FC<ScheduledReportModalProps> = ({
                                     })}
                                 </div>
 
-                                {/* Target Category (Agent Performance Only) */}
-                                {reportType === 'AGENT_PERFORMANCE' && (
-                                    <div className="mt-2.5 p-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 animate-fade-in">
-                                        <label className="block text-[10.5px] font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                                            Agent Category Filter:
-                                        </label>
-                                        <div className="grid grid-cols-3 gap-1.5">
-                                            {[
-                                                { key: null, label: 'All' },
-                                                { key: 'REGULAR' as TargetAgentCategory, label: 'Regular' },
-                                                { key: 'ORACLE' as TargetAgentCategory, label: 'Oracle' },
-                                            ].map((opt) => (
-                                                <button
-                                                    key={String(opt.key)}
-                                                    type="button"
-                                                    onClick={() => setTargetAgentCategory(opt.key)}
-                                                    className={cn(
-                                                        "py-1 text-[11px] font-semibold rounded-lg border text-center transition-colors",
-                                                        targetAgentCategory === opt.key
-                                                            ? "bg-primary text-white border-primary shadow-xs"
-                                                            : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
-                                                    )}
-                                                >
-                                                    {opt.label}
-                                                </button>
-                                            ))}
-                                        </div>
+                                {/* Team scope (all report types) */}
+                                <div className="mt-2.5 p-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80">
+                                    <label className="block text-[10.5px] font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                        {REPORT_TEAMS_SCOPE_TITLE}:
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-1.5">
+                                        {[null, ...REPORT_TEAMS].map((t) => (
+                                            <button
+                                                key={t ?? 'ALL'}
+                                                type="button"
+                                                onClick={() => setTargetTeam(t)}
+                                                aria-pressed={targetTeam === t}
+                                                className={cn(
+                                                    "py-1 text-[11px] font-semibold rounded-lg border text-center transition-colors",
+                                                    targetTeam === t
+                                                        ? "bg-primary text-white border-primary shadow-xs"
+                                                        : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                                                )}
+                                            >
+                                                {t ? reportTeamLabel(t) : ALL_TEAMS_LABEL}
+                                            </button>
+                                        ))}
                                     </div>
-                                )}
+                                </div>
                             </div>
 
                             {/* Frequency & Send Time */}
@@ -516,27 +537,27 @@ export const ScheduledReportModal: React.FC<ScheduledReportModalProps> = ({
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => setActiveRecipientTab('REGULAR')}
+                                        onClick={() => setActiveRecipientTab('SUPPORT')}
                                         className={cn(
                                             "px-2 py-0.5 text-[11px] rounded-md font-medium transition-colors",
-                                            activeRecipientTab === 'REGULAR'
+                                            activeRecipientTab === 'SUPPORT'
                                                 ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold"
                                                 : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                                         )}
                                     >
-                                        Regular ({regularAgents.length})
+                                        IT Support ({supportAgents.length})
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => setActiveRecipientTab('ORACLE')}
+                                        onClick={() => setActiveRecipientTab('DEV')}
                                         className={cn(
                                             "px-2 py-0.5 text-[11px] rounded-md font-medium transition-colors",
-                                            activeRecipientTab === 'ORACLE'
+                                            activeRecipientTab === 'DEV'
                                                 ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold"
                                                 : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                                         )}
                                     >
-                                        Oracle ({oracleAgents.length})
+                                        Dev ({devAgents.length})
                                     </button>
                                 </div>
 

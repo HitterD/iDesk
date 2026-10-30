@@ -6,18 +6,18 @@ import { ZoomAccount } from '../entities/zoom-account.entity';
 import { CreateZoomAccountDto, UpdateZoomAccountDto } from '../dto/zoom-account.dto';
 import { ZoomApiAdapter } from '../adapters/zoom-api.adapter';
 
-// Default colors for 10 Zoom accounts
+// Default colors for 10 Zoom accounts (Executive Zero-Purple Palette)
 const DEFAULT_COLORS = [
-    '#3B82F6', // Blue
-    '#10B981', // Green
-    '#F59E0B', // Amber
-    '#EF4444', // Red
-    '#8B5CF6', // Purple
-    '#EC4899', // Pink
-    '#06B6D4', // Cyan
-    '#84CC16', // Lime
-    '#F97316', // Orange
-    '#6366F1', // Indigo
+    '#2563EB', // Royal Blue
+    '#0D9488', // Deep Teal
+    '#D97706', // Warm Ochre
+    '#0284C7', // Steel Cyan
+    '#059669', // Emerald Green
+    '#EA580C', // Warm Terracotta
+    '#475569', // Slate Gray
+    '#15803D', // Forest Green
+    '#B45309', // Warm Bronze
+    '#1E40AF', // Navy Blue
 ];
 
 @Injectable()

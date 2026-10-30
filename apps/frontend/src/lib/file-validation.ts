@@ -4,7 +4,9 @@
 
 export const FILE_SIZE_LIMITS = {
     AVATAR: 2 * 1024 * 1024, // 2MB for avatars
-    ATTACHMENT: 10 * 1024 * 1024, // 10MB for general attachments
+    ATTACHMENT: 25 * 1024 * 1024, // 25MB per ticket attachment; mirrors backend MAX_ATTACHMENT_SIZE
+    VIDEO: 50 * 1024 * 1024, // 50MB per video attachment; mirrors backend MAX_VIDEO_SIZE
+    ATTACHMENT_TOTAL: 95 * 1024 * 1024, // all files of one send; mirrors backend MAX_ATTACHMENT_TOTAL_SIZE
     DOCUMENT: 20 * 1024 * 1024, // 20MB for documents
 };
 
@@ -26,6 +28,43 @@ export const ALLOWED_DOCUMENT_TYPES = [
 export const MAX_ATTACHMENTS_PER_TICKET = 5;
 export const ALLOWED_ATTACHMENT_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_DOCUMENT_TYPES];
 
+/**
+ * Ticket attachment whitelist, mirroring backend `ATTACHMENT_EXTENSIONS`. Checked by
+ * extension because browsers report MIME types for zip/rar/7z/csv inconsistently;
+ * the backend verifies the actual file content.
+ */
+export const ATTACHMENT_EXTENSIONS = [
+    '.jpg', '.jpeg', '.png', '.gif', '.webp',
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.ppt', '.pptx', '.txt',
+    '.zip', '.rar', '.7z',
+    '.mp4', '.mov', '.webm',
+] as const;
+/** Mirrors backend `VIDEO_EXTENSIONS`: larger size cap, played inline in the chat. */
+export const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm'] as const;
+/** Value for `<input type="file" accept>`. */
+export const ATTACHMENT_ACCEPT = ATTACHMENT_EXTENSIONS.join(',');
+
+const extensionOf = (name: string): string => {
+    const dot = name.lastIndexOf('.');
+    return dot === -1 ? '' : name.slice(dot).toLowerCase();
+};
+
+export const isAllowedAttachmentName = (name: string): boolean =>
+    (ATTACHMENT_EXTENSIONS as readonly string[]).includes(extensionOf(name));
+
+export const isVideoName = (name: string): boolean =>
+    (VIDEO_EXTENSIONS as readonly string[]).includes(extensionOf(name));
+
+/** Per-file size cap for a ticket attachment, by type. */
+export const attachmentSizeLimit = (name: string): number =>
+    isVideoName(name) ? FILE_SIZE_LIMITS.VIDEO : FILE_SIZE_LIMITS.ATTACHMENT;
+
+/** True when the files together stay within one send's total (kept under the proxy body limit). */
+export const fitsAttachmentTotal = (files: File[]): boolean =>
+    files.reduce((sum, file) => sum + file.size, 0) <= FILE_SIZE_LIMITS.ATTACHMENT_TOTAL;
+
+export const ATTACHMENT_TOTAL_ERROR = `Total lampiran melebihi ${FILE_SIZE_LIMITS.ATTACHMENT_TOTAL / (1024 * 1024)} MB per kiriman`;
+
 export interface FileValidationResult {
     valid: boolean;
     error?: string;
@@ -42,6 +81,10 @@ export const formatFileSize = (bytes: number): string => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
+/** Axios upload progress as a 0-100 integer; 0 when the total is unknown. */
+export const toUploadPercent = (loaded: number, total?: number): number =>
+    total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+
 /**
  * Validate file size
  */
@@ -52,7 +95,7 @@ export const validateFileSize = (
     if (file.size > maxSize) {
         return {
             valid: false,
-            error: `File size (${formatFileSize(file.size)}) exceeds maximum allowed (${formatFileSize(maxSize)})`,
+            error: `Ukuran file (${formatFileSize(file.size)}) melebihi batas ${formatFileSize(maxSize)}`,
         };
     }
     return { valid: true };
@@ -95,10 +138,11 @@ export const validateImageFile = (
  */
 export const validateAttachmentFile = (
     file: File,
-    maxSize: number = FILE_SIZE_LIMITS.ATTACHMENT
+    maxSize: number = attachmentSizeLimit(file.name)
 ): FileValidationResult => {
-    const typeResult = validateFileType(file, ALLOWED_ATTACHMENT_TYPES);
-    if (!typeResult.valid) return typeResult;
+    if (!isAllowedAttachmentName(file.name)) {
+        return { valid: false, error: `Tipe file tidak didukung. Yang diizinkan: ${ATTACHMENT_EXTENSIONS.join(', ')}` };
+    }
 
     const sizeResult = validateFileSize(file, maxSize);
     if (!sizeResult.valid) return sizeResult;
@@ -107,29 +151,28 @@ export const validateAttachmentFile = (
 };
 
 /**
- * Validate multiple files
+ * Validate a batch of ticket attachments (count + each file's extension and size).
+ * Errors name the offending file.
  */
 export const validateFiles = (
     files: File[],
     options: {
         maxSize?: number;
         maxFiles?: number;
-        allowedTypes?: string[];
     } = {}
 ): FileValidationResult => {
-    const { maxSize = FILE_SIZE_LIMITS.ATTACHMENT, maxFiles = 5, allowedTypes = ALLOWED_ATTACHMENT_TYPES } = options;
+    const { maxSize, maxFiles = MAX_ATTACHMENTS_PER_TICKET } = options;
 
     if (files.length > maxFiles) {
-        return { valid: false, error: `Maximum ${maxFiles} files allowed` };
+        return { valid: false, error: `Maksimal ${maxFiles} file per kirim` };
     }
 
     for (const file of files) {
-        const typeResult = validateFileType(file, allowedTypes);
-        if (!typeResult.valid) return typeResult;
-
-        const sizeResult = validateFileSize(file, maxSize);
-        if (!sizeResult.valid) return sizeResult;
+        const result = validateAttachmentFile(file, maxSize);
+        if (!result.valid) return { valid: false, error: `${file.name}: ${result.error}` };
     }
+
+    if (!fitsAttachmentTotal(files)) return { valid: false, error: ATTACHMENT_TOTAL_ERROR };
 
     return { valid: true };
 };

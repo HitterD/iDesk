@@ -1,16 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { ProtectedRoute } from '../ProtectedRoute';
 import { useAuth } from '../../../stores/useAuth';
 
+/** Page keys the mocked preset grants; null = everything. */
+const pageAccess = vi.hoisted(() => ({ allowed: null as Set<string> | null }));
+
 vi.mock('@/hooks/usePermissions', () => ({
     useHasPermission: () => ({ hasPermission: true, isLoading: false }),
-    useHasPageAccess: () => ({ hasAccess: true, isLoading: false, isError: false }),
+    useHasPageAccess: (key: string) => ({ hasAccess: !pageAccess.allowed || pageAccess.allowed.has(key), isLoading: false, isError: false }),
 }));
 
 describe('ProtectedRoute', () => {
     beforeEach(() => {
+        pageAccess.allowed = null;
         useAuth.setState({
             user: null,
             isAuthenticated: false,
@@ -37,6 +41,20 @@ describe('ProtectedRoute', () => {
 
         expect(screen.getByText('Login Page')).toBeInTheDocument();
         expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+    });
+
+    it('passes the requested page as ?next= so a deep link (e.g. from iPop) lands there after login', () => {
+        const LoginProbe = () => <div>{useLocation().search}</div>;
+        render(
+            <MemoryRouter initialEntries={['/client/tickets/abc?tab=chat']}>
+                <Routes>
+                    <Route path="/client/tickets/:id" element={<ProtectedRoute><div>Ticket</div></ProtectedRoute>} />
+                    <Route path="/login" element={<LoginProbe />} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        expect(screen.getByText(`?next=${encodeURIComponent('/client/tickets/abc?tab=chat')}`)).toBeInTheDocument();
     });
 
     it('renders children when user is authenticated with allowed role', () => {
@@ -119,5 +137,60 @@ describe('ProtectedRoute', () => {
 
         expect(screen.getByText('Unauthorized Page')).toBeInTheDocument();
         expect(screen.queryByText('Admin Secret')).not.toBeInTheDocument();
+    });
+    const loginAs = (role: string) => useAuth.setState({
+        user: { id: 'u1', email: 'a@idesk.com', fullName: 'A', role },
+        isAuthenticated: true,
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+
+    const renderPageAccessRoute = (start: string) => render(
+        <MemoryRouter initialEntries={[start]}>
+            <Routes>
+                <Route path="/dashboard" element={<ProtectedRoute requiredPageAccess="dashboard"><div>Team Dashboard</div></ProtectedRoute>} />
+                <Route path="/dashboard/me" element={<ProtectedRoute requiredPageAccess="my_dashboard"><div>My Dashboard</div></ProtectedRoute>} />
+                <Route path="/unauthorized" element={<div>Unauthorized Page</div>} />
+            </Routes>
+        </MemoryRouter>
+    );
+
+    it('sends a developer agent denied the team dashboard to their own dashboard, not /dashboard', () => {
+        loginAs('AGENT_WEB_DEV');
+        pageAccess.allowed = new Set(['my_dashboard']);
+        renderPageAccessRoute('/dashboard');
+        expect(screen.getByText('My Dashboard')).toBeInTheDocument();
+    });
+
+    it('does not loop when the denied page is the role home', () => {
+        loginAs('AGENT_MOBILE_DEV');
+        pageAccess.allowed = new Set();
+        renderPageAccessRoute('/dashboard/me');
+        expect(screen.getByText('Unauthorized Page')).toBeInTheDocument();
+    });
+
+    it('sends an agent following a client ticket link to the same ticket in the agent workspace', () => {
+        useAuth.setState({
+            user: { id: '1', email: 'a@x', fullName: 'Agent', role: 'AGENT_OPERATIONAL_SUPPORT' } as any,
+            isAuthenticated: true,
+            expiresAt: new Date(Date.now() + 3600000).toISOString(),
+        });
+        render(
+            <MemoryRouter initialEntries={['/client/tickets/23841455-c9a9-494c-952f-e68309dc9fca']}>
+                <Routes>
+                    <Route
+                        path="/client/tickets/:id"
+                        element={
+                            <ProtectedRoute allowedRoles={['USER']}>
+                                <div>Client Ticket</div>
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route path="/tickets/:id" element={<div>Agent Ticket</div>} />
+                    <Route path="/unauthorized" element={<div>Unauthorized Page</div>} />
+                </Routes>
+            </MemoryRouter>
+        );
+        expect(screen.getByText('Agent Ticket')).toBeInTheDocument();
+        expect(screen.queryByText('Unauthorized Page')).not.toBeInTheDocument();
     });
 });

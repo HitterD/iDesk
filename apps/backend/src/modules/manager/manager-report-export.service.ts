@@ -42,6 +42,7 @@ export class ManagerReportExportService {
                 startDate: dto.dateFrom,
                 endDate: dto.dateTo,
                 sections: dto.sections,
+                team: dto.team,
             },
             actor,
         );

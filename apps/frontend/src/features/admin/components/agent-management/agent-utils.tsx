@@ -32,7 +32,7 @@ export const highlightText = (text: string, query: string): React.ReactNode => {
 
 // Color palette per-preset index — cycles through 6 distinct colors
 export const PRESET_COLORS = [
-    { dot: 'bg-violet-500', text: 'text-violet-700 dark:text-violet-300', ring: 'ring-violet-200 dark:ring-violet-800', bg: 'bg-violet-50 dark:bg-violet-900/30', hover: 'hover:bg-violet-50 dark:hover:bg-violet-900/20' },
+    { dot: 'bg-[#2d4a8c]', text: 'text-[#2d4a8c] dark:text-[#a9bdf0]', ring: 'ring-[#2d4a8c]/25 dark:ring-[#a9bdf0]/30', bg: 'bg-[#2d4a8c]/8 dark:bg-[#2d4a8c]/25', hover: 'hover:bg-[#2d4a8c]/8 dark:hover:bg-[#2d4a8c]/20' },
     { dot: 'bg-sky-500', text: 'text-sky-700 dark:text-sky-300', ring: 'ring-sky-200 dark:ring-sky-800', bg: 'bg-sky-50 dark:bg-sky-900/30', hover: 'hover:bg-sky-50 dark:hover:bg-sky-900/20' },
     { dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-300', ring: 'ring-emerald-200 dark:ring-emerald-800', bg: 'bg-emerald-50 dark:bg-emerald-900/30', hover: 'hover:bg-emerald-50 dark:hover:bg-emerald-900/20' },
     { dot: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-300', ring: 'ring-amber-200 dark:ring-amber-800', bg: 'bg-amber-50 dark:bg-amber-900/30', hover: 'hover:bg-amber-50 dark:hover:bg-amber-900/20' },

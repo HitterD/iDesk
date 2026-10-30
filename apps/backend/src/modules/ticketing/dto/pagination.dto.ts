@@ -1,4 +1,4 @@
-import { IsOptional, IsInt, Min, Max, IsString, IsIn, IsDateString } from 'class-validator';
+import { IsOptional, IsInt, Min, Max, IsString, IsIn, IsDateString, IsBoolean } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -28,10 +28,16 @@ export class PaginationDto {
     @IsIn(['ASC', 'DESC'])
     sortOrder?: 'ASC' | 'DESC' = 'DESC';
 
-    @ApiPropertyOptional({ description: 'Filter by status' })
+    @ApiPropertyOptional({ description: 'Filter by status (comma-separated TicketStatus values)' })
     @IsOptional()
     @IsString()
     status?: string;
+
+    @ApiPropertyOptional({ description: 'Only overdue tickets' })
+    @IsOptional()
+    @Transform(({ value }) => value === 'true' || value === true)
+    @IsBoolean()
+    overdue?: boolean;
 
     @ApiPropertyOptional({ description: 'Filter by priority' })
     @IsOptional()
@@ -88,6 +94,18 @@ export class PaginationDto {
     })
     @IsString({ each: true })
     siteIds?: string[];
+
+    @ApiPropertyOptional({ description: 'Only tickets the caller requested or filed, on any team or site' })
+    @IsOptional()
+    @Transform(({ value }) => value === true || value === 'true')
+    @IsBoolean()
+    createdByMe?: boolean;
+
+    @ApiPropertyOptional({ description: 'Only tickets assigned to the caller (within their normal list scope)' })
+    @IsOptional()
+    @Transform(({ value }) => value === true || value === 'true')
+    @IsBoolean()
+    assignedToMe?: boolean;
 }
 
 export interface PaginatedResult<T> {
@@ -100,4 +118,31 @@ export interface PaginatedResult<T> {
         hasNextPage: boolean;
         hasPrevPage: boolean;
     };
+}
+/** GET /tickets/queue-stats: which queue, plus the scope filters of its list. */
+export class QueueStatsQueryDto {
+    @ApiPropertyOptional({ enum: ['it-support', 'oracle', 'web-dev', 'mobile-dev'] })
+    @IsIn(['it-support', 'oracle', 'web-dev', 'mobile-dev'])
+    queue: 'it-support' | 'oracle' | 'web-dev' | 'mobile-dev';
+
+    @ApiPropertyOptional({ description: 'Filter by multiple site IDs (cross-site roles only)', type: [String] })
+    @IsOptional()
+    @Transform(({ value }) => {
+        if (!value) return undefined;
+        return Array.isArray(value) ? value : [value];
+    })
+    @IsString({ each: true })
+    siteIds?: string[];
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @Transform(({ value }) => value === true || value === 'true')
+    @IsBoolean()
+    createdByMe?: boolean;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @Transform(({ value }) => value === true || value === 'true')
+    @IsBoolean()
+    assignedToMe?: boolean;
 }

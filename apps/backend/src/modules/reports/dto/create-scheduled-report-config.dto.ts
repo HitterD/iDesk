@@ -7,8 +7,10 @@ import {
   Matches,
   IsOptional,
   MinLength,
+  IsIn,
 } from 'class-validator';
 import { ReportType, ScheduleType, TargetAgentCategory } from '../entities/scheduled-report-config.entity';
+import { REPORT_TEAMS, ReportTeam } from '../utils/report-team-scope.util';
 
 /**
  * DTO for creating a new scheduled report configuration.
@@ -53,4 +55,9 @@ export class CreateScheduledReportConfigDto {
   @IsOptional()
   @IsEnum(TargetAgentCategory)
   targetAgentCategory?: TargetAgentCategory | null;
+
+  /** Team the report covers; null/omitted = every team. */
+  @IsOptional()
+  @IsIn(REPORT_TEAMS)
+  targetTeam?: ReportTeam | null;
 }

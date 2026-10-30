@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger, ForbiddenException, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger, ForbiddenException, OnModuleInit, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, SelectQueryBuilder } from 'typeorm';
 import * as fs from 'fs';
@@ -12,6 +12,7 @@ import * as crypto from 'crypto';
 
 import { MailDispatchService } from '../../shared/mail/mail-dispatch.service';
 import { Ticket, TicketStatus } from '../ticketing/entities/ticket.entity';
+import { TICKET_DONE_STATUSES_SQL } from '../ticketing/utils/ticket-status-sql.util';
 import { TicketModule } from '../ticketing/entities/ticket-module.entity';
 import { Site } from '../sites/entities/site.entity';
 import { Department } from './entities/department.entity';
@@ -20,6 +21,10 @@ import { AuditAction } from '../audit/entities/audit-log.entity';
 import { validatePasswordPolicy } from '../auth/application/password-policy';
 import { PermissionsService } from '../permissions/permissions.service';
 import { isMobileDevCategory, isWebDevCategory, isOracleDevCategory, isOracleK2Category } from '../ticketing/utils/oracle-ticket-access.util';
+import { PriorityWeight } from '../workload/entities/priority-weight.entity';
+import { FALLBACK_SCHEDULE } from '../workload/install-day.util';
+import { BusinessHoursService } from '../sla-config/business-hours.service';
+import { activeTicketWhere, computeLiveWorkloads } from '../workload/live-workload.util';
 
 const OPERATIONAL_AGENT_ROLES = [
     UserRole.AGENT,
@@ -30,7 +35,6 @@ const OPERATIONAL_AGENT_ROLES = [
 const AGENT_STATS_ROLES = [
     UserRole.AGENT,
     UserRole.AGENT_ORACLE,
-    UserRole.AGENT_ADMIN,
     UserRole.AGENT_OPERATIONAL_SUPPORT,
 ];
 
@@ -52,6 +56,10 @@ export class UserCrudService implements OnModuleInit {
         private readonly permissionsService: PermissionsService,
         @InjectRepository(TicketModule)
         private readonly ticketModuleRepo?: Repository<TicketModule>,
+        @InjectRepository(PriorityWeight)
+        private readonly priorityWeightRepo?: Repository<PriorityWeight>,
+        @Optional()
+        private readonly businessHours?: BusinessHoursService,
     ) { }
 
     async onModuleInit() {
@@ -325,6 +333,18 @@ export class UserCrudService implements OnModuleInit {
         return user || undefined;
     }
 
+    async acknowledgeGuidebook(userId: string): Promise<{ success: boolean; acknowledgedAt: Date }> {
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+        const acknowledgedAt = new Date();
+        user.guidebookAcknowledgedAt = acknowledgedAt;
+        await this.userRepo.save(user);
+        this.logger.log(`User ${userId} acknowledged portal guidebook at ${acknowledgedAt.toISOString()}`);
+        return { success: true, acknowledgedAt };
+    }
+
     async findByEmail(email: string): Promise<User | undefined> {
         const user = await this.userRepo.findOne({ where: { email } });
         return user || undefined;
@@ -511,9 +531,9 @@ export class UserCrudService implements OnModuleInit {
             .select('ticket."assignedToId"', 'agentId')
             .addSelect(`COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.TODO}')`, 'openTickets')
             .addSelect(`COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.IN_PROGRESS}')`, 'inProgressTickets')
-            .addSelect(`COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.RESOLVED}')`, 'resolvedTotal')
-            .addSelect(`COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.RESOLVED}' AND ticket."updatedAt" >= :startOfWeek)`, 'resolvedThisWeek')
-            .addSelect(`COUNT(*) FILTER (WHERE ticket.status = '${TicketStatus.RESOLVED}' AND ticket."updatedAt" >= :startOfMonth)`, 'resolvedThisMonth')
+            .addSelect(`COUNT(*) FILTER (WHERE ticket.status IN (${TICKET_DONE_STATUSES_SQL}))`, 'resolvedTotal')
+            .addSelect(`COUNT(*) FILTER (WHERE ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ticket."updatedAt" >= :startOfWeek)`, 'resolvedThisWeek')
+            .addSelect(`COUNT(*) FILTER (WHERE ticket.status IN (${TICKET_DONE_STATUSES_SQL}) AND ticket."updatedAt" >= :startOfMonth)`, 'resolvedThisMonth')
             .where('ticket."assignedToId" IN (:...agentIds)', { agentIds })
             .setParameter('startOfWeek', startOfWeek)
             .setParameter('startOfMonth', startOfMonth)
@@ -525,7 +545,7 @@ export class UserCrudService implements OnModuleInit {
             .createQueryBuilder('ticket')
             .select('ticket."assignedToId"', 'agentId')
             .addSelect('COUNT(*)', 'totalWithSla')
-            .addSelect(`COUNT(*) FILTER (WHERE ticket."isOverdue" = false OR ticket.status = '${TicketStatus.RESOLVED}')`, 'withinSla')
+            .addSelect(`COUNT(*) FILTER (WHERE ticket."isOverdue" = false OR ticket.status IN (${TICKET_DONE_STATUSES_SQL}))`, 'withinSla')
             .where('ticket."assignedToId" IN (:...agentIds)', { agentIds })
             .andWhere('ticket."slaTarget" IS NOT NULL')
             .groupBy('ticket."assignedToId"')
@@ -542,21 +562,18 @@ export class UserCrudService implements OnModuleInit {
             slaStatsMap.set(stat.agentId, stat);
         }
 
-        // Fetch today's workload points
-        const todayStr = now.toISOString().split('T')[0];
-        const workloadRaw = await this.userRepo.manager
-            .createQueryBuilder()
-            .select('workload."agentId"', 'agentId')
-            .addSelect('workload."totalPoints"', 'activeWorkloadPoints')
-            .from('agent_daily_workload', 'workload')
-            .where('workload."workDate" = :date', { date: todayStr })
-            .andWhere('workload."agentId" IN (:...agentIds)', { agentIds })
-            .getRawMany();
-
-        const workloadMap = new Map<string, any>();
-        for (const stat of workloadRaw) {
-            workloadMap.set(stat.agentId, stat);
-        }
+        // Live workload points from the tickets (waiting vendor weighs nothing), not the stored
+        // daily row, which goes stale.
+        const [liveTickets, weights, schedule] = await Promise.all([
+            this.ticketRepo.find({
+                where: activeTicketWhere(agentIds),
+                select: ['id', 'priority', 'status', 'assignedToId', 'isHardwareInstallation', 'scheduledDate'],
+            }),
+            this.priorityWeightRepo?.find() ?? Promise.resolve([]),
+            // Same configured working days and holidays as the Workload page.
+            this.businessHours?.getSchedule() ?? Promise.resolve(FALLBACK_SCHEDULE),
+        ]);
+        const liveLoad = computeLiveWorkloads(agentIds, liveTickets, new Map(weights.map(w => [w.priority, w.points])), schedule, now);
 
         // Merge agent data with stats (in memory - O(n))
         const agentStats = agents.map(agent => {
@@ -582,7 +599,7 @@ export class UserCrudService implements OnModuleInit {
                 resolvedThisMonth: parseInt(stats.resolvedThisMonth || '0'),
                 slaCompliance,
                 appraisalPoints: agent.appraisalPoints || 0,
-                activeWorkloadPoints: parseInt(workloadMap.get(agent.id)?._activeWorkloadPoints || workloadMap.get(agent.id)?.activeWorkloadPoints || '0'),
+                activeWorkloadPoints: liveLoad.get(agent.id)?.points ?? 0,
             };
         });
 

@@ -5,9 +5,9 @@
 
 // ============ Base Types ============
 
-export type TicketStatus = 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CANCELLED';
+export type TicketStatus = 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
 export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
-export type TicketSource = 'WEB' | 'TELEGRAM' | 'EMAIL';
+export type TicketSource = 'WEB' | 'TELEGRAM' | 'EMAIL' | 'IPOP' | 'API';
 
 // ============ User Types ============
 
@@ -20,7 +20,6 @@ export interface TicketUser {
     department?: {
         name: string;
     };
-    telegramChatId?: string;
 }
 
 export interface AgentUser {
@@ -90,6 +89,8 @@ export interface Ticket {
     priority: TicketPriority;
     criticalReason?: string;
     source: TicketSource;
+    /** Connected app that filed it (source API), e.g. 'EBBK'. */
+    externalSource?: string | null;
     isOverdue: boolean;
     slaTarget?: string;
     scheduledDate?: string;

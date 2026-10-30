@@ -25,10 +25,12 @@ import {
     AlertTriangle,
 } from 'lucide-react';
 import { SiteSelector } from '@/components/site/SiteSelector';
+import { ResHead } from '@/components/resources/ResourceParts';
 import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { REPORT_TEAMS, ReportTeam, reportTeamLabel, ALL_TEAMS_LABEL, REPORT_TEAMS_SCOPE_TITLE } from '@/features/reports/reportTeams';
 
 type ReportType = 'consolidated' | 'per-site' | 'comparison';
 type ExportFormat = 'pdf' | 'excel';
@@ -83,6 +85,7 @@ const REPORT_SECTIONS: ReportSection[] = [
 export const ManagerReportsPage = () => {
     const [reportType, setReportType] = useState<ReportType>('consolidated');
     const [selectedSites, setSelectedSites] = useState<string[]>([]);
+    const [team, setTeam] = useState<ReportTeam | null>(null);
     const [datePreset, setDatePreset] = useState<DatePreset>('month');
     const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(new Date()));
     const [dateTo, setDateTo] = useState<Date>(endOfMonth(new Date()));
@@ -133,6 +136,7 @@ export const ManagerReportsPage = () => {
             const response = await api.post('/manager/reports/generate', {
                 reportType,
                 siteIds: selectedSites,
+                ...(team ? { team } : {}),
                 dateFrom: format(dateFrom, 'yyyy-MM-dd'),
                 dateTo: format(dateTo, 'yyyy-MM-dd'),
                 sections: selectedSections,
@@ -179,31 +183,14 @@ export const ManagerReportsPage = () => {
     };
 
     return (
-        <div className="space-y-6 animate-fade-in-up pb-10">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-5 rounded-2xl border border-border/80 shadow-xs">
-                <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className="px-2.5 py-0.5 text-xs font-semibold text-primary border-primary/30 bg-primary/5">
-                            <Building2 className="w-3.5 h-3.5 mr-1" />
-                            Manager Portal
-                        </Badge>
-                    </div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2.5">
-                        <FileText className="w-7 h-7 text-primary" />
-                        Manager Reports
-                    </h1>
-                    <p className="text-muted-foreground text-sm mt-0.5">
-                        Generate dan export laporan kinerja site, SLA compliance, dan performa agent
-                    </p>
-                </div>
-            </div>
+        <div className="res-page space-y-0 pb-10">
+            <ResHead icon={FileText} tone="green" title="Manager Reports" description="Generate dan export laporan kinerja site, SLA compliance, dan performa agent" />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column - Report Configuration */}
                 <div className="lg:col-span-2 space-y-6">
                     {/* Report Type */}
-                    <Card className="rounded-2xl border-border/80 bg-card shadow-xs">
+                    <Card className="dash-panel !p-0 border-0">
                         <CardHeader>
                             <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                                 <PieChart className="w-5 h-5 text-primary" />
@@ -233,8 +220,36 @@ export const ManagerReportsPage = () => {
                         </CardContent>
                     </Card>
 
+                    {/* Team Selection */}
+                    <Card className="dash-panel !p-0 border-0">
+                        <CardHeader>
+                            <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+                                <Users className="w-5 h-5 text-primary" />
+                                Pilih {REPORT_TEAMS_SCOPE_TITLE}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex flex-wrap gap-2" role="group" aria-label="Pilih tim">
+                                {[null, ...REPORT_TEAMS].map((t) => (
+                                    <button
+                                        key={t ?? 'ALL'}
+                                        type="button"
+                                        onClick={() => setTeam(t)}
+                                        aria-pressed={team === t}
+                                        className={`px-3 py-1.5 rounded-lg border-2 text-xs font-semibold transition-all duration-150 ${team === t
+                                            ? 'border-primary bg-primary/10 text-primary'
+                                            : 'border-border/80 hover:border-primary/40 bg-background text-foreground'
+                                            }`}
+                                    >
+                                        {t ? reportTeamLabel(t) : ALL_TEAMS_LABEL}
+                                    </button>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     {/* Site Selection */}
-                    <Card className="rounded-2xl border-border/80 bg-card shadow-xs">
+                    <Card className="dash-panel !p-0 border-0">
                         <CardHeader>
                             <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                                 <Building2 className="w-5 h-5 text-primary" />
@@ -256,7 +271,7 @@ export const ManagerReportsPage = () => {
                     </Card>
 
                     {/* Date Range */}
-                    <Card className="rounded-2xl border-border/80 bg-card shadow-xs">
+                    <Card className="dash-panel !p-0 border-0">
                         <CardHeader>
                             <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                                 <Calendar className="w-5 h-5 text-primary" />
@@ -311,7 +326,7 @@ export const ManagerReportsPage = () => {
                     </Card>
 
                     {/* Report Sections */}
-                    <Card className="rounded-2xl border-border/80 bg-card shadow-xs">
+                    <Card className="dash-panel !p-0 border-0">
                         <CardHeader>
                             <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                                 <BarChart3 className="w-5 h-5 text-primary" />
@@ -352,7 +367,7 @@ export const ManagerReportsPage = () => {
                 {/* Right Column - Export Options & Summary */}
                 <div className="space-y-6">
                     {/* Export Format */}
-                    <Card className="rounded-2xl border-border/80 bg-card shadow-xs">
+                    <Card className="dash-panel !p-0 border-0">
                         <CardHeader>
                             <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                                 <Download className="w-5 h-5 text-primary" />
@@ -383,7 +398,7 @@ export const ManagerReportsPage = () => {
                     </Card>
 
                     {/* Summary */}
-                    <Card className="rounded-2xl border-border/80 bg-card shadow-xs">
+                    <Card className="dash-panel !p-0 border-0">
                         <CardHeader>
                             <CardTitle className="text-base font-bold text-foreground">Ringkasan Laporan</CardTitle>
                         </CardHeader>
@@ -417,21 +432,14 @@ export const ManagerReportsPage = () => {
 
                     {/* Generate Button */}
                     <Button
-                        className="w-full h-12 rounded-xl text-base font-bold shadow-sm active:scale-[0.98] transition-all cursor-pointer"
+                        variant="primary"
+                        size="lg"
+                        className="w-full"
                         onClick={handleGenerateReport}
                         disabled={isGenerating || selectedSections.length === 0}
+                        loading={isGenerating}
                     >
-                        {isGenerating ? (
-                            <>
-                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                                Memproses Laporan...
-                            </>
-                        ) : (
-                            <>
-                                <Download className="w-5 h-5 mr-2" />
-                                Generate & Download Laporan
-                            </>
-                        )}
+                        {isGenerating ? 'Memproses Laporan...' : <><Download aria-hidden="true" />Generate & Download Laporan</>}
                     </Button>
 
                     {selectedSections.length === 0 && (

@@ -40,6 +40,7 @@ import { useScheduleSelection } from '../../hooks/useScheduleSelection';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { HardwareRequestItem, SlotProposal } from '../../types';
+import { buildSlotRange } from '../../utils/schedule-slot.util';
 
 interface ScheduleProposeModalProps {
   open: boolean;
@@ -65,13 +66,13 @@ const formatRoleBadge = (role?: string) => {
     case 'AGENT_OPERATIONAL_SUPPORT':
       return { label: 'Ops Support', color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' };
     case 'AGENT_ADMIN':
-      return { label: 'Agent Admin', color: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30' };
+      return { label: 'Agent Admin', color: 'bg-primary/10 text-primary border-primary/30' };
     case 'ADMIN':
       return { label: 'Admin', color: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' };
     case 'MANAGER':
       return { label: 'Manager', color: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30' };
     case 'AGENT_ORACLE':
-      return { label: 'Oracle', color: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30' };
+      return { label: 'Oracle', color: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30' };
     default:
       return { label: 'Agent', color: 'bg-primary/10 text-primary border-primary/20' };
   }
@@ -157,9 +158,7 @@ export function ScheduleProposeModal({
         return toast.error('Lengkapi tanggal dan jam untuk semua slot jadwal');
       }
 
-      const dateStr = s.date.toISOString().split('T')[0];
-      const startDateTime = new Date(`${dateStr}T${s.time}:00`);
-      const endDateTime = new Date(startDateTime.getTime() + s.durationHours * 60 * 60 * 1000);
+      const { start: startDateTime, end: endDateTime } = buildSlotRange(s.date, s.time, s.durationHours);
 
       if (startDateTime <= new Date()) {
         return toast.error('Jadwal instalasi harus di waktu masa mendatang');

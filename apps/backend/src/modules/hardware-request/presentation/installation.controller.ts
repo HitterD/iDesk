@@ -1,5 +1,4 @@
 import { Body, Controller, Param, ParseUUIDPipe, Post, Get, Query, UseGuards, Req, Patch, HttpCode, ForbiddenException } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { HardwareRoleGuard, pickRole } from '../guards/hardware-role.guard';
 import { HardwareRoles } from '../guards/roles.decorator';
@@ -73,7 +72,6 @@ export class InstallationController {
 
     @Post(':id/items/:itemId/barcode')
     @HardwareRoles(HardwareRole.ICT_STAFF)
-    @Throttle({ default: { limit: 60, ttl: 60000 } })
     async scan(
         @Param('id', ParseUUIDPipe) id: string,
         @Param('itemId', ParseUUIDPipe) itemId: string,
@@ -195,8 +193,8 @@ export class InstallationController {
     }
 
     private async guardOwnerOrIct(requestId: string, user: { userId: string; role: string }) {
-        const role = (user.role as string)?.toUpperCase();
-        if (role === 'ICT_STAFF' || role === 'ADMIN' || role === 'MANAGER' || role === 'AGENT') return;
+        // Same role mapping as HardwareRoleGuard, so AGENT_OPERATIONAL_SUPPORT / AGENT_ADMIN count as ICT.
+        if (pickRole(user) === HardwareRole.ICT_STAFF) return;
         const siteId = (user as any).siteId ?? null;
         const userRole = (user as any).userRole as UserRole;
         const req = await this.queryService.getById({ id: user.userId, role: HardwareRole.USER, siteId, userRole }, requestId);

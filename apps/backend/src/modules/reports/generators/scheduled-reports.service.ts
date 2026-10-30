@@ -57,8 +57,12 @@ export class ScheduledReportsService implements OnModuleInit {
         private readonly ticketVolumeReport: TicketVolumeReport,
     ) {
         // Ensure reports directory exists
-        if (!fs.existsSync(this.reportsDir)) {
-            fs.mkdirSync(this.reportsDir, { recursive: true });
+        try {
+            if (!fs.existsSync(this.reportsDir)) {
+                fs.mkdirSync(this.reportsDir, { recursive: true });
+            }
+        } catch {
+            // Non-critical: directory creation failure handled gracefully
         }
     }
 

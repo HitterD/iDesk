@@ -1,891 +1,223 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import {
-    TrendingUp,
-    TrendingDown,
-    Plus,
-    ListTodo,
-    Users,
-    ArrowRight,
-    RefreshCcw,
-    ServerCrash,
-    Trophy,
-    Medal
-} from 'lucide-react';
+import { toast } from 'sonner';
+import { LayoutGrid, Layers, Inbox, CircleCheck, TriangleAlert, Gauge, RefreshCw, ServerCrash, TrendingUp, TrendingDown, Users } from 'lucide-react';
 import api from '../../../lib/api';
 import { useTicketListSocket } from '@/hooks/useTicketSocket';
 import { useAuth } from '@/stores/useAuth';
-import { toast } from 'sonner';
-import { DashboardSkeleton } from '../components/DashboardSkeleton';
-import { cn } from '@/lib/utils';
-import { ActivityFeed } from '@/components/ui/ActivityFeed';
-import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
+import { Button } from '@/components/ui/button';
 import type { Ticket as TicketType } from '@/types/ticket.types';
+import { DashboardSkeleton } from '../components/DashboardSkeleton';
+import { MyRatingCard } from '../components/MyRatingCard';
+import {
+    cssVars, DASH_COLORS, DashChartSkeleton, DashDonut, DashEmpty, DashLive, DashMore, DashPanel, DashSeg, DashStat, type DonutItem,
+} from '../components/DashboardParts';
+import { computeTeamStats, TEAM_RANGES, toIndonesianDuration, type TeamRange } from './teamDashboard.stats';
+import { TeamActivityChart } from './TeamActivityChart';
+import { TeamFeed, TeamRecentTickets, TeamTopAgents } from './TeamDashboardLists';
 
 interface DashboardStats {
-    total: number;
-    open: number;
-    inProgress: number;
-    waitingVendor: number;
-    resolved: number;
-    cancelled: number;
-    overdue: number;
-    slaCompliance: number;
-    byPriority: { CRITICAL: number; HIGH: number; MEDIUM: number; LOW: number };
-    byCategory: Record<string, number>;
-    todayTickets: number;
-    thisWeekTickets: number;
-    thisMonthTickets: number;
-    resolvedToday: number;
-    resolvedThisWeek: number;
-    last7Days: { date: string; created: number; resolved: number }[];
-    recentTickets: any[];
-    topAgents: { name: string; resolved: number; inProgress: number }[];
     avgResolutionTime: string;
 }
 
-// Simple Bar Chart Component with embedded legend
-const MiniBarChart: React.FC<{ data: { date: string; created: number; resolved: number }[] }> = ({ data }) => {
-    const maxValue = Math.max(...data.flatMap(d => [d.created, d.resolved]), 1);
+/** Matches the backend's 15s dashboard-stats cache; socket events still invalidate immediately. */
+const DASHBOARD_STALE_TIME_MS = 15_000;
+const NEW_TICKET_TOAST_MS = 8000;
+const MS_PER_MINUTE = 60_000;
+const MINUTES_PER_HOUR = 60;
+const RANGE_OPTIONS = TEAM_RANGES.map((r) => ({ value: String(r) as `${TeamRange}`, label: `${r}h` }));
+const CATEGORY_CHART_COLOR = DASH_COLORS.accent;
+type FeedView = 'live' | 'recent';
+const FEED_OPTIONS: readonly { value: FeedView; label: string }[] = [
+    { value: 'live', label: 'Aktivitas live' },
+    { value: 'recent', label: 'Tiket terbaru' },
+];
 
-    return (
-        <div className="relative">
-            <div className="flex items-end gap-1.5 h-40 pt-2">
-                {data.map((day, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
-                        <div className="w-full flex gap-0.5 items-end h-24">
-                            <div
-                                className="flex-1 bg-blue-400 dark:bg-blue-500 hover:opacity-75 rounded-t-sm chart-bar-animated origin-bottom"
-                                style={{
-                                    height: `${(day.created / maxValue) * 100}%`,
-                                    minHeight: day.created > 0 ? '4px' : '0',
-                                    animationDelay: `${i * 0.1}s`
-                                }}
-                                title={`Created: ${day.created}`}
-                            />
-                            <div
-                                className="flex-1 bg-[hsl(var(--success-400))] dark:bg-[hsl(var(--success-500))] hover:opacity-75 rounded-t-sm chart-bar-animated origin-bottom"
-                                style={{
-                                    height: `${(day.resolved / maxValue) * 100}%`,
-                                    minHeight: day.resolved > 0 ? '4px' : '0',
-                                    animationDelay: `${i * 0.1 + 0.05}s`
-                                }}
-                                title={`Resolved: ${day.resolved}`}
-                            />
-                        </div>
-                        <span className="text-xs text-muted-foreground font-medium group-hover:text-foreground cursor-default transition-colors">{day.date}</span>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
+const isAgentRole = (role?: string) => role === 'AGENT' || Boolean(role?.startsWith('AGENT_'));
+
+function updatedLabel(dataUpdatedAt: number): string | null {
+    if (!dataUpdatedAt) return null;
+    const minutes = Math.floor((Date.now() - dataUpdatedAt) / MS_PER_MINUTE);
+    if (minutes < 1) return 'baru saja';
+    if (minutes < MINUTES_PER_HOUR) return `${minutes} menit lalu`;
+    return `${Math.floor(minutes / MINUTES_PER_HOUR)} jam lalu`;
+}
+
+/** "HARDWARE_ISSUE" -> "Hardware issue". */
+const categoryLabel = (cat: string) => {
+    const words = cat.replace(/_/g, ' ').toLowerCase();
+    return words.charAt(0).toUpperCase() + words.slice(1);
 };
 
-// Donut Chart Component — stroke-based ring segments with rounded caps
-const DonutChart: React.FC<{ data: { label: string; value: number; color: string }[] }> = ({ data }) => {
-    const total = data.reduce((sum, d) => sum + d.value, 0);
-    const R = 40;
-    const CIRC = 2 * Math.PI * R;
-    const GAP = data.filter(d => d.value > 0).length > 1 ? 2 : 0; // degrees of separation between segments
+/** Trend baseline: Sunday 00:00 → the same moment last week (see computeTeamStats weekChange). */
+const TREND_BASIS = 'dibanding periode yang sama minggu lalu';
 
-    if (total === 0) {
-        return (
-            <div className="relative">
-                <svg viewBox="0 0 100 100" className="w-32 h-32">
-                    <circle cx="50" cy="50" r={R} fill="none" stroke="currentColor" strokeWidth="10" className="text-muted/60" />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-extrabold tracking-tight text-muted-foreground">0</span>
-                </div>
-            </div>
-        );
-    }
-
-    let offset = 0;
-    const segments = data.map((d, i) => {
-        if (d.value === 0) return null;
-        const fraction = d.value / total;
-        const segDeg = fraction * 360;
-        const visibleDeg = Math.max(segDeg - GAP, 0.5);
-        const dash = (visibleDeg / 360) * CIRC;
-        const seg = (
-            <circle
-                key={i}
-                cx="50"
-                cy="50"
-                r={R}
-                fill="none"
-                stroke={d.color}
-                strokeWidth="10"
-                strokeLinecap={GAP > 0 ? 'round' : 'butt'}
-                strokeDasharray={`${dash} ${CIRC - dash}`}
-                strokeDashoffset={-offset}
-                transform="rotate(-90 50 50)"
-                className="transition-opacity hover:opacity-70"
-            />
-        );
-        offset += (segDeg / 360) * CIRC;
-        return seg;
-    });
-
+const WeekTrend: React.FC<{ change: number | null }> = ({ change }) => {
+    if (change === null || change === 0) return null;
+    const up = change > 0;
+    const Icon = up ? TrendingUp : TrendingDown;
     return (
-        <div className="relative">
-            <svg viewBox="0 0 100 100" className="w-32 h-32">
-                <circle cx="50" cy="50" r={R} fill="none" stroke="currentColor" strokeWidth="10" className="text-muted/50" />
-                {segments}
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-extrabold tracking-tight text-foreground leading-none">{total}</span>
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mt-0.5">tickets</span>
-            </div>
-        </div>
-    );
-};
-
-// Stat Card Component
-const StatCard: React.FC<{
-    title: string;
-    value: number | string;
-    subtitle?: string;
-    trend?: 'up' | 'down' | null;
-    trendLabel?: string;
-    highlight?: boolean;
-    onClick?: () => void;
-}> = ({ title, value, subtitle, trend, trendLabel, highlight, onClick }) => (
-    <div
-        onClick={onClick}
-        className={cn(
-            "p-6 rounded-2xl flex flex-col justify-between gap-3 transition-all border animate-fade-in-up min-h-[120px]",
-            highlight
-                ? "border-[hsl(var(--error-500))]/40 bg-[hsl(var(--error-50))] dark:bg-[hsl(var(--error-900))]/10"
-                : "border-border bg-card",
-            onClick && "cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_12px_32px_-8px_rgba(40,45,51,0.12)] hover:border-primary/40"
-        )}
-        role={onClick ? "button" : undefined}
-        tabIndex={onClick ? 0 : undefined}
-        onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
-    >
-        <div className="flex justify-between items-center">
-            <span className={cn(
-                "text-xs font-semibold tracking-wider uppercase text-muted-foreground",
-                highlight && "text-[hsl(var(--error-600))] dark:text-[hsl(var(--error-400))]"
-            )}>
-                {title}
-            </span>
-            {trend && (
-                <span className={cn(
-                    "flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full",
-                    trend === 'up'
-                        ? 'text-emerald-700 bg-emerald-500/10 dark:text-emerald-400'
-                        : 'text-[hsl(var(--error-600))] bg-[hsl(var(--error-500))]/10 dark:text-[hsl(var(--error-400))]'
-                )}>
-                    {trend === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                    {trendLabel}
-                </span>
-            )}
-        </div>
-        <div>
-            <div className="text-4xl font-extrabold tracking-tight text-foreground leading-none">
-                {typeof value === 'number' ? <AnimatedNumber value={value} duration={800} /> : value}
-            </div>
-            {subtitle && (
-                <p className="text-sm font-medium text-muted-foreground mt-1.5 truncate">{subtitle}</p>
-            )}
-        </div>
-    </div>
-);
-
-// Status Badge
-const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
-    const config: Record<string, { bg: string; text: string }> = {
-        TODO: { bg: 'bg-slate-100 dark:bg-slate-700', text: 'text-slate-600 dark:text-slate-300' },
-        IN_PROGRESS: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
-        WAITING_VENDOR: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-600 dark:text-orange-400' },
-        RESOLVED: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400' },
-    };
-    const { bg, text } = config[status] || config.TODO;
-    return (
-        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${bg} ${text}`}>
-            {status.replace('_', ' ')}
+        <span className="dash-trend" title={`${up ? 'Naik' : 'Turun'} ${Math.abs(change)}% ${TREND_BASIS}`}
+            style={cssVars({ '--trend-ink': up ? DASH_COLORS.inkGreen : DASH_COLORS.inkRed })}>
+            <Icon aria-hidden="true" />{up ? '+' : ''}{change}%
         </span>
     );
 };
 
-// Priority Dot
-const PriorityDot: React.FC<{ priority: string }> = ({ priority }) => {
-    const colors: Record<string, string> = {
-        CRITICAL: 'bg-red-500',
-        HIGH: 'bg-orange-500',
-        MEDIUM: 'bg-yellow-500',
-        LOW: 'bg-slate-400',
-    };
-    return <span className={`w-2 h-2 rounded-full ${colors[priority] || colors.LOW}`} />;
-};
-
+/** Team dashboard (mockup dashboard-team.html): totals, 7/14/30-day activity, status/priority, categories, live feed, top agents. */
 export const BentoDashboardPage = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const canOpenAgentDashboard = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+    const [range, setRange] = useState<TeamRange>(7);
+    const [reloading, setReloading] = useState(false);
+    const [feedView, setFeedView] = useState<FeedView>('live');
 
-    // Date range state for chart filtering
-    const [chartDateRange, setChartDateRange] = useState<7 | 14 | 30>(7);
-    const [dashboardTab, setDashboardTab] = useState<'live' | 'recent'>('live');
-    const [breakdownTab, setBreakdownTab] = useState<'status' | 'priority' | 'category'>('status');
-
-    // Handle new ticket notification for admins/agents
-    const handleNewTicket = useCallback((ticket: any) => {
+    const handleNewTicket = useCallback((ticket: { id: string; ticketNumber?: string; title?: string }) => {
         if (user?.role === 'ADMIN' || user?.role === 'AGENT') {
-            toast.info('New ticket received', {
+            toast.info('Tiket baru masuk', {
                 description: `${ticket.ticketNumber || ''}: ${ticket.title}`,
-                action: {
-                    label: 'View',
-                    onClick: () => navigate(`/tickets/${ticket.id}`),
-                },
-                duration: 8000,
+                action: { label: 'Lihat', onClick: () => navigate(`/tickets/${ticket.id}`) },
+                duration: NEW_TICKET_TOAST_MS,
             });
-            // Force silent refetch to update live metrics automatically
-            refetchTickets();
-            refetchStats();
         }
     }, [user, navigate]);
 
-    const handleTicketUpdate = useCallback(() => {
-        refetchTickets();
-        refetchStats();
-    }, []);
+    // useTicketListSocket already invalidates ['tickets'] and ['dashboard-stats']; no second refetch here.
+    const { isConnected } = useTicketListSocket({ onNewTicket: handleNewTicket });
 
-    // Real-time updates for dashboard stats
-    useTicketListSocket({
-        onNewTicket: handleNewTicket,
-        onTicketUpdated: handleTicketUpdate
-    });
-
-    // Fetch actual tickets (same as tickets page) for accurate stats
     const { data: tickets = [], isError: ticketsError, error: ticketsErrorData, refetch: refetchTickets, dataUpdatedAt } = useQuery<TicketType[]>({
         queryKey: ['tickets'],
-        queryFn: async () => {
-            const res = await api.get('/tickets');
-            return res.data;
-        },
-        staleTime: 0,
+        queryFn: async () => (await api.get('/tickets')).data,
+        staleTime: DASHBOARD_STALE_TIME_MS,
         refetchOnWindowFocus: true,
     });
-
-    // Format last updated time
-    const lastUpdated = useMemo(() => {
-        if (!dataUpdatedAt) return null;
-        const now = Date.now();
-        const diff = now - dataUpdatedAt;
-        const minutes = Math.floor(diff / 60000);
-        if (minutes < 1) return 'Just now';
-        if (minutes === 1) return '1 minute ago';
-        if (minutes < 60) return `${minutes} minutes ago`;
-        const hours = Math.floor(minutes / 60);
-        if (hours === 1) return '1 hour ago';
-        return `${hours} hours ago`;
-    }, [dataUpdatedAt]);
-
-    // Compute all stats from actual tickets
-    const liveStats = useMemo(() => {
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const thisWeekStart = new Date(today);
-        thisWeekStart.setDate(today.getDate() - today.getDay());
-        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-        // Basic counts
-        const total = tickets.length;
-        const open = tickets.filter((t) => t.status === 'TODO').length;
-        const inProgress = tickets.filter((t) => t.status === 'IN_PROGRESS').length;
-        const waitingVendor = tickets.filter((t) => t.status === 'WAITING_VENDOR').length;
-        const resolved = tickets.filter((t) => t.status === 'RESOLVED').length;
-        const cancelled = tickets.filter((t) => t.status === 'CANCELLED').length;
-        const overdue = tickets.filter((t) => t.isOverdue).length;
-
-        // Priority counts
-        const byPriority = {
-            CRITICAL: tickets.filter((t) => t.priority === 'CRITICAL').length,
-            HIGH: tickets.filter((t) => t.priority === 'HIGH').length,
-            MEDIUM: tickets.filter((t) => t.priority === 'MEDIUM').length,
-            LOW: tickets.filter((t) => t.priority === 'LOW').length,
-        };
-
-        // Category counts
-        const byCategory: Record<string, number> = {};
-        tickets.forEach((t) => {
-            const cat = t.category || 'GENERAL';
-            byCategory[cat] = (byCategory[cat] || 0) + 1;
-        });
-
-        // Time-based counts
-        const todayTickets = tickets.filter((t) => new Date(t.createdAt) >= today).length;
-        const thisWeekTickets = tickets.filter((t) => new Date(t.createdAt) >= thisWeekStart).length;
-        const thisMonthTickets = tickets.filter((t) => new Date(t.createdAt) >= thisMonthStart).length;
-        const resolvedToday = tickets.filter((t) => t.status === 'RESOLVED' && new Date(t.updatedAt) >= today).length;
-        const resolvedThisWeek = tickets.filter((t) => t.status === 'RESOLVED' && new Date(t.updatedAt) >= thisWeekStart).length;
-
-        // Last N days based on chartDateRange
-        const lastNDays: { date: string; created: number; resolved: number }[] = [];
-        for (let i = chartDateRange - 1; i >= 0; i--) {
-            const date = new Date(today);
-            date.setDate(today.getDate() - i);
-            const nextDate = new Date(date);
-            nextDate.setDate(date.getDate() + 1);
-
-            const created = tickets.filter((t) => {
-                const d = new Date(t.createdAt);
-                return d >= date && d < nextDate;
-            }).length;
-
-            const resolvedCount = tickets.filter((t) => {
-                if (t.status !== 'RESOLVED') return false;
-                const d = new Date(t.updatedAt);
-                return d >= date && d < nextDate;
-            }).length;
-
-            lastNDays.push({
-                date: date.toLocaleDateString('en-US', { weekday: 'short' }),
-                created,
-                resolved: resolvedCount,
-            });
-        }
-
-        // Top agents
-        const agentStats: Record<string, { name: string; resolved: number; inProgress: number }> = {};
-        tickets.forEach((t) => {
-            if (t.assignedTo) {
-                const agentId = t.assignedTo.id;
-                if (!agentStats[agentId]) {
-                    agentStats[agentId] = { name: t.assignedTo.fullName, resolved: 0, inProgress: 0 };
-                }
-                if (t.status === 'RESOLVED') {
-                    agentStats[agentId].resolved++;
-                } else if (t.status === 'IN_PROGRESS') {
-                    agentStats[agentId].inProgress++;
-                }
-            }
-        });
-        const topAgents = Object.values(agentStats)
-            .sort((a, b) => b.resolved - a.resolved)
-            .slice(0, 5);
-
-        // Recent tickets
-        const recentTickets = [...tickets]
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-            .slice(0, 5);
-
-        // SLA compliance
-        const slaCompliance = total > 0 ? Math.round(((total - overdue) / total) * 100) : 100;
-
-        // Previous week stats for comparison (week before thisWeekStart)
-        const lastWeekStart = new Date(thisWeekStart);
-        lastWeekStart.setDate(lastWeekStart.getDate() - 7);
-        const lastWeekEnd = thisWeekStart;
-
-        const lastWeekTickets = tickets.filter((t) => {
-            const d = new Date(t.createdAt);
-            return d >= lastWeekStart && d < lastWeekEnd;
-        }).length;
-
-        const lastWeekResolved = tickets.filter((t) => {
-            if (t.status !== 'RESOLVED') return false;
-            const d = new Date(t.updatedAt);
-            return d >= lastWeekStart && d < lastWeekEnd;
-        }).length;
-
-        // Calculate trends (percentage change)
-        const calcTrend = (current: number, previous: number): 'up' | 'down' | null => {
-            if (previous === 0) return current > 0 ? 'up' : null;
-            const change = ((current - previous) / previous) * 100;
-            if (change > 5) return 'up';
-            if (change < -5) return 'down';
-            return null;
-        };
-
-        return {
-            total,
-            open,
-            inProgress,
-            waitingVendor,
-            resolved,
-            cancelled,
-            overdue,
-            byPriority,
-            byCategory,
-            todayTickets,
-            thisWeekTickets,
-            thisMonthTickets,
-            resolvedToday,
-            resolvedThisWeek,
-            last7Days: lastNDays,
-            topAgents,
-            recentTickets,
-            slaCompliance,
-            // Trend comparisons
-            trends: {
-                thisWeek: calcTrend(thisWeekTickets, lastWeekTickets),
-                resolved: calcTrend(resolvedThisWeek, lastWeekResolved),
-            }
-        };
-    }, [tickets, chartDateRange]);
-
     const { data: stats, isLoading, isError: statsError, error: statsErrorData, refetch: refetchStats } = useQuery<DashboardStats>({
         queryKey: ['dashboard-stats'],
-        queryFn: async () => {
-            const res = await api.get('/tickets/dashboard/stats');
-            return res.data;
-        },
-        staleTime: 0,
-        gcTime: 0,
+        queryFn: async () => (await api.get('/tickets/dashboard/stats')).data,
+        staleTime: DASHBOARD_STALE_TIME_MS,
         refetchOnWindowFocus: true,
-        refetchOnMount: 'always',
     });
 
-    // Combined refetch function
+    const live = useMemo(() => computeTeamStats(tickets, range), [tickets, range]);
+    const lastUpdated = updatedLabel(dataUpdatedAt);
+
     const handleRefresh = () => {
-        refetchTickets();
-        refetchStats();
-        toast.success('Dashboard refreshed');
+        setReloading(true);
+        Promise.all([refetchTickets(), refetchStats()]).finally(() => {
+            setReloading(false);
+            toast.success('Dashboard diperbarui');
+        });
     };
 
-    if (user?.role === 'AGENT_ORACLE') {
-        return <Navigate to="/tickets/oracle-k2" replace />;
-    }
+    if (user?.role === 'AGENT_ORACLE') return <Navigate to="/tickets/oracle-k2" replace />;
 
-    // Error state
     if (ticketsError || statsError) {
-        const errorMessage = (ticketsErrorData as Error)?.message || (statsErrorData as Error)?.message || 'Failed to load dashboard data';
+        const errorMessage = (ticketsErrorData as Error)?.message || (statsErrorData as Error)?.message || 'Data dashboard tidak dapat dimuat.';
         return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
-                <div className="p-6 rounded-full bg-[hsl(var(--error-50))] dark:bg-[hsl(var(--error-900))]/20">
-                    <ServerCrash className="w-16 h-16 text-[hsl(var(--error-500))]" />
+            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center">
+                <ServerCrash className="w-12 h-12 text-[hsl(var(--ticket-red))]" aria-hidden="true" />
+                <div className="grid gap-1">
+                    <h2 className="text-xl font-bold text-foreground">Dashboard gagal dimuat</h2>
+                    <p className="text-sm text-muted-foreground max-w-md">{errorMessage}</p>
                 </div>
-                <div className="text-center space-y-2">
-                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Unable to Load Dashboard</h2>
-                    <p className="text-slate-500 dark:text-slate-400 max-w-md">
-                        {errorMessage}
-                    </p>
-                </div>
-                <button
-                    onClick={handleRefresh}
-                    className="flex items-center gap-2 px-6 py-3 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] font-bold rounded-xl hover:bg-[hsl(var(--primary))]/90 transition-all"
-                >
-                    <RefreshCcw className="w-5 h-5" />
-                    Try Again
-                </button>
+                <Button variant="primary" onClick={handleRefresh}><RefreshCw aria-hidden="true" />Coba lagi</Button>
             </div>
         );
     }
 
-    if (isLoading && tickets.length === 0) {
-        return <DashboardSkeleton />;
-    }
+    if (isLoading && tickets.length === 0) return <DashboardSkeleton variant="team" />;
 
-    const statusData = [
-        { label: 'Open', value: liveStats.open, color: 'hsl(var(--slate-400))' },
-        { label: 'In Progress', value: liveStats.inProgress, color: 'hsl(var(--chart-1))' },
-        { label: 'Waiting', value: liveStats.waitingVendor, color: 'hsl(var(--chart-3))' },
-        { label: 'Resolved', value: liveStats.resolved, color: 'hsl(var(--success-500))' },
+    const statusData: DonutItem[] = [
+        { label: 'Open', value: live.open, color: DASH_COLORS.sky },
+        { label: 'In Progress', value: live.inProgress, color: DASH_COLORS.navy },
+        { label: 'Waiting', value: live.waitingVendor, color: DASH_COLORS.orange },
+        { label: 'Resolved', value: live.resolved, color: DASH_COLORS.green },
     ];
-
-    const priorityData = [
-        { label: 'Critical', value: liveStats.byPriority.CRITICAL, color: 'hsl(var(--error-500))' },
-        { label: 'High', value: liveStats.byPriority.HIGH, color: 'hsl(var(--chart-3))' },
-        { label: 'Medium', value: liveStats.byPriority.MEDIUM, color: 'hsl(var(--chart-4))' },
-        { label: 'Low', value: liveStats.byPriority.LOW, color: 'hsl(var(--slate-400))' },
+    const priorityData: DonutItem[] = [
+        { label: 'Blocker (Critical)', value: live.byPriority.CRITICAL, color: DASH_COLORS.red },
+        { label: 'Urgent (Major Impact)', value: live.byPriority.HIGH, color: DASH_COLORS.orange },
+        { label: 'Normal (Moderate)', value: live.byPriority.MEDIUM, color: DASH_COLORS.blue },
+        { label: 'Low (Minor/Cosmetic)', value: live.byPriority.LOW, color: DASH_COLORS.gray },
     ];
-
-    const categoryColors = [
-        'bg-[hsl(var(--chart-1))]',
-        'bg-[hsl(var(--chart-2))]',
-        'bg-[hsl(var(--chart-3))]',
-        'bg-[hsl(var(--chart-4))]',
-        'bg-[hsl(var(--chart-5))]',
-        'bg-[hsl(var(--primary))]',
-        'bg-[hsl(var(--emerald-500))]',
-        'bg-[hsl(var(--destructive))]'
-    ];
+    const catMax = Math.max(1, ...live.byCategory.map((c) => c.count));
+    const openActive = live.open + live.inProgress;
 
     return (
-        <div className="min-h-0 h-auto lg:h-[calc(100vh-2rem)] flex flex-col gap-6 animate-fade-in-up overflow-y-auto custom-scrollbar -m-2 p-2 pb-6">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-extrabold text-foreground tracking-tight">Dashboard</h1>
-                    <div className="flex items-center gap-2 mt-1">
-                        <p className="text-muted-foreground text-sm font-medium">iDesk performance overview</p>
-                        {lastUpdated && (
-                            <span className="text-xs text-muted-foreground flex items-center gap-1.5 ml-2 border-l border-border pl-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                Updated {lastUpdated}
-                            </span>
-                        )}
-                    </div>
+        <div className="dash">
+            <header className="dash-head">
+                <span className="nav-tile dash-ptile" data-tone="navy"><LayoutGrid aria-hidden="true" /></span>
+                <div className="min-w-0">
+                    <h1>Dashboard Tim</h1>
+                    <p>Ringkasan performa iDesk untuk semua site Anda</p>
+                    {lastUpdated && <p className="dash-meta">Diperbarui {lastUpdated}</p>}
                 </div>
-                <div className="flex gap-3">
-                    <button
-                        onClick={handleRefresh}
-                        className="flex items-center gap-2 px-3 py-2.5 bg-card text-foreground font-semibold rounded-xl border border-border hover:bg-secondary/60 transition-all shadow-sm"
-                        title="Refresh dashboard"
-                    >
-                        <RefreshCcw className="w-4 h-4" />
-                    </button>
-                    <button
-                        onClick={() => navigate('/tickets/create')}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all shadow-sm"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Create Ticket
-                    </button>
-                    <button
-                        onClick={() => navigate('/tickets/list')}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-card text-foreground font-bold rounded-xl border border-border hover:bg-secondary/60 transition-all shadow-sm"
-                    >
-                        <ListTodo className="w-4 h-4" />
-                        My Tasks
-                    </button>
+                <span className="dash-spacer" />
+                <div className="dash-head-actions">
+                    <Button variant="soft" asChild><Link to="/tickets/list?filter=assigned_to_me"><Users aria-hidden="true" />Tugas Saya</Link></Button>
+                    <Button variant="soft" onClick={handleRefresh} loading={reloading}>{!reloading && <RefreshCw aria-hidden="true" />}Muat ulang</Button>
+                </div>
+            </header>
+
+            <section className="dash-stats is-five" aria-label="Ringkasan tiket">
+                <DashStat icon={Layers} tone="neutral" label="Total tiket" value={live.total} zero={live.total === 0} to="/tickets/list"
+                    sub={<>{live.thisWeekTickets} minggu ini <WeekTrend change={live.weekChange.created} /></>} />
+                <DashStat icon={Inbox} tone="blue" label="Open & aktif" value={openActive} zero={openActive === 0} to="/tickets/list?status=TODO,IN_PROGRESS"
+                    sub={`${live.todayTickets} baru hari ini`} />
+                <DashStat icon={CircleCheck} tone="green" label="Resolved" value={live.resolved} zero={live.resolved === 0} to="/tickets/list?status=RESOLVED"
+                    sub={live.weekChange.resolved
+                        ? <><WeekTrend change={live.weekChange.resolved} /> vs periode sama minggu lalu · {live.resolvedToday} hari ini</>
+                        : `${live.resolvedToday} selesai hari ini`} />
+                <DashStat icon={TriangleAlert} tone="red" label="Overdue" value={live.overdue} attention={live.overdue > 0} zero={live.overdue === 0} to="/tickets/list?overdue=1"
+                    sub={live.overdue > 0 ? 'Perlu tindakan' : 'Semua tepat waktu'} />
+                <DashStat icon={Gauge} tone="navy" label="Kepatuhan SLA" value={live.slaCompliance === null ? '—' : `${live.slaCompliance.toLocaleString('id-ID')}%`} zero={live.slaCompliance === null}
+                    sub={`Rata-rata selesai ${toIndonesianDuration(stats?.avgResolutionTime)}`} />
+            </section>
+
+            <div className="dgrid">
+                <DashPanel className="s8 is-fill" label="Aktivitas tiket" title={<>
+                    Aktivitas tiket <DashLive connected={isConnected} />
+                    <DashSeg small aria-label="Rentang" options={RANGE_OPTIONS} value={String(range) as `${TeamRange}`} onChange={(v) => setRange(Number(v) as TeamRange)} />
+                </>}>
+                    <p className="dash-panel-sub">Tiket dibuat vs diselesaikan ({range} hari terakhir)</p>
+                    {reloading ? <DashChartSkeleton /> : <TeamActivityChart days={live.days} range={range} />}
+                </DashPanel>
+                <div className="dash-stack s4">
+                    <DashPanel title="Per status"><DashDonut items={statusData} label="Tiket per status" /></DashPanel>
+                    <DashPanel title="Per prioritas"><DashDonut items={priorityData} label="Tiket per prioritas" /></DashPanel>
                 </div>
             </div>
 
-            {/* Asymmetric 2-Row Grid */}
-            <div className="flex flex-col gap-6">
-                
-                {/* Row 1: Summary Stats (3 large + 3 compact) */}
-                <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 stagger-1">
-                    {/* 3 Large Stat Panels */}
-                    <div className="xl:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <StatCard
-                            title="Total Tickets"
-                            value={liveStats.total}
-                            subtitle={`${liveStats.thisWeekTickets} this week`}
-                            trend={liveStats.trends.thisWeek}
-                            trendLabel="vs last week"
-                            onClick={() => navigate('/tickets/list')}
-                        />
-                        <StatCard
-                            title="Open & Active"
-                            value={liveStats.open + liveStats.inProgress}
-                            subtitle={`${liveStats.todayTickets} new today`}
-                            trend={liveStats.todayTickets > 0 ? 'up' : null}
-                            trendLabel={`${liveStats.todayTickets} today`}
-                            onClick={() => navigate('/tickets/list?status=TODO,IN_PROGRESS')}
-                            highlight={liveStats.open + liveStats.inProgress > 10}
-                        />
-                        <StatCard
-                            title="Resolved"
-                            value={liveStats.resolved}
-                            subtitle={`${liveStats.resolvedToday} resolved today`}
-                            trend={liveStats.trends.resolved}
-                            trendLabel="vs last week"
-                            onClick={() => navigate('/tickets/list?status=RESOLVED')}
-                        />
-                    </div>
-                    
-                    {/* Health Panel: Overdue, Avg Resolution, SLA — one card, three rows */}
-                    <div className="xl:col-span-1 bg-card border border-border rounded-2xl p-5 flex flex-col justify-between gap-4">
-                        <button
-                            type="button"
-                            aria-label={`View ${liveStats.overdue} overdue tickets`}
-                            className="flex items-center justify-between text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg -m-1 p-1 group"
-                            onClick={() => navigate('/tickets/list?overdue=true')}
-                        >
-                            <div>
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Overdue</p>
-                                <p className={cn("text-2xl font-extrabold tracking-tight leading-none mt-1", liveStats.overdue > 0 ? "text-destructive" : "text-foreground")}>{liveStats.overdue}</p>
-                            </div>
-                            {liveStats.overdue > 0 && (
-                                <span className="text-xs font-bold text-destructive bg-destructive/10 px-2.5 py-1 rounded-full group-hover:bg-destructive/20 transition-colors">
-                                    Action required
-                                </span>
-                            )}
-                        </button>
-
-                        <div className="border-t border-border/60" />
-
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Avg Resolution</p>
-                                <p className="text-2xl font-extrabold tracking-tight leading-none mt-1 text-foreground">{stats?.avgResolutionTime || '-'}</p>
-                            </div>
-                        </div>
-
-                        <div className="border-t border-border/60" />
-
-                        <div className="flex flex-col gap-2">
-                            <div className="flex items-center justify-between">
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">SLA Compliance</p>
-                                <span className="text-sm font-extrabold text-foreground">{liveStats.slaCompliance}%</span>
-                            </div>
-                            <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
-                                <div
-                                    className={cn("h-full rounded-full transition-all", liveStats.slaCompliance >= 90 ? "bg-emerald-500" : liveStats.slaCompliance >= 70 ? "bg-[hsl(var(--chart-3))]" : "bg-destructive")}
-                                    style={{ width: `${liveStats.slaCompliance}%` }}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                {/* Row 2: Charts and Details */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 stagger-2">
-                    {/* Left Column: Weekly Activity Chart */}
-                    <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-6 flex flex-col min-h-0">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-                            <div>
-                                <h2 className="font-bold text-foreground text-lg tracking-tight flex items-center gap-2">
-                                    Activity Overview
-                                    <span className="live-indicator" title="Live data" />
-                                </h2>
-                                <p className="text-sm text-muted-foreground mt-0.5">Tickets created vs resolved (last {chartDateRange} days)</p>
-                            </div>
-                            <div className="flex items-center gap-3 text-xs ml-auto">
-                                <span className="flex items-center gap-1.5 font-medium text-foreground">
-                                    <span className="w-2.5 h-2.5 rounded-sm bg-blue-500"></span> Created
-                                </span>
-                                <span className="flex items-center gap-1.5 font-medium text-foreground">
-                                    <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span> Resolved
-                                </span>
-                            </div>
-                            <div className="flex items-center w-full sm:w-auto">
-                                {/* Date Range Picker */}
-                                <div className="flex bg-muted p-1 border border-border rounded-lg">
-                                    {( [7, 14, 30] as const ).map(days => (
-                                        <button
-                                            key={days}
-                                            onClick={() => setChartDateRange(days)}
-                                            className={cn(
-                                                "px-3 py-1.5 text-xs font-bold rounded-md transition-all",
-                                                chartDateRange === days
-                                                    ? "bg-card text-primary shadow-sm"
-                                                    : "text-muted-foreground hover:text-foreground"
-                                            )}
-                                        >
-                                            {days}d
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex-1 mt-auto">
-                           <MiniBarChart data={liveStats.last7Days} />
-                        </div>
-                    </div>
-
-                    {/* Right Column: Ticket Breakdown/Donut */}
-                    <div className="bg-card border border-border rounded-2xl overflow-hidden flex flex-col min-h-0">
-                        <div className="flex border-b border-border px-4 pt-3 gap-4 shrink-0">
-                            {(['status', 'priority', 'category'] as const).map(t => (
-                                <button
-                                    key={t}
-                                    onClick={() => setBreakdownTab(t)}
-                                    className={cn(
-                                        "pb-2 text-xs font-semibold border-b-2 transition-colors capitalize",
-                                        breakdownTab === t
-                                            ? "border-primary text-primary"
-                                            : "border-transparent text-muted-foreground hover:text-foreground"
-                                    )}
-                                >
-                                    {t}
-                                </button>
+            <div className="dgrid">
+                <DashPanel className="s4" label="Tiket per kategori" title={<>Tiket per kategori <DashMore to="/reports">Laporan</DashMore></>}>
+                    {live.byCategory.length === 0 ? <DashEmpty>Belum ada tiket.</DashEmpty> : (
+                        <ul className="dash-list">
+                            {live.byCategory.map(({ category, count }) => (
+                                <li key={category}>
+                                    <button type="button" className="dash-li dash-cat" onClick={() => navigate(`/tickets/list?category=${encodeURIComponent(category)}`)}>
+                                        <span><span>{categoryLabel(category)}</span><b>{count}</b></span>
+                                        <span className="dash-meter"><i style={cssVars({ '--p': `${(count / catMax) * 100}%`, '--c': CATEGORY_CHART_COLOR })} /></span>
+                                    </button>
+                                </li>
                             ))}
-                        </div>
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-5 flex flex-col justify-center">
-                            {breakdownTab === 'status' && (
-                                <div className="flex items-center gap-6 h-full justify-center">
-                                    <DonutChart data={statusData} />
-                                    <div className="space-y-2 flex-1 max-w-[150px]">
-                                        {statusData.map((d, i) => (
-                                            <div key={i} className="flex items-center justify-between">
-                                                <span className="flex items-center gap-2 text-xs text-muted-foreground truncate font-medium">
-                                                    <span className="w-2.5 h-2.5 rounded shrink-0" style={{ backgroundColor: d.color }}></span>
-                                                    {d.label}
-                                                </span>
-                                                <span className="font-bold text-xs text-foreground shrink-0 ml-2">{d.value}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            {breakdownTab === 'priority' && (
-                                <div className="flex items-center gap-6 h-full justify-center">
-                                    <DonutChart data={priorityData} />
-                                    <div className="space-y-2 flex-1 max-w-[150px]">
-                                        {priorityData.map((d, i) => (
-                                            <div key={i} className="flex items-center justify-between">
-                                                <span className="flex items-center gap-2 text-xs text-muted-foreground truncate font-medium">
-                                                    <span className="w-2.5 h-2.5 rounded shrink-0" style={{ backgroundColor: d.color }}></span>
-                                                    {d.label}
-                                                </span>
-                                                <span className="font-bold text-xs text-foreground shrink-0 ml-2">{d.value}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            {breakdownTab === 'category' && (
-                                <div className="space-y-3">
-                                    {Object.entries(liveStats.byCategory)
-                                        .sort(([, a], [, b]) => b - a)
-                                        .map(([cat, count], index) => {
-                                            const maxCount = Math.max(...Object.values(liveStats.byCategory), 1);
-                                            const percentage = (count / maxCount) * 100;
-                                            return (
-                                                <div
-                                                    key={cat}
-                                                    className="group cursor-pointer hover:bg-secondary/40 -mx-2 px-2 py-1.5 rounded-lg transition-colors"
-                                                    onClick={() => navigate(`/tickets/list?category=${cat}`)}
-                                                >
-                                                    <div className="flex items-center justify-between text-xs mb-1.5">
-                                                        <span className="text-muted-foreground font-medium group-hover:text-foreground transition-colors truncate">
-                                                            {cat.replace(/_/g, ' ')}
-                                                        </span>
-                                                        <span className="font-bold text-foreground shrink-0 ml-2">{count}</span>
-                                                    </div>
-                                                    <div className="relative h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                                                        <div
-                                                            className={`h-full rounded-full ${categoryColors[index % categoryColors.length]} transition-all`}
-                                                            style={{ width: `${Math.max(percentage, 8)}%` }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Row 3: Activity Feed & Top Agents */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 stagger-3">
-                    {/* Live Activity Feed */}
-                    <div className="lg:col-span-2 bg-card border border-border rounded-2xl flex flex-col items-stretch overflow-hidden min-h-0">
-                        <div className="flex border-b border-border px-4 pt-3 gap-4 shrink-0">
-                            <button
-                                onClick={() => setDashboardTab('live')}
-                                className={cn(
-                                    "pb-2 text-xs font-semibold border-b-2 transition-colors",
-                                    dashboardTab === 'live'
-                                        ? "border-primary text-primary"
-                                        : "border-transparent text-muted-foreground hover:text-foreground"
-                                )}
-                            >
-                                Live Activity
-                            </button>
-                            <button
-                                onClick={() => setDashboardTab('recent')}
-                                className={cn(
-                                    "pb-2 text-xs font-semibold border-b-2 transition-colors",
-                                    dashboardTab === 'recent'
-                                        ? "border-primary text-primary"
-                                        : "border-transparent text-muted-foreground hover:text-foreground"
-                                )}
-                            >
-                                Recent Tickets
-                            </button>
-                        </div>
-                        
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
-                            {dashboardTab === 'live' ? (
-                                <ActivityFeed
-                                    className="!bg-transparent !border-0 rounded-none"
-                                    activities={liveStats.recentTickets.slice(0, 10).map((ticket: any) => ({
-                                        id: ticket.id,
-                                        type: ticket.status === 'RESOLVED' ? 'ticket_resolved' as const :
-                                            ticket.assignedTo ? 'ticket_assigned' as const : 'ticket_created' as const,
-                                        timestamp: ticket.createdAt,
-                                        user: ticket.user,
-                                        ticket: {
-                                            id: ticket.id,
-                                            ticketNumber: ticket.ticketNumber || ticket.id.slice(0, 8),
-                                            title: ticket.title,
-                                        },
-                                    }))}
-                                    isLive={true}
-                                    maxItems={10}
-                                    onActivityClick={(activity) => navigate(`/tickets/${activity.ticket?.id}`)}
-                                />
-                            ) : (
-                                <div className="divide-y divide-border/50 p-2">
-                                    {liveStats.recentTickets.length > 0 ? liveStats.recentTickets.slice(0, 8).map((ticket: any) => (
-                                        <div
-                                            key={ticket.id}
-                                            onClick={() => navigate(`/tickets/${ticket.id}`)}
-                                            className="px-4 py-3 hover:bg-secondary/40 cursor-pointer transition-colors rounded-xl mb-1 border border-transparent hover:border-border"
-                                        >
-                                            <div className="flex items-start gap-4">
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 mb-1.5">
-                                                        <PriorityDot priority={ticket.priority} />
-                                                        <span className="font-mono text-xs text-muted-foreground font-medium">#{ticket.ticketNumber || ticket.id.split('-')[0]}</span>
-                                                    </div>
-                                                    <h4 className="font-semibold text-sm text-foreground truncate mb-0.5">{ticket.title}</h4>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {ticket.user?.fullName}
-                                                    </p>
-                                                </div>
-                                                <StatusBadge status={ticket.status} />
-                                            </div>
-                                        </div>
-                                    )) : (
-                                        <div className="px-4 py-8 flex flex-col items-center justify-center text-center">
-                                            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-                                                <ListTodo className="w-5 h-5 text-muted-foreground" />
-                                            </div>
-                                            <p className="text-sm font-medium text-muted-foreground">No recent tickets</p>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Top Agents */}
-                    <div className="bg-card border border-border rounded-2xl p-6 flex flex-col min-h-0">
-                        <div className="flex items-center justify-between mb-5 shrink-0">
-                            <h2 className="font-bold text-foreground text-lg tracking-tight">
-                                Top Agents
-                            </h2>
-                            <button
-                                onClick={() => navigate('/agents')}
-                                className="text-xs text-primary font-semibold flex items-center gap-1 hover:text-primary/80 transition-colors"
-                            >
-                                View All <ArrowRight className="w-3.5 h-3.5" />
-                            </button>
-                        </div>
-                        <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 -mx-2 px-2">
-                            {liveStats.topAgents.length > 0 ? liveStats.topAgents.map((agent, i) => (
-                                <div key={i} className="flex items-center gap-3 p-1.5 transition-colors">
-                                    <div className={cn(
-                                        "avatar-status-ring shrink-0 w-8 h-8",
-                                        agent.inProgress > 0 ? "online" : "offline"
-                                    )}>
-                                        <div className="w-full h-full rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                                            {agent.name.charAt(0)}
-                                        </div>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-bold text-foreground text-sm truncate">{agent.name}</p>
-                                        <p className="text-xs text-foreground/80 font-medium mt-0.5">
-                                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">{agent.resolved}</span> res • <span className="text-primary font-bold">{agent.inProgress}</span> prog
-                                        </p>
-                                    </div>
-                                    {i === 0 && <div className="w-7 h-7 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0"><Trophy className="w-4 h-4 text-amber-500" /></div>}
-                                    {i === 1 && <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0"><Medal className="w-4 h-4 text-muted-foreground" /></div>}
-                                    {i === 2 && <div className="w-7 h-7 rounded-full bg-orange-500/10 flex items-center justify-center shrink-0"><Medal className="w-4 h-4 text-orange-500" /></div>}
-                                </div>
-                            )) : (
-                                <div className="py-8 flex flex-col items-center justify-center text-center">
-                                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-                                        <Users className="w-5 h-5 text-muted-foreground" />
-                                    </div>
-                                    <p className="text-sm font-medium text-muted-foreground">No agent data</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
+                        </ul>
+                    )}
+                </DashPanel>
+                <DashPanel className="s4 dash-feed" label="Aktivitas tim" title={<>
+                    <DashSeg small aria-label="Tampilan feed" options={FEED_OPTIONS} value={feedView} onChange={setFeedView} />
+                    <DashLive connected={isConnected} />
+                </>}>
+                    {feedView === 'live' ? <TeamFeed tickets={live.recentTickets} /> : <TeamRecentTickets tickets={live.recentTickets} />}
+                </DashPanel>
+                <DashPanel className="s4 is-wide-md" label="Agent terbaik" title={<>Agent terbaik <DashMore to="/agents">Semua agent</DashMore></>}>
+                    <TeamTopAgents agents={live.topAgents} linkAgents={canOpenAgentDashboard} />
+                </DashPanel>
             </div>
+
+            {isAgentRole(user?.role) && (
+                <div className="dgrid"><MyRatingCard className="s4 is-wide-md" /></div>
+            )}
         </div>
     );
 };

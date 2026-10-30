@@ -3,9 +3,11 @@
  * Removes usage of 'any' types throughout the application
  */
 
-export type TicketStatus = 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CANCELLED';
+import type { ServiceScope } from '@/lib/constants/service-scope';
+
+export type TicketStatus = 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
 export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-export type TicketSource = 'WEB' | 'TELEGRAM' | 'EMAIL';
+export type TicketSource = 'WEB' | 'TELEGRAM' | 'EMAIL' | 'IPOP' | 'API';
 export type UserRole = 'ADMIN' | 'AGENT' | 'AGENT_OPERATIONAL_SUPPORT' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'USER';
 
 export interface Department {
@@ -62,11 +64,19 @@ export interface Ticket {
     priority: TicketPriority;
     category?: string;
     source: TicketSource;
+    /** Connected app that filed it (source API), e.g. 'EBBK'. */
+    externalSource?: string | null;
     device?: string;
     software?: string;
     criticalReason?: string;
     isOverdue: boolean;
+    /**
+     * Resolution SLA target. Before the clock starts (slaStartedAt null) the API fills in a
+     * projected display target, which must not be read as a real deadline.
+     */
     slaTarget?: string;
+    /** When the resolution SLA clock started; null until an agent picks the ticket up. */
+    slaStartedAt?: string | null;
     responseDeadline?: string;
     user: User;
     assignedTo?: User;
@@ -181,6 +191,8 @@ export interface TicketModule {
     assigneeUserIds?: string[];
     /** Enable workload auto-assign for tickets landing in this module. */
     autoAssignEnabled?: boolean;
+    /** Department that services this module's tickets (ICT / HC). */
+    scope?: ServiceScope;
     createdAt?: string;
     updatedAt?: string;
 }

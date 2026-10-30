@@ -12,6 +12,8 @@ import {
     Body,
     Res,
     NotFoundException,
+    BadRequestException,
+    InternalServerErrorException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import * as fs from 'fs';
@@ -20,7 +22,9 @@ import { NotificationService } from './notification.service';
 import { NotificationCenterService } from './notification-center.service';
 import { NotificationCategory } from './entities/notification.entity';
 import { SnoozeActionItemDto, UnsnoozeActionItemDto } from './dto/snooze-action-item.dto';
+import { MarkReadByTargetDto } from './dto/mark-read-by-target.dto';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
+import { signSjaRequest } from '../sja-adapter/sja-request-signer';
 import { Public } from '../../shared/core/decorators/public.decorator';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 
@@ -39,7 +43,7 @@ export class NotificationController {
     async getDesktopAppInfo() {
         return {
             name: 'SJA Notification App',
-            version: '1.0.1',
+            version: '1.1.0',
             os: 'Windows 10 / 11 (64-bit)',
             packageFileName: 'SJANotifier-Setup.zip',
             webhookUrl: 'http://127.0.0.1:19876/notify',
@@ -269,6 +273,17 @@ export class NotificationController {
         return this.notificationService.markAsRead(id, req.user.userId);
     }
 
+    @Post('read-by-target')
+    @ApiOperation({ summary: 'Mark notifications about an opened ticket, item or category as read' })
+    @ApiResponse({ status: 200, description: 'Number of notifications marked as read.' })
+    async markReadByTarget(@Request() req: any, @Body() dto: MarkReadByTargetDto) {
+        if (!dto.ticketId && !dto.referenceId && !dto.category) {
+            throw new BadRequestException('ticketId, referenceId atau category wajib diisi');
+        }
+        const updated = await this.notificationService.markReadByTarget(req.user.userId, dto);
+        return { success: true, updated };
+    }
+
     @Post('read-all')
     @ApiOperation({ summary: 'Mark all notifications as read' })
     @ApiResponse({ status: 200, description: 'All notifications marked as read.' })
@@ -301,7 +316,8 @@ export class NotificationController {
     @Post('devices/activation/approve')
     @ApiOperation({ summary: 'Approve SJA Notification Center Device Pairing' })
     async approveDeviceActivation(@Request() req: any, @Body() body: any) {
-        const sjaBackendUrl = process.env.SJA_BACKEND_URL || 'http://127.0.0.1:18302';
+        const rawUrl = process.env.SJA_BACKEND_URL || process.env.SJA_SERVER_URL || 'http://127.0.0.1:18302';
+        const sjaBackendUrl = rawUrl.replace(/\/$/, '');
         try {
             // Bind true identity from validated JWT user session
             const safePayload = {
@@ -311,26 +327,36 @@ export class NotificationController {
                 role: req.user.role || '',
             };
 
+            let headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+            let bodyPayload = JSON.stringify(safePayload);
+
+            try {
+                const signed = signSjaRequest(safePayload);
+                headers = signed.headers;
+                bodyPayload = signed.body;
+            } catch (signerErr: any) {
+                // Jika SJA_APP_SECRET belum diset, teruskan payload JSON biasa
+                // karena /v1/devices/activation/approve di SJA Backend tidak memaksakan HMAC
+            }
+
             const resp = await fetch(`${sjaBackendUrl.replace(/\/$/, '')}/v1/devices/activation/approve`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(safePayload),
+                headers,
+                body: bodyPayload,
             });
 
             const data = await resp.json();
             if (!resp.ok) {
-                return {
-                    statusCode: resp.status,
-                    message: data.message || 'Kode aktivasi tidak valid atau telah kedaluwarsa',
-                    error: data.error || 'Bad Request',
-                };
+                throw new BadRequestException(data.message || 'Kode aktivasi tidak valid atau telah kedaluwarsa');
             }
             return data;
         } catch (err: any) {
-            return {
-                statusCode: 500,
-                message: `Gagal meneruskan aktivasi ke SJA Backend: ${err.message}`,
-            };
+            if (err instanceof BadRequestException) {
+                throw err;
+            }
+            throw new InternalServerErrorException(`Gagal meneruskan aktivasi ke SJA Backend: ${err.message}`);
         }
     }
 }

@@ -1,11 +1,9 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { TicketNotificationListener } from './ticket-notification.listener';
+import { NOTIFY_FANOUT_CONCURRENCY, TicketNotificationListener } from './ticket-notification.listener';
 import { NotificationService } from '../../notifications/notification.service';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
-import { TelegramService } from '../../telegram/telegram.service';
-import { TelegramChatBridgeService } from '../../telegram/telegram-chat-bridge.service';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { NotificationPreference } from '../../notifications/entities/notification-preference.entity';
@@ -33,12 +31,6 @@ describe('TicketNotificationListener', () => {
     const mailDispatch = {
         send: jest.fn().mockResolvedValue({ success: true }),
     };
-    const telegramService = {
-        notifyTicketUpdate: jest.fn(),
-    };
-    const telegramChatBridge = {
-        forwardAgentReplyToTelegram: jest.fn(),
-    };
     const userRepo = {
         find: jest.fn(),
         findOne: jest.fn(),
@@ -54,8 +46,6 @@ describe('TicketNotificationListener', () => {
                 { provide: NotificationService, useValue: notificationService },
                 { provide: NotificationCenterService, useValue: notificationCenterService },
                 { provide: MailDispatchService, useValue: mailDispatch },
-                { provide: TelegramService, useValue: telegramService },
-                { provide: TelegramChatBridgeService, useValue: telegramChatBridge },
                 { provide: getRepositoryToken(User), useValue: userRepo },
                 { provide: getRepositoryToken(NotificationPreference), useValue: prefRepo },
             ],
@@ -92,6 +82,29 @@ describe('TicketNotificationListener', () => {
             to: 'ops@example.com',
             subject: expect.stringContaining('Tiket Baru: #TK-2026-0001'),
         }));
+    });
+
+    it('handleTicketCreatedEvent emails a large agent pool a few at a time, not all at once', async () => {
+        userRepo.find.mockResolvedValue(Array.from({ length: 30 }, (_, i) => (
+            { id: `ops-${i}`, fullName: `Ops ${i}`, email: `ops${i}@example.com`, role: UserRole.AGENT_OPERATIONAL_SUPPORT })));
+        let running = 0;
+        let peak = 0;
+        mailDispatch.send.mockImplementation(async () => {
+            running += 1;
+            peak = Math.max(peak, running);
+            await new Promise((resolve) => setTimeout(resolve, 2));
+            running -= 1;
+            return { success: true };
+        });
+
+        await listener.handleTicketCreatedEvent(new TicketCreatedEvent(
+            't-1', 'TK-2026-0001', 'Printer Rusak', 'HIGH', 'HARDWARE', 'OPEN',
+            'u-1', 'User Requester', 'user@example.com', new Date(), 'site-spj', 'SERVICE',
+        ));
+
+        expect(mailDispatch.send).toHaveBeenCalledTimes(30);
+        expect(peak).toBeLessThanOrEqual(NOTIFY_FANOUT_CONCURRENCY);
+        mailDispatch.send.mockResolvedValue({ success: true });
     });
 
     it('handleTicketCreatedEvent sends email to AGENT_ORACLE & AGENT_MOBILE_DEV for Oracle/K2 request', async () => {
@@ -215,6 +228,37 @@ describe('TicketNotificationListener', () => {
         }));
     });
 
+    it('handleTicketAssignedEvent skips in-app and assignee email on self-assign but still emails the requester', async () => {
+        const event = new TicketAssignedEvent(
+            't-7', 'TK-2026-0007', 'agent-1', 'Budi Support', 'budi@example.com', 'Budi Support',
+            'Network Issue', 'IN_PROGRESS', 'requester@example.com', 'Ani User', 'agent-1',
+        );
+
+        await listener.handleTicketAssignedEvent(event);
+
+        expect(notificationService.notifyTicketAssigned).not.toHaveBeenCalled();
+        expect(mailDispatch.send).not.toHaveBeenCalledWith(expect.objectContaining({ to: 'budi@example.com' }));
+        expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({
+            to: 'requester@example.com',
+            subject: expect.stringContaining('Ticket Assigned: #TK-2026-0007 - Network Issue'),
+        }));
+    });
+
+    it('handleTicketAssignedEvent notifies the assignee in-app when assigned by someone else', async () => {
+        const event = new TicketAssignedEvent(
+            't-8', 'TK-2026-0008', 'agent-1', 'Budi Support', 'budi@example.com', 'Admin Lead',
+            'Network Issue', 'TODO', 'requester@example.com', 'Ani User', 'admin-1',
+        );
+
+        await listener.handleTicketAssignedEvent(event);
+
+        expect(notificationService.notifyTicketAssigned).toHaveBeenCalledWith('agent-1', 't-8', 'TK-2026-0008', 'Admin Lead', {
+            title: 'Network Issue', requesterName: 'Ani User',
+        });
+        expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'budi@example.com' }));
+        expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'requester@example.com' }));
+    });
+
     it('handleTicketUpdatedEvent sends email to Requester when updated by Agent', async () => {
         const ticket: any = {
             id: 't-6',
@@ -230,6 +274,10 @@ describe('TicketNotificationListener', () => {
 
         await listener.handleTicketUpdatedEvent(event);
 
+        // Requester gets an in-app notice titled with the problem and signed by the PIC
+        expect(notificationService.notifyTicketUpdated).toHaveBeenCalledWith('u-1', 't-6', 'TK-2026-0006', 'status', {
+            title: 'VPN Issue', assigneeName: 'Agent Budi',
+        });
         // Requester gets email
         expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({
             to: 'client@example.com',

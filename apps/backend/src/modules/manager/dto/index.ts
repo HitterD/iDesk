@@ -7,6 +7,7 @@ import {
     ArrayMinSize,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { REPORT_TEAMS, ReportTeam } from '../../reports/utils/report-team-scope.util';
 
 export enum ReportType {
     CONSOLIDATED = 'CONSOLIDATED',
@@ -83,6 +84,11 @@ export class GenerateManagerReportDto {
     @IsOptional()
     @IsIn(MANAGER_EXPORT_FORMATS)
     format?: string = 'pdf';
+
+    @ApiPropertyOptional({ enum: REPORT_TEAMS, description: 'Team scope; omitted = every team' })
+    @IsOptional()
+    @IsIn(REPORT_TEAMS)
+    team?: ReportTeam;
 }
 
 export class DashboardQueryDto {
@@ -112,6 +118,11 @@ export class ReportQueryDto {
     @IsOptional()
     @IsEnum(ReportPeriod)
     period?: ReportPeriod = ReportPeriod.MONTHLY;
+
+    @ApiPropertyOptional({ enum: REPORT_TEAMS, description: 'Team scope; omitted = every team' })
+    @IsOptional()
+    @IsIn(REPORT_TEAMS)
+    team?: ReportTeam;
 
     @ApiPropertyOptional({ description: 'Filter by site IDs', type: [String] })
     @IsOptional()

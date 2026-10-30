@@ -1,6 +1,6 @@
-import { ForbiddenException } from '@nestjs/common';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { TicketCreateService } from '../services/ticket-create.service';
+import { createTestSlaClock } from '../services/sla-clock.testing';
 
 describe('Ticket Creation Oracle Guard', () => {
     let service: TicketCreateService;
@@ -21,13 +21,6 @@ describe('Ticket Creation Oracle Guard', () => {
             }),
         };
 
-        const mockQb = {
-            where: jest.fn().mockReturnThis(),
-            orderBy: jest.fn().mockReturnThis(),
-            setLock: jest.fn().mockReturnThis(),
-            getOne: jest.fn().mockResolvedValue(null),
-        };
-
         const mockManager = {
             count: jest.fn(async () => 0),
             create: jest.fn((_, dto) => dto),
@@ -35,7 +28,8 @@ describe('Ticket Creation Oracle Guard', () => {
                 const target = t || entityClass;
                 return { id: 't-created', category: 'Oracle', ...target };
             }),
-            createQueryBuilder: jest.fn(() => mockQb),
+            // Ticket numbering: advisory lock, then MAX of today's sequence (none yet).
+            query: jest.fn(async () => []),
         };
 
         ticketRepo = {
@@ -59,7 +53,7 @@ describe('Ticket Creation Oracle Guard', () => {
             { invalidateTicketCache: jest.fn(), onTicketChange: jest.fn() } as any,
             eventEmitter as any,
             { recalculateAgentWorkload: jest.fn() } as any,
-            auditService as any,
+            auditService as any, createTestSlaClock(),
         );
     });
 
@@ -99,14 +93,16 @@ describe('Ticket Creation Oracle Guard', () => {
         expect(ticket.category).toBe('Oracle');
     });
 
-    it('rejects AGENT_ORACLE creation outside Oracle/K2 category', async () => {
-        await expect(
-            service.createTicket('oracle-1', {
-                title: 'Standard issue',
-                description: 'Standard ticket description',
-                category: 'GENERAL',
-            } as any),
-        ).rejects.toBeInstanceOf(ForbiddenException);
+    // Since 877661d4 any agent may file a ticket for another team; the ticket is
+    // still handled by that team (routing by category), not by the filer.
+    it('lets AGENT_ORACLE file a General ticket, routed to Ops Support', async () => {
+        const ticket = await service.createTicket('oracle-1', {
+            title: 'Standard issue',
+            description: 'Standard ticket description',
+            category: 'GENERAL',
+        } as any);
+
+        expect(ticket.handlingTeam).toBe('OPS_SUPPORT');
     });
 
     it('emits ticket.created and logs audit AFTER the transaction commits, not inside it', async () => {
@@ -115,12 +111,7 @@ describe('Ticket Creation Oracle Guard', () => {
         auditService.logAsync.mockImplementation(() => { order.push('audit'); });
         ticketRepo.manager.transaction.mockImplementation(async (cb: (m: unknown) => Promise<unknown>) =>
             cb({
-                createQueryBuilder: () => ({
-                    where: jest.fn().mockReturnThis(),
-                    orderBy: jest.fn().mockReturnThis(),
-                    setLock: jest.fn().mockReturnThis(),
-                    getOne: jest.fn().mockResolvedValue(null),
-                }),
+                query: jest.fn(async () => []),
                 create: jest.fn((_, dto) => dto),
                 save: jest.fn(async (_e: unknown, t?: unknown) => {
                     const target = (t || _e) as Record<string, unknown>;

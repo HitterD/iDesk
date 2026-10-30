@@ -33,7 +33,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ message }) => {
           </div>
           
           {message && (
-            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mt-4 text-sm text-muted-foreground">
               {message}
             </p>
           )}
@@ -42,6 +42,16 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ message }) => {
     </div>
   );
 };
+
+/**
+ * Suspense fallback for a page inside an already-rendered shell. Stays invisible for the first 300ms
+ * (CSS delay) so fast chunk loads never flash; slow ones get a quiet spinner in the content area.
+ */
+export const RouteFallback: React.FC = () => (
+  <div className="idesk-route-fallback" role="status" aria-label="Memuat halaman">
+    <span className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" aria-hidden="true" />
+  </div>
+);
 
 // Inline loading spinner
 export const LoadingSpinner: React.FC<{ size?: 'sm' | 'md' | 'lg'; className?: string }> = ({ 

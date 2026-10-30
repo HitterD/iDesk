@@ -3,8 +3,8 @@
  * No Dialog wrapper; the panel (ZoomBookingPanel) is the container.
  */
 import { useState, useEffect, useMemo } from 'react';
-import { format, addDays, parseISO, isSameDay } from 'date-fns';
-import { Video, Calendar, Clock, Users, FileText, AlertTriangle, Loader2, Sparkles, ChevronDown } from 'lucide-react';
+import { format, addDays } from 'date-fns';
+import { Video, Users, FileText, Sparkles, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { ModernDatePicker } from '@/components/ui/ModernDatePicker';
 import {
     useCreateBooking,
     usePublicZoomSettings,
@@ -27,10 +26,11 @@ import {
 } from '../hooks';
 import type { ZoomAccount, CreateBookingDto, CalendarDay } from '../types';
 import { ZoomRecurringOptions } from './ZoomRecurringOptions';
-import { ZoomTimeSelect, type TimeSlotOption } from './ZoomTimeSelect';
-import { ZoomEndTimeSelect, type EndTimeOption } from './ZoomEndTimeSelect';
+import { ZoomSlotPicker } from './ZoomSlotPicker';
+import { fromMinutes, toMinutes } from '../utils/slotAvailability';
+import './zoom-booking-form.css';
 import { ZoomParticipantPicker } from './ZoomParticipantPicker';
-import { calculateDuration, formatDurationLabel, computeEndTimeOptions } from './SimpleBookingForm';
+import { calculateDuration, computeEndTimeOptions } from './SimpleBookingForm';
 import { autoPickAccount, buildAvailability, type AccountLoad, type AccountAvailability } from '../utils/autoPickAccount';
 
 export const GABUNGAN_ACCOUNT_ID = 'gabungan';
@@ -61,6 +61,8 @@ interface ZoomBookingFormProps {
     preselectedTime?: string;
     accounts: ZoomAccount[];
     onClose: () => void;
+    /** Called with the created booking id (first occurrence for recurring series). */
+    onBookingCreated?: (bookingId: string) => void;
     /** When true, the form is in Gabungan mode: auto-picks the first free
      *  account at the chosen date+time and cascades to the next account
      *  (zoom 1 -> zoom 2 -> ... -> zoom 10) when the current one is booked. */
@@ -73,6 +75,7 @@ export function ZoomBookingForm({
     preselectedTime,
     accounts,
     onClose,
+    onBookingCreated,
     isGabungan = false,
 }: ZoomBookingFormProps) {
     const [selectedAccountId, setSelectedAccountId] = useState(
@@ -158,43 +161,6 @@ export function ZoomBookingForm({
         });
     }, [accounts, availabilityForPick]);
 
-    const timeOptions = useMemo<TimeSlotOption[]>(() => {
-        if (!settings) return [];
-        let allTimes = generateTimeOptions(
-            settings.slotStartTime || '00:00',
-            settings.slotEndTime || '23:59',
-            settings.slotIntervalMinutes || 30,
-        );
-
-        if (bookingDate && isSameDay(parseISO(bookingDate), new Date())) {
-            const nowStr = format(new Date(), 'HH:mm');
-            allTimes = allTimes.filter((t) => t >= nowStr);
-        }
-
-        // Gabungan mode auto-picks; no per-slot filtering needed.
-        if (isGabungan) {
-            return allTimes.map((time) => ({ time }));
-        }
-
-        // Single-account mode: mark booked times as unavailable so the dropdown
-        // visually flags them. We still allow the user to attempt selection
-        // (the existing ZoomTimeSelect handles that UX with an info card).
-        const bookedSet = new Set<string>();
-        if (calendarData && calendarData.length > 0) {
-            for (const day of calendarData) {
-                for (const slot of day.slots) {
-                    if (slot.booking) {
-                        bookedSet.add(slot.time);
-                    }
-                }
-            }
-        }
-        return allTimes.map((time) => ({
-            time,
-            isUnavailable: bookedSet.has(time),
-        }));
-    }, [settings, isGabungan, calendarData]);
-
     // Gabungan auto-pick: pick the first account free at (date, startTime, duration)
     useEffect(() => {
         if (!isGabungan) return;
@@ -222,33 +188,14 @@ export function ZoomBookingForm({
         selectedAccountId,
     ]);
 
-    // Build time-slot options with joinUrl for Gabungan (per-account busiest)
-    // and for single-account (from calendarData).
-    const timeSlotOptions: TimeSlotOption[] = useMemo(() => {
-        const sourceCalendarData: CalendarDay[] | undefined = isGabungan
-            ? buildMergedGabunganCalendar(accounts, allCalResults, effectiveDate)
-            : calendarData;
-
-        if (!sourceCalendarData || !bookingDate) {
-            return timeOptions;
-        }
-        const dayData = sourceCalendarData.find((d) => d.date === bookingDate);
-        if (!dayData) {
-            return timeOptions;
-        }
-
-        return timeOptions.map((option) => {
-            const slot = dayData.slots.find((s) => s.time === option.time);
-            const occupied = slot && (slot.status === 'booked' || slot.status === 'my_booking');
-            const blocked = slot?.status === 'blocked';
-            return {
-                ...option,
-                isUnavailable: occupied || blocked,
-                bookingTitle: slot?.booking?.title,
-                joinUrl: slot?.booking?.joinUrl,
-            };
-        });
-    }, [calendarData, isGabungan, accounts, allCalResults, effectiveDate, bookingDate, timeOptions]);
+    // Start times offered by the settings window, and the chosen day's slots (merged across accounts in Gabungan mode).
+    const pickerTimes = useMemo(() => (settings
+        ? generateTimeOptions(settings.slotStartTime || '00:00', settings.slotEndTime || '23:59', settings.slotIntervalMinutes || 30)
+        : generateTimeOptions()), [settings]);
+    const pickerSlots = useMemo(() => {
+        const source = isGabungan ? buildMergedGabunganCalendar(accounts, allCalResults, effectiveDate) : calendarData;
+        return source?.find((d) => d.date === effectiveDate)?.slots;
+    }, [isGabungan, accounts, allCalResults, effectiveDate, calendarData]);
 
     // Slot availability mapping for computeEndTimeOptions
     const slotAvailabilityList = useMemo(() => {
@@ -397,9 +344,13 @@ export function ZoomBookingForm({
         };
 
         try {
-            await createBooking.mutateAsync(dto);
-            toast.success('Booking berhasil dibuat! Link Zoom akan dikirim via email.');
-            onClose();
+            const result = await createBooking.mutateAsync(dto);
+            const created = Array.isArray(result) ? result[0] : result;
+            toast.success(Array.isArray(result) && result.length > 1
+                ? `Meeting dibuat — ${result.length} jadwal berulang.`
+                : 'Meeting berhasil dibuat.');
+            if (created?.id && onBookingCreated) onBookingCreated(created.id);
+            else onClose();
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Gagal membuat booking');
         }
@@ -429,28 +380,8 @@ export function ZoomBookingForm({
         return free.length;
     }, [isGabungan, startTime, duration, accountLoads, availabilityForPick]);
 
-    // Estimated end time calculation (Zoom Client style)
-    const estimatedTime = useMemo(() => {
-        if (!startTime || !duration) return null;
-        const [h, m] = startTime.split(':').map(Number);
-        if (isNaN(h) || isNaN(m)) return null;
-
-        const totalMinutes = h * 60 + m + duration;
-        const endH = Math.floor(totalMinutes / 60) % 24;
-        const endM = totalMinutes % 60;
-        const isNextDay = totalMinutes >= 24 * 60;
-        const endStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
-
-        return {
-            startTime,
-            endTime: endStr,
-            isNextDay,
-            displayText: `${startTime} - ${endStr} WIB`,
-        };
-    }, [startTime, duration]);
-
     return (
-        <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">
+        <form onSubmit={handleSubmit} className="zb-form flex flex-col h-full min-h-0">
             {/* Scrollable fields */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
                 {/* Account (Gabungan mode: auto-pick banner; else: dropdown) */}
@@ -565,76 +496,25 @@ export function ZoomBookingForm({
                     />
                 </div>
 
-                {/* Date & Time */}
-                {/* Date & Time */}
-                <div className="space-y-3">
-                    <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold">
-                            <Calendar className="h-3.5 w-3.5 inline mr-1" />
-                            Tanggal *
-                        </Label>
-                        <ModernDatePicker
-                            value={bookingDate ? parseISO(bookingDate) : undefined}
-                            onChange={(date) => setBookingDate(format(date, 'yyyy-MM-dd'))}
-                            placeholder="Pilih tanggal"
-                            minDate={new Date()}
-                            maxDate={addDays(new Date(), settings?.advanceBookingDays || 30)}
-                        />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <ZoomTimeSelect
-                            label="Waktu Mulai *"
-                            value={startTime}
-                            onChange={setStartTime}
-                            options={timeSlotOptions}
-                            placeholder="Pilih jam mulai"
-                            align="left"
-                            dropdownClassName="w-full sm:w-[calc(200%+0.75rem)] min-w-[260px]"
-                        />
-                        <ZoomEndTimeSelect
-                            label="Jam Selesai *"
-                            value={endTime}
-                            onChange={setEndTime}
-                            options={endTimeOptions}
-                            placeholder={startTime ? "Pilih jam selesai" : "Pilih jam mulai dulu"}
-                            disabled={!startTime}
-                            align="right"
-                            dropdownClassName="w-full sm:w-[calc(200%+0.75rem)] min-w-[260px]"
-                        />
-                    </div>
-                </div>
-
-                {/* Estimated End Time Banner (Zoom Client Style) */}
-                {estimatedTime && (
-                    <div className="flex items-center gap-2.5 px-3 py-2 bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/60 rounded-lg text-xs text-blue-800 dark:text-blue-200">
-                        <Clock className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
-                        <div className="flex flex-wrap items-center gap-1.5 font-medium leading-tight">
-                            <span className="text-blue-600/90 dark:text-blue-400/90">Estimasi:</span>
-                            <span className="font-semibold text-blue-950 dark:text-blue-50 font-mono">
-                                {estimatedTime.displayText}
-                            </span>
-                            <span className="text-blue-700/80 dark:text-blue-300/80">
-                                (Selesai pukul {estimatedTime.endTime}{estimatedTime.isNextDay ? ' besok' : ''}) · {formatDurationLabel(duration)}
-                            </span>
-                        </div>
-                    </div>
-                )}
-
-                {/* Conflict check loading */}
-                {!isGabungan && isCalendarFetching && bookingDate && startTime && (
-                    <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                        <span className="text-sm">Memeriksa ketersediaan...</span>
-                    </div>
-                )}
-
-                {/* Conflict warning */}
-                {conflictWarning && (
-                    <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-700 dark:text-amber-400">
-                        <AlertTriangle className="h-4 w-4 shrink-0" />
-                        <span className="text-sm">{conflictWarning}</span>
-                    </div>
-                )}
+                {/* When: date strip, free start times and durations in one place (no blind dropdowns) */}
+                <ZoomSlotPicker
+                    date={effectiveDate}
+                    onDateChange={(next) => {
+                        if (next !== bookingDate) setStartTime('');
+                        setBookingDate(next);
+                    }}
+                    startTime={startTime}
+                    onStartTimeChange={setStartTime}
+                    duration={duration}
+                    onDurationChange={(minutes) => startTime && setEndTime(fromMinutes(toMinutes(startTime) + minutes))}
+                    slots={pickerSlots}
+                    loading={!isGabungan && isCalendarFetching}
+                    times={pickerTimes}
+                    durations={durationOptionsList}
+                    workingDays={settings?.workingDays}
+                    maxDaysAhead={settings?.advanceBookingDays || 30}
+                    allowBusy={isGabungan}
+                />
 
                 {/* Description */}
                 <div className="space-y-1.5">
@@ -680,17 +560,18 @@ export function ZoomBookingForm({
             {/* Sticky action bar */}
             <div className="shrink-0 px-5 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur">
                 <div className="flex gap-2">
-                    <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+                    <Button type="button" variant="soft" onClick={onClose} className="flex-1">
                         Batal
                     </Button>
                     <Button
                         type="submit"
-                        disabled={createBooking.isPending || !!conflictWarning}
-                        className="flex-1 font-semibold"
-                        style={{ backgroundColor: selectedAccount?.colorHex }}
+                        variant="primary"
+                        disabled={createBooking.isPending || !!conflictWarning || !startTime}
+                        loading={createBooking.isPending}
+                        className="flex-1"
                     >
-                        <Video className="h-4 w-4 mr-2" />
-                        {createBooking.isPending ? 'Membuat...' : 'Book Meeting'}
+                        {!createBooking.isPending && <Video aria-hidden="true" />}
+                        Booking meeting
                     </Button>
                 </div>
             </div>

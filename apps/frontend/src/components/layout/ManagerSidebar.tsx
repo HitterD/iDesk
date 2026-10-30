@@ -15,8 +15,6 @@ import {
     Activity,
     FileText,
     Monitor,
-    SearchSlash,
-    PackageCheck,
 } from 'lucide-react';
 import { useAuth, performLogout } from '../../stores/useAuth';
 import { cn } from '@/lib/utils';
@@ -45,8 +43,6 @@ export const ManagerSidebar = () => {
         { key: 'knowledge_base', icon: BookOpen, label: 'Knowledge Base', path: '/manager/kb' },
         { key: 'hardware_requests', icon: Monitor, label: 'Hardware Request', path: '/manager/hardware-requests' },
         { key: 'eform_access', icon: FileText, label: 'E-Form Access', path: '/manager/eform-access' },
-        { key: 'lost_items', icon: SearchSlash, label: 'Lost Items', path: '/manager/lost-items' },
-        { key: 'found_claims', icon: PackageCheck, label: 'Found Claims', path: '/manager/lost-items/claims' },
         // Hidden by default (not in MANAGER preset) — shown only if custom preset grants access
         { key: 'notifications', icon: Bell, label: 'Notifications', path: '/manager/notifications' },
         { key: 'renewal', icon: CalendarClock, label: 'Renewal Hub', path: '/manager/renewal' },

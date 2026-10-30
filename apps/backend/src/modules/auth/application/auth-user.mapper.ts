@@ -9,6 +9,7 @@ export function toValidatedUser(user: User): ValidatedUser {
         role: user.role,
         isActive: user.isActive,
         mustChangePassword: user.mustChangePassword,
+        guidebookAcknowledgedAt: user.guidebookAcknowledgedAt ? user.guidebookAcknowledgedAt.toISOString() : null,
         employeeId: user.employeeId ?? null,
         departmentId: user.departmentId ?? null,
         siteId: user.siteId ?? null,
@@ -18,7 +19,10 @@ export function toValidatedUser(user: User): ValidatedUser {
     };
 }
 
-type AuthenticatedUserSource = Pick<User, 'id' | 'email' | 'role' | 'fullName'> & { siteId?: string | null };
+type AuthenticatedUserSource = Pick<User, 'id' | 'email' | 'role' | 'fullName'> & {
+    siteId?: string | null;
+    employeeId?: string | null;
+};
 
 export function toAuthenticatedUser(user: AuthenticatedUserSource): AuthenticatedUser {
     return {
@@ -27,5 +31,6 @@ export function toAuthenticatedUser(user: AuthenticatedUserSource): Authenticate
         role: user.role,
         fullName: user.fullName,
         siteId: user.siteId ?? null,
+        employeeId: user.employeeId ?? null,
     };
 }

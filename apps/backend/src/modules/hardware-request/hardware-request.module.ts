@@ -39,6 +39,11 @@ import { InstallAutoConfirmCron } from './listeners/install-auto-confirm.cron';
 import { HardwareRequestGateway } from './realtime/hardware-request.gateway';
 import { WsAuthGuard } from './realtime/ws-auth.guard';
 import { HardwareScheduleTicketListener } from './listeners/hardware-schedule-ticket.listener';
+import { HardwareTicketStatusSyncListener } from './listeners/hardware-ticket-status-sync.listener';
+import { TicketHardwareSyncListener } from './listeners/ticket-hardware-sync.listener';
+import { TicketHardwareLinkService } from './services/ticket-hardware-link.service';
+import { TicketHardwareRequestService } from './services/ticket-hardware-request.service';
+import { TicketHardwareRequestController } from './presentation/ticket-hardware-request.controller';
 import { Ticket } from '../ticketing/entities/ticket.entity';
 import { TicketMessage } from '../ticketing/entities/ticket-message.entity';
 import { User } from '../users/entities/user.entity';
@@ -76,6 +81,7 @@ import { TicketingModule } from '../ticketing/ticketing.module';
         HardwareActivityController,
         HardwareRequestController,
         IctBudgetRedirectController,
+        TicketHardwareRequestController,
     ],
     providers: [
         HardwareCatalogService,
@@ -92,6 +98,10 @@ import { TicketingModule } from '../ticketing/ticketing.module';
         InAppNotifierListener,
         EmailNotifierListener,
         HardwareScheduleTicketListener,
+        HardwareTicketStatusSyncListener,
+        TicketHardwareLinkService,
+        TicketHardwareRequestService,
+        TicketHardwareSyncListener,
         AgingReminderCron,
         InstallAutoConfirmCron,
         HardwareRequestGateway,

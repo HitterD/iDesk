@@ -1,9 +1,11 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
+import { Loader2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium ring-offset-background transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium ring-offset-background transition-[color,background-color,border-color,box-shadow,transform,translate,scale] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
     {
         variants: {
             variant: {
@@ -31,24 +33,70 @@ const buttonVariants = cva(
     }
 )
 
+/**
+ * Round-2 action system (mockup `idesk.css` "Action system"), styled by `.idesk-btn` in index.css:
+ * exactly one `primary` per surface; `soft` = secondary (surface, icon + label); `subtle` = tertiary ghost;
+ * `danger` = soft red text (always behind a confirm) whose confirm uses `danger-solid`.
+ * 32px desktop / 40px coarse pointer, 10px radius, 16px icons, 3px focus ring. Amber stays the topbar CTA only.
+ * Legacy variants (default/destructive/outline/secondary/ghost/link) keep their previous styling.
+ */
+const actionButtonVariants = cva("idesk-btn", {
+    variants: {
+        variant: {
+            primary: "is-primary",
+            soft: "is-soft",
+            subtle: "is-ghost",
+            danger: "is-danger",
+            "danger-solid": "is-danger is-solid",
+        },
+        size: {
+            default: "",
+            sm: "",
+            lg: "is-lg",
+            icon: "is-icon",
+        },
+    },
+    defaultVariants: { variant: "soft", size: "default" },
+})
+
+type LegacyVariant = NonNullable<VariantProps<typeof buttonVariants>["variant"]>
+type ActionVariant = NonNullable<VariantProps<typeof actionButtonVariants>["variant"]>
+
+const ACTION_VARIANTS: ReadonlySet<string> = new Set<ActionVariant>(["primary", "soft", "subtle", "danger", "danger-solid"])
+const isActionVariant = (variant: unknown): variant is ActionVariant =>
+    typeof variant === "string" && ACTION_VARIANTS.has(variant)
+
 export interface ButtonProps
     extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+    Omit<VariantProps<typeof buttonVariants>, "variant"> {
+    variant?: LegacyVariant | ActionVariant | null
     asChild?: boolean
+    /** Sets aria-busy, disables the button and shows a spinner before the label (ignored with `asChild`). */
+    loading?: boolean
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-    ({ className, variant, size, asChild = false, ...props }, ref) => {
-        const Comp = asChild ? Slot : "button"
+    ({ className, variant, size, asChild = false, loading = false, children, ...props }, ref) => {
+        const classes = isActionVariant(variant)
+            ? cn(actionButtonVariants({ variant, size }), className)
+            : buttonVariants({ variant, size, className })
+        if (asChild) {
+            return <Slot className={classes} ref={ref} {...props}>{children}</Slot>
+        }
         return (
-            <Comp
-                className={buttonVariants({ variant, size, className })}
+            <button
+                className={classes}
                 ref={ref}
                 {...props}
-            />
+                disabled={props.disabled || loading}
+                aria-busy={loading || undefined}
+            >
+                {loading && <Loader2 className="idesk-spin" aria-hidden="true" />}
+                {children}
+            </button>
         )
     }
 )
 Button.displayName = "Button"
 
-export { Button, buttonVariants }
+export { Button, buttonVariants, actionButtonVariants }

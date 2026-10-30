@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { SynologyService } from './synology.service';
+import { SynologyService, wibClock } from './synology.service';
 import { BackupConfiguration, BackupType } from './entities/backup-configuration.entity';
 import { BackupHistory, BackupStatus } from './entities/backup-history.entity';
 import * as fs from 'fs';
@@ -96,14 +96,14 @@ describe('SynologyService', () => {
             const uploadSpy = jest.spyOn<any, any>(service, 'uploadToSynology').mockResolvedValue(undefined);
 
             await service.handleFileUploaded({
-                filePath: 'F:/idesk/uploads/telegram/photo.jpg',
-                relativePath: '/uploads/telegram/photo.jpg',
+                filePath: 'F:/idesk/uploads/attachments/photo.jpg',
+                relativePath: '/uploads/attachments/photo.jpg',
             });
 
             expect(uploadSpy).toHaveBeenCalledWith(
                 mockConfig,
-                'F:/idesk/uploads/telegram/photo.jpg',
-                '/sja/SJA SPJ/ICT/OPERATIONAL SUPPORT/Backup/telegram/photo.jpg',
+                'F:/idesk/uploads/attachments/photo.jpg',
+                '/sja/SJA SPJ/ICT/OPERATIONAL SUPPORT/Backup/attachments/photo.jpg',
             );
         });
     });
@@ -132,5 +132,46 @@ describe('SynologyService', () => {
                 if (fs.existsSync(tempDir)) fs.rmdirSync(tempDir);
             }
         });
+    });
+});
+
+describe('SynologyService scheduled backups (WIB)', () => {
+    const build = (config: Record<string, unknown>) => {
+        const configRepo = { find: jest.fn().mockResolvedValue([config]) };
+        const service = new SynologyService(configRepo as any, {} as any, { get: () => undefined } as any);
+        const execute = jest.spyOn(service, 'executeBackup').mockResolvedValue(undefined as any);
+        return { service, execute };
+    };
+
+    it('reads the clock in WIB, not UTC', () => {
+        expect(wibClock(new Date('2026-10-03T19:30:00.000Z'))).toEqual({ hour: 2, minute: 30 });
+    });
+
+    it('runs a 02:30 WIB schedule at 02:30 WIB (19:30 UTC)', async () => {
+        const { service, execute } = build({ id: 'c1', name: 'db', isActive: true, scheduleCron: '30 2 * * *', lastBackupAt: null });
+
+        await service.runDueBackups(new Date('2026-10-03T19:30:20.000Z'));
+
+        expect(execute).toHaveBeenCalledWith('c1', false);
+    });
+
+    it('does not run at the UTC wall clock of the same HH:mm', async () => {
+        const { service, execute } = build({ id: 'c1', name: 'db', isActive: true, scheduleCron: '30 2 * * *', lastBackupAt: null });
+
+        await service.runDueBackups(new Date('2026-10-04T02:30:00.000Z'));
+
+        expect(execute).not.toHaveBeenCalled();
+    });
+
+    it('does not run twice within the same minute', async () => {
+        const now = new Date('2026-10-03T19:30:40.000Z');
+        const { service, execute } = build({
+            id: 'c1', name: 'db', isActive: true, scheduleCron: '30 2 * * *',
+            lastBackupAt: new Date('2026-10-03T19:30:05.000Z'),
+        });
+
+        await service.runDueBackups(now);
+
+        expect(execute).not.toHaveBeenCalled();
     });
 });

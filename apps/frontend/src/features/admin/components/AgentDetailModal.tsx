@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, User, Mail, Building, Ticket, CheckCircle, Clock, TrendingUp, AlertTriangle, Calendar, MessageSquare, ArrowUpRight, Activity, Phone, Briefcase, MapPin } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { X, User, Mail, Building, Ticket, CheckCircle, Clock, TrendingUp, AlertTriangle, Calendar, MessageSquare, ArrowUpRight, Activity, Phone, Briefcase, MapPin, LayoutDashboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { SITE_COLORS, getRoleConfig, getRoleLabel, type UserRoleKey } from './agent-management/agent-types';
+import { scopeOfRole } from '@/lib/constants/service-scope';
+import { agentDashboardPath, isAgentRole } from '@/lib/roleHome';
+import { useAuth } from '@/stores/useAuth';
+
+/** Roles allowed to open another agent's dashboard (backend also enforces manager scope). */
+const AGENT_DASHBOARD_VIEWER_ROLES = ['ADMIN', 'MANAGER'];
 
 interface Site {
     id: string;
@@ -91,6 +99,9 @@ const getAvatarColor = (name: string): string => {
 
 export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onClose, agent }) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'tickets'>('overview');
+    const navigate = useNavigate();
+    const viewerRole = useAuth((s) => s.user?.role);
+    const canViewDashboard = !!agent && isAgentRole(agent.role) && AGENT_DASHBOARD_VIEWER_ROLES.includes(viewerRole ?? '');
 
     // Fetch recent tickets for this agent
     const { data: recentTickets = [] } = useQuery<RecentTicket[]>({
@@ -151,6 +162,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
 
     const roleConfig = getRoleConfig(agent.role);
     const RoleIcon = roleConfig.icon;
+    const serviceScope = scopeOfRole(agent.role);
 
     const statCards = [
         { label: 'Open', value: agent.openTickets || 0, icon: Ticket, color: 'text-slate-600', bg: 'bg-slate-100 dark:bg-slate-800' },
@@ -174,8 +186,9 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'OPEN': return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
-            case 'IN_PROGRESS': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+            case 'OPEN':
+            case 'TODO': return STATUS_TONE_CLASSES.TODO.pill;
+            case 'IN_PROGRESS': return STATUS_TONE_CLASSES.IN_PROGRESS.pill;
             case 'RESOLVED': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
             case 'CLOSED': return 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400';
             default: return 'bg-slate-100 text-slate-700';
@@ -252,6 +265,11 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                                 <RoleIcon className="w-3 h-3" aria-hidden="true" />
                                 {getRoleLabel(agent.role)}
                             </span>
+                            {serviceScope && (
+                                <span className="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" title="Lingkup departemen">
+                                    {serviceScope}
+                                </span>
+                            )}
                             {agent.jobTitle && (
                                 <span className="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center gap-1">
                                     <Briefcase className="w-3 h-3" />
@@ -392,10 +410,20 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                             )}
                         </div>
 
+                        {canViewDashboard && (
+                            <button
+                                onClick={() => { onClose(); navigate(agentDashboardPath(agent.id)); }}
+                                className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-colors"
+                            >
+                                <LayoutDashboard className="w-4 h-4" />
+                                Lihat Dashboard
+                            </button>
+                        )}
+
                         {/* Close Button */}
                         <button
                             onClick={onClose}
-                            className="mt-6 w-full px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            className={cn(canViewDashboard ? 'mt-3' : 'mt-6', 'w-full px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors')}
                         >
                             Close
                         </button>

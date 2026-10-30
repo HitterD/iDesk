@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { PAGE_ACCESS_KEY } from '../decorators/page-access.decorator';
 import { PageKey, PageAccess } from '../types/page-access.types';
+import { getCachedUserPageAccess } from '../utils/effective-page-access.util';
 import { User } from '../../../modules/users/entities/user.entity';
 import { PermissionPreset } from '../../../modules/permissions/entities/permission-preset.entity';
 import { UserRole } from '../../../modules/users/enums/user-role.enum';
@@ -84,23 +85,8 @@ export class PageAccessGuard implements CanActivate {
         }
 
         // Use cache-aside pattern: check cache first, fetch from DB if miss
-        const cacheKey = `pageAccess:${userId}`;
-        const cached = await this.cacheService.getOrSet<{ user: User; pageAccess: PageAccess } | null>(
-            cacheKey,
-            async () => {
-                const user = await this.userRepo.findOne({
-                    where: { id: userId },
-                    select: ['id', 'role', 'appliedPresetId'],
-                });
-
-                if (!user) {
-                    return null;
-                }
-
-                const pageAccess = await this.getUserPageAccess(user);
-                return { user, pageAccess };
-            },
-            this.cacheTtl
+        const cached = await getCachedUserPageAccess(
+            userId, this.userRepo, this.presetRepo, this.cacheService, this.cacheTtl,
         );
 
         if (!cached) {
@@ -128,118 +114,6 @@ export class PageAccessGuard implements CanActivate {
         }
 
         return false;
-    }
-
-    /**
-     * Get user's page access from their preset or role defaults
-     */
-    private async getUserPageAccess(user: User): Promise<PageAccess> {
-        // If user has an applied preset, use its pageAccess
-        if (user.appliedPresetId) {
-            const preset = await this.presetRepo.findOne({
-                where: { id: user.appliedPresetId },
-                select: ['id', 'pageAccess'],
-            });
-
-            if (preset?.pageAccess) {
-                return preset.pageAccess;
-            }
-        }
-
-        // Fallback to role-based defaults
-        return this.getDefaultPageAccess(user.role);
-    }
-
-    /**
-     * Default page access based on role
-     */
-    private getDefaultPageAccess(role: UserRole): PageAccess {
-        switch (role) {
-            case UserRole.ADMIN:
-                return {
-                    dashboard: true,
-                    tickets: true,
-                    zoom_calendar: true,
-                    knowledge_base: true,
-                    notifications: true,
-                    reports: true,
-                    renewal: true,
-                    agents: true,
-                    automation: true,
-                    audit_logs: true,
-                    system_health: true,
-                    settings: true,
-                };
-            case UserRole.MANAGER:
-                return {
-                    dashboard: true,
-                    tickets: true,
-                    zoom_calendar: true,
-                    knowledge_base: true,
-                    notifications: true,
-                    reports: true,
-                    renewal: true,
-                    agents: false,
-                    automation: false,
-                    audit_logs: false,
-                    system_health: false,
-                    settings: false,
-                };
-            case UserRole.AGENT_ORACLE:
-            case UserRole.AGENT_WEB_DEV:
-            case UserRole.AGENT_MOBILE_DEV:
-                return {
-                    oracle_k2_tickets: true,
-                    web_dev_tickets: true,
-                    mobile_dev_tickets: true,
-                    notifications: true,
-                    dashboard: false,
-                    tickets: false,
-                    zoom_calendar: false,
-                    knowledge_base: false,
-                    reports: false,
-                    renewal: false,
-                    agents: false,
-                    automation: false,
-                    audit_logs: false,
-                    system_health: false,
-                    settings: false,
-                };
-            case UserRole.AGENT:
-            case UserRole.AGENT_OPERATIONAL_SUPPORT:
-            case UserRole.AGENT_ADMIN:
-                // FIXED: reports and renewal should be true — matches AGENT preset in permissions.service.ts
-                return {
-                    dashboard: true,
-                    tickets: true,
-                    zoom_calendar: true,
-                    knowledge_base: true,
-                    notifications: true,
-                    reports: true,    // FIXED: was false, AGENT preset has reports: true
-                    renewal: true,    // FIXED: was false, AGENT preset has renewal: true
-                    agents: false,
-                    automation: false,
-                    audit_logs: false,
-                    system_health: false,
-                    settings: false,
-                };
-            case UserRole.USER:
-            default:
-                return {
-                    dashboard: true,
-                    tickets: true,
-                    zoom_calendar: false,
-                    knowledge_base: true,
-                    notifications: true,
-                    reports: false,
-                    renewal: false,
-                    agents: false,
-                    automation: false,
-                    audit_logs: false,
-                    system_health: false,
-                    settings: false,
-                };
-        }
     }
 
     /**

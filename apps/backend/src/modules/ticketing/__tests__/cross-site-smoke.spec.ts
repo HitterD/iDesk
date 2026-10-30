@@ -14,6 +14,7 @@ import { TicketMergeService } from '../services/ticket-merge.service';
 import { TicketMessagingService } from '../services/ticket-messaging.service';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { UserRole } from '../../users/enums/user-role.enum';
+import { createTestSlaClock } from '../services/sla-clock.testing';
 
 const SITE_SPJ = 'site-spj';
 const SITE_SMG = 'site-smg';
@@ -129,14 +130,13 @@ describe('Cross-site smoke: site-locked agents cannot cross sites', () => {
             svc = new TicketUpdateService(
                 ticketRepo, { create: jest.fn((x: any) => x), save: jest.fn(async (x: any) => x) } as any,
                 userRepo, {} as any, eventsGateway, {} as any, {} as any, { onTicketChange: jest.fn(async () => {}) } as any,
-                { emit: jest.fn() } as any, null as any, null as any, { logAsync: jest.fn() } as any,
+                { emit: jest.fn() } as any, null as any, { logAsync: jest.fn() } as any,
                 dataSource as any, { recalculateAgentWorkload: jest.fn() } as any,
                 {
                     isUserEligible: jest.fn().mockResolvedValue(true),
                     describeModule: jest.fn().mockResolvedValue('modul ini'),
                     toAssignable: jest.fn((t: any) => t),
-                } as any,
-            );
+                } as any, createTestSlaClock(), { resolveVisit: () => new Date(Date.now() + 86_400_000), schedule: jest.fn(), clear: jest.fn(), note: () => '' } as any);
         });
 
         it('updateTicket: SPJ agent cannot mutate SMG ticket', async () => {
@@ -175,7 +175,7 @@ describe('Cross-site smoke: site-locked agents cannot cross sites', () => {
                 {} as any,
                 {} as any,
                 { to: jest.fn(() => ({ emit: jest.fn() })), emit: jest.fn() } as any as EventsGateway,
-                { emit: jest.fn() } as any,
+                { emit: jest.fn() } as any, createTestSlaClock(),
             );
         });
 
