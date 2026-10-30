@@ -52,6 +52,8 @@ export const CSI_NAME_MAX = 100;
 export const CSI_DESCRIPTION_MAX = 300;
 /** Mirrors backend question DTO / constants bounds. */
 export const CSI_QUESTION_MAX = 300;
+/** Report label of a question (backend master DTO: max 40). */
+export const CSI_SHORT_LABEL_MAX = 40;
 export const CSI_OPTION_LABEL_MAX = 200;
 export const CSI_OPTIONS_MIN = 2;
 export const CSI_OPTIONS_MAX = 10;

@@ -47,6 +47,7 @@ export type CsiSiteStats = {
     average: number | null; responses: number;
     people: Array<{ userId: string; displayName: string; photoUrl: string | null; average: number | null }>;
 };
+export type CsiReportComment = { text: string; departmentName: string; submittedAt: Date };
 type ItemReaders = { items: Repository<CsiResponseItem>; comments: Repository<CsiResponseComment> };
 
 const toScore = (item: CsiResponseItem): CsiAnswerScore => ({
@@ -93,15 +94,34 @@ export class CsiReportService {
         if (siteId && !allSites.some((site) => site.id === siteId)) throw new BadRequestException(SITE_NOT_IN_PERIOD_MESSAGE);
         const data = narrowToSite(await this.loadPeriodData(scope, period), siteId);
         const sites = siteId ? allSites.filter((site) => site.id === siteId) : allSites;
+        const comments = await this.rateeComments(data);
         return {
             period: { ...period, sites: allSites },
             overall: overallStats(data.items, data.responses.length),
             previousAverage: await this.previousAverage(scope, period, siteId),
             ratees: teamFirst(data.ratees).map((ratee) => rateeStats(ratee, data.dimensions, data.items, {
                 siteId: rateeSiteOf(data, ratee), photoUrl: data.views.get(ratee.id)?.photoUrl ?? null,
-            })),
+            })).map((row) => ({ ...row, comments: comments.get(row.periodRateeId) ?? [] })),
             sla: await this.sla.compute(period, sites, data.responses.length),
         };
+    }
+
+    /** Non-empty comments per ratee from the (site-narrowed) responses, newest first; department + date only, no name. */
+    private async rateeComments(data: PeriodData): Promise<Map<string, CsiReportComment[]>> {
+        const rateeIds = data.ratees.map((ratee) => ratee.id);
+        if (!rateeIds.length || !data.responses.length) return new Map();
+        const byResponse = new Map(data.responses.map((response) => [response.id, response]));
+        const rows = await this.comments.find({ where: { periodRateeId: In(rateeIds) } });
+        const result = new Map<string, CsiReportComment[]>();
+        for (const row of rows) {
+            const response = byResponse.get(row.responseId);
+            const text = row.comment?.trim();
+            if (!response || !text) continue;
+            result.set(row.periodRateeId, [...(result.get(row.periodRateeId) ?? []),
+                { text, departmentName: response.departmentName, submittedAt: response.submittedAt }]);
+        }
+        result.forEach((list, key) => result.set(key, [...list].sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())));
+        return result;
     }
 
     /** One load per period, then per-site stats in memory (same site rules as the filtered report). */
@@ -148,15 +168,18 @@ export class CsiReportService {
         const period = await this.findInScope(scope, periodId);
         const responses = await this.responses.find({ where: { periodId }, relations: { respondent: true }, order: { submittedAt: 'ASC' } });
         const submitted = responses.map((response) => ({
-            responseId: response.id, respondentName: response.respondentName, accountName: response.respondent.fullName,
-            departmentName: response.departmentName, submittedAt: response.submittedAt,
+            responseId: response.id, userId: response.respondentId, respondentName: response.respondentName, accountName: response.respondent.fullName,
+            departmentName: response.departmentName, siteId: response.respondent.siteId ?? null, submittedAt: response.submittedAt,
         }));
-        let pending: Array<{ userId: string; fullName: string }> | null = null;
+        let pending: Array<{ userId: string; fullName: string; department: string | null; siteId: string | null }> | null = null;
         if (period.respondentMode === CsiRespondentMode.LISTED) {
             const answered = new Set(responses.map((response) => response.respondentId));
-            const raters = await this.periodRaters.find({ where: { periodId }, relations: { user: true } });
+            const raters = await this.periodRaters.find({ where: { periodId }, relations: { user: { department: true } } });
             pending = sortBy(raters.filter((rater) => !answered.has(rater.userId)), (rater) => rater.user.fullName)
-                .map((rater) => ({ userId: rater.userId, fullName: rater.user.fullName }));
+                .map((rater) => ({
+                    userId: rater.userId, fullName: rater.user.fullName,
+                    department: rater.user.department?.name ?? null, siteId: rater.user.siteId ?? null,
+                }));
         }
         return {
             mode: period.respondentMode, submitted, pending,

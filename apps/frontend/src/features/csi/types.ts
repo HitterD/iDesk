@@ -196,7 +196,10 @@ export interface CsiReportRatee {
     /** Count of STAR answers per score: index 0 = 1 star … index 4 = 5 stars. */
     starDistribution: number[];
     questions: CsiQuestionStat[];
+    /** Non-empty comments for this ratee (same site narrowing as the scores), newest first. */
+    comments: CsiReportComment[];
 }
+export interface CsiReportComment { text: string; departmentName: string; submittedAt: string }
 export interface CsiSlaReporter { email: string; department: string | null; fullName: string }
 export interface CsiSla {
     mode: CsiRespondentMode;
@@ -220,9 +223,11 @@ export interface CsiReport {
 export interface CsiRespondents {
     mode: CsiRespondentMode;
     submitted: Array<{
-        responseId: string; respondentName: string; accountName: string; departmentName: string; submittedAt: string;
+        responseId: string; userId: string; respondentName: string; accountName: string; departmentName: string;
+        siteId: string | null; submittedAt: string;
     }>;
-    pending: Array<{ userId: string; fullName: string }> | null;
+    /** LISTED only: raters without a response (department + site of the user account). */
+    pending: Array<{ userId: string; fullName: string; department: string | null; siteId: string | null }> | null;
     totals: { submitted: number; pending: number | null };
 }
 

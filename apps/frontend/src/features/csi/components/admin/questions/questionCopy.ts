@@ -26,6 +26,7 @@ export const QUESTION_COPY = {
     titleEmpty: 'Pertanyaan tidak boleh kosong',
     descriptionLabel: 'Deskripsi (opsional)',
     descriptionPlaceholder: 'Penjelasan singkat untuk responden',
+    shortLabel: 'Label singkat (untuk laporan)',
     typeGroup: 'Jenis pertanyaan',
     required: 'Wajib diisi',
     deactivate: 'Nonaktifkan',

@@ -206,14 +206,20 @@ describe('CsiReportService', () => {
         periods.rows[0].respondentMode = CsiRespondentMode.LISTED;
         periodRaters.rows.push(
             { id: 'pr1', periodId: 'p1', userId: 'x1', user: { id: 'x1', fullName: 'Andi' } },
-            { id: 'pr3', periodId: 'p1', userId: 'x3', user: { id: 'x3', fullName: 'Yudi' } },
+            { id: 'pr3', periodId: 'p1', userId: 'x3', user: { id: 'x3', fullName: 'Yudi', siteId: 'site-a', department: { name: 'Gudang' } } },
             { id: 'pr4', periodId: 'p1', userId: 'x4', user: { id: 'x4', fullName: 'Citra' } },
         );
         const result = await service.getRespondents(ICT, 'p1');
         expect(result.mode).toBe(CsiRespondentMode.LISTED);
         expect(result.submitted.map((row) => row.respondentName)).toEqual(['Andi Nama', 'Wati Nama']);
-        expect(result.submitted[0]).toEqual({ responseId: 'resp1', respondentName: 'Andi Nama', accountName: 'Andi', departmentName: 'Keuangan', submittedAt: new Date('2026-10-10T03:00:00Z') });
-        expect(result.pending).toEqual([{ userId: 'x4', fullName: 'Citra' }, { userId: 'x3', fullName: 'Yudi' }]);
+        expect(result.submitted[0]).toEqual({
+            responseId: 'resp1', userId: 'x1', respondentName: 'Andi Nama', accountName: 'Andi', departmentName: 'Keuangan', siteId: null,
+            submittedAt: new Date('2026-10-10T03:00:00Z'),
+        });
+        expect(result.pending).toEqual([
+            { userId: 'x4', fullName: 'Citra', department: null, siteId: null },
+            { userId: 'x3', fullName: 'Yudi', department: 'Gudang', siteId: 'site-a' },
+        ]);
         expect(result.totals).toEqual({ submitted: 2, pending: 2 });
     });
 
@@ -288,6 +294,21 @@ describe('CsiReportService', () => {
             const report = await service.getReport(ICT, 'p1');
             expect(report.ratees[0]).toMatchObject({ siteId: 'site-a', photoUrl: '/uploads/csi/budi.jpg', starDistribution: [0, 1, 1, 0, 1] });
             expect(report.previousAverage).toBeNull();
+        });
+
+        it('report lists non-empty comments per ratee (newest first) from the narrowed responses', async () => {
+            comments.rows.push(
+                { id: 'c2', responseId: 'resp2', periodRateeId: 'r1', comment: '  Ramah  ' },
+                { id: 'c3', responseId: 'resp2', periodRateeId: 'r2', comment: '   ' },
+            );
+            const report = await service.getReport(ICT, 'p1');
+            expect(report.ratees[0].comments).toEqual([
+                { text: 'Ramah', departmentName: 'Gudang', submittedAt: new Date('2026-10-12T03:00:00Z') },
+                { text: 'Cepat tanggap', departmentName: 'Keuangan', submittedAt: new Date('2026-10-10T03:00:00Z') },
+            ]);
+            expect(report.ratees[1].comments).toEqual([]);
+            const siteA = await service.getReport(ICT, 'p1', 'site-a');
+            expect(siteA.ratees[0].comments.map((row) => row.text)).toEqual(['Cepat tanggap']);
         });
 
         it('siteId keeps only that site ratees and answers of respondents from that site', async () => {

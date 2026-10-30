@@ -8,7 +8,7 @@ import { CSI_MODE_LABELS } from '../../lib/csiAdmin';
 import { formatDateRange } from '../../lib/format';
 import { formatSites } from '../../lib/location';
 import type { WizardStepKey } from '../../lib/wizard';
-import type { CsiScopeParam } from '../../types';
+import type { CsiScopeParam, CsiSiteSummary } from '../../types';
 import { ADMIN_PANEL, MUTED_TEXT, PublishPill, StatusPill } from './AdminParts';
 import { AssignmentMatrix } from './assignment/AssignmentMatrix';
 import { PeriodChecklist } from './PeriodChecklist';
@@ -24,12 +24,12 @@ const DETAIL_TABS = [
 ] as const;
 export const UNSAVED_LEAVE_TITLE = 'Perubahan belum disimpan. Tinggalkan?';
 
-function ReportPanel({ scope, periodId }: { scope: CsiScopeParam; periodId: string }) {
+function ReportPanel({ scope, periodId, sites }: { scope: CsiScopeParam; periodId: string; sites: readonly CsiSiteSummary[] }) {
     const [responseId, setResponseId] = useState<string | null>(null);
     return (
         <div className="grid gap-5">
-            <PeriodReport scope={scope} periodId={periodId} />
-            <RespondentStatus scope={scope} periodId={periodId} onOpenResponse={setResponseId} />
+            <PeriodReport scope={scope} periodId={periodId} sites={sites} />
+            <RespondentStatus scope={scope} periodId={periodId} sites={sites} onOpenResponse={setResponseId} />
             <ResponseDetailSheet scope={scope} periodId={periodId} responseId={responseId} onClose={() => setResponseId(null)} />
         </div>
     );
@@ -79,7 +79,7 @@ export function PeriodDetail({ scope, periodId, onBack, onEditStep }: PeriodDeta
             </header>
             {tab === 'settings' && <PeriodChecklist scope={scope} period={period} onEditStep={onEditStep} onDeleted={onBack} />}
             {tab === 'raters' && <AssignmentMatrix scope={scope} period={period} onDirtyChange={setMatrixDirty} />}
-            {tab === 'report' && <ReportPanel scope={scope} periodId={period.id} />}
+            {tab === 'report' && <ReportPanel scope={scope} periodId={period.id} sites={period.sites} />}
             <ConfirmationDialog isOpen={pendingTab !== null} appearance="ticket" variant="warning" title={UNSAVED_LEAVE_TITLE}
                 description="Perubahan pada matriks penilai akan hilang." confirmText="Tinggalkan" cancelText="Tetap di sini"
                 onConfirm={leave} onCancel={() => setPendingTab(null)} />
