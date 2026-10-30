@@ -1887,6 +1887,17 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .csi-star-pop { animation: csi-star-pop 380ms var(--ease-spring) both; }
 .csi-emo-pop { animation: csi-emo-pop 520ms var(--ease-spring); }
 .csi-ripple { animation: csi-ripple 560ms var(--ease-out) forwards; }
+/* Rail, "Semua" popover and the thank-you screen. */
+@keyframes csi-rail-in { from { opacity: 0; transform: translateX(-4px); } }
+@keyframes csi-pop-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+@keyframes csi-done-pop { 40% { transform: scale(1.12); } }
+@keyframes csi-draw-check { to { stroke-dashoffset: 0; } }
+@keyframes csi-confetti-fall { to { transform: translateY(105vh) rotate(720deg); opacity: .2; } }
+.csi-rail-in { animation: csi-rail-in 240ms var(--ease-out) both; }
+.csi-pop-in { animation: csi-pop-in 180ms var(--ease-out) both; }
+.csi-done-pop { animation: csi-done-pop 600ms var(--ease-spring); }
+.csi-draw-check { stroke-dasharray: 30; stroke-dashoffset: 30; animation: csi-draw-check 600ms 200ms var(--ease-out) forwards; }
+.csi-confetti { animation: csi-confetti-fall 1.6s var(--ease-out) forwards; }
 
 /* One switch for everyone who asked for less motion: tokens collapse, ambient loops stop. Unlayered and last on purpose. */
 @media (prefers-reduced-motion: reduce) {
@@ -1898,8 +1909,9 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   .queue-stat:hover, .portal-stat:hover, .ct-card:hover, .ct-card:hover img, .ct-card:hover .ct-link svg, .card-interactive:hover,
   .portal-tab:hover .portal-tab-tile, .ct-chip:hover, .ct-chip:hover svg, .ct-back-link:hover svg { transform: none; }
   .idesk-spin, .animate-pulse { animation: none !important; }
-  .csi-kenburns, .csi-photo-in, .csi-cap-in, .csi-star-pop, .csi-emo-pop { animation: none !important; }
-  .csi-ripple { display: none; }
+  .csi-kenburns, .csi-photo-in, .csi-cap-in, .csi-star-pop, .csi-emo-pop, .csi-rail-in, .csi-pop-in, .csi-done-pop { animation: none !important; }
+  .csi-draw-check { animation: none !important; stroke-dashoffset: 0; }
+  .csi-ripple, .csi-confetti { display: none; }
   /* Scroll-driven edge fade is not motion; a time duration would break its scroll mapping. */
   .portal-seg { animation-duration: auto !important; }
 }

@@ -75,8 +75,7 @@ export function ReviewScreen(props: ReviewScreenProps) {
 
             <ul className={cn(CSI_CARD, 'divide-y divide-border/60 overflow-hidden')}>
                 {form.ratees.map((ratee, index) => (
-                    <RateeRow key={ratee.periodRateeId} ratee={ratee} answers={answers} onEdit={() => onEditRatee(index)}
-                        label={ratee.kind === 'TEAM' ? form.teamLabel : ratee.displayName} />
+                    <RateeRow key={ratee.periodRateeId} ratee={ratee} answers={answers} onEdit={() => onEditRatee(index)} label={ratee.displayName} />
                 ))}
             </ul>
 

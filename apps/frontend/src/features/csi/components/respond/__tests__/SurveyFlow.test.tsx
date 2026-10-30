@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SurveyFlow } from '../SurveyFlow';
@@ -72,18 +72,26 @@ describe('SurveyFlow screens', () => {
         expect(screen.getByText('1 / 3')).toBeInTheDocument();
         expect(screen.getByText('“Selalu siap membantu”')).toBeInTheDocument();
         expect(button(NEXT)).toHaveAccessibleName('Lanjut · Andi');
-        expect(screen.getByText('Langkah 1 dari 3')).toBeInTheDocument();
-        expect(chips().getAllByRole('button').map((chip) => chip.textContent)).toEqual(['Tim IT Support', 'Andi', LONG_NAME]);
+        expect(screen.getByText('Subjek 1 dari 3')).toBeInTheDocument();
+        expect(screen.getByText('Tersimpan otomatis')).toBeInTheDocument();
+        expect(chips().getAllByRole('button').map((chip) => chip.getAttribute('aria-label'))).toEqual(['1. Tim IT Support', '2. Andi', `3. ${LONG_NAME}`]);
     });
 
-    it('chips wrap and show full names', async () => {
+    it('the rail scrolls sideways and names the team by its own display name', async () => {
         const user = userEvent.setup();
-        renderFlow();
+        renderFlow({ form: { ...FORM, teamLabel: 'Label periode lama' } });
         await startFilling(user);
-        expect(screen.getByRole('navigation', { name: 'Daftar bagian yang dinilai' }).querySelector('ol')).toHaveClass('flex-wrap');
-        const chip = chips().getByRole('button', { name: new RegExp(LONG_NAME) });
-        expect(chip).toHaveTextContent(LONG_NAME);
-        expect(chip.innerHTML).not.toContain('truncate');
+        expect(screen.getByTestId('csi-rail')).toHaveClass('overflow-x-auto');
+        expect(chips().getByRole('button', { name: '1. Tim IT Support' })).toHaveTextContent('Tim IT Support');
+        expect(screen.queryByText('Label periode lama')).not.toBeInTheDocument();
+    });
+
+    it('preview never claims an autosave', async () => {
+        const user = userEvent.setup();
+        renderFlow({ mode: 'preview' });
+        await user.click(button('Mulai mengisi'));
+        expect(screen.getByText('Subjek 1 dari 3')).toBeInTheDocument();
+        expect(screen.queryByText('Tersimpan otomatis')).not.toBeInTheDocument();
     });
 
     it('required blocks Lanjut with a count and highlight; optional can be skipped', async () => {
@@ -104,19 +112,19 @@ describe('SurveyFlow screens', () => {
         scrollSpy.mockRestore();
     });
 
-    it('chip ticks only after the screen was visited and its required questions are answered', async () => {
+    it('rail ticks only after the screen was visited and its required questions are answered', async () => {
         const user = userEvent.setup();
         renderFlow();
         await startFilling(user);
-        expect(chips().queryByRole('button', { name: /lengkap/ })).not.toBeInTheDocument();
+        expect(chips().queryByRole('button', { name: /selesai/ })).not.toBeInTheDocument();
         await choose(user, 'Kualitas layanan untuk Tim IT Support', 'Cukup');
-        expect(chips().getByRole('button', { name: /Tim IT Support, lengkap/ })).toBeInTheDocument();
+        expect(chips().getByRole('button', { name: /Tim IT Support, selesai/ })).toBeInTheDocument();
         await user.click(chips().getByRole('button', { name: new RegExp(LONG_NAME) }));
         expect(screen.getByRole('heading', { name: LONG_NAME })).toBeInTheDocument();
-        expect(chips().getByRole('button', { name: /Andi/ })).not.toHaveAccessibleName(/lengkap/);
+        expect(chips().getByRole('button', { name: /Andi/ })).not.toHaveAccessibleName(/selesai/);
     });
 
-    it('Tinjau jawaban returns to a screen skipped via the chips', async () => {
+    it('Tinjau jawaban returns to a screen skipped via the rail', async () => {
         const user = userEvent.setup();
         renderFlow();
         await startFilling(user);
@@ -133,10 +141,11 @@ describe('SurveyFlow screens', () => {
         renderFlow();
         await startFilling(user);
         await user.click(chips().getByRole('button', { name: new RegExp(LONG_NAME) }));
-        const photo = document.querySelector('img');
+        const subject = screen.getByTestId('csi-subject-photo');
+        const photo = subject.querySelector('img');
         expect(photo).toHaveAttribute('alt', '');
         fireEvent.error(photo as HTMLImageElement);
-        expect(document.querySelector('img')).toBeNull();
-        expect(screen.getByText('B')).toBeInTheDocument();
+        expect(subject.querySelector('img')).toBeNull();
+        expect(within(subject).getByText('B')).toBeInTheDocument();
     });
 });

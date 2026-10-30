@@ -83,3 +83,8 @@ const TONE_CLASSES: Readonly<Record<CsiTone, CsiToneClasses>> = {
 export function toneClasses(tone: CsiTone): CsiToneClasses {
     return TONE_CLASSES[tone];
 }
+
+/** The tone as a CSS colour value, for inline styles Tailwind cannot express (e.g. a conic-gradient progress ring). */
+export function toneColor(tone: CsiTone): string {
+    return `hsl(var(--ticket-${tone}))`;
+}

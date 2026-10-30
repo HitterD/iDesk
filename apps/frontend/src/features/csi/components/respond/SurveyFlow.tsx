@@ -76,7 +76,7 @@ export function SurveyFlow({ form: source, userId, mode = 'live', onSubmit, subm
                         unavailable={!preview && form.departments.length === 0} />
                 )}
                 {ratee && (
-                    <RateeScreen ratees={form.ratees} index={position - 1} teamLabel={form.teamLabel} answers={draft.answers}
+                    <RateeScreen ratees={form.ratees} index={position - 1} saved={!preview} answers={draft.answers}
                         comment={draft.comments[ratee.periodRateeId] ?? ''} missing={nav.missing}
                         isComplete={(item, index) => isRateeComplete(item, draft.answers, nav.visited.has(index))}
                         onAnswer={answers.setAnswer} onComment={(text) => answers.setComment(ratee.periodRateeId, text)}

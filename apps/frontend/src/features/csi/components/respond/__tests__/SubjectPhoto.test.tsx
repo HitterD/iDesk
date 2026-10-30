@@ -32,6 +32,18 @@ describe('SubjectPhoto', () => {
         expect(screen.getByText('A')).toBeInTheDocument();
     });
 
+    it('a ratee without tagline renders no quote line', () => {
+        render(<SubjectPhoto ratee={{ ...RATEE, tagline: null }} index={0} total={1} />);
+        expect(photo().textContent).not.toMatch(/[“”]/);
+        expect(photo().querySelector('p.italic')).toBeNull();
+    });
+
+    it('a ratee without photo renders initials on the site colour', () => {
+        render(<SubjectPhoto ratee={{ ...RATEE, photoUrl: null, avatarUrl: null }} index={0} total={1} />);
+        expect(photo().querySelector('img')).toBeNull();
+        expect(screen.getByText('A')).toHaveClass('bg-[hsl(var(--ticket-teal))]');
+    });
+
     it('renders the tagline in quotes', () => {
         render(<SubjectPhoto ratee={{ ...RATEE, kind: 'TEAM', tagline: 'Siap membantu' }} index={0} total={1} />);
         expect(screen.getByText('Penilaian tim · SPJ')).toBeInTheDocument();

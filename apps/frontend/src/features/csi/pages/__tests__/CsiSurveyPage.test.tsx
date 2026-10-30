@@ -100,6 +100,11 @@ describe('CsiSurveyPage', () => {
         await fillAndSubmit(user, '  Pertahankan  ');
 
         expect(await screen.findByText('Terima kasih atas penilaian Anda!')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Terima kasih, Rina Pemohon!' })).toBeInTheDocument();
+        expect(screen.getByText('Penilaian Anda untuk 2 subjek sudah terkirim.')).toBeInTheDocument();
+        const summary = within(screen.getByRole('list', { name: 'Semua subjek' }));
+        expect(summary.getByRole('img', { name: 'Rata-rata 4,5 dari 5' })).toBeInTheDocument();
+        expect(summary.getByRole('img', { name: 'Rata-rata 3,0 dari 5' })).toBeInTheDocument();
         expect(CsiApi.submit).toHaveBeenCalledWith('p1', {
             respondentName: 'Rina Pemohon', departmentId: 'd2',
             items: [
@@ -152,7 +157,7 @@ describe('CsiSurveyPage', () => {
         const user = userEvent.setup();
         renderPage();
         await fillAndSubmit(user);
-        expect(await screen.findByRole('heading', { name: 'Terima kasih!' })).toBeInTheDocument();
+        expect(await screen.findByRole('heading', { name: 'Terima kasih, Rina Pemohon!' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Kembali ke daftar survei' })).toHaveAttribute('href', '/client/csi');
         await user.click(screen.getByRole('button', { name: 'Isi lagi atas nama orang lain' }));
         expect(await screen.findByLabelText('Nama')).toHaveValue('');

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { questionTone, scoreTone, scoreWord, siteTone, STAR_EMOJI, STAR_LABELS, starTone, toneClasses } from '../csiTone';
+import { questionTone, scoreTone, scoreWord, siteTone, STAR_EMOJI, STAR_LABELS, starTone, toneClasses, toneColor } from '../csiTone';
 
 describe('starTone', () => {
     it('1–2 merah, 3 amber, 4–5 hijau, kosong netral', () => {
@@ -60,5 +60,12 @@ describe('toneClasses', () => {
             ring: 'ring-[hsl(var(--ticket-brown))]',
         });
         expect(toneClasses('teal').ink).toBe('text-[hsl(var(--ticket-teal-ink))]');
+    });
+});
+
+describe('toneColor', () => {
+    it('memberi nilai warna CSS dari token --ticket-*', () => {
+        expect(toneColor('green')).toBe('hsl(var(--ticket-green))');
+        expect(toneColor('amber')).toBe('hsl(var(--ticket-amber))');
     });
 });

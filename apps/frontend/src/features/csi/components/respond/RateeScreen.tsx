@@ -3,14 +3,14 @@ import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { CSI_COMMENT_MAX, type CsiAnswer, type CsiAnswers } from '../../lib/csiForm';
+import { CSI_COMMENT_MAX, isAnswered, type CsiAnswer, type CsiAnswers } from '../../lib/csiForm';
 import type { CsiOpenForm } from '../../types';
 import { CSI_CARD } from '../CsiSurveyParts';
 import { FlowFooter } from './FlowChrome';
 import { QuestionField } from './QuestionField';
-import { RateeChips } from './RateeChips';
-import { commentLabel, missingText, positionText, RESPOND_COPY } from './respondCopy';
+import { commentLabel, missingText, RESPOND_COPY } from './respondCopy';
 import { SubjectPhoto } from './SubjectPhoto';
+import { SubjectRail } from './SubjectRail';
 
 type Ratee = CsiOpenForm['ratees'][number];
 
@@ -23,7 +23,8 @@ const STICKY_VARS = '[--csi-chrome:56px] [--csi-stick:12px]';
 interface RateeScreenProps {
     ratees: Ratee[];
     index: number;
-    teamLabel: string;
+    /** Drafts are stored (live page): show "Tersimpan otomatis". */
+    saved: boolean;
     answers: CsiAnswers;
     comment: string;
     /** Question ids flagged after "Lanjut" with a missing required answer; empty until then. */
@@ -65,15 +66,14 @@ function CommentField({ ratee, comment, onComment }: { ratee: Ratee; comment: st
 
 /** One subject: large sticky photo on the left, questions on the right. The page is the only scroller. */
 export function RateeScreen(props: RateeScreenProps) {
-    const { ratees, index, teamLabel, answers, comment, missing, isComplete, onAnswer, onComment, onSelect, onBack, onNext } = props;
+    const { ratees, index, saved, answers, comment, missing, isComplete, onAnswer, onComment, onSelect, onBack, onNext } = props;
     const card = useRef<HTMLElement>(null);
     const ratee = ratees[index];
     return (
         <div className={cn('space-y-4', STICKY_VARS)}>
-            <div className="space-y-3">
-                <p className="text-[13px] font-semibold uppercase tracking-wide text-[hsl(var(--idesk-sapphire))]">{positionText(index + 1, ratees.length)}</p>
-                <RateeChips ratees={ratees} current={index} teamLabel={teamLabel} isComplete={isComplete} onSelect={onSelect} />
-            </div>
+            <SubjectRail ratees={ratees} current={index} saved={saved} onSelect={onSelect}
+                answeredCount={(at) => ratees[at].dimensions.filter((dimension) => isAnswered(dimension, answers)).length}
+                questionCount={(at) => ratees[at].dimensions.length} done={(at) => isComplete(ratees[at], at)} />
 
             <section ref={card} aria-labelledby={`csi-ratee-${ratee.periodRateeId}`} className={cn(CSI_CARD, 'scroll-mt-3 overflow-clip rounded-[22px] @container')}>
                 {/* Two columns only where the photo can stick (lg viewport and a container of at least 780 px); stacked otherwise. */}

@@ -12,7 +12,15 @@ export const RESPOND_COPY = {
     identity: 'Identitas Anda',
     resumed: 'Melanjutkan isian sebelumnya',
     chipsLabel: 'Daftar bagian yang dinilai',
-    chipComplete: 'lengkap',
+    railDone: 'Selesai',
+    railDoneSuffix: 'selesai',
+    railPending: 'Belum',
+    autosaved: 'Tersimpan otomatis',
+    allButton: 'Semua',
+    allSubjects: 'Semua subjek',
+    close: 'Tutup',
+    scrollLeft: 'Geser kiri',
+    scrollRight: 'Geser kanan',
     missingAnswer: 'Belum dijawab',
     required: 'wajib',
     commentPlaceholder: 'Tulis saran atau apresiasi…',
@@ -34,7 +42,12 @@ export const summaryText = (people: number, minutes: number, teamLabel: string |
 };
 export const deadlineText = (date: string) => `Tersedia sampai ${date}`;
 export const submittedNote = (names: string[]) => `Akun ini sudah mengisi atas nama: ${names.join(', ')}.`;
-export const positionText = (index: number, total: number) => `Langkah ${index} dari ${total}`;
+export const railPositionText = (index: number, total: number) => `Subjek ${index} dari ${total}`;
+export const railDoneText = (count: number) => `· ${count} selesai`;
+export const railAnsweredText = (answered: number, total: number) => `${answered}/${total} dijawab`;
+export const popoverDoneText = (count: number, total: number) => `${count} dari ${total} selesai`;
+export const thankYouName = (name: string) => `Terima kasih, ${name}!`;
+export const thankYouSummary = (count: number) => `Penilaian Anda untuk ${count} subjek sudah terkirim.`;
 export const missingText = (count: number) => `${count} pertanyaan wajib belum dijawab`;
 export const commentLabel = (name: string) => `Saran untuk ${name} (opsional)`;
 export const ratingLabel = (question: string, name: string) => `${question} untuk ${name}`;
