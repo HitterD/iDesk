@@ -274,9 +274,8 @@ export class CsiPeriodService {
         const unmapped = !(await this.assignments.hasPairs(id));
         await this.dataSource.transaction(async (manager) => {
             await lockUnlockedPeriod(manager, id);
-            // Only people are replaced; the TEAM ratee is managed by setTeamQuestions.
-            await manager.delete(CsiPeriodRatee, { periodId: id, kind: CsiRateeKind.PERSON });
-            await this.writeRatees(manager, id, ratees);
+            // Only people are diffed here; TEAM ratees are managed by setTeamQuestions.
+            await this.syncPeople(manager, id, ratees);
         });
         await this.applyTemplateWhileUnmapped(scope, id, unmapped);
         return this.get(scope, id);
@@ -349,8 +348,12 @@ export class CsiPeriodService {
         const unmapped = !(await this.assignments.hasPairs(id));
         await this.dataSource.transaction(async (manager) => {
             await lockUnlockedPeriod(manager, id);
-            await manager.delete(CsiPeriodRater, { periodId: id });
-            await this.writeRaters(manager, id, ids);
+            // Diff by userId: rows (and their pairs) of raters who stay are kept.
+            const existing = await manager.getRepository(CsiPeriodRater).find({ where: { periodId: id } });
+            const removed = existing.filter((row) => !ids.includes(row.userId)).map((row) => row.id);
+            if (removed.length) await manager.delete(CsiPeriodRater, { id: In(removed) });
+            const kept = new Set(existing.map((row) => row.userId));
+            await this.writeRaters(manager, id, ids.filter((userId) => !kept.has(userId)));
         });
         await this.applyTemplateWhileUnmapped(scope, id, unmapped);
         return this.get(scope, id);
@@ -473,6 +476,34 @@ export class CsiPeriodService {
             siteId: ratee.siteId, teamId: ratee.teamId, photoUrl: ratee.photoUrl, tagline: ratee.tagline,
             sortOrder: ratee.sortOrder ?? index,
         })));
+        await manager.save(CsiPeriodRateeDimension, saved.flatMap((row, rateeIndex) => ratees[rateeIndex].dimensions.map((dimension, index) =>
+            dimensionRow(row.id, dimension, index))));
+    }
+
+    /**
+     * Replaces the PERSON ratees by userId diff so that csi_period_rater_ratees of people who stay survive (pairs cascade
+     * only from deleted rows). Kept rows keep their id and per-period overrides (siteId/photoUrl/tagline); their name,
+     * job title, order and question snapshots are refreshed in place.
+     */
+    private async syncPeople(manager: EntityManager, periodId: string, ratees: RateeSnapshot[]) {
+        const existing = await manager.getRepository(CsiPeriodRatee).find({ where: { periodId, kind: CsiRateeKind.PERSON } });
+        const byUser = new Map(existing.map((row) => [row.userId, row]));
+        const wanted = new Set(ratees.map((ratee) => ratee.userId));
+        const removed = existing.filter((row) => !wanted.has(row.userId)).map((row) => row.id);
+        if (removed.length) await manager.delete(CsiPeriodRatee, { id: In(removed) });
+        const keptIds = ratees.flatMap((ratee) => byUser.get(ratee.userId)?.id ?? []);
+        if (keptIds.length) await manager.delete(CsiPeriodRateeDimension, { periodRateeId: In(keptIds) });
+        if (!ratees.length) return;
+        const saved = await manager.save(CsiPeriodRatee, ratees.map((ratee, index) => {
+            const kept = byUser.get(ratee.userId);
+            return {
+                ...(kept ? { id: kept.id } : {}),
+                periodId, kind: ratee.kind, userId: ratee.userId, displayName: ratee.displayName, jobTitle: ratee.jobTitle,
+                siteId: kept ? kept.siteId : ratee.siteId, teamId: ratee.teamId,
+                photoUrl: kept ? kept.photoUrl : ratee.photoUrl, tagline: kept ? kept.tagline : ratee.tagline,
+                sortOrder: ratee.sortOrder ?? index,
+            };
+        }));
         await manager.save(CsiPeriodRateeDimension, saved.flatMap((row, rateeIndex) => ratees[rateeIndex].dimensions.map((dimension, index) =>
             dimensionRow(row.id, dimension, index))));
     }

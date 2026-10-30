@@ -269,10 +269,63 @@ describe('CsiAssignmentService', () => {
             // The admin re-maps the rater from u-s to u-t only.
             await service.setPairs(ICT, newId, [{ periodRaterId: raterId, periodRateeId: rateeIdOf('u-t') }]);
             await periods.setRatees(ICT, newId, [{ userId: 'u-t', dimensionIds: ['d1'] }, { userId: 'u-s', dimensionIds: ['d1'] }]);
-            // setRatees re-creates the people, so the FK cascade drops the old pairs; the template must not come back.
-            const pairsOfNew = db.table(CsiPeriodRaterRatee).filter((pair) => pair.periodId === newId);
-            expect(pairsOfNew.some((pair) => pair.periodRateeId === rateeIdOf('u-s'))).toBe(false);
-            expect(pairsOfNew).toHaveLength(0);
+            // The admin's pair survives the member edit and the template pair (u-s) is not re-applied.
+            await expect(service.pairsFor(newId, 'u-r')).resolves.toEqual(new Set([rateeIdOf('u-t')]));
+        });
+    });
+
+    describe('member edits keep the pairs of members who stay', () => {
+        let periods: CsiPeriodService;
+        const keys = () => pairKeys().filter((key) => !key.includes('other'));
+
+        beforeEach(async () => {
+            db.table(User).push(user('u-spj1', SPJ), user('u-spj2', SPJ), user('u-krw', KRW), user('u-new', SPJ), user('u-nosite', null));
+            db.table(CsiDimension).push(
+                { id: 'd1', scope: ICT, isActive: true, name: 'Ramah', type: 'STAR', required: true, options: [] },
+                { id: 'd2', scope: ICT, isActive: true, name: 'Cepat', type: 'STAR', required: true, options: [] },
+            );
+            db.table(CsiPeriod)[0] = { ...db.table(CsiPeriod)[0], sites: [{ siteId: SPJ }, { siteId: KRW }] };
+            periods = new CsiPeriodService(
+                db.repo(CsiPeriod) as any, db.repo(CsiPeriodRatee) as any, db.repo(CsiPeriodRateeDimension) as any,
+                db.repo(CsiPeriodRater) as any, db.repo(CsiResponse) as any, db.repo(CsiDimension) as any, db.repo(User) as any,
+                {} as any, {} as any, db.dataSource as any, service,
+                { createTeam: async (_scope: string, siteId: string) => ({ teamId: siteId === SPJ ? 'team-spj' : 'team-krw', name: `Tim ${siteId}`, siteId }) } as any,
+            );
+            jest.spyOn(periods, 'get').mockResolvedValue({} as any);
+            await service.setPairs(ICT, 'p1', [
+                { periodRaterId: 'pr-spj1', periodRateeId: 're-spj2' },
+                { periodRaterId: 'pr-spj1', periodRateeId: 're-team-spj' },
+                { periodRaterId: 'pr-spj2', periodRateeId: 're-spj1' },
+                { periodRaterId: 'pr-krw', periodRateeId: 're-team-krw' },
+            ]);
+        });
+
+        it('editing raters keeps the pairs of raters that stay', async () => {
+            await periods.setRaters(ICT, 'p1', ['u-spj1', 'u-krw', 'u-new']);
+            expect(keys()).toEqual(['pr-krw>re-team-krw', 'pr-spj1>re-spj2', 'pr-spj1>re-team-spj']);
+            const raters = db.table(CsiPeriodRater).filter((row) => row.periodId === 'p1');
+            expect(raters.map((row) => row.userId).sort()).toEqual(['u-krw', 'u-new', 'u-spj1']);
+            expect(raters.find((row) => row.userId === 'u-spj1')!.id).toBe('pr-spj1');
+        });
+
+        it('editing ratees keeps the pairs of ratees that stay and drops pairs of removed ratees', async () => {
+            db.table(CsiPeriodRatee).forEach((row, index, rows) => { if (row.id === 're-spj2') rows[index] = { ...row, tagline: 'Override' }; });
+            await periods.setRatees(ICT, 'p1', [{ userId: 'u-spj2', dimensionIds: ['d2'] }, { userId: 'u-new', dimensionIds: ['d1'] }]);
+            // re-spj1 (u-spj1) was removed → its pair is gone; re-spj2 kept its id, pair and override; team pairs untouched.
+            expect(keys()).toEqual(['pr-krw>re-team-krw', 'pr-spj1>re-spj2', 'pr-spj1>re-team-spj']);
+            const kept = db.table(CsiPeriodRatee).find((row) => row.id === 're-spj2')!;
+            expect(kept).toMatchObject({ userId: 'u-spj2', sortOrder: 0, tagline: 'Override' });
+            expect(db.table(CsiPeriodRateeDimension).filter((row) => row.periodRateeId === 're-spj2').map((row) => row.dimensionId)).toEqual(['d2']);
+            expect(db.table(CsiPeriodRatee).some((row) => row.id === 're-spj1')).toBe(false);
+        });
+
+        it('changing team questions keeps pairs to the team', async () => {
+            await periods.setTeamQuestions(ICT, 'p1', SPJ, ['d1']);
+            await periods.setTeamQuestions(ICT, 'p1', SPJ, ['d2', 'd1']);
+            expect(keys()).toContain('pr-spj1>re-team-spj');
+            expect(db.table(CsiPeriodRatee).filter((row) => row.periodId === 'p1' && row.kind === CsiRateeKind.TEAM && row.siteId === SPJ)
+                .map((row) => row.id)).toEqual(['re-team-spj']);
+            expect(db.table(CsiPeriodRateeDimension).filter((row) => row.periodRateeId === 're-team-spj').map((row) => row.dimensionId)).toEqual(['d2', 'd1']);
         });
     });
 

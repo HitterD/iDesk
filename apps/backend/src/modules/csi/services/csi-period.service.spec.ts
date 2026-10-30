@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { QueryFailedError } from 'typeorm';
+import { In, QueryFailedError } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
@@ -192,6 +192,7 @@ describe('CsiPeriodService', () => {
         manager.repositories.set(CsiPeriod, periods);
         manager.repositories.set(CsiResponse, responses);
         manager.repositories.set(CsiPeriodRatee, ratees);
+        manager.repositories.set(CsiPeriodRater, periodRaters);
         const dataSource = { transaction: jest.fn(async (work: any) => work(manager)) };
         assignments = {
             applyTemplate: jest.fn().mockResolvedValue(undefined), copyPairs: jest.fn().mockResolvedValue(undefined),
@@ -466,7 +467,8 @@ describe('CsiPeriodService', () => {
 
         it('setRatees snapshots displayName/jobTitle/dimensionName', async () => {
             await service.setRatees(ICT, 'p1', [{ userId: 'u1', dimensionIds: ['d2', 'd1'] }, { userId: 'u2', dimensionIds: ['d1'] }]);
-            expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRatee, { periodId: 'p1', kind: CsiRateeKind.PERSON });
+            // Nothing to remove on an empty period: people are diffed by userId, not wiped.
+            expect(manager.delete).not.toHaveBeenCalledWith(CsiPeriodRatee, expect.anything());
             const savedRatees = manager.saved.find((entry) => entry.target === CsiPeriodRatee)!.value;
             expect(savedRatees).toEqual([
                 expect.objectContaining({
@@ -504,19 +506,26 @@ describe('CsiPeriodService', () => {
             expect(periods.delete).not.toHaveBeenCalled();
         });
 
-        it('setRaters replaces all and rejects inactive users', async () => {
+        it('setRaters diffs by userId (keeps, removes, adds) and rejects inactive users', async () => {
+            periodRaters.rows.push({ id: 'pr-u2', periodId: 'p1', userId: 'u2' }, { id: 'pr-gone', periodId: 'p1', userId: 'u-gone' });
             await expect(service.setRaters(ICT, 'p1', ['u-off'])).rejects.toBeInstanceOf(BadRequestException);
             await service.setRaters(ICT, 'p1', ['u1', 'u2', 'u1']);
-            expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRater, { periodId: 'p1' });
-            expect(manager.saved.find((entry) => entry.target === CsiPeriodRater)!.value).toEqual([
-                expect.objectContaining({ periodId: 'p1', userId: 'u1' }), expect.objectContaining({ periodId: 'p1', userId: 'u2' }),
-            ]);
+            expect(manager.delete).toHaveBeenCalledTimes(1);
+            expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRater, { id: In(['pr-gone']) });
+            expect(manager.saved.find((entry) => entry.target === CsiPeriodRater)!.value).toEqual([expect.objectContaining({ periodId: 'p1', userId: 'u1' })]);
         });
 
-        it('setRatees keeps TEAM ratee', async () => {
+        it('setRatees keeps TEAM ratee and removes only people who are no longer listed', async () => {
+            ratees.rows.push(
+                { id: 'r-team', periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, siteId: 'site-a', displayName: 'Tim', jobTitle: null, sortOrder: -1 },
+                { id: 'r-u1', periodId: 'p1', kind: CsiRateeKind.PERSON, userId: 'u1', siteId: 'site-a', displayName: 'Budi', jobTitle: null, sortOrder: 0 },
+                { id: 'r-u2', periodId: 'p1', kind: CsiRateeKind.PERSON, userId: 'u2', siteId: 'site-b', displayName: 'Sari', jobTitle: null, sortOrder: 1 },
+            );
             await service.setRatees(ICT, 'p1', [{ userId: 'u1', dimensionIds: ['d1'] }]);
-            expect(manager.delete).toHaveBeenCalledTimes(1);
-            expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRatee, { periodId: 'p1', kind: CsiRateeKind.PERSON });
+            expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRatee, { id: In(['r-u2']) });
+            expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRateeDimension, { periodRateeId: In(['r-u1']) });
+            expect(manager.delete).not.toHaveBeenCalledWith(CsiPeriodRatee, expect.objectContaining({ kind: expect.anything() }));
+            expect(manager.saved.find((entry) => entry.target === CsiPeriodRatee)!.value).toEqual([expect.objectContaining({ id: 'r-u1', userId: 'u1' })]);
         });
 
         it('setTeamQuestions creates the TEAM ratee of a site from its csi_teams master, with snapshots', async () => {
