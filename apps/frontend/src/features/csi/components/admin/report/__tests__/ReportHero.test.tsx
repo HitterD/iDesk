@@ -29,6 +29,13 @@ describe('ReportHero', () => {
         expect(weakest).not.toHaveTextContent('Seberapa cepat');
     });
 
+    it('renders the question label at card-title size, clamped to 2 lines, full text as title', () => {
+        render(<ReportHero report={report()} />);
+        const label = within(screen.getByRole('group', { name: 'Perlu perhatian' })).getByText('Kecepatan respon');
+        expect(label).toHaveClass('line-clamp-2', 'text-[15px]', 'font-semibold');
+        expect(label).toHaveAttribute('title', 'Seberapa cepat petugas merespon laporan Anda?');
+    });
+
     it('hides the trend when there is no previous period', () => {
         render(<ReportHero report={report({ previousAverage: null })} />);
         expect(screen.queryByText(/dari periode lalu/)).not.toBeInTheDocument();

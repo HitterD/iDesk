@@ -4,7 +4,7 @@ import { CSI_SCORE_GOOD, scoreTone, siteTone, starTone, toneClasses } from '../.
 import { formatFixed2 } from '../../../lib/format';
 import type { CsiReportRatee } from '../../../types';
 import { imageUrl } from '../../respond/RateeAvatar';
-import { questionLabel } from './reportModel';
+import { questionDisplayLabel, questionFullText } from './reportModel';
 
 export type SiteCodeOf = (siteId: string | null) => string | null;
 
@@ -43,8 +43,8 @@ export function subjectExtremes(ratee: CsiReportRatee) {
     const strongest = scored[0] ?? null;
     const weakest = scored.length > 1 ? scored[scored.length - 1] : null;
     return {
-        strongest: strongest && { label: questionLabel(strongest), name: strongest.name },
-        weakest: weakest && (weakest.average as number) < CSI_SCORE_GOOD ? { label: questionLabel(weakest), name: weakest.name } : null,
+        strongest: strongest && { label: questionDisplayLabel(strongest), name: questionFullText(strongest) },
+        weakest: weakest && (weakest.average as number) < CSI_SCORE_GOOD ? { label: questionDisplayLabel(weakest), name: questionFullText(weakest) } : null,
     };
 }
 

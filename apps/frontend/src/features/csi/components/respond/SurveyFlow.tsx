@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { History } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { CSI_HTTP_CONFLICT, CSI_MESSAGES, errorMessage, errorStatus, isNameTaken, isNameValid, nameKey, orderRatees } from '../../lib/csiForm';
 import type { CsiOpenForm, SubmitCsiResponse } from '../../types';
-import { FlowChromeContext, ScreenTransition, type HeadingLevel } from './FlowChrome';
+import { FlowChromeContext, LIVE_FOOTER_SPACE, ScreenTransition, type HeadingLevel } from './FlowChrome';
 import { IntroScreen } from './IntroScreen';
 import { RateeScreen } from './RateeScreen';
 import { ReviewScreen } from './ReviewScreen';
@@ -67,6 +68,7 @@ export function SurveyFlow({ form: source, userId, mode = 'live', onSubmit, subm
 
     return (
         <FlowChromeContext.Provider value={{ navigated: nav.navigated, aboveBottomNav: !preview, headingLevel }}>
+            <div data-testid="csi-flow-content" className={cn(!preview && LIVE_FOOTER_SPACE)}>
             {answers.resumed && <ResumedNote />}
             <ScreenTransition screenKey={String(position)} direction={nav.direction}>
                 {position === 0 && (
@@ -88,6 +90,7 @@ export function SurveyFlow({ form: source, userId, mode = 'live', onSubmit, subm
                         onEditRatee={(index) => goTo(index + 1)} onBack={() => goTo(position - 1)} onSubmit={nav.submit} />
                 )}
             </ScreenTransition>
+            </div>
         </FlowChromeContext.Provider>
     );
 }

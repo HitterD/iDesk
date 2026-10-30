@@ -176,8 +176,10 @@ export interface CsiSubmitResult { submitted: true; thankYou: string }
 export interface CsiDistributionBucket { label: string; count: number }
 export interface CsiQuestionStat {
     name: string;
-    /** Report label = `shortLabel ?? name`. */
+    /** Report label = `shortLabel ?? name` (see `questionDisplayLabel`). */
     shortLabel: string | null;
+    /** Master question description, e.g. "[Kecepatan respon ...]"; absent on older payloads. */
+    description?: string | null;
     type: CsiQuestionType;
     average: number | null;
     count: number;

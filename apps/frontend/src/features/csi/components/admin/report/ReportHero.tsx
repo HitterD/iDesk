@@ -38,7 +38,8 @@ function StatCard({ label, tone, icon, value, children }: { label: string; tone:
 
 function QuestionStat({ label, column, tone, icon }: { label: string; column: QuestionColumn | null; tone: CsiTone; icon: ReactNode }) {
     return (
-        <StatCard label={label} tone={tone} icon={icon} value={<span title={column?.name}>{column?.label ?? '—'}</span>}>
+        <StatCard label={label} tone={tone} icon={icon}
+            value={<span title={column?.name} className="line-clamp-2 break-words text-[15px] font-semibold leading-snug">{column?.label ?? '—'}</span>}>
             <span className={cn(MUTED_TEXT, 'text-[12px]')}>{column ? `rata-rata ${formatFixed2(column.average)}` : 'Belum ada nilai'}</span>
         </StatCard>
     );

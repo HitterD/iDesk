@@ -149,3 +149,15 @@ describe('SurveyFlow screens', () => {
         expect(within(subject).getByText('B')).toBeInTheDocument();
     });
 });
+
+describe('SurveyFlow mobile footer spacing', () => {
+    it('live: reserves room under the content for the sticky footer on phones only (< sm, so never at lg)', () => {
+        renderFlow();
+        expect(screen.getByTestId('csi-flow-content')).toHaveClass('pb-[calc(10.5rem+env(safe-area-inset-bottom))]', 'sm:pb-0');
+    });
+
+    it('preview: no extra room (the footer is not lifted above a bottom nav there)', () => {
+        renderFlow({ mode: 'preview' });
+        expect(screen.getByTestId('csi-flow-content').className).not.toMatch(/pb-/);
+    });
+});

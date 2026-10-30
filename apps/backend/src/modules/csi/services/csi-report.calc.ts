@@ -11,7 +11,10 @@ const SCORED_TYPES = new Set([CsiQuestionType.STAR, CsiQuestionType.SCALE]);
 export type CsiItemRow = Pick<CsiResponseItem, 'responseId' | 'periodRateeId' | 'periodRateeDimensionId' | 'score' | 'answerLabel'> & { answerText?: string | null };
 export type CsiDistributionBucket = { label: string; count: number };
 export type CsiQuestionStat = {
-    name: string; shortLabel: string | null; type: CsiQuestionType; average: number | null; count: number; distribution: CsiDistributionBucket[];
+    name: string; shortLabel: string | null;
+    /** Master question description (e.g. "[Kecepatan respon ...]"); null when absent or the `dimension` relation is not loaded. */
+    description: string | null;
+    type: CsiQuestionType; average: number | null; count: number; distribution: CsiDistributionBucket[];
 };
 
 const countBy = <T>(rows: T[], key: (row: T) => string): Map<string, number> => {
@@ -49,7 +52,7 @@ export function questionStat(dimension: CsiPeriodRateeDimension, items: CsiItemR
     const own = items.filter((item) => item.periodRateeDimensionId === dimension.id);
     const scores = own.map((item) => item.score).filter((score): score is number => score !== null && score !== undefined);
     return {
-        name: dimension.dimensionName, shortLabel: dimension.shortLabel ?? null, type: dimension.type ?? CsiQuestionType.STAR,
+        name: dimension.dimensionName, shortLabel: dimension.shortLabel ?? null, description: dimension.dimension?.description ?? null, type: dimension.type ?? CsiQuestionType.STAR,
         average: responseAverage(scores), count: scores.length, distribution: distributionOf(dimension, own),
     };
 }

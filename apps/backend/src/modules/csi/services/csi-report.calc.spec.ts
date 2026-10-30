@@ -35,6 +35,12 @@ describe('CSI report extras', () => {
         expect(questionStat(dim('s', CsiQuestionType.STAR, 'Kecepatan'), []).shortLabel).toBe('Kecepatan');
     });
 
+    it('description comes from the master question, null when absent', () => {
+        const withMaster = { ...dim('s', CsiQuestionType.STAR), dimension: { description: '[Kecepatan respon]' } } as unknown as CsiPeriodRateeDimension;
+        expect(questionStat(withMaster, []).description).toBe('[Kecepatan respon]');
+        expect(questionStat(dim('s', CsiQuestionType.STAR), []).description).toBeNull();
+    });
+
     it('items for a site keep only that site ratees answered by that site respondents', () => {
         const rows = [
             { ...item('a', 's', 5), periodRateeId: 'r1' }, { ...item('b', 's', 3), periodRateeId: 'r1' }, { ...item('a', 's', 4), periodRateeId: 'r2' },

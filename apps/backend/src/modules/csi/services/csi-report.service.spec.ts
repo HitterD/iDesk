@@ -122,10 +122,10 @@ describe('CsiReportService', () => {
         expect(budi.indexPct).toBe(65);
         expect(budi.respondentCount).toBe(2);
         expect(budi.questions).toEqual([
-            { name: 'Responsif', shortLabel: null, type: 'STAR', average: 4, count: 2, distribution: [
+            { name: 'Responsif', shortLabel: null, description: null, type: 'STAR', average: 4, count: 2, distribution: [
                 { label: '1', count: 0 }, { label: '2', count: 0 }, { label: '3', count: 1 }, { label: '4', count: 0 }, { label: '5', count: 1 },
             ] },
-            { name: 'Ramah', shortLabel: null, type: 'STAR', average: 2, count: 1, distribution: [
+            { name: 'Ramah', shortLabel: null, description: null, type: 'STAR', average: 2, count: 1, distribution: [
                 { label: '1', count: 0 }, { label: '2', count: 1 }, { label: '3', count: 0 }, { label: '4', count: 0 }, { label: '5', count: 0 },
             ] },
         ]);
@@ -180,8 +180,8 @@ describe('CsiReportService', () => {
         );
         const report = await service.getReport(ICT, 'p1');
         const [, , channel, saran] = report.ratees[0].questions;
-        expect(channel).toEqual({ name: 'Channel', shortLabel: null, type: 'CHOICE', average: null, count: 0, distribution: [{ label: 'Telepon', count: 0 }, { label: 'Email', count: 1 }] });
-        expect(saran).toEqual({ name: 'Saran', shortLabel: null, type: 'TEXT', average: null, count: 0, distribution: [{ label: 'Mantap', count: 1 }] });
+        expect(channel).toEqual({ name: 'Channel', shortLabel: null, description: null, type: 'CHOICE', average: null, count: 0, distribution: [{ label: 'Telepon', count: 0 }, { label: 'Email', count: 1 }] });
+        expect(saran).toEqual({ name: 'Saran', shortLabel: null, description: null, type: 'TEXT', average: null, count: 0, distribution: [{ label: 'Mantap', count: 1 }] });
         expect(report.ratees[0].average).toBe(3.25);
         const detail = await service.getResponseDetail(ICT, 'p1', 'resp1');
         expect(detail.ratees[0].scores.slice(2)).toEqual([

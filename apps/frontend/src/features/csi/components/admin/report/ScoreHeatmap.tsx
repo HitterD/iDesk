@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils';
 import { questionTone, scoreTone, toneClasses } from '../../../lib/csiTone';
 import { formatFixed2, formatScore } from '../../../lib/format';
 import type { CsiReportRatee } from '../../../types';
-import { questionColumns } from './reportModel';
+import { questionColumns, questionKey } from './reportModel';
 import { SiteBadge, SubjectPhoto, type SiteCodeOf } from './reportParts';
 
 const HEAD = 'whitespace-nowrap px-1.5 py-1 text-left text-[11.5px] font-semibold text-[hsl(var(--idesk-text-secondary))]';
@@ -23,7 +23,7 @@ export function ScoreHeatmap({ ratees, siteCodeOf }: { ratees: readonly CsiRepor
                     <tr>
                         <th scope="col" className={HEAD}><span className="sr-only">Subjek</span></th>
                         {columns.map((column) => (
-                            <th key={column.name} scope="col" title={column.name} className={HEAD}>
+                            <th key={column.key} scope="col" title={column.name} className={HEAD}>
                                 <span className={cn('inline-flex items-center gap-1.5', toneClasses(questionTone(column.index)).ink)}>
                                     <span className={cn('h-2 w-2 rounded-full', toneClasses(questionTone(column.index)).fill)} aria-hidden="true" />
                                     {column.label}
@@ -35,7 +35,7 @@ export function ScoreHeatmap({ ratees, siteCodeOf }: { ratees: readonly CsiRepor
                 </thead>
                 <tbody>
                     {ratees.map((ratee) => {
-                        const byName = new Map(ratee.questions.map((question) => [question.name, question.average]));
+                        const byKey = new Map(ratee.questions.map((question) => [questionKey(question), question.average]));
                         const siteCode = siteCodeOf(ratee.siteId);
                         return (
                             <tr key={ratee.periodRateeId}>
@@ -46,7 +46,7 @@ export function ScoreHeatmap({ ratees, siteCodeOf }: { ratees: readonly CsiRepor
                                         <SiteBadge code={siteCode} />
                                     </span>
                                 </th>
-                                {columns.map((column) => <HeatCell key={column.name} value={byName.get(column.name) ?? null} digits={1} />)}
+                                {columns.map((column) => <HeatCell key={column.key} value={byKey.get(column.key) ?? null} digits={1} />)}
                                 <HeatCell value={ratee.average} digits={2} />
                             </tr>
                         );

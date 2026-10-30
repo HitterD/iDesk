@@ -157,7 +157,7 @@ export class CsiReportService {
         const rateeIds = ratees.map((ratee) => ratee.id);
         const [views, dimensions, items, responses] = await Promise.all([
             rateeIds.length ? this.subjects.viewsFor(scope, ratees) : new Map<string, CsiRateeView>(),
-            rateeIds.length ? this.rateeDimensions.find({ where: { periodRateeId: In(rateeIds) }, order: { sortOrder: 'ASC' } }) : [],
+            rateeIds.length ? this.rateeDimensions.find({ where: { periodRateeId: In(rateeIds) }, relations: { dimension: true }, order: { sortOrder: 'ASC' } }) : [],
             rateeIds.length ? this.items.find({ where: { periodRateeId: In(rateeIds) } }) : [],
             this.responses.find({ where: { periodId: period.id }, relations: { respondent: true } }),
         ]);

@@ -55,8 +55,16 @@ export function ScreenTransition({ screenKey, direction, children }: { screenKey
 }
 
 /**
+ * Live page while FlowFooter is sticky (below `sm`, under the fixed bottom nav): bottom room under the flow = footer
+ * (~4.5rem incl. the "N pertanyaan wajib" note) + its offset above the bottom nav (6rem) + the safe area, so the last
+ * field can always scroll clear of the footer. From `sm` the footer is inline, so nothing is added (and nothing at `lg`).
+ */
+export const LIVE_FOOTER_SPACE = 'pb-[calc(10.5rem+env(safe-area-inset-bottom))] sm:pb-0';
+
+/**
  * Action bar: sticky to the bottom of the scroll area on mobile, inline on desktop.
- * On the live page it sits above the fixed bottom nav (the layout already reserves `pb-28` for it).
+ * On the live page it sits above the fixed bottom nav (5rem tall plus the create button raised ~14 px, hence the 6rem
+ * offset); the flow reserves `LIVE_FOOTER_SPACE` under it.
  * On mobile it bleeds to the edges by `--flow-gutter`, which each host sets to its own horizontal padding
  * (unset = no bleed), so it never overflows a layout whose padding differs.
  */
@@ -65,7 +73,7 @@ export function FlowFooter({ note, children }: { note?: ReactNode; children: Rea
     return (
         <div className={cn('sticky z-20 mx-[calc(-1*var(--flow-gutter,0px))] border-t border-border/60 bg-background/90 px-[var(--flow-gutter,0px)] pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl',
             'sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pb-2 sm:backdrop-blur-none',
-            aboveBottomNav ? 'bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:bottom-0' : 'bottom-0')}>
+            aboveBottomNav ? 'bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-0' : 'bottom-0')}>
             {note}
             <div className="flex items-center gap-3">{children}</div>
         </div>

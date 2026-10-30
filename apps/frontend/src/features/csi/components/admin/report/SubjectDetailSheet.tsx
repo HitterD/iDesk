@@ -22,7 +22,7 @@ function QuestionBars({ ratee }: { ratee: CsiReportRatee }) {
             {columns.map((column) => {
                 const tone = toneClasses(questionTone(column.index));
                 return (
-                    <li key={column.name} className="grid grid-cols-[minmax(110px,180px)_1fr_40px] items-center gap-2.5 text-[13px]">
+                    <li key={column.key} className="grid grid-cols-[minmax(110px,180px)_1fr_40px] items-center gap-2.5 text-[13px]">
                         <span title={column.name} className="flex min-w-0 items-center gap-1.5">
                             <span className={cn('h-2 w-2 shrink-0 rounded-full', tone.fill)} aria-hidden="true" />
                             <span className="truncate">{column.label}</span>

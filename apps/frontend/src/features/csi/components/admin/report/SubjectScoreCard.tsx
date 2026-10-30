@@ -6,7 +6,8 @@ import type { CsiReportRatee } from '../../../types';
 import { ADMIN_PANEL, MUTED_TEXT } from '../AdminParts';
 import { kindLabel, ScoreBadge, SiteBadge, StarDistributionBar, SubjectPhoto, subjectExtremes } from './reportParts';
 
-const PILL = 'inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium';
+/** Pill shrinks to its cell and truncates its label (full text in `title`); a long question never widens the card. */
+const PILL = 'inline-flex min-w-0 max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium';
 
 /** Ranked subject card (mockup `.rcard`): photo + rank medal, name, site, score badge, index, star bar, strongest/weakest pill. */
 export function SubjectScoreCard({ ratee, rank, siteCode, onOpen }: {
@@ -25,8 +26,8 @@ export function SubjectScoreCard({ ratee, rank, siteCode, onOpen }: {
                     {rank}
                 </span>
             </span>
-            <span className="grid min-w-0 flex-1 content-start gap-0.5">
-                <span className="flex items-start gap-1.5">
+            <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] content-start gap-0.5">
+                <span className="flex min-w-0 items-start gap-1.5">
                     <span className="line-clamp-2 min-w-0 flex-1 font-semibold leading-tight">{ratee.displayName}</span>
                     <SiteBadge code={siteCode} />
                 </span>
@@ -39,12 +40,12 @@ export function SubjectScoreCard({ ratee, rank, siteCode, onOpen }: {
                 </span>
                 <StarDistributionBar counts={ratee.starDistribution} />
                 {(strongest || weakest) && (
-                    <span className="mt-2 flex flex-wrap gap-1.5">
+                    <span className="mt-2 flex min-w-0 flex-wrap gap-1.5">
                         {strongest && <span title={strongest.name} className={cn(PILL, toneClasses('green').soft, toneClasses('green').ink)}>
-                            <TrendingUp className="h-3 w-3 shrink-0" aria-hidden="true" /><span className="truncate">{strongest.label}</span>
+                            <TrendingUp className="h-3 w-3 shrink-0" aria-hidden="true" /><span className="min-w-0 max-w-full truncate">{strongest.label}</span>
                         </span>}
                         {weakest && <span title={weakest.name} className={cn(PILL, toneClasses('amber').soft, toneClasses('amber').ink)}>
-                            <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" /><span className="truncate">{weakest.label}</span>
+                            <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" /><span className="min-w-0 max-w-full truncate">{weakest.label}</span>
                         </span>}
                     </span>
                 )}
