@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Request } from 'express';
-import { DataSource, FindOptionsRelations, In, Repository } from 'typeorm';
+import { DataSource, FindOptionsRelations, In, LessThan, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
-import { CSI_RESET_REASON_MIN, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { CSI_RESET_REASON_MIN, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
@@ -14,14 +14,16 @@ import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { lockPeriodRow } from './csi-period-lock.util';
-import { overallStats, rateeStats } from './csi-report.calc';
+import { CsiItemRow, itemsForSite, overallStats, rateeStats } from './csi-report.calc';
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiSlaService } from './csi-sla.service';
+import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
 
 const RESPONSE_NOT_FOUND_MESSAGE = 'Jawaban tidak ditemukan';
 const RESET_ENTITY_TYPE = 'csi_response';
 const SORT_LAST = '￿';
 const RATEE_ORDER_FACTOR = 1e6;
+const SITE_NOT_IN_PERIOD_MESSAGE = 'Site tidak termasuk dalam periode ini';
 
 export type CsiActorRef = { id: string };
 /** `score` is null for CHOICE/TEXT answers; `answerLabel` (SCALE/CHOICE) and `answerText` (TEXT) carry the non-numeric answer. */
@@ -34,6 +36,16 @@ export type CsiAnswerRatee = {
 export type CsiAnswer = {
     responseId: string; respondentName: string; accountName: string; areaName: string | null;
     departmentName: string; submittedAt: Date; ratees: CsiAnswerRatee[];
+};
+/** Ratees (enabled sections), their resolved views, dimensions, items and responses of one period. */
+type PeriodData = {
+    ratees: CsiPeriodRatee[]; views: Map<string, CsiRateeView>; dimensions: CsiPeriodRateeDimension[];
+    items: CsiItemRow[]; responses: CsiResponse[];
+};
+/** Per-site stats of one period (dashboard): overall average, responses and each PERSON ratee's average. */
+export type CsiSiteStats = {
+    average: number | null; responses: number;
+    people: Array<{ userId: string; displayName: string; photoUrl: string | null; average: number | null }>;
 };
 type ItemReaders = { items: Repository<CsiResponseItem>; comments: Repository<CsiResponseComment> };
 
@@ -67,28 +79,69 @@ export class CsiReportService {
         @InjectDataSource() private readonly dataSource: DataSource,
         private readonly audit: AuditService,
         private readonly sla: CsiSlaService,
+        private readonly subjects: CsiSubjectService,
     ) { }
 
     private get readers(): ItemReaders {
         return { items: this.items, comments: this.comments };
     }
 
-    async getReport(scope: ServiceScope, periodId: string) {
+    /** `siteId` narrows ratees to that site and counts only answers of respondents whose user site is that site. */
+    async getReport(scope: ServiceScope, periodId: string, siteId?: string) {
         const period = await this.findInScope(scope, periodId, { sites: { site: true } });
-        const ratees = (await this.ratees.find({ where: { periodId }, order: { sortOrder: 'ASC' } })).filter(inEnabledSection(period));
+        const allSites = siteSummaries(period);
+        if (siteId && !allSites.some((site) => site.id === siteId)) throw new BadRequestException(SITE_NOT_IN_PERIOD_MESSAGE);
+        const data = narrowToSite(await this.loadPeriodData(scope, period), siteId);
+        const sites = siteId ? allSites.filter((site) => site.id === siteId) : allSites;
+        return {
+            period: { ...period, sites: allSites },
+            overall: overallStats(data.items, data.responses.length),
+            previousAverage: await this.previousAverage(scope, period, siteId),
+            ratees: teamFirst(data.ratees).map((ratee) => rateeStats(ratee, data.dimensions, data.items, {
+                siteId: rateeSiteOf(data, ratee), photoUrl: data.views.get(ratee.id)?.photoUrl ?? null,
+            })),
+            sla: await this.sla.compute(period, sites, data.responses.length),
+        };
+    }
+
+    /** One load per period, then per-site stats in memory (same site rules as the filtered report). */
+    async siteStats(scope: ServiceScope, period: CsiPeriod, siteIds: string[]): Promise<Map<string, CsiSiteStats>> {
+        const data = await this.loadPeriodData(scope, period);
+        return new Map(siteIds.map((siteId) => {
+            const site = narrowToSite(data, siteId);
+            const people = site.ratees.filter((ratee) => ratee.kind !== CsiRateeKind.TEAM && ratee.userId).map((ratee) => ({
+                userId: ratee.userId!, displayName: ratee.displayName, photoUrl: site.views.get(ratee.id)?.photoUrl ?? null,
+                average: rateeStats(ratee, site.dimensions, site.items).average,
+            }));
+            return [siteId, { average: overallStats(site.items, site.responses.length).average, responses: site.responses.length, people }];
+        }));
+    }
+
+    /** Overall average of the latest earlier PUBLISHED period of the scope sharing a site (that site when filtered). */
+    private async previousAverage(scope: ServiceScope, period: CsiPeriod, siteId?: string): Promise<number | null> {
+        const wanted = siteId ? [siteId] : (period.sites ?? []).map((row) => row.siteId);
+        const candidates = await this.periods.find({
+            where: { scope, publishStatus: CsiPeriodPublishStatus.PUBLISHED, endDate: LessThan(period.startDate) },
+            relations: { sites: true },
+        });
+        const previous = candidates
+            .filter((row) => (row.sites ?? []).some((site) => wanted.includes(site.siteId)))
+            .sort((a, b) => b.endDate.localeCompare(a.endDate))[0];
+        if (!previous) return null;
+        const data = narrowToSite(await this.loadPeriodData(scope, previous), siteId);
+        return overallStats(data.items, data.responses.length).average;
+    }
+
+    private async loadPeriodData(scope: ServiceScope, period: CsiPeriod): Promise<PeriodData> {
+        const ratees = (await this.ratees.find({ where: { periodId: period.id }, order: { sortOrder: 'ASC' } })).filter(inEnabledSection(period));
         const rateeIds = ratees.map((ratee) => ratee.id);
-        const [dimensions, items, responseCount] = await Promise.all([
+        const [views, dimensions, items, responses] = await Promise.all([
+            rateeIds.length ? this.subjects.viewsFor(scope, ratees) : new Map<string, CsiRateeView>(),
             rateeIds.length ? this.rateeDimensions.find({ where: { periodRateeId: In(rateeIds) }, order: { sortOrder: 'ASC' } }) : [],
             rateeIds.length ? this.items.find({ where: { periodRateeId: In(rateeIds) } }) : [],
-            this.responses.count({ where: { periodId } }),
+            this.responses.find({ where: { periodId: period.id }, relations: { respondent: true } }),
         ]);
-        const sites = siteSummaries(period);
-        return {
-            period: { ...period, sites },
-            overall: overallStats(items, responseCount),
-            ratees: teamFirst(ratees).map((ratee) => rateeStats(ratee, dimensions, items)),
-            sla: await this.sla.compute(period, sites, responseCount),
-        };
+        return { ratees, views, dimensions, items, responses };
     }
 
     async getRespondents(scope: ServiceScope, periodId: string) {
@@ -191,6 +244,21 @@ export class CsiReportService {
             };
         });
     }
+}
+
+const rateeSiteOf = (data: Pick<PeriodData, 'views'>, ratee: CsiPeriodRatee) => data.views.get(ratee.id)?.siteId ?? ratee.siteId ?? null;
+
+/** Site filter: ratees of the site, and only responses (and their items) of respondents whose user site is the site. */
+function narrowToSite(data: PeriodData, siteId?: string): PeriodData {
+    if (!siteId) return data;
+    const ratees = data.ratees.filter((ratee) => rateeSiteOf(data, ratee) === siteId);
+    const responseSite = new Map(data.responses.map((response) => [response.id, response.respondent?.siteId ?? null]));
+    const rateeSite = new Map(ratees.map((ratee) => [ratee.id, rateeSiteOf(data, ratee)]));
+    return {
+        ...data, ratees,
+        items: itemsForSite(data.items, rateeSite, responseSite, siteId),
+        responses: data.responses.filter((response) => responseSite.get(response.id) === siteId),
+    };
 }
 
 /** Sorted copy; strings compare with Indonesian collation. */

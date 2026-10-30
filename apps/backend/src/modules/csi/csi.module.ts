@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { AuditModule } from '../audit/audit.module';
+import { NotificationModule } from '../notifications/notification.module';
+import { Notification } from '../notifications/entities/notification.entity';
 import { User } from '../users/entities/user.entity';
 import { PermissionPreset } from '../permissions/entities/permission-preset.entity';
 import { Site } from '../sites/entities/site.entity';
@@ -24,6 +26,9 @@ import { CsiSubjectService } from './services/csi-subject.service';
 import { CsiAssignmentService } from './services/csi-assignment.service';
 import { CsiAdminSubjectController } from './presentation/csi-admin-subject.controller';
 import { CsiAdminAssignmentController } from './presentation/csi-admin-assignment.controller';
+import { CsiReminderService } from './services/csi-reminder.service';
+import { CsiDashboardService } from './services/csi-dashboard.service';
+import { CsiAdminDashboardController } from './presentation/csi-admin-dashboard.controller';
 import { CsiTeam } from './entities/csi-team.entity';
 import { CsiSubjectProfile } from './entities/csi-subject-profile.entity';
 import { CsiRaterAssignment } from './entities/csi-rater-assignment.entity';
@@ -46,16 +51,17 @@ import { CsiResponseComment } from './entities/csi-response-comment.entity';
             CsiDimension, CsiDepartment, CsiRater, CsiPeriod, CsiPeriodSite, CsiPeriodRatee,
             CsiPeriodRateeDimension, CsiPeriodRater, CsiResponse, CsiResponseItem, CsiResponseComment,
             CsiMemoSetting, CsiTeam, CsiSubjectProfile, CsiRaterAssignment, CsiPeriodRaterRatee,
-            User, PermissionPreset, Site, Ticket,
+            User, PermissionPreset, Site, Ticket, Notification,
         ]),
         AuthModule,
         AuditModule,
+        NotificationModule,
     ],
     controllers: [
         CsiAdminMasterController, CsiAdminPeriodController, CsiAdminReportController, CsiAdminMemoController, CsiMeController,
-        CsiAdminSubjectController, CsiAdminAssignmentController,
+        CsiAdminSubjectController, CsiAdminAssignmentController, CsiAdminDashboardController,
     ],
     providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService, CsiMemoService,
-        CsiSubjectService, CsiAssignmentService],
+        CsiSubjectService, CsiAssignmentService, CsiReminderService, CsiDashboardService],
 })
 export class CsiModule { }

@@ -16,6 +16,7 @@ function matches(row: Record<string, any>, where: Record<string, any> = {}): boo
     return Object.entries(where).every(([key, value]): boolean => {
         if (value && typeof value === 'object' && '_type' in value) {
             if (value._type === 'in') return value._value.includes(row[key]);
+            if (value._type === 'lessThan') return row[key] < value._value;
             throw new Error(`Unsupported operator ${value._type}`);
         }
         return row[key] === value;
@@ -62,6 +63,7 @@ describe('CsiReportService', () => {
     let manager: any;
     let deleted: Array<{ target: unknown; criteria: any }>;
     let sla: { compute: jest.Mock };
+    let subjects: { viewsFor: jest.Mock };
     let service: CsiReportService;
 
     beforeEach(() => {
@@ -102,9 +104,12 @@ describe('CsiReportService', () => {
         };
         const dataSource = { transaction: jest.fn(async (work: (m: any) => unknown) => work(manager)) };
         sla = { compute: jest.fn(async () => ({ basis: 0, pengisiPct: null })) };
+        subjects = { viewsFor: jest.fn(async (_scope: unknown, rows: any[]) => new Map(rows.map((row) => [row.id, {
+            siteId: row.siteId ?? null, siteCode: null, photoUrl: row.id === 'r1' ? '/uploads/csi/budi.jpg' : null, tagline: null, jobTitle: null,
+        }]))) };
         service = new CsiReportService(
             periods as any, ratees as any, rateeDimensions as any, periodRaters as any,
-            responses as any, items, comments as any, dataSource as any, audit as any, sla as any,
+            responses as any, items, comments as any, dataSource as any, audit as any, sla as any, subjects as any,
         );
     });
 
@@ -117,10 +122,10 @@ describe('CsiReportService', () => {
         expect(budi.indexPct).toBe(65);
         expect(budi.respondentCount).toBe(2);
         expect(budi.questions).toEqual([
-            { name: 'Responsif', type: 'STAR', average: 4, count: 2, distribution: [
+            { name: 'Responsif', shortLabel: null, type: 'STAR', average: 4, count: 2, distribution: [
                 { label: '1', count: 0 }, { label: '2', count: 0 }, { label: '3', count: 1 }, { label: '4', count: 0 }, { label: '5', count: 1 },
             ] },
-            { name: 'Ramah', type: 'STAR', average: 2, count: 1, distribution: [
+            { name: 'Ramah', shortLabel: null, type: 'STAR', average: 2, count: 1, distribution: [
                 { label: '1', count: 0 }, { label: '2', count: 1 }, { label: '3', count: 0 }, { label: '4', count: 0 }, { label: '5', count: 0 },
             ] },
         ]);
@@ -175,8 +180,8 @@ describe('CsiReportService', () => {
         );
         const report = await service.getReport(ICT, 'p1');
         const [, , channel, saran] = report.ratees[0].questions;
-        expect(channel).toEqual({ name: 'Channel', type: 'CHOICE', average: null, count: 0, distribution: [{ label: 'Telepon', count: 0 }, { label: 'Email', count: 1 }] });
-        expect(saran).toEqual({ name: 'Saran', type: 'TEXT', average: null, count: 0, distribution: [{ label: 'Mantap', count: 1 }] });
+        expect(channel).toEqual({ name: 'Channel', shortLabel: null, type: 'CHOICE', average: null, count: 0, distribution: [{ label: 'Telepon', count: 0 }, { label: 'Email', count: 1 }] });
+        expect(saran).toEqual({ name: 'Saran', shortLabel: null, type: 'TEXT', average: null, count: 0, distribution: [{ label: 'Mantap', count: 1 }] });
         expect(report.ratees[0].average).toBe(3.25);
         const detail = await service.getResponseDetail(ICT, 'p1', 'resp1');
         expect(detail.ratees[0].scores.slice(2)).toEqual([
@@ -268,5 +273,58 @@ describe('CsiReportService', () => {
     it('reset propagates audit failure', async () => {
         audit.log.mockRejectedValueOnce(new Error('audit down'));
         await expect(service.resetResponse(ICT, 'p1', 'resp1', 'alasan valid', { id: 'admin' }, undefined)).rejects.toThrow('audit down');
+    });
+    describe('site filter and extras', () => {
+        const SITE_PERIOD = { sites: [{ siteId: 'site-a' }, { siteId: 'site-b' }] as CsiPeriod['sites'] };
+        beforeEach(() => {
+            periods.rows[0] = { ...periods.rows[0], ...SITE_PERIOD };
+            (service as any).ratees.rows.forEach((row: any) => { row.siteId = row.id === 'r1' ? 'site-a' : 'site-b'; });
+            responses.rows.find((row) => row.id === 'resp1')!.respondent.siteId = 'site-a';
+            responses.rows.find((row) => row.id === 'resp2')!.respondent.siteId = 'site-b';
+        });
+        afterEach(() => (service as any).ratees.rows.forEach((row: any) => { delete row.siteId; }));
+
+        it('report carries photoUrl, siteId and star distribution per ratee', async () => {
+            const report = await service.getReport(ICT, 'p1');
+            expect(report.ratees[0]).toMatchObject({ siteId: 'site-a', photoUrl: '/uploads/csi/budi.jpg', starDistribution: [0, 1, 1, 0, 1] });
+            expect(report.previousAverage).toBeNull();
+        });
+
+        it('siteId keeps only that site ratees and answers of respondents from that site', async () => {
+            const report = await service.getReport(ICT, 'p1', 'site-a');
+            expect(report.ratees.map((row) => row.displayName)).toEqual(['Budi']);
+            // Only resp1 (site-a): 5 and 2 -> 3.5
+            expect(report.ratees[0]).toMatchObject({ average: 3.5, respondentCount: 1 });
+            expect(report.overall).toEqual({ average: 3.5, respondentCount: 1 });
+            expect(sla.compute).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'p1' }), [{ id: 'site-a', code: null, name: null }], 1);
+        });
+
+        it('previousAverage is the latest earlier published period sharing a site', async () => {
+            periods.rows.push(
+                { ...period({ id: 'p-old', startDate: '2026-07-01', endDate: '2026-07-31', sites: [{ siteId: 'site-a' }] as any }), publishStatus: 'PUBLISHED' },
+                { ...period({ id: 'p-prev', startDate: '2026-08-01', endDate: '2026-09-30', sites: [{ siteId: 'site-b' }] as any }), publishStatus: 'PUBLISHED' },
+                { ...period({ id: 'p-draft', startDate: '2026-09-01', endDate: '2026-09-29', sites: [{ siteId: 'site-a' }] as any }), publishStatus: 'DRAFT' },
+                { ...period({ id: 'p-other', startDate: '2026-09-01', endDate: '2026-09-29', sites: [{ siteId: 'site-z' }] as any }), publishStatus: 'PUBLISHED' },
+            );
+            (service as any).ratees.rows.push(
+                { id: 'ro', periodId: 'p-old', kind: 'PERSON', userId: 'u1', siteId: 'site-a', displayName: 'Budi', jobTitle: null, sortOrder: 0 },
+                { id: 'rp', periodId: 'p-prev', kind: 'PERSON', userId: 'u2', siteId: 'site-b', displayName: 'Sari', jobTitle: null, sortOrder: 0 },
+            );
+            rateeDimensions.rows.push(
+                { id: 'rdo', periodRateeId: 'ro', dimensionName: 'Q', type: 'STAR', options: [], sortOrder: 0 },
+                { id: 'rdp', periodRateeId: 'rp', dimensionName: 'Q', type: 'STAR', options: [], sortOrder: 0 },
+            );
+            responses.rows.push(
+                { id: 'ro1', periodId: 'p-old', respondentId: 'x1', respondent: { id: 'x1', siteId: 'site-a' } },
+                { id: 'rp1', periodId: 'p-prev', respondentId: 'x2', respondent: { id: 'x2', siteId: 'site-b' } },
+            );
+            items.rows.push(
+                { id: 'io', responseId: 'ro1', periodRateeId: 'ro', periodRateeDimensionId: 'rdo', score: 2 },
+                { id: 'ip', responseId: 'rp1', periodRateeId: 'rp', periodRateeDimensionId: 'rdp', score: 4 },
+            );
+            expect((await service.getReport(ICT, 'p1')).previousAverage).toBe(4);
+            // Filtered on site-a: the previous period must cover site-a and is averaged for site-a only.
+            expect((await service.getReport(ICT, 'p1', 'site-a')).previousAverage).toBe(2);
+        });
     });
 });

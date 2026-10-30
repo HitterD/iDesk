@@ -9,6 +9,7 @@ import { INVALID_OPTIONS_MESSAGE, optionsMatchType } from '../csi-question.util'
 const NAME_MAX_LENGTH = 100;
 const QUESTION_MAX_LENGTH = 300;
 const DESCRIPTION_MAX_LENGTH = 300;
+export const SHORT_LABEL_MAX_LENGTH = 40;
 export const DEFAULT_USER_SEARCH_LIMIT = 20;
 export const MAX_USER_SEARCH_LIMIT = 50;
 const trimString = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
@@ -76,6 +77,13 @@ export class CreateDimensionDto {
     @MaxLength(DESCRIPTION_MAX_LENGTH, { message: 'Deskripsi maksimal 300 karakter' })
     description?: string | null;
 
+    /** Short label for reports; blank/null falls back to the full question text. */
+    @IsOptional()
+    @Transform(trimString)
+    @IsString({ message: 'Label singkat harus berupa teks' })
+    @MaxLength(SHORT_LABEL_MAX_LENGTH, { message: 'Label singkat maksimal 40 karakter' })
+    shortLabel?: string | null;
+
     @IsEnum(CsiQuestionType, { message: 'Jenis pertanyaan tidak valid' })
     type: CsiQuestionType;
 
@@ -106,6 +114,13 @@ export class UpdateDimensionDto {
     @IsString({ message: 'Deskripsi harus berupa teks' })
     @MaxLength(DESCRIPTION_MAX_LENGTH, { message: 'Deskripsi maksimal 300 karakter' })
     description?: string | null;
+
+    /** Short label for reports; blank/null falls back to the full question text. */
+    @IsOptional()
+    @Transform(trimString)
+    @IsString({ message: 'Label singkat harus berupa teks' })
+    @MaxLength(SHORT_LABEL_MAX_LENGTH, { message: 'Label singkat maksimal 40 karakter' })
+    shortLabel?: string | null;
 
     @ValidateIf(isProvided)
     @IsEnum(CsiQuestionType, { message: 'Jenis pertanyaan tidak valid' })

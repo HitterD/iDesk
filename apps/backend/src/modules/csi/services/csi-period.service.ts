@@ -514,8 +514,8 @@ export class CsiPeriodService {
     }
 }
 
-/** Question definition copied onto a ratee at assignment time (name + type/required/options). */
-type QuestionSnapshot = Pick<CsiDimension, 'id' | 'name' | 'type' | 'required' | 'options'>;
+/** Question definition copied onto a ratee at assignment time (name, shortLabel, type/required/options). */
+type QuestionSnapshot = Pick<CsiDimension, 'id' | 'name' | 'shortLabel' | 'type' | 'required' | 'options'>;
 type RateeSnapshot = {
     kind: CsiRateeKind; userId: string | null; displayName: string; jobTitle: string | null;
     /** PERSON: User.siteId at snapshot time; TEAM: the team's site. */
@@ -526,10 +526,11 @@ type RateeSnapshot = {
     sortOrder?: number; dimensions: QuestionSnapshot[];
 };
 
-const questionSnapshot = ({ id, name, type, required, options }: CsiDimension): QuestionSnapshot => ({ id, name, type, required, options });
+const questionSnapshot = ({ id, name, shortLabel, type, required, options }: CsiDimension): QuestionSnapshot =>
+    ({ id, name, shortLabel: shortLabel ?? null, type, required, options });
 
 const dimensionRow = (periodRateeId: string, question: QuestionSnapshot, sortOrder: number) => ({
-    periodRateeId, dimensionId: question.id, dimensionName: question.name,
+    periodRateeId, dimensionId: question.id, dimensionName: question.name, shortLabel: question.shortLabel ?? null,
     type: question.type, required: question.required, options: question.options, sortOrder,
 });
 

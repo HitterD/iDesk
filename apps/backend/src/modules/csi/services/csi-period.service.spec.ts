@@ -174,7 +174,7 @@ describe('CsiPeriodService', () => {
         responses = memoryRepository<any>([]);
         dimensions = memoryRepository<any>([
             { id: 'd1', scope: ICT, name: 'Responsif', isActive: true, ...STAR_SNAPSHOT },
-            { id: 'd2', scope: ICT, name: 'Ramah', isActive: true, type: CsiQuestionType.SCALE, required: false, options: SCALE_OPTIONS },
+            { id: 'd2', scope: ICT, name: 'Ramah', shortLabel: 'Keramahan', isActive: true, type: CsiQuestionType.SCALE, required: false, options: SCALE_OPTIONS },
             { id: 'd-off', scope: ICT, name: 'Lama', isActive: false, ...STAR_SNAPSHOT },
             { id: 'd-hc', scope: HC, name: 'HC', isActive: true, ...STAR_SNAPSHOT },
         ]);
@@ -479,8 +479,8 @@ describe('CsiPeriodService', () => {
             ]);
             const savedDims = manager.saved.find((entry) => entry.target === CsiPeriodRateeDimension)!.value;
             expect(savedDims).toEqual([
-                expect.objectContaining({ periodRateeId: savedRatees[0].id, dimensionId: 'd2', dimensionName: 'Ramah', type: CsiQuestionType.SCALE, required: false, options: SCALE_OPTIONS, sortOrder: 0 }),
-                expect.objectContaining({ periodRateeId: savedRatees[0].id, dimensionId: 'd1', dimensionName: 'Responsif', ...STAR_SNAPSHOT, sortOrder: 1 }),
+                expect.objectContaining({ periodRateeId: savedRatees[0].id, dimensionId: 'd2', dimensionName: 'Ramah', shortLabel: 'Keramahan', type: CsiQuestionType.SCALE, required: false, options: SCALE_OPTIONS, sortOrder: 0 }),
+                expect.objectContaining({ periodRateeId: savedRatees[0].id, dimensionId: 'd1', dimensionName: 'Responsif', shortLabel: null, ...STAR_SNAPSHOT, sortOrder: 1 }),
                 expect.objectContaining({ periodRateeId: savedRatees[1].id, dimensionId: 'd1', dimensionName: 'Responsif', sortOrder: 0 }),
             ]);
         });
@@ -538,8 +538,8 @@ describe('CsiPeriodService', () => {
                 siteId: 'site-a', teamId: 'team-site-a', photoUrl: null, tagline: null,
             })]);
             expect(manager.saved.find((entry) => entry.target === CsiPeriodRateeDimension)!.value).toEqual([
-                expect.objectContaining({ periodRateeId: savedRatees[0].id, dimensionId: 'd2', dimensionName: 'Ramah', type: CsiQuestionType.SCALE, required: false, options: SCALE_OPTIONS, sortOrder: 0 }),
-                expect.objectContaining({ periodRateeId: savedRatees[0].id, dimensionId: 'd1', dimensionName: 'Responsif', ...STAR_SNAPSHOT, sortOrder: 1 }),
+                expect.objectContaining({ periodRateeId: savedRatees[0].id, dimensionId: 'd2', dimensionName: 'Ramah', shortLabel: 'Keramahan', type: CsiQuestionType.SCALE, required: false, options: SCALE_OPTIONS, sortOrder: 0 }),
+                expect.objectContaining({ periodRateeId: savedRatees[0].id, dimensionId: 'd1', dimensionName: 'Responsif', shortLabel: null, ...STAR_SNAPSHOT, sortOrder: 1 }),
             ]);
             const builder = periods.createQueryBuilder.mock.results.at(-1)!.value;
             expect(builder.setLock).toHaveBeenCalledWith('pessimistic_write');
