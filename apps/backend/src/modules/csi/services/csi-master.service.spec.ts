@@ -57,7 +57,7 @@ describe('CSI master scope boundaries', () => {
 
     it('creates a dimension in the supplied scope and soft-deactivates without mutation', async () => {
         expect(await service.createDimension(scope, { name: 'Layanan', description: 'Baik', type: CsiQuestionType.STAR }))
-            .toEqual({ scope, name: 'Layanan', description: 'Baik', type: CsiQuestionType.STAR, required: true, options: [], sortOrder: 0 });
+            .toEqual({ scope, name: 'Layanan', description: 'Baik', shortLabel: null, type: CsiQuestionType.STAR, required: true, options: [], sortOrder: 0 });
         const row = { id: 'd1', scope, name: 'Layanan', isActive: true };
         dimensions.findOne.mockResolvedValue(row);
         expect(await service.deactivateDimension(scope, 'd1')).toEqual({ ...row, isActive: false });
@@ -224,5 +224,14 @@ describe('CSI master scope boundaries', () => {
         ]);
         expect(created[6].options).toEqual([]);
         expect(dimensions.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('stores shortLabel on create and update, blank clears it', async () => {
+        expect(await service.createDimension(scope, { name: 'Kecepatan respon tim', type: CsiQuestionType.STAR, shortLabel: 'Kecepatan' }))
+            .toMatchObject({ shortLabel: 'Kecepatan' });
+        expect(await service.createDimension(scope, { name: 'Tanpa label', type: CsiQuestionType.STAR })).toMatchObject({ shortLabel: null });
+        dimensions.findOne.mockResolvedValue({ id: 'd1', scope, name: 'Q', shortLabel: 'Lama', type: CsiQuestionType.STAR, options: [] });
+        expect(await service.updateDimension(scope, 'd1', { shortLabel: 'Baru' })).toMatchObject({ shortLabel: 'Baru' });
+        expect(await service.updateDimension(scope, 'd1', { shortLabel: '' })).toMatchObject({ shortLabel: null });
     });
 });

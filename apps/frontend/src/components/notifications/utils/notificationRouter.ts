@@ -30,6 +30,10 @@ export function getNotificationRedirectPath(
         if (userRole === 'MANAGER' && link.startsWith('/tickets/')) {
             return `/manager/tickets`; // Manager has single ticket page currently
         }
+        // CSI survey routes (`csi/:id`) exist under every layout, so only the role prefix is added.
+        if (link.startsWith('/csi/')) {
+            return `${prefix}${link}`;
+        }
         return link;
     }
 

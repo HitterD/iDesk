@@ -129,6 +129,7 @@ export class NotificationPreferencesController {
                 [NotificationType.SLA_WARNING]: 'When a ticket is approaching SLA breach',
                 [NotificationType.SLA_BREACHED]: 'When a ticket has breached SLA',
                 [NotificationType.SYSTEM]: 'System announcements and updates',
+                [NotificationType.CSI_REMINDER]: 'Reminder to complete a CSI survey',
                 [NotificationType.RENEWAL_D60_WARNING]: 'Contract expiring in 60 days (2 months)',
                 [NotificationType.RENEWAL_D30_WARNING]: 'Contract expiring in 30 days',
                 [NotificationType.RENEWAL_D7_WARNING]: 'Contract expiring in 7 days',

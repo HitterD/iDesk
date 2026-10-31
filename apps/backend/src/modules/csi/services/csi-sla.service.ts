@@ -6,6 +6,7 @@ import { Ticket } from '../../ticketing/entities/ticket.entity';
 import { CsiRespondentMode } from '../csi.constants';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
+import { CsiAssignmentService } from './csi-assignment.service';
 import { pengisiPct, slaTarget } from './csi-score.util';
 
 const WINDOW_MONTHS = 12;
@@ -33,6 +34,7 @@ export class CsiSlaService {
     constructor(
         @InjectRepository(Ticket) private readonly tickets: Repository<Ticket>,
         @InjectRepository(CsiPeriodRater) private readonly periodRaters: Repository<CsiPeriodRater>,
+        private readonly assignments: CsiAssignmentService,
     ) { }
 
     /** SLA basis, target and % Pengisi for a period over the given sites (`responses` = distinct responses). */
@@ -66,12 +68,16 @@ export class CsiSlaService {
             .getRawMany<ReporterRow>();
     }
 
+    /** Active listed raters of the sites; in a mapped period only raters with at least one pair (the others never see it). */
     private async listedReporters(periodId: string, siteIds: string[]): Promise<ReporterRow[]> {
-        const raters = await this.periodRaters.find({
-            where: { periodId, user: { isActive: true, siteId: In(siteIds) } },
-            relations: { user: { department: true } },
-        });
-        return raters.map(({ userId, user }) => ({
+        const [raters, paired] = await Promise.all([
+            this.periodRaters.find({
+                where: { periodId, user: { isActive: true, siteId: In(siteIds) } },
+                relations: { user: { department: true } },
+            }),
+            this.assignments.ratersWithPairs(periodId),
+        ]);
+        return raters.filter((rater) => !paired || paired.has(rater.id)).map(({ userId, user }) => ({
             id: userId, email: user.email, fullName: user.fullName, department: user.department?.name ?? null,
         }));
     }

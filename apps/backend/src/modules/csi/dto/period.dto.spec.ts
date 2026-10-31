@@ -1,5 +1,5 @@
 import { ValidationPipe } from '@nestjs/common';
-import { CreatePeriodDto, SetRateesDto, SetTeamQuestionsDto, UpdatePeriodDto } from './period.dto';
+import { CreatePeriodDto, SetRateesDto, SetTeamQuestionsDto, UpdatePeriodDto, UpdatePeriodRateeDto } from './period.dto';
 
 const pipe = new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true });
 const parse = (metatype: any, value: unknown) => pipe.transform(value, { type: 'body', metatype });
@@ -45,10 +45,22 @@ describe('CSI period DTO validation', () => {
         await expect(parse(UpdatePeriodDto, { teamEnabled: 'yes' })).rejects.toThrow();
     });
 
-    it('validates team question ids', async () => {
-        expect(await parse(SetTeamQuestionsDto, { questionIds: [SITE] })).toMatchObject({ questionIds: [SITE] });
-        expect(await parse(SetTeamQuestionsDto, { questionIds: [] })).toMatchObject({ questionIds: [] });
-        await expect(parse(SetTeamQuestionsDto, { questionIds: ['x'] })).rejects.toThrow();
+    it('validates team question ids per site', async () => {
+        expect(await parse(SetTeamQuestionsDto, { siteId: SITE, questionIds: [SITE] })).toMatchObject({ siteId: SITE, questionIds: [SITE] });
+        expect(await parse(SetTeamQuestionsDto, { siteId: SITE, questionIds: [] })).toMatchObject({ questionIds: [] });
+        await expect(parse(SetTeamQuestionsDto, { siteId: SITE, questionIds: ['x'] })).rejects.toThrow();
+        await expect(parse(SetTeamQuestionsDto, { questionIds: [SITE] })).rejects.toThrow();
+        await expect(parse(SetTeamQuestionsDto, { siteId: 'x', questionIds: [] })).rejects.toThrow();
+    });
+
+    it('validates the per-period ratee override', async () => {
+        expect(await parse(UpdatePeriodRateeDto, { tagline: ' Siap ', photoUrl: null, siteId: SITE }))
+            .toMatchObject({ tagline: 'Siap', photoUrl: null, siteId: SITE });
+        expect(await parse(UpdatePeriodRateeDto, { tagline: null })).toMatchObject({ tagline: null });
+        await expect(parse(UpdatePeriodRateeDto, { tagline: 'x'.repeat(91) })).rejects.toThrow();
+        await expect(parse(UpdatePeriodRateeDto, { photoUrl: '/uploads/csi/a.jpg' })).rejects.toThrow();
+        await expect(parse(UpdatePeriodRateeDto, { siteId: 'x' })).rejects.toThrow();
+        await expect(parse(UpdatePeriodRateeDto, { displayName: 'X' })).rejects.toThrow();
     });
 
     it('validates nested ratee assignments', async () => {

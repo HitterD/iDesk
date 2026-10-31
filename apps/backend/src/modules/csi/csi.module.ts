@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { AuditModule } from '../audit/audit.module';
+import { NotificationModule } from '../notifications/notification.module';
+import { Notification } from '../notifications/entities/notification.entity';
 import { User } from '../users/entities/user.entity';
 import { PermissionPreset } from '../permissions/entities/permission-preset.entity';
 import { Site } from '../sites/entities/site.entity';
@@ -20,6 +22,17 @@ import { CsiAdminReportController } from './presentation/csi-admin-report.contro
 import { CsiMemoSetting } from './entities/csi-memo-setting.entity';
 import { CsiMemoService } from './services/csi-memo.service';
 import { CsiAdminMemoController } from './presentation/csi-admin-memo.controller';
+import { CsiSubjectService } from './services/csi-subject.service';
+import { CsiAssignmentService } from './services/csi-assignment.service';
+import { CsiAdminSubjectController } from './presentation/csi-admin-subject.controller';
+import { CsiAdminAssignmentController } from './presentation/csi-admin-assignment.controller';
+import { CsiReminderService } from './services/csi-reminder.service';
+import { CsiDashboardService } from './services/csi-dashboard.service';
+import { CsiAdminDashboardController } from './presentation/csi-admin-dashboard.controller';
+import { CsiTeam } from './entities/csi-team.entity';
+import { CsiSubjectProfile } from './entities/csi-subject-profile.entity';
+import { CsiRaterAssignment } from './entities/csi-rater-assignment.entity';
+import { CsiPeriodRaterRatee } from './entities/csi-period-rater-ratee.entity';
 import { CsiDimension } from './entities/csi-dimension.entity';
 import { CsiDepartment } from './entities/csi-department.entity';
 import { CsiRater } from './entities/csi-rater.entity';
@@ -37,12 +50,18 @@ import { CsiResponseComment } from './entities/csi-response-comment.entity';
         TypeOrmModule.forFeature([
             CsiDimension, CsiDepartment, CsiRater, CsiPeriod, CsiPeriodSite, CsiPeriodRatee,
             CsiPeriodRateeDimension, CsiPeriodRater, CsiResponse, CsiResponseItem, CsiResponseComment,
-            CsiMemoSetting, User, PermissionPreset, Site, Ticket,
+            CsiMemoSetting, CsiTeam, CsiSubjectProfile, CsiRaterAssignment, CsiPeriodRaterRatee,
+            User, PermissionPreset, Site, Ticket, Notification,
         ]),
         AuthModule,
         AuditModule,
+        NotificationModule,
     ],
-    controllers: [CsiAdminMasterController, CsiAdminPeriodController, CsiAdminReportController, CsiAdminMemoController, CsiMeController],
-    providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService, CsiMemoService],
+    controllers: [
+        CsiAdminMasterController, CsiAdminPeriodController, CsiAdminReportController, CsiAdminMemoController, CsiMeController,
+        CsiAdminSubjectController, CsiAdminAssignmentController, CsiAdminDashboardController,
+    ],
+    providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService, CsiMemoService,
+        CsiSubjectService, CsiAssignmentService, CsiReminderService, CsiDashboardService],
 })
 export class CsiModule { }

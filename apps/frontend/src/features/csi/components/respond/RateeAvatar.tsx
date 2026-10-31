@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { siteTone, toneClasses } from '../../lib/csiTone';
+import type { CsiFormRatee } from '../../types';
 
 /** Existing ticket palette tokens (tint + ink pairs work in light and dark). Literal strings so Tailwind emits them. */
 const INITIAL_TONES = [
@@ -17,7 +19,7 @@ const SIZES = {
 } as const;
 
 /** Same rule as UserAvatar: relative upload paths are served by the API origin. */
-const imageUrl = (url: string) =>
+export const imageUrl = (url: string) =>
     /^(https?:|blob:|data:)/.test(url) ? url : `${import.meta.env.VITE_API_URL || ''}${url}`;
 
 /** Deterministic: the same name always gets the same tone. */
@@ -38,6 +40,23 @@ export function RateeAvatar({ name, avatarUrl, size = 'lg' }: { name: string; av
                     onError={() => setFailedUrl(avatarUrl)} />
             ) : (
                 <span aria-hidden="true">{name.trim().charAt(0).toUpperCase() || '?'}</span>
+            )}
+        </span>
+    );
+}
+
+/** Subject photo (`photoUrl`, else `avatarUrl`) or its initial on the site colour; decorative, size set by `className`. */
+export function SubjectAvatar({ ratee, className }: { ratee: Pick<CsiFormRatee, 'displayName' | 'photoUrl' | 'avatarUrl' | 'siteCode'>; className?: string }) {
+    const [failedUrl, setFailedUrl] = useState<string | null>(null);
+    const url = ratee.photoUrl ?? ratee.avatarUrl;
+    const showImage = Boolean(url) && failedUrl !== url;
+    return (
+        <span className={cn('grid shrink-0 place-items-center overflow-hidden rounded-full font-bold text-white', className,
+            !showImage && toneClasses(siteTone(ratee.siteCode)).fill)}>
+            {showImage && url ? (
+                <img src={imageUrl(url)} alt="" loading="lazy" className="h-full w-full object-cover" onError={() => setFailedUrl(url)} />
+            ) : (
+                <span aria-hidden="true">{ratee.displayName.trim().charAt(0).toUpperCase() || '?'}</span>
             )}
         </span>
     );

@@ -6,6 +6,7 @@ const LOCALE = 'id-ID';
 const EMPTY = '—';
 const AVERAGE_FORMAT = new Intl.NumberFormat(LOCALE, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const SCORE_FORMAT = new Intl.NumberFormat(LOCALE, { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+const FIXED2_FORMAT = new Intl.NumberFormat(LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const PERCENT_FORMAT = new Intl.NumberFormat(LOCALE, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 /** One-decimal star average (respondent review screen). */
@@ -13,6 +14,9 @@ export const formatAverage = (value: number) => AVERAGE_FORMAT.format(value);
 
 /** Report average as returned by the backend (2 decimals max); null → "—". */
 export const formatScore = (value: number | null) => value === null ? EMPTY : SCORE_FORMAT.format(value);
+
+/** Headline score with exactly two decimals ("4,65", "4,00"); null → "—". */
+export const formatFixed2 = (value: number | null) => value === null ? EMPTY : FIXED2_FORMAT.format(value);
 
 /** Satisfaction index percentage; null → "—". */
 export const formatPercent = (value: number | null) => value === null ? EMPTY : `${PERCENT_FORMAT.format(value)}%`;

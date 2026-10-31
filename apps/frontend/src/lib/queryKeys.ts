@@ -69,8 +69,14 @@ export const queryKeys = {
         userSearch: (scope: 'ict' | 'hc', search: string) => ['csi', scope, 'users', search] as const,
         periods: (scope: 'ict' | 'hc', siteId?: string) =>
             ['csi', scope, 'periods', ...(siteId === undefined ? [] : [siteId])] as const,
+        /** Prefix of every period detail of a scope (subject master edits change all of them). */
+        periodDetails: (scope: 'ict' | 'hc') => ['csi', scope, 'period'] as const,
         period: (scope: 'ict' | 'hc', id: string) => ['csi', scope, 'period', id] as const,
-        report: (scope: 'ict' | 'hc', id: string) => ['csi', scope, 'report', id] as const,
+        report: (scope: 'ict' | 'hc', id: string, siteId?: string) =>
+            ['csi', scope, 'report', id, ...(siteId === undefined ? [] : [siteId])] as const,
+        subjects: (scope: 'ict' | 'hc') => ['csi', scope, 'subjects'] as const,
+        assignments: (scope: 'ict' | 'hc', periodId: string) => ['csi', scope, 'assignments', periodId] as const,
+        dashboard: (scope: 'ict' | 'hc') => ['csi', scope, 'dashboard'] as const,
         respondents: (scope: 'ict' | 'hc', id: string) => ['csi', scope, 'respondents', id] as const,
         responseDetail: (scope: 'ict' | 'hc', id: string, responseId?: string) =>
             ['csi', scope, 'response', id, ...(responseId === undefined ? [] : [responseId])] as const,

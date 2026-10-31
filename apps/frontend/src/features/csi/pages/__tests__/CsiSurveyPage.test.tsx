@@ -56,7 +56,7 @@ const renderPage = () => {
 
 type User = ReturnType<typeof userEvent.setup>;
 const rate = async (user: User, group: string, stars: number) =>
-    user.click(within(screen.getByRole('radiogroup', { name: group })).getByRole('radio', { name: `${stars} dari 5` }));
+    user.click(within(screen.getByRole('radiogroup', { name: group })).getByRole('radio', { name: `${stars} bintang` }));
 
 /** Intro → Andi → Budi → review, then press "Kirim". */
 const fillAndSubmit = async (user: User, comment?: string) => {
@@ -66,7 +66,7 @@ const fillAndSubmit = async (user: User, comment?: string) => {
     await rate(user, 'Kecepatan untuk Andi', 5);
     await rate(user, 'Keramahan untuk Andi', 4);
     if (comment) await user.type(screen.getByLabelText('Saran untuk Andi (opsional)'), comment);
-    await user.click(screen.getByRole('button', { name: 'Lanjut' }));
+    await user.click(screen.getByRole('button', { name: /^Lanjut/ }));
     await rate(user, 'Kecepatan untuk Budi', 3);
     await user.click(screen.getByRole('button', { name: 'Tinjau jawaban' }));
     await user.click(screen.getByRole('button', { name: 'Kirim' }));
@@ -100,6 +100,11 @@ describe('CsiSurveyPage', () => {
         await fillAndSubmit(user, '  Pertahankan  ');
 
         expect(await screen.findByText('Terima kasih atas penilaian Anda!')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Terima kasih, Rina Pemohon!' })).toBeInTheDocument();
+        expect(screen.getByText('Penilaian Anda untuk 2 subjek sudah terkirim.')).toBeInTheDocument();
+        const summary = within(screen.getByRole('list', { name: 'Semua subjek' }));
+        expect(summary.getByRole('img', { name: 'Rata-rata 4,5 dari 5' })).toBeInTheDocument();
+        expect(summary.getByRole('img', { name: 'Rata-rata 3,0 dari 5' })).toBeInTheDocument();
         expect(CsiApi.submit).toHaveBeenCalledWith('p1', {
             respondentName: 'Rina Pemohon', departmentId: 'd2',
             items: [
@@ -152,7 +157,7 @@ describe('CsiSurveyPage', () => {
         const user = userEvent.setup();
         renderPage();
         await fillAndSubmit(user);
-        expect(await screen.findByRole('heading', { name: 'Terima kasih!' })).toBeInTheDocument();
+        expect(await screen.findByRole('heading', { name: 'Terima kasih, Rina Pemohon!' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Kembali ke daftar survei' })).toHaveAttribute('href', '/client/csi');
         await user.click(screen.getByRole('button', { name: 'Isi lagi atas nama orang lain' }));
         expect(await screen.findByLabelText('Nama')).toHaveValue('');
@@ -160,7 +165,7 @@ describe('CsiSurveyPage', () => {
         expect(screen.queryByText('Melanjutkan isian sebelumnya')).not.toBeInTheDocument();
         await user.type(screen.getByLabelText('Nama'), 'Sari');
         await user.click(screen.getByRole('button', { name: 'Mulai mengisi' }));
-        expect(within(screen.getByRole('radiogroup', { name: 'Kecepatan untuk Andi' })).getByRole('radio', { name: '5 dari 5' }))
+        expect(within(screen.getByRole('radiogroup', { name: 'Kecepatan untuk Andi' })).getByRole('radio', { name: '5 bintang' }))
             .toHaveAttribute('aria-checked', 'false');
     });
 

@@ -6,11 +6,15 @@ import { averageOfAverages, responseAverage } from './csi-score.util';
 
 const PERCENT = 100;
 const INDEX_DECIMALS = 10;
+const SCORED_TYPES = new Set([CsiQuestionType.STAR, CsiQuestionType.SCALE]);
 
 export type CsiItemRow = Pick<CsiResponseItem, 'responseId' | 'periodRateeId' | 'periodRateeDimensionId' | 'score' | 'answerLabel'> & { answerText?: string | null };
 export type CsiDistributionBucket = { label: string; count: number };
 export type CsiQuestionStat = {
-    name: string; type: CsiQuestionType; average: number | null; count: number; distribution: CsiDistributionBucket[];
+    name: string; shortLabel: string | null;
+    /** Master question description (e.g. "[Kecepatan respon ...]"); null when absent or the `dimension` relation is not loaded. */
+    description: string | null;
+    type: CsiQuestionType; average: number | null; count: number; distribution: CsiDistributionBucket[];
 };
 
 const countBy = <T>(rows: T[], key: (row: T) => string): Map<string, number> => {
@@ -48,22 +52,50 @@ export function questionStat(dimension: CsiPeriodRateeDimension, items: CsiItemR
     const own = items.filter((item) => item.periodRateeDimensionId === dimension.id);
     const scores = own.map((item) => item.score).filter((score): score is number => score !== null && score !== undefined);
     return {
-        name: dimension.dimensionName, type: dimension.type ?? CsiQuestionType.STAR,
+        name: dimension.dimensionName, shortLabel: dimension.shortLabel ?? null, description: dimension.dimension?.description ?? null, type: dimension.type ?? CsiQuestionType.STAR,
         average: responseAverage(scores), count: scores.length, distribution: distributionOf(dimension, own),
     };
 }
 
+/** Counts of scored STAR/SCALE answers per rounded value 1..5 (index 0 = 1 star). */
+export function starDistribution(dimensions: CsiPeriodRateeDimension[], items: CsiItemRow[]): number[] {
+    const scored = new Set(dimensions
+        .filter((dimension) => SCORED_TYPES.has(dimension.type ?? CsiQuestionType.STAR))
+        .map((dimension) => dimension.id));
+    const counts = Array.from({ length: CSI_SCORE_MAX - CSI_SCORE_MIN + 1 }, () => 0);
+    items.forEach((item) => {
+        if (item.score === null || item.score === undefined || !scored.has(item.periodRateeDimensionId)) return;
+        const value = Math.min(CSI_SCORE_MAX, Math.max(CSI_SCORE_MIN, Math.round(item.score)));
+        counts[value - CSI_SCORE_MIN] += 1;
+    });
+    return counts;
+}
+
+/** Resolved display profile of a ratee (period override -> master); defaults to the period row. */
+export type CsiRateeDisplay = { siteId: string | null; photoUrl: string | null };
+
 /** Ratee report row: average = mean of each respondent's own average over this ratee's questions. */
-export function rateeStats(ratee: CsiPeriodRatee, dimensions: CsiPeriodRateeDimension[], allItems: CsiItemRow[]) {
+export function rateeStats(ratee: CsiPeriodRatee, dimensions: CsiPeriodRateeDimension[], allItems: CsiItemRow[], display?: CsiRateeDisplay) {
     const items = allItems.filter((item) => item.periodRateeId === ratee.id);
+    const own = dimensions.filter((dimension) => dimension.periodRateeId === ratee.id);
     const average = averageOfAverages(responseAverages(items));
     return {
         periodRateeId: ratee.id, kind: ratee.kind, displayName: ratee.displayName, jobTitle: ratee.jobTitle,
+        siteId: display ? display.siteId : ratee.siteId ?? null,
+        photoUrl: display ? display.photoUrl : ratee.photoUrl ?? null,
         respondentCount: new Set(items.map((item) => item.responseId)).size,
         average,
         indexPct: average === null ? null : Math.round((average / CSI_SCORE_MAX) * PERCENT * INDEX_DECIMALS) / INDEX_DECIMALS,
-        questions: dimensions.filter((dimension) => dimension.periodRateeId === ratee.id).map((dimension) => questionStat(dimension, items)),
+        starDistribution: starDistribution(own, items),
+        questions: own.map((dimension) => questionStat(dimension, items)),
     };
+}
+
+/** Site filter: items of ratees in the site, answered by respondents of that site. */
+export function itemsForSite<T extends Pick<CsiItemRow, 'responseId' | 'periodRateeId'>>(
+    items: T[], rateeSite: Map<string, string | null>, responseSite: Map<string, string | null>, siteId: string,
+): T[] {
+    return items.filter((item) => rateeSite.get(item.periodRateeId) === siteId && responseSite.get(item.responseId) === siteId);
 }
 
 /** Survey average: mean over responses of the average of ALL scored items of that response. */
