@@ -56,6 +56,10 @@ const GENESIS_WINDOW_MS = 60_000;
 const isResolutionStatement = (content?: string) =>
     Boolean(content?.includes('Tiket Dinyatakan Selesai') || content?.includes('Tiket Diselesaikan (Resolved)'));
 
+/** A chat bubble, as opposed to a system card or the resolution statement. */
+const isChatBubble = (m: ChatMessage | undefined) =>
+    Boolean(m && !m.isSystemMessage && !isResolutionStatement(m.content));
+
 const DateSeparator: React.FC<{ date: string }> = ({ date }) => (
     <div className="chat-day">{dateSeparatorLabel(date)}</div>
 );
@@ -259,8 +263,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         rootIssueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
-    const isBubble = (m: ChatMessage | undefined) =>
-        Boolean(m && !m.isSystemMessage && !isResolutionStatement(m.content));
+    const isBubble = isChatBubble;
     /** Messages in display order; system cards stay in place, internal notes only for staff. */
     const visibleMessages = sortedMessages.filter(m =>
         m.id !== genesisMessageId && !(isBubble(m) && m.isInternal && !canAddInternalNote)
@@ -270,7 +273,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const announcement = useNewMessageAnnouncement(latestBubble, isOwn);
 
     useEffect(() => {
-        const fresh = visibleMessages.filter((m) => !seenMessageIdsRef.current.has(m.id));
+        const fresh = sortedMessages.filter((m) => !seenMessageIdsRef.current.has(m.id));
         if (fresh.length === 0) return;
         fresh.forEach((m) => seenMessageIdsRef.current.add(m.id));
         // The viewer's own send always brings them down to it.
@@ -278,9 +281,10 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             scrollToBottom();
             return;
         }
-        const unseenBubbles = fresh.filter(isBubble).length;
+        // Internal notes the viewer cannot see never reach them (requesters get none over REST or socket).
+        const unseenBubbles = fresh.filter(isChatBubble).length;
         if (unseenBubbles > 0) setUnseenCount((count) => count + unseenBubbles);
-    });
+    }, [sortedMessages, isOwn, scrollToBottom]);
 
     return (
         <div className="relative flex h-full flex-col overflow-hidden">
