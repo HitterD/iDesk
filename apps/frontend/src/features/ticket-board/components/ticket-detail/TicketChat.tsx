@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { Wifi, Lock, FileText, Pin, ChevronDown, Paperclip } from 'lucide-react';
+import { Wifi, Lock, FileText, Pin, ChevronDown, ChevronsDown, Paperclip } from 'lucide-react';
 import { toast } from 'sonner';
 import { TicketDetail } from './types';
 import { CLOSED_TICKET_NOTICE } from './constants';
@@ -48,6 +48,8 @@ type Reaction = { emoji: string; count: number; users: string[]; hasReacted: boo
 type ChatMessage = NonNullable<TicketDetail['messages']>[number];
 
 const HIGHLIGHT_MS = 1600;
+/** Within this distance of the bottom the reader counts as following the conversation. */
+const NEAR_BOTTOM_PX = 120;
 /** The opening report message is written in the same transaction as the ticket, so within seconds of it. */
 const GENESIS_WINDOW_MS = 60_000;
 
@@ -181,12 +183,29 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         return first.content?.trim() === ticket.description.trim() && savedWithTicket ? first.id : null;
     }, [sortedMessages, ticket.description, ticket.createdAt]);
 
-    // Auto-scroll on new messages
+    // Follow the conversation only while the reader is at the bottom; scrolled up, new messages are counted instead.
+    const nearBottomRef = useRef(true);
+    const [isAwayFromBottom, setIsAwayFromBottom] = useState(false);
+    const [unseenCount, setUnseenCount] = useState(0);
+    const seenMessageIdsRef = useRef(initialMessageIds);
+    const scrollToBottom = useCallback(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), []);
+    const handleStreamScroll = () => {
+        const stream = streamRef.current;
+        if (!stream) return;
+        const near = stream.scrollHeight - stream.scrollTop - stream.clientHeight <= NEAR_BOTTOM_PX;
+        nearBottomRef.current = near;
+        setIsAwayFromBottom(!near);
+        if (near) setUnseenCount(0);
+    };
+    const jumpToLatest = () => {
+        scrollToBottom();
+        setUnseenCount(0);
+    };
+
+    useEffect(() => { scrollToBottom(); }, [scrollToBottom]);
     useEffect(() => {
-        if (ticket?.messages) {
-            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }
-    }, [ticket?.messages, typingUsers]);
+        if (Object.keys(typingUsers).length > 0 && nearBottomRef.current) scrollToBottom();
+    }, [typingUsers, scrollToBottom]);
 
     useEffect(() => () => {
         if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
@@ -249,6 +268,19 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const groupKey = (m: ChatMessage) => ({ senderId: m.sender?.id || m.sender?.fullName, isInternal: m.isInternal, createdAt: m.createdAt });
     const latestBubble = [...visibleMessages].reverse().find(isBubble);
     const announcement = useNewMessageAnnouncement(latestBubble, isOwn);
+
+    useEffect(() => {
+        const fresh = visibleMessages.filter((m) => !seenMessageIdsRef.current.has(m.id));
+        if (fresh.length === 0) return;
+        fresh.forEach((m) => seenMessageIdsRef.current.add(m.id));
+        // The viewer's own send always brings them down to it.
+        if (nearBottomRef.current || fresh.some(isOwn)) {
+            scrollToBottom();
+            return;
+        }
+        const unseenBubbles = fresh.filter(isBubble).length;
+        if (unseenBubbles > 0) setUnseenCount((count) => count + unseenBubbles);
+    });
 
     return (
         <div className="relative flex h-full flex-col overflow-hidden">
@@ -339,7 +371,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             )}
 
             {/* ── Main Messages Stream ── */}
-            <div ref={streamRef} className="chat-stream custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-[18px]">
+            <div ref={streamRef} onScroll={handleStreamScroll} className="chat-stream custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-[18px]">
 
                 {/* Root issue (genesis report), drawn as the requester's first bubble */}
                 <div ref={rootIssueRef} data-root-issue className={cn('chat-msg', rootIsOutgoing && 'is-out')}>
@@ -492,6 +524,15 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                 </div>
                 <div ref={messagesEndRef} />
             </div>
+
+            {isAwayFromBottom && (
+                <div className="relative h-0">
+                    <button type="button" className="chat-jump" aria-label="Lompat ke pesan terbaru" title="Lompat ke pesan terbaru" onClick={jumpToLatest}>
+                        <ChevronsDown aria-hidden="true" />
+                        {unseenCount > 0 && <span className="chat-jump-badge" aria-label={`${unseenCount} pesan baru`}>{unseenCount}</span>}
+                    </button>
+                </div>
+            )}
 
             {/* Screen readers hear only "Pesan baru dari X"; bubbles, tool pills and the typing indicator stay silent. */}
             <div className="sr-only" role="status" data-testid="chat-announcer">

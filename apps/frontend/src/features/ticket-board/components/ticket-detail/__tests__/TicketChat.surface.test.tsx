@@ -236,6 +236,63 @@ describe('TicketChat surface', () => {
         expect(announcer).toHaveTextContent('Pesan baru dari Shannon Stephanie Limawan');
     });
 
+    describe('jump to latest', () => {
+        const props = { isConnected: true, onSendMessage: vi.fn(() => Promise.resolve()), onImageClick: vi.fn() };
+        const client = new QueryClient();
+        const view = (t: TicketDetail) => (
+            <QueryClientProvider client={client}><TicketChat ticket={t} {...props} /></QueryClientProvider>
+        );
+        const msg = (id: string, senderId: string, fullName: string) => ({
+            id, content: `pesan ${id}`, createdAt: '2026-10-06T06:30:00Z', isSystemMessage: false, attachments: [], sender: { id: senderId, fullName },
+        });
+        const withMessages = (...extra: ReturnType<typeof msg>[]) => ({ ...ticket, messages: [...(ticket.messages ?? []), ...extra] } as TicketDetail);
+        /** Puts the stream 1000px above its bottom, as if the reader scrolled up into the history. */
+        const scrollUp = () => {
+            const stream = document.querySelector('.chat-stream') as HTMLElement;
+            Object.defineProperty(stream, 'scrollHeight', { configurable: true, value: 2000 });
+            Object.defineProperty(stream, 'clientHeight', { configurable: true, value: 500 });
+            stream.scrollTop = 500;
+            fireEvent.scroll(stream);
+            return stream;
+        };
+
+        it('shows a jump button with the count of messages that arrived while scrolled up', () => {
+            const { rerender } = render(view(ticket));
+            scrollUp();
+            rerender(view(withMessages(msg('n-1', 'user-1', 'SHANNON STEPHANIE LIMAWAN'))));
+            rerender(view(withMessages(msg('n-1', 'user-1', 'SHANNON STEPHANIE LIMAWAN'), msg('n-2', 'user-1', 'SHANNON STEPHANIE LIMAWAN'))));
+            expect(screen.getByRole('button', { name: 'Lompat ke pesan terbaru' })).toBeInTheDocument();
+            expect(screen.getByLabelText('2 pesan baru')).toHaveTextContent('2');
+        });
+
+        it('does not pull the reader down while they are scrolled up', () => {
+            const { rerender } = render(view(ticket));
+            scrollUp();
+            vi.mocked(Element.prototype.scrollIntoView).mockClear();
+            rerender(view(withMessages(msg('n-1', 'user-1', 'SHANNON STEPHANIE LIMAWAN'))));
+            expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+        });
+
+        it('own message always scrolls to the bottom', () => {
+            const { rerender } = render(view(ticket));
+            scrollUp();
+            vi.mocked(Element.prototype.scrollIntoView).mockClear();
+            rerender(view(withMessages(msg('n-1', 'agent-1', 'RM BAGASTYO'))));
+            expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+            expect(screen.queryByLabelText(/pesan baru/)).not.toBeInTheDocument();
+        });
+
+        it('clicking jump scrolls down and clears the badge', () => {
+            const { rerender } = render(view(ticket));
+            scrollUp();
+            rerender(view(withMessages(msg('n-1', 'user-1', 'SHANNON STEPHANIE LIMAWAN'))));
+            vi.mocked(Element.prototype.scrollIntoView).mockClear();
+            fireEvent.click(screen.getByRole('button', { name: 'Lompat ke pesan terbaru' }));
+            expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+            expect(screen.queryByLabelText(/pesan baru/)).not.toBeInTheDocument();
+        });
+    });
+
     it('keeps the composer in its own fixed region below the scrolling stream', () => {
         renderChat();
         const composer = document.querySelector('.chat-composer');

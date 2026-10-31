@@ -1477,6 +1477,17 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   .chat-tools > button { width: 36px; height: 36px; }
   .chat-msg { max-width: 92%; }
 }
+.chat-jump {
+  position: absolute; right: 16px; bottom: 12px; z-index: 5; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-text-secondary)); box-shadow: var(--queue-card-shadow-2);
+  animation: td-msg-in var(--dur-2) var(--ease-out);
+  transition: color var(--dur-1) var(--ease-out), transform var(--dur-2) var(--ease-spring);
+}
+.chat-jump:hover { color: hsl(var(--idesk-text)); }
+.chat-jump:active { transform: scale(.92); }
+.chat-jump:focus-visible { outline: 0; box-shadow: var(--td-ring); }
+.chat-jump svg { width: 20px; height: 20px; stroke-width: 2; }
+.chat-jump-badge { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; background: hsl(var(--idesk-sapphire)); font-variant-numeric: tabular-nums; }
 .chat-reacts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .chat-react {
   height: 26px; padding: 0 8px; border-radius: 13px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
