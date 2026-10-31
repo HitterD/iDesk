@@ -13,6 +13,8 @@ function ticketRepository(rows: any[]) {
     return { builder, createQueryBuilder: jest.fn(() => builder) };
 }
 
+const noPairs = { ratersWithPairs: jest.fn(async () => null) };
+
 describe('CsiSlaService', () => {
     const open = (over: Record<string, any> = {}) => ({ id: 'p1', respondentMode: CsiRespondentMode.OPEN, startDate: '2026-10-01', slaTargetPct: 80, ...over }) as any;
 
@@ -23,7 +25,7 @@ describe('CsiSlaService', () => {
             { id: 'u2', email: 'b@x.id', department: null, fullName: 'Budi' },
         ];
         const tickets = ticketRepository(rows);
-        const service = new CsiSlaService(tickets as any, { find: jest.fn() } as any);
+        const service = new CsiSlaService(tickets as any, { find: jest.fn() } as any, noPairs as any);
         const result = await service.compute(open(), sites, 2);
         expect(result).toMatchObject({ mode: CsiRespondentMode.OPEN, basis: 2, targetPct: 80, target: 2, responses: 2, pengisiPct: 100 });
         expect(result.reporters).toEqual([
@@ -39,13 +41,13 @@ describe('CsiSlaService', () => {
 
     it('SLA target ceil and pengisi capped at 100', async () => {
         const rows = Array.from({ length: 81 }, (_, i) => ({ id: `u${i}`, email: `${i}@x.id`, department: 'D', fullName: `N${i}` }));
-        const service = new CsiSlaService(ticketRepository(rows) as any, { find: jest.fn() } as any);
+        const service = new CsiSlaService(ticketRepository(rows) as any, { find: jest.fn() } as any, noPairs as any);
         const result = await service.compute(open(), sites, 216);
         expect(result).toMatchObject({ basis: 81, target: 65, responses: 216, pengisiPct: 100 });
     });
 
     it('SLA with no reporters has null pengisi', async () => {
-        const service = new CsiSlaService(ticketRepository([]) as any, { find: jest.fn() } as any);
+        const service = new CsiSlaService(ticketRepository([]) as any, { find: jest.fn() } as any, noPairs as any);
         expect(await service.compute(open(), sites, 3)).toMatchObject({ basis: 0, target: 0, pengisiPct: null });
     });
 
@@ -56,7 +58,7 @@ describe('CsiSlaService', () => {
         ];
         const find = jest.fn(async () => raters);
         const tickets = ticketRepository([]);
-        const service = new CsiSlaService(tickets as any, { find } as any);
+        const service = new CsiSlaService(tickets as any, { find } as any, noPairs as any);
         const result = await service.compute(open({ respondentMode: CsiRespondentMode.LISTED, slaTargetPct: 50 }), sites, 1);
         expect(tickets.createQueryBuilder).not.toHaveBeenCalled();
         expect(find).toHaveBeenCalledWith(expect.objectContaining({
@@ -64,5 +66,27 @@ describe('CsiSlaService', () => {
         }));
         expect(result).toMatchObject({ mode: CsiRespondentMode.LISTED, basis: 2, target: 1, pengisiPct: 100 });
         expect(result.reporters.map((row) => row.fullName)).toEqual(['Ani', 'Budi']);
+    });
+
+    describe('LISTED basis in a mapped period', () => {
+        const raters = [
+            { id: 'pr1', userId: 'u1', user: { email: 'b@x.id', fullName: 'Budi', department: null } },
+            { id: 'pr2', userId: 'u2', user: { email: 'a@x.id', fullName: 'Ani', department: null } },
+        ];
+        const listed = open({ respondentMode: CsiRespondentMode.LISTED });
+
+        it('raters without pairs are excluded when the period is mapped', async () => {
+            const assignments = { ratersWithPairs: jest.fn(async () => new Set(['pr1'])) };
+            const service = new CsiSlaService(ticketRepository([]) as any, { find: jest.fn(async () => raters) } as any, assignments as any);
+            const result = await service.compute(listed, sites, 0);
+            expect(assignments.ratersWithPairs).toHaveBeenCalledWith('p1');
+            expect(result.basis).toBe(1);
+            expect(result.reporters.map((row) => row.fullName)).toEqual(['Budi']);
+        });
+
+        it('no filtering when the period has no pairs', async () => {
+            const service = new CsiSlaService(ticketRepository([]) as any, { find: jest.fn(async () => raters) } as any, noPairs as any);
+            expect((await service.compute(listed, sites, 0)).basis).toBe(2);
+        });
     });
 });

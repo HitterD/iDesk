@@ -112,6 +112,29 @@ describe('QuestionCard', () => {
         expect(onSave).toHaveBeenCalledWith('q1', { isActive: false });
     });
 
+    it('saves the short label (max 40) with the full question as placeholder; empty clears it', async () => {
+        const user = userEvent.setup();
+        const onSave = vi.fn().mockResolvedValue(undefined);
+        render(<Harness onSave={onSave} />);
+        const field = screen.getByRole('textbox', { name: 'Label singkat (untuk laporan)' });
+        expect(field).toHaveAttribute('maxLength', '40');
+        expect(field).toHaveAttribute('placeholder', 'Kecepatan respon');
+        await user.type(field, '  Respon  ');
+        await user.tab();
+        expect(onSave).toHaveBeenCalledWith('q1', { shortLabel: 'Respon' });
+        await user.clear(field);
+        await user.tab();
+        expect(onSave).toHaveBeenLastCalledWith('q1', { shortLabel: null });
+    });
+
+    it('truncates a long question in the short label placeholder', () => {
+        const long = { ...QUESTION, name: 'Seberapa cepat petugas ICT merespon laporan yang Anda kirim lewat iDesk?' };
+        render(<QuestionCard question={long} handle={HANDLE} onSave={vi.fn()} />);
+        const placeholder = screen.getByRole('textbox', { name: 'Label singkat (untuk laporan)' }).getAttribute('placeholder') ?? '';
+        expect(placeholder.length).toBeLessThanOrEqual(40);
+        expect(placeholder.endsWith('…')).toBe(true);
+    });
+
     it('offers Aktifkan for an inactive question', () => {
         render(<QuestionCard question={{ ...QUESTION, isActive: false }} handle={HANDLE} onSave={vi.fn()} />);
         expect(screen.getByRole('button', { name: 'Aktifkan' })).toBeInTheDocument();

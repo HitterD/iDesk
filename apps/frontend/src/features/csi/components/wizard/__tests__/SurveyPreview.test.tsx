@@ -36,7 +36,7 @@ describe('SurveyPreview', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Mulai mengisi' }));
         expect(screen.getByRole('heading', { name: 'Admin Preview', level: 2 })).toBeInTheDocument();
         expect(screen.getByText('Respons cepat')).toBeInTheDocument();
-        fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Kecepatan untuk Admin Preview' })).getByRole('radio', { name: '5 dari 5' }));
+        fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Kecepatan untuk Admin Preview' })).getByRole('radio', { name: '5 bintang' }));
         fireEvent.change(screen.getByRole('textbox', { name: 'Saran untuk Admin Preview (opsional)' }), { target: { value: 'Bagus' } });
         fireEvent.click(screen.getByRole('button', { name: 'Tinjau jawaban' }));
         expect(screen.getAllByText('Pratinjau — jawaban tidak dikirim')).toHaveLength(1);

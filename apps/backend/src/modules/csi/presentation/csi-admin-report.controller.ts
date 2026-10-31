@@ -1,10 +1,11 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
-import { ResetResponseDto } from '../dto/report.dto';
+import { ReportQueryDto, ResetResponseDto, SendRemindersDto } from '../dto/report.dto';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiExportService } from '../services/csi-export.service';
+import { CsiReminderService } from '../services/csi-reminder.service';
 import { CsiReportService } from '../services/csi-report.service';
 
 type CsiAdminRequest = Request & { csiScope: ServiceScope; user: { userId: string } };
@@ -19,11 +20,18 @@ export class CsiAdminReportController {
     constructor(
         private readonly reports: CsiReportService,
         private readonly exporter: CsiExportService,
+        private readonly reminders: CsiReminderService,
     ) { }
 
     @Get('report')
-    report(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string) {
-        return this.reports.getReport(req.csiScope, id);
+    report(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Query() query: ReportQueryDto) {
+        return this.reports.getReport(req.csiScope, id, query.siteId);
+    }
+
+    @Post('reminders')
+    @HttpCode(HttpStatus.OK)
+    sendReminders(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Body() dto: SendRemindersDto) {
+        return this.reminders.send(req.csiScope, id, dto.userIds);
     }
 
     @Get('respondents')

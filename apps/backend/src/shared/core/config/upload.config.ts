@@ -122,5 +122,11 @@ export const MULTER_OPTIONS = {
         fileFilter: createFileFilter('CONTRACT'),
         limits: { fileSize: FILE_SIZE_LIMITS.CONTRACT },
     },
+    // CSI subject photos: JPG/PNG/WebP up to 5MB, served as /uploads/csi/<file>
+    csiPhoto: {
+        storage: createStorage('./uploads/csi'),
+        fileFilter: createFileFilter('AVATAR'),
+        limits: { fileSize: FILE_SIZE_LIMITS.IMAGE },
+    },
 } as const;
 

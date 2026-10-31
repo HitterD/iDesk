@@ -16,12 +16,29 @@ const element = (patch: Partial<CsiFormDimension>, answer?: Answer, missing = fa
 afterEach(cleanup);
 
 describe('QuestionField', () => {
-    it('STAR renders large stars and reports the score', () => {
+    it('STAR renders the star reaction and reports the score', () => {
         const onChange = vi.fn();
         render(element({ name: 'Kecepatan', description: 'Seberapa cepat' }, undefined, false, onChange));
         expect(screen.getByText('Seberapa cepat')).toBeInTheDocument();
-        fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Kecepatan untuk Andi' })).getByRole('radio', { name: '4 dari 5' }));
+        fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Kecepatan untuk Andi' })).getByRole('radio', { name: '4 bintang' }));
         expect(onChange).toHaveBeenCalledWith({ score: 4 });
+    });
+
+    it('answered card carries data-v from the stars or the SCALE points', () => {
+        const { container, rerender } = render(element({}));
+        expect(container.querySelector('[data-v]')).toBeNull();
+        rerender(element({}, { score: 2 }));
+        expect(container.firstElementChild).toHaveAttribute('data-v', '2');
+        rerender(element({ type: 'SCALE', options: OPTIONS }, { optionIndex: 0 }));
+        expect(container.firstElementChild).toHaveAttribute('data-v', '5');
+        rerender(element({ type: 'CHOICE', options: [{ label: 'Sering', points: null }] }, { optionIndex: 0 }));
+        expect(container.querySelector('[data-v]')).toBeNull();
+    });
+
+    it('SCALE pills colour the chosen option by its points', () => {
+        render(element({ type: 'SCALE', options: OPTIONS }, { optionIndex: 2 }));
+        expect(screen.getByRole('radio', { name: 'Buruk' }).className).toContain('--ticket-red');
+        expect(screen.getByRole('radio', { name: 'Sangat baik' }).className).not.toContain('--ticket-green');
     });
 
     it('SCALE renders radio cards without points and reports optionIndex', async () => {

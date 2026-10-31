@@ -5,7 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { TicketPill } from '@/components/ui/ticket-pill';
 import { cn } from '@/lib/utils';
-import { CSI_DESCRIPTION_MAX, CSI_QUESTION_MAX } from '../../../lib/csiAdmin';
+import { CSI_DESCRIPTION_MAX, CSI_QUESTION_MAX, CSI_SHORT_LABEL_MAX } from '../../../lib/csiAdmin';
 import type { CsiDimension, CsiOption, CsiQuestionType, UpdateCsiDimension } from '../../../types';
 import { SaveStatusText } from '../../common/SaveStatusText';
 import { OptionsEditor } from './OptionsEditor';
@@ -28,6 +28,8 @@ export interface QuestionCardProps {
 
 const LABEL = 'text-[12.5px] font-medium text-[hsl(var(--idesk-text-secondary))]';
 const FIELD_BARE = 'rounded-xl border-transparent bg-transparent px-3 hover:bg-[hsl(var(--muted)/.6)] focus-visible:bg-[hsl(var(--idesk-surface))]';
+/** The full question cut to the short-label length, so the placeholder previews the report fallback. */
+const truncate = (text: string, max: number) => text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
 const hasOptions = (type: CsiQuestionType): type is 'SCALE' | 'CHOICE' => type === 'SCALE' || type === 'CHOICE';
 
 export function QuestionCard({ question, handle, onSave, autoFocusTitle, onAutoFocused }: QuestionCardProps) {
@@ -47,6 +49,9 @@ export function QuestionCard({ question, handle, onSave, autoFocusTitle, onAutoF
     });
     const description = useInlineField({
         value: question.description ?? '', multiline: true, onCommit: (text) => save({ description: text || null }),
+    });
+    const shortLabel = useInlineField({
+        value: question.shortLabel ?? '', onCommit: (text) => save({ shortLabel: text || null }),
     });
     const changeType = (type: CsiQuestionType) => save({ type, options: optionsForType(type, question.options) });
     const changeOptions = (options: CsiOption[]) => save({ options });
@@ -69,6 +74,11 @@ export function QuestionCard({ question, handle, onSave, autoFocusTitle, onAutoF
                 </div>
                 {!question.isActive && <TicketPill tone="neutral">{QUESTION_COPY.inactive}</TicketPill>}
             </div>
+            <label className="grid gap-1.5 sm:max-w-md">
+                <span className={LABEL}>{QUESTION_COPY.shortLabel}</span>
+                <Input {...shortLabel.inputProps} maxLength={CSI_SHORT_LABEL_MAX} placeholder={truncate(question.name, CSI_SHORT_LABEL_MAX)}
+                    aria-label={QUESTION_COPY.shortLabel} className="h-9 text-[13px]" />
+            </label>
             <TypePicker value={question.type} onChange={changeType} />
             {hasOptions(question.type) && <OptionsEditor type={question.type} options={question.options} onChange={changeOptions} />}
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2">

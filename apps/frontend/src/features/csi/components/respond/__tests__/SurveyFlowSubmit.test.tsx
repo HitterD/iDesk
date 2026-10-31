@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SurveyFlow } from '../SurveyFlow';
 import { draftKey } from '../../../lib/surveyDraft';
-import { answerAll, button, choose, EXPECTED_ITEMS, FORM, startFilling } from './surveyFlowFixture';
+import { answerAll, button, choose, EXPECTED_ITEMS, FORM, NEXT, startFilling } from './surveyFlowFixture';
 
 const KEY = draftKey('u1', 'p1');
 const conflict = Object.assign(new Error('HTTP 409'), { isAxiosError: true, response: { status: 409, data: {} } });
@@ -34,7 +34,7 @@ describe('SurveyFlow review and submit', () => {
         await user.click(within(screen.getByRole('listitem', { name: 'Andi' })).getByRole('button', { name: 'Ubah' }));
         expect(screen.getByRole('heading', { name: 'Andi' })).toBeInTheDocument();
         await user.type(screen.getByRole('textbox', { name: /Catatan/ }), '  Responsif  ');
-        await user.click(button('Lanjut'));
+        await user.click(button(NEXT));
         await user.click(button('Tinjau jawaban'));
         await user.click(button('Kirim'));
         expect(onSubmit).toHaveBeenCalledWith({
@@ -119,7 +119,7 @@ describe('SurveyFlow draft', () => {
 });
 
 describe('SurveyFlow chrome and preview', () => {
-    it('navigation scrolls the new screen heading into view and focuses it', async () => {
+    it('navigation scrolls the new screen into view and focuses its heading', async () => {
         const user = userEvent.setup();
         const scrolled: Element[] = [];
         const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(function (this: Element) { scrolled.push(this); });
@@ -127,7 +127,8 @@ describe('SurveyFlow chrome and preview', () => {
         expect(scrollSpy).not.toHaveBeenCalled();
         await startFilling(user);
         const heading = screen.getByRole('heading', { name: 'Tim IT Support' });
-        expect(scrolled).toContain(heading);
+        // The heading sits in the sticky photo, so the subject card is what scrolls into view.
+        expect(scrolled).toContain(screen.getByRole('region', { name: 'Tim IT Support' }));
         expect(heading).toHaveFocus();
         scrollSpy.mockRestore();
     });

@@ -92,4 +92,12 @@ describe('CSI master DTO validation', () => {
         expect(await parse(UserSearchQueryDto, { limit: '100' })).toMatchObject({ limit: 50 });
         await expect(parse(UserSearchQueryDto, { limit: 'no' })).rejects.toThrow();
     });
+
+    it('shortLabel is optional, trimmed and at most 40 characters', async () => {
+        expect(await parse(CreateDimensionDto, { name: 'Baik', type: CsiQuestionType.STAR, shortLabel: ' Kecepatan respon ' }))
+            .toMatchObject({ shortLabel: 'Kecepatan respon' });
+        expect(await parse(UpdateDimensionDto, { shortLabel: null })).toMatchObject({ shortLabel: null });
+        await expect(parse(CreateDimensionDto, { name: 'Baik', type: CsiQuestionType.STAR, shortLabel: 'x'.repeat(41) })).rejects.toThrow();
+        await expect(parse(UpdateDimensionDto, { shortLabel: 5 })).rejects.toThrow();
+    });
 });

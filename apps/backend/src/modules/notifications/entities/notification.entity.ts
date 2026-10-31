@@ -23,6 +23,7 @@ export enum NotificationType {
     SLA_WARNING = 'SLA_WARNING',
     SLA_BREACHED = 'SLA_BREACHED',
     SYSTEM = 'SYSTEM',
+    CSI_REMINDER = 'CSI_REMINDER',
 
     // Renewal-related notifications
     RENEWAL_D60_WARNING = 'RENEWAL_D60_WARNING',

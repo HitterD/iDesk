@@ -1,6 +1,7 @@
 import { Transform, Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, ArrayUnique, Equals, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
 import { CsiRespondentMode } from '../csi.constants';
+import { CSI_TAGLINE_MAX } from './subject.dto';
 
 const TITLE_MAX_LENGTH = 150;
 const TEXT_MAX_LENGTH = 2000;
@@ -115,9 +116,30 @@ export class SetRateesDto {
 }
 
 export class SetTeamQuestionsDto {
+    @IsUUID('all', { message: 'Site harus berupa UUID' })
+    siteId: string;
+
     @IsArray({ message: 'Daftar pertanyaan harus berupa array' })
     @IsUUID('all', { each: true, message: 'ID pertanyaan harus berupa UUID' })
     questionIds: string[];
+}
+
+/** Per-period override of one ratee; null/'' tagline and null photoUrl reset to the master value. */
+export class UpdatePeriodRateeDto {
+    @ValidateIf(isProvided)
+    @IsUUID('all', { message: 'Site harus berupa UUID' })
+    siteId?: string;
+
+    /** Only null (reset) is accepted: per-period photo upload is not part of this endpoint. */
+    @ValidateIf(isProvided)
+    @Equals(null, { message: 'Foto hanya bisa direset (null)' })
+    photoUrl?: null;
+
+    @ValidateIf((_object: object, value: unknown) => value !== undefined && value !== null)
+    @Transform(trimString)
+    @IsString({ message: 'Tagline harus berupa teks' })
+    @MaxLength(CSI_TAGLINE_MAX, { message: 'Tagline maksimal 90 karakter' })
+    tagline?: string | null;
 }
 
 export class SetPeriodRatersDto {

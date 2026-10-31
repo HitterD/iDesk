@@ -11,7 +11,10 @@ import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
+import { CsiPeriodRaterRatee } from '../entities/csi-period-rater-ratee.entity';
+import { CsiAssignmentService } from './csi-assignment.service';
 import { CsiRespondentService } from './csi-respondent.service';
+import { CsiSubjectService } from './csi-subject.service';
 
 const ICT = ServiceScope.ICT;
 const HC = ServiceScope.HC;
@@ -63,6 +66,10 @@ describe('CsiRespondentService', () => {
     let departments: ReturnType<typeof memoryRepository>;
     let users: ReturnType<typeof memoryRepository>;
     let dimensions: ReturnType<typeof memoryRepository>;
+    let pairs: ReturnType<typeof memoryRepository>;
+    let teams: ReturnType<typeof memoryRepository>;
+    let profiles: ReturnType<typeof memoryRepository>;
+    let sites: ReturnType<typeof memoryRepository>;
     let txResponses: ReturnType<typeof memoryRepository>;
     let txRepos: Map<unknown, ReturnType<typeof memoryRepository>>;
     let periodSiteRows: Array<{ id: string; periodId: string; siteId: string }>;
@@ -74,9 +81,9 @@ describe('CsiRespondentService', () => {
     beforeEach(() => {
         periods = memoryRepository<any>([period()]);
         ratees = memoryRepository<any>([
-            { id: 'r-me', kind: 'PERSON', periodId: 'p1', userId: 'me', displayName: 'Saya', jobTitle: 'Staf', sortOrder: 0 },
-            { id: 'r1', kind: 'PERSON', periodId: 'p1', userId: 'u1', displayName: 'Budi', jobTitle: 'Teknisi', sortOrder: 1 },
-            { id: 'r2', kind: 'PERSON', periodId: 'p1', userId: 'u2', displayName: 'Sari', jobTitle: null, sortOrder: 2 },
+            { id: 'r-me', kind: 'PERSON', periodId: 'p1', userId: 'me', siteId: 'site-a', displayName: 'Saya', jobTitle: 'Staf', sortOrder: 0 },
+            { id: 'r1', kind: 'PERSON', periodId: 'p1', userId: 'u1', siteId: 'site-a', displayName: 'Budi', jobTitle: 'Teknisi', sortOrder: 1 },
+            { id: 'r2', kind: 'PERSON', periodId: 'p1', userId: 'u2', siteId: 'site-a', displayName: 'Sari', jobTitle: null, sortOrder: 2 },
         ]);
         rateeDimensions = memoryRepository<any>([
             { id: 'rd-me', periodRateeId: 'r-me', dimensionId: 'd1', dimensionName: 'Responsif', type: 'STAR', required: true, options: [], sortOrder: 0 },
@@ -104,6 +111,10 @@ describe('CsiRespondentService', () => {
             { id: 'd1', scope: ICT, name: 'Responsif', description: 'Cepat menanggapi', isActive: true },
             { id: 'd2', scope: ICT, name: 'Ramah', description: null, isActive: true },
         ]);
+        pairs = memoryRepository<any>([]);
+        teams = memoryRepository<any>([]);
+        profiles = memoryRepository<any>([]);
+        sites = memoryRepository<any>([{ id: 'site-a', code: 'SPJ', name: 'Sepanjang' }, { id: 'site-b', code: 'KRW', name: 'Karawang' }]);
         txResponses = memoryRepository<any>(responses.rows);
         saved = [];
         // Transaction-scoped repositories share rows with the injected ones but are distinct mocks,
@@ -115,6 +126,7 @@ describe('CsiRespondentService', () => {
             [CsiPeriodRateeDimension, memoryRepository<any>(rateeDimensions.rows)],
             [CsiPeriodRater, memoryRepository<any>(periodRaters.rows)],
             [CsiDepartment, memoryRepository<any>(departments.rows)],
+            [CsiPeriodRaterRatee, memoryRepository<any>(pairs.rows)],
         ]);
         manager = {
             getRepository: jest.fn((target: unknown) => {
@@ -131,7 +143,7 @@ describe('CsiRespondentService', () => {
                 return withIds;
             }),
         };
-        const injected = [ratees, rateeDimensions, periodRaters, departments, responses, users];
+        const injected = [ratees, rateeDimensions, periodRaters, departments, responses, users, pairs];
         const injectedCalls = () => injected.reduce((sum, repo) => sum + repo.find.mock.calls.length
             + repo.findOne.mock.calls.length + repo.count.mock.calls.length, 0);
         injectedCallsInTxn = 0;
@@ -143,9 +155,13 @@ describe('CsiRespondentService', () => {
                 injectedCallsInTxn += injectedCalls() - before;
             }
         }) };
+        const assignments = new CsiAssignmentService(
+            periods as any, periodRaters as any, ratees as any, pairs as any, {} as any, profiles as any, dataSource as any,
+        );
+        const subjects = new CsiSubjectService(users as any, sites as any, teams as any, profiles as any);
         service = new CsiRespondentService(
             periods as any, ratees as any, rateeDimensions as any, periodRaters as any, responses as any,
-            departments as any, users as any, dimensions as any, dataSource as any,
+            departments as any, users as any, dimensions as any, dataSource as any, assignments, subjects,
         );
     });
 
@@ -252,11 +268,13 @@ describe('CsiRespondentService', () => {
                 respondent: { fullName: 'Andi Responden' }, submittedNames: [],
                 departments: [{ id: 'dep1', name: 'Produksi' }],
                 ratees: [
-                    { periodRateeId: 'r1', kind: 'PERSON', displayName: 'Budi', jobTitle: 'Teknisi', avatarUrl: '/uploads/budi.png', dimensions: [
+                    { periodRateeId: 'r1', kind: 'PERSON', displayName: 'Budi', jobTitle: 'Teknisi', avatarUrl: '/uploads/budi.png',
+                        siteId: 'site-a', siteCode: 'SPJ', tagline: null, photoUrl: '/uploads/budi.png', dimensions: [
                         { periodRateeDimensionId: 'rd1a', name: 'Responsif', description: 'Cepat menanggapi', type: 'STAR', required: true, options: [] },
                         { periodRateeDimensionId: 'rd1b', name: 'Ramah', description: null, type: 'STAR', required: true, options: [] },
                     ] },
-                    { periodRateeId: 'r2', kind: 'PERSON', displayName: 'Sari', jobTitle: null, avatarUrl: null, dimensions: [
+                    { periodRateeId: 'r2', kind: 'PERSON', displayName: 'Sari', jobTitle: null, avatarUrl: null,
+                        siteId: 'site-a', siteCode: 'SPJ', tagline: null, photoUrl: null, dimensions: [
                         { periodRateeDimensionId: 'rd2a', name: 'Responsif', description: 'Cepat menanggapi', type: 'STAR', required: true, options: [] },
                     ] },
                 ],
@@ -338,6 +356,85 @@ describe('CsiRespondentService', () => {
             periods.rows[0] = period({ teamEnabled: true, individualEnabled: false });
             ratees.rows.splice(ratees.rows.findIndex((row) => row.id === 'r-team'), 1);
             await expect(service.getForm(me, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
+        });
+    });
+
+    describe('rater mapping, site order and subject profiles', () => {
+        const addTeams = () => {
+            periods.rows[0] = period({ teamEnabled: true, sites: [{ siteId: 'site-a' }, { siteId: 'site-b' }] as CsiPeriod['sites'] });
+            ratees.rows.push(
+                { id: 'r-team-b', kind: 'TEAM', periodId: 'p1', userId: null, siteId: 'site-b', teamId: 't-b', displayName: 'Tim Karawang', jobTitle: null, sortOrder: -1 },
+                { id: 'r-team-a', kind: 'TEAM', periodId: 'p1', userId: null, siteId: 'site-a', teamId: 't-a', displayName: 'Tim Sepanjang', jobTitle: null, sortOrder: -1 },
+            );
+            rateeDimensions.rows.push(
+                { id: 'rd-tb', periodRateeId: 'r-team-b', dimensionId: 'd1', dimensionName: 'Layanan', type: 'STAR', required: true, options: [], sortOrder: 0 },
+                { id: 'rd-ta', periodRateeId: 'r-team-a', dimensionId: 'd1', dimensionName: 'Layanan', type: 'STAR', required: true, options: [], sortOrder: 0 },
+            );
+        };
+        const listedWithRaters = () => {
+            periods.rows[0] = period({ respondentMode: CsiRespondentMode.LISTED });
+            periodRaters.rows.push({ id: 'pr-me', periodId: 'p1', userId: 'me' }, { id: 'pr-u1', periodId: 'p1', userId: 'u1' });
+        };
+
+        it('without any mapping the respondent sees every visible ratee', async () => {
+            listedWithRaters();
+            const form: any = await service.getForm(me, 'p1', NOW);
+            expect(form.ratees.map((ratee: any) => ratee.periodRateeId)).toEqual(['r1', 'r2']);
+        });
+
+        it('with a mapping the respondent sees only mapped ratees', async () => {
+            listedWithRaters();
+            ratees.rows.push({ id: 'r3', kind: 'PERSON', periodId: 'p1', userId: 'u3', siteId: 'site-a', displayName: 'Rudi', jobTitle: null, sortOrder: 3 });
+            rateeDimensions.rows.push({ id: 'rd3', periodRateeId: 'r3', dimensionId: 'd1', dimensionName: 'Responsif', type: 'STAR', required: true, options: [], sortOrder: 0 });
+            pairs.rows.push({ id: 'pp1', periodId: 'p1', periodRaterId: 'pr-me', periodRateeId: 'r2' });
+            const form: any = await service.getForm(me, 'p1', NOW);
+            expect(form.ratees.map((ratee: any) => ratee.periodRateeId)).toEqual(['r2']);
+            await expect(service.submit(me, 'p1', dto({ items: fullItems() }), NOW)).rejects.toBeInstanceOf(BadRequestException);
+            await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd2a', score: 4 }] }), NOW))
+                .resolves.toMatchObject({ submitted: true });
+        });
+
+        it('an OPEN period ignores the mapping', async () => {
+            periodRaters.rows.push({ id: 'pr-u1', periodId: 'p1', userId: 'u1' });
+            pairs.rows.push({ id: 'pp1', periodId: 'p1', periodRaterId: 'pr-u1', periodRateeId: 'r2' });
+            const form: any = await service.getForm(me, 'p1', NOW);
+            expect(form.ratees.map((ratee: any) => ratee.periodRateeId)).toEqual(['r1', 'r2']);
+            expect(await service.listActive(me, NOW)).toHaveLength(1);
+            await expect(service.submit(me, 'p1', dto(), NOW)).resolves.toMatchObject({ submitted: true });
+        });
+
+        it('a listed rater with zero pairs in a mapped period is not eligible', async () => {
+            listedWithRaters();
+            pairs.rows.push({ id: 'pp1', periodId: 'p1', periodRaterId: 'pr-u1', periodRateeId: 'r2' });
+            expect(await service.listActive(me, NOW)).toEqual([]);
+            await expect(service.getForm(me, 'p1', NOW)).rejects.toThrow(NOT_FOUND);
+        });
+
+        it("teams come first, the respondent's own site team before other sites", async () => {
+            addTeams();
+            const form: any = await service.getForm(me, 'p1', NOW);
+            expect(form.ratees.map((ratee: any) => ratee.periodRateeId)).toEqual(['r-team-a', 'r-team-b', 'r1', 'r2']);
+            const other: any = await service.getForm({ id: 'other-site' }, 'p1', NOW);
+            expect(other.ratees.map((ratee: any) => ratee.periodRateeId).slice(0, 2)).toEqual(['r-team-b', 'r-team-a']);
+        });
+
+        it('form ratee exposes tagline and photo with period override winning over master', async () => {
+            addTeams();
+            teams.rows.push(
+                { id: 't-a', scope: ICT, siteId: 'site-a', name: 'Tim Sepanjang', photoUrl: '/uploads/csi/team-a.jpg', tagline: 'Siap 24 jam', jobTitle: null },
+                { id: 't-b', scope: ICT, siteId: 'site-b', name: 'Tim Karawang', photoUrl: null, tagline: 'Master KRW', jobTitle: null },
+            );
+            profiles.rows.push({ id: 'pf1', scope: ICT, userId: 'u2', photoUrl: '/uploads/csi/sari.jpg', tagline: 'Master Sari', jobTitle: 'Analis' });
+            const teamB = ratees.rows.findIndex((row) => row.id === 'r-team-b');
+            ratees.rows[teamB] = { ...ratees.rows[teamB], tagline: 'Khusus periode ini' };
+            const form: any = await service.getForm(me, 'p1', NOW);
+            const byId = new Map<string, any>(form.ratees.map((ratee: any) => [ratee.periodRateeId, ratee]));
+            expect(byId.get('r-team-a')).toMatchObject({
+                siteId: 'site-a', siteCode: 'SPJ', tagline: 'Siap 24 jam', photoUrl: '/uploads/csi/team-a.jpg', avatarUrl: '/uploads/csi/team-a.jpg',
+            });
+            expect(byId.get('r-team-b')).toMatchObject({ siteId: 'site-b', siteCode: 'KRW', tagline: 'Khusus periode ini', photoUrl: null });
+            expect(byId.get('r1')).toMatchObject({ siteCode: 'SPJ', tagline: null, photoUrl: '/uploads/budi.png' });
+            expect(byId.get('r2')).toMatchObject({ tagline: 'Master Sari', photoUrl: '/uploads/csi/sari.jpg', avatarUrl: '/uploads/csi/sari.jpg', jobTitle: 'Analis' });
         });
     });
 

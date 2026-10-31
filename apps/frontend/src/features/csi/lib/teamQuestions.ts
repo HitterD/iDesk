@@ -1,8 +1,12 @@
-import type { CsiPeriodDetail } from '../types';
+import type { CsiPeriodDetail, CsiPeriodRatee } from '../types';
 
-/** Question ids of the period's TEAM ratee in saved order (empty when there is none). */
-export const teamQuestionIds = (period: CsiPeriodDetail): string[] =>
-    [...(period.ratees.find((ratee) => ratee.kind === 'TEAM')?.dimensions ?? [])]
+/** The TEAM ratee of one period site (one team per site), if any. */
+export const siteTeamRatee = (period: CsiPeriodDetail, siteId: string): CsiPeriodRatee | undefined =>
+    period.ratees.find((ratee) => ratee.kind === 'TEAM' && ratee.siteId === siteId);
+
+/** Question ids of the site's TEAM ratee in saved order (empty when there is none). */
+export const teamQuestionIds = (period: CsiPeriodDetail, siteId: string): string[] =>
+    [...(siteTeamRatee(period, siteId)?.dimensions ?? [])]
         .sort((a, b) => a.sortOrder - b.sortOrder).map((dimension) => dimension.dimensionId);
 
 export const sameOrder = (a: readonly string[], b: readonly string[]) =>

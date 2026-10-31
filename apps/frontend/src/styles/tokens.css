@@ -45,6 +45,8 @@
         --ticket-red-ink: 4 75% 40%;
         --ticket-teal: 178 81% 31%;
         --ticket-teal-ink: 178 80% 24%;
+        --ticket-brown: 33 27% 50%;
+        --ticket-brown-ink: 30 40% 32%;
         /* Ticket source dots: iPop green, connected apps pick one of the rest (no violet). */
         --src-ipop: 146 64% 36%;
         --src-blue: 221 70% 52%;
@@ -277,6 +279,8 @@
         --ticket-green-ink: 136 59% 65%;
         --ticket-red-ink: 4 100% 74%;
         --ticket-teal-ink: 178 62% 65%;
+        --ticket-brown: 33 30% 58%;
+        --ticket-brown-ink: 33 45% 72%;
         --src-ipop: 146 55% 52%;
         --src-blue: 221 80% 68%;
         --src-sky: 206 100% 65%;

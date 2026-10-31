@@ -15,6 +15,9 @@ import { CSI_TEMPLATE_2025 } from '../csi-template';
 const INCOMPLETE_ORDER_MESSAGE = 'Urutan tidak lengkap';
 type Ordered = { id: string; scope: ServiceScope; sortOrder: number };
 
+/** Blank short labels are stored as null (reports then fall back to the question text). */
+const normalizeShortLabel = (value: string | null | undefined) => (value === undefined ? undefined : value?.trim() || null);
+
 function assertOptionsMatchType(type: CsiQuestionType, options: unknown) {
     if (!optionsMatchType(type, options ?? [])) throw new BadRequestException(INVALID_OPTIONS_MESSAGE);
 }
@@ -37,7 +40,9 @@ export class CsiMasterService {
         const options = dto.options ?? [];
         assertOptionsMatchType(dto.type, options);
         const sortOrder = await this.nextSortOrder(this.dimensions, scope);
-        return this.dimensions.save(this.dimensions.create({ ...dto, scope, required: dto.required ?? true, options, sortOrder }));
+        return this.dimensions.save(this.dimensions.create({
+            ...dto, scope, shortLabel: normalizeShortLabel(dto.shortLabel) ?? null, required: dto.required ?? true, options, sortOrder,
+        }));
     }
 
     /** Appends the CSI 2025 questionnaire (not idempotent: every call adds nine questions). */
@@ -80,7 +85,8 @@ export class CsiMasterService {
     async updateDimension(scope: ServiceScope, id: string, dto: UpdateDimensionDto) {
         const dimension = await this.dimensions.findOne({ where: { id, scope } });
         if (!dimension) throw new NotFoundException('Dimensi tidak ditemukan');
-        const next = { ...dimension, ...dto };
+        const shortLabel = normalizeShortLabel(dto.shortLabel);
+        const next = { ...dimension, ...dto, ...(shortLabel !== undefined ? { shortLabel } : {}) };
         if (dto.type !== undefined || dto.options !== undefined) assertOptionsMatchType(next.type, next.options);
         return this.dimensions.save(next);
     }

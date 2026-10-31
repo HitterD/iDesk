@@ -15,7 +15,7 @@ export const CSI_ADMIN_ROLES: readonly string[] = ['ADMIN', 'MANAGER'];
 export const CSI_SCOPE_OF: Readonly<Record<CsiScopeParam, CsiScope>> = { ict: 'ICT', hc: 'HC' };
 
 /** Mirrors backend `DEFAULT_RESPONDENT_MODE`. */
-export const CSI_DEFAULT_MODE: Readonly<Record<CsiScopeParam, CsiRespondentMode>> = { ict: 'OPEN', hc: 'LISTED' };
+export const CSI_DEFAULT_MODE: Readonly<Record<CsiScopeParam, CsiRespondentMode>> = { ict: 'LISTED', hc: 'LISTED' };
 
 export const CSI_MODE_LABELS: Readonly<Record<CsiRespondentMode, string>> = {
     OPEN: 'Semua user di site',
@@ -52,6 +52,8 @@ export const CSI_NAME_MAX = 100;
 export const CSI_DESCRIPTION_MAX = 300;
 /** Mirrors backend question DTO / constants bounds. */
 export const CSI_QUESTION_MAX = 300;
+/** Report label of a question (backend master DTO: max 40). */
+export const CSI_SHORT_LABEL_MAX = 40;
 export const CSI_OPTION_LABEL_MAX = 200;
 export const CSI_OPTIONS_MIN = 2;
 export const CSI_OPTIONS_MAX = 10;

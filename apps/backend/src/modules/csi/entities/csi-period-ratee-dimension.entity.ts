@@ -26,6 +26,9 @@ export class CsiPeriodRateeDimension {
     @Column({ type: 'varchar', length: 300 })
     dimensionName: string;
 
+    @Column({ type: 'varchar', length: 40, nullable: true })
+    shortLabel: string | null;
+
     // Snapshot of the question definition at assignment time.
     @Column({ type: 'varchar', length: 10, default: CsiQuestionType.STAR })
     type: CsiQuestionType;

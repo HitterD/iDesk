@@ -20,7 +20,9 @@ export function toPreviewForm(
         intro: period.intro, endDate: period.endDate, teamLabel: period.teamLabel, submittedNames: [], respondent: { fullName: respondentName },
         departments: departments.filter((department) => department.isActive).map(({ id, name }) => ({ id, name })),
         ratees: orderRatees([...period.ratees].filter(inEnabledSection(period)).sort((a, b) => a.sortOrder - b.sortOrder).map((ratee) => ({
-            periodRateeId: ratee.id, kind: ratee.kind, displayName: ratee.displayName, jobTitle: ratee.jobTitle, avatarUrl: null,
+            periodRateeId: ratee.id, kind: ratee.kind, displayName: ratee.displayName, jobTitle: ratee.jobTitle, avatarUrl: ratee.photoUrl ?? null,
+            siteId: ratee.siteId ?? null, siteCode: period.sites.find((site) => site.id === ratee.siteId)?.code ?? null,
+            tagline: ratee.tagline ?? null, photoUrl: ratee.photoUrl ?? null,
             dimensions: [...ratee.dimensions].sort((a, b) => a.sortOrder - b.sortOrder).map((dimension) => ({
                 periodRateeDimensionId: dimension.id, name: dimension.dimensionName,
                 description: descriptions.get(dimension.dimensionId) ?? null,

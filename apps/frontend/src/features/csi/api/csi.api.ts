@@ -1,16 +1,20 @@
 import api from '@/lib/api';
 import type {
-    CsiActivePeriod, CsiDepartment, CsiDimension, CsiForm, CsiPeriod, CsiPeriodDetail,
-    CsiPeriodListItem, CsiRater, CsiRemovedRater, CsiReport, CsiResetResult, CsiRespondents,
-    CsiResponseDetail, CsiScopeParam, CsiSubmitResult, CsiUserIds, CsiUserSearchResult,
-    CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, CsiMemoHeader, CsiMemoRequest, CsiReorder,
-    ResetCsiResponse, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse, UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod,
+    CsiActivePeriod, CsiAssignments, CsiDashboard, CsiDepartment, CsiDimension, CsiForm, CsiPeriod, CsiPeriodDetail,
+    CsiPeriodListItem, CsiRater, CsiReminderResult, CsiRemovedRater, CsiReport, CsiResetResult, CsiRespondents,
+    CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, CsiSubjectView, CsiSubmitResult, CsiUserIds, CsiUserSearchResult,
+    CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, CreateCsiTeam, CsiMemoHeader, CsiMemoRequest, CsiReorder,
+    ResetCsiResponse, SendCsiReminders, SetCsiAssignments, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
+    UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject,
 } from '../types';
 
 const adminPath = (scope: CsiScopeParam) => `/csi/admin/${scope}`;
 const periodPath = (scope: CsiScopeParam, id: string) => `${adminPath(scope)}/periods/${encodeURIComponent(id)}`;
 const itemPath = (scope: CsiScopeParam, resource: string, id: string) =>
     `${adminPath(scope)}/${resource}/${encodeURIComponent(id)}`;
+const assignmentsPath = (scope: CsiScopeParam, id: string) => `${periodPath(scope, id)}/assignments`;
+/** Multipart field name expected by the subject photo upload (FileInterceptor('file')). */
+const PHOTO_FIELD = 'file';
 
 function exportFilename(disposition: unknown, scope: CsiScopeParam, extension = 'xlsx'): string {
     const fallback = `csi-${scope}.${extension}`;
@@ -105,8 +109,46 @@ export const CsiApi = {
     async setRaters(scope: CsiScopeParam, id: string, payload: CsiUserIds): Promise<CsiPeriodDetail> {
         return (await api.put<CsiPeriodDetail>(`${periodPath(scope, id)}/raters`, payload)).data;
     },
-    async report(scope: CsiScopeParam, id: string): Promise<CsiReport> {
-        return (await api.get<CsiReport>(`${periodPath(scope, id)}/report`)).data;
+    async updatePeriodRatee(scope: CsiScopeParam, id: string, periodRateeId: string, payload: UpdateCsiPeriodRatee): Promise<CsiPeriodDetail> {
+        return (await api.patch<CsiPeriodDetail>(`${periodPath(scope, id)}/ratees/${encodeURIComponent(periodRateeId)}`, payload)).data;
+    },
+    async subjects(scope: CsiScopeParam): Promise<CsiSubjectGroup[]> {
+        return (await api.get<CsiSubjectGroup[]>(`${adminPath(scope)}/subjects`)).data;
+    },
+    async updateSubject(scope: CsiScopeParam, key: string, payload: UpdateCsiSubject): Promise<CsiSubjectView> {
+        return (await api.put<CsiSubjectView>(itemPath(scope, 'subjects', key), payload)).data;
+    },
+    async uploadSubjectPhoto(scope: CsiScopeParam, key: string, file: File): Promise<CsiSubjectView> {
+        const body = new FormData();
+        body.append(PHOTO_FIELD, file);
+        return (await api.post<CsiSubjectView>(`${itemPath(scope, 'subjects', key)}/photo`, body)).data;
+    },
+    async createTeam(scope: CsiScopeParam, payload: CreateCsiTeam): Promise<CsiSubjectView> {
+        return (await api.post<CsiSubjectView>(`${adminPath(scope)}/subjects/teams`, payload)).data;
+    },
+    async assignments(scope: CsiScopeParam, id: string): Promise<CsiAssignments> {
+        return (await api.get<CsiAssignments>(assignmentsPath(scope, id))).data;
+    },
+    async setAssignments(scope: CsiScopeParam, id: string, payload: SetCsiAssignments): Promise<CsiAssignments> {
+        return (await api.put<CsiAssignments>(assignmentsPath(scope, id), payload)).data;
+    },
+    async autoAssignSameSite(scope: CsiScopeParam, id: string): Promise<CsiAssignments> {
+        return (await api.post<CsiAssignments>(`${assignmentsPath(scope, id)}/auto-same-site`)).data;
+    },
+    async saveAssignmentTemplate(scope: CsiScopeParam, id: string): Promise<CsiAssignments> {
+        return (await api.post<CsiAssignments>(`${assignmentsPath(scope, id)}/save-template`)).data;
+    },
+    async applyAssignmentTemplate(scope: CsiScopeParam, id: string): Promise<CsiAssignments> {
+        return (await api.post<CsiAssignments>(`${assignmentsPath(scope, id)}/apply-template`)).data;
+    },
+    async report(scope: CsiScopeParam, id: string, siteId?: string): Promise<CsiReport> {
+        return (await api.get<CsiReport>(`${periodPath(scope, id)}/report`, { params: { siteId } })).data;
+    },
+    async sendReminders(scope: CsiScopeParam, id: string, payload: SendCsiReminders = {}): Promise<CsiReminderResult> {
+        return (await api.post<CsiReminderResult>(`${periodPath(scope, id)}/reminders`, payload)).data;
+    },
+    async dashboard(scope: CsiScopeParam): Promise<CsiDashboard> {
+        return (await api.get<CsiDashboard>(`${adminPath(scope)}/dashboard`)).data;
     },
     async respondents(scope: CsiScopeParam, id: string): Promise<CsiRespondents> {
         return (await api.get<CsiRespondents>(`${periodPath(scope, id)}/respondents`)).data;
