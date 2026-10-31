@@ -1,4 +1,8 @@
 import { Module, forwardRef, OnModuleInit } from '@nestjs/common';
+import { TicketNoteAccessService } from '../ticketing/notes/ticket-note-access.service';
+import { TicketNoteActionItemsService } from '../ticketing/notes/ticket-note-action-items.service';
+import { TicketNoteQueryService } from '../ticketing/notes/ticket-note-query.service';
+import { TicketNoteVisibilityService } from '../ticketing/notes/ticket-note-visibility.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 // Entities
@@ -51,6 +55,10 @@ import { TicketMessagingService } from '../ticketing/services/ticket-messaging.s
     ],
     providers: [
         // Core services
+        TicketNoteAccessService,
+        TicketNoteVisibilityService,
+        TicketNoteActionItemsService,
+        TicketNoteQueryService,
         NotificationService,
         NotificationCenterService,
 

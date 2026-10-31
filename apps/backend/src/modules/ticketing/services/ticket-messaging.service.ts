@@ -134,13 +134,16 @@ export class TicketMessagingService {
         mentionedUserIds: string[] = [],
         isInternal: boolean = false,
         attachmentInfo: AttachmentInfo[] = [],
+        clientRequestId?: string,
+        authorizePrivateShare?: (manager: import('typeorm').EntityManager) => Promise<void>,
     ) {
         // P1 fix: message insert + ticket status/SLA update were two separate
         // saves outside any transaction. A crash between them left the ticket
         // without its SLA timer started (or its firstResponseAt set). Now atomic
         // via dataSource.transaction. Event emit / WS push moved outside the
         // transaction so listeners only fire on commit.
-        const { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply } = await this.dataSource.transaction(async (manager) => {
+        const { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate } = await this.dataSource.transaction(async (manager) => {
+            if (authorizePrivateShare) await authorizePrivateShare(manager);
             const ticket = await manager.findOne(Ticket, {
                 where: { id: ticketId },
                 relations: ['user', 'assignedTo', 'participants'],
@@ -164,6 +167,11 @@ export class TicketMessagingService {
             }
             const isHandler = access === 'handler';
 
+            if (clientRequestId) {
+                const existing = await manager.findOne(TicketMessage, { where: { ticketId, senderId: userId, clientRequestId } });
+                if (existing) return { savedMessage: existing, ticket, user, startedWork: false,
+                    senderSideRole: user.role, isFirstAgentReply: false, duplicate: true };
+            }
             // Create Message
             const message = manager.create(TicketMessage, {
                 ticketId,
@@ -172,6 +180,7 @@ export class TicketMessagingService {
                 attachments: files,
                 attachmentInfo: attachmentInfo.length > 0 ? attachmentInfo : null,
                 isInternal,  // Mark as internal note if specified
+                clientRequestId: clientRequestId ?? null,
             });
 
             const savedMessage = await manager.save(TicketMessage, message);
@@ -218,9 +227,10 @@ export class TicketMessagingService {
             // Save ticket changes
             await manager.save(Ticket, ticket);
 
-            return { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply };
+            return { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate: false };
         });
 
+        if (duplicate) return savedMessage;
         // The reply moved the ticket from Open to In Progress; TV boards must show it.
         if (startedWork) {
             this.eventEmitter.emit('tv-board.ticket-changed', { siteId: (ticket as any).siteId });

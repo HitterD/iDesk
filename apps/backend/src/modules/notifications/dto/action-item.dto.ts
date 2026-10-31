@@ -8,6 +8,7 @@ export enum ActionItemUrgency {
 
 export enum ActionItemEntityType {
     TICKET = 'TICKET',
+    TICKET_NOTE = 'TICKET_NOTE',
     HARDWARE_REQUEST = 'HARDWARE_REQUEST',
     EFORM = 'EFORM',
     RENEWAL = 'RENEWAL',

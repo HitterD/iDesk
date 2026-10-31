@@ -1,4 +1,21 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { TicketNotesController } from './notes/ticket-notes.controller';
+import { TicketNoteNotificationService } from './notes/ticket-note-notification.service';
+import { TicketNotePublicShareService } from './notes/ticket-note-public-share.service';
+import { TicketNoteUploadGuard } from './notes/ticket-note-upload.guard';
+import { TicketNoteAccessService } from './notes/ticket-note-access.service';
+import { TicketNoteCommandService } from './notes/ticket-note-command.service';
+import { TicketNoteQueryService } from './notes/ticket-note-query.service';
+import { TicketNoteDocumentService } from './notes/ticket-note-document.service';
+import { TicketNoteDiscussionService } from './notes/ticket-note-discussion.service';
+import { TicketNoteAttachmentService } from './notes/ticket-note-attachment.service';
+import { TicketNote } from './notes/entities/ticket-note.entity';
+import { TicketNoteMember } from './notes/entities/ticket-note-member.entity';
+import { TicketNoteMessage } from './notes/entities/ticket-note-message.entity';
+import { TicketNoteEditSession } from './notes/entities/ticket-note-edit-session.entity';
+import { TicketNoteRevision } from './notes/entities/ticket-note-revision.entity';
+import { TicketNoteAttachment } from './notes/entities/ticket-note-attachment.entity';
+import { TicketNoteDelivery } from './notes/entities/ticket-note-delivery.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CacheModule } from '@nestjs/cache-manager';
 import { TicketsController } from './presentation/tickets.controller';
@@ -76,6 +93,8 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
 @Module({
     imports: [
         TypeOrmModule.forFeature([
+            TicketNote, TicketNoteMember, TicketNoteMessage, TicketNoteEditSession,
+            TicketNoteRevision, TicketNoteAttachment, TicketNoteDelivery,
             Ticket,
             TicketMessage,
             TicketParticipant,
@@ -104,6 +123,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         CacheModule.register(),
     ],
     controllers: [
+        TicketNotesController,
         TicketsController,
         TicketTemplatesController,
         TicketModulesController,
@@ -115,6 +135,8 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         AgentRatingsController,
     ],
     providers: [
+        TicketNoteUploadGuard, TicketNoteAccessService, TicketNoteCommandService, TicketNoteQueryService,
+        TicketNoteDocumentService, TicketNoteDiscussionService, TicketNoteAttachmentService, TicketNoteNotificationService, TicketNotePublicShareService,
         // Core services (Split)
         TicketLinkedRequestService,
         TicketCreateService,

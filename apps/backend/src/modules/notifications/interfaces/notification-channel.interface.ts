@@ -5,6 +5,8 @@ import { DeliveryChannel } from '../entities/notification-log.entity';
  * Payload for creating a notification
  */
 export interface NotificationPayload {
+    /** Optional stable identity for transactional outbox retries. */
+    id?: string;
     userId: string;
     type: NotificationType;
     title: string;

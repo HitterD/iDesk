@@ -25,6 +25,8 @@ import { EntityManager } from 'typeorm';
 import { ActionItemDto, ActionItemUrgency, ActionItemEntityType, ActionItemsResponseDto } from './dto/action-item.dto';
 import { CacheService } from '../../shared/core/cache/cache.service';
 import { formatResolutionDeadline } from '../ticketing/utils/resolution-deadline.util';
+import { TicketNoteActionItemsService } from '../ticketing/notes/ticket-note-action-items.service';
+import { TicketNoteVisibilityService } from '../ticketing/notes/ticket-note-visibility.service';
 
 @Injectable()
 export class NotificationCenterService implements OnModuleInit {
@@ -53,6 +55,8 @@ export class NotificationCenterService implements OnModuleInit {
         private readonly entityManager: EntityManager,
         private readonly cacheService: CacheService,
         @Optional() private readonly webPush?: NotificationPushService,
+        @Optional() private readonly noteActions?: TicketNoteActionItemsService,
+        @Optional() private readonly noteVisibility?: TicketNoteVisibilityService,
     ) { }
 
     onModuleInit() {
@@ -74,6 +78,10 @@ export class NotificationCenterService implements OnModuleInit {
      * Respects user preferences and handles routing
      */
     async send(payload: NotificationPayload): Promise<Notification> {
+        if (payload.id) {
+            const existing = await this.notificationRepo.findOne({ where: { id: payload.id, userId: payload.userId } });
+            if (existing) return existing;
+        }
         // Get user preferences
         const preferences = await this.getOrCreatePreferences(payload.userId);
 
@@ -85,7 +93,10 @@ export class NotificationCenterService implements OnModuleInit {
 
         // Create notification record
         const notification = await this.createNotification(payload);
-        this.webPush?.dispatch(notification);
+        if (payload.type !== NotificationType.TICKET_NOTE ||
+            (preferences.pushEnabled && preferences.typeSettings?.[NotificationType.TICKET_NOTE]?.push !== false)) {
+            this.webPush?.dispatch(notification);
+        }
 
         // Determine channels based on payload and preferences
         const channels = this.resolveChannels(payload, preferences);
@@ -96,7 +107,7 @@ export class NotificationCenterService implements OnModuleInit {
         }
 
         // Check if digest mode is enabled
-        if (preferences.digestEnabled && preferences.digestFrequency !== DigestFrequency.REALTIME) {
+        if (payload.type !== NotificationType.TICKET_NOTE && preferences.digestEnabled && preferences.digestFrequency !== DigestFrequency.REALTIME) {
             await this.addToDigestBuffer(payload.userId, notification);
             // In-app notifications are always sent immediately
             if (channels.includes(DeliveryChannel.IN_APP)) {
@@ -284,7 +295,7 @@ export class NotificationCenterService implements OnModuleInit {
 
     async getCategorySettings(userId: string): Promise<Record<string, boolean>> {
         const pref = await this.preferenceRepo.findOne({ where: { userId } });
-        const defaults = { TICKET: true, HARDWARE_REQUEST: true, EFORM: true, RENEWAL: true, ZOOM: true };
+        const defaults = { TICKET: true, TICKET_NOTE: true, HARDWARE_REQUEST: true, EFORM: true, RENEWAL: true, ZOOM: true };
         if (!pref?.categorySettings) return defaults;
         return { ...defaults, ...pref.categorySettings };
     }
@@ -298,7 +309,7 @@ export class NotificationCenterService implements OnModuleInit {
         const updated = { ...current, ...updates };
         await this.preferenceRepo.update({ userId }, { categorySettings: updated as any });
         this.emitActionItemsRefresh(userId, 'SETTINGS', 'categories');
-        const defaults = { TICKET: true, HARDWARE_REQUEST: true, EFORM: true, RENEWAL: true, ZOOM: true };
+        const defaults = { TICKET: true, TICKET_NOTE: true, HARDWARE_REQUEST: true, EFORM: true, RENEWAL: true, ZOOM: true };
         return { ...defaults, ...updated };
     }
 
@@ -308,7 +319,7 @@ export class NotificationCenterService implements OnModuleInit {
         // request. Cache is invalidated by snooze toggle / category settings
         // mutations via the action-items:refresh event emitted elsewhere.
         const cacheKey = `action-items:${userId}:${role}:${siteId ?? 'all'}`;
-        return this.cacheService.getOrSet(
+        const existing = await this.cacheService.getOrSet(
             cacheKey,
             async () => {
                 const now = new Date();
@@ -324,6 +335,13 @@ export class NotificationCenterService implements OnModuleInit {
             },
             30,
         );
+        if (!this.noteActions) return existing;
+        const [notes, snoozes, settings] = await Promise.all([
+            this.noteActions.items(userId),
+            this.snoozeRepo.find({ where: { userId, snoozedUntil: MoreThan(new Date()) } }),
+            this.getCategorySettings(userId),
+        ]);
+        return this.processAndFilterActionItems([...existing.items, ...notes], snoozes, settings);
     }
 
     private async fetchActionItemData(userId: string, role: string, siteId: string | null, now: Date) {
@@ -599,6 +617,10 @@ export class NotificationCenterService implements OnModuleInit {
             this.logger.warn(`Could not create notification delivery log: ${logErr.message}`);
         }
 
+        if (notification.type === NotificationType.TICKET_NOTE && this.noteVisibility &&
+            !(await this.noteVisibility.filter(userId, [notification])).length) {
+            return { success: false, channel, error: 'Private note access revoked', timestamp: new Date() };
+        }
         // Prepare payload
         const deliveryPayload: ChannelDeliveryPayload = {
             notificationId: notification.id,
@@ -842,6 +864,7 @@ export class NotificationCenterService implements OnModuleInit {
 
     private async createNotification(payload: NotificationPayload): Promise<Notification> {
         const notification = this.notificationRepo.create({
+            ...(payload.id ? { id: payload.id } : {}),
             userId: payload.userId,
             type: payload.type,
             title: payload.title,
@@ -874,6 +897,10 @@ export class NotificationCenterService implements OnModuleInit {
     }
 
     async getNotifications(userId: string, limit = 50): Promise<Notification[]> {
+        if (this.noteVisibility) {
+            const rows = await this.notificationRepo.find({ where: { userId }, order: { createdAt: 'DESC' } });
+            return (await this.noteVisibility.filter(userId, rows)).slice(0, limit);
+        }
         return this.notificationRepo.find({
             where: { userId },
             order: { createdAt: 'DESC' },
@@ -882,6 +909,10 @@ export class NotificationCenterService implements OnModuleInit {
     }
 
     async getUnreadCount(userId: string): Promise<number> {
+        if (this.noteVisibility) {
+            const rows = await this.notificationRepo.find({ where: { userId, isRead: false } });
+            return (await this.noteVisibility.filter(userId, rows)).length;
+        }
         return this.notificationRepo.count({
             where: { userId, isRead: false },
         });
