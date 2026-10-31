@@ -151,7 +151,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     }), [ticket, user]);
 
     const isStaff = Boolean(user?.role && user.role !== 'USER');
-    const canAddInternalNote = (user?.role === 'ADMIN' || user?.role === 'AGENT') && ticket.viewerAccess !== 'requester';
+    const canViewInternalArchive = ticket.viewerAccess === 'handler';
 
     // Initial Attachments from the report
     const initialMessage = ticket.messages?.find(
@@ -243,7 +243,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         Boolean(m && !m.isSystemMessage && !isResolutionStatement(m.content));
     /** Messages in display order; system cards stay in place, internal notes only for staff. */
     const visibleMessages = sortedMessages.filter(m =>
-        m.id !== genesisMessageId && !(isBubble(m) && m.isInternal && !canAddInternalNote)
+        m.id !== genesisMessageId && !(isBubble(m) && m.isInternal && !canViewInternalArchive)
     );
     const groupKey = (m: ChatMessage) => ({ senderId: m.sender?.id || m.sender?.fullName, isInternal: m.isInternal, createdAt: m.createdAt });
     const latestBubble = [...visibleMessages].reverse().find(isBubble);
@@ -507,7 +507,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                 <ChatComposer
                     inputRef={messageInputRef}
                     isStaff={isStaff}
-                    canAddInternalNote={canAddInternalNote}
+                    canAddInternalNote={false}
                     showCannedResponses={showCannedResponses !== false && isAgentView}
                     ticketVariables={ticketVariables}
                     replyTo={replyTo}

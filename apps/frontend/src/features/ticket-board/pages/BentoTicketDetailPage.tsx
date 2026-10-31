@@ -9,6 +9,7 @@ import { TicketDetail, Agent } from '../components/ticket-detail/types';
 import { isTerminalStatus } from '../components/ticket-detail/constants';
 import { ImageLightbox } from '../components/ticket-detail/ImageLightbox';
 import { TicketHeader } from '../components/ticket-detail/TicketHeader';
+import { TicketNotesAction } from '../components/ticket-detail/notes/TicketNotesAction';
 import { TicketChat } from '../components/ticket-detail/TicketChat';
 import { TicketHistory } from '../components/ticket-detail/TicketHistory';
 import { TicketSidebar, type StatusChangeExtra } from '../components/ticket-detail/TicketSidebar';
@@ -418,6 +419,7 @@ export const BentoTicketDetailPage: React.FC = () => {
             {/* ── Compact header: number, readonly bubbles, title, actions ── */}
             <TicketHeader
                 ticket={ticket}
+                notesAction={ticket.viewerAccess === 'handler' && user?.id ? <TicketNotesAction ticketId={ticket.id} userId={user.id} /> : undefined}
                 onCancel={canAct ? handleCancelTicket : undefined}
                 isCancelling={cancelMutation.isPending}
                 onResolve={canAct ? handleResolveTicket : undefined}

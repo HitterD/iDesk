@@ -124,6 +124,7 @@ export class NotificationPreferencesController {
                 [NotificationType.TICKET_RESOLVED]: 'When a ticket is resolved',
                 [NotificationType.TICKET_CANCELLED]: 'When a ticket is cancelled',
                 [NotificationType.TICKET_REPLY]: 'When someone replies to a ticket',
+                [NotificationType.TICKET_NOTE]: 'When a private ticket note you belong to is updated',
                 [NotificationType.CHAT_MESSAGE_RECEIVED]: 'When someone sends a message in a ticket chat',
                 [NotificationType.MENTION]: 'When you are mentioned in a ticket',
                 [NotificationType.SLA_WARNING]: 'When a ticket is approaching SLA breach',

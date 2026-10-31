@@ -52,6 +52,7 @@ interface TicketHeaderProps {
     onToggleSidebar?: () => void;
     /** Percakapan / Aktivitas switch, rendered as the header's last row (mockup .convo-head .seg). */
     tabs?: React.ReactNode;
+    notesAction?: React.ReactNode;
 }
 
 type SlaState = 'none' | 'normal' | 'paused' | 'overdue' | 'warning';
@@ -69,6 +70,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
     onToggleSidebar,
     isSidebarOpen = true,
     tabs,
+    notesAction,
 }) => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -403,6 +405,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                                 <CheckCircle2 aria-hidden="true" /><span>Selesaikan</span>
                             </Button>
                         )}
+                        {notesAction}
                         {onToggleSidebar && (
                             <Button
                                 variant="subtle"
