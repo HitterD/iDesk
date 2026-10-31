@@ -119,3 +119,11 @@ export function formatMessageTime(date: string | Date): string {
     return new Intl.DateTimeFormat('id-ID', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit' })
         .format(new Date(date));
 }
+
+export type ReadTick = 'sent' | 'read';
+
+/** One tick until the other side's read marker reaches the message, then two (WhatsApp-style). */
+export function readTick(createdAt: string, counterpartLastReadAt: string | null | undefined): ReadTick {
+    if (!counterpartLastReadAt) return 'sent';
+    return new Date(counterpartLastReadAt).getTime() >= new Date(createdAt).getTime() ? 'read' : 'sent';
+}

@@ -9,6 +9,7 @@ import {
     quoteKind,
     continuesGroup,
     ATTACHMENT_QUOTE,
+    readTick,
 } from './messageThread';
 
 describe('messageThread - quoteKind', () => {
@@ -132,5 +133,19 @@ describe('messageThread - dates', () => {
         expect(dateSeparatorLabel('2026-10-06T01:00:00Z', now)).toBe('Hari ini');
         expect(dateSeparatorLabel('2026-10-05T01:00:00Z', now)).toBe('Kemarin');
         expect(dateSeparatorLabel('2026-10-01T01:00:00Z', now)).toBe('1 Okt 2026');
+    });
+});
+
+describe('readTick', () => {
+    it('is sent while the other side has never read', () => {
+        expect(readTick('2026-10-31T08:00:00Z', null)).toBe('sent');
+        expect(readTick('2026-10-31T08:00:00Z', undefined)).toBe('sent');
+    });
+    it('is read once the other side read at or after the message', () => {
+        expect(readTick('2026-10-31T08:00:00Z', '2026-10-31T08:00:00Z')).toBe('read');
+        expect(readTick('2026-10-31T08:00:00Z', '2026-10-31T09:00:00Z')).toBe('read');
+    });
+    it('is sent when the last read predates the message', () => {
+        expect(readTick('2026-10-31T08:00:00Z', '2026-10-31T07:59:59Z')).toBe('sent');
     });
 });
