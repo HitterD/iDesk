@@ -282,6 +282,15 @@ describe('TicketChat surface', () => {
             expect(screen.queryByLabelText(/pesan baru/)).not.toBeInTheDocument();
         });
 
+        it('does not count internal notes the viewer cannot see', () => {
+            currentUser = { id: 'ops-1', role: 'AGENT_OPERATIONAL_SUPPORT', fullName: 'OPS SATU' };
+            const { rerender } = render(view(ticket));
+            scrollUp();
+            const note = { ...msg('n-1', 'agent-1', 'RM BAGASTYO'), isInternal: true };
+            rerender(view(withMessages(note)));
+            expect(screen.queryByLabelText(/pesan baru/)).not.toBeInTheDocument();
+        });
+
         it('clicking jump scrolls down and clears the badge', () => {
             const { rerender } = render(view(ticket));
             scrollUp();

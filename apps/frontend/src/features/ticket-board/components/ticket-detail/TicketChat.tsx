@@ -60,6 +60,10 @@ const isResolutionStatement = (content?: string) =>
 const isChatBubble = (m: ChatMessage | undefined) =>
     Boolean(m && !m.isSystemMessage && !isResolutionStatement(m.content));
 
+/** Whether a message is drawn in the stream: the opening report is hidden, internal notes only for note-takers. */
+const isShownInStream = (m: ChatMessage, genesisMessageId: string | null, canSeeInternal: boolean) =>
+    m.id !== genesisMessageId && !(isChatBubble(m) && m.isInternal && !canSeeInternal);
+
 const DateSeparator: React.FC<{ date: string }> = ({ date }) => (
     <div className="chat-day">{dateSeparatorLabel(date)}</div>
 );
@@ -265,9 +269,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
 
     const isBubble = isChatBubble;
     /** Messages in display order; system cards stay in place, internal notes only for staff. */
-    const visibleMessages = sortedMessages.filter(m =>
-        m.id !== genesisMessageId && !(isBubble(m) && m.isInternal && !canAddInternalNote)
-    );
+    const visibleMessages = sortedMessages.filter((m) => isShownInStream(m, genesisMessageId, canAddInternalNote));
     const groupKey = (m: ChatMessage) => ({ senderId: m.sender?.id || m.sender?.fullName, isInternal: m.isInternal, createdAt: m.createdAt });
     const latestBubble = [...visibleMessages].reverse().find(isBubble);
     const announcement = useNewMessageAnnouncement(latestBubble, isOwn);
@@ -281,10 +283,10 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             scrollToBottom();
             return;
         }
-        // Internal notes the viewer cannot see never reach them (requesters get none over REST or socket).
-        const unseenBubbles = fresh.filter(isChatBubble).length;
+        // Count only what the reader will find below: staff without note access do receive internal notes.
+        const unseenBubbles = fresh.filter((m) => isChatBubble(m) && isShownInStream(m, genesisMessageId, canAddInternalNote)).length;
         if (unseenBubbles > 0) setUnseenCount((count) => count + unseenBubbles);
-    }, [sortedMessages, isOwn, scrollToBottom]);
+    }, [sortedMessages, isOwn, scrollToBottom, genesisMessageId, canAddInternalNote]);
 
     return (
         <div className="relative flex h-full flex-col overflow-hidden">

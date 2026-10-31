@@ -221,6 +221,26 @@ describe('TicketsController', () => {
         });
     });
 
+    describe('findOne', () => {
+        it('does not mark a ticket read when the caller may not see it', async () => {
+            mockTicketQueryService = { findOne: jest.fn().mockRejectedValue(new Error('Forbidden')) };
+            mockTicketMessagingService.markAsRead = jest.fn();
+            controller.ticketQueryService = mockTicketQueryService;
+
+            await expect(controller.findOne('t-1', { user: { userId: 'u-9', role: 'USER', siteId: null } })).rejects.toThrow('Forbidden');
+            expect(mockTicketMessagingService.markAsRead).not.toHaveBeenCalled();
+        });
+
+        it('marks the ticket read once the caller has been allowed to see it', async () => {
+            mockTicketQueryService = { findOne: jest.fn().mockResolvedValue({ id: 't-1' }) };
+            mockTicketMessagingService.markAsRead = jest.fn().mockResolvedValue(undefined);
+            controller.ticketQueryService = mockTicketQueryService;
+
+            await expect(controller.findOne('t-1', { user: { userId: 'agent-1', role: 'AGENT', siteId: 'site-1' } })).resolves.toEqual({ id: 't-1' });
+            expect(mockTicketMessagingService.markAsRead).toHaveBeenCalledWith('t-1', 'agent-1', 'AGENT', 'site-1');
+        });
+    });
+
     describe('resolution confirmation', () => {
         const req = { user: { userId: 'owner-1', role: 'USER' } };
 

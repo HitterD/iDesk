@@ -140,7 +140,7 @@ export class TicketMessagingService {
         // without its SLA timer started (or its firstResponseAt set). Now atomic
         // via dataSource.transaction. Event emit / WS push moved outside the
         // transaction so listeners only fire on commit.
-        const { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply } = await this.dataSource.transaction(async (manager) => {
+        const { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, senderReadMarker, now } = await this.dataSource.transaction(async (manager) => {
             const ticket = await manager.findOne(Ticket, {
                 where: { id: ticketId },
                 relations: ['user', 'assignedTo', 'participants'],
@@ -209,16 +209,15 @@ export class TicketMessagingService {
             // Unread tracking is two-sided: a requester-side staff reply counts as the user side.
             const senderSideRole = isHandler ? user.role : UserRole.USER;
             ticket.lastMessageSenderRole = senderSideRole;
-            if (isAgentOrAdmin) {
-                ticket.agentLastReadAt = now;
-            } else {
-                ticket.userLastReadAt = now;
-            }
+            // The sender's side has read everything up to its own reply. Sides follow viewer access,
+            // like senderSideRole: every handling role is the team side, not only AGENT/ADMIN.
+            const senderReadMarker = isHandler ? 'agentLastReadAt' : 'userLastReadAt';
+            ticket[senderReadMarker] = now;
 
             // Save ticket changes
             await manager.save(Ticket, ticket);
 
-            return { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply };
+            return { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, senderReadMarker, now };
         });
 
         // The reply moved the ticket from Open to In Progress; TV boards must show it.
@@ -243,6 +242,8 @@ export class TicketMessagingService {
             },
         };
         this.eventsGateway.notifyNewMessage(ticketId, messageWithSender);
+        // The reply moved the sender side's read marker: the other side's ticks turn read live.
+        this.eventsGateway.notifyReadState(ticketId, { [senderReadMarker]: now });
         // Broadcast typing:stop to ensure no client retains ghost typing indicator
         this.eventsGateway.server.to(`ticket:${ticketId}`).emit('typing:stop', { ticketId });
         // Site room includes other requesters: send only the id, never the message body.
