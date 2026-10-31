@@ -303,9 +303,12 @@ export class TicketMessagingService {
      * every refresh of it) used to write the row on every single read.
      */
     private async markRead(ticketId: string, userId: string, markers: Partial<Pick<Ticket, 'userLastReadAt' | 'agentLastReadAt'>>): Promise<void> {
+        const moved: { userLastReadAt?: Date; agentLastReadAt?: Date } = {};
         for (const [column, value] of Object.entries(markers) as [keyof typeof markers, Date][]) {
-            await this.touchReadMarker(ticketId, column, value);
+            if (await this.touchReadMarker(ticketId, column, value)) moved[column] = value;
         }
+        // Chat read ticks follow the other side's marker live; nothing moved, nothing to tell.
+        if (Object.keys(moved).length > 0) this.eventsGateway.notifyReadState(ticketId, moved);
         // iPop clears this person's chat notifications for the ticket (listeners skip tickets iPop can't
         // see, and the reporter skips people with nothing to clear). Emitted on every open, not only when a
         // marker moved: markers are per side, notifications are per person.
@@ -317,13 +320,14 @@ export class TicketMessagingService {
      * @UpdateDateColumn (dashboards/reports treat `updatedAt` as activity time) and the
      * @VersionColumn (spurious optimistic-lock conflicts for whoever is editing it).
      */
-    private async touchReadMarker(ticketId: string, column: 'userLastReadAt' | 'agentLastReadAt', at: Date): Promise<void> {
-        await this.ticketRepo
+    private async touchReadMarker(ticketId: string, column: 'userLastReadAt' | 'agentLastReadAt', at: Date): Promise<boolean> {
+        const result = await this.ticketRepo
             .createQueryBuilder()
             .update(Ticket)
             .set({ [column]: at, updatedAt: () => '"updatedAt"', version: () => '"version"' })
             .where('id = :ticketId', { ticketId })
             .andWhere(`("${column}" IS NULL OR ("lastMessageAt" IS NOT NULL AND "lastMessageAt" > "${column}"))`)
             .execute();
+        return (result.affected ?? 0) > 0;
     }
 }

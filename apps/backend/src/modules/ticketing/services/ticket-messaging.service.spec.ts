@@ -197,11 +197,12 @@ describe('TicketMessagingService Oracle scope', () => {
                 findOne: jest.fn().mockResolvedValue(ticket),
             };
             const emitter = { emit: jest.fn() };
+            const gateway = { notifyReadState: jest.fn() };
             const service = new TicketMessagingService(
                 ticketRepo as never, {} as never, {} as never, {} as never,
-                {} as never, {} as never, emitter as never, createTestSlaClock(),
+                {} as never, gateway as never, emitter as never, createTestSlaClock(),
             );
-            return { service, ticketRepo, set, emitter };
+            return { service, ticketRepo, set, emitter, gateway, qb };
         };
         const opsTicket = { id: 't-1', userId: 'owner', createdById: null, handlingTeam: 'OPS_SUPPORT', siteId: 'site-1' };
 
@@ -209,6 +210,19 @@ describe('TicketMessagingService Oracle scope', () => {
             const { service, emitter } = build(opsTicket);
             await service.markAsRead('t-1', 'owner', UserRole.USER);
             expect(emitter.emit).toHaveBeenCalledWith('ticket.read', { ticketId: 't-1', userId: 'owner' });
+        });
+
+        it('broadcasts the moved read marker to the ticket room', async () => {
+            const { service, gateway } = build(opsTicket);
+            await service.markAsRead('t-1', 'owner', UserRole.USER);
+            expect(gateway.notifyReadState).toHaveBeenCalledWith('t-1', { userLastReadAt: expect.any(Date) });
+        });
+
+        it('stays silent when no marker moved', async () => {
+            const { service, gateway, qb } = build(opsTicket);
+            qb.execute.mockResolvedValue({ affected: 0 });
+            await service.markAsRead('t-1', 'owner', UserRole.USER);
+            expect(gateway.notifyReadState).not.toHaveBeenCalled();
         });
 
         it('marks the agent side for a handling agent and the user side for a USER', async () => {
