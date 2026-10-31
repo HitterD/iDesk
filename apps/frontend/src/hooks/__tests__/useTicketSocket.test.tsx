@@ -330,6 +330,27 @@ describe('useTicketSocket', () => {
         expect(result.current.typingUsers).toEqual({});
     });
 
+    it('merges the read marker into the ticket cache', () => {
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper: createWrapper() });
+        queryClient.setQueryData(['ticket', 'ticket-1'], { id: 'ticket-1', userLastReadAt: null, agentLastReadAt: '2026-10-31T07:00:00Z' });
+
+        fire('ticket:readStateChanged', { ticketId: 'ticket-1', userLastReadAt: '2026-10-31T08:00:00Z' });
+
+        expect(queryClient.getQueryData(['ticket', 'ticket-1'])).toEqual({
+            id: 'ticket-1', userLastReadAt: '2026-10-31T08:00:00Z', agentLastReadAt: '2026-10-31T07:00:00Z',
+        });
+    });
+
+    it('ignores read state for another ticket', () => {
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper: createWrapper() });
+        const cached = { id: 'ticket-1', userLastReadAt: null, agentLastReadAt: null };
+        queryClient.setQueryData(['ticket', 'ticket-1'], cached);
+
+        fire('ticket:readStateChanged', { ticketId: 'ticket-2', userLastReadAt: '2026-10-31T08:00:00Z' });
+
+        expect(queryClient.getQueryData(['ticket', 'ticket-1'])).toBe(cached);
+    });
+
     it('refetches the ticket after a reconnect so missed messages appear', () => {
         const wrapper = createWrapper();
         const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
