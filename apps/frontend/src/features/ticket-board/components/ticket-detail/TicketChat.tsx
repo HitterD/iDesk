@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { Wifi, Lock, FileText, Pin, ChevronDown, Paperclip } from 'lucide-react';
+import { Wifi, Lock, FileText, Pin, ChevronDown, ChevronsDown, Paperclip } from 'lucide-react';
 import { toast } from 'sonner';
 import { TicketDetail } from './types';
 import { CLOSED_TICKET_NOTICE } from './constants';
@@ -16,6 +16,7 @@ import {
     isSameDay,
     parseQuote,
     quotableText,
+    readTick,
     toDisplayName,
 } from './messageThread';
 import { useAuth } from '@/stores/useAuth';
@@ -47,11 +48,21 @@ type Reaction = { emoji: string; count: number; users: string[]; hasReacted: boo
 type ChatMessage = NonNullable<TicketDetail['messages']>[number];
 
 const HIGHLIGHT_MS = 1600;
+/** Within this distance of the bottom the reader counts as following the conversation. */
+const NEAR_BOTTOM_PX = 120;
 /** The opening report message is written in the same transaction as the ticket, so within seconds of it. */
 const GENESIS_WINDOW_MS = 60_000;
 
 const isResolutionStatement = (content?: string) =>
     Boolean(content?.includes('Tiket Dinyatakan Selesai') || content?.includes('Tiket Diselesaikan (Resolved)'));
+
+/** A chat bubble, as opposed to a system card or the resolution statement. */
+const isChatBubble = (m: ChatMessage | undefined) =>
+    Boolean(m && !m.isSystemMessage && !isResolutionStatement(m.content));
+
+/** Whether a message is drawn in the stream: the opening report is hidden, internal notes only for the handling team. */
+const isShownInStream = (m: ChatMessage, genesisMessageId: string | null, canSeeInternal: boolean) =>
+    m.id !== genesisMessageId && !(isChatBubble(m) && m.isInternal && !canSeeInternal);
 
 const DateSeparator: React.FC<{ date: string }> = ({ date }) => (
     <div className="chat-day">{dateSeparatorLabel(date)}</div>
@@ -151,7 +162,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     }), [ticket, user]);
 
     const isStaff = Boolean(user?.role && user.role !== 'USER');
-    const canAddInternalNote = (user?.role === 'ADMIN' || user?.role === 'AGENT') && ticket.viewerAccess !== 'requester';
+    const canViewInternalArchive = ticket.viewerAccess === 'handler';
 
     // Initial Attachments from the report
     const initialMessage = ticket.messages?.find(
@@ -180,12 +191,29 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         return first.content?.trim() === ticket.description.trim() && savedWithTicket ? first.id : null;
     }, [sortedMessages, ticket.description, ticket.createdAt]);
 
-    // Auto-scroll on new messages
+    // Follow the conversation only while the reader is at the bottom; scrolled up, new messages are counted instead.
+    const nearBottomRef = useRef(true);
+    const [isAwayFromBottom, setIsAwayFromBottom] = useState(false);
+    const [unseenCount, setUnseenCount] = useState(0);
+    const seenMessageIdsRef = useRef(initialMessageIds);
+    const scrollToBottom = useCallback(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), []);
+    const handleStreamScroll = () => {
+        const stream = streamRef.current;
+        if (!stream) return;
+        const near = stream.scrollHeight - stream.scrollTop - stream.clientHeight <= NEAR_BOTTOM_PX;
+        nearBottomRef.current = near;
+        setIsAwayFromBottom(!near);
+        if (near) setUnseenCount(0);
+    };
+    const jumpToLatest = () => {
+        scrollToBottom();
+        setUnseenCount(0);
+    };
+
+    useEffect(() => { scrollToBottom(); }, [scrollToBottom]);
     useEffect(() => {
-        if (ticket?.messages) {
-            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }
-    }, [ticket?.messages, typingUsers]);
+        if (Object.keys(typingUsers).length > 0 && nearBottomRef.current) scrollToBottom();
+    }, [typingUsers, scrollToBottom]);
 
     useEffect(() => () => {
         if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
@@ -239,15 +267,26 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         rootIssueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
-    const isBubble = (m: ChatMessage | undefined) =>
-        Boolean(m && !m.isSystemMessage && !isResolutionStatement(m.content));
+    const isBubble = isChatBubble;
     /** Messages in display order; system cards stay in place, internal notes only for staff. */
-    const visibleMessages = sortedMessages.filter(m =>
-        m.id !== genesisMessageId && !(isBubble(m) && m.isInternal && !canAddInternalNote)
-    );
+    const visibleMessages = sortedMessages.filter((m) => isShownInStream(m, genesisMessageId, canViewInternalArchive));
     const groupKey = (m: ChatMessage) => ({ senderId: m.sender?.id || m.sender?.fullName, isInternal: m.isInternal, createdAt: m.createdAt });
     const latestBubble = [...visibleMessages].reverse().find(isBubble);
     const announcement = useNewMessageAnnouncement(latestBubble, isOwn);
+
+    useEffect(() => {
+        const fresh = sortedMessages.filter((m) => !seenMessageIdsRef.current.has(m.id));
+        if (fresh.length === 0) return;
+        fresh.forEach((m) => seenMessageIdsRef.current.add(m.id));
+        // The viewer's own send always brings them down to it.
+        if (nearBottomRef.current || fresh.some(isOwn)) {
+            scrollToBottom();
+            return;
+        }
+        // Count only what the reader will find below: staff without note access do receive internal notes.
+        const unseenBubbles = fresh.filter((m) => isChatBubble(m) && isShownInStream(m, genesisMessageId, canViewInternalArchive)).length;
+        if (unseenBubbles > 0) setUnseenCount((count) => count + unseenBubbles);
+    }, [sortedMessages, isOwn, scrollToBottom, genesisMessageId, canViewInternalArchive]);
 
     return (
         <div className="relative flex h-full flex-col overflow-hidden">
@@ -338,7 +377,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             )}
 
             {/* ── Main Messages Stream ── */}
-            <div ref={streamRef} className="chat-stream custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-[18px]">
+            <div ref={streamRef} onScroll={handleStreamScroll} className="chat-stream custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-[18px]">
 
                 {/* Root issue (genesis report), drawn as the requester's first bubble */}
                 <div ref={rootIssueRef} data-root-issue className={cn('chat-msg', rootIsOutgoing && 'is-out')}>
@@ -456,6 +495,9 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                     isGroupEnd={isGroupEnd}
                                     isHighlighted={highlightedId === message.id}
                                     isArriving={!initialMessageIds.has(message.id)}
+                                    tick={isOutgoing(message) && !message.isInternal
+                                        ? readTick(message.createdAt, isAgentView ? ticket.userLastReadAt : ticket.agentLastReadAt)
+                                        : undefined}
                                     reactions={messageReactions[message.id] || []}
                                     onAddReaction={(emoji) => handleAddReaction(message.id, emoji)}
                                     onRemoveReaction={(emoji) => handleRemoveReaction(message.id, emoji)}
@@ -489,6 +531,15 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                 <div ref={messagesEndRef} />
             </div>
 
+            {isAwayFromBottom && (
+                <div className="relative h-0">
+                    <button type="button" className="chat-jump" aria-label="Lompat ke pesan terbaru" title="Lompat ke pesan terbaru" onClick={jumpToLatest}>
+                        <ChevronsDown aria-hidden="true" />
+                        {unseenCount > 0 && <span className="chat-jump-badge" aria-label={`${unseenCount} pesan baru`}>{unseenCount}</span>}
+                    </button>
+                </div>
+            )}
+
             {/* Screen readers hear only "Pesan baru dari X"; bubbles, tool pills and the typing indicator stay silent. */}
             <div className="sr-only" role="status" data-testid="chat-announcer">
                 {announcement && <p key={announcement.id}>{announcement.text}</p>}
@@ -507,7 +558,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                 <ChatComposer
                     inputRef={messageInputRef}
                     isStaff={isStaff}
-                    canAddInternalNote={canAddInternalNote}
+                    canAddInternalNote={false}
                     showCannedResponses={showCannedResponses !== false && isAgentView}
                     ticketVariables={ticketVariables}
                     replyTo={replyTo}

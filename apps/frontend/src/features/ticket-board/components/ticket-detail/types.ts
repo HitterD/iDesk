@@ -45,6 +45,9 @@ export interface TicketDetail {
     slaTarget?: string;
     /** 'requester' = I filed it but don't handle it: view/chat only. */
     viewerAccess?: 'handler' | 'requester';
+    /** Each side's chat read marker (requester side / handling team); drives the read ticks. */
+    userLastReadAt?: string | null;
+    agentLastReadAt?: string | null;
     slaStartedAt?: string;
     /** Business minutes left while the SLA clock is held (waiting vendor, resolved). */
     slaRemainingMinutes?: number | null;

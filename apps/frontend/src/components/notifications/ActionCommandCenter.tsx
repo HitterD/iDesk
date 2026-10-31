@@ -46,6 +46,7 @@ const QuickSettingsPanel = ({ onClose }: { onClose: () => void }) => {
 
     const categoryList: { key: keyof typeof ENTITY_CONFIG; label: string }[] = [
         { key: 'TICKET', label: 'Tiket' },
+        { key: 'TICKET_NOTE', label: 'Catatan Internal' },
         { key: 'HARDWARE_REQUEST', label: 'Hardware' },
         { key: 'EFORM', label: 'E-Form' },
         { key: 'ZOOM', label: 'Zoom' },
@@ -215,6 +216,7 @@ export const ActionCommandCenter: React.FC = () => {
     const tabs: { key: string; label: string }[] = [
         { key: 'ALL', label: 'Semua' },
         { key: 'TICKET', label: 'Tiket' },
+        { key: 'TICKET_NOTE', label: 'Catatan Internal' },
         { key: 'HARDWARE_REQUEST', label: 'Hardware' },
         { key: 'EFORM', label: 'E-Form' },
         { key: 'ZOOM', label: 'Zoom' },

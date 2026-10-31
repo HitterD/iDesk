@@ -28,7 +28,7 @@ const isTicketPath = (rel: string): boolean =>
     rel.split('/')[0].toLowerCase() === TICKET_UPLOAD_DIR;
 
 /** Folders whose files leave only through their own authorized endpoint (GM-signed e-forms), never by URL. */
-const PRIVATE_UPLOAD_DIRS = new Set(['eform-approvals']);
+const PRIVATE_UPLOAD_DIRS = new Set(['eform-approvals', 'ticket-notes']);
 const isPrivatePath = (rel: string): boolean => PRIVATE_UPLOAD_DIRS.has(rel.split('/')[0].toLowerCase());
 
 /** Legacy flat URLs (`/uploads/<file>`) for files that now live in `tickets/<dir>/`. */

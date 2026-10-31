@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { wibStartOfToday } from '../../shared/core/utils/wib-date.util';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, MoreThanOrEqual, LessThanOrEqual, ILike } from 'typeorm';
+import { Repository, Between, MoreThanOrEqual, LessThanOrEqual, ILike, Not } from 'typeorm';
 import { AuditLog, AuditAction, AuditSeverity } from './entities/audit-log.entity';
 import { Request } from 'express';
 import * as ExcelJS from 'exceljs';
@@ -79,7 +79,7 @@ export class AuditService {
         } as Partial<AuditLog>);
 
         const saved = await this.auditRepo.save(auditLog);
-        this.logger.debug(`Audit log created: ${action} on ${entityType}/${entityId} by ${userId}`);
+        if (entityType !== 'TICKET_NOTE') this.logger.debug(`Audit log created: ${action} on ${entityType}/${entityId} by ${userId}`);
         return saved;
     }
 
@@ -116,7 +116,8 @@ export class AuditService {
         const qb = this.auditRepo
             .createQueryBuilder('audit')
             .leftJoinAndSelect('audit.user', 'user')
-            .orderBy('audit.createdAt', 'DESC');
+            .orderBy('audit.createdAt', 'DESC')
+            .andWhere('audit.entityType != :privateEntity', { privateEntity: 'TICKET_NOTE' });
 
         if (userId) {
             qb.andWhere('audit.userId = :userId', { userId });
@@ -181,6 +182,7 @@ export class AuditService {
         // round-trip instead of 4. Top actions stays as a separate query
         // because the row shape is different.
         const row = await this.auditRepo.createQueryBuilder('a')
+            .where('a.entityType != :privateEntity', { privateEntity: 'TICKET_NOTE' })
             .select('COUNT(*)', 'totalLogs')
             .addSelect(`COUNT(*) FILTER (WHERE a.action = :login AND a."createdAt" >= :todayStart)`, 'loginsToday')
             .addSelect(`COUNT(*) FILTER (WHERE a."createdAt" >= :yesterday AND a.action NOT IN (:...excludeActions))`, 'changesLast24h')
@@ -200,6 +202,7 @@ export class AuditService {
             .select('audit.action', 'action')
             .addSelect('COUNT(*)', 'count')
             .where('audit.createdAt >= :weekAgo', { weekAgo })
+            .andWhere('audit.entityType != :privateEntity', { privateEntity: 'TICKET_NOTE' })
             .groupBy('audit.action')
             .orderBy('count', 'DESC')
             .limit(5)
@@ -301,6 +304,7 @@ export class AuditService {
         const logs = await this.auditRepo.find({
             where: {
                 createdAt: Between(startOfDay, endOfDay),
+                entityType: Not('TICKET_NOTE'),
             },
             relations: ['user'],
             order: { createdAt: 'DESC' },
@@ -322,6 +326,7 @@ export class AuditService {
     }
 
     async findByEntity(entityType: string, entityId: string): Promise<AuditLog[]> {
+        if (entityType === 'TICKET_NOTE') return [];
         return this.auditRepo.find({
             where: { entityType, entityId },
             relations: ['user'],
@@ -332,6 +337,7 @@ export class AuditService {
 
     async getRecentActivity(limit: number = 20): Promise<AuditLog[]> {
         return this.auditRepo.find({
+            where: { entityType: Not('TICKET_NOTE') },
             relations: ['user'],
             order: { createdAt: 'DESC' },
             take: limit,

@@ -14,6 +14,11 @@ export interface EntityConfig {
 }
 
 export const ENTITY_CONFIG: Record<ActionItemEntityType, EntityConfig> = {
+    TICKET_NOTE: {
+        icon: <FileText className="w-4 h-4" />,
+        label: 'Catatan Internal',
+        actionLabel: 'Buka Diskusi',
+    },
     TICKET: {
         icon: <Ticket className="w-4 h-4" />,
         label: 'Tiket',

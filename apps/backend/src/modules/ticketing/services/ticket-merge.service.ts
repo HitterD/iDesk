@@ -5,6 +5,10 @@ import { Repository, In, DataSource } from 'typeorm';
 import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { TicketParticipant } from '../entities/ticket-participant.entity';
+import { TicketNote } from '../notes/entities/ticket-note.entity';
+import { TicketNoteEditSession } from '../notes/entities/ticket-note-edit-session.entity';
+import { TicketNoteDocumentService } from '../notes/ticket-note-document.service';
+import { IsNull } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { AuditService, AuditAction } from '../../audit';
@@ -25,6 +29,7 @@ export class TicketMergeService {
         private readonly eventsGateway: EventsGateway,
         private readonly auditService: AuditService,
         @Optional() private readonly eventEmitter?: EventEmitter2,
+        @Optional() private readonly noteDocuments?: TicketNoteDocumentService,
     ) {}
 
     async mergeTickets(
@@ -43,6 +48,12 @@ export class TicketMergeService {
         // ticket, or the cancel-status without the merge message. Now atomic
         // via dataSource.transaction.
         const secondaryTicketNumbers = await this.dataSource.transaction(async (manager) => {
+            if (manager.queryRunner?.isTransactionActive) {
+                await manager.findOne(User, { where: { id: userId }, lock: { mode: 'pessimistic_read' } });
+                for (const id of [...new Set([primaryTicketId, ...secondaryTicketIds])].sort()) {
+                    await manager.findOne(Ticket, { where: { id }, lock: { mode: 'pessimistic_write' } });
+                }
+            }
             const primaryTicket = await manager.findOne(Ticket, {
                 where: { id: primaryTicketId },
                 relations: ['user', 'assignedTo'],
@@ -123,6 +134,14 @@ export class TicketMergeService {
                     }
                 }
 
+                const notes = await manager.find(TicketNote, { where: { ticketId: secondaryTicket.id },
+                    order: { id: 'ASC' }, lock: { mode: 'pessimistic_write' } });
+                for (const note of notes) {
+                    const sessions = await manager.find(TicketNoteEditSession, { where: { noteId: note.id, closedAt: IsNull() } });
+                    for (const session of sessions) await this.noteDocuments?.finalize(manager, note, session, new Date());
+                    await manager.save(TicketNote, { ...note, ticketId: primaryTicketId });
+                }
+
                 // Move all source messages to the primary ticket in one bulk save
                 const messages = await manager.find(TicketMessage, {
                     where: { ticketId: secondaryTicket.id },
@@ -137,6 +156,7 @@ export class TicketMergeService {
                         attachments: message.attachments,
                         attachmentInfo: message.attachmentInfo,
                         isSystemMessage: message.isSystemMessage,
+                        isInternal: message.isInternal,
                         createdAt: message.createdAt,
                     }),
                 );

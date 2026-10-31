@@ -279,6 +279,11 @@ export class EventsGateway
         this.logger.log(`Emitted new message to ticket:${ticketId}`);
     }
 
+    /** Read markers drive the chat's read ticks; both sides of the ticket room see them, internal or not. */
+    notifyReadState(ticketId: string, markers: { userLastReadAt?: Date; agentLastReadAt?: Date }) {
+        this.server.to(`ticket:${ticketId}`).emit('ticket:readStateChanged', { ticketId, ...markers });
+    }
+
     // Notify about ticket status change — site-isolated.
     notifyStatusChange(ticketId: string, status: string, updatedBy: string, siteId?: string | null) {
         this.server.to(`ticket:${ticketId}`).emit('ticket:statusChanged', { ticketId, status, updatedBy });

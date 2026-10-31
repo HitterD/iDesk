@@ -25,6 +25,9 @@ export class TicketMessage {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
+    @Column({ type: 'uuid', nullable: true })
+    clientRequestId: string | null;
+
     @Column('text')
     content: string;
 

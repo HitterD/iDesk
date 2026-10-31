@@ -134,13 +134,16 @@ export class TicketMessagingService {
         mentionedUserIds: string[] = [],
         isInternal: boolean = false,
         attachmentInfo: AttachmentInfo[] = [],
+        clientRequestId?: string,
+        authorizePrivateShare?: (manager: import('typeorm').EntityManager) => Promise<void>,
     ) {
         // P1 fix: message insert + ticket status/SLA update were two separate
         // saves outside any transaction. A crash between them left the ticket
         // without its SLA timer started (or its firstResponseAt set). Now atomic
         // via dataSource.transaction. Event emit / WS push moved outside the
         // transaction so listeners only fire on commit.
-        const { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply } = await this.dataSource.transaction(async (manager) => {
+        const { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate, senderReadMarker, now } = await this.dataSource.transaction(async (manager) => {
+            if (authorizePrivateShare) await authorizePrivateShare(manager);
             const ticket = await manager.findOne(Ticket, {
                 where: { id: ticketId },
                 relations: ['user', 'assignedTo', 'participants'],
@@ -164,6 +167,11 @@ export class TicketMessagingService {
             }
             const isHandler = access === 'handler';
 
+            if (clientRequestId) {
+                const existing = await manager.findOne(TicketMessage, { where: { ticketId, senderId: userId, clientRequestId } });
+                if (existing) return { savedMessage: existing, ticket, user, startedWork: false,
+                    senderSideRole: user.role, isFirstAgentReply: false, duplicate: true, senderReadMarker: null, now: null };
+            }
             // Create Message
             const message = manager.create(TicketMessage, {
                 ticketId,
@@ -172,6 +180,7 @@ export class TicketMessagingService {
                 attachments: files,
                 attachmentInfo: attachmentInfo.length > 0 ? attachmentInfo : null,
                 isInternal,  // Mark as internal note if specified
+                clientRequestId: clientRequestId ?? null,
             });
 
             const savedMessage = await manager.save(TicketMessage, message);
@@ -209,18 +218,18 @@ export class TicketMessagingService {
             // Unread tracking is two-sided: a requester-side staff reply counts as the user side.
             const senderSideRole = isHandler ? user.role : UserRole.USER;
             ticket.lastMessageSenderRole = senderSideRole;
-            if (isAgentOrAdmin) {
-                ticket.agentLastReadAt = now;
-            } else {
-                ticket.userLastReadAt = now;
-            }
+            // The sender's side has read everything up to its own reply. Sides follow viewer access,
+            // like senderSideRole: every handling role is the team side, not only AGENT/ADMIN.
+            const senderReadMarker = isHandler ? 'agentLastReadAt' : 'userLastReadAt';
+            ticket[senderReadMarker] = now;
 
             // Save ticket changes
             await manager.save(Ticket, ticket);
 
-            return { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply };
+            return { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate: false, senderReadMarker, now };
         });
 
+        if (duplicate) return savedMessage;
         // The reply moved the ticket from Open to In Progress; TV boards must show it.
         if (startedWork) {
             this.eventEmitter.emit('tv-board.ticket-changed', { siteId: (ticket as any).siteId });
@@ -243,6 +252,8 @@ export class TicketMessagingService {
             },
         };
         this.eventsGateway.notifyNewMessage(ticketId, messageWithSender);
+        // The reply moved the sender side's read marker: the other side's ticks turn read live.
+        if (senderReadMarker && now) this.eventsGateway.notifyReadState(ticketId, { [senderReadMarker]: now });
         // Broadcast typing:stop to ensure no client retains ghost typing indicator
         this.eventsGateway.server.to(`ticket:${ticketId}`).emit('typing:stop', { ticketId });
         // Site room includes other requesters: send only the id, never the message body.
@@ -303,9 +314,12 @@ export class TicketMessagingService {
      * every refresh of it) used to write the row on every single read.
      */
     private async markRead(ticketId: string, userId: string, markers: Partial<Pick<Ticket, 'userLastReadAt' | 'agentLastReadAt'>>): Promise<void> {
+        const moved: { userLastReadAt?: Date; agentLastReadAt?: Date } = {};
         for (const [column, value] of Object.entries(markers) as [keyof typeof markers, Date][]) {
-            await this.touchReadMarker(ticketId, column, value);
+            if (await this.touchReadMarker(ticketId, column, value)) moved[column] = value;
         }
+        // Chat read ticks follow the other side's marker live; nothing moved, nothing to tell.
+        if (Object.keys(moved).length > 0) this.eventsGateway.notifyReadState(ticketId, moved);
         // iPop clears this person's chat notifications for the ticket (listeners skip tickets iPop can't
         // see, and the reporter skips people with nothing to clear). Emitted on every open, not only when a
         // marker moved: markers are per side, notifications are per person.
@@ -317,13 +331,14 @@ export class TicketMessagingService {
      * @UpdateDateColumn (dashboards/reports treat `updatedAt` as activity time) and the
      * @VersionColumn (spurious optimistic-lock conflicts for whoever is editing it).
      */
-    private async touchReadMarker(ticketId: string, column: 'userLastReadAt' | 'agentLastReadAt', at: Date): Promise<void> {
-        await this.ticketRepo
+    private async touchReadMarker(ticketId: string, column: 'userLastReadAt' | 'agentLastReadAt', at: Date): Promise<boolean> {
+        const result = await this.ticketRepo
             .createQueryBuilder()
             .update(Ticket)
             .set({ [column]: at, updatedAt: () => '"updatedAt"', version: () => '"version"' })
             .where('id = :ticketId', { ticketId })
             .andWhere(`("${column}" IS NULL OR ("lastMessageAt" IS NOT NULL AND "lastMessageAt" > "${column}"))`)
             .execute();
+        return (result.affected ?? 0) > 0;
     }
 }

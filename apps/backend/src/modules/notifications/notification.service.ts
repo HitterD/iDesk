@@ -1,4 +1,5 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
+import { TicketNoteVisibilityService } from '../ticketing/notes/ticket-note-visibility.service';
 
 const logger = new Logger('NotificationService');
 import { InjectRepository } from '@nestjs/typeorm';
@@ -49,6 +50,7 @@ export class NotificationService {
         private readonly eventsGateway: EventsGateway,
         private readonly sjaAdapter: SjaAdapterService,
         @Optional() private readonly webPush?: NotificationPushService,
+        @Optional() private readonly noteVisibility?: TicketNoteVisibilityService,
     ) { }
 
     async create(data: {
@@ -171,10 +173,12 @@ export class NotificationService {
         const page = filters?.page || 1;
         const skip = (page - 1) * limit;
 
+        if (this.noteVisibility) {
+            const visible = await this.noteVisibility.filter(userId, await query.getMany());
+            return { data: visible.slice(skip, skip + limit), total: visible.length, page, limit };
+        }
         query.take(limit).skip(skip);
-
         const [data, total] = await query.getManyAndCount();
-
         return { data, total, page, limit };
     }
 
@@ -243,7 +247,16 @@ export class NotificationService {
         }
     }
 
+    private async visibleCounts(userId: string, unreadOnly: boolean): Promise<Record<NotificationCategory, number>> {
+        const rows = await this.notificationRepo.find({ where: { userId, ...(unreadOnly ? { isRead: false } : {}) } });
+        const visible = this.noteVisibility ? await this.noteVisibility.filter(userId, rows) : rows;
+        const counts = Object.fromEntries(Object.values(NotificationCategory).map(category => [category, 0])) as Record<NotificationCategory, number>;
+        for (const row of visible) counts[row.category]++;
+        return counts;
+    }
+
     async countUnreadByCategory(userId: string): Promise<Record<NotificationCategory, number>> {
+        if (this.noteVisibility) return this.visibleCounts(userId, true);
         const results = await this.notificationRepo
             .createQueryBuilder('n')
             .select('n.category', 'category')
@@ -269,6 +282,7 @@ export class NotificationService {
     }
 
     async countTotalByCategory(userId: string): Promise<Record<NotificationCategory, number>> {
+        if (this.noteVisibility) return this.visibleCounts(userId, false);
         const results = await this.notificationRepo
             .createQueryBuilder('n')
             .select('n.category', 'category')
@@ -293,6 +307,10 @@ export class NotificationService {
     }
 
     async findUnreadForUser(userId: string): Promise<Notification[]> {
+        if (this.noteVisibility) {
+            const rows = await this.notificationRepo.find({ where: { userId, isRead: false }, order: { createdAt: 'DESC' } });
+            return (await this.noteVisibility.filter(userId, rows)).slice(0, MAX_UNREAD_LIST);
+        }
         return this.notificationRepo.find({
             where: { userId, isRead: false },
             order: { createdAt: 'DESC' },
@@ -301,6 +319,7 @@ export class NotificationService {
     }
 
     async countUnread(userId: string): Promise<number> {
+        if (this.noteVisibility) return Object.values(await this.visibleCounts(userId, true)).reduce((sum, value) => sum + value, 0);
         return this.notificationRepo.count({
             where: { userId, isRead: false },
         });
@@ -311,6 +330,7 @@ export class NotificationService {
             where: { id, userId },
         });
         if (!notification) return null;
+        if (this.noteVisibility && !(await this.noteVisibility.filter(userId, [notification])).length) return null;
 
         notification.isRead = true;
         const saved = await this.notificationRepo.save(notification);

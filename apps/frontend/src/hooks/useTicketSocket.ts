@@ -200,6 +200,18 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
             }
         };
 
+        // The other side opened the chat: only the markers move, so the read ticks update without a refetch.
+        const handleReadState = (data: { ticketId: string; userLastReadAt?: string; agentLastReadAt?: string }) => {
+            if (data.ticketId !== ticketId) return;
+            const markers = {
+                ...(data.userLastReadAt !== undefined ? { userLastReadAt: data.userLastReadAt } : {}),
+                ...(data.agentLastReadAt !== undefined ? { agentLastReadAt: data.agentLastReadAt } : {}),
+            };
+            queryClient.setQueryData(['ticket', ticketId], (oldData: Ticket | undefined) =>
+                oldData ? { ...oldData, ...markers } : oldData,
+            );
+        };
+
         // Fail-safe synchronization: when in-app notification for this ticket arrives, sync query & clear typing
         const handleNotificationSync = (notifData: any) => {
             const incomingTicketId = notifData?.ticketId || notifData?.notification?.ticketId;
@@ -216,6 +228,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
         socket.on('ticket:updated', handleTicketUpdate);
         socket.on('typing:start', handleTypingStart);
         socket.on('typing:stop', handleTypingStop);
+        socket.on('ticket:readStateChanged', handleReadState);
 
         if (user?.id) {
             socket.on(`notification:${user.id}`, handleNotificationSync);
@@ -231,6 +244,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
             socket.off('ticket:updated', handleTicketUpdate);
             socket.off('typing:start', handleTypingStart);
             socket.off('typing:stop', handleTypingStop);
+            socket.off('ticket:readStateChanged', handleReadState);
 
             if (user?.id) {
                 socket.off(`notification:${user.id}`, handleNotificationSync);

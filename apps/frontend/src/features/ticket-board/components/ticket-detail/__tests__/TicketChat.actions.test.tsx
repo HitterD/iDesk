@@ -54,16 +54,10 @@ describe('TicketChat round-2 actions', () => {
         expect(screen.queryByText('Terlihat oleh pemohon')).not.toBeInTheDocument();
     });
 
-    it('Internal Note tints the composer and sends isInternal=true with the same content', async () => {
-        const onSend = renderChat();
-        expect(screen.getByText('Terlihat oleh pemohon')).toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', { name: 'Internal Note' }));
-        expect(document.querySelector('.chat-composer')).toHaveClass('is-internal');
-        expect(screen.getByText('Hanya terlihat oleh staf IT')).toBeInTheDocument();
-        const input = screen.getByRole('textbox', { name: 'Tulis catatan internal untuk staf…' });
-        fireEvent.change(input, { target: { value: 'catatan' } });
-        fireEvent.click(screen.getByRole('button', { name: 'Kirim catatan internal' }));
-        await waitFor(() => expect(onSend).toHaveBeenCalledWith('catatan', null, true, expect.any(Function)));
+    it('offers no manual Internal Note toggle; internal notes moved to the private notes drawer', () => {
+        renderChat();
+        expect(screen.queryByRole('button', { name: 'Internal Note' })).not.toBeInTheDocument();
+        expect(screen.getByRole('textbox', { name: /Balas ke pemohon/ })).toBeInTheDocument();
     });
 
     it('public reply sends isInternal=false', async () => {
@@ -85,7 +79,7 @@ describe('TicketChat round-2 actions', () => {
         expect(send).not.toBeDisabled();
     });
 
-    it('each message has a toolbar with an accessible ⋯ menu (Salin/Balas, Edit/Hapus only on own)', async () => {
+    it('each message has a toolbar with an accessible ⋯ menu (Salin/Balas; Edit/Hapus hidden until available)', async () => {
         const user = userEvent.setup();
         renderChat();
         const toolbar = within(row('m-1')).getByRole('toolbar', { name: 'Aksi pesan' });
@@ -93,7 +87,7 @@ describe('TicketChat round-2 actions', () => {
         expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual(['Salin', 'Balas']);
         await user.keyboard('{Escape}');
         await user.click(within(row('m-2')).getByRole('button', { name: 'Aksi lainnya' }));
-        expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual(['Salin', 'Balas', 'Edit', 'Hapus']);
+        expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual(['Salin', 'Balas']);
     });
 
     it('reaction picker adds a chip and clicking the chip removes it', async () => {

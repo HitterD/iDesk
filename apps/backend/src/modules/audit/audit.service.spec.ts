@@ -28,6 +28,11 @@ describe('AuditService', () => {
         service = module.get<AuditService>(AuditService);
     });
 
+    it('does not disclose private note existence through the entity audit endpoint', async () => {
+        mockRepo.find.mockResolvedValue([{ entityType: 'TICKET_NOTE', entityId: 'private-note' }]);
+        expect(await service.findByEntity('TICKET_NOTE', 'private-note')).toEqual([]);
+    });
+
     it('should be defined', () => {
         expect(service).toBeDefined();
     });

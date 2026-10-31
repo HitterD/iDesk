@@ -1,7 +1,7 @@
 /**
  * MessageActionMenu: the ⋯ of the message tool pill (mockup ticket-chat.js `bindMore`).
- * Salin · Balas · Edit (own) · Hapus (own, destructive). Edit/Delete have no backend yet,
- * so without handlers they say so instead of pretending to succeed.
+ * Salin · Balas · Edit · Hapus (destructive). Edit and Hapus appear only when the caller
+ * passes a handler, i.e. when that action is actually allowed for this message.
  */
 
 import React from 'react';
@@ -28,8 +28,6 @@ interface MessageActionMenuProps {
     align?: 'start' | 'end';
 }
 
-const NOT_AVAILABLE = 'belum tersedia untuk pesan tiket';
-
 export const MessageActionMenu: React.FC<MessageActionMenuProps> = ({
     messageId,
     messageContent,
@@ -49,16 +47,6 @@ export const MessageActionMenu: React.FC<MessageActionMenuProps> = ({
         }
     };
 
-    const handleEdit = () => {
-        if (onEdit) onEdit(messageId, messageContent);
-        else toast.info(`Edit pesan ${NOT_AVAILABLE}`);
-    };
-
-    const handleDelete = () => {
-        if (onDelete) onDelete(messageId);
-        else toast.info(`Hapus pesan ${NOT_AVAILABLE}`);
-    };
-
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -69,11 +57,13 @@ export const MessageActionMenu: React.FC<MessageActionMenuProps> = ({
             <DropdownMenuContent align={align} variant="compact" aria-label="Aksi pesan">
                 <DropdownMenuItem onSelect={handleCopy} disabled={isSticker}><Copy />Salin</DropdownMenuItem>
                 {onReply && <DropdownMenuItem onSelect={() => onReply(messageContent)}><Reply />Balas</DropdownMenuItem>}
-                {isOwn && !isSticker && <DropdownMenuItem onSelect={handleEdit}><Pencil />Edit</DropdownMenuItem>}
-                {isOwn && (
+                {onEdit && isOwn && !isSticker && (
+                    <DropdownMenuItem onSelect={() => onEdit(messageId, messageContent)}><Pencil />Edit</DropdownMenuItem>
+                )}
+                {onDelete && (
                     <>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem variant="destructive" onSelect={handleDelete}><Trash2 />Hapus</DropdownMenuItem>
+                        <DropdownMenuItem variant="destructive" onSelect={() => onDelete(messageId)}><Trash2 />Hapus</DropdownMenuItem>
                     </>
                 )}
             </DropdownMenuContent>

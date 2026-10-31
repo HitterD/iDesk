@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Lock, Reply, SmilePlus } from 'lucide-react';
+import { Check, CheckCheck, Lock, Reply, SmilePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { MessageReactions, ReactionPicker, type Reaction } from '@/components/ui/ChatReactions';
@@ -7,7 +7,7 @@ import { MessageAttachments } from './MessageAttachments';
 import { MessageActionMenu } from './MessageActionMenu';
 import { QuoteSnippet } from './QuoteBlock';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
-import { formatMessageTime, parseQuote, PHOTO_ONLY_PATTERN, toDisplayName } from './messageThread';
+import { formatMessageTime, parseQuote, PHOTO_ONLY_PATTERN, toDisplayName, type ReadTick } from './messageThread';
 import type { TicketDetail } from './types';
 
 type ChatMessage = NonNullable<TicketDetail['messages']>[number];
@@ -28,6 +28,8 @@ interface MessageBubbleProps {
     roleLabel?: string;
     /** Name shown for the viewer's own messages (requester view: "Anda"). */
     ownLabel?: string;
+    /** Read tick for the viewer's outgoing public messages; absent = no tick (incoming, internal). */
+    tick?: ReadTick;
     reactions: Reaction[];
     onAddReaction: (emoji: string) => void;
     onRemoveReaction: (emoji: string) => void;
@@ -89,6 +91,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     isArriving = false,
     roleLabel,
     ownLabel,
+    tick,
     reactions,
     onAddReaction,
     onRemoveReaction,
@@ -108,12 +111,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     const press = useLongPress();
     const menuAlign = isOutgoing ? 'end' : 'start';
 
-    const who = [
-        isGroupStart && <b key="name">{name}</b>,
-        isGroupStart && roleLabel && <span key="role" className="chat-role">{roleLabel}</span>,
-        isInternal && <span key="lock" className="chat-lock"><Lock aria-hidden="true" />Internal</span>,
-        <time key="time" dateTime={message.createdAt} title={formatDateTimeID(message.createdAt)}>{time}</time>,
-    ].filter(Boolean);
+    // WhatsApp-style: the sender's name opens a run of someone else's bubbles, inside the bubble.
+    const showName = isGroupStart && !isOwn;
+    const meta = (
+        <span className="chat-meta">
+            {isInternal && <span className="chat-lock"><Lock aria-hidden="true" />Internal</span>}
+            <time dateTime={message.createdAt} title={formatDateTimeID(message.createdAt)}>{time}</time>
+            {tick === 'read' && <CheckCheck role="img" aria-label="Dibaca" className="chat-tick is-read" />}
+            {tick === 'sent' && <Check role="img" aria-label="Terkirim" className="chat-tick" />}
+        </span>
+    );
 
     return (
         <div
@@ -124,7 +131,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 'chat-msg rounded-2xl transition-colors duration-700',
                 isOutgoing && 'is-out',
                 isArriving && 'is-arriving',
-                isGroupStart ? 'mt-3.5' : 'mt-1.5',
+                isGroupStart ? 'mt-3' : 'mt-0.5',
                 press.open && 'tools-open',
                 isHighlighted && 'bg-primary/10 dark:bg-primary/15',
             )}
@@ -134,12 +141,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </div>
 
             <div className="chat-msg-col">
-                <div className="chat-who">{isOutgoing ? [...who].reverse() : who}</div>
+                {isGroupStart && roleLabel && <div className="chat-who"><span className="chat-role">{roleLabel}</span></div>}
 
                 <div className={cn('chat-bubble-wrap', press.pressing && 'is-pressing')} {...press.bind}>
                     {isSticker ? (
-                        <div className="chat-sticker" role="img" aria-label={`Sticker ${message.content}`} title={formatDateTimeID(message.createdAt)}>
-                            {message.content}
+                        <div className="chat-sticker-wrap">
+                            <div className="chat-sticker" role="img" aria-label={`Sticker ${message.content}`} title={formatDateTimeID(message.createdAt)}>
+                                {message.content}
+                            </div>
+                            {meta}
                         </div>
                     ) : (
                         <div
@@ -149,8 +159,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 onAccent && 'chat-bubble-out',
                                 !onAccent && !isInternal && 'chat-bubble-in',
                                 isInternal && 'is-internal',
+                                isGroupStart && 'has-tail',
                             )}
                         >
+                            {showName && <b className="chat-bubble-name">{name}</b>}
                             {quote && (
                                 <QuoteSnippet
                                     sender={quote.sender}
@@ -168,6 +180,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 onPdfClick={onPdfClick}
                                 isRequester={!onAccent}
                             />
+                            {meta}
                         </div>
                     )}
 

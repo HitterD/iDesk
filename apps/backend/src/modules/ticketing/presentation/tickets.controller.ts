@@ -284,17 +284,19 @@ export class TicketsController {
     @ApiOperation({ summary: 'Get ticket details' })
     @ApiResponse({ status: 200, description: 'Return ticket details.' })
     async findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
-        if (req?.user) {
-            await this.ticketMessagingService.markAsRead(id, req.user.userId || req.user.id, req.user.role, req.user.siteId ?? null);
-        }
-        if (req?.user && (req.user.role || req.user.siteId !== undefined)) {
-            return this.ticketQueryService.findOne(id, {
+        const ticket = req?.user && (req.user.role || req.user.siteId !== undefined)
+            ? await this.ticketQueryService.findOne(id, {
                 id: req.user.userId || req.user.id,
                 role: req.user.role,
                 siteId: req.user.siteId ?? null,
-            });
+            })
+            : await this.ticketQueryService.findOne(id);
+        // Marked read only after access is granted: a refused viewer must not move the read markers
+        // (they drive the other side's read ticks).
+        if (req?.user) {
+            await this.ticketMessagingService.markAsRead(id, req.user.userId || req.user.id, req.user.role, req.user.siteId ?? null);
         }
-        return this.ticketQueryService.findOne(id);
+        return ticket;
     }
 
     /**
