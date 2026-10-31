@@ -16,6 +16,7 @@ import {
     isSameDay,
     parseQuote,
     quotableText,
+    readTick,
     toDisplayName,
 } from './messageThread';
 import { useAuth } from '@/stores/useAuth';
@@ -456,6 +457,9 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                     isGroupEnd={isGroupEnd}
                                     isHighlighted={highlightedId === message.id}
                                     isArriving={!initialMessageIds.has(message.id)}
+                                    tick={isOutgoing(message) && !message.isInternal
+                                        ? readTick(message.createdAt, isAgentView ? ticket.userLastReadAt : ticket.agentLastReadAt)
+                                        : undefined}
                                     reactions={messageReactions[message.id] || []}
                                     onAddReaction={(emoji) => handleAddReaction(message.id, emoji)}
                                     onRemoveReaction={(emoji) => handleRemoveReaction(message.id, emoji)}

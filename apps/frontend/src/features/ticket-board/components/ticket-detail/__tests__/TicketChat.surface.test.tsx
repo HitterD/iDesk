@@ -135,6 +135,50 @@ describe('TicketChat surface', () => {
         expect(row('r-1')).not.toBeNull();
     });
 
+    const renderWith = (patch: Partial<TicketDetail>) => render(
+        <QueryClientProvider client={new QueryClient()}>
+            <TicketChat ticket={{ ...ticket, ...patch } as TicketDetail} isConnected onSendMessage={vi.fn(() => Promise.resolve())} onImageClick={vi.fn()} />
+        </QueryClientProvider>,
+    );
+
+    it('shows a read double tick on outgoing messages the other side has read', () => {
+        renderWith({ userLastReadAt: '2026-10-06T07:00:00Z' });
+        expect(within(row('m-2')).getByRole('img', { name: 'Dibaca' })).toBeInTheDocument();
+    });
+
+    it('shows a single sent tick when the requester has not read yet', () => {
+        renderWith({ userLastReadAt: null });
+        expect(within(row('m-2')).getByRole('img', { name: 'Terkirim' })).toBeInTheDocument();
+    });
+
+    it('never ticks internal notes or incoming messages', () => {
+        renderWith({ userLastReadAt: '2026-10-06T07:00:00Z' });
+        expect(within(row('m-3')).queryByRole('img', { name: /Terkirim|Dibaca/ })).not.toBeInTheDocument();
+        expect(within(row('m-1')).queryByRole('img', { name: /Terkirim|Dibaca/ })).not.toBeInTheDocument();
+    });
+
+    it("ticks the requester's own messages against the team's read marker", () => {
+        currentUser = REQUESTER;
+        renderWith({ agentLastReadAt: '2026-10-06T05:30:00Z' });
+        expect(within(row('m-1')).getByRole('img', { name: 'Dibaca' })).toBeInTheDocument();
+    });
+
+    it("shows the sender name inside a colleague's bubble in the agent view", () => {
+        renderWith({
+            messages: [
+                { id: 'c-1', content: 'Saya bantu cek', createdAt: '2026-10-06T06:30:00Z', isSystemMessage: false,
+                    attachments: [], sender: { id: 'agent-2', fullName: 'JASON KRISTANTO', role: 'AGENT' } },
+            ],
+        } as unknown as Partial<TicketDetail>);
+        expect(row('c-1')).toHaveAttribute('data-direction', 'out');
+        expect(row('c-1').querySelector('.chat-bubble')).toHaveTextContent('Jason Kristanto');
+    });
+
+    it('keeps the time inside the bubble', () => {
+        renderChat();
+        expect(row('m-1').querySelector('.chat-bubble time')).not.toBeNull();
+    });
+
     it('keeps system events in the timeline as centered events', () => {
         renderChat();
         const event = document.querySelector('[data-system-event="m-4"]');
