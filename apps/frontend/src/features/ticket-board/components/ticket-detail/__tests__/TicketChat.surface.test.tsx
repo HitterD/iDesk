@@ -39,10 +39,10 @@ const ticket = {
     ],
 } as unknown as TicketDetail;
 
-const renderChat = (onSendMessage = vi.fn(() => Promise.resolve())) => {
+const renderChat = (onSendMessage = vi.fn(() => Promise.resolve()), chatTicket: TicketDetail = ticket) => {
     render(
         <QueryClientProvider client={new QueryClient()}>
-            <TicketChat ticket={ticket} isConnected onSendMessage={onSendMessage} onImageClick={vi.fn()} />
+            <TicketChat ticket={chatTicket} isConnected onSendMessage={onSendMessage} onImageClick={vi.fn()} />
         </QueryClientProvider>,
     );
     return onSendMessage;
@@ -73,12 +73,19 @@ describe('TicketChat surface', () => {
     });
 
     it('aligns the agent\'s own messages outgoing and keeps author identity on both sides', () => {
-        renderChat();
+        renderChat(undefined, { ...ticket, viewerAccess: 'handler' } as unknown as TicketDetail);
         expect(row('m-2')).toHaveAttribute('data-direction', 'out');
         expect(row('m-1')).toHaveAttribute('data-direction', 'in');
         expect(screen.getAllByText('Rm Bagastyo').length).toBeGreaterThan(0);
+        // Legacy internal notes stay readable as an archive for the handling team.
         expect(screen.getByText('Catatan rahasia staf')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Internal Note' })).toBeInTheDocument();
+        // New internal notes live in the private notes drawer, not the chat composer.
+        expect(screen.queryByRole('button', { name: 'Internal Note' })).not.toBeInTheDocument();
+    });
+
+    it('hides the legacy internal archive from staff who are not handling the ticket', () => {
+        renderChat(undefined, { ...ticket, viewerAccess: 'requester' } as unknown as TicketDetail);
+        expect(screen.queryByText('Catatan rahasia staf')).not.toBeInTheDocument();
     });
 
     it('aligns relative to the requester and hides internal notes and controls from them', () => {
