@@ -37,7 +37,7 @@ export function NoteDocumentEditor({ note, readonly }: { note: TicketNote; reado
         }).catch(() => { blocked.current = true; dirty.current = true; editor.setEditable(false, false); setError('Sesi edit berubah atau simpan gagal. Salin draft Anda sebelum memuat ulang.'); });
         return queue.current;
     };
-    latestSave.current = save;
+    useEffect(() => { latestSave.current = save; });
     useEffect(() => {
         if (!session && editor) editor.commands.setContent(note.document, { emitUpdate: false });
     }, [note.document, editor, session]);

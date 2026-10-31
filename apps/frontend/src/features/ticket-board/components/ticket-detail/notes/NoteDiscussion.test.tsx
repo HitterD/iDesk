@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NoteDiscussion } from './NoteDiscussion';
+import type { TicketNote } from './types';
 
 const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn() }));
 vi.mock('@/lib/api', () => ({ default: api }));
@@ -9,7 +10,7 @@ vi.mock('@/lib/api', () => ({ default: api }));
 const note = {
     id: 'n', ticketId: 't', createdById: 'me', selectedSolutionMessageId: 'm1',
     members: [{ id: 'me', fullName: 'Agent SPJ' }, { id: 'ops', fullName: 'Agen Ops Dua' }],
-} as any;
+} as unknown as TicketNote;
 const messages = [
     { id: 'm1', authorId: 'me', content: 'Cek stok roller ya', sequence: 1, createdAt: '2026-10-31T02:00:00Z', mentionedUserIds: ['ops'], attachmentIds: [] },
     { id: 'm2', authorId: 'ops', content: 'Ada 2 di gudang', sequence: 2, createdAt: '2026-10-31T02:01:00Z', mentionedUserIds: [], attachmentIds: [] },

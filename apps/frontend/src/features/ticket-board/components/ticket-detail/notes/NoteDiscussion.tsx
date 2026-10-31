@@ -25,9 +25,11 @@ export function NoteDiscussion({ note, userId, readonly, refresh }: Props) {
         queryFn: async () => (await api.get<{ messages: NoteMessage[]; throughSequence: number }>(`${base}/messages`)).data,
         refetchInterval: POLL_MS });
     const messages = query.data?.messages ?? [];
+    const refreshRef = useRef(refresh);
+    useEffect(() => { refreshRef.current = refresh; }, [refresh]);
     useEffect(() => {
         if (!query.data?.throughSequence || document.visibilityState !== 'visible') return;
-        void api.post(`${base}/read`, { throughSequence: query.data.throughSequence }).then(() => refresh())
+        void api.post(`${base}/read`, { throughSequence: query.data.throughSequence }).then(() => refreshRef.current())
             .catch(() => setError('Status baca belum diperbarui.'));
     }, [base, query.data?.throughSequence]);
     useLayoutEffect(() => {

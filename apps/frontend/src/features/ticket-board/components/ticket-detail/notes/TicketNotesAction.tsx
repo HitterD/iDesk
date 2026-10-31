@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { LockKeyhole } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,8 +8,8 @@ import { NotesDrawer } from './NotesDrawer';
 export function TicketNotesAction({ ticketId, userId }: { ticketId: string; userId: string }) {
     const [params, setParams] = useSearchParams();
     const initialNoteId = params.get('noteId') ?? undefined;
-    const [open, setOpen] = useState(Boolean(initialNoteId));
-    useEffect(() => { if (initialNoteId) setOpen(true); }, [initialNoteId]);
+    const [manualOpen, setOpen] = useState(false);
+    const open = manualOpen || Boolean(initialNoteId);
     const { notes } = useTicketNotes(ticketId, userId);
     const unread = notes.some(note => note.hasUnread);
     return <>
