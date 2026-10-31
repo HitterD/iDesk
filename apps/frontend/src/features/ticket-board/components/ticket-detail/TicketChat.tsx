@@ -60,7 +60,7 @@ const isResolutionStatement = (content?: string) =>
 const isChatBubble = (m: ChatMessage | undefined) =>
     Boolean(m && !m.isSystemMessage && !isResolutionStatement(m.content));
 
-/** Whether a message is drawn in the stream: the opening report is hidden, internal notes only for note-takers. */
+/** Whether a message is drawn in the stream: the opening report is hidden, internal notes only for the handling team. */
 const isShownInStream = (m: ChatMessage, genesisMessageId: string | null, canSeeInternal: boolean) =>
     m.id !== genesisMessageId && !(isChatBubble(m) && m.isInternal && !canSeeInternal);
 
@@ -162,7 +162,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     }), [ticket, user]);
 
     const isStaff = Boolean(user?.role && user.role !== 'USER');
-    const canAddInternalNote = (user?.role === 'ADMIN' || user?.role === 'AGENT') && ticket.viewerAccess !== 'requester';
+    const canViewInternalArchive = ticket.viewerAccess === 'handler';
 
     // Initial Attachments from the report
     const initialMessage = ticket.messages?.find(
@@ -269,7 +269,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
 
     const isBubble = isChatBubble;
     /** Messages in display order; system cards stay in place, internal notes only for staff. */
-    const visibleMessages = sortedMessages.filter((m) => isShownInStream(m, genesisMessageId, canAddInternalNote));
+    const visibleMessages = sortedMessages.filter((m) => isShownInStream(m, genesisMessageId, canViewInternalArchive));
     const groupKey = (m: ChatMessage) => ({ senderId: m.sender?.id || m.sender?.fullName, isInternal: m.isInternal, createdAt: m.createdAt });
     const latestBubble = [...visibleMessages].reverse().find(isBubble);
     const announcement = useNewMessageAnnouncement(latestBubble, isOwn);
@@ -284,9 +284,9 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             return;
         }
         // Count only what the reader will find below: staff without note access do receive internal notes.
-        const unseenBubbles = fresh.filter((m) => isChatBubble(m) && isShownInStream(m, genesisMessageId, canAddInternalNote)).length;
+        const unseenBubbles = fresh.filter((m) => isChatBubble(m) && isShownInStream(m, genesisMessageId, canViewInternalArchive)).length;
         if (unseenBubbles > 0) setUnseenCount((count) => count + unseenBubbles);
-    }, [sortedMessages, isOwn, scrollToBottom, genesisMessageId, canAddInternalNote]);
+    }, [sortedMessages, isOwn, scrollToBottom, genesisMessageId, canViewInternalArchive]);
 
     return (
         <div className="relative flex h-full flex-col overflow-hidden">
@@ -558,7 +558,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                 <ChatComposer
                     inputRef={messageInputRef}
                     isStaff={isStaff}
-                    canAddInternalNote={canAddInternalNote}
+                    canAddInternalNote={false}
                     showCannedResponses={showCannedResponses !== false && isAgentView}
                     ticketVariables={ticketVariables}
                     replyTo={replyTo}

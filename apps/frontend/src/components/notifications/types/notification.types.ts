@@ -83,6 +83,7 @@ export interface NotificationCountByCategory {
 }
 
 export interface CategorySettings {
+    TICKET_NOTE?: boolean;
     TICKET: boolean;
     HARDWARE_REQUEST: boolean;
     EFORM: boolean;

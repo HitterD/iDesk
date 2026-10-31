@@ -1,8 +1,9 @@
-import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
+import { Inject, Injectable, Logger, forwardRef, Optional } from '@nestjs/common';
 import { PushChannelService } from './channels/push-channel.service';
 import { NotificationPriority } from './interfaces/notification-channel.interface';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
+import { TicketNoteVisibilityService } from '../ticketing/notes/ticket-note-visibility.service';
 
 /**
  * Chat replies are pushed by TicketChatPushListener (one toast per ticket, internal notes to staff only,
@@ -10,7 +11,7 @@ import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway
  */
 const PUSHED_ELSEWHERE: ReadonlySet<string> = new Set([NotificationType.TICKET_REPLY]);
 
-type PushableNotification = Pick<Notification, 'id' | 'userId' | 'type' | 'title' | 'message' | 'link' | 'ticketId' | 'requiresAcknowledge'>;
+type PushableNotification = Pick<Notification, 'id' | 'userId' | 'type' | 'title' | 'message' | 'link' | 'ticketId' | 'requiresAcknowledge'> & { referenceId?: string };
 
 /**
  * Browser (Web Push) delivery for every stored notification, so users get an OS-level toast without the
@@ -24,6 +25,7 @@ export class NotificationPushService {
         private readonly push: PushChannelService,
         @Inject(forwardRef(() => EventsGateway))
         private readonly gateway: EventsGateway,
+        @Optional() private readonly noteVisibility?: TicketNoteVisibilityService,
     ) {}
 
     dispatch(notification: PushableNotification): void {
@@ -33,6 +35,7 @@ export class NotificationPushService {
 
     private async send(n: PushableNotification): Promise<void> {
         if (!this.push.isAvailable() || PUSHED_ELSEWHERE.has(n.type)) return;
+        if (n.type === NotificationType.TICKET_NOTE && (!this.noteVisibility || !(await this.noteVisibility.filter(n.userId, [n])).length)) return;
         // Someone looking at the ticket already sees the change live; an OS toast on top is noise.
         if (n.ticketId && (await this.gateway.isViewingTicket(n.userId, n.ticketId))) return;
         await this.push.send({

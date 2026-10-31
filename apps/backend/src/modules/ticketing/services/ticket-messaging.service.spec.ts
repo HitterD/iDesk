@@ -64,6 +64,22 @@ describe('TicketMessagingService Oracle scope', () => {
         expect((manager as { create?: jest.Mock }).create).toBeUndefined();
     });
 
+    it('returns an existing idempotent public reply without repeating ticket side effects', async () => {
+        const existing = { id: 'already-sent', content: 'solution' };
+        const manager: any = {
+            findOne: jest.fn().mockResolvedValueOnce({ id: 't', status: TicketStatus.IN_PROGRESS,
+                siteId: 's', participants: [], user: { id: 'owner' } })
+                .mockResolvedValueOnce({ id: 'a', role: UserRole.ADMIN, siteId: 's' })
+                .mockResolvedValueOnce(existing),
+            create: jest.fn(),
+        };
+        const service = new TicketMessagingService({} as never, {} as never, {} as never, {} as never,
+            { transaction: (fn: any) => fn(manager) } as never, {} as never, {} as never, createTestSlaClock());
+        const result = await service.replyToTicket('t', 'a', 'solution', [], [], false, [], 'request-id');
+        expect(result.id).toBe('already-sent');
+        expect(manager.create).not.toHaveBeenCalled();
+    });
+
     describe('TV board refresh on reply', () => {
         const buildService = (ticketStatus: TicketStatus, extra: Record<string, unknown> = {}, role: UserRole = UserRole.AGENT) => {
             const ticket = {

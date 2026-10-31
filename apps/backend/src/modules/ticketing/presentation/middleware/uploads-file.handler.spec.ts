@@ -64,6 +64,15 @@ describe('createUploadsFileHandler', () => {
         }
     });
 
+    it('blocks private note files and static fallbacks for GET and HEAD', async () => {
+        for (const method of ['GET', 'HEAD']) {
+            const { res, next } = await run(req('/ticket-notes/note/image.png', method));
+            expect(res.statusCode).toBe(404);
+            expect(res.sendFile).not.toHaveBeenCalled();
+            expect(next).not.toHaveBeenCalled();
+        }
+    });
+
     it('answers 401 for a ticket file without a valid session', async () => {
         access.authenticate.mockReturnValue(null);
         const { res } = await run(req(`/tickets/${TICKET_ID}/abc-1.zip`));
