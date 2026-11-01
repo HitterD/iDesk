@@ -10,6 +10,9 @@ import {
     continuesGroup,
     ATTACHMENT_QUOTE,
     readTick,
+    canEditMessage,
+    canDeleteMessage,
+    EDIT_WINDOW_MS,
 } from './messageThread';
 
 describe('messageThread - quoteKind', () => {
@@ -147,5 +150,45 @@ describe('readTick', () => {
     });
     it('is sent when the last read predates the message', () => {
         expect(readTick('2026-10-31T08:00:00Z', '2026-10-31T07:59:59Z')).toBe('sent');
+    });
+});
+
+describe('edit and delete rules', () => {
+    const NOW = new Date('2026-11-01T08:00:00Z').getTime();
+    const msg = (over: Record<string, unknown> = {}) => ({
+        createdAt: new Date(NOW - 60_000).toISOString(), isSystemMessage: false, isInternal: false, isDeleted: false,
+        source: 'WEB', sender: { id: 'u-1' }, ...over,
+    });
+
+    it('edit is allowed for the sender within 15 minutes', () => {
+        expect(canEditMessage(msg(), 'u-1', false, NOW)).toBe(true);
+        expect(canEditMessage(msg({ createdAt: new Date(NOW - EDIT_WINDOW_MS).toISOString() }), 'u-1', false, NOW)).toBe(true);
+    });
+
+    it('edit is refused at 15 minutes and 1 second', () => {
+        expect(canEditMessage(msg({ createdAt: new Date(NOW - EDIT_WINDOW_MS - 1000).toISOString() }), 'u-1', false, NOW)).toBe(false);
+    });
+
+    it('edit is refused for others, system, email, internal, deleted and closed', () => {
+        expect(canEditMessage(msg(), 'u-2', false, NOW)).toBe(false);
+        expect(canEditMessage(msg(), undefined, false, NOW)).toBe(false);
+        expect(canEditMessage(msg({ isSystemMessage: true }), 'u-1', false, NOW)).toBe(false);
+        expect(canEditMessage(msg({ source: 'EMAIL' }), 'u-1', false, NOW)).toBe(false);
+        expect(canEditMessage(msg({ isInternal: true }), 'u-1', false, NOW)).toBe(false);
+        expect(canEditMessage(msg({ isDeleted: true }), 'u-1', false, NOW)).toBe(false);
+        expect(canEditMessage(msg(), 'u-1', true, NOW)).toBe(false);
+    });
+
+    it('delete is allowed for the sender at any time and for an admin', () => {
+        const old = msg({ createdAt: '2020-01-01T00:00:00Z' });
+        expect(canDeleteMessage(old, { id: 'u-1', role: 'USER' }, false)).toBe(true);
+        expect(canDeleteMessage(old, { id: 'admin', role: 'ADMIN' }, false)).toBe(true);
+    });
+
+    it("delete is refused for a requester on the agent's message and on closed tickets", () => {
+        expect(canDeleteMessage(msg({ sender: { id: 'agent' } }), { id: 'u-1', role: 'USER' }, false)).toBe(false);
+        expect(canDeleteMessage(msg(), { id: 'u-1', role: 'USER' }, true)).toBe(false);
+        expect(canDeleteMessage(msg({ isInternal: true }), { id: 'admin', role: 'ADMIN' }, false)).toBe(false);
+        expect(canDeleteMessage(msg(), null, false)).toBe(false);
     });
 });

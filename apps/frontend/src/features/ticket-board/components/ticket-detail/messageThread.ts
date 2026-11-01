@@ -127,3 +127,33 @@ export function readTick(createdAt: string, counterpartLastReadAt: string | null
     if (!counterpartLastReadAt) return 'sent';
     return new Date(counterpartLastReadAt).getTime() >= new Date(createdAt).getTime() ? 'read' : 'sent';
 }
+
+/** How long after sending the sender may still edit a message (mirrors the server rule). */
+export const EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+export interface EditableMessage {
+    createdAt: string;
+    isSystemMessage: boolean;
+    isInternal?: boolean;
+    isDeleted?: boolean;
+    source?: string;
+    sender?: { id?: string } | null;
+}
+
+/** Live public chat messages only: system, e-mail, archived internal and deleted messages are locked. */
+const isChangeable = (m: EditableMessage, ticketClosed: boolean) =>
+    !ticketClosed && !m.isSystemMessage && m.source !== 'EMAIL' && !m.isInternal && !m.isDeleted;
+
+export function canEditMessage(m: EditableMessage, viewerId: string | undefined, ticketClosed: boolean, now: number = Date.now()): boolean {
+    if (!viewerId || m.sender?.id !== viewerId || !isChangeable(m, ticketClosed)) return false;
+    return now - new Date(m.createdAt).getTime() <= EDIT_WINDOW_MS;
+}
+
+export function canDeleteMessage(
+    m: EditableMessage,
+    viewer: { id?: string; role?: string } | null | undefined,
+    ticketClosed: boolean,
+): boolean {
+    if (!viewer?.id || !isChangeable(m, ticketClosed)) return false;
+    return m.sender?.id === viewer.id || viewer.role === 'ADMIN';
+}
