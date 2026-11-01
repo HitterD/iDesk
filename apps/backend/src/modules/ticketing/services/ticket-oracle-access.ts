@@ -34,7 +34,7 @@ export const assertTicketRoleAccess = (
 
 /**
  * `handler`: staff of the ticket's team and site — full view incl. internal notes.
- * `requester`: requester, filer or participant (and any USER) — public chat only,
+ * `requester`: requester, filer or participant — public chat only,
  * kept even after the ticket is forwarded to another team or site.
  */
 export type TicketViewerAccess = 'handler' | 'requester';
@@ -52,8 +52,11 @@ export const resolveTicketViewerAccess = (
         return 'handler';
     }
     if (isTicketRequesterSide(viewer.id, ticket)) return 'requester';
-    validateTicketAccess({ role }, ticket);
-    validateTicketSiteAccess(role, siteId, ticket.siteId);
-    // Only a USER gets here: staff passing both checks returned `handler` above.
-    return 'requester';
+    // Neither handler nor on the ticket: no access. A USER has no handler path, so a same-site
+    // USER who is not the requester, filer or a participant lands here too.
+    if (role !== UserRole.USER) {
+        validateTicketAccess({ role }, ticket);
+        validateTicketSiteAccess(role, siteId, ticket.siteId);
+    }
+    throw new ForbiddenException('Access to this ticket is forbidden');
 };
