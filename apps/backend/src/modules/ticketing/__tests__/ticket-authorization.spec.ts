@@ -98,3 +98,36 @@ describe('Ticket Authorization Object Checks', () => {
         await expect(updateService.updateTicket('t-1', { status: 'IN_PROGRESS' } as any, 'agent-1')).rejects.toThrow(ForbiddenException);
     });
 });
+
+describe('Requester isolation on the same site', () => {
+    const ticket = {
+        id: 't-9', userId: 'owner', createdById: null, siteId: 'site-1', handlingTeam: 'OPS_SUPPORT', status: 'IN_PROGRESS',
+        participants: [], messages: [], user: { id: 'owner' }, slaTarget: new Date(), createdAt: new Date(),
+    };
+    const stranger = { id: 'stranger', role: UserRole.USER, siteId: 'site-1' };
+
+    it("a USER cannot open another requester's ticket details", async () => {
+        const query = new TicketQueryService({ findOne: jest.fn().mockResolvedValue(ticket) } as any, { findOne: jest.fn() } as any, {} as any);
+        await expect(query.findOne('t-9', stranger)).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(query.assertCanView('t-9', stranger)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it("a USER cannot read or reply to another requester's chat", async () => {
+        const ticketRepo = { findOne: jest.fn().mockResolvedValue(ticket) };
+        const messageRepo = { find: jest.fn().mockResolvedValue([{ id: 'm', content: 'rahasia' }]) };
+        const manager = {
+            findOne: jest.fn().mockResolvedValueOnce(ticket).mockResolvedValueOnce({ id: 'stranger', role: UserRole.USER, siteId: 'site-1' }),
+            create: jest.fn((_e, d) => d), save: jest.fn(async (_e, d) => d),
+        };
+        const messaging = new TicketMessagingService(
+            ticketRepo as any, messageRepo as any, {} as any, {} as any,
+            { transaction: jest.fn((cb) => cb(manager)) } as any, { server: { to: jest.fn(() => ({ emit: jest.fn() })) } } as any,
+            { emit: jest.fn() } as any, createTestSlaClock(),
+        );
+
+        await expect(messaging.getMessages('t-9', UserRole.USER, 'site-1', 'stranger')).rejects.toBeInstanceOf(ForbiddenException);
+        expect(messageRepo.find).not.toHaveBeenCalled();
+        await expect(messaging.replyToTicket('t-9', 'stranger', 'halo')).rejects.toBeInstanceOf(ForbiddenException);
+        expect(manager.save).not.toHaveBeenCalled();
+    });
+});
