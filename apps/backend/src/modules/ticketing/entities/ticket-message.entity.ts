@@ -73,4 +73,18 @@ export class TicketMessage {
 
     @Column({ type: 'varchar', nullable: true })
     senderId: string;
+
+    @Column({ type: 'timestamp', nullable: true })
+    editedAt: Date | null;
+
+    /**
+     * Soft delete for everyone. A plain column, not @DeleteDateColumn: the row must stay visible
+     * so the chat can show "Pesan ini telah dihapus" in its place.
+     */
+    @Column({ type: 'timestamp', nullable: true })
+    deletedAt: Date | null;
+
+    /** Who deleted it: the sender, or an admin (then the placeholder says so). */
+    @Column({ type: 'uuid', nullable: true })
+    deletedById: string | null;
 }

@@ -23,6 +23,7 @@ import { TicketTemplatesController } from './presentation/ticket-templates.contr
 import { TicketModulesController } from './presentation/ticket-modules.controller';
 import { Ticket } from './entities/ticket.entity';
 import { TicketMessage } from './entities/ticket-message.entity';
+import { TicketMessageEdit } from './entities/ticket-message-edit.entity';
 import { TicketParticipant } from './entities/ticket-participant.entity';
 import { TicketTemplate } from './entities/ticket-template.entity';
 import { TicketModule as TicketModuleEntity } from './entities/ticket-module.entity';
@@ -97,6 +98,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
             TicketNoteRevision, TicketNoteAttachment, TicketNoteDelivery,
             Ticket,
             TicketMessage,
+            TicketMessageEdit,
             TicketParticipant,
             TicketTemplate,
             TicketModuleEntity,
