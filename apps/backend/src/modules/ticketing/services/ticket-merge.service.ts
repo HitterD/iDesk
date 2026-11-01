@@ -152,12 +152,16 @@ export class TicketMergeService {
                     manager.create(TicketMessage, {
                         ticketId: primaryTicketId,
                         senderId: message.senderId,
-                        content: `[Merged from #${secondaryTicket.ticketNumber}] ${message.content}`,
+                        // A deleted message stays deleted (its text is never served, so no prefix on it).
+                        content: message.deletedAt ? message.content : `[Merged from #${secondaryTicket.ticketNumber}] ${message.content}`,
                         attachments: message.attachments,
                         attachmentInfo: message.attachmentInfo,
                         isSystemMessage: message.isSystemMessage,
                         isInternal: message.isInternal,
                         createdAt: message.createdAt,
+                        editedAt: message.editedAt ?? null,
+                        deletedAt: message.deletedAt ?? null,
+                        deletedById: message.deletedById ?? null,
                     }),
                 );
                 if (movedMessages.length > 0) {

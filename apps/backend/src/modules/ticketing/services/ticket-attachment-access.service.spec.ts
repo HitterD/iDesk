@@ -85,6 +85,13 @@ describe('TicketAttachmentAccessService.authorize', () => {
         expect((await service.authorize(viewer(UserRole.AGENT), REL)).ok).toBe(true);
     });
 
+    it('hides the files of a deleted message from requesters; the handling team keeps them for audit', async () => {
+        const { service, qb } = setup([message({ deletedAt: new Date() })]);
+        await expect(service.authorize(viewer(UserRole.USER, 'owner'), REL)).resolves.toEqual({ ok: false, status: 403 });
+        expect((await service.authorize(viewer(UserRole.AGENT), REL)).ok).toBe(true);
+        expect(qb.select.mock.calls[0][0]).toContain('msg.deletedAt');
+    });
+
     it('ignores LIKE hits whose stored name only partially matches', async () => {
         const { service, ticketRepo } = setup([message({ attachments: [`/uploads/tickets/${TICKET_ID}/x${FILE}`] })], null);
         await expect(service.authorize(viewer(UserRole.ADMIN), REL)).resolves.toEqual({ ok: false, status: 404 });

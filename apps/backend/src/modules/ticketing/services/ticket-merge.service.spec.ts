@@ -33,6 +33,36 @@ describe('TicketMergeService Oracle scope', () => {
         expect(savedNotes).toEqual([expect.objectContaining({ id: 'private-note', ticketId: 'p', createdById: 'u' })]);
     });
 
+    it('keeps deleted messages deleted and edited ones marked when merged', async () => {
+        const primary = { id: 'p', ticketNumber: 'P', status: TicketStatus.IN_PROGRESS };
+        const secondary = { id: 's', ticketNumber: 'S', status: TicketStatus.IN_PROGRESS, description: '' };
+        const deletedAt = new Date('2026-10-31T08:00:00Z');
+        const editedAt = new Date('2026-10-31T07:00:00Z');
+        const savedMessages: any[] = [];
+        const manager = {
+            findOne: jest.fn(async (entity: any) => entity === User ? { id: 'u', role: UserRole.ADMIN } : primary),
+            find: jest.fn(async (entity: any) => entity === Ticket ? [secondary] : entity === TicketMessage ? [
+                { id: 'gone', senderId: 'u', content: 'rahasia', attachments: [], isInternal: false, deletedAt, deletedById: 'admin' },
+                { id: 'fixed', senderId: 'u', content: 'versi baru', attachments: [], isInternal: false, editedAt },
+            ] : []),
+            create: (_entity: any, data: any) => data,
+            save: async (entity: any, data: any) => {
+                if (entity === TicketMessage) savedMessages.push(...(Array.isArray(data) ? data : [data]));
+                return data;
+            },
+        };
+        const gateway: any = { server: { to: () => ({ emit: jest.fn() }) }, emitToTicketAudience: jest.fn(),
+            notifyTicketListUpdate: jest.fn(), notifyDashboardStatsUpdate: jest.fn() };
+        const service = new TicketMergeService({ findOne: async () => primary } as any, {} as any, {} as any,
+            { transaction: async (fn: any) => fn(manager) } as any, gateway, { log: async () => undefined } as any);
+
+        await service.mergeTickets('p', ['s'], 'u');
+
+        const gone = savedMessages.find((m) => m.deletedAt);
+        expect(gone).toMatchObject({ ticketId: 'p', deletedAt, deletedById: 'admin', content: 'rahasia' });
+        expect(savedMessages.find((m) => m.content.includes('versi baru'))).toMatchObject({ editedAt });
+    });
+
     it('blocks AGENT_ORACLE merge containing a standard ticket before writes', async () => {
         const manager = {
             findOne: jest.fn()

@@ -29,7 +29,7 @@ export type AttachmentAccess =
     | { ok: true; downloadName: string | null }
     | { ok: false; status: 403 | 404 };
 
-type MatchedMessage = Pick<TicketMessage, 'ticketId' | 'isInternal' | 'attachments' | 'attachmentInfo'>;
+type MatchedMessage = Pick<TicketMessage, 'ticketId' | 'isInternal' | 'attachments' | 'attachmentInfo' | 'deletedAt'>;
 
 /** Splits `tickets/<dir>/<file>` into its parts; null for anything else. */
 export function parseTicketUploadPath(relPath: string): { dir: string; fileName: string } | null {
@@ -89,7 +89,8 @@ export class TicketAttachmentAccessService {
             if (!ticket) continue;
             found = true;
             const access = this.accessOf(viewer, ticket);
-            if (access === 'handler' || (access === 'requester' && !message.isInternal)) {
+            // A deleted message's files stay on disk for audit: only the handling team may still open them.
+            if (access === 'handler' || (access === 'requester' && !message.isInternal && !message.deletedAt)) {
                 return { ok: true, downloadName: this.originalName(message, parsed.fileName) };
             }
         }
@@ -109,7 +110,7 @@ export class TicketAttachmentAccessService {
     private async findMessagesWithFile(fileName: string): Promise<MatchedMessage[]> {
         const candidates = await this.messageRepo
             .createQueryBuilder('msg')
-            .select(['msg.id', 'msg.ticketId', 'msg.isInternal', 'msg.attachments', 'msg.attachmentInfo'])
+            .select(['msg.id', 'msg.ticketId', 'msg.isInternal', 'msg.attachments', 'msg.attachmentInfo', 'msg.deletedAt'])
             .where('msg.attachments LIKE :pattern', { pattern: `%/${escapeLike(fileName)}"%` })
             .take(MAX_MATCHING_MESSAGES)
             .getMany();
