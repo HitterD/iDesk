@@ -182,6 +182,14 @@ describe('EventsGateway presence', () => {
         expect(gateway.server.to).toHaveBeenNthCalledWith(2, 'ticket:t-1');
     });
 
+    it('sends message edits and deletes to the staff room for internal notes and the ticket room otherwise', () => {
+        gateway.notifyMessageUpdated('t-1', { id: 'm-1', isInternal: true });
+        gateway.notifyMessageUpdated('t-1', { id: 'm-2', isInternal: false });
+
+        expect(gateway.server.to).toHaveBeenNthCalledWith(1, ticketStaffRoom('t-1'));
+        expect(gateway.server.to).toHaveBeenNthCalledWith(2, 'ticket:t-1');
+    });
+
     it('reports whether any of the user\'s tabs has the ticket open', async () => {
         const inRoom = jest.fn().mockReturnValue({
             fetchSockets: jest.fn().mockResolvedValue([

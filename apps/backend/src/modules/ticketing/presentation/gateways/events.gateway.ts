@@ -279,6 +279,12 @@ export class EventsGateway
         this.logger.log(`Emitted new message to ticket:${ticketId}`);
     }
 
+    /** An edited or deleted chat message, already presented (a deleted one carries no text or files). */
+    notifyMessageUpdated(ticketId: string, message: { id: string; isInternal?: boolean }) {
+        const room = message?.isInternal ? ticketStaffRoom(ticketId) : `ticket:${ticketId}`;
+        this.server.to(room).emit('ticket:messageUpdated', { ticketId, message });
+    }
+
     /** Read markers drive the chat's read ticks; both sides of the ticket room see them, internal or not. */
     notifyReadState(ticketId: string, markers: { userLastReadAt?: Date; agentLastReadAt?: Date }) {
         this.server.to(`ticket:${ticketId}`).emit('ticket:readStateChanged', { ticketId, ...markers });
