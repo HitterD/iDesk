@@ -7,6 +7,8 @@ import { MessageAttachments } from './MessageAttachments';
 import { SystemMessageEvent } from './SystemMessageEvent';
 import { legacyActivityEvent } from './legacyActivity';
 import { MessageBubble } from './MessageBubble';
+import { useMessageActions } from './useMessageActions';
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ActivityEvent, linkedTicketMove } from './ActivityEvent';
 import { ChatComposer, ReplyTarget, STICKERS } from './ChatComposer';
 import {
@@ -17,6 +19,9 @@ import {
     parseQuote,
     quotableText,
     readTick,
+    buildQuotedContent,
+    canDeleteMessage,
+    canEditMessage,
     toDisplayName,
 } from './messageThread';
 import { useAuth } from '@/stores/useAuth';
@@ -101,6 +106,9 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isPinnedExpanded, setIsPinnedExpanded] = useState(false);
     const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
+    const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [highlightedId, setHighlightedId] = useState<string | null>(null);
     const [messageReactions, setMessageReactions] = useState<Record<string, Reaction[]>>({});
     const [proposingHardware, setProposingHardware] = useState(false);
@@ -108,6 +116,34 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const { user } = useAuth();
     const pdfPreview = usePDFPreview();
     const isTicketClosed = ticket.status === 'CLOSED';
+    const messageActions = useMessageActions(ticket.id);
+
+    const startEdit = (message: ChatMessage) => {
+        const quote = parseQuote(message.content);
+        setReplyTo(null);
+        setEditing({ id: message.id, body: quote ? quote.body : message.content });
+    };
+    /** A reply keeps its quote: only the body under it was in the box. */
+    const saveEdit = async (body: string) => {
+        if (!editing) return;
+        const original = ticket.messages?.find((m) => m.id === editing.id);
+        const quote = original ? parseQuote(original.content) : null;
+        await messageActions.editMessage(editing.id, quote ? buildQuotedContent(quote.sender, quote.quote, body) : body);
+        setEditing(null);
+    };
+    const confirmDelete = async () => {
+        if (!deletingId) return;
+        setIsDeleting(true);
+        try {
+            await messageActions.deleteMessage(deletingId);
+            if (editing?.id === deletingId) setEditing(null);
+            setDeletingId(null);
+        } catch {
+            // The API layer showed the error; the dialog stays so the user can retry or cancel.
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     const handleAddReaction = useCallback((messageId: string, emoji: string) => {
         const currentUserName = user?.fullName || 'User';
@@ -509,6 +545,9 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                         });
                                         messageInputRef.current?.focus();
                                     }}
+                                    onEdit={canEditMessage(message, user?.id, isTicketClosed) && !STICKERS.includes(message.content?.trim() || '')
+                                        ? () => startEdit(message) : undefined}
+                                    onDelete={canDeleteMessage(message, user, isTicketClosed) ? () => setDeletingId(message.id) : undefined}
                                     onQuoteClick={() => jumpToQuoted(message)}
                                     onImageClick={onImageClick}
                                     onPdfClick={(url, filename) => pdfPreview.openPreview(url, filename, 'PDF Attachment')}
@@ -563,6 +602,9 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     ticketVariables={ticketVariables}
                     replyTo={replyTo}
                     onCancelReply={() => setReplyTo(null)}
+                    editing={editing}
+                    onCancelEdit={() => setEditing(null)}
+                    onSaveEdit={saveEdit}
                     onSend={(content, files, isInternal, onProgress) => onSendMessage(content, files, isInternal, onProgress)}
                     onSendSticker={handleSendSticker}
                     onTypingStart={onTypingStart}
@@ -580,6 +622,19 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                 <ProposeEFormDialog open={proposingEForm} onOpenChange={setProposingEForm} ticketId={ticket.id}
                     ticketNumber={ticket.ticketNumber} requesterName={toDisplayName(ticket.user?.fullName)} defaultReason={ticket.title} />
             )}
+
+            <ConfirmationDialog
+                isOpen={Boolean(deletingId)}
+                variant="destructive"
+                appearance="ticket"
+                title="Hapus pesan?"
+                description={'Pesan akan diganti dengan keterangan "Pesan ini telah dihapus" untuk semua peserta.'}
+                confirmText="Hapus"
+                cancelText="Batal"
+                isLoading={isDeleting}
+                onConfirm={() => void confirmDelete()}
+                onCancel={() => setDeletingId(null)}
+            />
 
             <PDFPreviewModal
                 isOpen={pdfPreview.isOpen}

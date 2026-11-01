@@ -4,7 +4,7 @@
  * passes a handler, i.e. when that action is actually allowed for this message.
  */
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { Copy, Ellipsis, Pencil, Reply, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -38,6 +38,13 @@ export const MessageActionMenu: React.FC<MessageActionMenuProps> = ({
     onReply,
     align = 'start',
 }) => {
+    // Edit and Balas hand the focus to the composer; the menu must not pull it back to ⋯ on close.
+    const focusMovesAway = useRef(false);
+    const handOff = (action: () => void) => () => {
+        focusMovesAway.current = true;
+        action();
+    };
+
     const handleCopy = async () => {
         try {
             await navigator.clipboard.writeText(messageContent);
@@ -54,11 +61,20 @@ export const MessageActionMenu: React.FC<MessageActionMenuProps> = ({
                     <Ellipsis aria-hidden="true" />
                 </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align={align} variant="compact" aria-label="Aksi pesan">
+            <DropdownMenuContent
+                align={align}
+                variant="compact"
+                aria-label="Aksi pesan"
+                onCloseAutoFocus={(event) => {
+                    if (!focusMovesAway.current) return;
+                    focusMovesAway.current = false;
+                    event.preventDefault();
+                }}
+            >
                 <DropdownMenuItem onSelect={handleCopy} disabled={isSticker}><Copy />Salin</DropdownMenuItem>
-                {onReply && <DropdownMenuItem onSelect={() => onReply(messageContent)}><Reply />Balas</DropdownMenuItem>}
+                {onReply && <DropdownMenuItem onSelect={handOff(() => onReply(messageContent))}><Reply />Balas</DropdownMenuItem>}
                 {onEdit && isOwn && !isSticker && (
-                    <DropdownMenuItem onSelect={() => onEdit(messageId, messageContent)}><Pencil />Edit</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={handOff(() => onEdit(messageId, messageContent))}><Pencil />Edit</DropdownMenuItem>
                 )}
                 {onDelete && (
                     <>

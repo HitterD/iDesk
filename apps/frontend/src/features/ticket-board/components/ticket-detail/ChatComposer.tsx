@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowUp, Cpu, Eye, Globe, KeyRound, Loader2, Lock, Paperclip, Plus, Reply, Smile, Upload, X } from 'lucide-react';
+import { ArrowUp, Check, Cpu, Eye, Globe, KeyRound, Loader2, Lock, Paperclip, Pencil, Plus, Reply, Smile, Upload, X } from 'lucide-react';
 import { SegmentedControl, type SegmentedOption } from '@/components/ui/segmented-control';
 import { toast } from 'sonner';
 import TextareaAutosize from 'react-textarea-autosize';
@@ -37,6 +37,11 @@ interface ChatComposerProps {
     /** Shown to ICT on an open IT support ticket: propose a hardware request for the requester to confirm. */
     onProposeHardware?: () => void;
     onProposeEForm?: () => void;
+    /** Editing one of the viewer's messages: the box holds its text and Send saves it instead. */
+    editing?: { id: string; body: string } | null;
+    onCancelEdit?: () => void;
+    /** Rejects when the edit was not saved; the draft and the edit mode are kept. */
+    onSaveEdit?: (body: string) => Promise<void>;
 }
 
 const MAX_MESSAGE_LENGTH = 5000;
@@ -138,6 +143,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     onTypingStop,
     onProposeHardware,
     onProposeEForm,
+    editing = null,
+    onCancelEdit,
+    onSaveEdit,
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -177,8 +185,42 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         setMessageLength(value.length);
     };
 
+    // Entering edit mode loads the message into the box; leaving it clears the box.
+    const editingId = editing?.id;
+    useEffect(() => {
+        const input = inputRef.current;
+        if (!input) return;
+        input.value = editing?.body ?? '';
+        setMessageLength(input.value.length);
+        if (!editing) return undefined;
+        // Next frame: the ⋯ menu that started the edit is still closing and would take the focus back.
+        const frame = requestAnimationFrame(() => {
+            input.focus();
+            input.setSelectionRange(input.value.length, input.value.length);
+        });
+        return () => cancelAnimationFrame(frame);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when another message is picked
+    }, [editingId]);
+
+    const handleSaveEdit = async () => {
+        const body = inputRef.current?.value.trim() || '';
+        if (!body || !onSaveEdit) return;
+        setSendProgress(0);
+        try {
+            await onSaveEdit(body);
+        } catch {
+            // The error toast came from the API layer; keep the draft and the edit mode for a retry.
+        } finally {
+            setSendProgress(null);
+        }
+    };
+
     const handleSendMessage = async () => {
         if (isSending) return;
+        if (editing) {
+            await handleSaveEdit();
+            return;
+        }
         const rawContent = inputRef.current?.value.trim() || '';
         if (!rawContent && selectedFiles.length === 0) return;
 
@@ -285,8 +327,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     };
 
     const hasContent = messageLength > 0 && Boolean(inputRef.current?.value.trim());
-    const canSend = !isSending && (hasContent || selectedFiles.length > 0);
-    const sendLabel = isSending ? 'Mengirim…' : isInternal ? 'Kirim catatan internal' : 'Kirim';
+    const canSend = !isSending && (hasContent || (!editing && selectedFiles.length > 0));
+    const sendLabel = isSending
+        ? (editing ? 'Menyimpan…' : 'Mengirim…')
+        : editing ? 'Simpan perubahan' : isInternal ? 'Kirim catatan internal' : 'Kirim';
 
     return (
         <div
@@ -324,7 +368,17 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                 </div>
             )}
 
-            {replyTo && (
+            {editing && (
+                <div className="chat-compose-ctx is-editing">
+                    <Pencil aria-hidden="true" />
+                    <span className="chat-ctx-t"><b>Mengedit pesan</b></span>
+                    <button type="button" onClick={onCancelEdit} className="chat-ctx-x" aria-label="Batalkan edit" title="Batalkan (Esc)">
+                        <X aria-hidden="true" />
+                    </button>
+                </div>
+            )}
+
+            {replyTo && !editing && (
                 <div className="chat-compose-ctx">
                     <Reply aria-hidden="true" />
                     <span className="chat-ctx-t">
@@ -350,7 +404,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                 )}
 
                 <div className="chat-composer-box">
-                    <div className="relative flex-none" data-plus-menu>
+                    <div className={cn('relative flex-none', editing && 'hidden')} data-plus-menu>
                         <button
                             type="button"
                             onClick={() => setPlusMenu(prev => (prev === 'closed' ? 'menu' : 'closed'))}
@@ -398,7 +452,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                                 e.preventDefault();
                                 await handleSendMessage();
                             }
-                            if (e.key === 'Escape' && replyTo) onCancelReply();
+                            if (e.key === 'Escape' && editing) onCancelEdit?.();
+                            else if (e.key === 'Escape' && replyTo) onCancelReply();
                         }}
                     />
                     {showCannedResponses && (
@@ -423,7 +478,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                     title={`${sendLabel} (Enter) · Shift+Enter untuk baris baru`}
                     className="chat-send"
                 >
-                    {isSending ? <Loader2 className="idesk-spin" aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}
+                    {isSending ? <Loader2 className="idesk-spin" aria-hidden="true" /> : editing ? <Check aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}
                 </button>
             </div>
 
