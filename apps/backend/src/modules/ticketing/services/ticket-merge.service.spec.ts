@@ -33,6 +33,74 @@ describe('TicketMergeService Oracle scope', () => {
         expect(savedNotes).toEqual([expect.objectContaining({ id: 'private-note', ticketId: 'p', createdById: 'u' })]);
     });
 
+    it('keeps deleted messages deleted and edited ones marked when merged', async () => {
+        const primary = { id: 'p', ticketNumber: 'P', status: TicketStatus.IN_PROGRESS };
+        const secondary = { id: 's', ticketNumber: 'S', status: TicketStatus.IN_PROGRESS, description: '' };
+        const deletedAt = new Date('2026-10-31T08:00:00Z');
+        const editedAt = new Date('2026-10-31T07:00:00Z');
+        const savedMessages: any[] = [];
+        const manager = {
+            findOne: jest.fn(async (entity: any) => entity === User ? { id: 'u', role: UserRole.ADMIN } : primary),
+            find: jest.fn(async (entity: any) => entity === Ticket ? [secondary] : entity === TicketMessage ? [
+                { id: 'gone', senderId: 'u', content: 'rahasia', attachments: [], isInternal: false, deletedAt, deletedById: 'admin' },
+                { id: 'fixed', senderId: 'u', content: 'versi baru', attachments: [], isInternal: false, editedAt },
+            ] : []),
+            create: (_entity: any, data: any) => data,
+            save: async (entity: any, data: any) => {
+                if (entity === TicketMessage) savedMessages.push(...(Array.isArray(data) ? data : [data]));
+                return data;
+            },
+        };
+        const gateway: any = { server: { to: () => ({ emit: jest.fn() }) }, emitToTicketAudience: jest.fn(),
+            notifyTicketListUpdate: jest.fn(), notifyDashboardStatsUpdate: jest.fn() };
+        const reloaded = { ...primary, messages: [{ id: 'gone', content: 'rahasia', senderId: 'u', attachments: ['/uploads/x.png'], deletedAt, deletedById: 'admin' }] };
+        const service = new TicketMergeService({ findOne: async () => reloaded } as any, {} as any, {} as any,
+            { transaction: async (fn: any) => fn(manager) } as any, gateway, { log: async () => undefined } as any);
+
+        const result: any = await service.mergeTickets('p', ['s'], 'u');
+        expect(JSON.stringify(result.messages)).not.toContain('rahasia');
+        expect(result.messages[0]).toMatchObject({ isDeleted: true });
+
+        const gone = savedMessages.find((m) => m.deletedAt);
+        // The merged ticket the endpoint returns is blanked like every other read.
+        expect(gone).toMatchObject({ ticketId: 'p', deletedAt, deletedById: 'admin', content: 'rahasia' });
+        expect(savedMessages.find((m) => m.content.includes('versi baru'))).toMatchObject({ editedAt });
+    });
+
+    it('keeps reply links inside the merged copies and drops pins', async () => {
+        const primary = { id: 'p', ticketNumber: 'P', status: TicketStatus.IN_PROGRESS };
+        const secondary = { id: 's', ticketNumber: 'S', status: TicketStatus.IN_PROGRESS, description: '' };
+        const savedMessages: any[] = [];
+        const manager = {
+            findOne: jest.fn(async (entity: any) => entity === User ? { id: 'u', role: UserRole.ADMIN } : primary),
+            find: jest.fn(async (entity: any) => entity === Ticket ? [secondary] : entity === TicketMessage ? [
+                { id: 'orig', senderId: 'u', content: 'printer mati', attachments: [], isInternal: false, pinnedAt: new Date(), pinnedById: 'u' },
+                { id: 'rep', senderId: 'v', content: '\u21a9 Budi: printer mati\n\ncek kabel', attachments: [], isInternal: false, replyToId: 'orig', mentionedUserIds: ['u'] },
+            ] : []),
+            create: (_entity: any, data: any) => data,
+            save: async (entity: any, data: any) => {
+                if (entity === TicketMessage) savedMessages.push(...(Array.isArray(data) ? data : [data]));
+                return data;
+            },
+        };
+        const gateway: any = { server: { to: () => ({ emit: jest.fn() }) }, emitToTicketAudience: jest.fn(),
+            notifyTicketListUpdate: jest.fn(), notifyDashboardStatsUpdate: jest.fn() };
+        const service = new TicketMergeService({ findOne: async () => ({ ...primary, messages: [] }) } as any, {} as any, {} as any,
+            { transaction: async (fn: any) => fn(manager) } as any, gateway, { log: async () => undefined } as any);
+
+        await service.mergeTickets('p', ['s'], 'u');
+
+        const orig = savedMessages.find((m) => m.content.includes('printer mati') && !m.replyToId);
+        const reply = savedMessages.find((m) => m.content.includes('cek kabel'));
+        expect(orig.id).toBeDefined();
+        expect(orig.id).not.toBe('orig');
+        expect(reply.replyToId).toBe(orig.id);
+        // The quote stays first so readers still recognise it; the merge marker goes on the body.
+        expect(reply.content.startsWith('\u21a9 Budi: printer mati')).toBe(true);
+        expect(orig.pinnedAt ?? null).toBeNull();
+        expect(reply.mentionedUserIds).toEqual(['u']);
+    });
+
     it('blocks AGENT_ORACLE merge containing a standard ticket before writes', async () => {
         const manager = {
             findOne: jest.fn()

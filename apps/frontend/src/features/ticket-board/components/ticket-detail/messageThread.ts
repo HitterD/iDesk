@@ -13,6 +13,8 @@ const ELLIPSIS = '…';
 export const PHOTO_ONLY_PATTERN = /^\[?(📷\s*)?\[?Photo\]?\]?$/i;
 /** Quote text used when the replied-to message has attachments but no text. */
 export const ATTACHMENT_QUOTE = '[Lampiran]';
+/** What a reply shows when the message it quotes was deleted (same text the server writes). */
+export const DELETED_QUOTE = 'Pesan telah dihapus';
 /** Consecutive messages from one sender within this window share a bubble group. */
 export const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
@@ -118,4 +120,50 @@ export function dateSeparatorLabel(date: string | Date, now: Date = new Date()):
 export function formatMessageTime(date: string | Date): string {
     return new Intl.DateTimeFormat('id-ID', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit' })
         .format(new Date(date));
+}
+
+export type ReadTick = 'pending' | 'sent' | 'read';
+
+/** The page shows a message right away with a `temp-` id until the server has it. */
+export const isPendingMessage = (id: string) => id.startsWith('temp-');
+
+/** One tick until the other side's read marker reaches the message, then two (WhatsApp-style). */
+export function readTick(createdAt: string, counterpartLastReadAt: string | null | undefined): ReadTick {
+    if (!counterpartLastReadAt) return 'sent';
+    return new Date(counterpartLastReadAt).getTime() >= new Date(createdAt).getTime() ? 'read' : 'sent';
+}
+
+/** How long after sending the sender may still edit a message (mirrors the server rule). */
+export const EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+export interface EditableMessage {
+    createdAt: string;
+    isSystemMessage: boolean;
+    isInternal?: boolean;
+    isDeleted?: boolean;
+    source?: string;
+    sender?: { id?: string } | null;
+}
+
+/** Live public chat messages only: system, e-mail, archived internal and deleted messages are locked. */
+const isChangeable = (m: EditableMessage, ticketClosed: boolean) =>
+    !ticketClosed && !m.isSystemMessage && m.source !== 'EMAIL' && !m.isInternal && !m.isDeleted;
+
+export function canEditMessage(m: EditableMessage, viewerId: string | undefined, ticketClosed: boolean, now: number = Date.now()): boolean {
+    if (!viewerId || m.sender?.id !== viewerId || !isChangeable(m, ticketClosed)) return false;
+    return now - new Date(m.createdAt).getTime() <= EDIT_WINDOW_MS;
+}
+
+export function canDeleteMessage(
+    m: EditableMessage,
+    viewer: { id?: string; role?: string } | null | undefined,
+    ticketClosed: boolean,
+): boolean {
+    if (!viewer?.id || !isChangeable(m, ticketClosed)) return false;
+    return m.sender?.id === viewer.id || viewer.role === 'ADMIN';
+}
+
+/** Any participant may pin a live public chat message (system, internal and deleted ones are not pinnable). */
+export function canPinMessage(m: EditableMessage, ticketClosed: boolean): boolean {
+    return !ticketClosed && !m.isSystemMessage && !m.isInternal && !m.isDeleted;
 }

@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Lock, Reply, SmilePlus } from 'lucide-react';
+import { Ban, Check, CheckCheck, Clock3, Lock, Pin, Reply, SmilePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { MessageReactions, ReactionPicker, type Reaction } from '@/components/ui/ChatReactions';
 import { MessageAttachments } from './MessageAttachments';
+import { highlightMentions } from './MentionPicker';
 import { MessageActionMenu } from './MessageActionMenu';
 import { QuoteSnippet } from './QuoteBlock';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
-import { formatMessageTime, parseQuote, PHOTO_ONLY_PATTERN, toDisplayName } from './messageThread';
+import { DELETED_QUOTE, formatMessageTime, parseQuote, PHOTO_ONLY_PATTERN, toDisplayName, type ReadTick } from './messageThread';
 import type { TicketDetail } from './types';
 
 type ChatMessage = NonNullable<TicketDetail['messages']>[number];
@@ -26,12 +27,19 @@ interface MessageBubbleProps {
     isArriving?: boolean;
     /** Small badge after the name, e.g. "Pemohon" (agent view) or "IT Support" (requester view). */
     roleLabel?: string;
-    /** Name shown for the viewer's own messages (requester view: "Anda"). */
-    ownLabel?: string;
+    /** Read tick for the viewer's outgoing public messages; absent = no tick (incoming, internal). */
+    tick?: ReadTick;
     reactions: Reaction[];
     onAddReaction: (emoji: string) => void;
     onRemoveReaction: (emoji: string) => void;
     onReply: (content: string) => void;
+    /** False on archived internal notes and closed tickets, where the server refuses reactions. */
+    canReact?: boolean;
+    /** Present only when the viewer may edit / delete this message right now. */
+    onEdit?: () => void;
+    onDelete?: () => void;
+    onPin?: () => void;
+    onUnpin?: () => void;
     onQuoteClick: () => void;
     onImageClick: (url: string) => void;
     onPdfClick: (url: string, filename: string) => void;
@@ -88,11 +96,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     isHighlighted,
     isArriving = false,
     roleLabel,
-    ownLabel,
+    tick,
     reactions,
     onAddReaction,
     onRemoveReaction,
     onReply,
+    canReact = true,
+    onEdit,
+    onDelete,
+    onPin,
+    onUnpin,
     onQuoteClick,
     onImageClick,
     onPdfClick,
@@ -101,19 +114,28 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     const quote = parseQuote(message.content);
     const text = quote ? quote.body : message.content;
     const showText = Boolean(text) && !PHOTO_ONLY_PATTERN.test(text.trim());
+    // With files below the text, the time belongs under the files, not inside the text.
+    const hasFiles = (message.attachments?.length ?? 0) > 0;
     // Attachment-only bubbles stay neutral so file cards read the same for both sides.
     const onAccent = isOutgoing && !isInternal && showText;
     const time = formatMessageTime(message.createdAt);
-    const name = isOwn && ownLabel ? ownLabel : toDisplayName(message.sender?.fullName);
+    const name = toDisplayName(message.sender?.fullName);
     const press = useLongPress();
     const menuAlign = isOutgoing ? 'end' : 'start';
 
-    const who = [
-        isGroupStart && <b key="name">{name}</b>,
-        isGroupStart && roleLabel && <span key="role" className="chat-role">{roleLabel}</span>,
-        isInternal && <span key="lock" className="chat-lock"><Lock aria-hidden="true" />Internal</span>,
-        <time key="time" dateTime={message.createdAt} title={formatDateTimeID(message.createdAt)}>{time}</time>,
-    ].filter(Boolean);
+    // WhatsApp-style: the sender's name opens a run of someone else's bubbles, inside the bubble.
+    const showName = isGroupStart && !isOwn;
+    const meta = (
+        <span className="chat-meta">
+            {isInternal && <span className="chat-lock"><Lock aria-hidden="true" />Internal</span>}
+            {message.isPinned && <Pin role="img" aria-label="Disematkan" className="chat-pin-mark" />}
+            {message.editedAt && !message.isDeleted && <span className="chat-edited">diedit</span>}
+            <time dateTime={message.createdAt} title={formatDateTimeID(message.createdAt)}>{time}</time>
+            {tick === 'read' && <CheckCheck role="img" aria-label="Dibaca" className="chat-tick is-read" />}
+            {tick === 'sent' && <Check role="img" aria-label="Terkirim" className="chat-tick" />}
+            {tick === 'pending' && <Clock3 role="img" aria-label="Mengirim" className="chat-tick is-pending" />}
+        </span>
+    );
 
     return (
         <div
@@ -124,7 +146,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 'chat-msg rounded-2xl transition-colors duration-700',
                 isOutgoing && 'is-out',
                 isArriving && 'is-arriving',
-                isGroupStart ? 'mt-3.5' : 'mt-1.5',
+                isGroupStart ? 'mt-3' : 'mt-0.5',
                 press.open && 'tools-open',
                 isHighlighted && 'bg-primary/10 dark:bg-primary/15',
             )}
@@ -134,12 +156,26 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </div>
 
             <div className="chat-msg-col">
-                <div className="chat-who">{isOutgoing ? [...who].reverse() : who}</div>
+                {isGroupStart && roleLabel && <div className="chat-who"><span className="chat-role">{roleLabel}</span></div>}
 
+                {message.isDeleted ? (
+                    <div className="chat-bubble-wrap">
+                        <div className={cn('chat-bubble is-deleted', isGroupStart && 'has-tail')} title={formatDateTimeID(message.createdAt)}>
+                            {showName && <b className="chat-bubble-name">{name}</b>}
+                            <p><Ban aria-hidden="true" />{message.deletedByAdmin ? 'Dihapus oleh admin' : 'Pesan ini telah dihapus'}</p>
+                            <span className="chat-meta">
+                                <time dateTime={message.createdAt}>{time}</time>
+                            </span>
+                        </div>
+                    </div>
+                ) : (
                 <div className={cn('chat-bubble-wrap', press.pressing && 'is-pressing')} {...press.bind}>
                     {isSticker ? (
-                        <div className="chat-sticker" role="img" aria-label={`Sticker ${message.content}`} title={formatDateTimeID(message.createdAt)}>
-                            {message.content}
+                        <div className="chat-sticker-wrap">
+                            <div className="chat-sticker" role="img" aria-label={`Sticker ${message.content}`} title={formatDateTimeID(message.createdAt)}>
+                                {message.content}
+                            </div>
+                            {meta}
                         </div>
                     ) : (
                         <div
@@ -149,18 +185,29 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 onAccent && 'chat-bubble-out',
                                 !onAccent && !isInternal && 'chat-bubble-in',
                                 isInternal && 'is-internal',
+                                isGroupStart && 'has-tail',
                             )}
                         >
+                            {showName && <b className="chat-bubble-name">{name}</b>}
                             {quote && (
                                 <QuoteSnippet
-                                    sender={quote.sender}
-                                    quote={quote.quote}
+                                    sender={message.replyTo?.senderName || quote.sender}
+                                    // The link wins over the stored text: a deleted original reads as deleted.
+                                    quote={message.replyTo ? (message.replyTo.isDeleted ? DELETED_QUOTE : message.replyTo.snippet || quote.quote) : quote.quote}
                                     onAccent={onAccent}
                                     onClick={onQuoteClick}
                                     className="mb-1.5"
                                 />
                             )}
-                            {showText && <p className="whitespace-pre-wrap">{text}</p>}
+                            {showText && (
+                                <p className="whitespace-pre-wrap">
+                                    {highlightMentions(text, message.mentions ?? [], (name, key) => (
+                                        <span key={key} className="chat-mention">{name}</span>
+                                    ))}
+                                    {/* WhatsApp-style: time and ticks share the last line when it has room. */}
+                                    {!hasFiles && meta}
+                                </p>
+                            )}
                             <MessageAttachments
                                 attachments={message.attachments}
                                 attachmentInfo={message.attachmentInfo}
@@ -168,15 +215,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 onPdfClick={onPdfClick}
                                 isRequester={!onAccent}
                             />
+                            {(!showText || hasFiles) && meta}
                         </div>
                     )}
 
                     <div className="chat-tools" role="toolbar" aria-label="Aksi pesan">
-                        <ReactionPicker reactions={reactions} onAddReaction={onAddReaction} onRemoveReaction={onRemoveReaction} align={menuAlign}>
-                            <button type="button" aria-label="Tambah reaksi" title="Tambah reaksi">
-                                <SmilePlus aria-hidden="true" />
-                            </button>
-                        </ReactionPicker>
+                        {canReact && (
+                            <ReactionPicker reactions={reactions} onAddReaction={onAddReaction} onRemoveReaction={onRemoveReaction} align={menuAlign}>
+                                <button type="button" aria-label="Tambah reaksi" title="Tambah reaksi">
+                                    <SmilePlus aria-hidden="true" />
+                                </button>
+                            </ReactionPicker>
+                        )}
                         <button type="button" aria-label="Balas" title="Balas" onClick={() => onReply(text || '')}>
                             <Reply aria-hidden="true" />
                         </button>
@@ -187,12 +237,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             isInternal={isInternal}
                             isSticker={isSticker}
                             onReply={onReply}
+                            onEdit={onEdit && (() => onEdit())}
+                            onDelete={onDelete && (() => onDelete())}
+                            onPin={onPin}
+                            onUnpin={onUnpin}
                             align={menuAlign}
                         />
                     </div>
                 </div>
+                )}
 
-                <MessageReactions reactions={reactions} onAddReaction={onAddReaction} onRemoveReaction={onRemoveReaction} />
+                {!message.isDeleted && (
+                    <MessageReactions reactions={reactions} onAddReaction={onAddReaction} onRemoveReaction={onRemoveReaction} />
+                )}
             </div>
         </div>
     );

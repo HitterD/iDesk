@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { Wifi, Lock, FileText, Pin, ChevronDown, Paperclip } from 'lucide-react';
+import { Wifi, Lock, FileText, Pin, ChevronDown, ChevronsDown, Paperclip } from 'lucide-react';
 import { toast } from 'sonner';
 import { TicketDetail } from './types';
 import { CLOSED_TICKET_NOTICE } from './constants';
@@ -7,8 +7,12 @@ import { MessageAttachments } from './MessageAttachments';
 import { SystemMessageEvent } from './SystemMessageEvent';
 import { legacyActivityEvent } from './legacyActivity';
 import { MessageBubble } from './MessageBubble';
+import { useMessageActions } from './useMessageActions';
+import { usePinActions } from './usePinActions';
+import { toReactionChips, useReactionActions } from './useReactionActions';
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ActivityEvent, linkedTicketMove } from './ActivityEvent';
-import { ChatComposer, ReplyTarget, STICKERS } from './ChatComposer';
+import { ChatComposer, MAX_MESSAGE_LENGTH, ReplyTarget, STICKERS } from './ChatComposer';
 import {
     continuesGroup,
     dateSeparatorLabel,
@@ -16,6 +20,12 @@ import {
     isSameDay,
     parseQuote,
     quotableText,
+    readTick,
+    isPendingMessage,
+    buildQuotedContent,
+    canDeleteMessage,
+    canEditMessage,
+    canPinMessage,
     toDisplayName,
 } from './messageThread';
 import { useAuth } from '@/stores/useAuth';
@@ -35,6 +45,10 @@ interface TicketChatProps {
         files?: FileList | null,
         isInternal?: boolean,
         onUploadProgress?: (percent: number) => void,
+        /** The message this reply answers (its quote is already in `content`). */
+        replyToId?: string,
+        /** People picked with @ in the composer. */
+        mentionedUserIds?: string[],
     ) => Promise<void>;
     onImageClick: (url: string) => void;
     typingUsers?: { [key: string]: string };
@@ -43,15 +57,24 @@ interface TicketChatProps {
     showCannedResponses?: boolean;
 }
 
-type Reaction = { emoji: string; count: number; users: string[]; hasReacted: boolean };
 type ChatMessage = NonNullable<TicketDetail['messages']>[number];
 
 const HIGHLIGHT_MS = 1600;
+/** Within this distance of the bottom the reader counts as following the conversation. */
+const NEAR_BOTTOM_PX = 120;
 /** The opening report message is written in the same transaction as the ticket, so within seconds of it. */
 const GENESIS_WINDOW_MS = 60_000;
 
 const isResolutionStatement = (content?: string) =>
     Boolean(content?.includes('Tiket Dinyatakan Selesai') || content?.includes('Tiket Diselesaikan (Resolved)'));
+
+/** A chat bubble, as opposed to a system card or the resolution statement. */
+const isChatBubble = (m: ChatMessage | undefined) =>
+    Boolean(m && !m.isSystemMessage && !isResolutionStatement(m.content));
+
+/** Whether a message is drawn in the stream: the opening report is hidden, internal notes only for the handling team. */
+const isShownInStream = (m: ChatMessage, genesisMessageId: string | null, canSeeInternal: boolean) =>
+    m.id !== genesisMessageId && !(isChatBubble(m) && m.isInternal && !canSeeInternal);
 
 const DateSeparator: React.FC<{ date: string }> = ({ date }) => (
     <div className="chat-day">{dateSeparatorLabel(date)}</div>
@@ -73,7 +96,12 @@ const useNewMessageAnnouncement = (latest: ChatMessage | undefined, isOwn: (m: C
     return announcement;
 };
 
-export const TicketChat: React.FC<TicketChatProps> = ({
+/** What the page can ask of the chat: the pin bar lives in the page header, the messages here. */
+export interface TicketChatHandle {
+    jumpToMessage: (messageId: string) => void;
+}
+
+export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(function TicketChat({
     ticket,
     isConnected,
     onSendMessage,
@@ -82,7 +110,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     onTypingStart,
     onTypingStop,
     showCannedResponses
-}) => {
+}, handleRef) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const streamRef = useRef<HTMLDivElement>(null);
     const rootIssueRef = useRef<HTMLDivElement>(null);
@@ -90,58 +118,55 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isPinnedExpanded, setIsPinnedExpanded] = useState(false);
     const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
+    const [editing, setEditing] = useState<{ id: string; body: string; maxLength: number } | null>(null);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [highlightedId, setHighlightedId] = useState<string | null>(null);
-    const [messageReactions, setMessageReactions] = useState<Record<string, Reaction[]>>({});
     const [proposingHardware, setProposingHardware] = useState(false);
     const [proposingEForm, setProposingEForm] = useState(false);
     const { user } = useAuth();
     const pdfPreview = usePDFPreview();
     const isTicketClosed = ticket.status === 'CLOSED';
+    const messageActions = useMessageActions(ticket.id);
+    const pinActions = usePinActions(ticket.id);
+    const reactionActions = useReactionActions(ticket.id);
 
-    const handleAddReaction = useCallback((messageId: string, emoji: string) => {
-        const currentUserName = user?.fullName || 'User';
-        setMessageReactions(prev => {
-            const list = prev[messageId] || [];
-            const existing = list.find(r => r.emoji === emoji);
-            if (existing) {
-                if (existing.hasReacted) return prev;
-                return {
-                    ...prev,
-                    [messageId]: list.map(r => r.emoji === emoji ? {
-                        ...r,
-                        count: r.count + 1,
-                        users: [...r.users, currentUserName],
-                        hasReacted: true,
-                    } : r)
-                };
-            }
-            return {
-                ...prev,
-                [messageId]: [...list, { emoji, count: 1, users: [currentUserName], hasReacted: true }]
-            };
-        });
-    }, [user?.fullName]);
+    const startEdit = (message: ChatMessage) => {
+        const quote = parseQuote(message.content);
+        setReplyTo(null);
+        const body = quote ? quote.body : message.content;
+        // A reply is saved with its quote in front, so the body gets what is left of the limit.
+        setEditing({ id: message.id, body, maxLength: MAX_MESSAGE_LENGTH - (message.content.length - body.length) });
+    };
+    /** A reply keeps its quote: only the body under it was in the box. */
+    const saveEdit = async (body: string) => {
+        if (!editing) return;
+        const original = ticket.messages?.find((m) => m.id === editing.id);
+        const quote = original ? parseQuote(original.content) : null;
+        await messageActions.editMessage(editing.id, quote ? buildQuotedContent(quote.sender, quote.quote, body) : body);
+        setEditing(null);
+    };
+    // Deleted elsewhere (an admin, another tab) while it is open in the composer: leave edit mode.
+    const editedMessageGone = Boolean(editing && ticket.messages?.find((m) => m.id === editing.id)?.isDeleted);
+    if (editedMessageGone) {
+        // Adjusting state while rendering: React re-renders at once with edit mode off, no effect needed.
+        setEditing(null);
+        toast.info('Pesan yang Anda edit sudah dihapus');
+    }
 
-    const handleRemoveReaction = useCallback((messageId: string, emoji: string) => {
-        const currentUserName = user?.fullName || 'User';
-        setMessageReactions(prev => {
-            const list = prev[messageId] || [];
-            return {
-                ...prev,
-                [messageId]: list.map(r => {
-                    if (r.emoji === emoji) {
-                        return {
-                            ...r,
-                            count: Math.max(0, r.count - 1),
-                            users: r.users.filter(u => u !== currentUserName),
-                            hasReacted: false,
-                        };
-                    }
-                    return r;
-                }).filter(r => r.count > 0)
-            };
-        });
-    }, [user?.fullName]);
+    const confirmDelete = async () => {
+        if (!deletingId) return;
+        setIsDeleting(true);
+        try {
+            await messageActions.deleteMessage(deletingId);
+            if (editing?.id === deletingId) setEditing(null);
+            setDeletingId(null);
+        } catch {
+            // The API layer showed the error; the dialog stays so the user can retry or cancel.
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     const ticketVariables = useMemo(() => ({
         user_name: (ticket as any).requester?.fullName || (ticket as any).customerSession?.fullName || ticket.user?.fullName || 'Customer',
@@ -153,11 +178,6 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const isStaff = Boolean(user?.role && user.role !== 'USER');
     const canViewInternalArchive = ticket.viewerAccess === 'handler';
 
-    // Initial Attachments from the report
-    const initialMessage = ticket.messages?.find(
-        m => !m.isSystemMessage && m.attachments?.length > 0
-    );
-    const initialAttachments = initialMessage?.attachments ?? [];
 
     // Messages present when the ticket opens render settled; only later arrivals get the entrance
     // animation (the page is keyed per path, so this resets when another ticket opens).
@@ -180,12 +200,36 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         return first.content?.trim() === ticket.description.trim() && savedWithTicket ? first.id : null;
     }, [sortedMessages, ticket.description, ticket.createdAt]);
 
-    // Auto-scroll on new messages
+    // Files of the opening report: only the report's own message, never a later reply that happens to
+    // be the first one with a file (that showed an agent's screenshot as the requester's attachment).
+    const initialMessage = genesisMessageId ? sortedMessages.find((m) => m.id === genesisMessageId) : undefined;
+    const initialAttachments = initialMessage?.attachments ?? [];
+
+    // Follow the conversation only while the reader is at the bottom; scrolled up, new messages are counted instead.
+    const nearBottomRef = useRef(true);
+    const [isAwayFromBottom, setIsAwayFromBottom] = useState(false);
+    const [unseenCount, setUnseenCount] = useState(0);
+    // Its own copy: initialMessageIds decides the entrance animation and must not grow.
+    const seenMessageIdsRef = useRef(new Set(initialMessageIds));
+    const scrollToBottom = useCallback(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), []);
+    const handleStreamScroll = () => {
+        const stream = streamRef.current;
+        if (!stream) return;
+        const near = stream.scrollHeight - stream.scrollTop - stream.clientHeight <= NEAR_BOTTOM_PX;
+        nearBottomRef.current = near;
+        setIsAwayFromBottom(!near);
+        if (near) setUnseenCount(0);
+    };
+    const jumpToLatest = () => {
+        scrollToBottom();
+        setUnseenCount(0);
+    };
+
+    // Opening the chat lands at the bottom at once; a smooth scroll here flashed the jump button.
+    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); }, []);
     useEffect(() => {
-        if (ticket?.messages) {
-            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }
-    }, [ticket?.messages, typingUsers]);
+        if (Object.keys(typingUsers).length > 0 && nearBottomRef.current) scrollToBottom();
+    }, [typingUsers, scrollToBottom]);
 
     useEffect(() => () => {
         if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
@@ -212,22 +256,31 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         return isStaffSender(message) ? 'IT Support' : undefined;
     };
 
-    const jumpToQuoted = (message: ChatMessage) => {
-        const quote = parseQuote(message.content);
-        if (!quote) return;
-        const targetId = findQuotedMessageId(sortedMessages, message.id, quote);
+    /** Scroll to a message and flash it; false when it is not in the loaded thread. */
+    const jumpToMessage = (targetId: string | null | undefined): boolean => {
         const target = targetId
             ? streamRef.current?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(targetId)}"]`)
             : null;
-        if (!targetId || !target) {
-            toast.info('Pesan asli tidak tersedia');
-            return;
-        }
+        if (!targetId || !target) return false;
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setHighlightedId(targetId);
         if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
         highlightTimeoutRef.current = setTimeout(() => setHighlightedId(null), HIGHLIGHT_MS);
+        return true;
     };
+
+    const jumpToQuoted = (message: ChatMessage) => {
+        // Linked replies know their original; older ones are matched by sender and quoted text.
+        const quote = parseQuote(message.content);
+        const targetId = message.replyTo?.id ?? (quote ? findQuotedMessageId(sortedMessages, message.id, quote) : null);
+        if (!jumpToMessage(targetId)) toast.info('Pesan asli tidak tersedia');
+    };
+
+    React.useImperativeHandle(handleRef, () => ({
+        jumpToMessage: (messageId: string) => {
+            if (!jumpToMessage(messageId)) toast.info('Pesan belum dimuat, gulir ke atas untuk melihatnya');
+        },
+    }));
 
     const handleSendSticker = async (sticker: string) => {
         await onSendMessage(sticker, null, false);
@@ -239,15 +292,26 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         rootIssueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
-    const isBubble = (m: ChatMessage | undefined) =>
-        Boolean(m && !m.isSystemMessage && !isResolutionStatement(m.content));
+    const isBubble = isChatBubble;
     /** Messages in display order; system cards stay in place, internal notes only for staff. */
-    const visibleMessages = sortedMessages.filter(m =>
-        m.id !== genesisMessageId && !(isBubble(m) && m.isInternal && !canViewInternalArchive)
-    );
+    const visibleMessages = sortedMessages.filter((m) => isShownInStream(m, genesisMessageId, canViewInternalArchive));
     const groupKey = (m: ChatMessage) => ({ senderId: m.sender?.id || m.sender?.fullName, isInternal: m.isInternal, createdAt: m.createdAt });
     const latestBubble = [...visibleMessages].reverse().find(isBubble);
     const announcement = useNewMessageAnnouncement(latestBubble, isOwn);
+
+    useEffect(() => {
+        const fresh = sortedMessages.filter((m) => !seenMessageIdsRef.current.has(m.id));
+        if (fresh.length === 0) return;
+        fresh.forEach((m) => seenMessageIdsRef.current.add(m.id));
+        // The viewer's own send always brings them down to it.
+        if (nearBottomRef.current || fresh.some(isOwn)) {
+            scrollToBottom();
+            return;
+        }
+        // Count only what the reader will find below: staff without note access do receive internal notes.
+        const unseenBubbles = fresh.filter((m) => isChatBubble(m) && isShownInStream(m, genesisMessageId, canViewInternalArchive)).length;
+        if (unseenBubbles > 0) setUnseenCount((count) => count + unseenBubbles);
+    }, [sortedMessages, isOwn, scrollToBottom, genesisMessageId, canViewInternalArchive]);
 
     return (
         <div className="relative flex h-full flex-col overflow-hidden">
@@ -338,7 +402,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             )}
 
             {/* ── Main Messages Stream ── */}
-            <div ref={streamRef} className="chat-stream custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-[18px]">
+            <div ref={streamRef} onScroll={handleStreamScroll} className="chat-stream custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-[18px]">
 
                 {/* Root issue (genesis report), drawn as the requester's first bubble */}
                 <div ref={rootIssueRef} data-root-issue className={cn('chat-msg', rootIsOutgoing && 'is-out')}>
@@ -450,15 +514,19 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                     isOwn={isOwn(message)}
                                     isOutgoing={isOutgoing(message)}
                                     roleLabel={roleLabel(message)}
-                                    ownLabel={isAgentView ? undefined : 'Anda'}
                                     isSticker={STICKERS.includes(message.content?.trim() || '')}
                                     isGroupStart={isGroupStart || newDay}
                                     isGroupEnd={isGroupEnd}
                                     isHighlighted={highlightedId === message.id}
                                     isArriving={!initialMessageIds.has(message.id)}
-                                    reactions={messageReactions[message.id] || []}
-                                    onAddReaction={(emoji) => handleAddReaction(message.id, emoji)}
-                                    onRemoveReaction={(emoji) => handleRemoveReaction(message.id, emoji)}
+                                    tick={!isOutgoing(message) || message.isInternal ? undefined
+                                        : isPendingMessage(message.id) ? 'pending'
+                                            : readTick(message.createdAt, isAgentView ? ticket.userLastReadAt : ticket.agentLastReadAt)}
+                                    reactions={toReactionChips(message.reactions, user?.id)}
+                                    canReact={!message.isInternal && !isTicketClosed}
+                                    // One reaction per person: picking another emoji replaces it on the server.
+                                    onAddReaction={(emoji) => void reactionActions.react(message.id, emoji).catch(() => undefined)}
+                                    onRemoveReaction={() => void reactionActions.unreact(message.id).catch(() => undefined)}
                                     onReply={() => {
                                         setReplyTo({
                                             id: message.id,
@@ -467,6 +535,11 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                         });
                                         messageInputRef.current?.focus();
                                     }}
+                                    onEdit={canEditMessage(message, user?.id, isTicketClosed) && !STICKERS.includes(message.content?.trim() || '')
+                                        ? () => startEdit(message) : undefined}
+                                    onDelete={canDeleteMessage(message, user, isTicketClosed) ? () => setDeletingId(message.id) : undefined}
+                                    onPin={canPinMessage(message, isTicketClosed) && !message.isPinned ? () => void pinActions.pin(message.id).catch(() => undefined) : undefined}
+                                    onUnpin={message.isPinned && !isTicketClosed ? () => void pinActions.unpin(message.id).catch(() => undefined) : undefined}
                                     onQuoteClick={() => jumpToQuoted(message)}
                                     onImageClick={onImageClick}
                                     onPdfClick={(url, filename) => pdfPreview.openPreview(url, filename, 'PDF Attachment')}
@@ -488,6 +561,15 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                 </div>
                 <div ref={messagesEndRef} />
             </div>
+
+            {isAwayFromBottom && (
+                <div className="relative h-0">
+                    <button type="button" className="chat-jump" aria-label="Lompat ke pesan terbaru" title="Lompat ke pesan terbaru" onClick={jumpToLatest}>
+                        <ChevronsDown aria-hidden="true" />
+                        {unseenCount > 0 && <span className="chat-jump-badge" aria-label={`${unseenCount} pesan baru`}>{unseenCount}</span>}
+                    </button>
+                </div>
+            )}
 
             {/* Screen readers hear only "Pesan baru dari X"; bubbles, tool pills and the typing indicator stay silent. */}
             <div className="sr-only" role="status" data-testid="chat-announcer">
@@ -512,7 +594,11 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     ticketVariables={ticketVariables}
                     replyTo={replyTo}
                     onCancelReply={() => setReplyTo(null)}
-                    onSend={(content, files, isInternal, onProgress) => onSendMessage(content, files, isInternal, onProgress)}
+                    editing={editing}
+                    onCancelEdit={() => setEditing(null)}
+                    onSaveEdit={saveEdit}
+                    ticketId={ticket.id}
+                    onSend={(content, files, isInternal, onProgress, mentioned) => onSendMessage(content, files, isInternal, onProgress, replyTo?.id, mentioned)}
                     onSendSticker={handleSendSticker}
                     onTypingStart={onTypingStart}
                     onTypingStop={onTypingStop}
@@ -530,6 +616,19 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     ticketNumber={ticket.ticketNumber} requesterName={toDisplayName(ticket.user?.fullName)} defaultReason={ticket.title} />
             )}
 
+            <ConfirmationDialog
+                isOpen={Boolean(deletingId)}
+                variant="destructive"
+                appearance="ticket"
+                title="Hapus pesan?"
+                description={'Pesan akan diganti dengan keterangan "Pesan ini telah dihapus" untuk semua peserta.'}
+                confirmText="Hapus"
+                cancelText="Batal"
+                isLoading={isDeleting}
+                onConfirm={() => void confirmDelete()}
+                onCancel={() => setDeletingId(null)}
+            />
+
             <PDFPreviewModal
                 isOpen={pdfPreview.isOpen}
                 onClose={pdfPreview.closePreview}
@@ -539,4 +638,4 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             />
         </div>
     );
-};
+});

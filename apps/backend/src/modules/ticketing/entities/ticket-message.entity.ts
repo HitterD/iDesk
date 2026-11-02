@@ -6,10 +6,12 @@ import {
     ManyToOne,
     JoinColumn,
     Index,
+    OneToMany,
 } from 'typeorm';
 import { Ticket } from './ticket.entity';
 import { User } from '../../users/entities/user.entity';
 import type { TicketSystemEvent } from '../utils/ticket-activity.util';
+import { TicketMessageReaction } from './ticket-message-reaction.entity';
 
 export interface AttachmentInfo {
     path: string;
@@ -73,4 +75,40 @@ export class TicketMessage {
 
     @Column({ type: 'varchar', nullable: true })
     senderId: string;
+
+    @Column({ type: 'timestamp', nullable: true })
+    editedAt: Date | null;
+
+    /**
+     * Soft delete for everyone. A plain column, not @DeleteDateColumn: the row must stay visible
+     * so the chat can show "Pesan ini telah dihapus" in its place.
+     */
+    @Column({ type: 'timestamp', nullable: true })
+    deletedAt: Date | null;
+
+    /** Who deleted it: the sender, or an admin (then the placeholder says so). */
+    @Column({ type: 'uuid', nullable: true })
+    deletedById: string | null;
+
+    /** Pinned to the bar above the chat (at most three per ticket). */
+    @Column({ type: 'timestamp', nullable: true })
+    pinnedAt: Date | null;
+
+    @Column({ type: 'uuid', nullable: true })
+    pinnedById: string | null;
+
+    @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'pinnedById' })
+    pinnedBy?: User | null;
+
+    /** The message this one replies to; its text still carries the `↩ Name: snippet` quote for old readers. */
+    @Column({ type: 'uuid', nullable: true })
+    replyToId: string | null;
+
+    /** People the sender mentioned with @, already checked against who may be mentioned on this ticket. */
+    @Column({ type: 'jsonb', default: () => "'[]'" })
+    mentionedUserIds: string[];
+
+    @OneToMany(() => TicketMessageReaction, (reaction) => reaction.message)
+    reactions?: TicketMessageReaction[];
 }

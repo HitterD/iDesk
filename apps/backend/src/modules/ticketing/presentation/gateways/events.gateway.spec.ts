@@ -182,6 +182,35 @@ describe('EventsGateway presence', () => {
         expect(gateway.server.to).toHaveBeenNthCalledWith(2, 'ticket:t-1');
     });
 
+    it('reactions on an internal note go to staff only', () => {
+        gateway.notifyReactionsChanged('t-1', 'm-1', true, []);
+        gateway.notifyReactionsChanged('t-1', 'm-2', false, []);
+        expect(gateway.server.to).toHaveBeenNthCalledWith(1, ticketStaffRoom('t-1'));
+        expect(gateway.server.to).toHaveBeenNthCalledWith(2, 'ticket:t-1');
+    });
+
+    it('sends requesters only public pins and staff all pins', () => {
+        const emits: Array<{ room: string; payload: any }> = [];
+        gateway.server.to = jest.fn((room: string) => ({ emit: (_e: string, payload: any) => emits.push({ room, payload }) })) as any;
+        const pub = { id: 'm-1', isInternal: false };
+        const internal = { id: 'm-2', isInternal: true };
+
+        gateway.notifyPinsChanged('t-1', [pub, internal] as any);
+
+        expect(emits).toEqual([
+            { room: 'ticket:t-1', payload: { ticketId: 't-1', pins: [pub] } },
+            { room: ticketStaffRoom('t-1'), payload: { ticketId: 't-1', pins: [pub, internal] } },
+        ]);
+    });
+
+    it('sends message edits and deletes to the staff room for internal notes and the ticket room otherwise', () => {
+        gateway.notifyMessageUpdated('t-1', { id: 'm-1', isInternal: true });
+        gateway.notifyMessageUpdated('t-1', { id: 'm-2', isInternal: false });
+
+        expect(gateway.server.to).toHaveBeenNthCalledWith(1, ticketStaffRoom('t-1'));
+        expect(gateway.server.to).toHaveBeenNthCalledWith(2, 'ticket:t-1');
+    });
+
     it('reports whether any of the user\'s tabs has the ticket open', async () => {
         const inRoom = jest.fn().mockReturnValue({
             fetchSockets: jest.fn().mockResolvedValue([

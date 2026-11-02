@@ -1,6 +1,6 @@
 import { Injectable, Inject, NotFoundException, BadRequestException, ForbiddenException, forwardRef, Optional, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { AttachmentInfo, TicketMessage } from '../entities/ticket-message.entity';
@@ -14,6 +14,9 @@ import { canAccessTicketObject } from '../utils/oracle-ticket-access.util';
 import { canAccessTicketSite } from '../utils/site-access.util';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService, SLA_RESPONDER_ROLES } from './sla-clock.service';
+import { presentInThread, presentThread, PresentedThreadMessage, ThreadMessage, withDeletedQuote } from '../utils/message-presenter.util';
+import { loadMentionNames } from '../utils/mention-names.util';
+import { TicketMentionService } from './ticket-mention.service';
 
 @Injectable()
 export class TicketMessagingService {
@@ -32,7 +35,25 @@ export class TicketMessagingService {
         private readonly eventsGateway: EventsGateway,
         private readonly eventEmitter: EventEmitter2,
         private readonly slaClock: SlaClockService,
+        @Optional() private readonly mentions?: TicketMentionService,
     ) { }
+
+    private async allowedMentions(ticketId: string, userId: string, requested: string[], isInternal: boolean): Promise<string[]> {
+        if (!requested?.length) return [];
+        if (!this.mentions) {
+            // Fail closed, but loudly: a module without TicketMentionService would silently drop every mention.
+            this.logger.warn('Mentions dropped: TicketMentionService is not available');
+            return [];
+        }
+        const sender = await this.userRepo.findOne({ where: { id: userId } });
+        if (!sender) return [];
+        return this.mentions.filterAllowed(ticketId, { id: sender.id, role: sender.role, siteId: sender.siteId ?? null }, requested, { internal: isInternal });
+    }
+
+    /** Names of the people a list of messages mentions, for the chat's mention chips. */
+    private mentionNames(messages: ThreadMessage[]): Promise<Map<string, string>> {
+        return loadMentionNames(this.userRepo.manager, messages);
+    }
 
     async findMessages(ticketId: string) {
         return this.messageRepo.find({
@@ -42,7 +63,7 @@ export class TicketMessagingService {
         });
     }
 
-    async getMessages(ticketId: string, userRole?: UserRole, userSiteId: string | null = null, userId?: string): Promise<TicketMessage[]> {
+    async getMessages(ticketId: string, userRole?: UserRole, userSiteId: string | null = null, userId?: string): Promise<PresentedThreadMessage<TicketMessage>[]> {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
             relations: ['participants'],
@@ -53,14 +74,15 @@ export class TicketMessagingService {
             ? resolveTicketViewerAccess(ticket, { id: userId, role: userRole, siteId: userSiteId })
             : 'handler';
 
-        return this.messageRepo.find({
+        const messages = await this.messageRepo.find({
             where: {
                 ticketId,
                 ...(access === 'requester' ? { isInternal: false } : {}),
             },
-            relations: ['sender'],
+            relations: ['sender', 'pinnedBy', 'reactions', 'reactions.user'],
             order: { createdAt: 'ASC' },
         });
+        return presentThread(messages, await this.mentionNames(messages));
     }
 
     /**
@@ -76,7 +98,7 @@ export class TicketMessagingService {
         userSiteId: string | null = null,
         userId?: string,
     ): Promise<{
-        data: TicketMessage[];
+        data: PresentedThreadMessage<TicketMessage>[];
         meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean };
     }> {
         const ticket = await this.ticketRepo.findOne({
@@ -95,6 +117,9 @@ export class TicketMessagingService {
         const qb = this.messageRepo
             .createQueryBuilder('msg')
             .leftJoinAndSelect('msg.sender', 'sender')
+            .leftJoinAndSelect('msg.pinnedBy', 'pinnedBy')
+            .leftJoinAndSelect('msg.reactions', 'reactions')
+            .leftJoinAndSelect('reactions.user', 'reactionUser')
             .where('msg.ticketId = :ticketId', { ticketId });
 
         // Filter internal messages for the requester side
@@ -112,8 +137,19 @@ export class TicketMessagingService {
 
         const totalPages = Math.ceil(total / limit);
 
+        const pageMessages = data.reverse(); // oldest first within the page
+        // Originals on earlier pages are loaded too, so a reply to a deleted one never shows the old quote.
+        const pageIds = new Set(pageMessages.map((m) => m.id));
+        const missing = [...new Set(pageMessages.map((m) => m.replyToId).filter((id): id is string => !!id && !pageIds.has(id)))];
+        const originals = missing.length
+            ? await this.messageRepo.find({
+                where: { ticketId, id: In(missing), ...(access === 'requester' ? { isInternal: false } : {}) },
+                relations: ['sender'],
+            })
+            : [];
+
         return {
-            data: data.reverse(), // Reverse to show oldest first in the returned page
+            data: presentThread([...originals, ...pageMessages], await this.mentionNames(pageMessages)).slice(originals.length),
             meta: {
                 total,
                 page,
@@ -136,13 +172,17 @@ export class TicketMessagingService {
         attachmentInfo: AttachmentInfo[] = [],
         clientRequestId?: string,
         authorizePrivateShare?: (manager: import('typeorm').EntityManager) => Promise<void>,
+        options: { replyToId?: string } = {},
     ) {
+        // Only people the sender may mention on this ticket are stored and notified (never trust the client list).
+        mentionedUserIds = await this.allowedMentions(ticketId, userId, mentionedUserIds, isInternal);
+
         // P1 fix: message insert + ticket status/SLA update were two separate
         // saves outside any transaction. A crash between them left the ticket
         // without its SLA timer started (or its firstResponseAt set). Now atomic
         // via dataSource.transaction. Event emit / WS push moved outside the
         // transaction so listeners only fire on commit.
-        const { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate } = await this.dataSource.transaction(async (manager) => {
+        const { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate, senderReadMarker, now, original } = await this.dataSource.transaction(async (manager) => {
             if (authorizePrivateShare) await authorizePrivateShare(manager);
             const ticket = await manager.findOne(Ticket, {
                 where: { id: ticketId },
@@ -170,8 +210,12 @@ export class TicketMessagingService {
             if (clientRequestId) {
                 const existing = await manager.findOne(TicketMessage, { where: { ticketId, senderId: userId, clientRequestId } });
                 if (existing) return { savedMessage: existing, ticket, user, startedWork: false,
-                    senderSideRole: user.role, isFirstAgentReply: false, duplicate: true };
+                    senderSideRole: user.role, isFirstAgentReply: false, duplicate: true, senderReadMarker: null, now: null, original: null };
             }
+            const original = await this.replyTarget(manager, ticketId, options.replyToId, isHandler, isInternal);
+            // Quoting a message deleted meanwhile: store the deleted quote, never its old text.
+            if (original?.deletedAt) content = withDeletedQuote(content, original.sender?.fullName ?? '');
+
             // Create Message
             const message = manager.create(TicketMessage, {
                 ticketId,
@@ -181,6 +225,8 @@ export class TicketMessagingService {
                 attachmentInfo: attachmentInfo.length > 0 ? attachmentInfo : null,
                 isInternal,  // Mark as internal note if specified
                 clientRequestId: clientRequestId ?? null,
+                replyToId: original?.id ?? null,
+                mentionedUserIds,
             });
 
             const savedMessage = await manager.save(TicketMessage, message);
@@ -218,16 +264,15 @@ export class TicketMessagingService {
             // Unread tracking is two-sided: a requester-side staff reply counts as the user side.
             const senderSideRole = isHandler ? user.role : UserRole.USER;
             ticket.lastMessageSenderRole = senderSideRole;
-            if (isAgentOrAdmin) {
-                ticket.agentLastReadAt = now;
-            } else {
-                ticket.userLastReadAt = now;
-            }
+            // The sender's side has read everything up to its own reply. Sides follow viewer access,
+            // like senderSideRole: every handling role is the team side, not only AGENT/ADMIN.
+            const senderReadMarker = isHandler ? 'agentLastReadAt' : 'userLastReadAt';
+            ticket[senderReadMarker] = now;
 
             // Save ticket changes
             await manager.save(Ticket, ticket);
 
-            return { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate: false };
+            return { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate: false, senderReadMarker, now, original };
         });
 
         if (duplicate) return savedMessage;
@@ -245,7 +290,7 @@ export class TicketMessagingService {
 
         // Notify frontend via WebSocket with full message data (post-commit)
         const messageWithSender = {
-            ...savedMessage,
+            ...presentInThread(savedMessage, original, await this.mentionNames([savedMessage])),
             sender: {
                 id: user.id,
                 fullName: user.fullName,
@@ -253,6 +298,8 @@ export class TicketMessagingService {
             },
         };
         this.eventsGateway.notifyNewMessage(ticketId, messageWithSender);
+        // The reply moved the sender side's read marker: the other side's ticks turn read live.
+        if (senderReadMarker && now) this.eventsGateway.notifyReadState(ticketId, { [senderReadMarker]: now });
         // Broadcast typing:stop to ensure no client retains ghost typing indicator
         this.eventsGateway.server.to(`ticket:${ticketId}`).emit('typing:stop', { ticketId });
         // Site room includes other requesters: send only the id, never the message body.
@@ -280,6 +327,25 @@ export class TicketMessagingService {
         );
 
         return savedMessage;
+    }
+
+    /**
+     * The message a reply answers, if it is one the sender may quote: same ticket, not a system
+     * message, and (for the requester side) not an internal note. Anything else is ignored.
+     */
+    private async replyTarget(
+        manager: import('typeorm').EntityManager,
+        ticketId: string,
+        replyToId: string | undefined,
+        isHandler: boolean,
+        isInternal: boolean,
+    ): Promise<TicketMessage | null> {
+        if (!replyToId) return null;
+        const original = await manager.findOne(TicketMessage, { where: { id: replyToId }, relations: ['sender'] });
+        if (!original || original.ticketId !== ticketId || original.isSystemMessage) return null;
+        // An internal note is only ever linked from another internal note of the team.
+        if (original.isInternal && (!isHandler || !isInternal)) return null;
+        return original;
     }
 
     /**
@@ -313,9 +379,12 @@ export class TicketMessagingService {
      * every refresh of it) used to write the row on every single read.
      */
     private async markRead(ticketId: string, userId: string, markers: Partial<Pick<Ticket, 'userLastReadAt' | 'agentLastReadAt'>>): Promise<void> {
+        const moved: { userLastReadAt?: Date; agentLastReadAt?: Date } = {};
         for (const [column, value] of Object.entries(markers) as [keyof typeof markers, Date][]) {
-            await this.touchReadMarker(ticketId, column, value);
+            if (await this.touchReadMarker(ticketId, column, value)) moved[column] = value;
         }
+        // Chat read ticks follow the other side's marker live; nothing moved, nothing to tell.
+        if (Object.keys(moved).length > 0) this.eventsGateway.notifyReadState(ticketId, moved);
         // iPop clears this person's chat notifications for the ticket (listeners skip tickets iPop can't
         // see, and the reporter skips people with nothing to clear). Emitted on every open, not only when a
         // marker moved: markers are per side, notifications are per person.
@@ -327,13 +396,14 @@ export class TicketMessagingService {
      * @UpdateDateColumn (dashboards/reports treat `updatedAt` as activity time) and the
      * @VersionColumn (spurious optimistic-lock conflicts for whoever is editing it).
      */
-    private async touchReadMarker(ticketId: string, column: 'userLastReadAt' | 'agentLastReadAt', at: Date): Promise<void> {
-        await this.ticketRepo
+    private async touchReadMarker(ticketId: string, column: 'userLastReadAt' | 'agentLastReadAt', at: Date): Promise<boolean> {
+        const result = await this.ticketRepo
             .createQueryBuilder()
             .update(Ticket)
             .set({ [column]: at, updatedAt: () => '"updatedAt"', version: () => '"version"' })
             .where('id = :ticketId', { ticketId })
             .andWhere(`("${column}" IS NULL OR ("lastMessageAt" IS NOT NULL AND "lastMessageAt" > "${column}"))`)
             .execute();
+        return (result.affected ?? 0) > 0;
     }
 }

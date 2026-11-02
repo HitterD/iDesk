@@ -1,9 +1,12 @@
+import { randomUUID } from 'crypto';
 import { Injectable, NotFoundException, BadRequestException, Optional } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
 import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
+import { presentThread, PresentedThreadMessage } from '../utils/message-presenter.util';
+import { loadMentionNames } from '../utils/mention-names.util';
 import { TicketParticipant } from '../entities/ticket-participant.entity';
 import { TicketNote } from '../notes/entities/ticket-note.entity';
 import { TicketNoteEditSession } from '../notes/entities/ticket-note-edit-session.entity';
@@ -14,6 +17,19 @@ import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { AuditService, AuditAction } from '../../audit';
 import { assertTicketRoleAccess } from './ticket-oracle-access';
 import { validateTicketSiteAccess } from '../utils/site-access.util';
+
+const QUOTE_HEAD = /^(↩️?[^\r\n]*\r?\n(?:\r?\n)?)/;
+
+/**
+ * Text of a message copied in by a merge. A deleted one stays as is (its text is never served);
+ * a reply keeps its quote first so readers still recognise it, the marker goes on the body.
+ */
+function mergedContent(message: TicketMessage, fromTicketNumber: string): string {
+    if (message.deletedAt) return message.content;
+    const marker = `[Merged from #${fromTicketNumber}] `;
+    const head = message.content.match(QUOTE_HEAD)?.[1];
+    return head ? `${head}${marker}${message.content.slice(head.length)}` : `${marker}${message.content}`;
+}
 
 @Injectable()
 export class TicketMergeService {
@@ -37,7 +53,7 @@ export class TicketMergeService {
         secondaryTicketIds: string[],
         userId: string,
         reason?: string,
-    ): Promise<Ticket> {
+    ): Promise<Omit<Ticket, 'messages'> & { messages: PresentedThreadMessage<TicketMessage>[] }> {
         if (secondaryTicketIds.includes(primaryTicketId)) {
             throw new BadRequestException('Primary ticket cannot be in the list of secondary tickets');
         }
@@ -148,16 +164,25 @@ export class TicketMergeService {
                     order: { createdAt: 'ASC' },
                 });
 
+                // Copies get fresh ids up front, so a reply can point at the copy of its original.
+                // Pins stay behind: they belong to the cancelled ticket's conversation.
+                const copyIds = new Map(messages.map((message) => [message.id, randomUUID()]));
                 const movedMessages = messages.map((message) =>
                     manager.create(TicketMessage, {
+                        id: copyIds.get(message.id),
                         ticketId: primaryTicketId,
                         senderId: message.senderId,
-                        content: `[Merged from #${secondaryTicket.ticketNumber}] ${message.content}`,
+                        content: mergedContent(message, secondaryTicket.ticketNumber),
+                        replyToId: message.replyToId ? (copyIds.get(message.replyToId) ?? null) : null,
+                        mentionedUserIds: message.mentionedUserIds ?? [],
                         attachments: message.attachments,
                         attachmentInfo: message.attachmentInfo,
                         isSystemMessage: message.isSystemMessage,
                         isInternal: message.isInternal,
                         createdAt: message.createdAt,
+                        editedAt: message.editedAt ?? null,
+                        deletedAt: message.deletedAt ?? null,
+                        deletedById: message.deletedById ?? null,
                     }),
                 );
                 if (movedMessages.length > 0) {
@@ -215,6 +240,7 @@ export class TicketMergeService {
         for (const secondaryId of secondaryTicketIds) {
             this.eventEmitter?.emit('ticket.merged', { ticketId: secondaryId, mergedInto: primaryTicketId });
         }
-        return ticket;
+        const messages = ticket.messages ?? [];
+        return { ...ticket, messages: presentThread(messages, await loadMentionNames(this.ticketRepo.manager, messages)) };
     }
 }

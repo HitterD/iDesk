@@ -1,11 +1,11 @@
 /**
  * MessageActionMenu: the ⋯ of the message tool pill (mockup ticket-chat.js `bindMore`).
- * Salin · Balas · Edit (own) · Hapus (own, destructive). Edit/Delete have no backend yet,
- * so without handlers they say so instead of pretending to succeed.
+ * Salin · Balas · Edit · Hapus (destructive). Edit and Hapus appear only when the caller
+ * passes a handler, i.e. when that action is actually allowed for this message.
  */
 
-import React from 'react';
-import { Copy, Ellipsis, Pencil, Reply, Trash2 } from 'lucide-react';
+import React, { useRef } from 'react';
+import { Copy, Ellipsis, Pencil, Pin, PinOff, Reply, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
     DropdownMenu,
@@ -25,10 +25,10 @@ interface MessageActionMenuProps {
     onEdit?: (messageId: string, content: string) => void;
     onDelete?: (messageId: string) => void;
     onReply?: (content: string) => void;
+    onPin?: () => void;
+    onUnpin?: () => void;
     align?: 'start' | 'end';
 }
-
-const NOT_AVAILABLE = 'belum tersedia untuk pesan tiket';
 
 export const MessageActionMenu: React.FC<MessageActionMenuProps> = ({
     messageId,
@@ -38,8 +38,17 @@ export const MessageActionMenu: React.FC<MessageActionMenuProps> = ({
     onEdit,
     onDelete,
     onReply,
+    onPin,
+    onUnpin,
     align = 'start',
 }) => {
+    // Edit and Balas hand the focus to the composer; the menu must not pull it back to ⋯ on close.
+    const focusMovesAway = useRef(false);
+    const handOff = (action: () => void) => () => {
+        focusMovesAway.current = true;
+        action();
+    };
+
     const handleCopy = async () => {
         try {
             await navigator.clipboard.writeText(messageContent);
@@ -49,16 +58,6 @@ export const MessageActionMenu: React.FC<MessageActionMenuProps> = ({
         }
     };
 
-    const handleEdit = () => {
-        if (onEdit) onEdit(messageId, messageContent);
-        else toast.info(`Edit pesan ${NOT_AVAILABLE}`);
-    };
-
-    const handleDelete = () => {
-        if (onDelete) onDelete(messageId);
-        else toast.info(`Hapus pesan ${NOT_AVAILABLE}`);
-    };
-
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -66,14 +65,27 @@ export const MessageActionMenu: React.FC<MessageActionMenuProps> = ({
                     <Ellipsis aria-hidden="true" />
                 </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align={align} variant="compact" aria-label="Aksi pesan">
+            <DropdownMenuContent
+                align={align}
+                variant="compact"
+                aria-label="Aksi pesan"
+                onCloseAutoFocus={(event) => {
+                    if (!focusMovesAway.current) return;
+                    focusMovesAway.current = false;
+                    event.preventDefault();
+                }}
+            >
                 <DropdownMenuItem onSelect={handleCopy} disabled={isSticker}><Copy />Salin</DropdownMenuItem>
-                {onReply && <DropdownMenuItem onSelect={() => onReply(messageContent)}><Reply />Balas</DropdownMenuItem>}
-                {isOwn && !isSticker && <DropdownMenuItem onSelect={handleEdit}><Pencil />Edit</DropdownMenuItem>}
-                {isOwn && (
+                {onReply && <DropdownMenuItem onSelect={handOff(() => onReply(messageContent))}><Reply />Balas</DropdownMenuItem>}
+                {onPin && <DropdownMenuItem onSelect={onPin}><Pin />Sematkan</DropdownMenuItem>}
+                {onUnpin && <DropdownMenuItem onSelect={onUnpin}><PinOff />Lepas sematan</DropdownMenuItem>}
+                {onEdit && isOwn && !isSticker && (
+                    <DropdownMenuItem onSelect={handOff(() => onEdit(messageId, messageContent))}><Pencil />Edit</DropdownMenuItem>
+                )}
+                {onDelete && (
                     <>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem variant="destructive" onSelect={handleDelete}><Trash2 />Hapus</DropdownMenuItem>
+                        <DropdownMenuItem variant="destructive" onSelect={() => onDelete(messageId)}><Trash2 />Hapus</DropdownMenuItem>
                     </>
                 )}
             </DropdownMenuContent>

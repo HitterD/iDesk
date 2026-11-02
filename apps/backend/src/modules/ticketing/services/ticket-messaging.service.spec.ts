@@ -1,3 +1,4 @@
+import { TicketMessage } from '../entities/ticket-message.entity';
 import { ForbiddenException } from '@nestjs/common';
 import { TicketMessagingService } from './ticket-messaging.service';
 import { UserRole } from '../../users/enums/user-role.enum';
@@ -80,8 +81,78 @@ describe('TicketMessagingService Oracle scope', () => {
         expect(manager.create).not.toHaveBeenCalled();
     });
 
+    describe('deleted messages over REST', () => {
+        const deleted = { id: 'm-1', content: 'rahasia', senderId: 'u-1', attachments: ['/uploads/tickets/t-1/x.png'], deletedAt: new Date(), deletedById: 'u-1' };
+        const build = () => {
+            const ticketRepo = { findOne: jest.fn().mockResolvedValue({ id: 't-1', userId: 'u-1', siteId: 'site-1', participants: [] }) };
+            const qb: any = {
+                leftJoinAndSelect: jest.fn(() => qb), where: jest.fn(() => qb), andWhere: jest.fn(() => qb),
+                getCount: jest.fn().mockResolvedValue(1), orderBy: jest.fn(() => qb), skip: jest.fn(() => qb), take: jest.fn(() => qb),
+                getMany: jest.fn().mockResolvedValue([deleted]),
+            };
+            const messageRepo = { find: jest.fn().mockResolvedValue([deleted]), createQueryBuilder: jest.fn(() => qb) };
+            return new TicketMessagingService(
+                ticketRepo as never, messageRepo as never, {} as never, {} as never,
+                {} as never, {} as never, { emit: jest.fn() } as never, createTestSlaClock(),
+            );
+        };
+
+        it('getMessages never returns deleted text or files', async () => {
+            const out = await build().getMessages('t-1');
+            expect(JSON.stringify(out)).not.toContain('rahasia');
+            expect(JSON.stringify(out)).not.toContain('x.png');
+            expect(out[0]).toMatchObject({ isDeleted: true });
+        });
+
+        it('getMessagesPaginated never returns deleted text or files', async () => {
+            const out = await build().getMessagesPaginated('t-1');
+            expect(JSON.stringify(out.data)).not.toContain('rahasia');
+            expect(out.data[0]).toMatchObject({ isDeleted: true });
+        });
+    });
+
+    describe('reply links over REST', () => {
+        it('getMessages links replies and blanks quotes of deleted originals', async () => {
+            const thread = [
+                { id: 'a', content: 'kode 4471', senderId: 'u-1', sender: { fullName: 'Ani' }, deletedAt: new Date(), deletedById: 'u-1' },
+                { id: 'b', content: '\u21a9 Ani: kode 4471\n\nok', senderId: 'u-2', replyToId: 'a' },
+            ];
+            const service = new TicketMessagingService(
+                { findOne: jest.fn().mockResolvedValue({ id: 't-1', userId: 'u-1', siteId: 'site-1', participants: [] }) } as never,
+                { find: jest.fn().mockResolvedValue(thread) } as never, {} as never, {} as never,
+                {} as never, {} as never, { emit: jest.fn() } as never, createTestSlaClock(),
+            );
+            const out = await service.getMessages('t-1');
+            expect(JSON.stringify(out)).not.toContain('4471');
+            expect(out[1]).toMatchObject({ replyTo: { id: 'a', isDeleted: true } });
+        });
+    });
+
+    describe('reply links across pages', () => {
+        it('getMessagesPaginated resolves an original on an earlier page and blanks its quote when deleted', async () => {
+            const page = [{ id: 'b', content: '\u21a9 Ani: kode 4471\n\nok', senderId: 'u-2', replyToId: 'a', createdAt: new Date() }];
+            const original = { id: 'a', content: 'kode 4471', senderId: 'u-1', sender: { fullName: 'Ani' }, deletedAt: new Date(), deletedById: 'u-1' };
+            const qb: any = {
+                leftJoinAndSelect: jest.fn(() => qb), where: jest.fn(() => qb), andWhere: jest.fn(() => qb),
+                getCount: jest.fn().mockResolvedValue(30), orderBy: jest.fn(() => qb), skip: jest.fn(() => qb), take: jest.fn(() => qb),
+                getMany: jest.fn().mockResolvedValue(page),
+            };
+            const messageRepo = { createQueryBuilder: jest.fn(() => qb), find: jest.fn().mockResolvedValue([original]) };
+            const service = new TicketMessagingService(
+                { findOne: jest.fn().mockResolvedValue({ id: 't-1', userId: 'u-1', siteId: 'site-1', participants: [] }) } as never,
+                messageRepo as never, {} as never, {} as never, {} as never, {} as never, { emit: jest.fn() } as never, createTestSlaClock(),
+            );
+
+            const out = await service.getMessagesPaginated('t-1', 2);
+
+            expect(JSON.stringify(out.data)).not.toContain('4471');
+            expect(out.data[0]).toMatchObject({ replyTo: { id: 'a', isDeleted: true } });
+            expect(messageRepo.find.mock.calls[0][0].where).toMatchObject({ ticketId: 't-1' });
+        });
+    });
+
     describe('TV board refresh on reply', () => {
-        const buildService = (ticketStatus: TicketStatus, extra: Record<string, unknown> = {}) => {
+        const buildService = (ticketStatus: TicketStatus, extra: Record<string, unknown> = {}, role: UserRole = UserRole.AGENT) => {
             const ticket = {
                 id: 't-1', siteId: 'site-1', userId: 'owner', status: ticketStatus, ticketType: TicketType.SERVICE,
                 category: 'GENERAL', participants: [], slaStartedAt: new Date(), user: { id: 'owner' }, ...extra,
@@ -89,7 +160,7 @@ describe('TicketMessagingService Oracle scope', () => {
             const manager = {
                 findOne: jest.fn()
                     .mockResolvedValueOnce(ticket)
-                    .mockResolvedValueOnce({ id: 'agent-1', fullName: 'Agen Satu', role: UserRole.AGENT, siteId: 'site-1' }),
+                    .mockResolvedValueOnce({ id: 'agent-1', fullName: 'Agen Satu', role, siteId: 'site-1' }),
                 create: jest.fn((_entity, data) => data),
                 save: jest.fn((_entity, data) => Promise.resolve(data)),
             };
@@ -99,6 +170,7 @@ describe('TicketMessagingService Oracle scope', () => {
                 notifyStatusChange: jest.fn(),
                 notifyTicketUpdate: jest.fn(),
                 emitToTicketAudience: jest.fn(),
+                notifyReadState: jest.fn(),
                 server: { to: jest.fn(() => ({ emit: jest.fn() })) },
             };
             const eventEmitter = { emit: jest.fn() };
@@ -106,8 +178,25 @@ describe('TicketMessagingService Oracle scope', () => {
                 {} as never, {} as never, {} as never, {} as never,
                 dataSource as never, eventsGateway as never, eventEmitter as never, createTestSlaClock(),
             );
-            return { service, eventEmitter, eventsGateway };
+            return { service, eventEmitter, eventsGateway, ticket };
         };
+
+        it('a handler with a specialised agent role marks the team side read, never the requester side', async () => {
+            const { service, ticket } = buildService(TicketStatus.IN_PROGRESS, { userLastReadAt: null }, UserRole.AGENT_OPERATIONAL_SUPPORT);
+
+            await service.replyToTicket('t-1', 'agent-1', 'sudah saya cek');
+
+            expect((ticket as Record<string, unknown>).userLastReadAt).toBeNull();
+            expect((ticket as Record<string, unknown>).agentLastReadAt).toEqual(expect.any(Date));
+        });
+
+        it('tells the ticket room the sender side has read up to its reply', async () => {
+            const { service, eventsGateway } = buildService(TicketStatus.IN_PROGRESS, {}, UserRole.AGENT_OPERATIONAL_SUPPORT);
+
+            await service.replyToTicket('t-1', 'agent-1', 'sudah saya cek');
+
+            expect(eventsGateway.notifyReadState).toHaveBeenCalledWith('t-1', { agentLastReadAt: expect.any(Date) });
+        });
 
         it('refreshes TV boards when an agent reply starts work on an Open ticket', async () => {
             const { service, eventEmitter } = buildService(TicketStatus.TODO);
@@ -153,6 +242,123 @@ describe('TicketMessagingService Oracle scope', () => {
         });
     });
 
+    describe('reply links on send', () => {
+        const build = (original: Record<string, unknown> | null, role: UserRole = UserRole.USER) => {
+            const ticket = {
+                id: 't-1', siteId: 'site-1', userId: 'u-1', status: TicketStatus.IN_PROGRESS, handlingTeam: 'OPS_SUPPORT',
+                ticketType: TicketType.SERVICE, category: 'GENERAL', participants: [], user: { id: 'u-1' }, firstResponseAt: new Date(),
+            };
+            const sender = role === UserRole.USER ? { id: 'u-1', role, siteId: 'site-1', fullName: 'Budi' } : { id: 'ag-1', role, siteId: 'site-1', fullName: 'Agen' };
+            const created: any[] = [];
+            const manager = {
+                findOne: jest.fn(async (entity: any, opts: any) => {
+                    if (entity === TicketMessage) return original && opts.where.id === original.id ? original : null;
+                    return entity.name === 'User' ? sender : ticket;
+                }),
+                create: jest.fn((_entity, data) => { created.push(data); return data; }),
+                save: jest.fn((_entity, data) => Promise.resolve({ id: 'new', createdAt: new Date(), ...data })),
+            };
+            const eventsGateway = {
+                notifyNewMessage: jest.fn(), emitToTicketAudience: jest.fn(), notifyReadState: jest.fn(),
+                server: { to: jest.fn(() => ({ emit: jest.fn() })) },
+            };
+            const service = new TicketMessagingService(
+                {} as never, {} as never, {} as never, {} as never,
+                { transaction: jest.fn((cb) => cb(manager)) } as never, eventsGateway as never, { emit: jest.fn() } as never, createTestSlaClock(),
+            );
+            return { service, created, eventsGateway, senderId: sender.id };
+        };
+        const replyTo = (replyToId: string) => ({ replyToId });
+
+        it('stores replyToId when it points to a public message of the same ticket', async () => {
+            const { service, created, senderId } = build({ id: 'orig', ticketId: 't-1', isSystemMessage: false, isInternal: false, sender: { fullName: 'Agen' }, content: 'cek kabel' });
+            await service.replyToTicket('t-1', senderId, 'sudah', [], [], false, [], undefined, undefined, replyTo('orig'));
+            expect(created.find((c) => c.content === 'sudah')?.replyToId).toBe('orig');
+        });
+
+        it.each([
+            ['from another ticket', { id: 'orig', ticketId: 't-2', isSystemMessage: false, isInternal: false }],
+            ['a system message', { id: 'orig', ticketId: 't-1', isSystemMessage: true, isInternal: false }],
+            ['an internal note, for the requester side', { id: 'orig', ticketId: 't-1', isSystemMessage: false, isInternal: true }],
+            ['missing', null],
+        ])('drops a replyToId %s', async (_label, original) => {
+            const { service, created, senderId } = build(original as Record<string, unknown> | null);
+            await service.replyToTicket('t-1', senderId, 'sudah', [], [], false, [], undefined, undefined, replyTo('orig'));
+            expect(created.find((c) => c.content === 'sudah')?.replyToId ?? null).toBeNull();
+        });
+
+        it('stores a reply to an already deleted message with the deleted quote, so no reader gets the old text', async () => {
+            const { service, created, senderId } = build({ id: 'orig', ticketId: 't-1', isSystemMessage: false, isInternal: false,
+                deletedAt: new Date(), sender: { fullName: 'Agen' }, content: 'kode 4471' });
+            await service.replyToTicket('t-1', senderId, '\u21a9 Agen: kode 4471\n\nsudah', [], [], false, [], undefined, undefined, replyTo('orig'));
+            const saved = created.find((c) => c.replyToId === 'orig');
+            expect(saved.content).toBe('\u21a9 Agen: Pesan telah dihapus\n\nsudah');
+        });
+
+        it('a public reply from the team never links to an internal note', async () => {
+            const { service, created, senderId } = build(
+                { id: 'orig', ticketId: 't-1', isSystemMessage: false, isInternal: true, sender: { fullName: 'Agen' }, content: 'catatan' },
+                UserRole.AGENT_OPERATIONAL_SUPPORT,
+            );
+            await service.replyToTicket('t-1', senderId, 'halo', [], [], false, [], undefined, undefined, replyTo('orig'));
+            expect(created.find((c) => c.content === 'halo')?.replyToId ?? null).toBeNull();
+        });
+
+        it('sends the new message with its reply link resolved', async () => {
+            const { service, eventsGateway, senderId } = build({ id: 'orig', ticketId: 't-1', isSystemMessage: false, isInternal: false, sender: { fullName: 'Agen' }, content: 'cek kabel' });
+            await service.replyToTicket('t-1', senderId, 'sudah', [], [], false, [], undefined, undefined, replyTo('orig'));
+            expect(eventsGateway.notifyNewMessage).toHaveBeenCalledWith('t-1', expect.objectContaining({
+                replyTo: { id: 'orig', senderName: 'Agen', snippet: 'cek kabel', isDeleted: false },
+            }));
+        });
+    });
+
+    describe('mentions on send', () => {
+        const build = (allowed: string[]) => {
+            const ticket = {
+                id: 't-1', siteId: 'site-1', userId: 'u-1', status: TicketStatus.IN_PROGRESS, handlingTeam: 'OPS_SUPPORT',
+                ticketType: TicketType.SERVICE, category: 'GENERAL', participants: [], user: { id: 'u-1' }, firstResponseAt: new Date(),
+                ticketNumber: 'GEN-1', title: 'x',
+            };
+            const created: any[] = [];
+            const manager = {
+                findOne: jest.fn(async (entity: any) => (entity.name === 'User' ? { id: 'u-1', role: UserRole.USER, siteId: 'site-1', fullName: 'Budi' } : ticket)),
+                create: jest.fn((_e, data) => { created.push(data); return data; }),
+                save: jest.fn((_e, data) => Promise.resolve({ id: 'new', createdAt: new Date(), ...data })),
+            };
+            const emitter = { emit: jest.fn() };
+            const mentions = { filterAllowed: jest.fn(async (_t: string, _v: unknown, ids: string[]) => ids.filter((id) => allowed.includes(id))) };
+            const service = new TicketMessagingService(
+                {} as never, {} as never,
+                {
+                    findOne: jest.fn().mockResolvedValue({ id: 'u-1', role: UserRole.USER, siteId: 'site-1' }),
+                    manager: { find: jest.fn().mockResolvedValue([{ id: 'ag-1', fullName: 'Andi' }]) },
+                } as never,
+                {} as never,
+                { transaction: jest.fn((cb) => cb(manager)) } as never,
+                { notifyNewMessage: jest.fn(), emitToTicketAudience: jest.fn(), notifyReadState: jest.fn(), server: { to: jest.fn(() => ({ emit: jest.fn() })) } } as never,
+                emitter as never, createTestSlaClock(), mentions as never,
+            );
+            return { service, created, emitter, mentions };
+        };
+
+        it('stores and notifies only the people the sender may mention', async () => {
+            const { service, created, emitter } = build(['ag-1']);
+            await service.replyToTicket('t-1', 'u-1', '@Andi tolong cek', [], ['ag-1', 'random-staff']);
+            expect(created.find((c) => c.content === '@Andi tolong cek')?.mentionedUserIds).toEqual(['ag-1']);
+            const replied = emitter.emit.mock.calls.find((c: any[]) => c[0] === 'ticket.replied')?.[1];
+            expect(replied.mentionedUserIds).toEqual(['ag-1']);
+        });
+
+        it('a requester mentioning random staff through the API stores and notifies nobody', async () => {
+            const { service, created, emitter } = build([]);
+            await service.replyToTicket('t-1', 'u-1', 'halo', [], ['random-staff', 'other-site']);
+            expect(created.find((c) => c.content === 'halo')?.mentionedUserIds).toEqual([]);
+            const replied = emitter.emit.mock.calls.find((c: any[]) => c[0] === 'ticket.replied')?.[1];
+            expect(replied.mentionedUserIds).toEqual([]);
+        });
+    });
+
     describe('reply from the requester side', () => {
         const build = (role: UserRole) => {
             const ticket = {
@@ -171,6 +377,7 @@ describe('TicketMessagingService Oracle scope', () => {
             const eventsGateway = {
                 notifyNewMessage: jest.fn(),
                 emitToTicketAudience: jest.fn(),
+                notifyReadState: jest.fn(),
                 server: { to: jest.fn(() => ({ emit: jest.fn() })) },
             };
             const service = new TicketMessagingService(
@@ -213,11 +420,12 @@ describe('TicketMessagingService Oracle scope', () => {
                 findOne: jest.fn().mockResolvedValue(ticket),
             };
             const emitter = { emit: jest.fn() };
+            const gateway = { notifyReadState: jest.fn() };
             const service = new TicketMessagingService(
                 ticketRepo as never, {} as never, {} as never, {} as never,
-                {} as never, {} as never, emitter as never, createTestSlaClock(),
+                {} as never, gateway as never, emitter as never, createTestSlaClock(),
             );
-            return { service, ticketRepo, set, emitter };
+            return { service, ticketRepo, set, emitter, gateway, qb };
         };
         const opsTicket = { id: 't-1', userId: 'owner', createdById: null, handlingTeam: 'OPS_SUPPORT', siteId: 'site-1' };
 
@@ -225,6 +433,19 @@ describe('TicketMessagingService Oracle scope', () => {
             const { service, emitter } = build(opsTicket);
             await service.markAsRead('t-1', 'owner', UserRole.USER);
             expect(emitter.emit).toHaveBeenCalledWith('ticket.read', { ticketId: 't-1', userId: 'owner' });
+        });
+
+        it('broadcasts the moved read marker to the ticket room', async () => {
+            const { service, gateway } = build(opsTicket);
+            await service.markAsRead('t-1', 'owner', UserRole.USER);
+            expect(gateway.notifyReadState).toHaveBeenCalledWith('t-1', { userLastReadAt: expect.any(Date) });
+        });
+
+        it('stays silent when no marker moved', async () => {
+            const { service, gateway, qb } = build(opsTicket);
+            qb.execute.mockResolvedValue({ affected: 0 });
+            await service.markAsRead('t-1', 'owner', UserRole.USER);
+            expect(gateway.notifyReadState).not.toHaveBeenCalled();
         });
 
         it('marks the agent side for a handling agent and the user side for a USER', async () => {

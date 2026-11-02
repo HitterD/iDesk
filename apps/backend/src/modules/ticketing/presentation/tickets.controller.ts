@@ -25,6 +25,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { timingSafeEqual } from 'crypto';
 import { Repository } from 'typeorm';
+import { isUUID } from 'class-validator';
 import { User } from '../../users/entities/user.entity';
 import { Public } from '../../../shared/core/decorators/public.decorator';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -284,17 +285,19 @@ export class TicketsController {
     @ApiOperation({ summary: 'Get ticket details' })
     @ApiResponse({ status: 200, description: 'Return ticket details.' })
     async findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
-        if (req?.user) {
-            await this.ticketMessagingService.markAsRead(id, req.user.userId || req.user.id, req.user.role, req.user.siteId ?? null);
-        }
-        if (req?.user && (req.user.role || req.user.siteId !== undefined)) {
-            return this.ticketQueryService.findOne(id, {
+        const ticket = req?.user && (req.user.role || req.user.siteId !== undefined)
+            ? await this.ticketQueryService.findOne(id, {
                 id: req.user.userId || req.user.id,
                 role: req.user.role,
                 siteId: req.user.siteId ?? null,
-            });
+            })
+            : await this.ticketQueryService.findOne(id);
+        // Marked read only after access is granted: a refused viewer must not move the read markers
+        // (they drive the other side's read ticks).
+        if (req?.user) {
+            await this.ticketMessagingService.markAsRead(id, req.user.userId || req.user.id, req.user.role, req.user.siteId ?? null);
         }
-        return this.ticketQueryService.findOne(id);
+        return ticket;
     }
 
     /**
@@ -363,6 +366,7 @@ export class TicketsController {
         @Body('mentionedUserIds') mentionedUserIds: string | string[],
         @Body('isInternal') isInternal: string | boolean,
         @UploadedFiles() files: Express.Multer.File[],
+        @Body('replyToId') replyToId?: string,
     ) {
         assertValidAttachments(files);
         const attachmentInfo = (files ?? []).map(toAttachmentInfo);
@@ -391,6 +395,9 @@ export class TicketsController {
                 parsedMentionedUserIds,
                 isInternalNote,
                 attachmentInfo,
+                undefined,
+                undefined,
+                { replyToId: isUUID(replyToId ?? '') ? replyToId : undefined },
             );
         } catch (error) {
             // e.g. ticket closed meanwhile or no access: the files would never be referenced.

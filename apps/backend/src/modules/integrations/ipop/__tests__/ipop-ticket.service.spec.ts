@@ -1,3 +1,4 @@
+import { IsNull } from 'typeorm';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -189,7 +190,8 @@ describe('IpopTicketService.getMessages', () => {
 
         const result = await service.getMessages('GEN-0001');
 
-        expect(messageRepo.find.mock.calls[0][0].where).toEqual({ ticketId: 't-1', isInternal: false, isSystemMessage: false });
+        // Deleted messages never leave iDesk either.
+        expect(messageRepo.find.mock.calls[0][0].where).toEqual({ ticketId: 't-1', isInternal: false, isSystemMessage: false, deletedAt: IsNull() });
         expect(result.messages.map((m) => m.id)).toEqual(['m-1', 'm-2']);
         expect(result.messages[0]).toMatchObject({ sender: { name: 'Agent A' }, fromRequester: false, content: 'Sudah saya cek' });
         expect(result.messages[1].fromRequester).toBe(true);

@@ -233,6 +233,63 @@ describe('TicketQueryService.findOne', () => {
     });
 });
 
+describe('TicketQueryService.findOne deleted messages', () => {
+    it('never returns the text or files of a deleted message', async () => {
+        const ticket = {
+            id: 't-1', priority: 'HIGH', createdAt: new Date(), slaTarget: new Date(), userId: 'req-1', siteId: 's-1',
+            handlingTeam: 'OPS_SUPPORT', participants: [], user: { id: 'req-1' },
+            messages: [{ id: 'm1', isInternal: false, content: 'rahasia', senderId: 'req-1', attachments: ['/uploads/tickets/t-1/x.png'],
+                deletedAt: new Date(), deletedById: 'req-1' }],
+        };
+        const service = new TicketQueryService({ findOne: jest.fn().mockResolvedValue(ticket) } as any, { findOne: jest.fn() } as any, {} as any);
+
+        const result = await service.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
+
+        expect(JSON.stringify(result.messages)).not.toContain('rahasia');
+        expect(JSON.stringify(result.messages)).not.toContain('x.png');
+        expect(result.messages[0]).toMatchObject({ id: 'm1', isDeleted: true });
+    });
+});
+
+describe('TicketQueryService.findOne reply links and pins', () => {
+    it('quotes a deleted original as deleted and loads who pinned what', async () => {
+        const ticket = {
+            id: 't-1', priority: 'HIGH', createdAt: new Date(), slaTarget: new Date(), userId: 'req-1', siteId: 's-1',
+            handlingTeam: 'OPS_SUPPORT', participants: [], user: { id: 'req-1' },
+            messages: [
+                { id: 'a', content: 'kode akses 4471', senderId: 'req-1', sender: { fullName: 'Ani' }, deletedAt: new Date(), deletedById: 'req-1' },
+                { id: 'b', content: '\u21a9 Ani: kode akses 4471\n\nnoted', senderId: 'ag-1', replyToId: 'a', isInternal: false },
+            ],
+        };
+        const ticketRepo = { findOne: jest.fn().mockResolvedValue(ticket) };
+        const service = new TicketQueryService(ticketRepo as any, { findOne: jest.fn() } as any, {} as any);
+
+        const result = await service.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
+
+        expect(JSON.stringify(result.messages)).not.toContain('4471');
+        expect(result.messages[1].replyTo).toMatchObject({ id: 'a', isDeleted: true });
+        expect(ticketRepo.findOne.mock.calls[0][0].relations).toContain('messages.pinnedBy');
+        expect(ticketRepo.findOne.mock.calls[0][0].relations).toEqual(
+            expect.arrayContaining(['messages.reactions', 'messages.reactions.user']));
+    });
+});
+
+describe('TicketQueryService.findOne mentions', () => {
+    it('names the people each message mentions, for the chips', async () => {
+        const ticket = {
+            id: 't-1', priority: 'HIGH', createdAt: new Date(), slaTarget: new Date(), userId: 'req-1', siteId: 's-1',
+            handlingTeam: 'OPS_SUPPORT', participants: [], user: { id: 'req-1' },
+            messages: [{ id: 'a', content: '@Andi cek', senderId: 'req-1', mentionedUserIds: ['ag-1'] }],
+        };
+        const manager = { find: jest.fn().mockResolvedValue([{ id: 'ag-1', fullName: 'Andi' }]) };
+        const service = new TicketQueryService({ findOne: jest.fn().mockResolvedValue(ticket), manager } as any, { findOne: jest.fn() } as any, {} as any);
+
+        const result = await service.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
+
+        expect(result.messages[0].mentions).toEqual([{ id: 'ag-1', fullName: 'Andi' }]);
+    });
+});
+
 describe('toPrefixTsQuery', () => {
     // Raw input went straight into to_tsquery: "a(b" -> syntax error -> 500.
     it('strips tsquery syntax so user input can never break the query', () => {

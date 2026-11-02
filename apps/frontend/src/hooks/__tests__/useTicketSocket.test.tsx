@@ -39,6 +39,8 @@ const fire = (event: string, payload?: any) => {
     });
 };
 
+import { cachedTicket } from '@/lib/__tests__/cacheTestHelpers';
+
 const { useTicketSocket, useTicketListSocket, LIST_INVALIDATE_DEBOUNCE_MS, TICKET_RESYNC_DEBOUNCE_MS } = await import('../useTicketSocket');
 
 describe('useTicketSocket', () => {
@@ -330,6 +332,82 @@ describe('useTicketSocket', () => {
         expect(result.current.typingUsers).toEqual({});
     });
 
+    it('merges the read marker into the ticket cache', () => {
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper: createWrapper() });
+        queryClient.setQueryData(['ticket', 'ticket-1'], { id: 'ticket-1', userLastReadAt: null, agentLastReadAt: '2026-10-31T07:00:00Z' });
+
+        fire('ticket:readStateChanged', { ticketId: 'ticket-1', userLastReadAt: '2026-10-31T08:00:00Z' });
+
+        expect(queryClient.getQueryData(['ticket', 'ticket-1'])).toEqual({
+            id: 'ticket-1', userLastReadAt: '2026-10-31T08:00:00Z', agentLastReadAt: '2026-10-31T07:00:00Z',
+        });
+    });
+
+    it('ignores read state for another ticket', () => {
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper: createWrapper() });
+        const cached = { id: 'ticket-1', userLastReadAt: null, agentLastReadAt: null };
+        queryClient.setQueryData(['ticket', 'ticket-1'], cached);
+
+        fire('ticket:readStateChanged', { ticketId: 'ticket-2', userLastReadAt: '2026-10-31T08:00:00Z' });
+
+        expect(queryClient.getQueryData(['ticket', 'ticket-1'])).toBe(cached);
+    });
+
+    it('replaces an updated message in both caches', () => {
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper: createWrapper() });
+        queryClient.setQueryData(['ticket', 'ticket-1'], { id: 'ticket-1', messages: [{ id: 'm-1', content: 'lama' }, { id: 'm-2', content: 'lain' }] });
+        queryClient.setQueryData(['ticket-messages', 'ticket-1'], [{ id: 'm-1', content: 'lama' }]);
+
+        fire('ticket:messageUpdated', { ticketId: 'ticket-1', message: { id: 'm-1', content: '', isDeleted: true } });
+
+        expect(cachedTicket(queryClient, 'ticket-1').messages).toEqual([
+            { id: 'm-1', content: '', isDeleted: true }, { id: 'm-2', content: 'lain' },
+        ]);
+        expect(queryClient.getQueryData(['ticket-messages', 'ticket-1'])).toEqual([{ id: 'm-1', content: '', isDeleted: true }]);
+    });
+
+    it('ignores message updates for another ticket', () => {
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper: createWrapper() });
+        const cached = { id: 'ticket-1', messages: [{ id: 'm-1', content: 'lama' }] };
+        queryClient.setQueryData(['ticket', 'ticket-1'], cached);
+
+        fire('ticket:messageUpdated', { ticketId: 'ticket-2', message: { id: 'm-1', content: 'x' } });
+
+        expect(queryClient.getQueryData(['ticket', 'ticket-1'])).toBe(cached);
+    });
+
+    it('applies reaction changes to the open ticket, and ignores another ticket', () => {
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper: createWrapper() });
+        queryClient.setQueryData(['ticket', 'ticket-1'], { id: 'ticket-1', messages: [{ id: 'm-1', reactions: [] }] });
+        const reactions = [{ emoji: 'x', count: 1, userIds: ['u'], userNames: ['U'] }];
+
+        fire('ticket:reactionsChanged', { ticketId: 'ticket-2', messageId: 'm-1', reactions });
+        expect(cachedTicket(queryClient, 'ticket-1').messages[0].reactions).toEqual([]);
+
+        fire('ticket:reactionsChanged', { ticketId: 'ticket-1', messageId: 'm-1', reactions });
+        expect(cachedTicket(queryClient, 'ticket-1').messages[0].reactions).toEqual(reactions);
+    });
+
+    it('applies pin changes to the open ticket', () => {
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper: createWrapper() });
+        queryClient.setQueryData(['ticket', 'ticket-1'], { id: 'ticket-1', messages: [{ id: 'm-1' }, { id: 'm-2', isPinned: true }] });
+
+        fire('ticket:pinsChanged', { ticketId: 'ticket-1', pins: [{ id: 'm-1', senderName: 'A', snippet: 'x', pinnedAt: '2026-11-02T08:00:00Z', isInternal: false }] });
+
+        const { messages } = cachedTicket(queryClient, 'ticket-1');
+        expect(messages.map((m) => Boolean(m.isPinned))).toEqual([true, false]);
+    });
+
+    it('ignores pins of another ticket', () => {
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper: createWrapper() });
+        const cached = { id: 'ticket-1', messages: [{ id: 'm-1', isPinned: true }] };
+        queryClient.setQueryData(['ticket', 'ticket-1'], cached);
+
+        fire('ticket:pinsChanged', { ticketId: 'ticket-2', pins: [] });
+
+        expect(queryClient.getQueryData(['ticket', 'ticket-1'])).toBe(cached);
+    });
+
     it('refetches the ticket after a reconnect so missed messages appear', () => {
         const wrapper = createWrapper();
         const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
@@ -361,6 +439,16 @@ describe('useTicketListSocket', () => {
 
     afterEach(() => {
         vi.useRealTimers();
+    });
+
+    it('a system line (e.g. "X menyematkan pesan") leaves the unread dot alone', () => {
+        renderHook(() => useTicketListSocket(), { wrapper: createWrapper() });
+        const list = [{ id: 't-1', hasUnreadChat: false, unreadMessageCount: 0 }];
+        queryClient.setQueryData(['tickets'], list);
+
+        fire('ticket:newMessage', { ticketId: 't-1', message: { id: 's-1', isSystemMessage: true } });
+
+        expect(queryClient.getQueryData(['tickets'])).toBe(list);
     });
 
     it('collapses a burst of ticket events into one invalidation per query key', () => {

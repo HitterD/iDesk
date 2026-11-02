@@ -279,6 +279,32 @@ export class EventsGateway
         this.logger.log(`Emitted new message to ticket:${ticketId}`);
     }
 
+    /**
+     * The pinned bar changed. Staff receive every pin; the ticket room (requester side) only pins of
+     * public messages. Staff sockets are in both rooms, so the staff list arrives last and wins.
+     */
+    notifyPinsChanged(ticketId: string, pins: Array<{ isInternal: boolean }>) {
+        this.server.to(`ticket:${ticketId}`).emit('ticket:pinsChanged', { ticketId, pins: pins.filter((p) => !p.isInternal) });
+        this.server.to(ticketStaffRoom(ticketId)).emit('ticket:pinsChanged', { ticketId, pins });
+    }
+
+    /** New reaction totals of one message; internal ones only reach the staff room. */
+    notifyReactionsChanged(ticketId: string, messageId: string, isInternal: boolean, reactions: unknown[]) {
+        const room = isInternal ? ticketStaffRoom(ticketId) : `ticket:${ticketId}`;
+        this.server.to(room).emit('ticket:reactionsChanged', { ticketId, messageId, reactions });
+    }
+
+    /** An edited or deleted chat message, already presented (a deleted one carries no text or files). */
+    notifyMessageUpdated(ticketId: string, message: { id: string; isInternal?: boolean }) {
+        const room = message?.isInternal ? ticketStaffRoom(ticketId) : `ticket:${ticketId}`;
+        this.server.to(room).emit('ticket:messageUpdated', { ticketId, message });
+    }
+
+    /** Read markers drive the chat's read ticks; both sides of the ticket room see them, internal or not. */
+    notifyReadState(ticketId: string, markers: { userLastReadAt?: Date; agentLastReadAt?: Date }) {
+        this.server.to(`ticket:${ticketId}`).emit('ticket:readStateChanged', { ticketId, ...markers });
+    }
+
     // Notify about ticket status change — site-isolated.
     notifyStatusChange(ticketId: string, status: string, updatedBy: string, siteId?: string | null) {
         this.server.to(`ticket:${ticketId}`).emit('ticket:statusChanged', { ticketId, status, updatedBy });

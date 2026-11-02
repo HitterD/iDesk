@@ -65,7 +65,7 @@ describe('TicketChat round-2 actions', () => {
         const input = screen.getByRole('textbox', { name: 'Balas ke pemohon…' });
         fireEvent.change(input, { target: { value: 'halo' } });
         fireEvent.click(screen.getByRole('button', { name: 'Kirim' }));
-        await waitFor(() => expect(onSend).toHaveBeenCalledWith('halo', null, false, expect.any(Function)));
+        await waitFor(() => expect(onSend).toHaveBeenCalledWith('halo', null, false, expect.any(Function), undefined, undefined));
     });
 
     it('send is disabled until there is text', () => {
@@ -79,28 +79,19 @@ describe('TicketChat round-2 actions', () => {
         expect(send).not.toBeDisabled();
     });
 
-    it('each message has a toolbar with an accessible ⋯ menu (Salin/Balas, Edit/Hapus only on own)', async () => {
+    it('each message has a toolbar with an accessible ⋯ menu (Salin/Balas; Hapus on own; Edit only within 15 minutes)', async () => {
         const user = userEvent.setup();
         renderChat();
         const toolbar = within(row('m-1')).getByRole('toolbar', { name: 'Aksi pesan' });
         await user.click(within(toolbar).getByRole('button', { name: 'Aksi lainnya' }));
-        expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual(['Salin', 'Balas']);
+        expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual(['Salin', 'Balas', 'Sematkan']);
         await user.keyboard('{Escape}');
         await user.click(within(row('m-2')).getByRole('button', { name: 'Aksi lainnya' }));
-        expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual(['Salin', 'Balas', 'Edit', 'Hapus']);
+        // m-2 is the agent's own, sent long ago: deletable, no longer editable.
+        expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual(['Salin', 'Balas', 'Sematkan', 'Hapus']);
     });
 
-    it('reaction picker adds a chip and clicking the chip removes it', async () => {
-        const user = userEvent.setup();
-        renderChat();
-        await user.click(within(row('m-1')).getByRole('button', { name: 'Tambah reaksi' }));
-        await user.click(await screen.findByRole('button', { name: 'Setuju' }));
-        const chip = within(row('m-1')).getByRole('button', { name: /Setuju · 1 · hapus reaksi Anda/ });
-        expect(chip).toHaveAttribute('aria-pressed', 'true');
-        expect(chip).toHaveClass('is-on', 'is-pop');
-        await user.click(chip);
-        expect(within(row('m-1')).queryByRole('button', { name: /Setuju ·/ })).not.toBeInTheDocument();
-    });
+    // Reactions are saved on the server now: see TicketChat.reactions.test.tsx.
     it('touch long-press opens the tool pill without the native callout or context menu', () => {
         vi.useFakeTimers();
         try {

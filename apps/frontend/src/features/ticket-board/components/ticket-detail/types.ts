@@ -45,6 +45,9 @@ export interface TicketDetail {
     slaTarget?: string;
     /** 'requester' = I filed it but don't handle it: view/chat only. */
     viewerAccess?: 'handler' | 'requester';
+    /** Each side's chat read marker (requester side / handling team); drives the read ticks. */
+    userLastReadAt?: string | null;
+    agentLastReadAt?: string | null;
     slaStartedAt?: string;
     /** Business minutes left while the SLA clock is held (waiting vendor, resolved). */
     slaRemainingMinutes?: number | null;
@@ -96,6 +99,23 @@ export interface TicketDetail {
         /** Structured activity (who changed what); absent on older system messages. */
         systemEvent?: TicketSystemEvent | null;
         isInternal?: boolean;
+        /** 'WEB' | 'EMAIL'; e-mailed messages cannot be edited or deleted. */
+        source?: string;
+        editedAt?: string | null;
+        /** Deleted for everyone: the server sends no text or files for it. */
+        isDeleted?: boolean;
+        /** Deleted by someone other than the sender (an admin). */
+        deletedByAdmin?: boolean;
+        replyToId?: string | null;
+        /** The message this one answers; `snippet` is empty when that message was deleted. */
+        replyTo?: { id: string; senderName: string; snippet: string; isDeleted: boolean } | null;
+        isPinned?: boolean;
+        pinnedAt?: string | null;
+        /** Saved reactions: who reacted with which emoji (one per person). */
+        reactions?: { emoji: string; count: number; userIds: string[]; userNames: string[] }[];
+        mentionedUserIds?: string[];
+        /** The people this message mentions, for the chips. */
+        mentions?: { id: string; fullName: string }[];
         attachments: string[];
         attachmentInfo?: AttachmentInfo[] | null;
         sender?: {

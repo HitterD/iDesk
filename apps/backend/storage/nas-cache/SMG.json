@@ -1,9 +1,9 @@
 {
   "serverId": "SMG",
   "serverName": "Synology Semarang (SMG)",
-  "lastSyncedAt": "2026-09-25T01:05:14.678Z",
+  "lastSyncedAt": "2026-10-27T18:08:41.407Z",
   "isSyncing": false,
-  "totalFolders": 1039,
+  "totalFolders": 1042,
   "folders": [
     {
       "name": "ActiveBackupforBusiness",
@@ -139,50 +139,57 @@
       "isDir": true
     },
     {
-      "name": "GMT+07-2026.09.19-01.00.01",
-      "path": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01",
+      "name": "GMT+07-2026.10.21-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.21-01.00.01",
       "parentPath": "/homes/#snapshot",
       "depth": 3,
       "isDir": true
     },
     {
-      "name": "GMT+07-2026.09.20-01.00.02",
-      "path": "/homes/#snapshot/GMT+07-2026.09.20-01.00.02",
+      "name": "GMT+07-2026.10.22-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.22-01.00.01",
       "parentPath": "/homes/#snapshot",
       "depth": 3,
       "isDir": true
     },
     {
-      "name": "GMT+07-2026.09.21-01.00.02",
-      "path": "/homes/#snapshot/GMT+07-2026.09.21-01.00.02",
+      "name": "GMT+07-2026.10.23-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.23-01.00.01",
       "parentPath": "/homes/#snapshot",
       "depth": 3,
       "isDir": true
     },
     {
-      "name": "GMT+07-2026.09.22-01.00.02",
-      "path": "/homes/#snapshot/GMT+07-2026.09.22-01.00.02",
+      "name": "GMT+07-2026.10.24-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.24-01.00.01",
       "parentPath": "/homes/#snapshot",
       "depth": 3,
       "isDir": true
     },
     {
-      "name": "GMT+07-2026.09.23-01.00.02",
-      "path": "/homes/#snapshot/GMT+07-2026.09.23-01.00.02",
+      "name": "GMT+07-2026.10.25-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.25-01.00.02",
       "parentPath": "/homes/#snapshot",
       "depth": 3,
       "isDir": true
     },
     {
-      "name": "GMT+07-2026.09.24-01.00.01",
-      "path": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01",
+      "name": "GMT+07-2026.10.26-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.26-01.00.02",
       "parentPath": "/homes/#snapshot",
       "depth": 3,
       "isDir": true
     },
     {
-      "name": "GMT+07-2026.09.25-01.00.01",
-      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01",
+      "name": "GMT+07-2026.10.27-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.27-01.00.02",
+      "parentPath": "/homes/#snapshot",
+      "depth": 3,
+      "isDir": true
+    },
+    {
+      "name": "GMT+07-2026.10.28-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.28-01.00.01",
       "parentPath": "/homes/#snapshot",
       "depth": 3,
       "isDir": true
@@ -349,6 +356,13 @@
       "isDir": true
     },
     {
+      "name": "adi.apandi-1000898",
+      "path": "/homes/@LH-STORAGE.SJA/61/adi.apandi-1000898",
+      "parentPath": "/homes/@LH-STORAGE.SJA/61",
+      "depth": 4,
+      "isDir": true
+    },
+    {
       "name": "aditya.kurniawan-1000048",
       "path": "/homes/@LH-STORAGE.SJA/61/aditya.kurniawan-1000048",
       "parentPath": "/homes/@LH-STORAGE.SJA/61",
@@ -468,6 +482,13 @@
       "isDir": true
     },
     {
+      "name": "adminutility.smg-1000668",
+      "path": "/homes/@LH-STORAGE.SJA/61/adminutility.smg-1000668",
+      "parentPath": "/homes/@LH-STORAGE.SJA/61",
+      "depth": 4,
+      "isDir": true
+    },
+    {
       "name": "adminwh.smg-1000639",
       "path": "/homes/@LH-STORAGE.SJA/61/adminwh.smg-1000639",
       "parentPath": "/homes/@LH-STORAGE.SJA/61",
@@ -512,6 +533,13 @@
     {
       "name": "andre.wijaya-1000091",
       "path": "/homes/@LH-STORAGE.SJA/61/andre.wijaya-1000091",
+      "parentPath": "/homes/@LH-STORAGE.SJA/61",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "andrew.alfonso-1000093",
+      "path": "/homes/@LH-STORAGE.SJA/61/andrew.alfonso-1000093",
       "parentPath": "/homes/@LH-STORAGE.SJA/61",
       "depth": 4,
       "isDir": true
@@ -687,6 +715,13 @@
     {
       "name": "elieser.lakines-1000700",
       "path": "/homes/@LH-STORAGE.SJA/61/elieser.lakines-1000700",
+      "parentPath": "/homes/@LH-STORAGE.SJA/61",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "elizabeth.yohanna-1001165",
+      "path": "/homes/@LH-STORAGE.SJA/61/elizabeth.yohanna-1001165",
       "parentPath": "/homes/@LH-STORAGE.SJA/61",
       "depth": 4,
       "isDir": true
@@ -965,6 +1000,13 @@
       "isDir": true
     },
     {
+      "name": "metha.yulendra-1000271",
+      "path": "/homes/@LH-STORAGE.SJA/61/metha.yulendra-1000271",
+      "parentPath": "/homes/@LH-STORAGE.SJA/61",
+      "depth": 4,
+      "isDir": true
+    },
+    {
       "name": "mtc3in1.smg-1000790",
       "path": "/homes/@LH-STORAGE.SJA/61/mtc3in1.smg-1000790",
       "parentPath": "/homes/@LH-STORAGE.SJA/61",
@@ -1023,6 +1065,13 @@
     {
       "name": "ndaru.bagus-1000564",
       "path": "/homes/@LH-STORAGE.SJA/61/ndaru.bagus-1000564",
+      "parentPath": "/homes/@LH-STORAGE.SJA/61",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "novitasari.sitanggang-1000221",
+      "path": "/homes/@LH-STORAGE.SJA/61/novitasari.sitanggang-1000221",
       "parentPath": "/homes/@LH-STORAGE.SJA/61",
       "depth": 4,
       "isDir": true
@@ -1343,6 +1392,13 @@
       "isDir": true
     },
     {
+      "name": "staffpdi.krw-1000459",
+      "path": "/homes/@LH-STORAGE.SJA/61/staffpdi.krw-1000459",
+      "parentPath": "/homes/@LH-STORAGE.SJA/61",
+      "depth": 4,
+      "isDir": true
+    },
+    {
       "name": "suaria.risona-1001086",
       "path": "/homes/@LH-STORAGE.SJA/61/suaria.risona-1001086",
       "parentPath": "/homes/@LH-STORAGE.SJA/61",
@@ -1505,197 +1561,225 @@
     },
     {
       "name": "@LH-STORAGE.SJA",
-      "path": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01/@LH-STORAGE.SJA",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.21-01.00.01/@LH-STORAGE.SJA",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.21-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "#snapshot",
-      "path": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01/#snapshot",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.21-01.00.01/#snapshot",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.21-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "admin",
-      "path": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01/admin",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.21-01.00.01/admin",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.21-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "ict",
-      "path": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01/ict",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.21-01.00.01/ict",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.21-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "@LH-STORAGE.SJA",
-      "path": "/homes/#snapshot/GMT+07-2026.09.20-01.00.02/@LH-STORAGE.SJA",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.20-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.22-01.00.01/@LH-STORAGE.SJA",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.22-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "#snapshot",
-      "path": "/homes/#snapshot/GMT+07-2026.09.20-01.00.02/#snapshot",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.20-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.22-01.00.01/#snapshot",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.22-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "admin",
-      "path": "/homes/#snapshot/GMT+07-2026.09.20-01.00.02/admin",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.20-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.22-01.00.01/admin",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.22-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "ict",
-      "path": "/homes/#snapshot/GMT+07-2026.09.20-01.00.02/ict",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.20-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.22-01.00.01/ict",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.22-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "@LH-STORAGE.SJA",
-      "path": "/homes/#snapshot/GMT+07-2026.09.21-01.00.02/@LH-STORAGE.SJA",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.21-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.23-01.00.01/@LH-STORAGE.SJA",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.23-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "#snapshot",
-      "path": "/homes/#snapshot/GMT+07-2026.09.21-01.00.02/#snapshot",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.21-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.23-01.00.01/#snapshot",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.23-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "admin",
-      "path": "/homes/#snapshot/GMT+07-2026.09.21-01.00.02/admin",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.21-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.23-01.00.01/admin",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.23-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "ict",
-      "path": "/homes/#snapshot/GMT+07-2026.09.21-01.00.02/ict",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.21-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.23-01.00.01/ict",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.23-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "@LH-STORAGE.SJA",
-      "path": "/homes/#snapshot/GMT+07-2026.09.22-01.00.02/@LH-STORAGE.SJA",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.22-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.24-01.00.01/@LH-STORAGE.SJA",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.24-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "#snapshot",
-      "path": "/homes/#snapshot/GMT+07-2026.09.22-01.00.02/#snapshot",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.22-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.24-01.00.01/#snapshot",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.24-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "admin",
-      "path": "/homes/#snapshot/GMT+07-2026.09.22-01.00.02/admin",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.22-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.24-01.00.01/admin",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.24-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "ict",
-      "path": "/homes/#snapshot/GMT+07-2026.09.22-01.00.02/ict",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.22-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.24-01.00.01/ict",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.24-01.00.01",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "@LH-STORAGE.SJA",
-      "path": "/homes/#snapshot/GMT+07-2026.09.23-01.00.02/@LH-STORAGE.SJA",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.23-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.25-01.00.02/@LH-STORAGE.SJA",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.25-01.00.02",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "#snapshot",
-      "path": "/homes/#snapshot/GMT+07-2026.09.23-01.00.02/#snapshot",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.23-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.25-01.00.02/#snapshot",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.25-01.00.02",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "admin",
-      "path": "/homes/#snapshot/GMT+07-2026.09.23-01.00.02/admin",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.23-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.25-01.00.02/admin",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.25-01.00.02",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "ict",
-      "path": "/homes/#snapshot/GMT+07-2026.09.23-01.00.02/ict",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.23-01.00.02",
+      "path": "/homes/#snapshot/GMT+07-2026.10.25-01.00.02/ict",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.25-01.00.02",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "@LH-STORAGE.SJA",
-      "path": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01/@LH-STORAGE.SJA",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.26-01.00.02/@LH-STORAGE.SJA",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.26-01.00.02",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "#snapshot",
-      "path": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01/#snapshot",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.26-01.00.02/#snapshot",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.26-01.00.02",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "admin",
-      "path": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01/admin",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.26-01.00.02/admin",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.26-01.00.02",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "ict",
-      "path": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01/ict",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.26-01.00.02/ict",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.26-01.00.02",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "@LH-STORAGE.SJA",
-      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/@LH-STORAGE.SJA",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.27-01.00.02/@LH-STORAGE.SJA",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.27-01.00.02",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "#snapshot",
-      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/#snapshot",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.27-01.00.02/#snapshot",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.27-01.00.02",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "admin",
-      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/admin",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.27-01.00.02/admin",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.27-01.00.02",
       "depth": 4,
       "isDir": true
     },
     {
       "name": "ict",
-      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/ict",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01",
+      "path": "/homes/#snapshot/GMT+07-2026.10.27-01.00.02/ict",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.27-01.00.02",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "@LH-STORAGE.SJA",
+      "path": "/homes/#snapshot/GMT+07-2026.10.28-01.00.01/@LH-STORAGE.SJA",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.28-01.00.01",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "#snapshot",
+      "path": "/homes/#snapshot/GMT+07-2026.10.28-01.00.01/#snapshot",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.28-01.00.01",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "admin",
+      "path": "/homes/#snapshot/GMT+07-2026.10.28-01.00.01/admin",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.28-01.00.01",
+      "depth": 4,
+      "isDir": true
+    },
+    {
+      "name": "ict",
+      "path": "/homes/#snapshot/GMT+07-2026.10.28-01.00.01/ict",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.28-01.00.01",
       "depth": 4,
       "isDir": true
     },
@@ -1861,8 +1945,8 @@
       "isDir": true
     },
     {
-      "name": "Backup QC Coord",
-      "path": "/sja/SJA SMG/ICT/Backup QC Coord",
+      "name": "Backup File User",
+      "path": "/sja/SJA SMG/ICT/Backup File User",
       "parentPath": "/sja/SJA SMG/ICT",
       "depth": 4,
       "isDir": true
@@ -1870,13 +1954,6 @@
     {
       "name": "Backup Switch",
       "path": "/sja/SJA SMG/ICT/Backup Switch",
-      "parentPath": "/sja/SJA SMG/ICT",
-      "depth": 4,
-      "isDir": true
-    },
-    {
-      "name": "BONGKAR BIJI KOPI",
-      "path": "/sja/SJA SMG/ICT/BONGKAR BIJI KOPI",
       "parentPath": "/sja/SJA SMG/ICT",
       "depth": 4,
       "isDir": true
@@ -2485,148 +2562,162 @@
     },
     {
       "name": "61",
-      "path": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01/@LH-STORAGE.SJA/61",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01/@LH-STORAGE.SJA",
+      "path": "/homes/#snapshot/GMT+07-2026.10.21-01.00.01/@LH-STORAGE.SJA/61",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.21-01.00.01/@LH-STORAGE.SJA",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "_nasData_scripts",
-      "path": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01/admin/_nasData_scripts",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01/admin",
+      "path": "/homes/#snapshot/GMT+07-2026.10.21-01.00.01/admin/_nasData_scripts",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.21-01.00.01/admin",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Photos",
-      "path": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01/ict/Photos",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.19-01.00.01/ict",
+      "path": "/homes/#snapshot/GMT+07-2026.10.21-01.00.01/ict/Photos",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.21-01.00.01/ict",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "61",
-      "path": "/homes/#snapshot/GMT+07-2026.09.20-01.00.02/@LH-STORAGE.SJA/61",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.20-01.00.02/@LH-STORAGE.SJA",
+      "path": "/homes/#snapshot/GMT+07-2026.10.22-01.00.01/@LH-STORAGE.SJA/61",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.22-01.00.01/@LH-STORAGE.SJA",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "_nasData_scripts",
-      "path": "/homes/#snapshot/GMT+07-2026.09.20-01.00.02/admin/_nasData_scripts",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.20-01.00.02/admin",
+      "path": "/homes/#snapshot/GMT+07-2026.10.22-01.00.01/admin/_nasData_scripts",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.22-01.00.01/admin",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Photos",
-      "path": "/homes/#snapshot/GMT+07-2026.09.20-01.00.02/ict/Photos",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.20-01.00.02/ict",
+      "path": "/homes/#snapshot/GMT+07-2026.10.22-01.00.01/ict/Photos",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.22-01.00.01/ict",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "61",
-      "path": "/homes/#snapshot/GMT+07-2026.09.21-01.00.02/@LH-STORAGE.SJA/61",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.21-01.00.02/@LH-STORAGE.SJA",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "_nasData_scripts",
-      "path": "/homes/#snapshot/GMT+07-2026.09.21-01.00.02/admin/_nasData_scripts",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.21-01.00.02/admin",
+      "path": "/homes/#snapshot/GMT+07-2026.10.23-01.00.01/@LH-STORAGE.SJA/61",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.23-01.00.01/@LH-STORAGE.SJA",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Photos",
-      "path": "/homes/#snapshot/GMT+07-2026.09.21-01.00.02/ict/Photos",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.21-01.00.02/ict",
+      "path": "/homes/#snapshot/GMT+07-2026.10.23-01.00.01/ict/Photos",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.23-01.00.01/ict",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "61",
-      "path": "/homes/#snapshot/GMT+07-2026.09.22-01.00.02/@LH-STORAGE.SJA/61",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.22-01.00.02/@LH-STORAGE.SJA",
+      "path": "/homes/#snapshot/GMT+07-2026.10.24-01.00.01/@LH-STORAGE.SJA/61",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.24-01.00.01/@LH-STORAGE.SJA",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "_nasData_scripts",
-      "path": "/homes/#snapshot/GMT+07-2026.09.22-01.00.02/admin/_nasData_scripts",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.22-01.00.02/admin",
+      "path": "/homes/#snapshot/GMT+07-2026.10.24-01.00.01/admin/_nasData_scripts",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.24-01.00.01/admin",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Photos",
-      "path": "/homes/#snapshot/GMT+07-2026.09.22-01.00.02/ict/Photos",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.22-01.00.02/ict",
+      "path": "/homes/#snapshot/GMT+07-2026.10.24-01.00.01/ict/Photos",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.24-01.00.01/ict",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "61",
-      "path": "/homes/#snapshot/GMT+07-2026.09.23-01.00.02/@LH-STORAGE.SJA/61",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.23-01.00.02/@LH-STORAGE.SJA",
+      "path": "/homes/#snapshot/GMT+07-2026.10.25-01.00.02/@LH-STORAGE.SJA/61",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.25-01.00.02/@LH-STORAGE.SJA",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "_nasData_scripts",
-      "path": "/homes/#snapshot/GMT+07-2026.09.23-01.00.02/admin/_nasData_scripts",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.23-01.00.02/admin",
+      "path": "/homes/#snapshot/GMT+07-2026.10.25-01.00.02/admin/_nasData_scripts",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.25-01.00.02/admin",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Photos",
-      "path": "/homes/#snapshot/GMT+07-2026.09.23-01.00.02/ict/Photos",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.23-01.00.02/ict",
+      "path": "/homes/#snapshot/GMT+07-2026.10.25-01.00.02/ict/Photos",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.25-01.00.02/ict",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "61",
-      "path": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01/@LH-STORAGE.SJA/61",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01/@LH-STORAGE.SJA",
+      "path": "/homes/#snapshot/GMT+07-2026.10.26-01.00.02/@LH-STORAGE.SJA/61",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.26-01.00.02/@LH-STORAGE.SJA",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "_nasData_scripts",
-      "path": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01/admin/_nasData_scripts",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01/admin",
+      "path": "/homes/#snapshot/GMT+07-2026.10.26-01.00.02/admin/_nasData_scripts",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.26-01.00.02/admin",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Photos",
-      "path": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01/ict/Photos",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.24-01.00.01/ict",
+      "path": "/homes/#snapshot/GMT+07-2026.10.26-01.00.02/ict/Photos",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.26-01.00.02/ict",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "61",
-      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/@LH-STORAGE.SJA/61",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/@LH-STORAGE.SJA",
+      "path": "/homes/#snapshot/GMT+07-2026.10.27-01.00.02/@LH-STORAGE.SJA/61",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.27-01.00.02/@LH-STORAGE.SJA",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "_nasData_scripts",
-      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/admin/_nasData_scripts",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/admin",
+      "path": "/homes/#snapshot/GMT+07-2026.10.27-01.00.02/admin/_nasData_scripts",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.27-01.00.02/admin",
       "depth": 5,
       "isDir": true
     },
     {
       "name": "Photos",
-      "path": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/ict/Photos",
-      "parentPath": "/homes/#snapshot/GMT+07-2026.09.25-01.00.01/ict",
+      "path": "/homes/#snapshot/GMT+07-2026.10.27-01.00.02/ict/Photos",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.27-01.00.02/ict",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "61",
+      "path": "/homes/#snapshot/GMT+07-2026.10.28-01.00.01/@LH-STORAGE.SJA/61",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.28-01.00.01/@LH-STORAGE.SJA",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "_nasData_scripts",
+      "path": "/homes/#snapshot/GMT+07-2026.10.28-01.00.01/admin/_nasData_scripts",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.28-01.00.01/admin",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "Photos",
+      "path": "/homes/#snapshot/GMT+07-2026.10.28-01.00.01/ict/Photos",
+      "parentPath": "/homes/#snapshot/GMT+07-2026.10.28-01.00.01/ict",
       "depth": 5,
       "isDir": true
     },
@@ -2722,8 +2813,8 @@
       "isDir": true
     },
     {
-      "name": "Controller",
-      "path": "/sja/SJA SMG/DAFT/DAFT SJA Semarang/Controller",
+      "name": "Controller (Kontrak kerjasama )",
+      "path": "/sja/SJA SMG/DAFT/DAFT SJA Semarang/Controller (Kontrak kerjasama )",
       "parentPath": "/sja/SJA SMG/DAFT/DAFT SJA Semarang",
       "depth": 5,
       "isDir": true
@@ -3065,6 +3156,13 @@
       "isDir": true
     },
     {
+      "name": "IM Release",
+      "path": "/sja/SJA SMG/FGW/FGW/IM Release",
+      "parentPath": "/sja/SJA SMG/FGW/FGW",
+      "depth": 5,
+      "isDir": true
+    },
+    {
       "name": "Informasi",
       "path": "/sja/SJA SMG/FGW/FGW/Informasi",
       "parentPath": "/sja/SJA SMG/FGW/FGW",
@@ -3102,6 +3200,13 @@
     {
       "name": "KPI",
       "path": "/sja/SJA SMG/FGW/FGW/KPI",
+      "parentPath": "/sja/SJA SMG/FGW/FGW",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "Lain - Lain",
+      "path": "/sja/SJA SMG/FGW/FGW/Lain - Lain",
       "parentPath": "/sja/SJA SMG/FGW/FGW",
       "depth": 5,
       "isDir": true
@@ -3989,6 +4094,13 @@
       "isDir": true
     },
     {
+      "name": "#ENVIRO SHARING",
+      "path": "/sja/SJA SMG/HSE/Data Sharing HSE/#ENVIRO SHARING",
+      "parentPath": "/sja/SJA SMG/HSE/Data Sharing HSE",
+      "depth": 5,
+      "isDir": true
+    },
+    {
       "name": "#P2K3L RTD",
       "path": "/sja/SJA SMG/HSE/Data Sharing HSE/#P2K3L RTD",
       "parentPath": "/sja/SJA SMG/HSE/Data Sharing HSE",
@@ -4159,6 +4271,13 @@
     {
       "name": "File Audit Internal",
       "path": "/sja/SJA SMG/HSE/Data Sharing HSE/File Audit Internal",
+      "parentPath": "/sja/SJA SMG/HSE/Data Sharing HSE",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "FINAL REPORT ICON 2026",
+      "path": "/sja/SJA SMG/HSE/Data Sharing HSE/FINAL REPORT ICON 2026",
       "parentPath": "/sja/SJA SMG/HSE/Data Sharing HSE",
       "depth": 5,
       "isDir": true
@@ -4353,6 +4472,13 @@
       "isDir": true
     },
     {
+      "name": "New folder",
+      "path": "/sja/SJA SMG/HSE/Data Sharing HSE/New folder",
+      "parentPath": "/sja/SJA SMG/HSE/Data Sharing HSE",
+      "depth": 5,
+      "isDir": true
+    },
+    {
       "name": "OHR Maret - September 2024",
       "path": "/sja/SJA SMG/HSE/Data Sharing HSE/OHR Maret - September 2024",
       "parentPath": "/sja/SJA SMG/HSE/Data Sharing HSE",
@@ -4535,13 +4661,6 @@
       "isDir": true
     },
     {
-      "name": "SIRAJA 2024",
-      "path": "/sja/SJA SMG/HSE/Data Sharing HSE/SIRAJA 2024",
-      "parentPath": "/sja/SJA SMG/HSE/Data Sharing HSE",
-      "depth": 5,
-      "isDir": true
-    },
-    {
       "name": "Spesifikasi Fire Alarm ASRS",
       "path": "/sja/SJA SMG/HSE/Data Sharing HSE/Spesifikasi Fire Alarm ASRS",
       "parentPath": "/sja/SJA SMG/HSE/Data Sharing HSE",
@@ -4584,6 +4703,13 @@
       "isDir": true
     },
     {
+      "name": "WWTP Powder",
+      "path": "/sja/SJA SMG/HSE/Data Sharing HSE/WWTP Powder",
+      "parentPath": "/sja/SJA SMG/HSE/Data Sharing HSE",
+      "depth": 5,
+      "isDir": true
+    },
+    {
       "name": "2024",
       "path": "/sja/SJA SMG/HSE/KPI HSE/2024",
       "parentPath": "/sja/SJA SMG/HSE/KPI HSE",
@@ -4591,44 +4717,9 @@
       "isDir": true
     },
     {
-      "name": "Backup Epop",
-      "path": "/sja/SJA SMG/ICT/Backup QC Coord/Backup Epop",
-      "parentPath": "/sja/SJA SMG/ICT/Backup QC Coord",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Documents",
-      "path": "/sja/SJA SMG/ICT/Backup QC Coord/Documents",
-      "parentPath": "/sja/SJA SMG/ICT/Backup QC Coord",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Migrasi",
-      "path": "/sja/SJA SMG/ICT/Backup QC Coord/Migrasi",
-      "parentPath": "/sja/SJA SMG/ICT/Backup QC Coord",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Minitab",
-      "path": "/sja/SJA SMG/ICT/Backup QC Coord/Minitab",
-      "parentPath": "/sja/SJA SMG/ICT/Backup QC Coord",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "QC",
-      "path": "/sja/SJA SMG/ICT/Backup QC Coord/QC",
-      "parentPath": "/sja/SJA SMG/ICT/Backup QC Coord",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "WiredRed",
-      "path": "/sja/SJA SMG/ICT/Backup QC Coord/WiredRed",
-      "parentPath": "/sja/SJA SMG/ICT/Backup QC Coord",
+      "name": "Backup QC Coord",
+      "path": "/sja/SJA SMG/ICT/Backup File User/Backup QC Coord",
+      "parentPath": "/sja/SJA SMG/ICT/Backup File User",
       "depth": 5,
       "isDir": true
     },
@@ -4636,20 +4727,6 @@
       "name": "Core Switch Semarang",
       "path": "/sja/SJA SMG/ICT/Backup Switch/Core Switch Semarang",
       "parentPath": "/sja/SJA SMG/ICT/Backup Switch",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Depan GBB",
-      "path": "/sja/SJA SMG/ICT/BONGKAR BIJI KOPI/Depan GBB",
-      "parentPath": "/sja/SJA SMG/ICT/BONGKAR BIJI KOPI",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Depan GPM",
-      "path": "/sja/SJA SMG/ICT/BONGKAR BIJI KOPI/Depan GPM",
-      "parentPath": "/sja/SJA SMG/ICT/BONGKAR BIJI KOPI",
       "depth": 5,
       "isDir": true
     },
@@ -4745,6 +4822,13 @@
       "isDir": true
     },
     {
+      "name": "20260713 - Lobby Main Office",
+      "path": "/sja/SJA SMG/ICT/Playback CCTV/20260713 - Lobby Main Office",
+      "parentPath": "/sja/SJA SMG/ICT/Playback CCTV",
+      "depth": 5,
+      "isDir": true
+    },
+    {
       "name": "20260720 - Lobby Main Office",
       "path": "/sja/SJA SMG/ICT/Playback CCTV/20260720 - Lobby Main Office",
       "parentPath": "/sja/SJA SMG/ICT/Playback CCTV",
@@ -4787,8 +4871,36 @@
       "isDir": true
     },
     {
+      "name": "20260917 - Office Lt 2",
+      "path": "/sja/SJA SMG/ICT/Playback CCTV/20260917 - Office Lt 2",
+      "parentPath": "/sja/SJA SMG/ICT/Playback CCTV",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "20260928 - Pantry Lt 1 Meja Panjang",
+      "path": "/sja/SJA SMG/ICT/Playback CCTV/20260928 - Pantry Lt 1 Meja Panjang",
+      "parentPath": "/sja/SJA SMG/ICT/Playback CCTV",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "20261017 - Pantry Lt 2 Office",
+      "path": "/sja/SJA SMG/ICT/Playback CCTV/20261017 - Pantry Lt 2 Office",
+      "parentPath": "/sja/SJA SMG/ICT/Playback CCTV",
+      "depth": 5,
+      "isDir": true
+    },
+    {
       "name": "BM - Pintu cuci tangan R&G",
       "path": "/sja/SJA SMG/ICT/Playback CCTV/BM - Pintu cuci tangan R&G",
+      "parentPath": "/sja/SJA SMG/ICT/Playback CCTV",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "BONGKAR BIJI KOPI",
+      "path": "/sja/SJA SMG/ICT/Playback CCTV/BONGKAR BIJI KOPI",
       "parentPath": "/sja/SJA SMG/ICT/Playback CCTV",
       "depth": 5,
       "isDir": true
@@ -4990,13 +5102,6 @@
       "isDir": true
     },
     {
-      "name": "E-Trans",
-      "path": "/sja/SJA SMG/ICT/Share ICT Semarang/E-Trans",
-      "parentPath": "/sja/SJA SMG/ICT/Share ICT Semarang",
-      "depth": 5,
-      "isDir": true
-    },
-    {
       "name": "License",
       "path": "/sja/SJA SMG/ICT/Share ICT Semarang/License",
       "parentPath": "/sja/SJA SMG/ICT/Share ICT Semarang",
@@ -5102,6 +5207,13 @@
       "isDir": true
     },
     {
+      "name": "ICT",
+      "path": "/sja/SJA SMG/ICT/Sharing MulMed/ICT",
+      "parentPath": "/sja/SJA SMG/ICT/Sharing MulMed",
+      "depth": 5,
+      "isDir": true
+    },
+    {
       "name": "Kunjungan UNS",
       "path": "/sja/SJA SMG/ICT/Sharing MulMed/Kunjungan UNS",
       "parentPath": "/sja/SJA SMG/ICT/Sharing MulMed",
@@ -5179,6 +5291,13 @@
       "isDir": true
     },
     {
+      "name": "PMK",
+      "path": "/sja/SJA SMG/ICT/Sharing MulMed/PMK",
+      "parentPath": "/sja/SJA SMG/ICT/Sharing MulMed",
+      "depth": 5,
+      "isDir": true
+    },
+    {
       "name": "Presentasi Intern",
       "path": "/sja/SJA SMG/ICT/Sharing MulMed/Presentasi Intern",
       "parentPath": "/sja/SJA SMG/ICT/Sharing MulMed",
@@ -5235,8 +5354,15 @@
       "isDir": true
     },
     {
-      "name": "1. APK SJA",
-      "path": "/sja/SJA SMG/ICT/Software SJA/1. APK SJA",
+      "name": "1 APK SJA",
+      "path": "/sja/SJA SMG/ICT/Software SJA/1 APK SJA",
+      "parentPath": "/sja/SJA SMG/ICT/Software SJA",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "2 PT. SANTOS JAYA ABADI - PROCUREMENT",
+      "path": "/sja/SJA SMG/ICT/Software SJA/2 PT. SANTOS JAYA ABADI - PROCUREMENT",
       "parentPath": "/sja/SJA SMG/ICT/Software SJA",
       "depth": 5,
       "isDir": true
@@ -5398,13 +5524,6 @@
     {
       "name": "OS Images",
       "path": "/sja/SJA SMG/ICT/Software SJA/OS Images",
-      "parentPath": "/sja/SJA SMG/ICT/Software SJA",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "PT. SANTOS JAYA ABADI - PROCUREMENT",
-      "path": "/sja/SJA SMG/ICT/Software SJA/PT. SANTOS JAYA ABADI - PROCUREMENT",
       "parentPath": "/sja/SJA SMG/ICT/Software SJA",
       "depth": 5,
       "isDir": true
@@ -6201,111 +6320,6 @@
       "isDir": true
     },
     {
-      "name": "ALAMAT EPOP KW",
-      "path": "/sja/SJA SMG/PPIC/BACK UP HARDDISK/ALAMAT EPOP KW",
-      "parentPath": "/sja/SJA SMG/PPIC/BACK UP HARDDISK",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Backup Epop",
-      "path": "/sja/SJA SMG/PPIC/BACK UP HARDDISK/Backup Epop",
-      "parentPath": "/sja/SJA SMG/PPIC/BACK UP HARDDISK",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Backup User Local",
-      "path": "/sja/SJA SMG/PPIC/BACK UP HARDDISK/Backup User Local",
-      "parentPath": "/sja/SJA SMG/PPIC/BACK UP HARDDISK",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Batch Oracle______________________________",
-      "path": "/sja/SJA SMG/PPIC/BACK UP HARDDISK/Batch Oracle______________________________",
-      "parentPath": "/sja/SJA SMG/PPIC/BACK UP HARDDISK",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Documents",
-      "path": "/sja/SJA SMG/PPIC/BACK UP HARDDISK/Documents",
-      "parentPath": "/sja/SJA SMG/PPIC/BACK UP HARDDISK",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "DRG",
-      "path": "/sja/SJA SMG/PPIC/BACK UP HARDDISK/DRG",
-      "parentPath": "/sja/SJA SMG/PPIC/BACK UP HARDDISK",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "info kemasan",
-      "path": "/sja/SJA SMG/PPIC/BACK UP HARDDISK/info kemasan",
-      "parentPath": "/sja/SJA SMG/PPIC/BACK UP HARDDISK",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Inven",
-      "path": "/sja/SJA SMG/PPIC/BACK UP HARDDISK/Inven",
-      "parentPath": "/sja/SJA SMG/PPIC/BACK UP HARDDISK",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Ketentuan export",
-      "path": "/sja/SJA SMG/PPIC/BACK UP HARDDISK/Ketentuan export",
-      "parentPath": "/sja/SJA SMG/PPIC/BACK UP HARDDISK",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "oracle",
-      "path": "/sja/SJA SMG/PPIC/BACK UP HARDDISK/oracle",
-      "parentPath": "/sja/SJA SMG/PPIC/BACK UP HARDDISK",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Prod planning wk. 9",
-      "path": "/sja/SJA SMG/PPIC/BACK UP HARDDISK/Prod planning wk. 9",
-      "parentPath": "/sja/SJA SMG/PPIC/BACK UP HARDDISK",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Prod planning wk. 10",
-      "path": "/sja/SJA SMG/PPIC/BACK UP HARDDISK/Prod planning wk. 10",
-      "parentPath": "/sja/SJA SMG/PPIC/BACK UP HARDDISK",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "REKAP PRODUKSI PPIC+PPR_____________",
-      "path": "/sja/SJA SMG/PPIC/BACK UP HARDDISK/REKAP PRODUKSI PPIC+PPR_____________",
-      "parentPath": "/sja/SJA SMG/PPIC/BACK UP HARDDISK",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "SUARIA",
-      "path": "/sja/SJA SMG/PPIC/BACK UP HARDDISK/SUARIA",
-      "parentPath": "/sja/SJA SMG/PPIC/BACK UP HARDDISK",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "temp",
-      "path": "/sja/SJA SMG/PPIC/BACK UP HARDDISK/temp",
-      "parentPath": "/sja/SJA SMG/PPIC/BACK UP HARDDISK",
-      "depth": 5,
-      "isDir": true
-    },
-    {
       "name": "310726",
       "path": "/sja/SJA SMG/PPIC/Backup Rafa/310726",
       "parentPath": "/sja/SJA SMG/PPIC/Backup Rafa",
@@ -6365,6 +6379,27 @@
       "name": "Rencana Tuang_Goreng 2023",
       "path": "/sja/SJA SMG/PPIC/Batch Oracle______________________________/Rencana Tuang_Goreng 2023",
       "parentPath": "/sja/SJA SMG/PPIC/Batch Oracle______________________________",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "2024",
+      "path": "/sja/SJA SMG/PPIC/Jadwal Produksi/2024",
+      "parentPath": "/sja/SJA SMG/PPIC/Jadwal Produksi",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "2025",
+      "path": "/sja/SJA SMG/PPIC/Jadwal Produksi/2025",
+      "parentPath": "/sja/SJA SMG/PPIC/Jadwal Produksi",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "2026",
+      "path": "/sja/SJA SMG/PPIC/Jadwal Produksi/2026",
+      "parentPath": "/sja/SJA SMG/PPIC/Jadwal Produksi",
       "depth": 5,
       "isDir": true
     },
@@ -6467,8 +6502,8 @@
       "isDir": true
     },
     {
-      "name": "01_DRAFT PO",
-      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/01_DRAFT PO",
+      "name": "01_DRAFT PO & ACC BAYAR",
+      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/01_DRAFT PO & ACC BAYAR",
       "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
       "depth": 5,
       "isDir": true
@@ -6481,8 +6516,8 @@
       "isDir": true
     },
     {
-      "name": "03_DRAFT ACC BAYAR",
-      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/03_DRAFT ACC BAYAR",
+      "name": "03_MASTER VENDOR DOCUMENTS",
+      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/03_MASTER VENDOR DOCUMENTS",
       "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
       "depth": 5,
       "isDir": true
@@ -6502,6 +6537,34 @@
       "isDir": true
     },
     {
+      "name": "06_DRAFT SEMARANG",
+      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/06_DRAFT SEMARANG",
+      "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "07_SCAN BERSAMA",
+      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/07_SCAN BERSAMA",
+      "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "08_DAILY EXPORT PO VS RECEIPT",
+      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/08_DAILY EXPORT PO VS RECEIPT",
+      "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "09_BERITA ACARA",
+      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/09_BERITA ACARA",
+      "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
+      "depth": 5,
+      "isDir": true
+    },
+    {
       "name": "Backup Safira",
       "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/Backup Safira",
       "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
@@ -6509,64 +6572,8 @@
       "isDir": true
     },
     {
-      "name": "DAILY EXPORT PO VS RECEIPT",
-      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/DAILY EXPORT PO VS RECEIPT",
-      "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
-      "depth": 5,
-      "isDir": true
-    },
-    {
       "name": "DIKA_SUGIYANTO",
       "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/DIKA_SUGIYANTO",
-      "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "EVALUASI SUPPLIERS",
-      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/EVALUASI SUPPLIERS",
-      "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Lain-lain",
-      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/Lain-lain",
-      "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "New folder",
-      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/New folder",
-      "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "Pembelian Online April-September",
-      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/Pembelian Online April-September",
-      "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "SCAN BERSAMA",
-      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/SCAN BERSAMA",
-      "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "SHARING DOKUMEN",
-      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/SHARING DOKUMEN",
-      "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
-      "depth": 5,
-      "isDir": true
-    },
-    {
-      "name": "UNTUK USER OKTOBER - MARET 2026",
-      "path": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ/UNTUK USER OKTOBER - MARET 2026",
       "parentPath": "/sja/SJA SMG/PROCUREMENT/Sharing Procurement SMG-SPJ",
       "depth": 5,
       "isDir": true
@@ -6726,6 +6733,13 @@
       "isDir": true
     },
     {
+      "name": "2026 Ghoib",
+      "path": "/sja/SJA SMG/PRODUKSI/PRODUKSI R&G/2026 Ghoib",
+      "parentPath": "/sja/SJA SMG/PRODUKSI/PRODUKSI R&G",
+      "depth": 5,
+      "isDir": true
+    },
+    {
       "name": "Backup",
       "path": "/sja/SJA SMG/PRODUKSI/PRODUKSI R&G/Backup",
       "parentPath": "/sja/SJA SMG/PRODUKSI/PRODUKSI R&G",
@@ -6733,8 +6747,8 @@
       "isDir": true
     },
     {
-      "name": "Gambar PPT",
-      "path": "/sja/SJA SMG/PRODUKSI/PRODUKSI R&G/Gambar PPT",
+      "name": "Videos",
+      "path": "/sja/SJA SMG/PRODUKSI/PRODUKSI R&G/Videos",
       "parentPath": "/sja/SJA SMG/PRODUKSI/PRODUKSI R&G",
       "depth": 5,
       "isDir": true
@@ -6882,6 +6896,13 @@
     {
       "name": "12. MSDS Bahan Kimia",
       "path": "/sja/SJA SMG/QA/Internal Incoming Semarang/12. MSDS Bahan Kimia",
+      "parentPath": "/sja/SJA SMG/QA/Internal Incoming Semarang",
+      "depth": 5,
+      "isDir": true
+    },
+    {
+      "name": "13. KEBERSIHAN ALAT",
+      "path": "/sja/SJA SMG/QA/Internal Incoming Semarang/13. KEBERSIHAN ALAT",
       "parentPath": "/sja/SJA SMG/QA/Internal Incoming Semarang",
       "depth": 5,
       "isDir": true

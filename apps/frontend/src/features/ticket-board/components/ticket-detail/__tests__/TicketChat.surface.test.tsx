@@ -142,6 +142,51 @@ describe('TicketChat surface', () => {
         expect(row('r-1')).not.toBeNull();
     });
 
+    const renderWith = (patch: Partial<TicketDetail>) => render(
+        <QueryClientProvider client={new QueryClient()}>
+            <TicketChat ticket={{ ...ticket, ...patch } as TicketDetail} isConnected onSendMessage={vi.fn(() => Promise.resolve())} onImageClick={vi.fn()} />
+        </QueryClientProvider>,
+    );
+
+    it('shows a read double tick on outgoing messages the other side has read', () => {
+        renderWith({ userLastReadAt: '2026-10-06T07:00:00Z' });
+        expect(within(row('m-2')).getByRole('img', { name: 'Dibaca' })).toBeInTheDocument();
+    });
+
+    it('shows a single sent tick when the requester has not read yet', () => {
+        renderWith({ userLastReadAt: null });
+        expect(within(row('m-2')).getByRole('img', { name: 'Terkirim' })).toBeInTheDocument();
+    });
+
+    it('never ticks internal notes or incoming messages', () => {
+        // Internal notes are drawn only for the handling team.
+        renderWith({ userLastReadAt: '2026-10-06T07:00:00Z', viewerAccess: 'handler' });
+        expect(within(row('m-3')).queryByRole('img', { name: /Terkirim|Dibaca/ })).not.toBeInTheDocument();
+        expect(within(row('m-1')).queryByRole('img', { name: /Terkirim|Dibaca/ })).not.toBeInTheDocument();
+    });
+
+    it("ticks the requester's own messages against the team's read marker", () => {
+        currentUser = REQUESTER;
+        renderWith({ agentLastReadAt: '2026-10-06T05:30:00Z' });
+        expect(within(row('m-1')).getByRole('img', { name: 'Dibaca' })).toBeInTheDocument();
+    });
+
+    it("shows the sender name inside a colleague's bubble in the agent view", () => {
+        renderWith({
+            messages: [
+                { id: 'c-1', content: 'Saya bantu cek', createdAt: '2026-10-06T06:30:00Z', isSystemMessage: false,
+                    attachments: [], sender: { id: 'agent-2', fullName: 'JASON KRISTANTO', role: 'AGENT' } },
+            ],
+        } as unknown as Partial<TicketDetail>);
+        expect(row('c-1')).toHaveAttribute('data-direction', 'out');
+        expect(row('c-1').querySelector('.chat-bubble')).toHaveTextContent('Jason Kristanto');
+    });
+
+    it('keeps the time inside the bubble', () => {
+        renderChat();
+        expect(row('m-1').querySelector('.chat-bubble time')).not.toBeNull();
+    });
+
     it('keeps system events in the timeline as centered events', () => {
         renderChat();
         const event = document.querySelector('[data-system-event="m-4"]');
@@ -197,6 +242,72 @@ describe('TicketChat surface', () => {
         const own = { ...incoming, id: 'm-6', content: 'Oke', sender: { id: 'agent-1', fullName: 'RM BAGASTYO' } };
         rerender(view({ ...withIncoming, messages: [...(withIncoming.messages ?? []), own] } as TicketDetail));
         expect(announcer).toHaveTextContent('Pesan baru dari Shannon Stephanie Limawan');
+    });
+
+    describe('jump to latest', () => {
+        const props = { isConnected: true, onSendMessage: vi.fn(() => Promise.resolve()), onImageClick: vi.fn() };
+        const client = new QueryClient();
+        const view = (t: TicketDetail) => (
+            <QueryClientProvider client={client}><TicketChat ticket={t} {...props} /></QueryClientProvider>
+        );
+        const msg = (id: string, senderId: string, fullName: string) => ({
+            id, content: `pesan ${id}`, createdAt: '2026-10-06T06:30:00Z', isSystemMessage: false, attachments: [], sender: { id: senderId, fullName },
+        });
+        const withMessages = (...extra: ReturnType<typeof msg>[]) => ({ ...ticket, messages: [...(ticket.messages ?? []), ...extra] } as TicketDetail);
+        /** Puts the stream 1000px above its bottom, as if the reader scrolled up into the history. */
+        const scrollUp = () => {
+            const stream = document.querySelector('.chat-stream') as HTMLElement;
+            Object.defineProperty(stream, 'scrollHeight', { configurable: true, value: 2000 });
+            Object.defineProperty(stream, 'clientHeight', { configurable: true, value: 500 });
+            stream.scrollTop = 500;
+            fireEvent.scroll(stream);
+            return stream;
+        };
+
+        it('shows a jump button with the count of messages that arrived while scrolled up', () => {
+            const { rerender } = render(view(ticket));
+            scrollUp();
+            rerender(view(withMessages(msg('n-1', 'user-1', 'SHANNON STEPHANIE LIMAWAN'))));
+            rerender(view(withMessages(msg('n-1', 'user-1', 'SHANNON STEPHANIE LIMAWAN'), msg('n-2', 'user-1', 'SHANNON STEPHANIE LIMAWAN'))));
+            expect(screen.getByRole('button', { name: 'Lompat ke pesan terbaru' })).toBeInTheDocument();
+            expect(screen.getByLabelText('2 pesan baru')).toHaveTextContent('2');
+        });
+
+        it('does not pull the reader down while they are scrolled up', () => {
+            const { rerender } = render(view(ticket));
+            scrollUp();
+            vi.mocked(Element.prototype.scrollIntoView).mockClear();
+            rerender(view(withMessages(msg('n-1', 'user-1', 'SHANNON STEPHANIE LIMAWAN'))));
+            expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+        });
+
+        it('own message always scrolls to the bottom', () => {
+            const { rerender } = render(view(ticket));
+            scrollUp();
+            vi.mocked(Element.prototype.scrollIntoView).mockClear();
+            rerender(view(withMessages(msg('n-1', 'agent-1', 'RM BAGASTYO'))));
+            expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+            expect(screen.queryByLabelText(/pesan baru/)).not.toBeInTheDocument();
+        });
+
+        it('does not count internal notes the viewer cannot see', () => {
+            currentUser = { id: 'ops-1', role: 'AGENT_OPERATIONAL_SUPPORT', fullName: 'OPS SATU' };
+            const { rerender } = render(view(ticket));
+            scrollUp();
+            const note = { ...msg('n-1', 'agent-1', 'RM BAGASTYO'), isInternal: true };
+            rerender(view(withMessages(note)));
+            expect(screen.queryByLabelText(/pesan baru/)).not.toBeInTheDocument();
+        });
+
+        it('clicking jump scrolls down and clears the badge', () => {
+            const { rerender } = render(view(ticket));
+            scrollUp();
+            rerender(view(withMessages(msg('n-1', 'user-1', 'SHANNON STEPHANIE LIMAWAN'))));
+            vi.mocked(Element.prototype.scrollIntoView).mockClear();
+            fireEvent.click(screen.getByRole('button', { name: 'Lompat ke pesan terbaru' }));
+            expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+            expect(screen.queryByLabelText(/pesan baru/)).not.toBeInTheDocument();
+        });
     });
 
     it('keeps the composer in its own fixed region below the scrolling stream', () => {

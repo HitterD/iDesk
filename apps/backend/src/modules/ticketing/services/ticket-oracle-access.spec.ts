@@ -73,4 +73,14 @@ describe('resolveTicketViewerAccess', () => {
     it('USER is always the requester side', () => {
         expect(resolveTicketViewerAccess(filedTicket, { id: 'user-1', role: UserRole.USER, siteId: 'site-smg' })).toBe('requester');
     });
+
+    it("a USER cannot open another requester's ticket, even on the same site", () => {
+        expect(() => resolveTicketViewerAccess(filedTicket, { id: 'user-2', role: UserRole.USER, siteId: 'site-smg' }))
+            .toThrow(ForbiddenException);
+    });
+
+    it('a USER invited as participant keeps requester access from any site', () => {
+        const withGuest = { ...filedTicket, participants: [{ userId: 'guest' }] };
+        expect(resolveTicketViewerAccess(withGuest as never, { id: 'guest', role: UserRole.USER, siteId: 'site-krw' })).toBe('requester');
+    });
 });

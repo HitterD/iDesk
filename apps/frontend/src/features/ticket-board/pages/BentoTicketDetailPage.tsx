@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { buildReplyForm } from '@/lib/ticketReplyForm';
 import { TICKET_OFFLINE_POLL_MS, useTicketSocket } from '@/hooks/useTicketSocket';
 import { useAuth } from '@/stores/useAuth';
 import { TicketDetail, Agent } from '../components/ticket-detail/types';
@@ -10,7 +11,8 @@ import { isTerminalStatus } from '../components/ticket-detail/constants';
 import { ImageLightbox } from '../components/ticket-detail/ImageLightbox';
 import { TicketHeader } from '../components/ticket-detail/TicketHeader';
 import { TicketNotesAction } from '../components/ticket-detail/notes/TicketNotesAction';
-import { TicketChat } from '../components/ticket-detail/TicketChat';
+import { TicketChat, type TicketChatHandle } from '../components/ticket-detail/TicketChat';
+import { usePinActions } from '../components/ticket-detail/usePinActions';
 import { TicketHistory } from '../components/ticket-detail/TicketHistory';
 import { TicketSidebar, type StatusChangeExtra } from '../components/ticket-detail/TicketSidebar';
 import { TicketForwardDialog, type ForwardTargetTeam } from '../components/TicketForwardDialog';
@@ -20,7 +22,7 @@ import { TicketDetailSkeleton } from '../components/TicketDetailSkeleton';
 import { KbSuggestionDialog } from '../components/KbSuggestionDialog';
 import { useTicketShortcuts } from '@/hooks/useTicketShortcuts';
 import { AlertTriangle } from 'lucide-react';
-import { DetailTabs, countChatMessages, type DetailTab } from '../components/ticket-detail/DetailTabs';
+import { DetailTabs, countChatMessages, pinsOf, type DetailTab } from '../components/ticket-detail/DetailTabs';
 import { TicketAttributes } from '../types';
 import { toUploadPercent, validateFiles } from '@/lib/file-validation';
 import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
@@ -40,6 +42,8 @@ export const BentoTicketDetailPage: React.FC = () => {
     const [extendSlaOpen, setExtendSlaOpen] = useState(false);
     const [reminderOpen, setReminderOpen] = useState(false);
     const [mainTab, setMainTab] = useState<DetailTab>('chat');
+    const chatRef = useRef<TicketChatHandle>(null);
+    const pinActions = usePinActions(id ?? '');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [suggestionsOpen, setSuggestionsOpen] = useState(false);
     const chatInputRef = useRef<HTMLTextAreaElement>(null);
@@ -299,6 +303,8 @@ export const BentoTicketDetailPage: React.FC = () => {
         files?: FileList | null,
         isInternal: boolean = false,
         onUploadProgress?: (percent: number) => void,
+        replyToId?: string,
+        mentionedUserIds?: string[],
     ) => {
         if (files && files.length > 0) {
             const validation = validateFiles(Array.from(files));
@@ -333,15 +339,7 @@ export const BentoTicketDetailPage: React.FC = () => {
         });
 
         try {
-            const formData = new FormData();
-            formData.append('content', content);
-            formData.append('mentionedUserIds', JSON.stringify([]));
-            formData.append('isInternal', String(isInternal));
-            if (files) {
-                Array.from(files).forEach((file) => {
-                    formData.append('files', file);
-                });
-            }
+            const formData = buildReplyForm({ content, files, isInternal, replyToId, mentionedUserIds });
 
             await api.post(`/tickets/${id}/reply`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
@@ -429,7 +427,16 @@ export const BentoTicketDetailPage: React.FC = () => {
                 onSetReminder={canAct ? () => setReminderOpen(true) : undefined}
                 isSidebarOpen={isSidebarOpen || mainTab === 'details'}
                 onToggleSidebar={handleToggleSidebar}
-                tabs={<DetailTabs value={mainTab} onChange={setMainTab} messageCount={countChatMessages(ticket.messages)} />}
+                tabs={(
+                    <DetailTabs
+                        value={mainTab}
+                        onChange={setMainTab}
+                        messageCount={countChatMessages(ticket.messages)}
+                        pins={pinsOf(ticket.messages)}
+                        onJumpToPin={(id) => chatRef.current?.jumpToMessage(id)}
+                        onUnpinPin={ticket.status === 'CLOSED' ? undefined : (id) => void pinActions.unpin(id).catch(() => undefined)}
+                    />
+                )}
             />
 
             {/* Critical Priority Banner Alert for Agents */}
@@ -464,6 +471,7 @@ export const BentoTicketDetailPage: React.FC = () => {
                     <div className="flex-1 flex flex-col min-h-0 overflow-hidden" ref={chatSectionRef}>
                         {mainTab === 'chat' ? (
                             <TicketChat
+                                ref={chatRef}
                                 ticket={ticket}
                                 isConnected={isConnected}
                                 onSendMessage={handleSendMessage}
