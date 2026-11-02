@@ -29,6 +29,11 @@ export interface EFormRequest {
   /** Original name of the form the GM signed by hand, once ICT uploaded it. */
   gmApprovalFileName?: string | null;
   gmApprovedAt?: string | null;
+  /** Whether the GM approves after the manager (VPN by default; ICT may switch it). */
+  requiresGm?: boolean;
+  /** GM who approves in iDesk; without one ICT uploads the paper-signed form. */
+  gmApproverId?: string | null;
+  gmApproverName?: string | null;
   submittedAt?: string;
   resolvedAt?: string;
   createdAt: string;
@@ -117,6 +122,8 @@ export const useCreateEformRequest = () => {
       termsAccepted: boolean;
       signatureData: string;
       managerId?: string;
+      /** Optional GM who approves in iDesk; picking one turns the GM step on. */
+      gmApproverId?: string;
       /** Completes a proposal IT drafted from a ticket instead of creating a new request. */
       draftId?: string;
     }) => {
@@ -129,7 +136,8 @@ export const useCreateEformRequest = () => {
   });
 };
 
-export const useApproveByManager = () => {
+/** The manager approves with `manager-approve`; the chosen GM with `gm-approve`. Same body for both. */
+export const useApproveByManager = (step: 'manager' | 'gm' = 'manager') => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: {
@@ -139,7 +147,7 @@ export const useApproveByManager = () => {
       rejectionReason?: string;
     }) => {
       const { id, ...body } = payload;
-      const { data } = await api.patch(`${API_BASE}/${id}/manager-approve`, body);
+      const { data } = await api.patch(`${API_BASE}/${id}/${step}-approve`, body);
       return data;
     },
     onSuccess: (_, variables) => {
@@ -253,6 +261,21 @@ export const useUploadGmApproval = () => {
       return data as EFormRequest;
     },
     onSuccess: (_, { id }) => invalidateRequest(queryClient, id),
+  });
+};
+
+/** ICT turns the GM approval on or off and picks the GM (null: ICT uploads the paper-signed form). */
+export const useSetGmStep = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, requiresGm, gmApproverId }: { id: string; requiresGm: boolean; gmApproverId: string | null }) => {
+      const { data } = await api.patch(`${API_BASE}/${id}/gm-step`, { requiresGm, gmApproverId }, { skipToast: true });
+      return data as EFormRequest;
+    },
+    onSuccess: (_, { id }) => {
+      invalidateRequest(queryClient, id);
+      queryClient.invalidateQueries({ queryKey: ['eform-pending-approvals'] });
+    },
   });
 };
 

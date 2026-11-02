@@ -8,6 +8,7 @@ import { UserRole } from '../users/enums/user-role.enum';
 import { SiteActor } from '../../shared/core/utils/site-scope.util';
 import { EFormRequestService } from './eform-request.service';
 import { SynologyNasBrowseService } from './synology-nas-browse.service';
+import { EFORM_MONITOR_ROLES } from './eform-roles.constants';
 import { CreateEFormRequestDto, ApproveManagerDto, SubmitCredentialDto, FulfillRequestDto, BrowseNasFolderDto, SearchNasFolderDto, SyncNasCacheDto } from './dto';
 
 @ApiTags('E-Form Requests')
@@ -39,8 +40,8 @@ export class EFormRequestController {
   }
 
   @Get('all')
-  @ApiOperation({ summary: 'Get all requests (Admin/Manager/Agent only)' })
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT_ADMIN)
+  @ApiOperation({ summary: 'Get all requests of the caller\'s site (Admin/Manager: all sites)' })
+  @Roles(...EFORM_MONITOR_ROLES)
   async findAll(@Request() req: any) {
     const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
     return this.eformRequestService.findAll(actor);

@@ -16,24 +16,26 @@ export interface TicketEFormRequest {
     requesterId: string;
     proposedBy: { id: string; name: string } | null;
     approverName: string | null;
+    /** Whether the GM approves after the manager; absent from older payloads (then the per-type default). */
+    requiresGm?: boolean;
     rejectionReason: string | null;
     createdAt: string;
     submittedAt: string | null;
     resolvedAt: string | null;
 }
 
-/** Synology access skips the manager (and so the GM): it goes from the requester straight to ICT. */
+/** Synology access skips the manager (and so the GM): it goes from the requester straight to ICT. Only VPN needs the GM. */
 const skipsManager = (type: EFormType) => type === 'SYNOLOGY_NAS';
 
 interface FlowStep { label: string; statuses: EFormStatus[] }
 
 /** Steps the ticket shows for this access type. */
-export function flowSteps(type: EFormType): FlowStep[] {
+export function flowSteps(type: EFormType, requiresGm: boolean = type === 'VPN'): FlowStep[] {
     return [
         { label: 'Tanda tangan pemohon', statuses: ['DRAFT'] },
         ...(skipsManager(type) ? [] : [
             { label: 'Persetujuan atasan', statuses: ['PENDING_MANAGER'] as EFormStatus[] },
-            { label: 'Tanda tangan GM', statuses: ['PENDING_GM'] as EFormStatus[] },
+            ...(requiresGm ? [{ label: 'Persetujuan GM', statuses: ['PENDING_GM'] as EFormStatus[] }] : []),
         ]),
         { label: 'Proses ICT', statuses: ['PENDING_ICT'] },
         { label: 'Akses aktif', statuses: ['CONFIRMED'] },
@@ -43,9 +45,9 @@ export function flowSteps(type: EFormType): FlowStep[] {
 export const isStopped = (status: EFormStatus) => status === 'REJECTED' || status === 'CANCELLED';
 
 /** Index of the current step (the last one once access is active); -1 for a stopped request. */
-export function currentStep(type: EFormType, status: EFormStatus): number {
+export function currentStep(type: EFormType, status: EFormStatus, requiresGm?: boolean): number {
     if (isStopped(status)) return -1;
-    return flowSteps(type).findIndex((step) => step.statuses.includes(status));
+    return flowSteps(type, requiresGm).findIndex((step) => step.statuses.includes(status));
 }
 
 /** One-line state for the requester and the agent alike. */
@@ -53,7 +55,7 @@ export function statusSentence(request: Pick<TicketEFormRequest, 'status' | 'app
     switch (request.status) {
         case 'DRAFT': return 'Menunggu pemohon melengkapi & tanda tangan';
         case 'PENDING_MANAGER': return request.approverName ? `Menunggu persetujuan ${request.approverName}` : 'Menunggu persetujuan atasan';
-        case 'PENDING_GM': return 'Menunggu tanda tangan GM';
+        case 'PENDING_GM': return 'Menunggu persetujuan GM';
         case 'PENDING_ICT': return 'Sedang disiapkan tim ICT';
         case 'CONFIRMED': return 'Akses sudah aktif';
         case 'REJECTED': return 'Ditolak';

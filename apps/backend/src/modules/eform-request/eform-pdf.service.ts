@@ -506,9 +506,19 @@ export class EFormPdfService {
           doc.text('Nama    :', startX + sigColW + 10, approvalLineY);
           doc.text('Jabatan :', startX + sigColW + 10, approvalLineY + 10);
 
-          doc.text('Nama    :', startX + sigColW * 2 + 10, approvalLineY);
-          doc.text('Jabatan :', startX + sigColW * 2 + 10, approvalLineY + 10);
-          if (eformRequest.gmApprovedAt) {
+          // A GM who approved in iDesk signs here like the manager; otherwise the column stays for the paper signature.
+          const gmSig = eformRequest.signatures?.find(s => s.signerRole === 'GM');
+          if (gmSig?.signatureData?.startsWith('data:image')) {
+            try {
+              const gmImage = Buffer.from(gmSig.signatureData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+              doc.image(gmImage, startX + sigColW * 2 + (sigColW - 60) / 2, curY + 10, { width: 60, height: 26 });
+            } catch {
+              // An unreadable image leaves the box empty; the name below still records who approved.
+            }
+          }
+          doc.text(`Nama    : ${gmSig ? gmSig.signerName : ''}`, startX + sigColW * 2 + 10, approvalLineY);
+          doc.text(`Jabatan : ${gmSig ? 'General Manager' : ''}`, startX + sigColW * 2 + 10, approvalLineY + 10);
+          if (eformRequest.gmApprovedAt && !gmSig) {
             // The GM signs the printed form by hand; the signed copy is kept with the request.
             doc.font('Helvetica-Oblique').fontSize(6.5).fillColor('#334155')
               .text(`Ditandatangani manual, berkas terlampir (${formatDateId(eformRequest.gmApprovedAt)})`,

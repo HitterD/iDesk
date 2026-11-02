@@ -35,17 +35,36 @@ describe('e-form document numbers', () => {
 });
 
 describe('EFormRequestService.approveByManager', () => {
-    it('hands an approved request to the GM step instead of straight to IT', async () => {
-        const request = { id: ID, status: EFormStatus.PENDING_MANAGER, currentApproverId: 'mgr-1' };
+    const approve = async (overrides: Record<string, unknown>) => {
+        const request = { id: ID, formType: EFormType.VPN, status: EFormStatus.PENDING_MANAGER, currentApproverId: 'mgr-1', requiresGm: false, gmApproverId: null, ...overrides };
         const repo = { findOne: jest.fn().mockResolvedValue(request), save: jest.fn(async (v: any) => v) };
+        const approvals = { update: jest.fn(), save: jest.fn() };
         const emit = jest.fn();
         const service = new EFormRequestService(
-            {} as any, repo as any, { update: jest.fn() } as any, { save: jest.fn() } as any, {} as any,
+            {} as any, repo as any, approvals as any, { save: jest.fn() } as any, {} as any,
             {} as any, {} as any, {} as any, { emit } as any, {} as any,
         );
         const saved = await service.approveByManager(ID, 'mgr-1', 'Manajer', { action: 'APPROVE', signatureData: 'data:image/png;base64,AA' });
+        return { saved, emit, approvals };
+    };
+
+    it('waits for the paper GM signature when the GM step is on and no GM was picked', async () => {
+        const { saved, emit, approvals } = await approve({ requiresGm: true });
         expect(saved).toMatchObject({ status: EFormStatus.PENDING_GM, currentApproverId: null });
+        expect(approvals.save).not.toHaveBeenCalled();
         expect(emit).toHaveBeenCalledWith('eform.manager-approved', { request: saved });
+    });
+
+    it('hands the request to the picked GM to approve in iDesk', async () => {
+        const { saved, emit, approvals } = await approve({ requiresGm: true, gmApproverId: 'gm-1' });
+        expect(saved).toMatchObject({ status: EFormStatus.PENDING_GM, currentApproverId: 'gm-1' });
+        expect(approvals.save).toHaveBeenCalledWith(expect.objectContaining({ approverId: 'gm-1', role: 'GM', action: 'PENDING' }));
+        expect(emit).toHaveBeenCalledWith('eform.gm-requested', { request: saved, gmId: 'gm-1' });
+    });
+
+    it('sends the request straight to IT when the GM step is off', async () => {
+        const { saved } = await approve({ formType: EFormType.WEBSITE, requiresGm: false });
+        expect(saved).toMatchObject({ status: EFormStatus.PENDING_ICT, currentApproverId: null });
     });
 });
 

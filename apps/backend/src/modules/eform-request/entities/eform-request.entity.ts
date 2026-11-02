@@ -101,6 +101,18 @@ export class EFormRequest {
   @Column({ type: 'timestamp', nullable: true })
   gmApprovedAt: Date | null;
 
+  /** Whether the GM must approve after the manager. Defaults per type on submit (VPN); ICT may switch it. */
+  @Column({ type: 'boolean', default: false })
+  requiresGm: boolean;
+
+  /** The GM who approves in iDesk; picked by the requester or ICT. Without one, ICT uploads the paper-signed form. */
+  @Column({ type: 'uuid', nullable: true })
+  gmApproverId: string | null;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'gmApproverId' })
+  gmApprover: User | null;
+
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'currentApproverId' })
   currentApprover: User;

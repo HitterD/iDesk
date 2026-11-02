@@ -42,6 +42,7 @@ describe('EFormRequestService - Synology direct-to-IT flow', () => {
   let approvalRepo: any;
   let signatureRepo: any;
   let eventEmitter: any;
+  let userRepo: any;
 
   beforeEach(() => {
     eformRepo = {
@@ -59,6 +60,7 @@ describe('EFormRequestService - Synology direct-to-IT flow', () => {
     approvalRepo = { save: jest.fn() };
     signatureRepo = { save: jest.fn() };
     eventEmitter = { emit: jest.fn() };
+    userRepo = { findOne: jest.fn(async () => ({ id: 'u-requester', siteId: SITE_SPJ })) };
 
     // Constructor order from eform-request.service.ts:
     // audit, eformRequestRepo, eformApprovalRepo, eformSignatureRepo,
@@ -74,7 +76,7 @@ describe('EFormRequestService - Synology direct-to-IT flow', () => {
       { generatePdf: jest.fn() } as any,
       { getSetting: jest.fn(), setSetting: jest.fn() } as any,
       eventEmitter as any,
-      { findOne: jest.fn(async () => ({ id: 'u-requester', siteId: SITE_SPJ })) } as any,
+      userRepo as any,
     );
   });
 
@@ -137,6 +139,33 @@ describe('EFormRequestService - Synology direct-to-IT flow', () => {
       expect(saved.status).toBe(EFormStatus.PENDING_MANAGER);
       expect(saved.currentApproverId).toBe('u-manager');
       expect(approvalRepo.save).toHaveBeenCalled();
+    });
+
+    it.each([
+      [EFormType.VPN, true],
+      [EFormType.WEBSITE, false],
+      [EFormType.EMAIL, false],
+    ])('turns the GM step on by default for %s: %s', async (formType, requiresGm) => {
+      await service.createRequest('u-requester', 'Requester', { ...baseDto, formType, managerId: 'u-manager' } as any);
+      expect(eformRepo.save.mock.calls[0][0]).toMatchObject({ requiresGm, gmApproverId: null });
+    });
+
+    it('turns the GM step on for any type when the requester picks a GM', async () => {
+      userRepo.exists = jest.fn(async () => true);
+      await service.createRequest('u-requester', 'Requester', { ...baseDto, formType: EFormType.WEBSITE, managerId: 'u-manager', gmApproverId: 'u-gm' } as any);
+      expect(eformRepo.save.mock.calls[0][0]).toMatchObject({ requiresGm: true, gmApproverId: 'u-gm' });
+    });
+
+    it('refuses a GM who is not an active user', async () => {
+      userRepo.exists = jest.fn(async () => false);
+      await expect(service.createRequest('u-requester', 'Requester', { ...baseDto, formType: EFormType.VPN, managerId: 'u-manager', gmApproverId: 'u-gone' } as any))
+        .rejects.toBeInstanceOf(BadRequestException);
+      expect(eformRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('ignores a GM on Synology, which has no approval steps', async () => {
+      await service.createRequest('u-requester', 'Requester', { ...baseDto, formType: EFormType.SYNOLOGY_NAS, gmApproverId: 'u-gm' } as any);
+      expect(eformRepo.save.mock.calls[0][0]).toMatchObject({ requiresGm: false, gmApproverId: null });
     });
 
     it.each(MANAGER_TYPES)('rejects %s submitted without a manager', async (formType) => {

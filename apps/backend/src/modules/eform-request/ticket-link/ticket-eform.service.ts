@@ -30,6 +30,8 @@ export interface TicketEFormSummary {
     requesterId: string;
     proposedBy: { id: string; name: string } | null;
     approverName: string | null;
+    /** Whether the GM approves after the manager (VPN by default; ICT may switch it). */
+    requiresGm: boolean;
     rejectionReason: string | null;
     createdAt: Date;
     submittedAt: Date | null;
@@ -150,6 +152,7 @@ export class TicketEFormService {
                 requesterId: request.requesterId,
                 proposedBy: proposer ? { id: proposer.id, name: proposer.fullName } : null,
                 approverName: request.currentApprover?.fullName ?? null,
+                requiresGm: Boolean(request.requiresGm),
                 rejectionReason: request.rejectionReason || null,
                 createdAt: request.createdAt,
                 submittedAt: request.submittedAt ?? null,

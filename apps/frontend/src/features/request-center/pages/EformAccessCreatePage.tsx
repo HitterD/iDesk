@@ -229,6 +229,7 @@ export const EformAccessCreatePage: React.FC = () => {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [signatureData, setSignatureData] = useState('');
   const [managerId, setManagerId] = useState('');
+  const [gmApproverId, setGmApproverId] = useState('');
   const [vpnDropdownOpen, setVpnDropdownOpen] = useState(false);
   const [synologyAccountStatus, setSynologyAccountStatus] = useState<SynologyAccountStatus>(
     SynologyAccountStatus.NEW_ACCOUNT
@@ -439,7 +440,7 @@ export const EformAccessCreatePage: React.FC = () => {
     isDurationValid &&
     termsAccepted &&
     !!signatureData &&
-    !!managerId &&
+    (formType === 'SYNOLOGY_NAS' || !!managerId) &&
     (formType !== 'WEBSITE' || !!requestedWebsites.trim()) &&
     (formType !== 'NETWORK' || !!networkPurpose.trim()) &&
     (formType !== 'FLASHDISK' || !!hostname.trim()) &&
@@ -533,7 +534,9 @@ export const EformAccessCreatePage: React.FC = () => {
         networkPurpose: formType === 'NETWORK' ? networkPurpose : undefined,
         termsAccepted,
         signatureData,
-        managerId,
+        // Synology has no manager step; never send a leftover (or empty) pick from another type.
+        managerId: formType === 'SYNOLOGY_NAS' ? undefined : managerId,
+        gmApproverId: formType === 'SYNOLOGY_NAS' || !gmApproverId ? undefined : gmApproverId,
         draftId: proposalId || undefined,
       });
       toast.success('Permintaan akses berhasil diajukan');
@@ -1326,7 +1329,26 @@ export const EformAccessCreatePage: React.FC = () => {
 
             {/* Atasan Penyetuju */}
             {formType !== 'SYNOLOGY_NAS' ? (
-              <ManagerSelector selectedId={managerId} onSelect={setManagerId} currentUserId={user?.id} />
+              <>
+                <ManagerSelector selectedId={managerId} onSelect={setManagerId} currentUserId={user?.id} />
+                <div className="space-y-1.5">
+                  <ManagerSelector
+                    idPrefix="gm-selector"
+                    label={formType === 'VPN' ? 'GM yang menyetujui (opsional)' : 'Perlu persetujuan GM? (opsional)'}
+                    placeholder={formType === 'VPN' ? 'Belum dipilih, tim ICT yang menentukan' : 'Tidak perlu GM'}
+                    required={false}
+                    clearLabel={formType === 'VPN' ? 'Biarkan tim ICT yang menentukan' : 'Tidak perlu GM'}
+                    selectedId={gmApproverId}
+                    onSelect={setGmApproverId}
+                    currentUserId={user?.id}
+                  />
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {formType === 'VPN'
+                      ? 'Akses VPN perlu persetujuan GM setelah atasan. Pilih GM agar beliau menyetujui langsung di iDesk; jika dikosongkan, tim ICT memintakan tanda tangan GM.'
+                      : 'Jenis akses ini cukup disetujui atasan. Pilih GM hanya bila memang perlu persetujuan GM.'}
+                  </p>
+                </div>
+              </>
             ) : (
               <div className="rounded-xl border border-primary/25 bg-primary/5 p-4 flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">

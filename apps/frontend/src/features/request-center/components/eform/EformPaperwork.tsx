@@ -80,15 +80,29 @@ export const DocumentNumberField: React.FC<{ request: EFormRequest; canEdit: boo
 };
 
 /**
- * The GM's signature, which happens on paper: while the request waits for it, ICT prints the form, has the GM sign
- * it and uploads the scan. Afterwards everyone who can open the request can download the signed copy.
+ * The GM's signature. A GM chosen in iDesk approves there; otherwise (or as a fallback) ICT prints the form, has the
+ * GM sign it and uploads the scan. Afterwards everyone who can open the request can download the signed copy.
  */
 export const GmApprovalPanel: React.FC<{ request: EFormRequest; isICT: boolean; onReject: () => void }> = ({ request, isICT, onReject }) => {
   const upload = useUploadGmApproval();
   const input = useRef<HTMLInputElement>(null);
   const waiting = request.status === EFormStatus.PENDING_GM;
   const canReplace = isICT && request.status === EFormStatus.PENDING_ICT;
-  if (!waiting && !request.gmApprovalFileName) return null;
+  if (!waiting && !request.gmApprovalFileName && !request.gmApprovedAt) return null;
+  // Approved in iDesk with no paper copy: the signature shows with the others, nothing to download here.
+  if (!waiting && !request.gmApprovalFileName) {
+    return (
+      <section aria-label="Persetujuan GM" className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+          <FileCheck2 size={18} aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-foreground">Disetujui GM{request.gmApproverName ? `: ${request.gmApproverName}` : ''}</p>
+          {request.gmApprovedAt && <p className="text-xs text-muted-foreground">{formatDateTimeID(request.gmApprovedAt)}</p>}
+        </div>
+      </section>
+    );
+  }
 
   const pick = async (file: File | undefined) => {
     if (input.current) input.current.value = '';
@@ -122,11 +136,17 @@ export const GmApprovalPanel: React.FC<{ request: EFormRequest; isICT: boolean; 
             <PenLine size={18} aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <h3 className="text-sm font-bold text-foreground">Menunggu tanda tangan GM</h3>
+            <h3 className="text-sm font-bold text-foreground">
+              {request.gmApproverName ? `Menunggu persetujuan GM: ${request.gmApproverName}` : 'Menunggu tanda tangan GM'}
+            </h3>
             <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-              {isICT
-                ? 'Atasan sudah menyetujui. Cetak form, mintakan tanda tangan GM, lalu unggah hasil pindainya (PDF) agar akses bisa diproses.'
-                : 'Atasan sudah menyetujui. Tim ICT sedang memintakan tanda tangan GM pada form ini.'}
+              {request.gmApproverName
+                ? isICT
+                  ? 'GM menyetujui langsung di iDesk. Bila GM menandatangani di kertas, unggah hasil pindainya (PDF) sebagai gantinya.'
+                  : 'Atasan sudah menyetujui. Permintaan menunggu persetujuan GM di iDesk.'
+                : isICT
+                  ? 'Atasan sudah menyetujui. Cetak form, mintakan tanda tangan GM, lalu unggah hasil pindainya (PDF) agar akses bisa diproses.'
+                  : 'Atasan sudah menyetujui. Tim ICT sedang memintakan tanda tangan GM pada form ini.'}
             </p>
           </div>
         </div>

@@ -24,13 +24,27 @@ interface ManagerSelectorProps {
   onSelect: (managerId: string) => void;
   selectedId?: string;
   currentUserId?: string;
+  /** Reused for the GM: its own label, optional, and clearable. Defaults describe the manager. */
+  label?: string;
+  placeholder?: string;
+  required?: boolean;
+  /** Adds a "none" entry that clears the pick (onSelect('')). */
+  clearLabel?: string;
+  /** Unique when the selector appears twice on a page. */
+  idPrefix?: string;
 }
 
 export const ManagerSelector: React.FC<ManagerSelectorProps> = ({
   onSelect,
   selectedId,
   currentUserId,
+  label = 'Atasan yang menyetujui',
+  placeholder = 'Pilih atasan…',
+  required = true,
+  clearLabel,
+  idPrefix = 'manager-selector',
 }) => {
+  const labelId = `${idPrefix}-label`;
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -59,8 +73,8 @@ export const ManagerSelector: React.FC<ManagerSelectorProps> = ({
 
   return (
     <div className="space-y-2">
-      <span id="manager-selector-label" className="block text-sm font-semibold text-foreground">
-        Atasan yang menyetujui <span className="text-destructive">*</span>
+      <span id={labelId} className="block text-sm font-semibold text-foreground">
+        {label} {required && <span className="text-destructive">*</span>}
       </span>
 
       <Popover open={open} onOpenChange={setOpen}>
@@ -69,7 +83,7 @@ export const ManagerSelector: React.FC<ManagerSelectorProps> = ({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            aria-labelledby="manager-selector-label"
+            aria-labelledby={labelId}
             className="h-auto min-h-11 w-full justify-between rounded-xl px-4 py-2 transition-colors hover:border-primary/30"
           >
             {selectedManager ? (
@@ -85,7 +99,7 @@ export const ManagerSelector: React.FC<ManagerSelectorProps> = ({
                 </span>
               </span>
             ) : (
-              <span className="text-sm text-muted-foreground">Pilih atasan…</span>
+              <span className="text-sm text-muted-foreground">{placeholder}</span>
             )}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -113,6 +127,16 @@ export const ManagerSelector: React.FC<ManagerSelectorProps> = ({
               <p className="py-6 text-center text-sm text-muted-foreground">
                 {search ? 'Tidak ada atasan yang cocok.' : 'Belum ada atasan terdaftar.'}
               </p>
+            )}
+            {clearLabel && !search && (
+              <button
+                type="button"
+                onClick={() => { onSelect(''); setOpen(false); }}
+                className="flex w-full items-center justify-between rounded-xl p-3 text-left text-sm text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {clearLabel}
+                <Check className={cn('h-4 w-4 text-primary', selectedId ? 'opacity-0' : 'opacity-100')} />
+              </button>
             )}
             {filtered.map(manager => (
               <button

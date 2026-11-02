@@ -10,6 +10,8 @@ import { createFileFilter, createStorage, FILE_SIZE_LIMITS } from '../../shared/
 import { ICT_ROLES } from './eform-roles.constants';
 import { EFormDocumentService, GM_APPROVAL_UPLOAD_DIR } from './eform-document.service';
 import { UpdateDocumentNumberDto } from './dto/update-document-number.dto';
+import { EFormGmService } from './eform-gm.service';
+import { ApproveManagerDto, SetGmStepDto } from './dto';
 
 const GM_APPROVAL_UPLOAD = {
   storage: createStorage(`./uploads/${GM_APPROVAL_UPLOAD_DIR}`),
@@ -24,7 +26,23 @@ const actorOf = (req: any): SiteActor => ({ role: req.user.role, siteId: req.use
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('eform-request')
 export class EFormDocumentController {
-  constructor(private readonly documents: EFormDocumentService) {}
+  constructor(
+    private readonly documents: EFormDocumentService,
+    private readonly gm: EFormGmService,
+  ) {}
+
+  @Patch(':id/gm-step')
+  @Roles(...ICT_ROLES)
+  @ApiOperation({ summary: 'ICT turns the GM approval on or off and picks the GM' })
+  setGmStep(@Request() req: any, @Param('id', ParseUUIDPipe) id: string, @Body() dto: SetGmStepDto) {
+    return this.gm.setGmStep(actorOf(req), id, req.user.userId, dto);
+  }
+
+  @Patch(':id/gm-approve')
+  @ApiOperation({ summary: 'The chosen GM approves or rejects in iDesk' })
+  approveByGm(@Request() req: any, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ApproveManagerDto) {
+    return this.gm.approveByGm(id, req.user.userId, req.user.fullName || req.user.username || 'Unknown', dto);
+  }
 
   @Patch(':id/document-number')
   @Roles(...ICT_ROLES)

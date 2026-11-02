@@ -17,6 +17,7 @@ import {
   ICT_ROLES,
   CREDENTIAL_READER_ROLES,
   DIRECT_TO_ICT_FORM_TYPES,
+  needsGmByDefault,
 } from './eform-roles.constants';
 
 /** Proposals from a ticket that were never signed (or were dropped) stay out of the e-form lists. */
@@ -77,6 +78,9 @@ export class EFormRequestService {
       throw new BadRequestException('Atasan penyetuju wajib dipilih untuk jenis akses ini');
     }
 
+    const gmApproverId = directToIct ? null : dto.gmApproverId ?? null;
+    if (gmApproverId) await this.assertActiveUser(gmApproverId, userId);
+
     const draft = dto.draftId ? await this.loadOwnDraft(dto.draftId, userId) : null;
     const fields = {
       formType: dto.formType,
@@ -89,6 +93,9 @@ export class EFormRequestService {
       networkPurpose: dto.networkPurpose,
       termsAccepted: dto.termsAccepted,
       currentApproverId: directToIct ? null : dto.managerId,
+      // VPN needs the GM by default; picking a GM turns the step on for any other type. ICT may change both later.
+      requiresGm: !directToIct && (needsGmByDefault(dto.formType) || Boolean(gmApproverId)),
+      gmApproverId,
       siteId: requesterSiteId,
       submittedAt: new Date(),
     };
@@ -212,11 +219,22 @@ export class EFormRequestService {
       { action: 'APPROVED', actionAt: new Date() },
     );
 
-    // Next the GM signs the printed form; IT uploads it (EFormDocumentService) before provisioning.
-    request.status = EFormStatus.PENDING_GM;
-    request.currentApproverId = null;
+    // With the GM step on, a chosen GM approves in iDesk; without one, IT uploads the paper-signed form
+    // (EFormDocumentService). Without the GM step the request goes straight to IT.
+    request.status = request.requiresGm ? EFormStatus.PENDING_GM : EFormStatus.PENDING_ICT;
+    request.currentApproverId = request.requiresGm ? request.gmApproverId : null;
     const savedRequest = await this.eformRequestRepository.save(request);
 
+    if (savedRequest.status === EFormStatus.PENDING_GM && savedRequest.gmApproverId) {
+      await this.eformApprovalRepository.save({
+        eformRequestId: requestId,
+        approverId: savedRequest.gmApproverId,
+        role: 'GM',
+        action: 'PENDING',
+        sequence: 3,
+      });
+      this.eventEmitter.emit('eform.gm-requested', { request: savedRequest, gmId: savedRequest.gmApproverId });
+    }
     this.eventEmitter.emit('eform.manager-approved', { request: savedRequest });
 
     return savedRequest;
@@ -309,7 +327,7 @@ export class EFormRequestService {
 
   async getPendingApprovals(userId: string) {
     return this.eformRequestRepository.find({
-      where: { currentApproverId: userId, status: EFormStatus.PENDING_MANAGER },
+      where: { currentApproverId: userId, status: In([EFormStatus.PENDING_MANAGER, EFormStatus.PENDING_GM]) },
       order: { createdAt: 'DESC' },
     });
   }
@@ -362,7 +380,18 @@ export class EFormRequestService {
       assertSiteAccess(actor, request.siteId);
     }
 
-    return request;
+    // Only the name: loading the user relation would also return their password hash.
+    const gm = request.gmApproverId
+      ? await this.userRepo.findOne({ where: { id: request.gmApproverId }, select: { id: true, fullName: true } })
+      : null;
+    return Object.assign(request, { gmApproverName: gm?.fullName ?? null });
+  }
+
+  /** A GM picked by the requester or ICT must be an active user other than the requester. */
+  async assertActiveUser(userId: string, requesterId: string): Promise<void> {
+    if (userId === requesterId) throw new BadRequestException('GM tidak boleh pemohon sendiri');
+    const exists = await this.userRepo.exists({ where: { id: userId, isActive: true } as any });
+    if (!exists) throw new BadRequestException('GM yang dipilih tidak ditemukan atau tidak aktif');
   }
 
   async rejectRequest(

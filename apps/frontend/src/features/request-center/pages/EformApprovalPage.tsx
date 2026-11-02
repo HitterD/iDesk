@@ -20,7 +20,8 @@ export const EformApprovalPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: eform, isLoading } = useEformDetail(id!);
-  const approveMutation = useApproveByManager();
+  const isGmStep = eform?.status === EFormStatus.PENDING_GM;
+  const approveMutation = useApproveByManager(isGmStep ? 'gm' : 'manager');
   const basePath = useEformBasePath();
   const backToDetail = () => navigate(`${basePath}/${id}`, { replace: true });
 
@@ -29,7 +30,7 @@ export const EformApprovalPage: React.FC = () => {
   const [rejectionReason, setRejectionReason] = useState('');
 
   const isMyApproval = eform?.currentApproverId === user?.id;
-  const isPendingManager = eform?.status === EFormStatus.PENDING_MANAGER;
+  const isPendingManager = eform?.status === EFormStatus.PENDING_MANAGER || isGmStep;
   const canAct = isMyApproval && isPendingManager;
 
   const requesterSig = eform?.signatures?.find(s => s.signerRole === 'REQUESTER');
@@ -189,7 +190,7 @@ export const EformApprovalPage: React.FC = () => {
               {!showRejectInput ? (
                 <>
                   <div className="space-y-2">
-                    <h2 className="text-sm font-semibold text-foreground">Tanda tangan Anda (atasan)</h2>
+                    <h2 className="text-sm font-semibold text-foreground">Tanda tangan Anda ({isGmStep ? 'GM' : 'atasan'})</h2>
                     <SignaturePad signerName={user?.fullName || ''} onSave={setSignatureData} />
                     {signatureData && (
                       <p className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800 dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-300">
@@ -262,7 +263,7 @@ export const EformApprovalPage: React.FC = () => {
 
           {!canAct && isPendingManager && !isMyApproval && (
             <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-sm font-medium text-amber-800 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-300">
-              Permintaan ini menunggu persetujuan atasan lain.
+              Permintaan ini menunggu persetujuan {isGmStep ? 'GM' : 'atasan'} lain.
             </p>
           )}
         </div>

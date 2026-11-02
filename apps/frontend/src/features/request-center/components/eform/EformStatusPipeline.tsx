@@ -1,7 +1,7 @@
 import React from 'react';
 import { Ban } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { EFormStatus, getStatusConfig } from './eform-vocabulary';
+import { EFormStatus, getStatusConfig, needsGmSignature } from './eform-vocabulary';
 
 // Re-exported so existing `import { EFormStatus } from './EformStatusPipeline'` keeps working.
 export { EFormStatus };
@@ -30,17 +30,22 @@ const directIctSteps: Step[] = [
 interface EformStatusPipelineProps {
   currentStatus: EFormStatus;
   formType?: string;
+  /** The request's own GM setting; falls back to the per-type default when unknown. */
+  requiresGm?: boolean;
   rejectionReason?: string;
 }
 
 export const EformStatusPipeline: React.FC<EformStatusPipelineProps> = ({
   currentStatus,
   formType,
+  requiresGm,
   rejectionReason,
 }) => {
   const isRejected = currentStatus === EFormStatus.REJECTED;
   const isDirectIct = formType === 'SYNOLOGY_NAS';
-  const steps = isDirectIct ? directIctSteps : standardSteps;
+  const steps = isDirectIct
+    ? directIctSteps
+    : (requiresGm ?? needsGmSignature(formType)) ? standardSteps : standardSteps.filter(s => s.id !== EFormStatus.PENDING_GM);
 
   const currentIndex = isRejected
     ? (isDirectIct
