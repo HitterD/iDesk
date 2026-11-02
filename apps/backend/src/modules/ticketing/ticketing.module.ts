@@ -24,6 +24,7 @@ import { TicketModulesController } from './presentation/ticket-modules.controlle
 import { Ticket } from './entities/ticket.entity';
 import { TicketMessage } from './entities/ticket-message.entity';
 import { TicketMessageEdit } from './entities/ticket-message-edit.entity';
+import { TicketMessageReaction } from './entities/ticket-message-reaction.entity';
 import { TicketMessageEditService } from './services/ticket-message-edit.service';
 import { TicketMessagePinService } from './services/ticket-message-pin.service';
 import { TicketMessagesController } from './presentation/ticket-messages.controller';
@@ -102,6 +103,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
             Ticket,
             TicketMessage,
             TicketMessageEdit,
+            TicketMessageReaction,
             TicketParticipant,
             TicketTemplate,
             TicketModuleEntity,

@@ -6,10 +6,12 @@ import {
     ManyToOne,
     JoinColumn,
     Index,
+    OneToMany,
 } from 'typeorm';
 import { Ticket } from './ticket.entity';
 import { User } from '../../users/entities/user.entity';
 import type { TicketSystemEvent } from '../utils/ticket-activity.util';
+import { TicketMessageReaction } from './ticket-message-reaction.entity';
 
 export interface AttachmentInfo {
     path: string;
@@ -102,4 +104,11 @@ export class TicketMessage {
     /** The message this one replies to; its text still carries the `↩ Name: snippet` quote for old readers. */
     @Column({ type: 'uuid', nullable: true })
     replyToId: string | null;
+
+    /** People the sender mentioned with @, already checked against who may be mentioned on this ticket. */
+    @Column({ type: 'jsonb', default: () => "'[]'" })
+    mentionedUserIds: string[];
+
+    @OneToMany(() => TicketMessageReaction, (reaction) => reaction.message)
+    reactions?: TicketMessageReaction[];
 }
