@@ -40,10 +40,11 @@ function build(msg: Record<string, unknown> = message(), t: Record<string, unkno
     const dataSource = { transaction: jest.fn((fn) => fn(manager)) };
     const gateway = { notifyMessageUpdated: jest.fn() };
     const notifications = { redactMessageSnippet: jest.fn().mockResolvedValue(undefined) };
+    const pins = { releaseDeleted: jest.fn().mockResolvedValue(undefined) };
     const service = new TicketMessageEditService(
-        messageRepo as never, ticketRepo as never, dataSource as never, gateway as never, notifications as never,
+        messageRepo as never, ticketRepo as never, dataSource as never, gateway as never, notifications as never, pins as never,
     );
-    return { service, saved, updates, gateway, notifications };
+    return { service, saved, updates, gateway, notifications, pins };
 }
 
 describe('TicketMessageEditService', () => {
@@ -153,6 +154,16 @@ describe('TicketMessageEditService', () => {
 
         const raced = build(message(), undefined, 0);
         await expect(raced.service.deleteMessage('t-1', 'm-1', SENDER)).rejects.toThrow('Pesan sudah dihapus');
+    });
+
+    it('deleting a pinned message releases the pin and announces the new pins', async () => {
+        const { service, pins } = build(message({ pinnedAt: new Date(NOW - 1000), pinnedById: 'u-1' }));
+        await service.deleteMessage('t-1', 'm-1', SENDER);
+        expect(pins.releaseDeleted).toHaveBeenCalledWith('t-1', 'm-1');
+
+        const plain = build();
+        await plain.service.deleteMessage('t-1', 'm-1', SENDER);
+        expect(plain.pins.releaseDeleted).not.toHaveBeenCalled();
     });
 
     it('takes the deleted text back out of stored reply notifications', async () => {

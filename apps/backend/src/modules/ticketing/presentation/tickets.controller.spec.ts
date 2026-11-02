@@ -177,6 +177,15 @@ describe('TicketsController', () => {
             expect(info).toEqual([{ path: paths[0], name: 'Laporan Q3.xlsx', size: 4, mime: file.mimetype }]);
         });
 
+        it('passes a reply link to the service and ignores one that is not a UUID', async () => {
+            const original = '0b6e3c1a-2f4d-4c8e-9a71-5d2b8f9e0c13';
+            await controller.replyToTicket(ticketId, req, 'cek', '[]', 'false', [], original);
+            expect(mockTicketMessagingService.replyToTicket.mock.calls[0][9]).toEqual({ replyToId: original });
+
+            await controller.replyToTicket(ticketId, req, 'cek', '[]', 'false', [], 'bukan-uuid');
+            expect(mockTicketMessagingService.replyToTicket.mock.calls[1][9]).toEqual({ replyToId: undefined });
+        });
+
         it('rejects a file whose bytes do not match its extension and deletes every upload', async () => {
             const good = upload('ok.pdf', [0x25, 0x50, 0x44, 0x46], 'application/pdf');
             const bad = upload('virus.pdf', [0x4d, 0x5a, 0x90, 0x00], 'application/pdf');

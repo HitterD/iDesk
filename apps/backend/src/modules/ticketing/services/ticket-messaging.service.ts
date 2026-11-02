@@ -14,7 +14,7 @@ import { canAccessTicketObject } from '../utils/oracle-ticket-access.util';
 import { canAccessTicketSite } from '../utils/site-access.util';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService, SLA_RESPONDER_ROLES } from './sla-clock.service';
-import { presentThread, PresentedThreadMessage } from '../utils/message-presenter.util';
+import { presentInThread, presentThread, PresentedThreadMessage } from '../utils/message-presenter.util';
 
 @Injectable()
 export class TicketMessagingService {
@@ -147,13 +147,14 @@ export class TicketMessagingService {
         attachmentInfo: AttachmentInfo[] = [],
         clientRequestId?: string,
         authorizePrivateShare?: (manager: import('typeorm').EntityManager) => Promise<void>,
+        options: { replyToId?: string } = {},
     ) {
         // P1 fix: message insert + ticket status/SLA update were two separate
         // saves outside any transaction. A crash between them left the ticket
         // without its SLA timer started (or its firstResponseAt set). Now atomic
         // via dataSource.transaction. Event emit / WS push moved outside the
         // transaction so listeners only fire on commit.
-        const { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate, senderReadMarker, now } = await this.dataSource.transaction(async (manager) => {
+        const { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate, senderReadMarker, now, original } = await this.dataSource.transaction(async (manager) => {
             if (authorizePrivateShare) await authorizePrivateShare(manager);
             const ticket = await manager.findOne(Ticket, {
                 where: { id: ticketId },
@@ -181,8 +182,10 @@ export class TicketMessagingService {
             if (clientRequestId) {
                 const existing = await manager.findOne(TicketMessage, { where: { ticketId, senderId: userId, clientRequestId } });
                 if (existing) return { savedMessage: existing, ticket, user, startedWork: false,
-                    senderSideRole: user.role, isFirstAgentReply: false, duplicate: true, senderReadMarker: null, now: null };
+                    senderSideRole: user.role, isFirstAgentReply: false, duplicate: true, senderReadMarker: null, now: null, original: null };
             }
+            const original = await this.replyTarget(manager, ticketId, options.replyToId, isHandler);
+
             // Create Message
             const message = manager.create(TicketMessage, {
                 ticketId,
@@ -192,6 +195,7 @@ export class TicketMessagingService {
                 attachmentInfo: attachmentInfo.length > 0 ? attachmentInfo : null,
                 isInternal,  // Mark as internal note if specified
                 clientRequestId: clientRequestId ?? null,
+                replyToId: original?.id ?? null,
             });
 
             const savedMessage = await manager.save(TicketMessage, message);
@@ -237,7 +241,7 @@ export class TicketMessagingService {
             // Save ticket changes
             await manager.save(Ticket, ticket);
 
-            return { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate: false, senderReadMarker, now };
+            return { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate: false, senderReadMarker, now, original };
         });
 
         if (duplicate) return savedMessage;
@@ -255,7 +259,7 @@ export class TicketMessagingService {
 
         // Notify frontend via WebSocket with full message data (post-commit)
         const messageWithSender = {
-            ...savedMessage,
+            ...presentInThread(savedMessage, original),
             sender: {
                 id: user.id,
                 fullName: user.fullName,
@@ -292,6 +296,23 @@ export class TicketMessagingService {
         );
 
         return savedMessage;
+    }
+
+    /**
+     * The message a reply answers, if it is one the sender may quote: same ticket, not a system
+     * message, and (for the requester side) not an internal note. Anything else is ignored.
+     */
+    private async replyTarget(
+        manager: import('typeorm').EntityManager,
+        ticketId: string,
+        replyToId: string | undefined,
+        isHandler: boolean,
+    ): Promise<TicketMessage | null> {
+        if (!replyToId) return null;
+        const original = await manager.findOne(TicketMessage, { where: { id: replyToId }, relations: ['sender'] });
+        if (!original || original.ticketId !== ticketId || original.isSystemMessage) return null;
+        if (original.isInternal && !isHandler) return null;
+        return original;
     }
 
     /**

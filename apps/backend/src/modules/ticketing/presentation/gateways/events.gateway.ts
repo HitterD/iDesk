@@ -279,6 +279,15 @@ export class EventsGateway
         this.logger.log(`Emitted new message to ticket:${ticketId}`);
     }
 
+    /**
+     * The pinned bar changed. Staff receive every pin; the ticket room (requester side) only pins of
+     * public messages. Staff sockets are in both rooms, so the staff list arrives last and wins.
+     */
+    notifyPinsChanged(ticketId: string, pins: Array<{ isInternal: boolean }>) {
+        this.server.to(`ticket:${ticketId}`).emit('ticket:pinsChanged', { ticketId, pins: pins.filter((p) => !p.isInternal) });
+        this.server.to(ticketStaffRoom(ticketId)).emit('ticket:pinsChanged', { ticketId, pins });
+    }
+
     /** An edited or deleted chat message, already presented (a deleted one carries no text or files). */
     notifyMessageUpdated(ticketId: string, message: { id: string; isInternal?: boolean }) {
         const room = message?.isInternal ? ticketStaffRoom(ticketId) : `ticket:${ticketId}`;

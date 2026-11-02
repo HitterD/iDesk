@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, Repository } from 'typeorm';
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
@@ -7,6 +7,7 @@ import { TicketMessageEdit } from '../entities/ticket-message-edit.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { NotificationService } from '../../notifications/notification.service';
+import { TicketMessagePinService } from './ticket-message-pin.service';
 import { resolveTicketViewerAccess } from './ticket-oracle-access';
 import { isTicketRequesterSide } from '../utils/oracle-ticket-access.util';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
@@ -37,6 +38,7 @@ export class TicketMessageEditService {
         private readonly dataSource: DataSource,
         private readonly eventsGateway: EventsGateway,
         private readonly notificationService: NotificationService,
+        @Inject(forwardRef(() => TicketMessagePinService)) private readonly pinService: TicketMessagePinService,
     ) { }
 
     async editMessage(ticketId: string, messageId: string, viewer: MessageEditor, content: string) {
@@ -81,6 +83,7 @@ export class TicketMessageEditService {
             return manager.findOne(TicketMessage, { where: { id: message.id }, relations: ['sender'] });
         });
         await this.redactNotifications(message, ticket);
+        if (message.pinnedAt) await this.pinService.releaseDeleted(ticketId, message.id);
         return this.broadcast(ticketId, updated ?? message);
     }
 

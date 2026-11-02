@@ -25,6 +25,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { timingSafeEqual } from 'crypto';
 import { Repository } from 'typeorm';
+import { isUUID } from 'class-validator';
 import { User } from '../../users/entities/user.entity';
 import { Public } from '../../../shared/core/decorators/public.decorator';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -365,6 +366,7 @@ export class TicketsController {
         @Body('mentionedUserIds') mentionedUserIds: string | string[],
         @Body('isInternal') isInternal: string | boolean,
         @UploadedFiles() files: Express.Multer.File[],
+        @Body('replyToId') replyToId?: string,
     ) {
         assertValidAttachments(files);
         const attachmentInfo = (files ?? []).map(toAttachmentInfo);
@@ -393,6 +395,9 @@ export class TicketsController {
                 parsedMentionedUserIds,
                 isInternalNote,
                 attachmentInfo,
+                undefined,
+                undefined,
+                { replyToId: isUUID(replyToId ?? '') ? replyToId : undefined },
             );
         } catch (error) {
             // e.g. ticket closed meanwhile or no access: the files would never be referenced.
