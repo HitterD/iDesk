@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { replaceMessageInCaches } from '../ticketMessageCache';
+import { cachedTicket } from './cacheTestHelpers';
 
 describe('replaceMessageInCaches', () => {
     it('keeps cached sender fields the server payload leaves out (avatar)', () => {
@@ -12,7 +13,7 @@ describe('replaceMessageInCaches', () => {
 
         replaceMessageInCaches(client, 't-1', { id: 'm-1', content: 'baru', sender: { id: 'u-1', fullName: 'Budi' } } as { id: string });
 
-        expect((client.getQueryData(['ticket', 't-1']) as any).messages[0]).toEqual({
+        expect(cachedTicket(client, 't-1').messages[0]).toEqual({
             id: 'm-1', content: 'baru', sender: { id: 'u-1', fullName: 'Budi', avatarUrl: '/a.png' },
         });
     });

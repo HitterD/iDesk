@@ -1461,6 +1461,13 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .chat-pin-mark { width: 12px; height: 12px; stroke-width: 2.2; opacity: .75; transform: rotate(35deg); }
 /* Pinned messages strip: one row under the opening-report bar, WhatsApp-style. */
 .chat-pins { display: flex; align-items: center; gap: 4px; flex: none; padding: 4px 8px 4px 12px; border-bottom: 1px solid hsl(var(--idesk-border) / .7); background: hsl(var(--idesk-surface)); animation: td-msg-in var(--dur-2) var(--ease-out); }
+/* In the tab row: tabs on the left, the pin takes the empty space to their right. */
+.td-tabs-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.td-tabs-row .td-tabs { flex: none; }
+.chat-pins.is-inline { flex: 1; min-width: 0; padding: 0 4px 0 2px; border: 0; background: transparent; border-radius: 10px; }
+.chat-pins.is-inline .chat-pins-main { padding: 3px 8px; background: var(--td-fill); }
+.chat-pins.is-inline .chat-pins-main:hover { background: var(--td-fill-hover, hsl(var(--idesk-border) / .5)); }
+@media (max-width: 560px) { .td-tabs-row { flex-wrap: wrap; } .chat-pins.is-inline { flex: 1 1 100%; padding: 0; } }
 .chat-pins-main { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; padding: 4px 6px; border-radius: 10px; text-align: left; cursor: pointer; transition: background-color var(--dur-1) var(--ease-out); }
 .chat-pins-main:hover { background: var(--td-fill); }
 .chat-pins-main:focus-visible { outline: 0; box-shadow: var(--td-ring); }

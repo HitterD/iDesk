@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Pin, PinOff } from 'lucide-react';
 import { quoteKind, toDisplayName } from './messageThread';
 
@@ -13,6 +13,8 @@ interface PinnedMessagesBarProps {
     pins: PinnedBarItem[];
     onJump: (messageId: string) => void;
     onUnpin?: (messageId: string) => void;
+    /** `inline`: sits in a row beside other controls (the tab row) instead of as its own full-width strip. */
+    variant?: 'strip' | 'inline';
 }
 
 const preview = (text: string) => {
@@ -24,11 +26,15 @@ const preview = (text: string) => {
  * WhatsApp-style pinned strip above the chat: shows the newest pin; each click jumps to the shown
  * message and steps back to the previous pin, wrapping around (with a "n dari total" counter).
  */
-export const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({ pins, onJump, onUnpin }) => {
+export const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({ pins, onJump, onUnpin, variant = 'strip' }) => {
     const [index, setIndex] = useState(pins.length - 1);
     // Any change to the set (a new pin may replace the oldest at three) shows the newest pin again.
     const pinKey = pins.map((p) => p.id).join(',');
-    useEffect(() => setIndex(pins.length - 1), [pinKey, pins.length]);
+    const [shownKey, setShownKey] = useState(pinKey);
+    if (shownKey !== pinKey) {
+        setShownKey(pinKey);
+        setIndex(pins.length - 1);
+    }
     if (pins.length === 0) return null;
 
     const current = pins[Math.min(Math.max(index, 0), pins.length - 1)];
@@ -39,7 +45,7 @@ export const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({ pins, onJu
     };
 
     return (
-        <div className="chat-pins" data-pinned-messages>
+        <div className={variant === 'inline' ? 'chat-pins is-inline' : 'chat-pins'} data-pinned-messages>
             <button
                 type="button"
                 className="chat-pins-main"

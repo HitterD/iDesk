@@ -1,8 +1,9 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TicketChat } from '../TicketChat';
+import { TicketChat, type TicketChatHandle } from '../TicketChat';
+import { createRef } from 'react';
 import type { TicketDetail } from '../types';
 
 const AGENT = { id: 'agent-1', role: 'AGENT', fullName: 'RM BAGASTYO' };
@@ -57,48 +58,23 @@ describe('TicketChat pins and reply links', () => {
     });
     afterEach(() => vi.useRealTimers());
 
-    it('no pin bar without pins', () => {
-        renderChat(baseTicket([msg('a', USER_SENDER, 'Printer mati', ago(30))]));
+    it('no longer draws its own pin bar: the page header shows the pins', () => {
+        renderChat(baseTicket([msg('a', USER_SENDER, 'SOP reset', ago(30), { isPinned: true, pinnedAt: ago(5) })]));
         expect(screen.queryByRole('button', { name: /Pesan disematkan/ })).not.toBeInTheDocument();
     });
 
-    it('shows the latest pin and cycles through pins with a counter', async () => {
-        const user = userEvent.setup();
-        renderChat(baseTicket([
-            msg('a', USER_SENDER, 'SOP reset printer', ago(30), { isPinned: true, pinnedAt: ago(20) }),
-            msg('b', AGENT_SENDER, 'IP printer 10.0.0.12', ago(25), { isPinned: true, pinnedAt: ago(10) }),
-        ]));
-
-        const bar = screen.getByRole('button', { name: 'Pesan disematkan 2 dari 2' });
-        expect(bar).toHaveTextContent('IP printer 10.0.0.12');
-        await user.click(bar);
-        expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
-        const next = screen.getByRole('button', { name: 'Pesan disematkan 1 dari 2' });
-        expect(next).toHaveTextContent('SOP reset printer');
-    });
-
-    it('shows a new pin right away, also when it replaced the oldest of three', () => {
-        const three = [
-            msg('a', USER_SENDER, 'pin satu', ago(40), { isPinned: true, pinnedAt: ago(30) }),
-            msg('b', USER_SENDER, 'pin dua', ago(39), { isPinned: true, pinnedAt: ago(20) }),
-            msg('c', USER_SENDER, 'pin tiga', ago(38), { isPinned: true, pinnedAt: ago(10) }),
-            msg('d', USER_SENDER, 'pin empat', ago(37)),
-        ];
-        const client = new QueryClient();
-        const view = (t: TicketDetail) => (
-            <QueryClientProvider client={client}>
-                <TicketChat ticket={t} isConnected onSendMessage={vi.fn(() => Promise.resolve())} onImageClick={vi.fn()} />
-            </QueryClientProvider>
+    it('jumps to a pinned message when the page asks it to', () => {
+        const ref = createRef<TicketChatHandle>();
+        render(
+            <QueryClientProvider client={new QueryClient()}>
+                <TicketChat ref={ref} ticket={baseTicket([msg('a', USER_SENDER, 'SOP reset', ago(30))])} isConnected onSendMessage={vi.fn(() => Promise.resolve())} onImageClick={vi.fn()} />
+            </QueryClientProvider>,
         );
-        const { rerender } = render(view(baseTicket(three)));
-        // Step back to an older pin, then a fourth pin replaces the oldest: the bar shows the new one.
-        screen.getByRole('button', { name: 'Pesan disematkan 3 dari 3' }).click();
-        const after = [
-            { ...three[0], isPinned: false, pinnedAt: null }, three[1], three[2],
-            { ...three[3], isPinned: true, pinnedAt: ago(1) },
-        ];
-        rerender(view(baseTicket(after)));
-        expect(screen.getByRole('button', { name: 'Pesan disematkan 3 dari 3' })).toHaveTextContent('pin empat');
+        act(() => ref.current?.jumpToMessage('a'));
+        expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
+        expect(row('a').className).toContain('bg-primary');
+        act(() => ref.current?.jumpToMessage('not-loaded'));
+        expect(toast.info).toHaveBeenCalledWith('Pesan belum dimuat, gulir ke atas untuk melihatnya');
     });
 
     it('menu offers Sematkan and calls the API', async () => {
@@ -110,24 +86,12 @@ describe('TicketChat pins and reply links', () => {
         await waitFor(() => expect(api.post).toHaveBeenCalledWith('/tickets/t-1/messages/a/pin'));
     });
 
-    it('Lepas sematan calls the API, from the menu and from the bar', async () => {
+    it('Lepas sematan calls the API from the menu', async () => {
         const user = userEvent.setup();
         renderChat(baseTicket([msg('a', USER_SENDER, 'Printer mati', ago(30), { isPinned: true, pinnedAt: ago(5) })]));
         await user.click(within(row('a')).getByRole('button', { name: 'Aksi lainnya' }));
         await user.click(await screen.findByRole('menuitem', { name: 'Lepas sematan' }));
         await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/tickets/t-1/messages/a/pin'));
-
-        await user.click(screen.getByRole('button', { name: 'Lepas sematan' }));
-        await waitFor(() => expect(api.delete).toHaveBeenCalledTimes(2));
-    });
-
-    it('pin of an unloaded message tells the user', async () => {
-        const user = userEvent.setup();
-        const client = renderChat(baseTicket([msg('a', USER_SENDER, 'Printer mati', ago(30), { isPinned: true, pinnedAt: ago(5) })]));
-        document.querySelector('[data-message-id="a"]')?.removeAttribute('data-message-id');
-        await user.click(screen.getByRole('button', { name: /Pesan disematkan/ }));
-        expect(toast.info).toHaveBeenCalledWith('Pesan belum dimuat, gulir ke atas untuk melihatnya');
-        expect(client).toBeDefined();
     });
 
     it('a reply quotes its original through replyTo and jumps to it', async () => {

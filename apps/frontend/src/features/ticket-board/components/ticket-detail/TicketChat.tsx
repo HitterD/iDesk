@@ -10,7 +10,6 @@ import { MessageBubble } from './MessageBubble';
 import { useMessageActions } from './useMessageActions';
 import { usePinActions } from './usePinActions';
 import { toReactionChips, useReactionActions } from './useReactionActions';
-import { PinnedMessagesBar } from './PinnedMessagesBar';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ActivityEvent, linkedTicketMove } from './ActivityEvent';
 import { ChatComposer, MAX_MESSAGE_LENGTH, ReplyTarget, STICKERS } from './ChatComposer';
@@ -97,7 +96,12 @@ const useNewMessageAnnouncement = (latest: ChatMessage | undefined, isOwn: (m: C
     return announcement;
 };
 
-export const TicketChat: React.FC<TicketChatProps> = ({
+/** What the page can ask of the chat: the pin bar lives in the page header, the messages here. */
+export interface TicketChatHandle {
+    jumpToMessage: (messageId: string) => void;
+}
+
+export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(function TicketChat({
     ticket,
     isConnected,
     onSendMessage,
@@ -106,7 +110,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     onTypingStart,
     onTypingStop,
     showCannedResponses
-}) => {
+}, handleRef) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const streamRef = useRef<HTMLDivElement>(null);
     const rootIssueRef = useRef<HTMLDivElement>(null);
@@ -144,11 +148,11 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     };
     // Deleted elsewhere (an admin, another tab) while it is open in the composer: leave edit mode.
     const editedMessageGone = Boolean(editing && ticket.messages?.find((m) => m.id === editing.id)?.isDeleted);
-    useEffect(() => {
-        if (!editedMessageGone) return;
+    if (editedMessageGone) {
+        // Adjusting state while rendering: React re-renders at once with edit mode off, no effect needed.
         setEditing(null);
         toast.info('Pesan yang Anda edit sudah dihapus');
-    }, [editedMessageGone]);
+    }
 
     const confirmDelete = async () => {
         if (!deletingId) return;
@@ -272,9 +276,11 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         if (!jumpToMessage(targetId)) toast.info('Pesan asli tidak tersedia');
     };
 
-    const jumpToPinned = (messageId: string) => {
-        if (!jumpToMessage(messageId)) toast.info('Pesan belum dimuat, gulir ke atas untuk melihatnya');
-    };
+    React.useImperativeHandle(handleRef, () => ({
+        jumpToMessage: (messageId: string) => {
+            if (!jumpToMessage(messageId)) toast.info('Pesan belum dimuat, gulir ke atas untuk melihatnya');
+        },
+    }));
 
     const handleSendSticker = async (sticker: string) => {
         await onSendMessage(sticker, null, false);
@@ -290,11 +296,6 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     /** Messages in display order; system cards stay in place, internal notes only for staff. */
     const visibleMessages = sortedMessages.filter((m) => isShownInStream(m, genesisMessageId, canViewInternalArchive));
     const groupKey = (m: ChatMessage) => ({ senderId: m.sender?.id || m.sender?.fullName, isInternal: m.isInternal, createdAt: m.createdAt });
-    /** Pinned bar: oldest first, from the loaded thread (internal ones only reach staff). */
-    const pinnedMessages = visibleMessages
-        .filter((m) => m.isPinned && !m.isDeleted)
-        .sort((a, b) => new Date(a.pinnedAt ?? 0).getTime() - new Date(b.pinnedAt ?? 0).getTime())
-        .map((m) => ({ id: m.id, senderName: m.sender?.fullName ?? '', snippet: quotableText(m.content) }));
     const latestBubble = [...visibleMessages].reverse().find(isBubble);
     const announcement = useNewMessageAnnouncement(latestBubble, isOwn);
 
@@ -367,13 +368,6 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     </button>
                 </div>
             </div>
-
-            {/* Pinned chat messages (up to three), below the opening-report bar */}
-            <PinnedMessagesBar
-                pins={pinnedMessages}
-                onJump={jumpToPinned}
-                onUnpin={isTicketClosed ? undefined : (id) => void pinActions.unpin(id).catch(() => undefined)}
-            />
 
             {/* Expanded Pinned Drawer */}
             {isPinnedExpanded && (
@@ -644,4 +638,4 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             />
         </div>
     );
-};
+});

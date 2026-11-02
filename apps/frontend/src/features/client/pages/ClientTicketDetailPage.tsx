@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { XCircle } from 'lucide-react';
@@ -7,7 +7,8 @@ import { buildReplyForm } from '@/lib/ticketReplyForm';
 import { toast } from 'sonner';
 import { useAuth } from '@/stores/useAuth';
 import { TICKET_OFFLINE_POLL_MS, useTicketSocket } from '@/hooks/useTicketSocket';
-import { TicketChat } from '../../ticket-board/components/ticket-detail/TicketChat';
+import { TicketChat, type TicketChatHandle } from '../../ticket-board/components/ticket-detail/TicketChat';
+import { usePinActions } from '../../ticket-board/components/ticket-detail/usePinActions';
 import { TicketHistory } from '../../ticket-board/components/ticket-detail/TicketHistory';
 import { ImageLightbox } from '../../ticket-board/components/ticket-detail/ImageLightbox';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
@@ -20,7 +21,7 @@ import { AgentRatingForm } from '../components/resolution/AgentRatingForm';
 import { getApiErrorMessage } from '../components/resolution/resolutionApi';
 import { ClientTicketHeader } from '../components/ClientTicketHeader';
 import { ClientTicketInspector } from '../components/ClientTicketInspector';
-import { DetailTabs, countChatMessages, type DetailTab } from '../../ticket-board/components/ticket-detail/DetailTabs';
+import { DetailTabs, countChatMessages, pinsOf, type DetailTab } from '../../ticket-board/components/ticket-detail/DetailTabs';
 import { toUploadPercent, validateFiles } from '@/lib/file-validation';
 import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
 
@@ -38,6 +39,8 @@ export const ClientTicketDetailPage: React.FC = () => {
     const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
     const [mainTab, setMainTab] = useState<DetailTab>('chat');
+    const chatRef = useRef<TicketChatHandle>(null);
+    const pinActions = usePinActions(id ?? '');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [suggestionsOpen, setSuggestionsOpen] = useState(false);
 
@@ -171,7 +174,16 @@ export const ClientTicketDetailPage: React.FC = () => {
                 onToggleSidebar={handleToggleSidebar}
                 canSelfResolve={canSelfResolve}
                 canCancel={isRequester}
-                tabs={<DetailTabs value={mainTab} onChange={setMainTab} messageCount={countChatMessages(ticket.messages)} />}
+                tabs={(
+                    <DetailTabs
+                        value={mainTab}
+                        onChange={setMainTab}
+                        messageCount={countChatMessages(ticket.messages)}
+                        pins={pinsOf(ticket.messages)}
+                        onJumpToPin={(id) => chatRef.current?.jumpToMessage(id)}
+                        onUnpinPin={ticket.status === 'CLOSED' ? undefined : (id) => void pinActions.unpin(id).catch(() => undefined)}
+                    />
+                )}
             />
 
                 {/* Conversation / Activity / Mobile Details */}
@@ -189,6 +201,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                         {mainTab === 'chat' ? (
                             <TicketChat
+                                ref={chatRef}
                                 ticket={ticket}
                                 isConnected={isConnected}
                                 onSendMessage={handleSendMessage}

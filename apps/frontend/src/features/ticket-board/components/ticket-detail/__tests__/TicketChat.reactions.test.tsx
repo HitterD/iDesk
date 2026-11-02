@@ -58,8 +58,8 @@ describe('TicketChat saved reactions', () => {
 
     it('offers no reaction button where the server would refuse it (internal note, closed ticket)', () => {
         const internal = ticket([]);
-        (internal.messages as any[])[0].isInternal = true;
-        renderChat(internal);
+        // Flag the only message as an archived internal note.
+        renderChat({ ...internal, messages: internal.messages?.map((m) => ({ ...m, isInternal: true })) } as TicketDetail);
         expect(within(row()).queryByRole('button', { name: 'Tambah reaksi' })).not.toBeInTheDocument();
     });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { applyReactionsToCaches } from '../ticketMessageCache';
+import { cachedTicket } from './cacheTestHelpers';
 
 describe('applyReactionsToCaches', () => {
     it('replaces the reactions of one message in both caches', () => {
@@ -11,7 +12,7 @@ describe('applyReactionsToCaches', () => {
 
         applyReactionsToCaches(client, 't-1', 'a', reactions);
 
-        expect((client.getQueryData(['ticket', 't-1']) as any).messages).toEqual([{ id: 'a', reactions }, { id: 'b' }]);
+        expect(cachedTicket(client, 't-1').messages).toEqual([{ id: 'a', reactions }, { id: 'b' }]);
         expect(client.getQueryData(['ticket-messages', 't-1'])).toEqual([{ id: 'a', reactions }]);
     });
 });

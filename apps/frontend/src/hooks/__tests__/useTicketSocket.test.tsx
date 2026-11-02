@@ -39,6 +39,8 @@ const fire = (event: string, payload?: any) => {
     });
 };
 
+import { cachedTicket } from '@/lib/__tests__/cacheTestHelpers';
+
 const { useTicketSocket, useTicketListSocket, LIST_INVALIDATE_DEBOUNCE_MS, TICKET_RESYNC_DEBOUNCE_MS } = await import('../useTicketSocket');
 
 describe('useTicketSocket', () => {
@@ -358,7 +360,7 @@ describe('useTicketSocket', () => {
 
         fire('ticket:messageUpdated', { ticketId: 'ticket-1', message: { id: 'm-1', content: '', isDeleted: true } });
 
-        expect((queryClient.getQueryData(['ticket', 'ticket-1']) as any).messages).toEqual([
+        expect(cachedTicket(queryClient, 'ticket-1').messages).toEqual([
             { id: 'm-1', content: '', isDeleted: true }, { id: 'm-2', content: 'lain' },
         ]);
         expect(queryClient.getQueryData(['ticket-messages', 'ticket-1'])).toEqual([{ id: 'm-1', content: '', isDeleted: true }]);
@@ -380,10 +382,10 @@ describe('useTicketSocket', () => {
         const reactions = [{ emoji: 'x', count: 1, userIds: ['u'], userNames: ['U'] }];
 
         fire('ticket:reactionsChanged', { ticketId: 'ticket-2', messageId: 'm-1', reactions });
-        expect((queryClient.getQueryData(['ticket', 'ticket-1']) as any).messages[0].reactions).toEqual([]);
+        expect(cachedTicket(queryClient, 'ticket-1').messages[0].reactions).toEqual([]);
 
         fire('ticket:reactionsChanged', { ticketId: 'ticket-1', messageId: 'm-1', reactions });
-        expect((queryClient.getQueryData(['ticket', 'ticket-1']) as any).messages[0].reactions).toEqual(reactions);
+        expect(cachedTicket(queryClient, 'ticket-1').messages[0].reactions).toEqual(reactions);
     });
 
     it('applies pin changes to the open ticket', () => {
@@ -392,8 +394,8 @@ describe('useTicketSocket', () => {
 
         fire('ticket:pinsChanged', { ticketId: 'ticket-1', pins: [{ id: 'm-1', senderName: 'A', snippet: 'x', pinnedAt: '2026-11-02T08:00:00Z', isInternal: false }] });
 
-        const messages = (queryClient.getQueryData(['ticket', 'ticket-1']) as any).messages;
-        expect(messages.map((m: any) => Boolean(m.isPinned))).toEqual([true, false]);
+        const { messages } = cachedTicket(queryClient, 'ticket-1');
+        expect(messages.map((m) => Boolean(m.isPinned))).toEqual([true, false]);
     });
 
     it('ignores pins of another ticket', () => {
