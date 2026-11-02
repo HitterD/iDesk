@@ -43,6 +43,11 @@ export class CreateEFormRequestDto {
   @IsOptional()
   managerId?: string;
 
+  /** Optional GM who approves in iDesk after the manager; picking one turns the GM step on. ICT may change it. */
+  @IsUUID()
+  @IsOptional()
+  gmApproverId?: string;
+
   /** Completes a proposal IT drafted from a ticket instead of creating a new request. */
   @IsUUID()
   @IsOptional()

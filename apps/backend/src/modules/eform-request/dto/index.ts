@@ -5,3 +5,4 @@ export { FulfillRequestDto } from './fulfill-request.dto';
 export { BrowseNasFolderDto } from './browse-nas-folder.dto';
 export { SearchNasFolderDto } from './search-nas-folder.dto';
 export { SyncNasCacheDto } from './sync-nas-cache.dto';
+export { SetGmStepDto } from './set-gm-step.dto';

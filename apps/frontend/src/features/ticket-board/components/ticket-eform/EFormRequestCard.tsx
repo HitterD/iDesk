@@ -39,8 +39,9 @@ const PHASE: Record<Exclude<EFormTicketPhase, 'PROPOSED'>, { icon: React.Element
     SUBMITTED: { icon: ThumbsUp, text: 'ditandatangani dan diajukan pemohon', tone: 'ok' },
     DECLINED: { icon: CircleSlash, text: 'ditolak pemohon', tone: 'bad' },
     WITHDRAWN: { icon: CircleSlash, text: 'ditarik tim IT', tone: 'info' },
-    MANAGER_APPROVED: { icon: UserCheck, text: 'disetujui atasan, menunggu tanda tangan GM', tone: 'ok' },
-    GM_APPROVED: { icon: PenLine, text: 'sudah ditandatangani GM, diteruskan ke ICT', tone: 'ok' },
+    // Whether the GM comes next is the request's own setting (and may change); the live card shows the next step.
+    MANAGER_APPROVED: { icon: UserCheck, text: 'disetujui atasan', tone: 'ok' },
+    GM_APPROVED: { icon: PenLine, text: 'disetujui GM, diteruskan ke ICT', tone: 'ok' },
     GRANTED: { icon: KeyRound, text: 'aktif', tone: 'ok' },
     REJECTED: { icon: XCircle, text: 'ditolak', tone: 'bad' },
 };
@@ -70,9 +71,9 @@ function PhaseLine({ event, actorName, reason, createdAt, eformBasePath, ticketM
 }
 
 /** Step bar, same look as the hardware request's; `compact` is the labelless sidebar version. */
-export const EFormProgress: React.FC<{ request: Pick<TicketEFormRequest, 'formType' | 'status'>; compact?: boolean }> = ({ request, compact = false }) => {
-    const steps = flowSteps(request.formType);
-    const current = currentStep(request.formType, request.status);
+export const EFormProgress: React.FC<{ request: Pick<TicketEFormRequest, 'formType' | 'status' | 'requiresGm'>; compact?: boolean }> = ({ request, compact = false }) => {
+    const steps = flowSteps(request.formType, request.requiresGm);
+    const current = currentStep(request.formType, request.status, request.requiresGm);
     const done = request.status === 'CONFIRMED';
     return (
         <ol className={cn('thw-steps', isStopped(request.status) && 'is-stopped', compact && 'is-compact')} aria-label="Progres akses E-Form">

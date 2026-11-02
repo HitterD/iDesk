@@ -89,7 +89,11 @@ export class EFormDocumentService {
       request.gmApprovalFileName = basename(file.originalname || 'ttd-gm.pdf').slice(0, FILE_NAME_MAX);
       request.gmApprovalUploadedById = userId;
       request.gmApprovedAt = new Date();
-      if (first) request.status = EFormStatus.PENDING_ICT;
+      if (first) {
+        request.status = EFormStatus.PENDING_ICT;
+        // The paper copy stands in for an in-app GM approval that was still pending.
+        request.currentApproverId = null;
+      }
       const saved = await this.repo.save(request);
       if (replaced) await this.removeStored(replaced);
 

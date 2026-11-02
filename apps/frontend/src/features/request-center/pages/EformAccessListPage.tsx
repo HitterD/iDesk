@@ -17,6 +17,7 @@ import {
     getStatusConfig,
     getTypeConfig,
     EFORM_TYPES,
+    EFORM_MONITOR_ROLES,
 } from '../components/eform/eform-vocabulary';
 import {
     EformAccessCalendar,
@@ -24,8 +25,6 @@ import {
 } from '../components/eform/EformAccessCalendar';
 
 type TabView = 'my-requests' | 'pending-approvals';
-
-const ICT_ROLES = ['ADMIN', 'AGENT_ADMIN'];
 
 /** ICT's queue: getting the GM's signature on paper, then provisioning. */
 const ICT_QUEUE = 'ICT_QUEUE';
@@ -52,9 +51,9 @@ export const EformAccessListPage: React.FC = () => {
     const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
     const hasAutoSwitched = useRef(false);
 
-    const isIct = ICT_ROLES.includes(user?.role || '');
+    const isMonitor = (EFORM_MONITOR_ROLES as readonly string[]).includes(user?.role || '');
 
-    const { data: requestsData, isLoading: loadingRequests } = useEformRequests(isIct);
+    const { data: requestsData, isLoading: loadingRequests } = useEformRequests(isMonitor);
     const { data: pendingData, isLoading: loadingPending } = usePendingApprovals();
 
     const myRequests = useMemo(() => (Array.isArray(requestsData) ? requestsData : []), [requestsData]);
@@ -155,7 +154,7 @@ export const EformAccessListPage: React.FC = () => {
             <div className="res-filters">
                 <SegmentedControl aria-label="Daftar permintaan" className="dash-seg" value={tab} onValueChange={setTab}
                     options={[
-                        { value: 'my-requests', label: 'Permintaan Saya', icon: FileText },
+                        { value: 'my-requests', label: isMonitor ? 'Semua Permintaan' : 'Permintaan Saya', icon: FileText },
                         { value: 'pending-approvals', icon: Inbox, label: <>Perlu Persetujuan{pendingApprovals.length > 0 && <span className="res-tab-count is-alert">{pendingApprovals.length}</span>}</> },
                     ]} />
                 <span className="res-spacer" />
@@ -330,7 +329,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({ isFiltered, isApprovalTab, onRe
     return (
         <ResEmpty icon={FileText} title="Belum ada pengajuan"
             cta={<button type="button" className="idesk-text-link" onClick={onCreate}>Ajukan akses<ArrowRight aria-hidden="true" /></button>}>
-            Ajukan akses VPN, website, atau jaringan. Permintaan diteruskan ke atasan Anda, ditandatangani GM, lalu disiapkan tim ICT.
+            Ajukan akses VPN, website, atau jaringan. Permintaan diteruskan ke atasan Anda (VPN juga ditandatangani GM), lalu disiapkan tim ICT.
         </ResEmpty>
     );
 };

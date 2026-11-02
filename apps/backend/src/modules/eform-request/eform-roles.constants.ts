@@ -29,8 +29,29 @@ export const CREDENTIAL_READER_ROLES: UserRole[] = [...ICT_ROLES, UserRole.MANAG
  */
 export const EFORM_PROPOSER_ROLES: UserRole[] = [...ICT_ROLES, UserRole.AGENT];
 
+/**
+ * Who may list every request (to follow where each one is). Matches who may open a single request in
+ * getDetails; site isolation still applies, so only ADMIN and MANAGER see other sites.
+ */
+export const EFORM_MONITOR_ROLES: UserRole[] = [
+  UserRole.ADMIN,
+  UserRole.MANAGER,
+  UserRole.AGENT_ADMIN,
+  UserRole.AGENT,
+  UserRole.AGENT_OPERATIONAL_SUPPORT,
+  UserRole.AGENT_ORACLE,
+  UserRole.AGENT_WEB_DEV,
+  UserRole.AGENT_MOBILE_DEV,
+];
+
 /** Form types that skip manager approval and go straight to IT. */
 export const DIRECT_TO_ICT_FORM_TYPES = ['SYNOLOGY_NAS'] as const;
+
+/** Form types that need the GM after the manager unless ICT says otherwise; others go from the manager to IT. */
+export const GM_DEFAULT_FORM_TYPES = ['VPN'] as const;
+
+export const needsGmByDefault = (formType: string): boolean =>
+  (GM_DEFAULT_FORM_TYPES as readonly string[]).includes(formType);
 
 /** Synology sub-mode: does the requester already have a Synology account? */
 export enum SynologyAccountStatus {

@@ -410,7 +410,7 @@ export class NotificationCenterService implements OnModuleInit {
                 [siteId]
             ).catch(() => []) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(
-                `SELECT id, "formType", "createdAt" FROM eform_requests WHERE "currentApproverId" = $1 AND status IN ('PENDING_MANAGER', 'PENDING_ICT')${eformSiteFilterSql} ORDER BY "createdAt" DESC LIMIT 50`,
+                `SELECT id, "formType", "createdAt" FROM eform_requests WHERE "currentApproverId" = $1 AND status IN ('PENDING_MANAGER', 'PENDING_GM', 'PENDING_ICT')${eformSiteFilterSql} ORDER BY "createdAt" DESC LIMIT 50`,
                 siteId ? [userId, siteId] : [userId]
             ).catch(() => []) : Promise.resolve([]),
             isManagerOrAdmin ? this.entityManager.query(

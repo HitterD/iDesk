@@ -7,6 +7,14 @@ import '@/components/resources/resources.css';
 /** Roles allowed to process and fulfill ICT requests */
 export const ICT_ROLES = ['ADMIN', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT'] as const;
 
+/** Roles that see every request of their site (all sites for ADMIN/MANAGER) to follow its progress. Mirrors backend EFORM_MONITOR_ROLES. */
+export const EFORM_MONITOR_ROLES = [
+    'ADMIN', 'MANAGER', 'AGENT_ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV',
+] as const;
+
+/** Default only: VPN needs the GM after the manager; ICT may switch it per request. Mirrors backend GM_DEFAULT_FORM_TYPES. */
+export const needsGmSignature = (formType: string | undefined): boolean => formType === 'VPN';
+
 /** Server-side lifecycle of an E-Form request. */
 export enum EFormStatus {
     DRAFT = 'DRAFT',

@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { EformStatusPipeline, EFormStatus } from '../components/eform/EformStatusPipeline';
 import { EformTypeBadge, getTypeConfig, ICT_ROLES } from '../components/eform/eform-vocabulary';
 import { DocumentNumberField, GmApprovalPanel } from '../components/eform/EformPaperwork';
+import { GmStepSettings } from '../components/eform/GmStepSettings';
 import { useAuth } from '@/stores/useAuth';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -25,6 +26,7 @@ import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMark
 const SIGNER_ROLE_LABELS: Record<string, string> = {
   REQUESTER: 'Pemohon',
   MANAGER: 'Atasan',
+  GM: 'GM',
   ICT: 'Tim ICT',
 };
 
@@ -238,14 +240,17 @@ export const EformAccessDetailPage: React.FC = () => {
         <EformStatusPipeline
           currentStatus={request.status as EFormStatus}
           formType={request.formType}
+          requiresGm={request.requiresGm}
           rejectionReason={request.rejectionReason}
         />
       </div>
 
       <GmApprovalPanel request={request} isICT={isICT} onReject={() => setRejectOpen(true)} />
+      {/* key: start the form over from the server's state after each save */}
+      {isICT && <GmStepSettings key={`${request.requiresGm}-${request.gmApproverId ?? ''}-${request.status}`} request={request} />}
 
       {/* Contextual action */}
-      {isCurrentApprover && request.status === EFormStatus.PENDING_MANAGER && (
+      {isCurrentApprover && (request.status === EFormStatus.PENDING_MANAGER || request.status === EFormStatus.PENDING_GM) && (
         <Button
           onClick={() => navigate(`${basePath}/${id}/approve`)}
           className="h-12 w-full rounded-xl text-sm font-bold shadow-md cursor-pointer"
@@ -482,7 +487,9 @@ export const EformAccessDetailPage: React.FC = () => {
           <p className="px-1 text-xs leading-relaxed text-muted-foreground">
             {type.description}. {request.formType === 'SYNOLOGY_NAS'
               ? 'Permintaan langsung disiapkan tim ICT.'
-              : 'Permintaan diteruskan ke atasan Anda, ditandatangani GM, lalu disiapkan tim ICT.'}
+              : request.requiresGm
+                ? 'Permintaan diteruskan ke atasan Anda, disetujui GM, lalu disiapkan tim ICT.'
+                : 'Permintaan diteruskan ke atasan Anda, lalu disiapkan tim ICT.'}
           </p>
         </aside>
       </div>

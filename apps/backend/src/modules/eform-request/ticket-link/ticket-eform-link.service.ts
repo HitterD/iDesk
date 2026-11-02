@@ -6,15 +6,18 @@ import { TicketStatus } from '../../ticketing/entities/ticket.entity';
 import { TicketLinkedRequestService } from '../../ticketing/services/ticket-linked-request.service';
 import { EFormTicketPhase } from '../../ticketing/utils/ticket-activity.util';
 import { accessName, eformCode } from './eform-ticket.util';
+import { EFormStatus } from '../entities/eform-request.entity';
 
 /** Chat text per phase; the structured `systemEvent.eformRequest` drives the card, this stays for email and search. */
-const PHASE_TEXT: Record<EFormTicketPhase, (access: string) => string> = {
+const PHASE_TEXT: Record<EFormTicketPhase, (access: string, status: EFormStatus) => string> = {
     PROPOSED: (a) => `Tim IT mengusulkan pengajuan ${a}. Pemohon diminta melengkapi dan menandatangani.`,
     DECLINED: (a) => `Pemohon menolak usulan ${a}.`,
     WITHDRAWN: (a) => `Tim IT menarik usulan ${a}.`,
     SUBMITTED: (a) => `Pemohon menandatangani dan mengajukan ${a}; tiket menunggu prosesnya.`,
-    MANAGER_APPROVED: (a) => `Pengajuan ${a} disetujui atasan; menunggu tanda tangan GM.`,
-    GM_APPROVED: (a) => `Tanda tangan GM untuk ${a} sudah diterima; diteruskan ke ICT.`,
+    MANAGER_APPROVED: (a, status) => status === EFormStatus.PENDING_GM
+        ? `Pengajuan ${a} disetujui atasan; menunggu tanda tangan GM.`
+        : `Pengajuan ${a} disetujui atasan; diteruskan ke ICT.`,
+    GM_APPROVED: (a) => `Persetujuan GM untuk ${a} sudah diterima; diteruskan ke ICT.`,
     GRANTED: (a) => `${a.charAt(0).toUpperCase()}${a.slice(1)} sudah diberikan. Tiket ditutup otomatis.`,
     REJECTED: (a) => `Pengajuan ${a} ditolak. Tiket kembali ditangani.`,
 };
@@ -44,7 +47,7 @@ export class TicketEFormLinkService {
             ticketId: request.sourceTicketId,
             actorId: options.actorId,
             target: PHASE_STATUS[phase],
-            text: PHASE_TEXT[phase](accessName(request.formType, request.id)),
+            text: PHASE_TEXT[phase](accessName(request.formType, request.id), request.status),
             event: {
                 ...(options.reason ? { reason: options.reason } : {}),
                 eformRequest: { id: request.id, code: eformCode(request.id), formType: request.formType, phase },

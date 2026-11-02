@@ -70,7 +70,7 @@ describe('EFormRequestCard', () => {
 
     it('shows the GM step line', () => {
         renderCard({ event: { ...proposed, phase: 'GM_APPROVED' } });
-        expect(screen.getByText(/sudah ditandatangani GM/)).toBeInTheDocument();
+        expect(screen.getByText(/disetujui GM/)).toBeInTheDocument();
     });
 
     it('keeps the step labels out of the narrow sidebar bar but available to screen readers', () => {
@@ -78,7 +78,7 @@ describe('EFormRequestCard', () => {
         const bar = container.querySelector('ol')!;
         expect(bar).toHaveClass('is-compact');
         expect(bar.querySelectorAll('li')).toHaveLength(5);
-        expect(bar.querySelector('li[aria-current="step"]')).toHaveAttribute('title', 'Tanda tangan GM');
+        expect(bar.querySelector('li[aria-current="step"]')).toHaveAttribute('title', 'Persetujuan GM');
     });
 
     it('renders later steps as one line with the reason', () => {
