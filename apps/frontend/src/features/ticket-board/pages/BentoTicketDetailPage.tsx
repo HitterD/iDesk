@@ -301,6 +301,7 @@ export const BentoTicketDetailPage: React.FC = () => {
         isInternal: boolean = false,
         onUploadProgress?: (percent: number) => void,
         replyToId?: string,
+        mentionedUserIds?: string[],
     ) => {
         if (files && files.length > 0) {
             const validation = validateFiles(Array.from(files));
@@ -335,7 +336,7 @@ export const BentoTicketDetailPage: React.FC = () => {
         });
 
         try {
-            const formData = buildReplyForm({ content, files, isInternal, replyToId });
+            const formData = buildReplyForm({ content, files, isInternal, replyToId, mentionedUserIds });
 
             await api.post(`/tickets/${id}/reply`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },

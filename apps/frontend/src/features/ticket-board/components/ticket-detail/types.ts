@@ -111,6 +111,11 @@ export interface TicketDetail {
         replyTo?: { id: string; senderName: string; snippet: string; isDeleted: boolean } | null;
         isPinned?: boolean;
         pinnedAt?: string | null;
+        /** Saved reactions: who reacted with which emoji (one per person). */
+        reactions?: { emoji: string; count: number; userIds: string[]; userNames: string[] }[];
+        mentionedUserIds?: string[];
+        /** The people this message mentions, for the chips. */
+        mentions?: { id: string; fullName: string }[];
         attachments: string[];
         attachmentInfo?: AttachmentInfo[] | null;
         sender?: {

@@ -46,6 +46,8 @@ interface TicketChatProps {
         onUploadProgress?: (percent: number) => void,
         /** The message this reply answers (its quote is already in `content`). */
         replyToId?: string,
+        /** People picked with @ in the composer. */
+        mentionedUserIds?: string[],
     ) => Promise<void>;
     onImageClick: (url: string) => void;
     typingUsers?: { [key: string]: string };

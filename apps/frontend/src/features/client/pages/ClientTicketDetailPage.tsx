@@ -107,6 +107,7 @@ export const ClientTicketDetailPage: React.FC = () => {
         isInternal?: boolean,
         onUploadProgress?: (percent: number) => void,
         replyToId?: string,
+        mentionedUserIds?: string[],
     ) => {
         if (files && files.length > 0) {
             const validation = validateFiles(Array.from(files));
@@ -116,7 +117,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                 throw new Error(validation.error);
             }
         }
-        const formData = buildReplyForm({ content, files, isInternal, replyToId });
+        const formData = buildReplyForm({ content, files, isInternal, replyToId, mentionedUserIds });
 
         await replyMutation.mutateAsync({ formData, onUploadProgress });
     };

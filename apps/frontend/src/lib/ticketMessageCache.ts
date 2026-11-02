@@ -50,3 +50,20 @@ export function applyPinsToCaches(queryClient: QueryClient, ticketId: string, pi
     queryClient.setQueryData(['ticket-messages', ticketId], (old: PinState[] | undefined) =>
         old ? withPins(old, pins) : old);
 }
+
+/** Everyone who reacted with one emoji on one message (as the server sends it). */
+export interface ReactionSummary {
+    emoji: string;
+    count: number;
+    userIds: string[];
+    userNames: string[];
+}
+
+/** New reaction totals of one message, in both ticket caches. */
+export function applyReactionsToCaches(queryClient: QueryClient, ticketId: string, messageId: string, reactions: ReactionSummary[]): void {
+    const patch = <T extends { id: string }>(list: T[]) =>
+        list.some((m) => m.id === messageId) ? list.map((m) => (m.id === messageId ? { ...m, reactions } : m)) : list;
+    queryClient.setQueryData(['ticket', ticketId], (old: { messages?: { id: string }[] } | undefined) =>
+        old?.messages ? { ...old, messages: patch(old.messages) } : old);
+    queryClient.setQueryData(['ticket-messages', ticketId], (old: { id: string }[] | undefined) => (old ? patch(old) : old));
+}
