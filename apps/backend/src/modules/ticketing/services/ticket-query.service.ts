@@ -14,6 +14,7 @@ import { addSlaMinutes, isBusinessHoursOnly, SlaClockService, SlaSnapshot } from
 import { wibDateSql, wibStartOfMonth, wibStartOfToday, wibStartOfWeek } from '../../../shared/core/utils/wib-date.util';
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
 import { presentThread } from '../utils/message-presenter.util';
+import { loadMentionNames } from '../utils/mention-names.util';
 
 const AGENT_ROLES_NON_ORACLE = [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT, UserRole.AGENT_ADMIN] as const;
 const ORACLE_FILTER_PARAMS = { oracleTeam: 'ORACLE_DEV' } as const;
@@ -735,7 +736,9 @@ export class TicketQueryService {
 
         // Only who filed it on the requester's behalf, never the rest of that user record.
         const createdBy = ticket.createdBy ? { id: ticket.createdBy.id, fullName: ticket.createdBy.fullName } : null;
-        return { ...ticket, messages: presentThread(ticket.messages ?? []), createdBy, slaTarget, viewerAccess };
+        const messages = ticket.messages ?? [];
+        const people = await loadMentionNames(this.ticketRepo.manager, messages);
+        return { ...ticket, messages: presentThread(messages, people), createdBy, slaTarget, viewerAccess };
     }
 
     async getDashboardStats(

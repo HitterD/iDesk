@@ -274,6 +274,22 @@ describe('TicketQueryService.findOne reply links and pins', () => {
     });
 });
 
+describe('TicketQueryService.findOne mentions', () => {
+    it('names the people each message mentions, for the chips', async () => {
+        const ticket = {
+            id: 't-1', priority: 'HIGH', createdAt: new Date(), slaTarget: new Date(), userId: 'req-1', siteId: 's-1',
+            handlingTeam: 'OPS_SUPPORT', participants: [], user: { id: 'req-1' },
+            messages: [{ id: 'a', content: '@Andi cek', senderId: 'req-1', mentionedUserIds: ['ag-1'] }],
+        };
+        const manager = { find: jest.fn().mockResolvedValue([{ id: 'ag-1', fullName: 'Andi' }]) };
+        const service = new TicketQueryService({ findOne: jest.fn().mockResolvedValue(ticket), manager } as any, { findOne: jest.fn() } as any, {} as any);
+
+        const result = await service.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
+
+        expect(result.messages[0].mentions).toEqual([{ id: 'ag-1', fullName: 'Andi' }]);
+    });
+});
+
 describe('toPrefixTsQuery', () => {
     // Raw input went straight into to_tsquery: "a(b" -> syntax error -> 500.
     it('strips tsquery syntax so user input can never break the query', () => {

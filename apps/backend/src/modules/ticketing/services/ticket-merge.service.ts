@@ -6,6 +6,7 @@ import { Repository, In, DataSource } from 'typeorm';
 import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { presentThread, PresentedThreadMessage } from '../utils/message-presenter.util';
+import { loadMentionNames } from '../utils/mention-names.util';
 import { TicketParticipant } from '../entities/ticket-participant.entity';
 import { TicketNote } from '../notes/entities/ticket-note.entity';
 import { TicketNoteEditSession } from '../notes/entities/ticket-note-edit-session.entity';
@@ -238,6 +239,7 @@ export class TicketMergeService {
         for (const secondaryId of secondaryTicketIds) {
             this.eventEmitter?.emit('ticket.merged', { ticketId: secondaryId, mergedInto: primaryTicketId });
         }
-        return { ...ticket, messages: presentThread(ticket.messages ?? []) };
+        const messages = ticket.messages ?? [];
+        return { ...ticket, messages: presentThread(messages, await loadMentionNames(this.ticketRepo.manager, messages)) };
     }
 }

@@ -313,6 +313,52 @@ describe('TicketMessagingService Oracle scope', () => {
         });
     });
 
+    describe('mentions on send', () => {
+        const build = (allowed: string[]) => {
+            const ticket = {
+                id: 't-1', siteId: 'site-1', userId: 'u-1', status: TicketStatus.IN_PROGRESS, handlingTeam: 'OPS_SUPPORT',
+                ticketType: TicketType.SERVICE, category: 'GENERAL', participants: [], user: { id: 'u-1' }, firstResponseAt: new Date(),
+                ticketNumber: 'GEN-1', title: 'x',
+            };
+            const created: any[] = [];
+            const manager = {
+                findOne: jest.fn(async (entity: any) => (entity.name === 'User' ? { id: 'u-1', role: UserRole.USER, siteId: 'site-1', fullName: 'Budi' } : ticket)),
+                create: jest.fn((_e, data) => { created.push(data); return data; }),
+                save: jest.fn((_e, data) => Promise.resolve({ id: 'new', createdAt: new Date(), ...data })),
+            };
+            const emitter = { emit: jest.fn() };
+            const mentions = { filterAllowed: jest.fn(async (_t: string, _v: unknown, ids: string[]) => ids.filter((id) => allowed.includes(id))) };
+            const service = new TicketMessagingService(
+                {} as never, {} as never,
+                {
+                    findOne: jest.fn().mockResolvedValue({ id: 'u-1', role: UserRole.USER, siteId: 'site-1' }),
+                    manager: { find: jest.fn().mockResolvedValue([{ id: 'ag-1', fullName: 'Andi' }]) },
+                } as never,
+                {} as never,
+                { transaction: jest.fn((cb) => cb(manager)) } as never,
+                { notifyNewMessage: jest.fn(), emitToTicketAudience: jest.fn(), notifyReadState: jest.fn(), server: { to: jest.fn(() => ({ emit: jest.fn() })) } } as never,
+                emitter as never, createTestSlaClock(), mentions as never,
+            );
+            return { service, created, emitter, mentions };
+        };
+
+        it('stores and notifies only the people the sender may mention', async () => {
+            const { service, created, emitter } = build(['ag-1']);
+            await service.replyToTicket('t-1', 'u-1', '@Andi tolong cek', [], ['ag-1', 'random-staff']);
+            expect(created.find((c) => c.content === '@Andi tolong cek')?.mentionedUserIds).toEqual(['ag-1']);
+            const replied = emitter.emit.mock.calls.find((c: any[]) => c[0] === 'ticket.replied')?.[1];
+            expect(replied.mentionedUserIds).toEqual(['ag-1']);
+        });
+
+        it('a requester mentioning random staff through the API stores and notifies nobody', async () => {
+            const { service, created, emitter } = build([]);
+            await service.replyToTicket('t-1', 'u-1', 'halo', [], ['random-staff', 'other-site']);
+            expect(created.find((c) => c.content === 'halo')?.mentionedUserIds).toEqual([]);
+            const replied = emitter.emit.mock.calls.find((c: any[]) => c[0] === 'ticket.replied')?.[1];
+            expect(replied.mentionedUserIds).toEqual([]);
+        });
+    });
+
     describe('reply from the requester side', () => {
         const build = (role: UserRole) => {
             const ticket = {

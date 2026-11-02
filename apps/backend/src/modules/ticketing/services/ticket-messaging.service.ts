@@ -14,7 +14,9 @@ import { canAccessTicketObject } from '../utils/oracle-ticket-access.util';
 import { canAccessTicketSite } from '../utils/site-access.util';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService, SLA_RESPONDER_ROLES } from './sla-clock.service';
-import { presentInThread, presentThread, PresentedThreadMessage, withDeletedQuote } from '../utils/message-presenter.util';
+import { presentInThread, presentThread, PresentedThreadMessage, ThreadMessage, withDeletedQuote } from '../utils/message-presenter.util';
+import { loadMentionNames } from '../utils/mention-names.util';
+import { TicketMentionService } from './ticket-mention.service';
 
 @Injectable()
 export class TicketMessagingService {
@@ -33,7 +35,20 @@ export class TicketMessagingService {
         private readonly eventsGateway: EventsGateway,
         private readonly eventEmitter: EventEmitter2,
         private readonly slaClock: SlaClockService,
+        @Optional() private readonly mentions?: TicketMentionService,
     ) { }
+
+    private async allowedMentions(ticketId: string, userId: string, requested: string[]): Promise<string[]> {
+        if (!requested?.length || !this.mentions) return [];
+        const sender = await this.userRepo.findOne({ where: { id: userId } });
+        if (!sender) return [];
+        return this.mentions.filterAllowed(ticketId, { id: sender.id, role: sender.role, siteId: sender.siteId ?? null }, requested);
+    }
+
+    /** Names of the people a list of messages mentions, for the chat's mention chips. */
+    private mentionNames(messages: ThreadMessage[]): Promise<Map<string, string>> {
+        return loadMentionNames(this.userRepo.manager, messages);
+    }
 
     async findMessages(ticketId: string) {
         return this.messageRepo.find({
@@ -62,7 +77,7 @@ export class TicketMessagingService {
             relations: ['sender', 'pinnedBy', 'reactions', 'reactions.user'],
             order: { createdAt: 'ASC' },
         });
-        return presentThread(messages);
+        return presentThread(messages, await this.mentionNames(messages));
     }
 
     /**
@@ -129,7 +144,7 @@ export class TicketMessagingService {
             : [];
 
         return {
-            data: presentThread([...originals, ...pageMessages]).slice(originals.length),
+            data: presentThread([...originals, ...pageMessages], await this.mentionNames(pageMessages)).slice(originals.length),
             meta: {
                 total,
                 page,
@@ -154,6 +169,9 @@ export class TicketMessagingService {
         authorizePrivateShare?: (manager: import('typeorm').EntityManager) => Promise<void>,
         options: { replyToId?: string } = {},
     ) {
+        // Only people the sender may mention on this ticket are stored and notified (never trust the client list).
+        mentionedUserIds = await this.allowedMentions(ticketId, userId, mentionedUserIds);
+
         // P1 fix: message insert + ticket status/SLA update were two separate
         // saves outside any transaction. A crash between them left the ticket
         // without its SLA timer started (or its firstResponseAt set). Now atomic
@@ -203,6 +221,7 @@ export class TicketMessagingService {
                 isInternal,  // Mark as internal note if specified
                 clientRequestId: clientRequestId ?? null,
                 replyToId: original?.id ?? null,
+                mentionedUserIds,
             });
 
             const savedMessage = await manager.save(TicketMessage, message);
@@ -266,7 +285,7 @@ export class TicketMessagingService {
 
         // Notify frontend via WebSocket with full message data (post-commit)
         const messageWithSender = {
-            ...presentInThread(savedMessage, original),
+            ...presentInThread(savedMessage, original, await this.mentionNames([savedMessage])),
             sender: {
                 id: user.id,
                 fullName: user.fullName,

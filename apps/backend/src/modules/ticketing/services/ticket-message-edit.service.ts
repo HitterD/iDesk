@@ -12,6 +12,7 @@ import { resolveTicketViewerAccess } from './ticket-oracle-access';
 import { isTicketRequesterSide } from '../utils/oracle-ticket-access.util';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { presentInThread, withDeletedQuote } from '../utils/message-presenter.util';
+import { loadMentionNames } from '../utils/mention-names.util';
 
 /** How long after sending the sender may still edit a message (WhatsApp-style). */
 export const EDIT_WINDOW_MS = 15 * 60 * 1000;
@@ -169,7 +170,8 @@ export class TicketMessageEditService {
         const sender = message.sender
             ? { id: message.sender.id, fullName: message.sender.fullName, role: message.sender.role }
             : undefined;
-        return { ...presentInThread(message, original), sender };
+        const people = await loadMentionNames(this.messageRepo.manager, [message]);
+        return { ...presentInThread(message, original, people), sender };
     }
 
     private async broadcast(ticketId: string, message: TicketMessage) {

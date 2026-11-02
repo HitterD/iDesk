@@ -63,6 +63,13 @@ export interface ThreadMessage extends PresentableMessage {
     pinnedById?: string | null;
     pinnedBy?: { fullName?: string | null } | null;
     reactions?: ReactionRow[];
+    mentionedUserIds?: string[] | null;
+}
+
+/** Someone a message mentions, as the chat shows the chip. */
+export interface MentionSummary {
+    id: string;
+    fullName: string;
 }
 
 export type PresentedThreadMessage<T extends ThreadMessage> = Omit<PresentedMessage<T>, 'pinnedById' | 'pinnedBy' | 'reactions'> & {
@@ -71,6 +78,7 @@ export type PresentedThreadMessage<T extends ThreadMessage> = Omit<PresentedMess
     pinnedAt: Date | string | null;
     pinnedByName: string | null;
     reactions: ReactionSummary[];
+    mentions: MentionSummary[];
 };
 
 /** Reaction rows of one message, grouped per emoji in order of first use (names only, never e-mail). */
@@ -120,7 +128,11 @@ export function summarizeReply(original: ThreadMessage): ReplySummary {
  * A message as part of its ticket's thread: blanked when deleted, linked to the message it replies
  * to, and with its pin state. `original` is the replied-to message when the caller has it.
  */
-export function presentInThread<T extends ThreadMessage>(message: T, original?: ThreadMessage | null): PresentedThreadMessage<T> {
+export function presentInThread<T extends ThreadMessage>(
+    message: T,
+    original?: ThreadMessage | null,
+    people: ReadonlyMap<string, string> = new Map(),
+): PresentedThreadMessage<T> {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { pinnedById, pinnedBy, reactions: rows, ...rest } = presentMessage(message) as PresentedMessage<T> & Pick<ThreadMessage, 'pinnedById' | 'pinnedBy' | 'reactions'>;
     const replyTo = original ? summarizeReply(original) : null;
@@ -134,11 +146,20 @@ export function presentInThread<T extends ThreadMessage>(message: T, original?: 
         pinnedByName: message.pinnedAt ? (pinnedBy?.fullName ?? null) : null,
         // A deleted message keeps no reactions, so no names of who reacted to it either.
         reactions: message.deletedAt || !rows ? [] : summarizeReactions(rows),
+        mentionedUserIds: message.deletedAt ? [] : (message.mentionedUserIds ?? []),
+        mentions: message.deletedAt ? [] : (message.mentionedUserIds ?? [])
+            .filter((id) => people.has(id))
+            .map((id) => ({ id, fullName: people.get(id) as string })),
     } as PresentedThreadMessage<T>;
 }
 
-/** Every message of one ticket, replies resolved against the same list. */
-export function presentThread<T extends ThreadMessage>(messages: T[]): PresentedThreadMessage<T>[] {
+/** Every message of one ticket, replies resolved against the same list. `people` names mentioned users. */
+export function presentThread<T extends ThreadMessage>(messages: T[], people: ReadonlyMap<string, string> = new Map()): PresentedThreadMessage<T>[] {
     const byId = new Map(messages.map((m) => [m.id, m]));
-    return messages.map((m) => presentInThread(m, m.replyToId ? byId.get(m.replyToId) : null));
+    return messages.map((m) => presentInThread(m, m.replyToId ? byId.get(m.replyToId) : null, people));
+}
+
+/** Every user id a thread mentions (to load their names in one query). */
+export function mentionedIn(messages: ThreadMessage[]): string[] {
+    return [...new Set(messages.flatMap((m) => (m.deletedAt ? [] : (m.mentionedUserIds ?? []))))];
 }
