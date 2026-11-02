@@ -134,3 +134,17 @@ export class User {
     @Column({ type: 'int', default: 0 })
     appraisalPoints: number;
 }
+
+/**
+ * The hash never leaves the server: any User that is serialized (HTTP responses such as a ticket's
+ * message senders, socket payloads) drops it, while code still reads `user.password` for login.
+ * Set on the prototype, not as a class member, so plain-object spreads of User keep their type.
+ */
+Object.defineProperty(User.prototype, 'toJSON', {
+    value(this: User) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { password, ...safe } = this;
+        return safe;
+    },
+    enumerable: false,
+});
