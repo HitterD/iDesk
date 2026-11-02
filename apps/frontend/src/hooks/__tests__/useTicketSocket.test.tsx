@@ -351,6 +351,29 @@ describe('useTicketSocket', () => {
         expect(queryClient.getQueryData(['ticket', 'ticket-1'])).toBe(cached);
     });
 
+    it('replaces an updated message in both caches', () => {
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper: createWrapper() });
+        queryClient.setQueryData(['ticket', 'ticket-1'], { id: 'ticket-1', messages: [{ id: 'm-1', content: 'lama' }, { id: 'm-2', content: 'lain' }] });
+        queryClient.setQueryData(['ticket-messages', 'ticket-1'], [{ id: 'm-1', content: 'lama' }]);
+
+        fire('ticket:messageUpdated', { ticketId: 'ticket-1', message: { id: 'm-1', content: '', isDeleted: true } });
+
+        expect((queryClient.getQueryData(['ticket', 'ticket-1']) as any).messages).toEqual([
+            { id: 'm-1', content: '', isDeleted: true }, { id: 'm-2', content: 'lain' },
+        ]);
+        expect(queryClient.getQueryData(['ticket-messages', 'ticket-1'])).toEqual([{ id: 'm-1', content: '', isDeleted: true }]);
+    });
+
+    it('ignores message updates for another ticket', () => {
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper: createWrapper() });
+        const cached = { id: 'ticket-1', messages: [{ id: 'm-1', content: 'lama' }] };
+        queryClient.setQueryData(['ticket', 'ticket-1'], cached);
+
+        fire('ticket:messageUpdated', { ticketId: 'ticket-2', message: { id: 'm-1', content: 'x' } });
+
+        expect(queryClient.getQueryData(['ticket', 'ticket-1'])).toBe(cached);
+    });
+
     it('refetches the ticket after a reconnect so missed messages appear', () => {
         const wrapper = createWrapper();
         const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');

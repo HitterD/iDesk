@@ -233,6 +233,24 @@ describe('TicketQueryService.findOne', () => {
     });
 });
 
+describe('TicketQueryService.findOne deleted messages', () => {
+    it('never returns the text or files of a deleted message', async () => {
+        const ticket = {
+            id: 't-1', priority: 'HIGH', createdAt: new Date(), slaTarget: new Date(), userId: 'req-1', siteId: 's-1',
+            handlingTeam: 'OPS_SUPPORT', participants: [], user: { id: 'req-1' },
+            messages: [{ id: 'm1', isInternal: false, content: 'rahasia', senderId: 'req-1', attachments: ['/uploads/tickets/t-1/x.png'],
+                deletedAt: new Date(), deletedById: 'req-1' }],
+        };
+        const service = new TicketQueryService({ findOne: jest.fn().mockResolvedValue(ticket) } as any, { findOne: jest.fn() } as any, {} as any);
+
+        const result = await service.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
+
+        expect(JSON.stringify(result.messages)).not.toContain('rahasia');
+        expect(JSON.stringify(result.messages)).not.toContain('x.png');
+        expect(result.messages[0]).toMatchObject({ id: 'm1', isDeleted: true });
+    });
+});
+
 describe('toPrefixTsQuery', () => {
     // Raw input went straight into to_tsquery: "a(b" -> syntax error -> 500.
     it('strips tsquery syntax so user input can never break the query', () => {

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, CheckCheck, Lock, Reply, SmilePlus } from 'lucide-react';
+import { Ban, Check, CheckCheck, Lock, Reply, SmilePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { MessageReactions, ReactionPicker, type Reaction } from '@/components/ui/ChatReactions';
@@ -34,6 +34,9 @@ interface MessageBubbleProps {
     onAddReaction: (emoji: string) => void;
     onRemoveReaction: (emoji: string) => void;
     onReply: (content: string) => void;
+    /** Present only when the viewer may edit / delete this message right now. */
+    onEdit?: () => void;
+    onDelete?: () => void;
     onQuoteClick: () => void;
     onImageClick: (url: string) => void;
     onPdfClick: (url: string, filename: string) => void;
@@ -96,6 +99,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     onAddReaction,
     onRemoveReaction,
     onReply,
+    onEdit,
+    onDelete,
     onQuoteClick,
     onImageClick,
     onPdfClick,
@@ -116,6 +121,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     const meta = (
         <span className="chat-meta">
             {isInternal && <span className="chat-lock"><Lock aria-hidden="true" />Internal</span>}
+            {message.editedAt && !message.isDeleted && <span className="chat-edited">diedit</span>}
             <time dateTime={message.createdAt} title={formatDateTimeID(message.createdAt)}>{time}</time>
             {tick === 'read' && <CheckCheck role="img" aria-label="Dibaca" className="chat-tick is-read" />}
             {tick === 'sent' && <Check role="img" aria-label="Terkirim" className="chat-tick" />}
@@ -143,6 +149,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <div className="chat-msg-col">
                 {isGroupStart && roleLabel && <div className="chat-who"><span className="chat-role">{roleLabel}</span></div>}
 
+                {message.isDeleted ? (
+                    <div className="chat-bubble-wrap">
+                        <div className={cn('chat-bubble is-deleted', isGroupStart && 'has-tail')} title={formatDateTimeID(message.createdAt)}>
+                            {showName && <b className="chat-bubble-name">{name}</b>}
+                            <p><Ban aria-hidden="true" />{message.deletedByAdmin ? 'Dihapus oleh admin' : 'Pesan ini telah dihapus'}</p>
+                            <span className="chat-meta">
+                                <time dateTime={message.createdAt}>{time}</time>
+                            </span>
+                        </div>
+                    </div>
+                ) : (
                 <div className={cn('chat-bubble-wrap', press.pressing && 'is-pressing')} {...press.bind}>
                     {isSticker ? (
                         <div className="chat-sticker-wrap">
@@ -200,12 +217,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             isInternal={isInternal}
                             isSticker={isSticker}
                             onReply={onReply}
+                            onEdit={onEdit && (() => onEdit())}
+                            onDelete={onDelete && (() => onDelete())}
                             align={menuAlign}
                         />
                     </div>
                 </div>
+                )}
 
-                <MessageReactions reactions={reactions} onAddReaction={onAddReaction} onRemoveReaction={onRemoveReaction} />
+                {!message.isDeleted && (
+                    <MessageReactions reactions={reactions} onAddReaction={onAddReaction} onRemoveReaction={onRemoveReaction} />
+                )}
             </div>
         </div>
     );

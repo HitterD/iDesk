@@ -14,6 +14,7 @@ import { canAccessTicketObject } from '../utils/oracle-ticket-access.util';
 import { canAccessTicketSite } from '../utils/site-access.util';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService, SLA_RESPONDER_ROLES } from './sla-clock.service';
+import { presentMessage, PresentedMessage } from '../utils/message-presenter.util';
 
 @Injectable()
 export class TicketMessagingService {
@@ -42,7 +43,7 @@ export class TicketMessagingService {
         });
     }
 
-    async getMessages(ticketId: string, userRole?: UserRole, userSiteId: string | null = null, userId?: string): Promise<TicketMessage[]> {
+    async getMessages(ticketId: string, userRole?: UserRole, userSiteId: string | null = null, userId?: string): Promise<PresentedMessage<TicketMessage>[]> {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
             relations: ['participants'],
@@ -53,7 +54,7 @@ export class TicketMessagingService {
             ? resolveTicketViewerAccess(ticket, { id: userId, role: userRole, siteId: userSiteId })
             : 'handler';
 
-        return this.messageRepo.find({
+        const messages = await this.messageRepo.find({
             where: {
                 ticketId,
                 ...(access === 'requester' ? { isInternal: false } : {}),
@@ -61,6 +62,7 @@ export class TicketMessagingService {
             relations: ['sender'],
             order: { createdAt: 'ASC' },
         });
+        return messages.map(presentMessage);
     }
 
     /**
@@ -76,7 +78,7 @@ export class TicketMessagingService {
         userSiteId: string | null = null,
         userId?: string,
     ): Promise<{
-        data: TicketMessage[];
+        data: PresentedMessage<TicketMessage>[];
         meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean };
     }> {
         const ticket = await this.ticketRepo.findOne({
@@ -113,7 +115,7 @@ export class TicketMessagingService {
         const totalPages = Math.ceil(total / limit);
 
         return {
-            data: data.reverse(), // Reverse to show oldest first in the returned page
+            data: data.reverse().map(presentMessage), // Reverse to show oldest first in the returned page
             meta: {
                 total,
                 page,

@@ -3,7 +3,7 @@ import { TicketNoteVisibilityService } from '../ticketing/notes/ticket-note-visi
 
 const logger = new Logger('NotificationService');
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, IsNull } from 'typeorm';
+import { Brackets, Repository, MoreThan, IsNull } from 'typeorm';
 import { Notification, NotificationType, NotificationCategory } from './entities/notification.entity';
 import { getCategoryFromType } from './utils/category-mapper';
 import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
@@ -39,6 +39,9 @@ function ticketTitle(ticketNumber: string, context?: TicketNoticeContext): strin
 
 /** Upper bound for the critical banner list; the count endpoint reports the real total. */
 const MAX_CRITICAL_BANNER = 50;
+/** Older reply notifications (no referenceId) are matched to a deleted message within this window of its send time. */
+const REDACT_MATCH_WINDOW_MS = 2 * 60 * 1000;
+const escapeLike = (value: string): string => value.replace(/[\\%_]/g, '\\$&');
 /** Upper bound for the unread list; the unread count endpoint reports the real total. */
 const MAX_UNREAD_LIST = 100;
 
@@ -486,6 +489,8 @@ export class NotificationService {
         ticketNumber: string,
         senderName: string,
         contentSnippet?: string,
+        /** The chat message, so its snippet can be taken back if the message is deleted. */
+        messageId?: string,
     ) {
         const cleanSnippet = contentSnippet
             ? (contentSnippet.length > 140 ? contentSnippet.slice(0, 137) + '...' : contentSnippet)
@@ -500,8 +505,37 @@ export class NotificationService {
             title: `[#${ticketNumber}] Pesan Baru dari ${senderName}`,
             message,
             ticketId,
+            // Unique per message, so the 24h referenceId dedup never merges two replies.
+            ...(messageId ? { referenceId: messageId } : {}),
             link: `/tickets/${ticketId}`,
         });
+    }
+
+    /**
+     * A deleted chat message must not live on in the notification list: its quoted snippet becomes the
+     * neutral "X membalas tiket #N". Older notifications have no referenceId, so they are matched by
+     * ticket, type, sender line and a short window around the send time.
+     */
+    async redactMessageSnippet(target: { messageId: string; ticketId: string; ticketNumber: string; senderName: string; sentAt: Date }) {
+        const windowMs = REDACT_MATCH_WINDOW_MS;
+        await this.notificationRepo
+            .createQueryBuilder()
+            .update(Notification)
+            .set({ message: `${target.senderName} membalas tiket #${target.ticketNumber}` })
+            .where('type = :type', { type: NotificationType.TICKET_REPLY })
+            .andWhere(new Brackets((qb) => {
+                qb.where('"referenceId" = :messageId', { messageId: target.messageId })
+                    .orWhere(new Brackets((legacy) => {
+                        legacy.where('"referenceId" IS NULL')
+                            .andWhere('"ticketId" = :ticketId', { ticketId: target.ticketId })
+                            .andWhere('message LIKE :senderLine', { senderLine: `${escapeLike(target.senderName)}: "%` })
+                            .andWhere('"createdAt" BETWEEN :from AND :to', {
+                                from: new Date(target.sentAt.getTime() - windowMs),
+                                to: new Date(target.sentAt.getTime() + windowMs),
+                            });
+                    }));
+            }))
+            .execute();
     }
 
     async notifyChatMessage(userId: string, ticketId: string, ticketNumber: string, senderName: string) {

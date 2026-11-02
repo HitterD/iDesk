@@ -23,6 +23,9 @@ import { TicketTemplatesController } from './presentation/ticket-templates.contr
 import { TicketModulesController } from './presentation/ticket-modules.controller';
 import { Ticket } from './entities/ticket.entity';
 import { TicketMessage } from './entities/ticket-message.entity';
+import { TicketMessageEdit } from './entities/ticket-message-edit.entity';
+import { TicketMessageEditService } from './services/ticket-message-edit.service';
+import { TicketMessagesController } from './presentation/ticket-messages.controller';
 import { TicketParticipant } from './entities/ticket-participant.entity';
 import { TicketTemplate } from './entities/ticket-template.entity';
 import { TicketModule as TicketModuleEntity } from './entities/ticket-module.entity';
@@ -97,6 +100,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
             TicketNoteRevision, TicketNoteAttachment, TicketNoteDelivery,
             Ticket,
             TicketMessage,
+            TicketMessageEdit,
             TicketParticipant,
             TicketTemplate,
             TicketModuleEntity,
@@ -125,6 +129,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
     controllers: [
         TicketNotesController,
         TicketsController,
+        TicketMessagesController,
         TicketTemplatesController,
         TicketModulesController,
         SlaConfigController,
@@ -138,6 +143,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         TicketNoteUploadGuard, TicketNoteAccessService, TicketNoteCommandService, TicketNoteQueryService,
         TicketNoteDocumentService, TicketNoteDiscussionService, TicketNoteAttachmentService, TicketNoteNotificationService, TicketNotePublicShareService,
         // Core services (Split)
+        TicketMessageEditService,
         TicketLinkedRequestService,
         TicketCreateService,
         TicketUpdateService,

@@ -4,6 +4,7 @@ import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
 import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
+import { presentMessage, PresentedMessage } from '../utils/message-presenter.util';
 import { TicketParticipant } from '../entities/ticket-participant.entity';
 import { TicketNote } from '../notes/entities/ticket-note.entity';
 import { TicketNoteEditSession } from '../notes/entities/ticket-note-edit-session.entity';
@@ -37,7 +38,7 @@ export class TicketMergeService {
         secondaryTicketIds: string[],
         userId: string,
         reason?: string,
-    ): Promise<Ticket> {
+    ): Promise<Omit<Ticket, 'messages'> & { messages: PresentedMessage<TicketMessage>[] }> {
         if (secondaryTicketIds.includes(primaryTicketId)) {
             throw new BadRequestException('Primary ticket cannot be in the list of secondary tickets');
         }
@@ -152,12 +153,16 @@ export class TicketMergeService {
                     manager.create(TicketMessage, {
                         ticketId: primaryTicketId,
                         senderId: message.senderId,
-                        content: `[Merged from #${secondaryTicket.ticketNumber}] ${message.content}`,
+                        // A deleted message stays deleted (its text is never served, so no prefix on it).
+                        content: message.deletedAt ? message.content : `[Merged from #${secondaryTicket.ticketNumber}] ${message.content}`,
                         attachments: message.attachments,
                         attachmentInfo: message.attachmentInfo,
                         isSystemMessage: message.isSystemMessage,
                         isInternal: message.isInternal,
                         createdAt: message.createdAt,
+                        editedAt: message.editedAt ?? null,
+                        deletedAt: message.deletedAt ?? null,
+                        deletedById: message.deletedById ?? null,
                     }),
                 );
                 if (movedMessages.length > 0) {
@@ -215,6 +220,6 @@ export class TicketMergeService {
         for (const secondaryId of secondaryTicketIds) {
             this.eventEmitter?.emit('ticket.merged', { ticketId: secondaryId, mergedInto: primaryTicketId });
         }
-        return ticket;
+        return { ...ticket, messages: (ticket.messages ?? []).map(presentMessage) };
     }
 }

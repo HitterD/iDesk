@@ -349,6 +349,18 @@ describe('TicketNotificationListener', () => {
         }));
     });
 
+    it('handleTicketRepliedEvent ties each reply notification to its message, so a delete can take the snippet back', async () => {
+        const event = new TicketRepliedEvent(
+            't-8', 'TK-2026-0008', 'Laptop Setup', 'IN_PROGRESS', 'u-1', 'ani@example.com', 'Ani User', 'agent-1',
+            { id: 'm-9', content: 'Sudah saya cek' } as any, 'agent-2', 'Budi Agent', UserRole.AGENT, [],
+        );
+
+        await listener.handleTicketRepliedEvent(event);
+
+        expect(notificationService.notifyTicketReply).toHaveBeenCalledWith('u-1', 't-8', 'TK-2026-0008', 'Budi Agent', 'Sudah saya cek', 'm-9');
+        expect(notificationService.notifyTicketReply).toHaveBeenCalledWith('agent-1', 't-8', 'TK-2026-0008', 'Budi Agent', 'Sudah saya cek', 'm-9');
+    });
+
     it('handleTicketCancelledEvent sends email to Assigned Agent when Requester cancels', async () => {
         userRepo.findOne.mockResolvedValueOnce({
             id: 'agent-1',

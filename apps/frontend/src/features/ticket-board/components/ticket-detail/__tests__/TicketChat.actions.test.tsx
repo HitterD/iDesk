@@ -79,7 +79,7 @@ describe('TicketChat round-2 actions', () => {
         expect(send).not.toBeDisabled();
     });
 
-    it('each message has a toolbar with an accessible ⋯ menu (Salin/Balas; Edit/Hapus hidden until available)', async () => {
+    it('each message has a toolbar with an accessible ⋯ menu (Salin/Balas; Hapus on own; Edit only within 15 minutes)', async () => {
         const user = userEvent.setup();
         renderChat();
         const toolbar = within(row('m-1')).getByRole('toolbar', { name: 'Aksi pesan' });
@@ -87,7 +87,8 @@ describe('TicketChat round-2 actions', () => {
         expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual(['Salin', 'Balas']);
         await user.keyboard('{Escape}');
         await user.click(within(row('m-2')).getByRole('button', { name: 'Aksi lainnya' }));
-        expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual(['Salin', 'Balas']);
+        // m-2 is the agent's own, sent long ago: deletable, no longer editable.
+        expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual(['Salin', 'Balas', 'Hapus']);
     });
 
     it('reaction picker adds a chip and clicking the chip removes it', async () => {

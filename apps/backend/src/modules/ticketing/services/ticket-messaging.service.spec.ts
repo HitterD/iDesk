@@ -80,6 +80,36 @@ describe('TicketMessagingService Oracle scope', () => {
         expect(manager.create).not.toHaveBeenCalled();
     });
 
+    describe('deleted messages over REST', () => {
+        const deleted = { id: 'm-1', content: 'rahasia', senderId: 'u-1', attachments: ['/uploads/tickets/t-1/x.png'], deletedAt: new Date(), deletedById: 'u-1' };
+        const build = () => {
+            const ticketRepo = { findOne: jest.fn().mockResolvedValue({ id: 't-1', userId: 'u-1', siteId: 'site-1', participants: [] }) };
+            const qb: any = {
+                leftJoinAndSelect: jest.fn(() => qb), where: jest.fn(() => qb), andWhere: jest.fn(() => qb),
+                getCount: jest.fn().mockResolvedValue(1), orderBy: jest.fn(() => qb), skip: jest.fn(() => qb), take: jest.fn(() => qb),
+                getMany: jest.fn().mockResolvedValue([deleted]),
+            };
+            const messageRepo = { find: jest.fn().mockResolvedValue([deleted]), createQueryBuilder: jest.fn(() => qb) };
+            return new TicketMessagingService(
+                ticketRepo as never, messageRepo as never, {} as never, {} as never,
+                {} as never, {} as never, { emit: jest.fn() } as never, createTestSlaClock(),
+            );
+        };
+
+        it('getMessages never returns deleted text or files', async () => {
+            const out = await build().getMessages('t-1');
+            expect(JSON.stringify(out)).not.toContain('rahasia');
+            expect(JSON.stringify(out)).not.toContain('x.png');
+            expect(out[0]).toMatchObject({ isDeleted: true });
+        });
+
+        it('getMessagesPaginated never returns deleted text or files', async () => {
+            const out = await build().getMessagesPaginated('t-1');
+            expect(JSON.stringify(out.data)).not.toContain('rahasia');
+            expect(out.data[0]).toMatchObject({ isDeleted: true });
+        });
+    });
+
     describe('TV board refresh on reply', () => {
         const buildService = (ticketStatus: TicketStatus, extra: Record<string, unknown> = {}, role: UserRole = UserRole.AGENT) => {
             const ticket = {

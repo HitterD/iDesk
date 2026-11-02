@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSocket } from '@/lib/socket';
 import { useAuth } from '@/stores/useAuth';
 import api from '@/lib/api';
+import { replaceMessageInCaches } from '@/lib/ticketMessageCache';
 import type { Ticket, TicketMessage } from '@/lib/api/types';
 
 // Use TicketMessage from types instead of local interface
@@ -212,6 +213,12 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
             );
         };
 
+        // An edit or delete: the server sends the message as it should now look (deleted = blanked).
+        const handleMessageUpdated = (data: { ticketId: string; message: { id: string } }) => {
+            if (data.ticketId !== ticketId) return;
+            replaceMessageInCaches(queryClient, ticketId, data.message);
+        };
+
         // Fail-safe synchronization: when in-app notification for this ticket arrives, sync query & clear typing
         const handleNotificationSync = (notifData: any) => {
             const incomingTicketId = notifData?.ticketId || notifData?.notification?.ticketId;
@@ -229,6 +236,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
         socket.on('typing:start', handleTypingStart);
         socket.on('typing:stop', handleTypingStop);
         socket.on('ticket:readStateChanged', handleReadState);
+        socket.on('ticket:messageUpdated', handleMessageUpdated);
 
         if (user?.id) {
             socket.on(`notification:${user.id}`, handleNotificationSync);
@@ -245,6 +253,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
             socket.off('typing:start', handleTypingStart);
             socket.off('typing:stop', handleTypingStop);
             socket.off('ticket:readStateChanged', handleReadState);
+            socket.off('ticket:messageUpdated', handleMessageUpdated);
 
             if (user?.id) {
                 socket.off(`notification:${user.id}`, handleNotificationSync);

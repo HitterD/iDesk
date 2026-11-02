@@ -387,6 +387,7 @@ export class TicketNotificationListener {
                     event.ticketNumber,
                     event.senderName,
                     contentSnippet,
+                    event.message?.id,
                 );
             }
 
@@ -403,6 +404,7 @@ export class TicketNotificationListener {
                     event.ticketNumber,
                     event.senderName,
                     contentSnippet,
+                    event.message?.id,
                 );
             }
 
@@ -416,6 +418,7 @@ export class TicketNotificationListener {
                     event.ticketNumber,
                     event.senderName,
                     contentSnippet,
+                    event.message?.id,
                 );
             }
 

@@ -99,6 +99,13 @@ export interface TicketDetail {
         /** Structured activity (who changed what); absent on older system messages. */
         systemEvent?: TicketSystemEvent | null;
         isInternal?: boolean;
+        /** 'WEB' | 'EMAIL'; e-mailed messages cannot be edited or deleted. */
+        source?: string;
+        editedAt?: string | null;
+        /** Deleted for everyone: the server sends no text or files for it. */
+        isDeleted?: boolean;
+        /** Deleted by someone other than the sender (an admin). */
+        deletedByAdmin?: boolean;
         attachments: string[];
         attachmentInfo?: AttachmentInfo[] | null;
         sender?: {

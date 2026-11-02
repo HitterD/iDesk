@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Not, QueryFailedError, Repository } from 'typeorm';
+import { In, IsNull, Not, QueryFailedError, Repository } from 'typeorm';
 import { mkdir, unlink, writeFile } from 'fs/promises';
 import { extname, join } from 'path';
 import { randomBytes } from 'crypto';
@@ -193,7 +193,7 @@ export class IpopTicketService {
         const ticket = await this.ticketRepo.findOne({ where: { ticketNumber }, relations: VIEW_RELATIONS });
         if (!ticket || !isVisibleTo(scope, ticket)) throw new NotFoundException(`No ticket ${ticketNumber} visible to this app`);
         const rows = await this.messageRepo.find({
-            where: { ticketId: ticket.id, isInternal: false, isSystemMessage: false },
+            where: { ticketId: ticket.id, isInternal: false, isSystemMessage: false, deletedAt: IsNull() },
             relations: ['sender'],
             order: { createdAt: 'DESC' },
             take: MAX_MESSAGES,
