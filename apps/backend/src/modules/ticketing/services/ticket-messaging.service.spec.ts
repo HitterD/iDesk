@@ -110,6 +110,46 @@ describe('TicketMessagingService Oracle scope', () => {
         });
     });
 
+    describe('reply links over REST', () => {
+        it('getMessages links replies and blanks quotes of deleted originals', async () => {
+            const thread = [
+                { id: 'a', content: 'kode 4471', senderId: 'u-1', sender: { fullName: 'Ani' }, deletedAt: new Date(), deletedById: 'u-1' },
+                { id: 'b', content: '\u21a9 Ani: kode 4471\n\nok', senderId: 'u-2', replyToId: 'a' },
+            ];
+            const service = new TicketMessagingService(
+                { findOne: jest.fn().mockResolvedValue({ id: 't-1', userId: 'u-1', siteId: 'site-1', participants: [] }) } as never,
+                { find: jest.fn().mockResolvedValue(thread) } as never, {} as never, {} as never,
+                {} as never, {} as never, { emit: jest.fn() } as never, createTestSlaClock(),
+            );
+            const out = await service.getMessages('t-1');
+            expect(JSON.stringify(out)).not.toContain('4471');
+            expect(out[1]).toMatchObject({ replyTo: { id: 'a', isDeleted: true } });
+        });
+    });
+
+    describe('reply links across pages', () => {
+        it('getMessagesPaginated resolves an original on an earlier page and blanks its quote when deleted', async () => {
+            const page = [{ id: 'b', content: '\u21a9 Ani: kode 4471\n\nok', senderId: 'u-2', replyToId: 'a', createdAt: new Date() }];
+            const original = { id: 'a', content: 'kode 4471', senderId: 'u-1', sender: { fullName: 'Ani' }, deletedAt: new Date(), deletedById: 'u-1' };
+            const qb: any = {
+                leftJoinAndSelect: jest.fn(() => qb), where: jest.fn(() => qb), andWhere: jest.fn(() => qb),
+                getCount: jest.fn().mockResolvedValue(30), orderBy: jest.fn(() => qb), skip: jest.fn(() => qb), take: jest.fn(() => qb),
+                getMany: jest.fn().mockResolvedValue(page),
+            };
+            const messageRepo = { createQueryBuilder: jest.fn(() => qb), find: jest.fn().mockResolvedValue([original]) };
+            const service = new TicketMessagingService(
+                { findOne: jest.fn().mockResolvedValue({ id: 't-1', userId: 'u-1', siteId: 'site-1', participants: [] }) } as never,
+                messageRepo as never, {} as never, {} as never, {} as never, {} as never, { emit: jest.fn() } as never, createTestSlaClock(),
+            );
+
+            const out = await service.getMessagesPaginated('t-1', 2);
+
+            expect(JSON.stringify(out.data)).not.toContain('4471');
+            expect(out.data[0]).toMatchObject({ replyTo: { id: 'a', isDeleted: true } });
+            expect(messageRepo.find.mock.calls[0][0].where).toMatchObject({ ticketId: 't-1' });
+        });
+    });
+
     describe('TV board refresh on reply', () => {
         const buildService = (ticketStatus: TicketStatus, extra: Record<string, unknown> = {}, role: UserRole = UserRole.AGENT) => {
             const ticket = {

@@ -13,7 +13,7 @@ import { TICKET_ACTIVE_STATUSES_SQL, TICKET_DONE_STATUSES_SQL, TICKET_INACTIVE_S
 import { addSlaMinutes, isBusinessHoursOnly, SlaClockService, SlaSnapshot } from './sla-clock.service';
 import { wibDateSql, wibStartOfMonth, wibStartOfToday, wibStartOfWeek } from '../../../shared/core/utils/wib-date.util';
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
-import { presentMessage } from '../utils/message-presenter.util';
+import { presentThread } from '../utils/message-presenter.util';
 
 const AGENT_ROLES_NON_ORACLE = [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT, UserRole.AGENT_ADMIN] as const;
 const ORACLE_FILTER_PARAMS = { oracleTeam: 'ORACLE_DEV' } as const;
@@ -688,6 +688,7 @@ export class TicketQueryService {
                 'createdBy',
                 'messages',
                 'messages.sender',
+                'messages.pinnedBy',
                 'participants',
                 'participants.user',
                 'participants.user.department',
@@ -732,7 +733,7 @@ export class TicketQueryService {
 
         // Only who filed it on the requester's behalf, never the rest of that user record.
         const createdBy = ticket.createdBy ? { id: ticket.createdBy.id, fullName: ticket.createdBy.fullName } : null;
-        return { ...ticket, messages: (ticket.messages ?? []).map(presentMessage), createdBy, slaTarget, viewerAccess };
+        return { ...ticket, messages: presentThread(ticket.messages ?? []), createdBy, slaTarget, viewerAccess };
     }
 
     async getDashboardStats(

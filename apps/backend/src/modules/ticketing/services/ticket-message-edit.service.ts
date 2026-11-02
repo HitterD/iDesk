@@ -10,7 +10,7 @@ import { NotificationService } from '../../notifications/notification.service';
 import { resolveTicketViewerAccess } from './ticket-oracle-access';
 import { isTicketRequesterSide } from '../utils/oracle-ticket-access.util';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
-import { presentMessage } from '../utils/message-presenter.util';
+import { presentInThread } from '../utils/message-presenter.util';
 
 /** How long after sending the sender may still edit a message (WhatsApp-style). */
 export const EDIT_WINDOW_MS = 15 * 60 * 1000;
@@ -127,16 +127,19 @@ export class TicketMessageEditService {
         }
     }
 
-    /** What leaves the server: blanked if deleted, and only the public fields of the sender. */
-    private present(message: TicketMessage) {
+    /** What leaves the server: blanked if deleted, linked to its original, and only public sender fields. */
+    private async present(message: TicketMessage) {
+        const original = message.replyToId
+            ? await this.messageRepo.findOne({ where: { id: message.replyToId, ticketId: message.ticketId }, relations: ['sender'] })
+            : null;
         const sender = message.sender
             ? { id: message.sender.id, fullName: message.sender.fullName, role: message.sender.role }
             : undefined;
-        return { ...presentMessage(message), sender };
+        return { ...presentInThread(message, original), sender };
     }
 
-    private broadcast(ticketId: string, message: TicketMessage) {
-        const presented = this.present(message);
+    private async broadcast(ticketId: string, message: TicketMessage) {
+        const presented = await this.present(message);
         this.eventsGateway.notifyMessageUpdated(ticketId, presented);
         return presented;
     }

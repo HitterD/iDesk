@@ -251,6 +251,27 @@ describe('TicketQueryService.findOne deleted messages', () => {
     });
 });
 
+describe('TicketQueryService.findOne reply links and pins', () => {
+    it('quotes a deleted original as deleted and loads who pinned what', async () => {
+        const ticket = {
+            id: 't-1', priority: 'HIGH', createdAt: new Date(), slaTarget: new Date(), userId: 'req-1', siteId: 's-1',
+            handlingTeam: 'OPS_SUPPORT', participants: [], user: { id: 'req-1' },
+            messages: [
+                { id: 'a', content: 'kode akses 4471', senderId: 'req-1', sender: { fullName: 'Ani' }, deletedAt: new Date(), deletedById: 'req-1' },
+                { id: 'b', content: '\u21a9 Ani: kode akses 4471\n\nnoted', senderId: 'ag-1', replyToId: 'a', isInternal: false },
+            ],
+        };
+        const ticketRepo = { findOne: jest.fn().mockResolvedValue(ticket) };
+        const service = new TicketQueryService(ticketRepo as any, { findOne: jest.fn() } as any, {} as any);
+
+        const result = await service.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
+
+        expect(JSON.stringify(result.messages)).not.toContain('4471');
+        expect(result.messages[1].replyTo).toMatchObject({ id: 'a', isDeleted: true });
+        expect(ticketRepo.findOne.mock.calls[0][0].relations).toContain('messages.pinnedBy');
+    });
+});
+
 describe('toPrefixTsQuery', () => {
     // Raw input went straight into to_tsquery: "a(b" -> syntax error -> 500.
     it('strips tsquery syntax so user input can never break the query', () => {

@@ -1,6 +1,6 @@
 import { Injectable, Inject, NotFoundException, BadRequestException, ForbiddenException, forwardRef, Optional, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { AttachmentInfo, TicketMessage } from '../entities/ticket-message.entity';
@@ -14,7 +14,7 @@ import { canAccessTicketObject } from '../utils/oracle-ticket-access.util';
 import { canAccessTicketSite } from '../utils/site-access.util';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService, SLA_RESPONDER_ROLES } from './sla-clock.service';
-import { presentMessage, PresentedMessage } from '../utils/message-presenter.util';
+import { presentThread, PresentedThreadMessage } from '../utils/message-presenter.util';
 
 @Injectable()
 export class TicketMessagingService {
@@ -43,7 +43,7 @@ export class TicketMessagingService {
         });
     }
 
-    async getMessages(ticketId: string, userRole?: UserRole, userSiteId: string | null = null, userId?: string): Promise<PresentedMessage<TicketMessage>[]> {
+    async getMessages(ticketId: string, userRole?: UserRole, userSiteId: string | null = null, userId?: string): Promise<PresentedThreadMessage<TicketMessage>[]> {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
             relations: ['participants'],
@@ -59,10 +59,10 @@ export class TicketMessagingService {
                 ticketId,
                 ...(access === 'requester' ? { isInternal: false } : {}),
             },
-            relations: ['sender'],
+            relations: ['sender', 'pinnedBy'],
             order: { createdAt: 'ASC' },
         });
-        return messages.map(presentMessage);
+        return presentThread(messages);
     }
 
     /**
@@ -78,7 +78,7 @@ export class TicketMessagingService {
         userSiteId: string | null = null,
         userId?: string,
     ): Promise<{
-        data: PresentedMessage<TicketMessage>[];
+        data: PresentedThreadMessage<TicketMessage>[];
         meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean };
     }> {
         const ticket = await this.ticketRepo.findOne({
@@ -97,6 +97,7 @@ export class TicketMessagingService {
         const qb = this.messageRepo
             .createQueryBuilder('msg')
             .leftJoinAndSelect('msg.sender', 'sender')
+            .leftJoinAndSelect('msg.pinnedBy', 'pinnedBy')
             .where('msg.ticketId = :ticketId', { ticketId });
 
         // Filter internal messages for the requester side
@@ -114,8 +115,16 @@ export class TicketMessagingService {
 
         const totalPages = Math.ceil(total / limit);
 
+        const pageMessages = data.reverse(); // oldest first within the page
+        // Originals on earlier pages are loaded too, so a reply to a deleted one never shows the old quote.
+        const pageIds = new Set(pageMessages.map((m) => m.id));
+        const missing = [...new Set(pageMessages.map((m) => m.replyToId).filter((id): id is string => !!id && !pageIds.has(id)))];
+        const originals = missing.length
+            ? await this.messageRepo.find({ where: { ticketId, id: In(missing) }, relations: ['sender'] })
+            : [];
+
         return {
-            data: data.reverse().map(presentMessage), // Reverse to show oldest first in the returned page
+            data: presentThread([...originals, ...pageMessages]).slice(originals.length),
             meta: {
                 total,
                 page,

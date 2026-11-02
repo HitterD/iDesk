@@ -95,6 +95,10 @@ export class TicketMessage {
     @Column({ type: 'uuid', nullable: true })
     pinnedById: string | null;
 
+    @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'pinnedById' })
+    pinnedBy?: User | null;
+
     /** The message this one replies to; its text still carries the `↩ Name: snippet` quote for old readers. */
     @Column({ type: 'uuid', nullable: true })
     replyToId: string | null;
