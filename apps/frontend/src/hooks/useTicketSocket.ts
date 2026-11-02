@@ -357,6 +357,8 @@ export const useTicketListSocket = (options?: {
                 scheduleInvalidate(TICKETS_KEY);
                 return;
             }
+            // System lines (status, pins) are not chat: the server does not count them as unread either.
+            if (data.message?.isSystemMessage) return;
             {
                 queryClient.setQueriesData({ queryKey: ['tickets'] }, (oldData: any) => {
                     if (!oldData) return oldData;

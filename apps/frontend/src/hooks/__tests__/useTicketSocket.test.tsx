@@ -427,6 +427,16 @@ describe('useTicketListSocket', () => {
         vi.useRealTimers();
     });
 
+    it('a system line (e.g. "X menyematkan pesan") leaves the unread dot alone', () => {
+        renderHook(() => useTicketListSocket(), { wrapper: createWrapper() });
+        const list = [{ id: 't-1', hasUnreadChat: false, unreadMessageCount: 0 }];
+        queryClient.setQueryData(['tickets'], list);
+
+        fire('ticket:newMessage', { ticketId: 't-1', message: { id: 's-1', isSystemMessage: true } });
+
+        expect(queryClient.getQueryData(['tickets'])).toBe(list);
+    });
+
     it('collapses a burst of ticket events into one invalidation per query key', () => {
         const wrapper = createWrapper();
         const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');

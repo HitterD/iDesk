@@ -287,6 +287,23 @@ describe('TicketMessagingService Oracle scope', () => {
             expect(created.find((c) => c.content === 'sudah')?.replyToId ?? null).toBeNull();
         });
 
+        it('stores a reply to an already deleted message with the deleted quote, so no reader gets the old text', async () => {
+            const { service, created, senderId } = build({ id: 'orig', ticketId: 't-1', isSystemMessage: false, isInternal: false,
+                deletedAt: new Date(), sender: { fullName: 'Agen' }, content: 'kode 4471' });
+            await service.replyToTicket('t-1', senderId, '\u21a9 Agen: kode 4471\n\nsudah', [], [], false, [], undefined, undefined, replyTo('orig'));
+            const saved = created.find((c) => c.replyToId === 'orig');
+            expect(saved.content).toBe('\u21a9 Agen: Pesan telah dihapus\n\nsudah');
+        });
+
+        it('a public reply from the team never links to an internal note', async () => {
+            const { service, created, senderId } = build(
+                { id: 'orig', ticketId: 't-1', isSystemMessage: false, isInternal: true, sender: { fullName: 'Agen' }, content: 'catatan' },
+                UserRole.AGENT_OPERATIONAL_SUPPORT,
+            );
+            await service.replyToTicket('t-1', senderId, 'halo', [], [], false, [], undefined, undefined, replyTo('orig'));
+            expect(created.find((c) => c.content === 'halo')?.replyToId ?? null).toBeNull();
+        });
+
         it('sends the new message with its reply link resolved', async () => {
             const { service, eventsGateway, senderId } = build({ id: 'orig', ticketId: 't-1', isSystemMessage: false, isInternal: false, sender: { fullName: 'Agen' }, content: 'cek kabel' });
             await service.replyToTicket('t-1', senderId, 'sudah', [], [], false, [], undefined, undefined, replyTo('orig'));

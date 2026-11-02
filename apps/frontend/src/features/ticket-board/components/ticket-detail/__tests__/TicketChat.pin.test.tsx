@@ -77,6 +77,30 @@ describe('TicketChat pins and reply links', () => {
         expect(next).toHaveTextContent('SOP reset printer');
     });
 
+    it('shows a new pin right away, also when it replaced the oldest of three', () => {
+        const three = [
+            msg('a', USER_SENDER, 'pin satu', ago(40), { isPinned: true, pinnedAt: ago(30) }),
+            msg('b', USER_SENDER, 'pin dua', ago(39), { isPinned: true, pinnedAt: ago(20) }),
+            msg('c', USER_SENDER, 'pin tiga', ago(38), { isPinned: true, pinnedAt: ago(10) }),
+            msg('d', USER_SENDER, 'pin empat', ago(37)),
+        ];
+        const client = new QueryClient();
+        const view = (t: TicketDetail) => (
+            <QueryClientProvider client={client}>
+                <TicketChat ticket={t} isConnected onSendMessage={vi.fn(() => Promise.resolve())} onImageClick={vi.fn()} />
+            </QueryClientProvider>
+        );
+        const { rerender } = render(view(baseTicket(three)));
+        // Step back to an older pin, then a fourth pin replaces the oldest: the bar shows the new one.
+        screen.getByRole('button', { name: 'Pesan disematkan 3 dari 3' }).click();
+        const after = [
+            { ...three[0], isPinned: false, pinnedAt: null }, three[1], three[2],
+            { ...three[3], isPinned: true, pinnedAt: ago(1) },
+        ];
+        rerender(view(baseTicket(after)));
+        expect(screen.getByRole('button', { name: 'Pesan disematkan 3 dari 3' })).toHaveTextContent('pin empat');
+    });
+
     it('menu offers Sematkan and calls the API', async () => {
         const user = userEvent.setup();
         renderChat(baseTicket([msg('a', USER_SENDER, 'Printer mati', ago(30))]));

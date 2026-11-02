@@ -14,7 +14,7 @@ import { canAccessTicketObject } from '../utils/oracle-ticket-access.util';
 import { canAccessTicketSite } from '../utils/site-access.util';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService, SLA_RESPONDER_ROLES } from './sla-clock.service';
-import { presentInThread, presentThread, PresentedThreadMessage } from '../utils/message-presenter.util';
+import { presentInThread, presentThread, PresentedThreadMessage, withDeletedQuote } from '../utils/message-presenter.util';
 
 @Injectable()
 export class TicketMessagingService {
@@ -120,7 +120,10 @@ export class TicketMessagingService {
         const pageIds = new Set(pageMessages.map((m) => m.id));
         const missing = [...new Set(pageMessages.map((m) => m.replyToId).filter((id): id is string => !!id && !pageIds.has(id)))];
         const originals = missing.length
-            ? await this.messageRepo.find({ where: { ticketId, id: In(missing) }, relations: ['sender'] })
+            ? await this.messageRepo.find({
+                where: { ticketId, id: In(missing), ...(access === 'requester' ? { isInternal: false } : {}) },
+                relations: ['sender'],
+            })
             : [];
 
         return {
@@ -184,7 +187,9 @@ export class TicketMessagingService {
                 if (existing) return { savedMessage: existing, ticket, user, startedWork: false,
                     senderSideRole: user.role, isFirstAgentReply: false, duplicate: true, senderReadMarker: null, now: null, original: null };
             }
-            const original = await this.replyTarget(manager, ticketId, options.replyToId, isHandler);
+            const original = await this.replyTarget(manager, ticketId, options.replyToId, isHandler, isInternal);
+            // Quoting a message deleted meanwhile: store the deleted quote, never its old text.
+            if (original?.deletedAt) content = withDeletedQuote(content, original.sender?.fullName ?? '');
 
             // Create Message
             const message = manager.create(TicketMessage, {
@@ -307,11 +312,13 @@ export class TicketMessagingService {
         ticketId: string,
         replyToId: string | undefined,
         isHandler: boolean,
+        isInternal: boolean,
     ): Promise<TicketMessage | null> {
         if (!replyToId) return null;
         const original = await manager.findOne(TicketMessage, { where: { id: replyToId }, relations: ['sender'] });
         if (!original || original.ticketId !== ticketId || original.isSystemMessage) return null;
-        if (original.isInternal && !isHandler) return null;
+        // An internal note is only ever linked from another internal note of the team.
+        if (original.isInternal && (!isHandler || !isInternal)) return null;
         return original;
     }
 

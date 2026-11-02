@@ -24,6 +24,7 @@ function build(msg: Record<string, unknown> = message(), t: Record<string, unkno
     const saved: Array<{ entity: unknown; data: any }> = [];
     const updates: Array<{ where: any; values: any }> = [];
     let row: Record<string, unknown> = { ...msg };
+    const replies: Record<string, unknown>[] = (msg as any).__replies ?? [];
     const manager = {
         create: jest.fn((_e, data) => data),
         save: jest.fn(async (entity, data) => { saved.push({ entity, data }); return data; }),
@@ -34,6 +35,8 @@ function build(msg: Record<string, unknown> = message(), t: Record<string, unkno
             return { affected };
         }),
         findOne: jest.fn(async () => row),
+        // Replies that quote the message being deleted.
+        find: jest.fn(async () => replies),
     };
     const messageRepo = { findOne: jest.fn().mockResolvedValue(msg) };
     const ticketRepo = { findOne: jest.fn().mockResolvedValue(t) };
@@ -164,6 +167,23 @@ describe('TicketMessageEditService', () => {
         const plain = build();
         await plain.service.deleteMessage('t-1', 'm-1', SENDER);
         expect(plain.pins.releaseDeleted).not.toHaveBeenCalled();
+    });
+
+    it('rewrites the quote line stored in replies to the deleted message, and redacts their notifications', async () => {
+        const reply = { id: 'r-1', ticketId: 't-1', replyToId: 'm-1', senderId: 'agent-1', createdAt: new Date(NOW - 30_000),
+            content: '\u21a9 Budi: halo\n\nsiap', sender: { fullName: 'Agen' } };
+        const { service, updates, notifications } = build(message({ __replies: [reply] }));
+
+        await service.deleteMessage('t-1', 'm-1', SENDER);
+
+        expect(updates).toContainEqual({ where: { id: 'r-1' }, values: { content: '\u21a9 Budi: Pesan telah dihapus\n\nsiap' } });
+        expect(notifications.redactMessageSnippet).toHaveBeenCalledWith(expect.objectContaining({ messageId: 'r-1', senderName: 'Agen' }));
+    });
+
+    it('still answers the delete when releasing its pin fails', async () => {
+        const { service, pins } = build(message({ pinnedAt: new Date(NOW - 1000), pinnedById: 'u-1' }));
+        pins.releaseDeleted.mockRejectedValue(new Error('db down'));
+        await expect(service.deleteMessage('t-1', 'm-1', SENDER)).resolves.toMatchObject({ isDeleted: true });
     });
 
     it('takes the deleted text back out of stored reply notifications', async () => {

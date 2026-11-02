@@ -37,8 +37,12 @@ function build(target: Record<string, unknown> = message(), t: Record<string, un
         find: jest.fn(async () => [...pins].sort((a: any, b: any) => +a.pinnedAt - +b.pinnedAt)),
         create: jest.fn((_e, data) => data),
         save: jest.fn(async (_e, data) => { saved.push(data); return { id: 'sys-1', createdAt: new Date(NOW), ...data }; }),
-        findOne: jest.fn(async () => ({ id: AGENT.id, fullName: 'Agen Satu' })),
+        // Ticket row (locked) and the message's current pin state, re-read under the lock.
+        findOne: jest.fn(async (entity: any) => (entity?.name === 'Ticket' ? t : { ...target, ...(pins.find((p) => p.id === target.id) ?? {}) })),
     };
+    const events: string[] = [];
+    manager.save = jest.fn(async (_e, data) => { saved.push(data); events.push('save'); return { id: 'sys-1', createdAt: new Date(NOW), ...data }; });
+    const commit = jest.fn(() => events.push('commit'));
     // Like the database, find honours `order: { pinnedAt: 'ASC' }`.
     const messageRepo = {
         findOne: jest.fn().mockResolvedValue(target),
@@ -47,12 +51,15 @@ function build(target: Record<string, unknown> = message(), t: Record<string, un
     };
     const ticketRepo = { findOne: jest.fn().mockResolvedValue(t) };
     const userRepo = { findOne: jest.fn(async ({ where: { id } }: any) => ({ id, fullName: id === 'u-1' ? 'Budi' : 'Agen Satu' })) };
-    const dataSource = { transaction: jest.fn((fn) => fn(manager)) };
-    const gateway = { notifyPinsChanged: jest.fn(), notifyNewMessage: jest.fn() };
+    const dataSource = { transaction: jest.fn(async (fn) => { const out = await fn(manager); commit(); return out; }) };
+    const gateway = {
+        notifyPinsChanged: jest.fn(),
+        notifyNewMessage: jest.fn(() => events.push('emit')),
+    };
     const service = new TicketMessagePinService(
         messageRepo as never, ticketRepo as never, userRepo as never, dataSource as never, gateway as never,
     );
-    return { service, updates, saved, gateway };
+    return { service, updates, saved, gateway, manager, events };
 }
 
 describe('TicketMessagePinService', () => {
@@ -114,6 +121,33 @@ describe('TicketMessagePinService', () => {
         const off = build(pinned('m-1', 5));
         await off.service.unpin('t-1', 'm-1', REQUESTER);
         expect(off.saved[0].content).toBe('Budi melepas sematan pesan');
+    });
+
+    it('locks the ticket and re-reads the pin under the lock, so two pins at once stay within three', async () => {
+        const { service, manager } = build();
+        await service.pin('t-1', 'm-1', REQUESTER);
+        expect(manager.findOne).toHaveBeenCalledWith(expect.objectContaining({ name: 'Ticket' }),
+            expect.objectContaining({ where: { id: 't-1' }, lock: { mode: 'pessimistic_write' } }));
+    });
+
+    it('a double click writes one system line: the second pin sees the first under the lock', async () => {
+        const { service, saved } = build();
+        await service.pin('t-1', 'm-1', REQUESTER);
+        await service.pin('t-1', 'm-1', REQUESTER);
+        expect(saved).toHaveLength(1);
+    });
+
+    it('announces the system line only after the transaction committed', async () => {
+        const { service, events } = build();
+        await service.pin('t-1', 'm-1', REQUESTER);
+        expect(events.indexOf('emit')).toBeGreaterThan(events.indexOf('commit'));
+    });
+
+    it('returns a requester only public pins', async () => {
+        const internalPin = pinned('m-9', 40, { isInternal: true });
+        const { service } = build(message(), ticket(), [internalPin]);
+        const pins = await service.pin('t-1', 'm-1', REQUESTER);
+        expect(pins.map((p) => p.id)).toEqual(['m-1']);
     });
 
     it('listPins summarizes pins oldest first without leaking pinnedById', async () => {

@@ -69,7 +69,7 @@ const snippetOf = (content: string): string => {
 };
 
 /** A reply keeps its own words; only the quoted line of a deleted original is replaced. */
-const withDeletedQuote = (content: string, senderName: string): string => {
+export const withDeletedQuote = (content: string, senderName: string): string => {
     const match = content.match(QUOTE_PATTERN);
     if (!content.startsWith(QUOTE_MARK) || !match) return content;
     return `${QUOTE_MARK} ${match[1] || senderName}: ${DELETED_QUOTE}\n\n${match[3]}`;

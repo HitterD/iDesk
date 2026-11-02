@@ -26,7 +26,9 @@ const preview = (text: string) => {
  */
 export const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({ pins, onJump, onUnpin }) => {
     const [index, setIndex] = useState(pins.length - 1);
-    useEffect(() => setIndex(pins.length - 1), [pins.length]);
+    // Any change to the set (a new pin may replace the oldest at three) shows the newest pin again.
+    const pinKey = pins.map((p) => p.id).join(',');
+    useEffect(() => setIndex(pins.length - 1), [pinKey, pins.length]);
     if (pins.length === 0) return null;
 
     const current = pins[Math.min(Math.max(index, 0), pins.length - 1)];
