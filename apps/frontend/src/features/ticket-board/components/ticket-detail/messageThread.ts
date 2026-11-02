@@ -122,7 +122,10 @@ export function formatMessageTime(date: string | Date): string {
         .format(new Date(date));
 }
 
-export type ReadTick = 'sent' | 'read';
+export type ReadTick = 'pending' | 'sent' | 'read';
+
+/** The page shows a message right away with a `temp-` id until the server has it. */
+export const isPendingMessage = (id: string) => id.startsWith('temp-');
 
 /** One tick until the other side's read marker reaches the message, then two (WhatsApp-style). */
 export function readTick(createdAt: string, counterpartLastReadAt: string | null | undefined): ReadTick {
