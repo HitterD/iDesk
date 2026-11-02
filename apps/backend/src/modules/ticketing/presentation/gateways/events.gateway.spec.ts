@@ -182,6 +182,13 @@ describe('EventsGateway presence', () => {
         expect(gateway.server.to).toHaveBeenNthCalledWith(2, 'ticket:t-1');
     });
 
+    it('reactions on an internal note go to staff only', () => {
+        gateway.notifyReactionsChanged('t-1', 'm-1', true, []);
+        gateway.notifyReactionsChanged('t-1', 'm-2', false, []);
+        expect(gateway.server.to).toHaveBeenNthCalledWith(1, ticketStaffRoom('t-1'));
+        expect(gateway.server.to).toHaveBeenNthCalledWith(2, 'ticket:t-1');
+    });
+
     it('sends requesters only public pins and staff all pins', () => {
         const emits: Array<{ room: string; payload: any }> = [];
         gateway.server.to = jest.fn((room: string) => ({ emit: (_e: string, payload: any) => emits.push({ room, payload }) })) as any;

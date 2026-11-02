@@ -269,6 +269,8 @@ describe('TicketQueryService.findOne reply links and pins', () => {
         expect(JSON.stringify(result.messages)).not.toContain('4471');
         expect(result.messages[1].replyTo).toMatchObject({ id: 'a', isDeleted: true });
         expect(ticketRepo.findOne.mock.calls[0][0].relations).toContain('messages.pinnedBy');
+        expect(ticketRepo.findOne.mock.calls[0][0].relations).toEqual(
+            expect.arrayContaining(['messages.reactions', 'messages.reactions.user']));
     });
 });
 

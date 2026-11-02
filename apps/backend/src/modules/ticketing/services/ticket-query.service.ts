@@ -689,6 +689,8 @@ export class TicketQueryService {
                 'messages',
                 'messages.sender',
                 'messages.pinnedBy',
+                'messages.reactions',
+                'messages.reactions.user',
                 'participants',
                 'participants.user',
                 'participants.user.department',

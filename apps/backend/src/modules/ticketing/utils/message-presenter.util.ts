@@ -40,6 +40,21 @@ export interface ReplySummary {
     isDeleted: boolean;
 }
 
+/** Everyone who reacted with one emoji on one message. */
+export interface ReactionSummary {
+    emoji: string;
+    count: number;
+    userIds: string[];
+    userNames: string[];
+}
+
+interface ReactionRow {
+    userId: string;
+    emoji: string;
+    createdAt?: Date | string;
+    user?: { fullName?: string | null } | null;
+}
+
 export interface ThreadMessage extends PresentableMessage {
     id: string;
     sender?: { fullName?: string | null } | null;
@@ -47,14 +62,30 @@ export interface ThreadMessage extends PresentableMessage {
     pinnedAt?: Date | string | null;
     pinnedById?: string | null;
     pinnedBy?: { fullName?: string | null } | null;
+    reactions?: ReactionRow[];
 }
 
-export type PresentedThreadMessage<T extends ThreadMessage> = Omit<PresentedMessage<T>, 'pinnedById' | 'pinnedBy'> & {
+export type PresentedThreadMessage<T extends ThreadMessage> = Omit<PresentedMessage<T>, 'pinnedById' | 'pinnedBy' | 'reactions'> & {
     replyTo: ReplySummary | null;
     isPinned: boolean;
     pinnedAt: Date | string | null;
     pinnedByName: string | null;
+    reactions: ReactionSummary[];
 };
+
+/** Reaction rows of one message, grouped per emoji in order of first use (names only, never e-mail). */
+export function summarizeReactions(rows: ReactionRow[]): ReactionSummary[] {
+    const ordered = [...rows].sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+    const byEmoji = new Map<string, ReactionSummary>();
+    for (const row of ordered) {
+        const entry = byEmoji.get(row.emoji) ?? { emoji: row.emoji, count: 0, userIds: [], userNames: [] };
+        entry.count += 1;
+        entry.userIds.push(row.userId);
+        entry.userNames.push(row.user?.fullName ?? '');
+        byEmoji.set(row.emoji, entry);
+    }
+    return [...byEmoji.values()];
+}
 
 const QUOTE_MARK = '↩';
 /** Same shape the chat writes: `↩ Sender: snippet` then a blank line, then the reply body. */
@@ -91,7 +122,7 @@ export function summarizeReply(original: ThreadMessage): ReplySummary {
  */
 export function presentInThread<T extends ThreadMessage>(message: T, original?: ThreadMessage | null): PresentedThreadMessage<T> {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { pinnedById, pinnedBy, ...rest } = presentMessage(message) as PresentedMessage<T> & Pick<ThreadMessage, 'pinnedById' | 'pinnedBy'>;
+    const { pinnedById, pinnedBy, reactions: rows, ...rest } = presentMessage(message) as PresentedMessage<T> & Pick<ThreadMessage, 'pinnedById' | 'pinnedBy' | 'reactions'>;
     const replyTo = original ? summarizeReply(original) : null;
     const content = replyTo?.isDeleted && !message.deletedAt ? withDeletedQuote(rest.content, replyTo.senderName) : rest.content;
     return {
@@ -101,6 +132,8 @@ export function presentInThread<T extends ThreadMessage>(message: T, original?: 
         isPinned: Boolean(message.pinnedAt) && !message.deletedAt,
         pinnedAt: message.pinnedAt ?? null,
         pinnedByName: message.pinnedAt ? (pinnedBy?.fullName ?? null) : null,
+        // A deleted message keeps no reactions, so no names of who reacted to it either.
+        reactions: message.deletedAt || !rows ? [] : summarizeReactions(rows),
     } as PresentedThreadMessage<T>;
 }
 

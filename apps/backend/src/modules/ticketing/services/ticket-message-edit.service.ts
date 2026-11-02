@@ -63,7 +63,7 @@ export class TicketMessageEditService {
             await manager.save(TicketMessageEdit, manager.create(TicketMessageEdit, {
                 messageId: message.id, previousContent: message.content, editedById: viewer.id,
             }));
-            return manager.findOne(TicketMessage, { where: { id: message.id }, relations: ['sender'] });
+            return manager.findOne(TicketMessage, { where: { id: message.id }, relations: ['sender', 'reactions', 'reactions.user'] });
         });
         return this.broadcast(ticketId, updated ?? message);
     }

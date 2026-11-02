@@ -59,7 +59,7 @@ export class TicketMessagingService {
                 ticketId,
                 ...(access === 'requester' ? { isInternal: false } : {}),
             },
-            relations: ['sender', 'pinnedBy'],
+            relations: ['sender', 'pinnedBy', 'reactions', 'reactions.user'],
             order: { createdAt: 'ASC' },
         });
         return presentThread(messages);
@@ -98,6 +98,8 @@ export class TicketMessagingService {
             .createQueryBuilder('msg')
             .leftJoinAndSelect('msg.sender', 'sender')
             .leftJoinAndSelect('msg.pinnedBy', 'pinnedBy')
+            .leftJoinAndSelect('msg.reactions', 'reactions')
+            .leftJoinAndSelect('reactions.user', 'reactionUser')
             .where('msg.ticketId = :ticketId', { ticketId });
 
         // Filter internal messages for the requester side

@@ -27,6 +27,7 @@ import { TicketMessageEdit } from './entities/ticket-message-edit.entity';
 import { TicketMessageReaction } from './entities/ticket-message-reaction.entity';
 import { TicketMessageEditService } from './services/ticket-message-edit.service';
 import { TicketMessagePinService } from './services/ticket-message-pin.service';
+import { TicketMessageReactionService } from './services/ticket-message-reaction.service';
 import { TicketMessagesController } from './presentation/ticket-messages.controller';
 import { TicketParticipant } from './entities/ticket-participant.entity';
 import { TicketTemplate } from './entities/ticket-template.entity';
@@ -148,6 +149,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         // Core services (Split)
         TicketMessageEditService,
         TicketMessagePinService,
+        TicketMessageReactionService,
         TicketLinkedRequestService,
         TicketCreateService,
         TicketUpdateService,
