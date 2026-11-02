@@ -374,6 +374,26 @@ describe('useTicketSocket', () => {
         expect(queryClient.getQueryData(['ticket', 'ticket-1'])).toBe(cached);
     });
 
+    it('applies pin changes to the open ticket', () => {
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper: createWrapper() });
+        queryClient.setQueryData(['ticket', 'ticket-1'], { id: 'ticket-1', messages: [{ id: 'm-1' }, { id: 'm-2', isPinned: true }] });
+
+        fire('ticket:pinsChanged', { ticketId: 'ticket-1', pins: [{ id: 'm-1', senderName: 'A', snippet: 'x', pinnedAt: '2026-11-02T08:00:00Z', isInternal: false }] });
+
+        const messages = (queryClient.getQueryData(['ticket', 'ticket-1']) as any).messages;
+        expect(messages.map((m: any) => Boolean(m.isPinned))).toEqual([true, false]);
+    });
+
+    it('ignores pins of another ticket', () => {
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper: createWrapper() });
+        const cached = { id: 'ticket-1', messages: [{ id: 'm-1', isPinned: true }] };
+        queryClient.setQueryData(['ticket', 'ticket-1'], cached);
+
+        fire('ticket:pinsChanged', { ticketId: 'ticket-2', pins: [] });
+
+        expect(queryClient.getQueryData(['ticket', 'ticket-1'])).toBe(cached);
+    });
+
     it('refetches the ticket after a reconnect so missed messages appear', () => {
         const wrapper = createWrapper();
         const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');

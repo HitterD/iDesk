@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { buildReplyForm } from '@/lib/ticketReplyForm';
 import { TICKET_OFFLINE_POLL_MS, useTicketSocket } from '@/hooks/useTicketSocket';
 import { useAuth } from '@/stores/useAuth';
 import { TicketDetail, Agent } from '../components/ticket-detail/types';
@@ -299,6 +300,7 @@ export const BentoTicketDetailPage: React.FC = () => {
         files?: FileList | null,
         isInternal: boolean = false,
         onUploadProgress?: (percent: number) => void,
+        replyToId?: string,
     ) => {
         if (files && files.length > 0) {
             const validation = validateFiles(Array.from(files));
@@ -333,15 +335,7 @@ export const BentoTicketDetailPage: React.FC = () => {
         });
 
         try {
-            const formData = new FormData();
-            formData.append('content', content);
-            formData.append('mentionedUserIds', JSON.stringify([]));
-            formData.append('isInternal', String(isInternal));
-            if (files) {
-                Array.from(files).forEach((file) => {
-                    formData.append('files', file);
-                });
-            }
+            const formData = buildReplyForm({ content, files, isInternal, replyToId });
 
             await api.post(`/tickets/${id}/reply`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },

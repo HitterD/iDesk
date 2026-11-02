@@ -106,6 +106,11 @@ export interface TicketDetail {
         isDeleted?: boolean;
         /** Deleted by someone other than the sender (an admin). */
         deletedByAdmin?: boolean;
+        replyToId?: string | null;
+        /** The message this one answers; `snippet` is empty when that message was deleted. */
+        replyTo?: { id: string; senderName: string; snippet: string; isDeleted: boolean } | null;
+        isPinned?: boolean;
+        pinnedAt?: string | null;
         attachments: string[];
         attachmentInfo?: AttachmentInfo[] | null;
         sender?: {

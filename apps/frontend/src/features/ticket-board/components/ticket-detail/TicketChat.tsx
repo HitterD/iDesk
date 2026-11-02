@@ -41,6 +41,8 @@ interface TicketChatProps {
         files?: FileList | null,
         isInternal?: boolean,
         onUploadProgress?: (percent: number) => void,
+        /** The message this reply answers (its quote is already in `content`). */
+        replyToId?: string,
     ) => Promise<void>;
     onImageClick: (url: string) => void;
     typingUsers?: { [key: string]: string };
@@ -615,7 +617,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     editing={editing}
                     onCancelEdit={() => setEditing(null)}
                     onSaveEdit={saveEdit}
-                    onSend={(content, files, isInternal, onProgress) => onSendMessage(content, files, isInternal, onProgress)}
+                    onSend={(content, files, isInternal, onProgress) => onSendMessage(content, files, isInternal, onProgress, replyTo?.id)}
                     onSendSticker={handleSendSticker}
                     onTypingStart={onTypingStart}
                     onTypingStop={onTypingStop}
