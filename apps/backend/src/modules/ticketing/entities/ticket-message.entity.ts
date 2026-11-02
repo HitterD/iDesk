@@ -87,4 +87,19 @@ export class TicketMessage {
     /** Who deleted it: the sender, or an admin (then the placeholder says so). */
     @Column({ type: 'uuid', nullable: true })
     deletedById: string | null;
+
+    /** Pinned to the bar above the chat (at most three per ticket). */
+    @Column({ type: 'timestamp', nullable: true })
+    pinnedAt: Date | null;
+
+    @Column({ type: 'uuid', nullable: true })
+    pinnedById: string | null;
+
+    @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'pinnedById' })
+    pinnedBy?: User | null;
+
+    /** The message this one replies to; its text still carries the `↩ Name: snippet` quote for old readers. */
+    @Column({ type: 'uuid', nullable: true })
+    replyToId: string | null;
 }

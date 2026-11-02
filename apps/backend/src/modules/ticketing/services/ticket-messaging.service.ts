@@ -1,6 +1,6 @@
 import { Injectable, Inject, NotFoundException, BadRequestException, ForbiddenException, forwardRef, Optional, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { AttachmentInfo, TicketMessage } from '../entities/ticket-message.entity';
@@ -14,7 +14,7 @@ import { canAccessTicketObject } from '../utils/oracle-ticket-access.util';
 import { canAccessTicketSite } from '../utils/site-access.util';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService, SLA_RESPONDER_ROLES } from './sla-clock.service';
-import { presentMessage, PresentedMessage } from '../utils/message-presenter.util';
+import { presentInThread, presentThread, PresentedThreadMessage, withDeletedQuote } from '../utils/message-presenter.util';
 
 @Injectable()
 export class TicketMessagingService {
@@ -43,7 +43,7 @@ export class TicketMessagingService {
         });
     }
 
-    async getMessages(ticketId: string, userRole?: UserRole, userSiteId: string | null = null, userId?: string): Promise<PresentedMessage<TicketMessage>[]> {
+    async getMessages(ticketId: string, userRole?: UserRole, userSiteId: string | null = null, userId?: string): Promise<PresentedThreadMessage<TicketMessage>[]> {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
             relations: ['participants'],
@@ -59,10 +59,10 @@ export class TicketMessagingService {
                 ticketId,
                 ...(access === 'requester' ? { isInternal: false } : {}),
             },
-            relations: ['sender'],
+            relations: ['sender', 'pinnedBy'],
             order: { createdAt: 'ASC' },
         });
-        return messages.map(presentMessage);
+        return presentThread(messages);
     }
 
     /**
@@ -78,7 +78,7 @@ export class TicketMessagingService {
         userSiteId: string | null = null,
         userId?: string,
     ): Promise<{
-        data: PresentedMessage<TicketMessage>[];
+        data: PresentedThreadMessage<TicketMessage>[];
         meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean };
     }> {
         const ticket = await this.ticketRepo.findOne({
@@ -97,6 +97,7 @@ export class TicketMessagingService {
         const qb = this.messageRepo
             .createQueryBuilder('msg')
             .leftJoinAndSelect('msg.sender', 'sender')
+            .leftJoinAndSelect('msg.pinnedBy', 'pinnedBy')
             .where('msg.ticketId = :ticketId', { ticketId });
 
         // Filter internal messages for the requester side
@@ -114,8 +115,19 @@ export class TicketMessagingService {
 
         const totalPages = Math.ceil(total / limit);
 
+        const pageMessages = data.reverse(); // oldest first within the page
+        // Originals on earlier pages are loaded too, so a reply to a deleted one never shows the old quote.
+        const pageIds = new Set(pageMessages.map((m) => m.id));
+        const missing = [...new Set(pageMessages.map((m) => m.replyToId).filter((id): id is string => !!id && !pageIds.has(id)))];
+        const originals = missing.length
+            ? await this.messageRepo.find({
+                where: { ticketId, id: In(missing), ...(access === 'requester' ? { isInternal: false } : {}) },
+                relations: ['sender'],
+            })
+            : [];
+
         return {
-            data: data.reverse().map(presentMessage), // Reverse to show oldest first in the returned page
+            data: presentThread([...originals, ...pageMessages]).slice(originals.length),
             meta: {
                 total,
                 page,
@@ -138,13 +150,14 @@ export class TicketMessagingService {
         attachmentInfo: AttachmentInfo[] = [],
         clientRequestId?: string,
         authorizePrivateShare?: (manager: import('typeorm').EntityManager) => Promise<void>,
+        options: { replyToId?: string } = {},
     ) {
         // P1 fix: message insert + ticket status/SLA update were two separate
         // saves outside any transaction. A crash between them left the ticket
         // without its SLA timer started (or its firstResponseAt set). Now atomic
         // via dataSource.transaction. Event emit / WS push moved outside the
         // transaction so listeners only fire on commit.
-        const { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate, senderReadMarker, now } = await this.dataSource.transaction(async (manager) => {
+        const { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate, senderReadMarker, now, original } = await this.dataSource.transaction(async (manager) => {
             if (authorizePrivateShare) await authorizePrivateShare(manager);
             const ticket = await manager.findOne(Ticket, {
                 where: { id: ticketId },
@@ -172,8 +185,12 @@ export class TicketMessagingService {
             if (clientRequestId) {
                 const existing = await manager.findOne(TicketMessage, { where: { ticketId, senderId: userId, clientRequestId } });
                 if (existing) return { savedMessage: existing, ticket, user, startedWork: false,
-                    senderSideRole: user.role, isFirstAgentReply: false, duplicate: true, senderReadMarker: null, now: null };
+                    senderSideRole: user.role, isFirstAgentReply: false, duplicate: true, senderReadMarker: null, now: null, original: null };
             }
+            const original = await this.replyTarget(manager, ticketId, options.replyToId, isHandler, isInternal);
+            // Quoting a message deleted meanwhile: store the deleted quote, never its old text.
+            if (original?.deletedAt) content = withDeletedQuote(content, original.sender?.fullName ?? '');
+
             // Create Message
             const message = manager.create(TicketMessage, {
                 ticketId,
@@ -183,6 +200,7 @@ export class TicketMessagingService {
                 attachmentInfo: attachmentInfo.length > 0 ? attachmentInfo : null,
                 isInternal,  // Mark as internal note if specified
                 clientRequestId: clientRequestId ?? null,
+                replyToId: original?.id ?? null,
             });
 
             const savedMessage = await manager.save(TicketMessage, message);
@@ -228,7 +246,7 @@ export class TicketMessagingService {
             // Save ticket changes
             await manager.save(Ticket, ticket);
 
-            return { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate: false, senderReadMarker, now };
+            return { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate: false, senderReadMarker, now, original };
         });
 
         if (duplicate) return savedMessage;
@@ -246,7 +264,7 @@ export class TicketMessagingService {
 
         // Notify frontend via WebSocket with full message data (post-commit)
         const messageWithSender = {
-            ...savedMessage,
+            ...presentInThread(savedMessage, original),
             sender: {
                 id: user.id,
                 fullName: user.fullName,
@@ -283,6 +301,25 @@ export class TicketMessagingService {
         );
 
         return savedMessage;
+    }
+
+    /**
+     * The message a reply answers, if it is one the sender may quote: same ticket, not a system
+     * message, and (for the requester side) not an internal note. Anything else is ignored.
+     */
+    private async replyTarget(
+        manager: import('typeorm').EntityManager,
+        ticketId: string,
+        replyToId: string | undefined,
+        isHandler: boolean,
+        isInternal: boolean,
+    ): Promise<TicketMessage | null> {
+        if (!replyToId) return null;
+        const original = await manager.findOne(TicketMessage, { where: { id: replyToId }, relations: ['sender'] });
+        if (!original || original.ticketId !== ticketId || original.isSystemMessage) return null;
+        // An internal note is only ever linked from another internal note of the team.
+        if (original.isInternal && (!isHandler || !isInternal)) return null;
+        return original;
     }
 
     /**

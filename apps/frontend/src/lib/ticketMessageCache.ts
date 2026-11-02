@@ -23,3 +23,30 @@ export function replaceMessageInCaches(queryClient: QueryClient, ticketId: strin
     queryClient.setQueryData(['ticket-messages', ticketId], (old: CachedMessage[] | undefined) =>
         old ? replaceIn(old, message) : old);
 }
+
+/** One entry of the pinned bar, as sent in `ticket:pinsChanged` and by the pin endpoints. */
+export interface PinnedMessageSummary {
+    id: string;
+    senderName: string;
+    snippet: string;
+    pinnedAt: string;
+    isInternal: boolean;
+}
+
+type PinState = { id: string; isPinned?: boolean; pinnedAt?: string | null };
+
+const withPins = <T extends PinState>(list: T[], pins: PinnedMessageSummary[]): T[] => {
+    const pinnedAt = new Map(pins.map((p) => [p.id, p.pinnedAt]));
+    return list.map((m) => {
+        const at = pinnedAt.get(m.id) ?? null;
+        return Boolean(m.isPinned) === Boolean(at) && (m.pinnedAt ?? null) === at ? m : { ...m, isPinned: Boolean(at), pinnedAt: at };
+    });
+};
+
+/** The server's pin list is the whole truth: listed messages are pinned, every other one is not. */
+export function applyPinsToCaches(queryClient: QueryClient, ticketId: string, pins: PinnedMessageSummary[]): void {
+    queryClient.setQueryData(['ticket', ticketId], (old: { messages?: PinState[] } | undefined) =>
+        old?.messages ? { ...old, messages: withPins(old.messages, pins) } : old);
+    queryClient.setQueryData(['ticket-messages', ticketId], (old: PinState[] | undefined) =>
+        old ? withPins(old, pins) : old);
+}

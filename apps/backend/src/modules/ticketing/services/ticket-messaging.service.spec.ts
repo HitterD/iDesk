@@ -1,3 +1,4 @@
+import { TicketMessage } from '../entities/ticket-message.entity';
 import { ForbiddenException } from '@nestjs/common';
 import { TicketMessagingService } from './ticket-messaging.service';
 import { UserRole } from '../../users/enums/user-role.enum';
@@ -110,6 +111,46 @@ describe('TicketMessagingService Oracle scope', () => {
         });
     });
 
+    describe('reply links over REST', () => {
+        it('getMessages links replies and blanks quotes of deleted originals', async () => {
+            const thread = [
+                { id: 'a', content: 'kode 4471', senderId: 'u-1', sender: { fullName: 'Ani' }, deletedAt: new Date(), deletedById: 'u-1' },
+                { id: 'b', content: '\u21a9 Ani: kode 4471\n\nok', senderId: 'u-2', replyToId: 'a' },
+            ];
+            const service = new TicketMessagingService(
+                { findOne: jest.fn().mockResolvedValue({ id: 't-1', userId: 'u-1', siteId: 'site-1', participants: [] }) } as never,
+                { find: jest.fn().mockResolvedValue(thread) } as never, {} as never, {} as never,
+                {} as never, {} as never, { emit: jest.fn() } as never, createTestSlaClock(),
+            );
+            const out = await service.getMessages('t-1');
+            expect(JSON.stringify(out)).not.toContain('4471');
+            expect(out[1]).toMatchObject({ replyTo: { id: 'a', isDeleted: true } });
+        });
+    });
+
+    describe('reply links across pages', () => {
+        it('getMessagesPaginated resolves an original on an earlier page and blanks its quote when deleted', async () => {
+            const page = [{ id: 'b', content: '\u21a9 Ani: kode 4471\n\nok', senderId: 'u-2', replyToId: 'a', createdAt: new Date() }];
+            const original = { id: 'a', content: 'kode 4471', senderId: 'u-1', sender: { fullName: 'Ani' }, deletedAt: new Date(), deletedById: 'u-1' };
+            const qb: any = {
+                leftJoinAndSelect: jest.fn(() => qb), where: jest.fn(() => qb), andWhere: jest.fn(() => qb),
+                getCount: jest.fn().mockResolvedValue(30), orderBy: jest.fn(() => qb), skip: jest.fn(() => qb), take: jest.fn(() => qb),
+                getMany: jest.fn().mockResolvedValue(page),
+            };
+            const messageRepo = { createQueryBuilder: jest.fn(() => qb), find: jest.fn().mockResolvedValue([original]) };
+            const service = new TicketMessagingService(
+                { findOne: jest.fn().mockResolvedValue({ id: 't-1', userId: 'u-1', siteId: 'site-1', participants: [] }) } as never,
+                messageRepo as never, {} as never, {} as never, {} as never, {} as never, { emit: jest.fn() } as never, createTestSlaClock(),
+            );
+
+            const out = await service.getMessagesPaginated('t-1', 2);
+
+            expect(JSON.stringify(out.data)).not.toContain('4471');
+            expect(out.data[0]).toMatchObject({ replyTo: { id: 'a', isDeleted: true } });
+            expect(messageRepo.find.mock.calls[0][0].where).toMatchObject({ ticketId: 't-1' });
+        });
+    });
+
     describe('TV board refresh on reply', () => {
         const buildService = (ticketStatus: TicketStatus, extra: Record<string, unknown> = {}, role: UserRole = UserRole.AGENT) => {
             const ticket = {
@@ -198,6 +239,77 @@ describe('TicketMessagingService Oracle scope', () => {
             await service.replyToTicket('t-1', 'agent-1', 'update');
 
             expect(eventEmitter.emit).not.toHaveBeenCalledWith('tv-board.ticket-changed', expect.anything());
+        });
+    });
+
+    describe('reply links on send', () => {
+        const build = (original: Record<string, unknown> | null, role: UserRole = UserRole.USER) => {
+            const ticket = {
+                id: 't-1', siteId: 'site-1', userId: 'u-1', status: TicketStatus.IN_PROGRESS, handlingTeam: 'OPS_SUPPORT',
+                ticketType: TicketType.SERVICE, category: 'GENERAL', participants: [], user: { id: 'u-1' }, firstResponseAt: new Date(),
+            };
+            const sender = role === UserRole.USER ? { id: 'u-1', role, siteId: 'site-1', fullName: 'Budi' } : { id: 'ag-1', role, siteId: 'site-1', fullName: 'Agen' };
+            const created: any[] = [];
+            const manager = {
+                findOne: jest.fn(async (entity: any, opts: any) => {
+                    if (entity === TicketMessage) return original && opts.where.id === original.id ? original : null;
+                    return entity.name === 'User' ? sender : ticket;
+                }),
+                create: jest.fn((_entity, data) => { created.push(data); return data; }),
+                save: jest.fn((_entity, data) => Promise.resolve({ id: 'new', createdAt: new Date(), ...data })),
+            };
+            const eventsGateway = {
+                notifyNewMessage: jest.fn(), emitToTicketAudience: jest.fn(), notifyReadState: jest.fn(),
+                server: { to: jest.fn(() => ({ emit: jest.fn() })) },
+            };
+            const service = new TicketMessagingService(
+                {} as never, {} as never, {} as never, {} as never,
+                { transaction: jest.fn((cb) => cb(manager)) } as never, eventsGateway as never, { emit: jest.fn() } as never, createTestSlaClock(),
+            );
+            return { service, created, eventsGateway, senderId: sender.id };
+        };
+        const replyTo = (replyToId: string) => ({ replyToId });
+
+        it('stores replyToId when it points to a public message of the same ticket', async () => {
+            const { service, created, senderId } = build({ id: 'orig', ticketId: 't-1', isSystemMessage: false, isInternal: false, sender: { fullName: 'Agen' }, content: 'cek kabel' });
+            await service.replyToTicket('t-1', senderId, 'sudah', [], [], false, [], undefined, undefined, replyTo('orig'));
+            expect(created.find((c) => c.content === 'sudah')?.replyToId).toBe('orig');
+        });
+
+        it.each([
+            ['from another ticket', { id: 'orig', ticketId: 't-2', isSystemMessage: false, isInternal: false }],
+            ['a system message', { id: 'orig', ticketId: 't-1', isSystemMessage: true, isInternal: false }],
+            ['an internal note, for the requester side', { id: 'orig', ticketId: 't-1', isSystemMessage: false, isInternal: true }],
+            ['missing', null],
+        ])('drops a replyToId %s', async (_label, original) => {
+            const { service, created, senderId } = build(original as Record<string, unknown> | null);
+            await service.replyToTicket('t-1', senderId, 'sudah', [], [], false, [], undefined, undefined, replyTo('orig'));
+            expect(created.find((c) => c.content === 'sudah')?.replyToId ?? null).toBeNull();
+        });
+
+        it('stores a reply to an already deleted message with the deleted quote, so no reader gets the old text', async () => {
+            const { service, created, senderId } = build({ id: 'orig', ticketId: 't-1', isSystemMessage: false, isInternal: false,
+                deletedAt: new Date(), sender: { fullName: 'Agen' }, content: 'kode 4471' });
+            await service.replyToTicket('t-1', senderId, '\u21a9 Agen: kode 4471\n\nsudah', [], [], false, [], undefined, undefined, replyTo('orig'));
+            const saved = created.find((c) => c.replyToId === 'orig');
+            expect(saved.content).toBe('\u21a9 Agen: Pesan telah dihapus\n\nsudah');
+        });
+
+        it('a public reply from the team never links to an internal note', async () => {
+            const { service, created, senderId } = build(
+                { id: 'orig', ticketId: 't-1', isSystemMessage: false, isInternal: true, sender: { fullName: 'Agen' }, content: 'catatan' },
+                UserRole.AGENT_OPERATIONAL_SUPPORT,
+            );
+            await service.replyToTicket('t-1', senderId, 'halo', [], [], false, [], undefined, undefined, replyTo('orig'));
+            expect(created.find((c) => c.content === 'halo')?.replyToId ?? null).toBeNull();
+        });
+
+        it('sends the new message with its reply link resolved', async () => {
+            const { service, eventsGateway, senderId } = build({ id: 'orig', ticketId: 't-1', isSystemMessage: false, isInternal: false, sender: { fullName: 'Agen' }, content: 'cek kabel' });
+            await service.replyToTicket('t-1', senderId, 'sudah', [], [], false, [], undefined, undefined, replyTo('orig'));
+            expect(eventsGateway.notifyNewMessage).toHaveBeenCalledWith('t-1', expect.objectContaining({
+                replyTo: { id: 'orig', senderName: 'Agen', snippet: 'cek kabel', isDeleted: false },
+            }));
         });
     });
 

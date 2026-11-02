@@ -8,6 +8,8 @@ import { SystemMessageEvent } from './SystemMessageEvent';
 import { legacyActivityEvent } from './legacyActivity';
 import { MessageBubble } from './MessageBubble';
 import { useMessageActions } from './useMessageActions';
+import { usePinActions } from './usePinActions';
+import { PinnedMessagesBar } from './PinnedMessagesBar';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ActivityEvent, linkedTicketMove } from './ActivityEvent';
 import { ChatComposer, MAX_MESSAGE_LENGTH, ReplyTarget, STICKERS } from './ChatComposer';
@@ -22,6 +24,7 @@ import {
     buildQuotedContent,
     canDeleteMessage,
     canEditMessage,
+    canPinMessage,
     toDisplayName,
 } from './messageThread';
 import { useAuth } from '@/stores/useAuth';
@@ -41,6 +44,8 @@ interface TicketChatProps {
         files?: FileList | null,
         isInternal?: boolean,
         onUploadProgress?: (percent: number) => void,
+        /** The message this reply answers (its quote is already in `content`). */
+        replyToId?: string,
     ) => Promise<void>;
     onImageClick: (url: string) => void;
     typingUsers?: { [key: string]: string };
@@ -117,6 +122,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const pdfPreview = usePDFPreview();
     const isTicketClosed = ticket.status === 'CLOSED';
     const messageActions = useMessageActions(ticket.id);
+    const pinActions = usePinActions(ticket.id);
 
     const startEdit = (message: ChatMessage) => {
         const quote = parseQuote(message.content);
@@ -286,21 +292,28 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         return isStaffSender(message) ? 'IT Support' : undefined;
     };
 
-    const jumpToQuoted = (message: ChatMessage) => {
-        const quote = parseQuote(message.content);
-        if (!quote) return;
-        const targetId = findQuotedMessageId(sortedMessages, message.id, quote);
+    /** Scroll to a message and flash it; false when it is not in the loaded thread. */
+    const jumpToMessage = (targetId: string | null | undefined): boolean => {
         const target = targetId
             ? streamRef.current?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(targetId)}"]`)
             : null;
-        if (!targetId || !target) {
-            toast.info('Pesan asli tidak tersedia');
-            return;
-        }
+        if (!targetId || !target) return false;
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setHighlightedId(targetId);
         if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
         highlightTimeoutRef.current = setTimeout(() => setHighlightedId(null), HIGHLIGHT_MS);
+        return true;
+    };
+
+    const jumpToQuoted = (message: ChatMessage) => {
+        // Linked replies know their original; older ones are matched by sender and quoted text.
+        const quote = parseQuote(message.content);
+        const targetId = message.replyTo?.id ?? (quote ? findQuotedMessageId(sortedMessages, message.id, quote) : null);
+        if (!jumpToMessage(targetId)) toast.info('Pesan asli tidak tersedia');
+    };
+
+    const jumpToPinned = (messageId: string) => {
+        if (!jumpToMessage(messageId)) toast.info('Pesan belum dimuat, gulir ke atas untuk melihatnya');
     };
 
     const handleSendSticker = async (sticker: string) => {
@@ -317,6 +330,11 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     /** Messages in display order; system cards stay in place, internal notes only for staff. */
     const visibleMessages = sortedMessages.filter((m) => isShownInStream(m, genesisMessageId, canViewInternalArchive));
     const groupKey = (m: ChatMessage) => ({ senderId: m.sender?.id || m.sender?.fullName, isInternal: m.isInternal, createdAt: m.createdAt });
+    /** Pinned bar: oldest first, from the loaded thread (internal ones only reach staff). */
+    const pinnedMessages = visibleMessages
+        .filter((m) => m.isPinned && !m.isDeleted)
+        .sort((a, b) => new Date(a.pinnedAt ?? 0).getTime() - new Date(b.pinnedAt ?? 0).getTime())
+        .map((m) => ({ id: m.id, senderName: m.sender?.fullName ?? '', snippet: quotableText(m.content) }));
     const latestBubble = [...visibleMessages].reverse().find(isBubble);
     const announcement = useNewMessageAnnouncement(latestBubble, isOwn);
 
@@ -389,6 +407,13 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     </button>
                 </div>
             </div>
+
+            {/* Pinned chat messages (up to three), below the opening-report bar */}
+            <PinnedMessagesBar
+                pins={pinnedMessages}
+                onJump={jumpToPinned}
+                onUnpin={isTicketClosed ? undefined : (id) => void pinActions.unpin(id).catch(() => undefined)}
+            />
 
             {/* Expanded Pinned Drawer */}
             {isPinnedExpanded && (
@@ -558,6 +583,8 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                     onEdit={canEditMessage(message, user?.id, isTicketClosed) && !STICKERS.includes(message.content?.trim() || '')
                                         ? () => startEdit(message) : undefined}
                                     onDelete={canDeleteMessage(message, user, isTicketClosed) ? () => setDeletingId(message.id) : undefined}
+                                    onPin={canPinMessage(message, isTicketClosed) && !message.isPinned ? () => void pinActions.pin(message.id).catch(() => undefined) : undefined}
+                                    onUnpin={message.isPinned && !isTicketClosed ? () => void pinActions.unpin(message.id).catch(() => undefined) : undefined}
                                     onQuoteClick={() => jumpToQuoted(message)}
                                     onImageClick={onImageClick}
                                     onPdfClick={(url, filename) => pdfPreview.openPreview(url, filename, 'PDF Attachment')}
@@ -615,7 +642,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     editing={editing}
                     onCancelEdit={() => setEditing(null)}
                     onSaveEdit={saveEdit}
-                    onSend={(content, files, isInternal, onProgress) => onSendMessage(content, files, isInternal, onProgress)}
+                    onSend={(content, files, isInternal, onProgress) => onSendMessage(content, files, isInternal, onProgress, replyTo?.id)}
                     onSendSticker={handleSendSticker}
                     onTypingStart={onTypingStart}
                     onTypingStop={onTypingStop}

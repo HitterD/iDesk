@@ -182,6 +182,20 @@ describe('EventsGateway presence', () => {
         expect(gateway.server.to).toHaveBeenNthCalledWith(2, 'ticket:t-1');
     });
 
+    it('sends requesters only public pins and staff all pins', () => {
+        const emits: Array<{ room: string; payload: any }> = [];
+        gateway.server.to = jest.fn((room: string) => ({ emit: (_e: string, payload: any) => emits.push({ room, payload }) })) as any;
+        const pub = { id: 'm-1', isInternal: false };
+        const internal = { id: 'm-2', isInternal: true };
+
+        gateway.notifyPinsChanged('t-1', [pub, internal] as any);
+
+        expect(emits).toEqual([
+            { room: 'ticket:t-1', payload: { ticketId: 't-1', pins: [pub] } },
+            { room: ticketStaffRoom('t-1'), payload: { ticketId: 't-1', pins: [pub, internal] } },
+        ]);
+    });
+
     it('sends message edits and deletes to the staff room for internal notes and the ticket room otherwise', () => {
         gateway.notifyMessageUpdated('t-1', { id: 'm-1', isInternal: true });
         gateway.notifyMessageUpdated('t-1', { id: 'm-2', isInternal: false });

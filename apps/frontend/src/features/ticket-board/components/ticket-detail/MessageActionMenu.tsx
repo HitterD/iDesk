@@ -5,7 +5,7 @@
  */
 
 import React, { useRef } from 'react';
-import { Copy, Ellipsis, Pencil, Reply, Trash2 } from 'lucide-react';
+import { Copy, Ellipsis, Pencil, Pin, PinOff, Reply, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
     DropdownMenu,
@@ -25,6 +25,8 @@ interface MessageActionMenuProps {
     onEdit?: (messageId: string, content: string) => void;
     onDelete?: (messageId: string) => void;
     onReply?: (content: string) => void;
+    onPin?: () => void;
+    onUnpin?: () => void;
     align?: 'start' | 'end';
 }
 
@@ -36,6 +38,8 @@ export const MessageActionMenu: React.FC<MessageActionMenuProps> = ({
     onEdit,
     onDelete,
     onReply,
+    onPin,
+    onUnpin,
     align = 'start',
 }) => {
     // Edit and Balas hand the focus to the composer; the menu must not pull it back to ⋯ on close.
@@ -73,6 +77,8 @@ export const MessageActionMenu: React.FC<MessageActionMenuProps> = ({
             >
                 <DropdownMenuItem onSelect={handleCopy} disabled={isSticker}><Copy />Salin</DropdownMenuItem>
                 {onReply && <DropdownMenuItem onSelect={handOff(() => onReply(messageContent))}><Reply />Balas</DropdownMenuItem>}
+                {onPin && <DropdownMenuItem onSelect={onPin}><Pin />Sematkan</DropdownMenuItem>}
+                {onUnpin && <DropdownMenuItem onSelect={onUnpin}><PinOff />Lepas sematan</DropdownMenuItem>}
                 {onEdit && isOwn && !isSticker && (
                     <DropdownMenuItem onSelect={handOff(() => onEdit(messageId, messageContent))}><Pencil />Edit</DropdownMenuItem>
                 )}

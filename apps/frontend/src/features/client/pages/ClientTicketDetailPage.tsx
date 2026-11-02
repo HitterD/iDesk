@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { XCircle } from 'lucide-react';
 import api from '@/lib/api';
+import { buildReplyForm } from '@/lib/ticketReplyForm';
 import { toast } from 'sonner';
 import { useAuth } from '@/stores/useAuth';
 import { TICKET_OFFLINE_POLL_MS, useTicketSocket } from '@/hooks/useTicketSocket';
@@ -105,6 +106,7 @@ export const ClientTicketDetailPage: React.FC = () => {
         files?: FileList | null,
         isInternal?: boolean,
         onUploadProgress?: (percent: number) => void,
+        replyToId?: string,
     ) => {
         if (files && files.length > 0) {
             const validation = validateFiles(Array.from(files));
@@ -114,16 +116,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                 throw new Error(validation.error);
             }
         }
-        const formData = new FormData();
-        formData.append('content', content);
-        if (isInternal) {
-            formData.append('isInternal', 'true');
-        }
-        if (files) {
-            Array.from(files).forEach(file => {
-                formData.append('files', file);
-            });
-        }
+        const formData = buildReplyForm({ content, files, isInternal, replyToId });
 
         await replyMutation.mutateAsync({ formData, onUploadProgress });
     };

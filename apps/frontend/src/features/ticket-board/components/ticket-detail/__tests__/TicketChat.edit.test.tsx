@@ -60,14 +60,14 @@ describe('TicketChat edit and delete', () => {
         const user = userEvent.setup();
         renderChat(baseTicket([msg('m-1', AGENT_SENDER, 'Baik, saya cek', minutesAgo(2))]));
         await user.click(within(row('m-1')).getByRole('button', { name: 'Aksi lainnya' }));
-        expect(await menuItems()).toEqual(['Salin', 'Balas', 'Edit', 'Hapus']);
+        expect(await menuItems()).toEqual(['Salin', 'Balas', 'Sematkan', 'Edit', 'Hapus']);
     });
 
     it('an old own message offers Hapus but not Edit', async () => {
         const user = userEvent.setup();
         renderChat(baseTicket([msg('m-1', AGENT_SENDER, 'Baik, saya cek', minutesAgo(20))]));
         await user.click(within(row('m-1')).getByRole('button', { name: 'Aksi lainnya' }));
-        expect(await menuItems()).toEqual(['Salin', 'Balas', 'Hapus']);
+        expect(await menuItems()).toEqual(['Salin', 'Balas', 'Sematkan', 'Hapus']);
     });
 
     it("requester sees no Hapus on the agent's message", async () => {
@@ -75,7 +75,7 @@ describe('TicketChat edit and delete', () => {
         const user = userEvent.setup();
         renderChat({ ...baseTicket([msg('m-1', AGENT_SENDER, 'Baik', minutesAgo(2))]), viewerAccess: 'requester' } as TicketDetail);
         await user.click(within(row('m-1')).getByRole('button', { name: 'Aksi lainnya' }));
-        expect(await menuItems()).toEqual(['Salin', 'Balas']);
+        expect(await menuItems()).toEqual(['Salin', 'Balas', 'Sematkan']);
     });
 
     it("admin sees Hapus on anyone's message but no Edit", async () => {
@@ -83,7 +83,7 @@ describe('TicketChat edit and delete', () => {
         const user = userEvent.setup();
         renderChat(baseTicket([msg('m-1', USER_SENDER, 'Halo', minutesAgo(2))]));
         await user.click(within(row('m-1')).getByRole('button', { name: 'Aksi lainnya' }));
-        expect(await menuItems()).toEqual(['Salin', 'Balas', 'Hapus']);
+        expect(await menuItems()).toEqual(['Salin', 'Balas', 'Sematkan', 'Hapus']);
     });
 
     it('editing fills the composer, shows the banner and saves the new text', async () => {

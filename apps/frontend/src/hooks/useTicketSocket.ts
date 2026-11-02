@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSocket } from '@/lib/socket';
 import { useAuth } from '@/stores/useAuth';
 import api from '@/lib/api';
-import { replaceMessageInCaches } from '@/lib/ticketMessageCache';
+import { applyPinsToCaches, replaceMessageInCaches, type PinnedMessageSummary } from '@/lib/ticketMessageCache';
 import type { Ticket, TicketMessage } from '@/lib/api/types';
 
 // Use TicketMessage from types instead of local interface
@@ -219,6 +219,11 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
             replaceMessageInCaches(queryClient, ticketId, data.message);
         };
 
+        const handlePinsChanged = (data: { ticketId: string; pins: PinnedMessageSummary[] }) => {
+            if (data.ticketId !== ticketId) return;
+            applyPinsToCaches(queryClient, ticketId, data.pins);
+        };
+
         // Fail-safe synchronization: when in-app notification for this ticket arrives, sync query & clear typing
         const handleNotificationSync = (notifData: any) => {
             const incomingTicketId = notifData?.ticketId || notifData?.notification?.ticketId;
@@ -237,6 +242,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
         socket.on('typing:stop', handleTypingStop);
         socket.on('ticket:readStateChanged', handleReadState);
         socket.on('ticket:messageUpdated', handleMessageUpdated);
+        socket.on('ticket:pinsChanged', handlePinsChanged);
 
         if (user?.id) {
             socket.on(`notification:${user.id}`, handleNotificationSync);
@@ -254,6 +260,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
             socket.off('typing:stop', handleTypingStop);
             socket.off('ticket:readStateChanged', handleReadState);
             socket.off('ticket:messageUpdated', handleMessageUpdated);
+            socket.off('ticket:pinsChanged', handlePinsChanged);
 
             if (user?.id) {
                 socket.off(`notification:${user.id}`, handleNotificationSync);
@@ -350,6 +357,8 @@ export const useTicketListSocket = (options?: {
                 scheduleInvalidate(TICKETS_KEY);
                 return;
             }
+            // System lines (status, pins) are not chat: the server does not count them as unread either.
+            if (data.message?.isSystemMessage) return;
             {
                 queryClient.setQueriesData({ queryKey: ['tickets'] }, (oldData: any) => {
                     if (!oldData) return oldData;

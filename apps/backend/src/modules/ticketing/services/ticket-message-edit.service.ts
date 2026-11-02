@@ -1,16 +1,17 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, IsNull, Repository } from 'typeorm';
+import { DataSource, EntityManager, IsNull, Repository } from 'typeorm';
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { TicketMessageEdit } from '../entities/ticket-message-edit.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { NotificationService } from '../../notifications/notification.service';
+import { TicketMessagePinService } from './ticket-message-pin.service';
 import { resolveTicketViewerAccess } from './ticket-oracle-access';
 import { isTicketRequesterSide } from '../utils/oracle-ticket-access.util';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
-import { presentMessage } from '../utils/message-presenter.util';
+import { presentInThread, withDeletedQuote } from '../utils/message-presenter.util';
 
 /** How long after sending the sender may still edit a message (WhatsApp-style). */
 export const EDIT_WINDOW_MS = 15 * 60 * 1000;
@@ -37,6 +38,7 @@ export class TicketMessageEditService {
         private readonly dataSource: DataSource,
         private readonly eventsGateway: EventsGateway,
         private readonly notificationService: NotificationService,
+        @Inject(forwardRef(() => TicketMessagePinService)) private readonly pinService: TicketMessagePinService,
     ) { }
 
     async editMessage(ticketId: string, messageId: string, viewer: MessageEditor, content: string) {
@@ -78,10 +80,15 @@ export class TicketMessageEditService {
                 { deletedAt: new Date(), deletedById: viewer.id },
             );
             if (!affected) throw new BadRequestException(ALREADY_DELETED);
-            return manager.findOne(TicketMessage, { where: { id: message.id }, relations: ['sender'] });
+            const replies = await this.forgetQuotesOf(manager, message);
+            const deleted = await manager.findOne(TicketMessage, { where: { id: message.id }, relations: ['sender'] });
+            return { deleted, replies };
         });
         await this.redactNotifications(message, ticket);
-        return this.broadcast(ticketId, updated ?? message);
+        for (const reply of updated.replies) await this.redactNotifications(reply, ticket);
+        if (message.pinnedAt) await this.releasePin(ticketId, message.id);
+        for (const reply of updated.replies) await this.broadcast(ticketId, reply);
+        return this.broadcast(ticketId, updated.deleted ?? message);
     }
 
     /** The message, once the viewer may see the ticket and the message is a live public chat message. */
@@ -111,6 +118,33 @@ export class TicketMessageEditService {
         }
     }
 
+    /**
+     * Replies carry the deleted text in their own quote line (`↩ Name: snippet`). Rewriting it in
+     * the stored text keeps every reader that does not go through the presenter (iPop, e-mail,
+     * push and webhook previews, notifications) from showing it.
+     */
+    private async forgetQuotesOf(manager: EntityManager, message: TicketMessage): Promise<TicketMessage[]> {
+        const replies = await manager.find(TicketMessage, { where: { replyToId: message.id, deletedAt: IsNull() }, relations: ['sender'] });
+        const senderName = message.sender?.fullName ?? '';
+        const rewritten: TicketMessage[] = [];
+        for (const reply of replies) {
+            const content = withDeletedQuote(reply.content, senderName);
+            if (content === reply.content) continue;
+            await manager.update(TicketMessage, { id: reply.id }, { content });
+            rewritten.push({ ...reply, content } as TicketMessage);
+        }
+        return rewritten;
+    }
+
+    /** The delete has happened; a failed pin release is logged rather than reported as a failed delete. */
+    private async releasePin(ticketId: string, messageId: string): Promise<void> {
+        try {
+            await this.pinService.releaseDeleted(ticketId, messageId);
+        } catch (error) {
+            this.logger.error(`Could not release the pin of deleted message ${messageId}`, error as Error);
+        }
+    }
+
     /** The deleted text also sits in stored "new reply" notifications; replace it there too. */
     private async redactNotifications(message: TicketMessage, ticket: Ticket): Promise<void> {
         try {
@@ -127,16 +161,19 @@ export class TicketMessageEditService {
         }
     }
 
-    /** What leaves the server: blanked if deleted, and only the public fields of the sender. */
-    private present(message: TicketMessage) {
+    /** What leaves the server: blanked if deleted, linked to its original, and only public sender fields. */
+    private async present(message: TicketMessage) {
+        const original = message.replyToId
+            ? await this.messageRepo.findOne({ where: { id: message.replyToId, ticketId: message.ticketId }, relations: ['sender'] })
+            : null;
         const sender = message.sender
             ? { id: message.sender.id, fullName: message.sender.fullName, role: message.sender.role }
             : undefined;
-        return { ...presentMessage(message), sender };
+        return { ...presentInThread(message, original), sender };
     }
 
-    private broadcast(ticketId: string, message: TicketMessage) {
-        const presented = this.present(message);
+    private async broadcast(ticketId: string, message: TicketMessage) {
+        const presented = await this.present(message);
         this.eventsGateway.notifyMessageUpdated(ticketId, presented);
         return presented;
     }

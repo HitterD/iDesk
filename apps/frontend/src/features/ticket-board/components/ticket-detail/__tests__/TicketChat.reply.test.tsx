@@ -113,6 +113,8 @@ describe('TicketChat replies', () => {
         fireEvent.keyDown(input, { key: 'Enter' });
 
         await waitFor(() => expect(onSend).toHaveBeenCalled());
+        // The reply also links to the message it answers.
+        expect(onSend.mock.calls[0][4]).toBe('m-1');
         expect(onSend.mock.calls[0][0]).toBe('↩ SHANNON STEPHANIE LIMAWAN: Pak Bagas, ini barusan baterainya dicoba lepas\n\nsiap');
         await waitFor(() => expect(screen.queryByText('Membalas Shannon Stephanie Limawan')).not.toBeInTheDocument());
     });
