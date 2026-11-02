@@ -14,6 +14,8 @@ import {
 } from '@/lib/file-validation';
 import { AttachmentTray } from './AttachmentTray';
 import { ATTACHMENT_QUOTE, buildQuotedContent, toDisplayName } from './messageThread';
+import { MentionPicker } from './MentionPicker';
+import { useComposerMentions } from './useComposerMentions';
 
 export interface ReplyTarget {
     id: string;
@@ -30,7 +32,15 @@ interface ChatComposerProps {
     replyTo: ReplyTarget | null;
     onCancelReply: () => void;
     /** Rejects when the message was not sent; the draft is kept for a retry. */
-    onSend: (content: string, files: FileList | null, isInternal: boolean, onUploadProgress: (percent: number) => void) => Promise<void>;
+    onSend: (
+        content: string,
+        files: FileList | null,
+        isInternal: boolean,
+        onUploadProgress: (percent: number) => void,
+        mentionedUserIds?: string[],
+    ) => Promise<void>;
+    /** Enables the @mention picker for this ticket. */
+    ticketId?: string;
     onSendSticker: (sticker: string) => void;
     onTypingStart?: () => void;
     onTypingStop?: () => void;
@@ -149,7 +159,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     editing = null,
     onCancelEdit,
     onSaveEdit,
+    ticketId,
 }) => {
+    const mentions = useComposerMentions(inputRef, ticketId);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dropZoneRef = useRef<HTMLDivElement>(null);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -235,7 +247,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
         setSendProgress(0);
         try {
-            await onSend(content, fileList, isInternal, setSendProgress);
+            const mentionedUserIds = mentions.idsIn(rawContent);
+            await onSend(content, fileList, isInternal, setSendProgress, mentionedUserIds.length ? mentionedUserIds : undefined);
+            mentions.reset();
             setInputValue('');
             setSelectedFiles([]);
             onCancelReply();
@@ -260,6 +274,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     };
 
     const handleInputChange = () => {
+        mentions.track();
         onTypingStart?.();
         setMessageLength(inputRef.current?.value.length || 0);
         checkSlashCommand();
@@ -397,6 +412,16 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             <AttachmentTray files={selectedFiles} onRemove={i => setSelectedFiles(prev => prev.filter((_, idx) => idx !== i))} progress={sendProgress} />
 
             <div className="chat-compose-row">
+                {mentions.active && !editing && (
+                    <MentionPicker
+                        query={mentions.query}
+                        users={mentions.candidates}
+                        highlight={mentions.index}
+                        onHighlight={mentions.setIndex}
+                        onPick={mentions.pick}
+                        label="Sebut orang"
+                    />
+                )}
                 {showCannedResponses && (
                     <SlashCommandAutocomplete
                         query={slashQuery}
@@ -452,7 +477,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                         className="max-h-[140px]"
                         onChange={handleInputChange}
                         onPaste={handlePaste}
+                        onKeyUp={mentions.track}
+                        onClick={mentions.track}
                         onKeyDown={async e => {
+                            // An open @ picker takes arrows / Enter / Tab before sending does.
+                            if (!editing && mentions.handleKey(e)) return;
                             if (e.key === 'Enter' && !e.nativeEvent.isComposing && (e.ctrlKey || e.metaKey || !e.shiftKey)) {
                                 e.preventDefault();
                                 await handleSendMessage();

@@ -8,7 +8,7 @@ import { UserAvatar } from '@/components/ui/UserAvatar';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { dateSeparatorLabel, formatMessageTime, isSameDay, GROUP_WINDOW_MS } from '../messageThread';
 import { notePath, type NoteMessage, type NoteUser, type TicketNote } from './types';
-import { MentionPicker, useMentionQuery } from './MentionPicker';
+import { highlightMentions, MentionPicker, useMentionQuery } from '../MentionPicker';
 
 const MAX_FILES = 5;
 const POLL_MS = 5_000;
@@ -106,7 +106,7 @@ function NoteBubble({ base, message, author, members, isOwn, isGroupStart, isGro
                 <div className={cn('chat-bubble', isOwn ? 'chat-bubble-out' : 'chat-bubble-in', isSolution && 'ring-2 ring-emerald-500/70')}>
                     {isSolution && <p className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
                         <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Solusi dipakai</p>}
-                    {message.content && <p className="whitespace-pre-wrap">{highlightMentions(message.content, members, message.mentionedUserIds)}</p>}
+                    {message.content && <p className="whitespace-pre-wrap">{noteMentions(message.content, members, message.mentionedUserIds)}</p>}
                     {message.attachmentIds.map(id => <PrivateNoteImage key={id} base={base} id={id} />)}
                 </div>
             </div>
@@ -120,11 +120,8 @@ function NoteBubble({ base, message, author, members, isOwn, isGroupStart, isGro
     </div>;
 }
 
-function highlightMentions(text: string, members: NoteUser[], mentioned: string[]) {
-    const names = members.filter(user => mentioned.includes(user.id)).map(user => `@${user.fullName}`);
-    if (!names.length) return text;
-    const pattern = new RegExp(`(${names.map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g');
-    return text.split(pattern).map((part, i) => names.includes(part) ? <b key={i} className="font-semibold">{part}</b> : part);
+function noteMentions(text: string, members: NoteUser[], mentioned: string[]) {
+    return highlightMentions(text, members.filter(user => mentioned.includes(user.id)), (name, key) => <b key={key} className="font-semibold">{name}</b>);
 }
 
 interface ComposerProps { base: string; userId: string; members: NoteUser[]; onSent: () => Promise<unknown>; onError: (message: string) => void }

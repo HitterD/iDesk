@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { MessageReactions, ReactionPicker, type Reaction } from '@/components/ui/ChatReactions';
 import { MessageAttachments } from './MessageAttachments';
+import { highlightMentions } from './MentionPicker';
 import { MessageActionMenu } from './MessageActionMenu';
 import { QuoteSnippet } from './QuoteBlock';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
@@ -195,7 +196,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     className="mb-1.5"
                                 />
                             )}
-                            {showText && <p className="whitespace-pre-wrap">{text}</p>}
+                            {showText && (
+                                <p className="whitespace-pre-wrap">
+                                    {highlightMentions(text, message.mentions ?? [], (name, key) => (
+                                        <span key={key} className="chat-mention">{name}</span>
+                                    ))}
+                                </p>
+                            )}
                             <MessageAttachments
                                 attachments={message.attachments}
                                 attachmentInfo={message.attachmentInfo}
