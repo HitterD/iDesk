@@ -37,14 +37,17 @@ interface ChatComposerProps {
     /** Shown to ICT on an open IT support ticket: propose a hardware request for the requester to confirm. */
     onProposeHardware?: () => void;
     onProposeEForm?: () => void;
-    /** Editing one of the viewer's messages: the box holds its text and Send saves it instead. */
-    editing?: { id: string; body: string } | null;
+    /**
+     * Editing one of the viewer's messages: the box holds its text and Send saves it instead.
+     * `maxLength` is what is left of the message limit once a reply's quote is put back in front.
+     */
+    editing?: { id: string; body: string; maxLength: number } | null;
     onCancelEdit?: () => void;
     /** Rejects when the edit was not saved; the draft and the edit mode are kept. */
     onSaveEdit?: (body: string) => Promise<void>;
 }
 
-const MAX_MESSAGE_LENGTH = 5000;
+export const MAX_MESSAGE_LENGTH = 5000;
 /** Counter turns amber / red at these fractions of the limit (same thresholds as before the redesign). */
 const COUNTER_WARN_RATIO = 0.7;
 const COUNTER_OVER_RATIO = 0.9;
@@ -193,6 +196,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         input.value = editing?.body ?? '';
         setMessageLength(input.value.length);
         if (!editing) return undefined;
+        setSelectedFiles([]);
         // Next frame: the ⋯ menu that started the edit is still closing and would take the focus back.
         const frame = requestAnimationFrame(() => {
             input.focus();
@@ -444,6 +448,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                         maxRows={6}
                         placeholder={placeholderText}
                         aria-label={placeholderText}
+                        maxLength={editing ? editing.maxLength : MAX_MESSAGE_LENGTH}
                         className="max-h-[140px]"
                         onChange={handleInputChange}
                         onPaste={handlePaste}

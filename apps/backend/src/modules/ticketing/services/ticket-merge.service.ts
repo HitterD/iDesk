@@ -4,6 +4,7 @@ import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
 import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
+import { presentMessage, PresentedMessage } from '../utils/message-presenter.util';
 import { TicketParticipant } from '../entities/ticket-participant.entity';
 import { TicketNote } from '../notes/entities/ticket-note.entity';
 import { TicketNoteEditSession } from '../notes/entities/ticket-note-edit-session.entity';
@@ -37,7 +38,7 @@ export class TicketMergeService {
         secondaryTicketIds: string[],
         userId: string,
         reason?: string,
-    ): Promise<Ticket> {
+    ): Promise<Omit<Ticket, 'messages'> & { messages: PresentedMessage<TicketMessage>[] }> {
         if (secondaryTicketIds.includes(primaryTicketId)) {
             throw new BadRequestException('Primary ticket cannot be in the list of secondary tickets');
         }
@@ -219,6 +220,6 @@ export class TicketMergeService {
         for (const secondaryId of secondaryTicketIds) {
             this.eventEmitter?.emit('ticket.merged', { ticketId: secondaryId, mergedInto: primaryTicketId });
         }
-        return ticket;
+        return { ...ticket, messages: (ticket.messages ?? []).map(presentMessage) };
     }
 }

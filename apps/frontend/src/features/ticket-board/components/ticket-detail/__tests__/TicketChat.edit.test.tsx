@@ -180,6 +180,40 @@ describe('TicketChat edit and delete', () => {
         expect(within(row('m-1')).getByText('Dihapus oleh admin')).toBeInTheDocument();
     });
 
+    it('leaves edit mode when someone else deletes the message being edited', async () => {
+        const { toast } = await import('sonner');
+        const user = userEvent.setup();
+        const live = baseTicket([msg('m-1', AGENT_SENDER, 'Baik, saya cek', minutesAgo(2))]);
+        const client = new QueryClient();
+        const view = (t: TicketDetail) => (
+            <QueryClientProvider client={client}>
+                <TicketChat ticket={t} isConnected onSendMessage={vi.fn(() => Promise.resolve())} onImageClick={vi.fn()} />
+            </QueryClientProvider>
+        );
+        const { rerender } = render(view(live));
+        await user.click(within(row('m-1')).getByRole('button', { name: 'Aksi lainnya' }));
+        await user.click(await screen.findByRole('menuitem', { name: 'Edit' }));
+        expect(screen.getByText('Mengedit pesan')).toBeInTheDocument();
+
+        rerender(view(baseTicket([{ ...msg('m-1', AGENT_SENDER, '', minutesAgo(2)), isDeleted: true, deletedByAdmin: true }])));
+
+        await waitFor(() => expect(screen.queryByText('Mengedit pesan')).not.toBeInTheDocument());
+        expect(toast.info).toHaveBeenCalledWith('Pesan yang Anda edit sudah dihapus');
+    });
+
+    it('editing a reply limits the body so the whole message stays within 5000 characters', async () => {
+        const user = userEvent.setup();
+        renderChat(baseTicket([
+            msg('m-1', USER_SENDER, 'Scanner mati', minutesAgo(5)),
+            msg('m-2', AGENT_SENDER, '\u21a9 Shannon Stephanie Limawan: Scanner mati\n\nSaya cek', minutesAgo(1)),
+        ]));
+        await user.click(within(row('m-2')).getByRole('button', { name: 'Aksi lainnya' }));
+        await user.click(await screen.findByRole('menuitem', { name: 'Edit' }));
+
+        const prefix = '\u21a9 Shannon Stephanie Limawan: Scanner mati\n\n'.length;
+        expect(screen.getByRole('textbox')).toHaveAttribute('maxlength', String(5000 - prefix));
+    });
+
     it('an edited message is labelled diedit', () => {
         renderChat(baseTicket([msg('m-1', USER_SENDER, 'Halo', minutesAgo(2), { editedAt: minutesAgo(1) })]));
         expect(within(row('m-1')).getByText('diedit')).toBeInTheDocument();

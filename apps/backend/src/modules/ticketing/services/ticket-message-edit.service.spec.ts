@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { TicketMessageEditService, EDIT_WINDOW_MS } from './ticket-message-edit.service';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { TicketMessageEdit } from '../entities/ticket-message-edit.entity';
@@ -20,18 +20,30 @@ const message = (over: Record<string, unknown> = {}) => ({
     sender: { id: 'u-1', fullName: 'Budi', role: UserRole.USER }, ...over,
 });
 
-function build(msg: Record<string, unknown> = message(), t: Record<string, unknown> = ticket()) {
+function build(msg: Record<string, unknown> = message(), t: Record<string, unknown> = { ...ticket(), ticketNumber: 'GEN-1' }, affected = 1) {
     const saved: Array<{ entity: unknown; data: any }> = [];
+    const updates: Array<{ where: any; values: any }> = [];
+    let row: Record<string, unknown> = { ...msg };
     const manager = {
         create: jest.fn((_e, data) => data),
         save: jest.fn(async (entity, data) => { saved.push({ entity, data }); return data; }),
+        // Conditional write: applied only when the row still matches (affected = 0 simulates a lost race).
+        update: jest.fn(async (_e, where, values) => {
+            updates.push({ where, values });
+            if (affected) row = { ...row, ...values };
+            return { affected };
+        }),
+        findOne: jest.fn(async () => row),
     };
     const messageRepo = { findOne: jest.fn().mockResolvedValue(msg) };
     const ticketRepo = { findOne: jest.fn().mockResolvedValue(t) };
     const dataSource = { transaction: jest.fn((fn) => fn(manager)) };
     const gateway = { notifyMessageUpdated: jest.fn() };
-    const service = new TicketMessageEditService(messageRepo as never, ticketRepo as never, dataSource as never, gateway as never);
-    return { service, saved, gateway };
+    const notifications = { redactMessageSnippet: jest.fn().mockResolvedValue(undefined) };
+    const service = new TicketMessageEditService(
+        messageRepo as never, ticketRepo as never, dataSource as never, gateway as never, notifications as never,
+    );
+    return { service, saved, updates, gateway, notifications };
 }
 
 describe('TicketMessageEditService', () => {
@@ -39,14 +51,13 @@ describe('TicketMessageEditService', () => {
     afterEach(() => jest.useRealTimers());
 
     it('lets the sender edit within 15 minutes and keeps the old text for audit', async () => {
-        const { service, saved } = build();
+        const { service, saved, updates } = build();
 
         const out = await service.editMessage('t-1', 'm-1', SENDER, '  halo semua  ');
 
         expect(saved.find((s) => s.entity === TicketMessageEdit)?.data)
             .toMatchObject({ messageId: 'm-1', previousContent: 'halo', editedById: 'u-1' });
-        expect(saved.find((s) => s.entity === TicketMessage)?.data)
-            .toMatchObject({ content: 'halo semua', editedAt: new Date(NOW) });
+        expect(updates[0].values).toEqual({ content: 'halo semua', editedAt: new Date(NOW) });
         expect(out).toMatchObject({ id: 'm-1', content: 'halo semua', isDeleted: false });
     });
 
@@ -79,7 +90,7 @@ describe('TicketMessageEditService', () => {
         const own = build(old);
         expect(await own.service.deleteMessage('t-1', 'm-1', SENDER))
             .toMatchObject({ isDeleted: true, deletedByAdmin: false, content: '' });
-        expect(own.saved[0].data).toMatchObject({ deletedAt: new Date(NOW), deletedById: 'u-1' });
+        expect(own.updates[0].values).toEqual({ deletedAt: new Date(NOW), deletedById: 'u-1' });
 
         const byAdmin = build(old);
         expect(await byAdmin.service.deleteMessage('t-1', 'm-1', ADMIN)).toMatchObject({ isDeleted: true, deletedByAdmin: true });
@@ -108,10 +119,47 @@ describe('TicketMessageEditService', () => {
         expect(JSON.stringify(gateway.notifyMessageUpdated.mock.calls[0][1])).not.toContain('halo');
     });
 
-    it('an unchanged edit writes nothing', async () => {
-        const { service, saved, gateway } = build();
-        await service.editMessage('t-1', 'm-1', SENDER, ' halo ');
+    it('an unchanged edit writes nothing and returns only the public sender fields', async () => {
+        const full = message({ sender: { id: 'u-1', fullName: 'Budi', role: UserRole.USER, email: 'b@x.id', phoneNumber: '08' } });
+        const { service, saved, updates, gateway } = build(full);
+        const out = await service.editMessage('t-1', 'm-1', SENDER, ' halo ');
         expect(saved).toHaveLength(0);
+        expect(updates).toHaveLength(0);
         expect(gateway.notifyMessageUpdated).not.toHaveBeenCalled();
+        expect(out.sender).toEqual({ id: 'u-1', fullName: 'Budi', role: UserRole.USER });
+    });
+
+    it('refuses an edit that is only whitespace', async () => {
+        await expect(build().service.editMessage('t-1', 'm-1', SENDER, '   ')).rejects.toThrow('Pesan tidak boleh kosong');
+    });
+
+    it('writes the edit only while the message is still live and unchanged, and says so when it lost a race', async () => {
+        const { service, updates } = build();
+        await service.editMessage('t-1', 'm-1', SENDER, 'baru');
+        expect(updates[0].where).toMatchObject({ id: 'm-1', content: 'halo' });
+        expect(updates[0].where.deletedAt).toBeDefined();
+
+        const raced = build(message(), undefined, 0);
+        await expect(raced.service.editMessage('t-1', 'm-1', SENDER, 'baru')).rejects.toBeInstanceOf(ConflictException);
+        expect(raced.saved).toHaveLength(0);
+        expect(raced.gateway.notifyMessageUpdated).not.toHaveBeenCalled();
+    });
+
+    it('deletes only a message that is not deleted yet', async () => {
+        const { service, updates } = build();
+        await service.deleteMessage('t-1', 'm-1', SENDER);
+        expect(updates[0].where).toMatchObject({ id: 'm-1' });
+        expect(updates[0].where.deletedAt).toBeDefined();
+
+        const raced = build(message(), undefined, 0);
+        await expect(raced.service.deleteMessage('t-1', 'm-1', SENDER)).rejects.toThrow('Pesan sudah dihapus');
+    });
+
+    it('takes the deleted text back out of stored reply notifications', async () => {
+        const { service, notifications } = build();
+        await service.deleteMessage('t-1', 'm-1', SENDER);
+        expect(notifications.redactMessageSnippet).toHaveBeenCalledWith({
+            messageId: 'm-1', ticketId: 't-1', ticketNumber: 'GEN-1', senderName: 'Budi', sentAt: new Date(NOW - 60_000),
+        });
     });
 });

@@ -10,7 +10,7 @@ import { MessageBubble } from './MessageBubble';
 import { useMessageActions } from './useMessageActions';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ActivityEvent, linkedTicketMove } from './ActivityEvent';
-import { ChatComposer, ReplyTarget, STICKERS } from './ChatComposer';
+import { ChatComposer, MAX_MESSAGE_LENGTH, ReplyTarget, STICKERS } from './ChatComposer';
 import {
     continuesGroup,
     dateSeparatorLabel,
@@ -106,7 +106,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isPinnedExpanded, setIsPinnedExpanded] = useState(false);
     const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
-    const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);
+    const [editing, setEditing] = useState<{ id: string; body: string; maxLength: number } | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -121,7 +121,9 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const startEdit = (message: ChatMessage) => {
         const quote = parseQuote(message.content);
         setReplyTo(null);
-        setEditing({ id: message.id, body: quote ? quote.body : message.content });
+        const body = quote ? quote.body : message.content;
+        // A reply is saved with its quote in front, so the body gets what is left of the limit.
+        setEditing({ id: message.id, body, maxLength: MAX_MESSAGE_LENGTH - (message.content.length - body.length) });
     };
     /** A reply keeps its quote: only the body under it was in the box. */
     const saveEdit = async (body: string) => {
@@ -131,6 +133,14 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         await messageActions.editMessage(editing.id, quote ? buildQuotedContent(quote.sender, quote.quote, body) : body);
         setEditing(null);
     };
+    // Deleted elsewhere (an admin, another tab) while it is open in the composer: leave edit mode.
+    const editedMessageGone = Boolean(editing && ticket.messages?.find((m) => m.id === editing.id)?.isDeleted);
+    useEffect(() => {
+        if (!editedMessageGone) return;
+        setEditing(null);
+        toast.info('Pesan yang Anda edit sudah dihapus');
+    }, [editedMessageGone]);
+
     const confirmDelete = async () => {
         if (!deletingId) return;
         setIsDeleting(true);

@@ -53,12 +53,16 @@ describe('TicketMergeService Oracle scope', () => {
         };
         const gateway: any = { server: { to: () => ({ emit: jest.fn() }) }, emitToTicketAudience: jest.fn(),
             notifyTicketListUpdate: jest.fn(), notifyDashboardStatsUpdate: jest.fn() };
-        const service = new TicketMergeService({ findOne: async () => primary } as any, {} as any, {} as any,
+        const reloaded = { ...primary, messages: [{ id: 'gone', content: 'rahasia', senderId: 'u', attachments: ['/uploads/x.png'], deletedAt, deletedById: 'admin' }] };
+        const service = new TicketMergeService({ findOne: async () => reloaded } as any, {} as any, {} as any,
             { transaction: async (fn: any) => fn(manager) } as any, gateway, { log: async () => undefined } as any);
 
-        await service.mergeTickets('p', ['s'], 'u');
+        const result: any = await service.mergeTickets('p', ['s'], 'u');
+        expect(JSON.stringify(result.messages)).not.toContain('rahasia');
+        expect(result.messages[0]).toMatchObject({ isDeleted: true });
 
         const gone = savedMessages.find((m) => m.deletedAt);
+        // The merged ticket the endpoint returns is blanked like every other read.
         expect(gone).toMatchObject({ ticketId: 'p', deletedAt, deletedById: 'admin', content: 'rahasia' });
         expect(savedMessages.find((m) => m.content.includes('versi baru'))).toMatchObject({ editedAt });
     });

@@ -232,3 +232,47 @@ describe('NotificationService - critical acknowledgement filter', () => {
         expect(repo.count.mock.calls[0][0].where.acknowledgedAt).toEqual(IsNull());
     });
 });
+
+describe('NotificationService - chat message snippets', () => {
+    const build = () => {
+        const qb: any = {
+            update: jest.fn(() => qb), set: jest.fn(() => qb), where: jest.fn(() => qb), andWhere: jest.fn(() => qb),
+            execute: jest.fn().mockResolvedValue({ affected: 2 }),
+        };
+        const repo: any = {
+            findOne: jest.fn().mockResolvedValue(null),
+            create: jest.fn((x) => ({ id: 'n-1', ...x })),
+            save: jest.fn((x) => Promise.resolve({ id: 'n-1', ...x })),
+            createQueryBuilder: jest.fn(() => qb),
+        };
+        const gateway: any = { server: { to: jest.fn().mockReturnValue({ emit: jest.fn() }) } };
+        const sja: any = { isAvailable: jest.fn().mockResolvedValue(false), dispatchNotification: jest.fn() };
+        return { service: new NotificationService(repo, gateway, sja), repo, qb };
+    };
+
+    it('ties a reply notification to its message, without deduplicating replies', async () => {
+        const { service, repo } = build();
+        await service.notifyTicketReply('u-1', 't-1', 'GEN-1', 'Budi', 'rahasia', 'm-1');
+        expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ referenceId: 'm-1', message: 'Budi: "rahasia"' }));
+    });
+
+    it('replaces the snippet of a deleted message in stored notifications', async () => {
+        const { service, qb } = build();
+        await service.redactMessageSnippet({ messageId: 'm-1', ticketId: 't-1', ticketNumber: 'GEN-1', senderName: 'Budi', sentAt: new Date('2026-11-01T08:00:00Z') });
+        expect(qb.set).toHaveBeenCalledWith({ message: 'Budi membalas tiket #GEN-1' });
+        // Flatten the where tree: Brackets are expanded by running their callback on a recorder.
+        const parts: string[] = [];
+        const record = (cond: any) => {
+            if (typeof cond === 'string') { parts.push(cond); return; }
+            const sub: any = { where: (c: any) => (record(c), sub), andWhere: (c: any) => (record(c), sub), orWhere: (c: any) => (record(c), sub) };
+            cond.whereFactory(sub);
+        };
+        [qb.where.mock.calls[0][0], ...qb.andWhere.mock.calls.map((c: any[]) => c[0])].forEach(record);
+        const where = parts.join(' ');
+        expect(where).toContain('"referenceId" = :messageId');
+        // Notifications written before referenceId existed are matched by ticket, type and time.
+        expect(where).toContain('"ticketId" = :ticketId');
+        expect(where).toContain('"createdAt" BETWEEN');
+    });
+});
+
