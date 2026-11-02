@@ -125,7 +125,11 @@ export class TicketMessageEditService {
      * push and webhook previews, notifications) from showing it.
      */
     private async forgetQuotesOf(manager: EntityManager, message: TicketMessage): Promise<TicketMessage[]> {
-        const replies = await manager.find(TicketMessage, { where: { replyToId: message.id, deletedAt: IsNull() }, relations: ['sender'] });
+        // Reactions come along: the rewritten replies are re-sent whole and must not lose them on screen.
+        const replies = await manager.find(TicketMessage, {
+            where: { replyToId: message.id, deletedAt: IsNull() },
+            relations: ['sender', 'reactions', 'reactions.user'],
+        });
         const senderName = message.sender?.fullName ?? '';
         const rewritten: TicketMessage[] = [];
         for (const reply of replies) {

@@ -527,6 +527,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                         ? readTick(message.createdAt, isAgentView ? ticket.userLastReadAt : ticket.agentLastReadAt)
                                         : undefined}
                                     reactions={toReactionChips(message.reactions, user?.id)}
+                                    canReact={!message.isInternal && !isTicketClosed}
                                     // One reaction per person: picking another emoji replaces it on the server.
                                     onAddReaction={(emoji) => void reactionActions.react(message.id, emoji).catch(() => undefined)}
                                     onRemoveReaction={() => void reactionActions.unreact(message.id).catch(() => undefined)}

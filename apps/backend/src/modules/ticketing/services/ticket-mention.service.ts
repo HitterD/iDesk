@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import { Ticket } from '../entities/ticket.entity';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
@@ -37,13 +37,18 @@ export class TicketMentionService {
             .map((u) => ({ id: u.id, fullName: u.fullName, avatarUrl: u.avatarUrl ?? null }));
     }
 
-    /** The subset of `ids` this viewer may mention on this ticket, without duplicates. */
-    async filterAllowed(ticketId: string, viewer: MessageEditor, ids: string[]): Promise<string[]> {
+    /**
+     * The subset of `ids` this viewer may mention on this ticket, without duplicates. In an internal
+     * note only staff can be mentioned: the requester side cannot read it.
+     */
+    async filterAllowed(ticketId: string, viewer: MessageEditor, ids: string[], opts: { internal?: boolean } = {}): Promise<string[]> {
         const wanted = [...new Set(ids.filter((id) => typeof id === 'string' && id))];
         if (wanted.length === 0) return [];
         const ticket = await this.load(ticketId);
-        const allowed = new Set((await this.allowedUsers(ticket, viewer)).map((u) => u.id));
-        return wanted.filter((id) => allowed.has(id));
+        const allowed = (await this.allowedUsers(ticket, viewer))
+            .filter((u) => !opts.internal || (u.role !== UserRole.USER && this.canHandle(ticket, u)));
+        const allowedIds = new Set(allowed.map((u) => u.id));
+        return wanted.filter((id) => allowedIds.has(id));
     }
 
     private async allowedUsers(ticket: Ticket, viewer: MessageEditor): Promise<User[]> {
@@ -55,9 +60,13 @@ export class TicketMentionService {
             ...(ticket.participants ?? []).map((p) => p.userId),
         ].filter((id): id is string => Boolean(id)));
 
-        const users = access === 'handler'
-            ? await this.userRepo.find({ where: { isActive: true } })
-            : await this.userRepo.find({ where: { id: In([...involved]), isActive: true } });
+        const columns: (keyof User)[] = ['id', 'fullName', 'avatarUrl', 'role', 'siteId'];
+        const onTicket = await this.userRepo.find({ where: { id: In([...involved]), isActive: true }, select: columns });
+        // Staff who could handle it: never requesters, so they are left out of the scan.
+        const staff = access === 'handler'
+            ? await this.userRepo.find({ where: { isActive: true, role: Not(UserRole.USER) }, select: columns })
+            : [];
+        const users = [...new Map([...onTicket, ...staff].map((u) => [u.id, u])).values()];
 
         return users.filter((u) => u.id !== viewer.id && (involved.has(u.id) || (access === 'handler' && this.canHandle(ticket, u))));
     }

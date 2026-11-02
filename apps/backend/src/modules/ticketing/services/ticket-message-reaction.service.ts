@@ -32,11 +32,10 @@ export class TicketMessageReactionService {
     async react(ticketId: string, messageId: string, viewer: MessageEditor, emoji: string): Promise<ReactionSummary[]> {
         if (!(REACTION_EMOJIS as readonly string[]).includes(emoji)) throw new BadRequestException('Reaksi tidak dikenal');
         const message = await this.loadReactable(ticketId, messageId, viewer);
-        await this.dataSource.transaction(async (manager) => {
-            // Replace, not add: the unique (messageId, userId) index backs the one-per-person rule.
-            await manager.delete(TicketMessageReaction, { messageId, userId: viewer.id });
-            await manager.save(TicketMessageReaction, manager.create(TicketMessageReaction, { messageId, userId: viewer.id, emoji }));
-        });
+        // One statement on the (messageId, userId) unique key: reacting again replaces the emoji, and a
+        // double click cannot collide with itself.
+        await this.dataSource.transaction((manager) =>
+            manager.upsert(TicketMessageReaction, { messageId, userId: viewer.id, emoji }, ['messageId', 'userId']));
         return this.broadcast(ticketId, message);
     }
 

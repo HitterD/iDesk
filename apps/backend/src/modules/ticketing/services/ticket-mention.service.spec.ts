@@ -51,6 +51,13 @@ describe('TicketMentionService', () => {
         expect(kept).toEqual(['assignee']);
     });
 
+    it('in an internal note only the handling team can be mentioned', async () => {
+        // The filer is staff from another site: requester side for this ticket, so the note is not theirs to read.
+        const kept = await build().filterAllowed('t-1', { id: 'assignee', role: UserRole.AGENT_OPERATIONAL_SUPPORT, siteId: 'site-1' },
+            ['req', 'guest', 'colleague', 'filer'], { internal: true });
+        expect(kept).toEqual(['colleague']);
+    });
+
     it('refuses candidates to a USER who is not on the ticket', async () => {
         await expect(build().candidates('t-1', { id: 'random-user', role: UserRole.USER, siteId: 'site-1' }))
             .rejects.toBeInstanceOf(ForbiddenException);

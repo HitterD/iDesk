@@ -35,6 +35,8 @@ interface MessageBubbleProps {
     onAddReaction: (emoji: string) => void;
     onRemoveReaction: (emoji: string) => void;
     onReply: (content: string) => void;
+    /** False on archived internal notes and closed tickets, where the server refuses reactions. */
+    canReact?: boolean;
     /** Present only when the viewer may edit / delete this message right now. */
     onEdit?: () => void;
     onDelete?: () => void;
@@ -102,6 +104,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     onAddReaction,
     onRemoveReaction,
     onReply,
+    canReact = true,
     onEdit,
     onDelete,
     onPin,
@@ -215,11 +218,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     )}
 
                     <div className="chat-tools" role="toolbar" aria-label="Aksi pesan">
-                        <ReactionPicker reactions={reactions} onAddReaction={onAddReaction} onRemoveReaction={onRemoveReaction} align={menuAlign}>
-                            <button type="button" aria-label="Tambah reaksi" title="Tambah reaksi">
-                                <SmilePlus aria-hidden="true" />
-                            </button>
-                        </ReactionPicker>
+                        {canReact && (
+                            <ReactionPicker reactions={reactions} onAddReaction={onAddReaction} onRemoveReaction={onRemoveReaction} align={menuAlign}>
+                                <button type="button" aria-label="Tambah reaksi" title="Tambah reaksi">
+                                    <SmilePlus aria-hidden="true" />
+                                </button>
+                            </ReactionPicker>
+                        )}
                         <button type="button" aria-label="Balas" title="Balas" onClick={() => onReply(text || '')}>
                             <Reply aria-hidden="true" />
                         </button>

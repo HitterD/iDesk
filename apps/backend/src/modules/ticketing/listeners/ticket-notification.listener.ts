@@ -8,6 +8,7 @@ import { TicketAssignedEvent } from '../events/ticket-assigned.event';
 import { TicketRepliedEvent } from '../events/ticket-replied.event';
 import { TicketCancelledEvent } from '../events/ticket-cancelled.event';
 import { NotificationService } from '../../notifications/notification.service';
+import { ticketLinkFor } from './ticket-chat-push.listener';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
 import { buildAppUrl } from '../../../shared/mail/app-url.util';
@@ -360,7 +361,8 @@ export class TicketNotificationListener {
                                     name: mentionedUser.fullName,
                                     ticketId: event.ticketId,
                                     mentionedBy: event.senderName,
-                                    link: buildAppUrl(`/admin/tickets/${event.ticketId}`),
+                                    // Each portal has its own ticket page; there is no /admin route.
+                                    link: buildAppUrl(ticketLinkFor(mentionedUser.role, event.ticketId)),
                                     year: new Date().getFullYear(),
                                 },
                             });

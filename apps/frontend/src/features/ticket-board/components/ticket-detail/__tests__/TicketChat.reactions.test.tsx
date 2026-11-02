@@ -56,6 +56,18 @@ describe('TicketChat saved reactions', () => {
         expect(within(row()).getByRole('button', { name: /Suka · 1 · tambah reaksi/ })).toBeInTheDocument();
     });
 
+    it('offers no reaction button where the server would refuse it (internal note, closed ticket)', () => {
+        const internal = ticket([]);
+        (internal.messages as any[])[0].isInternal = true;
+        renderChat(internal);
+        expect(within(row()).queryByRole('button', { name: 'Tambah reaksi' })).not.toBeInTheDocument();
+    });
+
+    it('offers no reaction button on a closed ticket', () => {
+        renderChat({ ...ticket([]), status: 'CLOSED' } as TicketDetail);
+        expect(within(row()).queryByRole('button', { name: 'Tambah reaksi' })).not.toBeInTheDocument();
+    });
+
     it('picking an emoji saves it on the server', async () => {
         api.put.mockResolvedValue({ data: [{ emoji: thumbs, count: 1, userIds: ['agent-1'], userNames: ['RM BAGASTYO'] }] });
         const user = userEvent.setup();

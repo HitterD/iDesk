@@ -38,11 +38,16 @@ export class TicketMessagingService {
         @Optional() private readonly mentions?: TicketMentionService,
     ) { }
 
-    private async allowedMentions(ticketId: string, userId: string, requested: string[]): Promise<string[]> {
-        if (!requested?.length || !this.mentions) return [];
+    private async allowedMentions(ticketId: string, userId: string, requested: string[], isInternal: boolean): Promise<string[]> {
+        if (!requested?.length) return [];
+        if (!this.mentions) {
+            // Fail closed, but loudly: a module without TicketMentionService would silently drop every mention.
+            this.logger.warn('Mentions dropped: TicketMentionService is not available');
+            return [];
+        }
         const sender = await this.userRepo.findOne({ where: { id: userId } });
         if (!sender) return [];
-        return this.mentions.filterAllowed(ticketId, { id: sender.id, role: sender.role, siteId: sender.siteId ?? null }, requested);
+        return this.mentions.filterAllowed(ticketId, { id: sender.id, role: sender.role, siteId: sender.siteId ?? null }, requested, { internal: isInternal });
     }
 
     /** Names of the people a list of messages mentions, for the chat's mention chips. */
@@ -170,7 +175,7 @@ export class TicketMessagingService {
         options: { replyToId?: string } = {},
     ) {
         // Only people the sender may mention on this ticket are stored and notified (never trust the client list).
-        mentionedUserIds = await this.allowedMentions(ticketId, userId, mentionedUserIds);
+        mentionedUserIds = await this.allowedMentions(ticketId, userId, mentionedUserIds, isInternal);
 
         // P1 fix: message insert + ticket status/SLA update were two separate
         // saves outside any transaction. A crash between them left the ticket

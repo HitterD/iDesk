@@ -3,6 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useMentionQuery, type MentionUser } from './MentionPicker';
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const countOf = (text: string, needle: string) => text.split(needle).length - 1;
+
 /** People the viewer may @mention on this ticket (the server decides; cached for the session). */
 export function useMentionCandidates(ticketId: string | undefined) {
     return useQuery<MentionUser[]>({
@@ -23,7 +26,11 @@ export function useComposerMentions(inputRef: RefObject<HTMLTextAreaElement | nu
     const [text, setText] = useState('');
     const [caret, setCaret] = useState(0);
     const [picked, setPicked] = useState<MentionUser[]>([]);
+    /** Position of the "@" the user dismissed with Escape; the picker stays closed for it. */
+    const [dismissedAt, setDismissedAt] = useState<number | null>(null);
     const query = useMentionQuery(text, caret, candidates);
+    const atIndex = query.active ? caret - query.query.length - 1 : null;
+    const active = query.active && atIndex !== dismissedAt;
 
     const track = () => {
         const input = inputRef.current;
@@ -42,20 +49,37 @@ export function useComposerMentions(inputRef: RefObject<HTMLTextAreaElement | nu
         setText(next.value);
         setCaret(next.caret);
         setPicked((current) => (current.some((u) => u.id === user.id) ? current : [...current, user]));
+        setDismissedAt(null);
     };
 
-    /** Arrow keys / Enter / Tab drive the open picker; returns true when the key was used. */
-    const handleKey = (event: KeyboardEvent): boolean =>
-        query.active && candidates.length > 0 ? query.handleKey(event, candidates, pick) : false;
+    /** Arrow keys / Enter / Tab drive the open picker, Escape closes it; returns true when the key was used. */
+    const handleKey = (event: KeyboardEvent): boolean => {
+        if (!active || candidates.length === 0 || event.nativeEvent.isComposing) return false;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            setDismissedAt(atIndex);
+            return true;
+        }
+        return query.handleKey(event, candidates, pick);
+    };
 
-    /** Ids of picked people whose `@Name` is still in `content` (a deleted name is not a mention). */
-    const idsIn = (content: string) => picked.filter((u) => content.includes(`@${u.fullName}`)).map((u) => u.id);
+    /**
+     * Ids of picked people whose `@Name` is still in `content` as a whole name (a deleted name is not a
+     * mention, and "@Andi" inside "@Andi Tan" does not count as Andi).
+     */
+    const idsIn = (content: string) => picked
+        .filter((u) => new RegExp(`(^|\\s)@${escapeRegExp(u.fullName)}(?![\\p{L}\\p{N}])`, 'u').test(content)
+            && !picked.some((longer) => longer.fullName.length > u.fullName.length
+                && longer.fullName.startsWith(`${u.fullName} `)
+                && countOf(content, `@${longer.fullName}`) >= countOf(content, `@${u.fullName}`)))
+        .map((u) => u.id);
 
     const reset = () => {
         setText('');
         setCaret(0);
         setPicked([]);
+        setDismissedAt(null);
     };
 
-    return { candidates, active: query.active, query: query.query, index: query.index, setIndex: query.setIndex, track, pick, handleKey, idsIn, reset };
+    return { candidates, active, query: query.query, index: query.index, setIndex: query.setIndex, track, pick, handleKey, idsIn, reset };
 }

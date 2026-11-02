@@ -480,7 +480,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                         onKeyUp={mentions.track}
                         onClick={mentions.track}
                         onKeyDown={async e => {
-                            // An open @ picker takes arrows / Enter / Tab before sending does.
+                            // An open @ picker takes arrows / Enter / Tab / Escape before sending or cancelling does.
                             if (!editing && mentions.handleKey(e)) return;
                             if (e.key === 'Enter' && !e.nativeEvent.isComposing && (e.ctrlKey || e.metaKey || !e.shiftKey)) {
                                 e.preventDefault();

@@ -22,6 +22,10 @@ function build(msg: Record<string, unknown> = message(), t: Record<string, unkno
         delete: jest.fn(async (_e, where) => { rows = rows.filter((r) => !(r.messageId === where.messageId && r.userId === where.userId)); }),
         save: jest.fn(async (_e, data) => { rows.push({ ...data, createdAt: new Date(), user: { id: data.userId, fullName: names[data.userId] } }); return data; }),
         create: jest.fn((_e, data) => data),
+        upsert: jest.fn(async (_e, data) => {
+            rows = rows.filter((r) => !(r.messageId === data.messageId && r.userId === data.userId));
+            rows.push({ ...data, createdAt: new Date(), user: { id: data.userId, fullName: names[data.userId] } });
+        }),
     };
     const reactionRepo = { find: jest.fn(async () => [...rows].sort((a, b) => +a.createdAt - +b.createdAt)) };
     const messageRepo = { findOne: jest.fn().mockResolvedValue(msg) };
@@ -48,6 +52,13 @@ describe('TicketMessageReactionService', () => {
         await service.react('t-1', 'm-1', REQUESTER, '👍');
         const out = await service.react('t-1', 'm-1', AGENT, '👍');
         expect(out).toEqual([{ emoji: '👍', count: 2, userIds: ['u-1', 'agent-1'], userNames: ['Budi', 'Agen'] }]);
+    });
+
+    it('writes the reaction as one upsert, so a double click cannot hit the one-per-person index', async () => {
+        const { service, manager } = build();
+        await service.react('t-1', 'm-1', REQUESTER, '\u{1F44D}');
+        expect(manager.upsert).toHaveBeenCalledWith(TicketMessageReaction,
+            { messageId: 'm-1', userId: 'u-1', emoji: '\u{1F44D}' }, ['messageId', 'userId']);
     });
 
     it("unreact removes only the caller's", async () => {
