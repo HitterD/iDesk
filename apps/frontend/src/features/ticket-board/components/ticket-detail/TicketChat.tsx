@@ -22,6 +22,7 @@ import {
     parseQuote,
     quotableText,
     readTick,
+    isPendingMessage,
     buildQuotedContent,
     canDeleteMessage,
     canEditMessage,
@@ -204,7 +205,8 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const nearBottomRef = useRef(true);
     const [isAwayFromBottom, setIsAwayFromBottom] = useState(false);
     const [unseenCount, setUnseenCount] = useState(0);
-    const seenMessageIdsRef = useRef(initialMessageIds);
+    // Its own copy: initialMessageIds decides the entrance animation and must not grow.
+    const seenMessageIdsRef = useRef(new Set(initialMessageIds));
     const scrollToBottom = useCallback(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), []);
     const handleStreamScroll = () => {
         const stream = streamRef.current;
@@ -219,7 +221,8 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         setUnseenCount(0);
     };
 
-    useEffect(() => { scrollToBottom(); }, [scrollToBottom]);
+    // Opening the chat lands at the bottom at once; a smooth scroll here flashed the jump button.
+    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); }, []);
     useEffect(() => {
         if (Object.keys(typingUsers).length > 0 && nearBottomRef.current) scrollToBottom();
     }, [typingUsers, scrollToBottom]);
@@ -517,15 +520,14 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                     isOwn={isOwn(message)}
                                     isOutgoing={isOutgoing(message)}
                                     roleLabel={roleLabel(message)}
-                                    ownLabel={isAgentView ? undefined : 'Anda'}
                                     isSticker={STICKERS.includes(message.content?.trim() || '')}
                                     isGroupStart={isGroupStart || newDay}
                                     isGroupEnd={isGroupEnd}
                                     isHighlighted={highlightedId === message.id}
                                     isArriving={!initialMessageIds.has(message.id)}
-                                    tick={isOutgoing(message) && !message.isInternal
-                                        ? readTick(message.createdAt, isAgentView ? ticket.userLastReadAt : ticket.agentLastReadAt)
-                                        : undefined}
+                                    tick={!isOutgoing(message) || message.isInternal ? undefined
+                                        : isPendingMessage(message.id) ? 'pending'
+                                            : readTick(message.createdAt, isAgentView ? ticket.userLastReadAt : ticket.agentLastReadAt)}
                                     reactions={toReactionChips(message.reactions, user?.id)}
                                     canReact={!message.isInternal && !isTicketClosed}
                                     // One reaction per person: picking another emoji replaces it on the server.

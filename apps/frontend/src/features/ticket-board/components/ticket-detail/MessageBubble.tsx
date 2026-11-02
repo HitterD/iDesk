@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Ban, Check, CheckCheck, Lock, Pin, Reply, SmilePlus } from 'lucide-react';
+import { Ban, Check, CheckCheck, Clock3, Lock, Pin, Reply, SmilePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { MessageReactions, ReactionPicker, type Reaction } from '@/components/ui/ChatReactions';
@@ -27,8 +27,6 @@ interface MessageBubbleProps {
     isArriving?: boolean;
     /** Small badge after the name, e.g. "Pemohon" (agent view) or "IT Support" (requester view). */
     roleLabel?: string;
-    /** Name shown for the viewer's own messages (requester view: "Anda"). */
-    ownLabel?: string;
     /** Read tick for the viewer's outgoing public messages; absent = no tick (incoming, internal). */
     tick?: ReadTick;
     reactions: Reaction[];
@@ -98,7 +96,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     isHighlighted,
     isArriving = false,
     roleLabel,
-    ownLabel,
     tick,
     reactions,
     onAddReaction,
@@ -117,10 +114,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     const quote = parseQuote(message.content);
     const text = quote ? quote.body : message.content;
     const showText = Boolean(text) && !PHOTO_ONLY_PATTERN.test(text.trim());
+    // With files below the text, the time belongs under the files, not inside the text.
+    const hasFiles = (message.attachments?.length ?? 0) > 0;
     // Attachment-only bubbles stay neutral so file cards read the same for both sides.
     const onAccent = isOutgoing && !isInternal && showText;
     const time = formatMessageTime(message.createdAt);
-    const name = isOwn && ownLabel ? ownLabel : toDisplayName(message.sender?.fullName);
+    const name = toDisplayName(message.sender?.fullName);
     const press = useLongPress();
     const menuAlign = isOutgoing ? 'end' : 'start';
 
@@ -134,6 +133,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <time dateTime={message.createdAt} title={formatDateTimeID(message.createdAt)}>{time}</time>
             {tick === 'read' && <CheckCheck role="img" aria-label="Dibaca" className="chat-tick is-read" />}
             {tick === 'sent' && <Check role="img" aria-label="Terkirim" className="chat-tick" />}
+            {tick === 'pending' && <Clock3 role="img" aria-label="Mengirim" className="chat-tick is-pending" />}
         </span>
     );
 
@@ -204,6 +204,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     {highlightMentions(text, message.mentions ?? [], (name, key) => (
                                         <span key={key} className="chat-mention">{name}</span>
                                     ))}
+                                    {/* WhatsApp-style: time and ticks share the last line when it has room. */}
+                                    {!hasFiles && meta}
                                 </p>
                             )}
                             <MessageAttachments
@@ -213,7 +215,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 onPdfClick={onPdfClick}
                                 isRequester={!onAccent}
                             />
-                            {meta}
+                            {(!showText || hasFiles) && meta}
                         </div>
                     )}
 

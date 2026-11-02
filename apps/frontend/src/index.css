@@ -1444,6 +1444,7 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .chat-bubble-out .chat-bubble-name { color: rgb(255 255 255 / .85); }
 .dark .chat-bubble-in .chat-bubble-name { color: hsl(213 90% 72%); }
 /* Time + ticks float into the last line's free space, bottom-right inside the bubble. */
+.chat-bubble p > .chat-meta { top: 7px; }
 .chat-meta { float: right; position: relative; top: 5px; margin: 0 0 0 10px; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; line-height: 1; white-space: nowrap; color: hsl(var(--idesk-text-secondary)); font-variant-numeric: tabular-nums; }
 .chat-bubble-out .chat-meta { color: rgb(255 255 255 / .78); }
 .chat-meta .chat-lock { padding: 1px 5px; }
@@ -1451,6 +1452,7 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .chat-tick.is-read { opacity: 1; color: hsl(var(--idesk-sapphire)); }
 .chat-bubble-out .chat-tick.is-read { color: #8fe3ff; }
 .chat-edited { font-style: italic; opacity: .85; }
+.chat-tick.is-pending { width: 13px; height: 13px; opacity: .65; }
 /* @mention chip inside a bubble (screenshot reference: rounded tint, bold name). */
 .chat-mention { display: inline; padding: 1px 6px; border-radius: 6px; font-weight: 650; background: hsl(var(--idesk-sapphire) / .12); color: hsl(var(--idesk-sapphire)); box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .chat-bubble-out .chat-mention { background: rgb(255 255 255 / .2); color: #fff; }
