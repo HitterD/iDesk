@@ -1441,7 +1441,8 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .chat-bubble.has-tail::before { content: ""; position: absolute; top: 0; left: -7px; width: 8px; height: 12px; background: inherit; clip-path: polygon(100% 0, 0 0, 100% 100%); }
 .chat-msg.is-out .chat-bubble.has-tail::before { left: auto; right: -7px; clip-path: polygon(0 0, 100% 0, 0 100%); }
 .chat-bubble-name { display: block; font-size: 12.5px; font-weight: 650; color: hsl(var(--idesk-sapphire)); margin-bottom: 1px; }
-.chat-bubble-out .chat-bubble-name { color: rgb(255 255 255 / .85); }
+/* On the sapphire bubble the name must stand apart from the white message text (6.3:1, 5.1:1 dark). */
+.chat-bubble-out .chat-bubble-name { color: hsl(199 95% 85%); }
 .dark .chat-bubble-in .chat-bubble-name { color: hsl(213 90% 72%); }
 /* Time + ticks float into the last line's free space, bottom-right inside the bubble. */
 .chat-bubble p > .chat-meta { top: 7px; }
