@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Ban, Check, CheckCheck, Lock, Reply, SmilePlus } from 'lucide-react';
+import { Ban, Check, CheckCheck, Lock, Pin, Reply, SmilePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { MessageReactions, ReactionPicker, type Reaction } from '@/components/ui/ChatReactions';
@@ -7,7 +7,7 @@ import { MessageAttachments } from './MessageAttachments';
 import { MessageActionMenu } from './MessageActionMenu';
 import { QuoteSnippet } from './QuoteBlock';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
-import { formatMessageTime, parseQuote, PHOTO_ONLY_PATTERN, toDisplayName, type ReadTick } from './messageThread';
+import { DELETED_QUOTE, formatMessageTime, parseQuote, PHOTO_ONLY_PATTERN, toDisplayName, type ReadTick } from './messageThread';
 import type { TicketDetail } from './types';
 
 type ChatMessage = NonNullable<TicketDetail['messages']>[number];
@@ -37,6 +37,8 @@ interface MessageBubbleProps {
     /** Present only when the viewer may edit / delete this message right now. */
     onEdit?: () => void;
     onDelete?: () => void;
+    onPin?: () => void;
+    onUnpin?: () => void;
     onQuoteClick: () => void;
     onImageClick: (url: string) => void;
     onPdfClick: (url: string, filename: string) => void;
@@ -101,6 +103,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     onReply,
     onEdit,
     onDelete,
+    onPin,
+    onUnpin,
     onQuoteClick,
     onImageClick,
     onPdfClick,
@@ -121,6 +125,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     const meta = (
         <span className="chat-meta">
             {isInternal && <span className="chat-lock"><Lock aria-hidden="true" />Internal</span>}
+            {message.isPinned && <Pin role="img" aria-label="Disematkan" className="chat-pin-mark" />}
             {message.editedAt && !message.isDeleted && <span className="chat-edited">diedit</span>}
             <time dateTime={message.createdAt} title={formatDateTimeID(message.createdAt)}>{time}</time>
             {tick === 'read' && <CheckCheck role="img" aria-label="Dibaca" className="chat-tick is-read" />}
@@ -182,8 +187,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             {showName && <b className="chat-bubble-name">{name}</b>}
                             {quote && (
                                 <QuoteSnippet
-                                    sender={quote.sender}
-                                    quote={quote.quote}
+                                    sender={message.replyTo?.senderName || quote.sender}
+                                    // The link wins over the stored text: a deleted original reads as deleted.
+                                    quote={message.replyTo ? (message.replyTo.isDeleted ? DELETED_QUOTE : message.replyTo.snippet || quote.quote) : quote.quote}
                                     onAccent={onAccent}
                                     onClick={onQuoteClick}
                                     className="mb-1.5"
@@ -219,6 +225,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             onReply={onReply}
                             onEdit={onEdit && (() => onEdit())}
                             onDelete={onDelete && (() => onDelete())}
+                            onPin={onPin}
+                            onUnpin={onUnpin}
                             align={menuAlign}
                         />
                     </div>

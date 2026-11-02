@@ -65,7 +65,7 @@ describe('TicketChat round-2 actions', () => {
         const input = screen.getByRole('textbox', { name: 'Balas ke pemohon…' });
         fireEvent.change(input, { target: { value: 'halo' } });
         fireEvent.click(screen.getByRole('button', { name: 'Kirim' }));
-        await waitFor(() => expect(onSend).toHaveBeenCalledWith('halo', null, false, expect.any(Function)));
+        await waitFor(() => expect(onSend).toHaveBeenCalledWith('halo', null, false, expect.any(Function), undefined));
     });
 
     it('send is disabled until there is text', () => {
@@ -84,11 +84,11 @@ describe('TicketChat round-2 actions', () => {
         renderChat();
         const toolbar = within(row('m-1')).getByRole('toolbar', { name: 'Aksi pesan' });
         await user.click(within(toolbar).getByRole('button', { name: 'Aksi lainnya' }));
-        expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual(['Salin', 'Balas']);
+        expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual(['Salin', 'Balas', 'Sematkan']);
         await user.keyboard('{Escape}');
         await user.click(within(row('m-2')).getByRole('button', { name: 'Aksi lainnya' }));
         // m-2 is the agent's own, sent long ago: deletable, no longer editable.
-        expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual(['Salin', 'Balas', 'Hapus']);
+        expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual(['Salin', 'Balas', 'Sematkan', 'Hapus']);
     });
 
     it('reaction picker adds a chip and clicking the chip removes it', async () => {

@@ -13,6 +13,8 @@ const ELLIPSIS = '…';
 export const PHOTO_ONLY_PATTERN = /^\[?(📷\s*)?\[?Photo\]?\]?$/i;
 /** Quote text used when the replied-to message has attachments but no text. */
 export const ATTACHMENT_QUOTE = '[Lampiran]';
+/** What a reply shows when the message it quotes was deleted (same text the server writes). */
+export const DELETED_QUOTE = 'Pesan telah dihapus';
 /** Consecutive messages from one sender within this window share a bubble group. */
 export const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
@@ -156,4 +158,9 @@ export function canDeleteMessage(
 ): boolean {
     if (!viewer?.id || !isChangeable(m, ticketClosed)) return false;
     return m.sender?.id === viewer.id || viewer.role === 'ADMIN';
+}
+
+/** Any participant may pin a live public chat message (system, internal and deleted ones are not pinnable). */
+export function canPinMessage(m: EditableMessage, ticketClosed: boolean): boolean {
+    return !ticketClosed && !m.isSystemMessage && !m.isInternal && !m.isDeleted;
 }
