@@ -269,6 +269,24 @@ describe('TicketQueryService.findOne reply links and pins', () => {
         expect(JSON.stringify(result.messages)).not.toContain('4471');
         expect(result.messages[1].replyTo).toMatchObject({ id: 'a', isDeleted: true });
         expect(ticketRepo.findOne.mock.calls[0][0].relations).toContain('messages.pinnedBy');
+        expect(ticketRepo.findOne.mock.calls[0][0].relations).toEqual(
+            expect.arrayContaining(['messages.reactions', 'messages.reactions.user']));
+    });
+});
+
+describe('TicketQueryService.findOne mentions', () => {
+    it('names the people each message mentions, for the chips', async () => {
+        const ticket = {
+            id: 't-1', priority: 'HIGH', createdAt: new Date(), slaTarget: new Date(), userId: 'req-1', siteId: 's-1',
+            handlingTeam: 'OPS_SUPPORT', participants: [], user: { id: 'req-1' },
+            messages: [{ id: 'a', content: '@Andi cek', senderId: 'req-1', mentionedUserIds: ['ag-1'] }],
+        };
+        const manager = { find: jest.fn().mockResolvedValue([{ id: 'ag-1', fullName: 'Andi' }]) };
+        const service = new TicketQueryService({ findOne: jest.fn().mockResolvedValue(ticket), manager } as any, { findOne: jest.fn() } as any, {} as any);
+
+        const result = await service.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
+
+        expect(result.messages[0].mentions).toEqual([{ id: 'ag-1', fullName: 'Andi' }]);
     });
 });
 

@@ -1,11 +1,13 @@
-import { Body, Controller, Delete, Param, ParseUUIDPipe, Patch, Post, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Param, ParseUUIDPipe, Patch, Post, Put, Request, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { TicketMessageEditService } from '../services/ticket-message-edit.service';
 import { TicketMessagePinService } from '../services/ticket-message-pin.service';
+import { TicketMessageReactionService } from '../services/ticket-message-reaction.service';
+import { ReactMessageDto } from '../dto/react-message.dto';
 import { EditMessageDto } from '../dto/edit-message.dto';
 
-/** Edit (sender, 15 min), delete (sender, or admin) and pin (any participant) of a ticket chat message. */
+/** Edit (sender, 15 min), delete (sender, or admin), pin and react (any participant) on a ticket chat message. */
 @ApiTags('Tickets')
 @Controller('tickets/:id/messages/:messageId')
 @UseGuards(JwtAuthGuard)
@@ -13,7 +15,31 @@ export class TicketMessagesController {
     constructor(
         private readonly editService: TicketMessageEditService,
         private readonly pinService: TicketMessagePinService,
+        private readonly reactionService: TicketMessageReactionService,
     ) { }
+
+    @Put('reaction')
+    @ApiOperation({ summary: 'React to a chat message (one emoji per person; reacting again replaces it)' })
+    @ApiResponse({ status: 200, description: 'The reaction totals of the message.' })
+    async react(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Param('messageId', ParseUUIDPipe) messageId: string,
+        @Body() dto: ReactMessageDto,
+        @Request() req: any,
+    ) {
+        return this.reactionService.react(id, messageId, this.viewer(req), dto.emoji);
+    }
+
+    @Delete('reaction')
+    @ApiOperation({ summary: 'Remove your reaction from a chat message' })
+    @ApiResponse({ status: 200, description: 'The reaction totals of the message.' })
+    async unreact(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Param('messageId', ParseUUIDPipe) messageId: string,
+        @Request() req: any,
+    ) {
+        return this.reactionService.unreact(id, messageId, this.viewer(req));
+    }
 
     @Post('pin')
     @ApiOperation({ summary: 'Pin a chat message (at most three per ticket)' })

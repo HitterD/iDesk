@@ -24,9 +24,13 @@ import { TicketModulesController } from './presentation/ticket-modules.controlle
 import { Ticket } from './entities/ticket.entity';
 import { TicketMessage } from './entities/ticket-message.entity';
 import { TicketMessageEdit } from './entities/ticket-message-edit.entity';
+import { TicketMessageReaction } from './entities/ticket-message-reaction.entity';
 import { TicketMessageEditService } from './services/ticket-message-edit.service';
 import { TicketMessagePinService } from './services/ticket-message-pin.service';
+import { TicketMessageReactionService } from './services/ticket-message-reaction.service';
+import { TicketMentionService } from './services/ticket-mention.service';
 import { TicketMessagesController } from './presentation/ticket-messages.controller';
+import { TicketMentionsController } from './presentation/ticket-mentions.controller';
 import { TicketParticipant } from './entities/ticket-participant.entity';
 import { TicketTemplate } from './entities/ticket-template.entity';
 import { TicketModule as TicketModuleEntity } from './entities/ticket-module.entity';
@@ -102,6 +106,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
             Ticket,
             TicketMessage,
             TicketMessageEdit,
+            TicketMessageReaction,
             TicketParticipant,
             TicketTemplate,
             TicketModuleEntity,
@@ -131,6 +136,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         TicketNotesController,
         TicketsController,
         TicketMessagesController,
+        TicketMentionsController,
         TicketTemplatesController,
         TicketModulesController,
         SlaConfigController,
@@ -146,6 +152,8 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         // Core services (Split)
         TicketMessageEditService,
         TicketMessagePinService,
+        TicketMessageReactionService,
+        TicketMentionService,
         TicketLinkedRequestService,
         TicketCreateService,
         TicketUpdateService,

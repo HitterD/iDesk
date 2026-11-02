@@ -361,6 +361,20 @@ describe('TicketNotificationListener', () => {
         expect(notificationService.notifyTicketReply).toHaveBeenCalledWith('agent-1', 't-8', 'TK-2026-0008', 'Budi Agent', 'Sudah saya cek', 'm-9');
     });
 
+    it('the mention e-mail links to the ticket page of the mentioned person\'s portal', async () => {
+        userRepo.findOne.mockResolvedValueOnce({ id: 'u-1', email: 'ani@example.com', fullName: 'Ani', role: UserRole.USER });
+        const event = new TicketRepliedEvent(
+            't-8', 'TK-2026-0008', 'Laptop', 'IN_PROGRESS', 'u-1', 'ani@example.com', 'Ani', 'agent-1',
+            { id: 'm-1', content: '@Ani cek' } as any, 'agent-2', 'Budi', UserRole.AGENT, ['u-1'],
+        );
+
+        await listener.handleTicketRepliedEvent(event);
+
+        const mention = mailDispatch.send.mock.calls.map((c: any[]) => c[0]).find((m: any) => m.template === 'mention-notification');
+        expect(mention.context.link).toContain('/client/tickets/t-8');
+        expect(mention.context.link).not.toContain('/admin/');
+    });
+
     it('handleTicketCancelledEvent sends email to Assigned Agent when Requester cancels', async () => {
         userRepo.findOne.mockResolvedValueOnce({
             id: 'agent-1',

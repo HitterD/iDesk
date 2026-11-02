@@ -41,4 +41,15 @@ describe('presentThread', () => {
         expect(pinned).not.toHaveProperty('pinnedBy');
         expect(plain).toMatchObject({ isPinned: false, pinnedAt: null, pinnedByName: null });
     });
+
+    it('names the people a message mentions, and nobody on a deleted message', () => {
+        const people = new Map([['u-7', 'Andi Wijaya']]);
+        const [live, gone] = presentThread([
+            msg({ id: 'a', content: '@Andi Wijaya tolong', mentionedUserIds: ['u-7', 'u-unknown'] }),
+            msg({ id: 'b', content: 'x', mentionedUserIds: ['u-7'], deletedAt: at(1) }),
+        ], people);
+        expect(live.mentions).toEqual([{ id: 'u-7', fullName: 'Andi Wijaya' }]);
+        expect(gone.mentions).toEqual([]);
+        expect(gone).not.toHaveProperty('mentionedUserIds', ['u-7']);
+    });
 });

@@ -1451,6 +1451,10 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .chat-tick.is-read { opacity: 1; color: hsl(var(--idesk-sapphire)); }
 .chat-bubble-out .chat-tick.is-read { color: #8fe3ff; }
 .chat-edited { font-style: italic; opacity: .85; }
+/* @mention chip inside a bubble (screenshot reference: rounded tint, bold name). */
+.chat-mention { display: inline; padding: 1px 6px; border-radius: 6px; font-weight: 650; background: hsl(var(--idesk-sapphire) / .12); color: hsl(var(--idesk-sapphire)); box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.chat-bubble-out .chat-mention { background: rgb(255 255 255 / .2); color: #fff; }
+.dark .chat-bubble-in .chat-mention { background: hsl(213 90% 72% / .16); color: hsl(213 90% 78%); }
 .chat-pin-mark { width: 12px; height: 12px; stroke-width: 2.2; opacity: .75; transform: rotate(35deg); }
 /* Pinned messages strip: one row under the opening-report bar, WhatsApp-style. */
 .chat-pins { display: flex; align-items: center; gap: 4px; flex: none; padding: 4px 8px 4px 12px; border-bottom: 1px solid hsl(var(--idesk-border) / .7); background: hsl(var(--idesk-surface)); animation: td-msg-in var(--dur-2) var(--ease-out); }

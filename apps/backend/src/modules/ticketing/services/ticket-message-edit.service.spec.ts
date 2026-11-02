@@ -47,7 +47,7 @@ function build(msg: Record<string, unknown> = message(), t: Record<string, unkno
     const service = new TicketMessageEditService(
         messageRepo as never, ticketRepo as never, dataSource as never, gateway as never, notifications as never, pins as never,
     );
-    return { service, saved, updates, gateway, notifications, pins };
+    return { service, saved, updates, gateway, notifications, pins, manager };
 }
 
 describe('TicketMessageEditService', () => {
@@ -178,6 +178,16 @@ describe('TicketMessageEditService', () => {
 
         expect(updates).toContainEqual({ where: { id: 'r-1' }, values: { content: '\u21a9 Budi: Pesan telah dihapus\n\nsiap' } });
         expect(notifications.redactMessageSnippet).toHaveBeenCalledWith(expect.objectContaining({ messageId: 'r-1', senderName: 'Agen' }));
+    });
+
+    it('loads the reactions of rewritten replies, so they stay on screen', async () => {
+        const reply = { id: 'r-1', ticketId: 't-1', replyToId: 'm-1', senderId: 'agent-1', createdAt: new Date(NOW - 30_000),
+            content: '\u21a9 Budi: halo\n\nsiap', sender: { fullName: 'Agen' } };
+        const built = build(message({ __replies: [reply] }));
+        await built.service.deleteMessage('t-1', 'm-1', SENDER);
+        const manager = (built as any).manager ?? null;
+        expect(manager).not.toBeNull();
+        expect(manager.find.mock.calls[0][1].relations).toEqual(expect.arrayContaining(['reactions', 'reactions.user']));
     });
 
     it('still answers the delete when releasing its pin fails', async () => {

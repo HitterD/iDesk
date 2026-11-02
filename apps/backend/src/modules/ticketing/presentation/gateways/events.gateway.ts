@@ -288,6 +288,12 @@ export class EventsGateway
         this.server.to(ticketStaffRoom(ticketId)).emit('ticket:pinsChanged', { ticketId, pins });
     }
 
+    /** New reaction totals of one message; internal ones only reach the staff room. */
+    notifyReactionsChanged(ticketId: string, messageId: string, isInternal: boolean, reactions: unknown[]) {
+        const room = isInternal ? ticketStaffRoom(ticketId) : `ticket:${ticketId}`;
+        this.server.to(room).emit('ticket:reactionsChanged', { ticketId, messageId, reactions });
+    }
+
     /** An edited or deleted chat message, already presented (a deleted one carries no text or files). */
     notifyMessageUpdated(ticketId: string, message: { id: string; isInternal?: boolean }) {
         const room = message?.isInternal ? ticketStaffRoom(ticketId) : `ticket:${ticketId}`;

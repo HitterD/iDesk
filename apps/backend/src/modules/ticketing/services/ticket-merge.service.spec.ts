@@ -75,7 +75,7 @@ describe('TicketMergeService Oracle scope', () => {
             findOne: jest.fn(async (entity: any) => entity === User ? { id: 'u', role: UserRole.ADMIN } : primary),
             find: jest.fn(async (entity: any) => entity === Ticket ? [secondary] : entity === TicketMessage ? [
                 { id: 'orig', senderId: 'u', content: 'printer mati', attachments: [], isInternal: false, pinnedAt: new Date(), pinnedById: 'u' },
-                { id: 'rep', senderId: 'v', content: '\u21a9 Budi: printer mati\n\ncek kabel', attachments: [], isInternal: false, replyToId: 'orig' },
+                { id: 'rep', senderId: 'v', content: '\u21a9 Budi: printer mati\n\ncek kabel', attachments: [], isInternal: false, replyToId: 'orig', mentionedUserIds: ['u'] },
             ] : []),
             create: (_entity: any, data: any) => data,
             save: async (entity: any, data: any) => {
@@ -98,6 +98,7 @@ describe('TicketMergeService Oracle scope', () => {
         // The quote stays first so readers still recognise it; the merge marker goes on the body.
         expect(reply.content.startsWith('\u21a9 Budi: printer mati')).toBe(true);
         expect(orig.pinnedAt ?? null).toBeNull();
+        expect(reply.mentionedUserIds).toEqual(['u']);
     });
 
     it('blocks AGENT_ORACLE merge containing a standard ticket before writes', async () => {

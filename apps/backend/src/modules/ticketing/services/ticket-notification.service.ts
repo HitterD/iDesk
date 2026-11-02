@@ -5,7 +5,6 @@ import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service'
 import { buildAppUrl } from '../../../shared/mail/app-url.util';
 
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
-import { TicketMessage } from '../entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { NotificationService } from '../../notifications/notification.service';
@@ -134,65 +133,6 @@ export class TicketNotificationService {
     }
 
     /**
-     * Notify ticket reply
-     */
-    async notifyTicketReply(
-        ticket: Ticket,
-        message: TicketMessage,
-        sender: User,
-        mentionedUserIds: string[] = [],
-    ): Promise<void> {
-        const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
-
-        // Handle mentions
-        await this.handleMentions(ticket, sender, mentionedUserIds);
-
-        // Notify appropriate parties based on sender role
-        if (this.notificationService) {
-            try {
-                // Agent/Admin replied -> notify ticket owner
-                if ((sender.role === UserRole.AGENT || sender.role === UserRole.ADMIN) 
-                    && ticket.user && ticket.user.id !== sender.id) {
-                    await this.notificationService.notifyTicketReply(
-                        ticket.user.id,
-                        ticket.id,
-                        ticketNumber,
-                        sender.fullName,
-                    );
-                }
-                // User replied -> notify assigned agent
-                if (sender.role === UserRole.USER && ticket.assignedTo && ticket.assignedTo.id !== sender.id) {
-                    await this.notificationService.notifyTicketReply(
-                        ticket.assignedTo.id,
-                        ticket.id,
-                        ticketNumber,
-                        sender.fullName,
-                    );
-                }
-            } catch (error) {
-                this.logger.error('Failed to send reply notification:', error);
-            }
-        }
-
-        // Email notification for agent reply
-        if ((sender.role === UserRole.AGENT || sender.role === UserRole.ADMIN) 
-            && ticket.user?.email 
-            && (!mentionedUserIds || !mentionedUserIds.includes(ticket.user.id))) {
-            await this.sendEmail(
-                ticket.user.email,
-                `New Reply on Ticket #${ticket.id}`,
-                'ticket-update',
-                {
-                    name: ticket.user.fullName,
-                    ticketId: ticket.id,
-                    status: ticket.status,
-                    title: ticket.title,
-                },
-            );
-        }
-    }
-
-    /**
      * Notify ticket cancelled
      */
     async notifyTicketCancelled(
@@ -228,53 +168,6 @@ export class TicketNotificationService {
             }
         } catch (error) {
             this.logger.error('Failed to send cancellation notification:', error);
-        }
-    }
-
-    /**
-     * Handle @mentions in messages
-     */
-    private async handleMentions(
-        ticket: Ticket,
-        sender: User,
-        mentionedUserIds: string[],
-    ): Promise<void> {
-        if (!mentionedUserIds?.length) return;
-
-        for (const mentionedUserId of mentionedUserIds) {
-            if (mentionedUserId === sender.id) continue;
-
-            const mentionedUser = await this.userRepo.findOne({ where: { id: mentionedUserId } });
-            if (!mentionedUser) continue;
-
-            // In-app notification
-            if (this.notificationService) {
-                try {
-                    await this.notificationService.notifyMention(
-                        mentionedUserId,
-                        ticket.id,
-                        ticket.ticketNumber || ticket.id.split('-')[0],
-                        sender.fullName,
-                    );
-                } catch (error) {
-                    this.logger.error('Failed to send mention notification:', error);
-                }
-            }
-
-            // Email notification
-            if (mentionedUser.email) {
-                await this.sendEmail(
-                    mentionedUser.email,
-                    `You were mentioned in Ticket #${ticket.id}`,
-                    'mention-notification',
-                    {
-                        name: mentionedUser.fullName,
-                        ticketId: ticket.id,
-                        mentionedBy: sender.fullName,
-                        link: buildAppUrl(`/admin/tickets/${ticket.id}`),
-                    },
-                );
-            }
         }
     }
 

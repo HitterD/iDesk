@@ -3,7 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSocket } from '@/lib/socket';
 import { useAuth } from '@/stores/useAuth';
 import api from '@/lib/api';
-import { applyPinsToCaches, replaceMessageInCaches, type PinnedMessageSummary } from '@/lib/ticketMessageCache';
+import {
+    applyPinsToCaches,
+    applyReactionsToCaches,
+    replaceMessageInCaches,
+    type PinnedMessageSummary,
+    type ReactionSummary,
+} from '@/lib/ticketMessageCache';
 import type { Ticket, TicketMessage } from '@/lib/api/types';
 
 // Use TicketMessage from types instead of local interface
@@ -219,6 +225,11 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
             replaceMessageInCaches(queryClient, ticketId, data.message);
         };
 
+        const handleReactionsChanged = (data: { ticketId: string; messageId: string; reactions: ReactionSummary[] }) => {
+            if (data.ticketId !== ticketId) return;
+            applyReactionsToCaches(queryClient, ticketId, data.messageId, data.reactions);
+        };
+
         const handlePinsChanged = (data: { ticketId: string; pins: PinnedMessageSummary[] }) => {
             if (data.ticketId !== ticketId) return;
             applyPinsToCaches(queryClient, ticketId, data.pins);
@@ -243,6 +254,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
         socket.on('ticket:readStateChanged', handleReadState);
         socket.on('ticket:messageUpdated', handleMessageUpdated);
         socket.on('ticket:pinsChanged', handlePinsChanged);
+        socket.on('ticket:reactionsChanged', handleReactionsChanged);
 
         if (user?.id) {
             socket.on(`notification:${user.id}`, handleNotificationSync);
@@ -261,6 +273,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
             socket.off('ticket:readStateChanged', handleReadState);
             socket.off('ticket:messageUpdated', handleMessageUpdated);
             socket.off('ticket:pinsChanged', handlePinsChanged);
+            socket.off('ticket:reactionsChanged', handleReactionsChanged);
 
             if (user?.id) {
                 socket.off(`notification:${user.id}`, handleNotificationSync);

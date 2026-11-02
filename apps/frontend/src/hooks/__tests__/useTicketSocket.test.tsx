@@ -374,6 +374,18 @@ describe('useTicketSocket', () => {
         expect(queryClient.getQueryData(['ticket', 'ticket-1'])).toBe(cached);
     });
 
+    it('applies reaction changes to the open ticket, and ignores another ticket', () => {
+        renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper: createWrapper() });
+        queryClient.setQueryData(['ticket', 'ticket-1'], { id: 'ticket-1', messages: [{ id: 'm-1', reactions: [] }] });
+        const reactions = [{ emoji: 'x', count: 1, userIds: ['u'], userNames: ['U'] }];
+
+        fire('ticket:reactionsChanged', { ticketId: 'ticket-2', messageId: 'm-1', reactions });
+        expect((queryClient.getQueryData(['ticket', 'ticket-1']) as any).messages[0].reactions).toEqual([]);
+
+        fire('ticket:reactionsChanged', { ticketId: 'ticket-1', messageId: 'm-1', reactions });
+        expect((queryClient.getQueryData(['ticket', 'ticket-1']) as any).messages[0].reactions).toEqual(reactions);
+    });
+
     it('applies pin changes to the open ticket', () => {
         renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), { wrapper: createWrapper() });
         queryClient.setQueryData(['ticket', 'ticket-1'], { id: 'ticket-1', messages: [{ id: 'm-1' }, { id: 'm-2', isPinned: true }] });

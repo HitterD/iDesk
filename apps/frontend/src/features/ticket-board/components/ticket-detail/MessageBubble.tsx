@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { MessageReactions, ReactionPicker, type Reaction } from '@/components/ui/ChatReactions';
 import { MessageAttachments } from './MessageAttachments';
+import { highlightMentions } from './MentionPicker';
 import { MessageActionMenu } from './MessageActionMenu';
 import { QuoteSnippet } from './QuoteBlock';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
@@ -34,6 +35,8 @@ interface MessageBubbleProps {
     onAddReaction: (emoji: string) => void;
     onRemoveReaction: (emoji: string) => void;
     onReply: (content: string) => void;
+    /** False on archived internal notes and closed tickets, where the server refuses reactions. */
+    canReact?: boolean;
     /** Present only when the viewer may edit / delete this message right now. */
     onEdit?: () => void;
     onDelete?: () => void;
@@ -101,6 +104,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     onAddReaction,
     onRemoveReaction,
     onReply,
+    canReact = true,
     onEdit,
     onDelete,
     onPin,
@@ -195,7 +199,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     className="mb-1.5"
                                 />
                             )}
-                            {showText && <p className="whitespace-pre-wrap">{text}</p>}
+                            {showText && (
+                                <p className="whitespace-pre-wrap">
+                                    {highlightMentions(text, message.mentions ?? [], (name, key) => (
+                                        <span key={key} className="chat-mention">{name}</span>
+                                    ))}
+                                </p>
+                            )}
                             <MessageAttachments
                                 attachments={message.attachments}
                                 attachmentInfo={message.attachmentInfo}
@@ -208,11 +218,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     )}
 
                     <div className="chat-tools" role="toolbar" aria-label="Aksi pesan">
-                        <ReactionPicker reactions={reactions} onAddReaction={onAddReaction} onRemoveReaction={onRemoveReaction} align={menuAlign}>
-                            <button type="button" aria-label="Tambah reaksi" title="Tambah reaksi">
-                                <SmilePlus aria-hidden="true" />
-                            </button>
-                        </ReactionPicker>
+                        {canReact && (
+                            <ReactionPicker reactions={reactions} onAddReaction={onAddReaction} onRemoveReaction={onRemoveReaction} align={menuAlign}>
+                                <button type="button" aria-label="Tambah reaksi" title="Tambah reaksi">
+                                    <SmilePlus aria-hidden="true" />
+                                </button>
+                            </ReactionPicker>
+                        )}
                         <button type="button" aria-label="Balas" title="Balas" onClick={() => onReply(text || '')}>
                             <Reply aria-hidden="true" />
                         </button>

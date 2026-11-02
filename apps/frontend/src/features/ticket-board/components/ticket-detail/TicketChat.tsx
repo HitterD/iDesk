@@ -9,6 +9,7 @@ import { legacyActivityEvent } from './legacyActivity';
 import { MessageBubble } from './MessageBubble';
 import { useMessageActions } from './useMessageActions';
 import { usePinActions } from './usePinActions';
+import { toReactionChips, useReactionActions } from './useReactionActions';
 import { PinnedMessagesBar } from './PinnedMessagesBar';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ActivityEvent, linkedTicketMove } from './ActivityEvent';
@@ -46,6 +47,8 @@ interface TicketChatProps {
         onUploadProgress?: (percent: number) => void,
         /** The message this reply answers (its quote is already in `content`). */
         replyToId?: string,
+        /** People picked with @ in the composer. */
+        mentionedUserIds?: string[],
     ) => Promise<void>;
     onImageClick: (url: string) => void;
     typingUsers?: { [key: string]: string };
@@ -54,7 +57,6 @@ interface TicketChatProps {
     showCannedResponses?: boolean;
 }
 
-type Reaction = { emoji: string; count: number; users: string[]; hasReacted: boolean };
 type ChatMessage = NonNullable<TicketDetail['messages']>[number];
 
 const HIGHLIGHT_MS = 1600;
@@ -115,7 +117,6 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [highlightedId, setHighlightedId] = useState<string | null>(null);
-    const [messageReactions, setMessageReactions] = useState<Record<string, Reaction[]>>({});
     const [proposingHardware, setProposingHardware] = useState(false);
     const [proposingEForm, setProposingEForm] = useState(false);
     const { user } = useAuth();
@@ -123,6 +124,7 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const isTicketClosed = ticket.status === 'CLOSED';
     const messageActions = useMessageActions(ticket.id);
     const pinActions = usePinActions(ticket.id);
+    const reactionActions = useReactionActions(ticket.id);
 
     const startEdit = (message: ChatMessage) => {
         const quote = parseQuote(message.content);
@@ -160,51 +162,6 @@ export const TicketChat: React.FC<TicketChatProps> = ({
             setIsDeleting(false);
         }
     };
-
-    const handleAddReaction = useCallback((messageId: string, emoji: string) => {
-        const currentUserName = user?.fullName || 'User';
-        setMessageReactions(prev => {
-            const list = prev[messageId] || [];
-            const existing = list.find(r => r.emoji === emoji);
-            if (existing) {
-                if (existing.hasReacted) return prev;
-                return {
-                    ...prev,
-                    [messageId]: list.map(r => r.emoji === emoji ? {
-                        ...r,
-                        count: r.count + 1,
-                        users: [...r.users, currentUserName],
-                        hasReacted: true,
-                    } : r)
-                };
-            }
-            return {
-                ...prev,
-                [messageId]: [...list, { emoji, count: 1, users: [currentUserName], hasReacted: true }]
-            };
-        });
-    }, [user?.fullName]);
-
-    const handleRemoveReaction = useCallback((messageId: string, emoji: string) => {
-        const currentUserName = user?.fullName || 'User';
-        setMessageReactions(prev => {
-            const list = prev[messageId] || [];
-            return {
-                ...prev,
-                [messageId]: list.map(r => {
-                    if (r.emoji === emoji) {
-                        return {
-                            ...r,
-                            count: Math.max(0, r.count - 1),
-                            users: r.users.filter(u => u !== currentUserName),
-                            hasReacted: false,
-                        };
-                    }
-                    return r;
-                }).filter(r => r.count > 0)
-            };
-        });
-    }, [user?.fullName]);
 
     const ticketVariables = useMemo(() => ({
         user_name: (ticket as any).requester?.fullName || (ticket as any).customerSession?.fullName || ticket.user?.fullName || 'Customer',
@@ -569,9 +526,11 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                                     tick={isOutgoing(message) && !message.isInternal
                                         ? readTick(message.createdAt, isAgentView ? ticket.userLastReadAt : ticket.agentLastReadAt)
                                         : undefined}
-                                    reactions={messageReactions[message.id] || []}
-                                    onAddReaction={(emoji) => handleAddReaction(message.id, emoji)}
-                                    onRemoveReaction={(emoji) => handleRemoveReaction(message.id, emoji)}
+                                    reactions={toReactionChips(message.reactions, user?.id)}
+                                    canReact={!message.isInternal && !isTicketClosed}
+                                    // One reaction per person: picking another emoji replaces it on the server.
+                                    onAddReaction={(emoji) => void reactionActions.react(message.id, emoji).catch(() => undefined)}
+                                    onRemoveReaction={() => void reactionActions.unreact(message.id).catch(() => undefined)}
                                     onReply={() => {
                                         setReplyTo({
                                             id: message.id,
@@ -642,7 +601,8 @@ export const TicketChat: React.FC<TicketChatProps> = ({
                     editing={editing}
                     onCancelEdit={() => setEditing(null)}
                     onSaveEdit={saveEdit}
-                    onSend={(content, files, isInternal, onProgress) => onSendMessage(content, files, isInternal, onProgress, replyTo?.id)}
+                    ticketId={ticket.id}
+                    onSend={(content, files, isInternal, onProgress, mentioned) => onSendMessage(content, files, isInternal, onProgress, replyTo?.id, mentioned)}
                     onSendSticker={handleSendSticker}
                     onTypingStart={onTypingStart}
                     onTypingStop={onTypingStop}

@@ -9,6 +9,11 @@ describe('buildReplyForm', () => {
         expect(form.get('replyToId')).toBe('m-1');
     });
 
+    it('sends the mentioned people as a JSON list', () => {
+        const form = buildReplyForm({ content: '@Ani cek', mentionedUserIds: ['u-2', 'u-3'] });
+        expect(form.get('mentionedUserIds')).toBe('["u-2","u-3"]');
+    });
+
     it('leaves the reply link out when there is none, and adds every file', () => {
         const a = new File(['a'], 'a.png');
         const b = new File(['b'], 'b.pdf');
