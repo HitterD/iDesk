@@ -174,11 +174,6 @@ export const TicketChat: React.FC<TicketChatProps> = ({
     const isStaff = Boolean(user?.role && user.role !== 'USER');
     const canViewInternalArchive = ticket.viewerAccess === 'handler';
 
-    // Initial Attachments from the report
-    const initialMessage = ticket.messages?.find(
-        m => !m.isSystemMessage && m.attachments?.length > 0
-    );
-    const initialAttachments = initialMessage?.attachments ?? [];
 
     // Messages present when the ticket opens render settled; only later arrivals get the entrance
     // animation (the page is keyed per path, so this resets when another ticket opens).
@@ -200,6 +195,11 @@ export const TicketChat: React.FC<TicketChatProps> = ({
         const savedWithTicket = Math.abs(new Date(first.createdAt).getTime() - new Date(ticket.createdAt).getTime()) <= GENESIS_WINDOW_MS;
         return first.content?.trim() === ticket.description.trim() && savedWithTicket ? first.id : null;
     }, [sortedMessages, ticket.description, ticket.createdAt]);
+
+    // Files of the opening report: only the report's own message, never a later reply that happens to
+    // be the first one with a file (that showed an agent's screenshot as the requester's attachment).
+    const initialMessage = genesisMessageId ? sortedMessages.find((m) => m.id === genesisMessageId) : undefined;
+    const initialAttachments = initialMessage?.attachments ?? [];
 
     // Follow the conversation only while the reader is at the bottom; scrolled up, new messages are counted instead.
     const nearBottomRef = useRef(true);
