@@ -9,6 +9,7 @@ import { Site } from '../sites/entities/site.entity';
 import { AgentPerformanceReport } from './generators/agent-performance.report';
 import { TicketVolumeReport } from './generators/ticket-volume.report';
 import { PDFGeneratorService } from './generators/pdf-generator.service';
+import { SignoffLayout } from './generators/report-signoff';
 import { CacheService } from '../../shared/core/cache';
 import {
     EXCEL_COLORS,
@@ -339,7 +340,7 @@ export class ReportsService {
     /**
      * Generate Agent Performance PDF
      */
-    async generateAgentPerformancePDF(res: Response, startDate: Date, endDate: Date, userId?: string, scope: ReportScope = {}) {
+    async generateAgentPerformancePDF(res: Response, startDate: Date, endDate: Date, userId?: string, scope: ReportScope = {}, signoff?: SignoffLayout) {
         const report = await this.agentPerformanceReport.generate({ startDate, endDate }, scope);
         const categoryLabel = teamLabel(scope.team);
 
@@ -347,6 +348,7 @@ export class ReportsService {
             title: 'Laporan Kinerja Teknisi (Agent Performance)',
             dateRange: { startDate, endDate },
             siteName: await this.scopeLabel(scope),
+            signoff,
         });
 
         if (userId) {
@@ -363,12 +365,13 @@ export class ReportsService {
     /**
      * Generate PDF for Ticket Volume
      */
-    async generateTicketVolumePDF(res: Response, startDate: Date, endDate: Date, userId?: string, scope: ReportScope = {}) {
+    async generateTicketVolumePDF(res: Response, startDate: Date, endDate: Date, userId?: string, scope: ReportScope = {}, signoff?: SignoffLayout) {
         const report = await this.ticketVolumeReport.generate({ startDate, endDate }, scope);
         await this.pdfGenerator.generateTicketVolumePDF(res, report.data, {
             title: 'Laporan Volume & Distribusi Tiket',
             dateRange: { startDate, endDate },
             siteName: await this.scopeLabel(scope),
+            signoff,
         });
 
         if (userId) {
@@ -385,7 +388,7 @@ export class ReportsService {
     /**
      * Generate Monthly Summary PDF
      */
-    async generateMonthlySummaryPDF(res: Response, month: number, year: number, userId?: string, scope: ReportScope = {}) {
+    async generateMonthlySummaryPDF(res: Response, month: number, year: number, userId?: string, scope: ReportScope = {}, signoff?: SignoffLayout) {
         const stats = await this.getMonthlyStats(month, year, scope);
         const monthName = MONTH_NAMES[month - 1] || `Bulan ${month}`;
 
@@ -393,6 +396,7 @@ export class ReportsService {
             title: 'Laporan Ringkasan Bulanan (Monthly Summary)',
             subtitle: `${monthName} ${year}`,
             siteName: await this.scopeLabel(scope, 'Seluruh Site PT Santos Jaya Abadi'),
+            signoff,
         });
 
         if (userId) {

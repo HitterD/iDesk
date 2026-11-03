@@ -9,6 +9,7 @@ import {
     priorityRows,
     statusRows,
 } from './report-pdf-canvas';
+import { SignoffLayout } from './report-signoff';
 
 describe('report PDF formatting', () => {
     it('shows enum values with the labels the app uses', () => {
@@ -41,6 +42,40 @@ describe('report PDF formatting', () => {
         expect(fmtMinutes(14)).toBe('14 mnt');
         expect(fmtMinutes(95)).toBe('1,6 jam');
         expect(fmtMinutes(60 * 72)).toBe('3,0 hari');
+    });
+
+    describe('sign-off block', () => {
+        const PDFDocument = require('pdfkit');
+        const render = (layout: SignoffLayout) => {
+            const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+            doc.on('data', () => undefined);
+            const spy = jest.spyOn(doc, 'text');
+            new ReportCanvas(doc, new Logger('test')).signOff(layout);
+            const pages = doc.bufferedPageRange().count;
+            doc.end();
+            return { drawn: spy.mock.calls.map((call) => String(call[0])), pages };
+        };
+        const slot = (name: string, extra: Partial<SignoffLayout['slots'][number]> = {}) => ({ title: 'Disiapkan oleh', name, role: '', align: 'left' as const, showDate: true, ...extra });
+
+        it('draws every signer, not just two', () => {
+            const { drawn } = render({ columns: 3, slots: ['A', 'B', 'C', 'D', 'E'].map((n) => slot(n)) });
+            expect(drawn).toEqual(expect.arrayContaining(['A', 'B', 'C', 'D', 'E']));
+            expect(drawn.filter((t) => t === 'Tanggal:')).toHaveLength(5);
+        });
+
+        it('shows the role only when set and the date line only when asked', () => {
+            const { drawn } = render({ columns: 2, slots: [slot('A', { role: 'Head of ICT', showDate: false }), slot('B')] });
+            expect(drawn).toContain('Head of ICT');
+            expect(drawn.filter((t) => t === 'Tanggal:')).toHaveLength(1);
+        });
+
+        it('draws nothing for an empty layout', () => {
+            expect(render({ columns: 2, slots: [] }).drawn).toEqual([]);
+        });
+
+        it('keeps a twelve-signer block on a single page', () => {
+            expect(render({ columns: 4, slots: Array.from({ length: 12 }, (_, i) => slot(`N${i}`)) }).pages).toBe(1);
+        });
     });
 
     describe('table cells', () => {
