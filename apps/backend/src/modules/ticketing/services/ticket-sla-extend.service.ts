@@ -66,11 +66,15 @@ export class TicketSlaExtendService {
                 `Ticket is ${ticket.status}; SLA can only be extended for ${EXTENDABLE_STATUSES.join(' or ')} tickets`,
             );
         }
+        const now = new Date();
+        // A ticket that skipped IN_PROGRESS never started its clock; adopt it from creation (what the page shows).
+        if (ticket.slaStartedAt == null) {
+            await this.slaClock.adoptUnstarted(ticket, now, { paused: ticket.status === TicketStatus.WAITING_VENDOR });
+        }
         const held = ticket.slaRemainingMinutes != null;
         if (ticket.slaStartedAt == null || (!held && ticket.slaTarget == null)) {
             throw new BadRequestException('SLA clock has not started for this ticket');
         }
-        const now = new Date();
         const maxAllowedTarget = new Date(now.getTime() + MAX_EXTENSION_CALENDAR_DAYS * MS_PER_DAY);
         const previousTarget = ticket.slaTarget == null ? null : new Date(ticket.slaTarget);
         const extension = held

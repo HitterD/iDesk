@@ -178,6 +178,9 @@ export class TicketUpdateService {
             && await this.slaClock.release(ticket)) {
             changes.push(`SLA dilanjutkan. Target: ${ticket.slaTarget?.toISOString() ?? '-'}`);
         }
+        if (await this.adoptStuckClock(ticket, oldStatus, newStatus)) {
+            changes.push(`SLA dimulai dari waktu tiket dibuat. Target: ${ticket.slaTarget?.toISOString() ?? '-'}`);
+        }
     }
 
     /** RESOLVED now waits for the requester: confirm, dispute, or auto-close at the deadline. */
@@ -200,7 +203,15 @@ export class TicketUpdateService {
         const now = new Date();
         ticket.lastPausedAt = now;
         ticket.waitingVendorAt = now;
+        // TODO -> WAITING_VENDOR skips IN_PROGRESS: start the clock now so the hold keeps a full budget.
+        if (!ticket.slaStartedAt) await this.slaClock.startResolution(ticket, now);
         await this.slaClock.hold(ticket, now);
+    }
+
+    /** Leaving WAITING_VENDOR with a clock that never started (older tickets): count from creation, as the page shows. */
+    private async adoptStuckClock(ticket: Ticket, oldStatus: TicketStatus, newStatus: TicketStatus): Promise<boolean> {
+        if (oldStatus !== TicketStatus.WAITING_VENDOR || newStatus !== TicketStatus.IN_PROGRESS) return false;
+        return this.slaClock.adoptUnstarted(ticket);
     }
 
     /** Vendor wait statistics; the SLA clock itself resumes via SlaClockService.release. */
@@ -252,6 +263,7 @@ export class TicketUpdateService {
         } else if (newStatus !== TicketStatus.WAITING_VENDOR) {
             await this.slaClock.release(ticket);
         }
+        await this.adoptStuckClock(ticket, oldStatus, newStatus);
     }
 
     private async postUpdateActions(

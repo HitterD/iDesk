@@ -411,6 +411,47 @@ describe('TicketUpdateService — status takeover', () => {
         );
     });
 
+    describe('SLA clock of tickets that skip IN_PROGRESS', () => {
+        const createdAt = new Date('2026-10-01T01:00:00Z'); // Thu 08:00 WIB
+
+        beforeEach(() => {
+            // These tests need a priority with an SLA config; the default test clock has none.
+            (service as any).slaClock = createTestSlaClock([
+                { priority: TicketPriority.MEDIUM, resolutionTimeMinutes: 540, responseTimeMinutes: 240, businessHoursOnly: false },
+            ]);
+        });
+
+        it('TODO -> Waiting Vendor starts the clock and holds it whole', async () => {
+            ticket = { ...makeTicket(), createdAt, assignedToId: agentB.id, assignedTo: agentB, slaStartedAt: null, slaTarget: null };
+
+            const saved = await service.updateTicket('ticket-1', { status: TicketStatus.WAITING_VENDOR }, agentB.id);
+
+            expect(saved.slaStartedAt).toBeInstanceOf(Date);
+            expect(saved.slaRemainingMinutes).toBeGreaterThan(0);
+        });
+
+        it('a stuck Waiting Vendor ticket moved to In Progress adopts its clock from creation', async () => {
+            ticket = { ...makeTicket(), status: TicketStatus.WAITING_VENDOR, createdAt, assignedToId: agentB.id, assignedTo: agentB,
+                slaStartedAt: null, slaTarget: null, slaRemainingMinutes: null, lastPausedAt: new Date(), waitingVendorAt: new Date() };
+
+            const saved = await service.updateTicket('ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id);
+
+            expect(saved.slaStartedAt).toEqual(createdAt);
+            expect(saved.slaTarget).toBeInstanceOf(Date);
+            expect(saved.slaRemainingMinutes).toBeNull();
+        });
+
+        it('bulk TODO -> Waiting Vendor also starts and holds the clock', async () => {
+            const todo = { ...makeTicket('ticket-6'), createdAt, assignedToId: agentB.id, assignedTo: agentB, slaStartedAt: null, slaTarget: null };
+            mockTicketRepo.find.mockResolvedValue([todo]);
+
+            await expect(service.bulkUpdate(['ticket-6'], { status: TicketStatus.WAITING_VENDOR }, agentB.id))
+                .resolves.toEqual({ updated: 1, failed: [] });
+            expect(todo.slaStartedAt).toBeInstanceOf(Date);
+            expect((todo as any).slaRemainingMinutes).toBeGreaterThan(0);
+        });
+    });
+
     it('updateTicket takeover emits ticket.assigned marked as self-assigned (listener skips assignee-facing notices)', async () => {
         await service.updateTicket('ticket-1', { status: TicketStatus.IN_PROGRESS }, agentB.id, { takeover: true, reason: 'PIC cuti' });
 
