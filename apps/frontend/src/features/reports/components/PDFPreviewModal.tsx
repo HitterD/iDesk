@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Download, Loader2, FileText, ExternalLink } from 'lucide-react';
+import { X, Download, Loader2, FileText, ExternalLink, PenLine } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
+import { useAuth } from '@/stores/useAuth';
+import { SignoffEditor } from './SignoffEditor';
+import { SignoffLayout, builtInSignoff, signoffTypeOf, withSignoff } from '../signoff';
+
+const CAN_SAVE_DEFAULT_ROLES = ['ADMIN', 'MANAGER'];
 
 interface PDFPreviewModalProps {
     isOpen: boolean;
@@ -25,12 +30,75 @@ export const PDFPreviewModal: React.FC<PDFPreviewModalProps> = ({
     const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
+    const { user } = useAuth();
+    const signoffType = signoffTypeOf(pdfUrl);
+    const siteId = new URLSearchParams(pdfUrl.split('?')[1] ?? '').get('siteId');
+    const signoffUrl = signoffType ? `/reports/signoff/${signoffType}${siteId ? `?siteId=${encodeURIComponent(siteId)}` : ''}` : null;
+    const canSaveDefault = CAN_SAVE_DEFAULT_ROLES.includes(user?.role || '');
+    const [editorOpen, setEditorOpen] = useState(false);
+    const [draft, setDraft] = useState<SignoffLayout | null>(null);
+    /** Layout used for this preview only; null = the saved default (or built-in) chosen by the server. */
+    const [applied, setApplied] = useState<SignoffLayout | null>(null);
+    const [savingSignoff, setSavingSignoff] = useState(false);
+
+    // A new document starts clean: closed editor, no one-off layout.
+    useEffect(() => {
+        setEditorOpen(false);
+        setDraft(null);
+        setApplied(null);
+    }, [pdfUrl]);
+
+    const openEditor = async () => {
+        setEditorOpen(true);
+        if (draft || !signoffType || !signoffUrl) return;
+        try {
+            const res = await api.get(signoffUrl);
+            setDraft(res.data?.data ?? builtInSignoff(signoffType));
+        } catch (err) {
+            logger.error('Failed to load sign-off layout:', err);
+            setDraft(builtInSignoff(signoffType));
+        }
+    };
+
+    const saveDefault = async () => {
+        if (!draft || !signoffUrl) return;
+        setSavingSignoff(true);
+        try {
+            await api.put(signoffUrl, draft);
+            setApplied(null); // the saved default now matches the draft; reload from the server
+            toast.success('Tanda tangan default disimpan');
+        } catch (err) {
+            logger.error('Failed to save sign-off layout:', err);
+            toast.error('Gagal menyimpan tanda tangan default');
+        } finally {
+            setSavingSignoff(false);
+        }
+    };
+
+    const resetDefault = async () => {
+        if (!signoffUrl || !signoffType) return;
+        setSavingSignoff(true);
+        try {
+            await api.delete(signoffUrl);
+            setDraft(builtInSignoff(signoffType));
+            setApplied(null);
+            toast.success('Tanda tangan dikembalikan ke bawaan');
+        } catch (err) {
+            logger.error('Failed to reset sign-off layout:', err);
+            toast.error('Gagal mengembalikan tanda tangan');
+        } finally {
+            setSavingSignoff(false);
+        }
+    };
+
+    const fetchUrl = withSignoff(pdfUrl, applied);
+
     useEffect(() => {
         if (isOpen && pdfUrl) {
             setLoading(true);
             setError(null);
 
-            api.get(pdfUrl, { responseType: 'blob' })
+            api.get(fetchUrl, { responseType: 'blob' })
                 .then((response) => {
                     const blob = new Blob([response.data], { type: 'application/pdf' });
                     const url = window.URL.createObjectURL(blob);
@@ -49,7 +117,7 @@ export const PDFPreviewModal: React.FC<PDFPreviewModalProps> = ({
                 }
             };
         }
-    }, [isOpen, pdfUrl]);
+    }, [isOpen, fetchUrl]);
 
     const handleDownload = () => {
         if (pdfBlobUrl) {
@@ -96,6 +164,16 @@ export const PDFPreviewModal: React.FC<PDFPreviewModalProps> = ({
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        {signoffType && (
+                            <button
+                                onClick={() => (editorOpen ? setEditorOpen(false) : void openEditor())}
+                                aria-pressed={editorOpen}
+                                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                            >
+                                <PenLine className="w-4 h-4" />
+                                Tanda tangan
+                            </button>
+                        )}
                         <button
                             onClick={handleOpenInNewTab}
                             disabled={!pdfBlobUrl}
@@ -121,6 +199,7 @@ export const PDFPreviewModal: React.FC<PDFPreviewModalProps> = ({
                     </div>
                 </div>
 
+                <div className="flex flex-1 min-h-0">
                 {/* Content */}
                 <div className="flex-1 bg-slate-100 dark:bg-slate-800 overflow-hidden">
                     {loading && (
@@ -152,6 +231,23 @@ export const PDFPreviewModal: React.FC<PDFPreviewModalProps> = ({
                             title="PDF Preview"
                         />
                     )}
+                </div>
+                {editorOpen && signoffType && (
+                    draft ? (
+                        <SignoffEditor
+                            value={draft}
+                            onChange={setDraft}
+                            onApply={() => setApplied(draft)}
+                            onSaveDefault={canSaveDefault ? saveDefault : undefined}
+                            onReset={canSaveDefault ? resetDefault : undefined}
+                            busy={savingSignoff}
+                        />
+                    ) : (
+                        <div className="w-80 shrink-0 flex items-center justify-center border-l border-slate-200 dark:border-slate-700">
+                            <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
+                        </div>
+                    )
+                )}
                 </div>
             </div>
         </div>,

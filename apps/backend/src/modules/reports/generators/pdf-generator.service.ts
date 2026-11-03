@@ -5,6 +5,7 @@ import { TicketVolumeData } from './ticket-volume.report';
 import { generateExecutiveInsights } from '../utils/executive-insights.util';
 import { metricRate, rankAgents, summarizeAgentMetrics } from '../utils/report-metrics.util';
 import { DAILY_TREND_CAPTION, REPORT_COHORT } from './report-pdf-canvas';
+import { SignoffLayout, defaultSignoff } from './report-signoff';
 import {
     BarRow,
     Cell,
@@ -34,6 +35,8 @@ export interface PDFReportOptions {
     author?: string;
     siteName?: string;
     docNo?: string;
+    /** Edited sign-off block; absent means the built-in two-column default. */
+    signoff?: SignoffLayout;
 }
 
 export interface ManagerReportPdfData {
@@ -147,7 +150,7 @@ export class PDFGeneratorService {
             ],
         );
 
-        canvas.signOff(options.author || 'IT Service Desk', 'IT Operations Manager');
+        canvas.signOff(options.signoff ?? defaultSignoff(options.author || 'IT Service Desk', 'IT Operations Manager'));
         this.close(doc, canvas);
     }
 
@@ -192,7 +195,7 @@ export class PDFGeneratorService {
             ]),
         );
 
-        canvas.signOff(options.author || 'IT Service Lead', 'Head of ICT');
+        canvas.signOff(options.signoff ?? defaultSignoff(options.author || 'IT Service Lead', 'Head of ICT'));
         this.close(doc, canvas);
     }
 
@@ -233,7 +236,7 @@ export class PDFGeneratorService {
             { title: 'Status', rows: statusRows(volumeData.byStatus) },
         ]);
 
-        canvas.signOff(options.author || 'IT Service Lead', 'IT Operations Manager');
+        canvas.signOff(options.signoff ?? defaultSignoff(options.author || 'IT Service Lead', 'IT Operations Manager'));
         this.close(doc, canvas);
     }
 
@@ -345,7 +348,7 @@ export class PDFGeneratorService {
             );
         }
 
-        canvas.signOff(options.author || 'IT Service Desk', 'IT Manager / Department Head');
+        canvas.signOff(options.signoff ?? defaultSignoff(options.author || 'IT Service Desk', 'IT Manager / Department Head'));
         this.close(doc, canvas);
     }
 }

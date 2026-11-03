@@ -12,6 +12,8 @@ import { PDFGeneratorService } from './generators/pdf-generator.service';
 import { ManagerReportExcelBuilder } from './generators/manager-report-excel.builder';
 import { ScheduledReportsService } from './generators/scheduled-reports.service';
 import { AuditModule } from '../audit/audit.module';
+import { SystemSettings } from '../settings/entities/system-settings.entity';
+import { ReportSignoffService } from './services/report-signoff.service';
 
 // Scheduled Reports (NEW)
 import { ScheduledReportConfig } from './entities/scheduled-report-config.entity';
@@ -25,6 +27,7 @@ import { DynamicScheduledReportsService } from './generators/dynamic-scheduled-r
         TypeOrmModule.forFeature([
             Ticket,
             User,
+            SystemSettings,
             // Scheduled reports entities
             ScheduledReportConfig,
             ScheduledReportExecution,
@@ -41,6 +44,7 @@ import { DynamicScheduledReportsService } from './generators/dynamic-scheduled-r
         AgentPerformanceReport,
         TicketVolumeReport,
         PDFGeneratorService,
+        ReportSignoffService,
         ManagerReportExcelBuilder,
         ScheduledReportsService,
 

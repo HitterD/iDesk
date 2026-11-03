@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Res, UseGuards, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Put, Query, Res, UseGuards, Req } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
@@ -7,6 +7,11 @@ import { PageAccessGuard } from '../../shared/core/guards/page-access.guard';
 import { PageAccess } from '../../shared/core/decorators/page-access.decorator';
 import { REPORT_TEAMS, ReportScope, resolveReportScope } from './utils/report-team-scope.util';
 import { wibEndOfDate, wibStartOfDate } from '../../shared/core/utils/wib-date.util';
+import { RolesGuard } from '../../shared/core/guards/roles.guard';
+import { Roles } from '../../shared/core/decorators/roles.decorator';
+import { UserRole } from '../users/enums/user-role.enum';
+import { SIGNOFF_REPORT_TYPES, ReportSignoffService, SignoffReportType } from './services/report-signoff.service';
+import { parseSignoffParam } from './generators/report-signoff';
 
 /**
  * Every endpoint accepts `team` and `siteId`. They are resolved against the
@@ -19,7 +24,20 @@ import { wibEndOfDate, wibStartOfDate } from '../../shared/core/utils/wib-date.u
 @UseGuards(JwtAuthGuard, PageAccessGuard)
 @PageAccess('reports')
 export class ReportsController {
-    constructor(private readonly reportsService: ReportsService) { }
+    constructor(
+        private readonly reportsService: ReportsService,
+        private readonly signoffService: ReportSignoffService,
+    ) { }
+
+    /** One-off layout from the preview dialog wins; otherwise the saved default for this site (or undefined = built-in). */
+    private async signoffFor(type: SignoffReportType, scope: ReportScope, override?: string) {
+        return parseSignoffParam(override, undefined) ?? this.signoffService.resolve(type, scope.siteId);
+    }
+
+    private signoffType(type: string): SignoffReportType {
+        if (!(SIGNOFF_REPORT_TYPES as readonly string[]).includes(type)) throw new BadRequestException('Jenis laporan tidak dikenal');
+        return type as SignoffReportType;
+    }
 
     private scopeFor(req: any, team?: string, siteId?: string): ReportScope {
         return resolveReportScope(
@@ -149,6 +167,7 @@ export class ReportsController {
     @ApiQuery({ name: 'endDate', type: String, example: '2024-01-31' })
     @ApiQuery({ name: 'siteId', type: String, required: false })
     @ApiQuery({ name: 'team', enum: REPORT_TEAMS, required: false })
+    @ApiQuery({ name: 'signoff', type: String, required: false, description: 'One-off sign-off layout (JSON)' })
     async exportAgentPerformancePDF(
         @Res() res: Response,
         @Req() req: any,
@@ -156,6 +175,7 @@ export class ReportsController {
         @Query('endDate') endDate: string,
         @Query('siteId') siteId?: string,
         @Query('team') team?: string,
+        @Query('signoff') signoff?: string,
     ) {
         const scope = this.scopeFor(req, team, siteId);
         return this.reportsService.generateAgentPerformancePDF(
@@ -164,6 +184,7 @@ export class ReportsController {
             wibEndOfDate(endDate),
             this.userIdOf(req),
             scope,
+            await this.signoffFor('agent-performance', scope, signoff),
         );
     }
 
@@ -173,6 +194,7 @@ export class ReportsController {
     @ApiQuery({ name: 'endDate', type: String, example: '2024-01-31' })
     @ApiQuery({ name: 'siteId', type: String, required: false })
     @ApiQuery({ name: 'team', enum: REPORT_TEAMS, required: false })
+    @ApiQuery({ name: 'signoff', type: String, required: false, description: 'One-off sign-off layout (JSON)' })
     async exportTicketVolumePDF(
         @Res() res: Response,
         @Query('startDate') startDate: string,
@@ -180,6 +202,7 @@ export class ReportsController {
         @Req() req: any,
         @Query('siteId') siteId?: string,
         @Query('team') team?: string,
+        @Query('signoff') signoff?: string,
     ) {
         const scope = this.scopeFor(req, team, siteId);
         return this.reportsService.generateTicketVolumePDF(
@@ -188,6 +211,7 @@ export class ReportsController {
             wibEndOfDate(endDate),
             this.userIdOf(req),
             scope,
+            await this.signoffFor('ticket-volume', scope, signoff),
         );
     }
 
@@ -197,6 +221,7 @@ export class ReportsController {
     @ApiQuery({ name: 'year', type: Number, example: 2024 })
     @ApiQuery({ name: 'siteId', type: String, required: false })
     @ApiQuery({ name: 'team', enum: REPORT_TEAMS, required: false })
+    @ApiQuery({ name: 'signoff', type: String, required: false, description: 'One-off sign-off layout (JSON)' })
     async exportMonthlySummaryPDF(
         @Res() res: Response,
         @Query('month') month: number,
@@ -204,8 +229,42 @@ export class ReportsController {
         @Req() req: any,
         @Query('siteId') siteId?: string,
         @Query('team') team?: string,
+        @Query('signoff') signoff?: string,
     ) {
         const scope = this.scopeFor(req, team, siteId);
-        return this.reportsService.generateMonthlySummaryPDF(res, Number(month), Number(year), this.userIdOf(req), scope);
+        return this.reportsService.generateMonthlySummaryPDF(res, Number(month), Number(year), this.userIdOf(req), scope, await this.signoffFor('monthly', scope, signoff));
+    }
+
+    // ==========================================
+    // Saved sign-off defaults (per report type and site)
+    // ==========================================
+
+    @Get('signoff/:type')
+    @ApiOperation({ summary: 'Saved sign-off layout for a report type and site (null = built-in default)' })
+    @ApiQuery({ name: 'siteId', type: String, required: false })
+    async getSignoff(@Req() req: any, @Param('type') type: string, @Query('siteId') siteId?: string) {
+        const scope = this.scopeFor(req, undefined, siteId);
+        return { success: true, data: (await this.signoffService.resolve(this.signoffType(type), scope.siteId)) ?? null };
+    }
+
+    @Put('signoff/:type')
+    @UseGuards(RolesGuard)
+    @Roles(UserRole.ADMIN, UserRole.MANAGER)
+    @ApiOperation({ summary: 'Save the default sign-off layout (ADMIN/MANAGER)' })
+    @ApiQuery({ name: 'siteId', type: String, required: false })
+    async saveSignoff(@Req() req: any, @Param('type') type: string, @Body() body: unknown, @Query('siteId') siteId?: string) {
+        const scope = this.scopeFor(req, undefined, siteId);
+        return { success: true, data: await this.signoffService.save(this.signoffType(type), scope.siteId, body, this.userIdOf(req)) };
+    }
+
+    @Delete('signoff/:type')
+    @UseGuards(RolesGuard)
+    @Roles(UserRole.ADMIN, UserRole.MANAGER)
+    @ApiOperation({ summary: 'Reset the sign-off layout to the built-in default (ADMIN/MANAGER)' })
+    @ApiQuery({ name: 'siteId', type: String, required: false })
+    async resetSignoff(@Req() req: any, @Param('type') type: string, @Query('siteId') siteId?: string) {
+        const scope = this.scopeFor(req, undefined, siteId);
+        await this.signoffService.reset(this.signoffType(type), scope.siteId);
+        return { success: true };
     }
 }

@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { resolveSantosLogoPath } from '../../../shared/core/utils/brand-logo.util';
+import { SignoffLayout, SignoffSlot, signoffRows } from './report-signoff';
 
 /*
  * Drawing kit for the executive report PDFs (pdfkit, built-in Helvetica).
@@ -15,6 +16,11 @@ const CONTENT_W = PAGE.width - PAGE.margin * 2;
 const FOOTER_Y = PAGE.height - 34;
 /** Lowest y content may reach before a new page starts (leaves room for the footer). */
 const CONTENT_BOTTOM = FOOTER_Y - 10;
+
+/** Sign-off geometry: title + signing space + name, then optional role and date lines. */
+const SIGNOFF_BASE_H = 70;
+const SIGNOFF_EXTRA_LINE = 13;
+const SIGNOFF_GAP = 30;
 
 export const INK = {
     text: '#1D1D1F',
@@ -455,25 +461,47 @@ export class ReportCanvas {
         this.y = top + plotH + 26;
     }
 
-    signOff(preparedBy: string, approvedBy: string): void {
-        const { doc } = this;
-        const h = 74;
-        this.ensure(h);
+    /** Sign-off block: `layout.columns` slots per row. The whole block stays on one page when it fits; otherwise rows break individually. */
+    signOff(layout: SignoffLayout): void {
+        const rows = signoffRows(layout);
+        if (rows.length === 0) return;
+        const heights = rows.map((row) => SIGNOFF_BASE_H + (row.some((s) => s.role) ? SIGNOFF_EXTRA_LINE : 0) + (row.some((s) => s.showDate) ? SIGNOFF_EXTRA_LINE : 0));
+        const total = heights.reduce((sum, h) => sum + h, 0);
+        const fitsOnPage = total <= CONTENT_BOTTOM - PAGE.margin;
+        if (fitsOnPage) this.ensure(total);
         this.y += 4;
-        const w = (CONTENT_W - 30) / 2;
-        [
-            { title: 'Disiapkan oleh', name: preparedBy, x: PAGE.margin },
-            { title: 'Diketahui / disetujui oleh', name: approvedBy, x: PAGE.margin + w + 30 },
-        ].forEach((col) => {
-            this.font(false, 8.5, INK.secondary);
-            this.line(col.title, col.x, this.y, w);
-            doc.moveTo(col.x, this.y + 44).lineTo(col.x + w * 0.75, this.y + 44).lineWidth(0.7).strokeColor(INK.tertiary).stroke();
-            this.font(true, 9.5, INK.text);
-            this.line(col.name, col.x, this.y + 50, w);
-            this.font(false, 8, INK.tertiary);
-            this.line('Tanggal:', col.x, this.y + 63, w);
+        rows.forEach((row, i) => {
+            if (!fitsOnPage) this.ensure(heights[i]);
+            this.signOffRow(row, layout.columns);
+            this.y += heights[i];
         });
-        this.y += h;
+    }
+
+    private signOffRow(row: SignoffSlot[], columns: number): void {
+        const { doc } = this;
+        const slotW = (CONTENT_W - SIGNOFF_GAP * (columns - 1)) / columns;
+        const boxW = slotW * 0.85;
+        row.forEach((slot, i) => {
+            const slotX = PAGE.margin + i * (slotW + SIGNOFF_GAP);
+            const x = slot.align === 'center' ? slotX + (slotW - boxW) / 2 : slot.align === 'right' ? slotX + slotW - boxW : slotX;
+            let y = this.y;
+            this.font(false, 8.5, INK.secondary);
+            this.line(slot.title, x, y, boxW, slot.align);
+            doc.moveTo(x, y + 44).lineTo(x + boxW, y + 44).lineWidth(0.7).strokeColor(INK.tertiary).stroke();
+            y += 50;
+            this.font(true, 9.5, INK.text);
+            this.line(slot.name, x, y, boxW, slot.align);
+            y += 13;
+            if (slot.role) {
+                this.font(false, 8.5, INK.secondary);
+                this.line(slot.role, x, y, boxW, slot.align);
+                y += 13;
+            }
+            if (slot.showDate) {
+                this.font(false, 8, INK.tertiary);
+                this.line('Tanggal:', x, y, boxW, slot.align);
+            }
+        });
     }
 
     /** Page footers; call once, after all content. */
