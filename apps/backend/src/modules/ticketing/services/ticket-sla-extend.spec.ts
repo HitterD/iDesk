@@ -92,8 +92,24 @@ describe('TicketSlaExtendService', () => {
         expect(result.ticket.isOverdue).toBe(false);
     });
 
-    it('rejects a ticket without started SLA clock', async () => {
-        ticketRepo.findOne = jest.fn(async () => ({ ...baseTicket, slaStartedAt: null }));
+    it('adopts the clock of a ticket that never started it, then extends', async () => {
+        // Went TODO -> WAITING_VENDOR -> IN_PROGRESS: no slaStartedAt, no slaTarget.
+        ticketRepo.findOne = jest.fn(async () => ({ ...baseTicket, slaStartedAt: null, slaTarget: null, originalSlaTarget: null }));
+        slaClock.adoptUnstarted = jest.fn(async (t: any) => {
+            t.slaStartedAt = new Date('2026-08-31T08:00:00');
+            t.slaTarget = new Date('2026-08-31T17:00:00');
+            t.originalSlaTarget = new Date(t.slaTarget);
+            return true;
+        });
+        const result = await service.extendSla('t1', dto, actor);
+        expect(slaClock.adoptUnstarted).toHaveBeenCalledWith(expect.objectContaining({ id: 't1' }), expect.any(Date), { paused: false });
+        expect(result.ticket.slaTarget!.getTime()).toBe(new Date('2026-08-31T17:00:00').getTime() + 60 * 60000);
+        expect(result.adjustment.previousTarget).toEqual(new Date('2026-08-31T17:00:00'));
+    });
+
+    it('still rejects when the clock cannot be adopted (no SLA config)', async () => {
+        ticketRepo.findOne = jest.fn(async () => ({ ...baseTicket, slaStartedAt: null, slaTarget: null }));
+        slaClock.adoptUnstarted = jest.fn(async () => false);
         await expect(service.extendSla('t1', dto, actor)).rejects.toThrow('SLA clock has not started');
     });
 
@@ -124,10 +140,18 @@ describe('TicketSlaExtendService', () => {
         expect(ticketRepo.save).not.toHaveBeenCalled();
     });
 
-    it('requires a started clock even while paused', async () => {
+    it('adopts a paused ticket that never started its clock as a hold, then adds minutes', async () => {
         ticketRepo.findOne.mockResolvedValue({ ...baseTicket, status: TicketStatus.WAITING_VENDOR,
-            slaRemainingMinutes: 120, slaStartedAt: null });
-        await expect(service.extendSla('t1', dto, actor)).rejects.toThrow('SLA clock has not started');
+            slaRemainingMinutes: null, slaStartedAt: null, slaTarget: null });
+        slaClock.adoptUnstarted = jest.fn(async (t: any) => {
+            t.slaStartedAt = new Date('2026-08-31T08:00:00');
+            t.slaTarget = new Date('2026-08-31T17:00:00');
+            t.slaRemainingMinutes = 0; // projected target already passed
+            return true;
+        });
+        const result = await service.extendSla('t1', dto, actor);
+        expect(slaClock.adoptUnstarted).toHaveBeenCalledWith(expect.anything(), expect.any(Date), { paused: true });
+        expect(result.ticket.slaRemainingMinutes).toBe(60);
     });
 
     it('extends a held clock with no target without creating a deadline', async () => {

@@ -139,6 +139,45 @@ describe('SlaClockService', () => {
         });
     });
 
+    describe('adoptUnstarted', () => {
+        // A ticket that skipped IN_PROGRESS (TODO -> WAITING_VENDOR) never started its clock.
+        // Adopting it counts from creation: the same target the ticket page already shows.
+        const created = wib('2026-10-01T08:00:00'); // Thu
+
+        it('starts the clock at creation with the projected target', async () => {
+            const t = ticket({ createdAt: created } as Partial<Ticket>);
+            expect(await clock.adoptUnstarted(t, wib('2026-10-01T10:00:00'))).toBe(true);
+            expect(t.slaStartedAt).toEqual(created);
+            expect(t.slaTarget).toEqual(wib('2026-10-01T17:00:00')); // MEDIUM 540 business minutes
+            expect(t.originalSlaTarget).toEqual(t.slaTarget);
+            expect(t.slaRemainingMinutes).toBeNull();
+        });
+
+        it('holds what is left when the ticket is paused', async () => {
+            const t = ticket({ createdAt: created } as Partial<Ticket>);
+            await clock.adoptUnstarted(t, wib('2026-10-01T15:00:00'), { paused: true });
+            expect(t.slaRemainingMinutes).toBe(120);
+        });
+
+        it('holds zero once the projected target has passed', async () => {
+            const t = ticket({ createdAt: created } as Partial<Ticket>);
+            await clock.adoptUnstarted(t, wib('2026-10-08T10:00:00'), { paused: true });
+            expect(t.slaRemainingMinutes).toBe(0);
+        });
+
+        it('leaves a started clock alone', async () => {
+            const t = ticket({ createdAt: created, slaStartedAt: wib('2026-10-01T09:00:00'), slaTarget: wib('2026-10-01T18:00:00') } as Partial<Ticket>);
+            expect(await clock.adoptUnstarted(t, wib('2026-10-01T10:00:00'))).toBe(false);
+            expect(t.slaTarget).toEqual(wib('2026-10-01T18:00:00'));
+        });
+
+        it('does nothing when the priority has no config', async () => {
+            const t = ticket({ createdAt: created, priority: 'UNKNOWN' } as unknown as Partial<Ticket>);
+            expect(await clock.adoptUnstarted(t, wib('2026-10-01T10:00:00'))).toBe(false);
+            expect(t.slaStartedAt).toBeNull();
+        });
+    });
+
     describe('hardwareTarget', () => {
         it('is 17:00 WIB on the first working day after the schedule', async () => {
             expect(await clock.hardwareTarget(wib('2026-10-02T09:00:00'))).toEqual(wib('2026-10-05T17:00:00'));

@@ -119,6 +119,23 @@ export class SlaClockService {
         return config;
     }
 
+    /**
+     * Starts the clock of a ticket that never got one (it skipped IN_PROGRESS, e.g. TODO -> WAITING_VENDOR).
+     * Counts from creation, which is the target the ticket page already projects; a paused ticket keeps
+     * what is left as a hold. Returns false when the clock already runs or the priority has no config.
+     */
+    async adoptUnstarted(ticket: Ticket, now: Date = new Date(), opts: { paused?: boolean } = {}): Promise<boolean> {
+        if (ticket.slaStartedAt) return false;
+        const createdAt = new Date(ticket.createdAt);
+        const config = await this.startResolution(ticket, createdAt);
+        if (!config) {
+            ticket.slaStartedAt = null;
+            return false;
+        }
+        if (opts.paused) await this.hold(ticket, now);
+        return true;
+    }
+
     /** Freezes the running clocks, keeping the minutes left. Idempotent. */
     async hold(ticket: Ticket, now: Date = new Date()): Promise<void> {
         const needsResolution = ticket.slaTarget && ticket.slaRemainingMinutes == null;
