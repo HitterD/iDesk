@@ -4,7 +4,7 @@ import { DataSource, EntityManager, In, LessThanOrEqual, MoreThanOrEqual, QueryF
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
 import { User } from '../../users/entities/user.entity';
 import {
-    CSI_ANSWER_TEXT_MAX, CSI_COMMENT_MAX, CSI_OPTION_LABEL_MAX, CSI_RESPONDENT_NAME_MAX, CSI_RESPONDENT_NAME_MIN, CSI_SCORE_MAX, CSI_SCORE_MIN,
+    CSI_ANSWER_TEXT_MAX, CSI_COMMENT_MAX, CSI_OPTION_LABEL_MAX, CSI_RESPONDENT_NAME_MAX, CSI_SCORE_MAX, CSI_SCORE_MIN,
     CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode,
 } from '../csi.constants';
 import { SubmitResponseDto } from '../dto/submit.dto';
@@ -29,14 +29,15 @@ export type CsiRespondentRef = { id: string };
 
 const NOT_FOUND_MESSAGE = 'Survei tidak ditemukan';
 const ENDED_MESSAGE = 'Periode penilaian sudah berakhir';
-const NAME_TAKEN_MESSAGE = 'Nama ini sudah mengisi survei ini';
+const ALREADY_SUBMITTED_MESSAGE = 'Anda sudah mengisi survei ini';
+const DEPARTMENT_LOCKED_MESSAGE = 'Departemen Anda sudah terkunci dan tidak dapat diubah';
 const WRONG_TYPE_MESSAGE = 'Jawaban tidak sesuai jenis pertanyaan ini';
 const OPTION_POINTS_MESSAGE = 'Pilihan tidak memiliki nilai yang valid';
 const REQUIRED_MESSAGE = 'Semua pertanyaan wajib harus dijawab';
-const NAME_LENGTH_MESSAGE = `Nama harus ${CSI_RESPONDENT_NAME_MIN}–${CSI_RESPONDENT_NAME_MAX} karakter`;
 const PG_UNIQUE_VIOLATION = '23505';
 
-type Respondent = Pick<User, 'id' | 'fullName' | 'siteId'>;
+type Respondent = Pick<User, 'id' | 'fullName' | 'siteId'> & { profileDepartment: string | null };
+type DepartmentRow = Pick<CsiDepartment, 'id' | 'name'>;
 type Audience = { respondent: Respondent; ratees: CsiPeriodRatee[]; dimensions: CsiPeriodRateeDimension[] };
 type ResolvedItem = { dimension: CsiPeriodRateeDimension; score: number | null; answerLabel: string | null; answerText: string | null };
 type CommentRow = { periodRateeId: string; comment: string };
@@ -95,10 +96,11 @@ export class CsiRespondentService {
         const candidates = matching.length ? await this.periods.find({
             where: { id: In(matching.map((row) => row.id)) }, relations: { sites: true }, order: { startDate: 'DESC' },
         }) : [];
-        const result: Array<{ id: string; scope: CsiPeriod['scope']; title: string; submitted: boolean }> = [];
+        const result: Array<{ id: string; scope: CsiPeriod['scope']; title: string; endDate: string; submitted: boolean; submittedAt: Date | null }> = [];
         for (const period of candidates) {
             if (computeStatus(period, now) !== 'ACTIVE' || !(await this.audienceFor(this.readers, respondent, period))) continue;
-            result.push({ id: period.id, scope: period.scope, title: period.title, submitted: await this.hasSubmitted(period.id, respondent.id) });
+            const submittedAt = await this.submittedAt(period.id, respondent.id);
+            result.push({ id: period.id, scope: period.scope, title: period.title, endDate: period.endDate, submitted: submittedAt !== null, submittedAt });
         }
         return result;
     }
@@ -106,17 +108,22 @@ export class CsiRespondentService {
     async getForm(user: CsiRespondentRef, periodId: string, now: Date = new Date()) {
         const { period, audience } = await this.resolveEligible(user, periodId);
         if (computeStatus(period, now) !== 'ACTIVE') throw new NotFoundException(NOT_FOUND_MESSAGE);
-        const [departments, views, submittedNames] = await Promise.all([
+        const [departments, views, submittedAt] = await Promise.all([
             this.departments.find({ where: { scope: period.scope, isActive: true }, order: { sortOrder: 'ASC', name: 'ASC' } }),
             this.subjects.viewsFor(period.scope, audience.ratees),
-            this.submittedNames(period.id, audience.respondent.id),
+            this.submittedAt(period.id, audience.respondent.id),
         ]);
-        const descriptions = await this.descriptionsOf(audience.dimensions);
+        const [descriptions, lockedDepartment] = await Promise.all([
+            this.descriptionsOf(audience.dimensions),
+            this.lockedDepartmentIn(departments, audience.respondent),
+        ]);
         return {
             id: period.id, scope: period.scope, title: period.title, intro: period.intro, endDate: period.endDate,
             teamLabel: period.teamLabel,
-            respondent: { fullName: audience.respondent.fullName },
-            submittedNames,
+            respondent: { fullName: audience.respondent.fullName, departmentId: lockedDepartment?.id ?? null },
+            submittedAt,
+            /** Kept for older clients: the account name once it has answered. */
+            submittedNames: submittedAt ? [audience.respondent.fullName] : [],
             departments: departments.map((department) => ({ id: department.id, name: department.name })),
             ratees: audience.ratees.map((ratee) => ({
                 ...formProfile(ratee, views.get(ratee.id)),
@@ -132,7 +139,8 @@ export class CsiRespondentService {
         const { period, audience } = await this.resolveEligible(user, periodId);
         assertSubmittable(period, now);
         const respondentId = audience.respondent.id;
-        const respondentName = normalizeName(dto.respondentName);
+        // Identity is locked to the account: a typed name (still accepted from older clients) is ignored.
+        const respondentName = accountName(audience.respondent.fullName);
         try {
             await this.dataSource.transaction(async (manager) => {
                 // FOR SHARE: submits for one period don't queue behind each other, while admin edits
@@ -140,8 +148,10 @@ export class CsiRespondentService {
                 const locked = await lockPeriodRow(manager, period.id, 'pessimistic_read');
                 if (!locked) throw new NotFoundException(NOT_FOUND_MESSAGE);
                 assertSubmittable(locked, now);
-                const existing = await manager.getRepository(CsiResponse).find({ where: { periodId: period.id, respondentId } });
-                if (existing.some((row) => nameKey(row.respondentName) === nameKey(respondentName))) throw new ConflictException(NAME_TAKEN_MESSAGE);
+                // One response per account and period; older periods may still hold several (left untouched).
+                if (await manager.getRepository(CsiResponse).count({ where: { periodId: period.id, respondentId } })) {
+                    throw new ConflictException(ALREADY_SUBMITTED_MESSAGE);
+                }
                 // All reads go through the transaction's connection: a submit holds exactly one pooled connection.
                 const readers = readersOf(manager);
                 // The locked row carries no relations and admins can edit the period sites: re-read them after the lock.
@@ -150,13 +160,16 @@ export class CsiRespondentService {
                 if (!current) throw new NotFoundException(NOT_FOUND_MESSAGE);
                 const department = await readers.departments.findOne({ where: { id: dto.departmentId, scope: locked.scope, isActive: true } });
                 if (!department) throw new BadRequestException('Departemen tidak ditemukan atau tidak aktif');
+                const active = await readers.departments.find({ where: { scope: locked.scope, isActive: true } });
+                const lockedDepartment = await this.lockedDepartmentIn(active, audience.respondent, manager);
+                if (lockedDepartment && lockedDepartment.id !== department.id) throw new BadRequestException(DEPARTMENT_LOCKED_MESSAGE);
                 const items = validateItems(dto.items ?? [], current.dimensions);
                 const comments = validateComments(dto.comments ?? [], current.ratees);
                 await this.writeResponse(manager, { periodId: period.id, respondentId, respondentName, department, items, comments, now });
             });
         } catch (error) {
             if (error instanceof QueryFailedError && (error.driverError as { code?: string })?.code === PG_UNIQUE_VIOLATION) {
-                throw new ConflictException(NAME_TAKEN_MESSAGE);
+                throw new ConflictException(ALREADY_SUBMITTED_MESSAGE);
             }
             throw error;
         }
@@ -174,8 +187,28 @@ export class CsiRespondentService {
 
     /** Active user with a site (null site is never eligible: fail-closed). */
     private async loadRespondent(userId: string): Promise<Respondent | null> {
-        const user = await this.users.findOne({ where: { id: userId }, select: { id: true, fullName: true, siteId: true, isActive: true } });
-        return user && user.isActive && user.siteId ? { id: user.id, fullName: user.fullName, siteId: user.siteId } : null;
+        const user = await this.users.findOne({
+            where: { id: userId }, relations: { department: true },
+            select: { id: true, fullName: true, siteId: true, isActive: true, department: { id: true, name: true } },
+        });
+        if (!user || !user.isActive || !user.siteId) return null;
+        return { id: user.id, fullName: user.fullName, siteId: user.siteId, profileDepartment: user.department?.name ?? null };
+    }
+
+    /**
+     * The department the respondent is locked to within this scope's active list, or null (free choice, made once).
+     * Source: the department of the account's latest CSI answer (any scope), else the HR profile department.
+     * Matched by name so the lock carries across the ICT and HC lists; a name missing from this list leaves the choice open.
+     */
+    private async lockedDepartmentIn(departments: DepartmentRow[], respondent: Respondent, manager?: EntityManager): Promise<DepartmentRow | null> {
+        const responses = manager ? manager.getRepository(CsiResponse) : this.responses;
+        const latest = await responses.findOne({ where: { respondentId: respondent.id }, order: { submittedAt: 'DESC' } });
+        const sources = [latest?.departmentName, respondent.profileDepartment].filter((name): name is string => Boolean(name?.trim()));
+        for (const source of sources) {
+            const match = departments.find((department) => departmentKey(department.name) === departmentKey(source));
+            if (match) return match;
+        }
+        return null;
     }
 
     /**
@@ -229,15 +262,10 @@ export class CsiRespondentService {
         return new Map(rows.map((dimension) => [dimension.id, dimension.description ?? null]));
     }
 
-    /** True when the account has at least one response for the period (count only, no rows loaded). */
-    private async hasSubmitted(periodId: string, respondentId: string) {
-        return (await this.responses.count({ where: { periodId, respondentId } })) > 0;
-    }
-
-    /** Display names this account already answered the period with, oldest first. */
-    private async submittedNames(periodId: string, respondentId: string): Promise<string[]> {
-        const rows = await this.responses.find({ where: { periodId, respondentId }, order: { submittedAt: 'ASC' } });
-        return rows.map((row) => row.respondentName);
+    /** When the account first answered the period, or null when it has not. */
+    private async submittedAt(periodId: string, respondentId: string): Promise<Date | null> {
+        const first = await this.responses.findOne({ where: { periodId, respondentId }, order: { submittedAt: 'ASC' } });
+        return first?.submittedAt ?? null;
     }
 
     private async writeResponse(manager: EntityManager, input: {
@@ -287,14 +315,11 @@ function isRateeVisible(ratee: CsiPeriodRatee, period: CsiPeriod, respondentId: 
 }
 
 const collapseSpaces = (value: string) => value.trim().replace(/\s+/g, ' ');
-const nameKey = (name: string) => collapseSpaces(name).toLowerCase();
+/** Case- and space-insensitive department name ("HC  Services" = "hc services"). */
+const departmentKey = (name: string) => collapseSpaces(name).toLowerCase();
 
-/** Trimmed, whitespace-collapsed display name; 2–150 characters. */
-function normalizeName(raw: unknown): string {
-    const name = typeof raw === 'string' ? collapseSpaces(raw) : '';
-    if (name.length < CSI_RESPONDENT_NAME_MIN || name.length > CSI_RESPONDENT_NAME_MAX) throw new BadRequestException(NAME_LENGTH_MESSAGE);
-    return name;
-}
+/** The account's full name as stored on the response (spaces collapsed, column-safe length). */
+const accountName = (fullName: string) => collapseSpaces(fullName ?? '').slice(0, CSI_RESPONDENT_NAME_MAX) || '-';
 
 /** Resolves one answer against the question snapshot; null means "TEXT left empty" (treated as omitted). */
 function resolveAnswer(dimension: CsiPeriodRateeDimension, item: SubmitResponseDto['items'][number]): ResolvedItem | null {

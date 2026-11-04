@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
-import { buildSubmitPayload, isNameTaken, isNameValid, missingRequired } from '../../lib/csiForm';
+import { scrollWithin } from '../../lib/scrollWithin';
+import { buildSubmitPayload, missingRequired } from '../../lib/csiForm';
 import type { CsiOpenForm, SubmitCsiResponse } from '../../types';
 import { answeredScreens, firstIncomplete, type SurveyAnswers } from './useSurveyAnswers';
 
@@ -15,7 +16,7 @@ function useScrollToMissing(attempt: number) {
     const reduce = useReducedMotion();
     useEffect(() => {
         if (!attempt) return;
-        document.querySelector('[data-missing]')?.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+        scrollWithin(document.querySelector('[data-missing]'), 'center', !reduce);
     }, [attempt, reduce]);
 }
 
@@ -67,10 +68,10 @@ export function useSurveyNavigation({ form, answers, preview, onSubmit }: Naviga
     };
     const submit = (): void => {
         if (preview) return;
-        if (!draft.departmentId || !isNameValid(draft.respondentName) || isNameTaken(draft.respondentName, form.submittedNames)) return goTo(0);
+        if (!draft.departmentId) return goTo(0);
         if (!guardComplete()) return;
         answers.settle();
-        onSubmit?.(buildSubmitPayload(form, { name: draft.respondentName, departmentId: draft.departmentId, answers: draft.answers, comments: draft.comments }));
+        onSubmit?.(buildSubmitPayload(form, { name: form.respondent.fullName, departmentId: draft.departmentId, answers: draft.answers, comments: draft.comments }));
     };
     const missing = ratee && flagged ? missingIn(ratee, draft.answers) : NO_MISSING;
     return { position, reviewPosition, ratee, missing, visited, navigated: motion.navigated, direction: motion.direction, goTo, next, submit };

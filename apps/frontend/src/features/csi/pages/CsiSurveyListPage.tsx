@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { CheckCircle2, ChevronRight, ClipboardList, Star } from 'lucide-react';
+import { CheckCircle2, ChevronRight, ClipboardList, Lock, Star } from 'lucide-react';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { TicketPill } from '@/components/ui/ticket-pill';
 import { cn } from '@/lib/utils';
@@ -7,6 +7,7 @@ import { useAuth } from '@/stores/useAuth';
 import { hasDraft } from '../lib/surveyDraft';
 import { useCsiActive } from '../hooks/useCsi';
 import { useCsiBasePath } from '../lib/useCsiBasePath';
+import { formatDate } from '../lib/format';
 import { CSI_CARD, FadeIn } from '../components/CsiSurveyParts';
 
 const SKELETON_ROWS = 2;
@@ -42,6 +43,12 @@ export function CsiSurveyListPage() {
                 </FadeIn>
             )}
 
+            {surveys && surveys.some((survey) => !survey.submitted) && surveys.length > 1 && (
+                <p className="text-[14px] text-muted-foreground">
+                    {`${surveys.filter((survey) => !survey.submitted).length} dari ${surveys.length} survei belum Anda isi.`}
+                </p>
+            )}
+
             {surveys && surveys.length > 0 && (
                 <ul className="space-y-3" aria-label="Daftar survei">
                     {surveys.map((survey, index) => (
@@ -61,11 +68,14 @@ export function CsiSurveyListPage() {
                                             ) : (
                                                 <TicketPill tone="amber">Belum diisi</TicketPill>
                                             )}
+                                            {survey.endDate && !survey.submitted && (
+                                                <span className="text-[12.5px] text-muted-foreground">sampai {formatDate(survey.endDate)}</span>
+                                            )}
                                         </span>
                                     </span>
-                                    {/* A shared account (one login, several people) can always answer again under another name. */}
-                                    <span className="shrink-0 text-[13px] font-semibold text-primary">
-                                        {survey.submitted ? 'Isi untuk orang lain' : user && hasDraft(user.id, survey.id) ? 'Lanjutkan' : 'Isi Survei'}
+                                    {/* One answer per account: an answered survey only opens its "already answered" screen. */}
+                                    <span className={cn('inline-flex shrink-0 items-center gap-1 text-[13px] font-semibold', survey.submitted ? 'text-muted-foreground' : 'text-primary')}>
+                                        {survey.submitted ? <><Lock className="h-3.5 w-3.5" aria-hidden="true" />Terkunci</> : user && hasDraft(user.id, survey.id) ? 'Lanjutkan' : 'Isi Survei'}
                                     </span>
                                     <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
                                 </Link>

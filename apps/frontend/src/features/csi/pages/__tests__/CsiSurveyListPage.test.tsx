@@ -54,10 +54,12 @@ describe('CsiSurveyListPage', () => {
         expect(screen.getByRole('link', { name: /Survei HC Q4/ })).not.toHaveTextContent('Lanjutkan');
     });
 
-    it('a shared account still gets a call to fill an already-answered survey for another person', async () => {
+    it('an answered survey is locked for the account (one answer per account), the rest are counted', async () => {
         vi.mocked(CsiApi.active).mockResolvedValue(SURVEYS);
         renderAt('/client/csi', <CsiSurveyListPage />);
-        expect(await screen.findByRole('link', { name: /Survei HC Q4.*Isi untuk orang lain/ })).toHaveAttribute('href', '/client/csi/p2');
+        expect(await screen.findByRole('link', { name: /Survei HC Q4.*Terkunci/ })).toHaveAttribute('href', '/client/csi/p2');
+        expect(screen.queryByText(/orang lain/)).not.toBeInTheDocument();
+        expect(screen.getByText('1 dari 2 survei belum Anda isi.')).toBeInTheDocument();
     });
 
     it('menampilkan empty state bila tidak ada survei', async () => {

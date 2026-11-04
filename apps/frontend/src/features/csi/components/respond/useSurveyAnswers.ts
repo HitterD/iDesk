@@ -28,16 +28,15 @@ function resumePosition(form: CsiOpenForm, draft: SurveyDraft): number {
     return pending === -1 ? reviewPosition : pending + 1;
 }
 
-export interface FreshStart { departmentId: string }
-
-const emptyDraft = (respondentName: string, departmentId = ''): SurveyDraft =>
+const emptyDraft = (respondentName: string, departmentId: string): SurveyDraft =>
     ({ respondentName, departmentId, answers: {}, comments: {}, position: 0 });
 
-function initialState(form: CsiOpenForm, key: string | null, fresh?: FreshStart): { draft: SurveyDraft; resumed: boolean } {
-    if (fresh) return { draft: emptyDraft('', fresh.departmentId), resumed: false };
+/** The identity always follows the account; a locked department wins over whatever a draft remembered. */
+function initialState(form: CsiOpenForm, key: string | null, lockedDepartment: string | null): { draft: SurveyDraft; resumed: boolean } {
     const stored = key ? loadDraft(key, form) : null;
-    if (!stored) return { draft: emptyDraft(form.respondent.fullName), resumed: false };
-    return { draft: { ...stored, position: resumePosition(form, stored) }, resumed: true };
+    if (!stored) return { draft: emptyDraft(form.respondent.fullName, lockedDepartment ?? ''), resumed: false };
+    const draft = { ...stored, respondentName: form.respondent.fullName, departmentId: lockedDepartment ?? stored.departmentId };
+    return { draft: { ...draft, position: resumePosition(form, draft) }, resumed: true };
 }
 
 /** Debounced autosave; also flushed on `pagehide`, on unmount, and right before submit. */
@@ -78,9 +77,9 @@ function useDraftAutosave(key: string | null, draft: SurveyDraft) {
  * Respondent answers + current screen. In live mode every change is autosaved (debounced) to
  * `localStorage`; preview mode never reads or writes storage.
  */
-export function useSurveyAnswers(form: CsiOpenForm, userId: string, live: boolean, fresh?: FreshStart) {
+export function useSurveyAnswers(form: CsiOpenForm, userId: string, live: boolean, lockedDepartment: string | null = null) {
     const key = live && userId ? draftKey(userId, form.id) : null;
-    const [{ draft: initial, resumed }] = useState(() => initialState(form, key, fresh));
+    const [{ draft: initial, resumed }] = useState(() => initialState(form, key, lockedDepartment));
     const [draft, setDraft] = useState<SurveyDraft>(initial);
     const autosave = useDraftAutosave(key, draft);
 
@@ -94,7 +93,6 @@ export function useSurveyAnswers(form: CsiOpenForm, userId: string, live: boolea
         /** Writes any pending change now (before submit) so nothing is left to save after the page clears the draft. */
         settle: autosave.flush,
         setDepartment: (departmentId: string) => update((previous) => ({ ...previous, departmentId })),
-        setName: (respondentName: string) => update((previous) => ({ ...previous, respondentName })),
         setAnswer: (dimensionId: string, answer: CsiAnswer) =>
             update((previous) => ({ ...previous, answers: { ...previous.answers, [dimensionId]: answer } })),
         setComment: (rateeId: string, text: string) =>

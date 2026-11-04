@@ -131,7 +131,11 @@ export interface CsiActivePeriod {
     id: string;
     scope: CsiScope;
     title: string;
+    /** Last day (YYYY-MM-DD); absent on older payloads. */
+    endDate?: string;
     submitted: boolean;
+    /** When this account answered (ISO), or null. */
+    submittedAt?: string | null;
 }
 
 export interface CsiFormDimension {
@@ -157,7 +161,7 @@ export interface CsiFormRatee {
     dimensions: CsiFormDimension[];
 }
 
-/** The form never reports `submitted`: a respondent may answer again under another name. */
+/** One answer per account: the identity (name, and the department once known) is locked to the account. */
 export interface CsiForm {
     id: string;
     scope: CsiScope;
@@ -165,7 +169,11 @@ export interface CsiForm {
     intro: string;
     endDate: string;
     teamLabel: string;
-    respondent: { fullName: string };
+    /** `departmentId`: the department the account is locked to in this list (null = choose once). */
+    respondent: { fullName: string; departmentId?: string | null };
+    /** When this account answered (ISO), or null / absent when it has not. */
+    submittedAt?: string | null;
+    /** @deprecated older servers; the account name once it has answered. */
     submittedNames: string[];
     departments: Array<{ id: string; name: string }>;
     ratees: CsiFormRatee[];

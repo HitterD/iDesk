@@ -14,7 +14,7 @@ export const CSI_HTTP_GONE = 410;
 
 export const CSI_MESSAGES = {
     notFound: 'Survei tidak ditemukan',
-    nameTaken: 'Nama ini sudah mengisi survei ini',
+    alreadySubmitted: 'Anda sudah mengisi survei ini',
     ended: 'Periode penilaian sudah berakhir',
     submitFailed: 'Gagal mengirim survei. Silakan coba lagi.',
 } as const;
@@ -81,12 +81,11 @@ export function rateeAverage(ratee: CsiFormRatee, answers: CsiAnswers): number |
 export const otherAnswerCount = (ratee: CsiFormRatee, answers: CsiAnswers): number =>
     ratee.dimensions.filter((dimension) => (dimension.type === 'CHOICE' || dimension.type === 'TEXT') && isAnswered(dimension, answers)).length;
 
-export const nameKey = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
 export const isNameValid = (name: string) => name.trim().length >= CSI_NAME_MIN && name.trim().length <= CSI_NAME_MAX;
-export const isNameTaken = (name: string, submittedNames: string[]) => {
-    const key = nameKey(name);
-    return key !== '' && submittedNames.some((submitted) => nameKey(submitted) === key);
-};
+
+/** The account already answered this survey (one answer per account). */
+export const hasAnswered = (form: Pick<CsiOpenForm, 'submittedAt' | 'submittedNames'>) =>
+    Boolean(form.submittedAt) || form.submittedNames.length > 0;
 
 export interface SubmitInput { name: string; departmentId: string; answers: CsiAnswers; comments: CsiComments }
 

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { m, useReducedMotion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { scrollWithin } from '../../lib/scrollWithin';
 
 export type HeadingLevel = 'h1' | 'h2';
 
@@ -32,7 +33,8 @@ export function ScreenHeading({ id, className, as, scrollTarget, children }: {
     const ref = useRef<HTMLHeadingElement>(null);
     useEffect(() => {
         if (!navigated) return;
-        (scrollTarget?.current ?? ref.current)?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+        // Never Element.scrollIntoView: it also scrolls the overflow-hidden app shell (topbar gone, blank area below).
+        scrollWithin(scrollTarget?.current ?? ref.current, 'start', !reduce);
         ref.current?.focus({ preventScroll: true });
     }, [navigated, reduce, scrollTarget]);
     const Tag = as ?? headingLevel;
@@ -59,10 +61,10 @@ export function ScreenTransition({ screenKey, direction, children }: { screenKey
  * (~4.5rem incl. the "N pertanyaan wajib" note) + its offset above the bottom nav (6rem) + the safe area, so the last
  * field can always scroll clear of the footer. From `sm` the footer is inline, so nothing is added (and nothing at `lg`).
  */
-export const LIVE_FOOTER_SPACE = 'pb-[calc(10.5rem+env(safe-area-inset-bottom))] sm:pb-0';
+export const LIVE_FOOTER_SPACE = 'pb-[calc(10.5rem+env(safe-area-inset-bottom))] lg:pb-0';
 
 /**
- * Action bar: sticky to the bottom of the scroll area on mobile, inline on desktop.
+ * Action bar: always sticky to the bottom of the scroll area, so Kembali / Lanjut stay in reach on long screens.
  * On the live page it sits above the fixed bottom nav (5rem tall plus the create button raised ~14 px, hence the 6rem
  * offset); the flow reserves `LIVE_FOOTER_SPACE` under it.
  * On mobile it bleeds to the edges by `--flow-gutter`, which each host sets to its own horizontal padding
@@ -72,7 +74,6 @@ export function FlowFooter({ note, children }: { note?: ReactNode; children: Rea
     const { aboveBottomNav } = useContext(FlowChromeContext);
     return (
         <div className={cn('sticky z-20 mx-[calc(-1*var(--flow-gutter,0px))] border-t border-border/60 bg-background/90 px-[var(--flow-gutter,0px)] pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl',
-            'sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pb-2 sm:backdrop-blur-none',
             aboveBottomNav ? 'bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-0' : 'bottom-0')}>
             {note}
             <div className="flex items-center gap-3">{children}</div>

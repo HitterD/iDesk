@@ -2,12 +2,12 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { useReducedMotion } from 'framer-motion';
 import { Star } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { orderRatees, rateeAverage, type CsiAnswers } from '../../lib/csiForm';
 import { toneClasses, type CsiTone } from '../../lib/csiTone';
 import type { CsiFormRatee, SubmitCsiResponse } from '../../types';
 import { CSI_CARD, FadeIn } from '../CsiSurveyParts';
+import { NextSurveyCard } from './NextSurveyCard';
 import { SubjectAvatar } from './RateeAvatar';
 import { averageLabel, RESPOND_COPY, thankYouName, thankYouSummary } from './respondCopy';
 import { formatAverage } from '../../lib/format';
@@ -76,15 +76,21 @@ function SubjectSummary({ ratee, answers }: { ratee: CsiFormRatee; answers: CsiA
 }
 
 interface ThankYouScreenProps {
+    /** The survey just answered: excluded from the "next survey" invitation. */
+    periodId: string;
+    /** Account name (identity is locked to the account). */
+    respondentName: string;
     ratees: CsiFormRatee[];
     payload: SubmitCsiResponse | null;
     message: string;
     basePath: string;
-    onFillAgain: () => void;
 }
 
-/** After sending: drawn check, "Terima kasih, <nama>!", every subject with its average as mini stars, and confetti. */
-export function ThankYouScreen({ ratees, payload, message, basePath, onFillAgain }: ThankYouScreenProps) {
+/**
+ * After sending: drawn check, "Terima kasih, <nama>!", every subject with its average as mini stars, confetti,
+ * and an invitation to the next unanswered survey (e.g. CSI HC after CSI ICT).
+ */
+export function ThankYouScreen({ periodId, respondentName, ratees, payload, message, basePath }: ThankYouScreenProps) {
     const answers = payload ? answersFromPayload(payload) : {};
     const green = toneClasses('green');
     const ordered = orderRatees(ratees);
@@ -98,7 +104,7 @@ export function ThankYouScreen({ ratees, payload, message, basePath, onFillAgain
                     </svg>
                 </span>
                 <h1 className="mt-4 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                    {payload ? thankYouName(payload.respondentName) : RESPOND_COPY.thankYouTitle}
+                    {respondentName ? thankYouName(respondentName) : RESPOND_COPY.thankYouTitle}
                 </h1>
                 <p className="mt-2 max-w-md text-[15px] leading-relaxed text-muted-foreground">{thankYouSummary(ordered.length)}</p>
                 {message && <p className="mt-2 max-w-md whitespace-pre-line text-[15px] leading-relaxed text-muted-foreground">{message}</p>}
@@ -108,8 +114,8 @@ export function ThankYouScreen({ ratees, payload, message, basePath, onFillAgain
                     {ordered.map((ratee) => <SubjectSummary key={ratee.periodRateeId} ratee={ratee} answers={answers} />)}
                 </ul>
             )}
-            <div className="mt-8 flex flex-col items-center gap-4">
-                <Button type="button" size="lg" onClick={onFillAgain}>{RESPOND_COPY.fillAgain}</Button>
+            <NextSurveyCard currentId={periodId} basePath={basePath} className="mx-auto mt-8 max-w-[640px]" />
+            <div className="mt-6 flex flex-col items-center gap-4">
                 <Link to={basePath} className="idesk-text-link">{RESPOND_COPY.backToList}</Link>
             </div>
         </FadeIn>

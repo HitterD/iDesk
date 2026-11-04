@@ -36,11 +36,19 @@ function matches(row: Record<string, any>, where: Record<string, any> = {}): boo
     });
 }
 
+/** Applies a single-key `order` (enough for the service's queries). */
+function ordered<T extends Record<string, any>>(rows: T[], order?: Record<string, 'ASC' | 'DESC'>): T[] {
+    const [key, direction] = Object.entries(order ?? {})[0] ?? [];
+    if (!key) return rows;
+    const sign = direction === 'DESC' ? -1 : 1;
+    return [...rows].sort((a, b) => (a[key] < b[key] ? -sign : a[key] > b[key] ? sign : 0));
+}
+
 function memoryRepository<T extends Record<string, any>>(rows: T[] = []) {
     return {
         rows,
-        find: jest.fn(async (options: any = {}) => rows.filter((row) => matches(row, options.where))),
-        findOne: jest.fn(async (options: any = {}) => rows.find((row) => matches(row, options.where)) ?? null),
+        find: jest.fn(async (options: any = {}) => ordered(rows.filter((row) => matches(row, options.where)), options.order)),
+        findOne: jest.fn(async (options: any = {}) => ordered(rows.filter((row) => matches(row, options.where)), options.order)[0] ?? null),
         count: jest.fn(async (options: any = {}) => rows.filter((row) => matches(row, options.where)).length),
         createQueryBuilder: jest.fn(() => {
             const builder: any = { params: {} };
@@ -218,12 +226,13 @@ describe('CsiRespondentService', () => {
 
         it('listActive returns eligible periods with submitted flag', async () => {
             periods.rows.push(period({ id: 'p-b', sites: [{ siteId: 'site-b' }] as CsiPeriod['sites'] }));
-            expect(await service.listActive(me, NOW)).toEqual([{ id: 'p1', scope: ICT, title: 'CSI ICT Oktober', submitted: false }]);
-            responses.rows.push({ id: 'resp', periodId: 'p1', respondentId: 'me', respondentName: 'Andi' });
-            expect(await service.listActive(me, NOW)).toEqual([{ id: 'p1', scope: ICT, title: 'CSI ICT Oktober', submitted: true }]);
-            // submitted comes from a count, not from loading response rows.
+            const base = { id: 'p1', scope: ICT, title: 'CSI ICT Oktober', endDate: '2026-10-31' };
+            expect(await service.listActive(me, NOW)).toEqual([{ ...base, submitted: false, submittedAt: null }]);
+            const at = new Date('2026-10-10T08:00:00Z');
+            responses.rows.push({ id: 'resp', periodId: 'p1', respondentId: 'me', respondentName: 'Andi', submittedAt: at });
+            expect(await service.listActive(me, NOW)).toEqual([{ ...base, submitted: true, submittedAt: at }]);
+            // One row at most per period, never the full response list.
             expect(responses.find).not.toHaveBeenCalled();
-            expect(responses.count).toHaveBeenCalled();
         });
 
         it('listActive only loads periods whose date range covers the WIB date of today', async () => {
@@ -254,7 +263,7 @@ describe('CsiRespondentService', () => {
         it('listActive uses the WIB calendar date, not the UTC one, at day boundaries', async () => {
             // 00:30 WIB on 1 Oct is still 30 Sep in UTC.
             const firstMinutesWib = new Date('2026-10-01T00:30:00+07:00');
-            expect(await service.listActive(me, firstMinutesWib)).toEqual([{ id: 'p1', scope: ICT, title: 'CSI ICT Oktober', submitted: false }]);
+            expect(await service.listActive(me, firstMinutesWib)).toMatchObject([{ id: 'p1', submitted: false }]);
             // 23:30 WIB on 31 Oct is still inside the period.
             expect(await service.listActive(me, new Date('2026-10-31T23:30:00+07:00'))).toHaveLength(1);
         });
@@ -265,7 +274,7 @@ describe('CsiRespondentService', () => {
             const form: any = await service.getForm(me, 'p1', NOW);
             expect(form).toEqual({
                 id: 'p1', scope: ICT, title: 'CSI ICT Oktober', intro: 'Mohon diisi', endDate: '2026-10-31', teamLabel: 'Tim IT Support',
-                respondent: { fullName: 'Andi Responden' }, submittedNames: [],
+                respondent: { fullName: 'Andi Responden', departmentId: null }, submittedAt: null, submittedNames: [],
                 departments: [{ id: 'dep1', name: 'Produksi' }],
                 ratees: [
                     { periodRateeId: 'r1', kind: 'PERSON', displayName: 'Budi', jobTitle: 'Teknisi', avatarUrl: '/uploads/budi.png',
@@ -297,7 +306,7 @@ describe('CsiRespondentService', () => {
             expect(users.find).toHaveBeenCalledTimes(1);
         });
 
-        it('getForm returns submittedNames and TEAM first, never submitted:true', async () => {
+        it('getForm reports when the account answered and TEAM first', async () => {
             periods.rows[0] = period({ teamEnabled: true });
             ratees.rows.push({ id: 'r-team', kind: 'TEAM', periodId: 'p1', userId: null, displayName: 'Tim IT Support', jobTitle: null, sortOrder: -1 });
             rateeDimensions.rows.push({ id: 'rd-team', periodRateeId: 'r-team', dimensionId: 'd1', dimensionName: 'Layanan', type: 'TEXT', required: false, options: [], sortOrder: 0 });
@@ -305,7 +314,8 @@ describe('CsiRespondentService', () => {
             responses.rows.push({ id: 'b', periodId: 'p1', respondentId: 'me', respondentName: 'Rina', submittedAt: new Date(2) });
             const form: any = await service.getForm(me, 'p1', NOW);
             expect(form).not.toHaveProperty('submitted');
-            expect(form.submittedNames).toEqual(['Andi', 'Rina']);
+            expect(form.submittedAt).toEqual(new Date(1));
+            expect(form.submittedNames).toEqual(['Andi Responden']);
             expect(form.ratees.map((ratee: any) => [ratee.periodRateeId, ratee.kind])).toEqual([['r-team', 'TEAM'], ['r1', 'PERSON'], ['r2', 'PERSON']]);
             expect(form.ratees[0].dimensions[0]).toMatchObject({ type: 'TEXT', required: false });
         });
@@ -549,30 +559,43 @@ describe('CsiRespondentService', () => {
             });
         });
 
-        describe('respondent name', () => {
-            it('stores the trimmed, space-collapsed display name', async () => {
-                await service.submit(me, 'p1', dto({ respondentName: '  Rina   Sari ' }), NOW);
-                expect(savedOf(CsiResponse)).toMatchObject({ respondentName: 'Rina Sari' });
+        describe('identity locked to the account', () => {
+            const conflict = new ConflictException('Anda sudah mengisi survei ini');
+
+            it('stores the account name and ignores any typed name', async () => {
+                await service.submit(me, 'p1', dto({ respondentName: 'Orang Lain' }), NOW);
+                expect(savedOf(CsiResponse)).toMatchObject({ respondentName: 'Andi Responden' });
+                saved.length = 0;
+                await expect(service.submit(me, 'p1', dto({ respondentName: undefined }), NOW)).resolves.toMatchObject({ submitted: true });
+                expect(savedOf(CsiResponse)).toMatchObject({ respondentName: 'Andi Responden' });
             });
 
-            it('rejects names shorter than 2 or longer than 150 after trimming (400)', async () => {
-                await expect(service.submit(me, 'p1', dto({ respondentName: ' a ' }), NOW)).rejects.toBeInstanceOf(BadRequestException);
-                await expect(service.submit(me, 'p1', dto({ respondentName: 'x'.repeat(151) }), NOW)).rejects.toBeInstanceOf(BadRequestException);
-                await expect(service.submit(me, 'p1', dto({ respondentName: undefined }), NOW)).rejects.toBeInstanceOf(BadRequestException);
-            });
-
-            it('one response per normalised name', async () => {
+            it('one response per account, whatever name is sent', async () => {
                 txResponses.rows.push({ id: 'old', periodId: 'p1', respondentId: 'me', respondentName: 'Rina' });
-                const conflict = new ConflictException('Nama ini sudah mengisi survei ini');
-                await expect(service.submit(me, 'p1', dto({ respondentName: ' rina ' }), NOW)).rejects.toThrow(conflict);
-                await expect(service.submit(me, 'p1', dto({ respondentName: 'RINA' }), NOW)).rejects.toThrow(conflict);
+                await expect(service.submit(me, 'p1', dto({ respondentName: 'Budi' }), NOW)).rejects.toThrow(conflict);
                 expect(manager.save).not.toHaveBeenCalled();
-                await expect(service.submit(me, 'p1', dto({ respondentName: 'Budi' }), NOW)).resolves.toMatchObject({ submitted: true });
             });
 
-            it('another account may reuse the same name', async () => {
-                txResponses.rows.push({ id: 'old', periodId: 'p1', respondentId: 'u1', respondentName: 'Rina' });
-                await expect(service.submit(me, 'p1', dto({ respondentName: 'Rina' }), NOW)).resolves.toMatchObject({ submitted: true });
+            it('another account may still answer', async () => {
+                txResponses.rows.push({ id: 'old', periodId: 'p1', respondentId: 'u1', respondentName: 'Andi Responden' });
+                await expect(service.submit(me, 'p1', dto(), NOW)).resolves.toMatchObject({ submitted: true });
+            });
+
+            it('locks the department to the latest CSI answer of the account (any scope, matched by name)', async () => {
+                departments.rows.push({ id: 'dep2', scope: ICT, name: 'Keuangan', isActive: true, sortOrder: 2 });
+                responses.rows.push({ id: 'h1', periodId: 'p-hc', respondentId: 'me', respondentName: 'Andi', departmentName: 'produksi ', submittedAt: new Date(1) });
+                const form: any = await service.getForm(me, 'p1', NOW);
+                expect(form.respondent.departmentId).toBe('dep1');
+                await expect(service.submit(me, 'p1', dto({ departmentId: 'dep2' }), NOW))
+                    .rejects.toThrow(new BadRequestException('Departemen Anda sudah terkunci dan tidak dapat diubah'));
+                await expect(service.submit(me, 'p1', dto({ departmentId: 'dep1' }), NOW)).resolves.toMatchObject({ submitted: true });
+            });
+
+            it('falls back to the HR profile department, and leaves the choice open when the name is not listed', async () => {
+                users.rows[0] = { ...users.rows[0], department: { id: 'hr1', name: 'PRODUKSI' } };
+                expect(((await service.getForm(me, 'p1', NOW)) as any).respondent.departmentId).toBe('dep1');
+                users.rows[0] = { ...users.rows[0], department: { id: 'hr2', name: 'Tidak Ada' } };
+                expect(((await service.getForm(me, 'p1', NOW)) as any).respondent.departmentId).toBeNull();
             });
         });
 
@@ -593,7 +616,7 @@ describe('CsiRespondentService', () => {
 
         it('submit rejects second submission (409)', async () => {
             txResponses = memoryRepository<any>([{ id: 'resp', periodId: 'p1', respondentId: 'me', respondentName: 'Andi' }]);
-            await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toThrow(new ConflictException('Nama ini sudah mengisi survei ini'));
+            await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toThrow(new ConflictException('Anda sudah mengisi survei ini'));
             const builder = periods.createQueryBuilder.mock.results.at(-1)!.value;
             expect(builder.setLock).toHaveBeenCalledWith('pessimistic_read');
             expect(manager.save).not.toHaveBeenCalled();
@@ -601,7 +624,7 @@ describe('CsiRespondentService', () => {
 
         it('rejects concurrent duplicate via unique violation', async () => {
             manager.save.mockRejectedValueOnce(new QueryFailedError('INSERT', [], Object.assign(new Error('duplicate key'), { code: '23505' })));
-            await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toThrow(new ConflictException('Nama ini sudah mengisi survei ini'));
+            await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toThrow(new ConflictException('Anda sudah mengisi survei ini'));
         });
 
         it('rethrows other database errors', async () => {

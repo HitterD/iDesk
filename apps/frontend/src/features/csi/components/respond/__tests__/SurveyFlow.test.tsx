@@ -1,7 +1,10 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { scrollWithin } from '../../../lib/scrollWithin';
 import { SurveyFlow } from '../SurveyFlow';
+
+vi.mock('../../../lib/scrollWithin', () => ({ scrollWithin: vi.fn() }));
 import { button, chips, choose, FORM, LONG_NAME, NEXT, rate, startFilling } from './surveyFlowFixture';
 
 const renderFlow = (props: Partial<Parameters<typeof SurveyFlow>[0]> = {}) =>
@@ -13,15 +16,15 @@ afterEach(() => {
 });
 
 describe('SurveyFlow intro', () => {
-    it('shows team + people, minutes, deadline and the editable prefilled name', () => {
+    it('shows team + people, minutes, deadline and the account name locked (read-only)', () => {
         renderFlow();
         expect(screen.getByRole('heading', { name: 'Survei Kepuasan ICT Q4' })).toBeInTheDocument();
         expect(screen.getByText('Anda akan menilai tim IT Support dan 2 orang · sekitar 1 menit')).toBeInTheDocument();
         expect(screen.getByText('Tersedia sampai 31 Okt 2026')).toBeInTheDocument();
-        const name = screen.getByLabelText('Nama');
-        expect(name).toHaveValue('Rina Pemohon');
-        expect(name).not.toHaveAttribute('readonly');
-        expect(name).toHaveAttribute('autocomplete', 'name');
+        const name = screen.getByRole('textbox', { name: 'Nama' });
+        expect(name).toHaveTextContent('Rina Pemohon');
+        expect(name).toHaveAttribute('aria-readonly', 'true');
+        expect(screen.getByText(/Setiap akun hanya dapat mengisi survei ini satu kali/)).toBeInTheDocument();
     });
 
     it('no active department: friendly message instead of a dead start button', () => {
@@ -30,35 +33,21 @@ describe('SurveyFlow intro', () => {
         expect(screen.queryByRole('button', { name: 'Mulai mengisi' })).not.toBeInTheDocument();
     });
 
-    it('lists names already submitted and blocks reusing one (case/space-insensitive)', async () => {
+    it('department is chosen once when the account has none; start waits for it', async () => {
         const user = userEvent.setup();
-        renderFlow({ form: { ...FORM, submittedNames: ['Rina Pemohon', 'Sari'] } });
-        expect(screen.getByText('Akun ini sudah mengisi atas nama: Rina Pemohon, Sari.')).toBeInTheDocument();
-        expect(screen.getByRole('alert')).toHaveTextContent('Nama ini sudah mengisi survei ini');
+        renderFlow();
+        expect(screen.getByText('Dipilih sekali, lalu terkunci untuk survei berikutnya.')).toBeInTheDocument();
+        expect(button('Mulai mengisi')).toBeDisabled();
         await user.click(screen.getByRole('combobox', { name: 'Departemen' }));
         await user.click(await screen.findByRole('option', { name: 'Produksi' }));
-        expect(button('Mulai mengisi')).toBeDisabled();
-        const name = screen.getByLabelText('Nama');
-        await user.clear(name);
-        await user.type(name, '  sari ');
-        expect(screen.getByRole('alert')).toHaveTextContent('Nama ini sudah mengisi survei ini');
-        await user.clear(name);
-        await user.type(name, 'Dodi');
-        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
         expect(button('Mulai mengisi')).toBeEnabled();
     });
 
-    it('requires a 2–150 character name', async () => {
-        const user = userEvent.setup();
-        renderFlow();
-        await user.click(screen.getByRole('combobox', { name: 'Departemen' }));
-        await user.click(await screen.findByRole('option', { name: 'Produksi' }));
-        const name = screen.getByLabelText('Nama');
-        await user.clear(name);
-        await user.type(name, 'R');
-        expect(screen.getByRole('alert')).toHaveTextContent('Nama harus 2–150 karakter');
-        expect(button('Mulai mengisi')).toBeDisabled();
-        expect(name).toHaveAttribute('maxlength', '150');
+    it('a department known for the account is locked: no picker, start is ready', () => {
+        renderFlow({ form: { ...FORM, respondent: { fullName: 'Rina Pemohon', departmentId: 'd2' } } });
+        expect(screen.queryByRole('combobox', { name: 'Departemen' })).not.toBeInTheDocument();
+        expect(screen.getByRole('textbox', { name: 'Departemen' })).toHaveTextContent('Produksi');
+        expect(button('Mulai mengisi')).toBeEnabled();
     });
 });
 
@@ -96,7 +85,8 @@ describe('SurveyFlow screens', () => {
 
     it('required blocks Lanjut with a count and highlight; optional can be skipped', async () => {
         const user = userEvent.setup();
-        const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView');
+        const scrollSpy = vi.mocked(scrollWithin);
+        scrollSpy.mockClear();
         renderFlow();
         await startFilling(user);
         await user.click(button(NEXT));
@@ -109,7 +99,7 @@ describe('SurveyFlow screens', () => {
         expect(screen.getByRole('heading', { name: 'Andi' })).toBeInTheDocument();
         await user.click(button(NEXT));
         expect(screen.getByRole('status')).toHaveTextContent('2 pertanyaan wajib belum dijawab');
-        scrollSpy.mockRestore();
+        scrollSpy.mockReset();
     });
 
     it('rail ticks only after the screen was visited and its required questions are answered', async () => {
@@ -151,9 +141,9 @@ describe('SurveyFlow screens', () => {
 });
 
 describe('SurveyFlow mobile footer spacing', () => {
-    it('live: reserves room under the content for the sticky footer on phones only (< sm, so never at lg)', () => {
+    it('live: reserves room under the content for the sticky footer below lg (above the bottom nav)', () => {
         renderFlow();
-        expect(screen.getByTestId('csi-flow-content')).toHaveClass('pb-[calc(10.5rem+env(safe-area-inset-bottom))]', 'sm:pb-0');
+        expect(screen.getByTestId('csi-flow-content')).toHaveClass('pb-[calc(10.5rem+env(safe-area-inset-bottom))]', 'lg:pb-0');
     });
 
     it('preview: no extra room (the footer is not lifted above a bottom nav there)', () => {

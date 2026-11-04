@@ -44,10 +44,12 @@ export class SubmitCommentDto {
 }
 
 export class SubmitResponseDto {
+    /** Ignored by the server (identity is the account's name); still bounded for older clients that send it. */
+    @IsOptional()
     @Transform(trimString)
     @IsString({ message: NAME_MESSAGE })
     @Length(CSI_RESPONDENT_NAME_MIN, CSI_RESPONDENT_NAME_MAX, { message: NAME_MESSAGE })
-    respondentName: string;
+    respondentName?: string;
 
     @IsUUID('all', { message: 'Departemen harus berupa UUID' })
     departmentId: string;
