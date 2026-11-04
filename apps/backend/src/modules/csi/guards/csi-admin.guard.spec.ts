@@ -56,10 +56,21 @@ describe('CsiAdminGuard', () => {
         expect(request.csiScope).toBe(ServiceScope.HC);
     });
 
-    it('denies ADMIN without csi_admin_hc for hc (role default)', async () => {
+    it('allows ADMIN for hc without any page key (System Administrator always opens Admin HC)', async () => {
         const { request, executionContext } = context('hc');
-        await expect(guard.canActivate(executionContext)).rejects.toBeInstanceOf(ForbiddenException);
-        expect(request.csiScope).toBeUndefined();
+        await expect(guard.canActivate(executionContext)).resolves.toBe(true);
+        expect(request.csiScope).toBe(ServiceScope.HC);
+    });
+
+    it('HC_ADMIN administers HC only, never ICT (whatever its preset says)', async () => {
+        withPreset(UserRole.HC_ADMIN, { csi_admin_ict: true });
+        await expect(guard.canActivate(context('hc').executionContext)).resolves.toBe(true);
+        await expect(guard.canActivate(context('ict').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('MANAGER still needs the explicit hc key', async () => {
+        withPreset(UserRole.MANAGER, {});
+        await expect(guard.canActivate(context('hc').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('allows ADMIN default for ict', async () => {
@@ -117,6 +128,7 @@ describe('CsiAdminGuard', () => {
         await expect(guard.canActivate(context('hc').executionContext)).resolves.toBe(true);
         expect(userRepo.findOne).not.toHaveBeenCalled();
         entries.delete(`pageAccess:${USER_ID}`);
+        userRepo.findOne.mockResolvedValue({ id: USER_ID, role: UserRole.MANAGER });
         await expect(guard.canActivate(context('hc').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
         expect(cache.getOrSet).toHaveBeenLastCalledWith(`pageAccess:${USER_ID}`, expect.any(Function), 123);
         expect(userRepo.findOne).toHaveBeenCalledWith({

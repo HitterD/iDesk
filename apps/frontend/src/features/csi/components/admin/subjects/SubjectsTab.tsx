@@ -4,19 +4,47 @@ import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { TicketPill } from '@/components/ui/ticket-pill';
 import { cn } from '@/lib/utils';
-import { useCreateCsiTeam, useCsiSubjects } from '../../../hooks/useCsi';
+import { useAddCsiSubjectMembers, useCreateCsiTeam, useCsiSubjects } from '../../../hooks/useCsi';
+import type { DraftUser } from '../../../lib/csiAdmin';
 import { CSI_SCOPE_OF } from '../../../lib/csiAdmin';
 import { siteTone, toneClasses } from '../../../lib/csiTone';
 import type { CsiScopeParam, CsiSubjectGroup, CsiSubjectView } from '../../../types';
-import { ADMIN_PANEL, MUTED_TEXT } from '../AdminParts';
+import { ADMIN_PANEL, MUTED_TEXT, UserMultiPicker } from '../AdminParts';
 import { SubjectCard } from './SubjectCard';
 import { SubjectEditSheet, type SubjectEditTarget } from './SubjectEditSheet';
 
 /** HC subjects come from any department, so its empty line does not name the ICT team. */
 const EMPTY_PEOPLE: Readonly<Record<CsiScopeParam, string>> = {
     ict: 'Belum ada anggota ICT di site ini.',
-    hc: 'Belum ada anggota di site ini.',
+    hc: 'Belum ada anggota HC di site ini. Tambahkan lewat "Tambah anggota" di atas.',
 };
+const MEMBERS_HINT: Readonly<Record<CsiScopeParam, string>> = {
+    ict: 'Anggota ICT diambil otomatis dari role ICT. Tambahkan orang lain bila perlu dinilai juga.',
+    hc: 'Pilih anggota tim HC yang akan dinilai. Mereka dikelompokkan per site sesuai profil masing-masing.',
+};
+
+/** Adds people (any department) as subjects of the scope; HC has no staff roles, so this is how its team is built. */
+function AddMembers({ scope }: { scope: CsiScopeParam }) {
+    const add = useAddCsiSubjectMembers(scope);
+    const [picked, setPicked] = useState<DraftUser[]>([]);
+    return (
+        <section aria-label="Tambah anggota" className={cn(ADMIN_PANEL, 'grid gap-3 p-4 sm:p-5')}>
+            <div>
+                <h2 className="text-[14px] font-semibold">Tambah anggota yang dinilai</h2>
+                <p className={cn(MUTED_TEXT, 'text-[12.5px]')}>{MEMBERS_HINT[scope]}</p>
+            </div>
+            <div className="flex flex-wrap items-start gap-3">
+                <div className="min-w-[240px] flex-1">
+                    <UserMultiPicker scope={scope} label="Pilih anggota" selected={picked} onChange={setPicked} />
+                </div>
+                <Button variant="primary" loading={add.isPending} disabled={!picked.length}
+                    onClick={() => add.mutate({ userIds: picked.map((user) => user.id) }, { onSuccess: () => setPicked([]) })}>
+                    <Plus aria-hidden="true" />Tambah anggota
+                </Button>
+            </div>
+        </section>
+    );
+}
 
 const subjectsOf = (group: CsiSubjectGroup): CsiSubjectView[] => (group.team ? [group.team, ...group.people] : group.people);
 
@@ -72,6 +100,7 @@ export function SubjectsTab({ scope }: { scope: CsiScopeParam }) {
     if (!groups?.length) return <p className={cn(ADMIN_PANEL, MUTED_TEXT, 'px-6 py-10 text-center')}>Belum ada site untuk subjek CSI.</p>;
     return (
         <div className="space-y-6">
+            <AddMembers scope={scope} />
             {groups.map((group) => <SiteSection key={group.siteId} scope={scope} group={group} onEdit={setTarget} />)}
             <SubjectEditSheet scope={scope} scopeLabel={CSI_SCOPE_OF[scope]} target={target} onClose={() => setTarget(null)} />
         </div>

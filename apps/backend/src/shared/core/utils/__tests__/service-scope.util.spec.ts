@@ -10,11 +10,19 @@ import {
     scopeOfTicket,
 } from '../service-scope.util';
 
-const STAFF_ROLES = Object.values(UserRole).filter((r) => r !== UserRole.USER && r !== UserRole.ADMIN);
+const STAFF_ROLES = Object.values(UserRole).filter((r) => r !== UserRole.USER && r !== UserRole.ADMIN && r !== UserRole.HC_ADMIN);
 
 describe('service-scope.util', () => {
-    it('maps every current staff role (agents + manager) to ICT', () => {
+    it('maps every current ICT staff role (agents + manager) to ICT', () => {
         for (const role of STAFF_ROLES) expect(scopeOfRole(role)).toBe(ServiceScope.ICT);
+    });
+
+    it('maps HC_ADMIN to HC, so it never sees ICT tickets', () => {
+        expect(scopeOfRole(UserRole.HC_ADMIN)).toBe(ServiceScope.HC);
+        expect(canHandleScope(UserRole.HC_ADMIN, ServiceScope.ICT)).toBe(false);
+        const q = { andWhere: jest.fn() };
+        applyServiceScopeFilter(q, UserRole.HC_ADMIN);
+        expect(q.andWhere).toHaveBeenCalledWith('1 = 0');
     });
 
     it('treats ADMIN as cross-scope and USER as scope-less', () => {

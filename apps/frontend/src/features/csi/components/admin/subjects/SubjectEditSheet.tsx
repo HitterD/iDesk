@@ -1,11 +1,11 @@
-import { useEffect, useId, useRef, useState, type DragEvent } from 'react';
-import { ImageOff, Upload } from 'lucide-react';
+import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { ImageOff, Upload, UserMinus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { useUpdateCsiPeriodRatee, useUpdateCsiSubject, useUploadCsiSubjectPhoto } from '../../../hooks/useCsi';
+import { useRemoveCsiSubjectMember, useUpdateCsiPeriodRatee, useUpdateCsiSubject, useUploadCsiSubjectPhoto } from '../../../hooks/useCsi';
 import { toneClasses } from '../../../lib/csiTone';
 import type { CsiFormRatee, CsiScopeParam, CsiSubjectGroup, CsiSubjectView, UpdateCsiPeriodRatee, UpdateCsiSubject } from '../../../types';
 import { FlowChromeContext } from '../../respond/FlowChrome';
@@ -81,6 +81,7 @@ function TextField({ id, label, value, onChange }: { id: string; label: string; 
 function EditForm({ scope, subject, group, onClose }: { scope: CsiScopeParam; subject: CsiSubjectView; group: CsiSubjectGroup; onClose: () => void }) {
     const update = useUpdateCsiSubject(scope);
     const upload = useUploadCsiSubjectPhoto(scope);
+    const remove = useRemoveCsiSubjectMember(scope);
     const [draft, setDraft] = useState({ name: subject.name, jobTitle: subject.jobTitle ?? '', tagline: subject.tagline ?? '' });
     const [photo, setPhoto] = useState<PickedPhoto | null>(null);
     const [fileError, setFileError] = useState<string | null>(null);
@@ -113,14 +114,23 @@ function EditForm({ scope, subject, group, onClose }: { scope: CsiScopeParam; su
                 <TextField id={ids.jobTitle} label="Jabatan yang ditampilkan" value={draft.jobTitle} onChange={set('jobTitle')} />
                 {isTeam && <TextField id={ids.name} label="Nama tim" value={draft.name} onChange={set('name')} />}
             </div>
-            <SheetFooter onClose={onClose} onSave={save} pending={pending} disabled={isTeam && !draft.name.trim()} />
+            <SheetFooter onClose={onClose} onSave={save} pending={pending} disabled={isTeam && !draft.name.trim()}
+                extra={!isTeam && subject.userId && scope === 'hc' ? (
+                    <Button variant="subtle" className="mr-auto text-[hsl(var(--ticket-red-ink))]" loading={remove.isPending}
+                        onClick={() => remove.mutate(subject.userId!, { onSuccess: onClose })}>
+                        <UserMinus aria-hidden="true" />Keluarkan dari daftar
+                    </Button>
+                ) : null} />
         </>
     );
 }
 
-function SheetFooter({ onClose, onSave, pending, disabled }: { onClose: () => void; onSave: () => void; pending: boolean; disabled?: boolean }) {
+function SheetFooter({ onClose, onSave, pending, disabled, extra }: {
+    onClose: () => void; onSave: () => void; pending: boolean; disabled?: boolean; extra?: ReactNode;
+}) {
     return (
         <div className="flex justify-end gap-2 border-t border-[hsl(var(--idesk-border)/.7)] px-6 py-4">
+            {extra}
             <Button variant="subtle" onClick={onClose}>Batal</Button>
             <Button variant="primary" onClick={onSave} loading={pending} disabled={disabled}>Simpan</Button>
         </div>

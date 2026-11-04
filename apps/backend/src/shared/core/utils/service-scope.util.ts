@@ -25,6 +25,7 @@ export const ROLE_SCOPE: Readonly<Partial<Record<UserRole, ServiceScope>>> = {
     [UserRole.AGENT_WEB_DEV]: ServiceScope.ICT,
     [UserRole.AGENT_MOBILE_DEV]: ServiceScope.ICT,
     [UserRole.MANAGER]: ServiceScope.ICT,
+    [UserRole.HC_ADMIN]: ServiceScope.HC,
 };
 
 /** Which scope owns each handling team. */

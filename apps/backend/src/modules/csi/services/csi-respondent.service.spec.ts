@@ -591,6 +591,18 @@ describe('CsiRespondentService', () => {
                 await expect(service.submit(me, 'p1', dto({ departmentId: 'dep1' }), NOW)).resolves.toMatchObject({ submitted: true });
             });
 
+            it('matches an HR department to the one "DIVISION / DEPARTMENT" entry; ambiguous names stay open', async () => {
+                departments.rows.push(
+                    { id: 'hcs', scope: ICT, name: 'HUMAN CAPITAL / HC SERVICES', isActive: true, sortOrder: 5 },
+                    { id: 'qc1', scope: ICT, name: 'OPERATION SJA 1 / QUALITY CONTROL', isActive: true, sortOrder: 6 },
+                    { id: 'qc2', scope: ICT, name: 'OPERATION SJA 2 / QUALITY CONTROL', isActive: true, sortOrder: 7 },
+                );
+                users.rows[0] = { ...users.rows[0], department: { id: 'hr', name: 'HC Services' } };
+                expect(((await service.getForm(me, 'p1', NOW)) as any).respondent.departmentId).toBe('hcs');
+                users.rows[0] = { ...users.rows[0], department: { id: 'hr', name: 'QUALITY CONTROL' } };
+                expect(((await service.getForm(me, 'p1', NOW)) as any).respondent.departmentId).toBeNull();
+            });
+
             it('falls back to the HR profile department, and leaves the choice open when the name is not listed', async () => {
                 users.rows[0] = { ...users.rows[0], department: { id: 'hr1', name: 'PRODUKSI' } };
                 expect(((await service.getForm(me, 'p1', NOW)) as any).respondent.departmentId).toBe('dep1');

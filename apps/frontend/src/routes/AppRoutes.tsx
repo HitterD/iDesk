@@ -198,7 +198,7 @@ export default function AppRoutes() {
                     {/* Admin/Agent/Manager Routes - Lazy loaded portal */}
                     <Route
                         element={
-                            <ProtectedRoute allowedRoles={['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'AGENT_ADMIN', 'MANAGER']}>
+                            <ProtectedRoute allowedRoles={['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'AGENT_ADMIN', 'MANAGER', 'HC_ADMIN']}>
                                 <Suspense fallback={<PageLoader />}>
                                     <BentoLayout />
                                 </Suspense>
@@ -262,7 +262,7 @@ export default function AppRoutes() {
                         {/* CSI survey (respondent) */}
                         <Route path="csi" element={<LazyRoute component={CsiSurveyListPage} featureName="Survei Kepuasan" />} />
                         <Route path="csi/:id" element={<LazyRoute component={CsiSurveyPage} featureName="Survei Kepuasan" />} />
-                        <Route path="csi/admin/:scope" element={<LazyRoute component={CsiAdminPage} featureName="Admin CSI" allowedRoles={['ADMIN', 'MANAGER']} />} />
+                        <Route path="csi/admin/:scope" element={<LazyRoute component={CsiAdminPage} featureName="Admin CSI" allowedRoles={['ADMIN', 'MANAGER', 'HC_ADMIN']} />} />
                     </Route>
 
                     {/* Manager Routes - Using BentoLayout */}

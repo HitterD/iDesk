@@ -155,6 +155,12 @@ export function useUploadCsiSubjectPhoto(scope: CsiScopeParam) {
     return useCsiMutation(({ key, file }: { key: string; file: File }) => CsiApi.uploadSubjectPhoto(scope, key, file),
         () => subjectKeys(scope));
 }
+export function useAddCsiSubjectMembers(scope: CsiScopeParam) {
+    return useCsiMutation((payload: CsiUserIds) => CsiApi.addSubjectMembers(scope, payload), () => subjectKeys(scope));
+}
+export function useRemoveCsiSubjectMember(scope: CsiScopeParam) {
+    return useCsiMutation((userId: string) => CsiApi.removeSubjectMember(scope, userId), () => subjectKeys(scope));
+}
 export function useCreateCsiTeam(scope: CsiScopeParam) {
     return useCsiMutation((payload: CreateCsiTeam) => CsiApi.createTeam(scope, payload), () => subjectKeys(scope));
 }

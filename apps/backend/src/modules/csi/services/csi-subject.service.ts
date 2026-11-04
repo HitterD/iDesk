@@ -197,17 +197,42 @@ export class CsiSubjectService {
         return teamView(saved as CsiTeam);
     }
 
-    private eligibleUsers(scope: ServiceScope): Promise<SubjectUser[]> {
+    /**
+     * Adds active users as hand-picked members of the scope (HC subjects; any department). Idempotent.
+     * Returns the refreshed subject list.
+     */
+    async addMembers(scope: ServiceScope, userIds: string[]): Promise<CsiSubjectGroup[]> {
+        const ids = unique(userIds);
+        const users = ids.length ? await this.users.find({ where: { id: In(ids), isActive: true }, select: { id: true } }) : [];
+        if (users.length !== ids.length) throw new BadRequestException('Pengguna tidak ditemukan atau tidak aktif');
+        const existing = ids.length ? await this.profiles.find({ where: { scope, userId: In(ids) } }) : [];
+        const byUser = new Map(existing.map((profile) => [profile.userId, profile]));
+        const rows = ids.map((userId) => ({ ...(byUser.get(userId) ?? { scope, userId, photoUrl: null, tagline: null, jobTitle: null }), isMember: true }));
+        for (const row of rows) await this.profiles.save(row);
+        return this.list(scope);
+    }
+
+    /** Removes a hand-picked member (photo and tagline are kept should they be added back). */
+    async removeMember(scope: ServiceScope, userId: string): Promise<CsiSubjectGroup[]> {
+        const profile = await this.profiles.findOne({ where: { scope, userId, isMember: true } });
+        if (!profile) throw new NotFoundException(SUBJECT_NOT_FOUND_MESSAGE);
+        await this.profiles.save({ ...profile, isMember: false });
+        return this.list(scope);
+    }
+
+    /** Scope staff roles (ICT) plus hand-picked members (HC, or extra people of any scope). */
+    private async eligibleUsers(scope: ServiceScope): Promise<SubjectUser[]> {
         const roles = agentRolesOf(scope);
-        if (!roles.length) return Promise.resolve([]);
-        return this.users.find({ where: { isActive: true, role: In(roles) }, select: USER_FIELDS });
+        const members = (await this.profiles.find({ where: { scope, isMember: true }, select: { userId: true } })).map((row) => row.userId);
+        const where = [
+            ...(roles.length ? [{ isActive: true, role: In(roles) }] : []),
+            ...(members.length ? [{ isActive: true, id: In(members) }] : []),
+        ];
+        return where.length ? this.users.find({ where, select: USER_FIELDS }) : [];
     }
 
     private async findPerson(scope: ServiceScope, userId: string): Promise<SubjectUser> {
-        const roles = agentRolesOf(scope);
-        const user = roles.length
-            ? await this.users.findOne({ where: { id: userId, isActive: true, role: In(roles) }, select: USER_FIELDS })
-            : null;
+        const user = (await this.eligibleUsers(scope)).find((row) => row.id === userId);
         if (!user) throw new NotFoundException(SUBJECT_NOT_FOUND_MESSAGE);
         return user;
     }

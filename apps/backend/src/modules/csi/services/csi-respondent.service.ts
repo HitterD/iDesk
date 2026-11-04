@@ -7,6 +7,7 @@ import {
     CSI_ANSWER_TEXT_MAX, CSI_COMMENT_MAX, CSI_OPTION_LABEL_MAX, CSI_RESPONDENT_NAME_MAX, CSI_SCORE_MAX, CSI_SCORE_MIN,
     CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode,
 } from '../csi.constants';
+import { CSI_DEPARTMENT_SEPARATOR } from '../csi-departments.data';
 import { SubmitResponseDto } from '../dto/submit.dto';
 import { CsiDepartment } from '../entities/csi-department.entity';
 import { CsiDimension } from '../entities/csi-dimension.entity';
@@ -205,7 +206,7 @@ export class CsiRespondentService {
         const latest = await responses.findOne({ where: { respondentId: respondent.id }, order: { submittedAt: 'DESC' } });
         const sources = [latest?.departmentName, respondent.profileDepartment].filter((name): name is string => Boolean(name?.trim()));
         for (const source of sources) {
-            const match = departments.find((department) => departmentKey(department.name) === departmentKey(source));
+            const match = matchDepartment(departments, source);
             if (match) return match;
         }
         return null;
@@ -317,6 +318,21 @@ function isRateeVisible(ratee: CsiPeriodRatee, period: CsiPeriod, respondentId: 
 const collapseSpaces = (value: string) => value.trim().replace(/\s+/g, ' ');
 /** Case- and space-insensitive department name ("HC  Services" = "hc services"). */
 const departmentKey = (name: string) => collapseSpaces(name).toLowerCase();
+
+/**
+ * Exact (case/space-insensitive) name, else the one "DIVISION / DEPARTMENT" entry whose department part matches
+ * (an HR profile only knows "QUALITY CONTROL"; ambiguous names such as that one under several divisions stay open).
+ */
+function matchDepartment(departments: DepartmentRow[], source: string): DepartmentRow | null {
+    const key = departmentKey(source);
+    const exact = departments.find((department) => departmentKey(department.name) === key);
+    if (exact) return exact;
+    const byPart = departments.filter((department) => {
+        const at = department.name.lastIndexOf(CSI_DEPARTMENT_SEPARATOR);
+        return at >= 0 && departmentKey(department.name.slice(at + CSI_DEPARTMENT_SEPARATOR.length)) === key;
+    });
+    return byPart.length === 1 ? byPart[0] : null;
+}
 
 /** The account's full name as stored on the response (spaces collapsed, column-safe length). */
 const accountName = (fullName: string) => collapseSpaces(fullName ?? '').slice(0, CSI_RESPONDENT_NAME_MAX) || '-';

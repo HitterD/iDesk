@@ -1,6 +1,6 @@
 // Agent Management Types
 // Shared types for agent management components
-import { Shield, Crown, Users, ShieldAlert, Eye, LifeBuoy, Code2, Smartphone, type LucideIcon } from 'lucide-react';
+import { Shield, Crown, Users, ShieldAlert, Eye, LifeBuoy, Code2, Smartphone, HeartHandshake, type LucideIcon } from 'lucide-react';
 
 export interface Site {
     id: string;
@@ -12,7 +12,7 @@ export interface User {
     id: string;
     fullName: string;
     email: string;
-    role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT';
+    role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT' | 'HC_ADMIN';
     department?: { id: string; name: string };
     site?: Site;
     siteId?: string;
@@ -58,6 +58,7 @@ export type UserRoleKey =
     | 'AGENT_WEB_DEV'
     | 'AGENT_MOBILE_DEV'
     | 'AGENT_OPERATIONAL_SUPPORT'
+    | 'HC_ADMIN'
     | 'USER';
 
 export interface RoleConfigEntry {
@@ -151,6 +152,15 @@ export const ROLE_CONFIG: Record<UserRoleKey, RoleConfigEntry> = {
         bgColor: 'bg-teal-100 dark:bg-teal-900/30',
         badgeColor: 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400',
     },
+    HC_ADMIN: {
+        icon: HeartHandshake,
+        label: 'Admin HC',
+        pluralLabel: 'Admin HC',
+        description: 'Administrator Human Capital: hanya halaman admin HC (CSI HC)',
+        color: 'text-rose-600',
+        bgColor: 'bg-rose-100 dark:bg-rose-900/30',
+        badgeColor: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
+    },
     USER: {
         icon: Users,
         label: 'User',
@@ -165,6 +175,7 @@ export const ROLE_CONFIG: Record<UserRoleKey, RoleConfigEntry> = {
 /** Assignable roles, ordered least- to most-privileged for pickers. */
 export const ROLE_ORDER: UserRoleKey[] = [
     'USER',
+    'HC_ADMIN',
     'AGENT',
     'AGENT_ADMIN',
     'AGENT_ORACLE',

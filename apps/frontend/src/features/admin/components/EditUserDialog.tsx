@@ -23,7 +23,7 @@ interface EditUserDialogProps {
         id: string;
         fullName: string;
         email: string;
-        role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT';
+        role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT' | 'HC_ADMIN';
         department?: { id: string; name: string };
         site?: { id: string; code: string; name: string };
         siteId?: string;
@@ -72,7 +72,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
     const [formData, setFormData] = useState({
         fullName: '',
         email: '',
-        role: 'AGENT' as 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT',
+        role: 'AGENT' as 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT' | 'HC_ADMIN',
         departmentId: '',
         siteId: '',
         employeeId: '',
@@ -306,6 +306,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
                                     <option value="AGENT_WEB_DEV">Agent Web Dev</option>
                                     <option value="AGENT_MOBILE_DEV">Agent Mobile Dev</option>
                                     <option value="AGENT_OPERATIONAL_SUPPORT">Agent Ops Support</option>
+                                    <option value="HC_ADMIN">Admin HC</option>
                                     <option value="USER">User</option>
                                 </select>
                             </div>

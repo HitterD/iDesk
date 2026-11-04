@@ -123,6 +123,12 @@ export const CsiApi = {
         body.append(PHOTO_FIELD, file);
         return (await api.post<CsiSubjectView>(`${itemPath(scope, 'subjects', key)}/photo`, body)).data;
     },
+    async addSubjectMembers(scope: CsiScopeParam, payload: CsiUserIds): Promise<CsiSubjectGroup[]> {
+        return (await api.post<CsiSubjectGroup[]>(`${adminPath(scope)}/subjects/members`, payload)).data;
+    },
+    async removeSubjectMember(scope: CsiScopeParam, userId: string): Promise<CsiSubjectGroup[]> {
+        return (await api.delete<CsiSubjectGroup[]>(itemPath(scope, 'subjects/members', userId))).data;
+    },
     async createTeam(scope: CsiScopeParam, payload: CreateCsiTeam): Promise<CsiSubjectView> {
         return (await api.post<CsiSubjectView>(`${adminPath(scope)}/subjects/teams`, payload)).data;
     },

@@ -118,10 +118,19 @@ describe('CsiAdminPage', () => {
         expect(screen.getByText('wizard:p3:ratees')).toBeInTheDocument();
     });
 
-    it('ADMIN tanpa csi_admin_hc dialihkan dari /csi/admin/hc ke scope yang diizinkan', () => {
+    it('ADMIN selalu bisa membuka Admin HC; ICT tanpa key dialihkan ke HC', () => {
+        const { unmount } = renderAt('/csi/admin/hc');
+        expect(screen.getByText('dashboard:hc')).toBeInTheDocument();
+        unmount();
+        renderAt('/csi/admin/ict');
+        expect(screen.getByText('dashboard:hc')).toBeInTheDocument();
+    });
+
+    it('HC_ADMIN hanya HC, walau preset memberi key ICT', () => {
+        access.role = 'HC_ADMIN';
         access.pageAccess = { csi_admin_ict: true };
-        renderAt('/csi/admin/hc');
-        expect(screen.getByText('dashboard:ict')).toBeInTheDocument();
+        renderAt('/csi/admin/ict');
+        expect(screen.getByText('dashboard:hc')).toBeInTheDocument();
     });
 
     it('scope tidak dikenal dialihkan dalam layout manager', () => {
@@ -132,6 +141,7 @@ describe('CsiAdminPage', () => {
     });
 
     it('tanpa akses apa pun menampilkan keadaan tidak berwenang', () => {
+        access.role = 'MANAGER';
         renderAt('/csi/admin/ict');
         expect(screen.getByText('Anda tidak memiliki akses Admin CSI')).toBeInTheDocument();
     });

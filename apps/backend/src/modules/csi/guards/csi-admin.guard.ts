@@ -8,6 +8,21 @@ import { PermissionPreset } from '../../permissions/entities/permission-preset.e
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { CSI_ADMIN_PAGE_KEY, parseCsiScope } from '../csi.constants';
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
+import { PageAccess } from '../../../shared/core/types/page-access.types';
+
+/**
+ * Who may administer CSI of a scope:
+ * - HC_ADMIN: HC only, always (it is the role's purpose); never ICT.
+ * - ADMIN: HC always; ICT with the explicit page key (no bypass, as before).
+ * - MANAGER: with the explicit page key of the scope.
+ */
+export function canAdminCsiScope(role: string, pageAccess: PageAccess, scope: ServiceScope): boolean {
+    if (role === UserRole.HC_ADMIN) return scope === ServiceScope.HC;
+    if (role === UserRole.ADMIN && scope === ServiceScope.HC) return true;
+    const allowedRole = role === UserRole.ADMIN || role === UserRole.MANAGER;
+    return allowedRole && pageAccess[CSI_ADMIN_PAGE_KEY[scope]] === true;
+}
 
 @Injectable()
 export class CsiAdminGuard implements CanActivate {
@@ -39,8 +54,7 @@ export class CsiAdminGuard implements CanActivate {
             throw new ForbiddenException('User not found');
         }
         const { user, pageAccess } = cached;
-        const allowedRole = user.role === UserRole.ADMIN || user.role === UserRole.MANAGER;
-        if (!allowedRole || pageAccess[CSI_ADMIN_PAGE_KEY[scope]] !== true) {
+        if (!canAdminCsiScope(user.role, pageAccess, scope)) {
             throw new ForbiddenException('Akses admin CSI tidak diizinkan.');
         }
 

@@ -41,10 +41,14 @@ describe('getRoleDefaultPageAccess', () => {
         expect(getRoleDefaultPageAccess(null)).toEqual(getRoleDefaultPageAccess('USER'));
     });
 
-    it('grants only ICT CSI administration to ADMIN by default', () => {
+    it('grants both CSI administration pages to ADMIN by default', () => {
         const access: Record<string, boolean> = getRoleDefaultPageAccess('ADMIN');
         expect(access.csi_admin_ict).toBe(true);
-        expect(access.csi_admin_hc).toBeUndefined();
+        expect(access.csi_admin_hc).toBe(true);
+    });
+
+    it('HC_ADMIN only gets the HC pages', () => {
+        expect(getRoleDefaultPageAccess('HC_ADMIN')).toEqual({ notifications: true, csi_admin_hc: true });
     });
 
     it('does not grant either CSI administration page to MANAGER by default', () => {

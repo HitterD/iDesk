@@ -123,17 +123,27 @@ describe('BentoSidebar', () => {
         expect(await screen.findByRole('link', { name: 'Survei Kepuasan' })).toHaveAttribute('href', '/manager/csi');
     });
 
-    it('shows Admin CSI HC for ADMIN only when csi_admin_hc is granted (no ADMIN bypass)', () => {
+    it('ADMIN always sees Admin CSI HC (Human Capital group); Admin CSI ICT still needs its key', () => {
         pageAccess.current = { ...pageAccess.defaults, csi_admin_ict: true };
         const { unmount } = renderSidebar('/dashboard');
         expect(screen.getByRole('link', { name: 'Admin CSI ICT' })).toHaveAttribute('href', '/csi/admin/ict');
-        expect(screen.queryByRole('link', { name: 'Admin CSI HC' })).not.toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Admin CSI HC' })).toHaveAttribute('href', '/csi/admin/hc');
         unmount();
 
-        pageAccess.current = { ...pageAccess.defaults, csi_admin_hc: true };
+        pageAccess.current = { ...pageAccess.defaults };
         renderSidebar('/dashboard');
+        expect(screen.getByRole('link', { name: 'Admin CSI HC' })).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: 'Admin CSI ICT' })).not.toBeInTheDocument();
+    });
+
+    it('HC_ADMIN sees only the Human Capital group (no tickets, management or administration)', () => {
+        authUser.current = { id: 'hc-1', fullName: 'Admin HC', role: 'HC_ADMIN' };
+        pageAccess.current = { notifications: true, csi_admin_hc: true };
+        ticketModules.current = [{ slug: 'it-support', name: 'IT Support Tickets', icon: 'ticket' }];
+        renderSidebar('/csi/admin/hc');
         expect(screen.getByRole('link', { name: 'Admin CSI HC' })).toHaveAttribute('href', '/csi/admin/hc');
         expect(screen.queryByRole('link', { name: 'Admin CSI ICT' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: /IT Support Tickets|Dashboard Tim|Agents|Workloads/ })).not.toBeInTheDocument();
     });
 
     it('points Admin CSI to the manager layout and hides it from non-admin roles', () => {

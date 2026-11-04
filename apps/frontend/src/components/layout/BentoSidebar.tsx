@@ -28,6 +28,7 @@ import {
     Trash2,
     Star,
     ClipboardCheck,
+    HeartHandshake,
     LucideIcon
 } from 'lucide-react';
 import { isAgentRole } from '@/lib/roleHome';
@@ -182,6 +183,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
 
     // Navigation configuration - Core items and groups
     const isManager = user?.role === 'MANAGER';
+    const isHcAdmin = user?.role === 'HC_ADMIN';
 
     const NAVIGATION_CONFIG = useMemo(() => [
         // Core items
@@ -266,6 +268,17 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
                 { key: 'notifications', icon: Bell, tone: 'red', label: 'Notifications', path: '/notifications' },
                 { key: 'renewal', icon: CalendarClock, tone: 'orange', label: 'Renewal Hub', path: '/renewal' },
                 { key: CSI_ADMIN_PAGE_KEYS.ict, icon: ClipboardCheck, tone: 'teal', label: 'Admin CSI ICT', path: csiAdminPath(isManager ? CSI_PATHS.manager : CSI_PATHS.staff, 'ict') },
+            ]
+        },
+
+        // Human Capital group: HC administration modules (today only CSI HC); the whole sidebar of an HC_ADMIN.
+        {
+            type: 'group',
+            id: 'human_capital',
+            label: 'Human Capital',
+            icon: HeartHandshake,
+            tone: 'mint',
+            items: [
                 { key: CSI_ADMIN_PAGE_KEYS.hc, icon: ClipboardCheck, tone: 'mint', label: 'Admin CSI HC', path: csiAdminPath(isManager ? CSI_PATHS.manager : CSI_PATHS.staff, 'hc') },
             ]
         },
@@ -315,6 +328,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
             AGENT_ORACLE: ['my_dashboard', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'notifications', 'reports'],
             AGENT_WEB_DEV: ['my_dashboard', 'web_dev_tickets', 'oracle_k2_tickets', 'mobile_dev_tickets', 'notifications', 'reports'],
             AGENT_MOBILE_DEV: ['my_dashboard', 'mobile_dev_tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'notifications', 'reports'],
+            HC_ADMIN: ['notifications'],
             MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads', 'notifications'],
             ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'data_wipe', 'settings'],
         };
@@ -347,6 +361,9 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
                 if ('adminOnly' in entry && entry.adminOnly && user?.role !== 'ADMIN') {
                     continue;
                 }
+
+                // HC administrators see only HC pages: no ticket queues (dynamic modules have no page key).
+                if (entry.id === 'request_center' && isHcAdmin) continue;
 
                 if (entry.id === 'request_center' && dynamicModules.length > 0) {
                     // Map dynamic ticket modules

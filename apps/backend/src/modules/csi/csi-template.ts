@@ -30,3 +30,18 @@ export const CSI_TEMPLATE_2025: ReadonlyArray<{ type: CsiQuestionType; name: str
     },
     star('Bagaimana penilaian anda terhadap kualitas pelayanan tim IT Support secara keseluruhan?'),
 ];
+
+/** Standard HC questionnaire (starting point; HC admins edit it in Master data). */
+export const CSI_TEMPLATE_HC: ReadonlyArray<{ type: CsiQuestionType; name: string; options: CsiOption[] }> = [
+    {
+        type: CsiQuestionType.CHOICE, options: CSI_PRESET_FREQUENCY,
+        name: 'Dalam 1 tahun terakhir, berapa kali Bapak/Ibu membutuhkan bantuan atau layanan tim Human Capital?',
+    },
+    satisfaction('Kecepatan tim HC dalam merespons pertanyaan dan permintaan karyawan'),
+    satisfaction('Kejelasan dan ketepatan informasi yang diberikan tim HC (kebijakan, administrasi, benefit)'),
+    satisfaction('Keramahan dan sikap tim HC saat melayani karyawan'),
+    satisfaction('Kemampuan tim HC dalam memberikan solusi atas permasalahan karyawan'),
+    satisfaction('Ketepatan waktu proses administrasi HC (cuti, payroll, BPJS, dokumen)'),
+    star('Bagaimana Anda menilai komunikasi tim HC kepada karyawan?'),
+    star('Bagaimana penilaian Anda terhadap kualitas pelayanan tim HC secara keseluruhan?'),
+];

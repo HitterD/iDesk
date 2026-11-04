@@ -10,7 +10,7 @@ export const CSI_ADMIN_PAGE_KEYS: Readonly<Record<CsiScopeParam, string>> = {
     ict: 'csi_admin_ict',
     hc: 'csi_admin_hc',
 };
-export const CSI_ADMIN_ROLES: readonly string[] = ['ADMIN', 'MANAGER'];
+export const CSI_ADMIN_ROLES: readonly string[] = ['ADMIN', 'MANAGER', 'HC_ADMIN'];
 
 export const CSI_SCOPE_OF: Readonly<Record<CsiScopeParam, CsiScope>> = { ict: 'ICT', hc: 'HC' };
 

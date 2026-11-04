@@ -131,4 +131,39 @@ describe('CsiSubjectService', () => {
         expect(view.photoUrl).toBe('/uploads/csi/new.jpg');
         expect(unlink).not.toHaveBeenCalled();
     });
+
+    describe('HC members (picked by hand)', () => {
+        const HC = ServiceScope.HC;
+        const HCU = '55555555-5555-4555-8555-555555555555';
+
+        beforeEach(() => {
+            users.rows.push({ id: HCU, fullName: 'Hana HC', siteId: SPJ.id, role: UserRole.USER, isActive: true, jobTitle: 'HC Officer', avatarUrl: null });
+        });
+
+        it('HC starts empty and lists only added members, any role', async () => {
+            expect((await service.list(HC)).flatMap((group) => group.people)).toEqual([]);
+            const groups = await service.addMembers(HC, [HCU]);
+            expect(groups.find((group) => group.siteId === SPJ.id)!.people.map((view) => [view.userId, view.name])).toEqual([[HCU, 'Hana HC']]);
+            expect(profiles.rows).toEqual([expect.objectContaining({ scope: HC, userId: HCU, isMember: true })]);
+        });
+
+        it('adding twice keeps one profile; removing keeps photo/tagline for later', async () => {
+            await service.addMembers(HC, [HCU]);
+            await service.update(HC, `user:${HCU}`, { tagline: 'Siap bantu' });
+            await service.addMembers(HC, [HCU]);
+            expect(profiles.rows).toHaveLength(1);
+            const groups = await service.removeMember(HC, HCU);
+            expect(groups.flatMap((group) => group.people)).toEqual([]);
+            expect(profiles.rows[0]).toMatchObject({ isMember: false, tagline: 'Siap bantu' });
+        });
+
+        it('rejects unknown users and removing a non-member', async () => {
+            await expect(service.addMembers(HC, ['66666666-6666-4666-8666-666666666666'])).rejects.toBeInstanceOf(BadRequestException);
+            await expect(service.removeMember(HC, HCU)).rejects.toBeInstanceOf(NotFoundException);
+        });
+
+        it('ICT agents are not HC subjects unless added', async () => {
+            await expect(service.update(HC, `user:${U1}`, { tagline: 'x' })).rejects.toBeInstanceOf(NotFoundException);
+        });
+    });
 });

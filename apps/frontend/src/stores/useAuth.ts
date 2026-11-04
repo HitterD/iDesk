@@ -18,7 +18,7 @@ interface User {
     id: string;
     email: string;
     fullName: string;
-    role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'AGENT_OPERATIONAL_SUPPORT' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'USER';
+    role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'AGENT_OPERATIONAL_SUPPORT' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'HC_ADMIN' | 'USER';
     avatarUrl?: string;
     employeeId?: string;
     jobTitle?: string;
