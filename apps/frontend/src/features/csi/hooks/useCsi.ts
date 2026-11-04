@@ -3,7 +3,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { CsiApi } from '../api/csi.api';
 import type {
     CsiMemoHeader, CsiMemoRequest, CsiPair, CsiScopeParam, CsiUserIds, CreateCsiDepartment, CreateCsiDimension,
-    CreateCsiPeriod, CreateCsiTeam, ResetCsiResponse, SendCsiReminders, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
+    CreateCsiPeriod, CreateCsiTeam, ResetCsiResponse, SaveCsiQuestionSet, SendCsiReminders, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
     UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject,
 } from '../types';
 
@@ -154,6 +154,20 @@ export function useUploadCsiSubjectPhoto(scope: CsiScopeParam) {
 }
 export function useCreateCsiTeam(scope: CsiScopeParam) {
     return useCsiMutation((payload: CreateCsiTeam) => CsiApi.createTeam(scope, payload), () => subjectKeys(scope));
+}
+
+export function useCsiQuestionSets(scope: CsiScopeParam) {
+    return useQuery({ queryKey: keys.questionSets(scope), queryFn: () => CsiApi.questionSets(scope) });
+}
+export function useCreateCsiQuestionSet(scope: CsiScopeParam) {
+    return useCsiMutation((payload: SaveCsiQuestionSet) => CsiApi.createQuestionSet(scope, payload), () => [keys.questionSets(scope)]);
+}
+export function useUpdateCsiQuestionSet(scope: CsiScopeParam) {
+    return useCsiMutation(({ id, payload }: UpdatePayload<SaveCsiQuestionSet>) => CsiApi.updateQuestionSet(scope, id, payload),
+        () => [keys.questionSets(scope)]);
+}
+export function useDeleteCsiQuestionSet(scope: CsiScopeParam) {
+    return useCsiMutation((id: string) => CsiApi.deleteQuestionSet(scope, id), () => [keys.questionSets(scope)]);
 }
 
 // The mapping decides which subjects each rater sees, so the respondent status changes with it.

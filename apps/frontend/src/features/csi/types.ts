@@ -349,6 +349,10 @@ export interface CsiSubjectGroup {
 export interface UpdateCsiSubject { tagline?: string | null; jobTitle?: string | null; name?: string }
 export interface CreateCsiTeam { siteId: string }
 
+// ─── Reusable question sets (Master data) ──────────────────────────────────
+export interface CsiQuestionSet { id: string; scope: CsiScope; name: string; dimensionIds: string[] }
+export interface SaveCsiQuestionSet { name: string; dimensionIds: string[] }
+
 // ─── Rater → subject mapping per period ──────────────────────────────────────
 export interface CsiPair { periodRaterId: string; periodRateeId: string }
 export interface CsiAssignments {

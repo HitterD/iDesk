@@ -24,6 +24,7 @@ describe('wizard steps', () => {
             { key: 'team', label: 'Penilaian tim' },
             { key: 'ratees', label: 'Orang yang dinilai' },
             { key: 'raters', label: 'Penilai' },
+            { key: 'pairs', label: 'Siapa menilai siapa' },
             { key: 'departments', label: 'Departemen' },
             { key: 'review', label: 'Tinjau & terbitkan' },
         ]);
@@ -34,9 +35,9 @@ describe('wizard steps', () => {
     });
 
     it('visibleSteps hides team when disabled and ratees when individual disabled', () => {
-        expect(visibleSteps(sections())).toEqual(['info', 'questions', 'team', 'ratees', 'raters', 'departments', 'review']);
-        expect(visibleSteps(sections({ teamEnabled: false }))).toEqual(['info', 'questions', 'ratees', 'raters', 'departments', 'review']);
-        expect(visibleSteps(sections({ individualEnabled: false }))).toEqual(['info', 'questions', 'team', 'raters', 'departments', 'review']);
+        expect(visibleSteps(sections())).toEqual(['info', 'questions', 'team', 'ratees', 'raters', 'pairs', 'departments', 'review']);
+        expect(visibleSteps(sections({ teamEnabled: false }))).toEqual(['info', 'questions', 'ratees', 'raters', 'pairs', 'departments', 'review']);
+        expect(visibleSteps(sections({ individualEnabled: false }))).toEqual(['info', 'questions', 'team', 'raters', 'pairs', 'departments', 'review']);
     });
 
     it('hides raters for OPEN and keeps it for LISTED', () => {

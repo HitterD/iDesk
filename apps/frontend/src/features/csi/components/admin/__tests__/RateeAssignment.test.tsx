@@ -1,19 +1,26 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RateeAssignment } from '../RateeAssignment';
-import type { CsiDimension, CsiPeriodDetail, CsiUserSearchResult } from '../../../types';
+import type { CsiDimension, CsiPeriodDetail, CsiQuestionSet, CsiSubjectGroup, CsiUserSearchResult } from '../../../types';
 
 const hooks = vi.hoisted(() => ({
     mutate: vi.fn(),
+    createSet: vi.fn(),
     dimensions: [] as CsiDimension[],
     users: [] as CsiUserSearchResult[],
+    subjects: [] as CsiSubjectGroup[],
+    sets: [] as CsiQuestionSet[],
 }));
 
 vi.mock('../../../hooks/useCsi', () => ({
     useCsiDimensions: () => ({ data: hooks.dimensions, isLoading: false }),
     useCsiUserSearch: () => ({ data: hooks.users, isLoading: false, isFetching: false }),
     useSetCsiRatees: () => ({ mutate: hooks.mutate, isPending: false }),
+    useCsiSubjects: () => ({ data: hooks.subjects, isLoading: false }),
+    useCsiQuestionSets: () => ({ data: hooks.sets }),
+    useCreateCsiQuestionSet: () => ({ mutate: hooks.createSet, isPending: false }),
+    useDeleteCsiQuestionSet: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 const STAMP = { createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z' };
@@ -32,7 +39,7 @@ const period = (locked: boolean, over: Partial<CsiPeriodDetail> = {}): CsiPeriod
 });
 
 const pickUsers = async (actor: ReturnType<typeof userEvent.setup>, names: string[]) => {
-    await actor.click(screen.getByRole('button', { name: 'Pilih orang yang dinilai' }));
+    await actor.click(screen.getByRole('button', { name: 'Cari orang lain yang dinilai' }));
     for (const name of names) await actor.click(await screen.findByRole('option', { name: new RegExp(name) }));
     await actor.keyboard('{Escape}');
 };
@@ -41,6 +48,9 @@ beforeEach(() => {
     hooks.mutate.mockReset();
     hooks.dimensions = [dimension('d1', 'Kecepatan', 1), dimension('d2', 'Keramahan', 2)];
     hooks.users = [user('u1', 'Andi Saputra', 'IT Support'), user('u2', 'Budi Santoso', 'Network')];
+    hooks.subjects = [];
+    hooks.sets = [];
+    hooks.createSet.mockReset();
 });
 afterEach(cleanup);
 
@@ -95,11 +105,11 @@ describe('RateeAssignment', () => {
         expect(hooks.mutate.mock.calls[0][0]).toEqual({ ratees: [{ userId: 'u1', dimensionIds: ['d2'] }] });
     });
 
-    it('mode locked men-disable tombol pasang dan menampilkan keterangan terkunci', () => {
+    it('mode locked menyembunyikan panel pemasangan dan menampilkan keterangan terkunci', () => {
         render(<RateeAssignment scope="ict" period={period(true)} />);
 
-        expect(screen.getByRole('button', { name: 'Pasang ke yang dipilih' })).toBeDisabled();
-        expect(screen.getByRole('button', { name: 'Pilih orang yang dinilai' })).toBeDisabled();
+        expect(screen.queryByRole('button', { name: 'Pasang ke yang dipilih' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Cari orang lain yang dinilai' })).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Simpan penugasan' })).toBeDisabled();
         expect(screen.getByText('Terkunci karena sudah ada jawaban')).toBeInTheDocument();
     });
@@ -191,5 +201,48 @@ describe('RateeAssignment', () => {
         render(<RateeAssignment scope="ict" period={period(false)} />);
         expect(screen.getByRole('checkbox', { name: 'Masukan' })).toBeInTheDocument();
         expect(screen.getByText('Jawaban teks')).toBeInTheDocument();
+    });
+
+    it('picks people from Subjek & foto tiles, a whole site at once', async () => {
+        hooks.subjects = [{
+            siteId: 's1', siteCode: 'SPJ', siteName: 'Sepanjang', team: null,
+            people: [
+                { key: 'user:u1', kind: 'PERSON', userId: 'u1', teamId: null, siteId: 's1', name: 'Andi Saputra', jobTitle: 'IT Support', photoUrl: null, tagline: null },
+                { key: 'user:u2', kind: 'PERSON', userId: 'u2', teamId: null, siteId: 's1', name: 'Budi Santoso', jobTitle: null, photoUrl: null, tagline: null },
+            ],
+        }];
+        const actor = userEvent.setup();
+        render(<RateeAssignment scope="ict" period={period(false)} />);
+        const site = screen.getByRole('region', { name: 'Orang di Sepanjang' });
+        await actor.click(within(site).getByRole('button', { name: /Pilih semua/ }));
+        expect(within(site).getByRole('checkbox', { name: /Andi Saputra/ })).toHaveAttribute('aria-checked', 'true');
+        await actor.click(screen.getByRole('checkbox', { name: 'Kecepatan' }));
+        expect(screen.getByText('2 orang · 1 pertanyaan dipilih')).toBeInTheDocument();
+        await actor.click(screen.getByRole('button', { name: 'Pasang ke yang dipilih' }));
+        await actor.click(screen.getByRole('button', { name: 'Simpan penugasan' }));
+        expect(hooks.mutate.mock.calls[0][0]).toEqual({ ratees: [{ userId: 'u1', dimensionIds: ['d1'] }, { userId: 'u2', dimensionIds: ['d1'] }] });
+    });
+
+    it('a saved question set fills the questions in one click; ticks can be saved as a set', async () => {
+        hooks.sets = [{ id: 'set1', scope: 'ICT', name: 'Set individu', dimensionIds: ['d1', 'd2'] }];
+        const actor = userEvent.setup();
+        render(<RateeAssignment scope="ict" period={period(false)} />);
+        await actor.click(screen.getByRole('button', { name: 'Pakai set Set individu (2 pertanyaan)' }));
+        expect(screen.getByRole('checkbox', { name: 'Kecepatan' })).toBeChecked();
+        expect(screen.getByRole('checkbox', { name: 'Keramahan' })).toBeChecked();
+        await actor.click(screen.getByRole('button', { name: 'Simpan sebagai set' }));
+        await actor.type(screen.getByRole('textbox', { name: 'Nama set pertanyaan' }), 'Set tim');
+        await actor.click(screen.getByRole('button', { name: 'Simpan set' }));
+        expect(hooks.createSet.mock.calls[0][0]).toEqual({ name: 'Set tim', dimensionIds: ['d1', 'd2'] });
+    });
+
+    it('questions sharing one generic text are told apart by their bracketed aspect', () => {
+        hooks.dimensions = [
+            { ...dimension('d1', 'Tolong ungkapkan tingkat kepuasan Anda', 1), description: '[Kecepatan respon]' },
+            { ...dimension('d2', 'Tolong ungkapkan tingkat kepuasan Anda', 2), description: '[Kerapian pekerjaan]' },
+        ];
+        render(<RateeAssignment scope="ict" period={period(false)} />);
+        expect(screen.getByRole('checkbox', { name: /Kecepatan respon/ })).toBeInTheDocument();
+        expect(screen.getByRole('checkbox', { name: /Kerapian pekerjaan/ })).toBeInTheDocument();
     });
 });

@@ -34,6 +34,9 @@ import { CsiSubjectProfile } from './entities/csi-subject-profile.entity';
 import { CsiRaterAssignment } from './entities/csi-rater-assignment.entity';
 import { CsiPeriodRaterRatee } from './entities/csi-period-rater-ratee.entity';
 import { CsiDimension } from './entities/csi-dimension.entity';
+import { CsiQuestionSet } from './entities/csi-question-set.entity';
+import { CsiQuestionSetService } from './services/csi-question-set.service';
+import { CsiAdminQuestionSetController } from './presentation/csi-admin-question-set.controller';
 import { CsiDepartment } from './entities/csi-department.entity';
 import { CsiRater } from './entities/csi-rater.entity';
 import { CsiPeriod } from './entities/csi-period.entity';
@@ -50,7 +53,7 @@ import { CsiResponseComment } from './entities/csi-response-comment.entity';
         TypeOrmModule.forFeature([
             CsiDimension, CsiDepartment, CsiRater, CsiPeriod, CsiPeriodSite, CsiPeriodRatee,
             CsiPeriodRateeDimension, CsiPeriodRater, CsiResponse, CsiResponseItem, CsiResponseComment,
-            CsiMemoSetting, CsiTeam, CsiSubjectProfile, CsiRaterAssignment, CsiPeriodRaterRatee,
+            CsiMemoSetting, CsiTeam, CsiSubjectProfile, CsiRaterAssignment, CsiPeriodRaterRatee, CsiQuestionSet,
             User, PermissionPreset, Site, Ticket, Notification,
         ]),
         AuthModule,
@@ -59,9 +62,9 @@ import { CsiResponseComment } from './entities/csi-response-comment.entity';
     ],
     controllers: [
         CsiAdminMasterController, CsiAdminPeriodController, CsiAdminReportController, CsiAdminMemoController, CsiMeController,
-        CsiAdminSubjectController, CsiAdminAssignmentController, CsiAdminDashboardController,
+        CsiAdminSubjectController, CsiAdminAssignmentController, CsiAdminDashboardController, CsiAdminQuestionSetController,
     ],
     providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService, CsiMemoService,
-        CsiSubjectService, CsiAssignmentService, CsiReminderService, CsiDashboardService],
+        CsiSubjectService, CsiAssignmentService, CsiReminderService, CsiDashboardService, CsiQuestionSetService],
 })
 export class CsiModule { }

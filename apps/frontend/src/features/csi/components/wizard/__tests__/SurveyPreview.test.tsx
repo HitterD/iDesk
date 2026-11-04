@@ -32,7 +32,7 @@ describe('SurveyPreview', () => {
         const view = openPreview();
         expect(screen.getByRole('note')).toHaveTextContent('Pratinjau — jawaban tidak dikirim');
         expect(screen.getByRole('heading', { name: 'Survei ICT', level: 2 })).toBeInTheDocument();
-        expect(screen.getByLabelText('Nama')).toHaveValue('Admin Preview');
+        expect(screen.getByRole('textbox', { name: 'Nama' })).toHaveTextContent('Admin Preview');
         fireEvent.click(screen.getByRole('button', { name: 'Mulai mengisi' }));
         expect(screen.getByRole('heading', { name: 'Admin Preview', level: 2 })).toBeInTheDocument();
         expect(screen.getByText('Respons cepat')).toBeInTheDocument();

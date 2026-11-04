@@ -32,7 +32,7 @@ export function toPreviewForm(
     };
 }
 
-export type WizardStepKey = 'info' | 'questions' | 'team' | 'ratees' | 'raters' | 'departments' | 'review';
+export type WizardStepKey = 'info' | 'questions' | 'team' | 'ratees' | 'raters' | 'pairs' | 'departments' | 'review';
 
 export const WIZARD_STEPS: ReadonlyArray<{ key: WizardStepKey; label: string }> = [
     { key: 'info', label: 'Info survei' },
@@ -40,6 +40,7 @@ export const WIZARD_STEPS: ReadonlyArray<{ key: WizardStepKey; label: string }> 
     { key: 'team', label: 'Penilaian tim' },
     { key: 'ratees', label: 'Orang yang dinilai' },
     { key: 'raters', label: 'Penilai' },
+    { key: 'pairs', label: 'Siapa menilai siapa' },
     { key: 'departments', label: 'Departemen' },
     { key: 'review', label: 'Tinjau & terbitkan' },
 ];
@@ -50,7 +51,8 @@ const stepVisible = (key: WizardStepKey, period: WizardSections): boolean => {
     switch (key) {
         case 'team': return period.teamEnabled;
         case 'ratees': return period.individualEnabled;
-        case 'raters': return period.respondentMode === 'LISTED';
+        case 'raters':
+        case 'pairs': return period.respondentMode === 'LISTED';
         default: return true;
     }
 };
@@ -83,7 +85,8 @@ export function stepComplete(key: WizardStepKey, period: CsiPeriodDetail, active
         case 'questions': return activeQuestionCount > 0;
         case 'team': return checkOk('team');
         case 'ratees': return checkOk('ratees') && checkOk('dimensions');
-        case 'raters': return checkOk('raters');
+        case 'raters':
+        case 'pairs': return checkOk('raters');
         case 'departments': return checkOk('departments');
         case 'review': return period.publishStatus === 'PUBLISHED';
         default: return true;

@@ -2,7 +2,7 @@ import api from '@/lib/api';
 import type {
     CsiActivePeriod, CsiAssignments, CsiDashboard, CsiDepartment, CsiDimension, CsiForm, CsiPeriod, CsiPeriodDetail,
     CsiPeriodListItem, CsiRater, CsiReminderResult, CsiRemovedRater, CsiReport, CsiResetResult, CsiRespondents,
-    CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, CsiSubjectView, CsiSubmitResult, CsiUserIds, CsiUserSearchResult,
+    CsiQuestionSet, CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, SaveCsiQuestionSet, CsiSubjectView, CsiSubmitResult, CsiUserIds, CsiUserSearchResult,
     CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, CreateCsiTeam, CsiMemoHeader, CsiMemoRequest, CsiReorder,
     ResetCsiResponse, SendCsiReminders, SetCsiAssignments, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
     UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject,
@@ -125,6 +125,18 @@ export const CsiApi = {
     },
     async createTeam(scope: CsiScopeParam, payload: CreateCsiTeam): Promise<CsiSubjectView> {
         return (await api.post<CsiSubjectView>(`${adminPath(scope)}/subjects/teams`, payload)).data;
+    },
+    async questionSets(scope: CsiScopeParam): Promise<CsiQuestionSet[]> {
+        return (await api.get<CsiQuestionSet[]>(`${adminPath(scope)}/question-sets`)).data;
+    },
+    async createQuestionSet(scope: CsiScopeParam, payload: SaveCsiQuestionSet): Promise<CsiQuestionSet> {
+        return (await api.post<CsiQuestionSet>(`${adminPath(scope)}/question-sets`, payload)).data;
+    },
+    async updateQuestionSet(scope: CsiScopeParam, id: string, payload: SaveCsiQuestionSet): Promise<CsiQuestionSet> {
+        return (await api.put<CsiQuestionSet>(itemPath(scope, 'question-sets', id), payload)).data;
+    },
+    async deleteQuestionSet(scope: CsiScopeParam, id: string): Promise<{ deleted: true }> {
+        return (await api.delete<{ deleted: true }>(itemPath(scope, 'question-sets', id))).data;
     },
     async assignments(scope: CsiScopeParam, id: string): Promise<CsiAssignments> {
         return (await api.get<CsiAssignments>(assignmentsPath(scope, id))).data;

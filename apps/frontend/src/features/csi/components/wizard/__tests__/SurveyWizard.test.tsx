@@ -33,6 +33,8 @@ vi.mock('../../../hooks/useCsi', () => ({
     useReorderCsiDimensions: fx.idle, useApplyCsiTemplate: fx.idle, useReorderCsiDepartments: fx.idle,
     useCreateCsiDepartment: fx.idle, useUpdateCsiDepartment: fx.idle, useAddCsiRaters: fx.idle,
     useSetCsiRatees: fx.idle, useSetCsiTeamQuestions: fx.idle, useSetCsiRaters: fx.idle, useDeleteCsiPeriod: fx.idle,
+    useCsiSubjects: () => ({ data: [], isLoading: false }), useCsiQuestionSets: () => ({ data: [] }),
+    useCreateCsiQuestionSet: fx.idle, useDeleteCsiQuestionSet: fx.idle,
 }));
 vi.mock('@/components/site/useActiveSites', () => ({ useActiveSites: () => ({ data: [{ id: 's1', code: 'SPJ', name: 'Sidoarjo' }] }) }));
 vi.mock('sonner', () => ({ toast: fx.toast }));
@@ -162,7 +164,7 @@ describe('SurveyWizard', () => {
         renderWizard('p1', 'ratees');
         expect(screen.getByRole('button', { name: 'Lanjut' })).toBeEnabled();
 
-        await actor.click(screen.getByRole('button', { name: 'Pilih orang yang dinilai' }));
+        await actor.click(screen.getByRole('button', { name: 'Cari orang lain yang dinilai' }));
         await actor.click(await screen.findByRole('option', { name: /Andi Saputra/ }));
         await actor.keyboard('{Escape}');
         await actor.click(screen.getByRole('checkbox', { name: 'Kecepatan' }));
