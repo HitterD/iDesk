@@ -51,6 +51,9 @@ export const getFilteredPresetsByRole = (role: string, presets: any[]) => {
     if (role.startsWith('AGENT')) {
         targetRole = 'AGENT';
         prefix = 'agent';
+    } else if (role === 'HC_ADMIN') {
+        // "Admin HC" is stored with targetRole MANAGER (the entity has no HC role); match it by name only.
+        return presets.filter((p) => (p.name || '').toLowerCase().startsWith('admin hc'));
     } else if (role === 'MANAGER') {
         targetRole = 'MANAGER';
         prefix = 'manager';

@@ -159,6 +159,7 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
                 : watchedRole === 'AGENT_WEB_DEV' ? preset.name === 'Agent Web Developer'
                 : watchedRole === 'AGENT_MOBILE_DEV' ? preset.name === 'Agent Mobile Developer'
                 : watchedRole === 'AGENT_OPERATIONAL_SUPPORT' ? preset.name === 'Agent Operational Support'
+                : watchedRole === 'HC_ADMIN' ? preset.name === 'Admin HC'
                 : preset.targetRole === presetTargetRole,
         );
         if (match) {
