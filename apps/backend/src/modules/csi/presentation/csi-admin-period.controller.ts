@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
-import { CreatePeriodDto, PeriodListQueryDto, SetPeriodRatersDto, SetRateesDto, SetTeamQuestionsDto, UpdatePeriodDto, UpdatePeriodRateeDto } from '../dto/period.dto';
+import { CreatePeriodDto, PeriodListQueryDto, PeriodOverlapQueryDto, SetPeriodRatersDto, SetRateesDto, SetTeamQuestionsDto, UpdatePeriodDto, UpdatePeriodRateeDto } from '../dto/period.dto';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiPeriodService } from '../services/csi-period.service';
 
@@ -23,6 +23,12 @@ export class CsiAdminPeriodController {
     @Post()
     create(@Req() req: CsiAdminRequest, @Body() dto: CreatePeriodDto) {
         return this.periods.create(req.csiScope, dto, req.user.userId);
+    }
+
+    // Static path before ':id'.
+    @Get('overlaps')
+    overlaps(@Req() req: CsiAdminRequest, @Query() query: PeriodOverlapQueryDto) {
+        return this.periods.overlaps(req.csiScope, query.siteIds, query.startDate, query.endDate, query.excludeId);
     }
 
     @Get(':id')

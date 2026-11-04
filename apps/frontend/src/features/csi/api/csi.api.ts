@@ -2,7 +2,7 @@ import api from '@/lib/api';
 import type {
     CsiActivePeriod, CsiAssignments, CsiDashboard, CsiDepartment, CsiDimension, CsiForm, CsiPeriod, CsiPeriodDetail,
     CsiPeriodListItem, CsiRater, CsiReminderResult, CsiRemovedRater, CsiReport, CsiResetResult, CsiRespondents,
-    CsiQuestionSet, CsiRaterMatrix, CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, SaveCsiQuestionSet, CsiSubjectView, CsiSubmitResult, CsiUserIds, CsiUserSearchResult,
+    CsiPeriodOverlap, CsiQuestionSet, CsiRaterDepartmentOption, CsiRaterGroupFilter, CsiRaterGroupPreview, CsiRaterImportResult, CsiRaterMatrix, CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, SaveCsiQuestionSet, CsiSubjectView, CsiSubmitResult, CsiUserIds, CsiUserSearchResult,
     CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, CreateCsiTeam, CsiMemoHeader, CsiMemoRequest, CsiReorder,
     ResetCsiResponse, SendCsiReminders, SetCsiAssignments, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
     UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject,
@@ -131,6 +131,25 @@ export const CsiApi = {
     },
     async createTeam(scope: CsiScopeParam, payload: CreateCsiTeam): Promise<CsiSubjectView> {
         return (await api.post<CsiSubjectView>(`${adminPath(scope)}/subjects/teams`, payload)).data;
+    },
+    async periodOverlaps(scope: CsiScopeParam, query: { siteIds: readonly string[]; startDate: string; endDate: string; excludeId?: string }): Promise<CsiPeriodOverlap[]> {
+        const params = { siteIds: query.siteIds.join(','), startDate: query.startDate, endDate: query.endDate, excludeId: query.excludeId };
+        return (await api.get<CsiPeriodOverlap[]>(`${adminPath(scope)}/periods/overlaps`, { params, skipToast: true })).data;
+    },
+    async raterDepartments(scope: CsiScopeParam, siteId?: string): Promise<CsiRaterDepartmentOption[]> {
+        return (await api.get<CsiRaterDepartmentOption[]>(`${adminPath(scope)}/raters/group-departments`, { params: { siteId } })).data;
+    },
+    async raterGroupPreview(scope: CsiScopeParam, filter: CsiRaterGroupFilter): Promise<CsiRaterGroupPreview> {
+        return (await api.get<CsiRaterGroupPreview>(`${adminPath(scope)}/raters/group-preview`, { params: filter })).data;
+    },
+    async addRaterGroup(scope: CsiScopeParam, filter: CsiRaterGroupFilter): Promise<{ added: number }> {
+        return (await api.post<{ added: number }>(`${adminPath(scope)}/raters/group`, filter)).data;
+    },
+    async importRaters(scope: CsiScopeParam, keys: string[], commit: boolean): Promise<CsiRaterImportResult> {
+        return (await api.post<CsiRaterImportResult>(`${adminPath(scope)}/raters/import`, { keys, commit })).data;
+    },
+    async removeRaters(scope: CsiScopeParam, ids: string[]): Promise<CsiRater[]> {
+        return (await api.post<CsiRater[]>(`${adminPath(scope)}/raters/remove`, { ids })).data;
     },
     async questionSets(scope: CsiScopeParam): Promise<CsiQuestionSet[]> {
         return (await api.get<CsiQuestionSet[]>(`${adminPath(scope)}/question-sets`)).data;

@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, ArrayUnique, Equals, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, ArrayUnique, Equals, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
 import { CsiRespondentMode } from '../csi.constants';
 import { CSI_TAGLINE_MAX } from './subject.dto';
 
@@ -152,4 +152,25 @@ export class PeriodListQueryDto {
     @ValidateIf(isProvided)
     @IsUUID('all', { message: 'Site harus berupa UUID' })
     siteId?: string;
+}
+
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const toList = ({ value }: { value: unknown }) => (Array.isArray(value) ? value : typeof value === 'string' && value ? value.split(',') : []);
+
+/** Live date-clash check of the survey info form (`?siteIds=a,b&startDate=&endDate=&excludeId=`). */
+export class PeriodOverlapQueryDto {
+    @Transform(toList)
+    @IsArray({ message: 'Site harus berupa daftar' })
+    @IsUUID('all', { each: true, message: 'Site harus berupa UUID' })
+    siteIds: string[];
+
+    @Matches(DATE_ONLY_PATTERN, { message: 'Tanggal mulai harus berformat YYYY-MM-DD' })
+    startDate: string;
+
+    @Matches(DATE_ONLY_PATTERN, { message: 'Tanggal selesai harus berformat YYYY-MM-DD' })
+    endDate: string;
+
+    @IsOptional()
+    @IsUUID('all', { message: 'ID survei harus berupa UUID' })
+    excludeId?: string;
 }

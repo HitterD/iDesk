@@ -359,6 +359,17 @@ export interface CsiRaterMatrix {
     totals: Array<{ raters: number; average: number | null }>;
 }
 
+/** A published survey of the scope whose sites and dates intersect the ones being edited. */
+export interface CsiPeriodOverlap { id: string; title: string; startDate: string; endDate: string; sites: CsiSiteSummary[] }
+
+// ─── Bulk rater registration ─────────────────────────────────────────────────
+export interface CsiRaterGroupFilter { siteId?: string; departmentId?: string }
+export interface CsiRaterGroupPreview { total: number; alreadyRegistered: number; toAdd: number; sample: string[] }
+export interface CsiRaterDepartmentOption { id: string; name: string; userCount: number }
+export interface CsiRaterImportResult {
+    matched: number; alreadyRegistered: number; toAdd: number; added: number; notFound: string[]; sample: string[];
+}
+
 // ─── Reusable question sets (Master data) ──────────────────────────────────
 export interface CsiQuestionSet { id: string; scope: CsiScope; name: string; dimensionIds: string[] }
 export interface SaveCsiQuestionSet { name: string; dimensionIds: string[] }

@@ -22,6 +22,7 @@ const fx = vi.hoisted(() => {
 });
 
 vi.mock('../../../hooks/useCsi', () => ({
+    useCsiPeriodOverlaps: () => ({ data: [] }),
     useCsiPeriod: () => ({ data: fx.period, isLoading: false, isError: false, refetch: () => undefined }),
     useCsiPeriods: () => ({ data: fx.periods }),
     useCreateCsiPeriod: () => fx.create, useUpdateCsiPeriod: () => fx.update, usePublishCsiPeriod: () => fx.publish,

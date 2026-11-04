@@ -18,6 +18,7 @@ const fx = vi.hoisted(() => {
 });
 
 vi.mock('../../../hooks/useCsi', () => ({
+    useCsiPeriodOverlaps: () => ({ data: [] }),
     useCsiPeriod: () => ({ data: fx.period, isLoading: false, isError: false, refetch: () => undefined }),
     useCsiPeriods: () => ({ data: [] }),
     useCsiDimensions: () => ({ data: fx.dimensions, isLoading: false, isError: false }),

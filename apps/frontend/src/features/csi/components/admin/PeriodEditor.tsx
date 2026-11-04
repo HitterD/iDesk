@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type Ref } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode, type Ref } from 'react';
 import { Input } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,6 +12,7 @@ import type { CsiPeriodDetail, CsiPeriodListItem, CsiRespondentMode, CsiScopePar
 import { WIZARD_COPY } from '../wizard/wizardCopy';
 import { FIELD_LABEL, LockedNote } from './AdminParts';
 import { CopySourceField } from './CopySourceField';
+import { OverlapNotice } from './OverlapNotice';
 import { SectionFields } from './SectionFields';
 import { SiteChips } from './SiteChips';
 
@@ -76,7 +77,9 @@ export function PeriodEditor({ scope, period, periods = [], onSaved, formRef, on
                 <span className={FIELD_LABEL}>Kalimat terima kasih</span>
                 <Textarea value={form.thankYou} maxLength={CSI_TEXT_MAX} rows={2} onChange={(event) => set('thankYou', event.target.value)} />
             </label>
-            <DateAndModeFields form={form} set={set} modeLocked={locked} />
+            <DateAndModeFields form={form} set={set} modeLocked={locked}
+                overlap={<OverlapNotice scope={scope} siteIds={form.siteIds} startDate={form.startDate} endDate={form.endDate} excludeId={period?.id}
+                    onUseDates={(range) => setForm((current) => ({ ...current, ...range }))} />} />
             <SectionFields form={form} set={set} locked={locked} />
         </form>
     );
@@ -84,7 +87,7 @@ export function PeriodEditor({ scope, period, periods = [], onSaved, formRef, on
 
 type SetField = <K extends keyof PeriodFormState>(key: K, value: PeriodFormState[K]) => void;
 
-function DateAndModeFields({ form, set, modeLocked }: { form: PeriodFormState; set: SetField; modeLocked: boolean }) {
+function DateAndModeFields({ form, set, modeLocked, overlap }: { form: PeriodFormState; set: SetField; modeLocked: boolean; overlap?: ReactNode }) {
     const invalidDates = datesInvalid(form);
     const missingDates = !form.startDate || !form.endDate;
     return (
@@ -101,6 +104,7 @@ function DateAndModeFields({ form, set, modeLocked }: { form: PeriodFormState; s
                 </label>
             </div>
             {invalidDates && <p id={DATE_ERROR_ID} role="alert" className="text-[12.5px] text-[hsl(var(--ticket-red-ink))]">Tanggal selesai tidak boleh sebelum tanggal mulai.</p>}
+            {!invalidDates && overlap}
             {missingDates && form.copying && (
                 <p role="status" className="text-[12.5px] font-medium text-[hsl(var(--ticket-amber-ink))]">{WIZARD_COPY.datesRequired}</p>
             )}

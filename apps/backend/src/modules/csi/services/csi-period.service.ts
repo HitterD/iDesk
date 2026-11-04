@@ -177,6 +177,7 @@ export class CsiPeriodService {
         const detail = await this.get(scope, id);
         if (detail.publishStatus === CsiPeriodPublishStatus.PUBLISHED) return detail;
         if (!detail.readiness.ready) throw new BadRequestException(INCOMPLETE_MESSAGE);
+        await this.assertNoOverlap(scope, detail.sites.map((site) => site.id), detail.startDate, detail.endDate, id);
         await this.periods.update({ id, scope }, { publishStatus: CsiPeriodPublishStatus.PUBLISHED });
         return this.get(scope, id);
     }
@@ -206,7 +207,7 @@ export class CsiPeriodService {
             slaTargetPct: dto.slaTargetPct ?? source?.slaTargetPct ?? CSI_SLA_TARGET_DEFAULT,
         };
         assertSomeSection(sections);
-        await this.assertNoOverlap(scope, siteIds, dto.startDate, dto.endDate);
+        // New periods are drafts: they may overlap; the clash is enforced at publish (see assertNoOverlap).
         const copied = source ? await this.copyAssignments(scope, source.id, siteIds) : { ratees: [], raterIds: [] };
 
         const periodId = await this.dataSource.transaction(async (manager) => {
@@ -238,7 +239,7 @@ export class CsiPeriodService {
         assertSomeSection(next);
         const currentSiteIds = (sites ?? []).map((row) => row.siteId);
         const siteIds = requestedSiteIds ? await this.resolveSiteIds(requestedSiteIds) : currentSiteIds;
-        await this.assertNoOverlap(scope, siteIds, next.startDate, next.endDate, id);
+        if (period.publishStatus === CsiPeriodPublishStatus.PUBLISHED) await this.assertNoOverlap(scope, siteIds, next.startDate, next.endDate, id);
         const sitesChanged = !sameIds(siteIds, currentSiteIds);
         if (sitesChanged || changesLockedField(period, dto)) {
             // Sites, respondent mode, sections and team label are frozen after the first answer (title, texts, dates and
@@ -393,13 +394,40 @@ export class CsiPeriodService {
         return siteIds;
     }
 
-    /** Overlap is per site: another period of the scope sharing any site and intersecting the dates clashes. */
+    /**
+     * Published periods of the scope sharing a site and intersecting the dates (optionally excluding one period).
+     * Drafts never count: they are invisible to respondents, so admins may prepare the next survey freely.
+     */
+    async overlaps(scope: ServiceScope, siteIds: string[], startDate: string, endDate: string, excludeId?: string) {
+        if (!siteIds.length || !startDate || !endDate || endDate < startDate) return [];
+        const matching = await this.periods.find({
+            where: {
+                scope, publishStatus: CsiPeriodPublishStatus.PUBLISHED, sites: { siteId: In(siteIds) },
+                startDate: LessThanOrEqual(endDate), endDate: MoreThanOrEqual(startDate),
+                ...(excludeId ? { id: Not(excludeId) } : {}),
+            },
+            select: { id: true },
+        });
+        if (!matching.length) return [];
+        const rows = await this.periods.find({ where: { id: In(matching.map((row) => row.id)) }, relations: WITH_SITES, order: { startDate: 'ASC' } });
+        return rows.map((row) => {
+            const view = withSites(row);
+            return {
+                id: row.id, title: row.title, startDate: row.startDate, endDate: row.endDate,
+                sites: view.sites.filter((site) => siteIds.includes(site.id)),
+            };
+        });
+    }
+
+    /** One published survey per scope, site and day: 409 naming the clashing survey (structured for the form). */
     private async assertNoOverlap(scope: ServiceScope, siteIds: string[], startDate: string, endDate: string, excludeId?: string) {
-        const clash = await this.periods.findOne({ where: {
-            scope, sites: { siteId: In(siteIds) }, startDate: LessThanOrEqual(endDate), endDate: MoreThanOrEqual(startDate),
-            ...(excludeId ? { id: Not(excludeId) } : {}),
-        } });
-        if (clash) throw new ConflictException('Rentang tanggal bertabrakan dengan periode lain');
+        const [clash] = await this.overlaps(scope, siteIds, startDate, endDate, excludeId);
+        if (!clash) return;
+        const where = clash.sites.map((site) => site.code ?? site.name).filter(Boolean).join(', ');
+        throw new ConflictException({
+            statusCode: 409, code: 'CSI_PERIOD_OVERLAP', overlap: clash,
+            message: `Tanggal bertabrakan dengan survei "${clash.title}" (${where}, ${clash.startDate} s.d. ${clash.endDate}) yang sudah terbit`,
+        });
     }
 
     private async countResponses(periodIds: string[]) {

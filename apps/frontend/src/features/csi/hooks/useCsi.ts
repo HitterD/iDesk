@@ -3,7 +3,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { CsiApi } from '../api/csi.api';
 import type {
     CsiMemoHeader, CsiMemoRequest, CsiPair, CsiScopeParam, CsiUserIds, CreateCsiDepartment, CreateCsiDimension,
-    CreateCsiPeriod, CreateCsiTeam, ResetCsiResponse, SaveCsiQuestionSet, SendCsiReminders, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
+    CreateCsiPeriod, CreateCsiTeam, CsiRaterGroupFilter, ResetCsiResponse, SaveCsiQuestionSet, SendCsiReminders, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
     UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject,
 } from '../types';
 
@@ -165,6 +165,32 @@ export function useCreateCsiTeam(scope: CsiScopeParam) {
     return useCsiMutation((payload: CreateCsiTeam) => CsiApi.createTeam(scope, payload), () => subjectKeys(scope));
 }
 
+/** Live clash check of the survey info form; idle until sites and both dates are set. */
+export function useCsiPeriodOverlaps(scope: CsiScopeParam, query: { siteIds: readonly string[]; startDate: string; endDate: string; excludeId?: string }) {
+    const ready = query.siteIds.length > 0 && !!query.startDate && !!query.endDate && query.endDate >= query.startDate;
+    return useQuery({
+        queryKey: keys.overlaps(scope, JSON.stringify(query)), queryFn: () => CsiApi.periodOverlaps(scope, query), enabled: ready,
+    });
+}
+export function useCsiRaterDepartments(scope: CsiScopeParam, siteId?: string) {
+    return useQuery({ queryKey: keys.raterDepartments(scope, siteId ?? ''), queryFn: () => CsiApi.raterDepartments(scope, siteId) });
+}
+export function useCsiRaterGroupPreview(scope: CsiScopeParam, filter: CsiRaterGroupFilter) {
+    return useQuery({
+        queryKey: keys.raterGroup(scope, JSON.stringify(filter)), queryFn: () => CsiApi.raterGroupPreview(scope, filter),
+        enabled: !!(filter.siteId || filter.departmentId),
+    });
+}
+export function useAddCsiRaterGroup(scope: CsiScopeParam) {
+    return useCsiMutation((filter: CsiRaterGroupFilter) => CsiApi.addRaterGroup(scope, filter), () => [keys.raters(scope), ['csi', scope, 'rater-group']]);
+}
+export function useImportCsiRaters(scope: CsiScopeParam) {
+    return useCsiMutation(({ keys: list, commit }: { keys: string[]; commit: boolean }) => CsiApi.importRaters(scope, list, commit),
+        ({ commit }) => (commit ? [keys.raters(scope), ['csi', scope, 'rater-group']] : []));
+}
+export function useRemoveCsiRaters(scope: CsiScopeParam) {
+    return useCsiMutation((ids: string[]) => CsiApi.removeRaters(scope, ids), () => [keys.raters(scope), ['csi', scope, 'rater-group']]);
+}
 export function useCsiQuestionSets(scope: CsiScopeParam) {
     return useQuery({ queryKey: keys.questionSets(scope), queryFn: () => CsiApi.questionSets(scope) });
 }

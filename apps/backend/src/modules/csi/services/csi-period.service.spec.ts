@@ -215,9 +215,19 @@ describe('CsiPeriodService', () => {
     describe('create', () => {
         beforeEach(() => periods.rows.push(basePeriod()));
 
-        it('rejects overlapping range for same scope+site (409)', async () => {
-            await expect(service.create(ICT, createDto(), 'admin')).rejects.toBeInstanceOf(ConflictException);
-            expect(manager.save).not.toHaveBeenCalled();
+        it('a new draft may overlap a published period (the clash is enforced at publish)', async () => {
+            await service.create(ICT, createDto(), 'admin');
+            expect(savedPeriod()).toMatchObject({ publishStatus: CsiPeriodPublishStatus.DRAFT });
+        });
+
+        it('overlaps() names the published survey sharing a site and dates; drafts and other scopes never count', async () => {
+            periods.rows.push(basePeriod({ id: 'draft', publishStatus: CsiPeriodPublishStatus.DRAFT }));
+            const clashes = await service.overlaps(ICT, ['site-a'], '2026-09-15', '2026-10-15');
+            expect(clashes.map((row) => row.id)).toEqual(['p1']);
+            expect(clashes[0]).toMatchObject({ title: 'Q3', startDate: '2026-07-01', endDate: '2026-09-30' });
+            expect(await service.overlaps(HC, ['site-a'], '2026-09-15', '2026-10-15')).toEqual([]);
+            expect(await service.overlaps(ICT, ['site-a'], '2026-09-15', '2026-10-15', 'p1')).toEqual([]);
+            expect(await service.overlaps(ICT, ['site-a'], '2026-10-15', '2026-09-15')).toEqual([]);
         });
 
         it('allows same range on other site', async () => {
@@ -300,10 +310,8 @@ describe('CsiPeriodService', () => {
         });
 
         it('overlap is checked per site', async () => {
-            await expect(service.create(ICT, createDto({ siteIds: ['site-b', 'site-a'] }), 'admin')).rejects.toBeInstanceOf(ConflictException);
-            expect(manager.save).not.toHaveBeenCalled();
-            await service.create(ICT, createDto({ siteIds: ['site-b'] }), 'admin');
-            expect(savedPeriod().sites).toEqual([{ siteId: 'site-b' }]);
+            expect(await service.overlaps(ICT, ['site-b', 'site-a'], '2026-09-15', '2026-10-15')).toHaveLength(1);
+            expect(await service.overlaps(ICT, ['site-b'], '2026-09-15', '2026-10-15')).toEqual([]);
         });
 
         it('both sections disabled → 400', async () => {
@@ -807,6 +815,17 @@ describe('CsiPeriodService', () => {
             const detail = await service.publish(ICT, 'p1');
             expect(periods.update).toHaveBeenCalledWith({ id: 'p1', scope: ICT }, { publishStatus: CsiPeriodPublishStatus.PUBLISHED });
             expect(detail.publishStatus).toBe(CsiPeriodPublishStatus.PUBLISHED);
+        });
+
+        it('publish refuses a draft whose dates clash with a published survey of the same site (409 naming it)', async () => {
+            periods.rows.push(draft());
+            withAssignment();
+            periods.rows.push(basePeriod({ id: 'live', title: 'CSI ICT', startDate: '2026-09-01', endDate: '2026-09-10' }));
+            const error = await service.publish(ICT, 'p1').catch((caught) => caught);
+            expect(error).toBeInstanceOf(ConflictException);
+            expect(error.getResponse()).toMatchObject({ code: 'CSI_PERIOD_OVERLAP', overlap: { id: 'live', title: 'CSI ICT' } });
+            expect(error.message).toMatch(/"CSI ICT"/);
+            expect(periods.update).not.toHaveBeenCalled();
         });
 
         it('publishing an already published period is a no-op', async () => {

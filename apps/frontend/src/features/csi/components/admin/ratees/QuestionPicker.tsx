@@ -51,7 +51,7 @@ interface QuestionPickerProps {
 }
 
 /**
- * Questions for the people being assigned: one click on a saved set (Master data "Set pertanyaan"),
+ * Questions for the people being assigned: one click on a saved set (Pengaturan "Set pertanyaan"),
  * or tick questions one by one; the current ticks can be saved as a new set.
  */
 export function QuestionPicker({ scope, questions, value, onChange, disabled }: QuestionPickerProps) {

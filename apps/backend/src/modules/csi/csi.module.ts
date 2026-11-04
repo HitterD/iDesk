@@ -37,6 +37,8 @@ import { CsiDimension } from './entities/csi-dimension.entity';
 import { CsiQuestionSet } from './entities/csi-question-set.entity';
 import { CsiQuestionSetService } from './services/csi-question-set.service';
 import { CsiAdminQuestionSetController } from './presentation/csi-admin-question-set.controller';
+import { CsiAdminRaterBulkController } from './presentation/csi-admin-rater-bulk.controller';
+import { CsiRaterBulkService } from './services/csi-rater-bulk.service';
 import { CsiDepartment } from './entities/csi-department.entity';
 import { CsiRater } from './entities/csi-rater.entity';
 import { CsiPeriod } from './entities/csi-period.entity';
@@ -62,9 +64,9 @@ import { CsiResponseComment } from './entities/csi-response-comment.entity';
     ],
     controllers: [
         CsiAdminMasterController, CsiAdminPeriodController, CsiAdminReportController, CsiAdminMemoController, CsiMeController,
-        CsiAdminSubjectController, CsiAdminAssignmentController, CsiAdminDashboardController, CsiAdminQuestionSetController,
+        CsiAdminSubjectController, CsiAdminAssignmentController, CsiAdminDashboardController, CsiAdminQuestionSetController, CsiAdminRaterBulkController,
     ],
     providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService, CsiMemoService,
-        CsiSubjectService, CsiAssignmentService, CsiReminderService, CsiDashboardService, CsiQuestionSetService],
+        CsiSubjectService, CsiAssignmentService, CsiReminderService, CsiDashboardService, CsiQuestionSetService, CsiRaterBulkService],
 })
 export class CsiModule { }

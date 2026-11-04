@@ -1,6 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import {
-    IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Length, MaxLength, Min, ValidateIf, ValidateNested,
+    ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Length, MaxLength, Min, ValidateIf, ValidateNested,
     ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface, Validate,
 } from 'class-validator';
 import { CSI_OPTION_LABEL_MAX, CsiQuestionType } from '../csi.constants';
@@ -171,4 +171,32 @@ export class UserSearchQueryDto {
     @IsInt({ message: 'Batas hasil harus berupa bilangan bulat' })
     @Min(1, { message: 'Batas hasil minimal 1' })
     limit?: number;
+}
+
+/** "Tambahkan per kelompok": every active user of a site and/or an HR department. */
+export class RaterGroupDto {
+    @IsOptional()
+    @IsUUID('all', { message: 'Site harus berupa UUID' })
+    siteId?: string;
+
+    @IsOptional()
+    @IsUUID('all', { message: 'Departemen harus berupa UUID' })
+    departmentId?: string;
+}
+
+/** Pasted or imported list of emails / NIKs; `commit: false` only previews the match. */
+export class RaterImportDto {
+    @IsArray({ message: 'Daftar email/NIK harus berupa array' })
+    @ArrayMaxSize(2000, { message: 'Maksimal 2000 baris per impor' })
+    @IsString({ each: true, message: 'Setiap baris harus berupa teks' })
+    keys: string[];
+
+    @IsBoolean({ message: 'commit harus berupa boolean' })
+    commit: boolean;
+}
+
+export class RaterIdsDto {
+    @IsArray({ message: 'Daftar penilai harus berupa array' })
+    @IsUUID('all', { each: true, message: 'ID penilai harus berupa UUID' })
+    ids: string[];
 }
