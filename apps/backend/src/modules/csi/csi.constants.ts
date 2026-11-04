@@ -41,7 +41,15 @@ export enum CsiRespondentMode {
 export enum CsiPeriodPublishStatus {
     DRAFT = 'DRAFT',
     PUBLISHED = 'PUBLISHED',
+    /** Stopped by an admin: hidden from respondents, dashboards and clash checks; answers and report are kept. */
+    CANCELLED = 'CANCELLED',
 }
+export enum CsiPairMode {
+    ALL = 'ALL',
+    CUSTOM = 'CUSTOM',
+}
+export const CSI_CANCEL_REASON_MIN = 5;
+export const CSI_CANCEL_REASON_MAX = 500;
 
 export const CSI_ADMIN_PAGE_KEY: Record<ServiceScope, PageKey> = {
     ICT: 'csi_admin_ict',

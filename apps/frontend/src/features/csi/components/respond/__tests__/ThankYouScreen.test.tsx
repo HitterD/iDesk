@@ -37,7 +37,7 @@ describe('ThankYouScreen', () => {
         renderScreen();
         expect(screen.getByRole('heading', { name: 'Terima kasih, Dodi!' })).toBeInTheDocument();
         expect(screen.getByText('Masukan Anda dibaca tim ICT.')).toBeInTheDocument();
-        const items = within(screen.getByRole('list', { name: 'Semua subjek' })).getAllByRole('listitem');
+        const items = within(screen.getByRole('list', { name: 'Semua yang Anda nilai' })).getAllByRole('listitem');
         expect(items.map((item) => item.textContent)).toEqual(['TTim IT Support', 'AAndi', LONG_NAME]); // Budi has a photo, no initial
         expect(within(items[0]).getByRole('img', { name: 'Rata-rata 5,0 dari 5' })).toBeInTheDocument();
         expect(within(items[1]).getByRole('img', { name: 'Rata-rata 3,5 dari 5' })).toBeInTheDocument();

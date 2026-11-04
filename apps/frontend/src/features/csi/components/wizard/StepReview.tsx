@@ -25,7 +25,7 @@ function Summary({ period }: { period: CsiPeriodDetail }) {
         ['Tanggal', formatDateRange(period.startDate, period.endDate)],
         ['Mode responden', CSI_MODE_LABELS[period.respondentMode]],
         ['Bagian', sectionsLabel(period)],
-        ['Target SLA', `${period.slaTargetPct}%`],
+        ['Target partisipasi', `${period.slaTargetPct}%`],
         ...(period.individualEnabled ? [['Orang yang dinilai', `${period.ratees.filter((ratee) => ratee.kind === 'PERSON').length} orang`] as [string, string]] : []),
         ...(period.respondentMode === 'LISTED' ? [['Penilai', `${period.raters.length} penilai`] as [string, string]] : []),
     ];

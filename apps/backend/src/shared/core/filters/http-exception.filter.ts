@@ -14,7 +14,7 @@ import { Request, Response } from 'express';
  * allow-list so other bodies (login `errorCode`, renewal `existingId`) stay
  * unforwarded. 5xx bodies are never forwarded.
  */
-const FORWARDED_BODY_KEYS = ['code', 'currentAssignee', 'tickets'] as const;
+const FORWARDED_BODY_KEYS = ['code', 'currentAssignee', 'tickets', 'overlap'] as const;
 
 function businessFields(body: unknown, status: number): Record<string, unknown> {
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR || !body || typeof body !== 'object') return {};

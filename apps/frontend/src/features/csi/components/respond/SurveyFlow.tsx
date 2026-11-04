@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CSI_HTTP_CONFLICT, CSI_MESSAGES, errorMessage, errorStatus, orderRatees } from '../../lib/csiForm';
@@ -7,7 +8,7 @@ import { FlowChromeContext, LIVE_FOOTER_SPACE, ScreenTransition, type HeadingLev
 import { IntroScreen } from './IntroScreen';
 import { RateeScreen } from './RateeScreen';
 import { ReviewScreen } from './ReviewScreen';
-import { RESPOND_COPY } from './respondCopy';
+import { confirmDepartmentText, RESPOND_COPY } from './respondCopy';
 import { isRateeComplete, useSurveyAnswers } from './useSurveyAnswers';
 import { useSurveyNavigation } from './useSurveyNavigation';
 
@@ -46,6 +47,7 @@ export function SurveyFlow({ form: source, userId, mode = 'live', onSubmit, subm
     const duplicate = errorStatus(error) === CSI_HTTP_CONFLICT;
     const failure = error ? (duplicate ? CSI_MESSAGES.alreadySubmitted : errorMessage(error) ?? CSI_MESSAGES.submitFailed) : null;
     const departmentName = form.departments.find((department) => department.id === draft.departmentId)?.name ?? null;
+    const [confirmingDepartment, setConfirmingDepartment] = useState(false);
 
     return (
         <FlowChromeContext.Provider value={{ navigated: nav.navigated, aboveBottomNav: !preview, headingLevel }}>
@@ -55,7 +57,8 @@ export function SurveyFlow({ form: source, userId, mode = 'live', onSubmit, subm
                 {position === 0 && (
                     <IntroScreen form={form} departmentId={draft.departmentId} onDepartmentChange={answers.setDepartment}
                         departmentLocked={!preview && lockedDepartment !== null}
-                        canStart={preview || Boolean(draft.departmentId)} onStart={() => goTo(1)}
+                        canStart={preview || Boolean(draft.departmentId)}
+                        onStart={() => (preview || lockedDepartment !== null ? goTo(1) : setConfirmingDepartment(true))}
                         unavailable={!preview && form.departments.length === 0} />
                 )}
                 {ratee && (
@@ -72,6 +75,9 @@ export function SurveyFlow({ form: source, userId, mode = 'live', onSubmit, subm
                 )}
             </ScreenTransition>
             </div>
+            <ConfirmationDialog isOpen={confirmingDepartment} appearance="ticket" variant="warning" title="Konfirmasi departemen"
+                description={confirmDepartmentText(departmentName ?? '')} confirmText="Ya, sudah benar" cancelText="Ubah"
+                onCancel={() => setConfirmingDepartment(false)} onConfirm={() => { setConfirmingDepartment(false); goTo(1); }} />
         </FlowChromeContext.Provider>
     );
 }

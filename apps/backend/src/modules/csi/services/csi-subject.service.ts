@@ -28,9 +28,12 @@ export type CsiSubjectGroup = { siteId: string; siteCode: string; siteName: stri
 type SubjectUser = Pick<User, 'id' | 'fullName' | 'siteId' | 'jobTitle' | 'avatarUrl'>;
 const USER_FIELDS = { id: true, fullName: true, siteId: true, jobTitle: true, avatarUrl: true } as const;
 
-/** Staff roles mapped to the scope (ROLE_SCOPE is the single source of truth); ADMIN is cross-scope and not a subject. */
+/** Administrator roles of a scope: they run the survey, they are not rated by it (HC people are picked by hand). */
+const SCOPE_ADMIN_ROLES: readonly UserRole[] = [UserRole.HC_ADMIN];
+
+/** Staff roles mapped to the scope (ROLE_SCOPE is the single source of truth); ADMIN and scope admins are not subjects. */
 const agentRolesOf = (scope: ServiceScope) =>
-    (Object.keys(ROLE_SCOPE) as UserRole[]).filter((role) => ROLE_SCOPE[role] === scope);
+    (Object.keys(ROLE_SCOPE) as UserRole[]).filter((role) => ROLE_SCOPE[role] === scope && !SCOPE_ADMIN_ROLES.includes(role));
 
 const personView = (user: SubjectUser, profile: CsiSubjectProfile | undefined): CsiSubjectView => ({
     key: userSubjectKey(user.id), kind: 'PERSON', userId: user.id, teamId: null, siteId: user.siteId, name: user.fullName,

@@ -18,7 +18,7 @@ import {
     type MatrixData, type PairKey,
 } from './matrixModel';
 
-export const OPEN_MODE_NOTE = 'Mode terbuka: semua user aktif di site dapat mengisi dan menilai semua subjek. Ganti ke "Penilai terpilih" untuk memakai matriks ini.';
+export const OPEN_MODE_NOTE = 'Mode terbuka: semua user aktif di site dapat mengisi dan menilai semua tim dan orang. Ganti ke "Hanya penilai terdaftar" di Info survei untuk memakai tabel ini.';
 const SAVED_TOAST = 'Pemetaan penilai disimpan';
 const TEMPLATE_SAVED_TOAST = 'Template pemetaan disimpan';
 const TEMPLATE_APPLIED_TOAST = 'Pemetaan disalin dari template';

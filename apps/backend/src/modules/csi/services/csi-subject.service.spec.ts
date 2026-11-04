@@ -162,6 +162,11 @@ describe('CsiSubjectService', () => {
             await expect(service.removeMember(HC, HCU)).rejects.toBeInstanceOf(NotFoundException);
         });
 
+        it('HC administrators run the survey but are never listed as HC subjects', async () => {
+            users.rows.push({ id: '77777777-7777-4777-8777-777777777777', fullName: 'Admin HC', siteId: SPJ.id, role: UserRole.HC_ADMIN, isActive: true, jobTitle: null, avatarUrl: null });
+            expect((await service.list(HC)).flatMap((group) => group.people)).toEqual([]);
+        });
+
         it('ICT agents are not HC subjects unless added', async () => {
             await expect(service.update(HC, `user:${U1}`, { tagline: 'x' })).rejects.toBeInstanceOf(NotFoundException);
         });

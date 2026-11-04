@@ -74,7 +74,7 @@ describe('RatersTab', () => {
         fx.raters = [rater('a', 'Andi', 'SPJ'), rater('b', 'Budi', 'SPJ'), rater('c', 'Citra', 'KRW')];
         const actor = userEvent.setup();
         render(<RatersTab scope="ict" />);
-        expect(screen.getByRole('heading', { name: 'Penilai terdaftar · 3' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Daftar penilai · 3' })).toBeInTheDocument();
         const spj = screen.getByRole('region', { name: 'Penilai Sepanjang' });
         await actor.click(within(spj).getByRole('checkbox', { name: 'Pilih semua penilai Sepanjang' }));
         await actor.click(screen.getByRole('button', { name: 'Hapus 2 terpilih' }));

@@ -5,7 +5,7 @@ import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { wibEndOfDate, wibStartOfDate } from '../../../shared/core/utils/wib-date.util';
 import { Site } from '../../sites/entities/site.entity';
 import { User } from '../../users/entities/user.entity';
-import { CSI_SLA_TARGET_DEFAULT, CSI_TEAM_LABEL_DEFAULT, CsiPeriodPublishStatus, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { CSI_CANCEL_REASON_MIN, CSI_SLA_TARGET_DEFAULT, CSI_TEAM_LABEL_DEFAULT, CsiPairMode, CsiPeriodPublishStatus, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CreatePeriodDto, RateeAssignmentDto, UpdatePeriodDto, UpdatePeriodRateeDto } from '../dto/period.dto';
 import { CSI_TAGLINE_MAX } from '../dto/subject.dto';
 import { CsiDepartment } from '../entities/csi-department.entity';
@@ -102,6 +102,23 @@ const sameIds =(a: string[], b: string[]) => a.length === b.length && a.every((i
 const assertSomeSection = (sections: { teamEnabled: boolean; individualEnabled: boolean }) => {
     if (!sections.teamEnabled && !sections.individualEnabled) throw new BadRequestException(NO_SECTION_MESSAGE);
 };
+const CANCELLED_MESSAGE = 'Survei ini sudah dibatalkan. Aktifkan lagi dulu.';
+const CONFIRM_TITLE_MESSAGE = 'Judul yang diketik tidak sama dengan judul survei';
+const collapse = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
+
+/** Double confirmation of destructive actions: the exact title (case/space-insensitive) and a short reason. */
+function assertConfirmed(period: Pick<CsiPeriod, 'title'>, input: { confirmTitle: string; reason: string }): string {
+    if (collapse(input.confirmTitle ?? '') !== collapse(period.title)) throw new BadRequestException(CONFIRM_TITLE_MESSAGE);
+    const reason = (input.reason ?? '').trim();
+    if (reason.length < CSI_CANCEL_REASON_MIN) throw new BadRequestException(`Alasan minimal ${CSI_CANCEL_REASON_MIN} karakter`);
+    return reason;
+}
+
+/** One survey schedule change per scope at a time (publish / restore), released at commit. */
+async function lockScopeSchedule(manager: EntityManager, scope: ServiceScope) {
+    await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`csi-schedule:${scope}`]);
+}
+
 const definedOnly = <T extends object>(value: T): Partial<T> =>
     Object.fromEntries(Object.entries(value).filter(([, field]) => field !== undefined)) as Partial<T>;
 
@@ -172,13 +189,73 @@ export class CsiPeriodService {
         };
     }
 
-    /** Re-computes readiness server-side; already published is a no-op. */
+    /**
+     * Re-computes readiness server-side; already published is a no-op. The clash check and the status change run in
+     * one transaction holding a per-scope advisory lock, so two clashing drafts published at the same time cannot both
+     * pass (the second waits and then sees the first one published).
+     */
     async publish(scope: ServiceScope, id: string) {
         const detail = await this.get(scope, id);
         if (detail.publishStatus === CsiPeriodPublishStatus.PUBLISHED) return detail;
+        if (detail.publishStatus === CsiPeriodPublishStatus.CANCELLED) throw new BadRequestException(CANCELLED_MESSAGE);
         if (!detail.readiness.ready) throw new BadRequestException(INCOMPLETE_MESSAGE);
-        await this.assertNoOverlap(scope, detail.sites.map((site) => site.id), detail.startDate, detail.endDate, id);
-        await this.periods.update({ id, scope }, { publishStatus: CsiPeriodPublishStatus.PUBLISHED });
+        await this.dataSource.transaction(async (manager) => {
+            await lockScopeSchedule(manager, scope);
+            await this.assertNoOverlap(scope, detail.sites.map((site) => site.id), detail.startDate, detail.endDate, id, manager);
+            await manager.getRepository(CsiPeriod).update({ id, scope }, { publishStatus: CsiPeriodPublishStatus.PUBLISHED });
+        });
+        return this.get(scope, id);
+    }
+
+    /**
+     * Stops a survey (running or not, answered or not): hidden from respondents, dashboards and clash checks.
+     * Answers and the report are kept. The caller confirms by retyping the title; the reason goes to the audit log.
+     */
+    async cancel(scope: ServiceScope, id: string, input: { confirmTitle: string; reason: string }, actorId: string) {
+        const period = await this.findInScope(scope, id);
+        if (period.publishStatus === CsiPeriodPublishStatus.CANCELLED) return this.get(scope, id);
+        const reason = assertConfirmed(period, input);
+        await this.periods.update({ id, scope }, {
+            publishStatus: CsiPeriodPublishStatus.CANCELLED, cancelledAt: new Date(), cancelledById: actorId, cancelReason: reason,
+        });
+        return { detail: await this.get(scope, id), audit: { reason, previous: period.publishStatus, responses: await this.countOne(id) } };
+    }
+
+    /** Brings a cancelled survey back as published (same clash rules as publishing); only while its end date is ahead. */
+    async restore(scope: ServiceScope, id: string, now: Date = new Date()) {
+        const period = await this.findInScope(scope, id, { sites: true });
+        if (period.publishStatus !== CsiPeriodPublishStatus.CANCELLED) return this.get(scope, id);
+        if (computeStatus(period, now) === 'ENDED') throw new BadRequestException('Survei sudah melewati tanggal selesai. Buat survei baru atau ubah tanggalnya dulu.');
+        await this.dataSource.transaction(async (manager) => {
+            await lockScopeSchedule(manager, scope);
+            await this.assertNoOverlap(scope, siteIdsOf(period), period.startDate, period.endDate, id, manager);
+            await manager.getRepository(CsiPeriod).update({ id, scope }, {
+                publishStatus: CsiPeriodPublishStatus.PUBLISHED, cancelledAt: null, cancelledById: null, cancelReason: null,
+            });
+        });
+        return this.get(scope, id);
+    }
+
+    /** Deletes a cancelled survey with all its answers (second step after cancel; title retyped again). */
+    async purge(scope: ServiceScope, id: string, input: { confirmTitle: string; reason: string }) {
+        const period = await this.findInScope(scope, id);
+        if (period.publishStatus !== CsiPeriodPublishStatus.CANCELLED) throw new BadRequestException('Batalkan survei dulu sebelum menghapus permanen.');
+        const reason = assertConfirmed(period, input);
+        const responses = await this.countOne(id);
+        await this.dataSource.transaction(async (manager) => {
+            await lockPeriodRow(manager, id);
+            // csi_responses has no ON DELETE CASCADE to periods (items/comments cascade from responses).
+            await manager.delete(CsiResponse, { periodId: id });
+            await manager.delete(CsiPeriod, { id, scope });
+        });
+        return { period, audit: { reason, responses } };
+    }
+
+    /** "Siapa menilai siapa" mode chosen in the wizard; ALL also clears the pairs. */
+    async setPairMode(scope: ServiceScope, id: string, mode: CsiPairMode) {
+        await this.findInScope(scope, id);
+        await this.periods.update({ id, scope }, { pairMode: mode });
+        if (mode === CsiPairMode.ALL && (await this.assignments.hasPairs(id))) await this.assignments.setPairs(scope, id, []);
         return this.get(scope, id);
     }
 
@@ -218,6 +295,7 @@ export class CsiPeriodService {
                 thankYou: dto.thankYou ?? source?.thankYou ?? '',
                 startDate: dto.startDate, endDate: dto.endDate,
                 respondentMode: dto.respondentMode ?? source?.respondentMode ?? DEFAULT_RESPONDENT_MODE[scope],
+                pairMode: source?.pairMode ?? null,
                 publishStatus: CsiPeriodPublishStatus.DRAFT,
                 createdById: actorId,
             });
@@ -240,6 +318,7 @@ export class CsiPeriodService {
         const currentSiteIds = (sites ?? []).map((row) => row.siteId);
         const siteIds = requestedSiteIds ? await this.resolveSiteIds(requestedSiteIds) : currentSiteIds;
         if (period.publishStatus === CsiPeriodPublishStatus.PUBLISHED) await this.assertNoOverlap(scope, siteIds, next.startDate, next.endDate, id);
+        // A published period's dates/sites can only move inside the clash rules; others ignore them (see overlaps()).
         const sitesChanged = !sameIds(siteIds, currentSiteIds);
         if (sitesChanged || changesLockedField(period, dto)) {
             // Sites, respondent mode, sections and team label are frozen after the first answer (title, texts, dates and
@@ -368,7 +447,15 @@ export class CsiPeriodService {
      * copied from a source period are never overwritten.
      */
     private async applyTemplateWhileUnmapped(scope: ServiceScope, id: string, unmapped: boolean) {
-        if (unmapped) await this.assignments.applyTemplate(scope, id);
+        if (!unmapped) return;
+        const period = await this.periods.findOne({ where: { id }, select: { id: true, pairMode: true } });
+        // "Semua menilai semua" chosen explicitly must stay that way.
+        if (period?.pairMode === CsiPairMode.ALL) return;
+        await this.assignments.applyTemplate(scope, id);
+    }
+
+    private countOne(periodId: string) {
+        return this.responses.count({ where: { periodId } });
     }
 
     private async findInScope(scope: ServiceScope, id: string, relations?: FindOptionsRelations<CsiPeriod>) {
@@ -398,9 +485,10 @@ export class CsiPeriodService {
      * Published periods of the scope sharing a site and intersecting the dates (optionally excluding one period).
      * Drafts never count: they are invisible to respondents, so admins may prepare the next survey freely.
      */
-    async overlaps(scope: ServiceScope, siteIds: string[], startDate: string, endDate: string, excludeId?: string) {
+    async overlaps(scope: ServiceScope, siteIds: string[], startDate: string, endDate: string, excludeId?: string, manager?: EntityManager) {
         if (!siteIds.length || !startDate || !endDate || endDate < startDate) return [];
-        const matching = await this.periods.find({
+        const periods = manager ? manager.getRepository(CsiPeriod) : this.periods;
+        const matching = await periods.find({
             where: {
                 scope, publishStatus: CsiPeriodPublishStatus.PUBLISHED, sites: { siteId: In(siteIds) },
                 startDate: LessThanOrEqual(endDate), endDate: MoreThanOrEqual(startDate),
@@ -409,7 +497,7 @@ export class CsiPeriodService {
             select: { id: true },
         });
         if (!matching.length) return [];
-        const rows = await this.periods.find({ where: { id: In(matching.map((row) => row.id)) }, relations: WITH_SITES, order: { startDate: 'ASC' } });
+        const rows = await periods.find({ where: { id: In(matching.map((row) => row.id)) }, relations: WITH_SITES, order: { startDate: 'ASC' } });
         return rows.map((row) => {
             const view = withSites(row);
             return {
@@ -420,8 +508,8 @@ export class CsiPeriodService {
     }
 
     /** One published survey per scope, site and day: 409 naming the clashing survey (structured for the form). */
-    private async assertNoOverlap(scope: ServiceScope, siteIds: string[], startDate: string, endDate: string, excludeId?: string) {
-        const [clash] = await this.overlaps(scope, siteIds, startDate, endDate, excludeId);
+    private async assertNoOverlap(scope: ServiceScope, siteIds: string[], startDate: string, endDate: string, excludeId?: string, manager?: EntityManager) {
+        const [clash] = await this.overlaps(scope, siteIds, startDate, endDate, excludeId, manager);
         if (!clash) return;
         const where = clash.sites.map((site) => site.code ?? site.name).filter(Boolean).join(', ');
         throw new ConflictException({

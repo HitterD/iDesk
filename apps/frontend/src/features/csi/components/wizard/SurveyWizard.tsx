@@ -22,6 +22,8 @@ export interface SurveyWizardProps {
     onCreated: (periodId: string) => void;
     /** Published from the review step; the caller opens the detail view. */
     onPublished: (periodId: string) => void;
+    /** New survey only: copy this period with its next dates. */
+    copyFrom?: string | null;
 }
 
 /** What a successful info save leads to: the next step, closing the wizard, or a step picked in the stepper. */
@@ -41,7 +43,7 @@ function useStepDirty(step: WizardStepKey) {
     return [dirty.step === step && dirty.value, report] as const;
 }
 
-export function SurveyWizard({ scope, periodId, step, onStepChange, onClose, onCreated, onPublished }: SurveyWizardProps) {
+export function SurveyWizard({ scope, periodId, step, onStepChange, onClose, onCreated, onPublished, copyFrom }: SurveyWizardProps) {
     const query = useCsiPeriod(scope, periodId ?? '');
     const { data: dimensions = [] } = useCsiDimensions(scope);
     const activeQuestions = dimensions.length;
@@ -79,7 +81,7 @@ export function SurveyWizard({ scope, periodId, step, onStepChange, onClose, onC
                         isComplete={(key) => !!period && stepComplete(key, period, activeQuestions)} onSelect={select} />
                 </div>
                 <div className="grid min-w-0 gap-4">
-                    <WizardStepBody scope={scope} step={current} period={period} formRef={formRef}
+                    <WizardStepBody scope={scope} step={current} period={period} formRef={formRef} copyFrom={copyFrom}
                         onInfoStatus={setInfo} onInfoSaved={infoSaved} onDirtyChange={reportDirty}
                         onEditStep={onStepChange} onPublished={onPublished} />
                     <WizardFooter showBack={current !== 'info'} showNext={current !== 'review'} blocked={blocked}

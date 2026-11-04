@@ -36,11 +36,25 @@ describe('SurveyFlow intro', () => {
     it('department is chosen once when the account has none; start waits for it', async () => {
         const user = userEvent.setup();
         renderFlow();
-        expect(screen.getByText('Dipilih sekali, lalu terkunci untuk survei berikutnya.')).toBeInTheDocument();
+        expect(screen.getByText('Pastikan benar: departemen tidak bisa diubah setelah dipilih.')).toBeInTheDocument();
         expect(button('Mulai mengisi')).toBeDisabled();
         await user.click(screen.getByRole('combobox', { name: 'Departemen' }));
         await user.click(await screen.findByRole('option', { name: 'Produksi' }));
         expect(button('Mulai mengisi')).toBeEnabled();
+    });
+
+    it('a first-time department is confirmed before it locks; "Ubah" goes back to the picker', async () => {
+        const user = userEvent.setup();
+        renderFlow();
+        await user.click(screen.getByRole('combobox', { name: 'Departemen' }));
+        await user.click(await screen.findByRole('option', { name: 'Produksi' }));
+        await user.click(button('Mulai mengisi'));
+        expect(await screen.findByText(/Departemen Anda: Produksi\. Pilihan ini tidak bisa diubah lagi/)).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Ubah' }));
+        expect(screen.getByRole('combobox', { name: 'Departemen' })).toBeInTheDocument();
+        await user.click(button('Mulai mengisi'));
+        await user.click(await screen.findByRole('button', { name: 'Ya, sudah benar' }));
+        expect(screen.getByText('Penilaian 1 dari 3')).toBeInTheDocument();
     });
 
     it('a department known for the account is locked: no picker, start is ready', () => {
@@ -61,7 +75,7 @@ describe('SurveyFlow screens', () => {
         expect(screen.getByText('1 / 3')).toBeInTheDocument();
         expect(screen.getByText('“Selalu siap membantu”')).toBeInTheDocument();
         expect(button(NEXT)).toHaveAccessibleName('Lanjut · Andi');
-        expect(screen.getByText('Subjek 1 dari 3')).toBeInTheDocument();
+        expect(screen.getByText('Penilaian 1 dari 3')).toBeInTheDocument();
         expect(screen.getByText('Tersimpan otomatis')).toBeInTheDocument();
         expect(chips().getAllByRole('button').map((chip) => chip.getAttribute('aria-label'))).toEqual(['1. Tim IT Support', '2. Andi', `3. ${LONG_NAME}`]);
     });
@@ -79,7 +93,7 @@ describe('SurveyFlow screens', () => {
         const user = userEvent.setup();
         renderFlow({ mode: 'preview' });
         await user.click(button('Mulai mengisi'));
-        expect(screen.getByText('Subjek 1 dari 3')).toBeInTheDocument();
+        expect(screen.getByText('Penilaian 1 dari 3')).toBeInTheDocument();
         expect(screen.queryByText('Tersimpan otomatis')).not.toBeInTheDocument();
     });
 

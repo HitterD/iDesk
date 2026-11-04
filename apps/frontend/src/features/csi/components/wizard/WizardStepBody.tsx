@@ -21,12 +21,13 @@ export interface WizardStepBodyProps {
     onDirtyChange: (dirty: boolean) => void;
     onEditStep: (step: WizardStepKey) => void;
     onPublished: (periodId: string) => void;
+    copyFrom?: string | null;
 }
 
 export function WizardStepBody(props: WizardStepBodyProps) {
     const { scope, step, period } = props;
     if (step === 'info' || !period) {
-        return <StepInfo scope={scope} period={period} formRef={props.formRef} onStatusChange={props.onInfoStatus} onSaved={props.onInfoSaved} />;
+        return <StepInfo scope={scope} period={period} formRef={props.formRef} onStatusChange={props.onInfoStatus} onSaved={props.onInfoSaved} copyFrom={props.copyFrom} />;
     }
     switch (step) {
         case 'questions': return <StepQuestions scope={scope} />;

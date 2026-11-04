@@ -39,7 +39,7 @@ function SurveysArea({ scope, route }: { scope: CsiScopeParam; route: AdminRoute
     }
     // Drafts resume in the wizard (the step is resolved once the detail loads); published surveys open the detail.
     const open = (period: CsiPeriodListItem) => period.publishStatus === 'DRAFT' ? route.openWizard(period.id) : route.openDetail(period.id);
-    return <PeriodsTab scope={scope} onOpen={open} onCreate={() => route.openWizard(null, 'info')} />;
+    return <PeriodsTab scope={scope} onOpen={open} onCreate={() => route.openWizard(null, 'info')} onRepeat={(period) => route.openCopy(period.id)} />;
 }
 
 function AreaBody({ area, scope, route }: { area: AdminArea; scope: CsiScopeParam; route: AdminRoute }) {

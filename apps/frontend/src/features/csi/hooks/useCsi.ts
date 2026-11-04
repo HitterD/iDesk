@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/
 import { queryKeys } from '@/lib/queryKeys';
 import { CsiApi } from '../api/csi.api';
 import type {
+    ConfirmCsiPeriodAction, CsiPairMode,
     CsiMemoHeader, CsiMemoRequest, CsiPair, CsiScopeParam, CsiUserIds, CreateCsiDepartment, CreateCsiDimension,
     CreateCsiPeriod, CreateCsiTeam, CsiRaterGroupFilter, ResetCsiResponse, SaveCsiQuestionSet, SendCsiReminders, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
     UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject,
@@ -35,10 +36,14 @@ export function useCsiActive() {
 export function useCsiForm(id: string) {
     return useQuery({ queryKey: keys.form(id), queryFn: () => CsiApi.form(id), enabled: !!id });
 }
+/**
+ * The respondent does not know the URL scope; refresh both admin views if cached. The form itself is NOT refetched:
+ * it would come back "already answered" and replace the thank-you screen before it is shown.
+ */
 export function useSubmitCsi(id: string) {
-    // The respondent does not know the URL scope; refresh both admin views if cached.
-    return useCsiMutation((payload: SubmitCsiResponse) => CsiApi.submit(id, payload),
-        () => [...periodKeys('ict', id), ...periodKeys('hc', id)]);
+    const form = keys.form(id);
+    const others = (scope: CsiScopeParam) => periodKeys(scope, id).filter((key) => JSON.stringify(key) !== JSON.stringify(form));
+    return useCsiMutation((payload: SubmitCsiResponse) => CsiApi.submit(id, payload), () => [...others('ict'), ...others('hc')]);
 }
 
 export function useCsiDimensions(scope: CsiScopeParam, includeInactive = false) {
@@ -102,6 +107,19 @@ export function usePublishCsiPeriod(scope: CsiScopeParam, id: string) {
 }
 export function useUnpublishCsiPeriod(scope: CsiScopeParam, id: string) {
     return useCsiMutation(() => CsiApi.unpublishPeriod(scope, id), () => periodKeys(scope, id));
+}
+export function useCancelCsiPeriod(scope: CsiScopeParam, id: string) {
+    return useCsiMutation((payload: ConfirmCsiPeriodAction) => CsiApi.cancelPeriod(scope, id, payload), () => [...periodKeys(scope, id), keys.dashboard(scope)]);
+}
+export function useRestoreCsiPeriod(scope: CsiScopeParam, id: string) {
+    return useCsiMutation(() => CsiApi.restorePeriod(scope, id), () => [...periodKeys(scope, id), keys.dashboard(scope)]);
+}
+/** Like delete: not the detail keys (the open detail would refetch a deleted period). */
+export function usePurgeCsiPeriod(scope: CsiScopeParam, id: string) {
+    return useCsiMutation((payload: ConfirmCsiPeriodAction) => CsiApi.purgePeriod(scope, id, payload), () => [keys.periods(scope), keys.active(), keys.dashboard(scope)]);
+}
+export function useSetCsiPairMode(scope: CsiScopeParam, id: string) {
+    return useCsiMutation((mode: CsiPairMode) => CsiApi.setPairMode(scope, id, mode), () => [...periodKeys(scope, id), keys.assignments(scope, id)]);
 }
 export function useDeleteCsiPeriod(scope: CsiScopeParam) {
     // Not the detail keys: the open detail view would refetch a deleted period (404 toast) before navigating away.

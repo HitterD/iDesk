@@ -24,10 +24,10 @@ export function PeriodRaters({ scope, period, onDirtyChange }: {
     const toggle = (id: string, on: boolean) => setSelected((current) => on ? [...current, id] : current.filter((item) => item !== id));
 
     return (
-        <AdminSection title="Penilai periode" description="Hanya penilai yang dicentang yang dapat mengisi survei periode ini."
+        <AdminSection title="Penilai survei ini" description="Centang siapa saja dari Daftar penilai yang mengisi survei ini."
             actions={locked ? <LockedNote /> : dirty ? <span role="status" className="text-[12.5px] font-medium text-[hsl(var(--ticket-amber-ink))]">Ada perubahan yang belum disimpan</span> : null}>
             {!isLoading && !master.length ? (
-                <EmptyNote>Belum ada penilai terdaftar. Tambahkan penilai di atas.</EmptyNote>
+                <EmptyNote>Daftar penilai masih kosong. Buka "Tambah orang ke Daftar penilai" di bawah.</EmptyNote>
             ) : (
                 <div className="rounded-2xl border border-[hsl(var(--idesk-border)/.7)]">
                     <div className="flex items-center gap-2.5 border-b border-[hsl(var(--idesk-border)/.7)] px-4 py-2.5">

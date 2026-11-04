@@ -5,7 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useCreateCsiPeriod, useUpdateCsiPeriod } from '../../hooks/useCsi';
 import { CSI_MODE_LABELS, CSI_TEXT_MAX, CSI_TITLE_MAX } from '../../lib/csiAdmin';
 import {
-    datesInvalid, formDirty, initialState, sectionsInvalid, slaInvalid, teamLabelInvalid, toCreatePayload, toUpdatePayload,
+    datesInvalid, formDirty, initialState, nextPeriodForm, sectionsInvalid, slaInvalid, teamLabelInvalid, toCreatePayload, toUpdatePayload,
     withCopyMode, withCopySource, type PeriodFormState,
 } from '../../lib/periodForm';
 import type { CsiPeriodDetail, CsiPeriodListItem, CsiRespondentMode, CsiScopeParam } from '../../types';
@@ -29,16 +29,18 @@ interface PeriodEditorProps {
     periods?: readonly CsiPeriodListItem[];
     /** Called after a save, or immediately when an existing period is submitted unchanged. */
     onSaved: (period: CsiPeriodDetail) => void;
+    /** Create only: start as a copy of this period with its next dates ("Buat lagi"). */
+    copyFrom?: string | null;
     /** The wizard footer submits this form (`requestSubmit`) and mirrors its state. */
     formRef?: Ref<HTMLFormElement>;
     onStatusChange?: (status: PeriodEditorStatus) => void;
 }
 
 /** Survey info form (wizard step 1). Actions live in the wizard footer. */
-export function PeriodEditor({ scope, period, periods = [], onSaved, formRef, onStatusChange }: PeriodEditorProps) {
+export function PeriodEditor({ scope, period, periods = [], copyFrom, onSaved, formRef, onStatusChange }: PeriodEditorProps) {
     // Backend freezes sites, mode and sections once answers exist; only texts, dates and the SLA target stay editable.
     const locked = !!period?.locked;
-    const [form, setForm] = useState(() => initialState(scope, period));
+    const [form, setForm] = useState(() => (!period && copyFrom && periods.length ? nextPeriodForm(scope, periods, copyFrom) : initialState(scope, period)));
     const create = useCreateCsiPeriod(scope);
     const update = useUpdateCsiPeriod(scope);
     const pending = create.isPending || update.isPending;

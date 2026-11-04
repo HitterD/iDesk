@@ -3,14 +3,14 @@ import { ArrowLeft } from 'lucide-react';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { SegmentedControl } from '@/components/ui/segmented-control';
-import { useCsiPeriod } from '../../hooks/useCsi';
+import { useCsiPeriod, useCsiPeriods } from '../../hooks/useCsi';
 import { CSI_MODE_LABELS } from '../../lib/csiAdmin';
 import { formatDateRange } from '../../lib/format';
 import { formatSites } from '../../lib/location';
 import type { WizardStepKey } from '../../lib/wizard';
 import type { CsiScopeParam, CsiSiteSummary } from '../../types';
-import { ADMIN_PANEL, MUTED_TEXT, PublishPill, StatusPill } from './AdminParts';
-import { AssignmentMatrix } from './assignment/AssignmentMatrix';
+import { ADMIN_PANEL, MUTED_TEXT, SurveyStatePill } from './AdminParts';
+import { PairsPanel } from '../wizard/StepPairs';
 import { PeriodChecklist } from './PeriodChecklist';
 import { PeriodReport } from './PeriodReport';
 import { RespondentStatus } from './RespondentStatus';
@@ -18,9 +18,9 @@ import { ResponseDetailSheet } from './ResponseDetailSheet';
 
 type DetailTab = 'settings' | 'raters' | 'report';
 const DETAIL_TABS = [
-    { value: 'settings', label: 'Kelengkapan' },
-    { value: 'raters', label: 'Penilai' },
-    { value: 'report', label: 'Laporan' },
+    { value: 'report', label: 'Laporan & progres' },
+    { value: 'raters', label: 'Siapa menilai siapa' },
+    { value: 'settings', label: 'Syarat terbit' },
 ] as const;
 export const UNSAVED_LEAVE_TITLE = 'Perubahan belum disimpan. Tinggalkan?';
 
@@ -30,8 +30,9 @@ function ReportPanel({ scope, periodId, sites, initialSiteId }: {
     const [responseId, setResponseId] = useState<string | null>(null);
     return (
         <div className="grid gap-5">
-            <PeriodReport scope={scope} periodId={periodId} sites={sites} initialSiteId={initialSiteId} />
+            {/* Progress first: "who has not filled it yet" is what admins look for while a survey runs. */}
             <RespondentStatus scope={scope} periodId={periodId} sites={sites} onOpenResponse={setResponseId} />
+            <PeriodReport scope={scope} periodId={periodId} sites={sites} initialSiteId={initialSiteId} />
             <ResponseDetailSheet scope={scope} periodId={periodId} responseId={responseId} onClose={() => setResponseId(null)} />
         </div>
     );
@@ -50,7 +51,11 @@ interface PeriodDetailProps {
 
 export function PeriodDetail({ scope, periodId, onBack, onEditStep, initialTab, initialSiteId }: PeriodDetailProps) {
     const { data: period, isLoading, isError, refetch } = useCsiPeriod(scope, periodId);
-    const [tab, setTab] = useState<DetailTab>(initialTab ?? 'settings');
+    const { data: listed } = useCsiPeriods(scope);
+    const responseCount = listed?.find((row) => row.id === periodId)?.responseCount ?? 0;
+    // A draft opens on what it still needs; anything published or cancelled opens on its results.
+    const [chosenTab, setTab] = useState<DetailTab | null>(initialTab ?? null);
+    const tab: DetailTab = chosenTab ?? (period && period.publishStatus === 'DRAFT' ? 'settings' : 'report');
     // The matrix edits locally; leaving its tab with unsaved pairs asks first.
     const [matrixDirty, setMatrixDirty] = useState(false);
     const [pendingTab, setPendingTab] = useState<DetailTab | null>(null);
@@ -73,8 +78,7 @@ export function PeriodDetail({ scope, periodId, onBack, onEditStep, initialTab, 
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-[20px] font-bold tracking-tight">{period.title}</h2>
-                        <PublishPill status={period.publishStatus} />
-                        <StatusPill status={period.status} />
+                        <SurveyStatePill period={period} />
                     </div>
                     <p className={MUTED_TEXT}>
                         {[formatSites(period.sites), formatDateRange(period.startDate, period.endDate), CSI_MODE_LABELS[period.respondentMode]].filter(Boolean).join(' · ')}
@@ -82,8 +86,8 @@ export function PeriodDetail({ scope, periodId, onBack, onEditStep, initialTab, 
                 </div>
                 <SegmentedControl aria-label="Bagian survei" className="dash-seg" options={DETAIL_TABS} value={tab} onValueChange={changeTab} />
             </header>
-            {tab === 'settings' && <PeriodChecklist scope={scope} period={period} onEditStep={onEditStep} onDeleted={onBack} />}
-            {tab === 'raters' && <AssignmentMatrix scope={scope} period={period} onDirtyChange={setMatrixDirty} />}
+            {tab === 'settings' && <PeriodChecklist scope={scope} period={period} responseCount={responseCount} onEditStep={onEditStep} onDeleted={onBack} />}
+            {tab === 'raters' && <PairsPanel scope={scope} period={period} onDirtyChange={setMatrixDirty} />}
             {tab === 'report' && <ReportPanel scope={scope} periodId={period.id} sites={period.sites} initialSiteId={initialSiteId} />}
             <ConfirmationDialog isOpen={pendingTab !== null} appearance="ticket" variant="warning" title={UNSAVED_LEAVE_TITLE}
                 description="Perubahan pada matriks penilai akan hilang." confirmText="Tinggalkan" cancelText="Tetap di sini"

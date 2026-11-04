@@ -37,6 +37,8 @@ export type CsiAnswerRatee = {
 };
 export type CsiAnswer = {
     responseId: string; respondentName: string; accountName: string; areaName: string | null;
+    /** Site of the respondent's account (report site filter); null when the account has none. */
+    siteId?: string | null;
     departmentName: string; submittedAt: Date; ratees: CsiAnswerRatee[];
 };
 /** Ratees (enabled sections), their resolved views, dimensions, items and responses of one period. */
@@ -179,7 +181,9 @@ export class CsiReportService {
             displayName: ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || report.period.teamLabel : ratee.displayName,
         }));
         const subjectIds = new Set(subjects.map((subject) => subject.periodRateeId));
-        const relevant = answers.filter((answer) => answer.ratees.some((ratee) => subjectIds.has(ratee.periodRateeId)));
+        // Same site rule as the report: with a site filter, only respondents of that site count (see narrowToSite).
+        const relevant = answers.filter((answer) => (!siteId || answer.siteId === siteId)
+            && answer.ratees.some((ratee) => subjectIds.has(ratee.periodRateeId)));
         return raterMatrix(subjects, relevant);
     }
 
@@ -284,7 +288,7 @@ export class CsiReportService {
             }
             return {
                 responseId: response.id, respondentName: response.respondentName, accountName: response.respondent.fullName,
-                areaName: response.respondent.site?.name ?? null, departmentName: response.departmentName,
+                areaName: response.respondent.site?.name ?? null, siteId: response.respondent.siteId ?? null, departmentName: response.departmentName,
                 submittedAt: response.submittedAt, ratees: [...ratees.values()],
             };
         });

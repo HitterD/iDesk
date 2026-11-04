@@ -4,7 +4,8 @@ export type CsiScopeParam = 'ict' | 'hc';
 export type CsiScope = ServiceScope;
 export type CsiRespondentMode = 'OPEN' | 'LISTED';
 export type CsiPeriodStatus = 'UPCOMING' | 'ACTIVE' | 'ENDED';
-export type CsiPublishStatus = 'DRAFT' | 'PUBLISHED';
+export type CsiPublishStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELLED';
+export type CsiPairMode = 'ALL' | 'CUSTOM';
 export type CsiQuestionType = 'STAR' | 'SCALE' | 'CHOICE' | 'TEXT';
 export type CsiRateeKind = 'PERSON' | 'TEAM';
 
@@ -77,7 +78,12 @@ export interface CsiPeriod extends CsiTimestamps {
     individualEnabled: boolean;
     slaTargetPct: number;
     createdById: string;
+    /** "Siapa menilai siapa": null until chosen in the wizard. */
+    pairMode?: CsiPairMode | null;
+    cancelledAt?: string | null;
+    cancelReason?: string | null;
 }
+export interface ConfirmCsiPeriodAction { confirmTitle: string; reason: string }
 
 export interface CsiPeriodListItem extends CsiPeriod {
     status: CsiPeriodStatus;

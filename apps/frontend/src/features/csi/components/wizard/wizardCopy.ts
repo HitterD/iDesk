@@ -4,7 +4,7 @@ export const WIZARD_COPY = {
     startBlank: 'Mulai kosong',
     copyPrevious: 'Salin dari survei sebelumnya',
     copySource: 'Salin dari survei',
-    copyHint: 'Teks, site, bagian penilaian, orang yang dinilai, pertanyaan, dan penilai ikut disalin. Tanggal diisi ulang.',
+    copyHint: 'Teks, site, bagian penilaian, orang yang dinilai, pertanyaan, penilai, dan siapa menilai siapa ikut disalin. Tanggal diisi ulang.',
     datesRequired: 'Tanggal mulai dan selesai wajib diisi',
     next: 'Lanjut',
     back: 'Kembali',
@@ -21,7 +21,7 @@ export const WIZARD_COPY = {
     stepDone: 'selesai',
     checkOk: 'terpenuhi',
     checkFailed: 'belum terpenuhi',
-    readinessTitle: 'Kelengkapan',
+    readinessTitle: 'Syarat terbit',
     publishedIncomplete: 'Survei terbit tetapi belum lengkap — responden tidak dapat mengisi sampai checklist terpenuhi.',
     published: 'Survei diterbitkan',
     unpublished: 'Survei ditarik ke draft',
@@ -29,9 +29,9 @@ export const WIZARD_COPY = {
     toDetail: 'Ke detail survei',
     previewTitle: 'Pratinjau',
     previewBanner: 'Pratinjau — jawaban tidak dikirim',
-    questionsNote: 'Pertanyaan ini bisa dipakai di penilaian tim dan penilaian per orang.',
-    departmentsNote: 'Semua departemen aktif dipakai di form. Tambahkan bila ada yang belum terdaftar.',
-    ratersNote: 'Tambahkan penilai terdaftar, lalu centang siapa yang mengisi survei ini.',
+    questionsNote: 'Daftar pertanyaan ini dipakai bersama oleh semua survei: perubahan di sini berlaku untuk survei lain juga.',
+    departmentsNote: 'Daftar departemen dipakai bersama oleh semua survei. Biasanya tidak perlu diubah.',
+    ratersNote: 'Belum ada di daftar? Tambahkan di sini: mereka juga masuk Daftar penilai di Pengaturan.',
     add: 'Tambah',
 } as const;
 
@@ -61,8 +61,9 @@ export const SECTION_COPY = {
     individualHint: 'Responden menilai orang tertentu satu per satu.',
     noneError: 'Aktifkan minimal satu bagian penilaian',
     teamLabel: 'Nama tim',
-    sla: 'Target SLA',
-    slaError: 'Target SLA harus bilangan bulat 1–100',
+    sla: 'Target partisipasi',
+    slaHint: 'Persentase penilai yang harus mengisi agar target tercapai.',
+    slaError: 'Target partisipasi harus bilangan bulat 1–100',
 } as const;
 
 export const TEAM_COPY = {

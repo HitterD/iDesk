@@ -1,3 +1,4 @@
+import { addDays, addMonths, differenceInCalendarDays, differenceInCalendarMonths, endOfMonth, format, isLastDayOfMonth, parseISO } from 'date-fns';
 import { CSI_DEFAULT_MODE } from './csiAdmin';
 import type {
     CreateCsiPeriod, CsiPeriodDetail, CsiPeriodListItem, CsiRespondentMode, CsiScopeParam, UpdateCsiPeriod,
@@ -43,6 +44,8 @@ export const initialState = (scope: CsiScopeParam, period?: CsiPeriodDetail): Pe
     copying: false, copyFromPeriodId: NO_COPY,
 };
 
+const ISO = 'yyyy-MM-dd';
+
 /** ISO calendar dates compare correctly as strings. */
 export const datesInvalid = (form: PeriodFormState) => !!form.startDate && !!form.endDate && form.endDate < form.startDate;
 
@@ -73,6 +76,30 @@ export function formDirty(form: PeriodFormState, period?: CsiPeriodDetail): bool
 export const withCopyMode = (form: PeriodFormState, copying: boolean): PeriodFormState => copying
     ? { ...form, copying, startDate: '', endDate: '' }
     : { ...form, copying, copyFromPeriodId: NO_COPY };
+
+/**
+ * "Buat lagi untuk periode berikutnya": the source copied with the same length right after it ends
+ * (a monthly survey of 1-31 Okt becomes 1-31 Nov; a 3-day one starts the next day).
+ */
+export function nextPeriodRange(source: Pick<CsiPeriodListItem, 'startDate' | 'endDate'>): { startDate: string; endDate: string } {
+    const start = parseISO(source.startDate);
+    const end = parseISO(source.endDate);
+    const wholeMonth = start.getDate() === 1 && isLastDayOfMonth(end);
+    if (wholeMonth) {
+        const months = differenceInCalendarMonths(end, start) + 1;
+        const nextStart = addMonths(start, months);
+        return { startDate: format(nextStart, ISO), endDate: format(endOfMonth(addMonths(nextStart, months - 1)), ISO) };
+    }
+    const nextStart = addDays(end, 1);
+    return { startDate: format(nextStart, ISO), endDate: format(addDays(nextStart, differenceInCalendarDays(end, start)), ISO) };
+}
+
+/** Pre-filled "copy" form for the next period of `source`. */
+export function nextPeriodForm(scope: CsiScopeParam, periods: readonly CsiPeriodListItem[], sourceId: string): PeriodFormState {
+    const source = periods.find((item) => item.id === sourceId);
+    const copied = withCopySource({ ...initialState(scope), copying: true }, periods, sourceId);
+    return source ? { ...copied, ...nextPeriodRange(source) } : copied;
+}
 
 /** Copying also brings the source's sites, sections and SLA target; the user can still override them. */
 export function withCopySource(form: PeriodFormState, periods: readonly CsiPeriodListItem[], id: string): PeriodFormState {

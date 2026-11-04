@@ -1,5 +1,6 @@
 import api from '@/lib/api';
 import type {
+    ConfirmCsiPeriodAction, CsiPairMode,
     CsiActivePeriod, CsiAssignments, CsiDashboard, CsiDepartment, CsiDimension, CsiForm, CsiPeriod, CsiPeriodDetail,
     CsiPeriodListItem, CsiRater, CsiReminderResult, CsiRemovedRater, CsiReport, CsiResetResult, CsiRespondents,
     CsiPeriodOverlap, CsiQuestionSet, CsiRaterDepartmentOption, CsiRaterGroupFilter, CsiRaterGroupPreview, CsiRaterImportResult, CsiRaterMatrix, CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, SaveCsiQuestionSet, CsiSubjectView, CsiSubmitResult, CsiUserIds, CsiUserSearchResult,
@@ -96,6 +97,18 @@ export const CsiApi = {
     },
     async unpublishPeriod(scope: CsiScopeParam, id: string): Promise<CsiPeriodDetail> {
         return (await api.post<CsiPeriodDetail>(`${periodPath(scope, id)}/unpublish`)).data;
+    },
+    async cancelPeriod(scope: CsiScopeParam, id: string, payload: ConfirmCsiPeriodAction): Promise<CsiPeriodDetail> {
+        return (await api.post<CsiPeriodDetail>(`${periodPath(scope, id)}/cancel`, payload, { skipToast: true })).data;
+    },
+    async restorePeriod(scope: CsiScopeParam, id: string): Promise<CsiPeriodDetail> {
+        return (await api.post<CsiPeriodDetail>(`${periodPath(scope, id)}/restore`)).data;
+    },
+    async purgePeriod(scope: CsiScopeParam, id: string, payload: ConfirmCsiPeriodAction): Promise<{ deleted: true }> {
+        return (await api.post<{ deleted: true }>(`${periodPath(scope, id)}/purge`, payload, { skipToast: true })).data;
+    },
+    async setPairMode(scope: CsiScopeParam, id: string, mode: CsiPairMode): Promise<CsiPeriodDetail> {
+        return (await api.put<CsiPeriodDetail>(`${periodPath(scope, id)}/pair-mode`, { mode })).data;
     },
     async deletePeriod(scope: CsiScopeParam, id: string): Promise<CsiPeriod> {
         return (await api.delete<CsiPeriod>(periodPath(scope, id))).data;

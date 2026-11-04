@@ -164,6 +164,19 @@ describe('SearchService caller isolation', () => {
         expect(userRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
 
+    it('keeps an HC administrator out of ICT tickets, hardware requests and the staff directory', async () => {
+        const ticketRepo = makeRepo([]);
+        const userRepo = makeRepo([{ id: 'u2', fullName: 'Other', email: 'o@x', role: 'USER' }]);
+        const hardwareRequestRepo = makeRepo([]);
+        const { service } = buildService(makeRepo([]), { ticketRepo, userRepo, hardwareRequestRepo });
+
+        const result = await service.search({ q: 'laptop' }, [ArticleVisibility.PUBLIC], { userId: 'hc-1', role: UserRole.HC_ADMIN, siteId: 'site-a' });
+
+        expect(sqlOf(ticketRepo)).toContain('1 = 0');
+        expect(sqlOf(hardwareRequestRepo)).toContain('hw.requesterId = :searchUserId');
+        expect(result.users).toEqual([]);
+    });
+
     it('pins a site-locked agent to their own site for tickets, users and hardware', async () => {
         const ticketRepo = makeRepo([]);
         const userRepo = makeRepo([]);

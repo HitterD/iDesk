@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { CheckCircle2, ChevronRight, ClipboardList, Lock, Star } from 'lucide-react';
+import { CheckCircle2, ChevronRight, ClipboardList, Star } from 'lucide-react';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { TicketPill } from '@/components/ui/ticket-pill';
 import { cn } from '@/lib/utils';
@@ -60,7 +60,7 @@ export function CsiSurveyListPage() {
                                         <Star className="h-5 w-5 fill-current" />
                                     </span>
                                     <span className="min-w-0 flex-1">
-                                        <span className="block truncate text-[15px] font-semibold text-foreground">{survey.title}</span>
+                                        <span className="line-clamp-2 block text-[15px] font-semibold leading-snug text-foreground">{survey.title}</span>
                                         <span className="mt-1.5 flex flex-wrap items-center gap-2">
                                             <TicketPill tone={survey.scope === 'HC' ? 'teal' : 'blue'}>{survey.scope}</TicketPill>
                                             {survey.submitted ? (
@@ -75,7 +75,7 @@ export function CsiSurveyListPage() {
                                     </span>
                                     {/* One answer per account: an answered survey only opens its "already answered" screen. */}
                                     <span className={cn('inline-flex shrink-0 items-center gap-1 text-[13px] font-semibold', survey.submitted ? 'text-muted-foreground' : 'text-primary')}>
-                                        {survey.submitted ? <><Lock className="h-3.5 w-3.5" aria-hidden="true" />Terkunci</> : user && hasDraft(user.id, survey.id) ? 'Lanjutkan' : 'Isi Survei'}
+                                        {survey.submitted ? <><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Sudah dikirim</> : user && hasDraft(user.id, survey.id) ? 'Lanjutkan' : 'Isi Survei'}
                                     </span>
                                     <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
                                 </Link>

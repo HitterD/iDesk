@@ -8,7 +8,7 @@ const hooks = vi.hoisted(() => ({ mutate: vi.fn(), view: null as CsiAssignments 
 
 vi.mock('../../../hooks/useCsi', () => ({
     useCsiAssignments: () => ({ data: hooks.view }),
-    useSaveCsiAssignments: () => ({ mutate: hooks.mutate, isPending: false }),
+    useSetCsiPairMode: () => ({ mutate: hooks.mutate, isPending: false }),
 }));
 vi.mock('../../admin/assignment/AssignmentMatrix', () => ({ AssignmentMatrix: () => <div data-testid="matrix" /> }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }));
@@ -29,14 +29,16 @@ afterEach(cleanup);
 describe('StepPairs', () => {
     it('defaults to "everyone rates everyone" while no pairs are saved (no matrix shown)', () => {
         render(<StepPairs scope="ict" period={period()} onDirtyChange={vi.fn()} />);
-        expect(screen.getByRole('radio', { name: /Semua penilai menilai semua subjek/ })).toHaveAttribute('aria-checked', 'true');
+        expect(screen.getByRole('radio', { name: /Semua penilai menilai semua/ })).toHaveAttribute('aria-checked', 'true');
         expect(screen.queryByTestId('matrix')).not.toBeInTheDocument();
     });
 
     it('"Atur per tim / orang" opens the matrix; a mapped period starts there', async () => {
         const actor = userEvent.setup();
         const { unmount } = render(<StepPairs scope="ict" period={period()} onDirtyChange={vi.fn()} />);
+        hooks.mutate.mockImplementation((_mode: string, options: { onSuccess?: () => void }) => options?.onSuccess?.());
         await actor.click(screen.getByRole('radio', { name: /Atur per tim/ }));
+        expect(hooks.mutate).toHaveBeenCalledWith('CUSTOM', expect.anything());
         expect(screen.getByTestId('matrix')).toBeInTheDocument();
         unmount();
         hooks.view = view([{ periodRaterId: 'pr1', periodRateeId: 'r1' }]);
@@ -44,12 +46,26 @@ describe('StepPairs', () => {
         expect(screen.getByRole('radio', { name: /Atur per tim/ })).toHaveAttribute('aria-checked', 'true');
     });
 
-    it('switching back to "everyone" clears the saved pairs', async () => {
+    it('switching back to "everyone" asks first when pairs exist, then stores the mode ALL', async () => {
         hooks.view = view([{ periodRaterId: 'pr1', periodRateeId: 'r1' }]);
         const actor = userEvent.setup();
         render(<StepPairs scope="ict" period={period()} onDirtyChange={vi.fn()} />);
-        await actor.click(screen.getByRole('radio', { name: /Semua penilai menilai semua subjek/ }));
-        expect(hooks.mutate).toHaveBeenCalledWith([], expect.anything());
+        await actor.click(screen.getByRole('radio', { name: /Semua penilai menilai semua/ }));
+        expect(hooks.mutate).not.toHaveBeenCalled();
+        expect(screen.getByText(/1 pasangan penilai yang sudah diatur akan dihapus/)).toBeInTheDocument();
+        await actor.click(screen.getByRole('button', { name: 'Ya, semua menilai semua' }));
+        expect(hooks.mutate).toHaveBeenCalledWith('ALL', expect.anything());
+    });
+
+    it('a period whose mode is stored as ALL stays on ALL even when the template refilled pairs', () => {
+        hooks.view = view([{ periodRaterId: 'pr1', periodRateeId: 'r1' }]);
+        render(<StepPairs scope="ict" period={period({ pairMode: 'ALL' })} onDirtyChange={vi.fn()} />);
+        expect(screen.getByRole('radio', { name: /Semua penilai menilai semua/ })).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('OPEN surveys explain that everyone rates everyone', () => {
+        render(<StepPairs scope="ict" period={period({ respondentMode: 'OPEN' })} onDirtyChange={vi.fn()} />);
+        expect(screen.getByText(/terbuka untuk semua user di site/)).toBeInTheDocument();
     });
 
     it('locked period cannot change the mode', () => {

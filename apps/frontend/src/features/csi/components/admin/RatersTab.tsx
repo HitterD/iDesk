@@ -78,12 +78,12 @@ export function RatersTab({ scope }: { scope: CsiScopeParam }) {
 
     return (
         <div className="grid gap-4">
-            <AdminSection title="Tambah penilai" description={`Orang yang boleh mengisi survei dengan mode "${CSI_MODE_LABELS.LISTED}". Daftar ini dipakai ulang di setiap survei.`}>
+            <AdminSection title="Tambah ke Daftar penilai" description={`Orang yang boleh mengisi survei dengan mode "${CSI_MODE_LABELS.LISTED}". Di tiap survei, Anda tinggal mencentang siapa yang mengisi.`}>
                 <AddRatersPanel scope={scope} registered={registered} />
             </AdminSection>
             <section aria-label="Daftar penilai" className={cn(ADMIN_PANEL, 'grid gap-3 p-4 sm:p-5')}>
                 <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-[14px] font-semibold">{`Penilai terdaftar · ${raters?.length ?? 0}`}</h2>
+                    <h2 className="text-[14px] font-semibold">{`Daftar penilai · ${raters?.length ?? 0}`}</h2>
                     {summary.map((group) => <span key={group.code ?? 'none'} className="rounded-full bg-[hsl(var(--muted))] px-2.5 py-0.5 text-[12px] font-semibold">{`${group.code ?? NO_SITE} ${group.raters.length}`}</span>)}
                     <label className="ml-auto flex h-9 min-w-[min(240px,100%)] items-center gap-2 rounded-xl bg-[hsl(var(--muted)/.6)] px-3 focus-within:ring-2 focus-within:ring-ring">
                         <Search className="h-4 w-4 shrink-0 opacity-60" aria-hidden="true" />

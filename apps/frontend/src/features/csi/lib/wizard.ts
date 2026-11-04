@@ -40,7 +40,6 @@ export const WIZARD_STEPS: ReadonlyArray<{ key: WizardStepKey; label: string }> 
     { key: 'team', label: 'Penilaian tim' },
     { key: 'ratees', label: 'Orang yang dinilai' },
     { key: 'raters', label: 'Penilai' },
-    { key: 'pairs', label: 'Siapa menilai siapa' },
     { key: 'departments', label: 'Departemen' },
     { key: 'review', label: 'Tinjau & terbitkan' },
 ];
@@ -51,8 +50,8 @@ const stepVisible = (key: WizardStepKey, period: WizardSections): boolean => {
     switch (key) {
         case 'team': return period.teamEnabled;
         case 'ratees': return period.individualEnabled;
-        case 'raters':
-        case 'pairs': return period.respondentMode === 'LISTED';
+        case 'raters': return period.respondentMode === 'LISTED';
+        case 'pairs': return false; // merged into the "Penilai" step
         default: return true;
     }
 };

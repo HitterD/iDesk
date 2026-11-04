@@ -47,7 +47,8 @@ function Picture({ ratee }: { ratee: CsiFormRatee }) {
  * container of at least 780 px does it become the sticky left column; below that a sticky photo would hide its
  * caption under the fixed bottom nav.
  */
-export const PHOTO_STACKED = 'relative aspect-[4/3.8] max-h-[64vh] w-full';
+/** Phones: a short banner so the first question shows without scrolling; larger screens keep the tall photo. */
+export const PHOTO_STACKED = 'relative aspect-[16/10] max-h-[34vh] w-full sm:aspect-[4/3.8] sm:max-h-[64vh]';
 export const PHOTO_STICKY = cn('lg:@min-[780px]:sticky lg:@min-[780px]:top-[var(--csi-stick,64px)] lg:@min-[780px]:aspect-auto lg:@min-[780px]:max-h-[820px] lg:@min-[780px]:min-h-[480px]',
     'lg:@min-[780px]:h-[calc(100dvh-var(--csi-chrome,0px)-var(--csi-stick,64px)-16px)] lg:@min-[780px]:rounded-l-[22px]');
 

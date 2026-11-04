@@ -5,6 +5,7 @@ const PERIOD_PARAM = 'period';
 const WIZARD_PARAM = 'wizard';
 const STEP_PARAM = 'step';
 const TAB_PARAM = 'tab';
+const COPY_PARAM = 'copy';
 const SITE_PARAM = 'site';
 /** Detail tabs that can be deep-linked (dashboard drill-down opens "report"). */
 export type DetailTabParam = 'settings' | 'raters' | 'report';
@@ -23,6 +24,10 @@ export interface AdminRoute {
     detailTab: DetailTabParam | null;
     /** Report site filter from the URL (`?site=`), null = all sites. */
     siteId: string | null;
+    /** New survey copied from this period with the next dates (`?wizard=new&copy=<id>`). */
+    copyFrom: string | null;
+    /** "Buat lagi untuk periode berikutnya". */
+    openCopy: (sourceId: string) => void;
     openDetail: (id: string, options?: { tab?: DetailTabParam; siteId?: string | null }) => void;
     openWizard: (id: string | null, step?: WizardStepKey, options?: { replace?: boolean }) => void;
     setStep: (step: WizardStepKey, options?: { replace?: boolean }) => void;
@@ -40,7 +45,7 @@ export function useAdminRoute(): AdminRoute {
         change(next);
         return next;
     }, { replace });
-    const clear = (next: URLSearchParams) => [PERIOD_PARAM, WIZARD_PARAM, STEP_PARAM, TAB_PARAM, SITE_PARAM].forEach((key) => next.delete(key));
+    const clear = (next: URLSearchParams) => [PERIOD_PARAM, WIZARD_PARAM, STEP_PARAM, TAB_PARAM, SITE_PARAM, COPY_PARAM].forEach((key) => next.delete(key));
     const tabParam = params.get(TAB_PARAM);
 
     return {
@@ -49,6 +54,8 @@ export function useAdminRoute(): AdminRoute {
         step: isWizardStepKey(stepParam) ? stepParam : null,
         detailTab: tabParam && DETAIL_TABS.includes(tabParam) ? tabParam as DetailTabParam : null,
         siteId: params.get(SITE_PARAM),
+        copyFrom: params.get(COPY_PARAM),
+        openCopy: (sourceId) => update((next) => { clear(next); next.set(WIZARD_PARAM, NEW_WIZARD); next.set(STEP_PARAM, 'info'); next.set(COPY_PARAM, sourceId); }),
         openDetail: (id, options) => update((next) => {
             clear(next);
             next.set(PERIOD_PARAM, id);

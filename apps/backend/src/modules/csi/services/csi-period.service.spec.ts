@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { In, Not, QueryFailedError } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
@@ -73,6 +73,7 @@ function transactionManager(persist: (target: unknown, value: any) => void = () 
         repositories,
         getRepository: jest.fn((target: unknown) => repositories.get(target)),
         delete: jest.fn().mockResolvedValue({ affected: 1 }),
+        query: jest.fn().mockResolvedValue([]),
         save: jest.fn(async (target: unknown, value: any) => {
             const withIds = Array.isArray(value)
                 ? value.map((row) => ({ id: row.id ?? `gen-${++sequence}`, ...row }))
@@ -92,7 +93,7 @@ const SCALE_OPTIONS = [{ label: 'Puas', points: 5 }, { label: 'Tidak puas', poin
 const basePeriod = (over: Partial<CsiPeriod> = {}): CsiPeriod => ({
     id: 'p1', scope: ICT, sites: [{ siteId: 'site-a', site } as any], title: 'Q3', intro: 'Halo', thankYou: 'Terima kasih',
     startDate: '2026-07-01', endDate: '2026-09-30', respondentMode: CsiRespondentMode.OPEN, publishStatus: CsiPeriodPublishStatus.PUBLISHED, createdById: 'admin',
-    teamEnabled: false, teamLabel: 'Tim IT Support', individualEnabled: true, slaTargetPct: 80,
+    teamEnabled: false, teamLabel: 'Tim IT Support', individualEnabled: true, slaTargetPct: 80, pairMode: null, cancelledAt: null, cancelledById: null, cancelReason: null,
     createdAt: new Date(), updatedAt: new Date(), ...over,
 });
 
@@ -196,8 +197,8 @@ describe('CsiPeriodService', () => {
         const dataSource = { transaction: jest.fn(async (work: any) => work(manager)) };
         assignments = {
             applyTemplate: jest.fn().mockResolvedValue(undefined), copyPairs: jest.fn().mockResolvedValue(undefined),
-            hasPairs: jest.fn().mockResolvedValue(false),
-        };
+            hasPairs: jest.fn().mockResolvedValue(false), setPairs: jest.fn().mockResolvedValue(undefined),
+        } as any;
         const teamNames: Record<string, string> = { 'site-a': 'Tim Sepanjang', 'site-b': 'Tim Semarang' };
         subjects = { createTeam: jest.fn(async (_scope: string, siteId: string) => ({ teamId: `team-${siteId}`, name: teamNames[siteId], siteId })) };
         service = new CsiPeriodService(
@@ -857,6 +858,69 @@ describe('CsiPeriodService', () => {
             const detail = await service.unpublish(ICT, 'p1');
             expect(periods.update).toHaveBeenCalledWith({ id: 'p1', scope: ICT }, { publishStatus: CsiPeriodPublishStatus.DRAFT });
             expect(detail.publishStatus).toBe(CsiPeriodPublishStatus.DRAFT);
+        });
+    });
+
+    describe('cancel / restore / purge', () => {
+        const confirm = { confirmTitle: '  q3 ', reason: 'Salah periode' };
+        beforeEach(() => periods.rows.push(basePeriod({ endDate: '2099-12-31' })));
+
+        it('cancel needs the exact title and a reason, keeps answers and reports what it stopped', async () => {
+            responses.rows.push({ id: 'r1', periodId: 'p1' }, { id: 'r2', periodId: 'p1' });
+            await expect(service.cancel(ICT, 'p1', { confirmTitle: 'Q4', reason: 'Salah periode' }, 'admin')).rejects.toThrow('Judul yang diketik');
+            await expect(service.cancel(ICT, 'p1', { confirmTitle: 'Q3', reason: 'x' }, 'admin')).rejects.toThrow('Alasan minimal');
+            const result: any = await service.cancel(ICT, 'p1', confirm, 'admin');
+            expect(periods.rows[0]).toMatchObject({ publishStatus: CsiPeriodPublishStatus.CANCELLED, cancelledById: 'admin', cancelReason: 'Salah periode' });
+            expect(result.audit).toEqual({ reason: 'Salah periode', previous: CsiPeriodPublishStatus.PUBLISHED, responses: 2 });
+            expect(manager.delete).not.toHaveBeenCalled();
+        });
+
+        it('a cancelled survey cannot be published, but can be restored while its end date is ahead', async () => {
+            await service.cancel(ICT, 'p1', confirm, 'admin');
+            await expect(service.publish(ICT, 'p1')).rejects.toThrow('sudah dibatalkan');
+            await service.restore(ICT, 'p1');
+            expect(periods.rows[0]).toMatchObject({ publishStatus: CsiPeriodPublishStatus.PUBLISHED, cancelledAt: null, cancelReason: null });
+            expect(manager.query).toHaveBeenCalledWith('SELECT pg_advisory_xact_lock(hashtext($1))', ['csi-schedule:ICT']);
+        });
+
+        it('restore refuses an ended survey and one that would clash with another published survey', async () => {
+            periods.rows[0] = basePeriod({ endDate: '2026-01-31', publishStatus: CsiPeriodPublishStatus.CANCELLED });
+            await expect(service.restore(ICT, 'p1')).rejects.toThrow('melewati tanggal selesai');
+            periods.rows[0] = basePeriod({ endDate: '2099-12-31', publishStatus: CsiPeriodPublishStatus.CANCELLED });
+            periods.rows.push(basePeriod({ id: 'other', title: 'Lain', startDate: '2026-08-01', endDate: '2026-08-31' }));
+            await expect(service.restore(ICT, 'p1')).rejects.toBeInstanceOf(ConflictException);
+        });
+
+        it('purge is only for cancelled surveys and deletes the answers with the period', async () => {
+            await expect(service.purge(ICT, 'p1', confirm)).rejects.toThrow('Batalkan survei dulu');
+            await service.cancel(ICT, 'p1', confirm, 'admin');
+            await expect(service.purge(ICT, 'p1', { ...confirm, confirmTitle: 'salah' })).rejects.toThrow('Judul yang diketik');
+            await service.purge(ICT, 'p1', confirm);
+            expect(manager.delete).toHaveBeenCalledWith(CsiResponse, { periodId: 'p1' });
+            expect(manager.delete).toHaveBeenCalledWith(CsiPeriod, { id: 'p1', scope: ICT });
+        });
+
+        it('cancelled surveys never clash with new ones', async () => {
+            await service.cancel(ICT, 'p1', confirm, 'admin');
+            expect(await service.overlaps(ICT, ['site-a'], '2026-07-01', '2026-09-30')).toEqual([]);
+        });
+    });
+
+    describe('pair mode', () => {
+        beforeEach(() => periods.rows.push(basePeriod({ publishStatus: CsiPeriodPublishStatus.DRAFT })));
+
+        it('ALL clears existing pairs and is never overwritten by the scope template', async () => {
+            assignments.hasPairs.mockResolvedValueOnce(true);
+            await service.setPairMode(ICT, 'p1', CsiPairMode.ALL);
+            expect((assignments as any).setPairs).toHaveBeenCalledWith(ICT, 'p1', []);
+            expect(periods.rows[0].pairMode).toBe(CsiPairMode.ALL);
+            await service.setRaters(ICT, 'p1', ['u1']);
+            expect(assignments.applyTemplate).not.toHaveBeenCalled();
+        });
+
+        it('an unchosen mode still gets the template once members exist', async () => {
+            await service.setRaters(ICT, 'p1', ['u1']);
+            expect(assignments.applyTemplate).toHaveBeenCalledWith(ICT, 'p1');
         });
     });
 });

@@ -63,6 +63,7 @@ const fillAndSubmit = async (user: User, comment?: string) => {
     await user.click(await screen.findByRole('combobox', { name: 'Departemen' }));
     await user.click(await screen.findByRole('option', { name: 'Produksi' }));
     await user.click(screen.getByRole('button', { name: 'Mulai mengisi' }));
+    await user.click(await screen.findByRole('button', { name: 'Ya, sudah benar' }));
     await rate(user, 'Kecepatan untuk Andi', 5);
     await rate(user, 'Keramahan untuk Andi', 4);
     if (comment) await user.type(screen.getByLabelText('Saran untuk Andi (opsional)'), comment);
@@ -101,8 +102,8 @@ describe('CsiSurveyPage', () => {
 
         expect(await screen.findByText('Terima kasih atas penilaian Anda!')).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: 'Terima kasih, Rina Pemohon!' })).toBeInTheDocument();
-        expect(screen.getByText('Penilaian Anda untuk 2 subjek sudah terkirim.')).toBeInTheDocument();
-        const summary = within(screen.getByRole('list', { name: 'Semua subjek' }));
+        expect(screen.getByText('Penilaian Anda untuk 2 tim/orang sudah terkirim.')).toBeInTheDocument();
+        const summary = within(screen.getByRole('list', { name: 'Semua yang Anda nilai' }));
         expect(summary.getByRole('img', { name: 'Rata-rata 4,5 dari 5' })).toBeInTheDocument();
         expect(summary.getByRole('img', { name: 'Rata-rata 3,0 dari 5' })).toBeInTheDocument();
         expect(CsiApi.submit).toHaveBeenCalledWith('p1', {
@@ -164,6 +165,21 @@ describe('CsiSurveyPage', () => {
         expect(screen.getByRole('link', { name: 'Kembali ke daftar survei' })).toHaveAttribute('href', '/client/csi');
         expect(screen.queryByRole('button', { name: /orang lain/ })).not.toBeInTheDocument();
         expect(await screen.findByRole('link', { name: /Isi sekarang/ })).toHaveAttribute('href', '/client/csi/p2');
+    });
+
+    it('bug: terima kasih tetap tampil walau form (bila di-refetch) sudah berstatus "sudah mengisi"', async () => {
+        // The server marks the form answered right after the submit; the page must still show the thank-you screen.
+        vi.mocked(CsiApi.submit).mockImplementation(async () => {
+            vi.mocked(CsiApi.form).mockResolvedValue({ ...OPEN_FORM, submittedAt: '2026-10-20T03:15:00Z', submittedNames: ['Rina Pemohon'] });
+            return { submitted: true, thankYou: 'Terima kasih!' };
+        });
+        const user = userEvent.setup();
+        renderPage();
+        await fillAndSubmit(user);
+        expect(await screen.findByRole('heading', { name: 'Terima kasih, Rina Pemohon!' })).toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'Anda sudah mengisi survei ini' })).not.toBeInTheDocument();
+        expect(CsiApi.form).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(localStorage.getItem(DRAFT_KEY)).toBeNull());
     });
 
     it('akun yang sudah mengisi melihat layar "sudah mengisi", bukan formulir', async () => {
