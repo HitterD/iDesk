@@ -17,6 +17,7 @@ import { lockPeriodRow } from './csi-period-lock.util';
 import { CsiItemRow, itemsForSite, overallStats, rateeStats } from './csi-report.calc';
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiAssignmentService } from './csi-assignment.service';
+import { raterMatrix } from './csi-rater-matrix.calc';
 import { CsiSlaService } from './csi-sla.service';
 import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
 
@@ -164,6 +165,22 @@ export class CsiReportService {
             this.responses.find({ where: { periodId: period.id }, relations: { respondent: true } }),
         ]);
         return { ratees, views, dimensions, items, responses };
+    }
+
+    /**
+     * "Siapa menilai siapa": every response × every subject of the (site-narrowed) report with the average given.
+     * Respondent names are shown to scope admins only (this endpoint sits behind CsiAdminGuard); the PDF never uses it.
+     */
+    async getRaterMatrix(scope: ServiceScope, periodId: string, siteId?: string) {
+        const report = await this.getReport(scope, periodId, siteId);
+        const answers = await this.listAnswers(scope, periodId);
+        const subjects = report.ratees.map((ratee) => ({
+            periodRateeId: ratee.periodRateeId, kind: ratee.kind, siteId: ratee.siteId,
+            displayName: ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || report.period.teamLabel : ratee.displayName,
+        }));
+        const subjectIds = new Set(subjects.map((subject) => subject.periodRateeId));
+        const relevant = answers.filter((answer) => answer.ratees.some((ratee) => subjectIds.has(ratee.periodRateeId)));
+        return raterMatrix(subjects, relevant);
     }
 
     async getRespondents(scope: ServiceScope, periodId: string) {

@@ -61,7 +61,7 @@ describe('CsiExportService', () => {
 
     it('excel has Rekap/Penilaian Tim/Penilaian Per Orang with Point columns only for scored questions', async () => {
         const workbook = await load();
-        expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['Rekap', 'Penilaian Tim', 'Penilaian Per Orang']);
+        expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['Rekap', 'Penilaian Tim', 'Penilaian Per Orang', 'Penilai x Subjek']);
 
         const recap = workbook.getWorksheet('Rekap')!;
         expect(recap.getRow(1).values).toEqual([undefined, 'Lokasi', 'Nama', 'Average', 'Average survei', '% Pengisi (SLA)']);
@@ -85,26 +85,38 @@ describe('CsiExportService', () => {
         const report = await reports.getReport();
         report.ratees = report.ratees.filter((ratee: any) => ratee.kind === 'PERSON');
         reports.getReport.mockResolvedValue(report);
-        expect((await load()).worksheets.map((sheet) => sheet.name)).toEqual(['Rekap', 'Penilaian Per Orang']);
+        expect((await load()).worksheets.map((sheet) => sheet.name)).toEqual(['Rekap', 'Penilaian Per Orang', 'Penilai x Subjek']);
     });
 
     it('excel header style teal and wrapped', async () => {
         const sheet = (await load()).getWorksheet('Penilaian Per Orang')!;
         const header = sheet.getRow(1);
-        expect(header.height).toBe(120);
+        expect(header.height).toBe(60);
         expect(header.getCell(1).font?.bold).toBe(true);
         expect(header.getCell(1).fill).toMatchObject({ type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4BC0C8' } });
         expect(header.getCell(1).alignment).toMatchObject({ wrapText: true, vertical: 'middle' });
+        expect(sheet.autoFilter).toBeTruthy();
         expect(header.getCell(1).border?.top?.style).toBe('thin');
         expect(sheet.views[0]).toMatchObject({ state: 'frozen', ySplit: 1 });
         expect(sheet.getColumn(1).width).toBe(26);
-        expect(sheet.getColumn(3).width).toBe(18);
-        expect(sheet.getColumn(6).width).toBe(18);
+        expect(sheet.getColumn(3).width).toBe(16);
+        expect(sheet.getColumn(6).width).toBe(22);
         expect(sheet.getColumn(7).width).toBe(8);
-        expect(sheet.getColumn(10).width).toBe(10);
+        expect(sheet.getColumn(10).width).toBe(11);
         const average = sheet.getRow(2).getCell(10);
         expect(average.numFmt).toBe('0.00');
         expect(average.fill).toMatchObject({ fgColor: { argb: 'FFDDF2F4' } });
         expect(average.border?.left?.style).toBe('thin');
+    });
+
+    it('adds a "Penilai x Subjek" sheet: one row per respondent, average per subject, totals below', async () => {
+        const sheet = (await load()).getWorksheet('Penilai x Subjek')!;
+        expect(sheet.getRow(1).values).toEqual([undefined, 'Timestamp', 'Nama penilai', 'Area Kerja', 'Departemen', 'Tim · Tim IT Support', `'=HYPERLINK("x")`, 'Rata-rata penilai']);
+        expect(sheet.getRow(2).values).toEqual([undefined, '2025/11/03 3:14:32 PM GMT+7', 'titi yusliyanti', 'SEPANJANG', "'+Keuangan", 4, 5, 4.5]);
+        expect(sheet.getRow(3).getCell(2).value).toBe('Jumlah penilai');
+        expect(sheet.getRow(3).getCell(5).value).toBe(1);
+        expect(sheet.getRow(4).getCell(6).value).toBe(5);
+        expect(sheet.getRow(2).getCell(6).fill).toMatchObject({ fgColor: { argb: 'FFD7F0DE' } });
+        expect(sheet.views[0]).toMatchObject({ state: 'frozen', xSplit: 4, ySplit: 1 });
     });
 });

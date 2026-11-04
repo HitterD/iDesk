@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download } from 'lucide-react';
+import { FileSpreadsheet, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -14,17 +14,20 @@ import { ReportHero } from './report/ReportHero';
 import { ScoreHeatmap } from './report/ScoreHeatmap';
 import { SubjectDetailSheet } from './report/SubjectDetailSheet';
 import { SubjectScoreCard } from './report/SubjectScoreCard';
+import { RaterMatrixPanel } from './report/RaterMatrixPanel';
 
 const ALL_SITES = 'all';
 type ReportView = 'cards' | 'heatmap';
 const VIEW_OPTIONS = [{ value: 'cards', label: 'Kartu' }, { value: 'heatmap', label: 'Perbandingan' }] as const;
 
-function ExportButton({ scope, periodId }: { scope: CsiScopeParam; periodId: string }) {
+type Exporter = () => Promise<{ blob: Blob; filename: string }>;
+
+function ExportButton({ label, icon: Icon, run: exporter }: { label: string; icon: typeof FileText; run: Exporter }) {
     const [busy, setBusy] = useState(false);
     const run = async () => {
         setBusy(true);
         try {
-            const { blob, filename } = await CsiApi.exportPeriod(scope, periodId);
+            const { blob, filename } = await exporter();
             downloadBlob(blob, filename);
         } catch (error) {
             // skipToast on the request: this is the only toast for a failed export.
@@ -35,7 +38,7 @@ function ExportButton({ scope, periodId }: { scope: CsiScopeParam; periodId: str
     };
     return (
         <Button variant="soft" onClick={run} loading={busy}>
-            {!busy && <Download aria-hidden="true" />}Export Excel
+            {!busy && <Icon aria-hidden="true" />}{label}
         </Button>
     );
 }
@@ -54,11 +57,14 @@ function SubjectCards({ ratees, siteCodeOf, onOpen }: {
 }
 
 /** Readable report: hero, site filter, ranked subject cards (or heatmap) and a detail drawer per subject. */
-export function PeriodReport({ scope, periodId, sites }: { scope: CsiScopeParam; periodId: string; sites: readonly CsiSiteSummary[] }) {
-    const [site, setSite] = useState<string>(ALL_SITES);
+export function PeriodReport({ scope, periodId, sites, initialSiteId }: {
+    scope: CsiScopeParam; periodId: string; sites: readonly CsiSiteSummary[]; initialSiteId?: string | null;
+}) {
+    const [site, setSite] = useState<string>(initialSiteId && sites.some((row) => row.id === initialSiteId) ? initialSiteId : ALL_SITES);
+    const siteParam = site === ALL_SITES ? undefined : site;
     const [view, setView] = useState<ReportView>('cards');
     const [openId, setOpenId] = useState<string | null>(null);
-    const { data: report, isLoading, isError, refetch } = useCsiReport(scope, periodId, site === ALL_SITES ? undefined : site);
+    const { data: report, isLoading, isError, refetch } = useCsiReport(scope, periodId, siteParam);
     const siteOf = (siteId: string | null) => sites.find((row) => row.id === siteId) ?? null;
     const siteCodeOf = (siteId: string | null) => siteOf(siteId)?.code ?? null;
     const siteOptions = [{ value: ALL_SITES, label: 'Semua site' },
@@ -66,8 +72,14 @@ export function PeriodReport({ scope, periodId, sites }: { scope: CsiScopeParam;
     const ranked = report ? byAverageDesc(report.ratees) : [];
     const open = ranked.find((ratee) => ratee.periodRateeId === openId) ?? null;
     return (
+        <>
         <AdminSection title="Laporan penilaian" description="Skala maksimal 5, dari rata-rata nilai setiap responden."
-            actions={<ExportButton scope={scope} periodId={periodId} />}>
+            actions={(
+                <div className="flex flex-wrap gap-2">
+                    <ExportButton label="Unduh PDF" icon={FileText} run={() => CsiApi.exportPdf(scope, periodId, siteParam)} />
+                    <ExportButton label="Export Excel" icon={FileSpreadsheet} run={() => CsiApi.exportPeriod(scope, periodId)} />
+                </div>
+            )}>
             <div className="grid gap-4">
                 {sites.length > 1 && (
                     <SegmentedControl aria-label="Filter site laporan" className="dash-seg w-fit" options={siteOptions} value={site} onValueChange={setSite} />
@@ -91,5 +103,7 @@ export function PeriodReport({ scope, periodId, sites }: { scope: CsiScopeParam;
             <SubjectDetailSheet ratee={open} siteName={open ? siteOf(open.siteId)?.name ?? null : null}
                 siteCode={open ? siteCodeOf(open.siteId) : null} onClose={() => setOpenId(null)} />
         </AdminSection>
+        <RaterMatrixPanel scope={scope} periodId={periodId} siteId={siteParam} />
+        </>
     );
 }

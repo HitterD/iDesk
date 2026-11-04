@@ -24,11 +24,13 @@ const DETAIL_TABS = [
 ] as const;
 export const UNSAVED_LEAVE_TITLE = 'Perubahan belum disimpan. Tinggalkan?';
 
-function ReportPanel({ scope, periodId, sites }: { scope: CsiScopeParam; periodId: string; sites: readonly CsiSiteSummary[] }) {
+function ReportPanel({ scope, periodId, sites, initialSiteId }: {
+    scope: CsiScopeParam; periodId: string; sites: readonly CsiSiteSummary[]; initialSiteId?: string | null;
+}) {
     const [responseId, setResponseId] = useState<string | null>(null);
     return (
         <div className="grid gap-5">
-            <PeriodReport scope={scope} periodId={periodId} sites={sites} />
+            <PeriodReport scope={scope} periodId={periodId} sites={sites} initialSiteId={initialSiteId} />
             <RespondentStatus scope={scope} periodId={periodId} sites={sites} onOpenResponse={setResponseId} />
             <ResponseDetailSheet scope={scope} periodId={periodId} responseId={responseId} onClose={() => setResponseId(null)} />
         </div>
@@ -41,11 +43,14 @@ interface PeriodDetailProps {
     onBack: () => void;
     /** Opens the survey wizard at a step ("Ubah"). */
     onEditStep: (step: WizardStepKey) => void;
+    /** Deep link from the dashboard: open this tab (and site filter) first. */
+    initialTab?: DetailTab | null;
+    initialSiteId?: string | null;
 }
 
-export function PeriodDetail({ scope, periodId, onBack, onEditStep }: PeriodDetailProps) {
+export function PeriodDetail({ scope, periodId, onBack, onEditStep, initialTab, initialSiteId }: PeriodDetailProps) {
     const { data: period, isLoading, isError, refetch } = useCsiPeriod(scope, periodId);
-    const [tab, setTab] = useState<DetailTab>('settings');
+    const [tab, setTab] = useState<DetailTab>(initialTab ?? 'settings');
     // The matrix edits locally; leaving its tab with unsaved pairs asks first.
     const [matrixDirty, setMatrixDirty] = useState(false);
     const [pendingTab, setPendingTab] = useState<DetailTab | null>(null);
@@ -79,7 +84,7 @@ export function PeriodDetail({ scope, periodId, onBack, onEditStep }: PeriodDeta
             </header>
             {tab === 'settings' && <PeriodChecklist scope={scope} period={period} onEditStep={onEditStep} onDeleted={onBack} />}
             {tab === 'raters' && <AssignmentMatrix scope={scope} period={period} onDirtyChange={setMatrixDirty} />}
-            {tab === 'report' && <ReportPanel scope={scope} periodId={period.id} sites={period.sites} />}
+            {tab === 'report' && <ReportPanel scope={scope} periodId={period.id} sites={period.sites} initialSiteId={initialSiteId} />}
             <ConfirmationDialog isOpen={pendingTab !== null} appearance="ticket" variant="warning" title={UNSAVED_LEAVE_TITLE}
                 description="Perubahan pada matriks penilai akan hilang." confirmText="Tinggalkan" cancelText="Tetap di sini"
                 onConfirm={leave} onCancel={() => setPendingTab(null)} />

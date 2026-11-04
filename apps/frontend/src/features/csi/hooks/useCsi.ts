@@ -22,7 +22,7 @@ function useCsiMutation<TData, TVariables>(mutationFn: (variables: TVariables) =
 }
 
 const periodKeys = (scope: CsiScopeParam, id: string): QueryKey[] => [
-    keys.period(scope, id), keys.periods(scope), keys.report(scope, id), keys.respondents(scope, id),
+    keys.period(scope, id), keys.periods(scope), keys.report(scope, id), keys.respondents(scope, id), keys.raterMatrix(scope, id),
     keys.responseDetail(scope, id), keys.active(), keys.form(id),
 ];
 
@@ -124,6 +124,9 @@ export function useUpdateCsiPeriodRatee(scope: CsiScopeParam, id: string) {
 }
 export function useCsiReport(scope: CsiScopeParam, id: string, siteId?: string) {
     return useQuery({ queryKey: keys.report(scope, id, siteId), queryFn: () => CsiApi.report(scope, id, siteId), enabled: !!id });
+}
+export function useCsiRaterMatrix(scope: CsiScopeParam, id: string, siteId?: string) {
+    return useQuery({ queryKey: keys.raterMatrix(scope, id, siteId), queryFn: () => CsiApi.raterMatrix(scope, id, siteId), enabled: !!id });
 }
 export function useSendCsiReminders(scope: CsiScopeParam, periodId: string) {
     return useCsiMutation((payload: SendCsiReminders = {}) => CsiApi.sendReminders(scope, periodId, payload),

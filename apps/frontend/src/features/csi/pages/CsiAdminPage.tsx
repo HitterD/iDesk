@@ -41,6 +41,7 @@ function SurveysArea({ scope, route }: { scope: CsiScopeParam; route: AdminRoute
     if (route.wizard !== undefined) return <WizardRoute key={route.wizard ?? 'new'} scope={scope} route={route} />;
     if (route.periodId) {
         return <PeriodDetail key={route.periodId} scope={scope} periodId={route.periodId} onBack={route.closeAll}
+            initialTab={route.detailTab} initialSiteId={route.siteId}
             onEditStep={(step) => route.openWizard(route.periodId, step)} />;
     }
     // Drafts resume in the wizard (the step is resolved once the detail loads); published surveys open the detail.
@@ -50,7 +51,7 @@ function SurveysArea({ scope, route }: { scope: CsiScopeParam; route: AdminRoute
 
 function AreaBody({ area, scope, route }: { area: AdminArea; scope: CsiScopeParam; route: AdminRoute }) {
     switch (area) {
-        case 'dashboard': return <CsiDashboard scope={scope} />;
+        case 'dashboard': return <CsiDashboard scope={scope} onOpenReport={(periodId, siteId) => route.openDetail(periodId, { tab: 'report', siteId })} />;
         case 'subjects': return <SubjectsTab scope={scope} />;
         case 'master': return <MasterDataPanel scope={scope} />;
         case 'surveys': return <SurveysArea scope={scope} route={route} />;

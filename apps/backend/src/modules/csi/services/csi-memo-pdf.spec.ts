@@ -85,7 +85,8 @@ describe('renderMemoPdf', () => {
         const buffer = await renderMemoPdf(memoHeader(), [survey]);
         const pages = await pagesOf(buffer);
         const all = pages.join(' ');
-        expect(all).toMatch(/kata\d+(…|\.\.\.)/); // pdf-parse extracts the ellipsis glyph as three dots
+        // The cut may fall inside a word ("kata36 k..."), depending on the column widths.
+        expect(all).toMatch(/kata\d+(\s+\S*?)?(…|\.\.\.)/); // pdf-parse extracts the ellipsis glyph as three dots
         expect(all.replace(/\s/g, '')).not.toContain(long.replace(/\s/g, ''));
         expect(pages).toHaveLength(3); // memo, answers, SLA: the oversized row never spills onto an extra page
     });

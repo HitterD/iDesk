@@ -2,7 +2,7 @@ import api from '@/lib/api';
 import type {
     CsiActivePeriod, CsiAssignments, CsiDashboard, CsiDepartment, CsiDimension, CsiForm, CsiPeriod, CsiPeriodDetail,
     CsiPeriodListItem, CsiRater, CsiReminderResult, CsiRemovedRater, CsiReport, CsiResetResult, CsiRespondents,
-    CsiQuestionSet, CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, SaveCsiQuestionSet, CsiSubjectView, CsiSubmitResult, CsiUserIds, CsiUserSearchResult,
+    CsiQuestionSet, CsiRaterMatrix, CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, SaveCsiQuestionSet, CsiSubjectView, CsiSubmitResult, CsiUserIds, CsiUserSearchResult,
     CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, CreateCsiTeam, CsiMemoHeader, CsiMemoRequest, CsiReorder,
     ResetCsiResponse, SendCsiReminders, SetCsiAssignments, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
     UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject,
@@ -155,6 +155,14 @@ export const CsiApi = {
     },
     async report(scope: CsiScopeParam, id: string, siteId?: string): Promise<CsiReport> {
         return (await api.get<CsiReport>(`${periodPath(scope, id)}/report`, { params: { siteId } })).data;
+    },
+    async raterMatrix(scope: CsiScopeParam, id: string, siteId?: string): Promise<CsiRaterMatrix> {
+        return (await api.get<CsiRaterMatrix>(`${periodPath(scope, id)}/rater-matrix`, { params: { siteId } })).data;
+    },
+    async exportPdf(scope: CsiScopeParam, id: string, siteId?: string): Promise<{ blob: Blob; filename: string }> {
+        // A blob error body hides the server message from the interceptor; the caller shows one toast instead.
+        const response = await api.get<Blob>(`${periodPath(scope, id)}/report.pdf`, { params: { siteId }, responseType: 'blob', skipToast: true });
+        return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope, 'pdf') };
     },
     async sendReminders(scope: CsiScopeParam, id: string, payload: SendCsiReminders = {}): Promise<CsiReminderResult> {
         return (await api.post<CsiReminderResult>(`${periodPath(scope, id)}/reminders`, payload)).data;

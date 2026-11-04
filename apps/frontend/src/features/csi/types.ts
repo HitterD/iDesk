@@ -349,6 +349,16 @@ export interface CsiSubjectGroup {
 export interface UpdateCsiSubject { tagline?: string | null; jobTitle?: string | null; name?: string }
 export interface CreateCsiTeam { siteId: string }
 
+// ─── "Siapa menilai siapa" (respondents × subjects) ─────────────────────────
+export interface CsiRaterMatrix {
+    subjects: Array<{ periodRateeId: string; kind: CsiRateeKind; displayName: string; siteId: string | null }>;
+    rows: Array<{
+        responseId: string; respondentName: string; departmentName: string; areaName: string | null; submittedAt: string;
+        scores: Array<number | null>; average: number | null;
+    }>;
+    totals: Array<{ raters: number; average: number | null }>;
+}
+
 // ─── Reusable question sets (Master data) ──────────────────────────────────
 export interface CsiQuestionSet { id: string; scope: CsiScope; name: string; dimensionIds: string[] }
 export interface SaveCsiQuestionSet { name: string; dimensionIds: string[] }
