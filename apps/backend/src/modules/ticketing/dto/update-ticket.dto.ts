@@ -2,6 +2,7 @@ import { IsBoolean, IsEnum, IsISO8601, IsOptional, IsString, IsUUID, MaxLength }
 import { TicketStatus, TicketPriority, VENDOR_NOTE_MAX_LENGTH } from '../entities/ticket.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Sanitize } from '../../../shared/core/validators/input-sanitizer';
+import { TICKET_CANCEL_NOTE_MAX_LENGTH, TicketCancelReasonCode } from '../ticket-cancel.constants';
 
 export class UpdateTicketDto {
     @ApiPropertyOptional({ enum: TicketStatus })
@@ -115,10 +116,15 @@ export class AssignTicketDto {
 }
 
 export class CancelTicketDto {
-    @ApiPropertyOptional({ maxLength: 500 })
+    @ApiProperty({ enum: TicketCancelReasonCode })
+    @IsEnum(TicketCancelReasonCode, { message: 'Pilih alasan pembatalan' })
+    reasonCode: TicketCancelReasonCode;
+
+    /** Free-text note; required for OTHER (checked in TicketUpdateService.cancelTicket). */
+    @ApiPropertyOptional({ maxLength: TICKET_CANCEL_NOTE_MAX_LENGTH })
     @IsOptional()
     @IsString()
-    @MaxLength(500)
+    @MaxLength(TICKET_CANCEL_NOTE_MAX_LENGTH)
     @Sanitize({ removeHtml: true })
     reason?: string;
 }

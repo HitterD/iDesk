@@ -11,6 +11,7 @@ import { formatSlaTarget, formatSlaTargetFull } from '@/lib/utils/slaDuration';
 import type { TicketDetail } from '../../ticket-board/components/ticket-detail/types';
 import { isTerminalStatus } from '../../ticket-board/components/ticket-detail/constants';
 import { PriorityPill, StatusPill } from '../../ticket-board/components/ticket-detail/TicketPropertyRows';
+import { CancelReasonNote, formatCancelReason } from '../../ticket-board/components/ticket-detail/CancelTicketDialog';
 import { SelfResolveButton } from './resolution/SelfResolveButton';
 import { useTicketHold, type TicketHold } from '../../ticket-board/components/ticket-detail/useTicketHold';
 
@@ -132,7 +133,7 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
                         <span>#{ticketNumber}</span>
                         {copied ? <Check className="text-emerald-600" aria-hidden="true" /> : <Copy aria-hidden="true" />}
                     </button>
-                    <StatusPill status={ticket.status} hold={hold} />
+                    <StatusPill status={ticket.status} hold={hold} cancelReason={formatCancelReason(ticket)} />
                     <TicketPill tone={SLA_TONES[sla.state]} title={sla.tooltip}>
                         <SlaIcon className={cn('h-3 w-3 shrink-0', sla.state === 'overdue' && 'animate-pulse')} aria-hidden="true" />
                         <span className="tabular-nums">{sla.label}</span>
@@ -180,6 +181,7 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
                         </Button>
                     </div>
                 </div>
+                <CancelReasonNote ticket={ticket} />
                 {tabs}
             </header>
         </>

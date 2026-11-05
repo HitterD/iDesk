@@ -28,8 +28,8 @@ import { PriorityPill, StatusPill } from './TicketPropertyRows';
 import { useTicketHold } from './useTicketHold';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { formatSlaTime, offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
-import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ResolveTicketModal } from './ResolveTicketModal';
+import { CancelReasonNote, CancelTicketDialog, formatCancelReason, type CancelTicketPayload } from './CancelTicketDialog';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -41,7 +41,7 @@ interface TicketHeaderProps {
         isFirstResponseBreached?: boolean;
         targetResolutionDate?: string;
     };
-    onCancel?: () => void;
+    onCancel?: (payload: CancelTicketPayload) => Promise<unknown> | void;
     isCancelling?: boolean;
     onResolve?: (resolutionNote?: string, files?: File[]) => Promise<void> | void;
     isResolving?: boolean;
@@ -168,11 +168,10 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const confirmCancel = () => {
-        if (onCancel) {
-            onCancel();
-            setShowCancelConfirm(false);
-        }
+    const confirmCancel = async (payload: CancelTicketPayload) => {
+        if (!onCancel) return;
+        await onCancel(payload);
+        setShowCancelConfirm(false);
     };
 
     const handleConfirmResolve = async (resolutionNote?: string, files?: File[]) => {
@@ -350,7 +349,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                         <span>#{ticketNumber}</span>
                         {copied ? <Check className="text-emerald-600" aria-hidden="true" /> : <Copy aria-hidden="true" />}
                     </button>
-                    <StatusPill status={ticket.status} hold={hold} />
+                    <StatusPill status={ticket.status} hold={hold} cancelReason={formatCancelReason(ticket)} />
                     <TicketPill tone={slaTone} title={slaTooltip}>
                         <SlaIcon className={cn('h-3 w-3 shrink-0', slaStatus === 'overdue' && 'animate-pulse')} aria-hidden="true" />
                         <span className="tabular-nums">{resolutionTime}</span>
@@ -421,19 +420,15 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                         )}
                     </div>
                 </div>
+                <CancelReasonNote ticket={ticket} />
                 {tabs}
             </header>
 
-            <ConfirmationDialog
-                appearance="ticket"
+            <CancelTicketDialog
                 isOpen={showCancelConfirm}
-                title="Batalkan tiket ini?"
-                description={`Tiket #${ticketNumber} yang dibatalkan tidak dapat diproses kembali.`}
-                confirmText="Batalkan tiket"
-                cancelText="Kembali"
-                variant="destructive"
+                ticket={{ id: ticket.id, ticketNumber, title: ticket.title }}
                 onConfirm={confirmCancel}
-                onCancel={() => setShowCancelConfirm(false)}
+                onClose={() => setShowCancelConfirm(false)}
                 isLoading={isCancelling}
             />
 

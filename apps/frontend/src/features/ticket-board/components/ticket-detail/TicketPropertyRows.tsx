@@ -42,12 +42,18 @@ export const PropertyRow: React.FC<{
 );
 
 /** Readonly status bubble (requester inspector, header): mockup `.bub` with a status dot. */
-export const StatusPill: React.FC<{ status: string; hold?: { label: string; code: string; detail: string } | null }> = ({ status, hold }) => {
+export const StatusPill: React.FC<{
+    status: string;
+    hold?: { label: string; code: string; detail: string } | null;
+    /** CANCELLED only: the reason shown on hover. */
+    cancelReason?: string | null;
+}> = ({ status, hold, cancelReason }) => {
     const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.TODO;
     // A ticket waiting on a request raised from it says what it waits on, once, instead of "Waiting Vendor".
     const held = status === 'WAITING_VENDOR' && hold ? hold : null;
+    const cancelled = status === 'CANCELLED' && cancelReason ? `Alasan: ${cancelReason}` : undefined;
     return (
-        <TicketPill tone={STATUS_TONES[status] || 'neutral'} title={held ? `${held.code} · ${held.detail}` : undefined}>
+        <TicketPill tone={STATUS_TONES[status] || 'neutral'} title={held ? `${held.code} · ${held.detail}` : cancelled}>
             <span aria-hidden="true" className="td-pill-dot" />{held ? held.label : cfg.label}
         </TicketPill>
     );

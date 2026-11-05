@@ -543,13 +543,14 @@ export class TicketNotificationListener {
         this.logger.log(`Handling ticket.cancelled event for ticket ${event.ticketId}`);
 
         try {
-            // If user cancelled, notify assigned agent
-            if (event.userRole === UserRole.USER && event.ticketAssignedToId) {
+            const cancelledByOwner = event.userId === event.ticketOwnerId;
+            // Requester cancelled -> notify the PIC
+            if (cancelledByOwner && event.ticketAssignedToId && event.ticketAssignedToId !== event.userId) {
                 await this.notificationService.create({
                     userId: event.ticketAssignedToId,
                     type: NotificationType.TICKET_CANCELLED,
                     title: 'Ticket Cancelled',
-                    message: `Ticket #${event.ticketNumber} has been cancelled by ${event.userFullName}`,
+                    message: `Ticket #${event.ticketNumber} has been cancelled by ${event.userFullName}${event.reason ? `: ${event.reason}` : ''}`,
                     ticketId: event.ticketId,
                 });
 
@@ -569,13 +570,13 @@ export class TicketNotificationListener {
                     }).catch(e => this.logger.error(`Failed to send cancellation email: ${e.message}`));
                 }
             }
-            // If admin/agent cancelled, notify ticket owner
-            if ((event.userRole === UserRole.ADMIN || event.userRole === UserRole.AGENT) && event.ticketOwnerId !== event.userId) {
+            // Anyone else (any agent role, admin, manager) cancelled -> notify the requester
+            if (!cancelledByOwner) {
                 await this.notificationService.create({
                     userId: event.ticketOwnerId,
                     type: NotificationType.TICKET_CANCELLED,
                     title: 'Ticket Cancelled',
-                    message: `Your ticket #${event.ticketNumber} has been cancelled by support`,
+                    message: `Your ticket #${event.ticketNumber} has been cancelled by support${event.reason ? `: ${event.reason}` : ''}`,
                     ticketId: event.ticketId,
                 });
 

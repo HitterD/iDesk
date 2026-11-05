@@ -56,6 +56,9 @@ export interface TicketDetail {
     vendorVisitAt?: string | null;
     /** Why a WAITING_VENDOR ticket waits (template or typed by the PIC). */
     vendorNote?: string | null;
+    /** Set when cancelled through the cancel action (reason code + optional note). */
+    cancelReasonCode?: string | null;
+    cancelReason?: string | null;
     firstResponseRemainingMinutes?: number | null;
     firstResponseAt?: string;
     firstResponseTarget?: string;

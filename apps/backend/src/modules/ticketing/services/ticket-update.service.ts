@@ -13,6 +13,7 @@ import { CacheService, CacheInvalidationService } from '../../../shared/core/cac
 import { TicketUpdatedEvent } from '../events/ticket-updated.event';
 import { TicketAssignedEvent } from '../events/ticket-assigned.event';
 import { TicketCancelledEvent } from '../events/ticket-cancelled.event';
+import { TICKET_CANCEL_NOTE_MIN_LENGTH, TicketCancelReasonCode, formatCancelReason } from '../ticket-cancel.constants';
 import { BusinessHoursService } from '../../sla-config/business-hours.service';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
@@ -540,7 +541,15 @@ export class TicketUpdateService {
         return savedTicket;
     }
 
-    async cancelTicket(ticketId: string, userId: string, userRole: UserRole, reason?: string): Promise<Ticket> {
+    async cancelTicket(
+        ticketId: string, userId: string, userRole: UserRole, reasonCode: TicketCancelReasonCode, note?: string,
+    ): Promise<Ticket> {
+        const cancelNote = note?.trim() || null;
+        if (reasonCode === TicketCancelReasonCode.OTHER && (cancelNote?.length ?? 0) < TICKET_CANCEL_NOTE_MIN_LENGTH) {
+            throw new BadRequestException(`Tulis alasan pembatalan minimal ${TICKET_CANCEL_NOTE_MIN_LENGTH} karakter`);
+        }
+        const reason = formatCancelReason(reasonCode, cancelNote);
+
         const ticket = await this.ticketRepo.findOne({ where: { id: ticketId }, relations: ['user', 'assignedTo'] });
         if (!ticket) {
             throw new NotFoundException('Ticket not found');
@@ -566,11 +575,12 @@ export class TicketUpdateService {
         const oldStatus = ticket.status;
         const previousStatus = ticket.status;
         ticket.status = TicketStatus.CANCELLED;
+        ticket.cancelReasonCode = reasonCode;
+        ticket.cancelReason = cancelNote;
         const savedTicket = await this.ticketRepo.save(ticket);
 
         // Log system message
-        const cancelReason = reason ? `: ${reason}` : '';
-        const systemMessageContent = `System: Ticket cancelled by ${user.fullName}${cancelReason}`;
+        const systemMessageContent = `System: Ticket cancelled by ${user.fullName}: ${reason}`;
         const systemMessage = this.messageRepo.create({
             content: systemMessageContent,
             ticket: savedTicket,
@@ -623,8 +633,8 @@ export class TicketUpdateService {
             entityType: 'ticket',
             entityId: ticketId,
             oldValue: { status: oldStatus },
-            newValue: { status: TicketStatus.CANCELLED, reason },
-            description: `Ticket #${ticket.ticketNumber || ticketId.slice(0, 8)} cancelled by ${user.fullName}${reason ? ': ' + reason : ''}`,
+            newValue: { status: TicketStatus.CANCELLED, reasonCode, reason: cancelNote },
+            description: `Ticket #${ticket.ticketNumber || ticketId.slice(0, 8)} cancelled by ${user.fullName}: ${reason}`,
         });
 
         return savedTicket;

@@ -16,6 +16,7 @@ import { TicketMessage } from './ticket-message.entity';
 import { TicketParticipant } from './ticket-participant.entity';
 import { SlaAdjustment } from './sla-adjustment.entity';
 import { Site } from '../../sites/entities/site.entity';
+import { TICKET_CANCEL_NOTE_MAX_LENGTH, TicketCancelReasonCode } from '../ticket-cancel.constants';
 
 export enum TicketStatus {
     TODO = 'TODO',
@@ -252,6 +253,13 @@ export class Ticket {
 
     @Column({ type: 'timestamp', nullable: true })
     closedAt: Date | null;
+
+    /** Set when the ticket is cancelled through the cancel action; null for older or merged tickets. */
+    @Column({ type: 'varchar', length: 30, nullable: true })
+    cancelReasonCode: TicketCancelReasonCode | null;
+
+    @Column({ type: 'varchar', length: TICKET_CANCEL_NOTE_MAX_LENGTH, nullable: true })
+    cancelReason: string | null;
 
     @Column({ type: 'timestamp', nullable: true })
     waitingVendorAt: Date | null;
