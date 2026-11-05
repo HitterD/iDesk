@@ -10,7 +10,7 @@ export const CSI_ADMIN_PAGE_KEYS: Readonly<Record<CsiScopeParam, string>> = {
     ict: 'csi_admin_ict',
     hc: 'csi_admin_hc',
 };
-export const CSI_ADMIN_ROLES: readonly string[] = ['ADMIN', 'MANAGER'];
+export const CSI_ADMIN_ROLES: readonly string[] = ['ADMIN', 'MANAGER', 'HC_ADMIN'];
 
 export const CSI_SCOPE_OF: Readonly<Record<CsiScopeParam, CsiScope>> = { ict: 'ICT', hc: 'HC' };
 
@@ -36,11 +36,33 @@ export const CSI_STATUS_TONES: Readonly<Record<CsiPeriodStatus, TicketPillTone>>
 export const CSI_PUBLISH_LABELS: Readonly<Record<CsiPublishStatus, string>> = {
     DRAFT: 'Draft',
     PUBLISHED: 'Terbit',
+    CANCELLED: 'Dibatalkan',
 };
 export const CSI_PUBLISH_TONES: Readonly<Record<CsiPublishStatus, TicketPillTone>> = {
     DRAFT: 'amber',
     PUBLISHED: 'navy',
+    CANCELLED: 'neutral',
 };
+
+/** One label a respondent-facing admin can read at a glance (publish state + dates combined). */
+export type CsiSurveyState = 'DRAFT' | 'SCHEDULED' | 'RUNNING' | 'ENDED' | 'CANCELLED';
+export const CSI_SURVEY_STATE_LABELS: Readonly<Record<CsiSurveyState, string>> = {
+    DRAFT: 'Draft', SCHEDULED: 'Terjadwal', RUNNING: 'Berjalan', ENDED: 'Selesai', CANCELLED: 'Dibatalkan',
+};
+export const CSI_SURVEY_STATE_TONES: Readonly<Record<CsiSurveyState, TicketPillTone>> = {
+    DRAFT: 'amber', SCHEDULED: 'sky', RUNNING: 'green', ENDED: 'neutral', CANCELLED: 'red',
+};
+export function surveyState(period: { publishStatus: CsiPublishStatus; status: CsiPeriodStatus }): CsiSurveyState {
+    if (period.publishStatus === 'CANCELLED') return 'CANCELLED';
+    if (period.publishStatus === 'DRAFT') return 'DRAFT';
+    return period.status === 'UPCOMING' ? 'SCHEDULED' : period.status === 'ACTIVE' ? 'RUNNING' : 'ENDED';
+}
+/** Short explanation under the label (why a draft is not visible, etc.). */
+export function surveyStateHint(period: { publishStatus: CsiPublishStatus; status: CsiPeriodStatus }): string | null {
+    if (period.publishStatus === 'DRAFT' && period.status !== 'UPCOMING') return 'belum terlihat responden';
+    if (period.publishStatus === 'CANCELLED') return 'tidak terlihat responden';
+    return null;
+}
 
 /** Mirrors backend reset DTO bounds. */
 export const CSI_RESET_REASON_MIN = 5;

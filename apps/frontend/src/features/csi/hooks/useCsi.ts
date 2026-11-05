@@ -2,8 +2,9 @@ import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/
 import { queryKeys } from '@/lib/queryKeys';
 import { CsiApi } from '../api/csi.api';
 import type {
+    ConfirmCsiPeriodAction, CsiPairMode,
     CsiMemoHeader, CsiMemoRequest, CsiPair, CsiScopeParam, CsiUserIds, CreateCsiDepartment, CreateCsiDimension,
-    CreateCsiPeriod, CreateCsiTeam, ResetCsiResponse, SendCsiReminders, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
+    CreateCsiPeriod, CreateCsiTeam, CsiRaterGroupFilter, ResetCsiResponse, SaveCsiQuestionSet, SendCsiReminders, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
     UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject,
 } from '../types';
 
@@ -22,7 +23,7 @@ function useCsiMutation<TData, TVariables>(mutationFn: (variables: TVariables) =
 }
 
 const periodKeys = (scope: CsiScopeParam, id: string): QueryKey[] => [
-    keys.period(scope, id), keys.periods(scope), keys.report(scope, id), keys.respondents(scope, id),
+    keys.period(scope, id), keys.periods(scope), keys.report(scope, id), keys.respondents(scope, id), keys.raterMatrix(scope, id),
     keys.responseDetail(scope, id), keys.active(), keys.form(id),
 ];
 
@@ -35,10 +36,14 @@ export function useCsiActive() {
 export function useCsiForm(id: string) {
     return useQuery({ queryKey: keys.form(id), queryFn: () => CsiApi.form(id), enabled: !!id });
 }
+/**
+ * The respondent does not know the URL scope; refresh both admin views if cached. The form itself is NOT refetched:
+ * it would come back "already answered" and replace the thank-you screen before it is shown.
+ */
 export function useSubmitCsi(id: string) {
-    // The respondent does not know the URL scope; refresh both admin views if cached.
-    return useCsiMutation((payload: SubmitCsiResponse) => CsiApi.submit(id, payload),
-        () => [...periodKeys('ict', id), ...periodKeys('hc', id)]);
+    const form = keys.form(id);
+    const others = (scope: CsiScopeParam) => periodKeys(scope, id).filter((key) => JSON.stringify(key) !== JSON.stringify(form));
+    return useCsiMutation((payload: SubmitCsiResponse) => CsiApi.submit(id, payload), () => [...others('ict'), ...others('hc')]);
 }
 
 export function useCsiDimensions(scope: CsiScopeParam, includeInactive = false) {
@@ -103,6 +108,19 @@ export function usePublishCsiPeriod(scope: CsiScopeParam, id: string) {
 export function useUnpublishCsiPeriod(scope: CsiScopeParam, id: string) {
     return useCsiMutation(() => CsiApi.unpublishPeriod(scope, id), () => periodKeys(scope, id));
 }
+export function useCancelCsiPeriod(scope: CsiScopeParam, id: string) {
+    return useCsiMutation((payload: ConfirmCsiPeriodAction) => CsiApi.cancelPeriod(scope, id, payload), () => [...periodKeys(scope, id), keys.dashboard(scope)]);
+}
+export function useRestoreCsiPeriod(scope: CsiScopeParam, id: string) {
+    return useCsiMutation(() => CsiApi.restorePeriod(scope, id), () => [...periodKeys(scope, id), keys.dashboard(scope)]);
+}
+/** Like delete: not the detail keys (the open detail would refetch a deleted period). */
+export function usePurgeCsiPeriod(scope: CsiScopeParam, id: string) {
+    return useCsiMutation((payload: ConfirmCsiPeriodAction) => CsiApi.purgePeriod(scope, id, payload), () => [keys.periods(scope), keys.active(), keys.dashboard(scope)]);
+}
+export function useSetCsiPairMode(scope: CsiScopeParam, id: string) {
+    return useCsiMutation((mode: CsiPairMode) => CsiApi.setPairMode(scope, id, mode), () => [...periodKeys(scope, id), keys.assignments(scope, id)]);
+}
 export function useDeleteCsiPeriod(scope: CsiScopeParam) {
     // Not the detail keys: the open detail view would refetch a deleted period (404 toast) before navigating away.
     return useCsiMutation((id: string) => CsiApi.deletePeriod(scope, id), () => [keys.periods(scope), keys.active()]);
@@ -124,6 +142,9 @@ export function useUpdateCsiPeriodRatee(scope: CsiScopeParam, id: string) {
 }
 export function useCsiReport(scope: CsiScopeParam, id: string, siteId?: string) {
     return useQuery({ queryKey: keys.report(scope, id, siteId), queryFn: () => CsiApi.report(scope, id, siteId), enabled: !!id });
+}
+export function useCsiRaterMatrix(scope: CsiScopeParam, id: string, siteId?: string) {
+    return useQuery({ queryKey: keys.raterMatrix(scope, id, siteId), queryFn: () => CsiApi.raterMatrix(scope, id, siteId), enabled: !!id });
 }
 export function useSendCsiReminders(scope: CsiScopeParam, periodId: string) {
     return useCsiMutation((payload: SendCsiReminders = {}) => CsiApi.sendReminders(scope, periodId, payload),
@@ -152,8 +173,54 @@ export function useUploadCsiSubjectPhoto(scope: CsiScopeParam) {
     return useCsiMutation(({ key, file }: { key: string; file: File }) => CsiApi.uploadSubjectPhoto(scope, key, file),
         () => subjectKeys(scope));
 }
+export function useAddCsiSubjectMembers(scope: CsiScopeParam) {
+    return useCsiMutation((payload: CsiUserIds) => CsiApi.addSubjectMembers(scope, payload), () => subjectKeys(scope));
+}
+export function useRemoveCsiSubjectMember(scope: CsiScopeParam) {
+    return useCsiMutation((userId: string) => CsiApi.removeSubjectMember(scope, userId), () => subjectKeys(scope));
+}
 export function useCreateCsiTeam(scope: CsiScopeParam) {
     return useCsiMutation((payload: CreateCsiTeam) => CsiApi.createTeam(scope, payload), () => subjectKeys(scope));
+}
+
+/** Live clash check of the survey info form; idle until sites and both dates are set. */
+export function useCsiPeriodOverlaps(scope: CsiScopeParam, query: { siteIds: readonly string[]; startDate: string; endDate: string; excludeId?: string }) {
+    const ready = query.siteIds.length > 0 && !!query.startDate && !!query.endDate && query.endDate >= query.startDate;
+    return useQuery({
+        queryKey: keys.overlaps(scope, JSON.stringify(query)), queryFn: () => CsiApi.periodOverlaps(scope, query), enabled: ready,
+    });
+}
+export function useCsiRaterDepartments(scope: CsiScopeParam, siteId?: string) {
+    return useQuery({ queryKey: keys.raterDepartments(scope, siteId ?? ''), queryFn: () => CsiApi.raterDepartments(scope, siteId) });
+}
+export function useCsiRaterGroupPreview(scope: CsiScopeParam, filter: CsiRaterGroupFilter) {
+    return useQuery({
+        queryKey: keys.raterGroup(scope, JSON.stringify(filter)), queryFn: () => CsiApi.raterGroupPreview(scope, filter),
+        enabled: !!(filter.siteId || filter.departmentId),
+    });
+}
+export function useAddCsiRaterGroup(scope: CsiScopeParam) {
+    return useCsiMutation((filter: CsiRaterGroupFilter) => CsiApi.addRaterGroup(scope, filter), () => [keys.raters(scope), ['csi', scope, 'rater-group']]);
+}
+export function useImportCsiRaters(scope: CsiScopeParam) {
+    return useCsiMutation(({ keys: list, commit }: { keys: string[]; commit: boolean }) => CsiApi.importRaters(scope, list, commit),
+        ({ commit }) => (commit ? [keys.raters(scope), ['csi', scope, 'rater-group']] : []));
+}
+export function useRemoveCsiRaters(scope: CsiScopeParam) {
+    return useCsiMutation((ids: string[]) => CsiApi.removeRaters(scope, ids), () => [keys.raters(scope), ['csi', scope, 'rater-group']]);
+}
+export function useCsiQuestionSets(scope: CsiScopeParam) {
+    return useQuery({ queryKey: keys.questionSets(scope), queryFn: () => CsiApi.questionSets(scope) });
+}
+export function useCreateCsiQuestionSet(scope: CsiScopeParam) {
+    return useCsiMutation((payload: SaveCsiQuestionSet) => CsiApi.createQuestionSet(scope, payload), () => [keys.questionSets(scope)]);
+}
+export function useUpdateCsiQuestionSet(scope: CsiScopeParam) {
+    return useCsiMutation(({ id, payload }: UpdatePayload<SaveCsiQuestionSet>) => CsiApi.updateQuestionSet(scope, id, payload),
+        () => [keys.questionSets(scope)]);
+}
+export function useDeleteCsiQuestionSet(scope: CsiScopeParam) {
+    return useCsiMutation((id: string) => CsiApi.deleteQuestionSet(scope, id), () => [keys.questionSets(scope)]);
 }
 
 // The mapping decides which subjects each rater sees, so the respondent status changes with it.

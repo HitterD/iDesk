@@ -24,7 +24,7 @@ function SectionSwitch({ label, hint, checked, disabled, describedBy, onChange }
     );
 }
 
-/** "Bagian penilaian" switches, the team label and the SLA target. Frozen fields are disabled when `locked`. */
+/** "Bagian penilaian" switches, the team label and the participation target. Frozen fields are disabled when `locked`. */
 export function SectionFields({ form, set, locked }: { form: PeriodFormState; set: SetField; locked: boolean }) {
     const none = sectionsInvalid(form);
     const slaBad = slaInvalid(form);

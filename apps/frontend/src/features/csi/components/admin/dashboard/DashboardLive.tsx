@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, LayoutGrid, Star, TrendingDown, TrendingUp, Users } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, LayoutGrid, Star, TrendingDown, TrendingUp, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { scoreTone, siteTone, toneClasses } from '../../../lib/csiTone';
 import { formatFixed2 } from '../../../lib/format';
@@ -50,13 +50,18 @@ function LiveStats({ summary }: { summary: LiveSummary }) {
     );
 }
 
-function SiteTargetCard({ row, today }: { row: CsiDashboardActive; today: Date }) {
+type OpenReport = (periodId: string, siteId: string | null) => void;
+
+function SiteTargetCard({ row, today, onOpen }: { row: CsiDashboardActive; today: Date; onOpen?: OpenReport }) {
     const reached = isReached(row);
     const pct = fillPct(row);
     const status = toneClasses(reached ? 'green' : 'amber');
+    const Tag = onOpen ? 'button' : 'div';
     return (
-        <div role="group" aria-label={`Target ${row.siteCode ?? row.siteName ?? ''}`}
-            className={cn('flex min-w-0 items-center gap-3.5 rounded-[14px] p-3 ring-1 ring-[hsl(var(--idesk-border))]', toneClasses(siteTone(row.siteCode)).soft)}>
+        <Tag {...(onOpen ? { type: 'button' as const, onClick: () => onOpen(row.periodId, row.siteId) } : { role: 'group' })}
+            aria-label={onOpen ? `Lihat laporan ${row.siteCode ?? row.siteName ?? ''} — ${row.title}` : `Target ${row.siteCode ?? row.siteName ?? ''}`}
+            className={cn('group flex min-w-0 items-center gap-3.5 rounded-[14px] p-3 text-left ring-1 ring-[hsl(var(--idesk-border))]', toneClasses(siteTone(row.siteCode)).soft,
+                onOpen && 'transition-shadow hover:shadow-[var(--dash-shadow-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}>
             <ScoreRing pct={pct} tone={reached ? 'green' : 'amber'} size="sm">
                 <b className="text-[13px] font-bold tabular-nums">{`${pct}%`}</b>
             </ScoreRing>
@@ -70,20 +75,25 @@ function SiteTargetCard({ row, today }: { row: CsiDashboardActive; today: Date }
                     <span>Skor <b className="tabular-nums">{formatFixed2(row.average)}</b></span>
                     <span className={cn(PILL, status.soft, status.ink)}>{reached ? 'Tercapai' : remainingLabel(row.endDate, today)}</span>
                 </div>
+                {onOpen && (
+                    <span className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-semibold text-[hsl(var(--idesk-sapphire))]">
+                        Lihat detail penilaian<ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                    </span>
+                )}
             </div>
-        </div>
+        </Tag>
     );
 }
 
 /** Tab "Periode aktif": stats, per-site target cards, most urgent pending raters and latest comments. */
-export function DashboardLive({ scope, data, today }: { scope: CsiScopeParam; data: CsiDashboard; today: Date }) {
+export function DashboardLive({ scope, data, today, onOpenReport }: { scope: CsiScopeParam; data: CsiDashboard; today: Date; onOpenReport?: OpenReport }) {
     if (!data.active.length) return <EmptyNote>Belum ada survei aktif.</EmptyNote>;
     return (
         <div className="grid grid-cols-12 gap-3">
             <LiveStats summary={liveSummary(data)} />
-            <AdminSection title="Target per site" className="col-span-12">
+            <AdminSection title="Target per site" description={onOpenReport ? 'Klik kartu untuk melihat siapa menilai siapa dan nilai per subjek.' : undefined} className="col-span-12">
                 <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(250px,100%),1fr))]">
-                    {data.active.map((row) => <SiteTargetCard key={`${row.periodId}:${row.siteId}`} row={row} today={today} />)}
+                    {data.active.map((row) => <SiteTargetCard key={`${row.periodId}:${row.siteId}`} row={row} today={today} onOpen={onOpenReport} />)}
                 </div>
             </AdminSection>
             <PendingPanel scope={scope} data={data} className="col-span-12 lg:col-span-6" />

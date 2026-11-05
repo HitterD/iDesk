@@ -22,6 +22,7 @@ const fx = vi.hoisted(() => {
 });
 
 vi.mock('../../../hooks/useCsi', () => ({
+    useCsiPeriodOverlaps: () => ({ data: [] }),
     useCsiPeriod: () => ({ data: fx.period, isLoading: false, isError: false, refetch: () => undefined }),
     useCsiPeriods: () => ({ data: fx.periods }),
     useCreateCsiPeriod: () => fx.create, useUpdateCsiPeriod: () => fx.update, usePublishCsiPeriod: () => fx.publish,
@@ -33,6 +34,8 @@ vi.mock('../../../hooks/useCsi', () => ({
     useReorderCsiDimensions: fx.idle, useApplyCsiTemplate: fx.idle, useReorderCsiDepartments: fx.idle,
     useCreateCsiDepartment: fx.idle, useUpdateCsiDepartment: fx.idle, useAddCsiRaters: fx.idle,
     useSetCsiRatees: fx.idle, useSetCsiTeamQuestions: fx.idle, useSetCsiRaters: fx.idle, useDeleteCsiPeriod: fx.idle,
+    useCsiSubjects: () => ({ data: [], isLoading: false }), useCsiQuestionSets: () => ({ data: [] }),
+    useCreateCsiQuestionSet: fx.idle, useDeleteCsiQuestionSet: fx.idle,
 }));
 vi.mock('@/components/site/useActiveSites', () => ({ useActiveSites: () => ({ data: [{ id: 's1', code: 'SPJ', name: 'Sidoarjo' }] }) }));
 vi.mock('sonner', () => ({ toast: fx.toast }));
@@ -162,7 +165,7 @@ describe('SurveyWizard', () => {
         renderWizard('p1', 'ratees');
         expect(screen.getByRole('button', { name: 'Lanjut' })).toBeEnabled();
 
-        await actor.click(screen.getByRole('button', { name: 'Pilih orang yang dinilai' }));
+        await actor.click(screen.getByRole('button', { name: 'Cari orang lain yang dinilai' }));
         await actor.click(await screen.findByRole('option', { name: /Andi Saputra/ }));
         await actor.keyboard('{Escape}');
         await actor.click(screen.getByRole('checkbox', { name: 'Kecepatan' }));
@@ -255,7 +258,7 @@ describe('SurveyWizard', () => {
         await pickSite(actor);
         await actor.type(screen.getByLabelText('Judul'), 'Survei Q4');
         setDates('2026-11-01', '2026-11-30');
-        fireEvent.change(screen.getByLabelText('Target SLA'), { target: { value: '90' } });
+        fireEvent.change(screen.getByLabelText('Target partisipasi'), { target: { value: '90' } });
         await actor.click(screen.getByRole('button', { name: 'Lanjut' }));
         expect(fx.create.mutate).toHaveBeenCalledWith(
             expect.objectContaining({ teamEnabled: true, individualEnabled: true, teamLabel: 'Tim IT Support', slaTargetPct: 90 }), expect.anything());
@@ -263,8 +266,8 @@ describe('SurveyWizard', () => {
 
     it('rejects an SLA target outside 1-100', () => {
         renderWizard('p1', 'info');
-        fireEvent.change(screen.getByLabelText('Target SLA'), { target: { value: '101' } });
-        expect(screen.getByText('Target SLA harus bilangan bulat 1–100')).toBeInTheDocument();
+        fireEvent.change(screen.getByLabelText('Target partisipasi'), { target: { value: '101' } });
+        expect(screen.getByText('Target partisipasi harus bilangan bulat 1–100')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Lanjut' })).toBeDisabled();
     });
 
@@ -274,7 +277,7 @@ describe('SurveyWizard', () => {
         expect(screen.queryByRole('button', { name: 'Tambah site' })).not.toBeInTheDocument();
         expect(screen.getByRole('switch', { name: 'Penilaian tim' })).toBeDisabled();
         expect(screen.getByRole('switch', { name: 'Penilaian per orang' })).toBeDisabled();
-        expect(screen.getByLabelText('Target SLA')).toBeEnabled();
+        expect(screen.getByLabelText('Target partisipasi')).toBeEnabled();
     });
 
     it('team step appears with its section; an old ?step=dimensions falls back to the review', () => {

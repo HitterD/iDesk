@@ -11,7 +11,7 @@ const BRACKETED = /^\[(.+)\]$/s;
  * aspect (the name being only a generic prefix such as "Tolong ungkapkan tingkat kepuasan ..."), that aspect;
  * else the full text. The single source for every report label (hero, pills, heatmap, detail sheet).
  */
-export function questionDisplayLabel(question: Pick<CsiQuestionStat, 'name' | 'shortLabel' | 'description'>): string {
+export function questionDisplayLabel(question: { name: string; shortLabel?: string | null; description?: string | null }): string {
     const shortLabel = question.shortLabel?.trim();
     if (shortLabel) return shortLabel;
     const aspect = question.description?.trim().match(BRACKETED)?.[1].trim();

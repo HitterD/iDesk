@@ -1,8 +1,9 @@
 import api from '@/lib/api';
 import type {
+    ConfirmCsiPeriodAction, CsiPairMode,
     CsiActivePeriod, CsiAssignments, CsiDashboard, CsiDepartment, CsiDimension, CsiForm, CsiPeriod, CsiPeriodDetail,
     CsiPeriodListItem, CsiRater, CsiReminderResult, CsiRemovedRater, CsiReport, CsiResetResult, CsiRespondents,
-    CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, CsiSubjectView, CsiSubmitResult, CsiUserIds, CsiUserSearchResult,
+    CsiPeriodOverlap, CsiQuestionSet, CsiRaterDepartmentOption, CsiRaterGroupFilter, CsiRaterGroupPreview, CsiRaterImportResult, CsiRaterMatrix, CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, SaveCsiQuestionSet, CsiSubjectView, CsiSubmitResult, CsiUserIds, CsiUserSearchResult,
     CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, CreateCsiTeam, CsiMemoHeader, CsiMemoRequest, CsiReorder,
     ResetCsiResponse, SendCsiReminders, SetCsiAssignments, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
     UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject,
@@ -97,6 +98,18 @@ export const CsiApi = {
     async unpublishPeriod(scope: CsiScopeParam, id: string): Promise<CsiPeriodDetail> {
         return (await api.post<CsiPeriodDetail>(`${periodPath(scope, id)}/unpublish`)).data;
     },
+    async cancelPeriod(scope: CsiScopeParam, id: string, payload: ConfirmCsiPeriodAction): Promise<CsiPeriodDetail> {
+        return (await api.post<CsiPeriodDetail>(`${periodPath(scope, id)}/cancel`, payload, { skipToast: true })).data;
+    },
+    async restorePeriod(scope: CsiScopeParam, id: string): Promise<CsiPeriodDetail> {
+        return (await api.post<CsiPeriodDetail>(`${periodPath(scope, id)}/restore`)).data;
+    },
+    async purgePeriod(scope: CsiScopeParam, id: string, payload: ConfirmCsiPeriodAction): Promise<{ deleted: true }> {
+        return (await api.post<{ deleted: true }>(`${periodPath(scope, id)}/purge`, payload, { skipToast: true })).data;
+    },
+    async setPairMode(scope: CsiScopeParam, id: string, mode: CsiPairMode): Promise<CsiPeriodDetail> {
+        return (await api.put<CsiPeriodDetail>(`${periodPath(scope, id)}/pair-mode`, { mode })).data;
+    },
     async deletePeriod(scope: CsiScopeParam, id: string): Promise<CsiPeriod> {
         return (await api.delete<CsiPeriod>(periodPath(scope, id))).data;
     },
@@ -123,8 +136,45 @@ export const CsiApi = {
         body.append(PHOTO_FIELD, file);
         return (await api.post<CsiSubjectView>(`${itemPath(scope, 'subjects', key)}/photo`, body)).data;
     },
+    async addSubjectMembers(scope: CsiScopeParam, payload: CsiUserIds): Promise<CsiSubjectGroup[]> {
+        return (await api.post<CsiSubjectGroup[]>(`${adminPath(scope)}/subjects/members`, payload)).data;
+    },
+    async removeSubjectMember(scope: CsiScopeParam, userId: string): Promise<CsiSubjectGroup[]> {
+        return (await api.delete<CsiSubjectGroup[]>(itemPath(scope, 'subjects/members', userId))).data;
+    },
     async createTeam(scope: CsiScopeParam, payload: CreateCsiTeam): Promise<CsiSubjectView> {
         return (await api.post<CsiSubjectView>(`${adminPath(scope)}/subjects/teams`, payload)).data;
+    },
+    async periodOverlaps(scope: CsiScopeParam, query: { siteIds: readonly string[]; startDate: string; endDate: string; excludeId?: string }): Promise<CsiPeriodOverlap[]> {
+        const params = { siteIds: query.siteIds.join(','), startDate: query.startDate, endDate: query.endDate, excludeId: query.excludeId };
+        return (await api.get<CsiPeriodOverlap[]>(`${adminPath(scope)}/periods/overlaps`, { params, skipToast: true })).data;
+    },
+    async raterDepartments(scope: CsiScopeParam, siteId?: string): Promise<CsiRaterDepartmentOption[]> {
+        return (await api.get<CsiRaterDepartmentOption[]>(`${adminPath(scope)}/raters/group-departments`, { params: { siteId } })).data;
+    },
+    async raterGroupPreview(scope: CsiScopeParam, filter: CsiRaterGroupFilter): Promise<CsiRaterGroupPreview> {
+        return (await api.get<CsiRaterGroupPreview>(`${adminPath(scope)}/raters/group-preview`, { params: filter })).data;
+    },
+    async addRaterGroup(scope: CsiScopeParam, filter: CsiRaterGroupFilter): Promise<{ added: number }> {
+        return (await api.post<{ added: number }>(`${adminPath(scope)}/raters/group`, filter)).data;
+    },
+    async importRaters(scope: CsiScopeParam, keys: string[], commit: boolean): Promise<CsiRaterImportResult> {
+        return (await api.post<CsiRaterImportResult>(`${adminPath(scope)}/raters/import`, { keys, commit })).data;
+    },
+    async removeRaters(scope: CsiScopeParam, ids: string[]): Promise<CsiRater[]> {
+        return (await api.post<CsiRater[]>(`${adminPath(scope)}/raters/remove`, { ids })).data;
+    },
+    async questionSets(scope: CsiScopeParam): Promise<CsiQuestionSet[]> {
+        return (await api.get<CsiQuestionSet[]>(`${adminPath(scope)}/question-sets`)).data;
+    },
+    async createQuestionSet(scope: CsiScopeParam, payload: SaveCsiQuestionSet): Promise<CsiQuestionSet> {
+        return (await api.post<CsiQuestionSet>(`${adminPath(scope)}/question-sets`, payload)).data;
+    },
+    async updateQuestionSet(scope: CsiScopeParam, id: string, payload: SaveCsiQuestionSet): Promise<CsiQuestionSet> {
+        return (await api.put<CsiQuestionSet>(itemPath(scope, 'question-sets', id), payload)).data;
+    },
+    async deleteQuestionSet(scope: CsiScopeParam, id: string): Promise<{ deleted: true }> {
+        return (await api.delete<{ deleted: true }>(itemPath(scope, 'question-sets', id))).data;
     },
     async assignments(scope: CsiScopeParam, id: string): Promise<CsiAssignments> {
         return (await api.get<CsiAssignments>(assignmentsPath(scope, id))).data;
@@ -143,6 +193,14 @@ export const CsiApi = {
     },
     async report(scope: CsiScopeParam, id: string, siteId?: string): Promise<CsiReport> {
         return (await api.get<CsiReport>(`${periodPath(scope, id)}/report`, { params: { siteId } })).data;
+    },
+    async raterMatrix(scope: CsiScopeParam, id: string, siteId?: string): Promise<CsiRaterMatrix> {
+        return (await api.get<CsiRaterMatrix>(`${periodPath(scope, id)}/rater-matrix`, { params: { siteId } })).data;
+    },
+    async exportPdf(scope: CsiScopeParam, id: string, siteId?: string): Promise<{ blob: Blob; filename: string }> {
+        // A blob error body hides the server message from the interceptor; the caller shows one toast instead.
+        const response = await api.get<Blob>(`${periodPath(scope, id)}/report.pdf`, { params: { siteId }, responseType: 'blob', skipToast: true });
+        return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope, 'pdf') };
     },
     async sendReminders(scope: CsiScopeParam, id: string, payload: SendCsiReminders = {}): Promise<CsiReminderResult> {
         return (await api.post<CsiReminderResult>(`${periodPath(scope, id)}/reminders`, payload)).data;

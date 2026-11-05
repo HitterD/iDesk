@@ -7,7 +7,8 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { cn } from '@/lib/utils';
 import { useCsiUserSearch } from '../../hooks/useCsi';
 import {
-    CSI_LOCKED_NOTE, CSI_PUBLISH_LABELS, CSI_PUBLISH_TONES, CSI_SEARCH_DEBOUNCE_MS, CSI_STATUS_LABELS, CSI_STATUS_TONES, type DraftUser,
+    CSI_LOCKED_NOTE, CSI_PUBLISH_LABELS, CSI_PUBLISH_TONES, CSI_SEARCH_DEBOUNCE_MS, CSI_STATUS_LABELS, CSI_STATUS_TONES,
+    CSI_SURVEY_STATE_LABELS, CSI_SURVEY_STATE_TONES, surveyState, surveyStateHint, type DraftUser,
 } from '../../lib/csiAdmin';
 import type { CsiPeriodStatus, CsiPublishStatus, CsiScopeParam } from '../../types';
 
@@ -52,6 +53,18 @@ export function LockedNote({ children = CSI_LOCKED_NOTE }: { children?: ReactNod
 
 export function StatusPill({ status }: { status: CsiPeriodStatus }) {
     return <TicketPill tone={CSI_STATUS_TONES[status]}>{CSI_STATUS_LABELS[status]}</TicketPill>;
+}
+
+/** Single survey state (Draft / Terjadwal / Berjalan / Selesai / Dibatalkan) with a short hint when needed. */
+export function SurveyStatePill({ period, withHint = true }: { period: { publishStatus: CsiPublishStatus; status: CsiPeriodStatus }; withHint?: boolean }) {
+    const state = surveyState(period);
+    const hint = withHint ? surveyStateHint(period) : null;
+    return (
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+            <TicketPill tone={CSI_SURVEY_STATE_TONES[state]}>{CSI_SURVEY_STATE_LABELS[state]}</TicketPill>
+            {hint && <span className="text-[12px] text-[hsl(var(--idesk-text-secondary))]">{hint}</span>}
+        </span>
+    );
 }
 
 /** Draft/Terbit, shown next to (not instead of) the time status. */

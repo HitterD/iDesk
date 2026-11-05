@@ -18,10 +18,10 @@ export const ALL_SITES = 'all';
 export function MatrixStatCards({ stats }: { stats: MatrixStats }) {
     return (
         <div className="grid grid-cols-[repeat(auto-fit,minmax(min(170px,45%),1fr))] gap-3">
-            <StatCard tone="sky" icon={Users} label="Penilai terpilih" value={stats.raters} hint="terdaftar di periode ini" />
-            <StatCard tone="teal" icon={Star} label="Subjek" value={stats.subjects} hint={`${stats.teams} tim · ${stats.people} individu`} />
+            <StatCard tone="sky" icon={Users} label="Penilai survei ini" value={stats.raters} hint="dicentang di langkah Penilai" />
+            <StatCard tone="teal" icon={Star} label="Yang dinilai" value={stats.subjects} hint={`${stats.teams} tim · ${stats.people} orang`} />
             <StatCard tone="green" icon={Check} label="Pasangan penilaian" value={stats.pairs} hint="≈ jumlah form yang akan diisi" />
-            <StatCard tone="amber" icon={ArrowLeftRight} label="Lintas site" value={stats.cross} hint="pengecualian manual" attention />
+            <StatCard tone="amber" icon={ArrowLeftRight} label="Lintas site" value={stats.cross} hint="penilai menilai tim/orang site lain" attention />
         </div>
     );
 }

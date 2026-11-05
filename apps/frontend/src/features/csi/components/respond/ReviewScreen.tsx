@@ -1,4 +1,4 @@
-import { AlertCircle, Star } from 'lucide-react';
+import { AlertCircle, Lock, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { otherAnswerCount, rateeAverage, type CsiAnswers } from '../../lib/csiForm';
@@ -17,7 +17,8 @@ interface ReviewScreenProps {
     preview: boolean;
     submitting: boolean;
     failure: string | null;
-    onEditIdentity: () => void;
+    /** Null when the whole identity is locked (name always is; the department once known). */
+    onEditIdentity: (() => void) | null;
     onEditRatee: (index: number) => void;
     onBack: () => void;
     onSubmit: () => void;
@@ -46,15 +47,17 @@ function RateeRow({ ratee, label, answers, onEdit }: { ratee: CsiOpenForm['ratee
     );
 }
 
-function IdentityRow({ label, value, onEdit }: { label: string; value: string; onEdit: () => void }) {
+function IdentityRow({ label, value, onEdit }: { label: string; value: string; onEdit: (() => void) | null }) {
     return (
         <div className={ROW}>
             <div className="min-w-0 flex-1">
                 <p className="text-[13px] text-muted-foreground">{label}</p>
                 <p className="break-words text-[15px] font-medium text-foreground">{value}</p>
             </div>
-            <Button type="button" variant="subtle" className={EDIT_BUTTON} onClick={onEdit}
-                aria-label={`${RESPOND_COPY.edit} ${label.toLowerCase()}`}>{RESPOND_COPY.edit}</Button>
+            {onEdit ? (
+                <Button type="button" variant="subtle" className={EDIT_BUTTON} onClick={onEdit}
+                    aria-label={`${RESPOND_COPY.edit} ${label.toLowerCase()}`}>{RESPOND_COPY.edit}</Button>
+            ) : <Lock className="h-4 w-4 shrink-0 text-muted-foreground" aria-label={`${label} terkunci`} />}
         </div>
     );
 }
@@ -69,7 +72,7 @@ export function ReviewScreen(props: ReviewScreenProps) {
             </header>
 
             <div className={cn(CSI_CARD, 'divide-y divide-border/60 overflow-hidden')}>
-                <IdentityRow label={RESPOND_COPY.name} value={name} onEdit={onEditIdentity} />
+                <IdentityRow label={RESPOND_COPY.name} value={name} onEdit={null} />
                 <IdentityRow label={RESPOND_COPY.department} value={departmentName ?? RESPOND_COPY.noScore} onEdit={onEditIdentity} />
             </div>
 

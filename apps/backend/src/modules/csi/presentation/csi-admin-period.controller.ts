@@ -1,11 +1,15 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
+import { AuditService } from '../../audit/audit.service';
+import { AuditAction, AuditSeverity } from '../../audit/entities/audit-log.entity';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
-import { CreatePeriodDto, PeriodListQueryDto, SetPeriodRatersDto, SetRateesDto, SetTeamQuestionsDto, UpdatePeriodDto, UpdatePeriodRateeDto } from '../dto/period.dto';
+import { ConfirmPeriodActionDto, CreatePeriodDto, PeriodListQueryDto, PeriodOverlapQueryDto, SetPairModeDto, SetPeriodRatersDto, SetRateesDto, SetTeamQuestionsDto, UpdatePeriodDto, UpdatePeriodRateeDto } from '../dto/period.dto';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiPeriodService } from '../services/csi-period.service';
 
-type CsiAdminRequest = { csiScope: ServiceScope; user: { userId: string } };
+type CsiAdminRequest = Request & { csiScope: ServiceScope; user: { userId: string } };
+const PERIOD_ENTITY = 'csi_period';
 const CSI_ID_PIPE = new ParseUUIDPipe({
     exceptionFactory: () => new BadRequestException('ID harus berupa UUID'),
 });
@@ -13,7 +17,7 @@ const CSI_ID_PIPE = new ParseUUIDPipe({
 @Controller('csi/admin/:scope/periods')
 @UseGuards(JwtAuthGuard, CsiAdminGuard)
 export class CsiAdminPeriodController {
-    constructor(private readonly periods: CsiPeriodService) { }
+    constructor(private readonly periods: CsiPeriodService, private readonly audit: AuditService) { }
 
     @Get()
     list(@Req() req: CsiAdminRequest, @Query() query: PeriodListQueryDto) {
@@ -23,6 +27,12 @@ export class CsiAdminPeriodController {
     @Post()
     create(@Req() req: CsiAdminRequest, @Body() dto: CreatePeriodDto) {
         return this.periods.create(req.csiScope, dto, req.user.userId);
+    }
+
+    // Static path before ':id'.
+    @Get('overlaps')
+    overlaps(@Req() req: CsiAdminRequest, @Query() query: PeriodOverlapQueryDto) {
+        return this.periods.overlaps(req.csiScope, query.siteIds, query.startDate, query.endDate, query.excludeId);
     }
 
     @Get(':id')
@@ -43,6 +53,47 @@ export class CsiAdminPeriodController {
     @Post(':id/publish')
     publish(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string) {
         return this.periods.publish(req.csiScope, id);
+    }
+
+    @Post(':id/cancel')
+    @HttpCode(HttpStatus.OK)
+    async cancel(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Body() dto: ConfirmPeriodActionDto) {
+        const result = await this.periods.cancel(req.csiScope, id, dto, req.user.userId);
+        if (!('audit' in result)) return result;
+        await this.audit.log({
+            userId: req.user.userId, action: AuditAction.CSI_PERIOD_CANCEL, entityType: PERIOD_ENTITY, entityId: id, severity: AuditSeverity.HIGH,
+            oldValue: { status: result.audit.previous, responses: result.audit.responses }, newValue: { status: 'CANCELLED' },
+            description: `Batalkan survei CSI "${result.detail.title}" (${result.audit.responses} jawaban). Alasan: ${result.audit.reason}`, request: req,
+        });
+        return result.detail;
+    }
+
+    @Post(':id/restore')
+    @HttpCode(HttpStatus.OK)
+    async restore(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string) {
+        const detail = await this.periods.restore(req.csiScope, id);
+        await this.audit.log({
+            userId: req.user.userId, action: AuditAction.CSI_PERIOD_RESTORE, entityType: PERIOD_ENTITY, entityId: id,
+            newValue: { status: detail.publishStatus }, description: `Aktifkan lagi survei CSI "${detail.title}"`, request: req,
+        });
+        return detail;
+    }
+
+    @Post(':id/purge')
+    @HttpCode(HttpStatus.OK)
+    async purge(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Body() dto: ConfirmPeriodActionDto) {
+        const { period, audit } = await this.periods.purge(req.csiScope, id, dto);
+        await this.audit.log({
+            userId: req.user.userId, action: AuditAction.CSI_PERIOD_PURGE, entityType: PERIOD_ENTITY, entityId: id, severity: AuditSeverity.HIGH,
+            oldValue: { title: period.title, startDate: period.startDate, endDate: period.endDate, responses: audit.responses },
+            description: `Hapus permanen survei CSI "${period.title}" beserta ${audit.responses} jawaban. Alasan: ${audit.reason}`, request: req,
+        });
+        return { deleted: true as const };
+    }
+
+    @Put(':id/pair-mode')
+    setPairMode(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Body() dto: SetPairModeDto) {
+        return this.periods.setPairMode(req.csiScope, id, dto.mode);
     }
 
     @Post(':id/unpublish')

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CsiPeriodDetail, CsiPeriodListItem } from '../../types';
 import {
+    nextPeriodRange,
     formDirty, initialState, sectionsInvalid, slaInvalid, toCreatePayload, toUpdatePayload, withCopyMode, withCopySource,
 } from '../periodForm';
 
@@ -65,5 +66,11 @@ describe('periodForm', () => {
         expect(copied).toMatchObject({ copyFromPeriodId: 'old', siteIds: ['s2'], teamEnabled: false, slaTargetPct: '95', startDate: '', endDate: '' });
         expect(toCreatePayload({ ...copied, siteIds: ['s1'], startDate: '2026-12-01', endDate: '2026-12-31' }))
             .toMatchObject({ siteIds: ['s1'], copyFromPeriodId: 'old' });
+    });
+
+    it('nextPeriodRange: a whole-month survey moves to the next whole month, other ranges keep their length', () => {
+        expect(nextPeriodRange({ startDate: '2026-10-01', endDate: '2026-10-31' })).toEqual({ startDate: '2026-11-01', endDate: '2026-11-30' });
+        expect(nextPeriodRange({ startDate: '2026-01-01', endDate: '2026-03-31' })).toEqual({ startDate: '2026-04-01', endDate: '2026-06-30' });
+        expect(nextPeriodRange({ startDate: '2026-11-04', endDate: '2026-11-06' })).toEqual({ startDate: '2026-11-07', endDate: '2026-11-09' });
     });
 });

@@ -1,33 +1,46 @@
-import { CalendarClock, Info, Users } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { CalendarClock, Info, Lock, Users } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { countDimensions, CSI_NAME_MAX } from '../../lib/csiForm';
+import { countDimensions } from '../../lib/csiForm';
 import { formatDate } from '../../lib/format';
 import { estimateMinutes } from '../../lib/wizard';
 import type { CsiOpenForm } from '../../types';
 import { CSI_CARD } from '../CsiSurveyParts';
 import { FlowFooter, ScreenHeading } from './FlowChrome';
-import { deadlineText, RESPOND_COPY, submittedNote, summaryText } from './respondCopy';
+import { deadlineText, RESPOND_COPY, summaryText } from './respondCopy';
 
 interface IntroScreenProps {
     form: CsiOpenForm;
-    name: string;
-    /** Inline error for the name field (duplicate or invalid), or null. */
-    nameError: string | null;
-    onNameChange: (name: string) => void;
     departmentId: string;
     onDepartmentChange: (id: string) => void;
+    /** The department comes from the account (earlier answer or HR profile) and cannot be changed. */
+    departmentLocked: boolean;
     canStart: boolean;
     onStart: () => void;
     /** Live survey without any active department: nothing can be submitted, so explain instead of a dead button. */
     unavailable: boolean;
 }
 
+const LABEL = 'text-[13px] font-medium text-muted-foreground';
+const LOCKED_FIELD = 'flex h-11 items-center gap-2 rounded-xl border border-border/70 bg-muted/50 px-3.5 text-[15px] font-medium text-foreground';
+
+/** Read-only identity value with a lock icon (name always; department once known). */
+function LockedValue({ id, label, value }: { id: string; label: string; value: string }) {
+    return (
+        <div className="space-y-1.5">
+            <p id={`${id}-label`} className={LABEL}>{label}</p>
+            <div id={id} role="textbox" aria-readonly="true" aria-labelledby={`${id}-label`} className={LOCKED_FIELD}>
+                <span className="min-w-0 flex-1 truncate">{value}</span>
+                <Lock className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            </div>
+        </div>
+    );
+}
+
 function DepartmentField({ departments, value, onChange }: { departments: CsiOpenForm['departments']; value: string; onChange: (id: string) => void }) {
     return (
         <div className="space-y-1.5">
-            <label id="csi-department-label" htmlFor="csi-department" className="text-[13px] font-medium text-muted-foreground">{RESPOND_COPY.department}</label>
+            <label id="csi-department-label" htmlFor="csi-department" className={LABEL}>{RESPOND_COPY.department}</label>
             <Select value={value || undefined} onValueChange={onChange}>
                 <SelectTrigger id="csi-department" aria-labelledby="csi-department-label" className="h-11 bg-card dark:bg-card">
                     <SelectValue placeholder={RESPOND_COPY.departmentPlaceholder} />
@@ -38,16 +51,18 @@ function DepartmentField({ departments, value, onChange }: { departments: CsiOpe
                     ))}
                 </SelectContent>
             </Select>
+            <p className="text-[12.5px] text-muted-foreground">{RESPOND_COPY.departmentOnce}</p>
         </div>
     );
 }
 
 const FACT = 'flex items-center gap-2.5 text-[14px] text-muted-foreground';
 
-export function IntroScreen({ form, name, nameError, onNameChange, departmentId, onDepartmentChange, canStart, onStart, unavailable }: IntroScreenProps) {
+export function IntroScreen({ form, departmentId, onDepartmentChange, departmentLocked, canStart, onStart, unavailable }: IntroScreenProps) {
     const minutes = estimateMinutes(countDimensions(form));
     const hasTeam = form.ratees.some((ratee) => ratee.kind === 'TEAM');
     const people = form.ratees.filter((ratee) => ratee.kind === 'PERSON').length;
+    const departmentName = form.departments.find((department) => department.id === departmentId)?.name ?? RESPOND_COPY.noScore;
     return (
         <div className="space-y-5 sm:space-y-6">
             <header className="space-y-3">
@@ -62,18 +77,14 @@ export function IntroScreen({ form, name, nameError, onNameChange, departmentId,
             <section aria-labelledby="csi-identity-heading" className={cn(CSI_CARD, 'p-6 sm:p-10')}>
                 <h2 id="csi-identity-heading" className="text-[15px] font-semibold text-foreground">{RESPOND_COPY.identity}</h2>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                        <label htmlFor="csi-respondent-name" className="text-[13px] font-medium text-muted-foreground">{RESPOND_COPY.name}</label>
-                        <Input id="csi-respondent-name" value={name} onChange={(event) => onNameChange(event.target.value)}
-                            autoComplete="name" maxLength={CSI_NAME_MAX} aria-invalid={nameError ? true : undefined}
-                            aria-describedby={nameError ? 'csi-name-error' : undefined} className="h-11 rounded-xl bg-card" />
-                        {nameError && <p id="csi-name-error" role="alert" className="text-[13px] font-medium text-destructive">{nameError}</p>}
-                    </div>
-                    {!unavailable && <DepartmentField departments={form.departments} value={departmentId} onChange={onDepartmentChange} />}
+                    <LockedValue id="csi-respondent-name" label={RESPOND_COPY.name} value={form.respondent.fullName} />
+                    {!unavailable && (departmentLocked
+                        ? <LockedValue id="csi-department" label={RESPOND_COPY.department} value={departmentName} />
+                        : <DepartmentField departments={form.departments} value={departmentId} onChange={onDepartmentChange} />)}
                 </div>
-                {form.submittedNames.length > 0 && (
-                    <p className="mt-4 text-[13px] text-muted-foreground">{submittedNote(form.submittedNames)}</p>
-                )}
+                <p className="mt-4 flex items-start gap-2 text-[13px] text-muted-foreground">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{RESPOND_COPY.identityLocked}
+                </p>
                 {unavailable && (
                     <p role="status" className="mt-4 flex items-start gap-2 rounded-xl bg-muted px-4 py-3 text-[14px] text-muted-foreground">
                         <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{RESPOND_COPY.notReady}
@@ -91,3 +102,4 @@ export function IntroScreen({ form, name, nameError, onNameChange, departmentId,
         </div>
     );
 }
+

@@ -38,13 +38,15 @@ interface RateeScreenProps {
 }
 
 /** "Lanjut · <next name>"; the name hides when the screen container is narrower than 780 px. */
-function NextButton({ next, onNext }: { next: Ratee | undefined; onNext: () => void }) {
+function NextButton({ next, onNext, step }: { next: Ratee | undefined; onNext: () => void; step: string }) {
     return (
-        <button type="button" className="idesk-cta ct-submit min-w-0 max-w-full flex-1 justify-center sm:ml-auto sm:flex-none" onClick={onNext}>
+        <button type="button" className="idesk-cta ct-submit min-w-0 max-w-full flex-1 justify-center sm:ml-auto sm:flex-none" onClick={onNext}
+            aria-label={next ? `${RESPOND_COPY.next} · ${next.displayName}` : RESPOND_COPY.toReview}>
             {next ? (
                 <>
                     {RESPOND_COPY.next}{' '}
                     <span className="max-w-[180px] truncate font-semibold opacity-75 @max-[780px]:hidden">· {next.displayName}</span>
+                    <span className="hidden font-semibold opacity-75 tabular-nums @max-[780px]:inline">{step}</span>
                 </>
             ) : RESPOND_COPY.toReview}
             <ArrowRight aria-hidden="true" />
@@ -92,7 +94,7 @@ export function RateeScreen(props: RateeScreenProps) {
                             </p>
                         )}>
                             <Button type="button" variant="soft" size="lg" onClick={onBack}>{RESPOND_COPY.back}</Button>
-                            <NextButton next={ratees[index + 1]} onNext={onNext} />
+                            <NextButton next={ratees[index + 1]} onNext={onNext} step={`(${index + 2}/${ratees.length})`} />
                         </FlowFooter>
                     </div>
                 </div>

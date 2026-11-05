@@ -68,7 +68,7 @@ describe('SubjectRail', () => {
 
     it('header shows position, finished count and the autosave note', () => {
         renderRail({ answeredCount: (index) => (index === 0 ? QUESTIONS : 0) });
-        expect(screen.getByText('Subjek 2 dari 4')).toBeInTheDocument();
+        expect(screen.getByText('Penilaian 2 dari 4')).toBeInTheDocument();
         expect(screen.getByText('· 1 selesai')).toBeInTheDocument();
         expect(screen.getByText('Tersimpan otomatis')).toBeInTheDocument();
     });
@@ -91,7 +91,7 @@ describe('SubjectRail', () => {
         expect(allButton()).toHaveAccessibleName('Semua 15');
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
         await user.click(allButton());
-        const dialog = within(screen.getByRole('dialog', { name: 'Semua subjek' }));
+        const dialog = within(screen.getByRole('dialog', { name: 'Semua yang Anda nilai' }));
         expect(dialog.getAllByRole('button', { name: /^\d+\. / })).toHaveLength(15);
         await user.click(dialog.getByRole('button', { name: /^12\. Orang 12/ }));
         expect(onSelect).toHaveBeenCalledWith(11);

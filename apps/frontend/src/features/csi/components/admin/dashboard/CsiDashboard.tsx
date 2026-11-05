@@ -13,7 +13,7 @@ const TABS = [
 ] as const;
 
 /** CSI dashboard of one scope (spec "Dashboard CSI"): active-period progress and the score trend. */
-export function CsiDashboard({ scope }: { scope: CsiScopeParam }) {
+export function CsiDashboard({ scope, onOpenReport }: { scope: CsiScopeParam; onOpenReport?: (periodId: string, siteId: string | null) => void }) {
     const [tab, setTab] = useState<DashboardTab>('live');
     const { data, isLoading, isError, refetch } = useCsiDashboard(scope);
     const today = useMemo(() => new Date(), []);
@@ -22,7 +22,7 @@ export function CsiDashboard({ scope }: { scope: CsiScopeParam }) {
             <SegmentedControl aria-label="Tampilan dashboard CSI" className="w-fit" options={TABS} value={tab} onValueChange={setTab} />
             {isLoading && <div className="h-40 animate-pulse rounded-[18px] bg-[hsl(var(--muted))] motion-reduce:animate-none" aria-busy="true" aria-label="Memuat dashboard" />}
             {isError && <ErrorState compact message="Gagal memuat dashboard CSI." onRetry={() => refetch()} />}
-            {data && (tab === 'live' ? <DashboardLive scope={scope} data={data} today={today} /> : <DashboardTrend data={data} />)}
+            {data && (tab === 'live' ? <DashboardLive scope={scope} data={data} today={today} onOpenReport={onOpenReport} /> : <DashboardTrend data={data} />)}
         </div>
     );
 }

@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, Index } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CSI_SLA_TARGET_DEFAULT, CSI_TEAM_LABEL_DEFAULT, CsiPeriodPublishStatus, CsiRespondentMode } from '../csi.constants';
+import { CSI_SLA_TARGET_DEFAULT, CSI_TEAM_LABEL_DEFAULT, CsiPairMode, CsiPeriodPublishStatus, CsiRespondentMode } from '../csi.constants';
 import { CsiPeriodSite } from './csi-period-site.entity';
 
 @Entity('csi_periods')
@@ -52,6 +52,19 @@ export class CsiPeriod {
 
     @Column({ type: 'uuid' })
     createdById: string;
+
+    /** Who rates whom: ALL = every rater rates every subject (no pairs), CUSTOM = the pair matrix; null = not chosen yet. */
+    @Column({ type: 'varchar', length: 10, nullable: true })
+    pairMode: CsiPairMode | null;
+
+    @Column({ type: 'timestamptz', nullable: true })
+    cancelledAt: Date | null;
+
+    @Column({ type: 'uuid', nullable: true })
+    cancelledById: string | null;
+
+    @Column({ type: 'varchar', length: 500, nullable: true })
+    cancelReason: string | null;
 
     @CreateDateColumn()
     createdAt: Date;

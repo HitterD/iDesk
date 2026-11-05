@@ -75,6 +75,12 @@ export const queryKeys = {
         report: (scope: 'ict' | 'hc', id: string, siteId?: string) =>
             ['csi', scope, 'report', id, ...(siteId === undefined ? [] : [siteId])] as const,
         subjects: (scope: 'ict' | 'hc') => ['csi', scope, 'subjects'] as const,
+        questionSets: (scope: 'ict' | 'hc') => ['csi', scope, 'question-sets'] as const,
+        overlaps: (scope: 'ict' | 'hc', key: string) => ['csi', scope, 'overlaps', key] as const,
+        raterGroup: (scope: 'ict' | 'hc', key: string) => ['csi', scope, 'rater-group', key] as const,
+        raterDepartments: (scope: 'ict' | 'hc', siteId: string) => ['csi', scope, 'rater-departments', siteId] as const,
+        raterMatrix: (scope: 'ict' | 'hc', id: string, siteId?: string) =>
+            ['csi', scope, 'rater-matrix', id, ...(siteId === undefined ? [] : [siteId])] as const,
         assignments: (scope: 'ict' | 'hc', periodId: string) => ['csi', scope, 'assignments', periodId] as const,
         dashboard: (scope: 'ict' | 'hc') => ['csi', scope, 'dashboard'] as const,
         respondents: (scope: 'ict' | 'hc', id: string) => ['csi', scope, 'respondents', id] as const,

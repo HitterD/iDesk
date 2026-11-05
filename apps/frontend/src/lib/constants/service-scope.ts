@@ -24,6 +24,7 @@ export const ROLE_SCOPE: Readonly<Partial<Record<string, ServiceScope>>> = {
   AGENT_WEB_DEV: 'ICT',
   AGENT_MOBILE_DEV: 'ICT',
   MANAGER: 'ICT',
+  HC_ADMIN: 'HC',
 };
 
 export const scopeOfRole = (role?: string | null): ServiceScope | null =>

@@ -30,8 +30,11 @@ vi.mock('../../components/admin/PeriodDetail', () => ({
     ),
 }));
 vi.mock('../../components/admin/dashboard/CsiDashboard', () => ({ CsiDashboard: ({ scope }: { scope: string }) => <p>{`dashboard:${scope}`}</p> }));
-vi.mock('../../components/admin/MasterDataPanel', () => ({ MasterDataPanel: () => <p>master-data</p> }));
-vi.mock('../../components/admin/subjects/SubjectsTab', () => ({ SubjectsTab: ({ scope }: { scope: string }) => <p>{`subjects:${scope}`}</p> }));
+const settings = vi.hoisted(() => ({ pending: 0 }));
+vi.mock('../../components/admin/SettingsPanel', () => ({
+    SettingsPanel: ({ scope }: { scope: string }) => <p>{`settings:${scope}`}</p>,
+    useSettingsStatus: () => Array.from({ length: 4 }, (_, index) => ({ key: `k${index}`, done: index >= settings.pending })),
+}));
 vi.mock('../../components/wizard/WizardRoute', () => ({
     WizardRoute: ({ route }: { route: { wizard: string | null; step: string | null; closeAll: () => void } }) => (
         <div><p>{`wizard:${route.wizard ?? 'new'}:${route.step ?? 'resume'}`}</p><button type="button" onClick={route.closeAll}>tutup</button></div>
@@ -47,7 +50,7 @@ const renderAt = (path: string) => render(
     </MemoryRouter>,
 );
 
-beforeEach(() => { access.role = 'ADMIN'; access.pageAccess = {}; });
+beforeEach(() => { access.role = 'ADMIN'; access.pageAccess = {}; settings.pending = 0; });
 afterEach(cleanup);
 
 describe('CsiAdminPage', () => {
@@ -56,7 +59,7 @@ describe('CsiAdminPage', () => {
         renderAt('/csi/admin/ict');
         expect(screen.getByRole('heading', { name: 'Survei Kepuasan — ICT' })).toBeInTheDocument();
         expect(screen.getAllByRole('button').map((button) => button.textContent).slice(0, 4))
-            .toEqual(['Dashboard', 'Survei', 'Subjek & foto', 'Master data']);
+            .toEqual(['Dashboard', 'Survei', 'Pengaturan']);
         expect(screen.getByText('dashboard:ict')).toBeInTheDocument();
         expect(screen.queryByText('periods:ict')).not.toBeInTheDocument();
     });
@@ -69,20 +72,13 @@ describe('CsiAdminPage', () => {
         expect(screen.queryByText('dashboard:ict')).not.toBeInTheDocument();
     });
 
-    it('Master data memuat dimensi/departemen/penilai di bagian sekunder', async () => {
-        access.pageAccess = { csi_admin_ict: true };
-        renderAt('/csi/admin/ict');
-        await userEvent.setup().click(screen.getByRole('button', { name: 'Master data' }));
-        expect(screen.getByText('master-data')).toBeInTheDocument();
-        expect(screen.queryByText('periods:ict')).not.toBeInTheDocument();
-    });
-
-    it('Subjek & foto menampilkan tab subjek, lalu membuka survei kembali ke Survei', async () => {
+    it('Pengaturan menggabungkan subjek, pertanyaan, penilai, departemen dan menyebut yang belum lengkap', async () => {
         const actor = userEvent.setup();
+        settings.pending = 2;
         access.pageAccess = { csi_admin_ict: true };
         renderAt('/csi/admin/ict');
-        await actor.click(screen.getByRole('button', { name: 'Subjek & foto' }));
-        expect(screen.getByText('subjects:ict')).toBeInTheDocument();
+        await actor.click(screen.getByRole('button', { name: 'Pengaturan · 2 perlu dilengkapi' }));
+        expect(screen.getByText('settings:ict')).toBeInTheDocument();
         expect(screen.queryByText('periods:ict')).not.toBeInTheDocument();
         await actor.click(screen.getByRole('button', { name: 'Survei' }));
         expect(screen.getByText('periods:ict')).toBeInTheDocument();
@@ -118,10 +114,19 @@ describe('CsiAdminPage', () => {
         expect(screen.getByText('wizard:p3:ratees')).toBeInTheDocument();
     });
 
-    it('ADMIN tanpa csi_admin_hc dialihkan dari /csi/admin/hc ke scope yang diizinkan', () => {
+    it('ADMIN selalu bisa membuka Admin HC; ICT tanpa key dialihkan ke HC', () => {
+        const { unmount } = renderAt('/csi/admin/hc');
+        expect(screen.getByText('dashboard:hc')).toBeInTheDocument();
+        unmount();
+        renderAt('/csi/admin/ict');
+        expect(screen.getByText('dashboard:hc')).toBeInTheDocument();
+    });
+
+    it('HC_ADMIN hanya HC, walau preset memberi key ICT', () => {
+        access.role = 'HC_ADMIN';
         access.pageAccess = { csi_admin_ict: true };
-        renderAt('/csi/admin/hc');
-        expect(screen.getByText('dashboard:ict')).toBeInTheDocument();
+        renderAt('/csi/admin/ict');
+        expect(screen.getByText('dashboard:hc')).toBeInTheDocument();
     });
 
     it('scope tidak dikenal dialihkan dalam layout manager', () => {
@@ -132,6 +137,7 @@ describe('CsiAdminPage', () => {
     });
 
     it('tanpa akses apa pun menampilkan keadaan tidak berwenang', () => {
+        access.role = 'MANAGER';
         renderAt('/csi/admin/ict');
         expect(screen.getByText('Anda tidak memiliki akses Admin CSI')).toBeInTheDocument();
     });

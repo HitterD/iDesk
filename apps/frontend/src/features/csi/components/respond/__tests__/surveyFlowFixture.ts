@@ -45,6 +45,8 @@ export async function startFilling(user: User, department = 'Produksi') {
     await user.click(await screen.findByRole('combobox', { name: 'Departemen' }));
     await user.click(await screen.findByRole('option', { name: department }));
     await user.click(button('Mulai mengisi'));
+    // First time a department is chosen it is confirmed (it locks for later surveys).
+    await user.click(await screen.findByRole('button', { name: 'Ya, sudah benar' }));
 }
 
 /** Team → Andi → Budi with every required answer, ending on the review screen. */

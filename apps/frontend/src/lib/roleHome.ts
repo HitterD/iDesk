@@ -12,6 +12,8 @@ export const MY_DASHBOARD_PATH = '/dashboard/me';
 export const TEAM_DASHBOARD_PATH = '/dashboard';
 const MANAGER_HOME = '/manager/dashboard';
 const CLIENT_HOME = '/client/my-tickets';
+/** HC administrators land on their HC admin area (only CSI HC today). */
+export const HC_ADMIN_HOME = '/csi/admin/hc';
 
 export const isAgentRole = (role?: string | null): boolean =>
     (AGENT_ROLES as readonly string[]).includes(role ?? '');
@@ -26,6 +28,7 @@ export const agentDashboardPath = (agentId: string): string => `/dashboard/agent
 export function getRoleHome(role?: string | null): string {
     if (role === 'ADMIN') return TEAM_DASHBOARD_PATH;
     if (role === 'MANAGER') return MANAGER_HOME;
+    if (role === 'HC_ADMIN') return HC_ADMIN_HOME;
     if (isAgentRole(role)) return MY_DASHBOARD_PATH;
     return CLIENT_HOME;
 }

@@ -14,9 +14,9 @@ const classes = () => photo().className.split(/\s+/);
 afterEach(cleanup);
 
 describe('SubjectPhoto', () => {
-    it('is a stacked 4/3.8 banner below lg: sticky only behind the lg + container >= 780px variants', () => {
+    it('is a short banner on phones (first question visible), taller from sm, sticky only behind the lg + container >= 780px variants', () => {
         render(<SubjectPhoto ratee={RATEE} index={0} total={3} />);
-        expect(classes()).toEqual(expect.arrayContaining(['relative', 'aspect-[4/3.8]', 'max-h-[64vh]']));
+        expect(classes()).toEqual(expect.arrayContaining(['relative', 'aspect-[16/10]', 'max-h-[34vh]', 'sm:aspect-[4/3.8]', 'sm:max-h-[64vh]']));
         expect(classes()).toContain('lg:@min-[780px]:sticky');
         // No unprefixed sticky / fixed height: the < lg layout (mobile header + bottom nav) never sticks.
         expect(classes().filter((name) => /^(sticky|top-|h-\[|min-h-)/.test(name))).toEqual([]);

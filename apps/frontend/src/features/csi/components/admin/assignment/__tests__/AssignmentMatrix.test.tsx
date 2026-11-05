@@ -128,7 +128,7 @@ describe('AssignmentMatrix', () => {
 
     it('OPEN mode: info callout and a read-only matrix', () => {
         renderMatrix({ respondentMode: 'OPEN' });
-        expect(screen.getByText(/Mode terbuka: semua user aktif di site dapat mengisi dan menilai semua subjek\./)).toBeInTheDocument();
+        expect(screen.getByText(/Mode terbuka: semua user aktif di site dapat mengisi dan menilai semua tim dan orang\./)).toBeInTheDocument();
         expect(cell('Citra', 'Andi')).toBeDisabled();
         expect(screen.queryByRole('button', { name: 'Simpan' })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /Isi otomatis/ })).not.toBeInTheDocument();

@@ -1,17 +1,18 @@
-import { useEffect, useState, type FormEvent, type Ref } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode, type Ref } from 'react';
 import { Input } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Textarea } from '@/components/ui/textarea';
 import { useCreateCsiPeriod, useUpdateCsiPeriod } from '../../hooks/useCsi';
 import { CSI_MODE_LABELS, CSI_TEXT_MAX, CSI_TITLE_MAX } from '../../lib/csiAdmin';
 import {
-    datesInvalid, formDirty, initialState, sectionsInvalid, slaInvalid, teamLabelInvalid, toCreatePayload, toUpdatePayload,
+    datesInvalid, formDirty, initialState, nextPeriodForm, sectionsInvalid, slaInvalid, teamLabelInvalid, toCreatePayload, toUpdatePayload,
     withCopyMode, withCopySource, type PeriodFormState,
 } from '../../lib/periodForm';
 import type { CsiPeriodDetail, CsiPeriodListItem, CsiRespondentMode, CsiScopeParam } from '../../types';
 import { WIZARD_COPY } from '../wizard/wizardCopy';
 import { FIELD_LABEL, LockedNote } from './AdminParts';
 import { CopySourceField } from './CopySourceField';
+import { OverlapNotice } from './OverlapNotice';
 import { SectionFields } from './SectionFields';
 import { SiteChips } from './SiteChips';
 
@@ -28,16 +29,18 @@ interface PeriodEditorProps {
     periods?: readonly CsiPeriodListItem[];
     /** Called after a save, or immediately when an existing period is submitted unchanged. */
     onSaved: (period: CsiPeriodDetail) => void;
+    /** Create only: start as a copy of this period with its next dates ("Buat lagi"). */
+    copyFrom?: string | null;
     /** The wizard footer submits this form (`requestSubmit`) and mirrors its state. */
     formRef?: Ref<HTMLFormElement>;
     onStatusChange?: (status: PeriodEditorStatus) => void;
 }
 
 /** Survey info form (wizard step 1). Actions live in the wizard footer. */
-export function PeriodEditor({ scope, period, periods = [], onSaved, formRef, onStatusChange }: PeriodEditorProps) {
+export function PeriodEditor({ scope, period, periods = [], copyFrom, onSaved, formRef, onStatusChange }: PeriodEditorProps) {
     // Backend freezes sites, mode and sections once answers exist; only texts, dates and the SLA target stay editable.
     const locked = !!period?.locked;
-    const [form, setForm] = useState(() => initialState(scope, period));
+    const [form, setForm] = useState(() => (!period && copyFrom && periods.length ? nextPeriodForm(scope, periods, copyFrom) : initialState(scope, period)));
     const create = useCreateCsiPeriod(scope);
     const update = useUpdateCsiPeriod(scope);
     const pending = create.isPending || update.isPending;
@@ -76,7 +79,9 @@ export function PeriodEditor({ scope, period, periods = [], onSaved, formRef, on
                 <span className={FIELD_LABEL}>Kalimat terima kasih</span>
                 <Textarea value={form.thankYou} maxLength={CSI_TEXT_MAX} rows={2} onChange={(event) => set('thankYou', event.target.value)} />
             </label>
-            <DateAndModeFields form={form} set={set} modeLocked={locked} />
+            <DateAndModeFields form={form} set={set} modeLocked={locked}
+                overlap={<OverlapNotice scope={scope} siteIds={form.siteIds} startDate={form.startDate} endDate={form.endDate} excludeId={period?.id}
+                    onUseDates={(range) => setForm((current) => ({ ...current, ...range }))} />} />
             <SectionFields form={form} set={set} locked={locked} />
         </form>
     );
@@ -84,7 +89,7 @@ export function PeriodEditor({ scope, period, periods = [], onSaved, formRef, on
 
 type SetField = <K extends keyof PeriodFormState>(key: K, value: PeriodFormState[K]) => void;
 
-function DateAndModeFields({ form, set, modeLocked }: { form: PeriodFormState; set: SetField; modeLocked: boolean }) {
+function DateAndModeFields({ form, set, modeLocked, overlap }: { form: PeriodFormState; set: SetField; modeLocked: boolean; overlap?: ReactNode }) {
     const invalidDates = datesInvalid(form);
     const missingDates = !form.startDate || !form.endDate;
     return (
@@ -101,6 +106,7 @@ function DateAndModeFields({ form, set, modeLocked }: { form: PeriodFormState; s
                 </label>
             </div>
             {invalidDates && <p id={DATE_ERROR_ID} role="alert" className="text-[12.5px] text-[hsl(var(--ticket-red-ink))]">Tanggal selesai tidak boleh sebelum tanggal mulai.</p>}
+            {!invalidDates && overlap}
             {missingDates && form.copying && (
                 <p role="status" className="text-[12.5px] font-medium text-[hsl(var(--ticket-amber-ink))]">{WIZARD_COPY.datesRequired}</p>
             )}

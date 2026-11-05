@@ -10,7 +10,7 @@ import { CacheService } from '../../shared/core/cache';
 import { UserRole } from '../users/enums/user-role.enum';
 import { resolveSiteScope, scopeKey } from '../../shared/core/utils/site-scope.util';
 import { applySiteFilter, isCrossSiteRole as isTicketCrossSiteRole } from '../ticketing/utils/site-access.util';
-import { applyServiceScopeFilter } from '../../shared/core/utils/service-scope.util';
+import { ServiceScope, applyServiceScopeFilter, scopeOfRole } from '../../shared/core/utils/service-scope.util';
 import { 
     SearchFilterDto, 
     SearchQueryDto, 
@@ -37,6 +37,12 @@ function actorCacheKey(actor: SearchActor): string {
     const site = isTicketCrossSiteRole(actor.role) ? 'all' : scopeKey(actor);
     return `${actor.role}:${site}`;
 }
+
+/** Staff whose service scope is not ICT (today: HC_ADMIN). ICT-only search results stay closed to them. */
+const isOtherScopeStaff = (role: string) => {
+    const scope = scopeOfRole(role);
+    return scope !== null && scope !== ServiceScope.ICT;
+};
 
 @Injectable()
 export class SearchService {
@@ -255,6 +261,11 @@ export class SearchService {
             qb.andWhere('hw.requesterId = :searchUserId', { searchUserId: actor.userId });
             return;
         }
+        // Hardware requests are ICT work: staff of another service scope (HC) only see their own, like requesters.
+        if (isOtherScopeStaff(actor.role)) {
+            qb.andWhere('hw.requesterId = :searchUserId', { searchUserId: actor.userId });
+            return;
+        }
         this.applySiteScope(qb, 'hw', actor);
     }
 
@@ -268,8 +279,8 @@ export class SearchService {
         offset: number,
         actor: SearchActor,
     ): Promise<UserSearchResult[]> {
-        // Requesters never browse the staff/user directory.
-        if (actor.role === UserRole.USER) return [];
+        // Requesters (and staff of a non-ICT scope) never browse the staff/user directory.
+        if (actor.role === UserRole.USER || isOtherScopeStaff(actor.role)) return [];
         const qb = this.userRepo.createQueryBuilder('user')
             .leftJoinAndSelect('user.department', 'department');
         this.applySiteScope(qb, 'user', actor);

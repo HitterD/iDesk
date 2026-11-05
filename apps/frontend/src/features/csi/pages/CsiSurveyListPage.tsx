@@ -7,6 +7,7 @@ import { useAuth } from '@/stores/useAuth';
 import { hasDraft } from '../lib/surveyDraft';
 import { useCsiActive } from '../hooks/useCsi';
 import { useCsiBasePath } from '../lib/useCsiBasePath';
+import { formatDate } from '../lib/format';
 import { CSI_CARD, FadeIn } from '../components/CsiSurveyParts';
 
 const SKELETON_ROWS = 2;
@@ -42,6 +43,12 @@ export function CsiSurveyListPage() {
                 </FadeIn>
             )}
 
+            {surveys && surveys.some((survey) => !survey.submitted) && surveys.length > 1 && (
+                <p className="text-[14px] text-muted-foreground">
+                    {`${surveys.filter((survey) => !survey.submitted).length} dari ${surveys.length} survei belum Anda isi.`}
+                </p>
+            )}
+
             {surveys && surveys.length > 0 && (
                 <ul className="space-y-3" aria-label="Daftar survei">
                     {surveys.map((survey, index) => (
@@ -53,7 +60,7 @@ export function CsiSurveyListPage() {
                                         <Star className="h-5 w-5 fill-current" />
                                     </span>
                                     <span className="min-w-0 flex-1">
-                                        <span className="block truncate text-[15px] font-semibold text-foreground">{survey.title}</span>
+                                        <span className="line-clamp-2 block text-[15px] font-semibold leading-snug text-foreground">{survey.title}</span>
                                         <span className="mt-1.5 flex flex-wrap items-center gap-2">
                                             <TicketPill tone={survey.scope === 'HC' ? 'teal' : 'blue'}>{survey.scope}</TicketPill>
                                             {survey.submitted ? (
@@ -61,11 +68,14 @@ export function CsiSurveyListPage() {
                                             ) : (
                                                 <TicketPill tone="amber">Belum diisi</TicketPill>
                                             )}
+                                            {survey.endDate && !survey.submitted && (
+                                                <span className="text-[12.5px] text-muted-foreground">sampai {formatDate(survey.endDate)}</span>
+                                            )}
                                         </span>
                                     </span>
-                                    {/* A shared account (one login, several people) can always answer again under another name. */}
-                                    <span className="shrink-0 text-[13px] font-semibold text-primary">
-                                        {survey.submitted ? 'Isi untuk orang lain' : user && hasDraft(user.id, survey.id) ? 'Lanjutkan' : 'Isi Survei'}
+                                    {/* One answer per account: an answered survey only opens its "already answered" screen. */}
+                                    <span className={cn('inline-flex shrink-0 items-center gap-1 text-[13px] font-semibold', survey.submitted ? 'text-muted-foreground' : 'text-primary')}>
+                                        {survey.submitted ? <><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Sudah dikirim</> : user && hasDraft(user.id, survey.id) ? 'Lanjutkan' : 'Isi Survei'}
                                     </span>
                                     <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
                                 </Link>

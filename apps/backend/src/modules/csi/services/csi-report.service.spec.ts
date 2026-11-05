@@ -317,6 +317,14 @@ describe('CsiReportService', () => {
         });
         afterEach(() => (service as any).ratees.rows.forEach((row: any) => { delete row.siteId; }));
 
+        it('rater matrix uses the same site rule as the report: only respondents of the filtered site count', async () => {
+            const all = await service.getRaterMatrix(ICT, 'p1');
+            expect(all.rows.map((row) => row.responseId).sort()).toEqual(['resp1', 'resp2']);
+            const siteA = await service.getRaterMatrix(ICT, 'p1', 'site-a');
+            expect(siteA.rows.map((row) => row.responseId)).toEqual(['resp1']);
+            expect(siteA.totals[0]).toEqual({ raters: 1, average: 3.5 });
+        });
+
         it('report carries photoUrl, siteId and star distribution per ratee', async () => {
             const report = await service.getReport(ICT, 'p1');
             expect(report.ratees[0]).toMatchObject({ siteId: 'site-a', photoUrl: '/uploads/csi/budi.jpg', starDistribution: [0, 1, 1, 0, 1] });

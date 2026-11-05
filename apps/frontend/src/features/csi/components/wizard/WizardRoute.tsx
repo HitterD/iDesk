@@ -23,6 +23,6 @@ export function WizardRoute({ scope, route }: { scope: CsiScopeParam; route: Adm
         <SurveyWizard scope={scope} periodId={periodId} step={resolved}
             onStepChange={(next) => route.setStep(next)} onClose={route.closeAll}
             onCreated={(id) => route.openWizard(id, 'questions', { replace: true })}
-            onPublished={route.openDetail} />
+            onPublished={route.openDetail} copyFrom={periodId ? null : route.copyFrom} />
     );
 }

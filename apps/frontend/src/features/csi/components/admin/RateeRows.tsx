@@ -10,6 +10,8 @@ import { SortableList } from '../common/SortableList';
 import { RATEE_COPY } from '../wizard/wizardCopy';
 import { EmptyNote, MUTED_TEXT } from './AdminParts';
 import { QuestionTypeChip } from './questions/QuestionTypeChip';
+import { QuestionLine } from './ratees/QuestionPicker';
+import { questionDisplayLabel } from './report/reportModel';
 
 interface QuestionChecklistProps {
     idPrefix: string;
@@ -28,9 +30,9 @@ export function QuestionChecklist({ idPrefix, questions, value, onChange, disabl
                 const id = `${idPrefix}-${question.id}`;
                 return (
                     <li key={question.id} className="flex items-center gap-2">
-                        <Checkbox id={id} checked={value.includes(question.id)} disabled={disabled}
+                        <Checkbox id={id} aria-label={questionDisplayLabel(question)} checked={value.includes(question.id)} disabled={disabled}
                             onCheckedChange={(state) => toggle(question.id, state === true)} />
-                        <label htmlFor={id} className="min-w-0 flex-1 cursor-pointer text-[13.5px]">{question.name}</label>
+                        <label htmlFor={id} className="min-w-0 flex-1 cursor-pointer"><QuestionLine question={question} /></label>
                         <QuestionTypeChip type={question.type} />
                     </li>
                 );
@@ -78,7 +80,7 @@ interface RateeRowsProps {
 
 /** One draggable row per PERSON ratee; the dragged order is the order that gets saved and shown to respondents. */
 export function RateeRows({ draft, questions, locked, onChangeRow, onRemove, onReorder }: RateeRowsProps) {
-    const names = useMemo(() => new Map(questions.map((question) => [question.id, question.name])), [questions]);
+    const names = useMemo(() => new Map(questions.map((question) => [question.id, questionDisplayLabel(question)])), [questions]);
     if (!draft.length) return <EmptyNote>{RATEE_COPY.empty}</EmptyNote>;
     return (
         <section aria-label={RATEE_COPY.listLabel} className="rounded-2xl border border-[hsl(var(--idesk-border)/.7)] p-2">

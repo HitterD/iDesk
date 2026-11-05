@@ -28,6 +28,11 @@ export class CsiAdminReportController {
         return this.reports.getReport(req.csiScope, id, query.siteId);
     }
 
+    @Get('rater-matrix')
+    raterMatrix(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Query() query: ReportQueryDto) {
+        return this.reports.getRaterMatrix(req.csiScope, id, query.siteId);
+    }
+
     @Post('reminders')
     @HttpCode(HttpStatus.OK)
     sendReminders(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Body() dto: SendRemindersDto) {
@@ -52,6 +57,14 @@ export class CsiAdminReportController {
         @Param('responseId', CSI_ID_PIPE) responseId: string, @Body() dto: ResetResponseDto,
     ) {
         return this.reports.resetResponse(req.csiScope, id, responseId, dto.reason, { id: req.user.userId }, req);
+    }
+
+    @Get('report.pdf')
+    async reportPdf(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Query() query: ReportQueryDto, @Res() res: Response) {
+        const { filename, buffer } = await this.exporter.buildPdf(req.csiScope, id, query.siteId);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(buffer);
     }
 
     @Get('export')

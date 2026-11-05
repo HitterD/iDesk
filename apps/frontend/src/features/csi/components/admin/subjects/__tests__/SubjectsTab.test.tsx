@@ -15,8 +15,11 @@ const GROUPS: CsiSubjectGroup[] = [
     { siteId: 's2', siteCode: 'KRW', siteName: 'Karawang', team: null, people: [] },
 ];
 
-const hooks = vi.hoisted(() => ({ update: vi.fn(), upload: vi.fn(), createTeam: vi.fn() }));
+const hooks = vi.hoisted(() => ({ update: vi.fn(), upload: vi.fn(), createTeam: vi.fn(), addMembers: vi.fn(), removeMember: vi.fn() }));
 vi.mock('../../../../hooks/useCsi', () => ({
+    useAddCsiSubjectMembers: () => ({ mutate: hooks.addMembers, isPending: false }),
+    useRemoveCsiSubjectMember: () => ({ mutate: hooks.removeMember, isPending: false }),
+    useCsiUserSearch: () => ({ data: [{ id: 'hc9', fullName: 'Hana HC', email: 'h@x', jobTitle: 'HC Officer', siteId: 's1', site: { code: 'SPJ', name: 'Sepanjang' } }], isFetching: false }),
     useCsiSubjects: () => ({ data: GROUPS, isLoading: false, isError: false, refetch: vi.fn() }),
     useUpdateCsiSubject: () => ({ mutate: hooks.update, isPending: false }),
     useUploadCsiSubjectPhoto: () => ({ mutate: hooks.upload, isPending: false }),
@@ -57,7 +60,7 @@ describe('SubjectsTab', () => {
     it('uses scope-neutral empty copy for HC', () => {
         render(<SubjectsTab scope="hc" />);
         expect(screen.getByRole('region', { name: 'HC Karawang' })).toBeInTheDocument();
-        expect(screen.getByText('Belum ada anggota di site ini.')).toBeInTheDocument();
+        expect(screen.getByText(/Belum ada anggota HC di site ini/)).toBeInTheDocument();
     });
 
     it('typing a tagline updates the preview live', async () => {
@@ -114,5 +117,23 @@ describe('SubjectsTab', () => {
         await actor.click(screen.getByRole('button', { name: 'Simpan' }));
         expect(hooks.upload).toHaveBeenCalledWith({ key: 'team:t1', file }, expect.anything());
         expect(hooks.update).toHaveBeenCalledWith({ key: 'team:t1', payload: { tagline: null, jobTitle: null, name: 'Tim SPJ' } }, expect.anything());
+    });
+
+    it('adds people as subjects (HC has no staff roles, so this builds its team)', async () => {
+        const actor = userEvent.setup();
+        render(<SubjectsTab scope="hc" />);
+        await actor.click(screen.getByRole('button', { name: 'Pilih anggota' }));
+        await actor.click(await screen.findByRole('option', { name: /Hana HC/ }));
+        await actor.keyboard('{Escape}');
+        await actor.click(screen.getByRole('button', { name: /Tambah anggota/ }));
+        expect(hooks.addMembers).toHaveBeenCalledWith({ userIds: ['hc9'] }, expect.anything());
+    });
+
+    it('an HC person can be taken off the list from the edit sheet', async () => {
+        const actor = userEvent.setup();
+        render(<SubjectsTab scope="hc" />);
+        await openCard(actor, 'Andi');
+        await actor.click(screen.getByRole('button', { name: /Keluarkan dari daftar/ }));
+        expect(hooks.removeMember).toHaveBeenCalledWith('u1', expect.anything());
     });
 });

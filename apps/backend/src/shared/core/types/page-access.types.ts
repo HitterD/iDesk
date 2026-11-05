@@ -64,7 +64,9 @@ const DEFAULT_PAGES_BY_ROLE: Record<string, readonly PageKey[]> = {
     AGENT_WEB_DEV: DEVELOPER_AGENT_DEFAULT_PAGES,
     AGENT_MOBILE_DEV: DEVELOPER_AGENT_DEFAULT_PAGES,
     MANAGER: MANAGER_DEFAULT_PAGES,
-    ADMIN: VALID_PAGE_KEYS.filter(k => k !== 'csi_admin_hc'),
+    /** HC administrators see only their HC pages (more HC modules will join this list). */
+    HC_ADMIN: ['notifications', 'csi_admin_hc'],
+    ADMIN: VALID_PAGE_KEYS,
 };
 
 /**

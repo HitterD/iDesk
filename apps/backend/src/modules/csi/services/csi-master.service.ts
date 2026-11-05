@@ -10,7 +10,7 @@ import { CsiRater } from '../entities/csi-rater.entity';
 import { CreateDepartmentDto, CreateDimensionDto, DEFAULT_USER_SEARCH_LIMIT, MAX_USER_SEARCH_LIMIT, UpdateDepartmentDto, UpdateDimensionDto } from '../dto/master.dto';
 import { CsiQuestionType } from '../csi.constants';
 import { INVALID_OPTIONS_MESSAGE, optionsMatchType } from '../csi-question.util';
-import { CSI_TEMPLATE_2025 } from '../csi-template';
+import { CSI_TEMPLATE_2025, CSI_TEMPLATE_HC } from '../csi-template';
 
 const INCOMPLETE_ORDER_MESSAGE = 'Urutan tidak lengkap';
 type Ordered = { id: string; scope: ServiceScope; sortOrder: number };
@@ -45,10 +45,11 @@ export class CsiMasterService {
         }));
     }
 
-    /** Appends the CSI 2025 questionnaire (not idempotent: every call adds nine questions). */
+    /** Appends the scope's standard questionnaire (ICT: CSI 2025; HC: the HC set). Not idempotent. */
     async createTemplateDimensions(scope: ServiceScope) {
         const start = await this.nextSortOrder(this.dimensions, scope);
-        return this.dimensions.save(CSI_TEMPLATE_2025.map((question, index) => this.dimensions.create({
+        const template = scope === ServiceScope.HC ? CSI_TEMPLATE_HC : CSI_TEMPLATE_2025;
+        return this.dimensions.save(template.map((question, index) => this.dimensions.create({
             scope, name: question.name, description: null, type: question.type, required: true,
             options: question.options.map((option) => ({ ...option })), sortOrder: start + index,
         })));

@@ -30,7 +30,7 @@ import { PASSWORD_POLICY, getPasswordRequirements, validatePasswordLocal, passwo
 const createUserSchema = z.object({
     fullName: z.string().min(1, 'Full name is required'),
     email: z.string().email('Invalid email address'),
-    role: z.enum(['ADMIN', 'MANAGER', 'AGENT', 'USER', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT']),
+    role: z.enum(['ADMIN', 'MANAGER', 'AGENT', 'USER', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT', 'HC_ADMIN']),
     departmentId: z.string().optional(),
     siteId: z.string().optional(),
     presetId: z.string().optional(), // P2: Permission preset
@@ -159,6 +159,7 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
                 : watchedRole === 'AGENT_WEB_DEV' ? preset.name === 'Agent Web Developer'
                 : watchedRole === 'AGENT_MOBILE_DEV' ? preset.name === 'Agent Mobile Developer'
                 : watchedRole === 'AGENT_OPERATIONAL_SUPPORT' ? preset.name === 'Agent Operational Support'
+                : watchedRole === 'HC_ADMIN' ? preset.name === 'Admin HC'
                 : preset.targetRole === presetTargetRole,
         );
         if (match) {
@@ -212,6 +213,7 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ isOpen, onClose })
                                 <SelectItem value="AGENT_WEB_DEV">Agent Web Dev</SelectItem>
                                 <SelectItem value="AGENT_MOBILE_DEV">Agent Mobile Dev</SelectItem>
                                 <SelectItem value="AGENT_OPERATIONAL_SUPPORT">Agent Ops Support</SelectItem>
+                                <SelectItem value="HC_ADMIN">Admin HC</SelectItem>
                                 <SelectItem value="USER">User</SelectItem>
                             </SelectContent>
                         </Select>

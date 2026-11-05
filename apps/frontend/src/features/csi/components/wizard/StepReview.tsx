@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { usePublishCsiPeriod } from '../../hooks/useCsi';
 import { CSI_MODE_LABELS } from '../../lib/csiAdmin';
+import { CSI_HTTP_CONFLICT, errorMessage, errorStatus } from '../../lib/csiForm';
 import { formatDateRange } from '../../lib/format';
 import { formatSiteNames } from '../../lib/location';
 import type { WizardStepKey } from '../../lib/wizard';
@@ -24,7 +25,7 @@ function Summary({ period }: { period: CsiPeriodDetail }) {
         ['Tanggal', formatDateRange(period.startDate, period.endDate)],
         ['Mode responden', CSI_MODE_LABELS[period.respondentMode]],
         ['Bagian', sectionsLabel(period)],
-        ['Target SLA', `${period.slaTargetPct}%`],
+        ['Target partisipasi', `${period.slaTargetPct}%`],
         ...(period.individualEnabled ? [['Orang yang dinilai', `${period.ratees.filter((ratee) => ratee.kind === 'PERSON').length} orang`] as [string, string]] : []),
         ...(period.respondentMode === 'LISTED' ? [['Penilai', `${period.raters.length} penilai`] as [string, string]] : []),
     ];
@@ -54,6 +55,8 @@ export function StepReview({ scope, period, onEditStep, onPublished }: StepRevie
     const submit = () => publish.mutate(undefined, {
         onSuccess: () => { toast.success(WIZARD_COPY.published); onPublished(period.id); },
     });
+    // The server names the clashing survey (409); show it next to the button, with the way to fix it.
+    const publishError = errorStatus(publish.error) === CSI_HTTP_CONFLICT ? errorMessage(publish.error) ?? null : null;
 
     return (
         <div className="grid gap-5">
@@ -73,6 +76,12 @@ export function StepReview({ scope, period, onEditStep, onPublished }: StepRevie
                         )}
                 </div>
                 {published && <p className={cn(MUTED_TEXT, 'mt-2 text-right')}>{WIZARD_COPY.alreadyPublished}</p>}
+                {publishError && (
+                    <div role="alert" className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-[hsl(var(--ticket-red)/.1)] px-3.5 py-3 text-[13px] font-medium text-[hsl(var(--ticket-red-ink))]">
+                        <span className="min-w-0 flex-1">{publishError}</span>
+                        <Button variant="soft" size="sm" onClick={() => onEditStep('info')}>Ubah tanggal / site</Button>
+                    </div>
+                )}
             </AdminSection>
             <SurveyPreview open={previewing} onOpenChange={setPreviewing} period={period} />
         </div>

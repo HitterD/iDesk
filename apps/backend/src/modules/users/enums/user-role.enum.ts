@@ -8,4 +8,6 @@ export enum UserRole {
     AGENT_ADMIN = 'AGENT_ADMIN',
     USER = 'USER',
     MANAGER = 'MANAGER',
+    /** Human Capital administrator: only the HC admin pages (today: Admin CSI HC). */
+    HC_ADMIN = 'HC_ADMIN',
 }

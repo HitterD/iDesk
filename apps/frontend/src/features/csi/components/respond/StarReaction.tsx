@@ -69,12 +69,12 @@ export function StarReaction({ value, onChange, label }: StarReactionProps) {
     };
     return (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <div role="radiogroup" aria-label={label} className="flex items-center gap-0.5" onMouseLeave={() => setHover(0)}>
+            <div role="radiogroup" aria-label={label} className="flex items-center gap-1.5 sm:gap-1" onMouseLeave={() => setHover(0)}>
                 {STARS.map((star) => (
                     <button key={star} type="button" role="radio" aria-checked={star === current} aria-label={`${star} bintang`}
                         tabIndex={star === tabStop ? 0 : -1} ref={(element) => { buttons.current[star - 1] = element; }}
                         onMouseEnter={() => setHover(star)} onClick={() => choose(star)} onKeyDown={(event) => handleKeyDown(event, star)}
-                        className={cn('relative grid h-10 w-10 place-items-center rounded-xl transition-transform duration-200 ease-[var(--ease-spring)] hover:scale-115',
+                        className={cn('relative grid h-11 w-11 place-items-center rounded-xl transition-transform duration-200 ease-[var(--ease-spring)] [@media(hover:hover)]:hover:scale-115',
                             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--idesk-sapphire))]',
                             star <= shown ? 'text-[hsl(var(--ticket-amber))]' : 'text-muted-foreground/35')}>
                         <span key={pop.count} aria-hidden="true" style={{ animationDelay: `${(star - 1) * POP_STAGGER_MS}ms` }}

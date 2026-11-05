@@ -4,7 +4,8 @@ export type CsiScopeParam = 'ict' | 'hc';
 export type CsiScope = ServiceScope;
 export type CsiRespondentMode = 'OPEN' | 'LISTED';
 export type CsiPeriodStatus = 'UPCOMING' | 'ACTIVE' | 'ENDED';
-export type CsiPublishStatus = 'DRAFT' | 'PUBLISHED';
+export type CsiPublishStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELLED';
+export type CsiPairMode = 'ALL' | 'CUSTOM';
 export type CsiQuestionType = 'STAR' | 'SCALE' | 'CHOICE' | 'TEXT';
 export type CsiRateeKind = 'PERSON' | 'TEAM';
 
@@ -77,7 +78,12 @@ export interface CsiPeriod extends CsiTimestamps {
     individualEnabled: boolean;
     slaTargetPct: number;
     createdById: string;
+    /** "Siapa menilai siapa": null until chosen in the wizard. */
+    pairMode?: CsiPairMode | null;
+    cancelledAt?: string | null;
+    cancelReason?: string | null;
 }
+export interface ConfirmCsiPeriodAction { confirmTitle: string; reason: string }
 
 export interface CsiPeriodListItem extends CsiPeriod {
     status: CsiPeriodStatus;
@@ -131,7 +137,11 @@ export interface CsiActivePeriod {
     id: string;
     scope: CsiScope;
     title: string;
+    /** Last day (YYYY-MM-DD); absent on older payloads. */
+    endDate?: string;
     submitted: boolean;
+    /** When this account answered (ISO), or null. */
+    submittedAt?: string | null;
 }
 
 export interface CsiFormDimension {
@@ -157,7 +167,7 @@ export interface CsiFormRatee {
     dimensions: CsiFormDimension[];
 }
 
-/** The form never reports `submitted`: a respondent may answer again under another name. */
+/** One answer per account: the identity (name, and the department once known) is locked to the account. */
 export interface CsiForm {
     id: string;
     scope: CsiScope;
@@ -165,7 +175,11 @@ export interface CsiForm {
     intro: string;
     endDate: string;
     teamLabel: string;
-    respondent: { fullName: string };
+    /** `departmentId`: the department the account is locked to in this list (null = choose once). */
+    respondent: { fullName: string; departmentId?: string | null };
+    /** When this account answered (ISO), or null / absent when it has not. */
+    submittedAt?: string | null;
+    /** @deprecated older servers; the account name once it has answered. */
     submittedNames: string[];
     departments: Array<{ id: string; name: string }>;
     ratees: CsiFormRatee[];
@@ -340,6 +354,31 @@ export interface CsiSubjectGroup {
 /** Empty / null clears tagline and jobTitle; `name` applies to team subjects only. */
 export interface UpdateCsiSubject { tagline?: string | null; jobTitle?: string | null; name?: string }
 export interface CreateCsiTeam { siteId: string }
+
+// ─── "Siapa menilai siapa" (respondents × subjects) ─────────────────────────
+export interface CsiRaterMatrix {
+    subjects: Array<{ periodRateeId: string; kind: CsiRateeKind; displayName: string; siteId: string | null }>;
+    rows: Array<{
+        responseId: string; respondentName: string; departmentName: string; areaName: string | null; submittedAt: string;
+        scores: Array<number | null>; average: number | null;
+    }>;
+    totals: Array<{ raters: number; average: number | null }>;
+}
+
+/** A published survey of the scope whose sites and dates intersect the ones being edited. */
+export interface CsiPeriodOverlap { id: string; title: string; startDate: string; endDate: string; sites: CsiSiteSummary[] }
+
+// ─── Bulk rater registration ─────────────────────────────────────────────────
+export interface CsiRaterGroupFilter { siteId?: string; departmentId?: string }
+export interface CsiRaterGroupPreview { total: number; alreadyRegistered: number; toAdd: number; sample: string[] }
+export interface CsiRaterDepartmentOption { id: string; name: string; userCount: number }
+export interface CsiRaterImportResult {
+    matched: number; alreadyRegistered: number; toAdd: number; added: number; notFound: string[]; sample: string[];
+}
+
+// ─── Reusable question sets (Master data) ──────────────────────────────────
+export interface CsiQuestionSet { id: string; scope: CsiScope; name: string; dimensionIds: string[] }
+export interface SaveCsiQuestionSet { name: string; dimensionIds: string[] }
 
 // ─── Rater → subject mapping per period ──────────────────────────────────────
 export interface CsiPair { periodRaterId: string; periodRateeId: string }

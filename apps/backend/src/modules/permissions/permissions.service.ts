@@ -423,6 +423,23 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         },
     },
 
+    // HC_ADMIN - Human Capital administrator: only HC admin pages (CSI HC today; more HC modules later)
+    {
+        name: 'Admin HC',
+        description: 'Administrator Human Capital. Hanya halaman admin HC (saat ini: Admin CSI HC).',
+        sortOrder: 8,
+        isSystem: true,
+        targetRole: 'MANAGER',
+        pageAccess: {
+            notifications: true,
+            csi_admin_hc: true,
+        },
+        permissions: {
+            'notifications.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'settings.view': { canView: true, canCreate: false, canEdit: true, canDelete: false },
+        },
+    },
+
     // ADMIN - Full system administrator
     {
         name: 'Admin',
@@ -683,6 +700,7 @@ export class PermissionsService implements OnModuleInit {
             [UserRole.AGENT_WEB_DEV]: 'Agent Web Developer',
             [UserRole.AGENT_MOBILE_DEV]: 'Agent Mobile Developer',
             [UserRole.MANAGER]: 'Manager',
+            [UserRole.HC_ADMIN]: 'Admin HC',
             [UserRole.ADMIN]: 'Admin',
         };
         const preset = await this.presetRepo.findOne({

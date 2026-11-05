@@ -117,4 +117,13 @@ describe('CsiDashboard', () => {
         await userEvent.setup().click(screen.getByRole('button', { name: 'Tren' }));
         expect(screen.getByText('Belum ada data tren.')).toBeInTheDocument();
     });
+
+    it('a site target card opens that survey report filtered on the site', async () => {
+        const user = userEvent.setup();
+        const onOpenReport = vi.fn();
+        render(<CsiDashboard scope="ict" onOpenReport={onOpenReport} />);
+        const [card] = screen.getAllByRole('button', { name: /^Lihat laporan / });
+        await user.click(card);
+        expect(onOpenReport).toHaveBeenCalledWith(expect.any(String), expect.any(String));
+    });
 });

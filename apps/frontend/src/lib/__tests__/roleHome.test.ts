@@ -22,6 +22,10 @@ describe('getRoleHome', () => {
         expect(getRoleHome('USER')).toBe('/client/my-tickets');
     });
 
+    it('lands HC_ADMIN on the HC admin area', () => {
+        expect(getRoleHome('HC_ADMIN')).toBe('/csi/admin/hc');
+    });
+
     it('falls back to the client portal for unknown roles', () => {
         expect(getRoleHome(undefined)).toBe('/client/my-tickets');
         expect(getRoleHome('SOMETHING')).toBe('/client/my-tickets');

@@ -234,4 +234,12 @@ describe('CSI master scope boundaries', () => {
         expect(await service.updateDimension(scope, 'd1', { shortLabel: 'Baru' })).toMatchObject({ shortLabel: 'Baru' });
         expect(await service.updateDimension(scope, 'd1', { shortLabel: '' })).toMatchObject({ shortLabel: null });
     });
+
+    it('HC gets its own standard questionnaire', async () => {
+        const created = await service.createTemplateDimensions(ServiceScope.HC);
+        expect(created).toHaveLength(8);
+        expect(created.every((row: any) => row.scope === ServiceScope.HC)).toBe(true);
+        expect(created.map((row: any) => row.name).join(' ')).toMatch(/Human Capital|tim HC/);
+        expect(created.map((row: any) => row.name).join(' ')).not.toMatch(/IT Support/);
+    });
 });

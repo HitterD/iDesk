@@ -17,6 +17,7 @@ import { lockPeriodRow } from './csi-period-lock.util';
 import { CsiItemRow, itemsForSite, overallStats, rateeStats } from './csi-report.calc';
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiAssignmentService } from './csi-assignment.service';
+import { raterMatrix } from './csi-rater-matrix.calc';
 import { CsiSlaService } from './csi-sla.service';
 import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
 
@@ -36,6 +37,8 @@ export type CsiAnswerRatee = {
 };
 export type CsiAnswer = {
     responseId: string; respondentName: string; accountName: string; areaName: string | null;
+    /** Site of the respondent's account (report site filter); null when the account has none. */
+    siteId?: string | null;
     departmentName: string; submittedAt: Date; ratees: CsiAnswerRatee[];
 };
 /** Ratees (enabled sections), their resolved views, dimensions, items and responses of one period. */
@@ -166,6 +169,24 @@ export class CsiReportService {
         return { ratees, views, dimensions, items, responses };
     }
 
+    /**
+     * "Siapa menilai siapa": every response × every subject of the (site-narrowed) report with the average given.
+     * Respondent names are shown to scope admins only (this endpoint sits behind CsiAdminGuard); the PDF never uses it.
+     */
+    async getRaterMatrix(scope: ServiceScope, periodId: string, siteId?: string) {
+        const report = await this.getReport(scope, periodId, siteId);
+        const answers = await this.listAnswers(scope, periodId);
+        const subjects = report.ratees.map((ratee) => ({
+            periodRateeId: ratee.periodRateeId, kind: ratee.kind, siteId: ratee.siteId,
+            displayName: ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || report.period.teamLabel : ratee.displayName,
+        }));
+        const subjectIds = new Set(subjects.map((subject) => subject.periodRateeId));
+        // Same site rule as the report: with a site filter, only respondents of that site count (see narrowToSite).
+        const relevant = answers.filter((answer) => (!siteId || answer.siteId === siteId)
+            && answer.ratees.some((ratee) => subjectIds.has(ratee.periodRateeId)));
+        return raterMatrix(subjects, relevant);
+    }
+
     async getRespondents(scope: ServiceScope, periodId: string) {
         const period = await this.findInScope(scope, periodId);
         const responses = await this.responses.find({ where: { periodId }, relations: { respondent: true }, order: { submittedAt: 'ASC' } });
@@ -267,7 +288,7 @@ export class CsiReportService {
             }
             return {
                 responseId: response.id, respondentName: response.respondentName, accountName: response.respondent.fullName,
-                areaName: response.respondent.site?.name ?? null, departmentName: response.departmentName,
+                areaName: response.respondent.site?.name ?? null, siteId: response.respondent.siteId ?? null, departmentName: response.departmentName,
                 submittedAt: response.submittedAt, ratees: [...ratees.values()],
             };
         });

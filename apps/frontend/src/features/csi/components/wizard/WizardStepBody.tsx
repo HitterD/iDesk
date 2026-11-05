@@ -5,6 +5,7 @@ import type { PeriodEditorStatus } from '../admin/PeriodEditor';
 import { StepDepartments } from './StepDepartments';
 import { StepInfo } from './StepInfo';
 import { StepQuestions } from './StepQuestions';
+import { StepPairs } from './StepPairs';
 import { StepRaters } from './StepRaters';
 import { StepRatees } from './StepRatees';
 import { StepReview } from './StepReview';
@@ -20,18 +21,20 @@ export interface WizardStepBodyProps {
     onDirtyChange: (dirty: boolean) => void;
     onEditStep: (step: WizardStepKey) => void;
     onPublished: (periodId: string) => void;
+    copyFrom?: string | null;
 }
 
 export function WizardStepBody(props: WizardStepBodyProps) {
     const { scope, step, period } = props;
     if (step === 'info' || !period) {
-        return <StepInfo scope={scope} period={period} formRef={props.formRef} onStatusChange={props.onInfoStatus} onSaved={props.onInfoSaved} />;
+        return <StepInfo scope={scope} period={period} formRef={props.formRef} onStatusChange={props.onInfoStatus} onSaved={props.onInfoSaved} copyFrom={props.copyFrom} />;
     }
     switch (step) {
         case 'questions': return <StepQuestions scope={scope} />;
         case 'team': return <StepTeam scope={scope} period={period} onDirtyChange={props.onDirtyChange} />;
         case 'ratees': return <StepRatees scope={scope} period={period} onDirtyChange={props.onDirtyChange} />;
         case 'raters': return <StepRaters scope={scope} period={period} onDirtyChange={props.onDirtyChange} />;
+        case 'pairs': return <StepPairs scope={scope} period={period} onDirtyChange={props.onDirtyChange} />;
         case 'departments': return <StepDepartments scope={scope} />;
         default: return <StepReview scope={scope} period={period} onEditStep={props.onEditStep} onPublished={props.onPublished} />;
     }
