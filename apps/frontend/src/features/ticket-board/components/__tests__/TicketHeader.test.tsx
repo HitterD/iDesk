@@ -4,7 +4,7 @@ vi.mock('@/lib/slaCountdown', async (importOriginal) => ({
 }));
 
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { TicketHeader } from '../ticket-detail/TicketHeader';
@@ -168,7 +168,7 @@ describe('TicketHeader compact metadata bubbles', () => {
         expect(screen.getByRole('button', { name: 'Aksi lainnya' })).toBeInTheDocument();
     });
 
-    it('Batalkan opens the existing confirmation before cancelling', () => {
+    it('Batalkan asks for a reason before cancelling', async () => {
         const onCancel = vi.fn();
         render(
             <MemoryRouter initialEntries={['/tickets/t-1']}>
@@ -176,9 +176,10 @@ describe('TicketHeader compact metadata bubbles', () => {
             </MemoryRouter>
         );
         fireEvent.click(screen.getByRole('button', { name: 'Batalkan' }));
-        expect(onCancel).not.toHaveBeenCalled();
+        expect(screen.getByRole('button', { name: 'Batalkan tiket' })).toBeDisabled();
+        fireEvent.click(screen.getByRole('button', { name: 'Duplikat tiket lain' }));
         fireEvent.click(screen.getByRole('button', { name: 'Batalkan tiket' }));
-        expect(onCancel).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(onCancel).toHaveBeenCalledWith({ reasonCode: 'DUPLICATE' }));
     });
 
     it('hides every action on a terminal ticket', () => {

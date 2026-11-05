@@ -611,7 +611,7 @@ export class TicketsController {
         @Body() dto: CancelTicketDto,
         @Request() req: any,
     ) {
-        return this.ticketUpdateService.cancelTicket(id, req.user.userId, req.user.role, dto.reason);
+        return this.ticketUpdateService.cancelTicket(id, req.user.userId, req.user.role, dto.reasonCode, dto.reason);
     }
 
     // Requester-only actions: ownership is enforced in the services, so no role list here.

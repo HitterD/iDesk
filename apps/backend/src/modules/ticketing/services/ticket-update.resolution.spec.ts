@@ -1,3 +1,4 @@
+import { TicketCancelReasonCode } from '../ticket-cancel.constants';
 import { BadRequestException } from '@nestjs/common';
 import { TicketUpdateService } from './ticket-update.service';
 import { UserRole } from '../../users/enums/user-role.enum';
@@ -39,7 +40,7 @@ describe('TicketUpdateService — resolution confirmation', () => {
             { create: jest.fn((m) => m), save: jest.fn(async (m) => m) } as any,
             { findOne: jest.fn().mockResolvedValue(admin) } as any,
             {} as any,
-            { server: { to: jest.fn(() => siteRoom) }, notifyDashboardStatsUpdate: jest.fn(), notifyTicketListUpdate: jest.fn() } as any,
+            { server: { to: jest.fn(() => siteRoom) }, notifyDashboardStatsUpdate: jest.fn(), notifyTicketListUpdate: jest.fn(), notifyStatusChange: jest.fn() } as any,
             { createSurvey: jest.fn() } as any,
             {} as any,
             { onTicketChange: jest.fn() } as any,
@@ -92,10 +93,32 @@ describe('TicketUpdateService — resolution confirmation', () => {
             .rejects.toThrow(TICKET_CLOSED_MESSAGE);
         await expect(service.assignTicket('ticket-1', 'agent-2', admin.id))
             .rejects.toThrow(TICKET_CLOSED_MESSAGE);
-        await expect(service.cancelTicket('ticket-1', admin.id, UserRole.ADMIN))
+        await expect(service.cancelTicket('ticket-1', admin.id, UserRole.ADMIN, TicketCancelReasonCode.DUPLICATE))
             .rejects.toBeInstanceOf(BadRequestException);
 
         const bulk = await service.bulkUpdate(['ticket-1'], { priority: 'HIGH' }, admin.id);
         expect(bulk).toEqual({ updated: 0, failed: ['ticket-1'] });
+    });
+    describe('cancel reason', () => {
+        it('stores the reason code and trimmed note on the ticket', async () => {
+            const saved = await service.cancelTicket('ticket-1', admin.id, UserRole.ADMIN, TicketCancelReasonCode.DUPLICATE, '  sama dengan #TKT-2  ');
+
+            expect(saved.status).toBe(TicketStatus.CANCELLED);
+            expect(saved.cancelReasonCode).toBe(TicketCancelReasonCode.DUPLICATE);
+            expect(saved.cancelReason).toBe('sama dengan #TKT-2');
+        });
+
+        it('allows a fixed reason without a note', async () => {
+            const saved = await service.cancelTicket('ticket-1', admin.id, UserRole.ADMIN, TicketCancelReasonCode.NOT_NEEDED);
+
+            expect(saved.cancelReasonCode).toBe(TicketCancelReasonCode.NOT_NEEDED);
+            expect(saved.cancelReason).toBeNull();
+        });
+
+        it.each([undefined, '   ', 'abc'])('rejects OTHER with a missing or too short note (%p)', async (note) => {
+            await expect(service.cancelTicket('ticket-1', admin.id, UserRole.ADMIN, TicketCancelReasonCode.OTHER, note))
+                .rejects.toBeInstanceOf(BadRequestException);
+            expect(mockTicketRepo.save).not.toHaveBeenCalled();
+        });
     });
 });

@@ -11,7 +11,7 @@ import { TicketChat, type TicketChatHandle } from '../../ticket-board/components
 import { usePinActions } from '../../ticket-board/components/ticket-detail/usePinActions';
 import { TicketHistory } from '../../ticket-board/components/ticket-detail/TicketHistory';
 import { ImageLightbox } from '../../ticket-board/components/ticket-detail/ImageLightbox';
-import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
+import { CancelTicketDialog, type CancelTicketPayload } from '../../ticket-board/components/ticket-detail/CancelTicketDialog';
 import { Button } from '@/components/ui/button';
 import { TicketDetail } from '../../ticket-board/components/ticket-detail/types';
 import { KbSuggestionDialog } from '../../ticket-board/components/KbSuggestionDialog';
@@ -25,8 +25,6 @@ import { DetailTabs, countChatMessages, pinsOf, type DetailTab } from '../../tic
 import { toUploadPercent, validateFiles } from '@/lib/file-validation';
 import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
 
-/** Max characters for ticket cancellation reason */
-const CANCEL_REASON_MAX = 500;
 
 export const ClientTicketDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -37,7 +35,6 @@ export const ClientTicketDetailPage: React.FC = () => {
 
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-    const [cancelReason, setCancelReason] = useState('');
     const [mainTab, setMainTab] = useState<DetailTab>('chat');
     const chatRef = useRef<TicketChatHandle>(null);
     const pinActions = usePinActions(id ?? '');
@@ -88,8 +85,8 @@ export const ClientTicketDetailPage: React.FC = () => {
     });
 
     const cancelMutation = useMutation({
-        mutationFn: async (reason?: string) => {
-            const res = await api.patch(`/tickets/${id}/cancel`, { reason });
+        mutationFn: async (payload: CancelTicketPayload) => {
+            const res = await api.patch(`/tickets/${id}/cancel`, payload, { skipToast: true });
             return res.data;
         },
         onSuccess: () => {
@@ -97,10 +94,6 @@ export const ClientTicketDetailPage: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             toast.success('Tiket berhasil dibatalkan');
             setIsCancelDialogOpen(false);
-            setCancelReason('');
-        },
-        onError: () => {
-            toast.error('Gagal membatalkan tiket');
         },
     });
 
@@ -247,33 +240,14 @@ export const ClientTicketDetailPage: React.FC = () => {
                 />
             )}
 
-            {/* Cancel Confirmation Dialog */}
-            <ConfirmationDialog
-                appearance="ticket"
+            {/* Cancel dialog: a reason is required */}
+            <CancelTicketDialog
                 isOpen={isCancelDialogOpen}
-                onCancel={() => { setIsCancelDialogOpen(false); setCancelReason(''); }}
-                onConfirm={() => cancelMutation.mutate(cancelReason.trim() || undefined)}
+                ticket={{ id: ticket.id, ticketNumber: ticket.ticketNumber, title: ticket.title }}
+                onClose={() => setIsCancelDialogOpen(false)}
+                onConfirm={(payload) => cancelMutation.mutateAsync(payload)}
                 isLoading={cancelMutation.isPending}
-                title="Batalkan tiket ini?"
-                description={`Tiket #${ticket.ticketNumber || ticket.id.split('-')[0]} yang dibatalkan tidak dapat diproses kembali.`}
-                confirmText="Batalkan tiket"
-                cancelText="Kembali"
-                variant="destructive"
-            >
-                <label htmlFor="cancel-reason" className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                    Alasan pembatalan <span className="text-slate-400">(opsional)</span>
-                </label>
-                <textarea
-                    id="cancel-reason"
-                    value={cancelReason}
-                    onChange={(e) => setCancelReason(e.target.value)}
-                    maxLength={CANCEL_REASON_MAX}
-                    rows={2}
-                    disabled={cancelMutation.isPending}
-                    placeholder="Contoh: kendala sudah teratasi sendiri"
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary resize-none disabled:opacity-50"
-                />
-            </ConfirmationDialog>
+            />
 
             {/* KB suggestion popup after visiting a fresh ticket */}
             <KbSuggestionDialog

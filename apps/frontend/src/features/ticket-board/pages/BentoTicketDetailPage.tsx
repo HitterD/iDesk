@@ -31,6 +31,7 @@ import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMark
 import { isHandledByTakeoverDialog, useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
 import { ReassignConfirmDialog } from '../components/ReassignConfirmDialog';
 import { StatusChangeCancelledError } from '../components/ticket-detail/statusChangeCancelled';
+import type { CancelTicketPayload } from '../components/ticket-detail/CancelTicketDialog';
 
 export const BentoTicketDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -279,24 +280,20 @@ export const BentoTicketDetailPage: React.FC = () => {
     }, [id, queryClient]);
 
     const cancelMutation = useMutation({
-        mutationFn: async (reason?: string) => {
-            const res = await api.patch(`/tickets/${id}/cancel`, { reason });
+        mutationFn: async (payload: CancelTicketPayload) => {
+            const res = await api.patch(`/tickets/${id}/cancel`, payload, { skipToast: true });
             return res.data;
         },
         onSuccess: () => {
-            toast.success('Ticket cancelled successfully');
+            toast.success('Tiket berhasil dibatalkan');
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         },
-        onError: () => {
-            toast.error('Failed to cancel ticket');
-        },
     });
 
-    const handleCancelTicket = () => {
-        cancelMutation.mutate(undefined);
-    };
+    // The dialog shows the server message (e.g. a too-short "Lainnya" note) and stays open on failure.
+    const handleCancelTicket = (payload: CancelTicketPayload) => cancelMutation.mutateAsync(payload);
 
     const handleSendMessage = async (
         content: string,

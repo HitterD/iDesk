@@ -401,4 +401,19 @@ describe('TicketNotificationListener', () => {
             subject: expect.stringContaining('Ticket Cancelled: #TK-2026-0009'),
         }));
     });
+    it('handleTicketCancelledEvent emails the requester with the reason when an operational agent cancels', async () => {
+        userRepo.findOne.mockResolvedValueOnce({ id: 'u-1', fullName: 'Ani User', email: 'ani@example.com' });
+
+        const event = new TicketCancelledEvent(
+            't-10', 'TK-2026-0010', 'Printer', 'agent-2', 'Agent Sari',
+            UserRole.AGENT_OPERATIONAL_SUPPORT, 'Duplikat tiket lain', 'u-1', 'agent-2',
+        );
+
+        await listener.handleTicketCancelledEvent(event);
+
+        expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({
+            to: 'ani@example.com',
+            context: expect.objectContaining({ message: expect.stringContaining('Alasan: Duplikat tiket lain') }),
+        }));
+    });
 });

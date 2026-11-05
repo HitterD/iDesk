@@ -217,25 +217,6 @@ export function useAssignTicket() {
 }
 
 /**
- * Cancel ticket
- */
-export function useCancelTicket() {
-    const queryClient = useQueryClient();
-    
-    return useMutation({
-        mutationFn: async ({ ticketId, reason }: { ticketId: string; reason?: string }) => {
-            const response = await api.patch(`/tickets/${ticketId}/cancel`, { reason });
-            return response.data;
-        },
-        onSuccess: (_, variables) => {
-            queryClient.invalidateQueries({ queryKey: ['tickets'] });
-            queryClient.invalidateQueries({ queryKey: ['ticket', variables.ticketId] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-        },
-    });
-}
-
-/**
  * Reply to ticket
  */
 export function useReplyToTicket() {

@@ -6,6 +6,7 @@
  * Exercises the real enforcement chain (service → site-access.util) without a DB.
  * Each service is wired with minimal mocks; the policy is real.
  */
+import { TicketCancelReasonCode } from '../ticket-cancel.constants';
 import { ForbiddenException } from '@nestjs/common';
 import { Ticket, TicketStatus, TicketPriority } from '../entities/ticket.entity';
 import { TicketQueryService } from '../services/ticket-query.service';
@@ -158,7 +159,7 @@ describe('Cross-site smoke: site-locked agents cannot cross sites', () => {
             const t = ticket(SITE_SMG);
             ticketRepo.findOne.mockResolvedValue({ ...t, user: { id: 'user-owner' }, assignedTo: null });
             userRepo.findOne.mockResolvedValue({ id: 'u-spj', role: UserRole.AGENT_OPERATIONAL_SUPPORT, siteId: SITE_SPJ, fullName: 'A SPJ' } as any);
-            await expect(svc.cancelTicket('t1', 'u-spj', UserRole.AGENT_OPERATIONAL_SUPPORT)).rejects.toBeInstanceOf(ForbiddenException);
+            await expect(svc.cancelTicket('t1', 'u-spj', UserRole.AGENT_OPERATIONAL_SUPPORT, TicketCancelReasonCode.DUPLICATE)).rejects.toBeInstanceOf(ForbiddenException);
         });
     });
 
