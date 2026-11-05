@@ -40,6 +40,7 @@ import { VendorVisitDialog } from './VendorVisitDialog';
 import { SetTicketReminderModal } from './SetTicketReminderModal';
 import { SidebarCard, InfoRow, CardBadge, sidebarPanelClass } from './SidebarCard';
 import { SlaProgress } from './SlaProgress';
+import { RequesterDeviceRows } from './RequesterDeviceRows';
 import { toDisplayName } from './messageThread';
 import { useAuth } from '@/stores/useAuth';
 import { Button } from '@/components/ui/button';
@@ -321,6 +322,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                         </small>
                     </div>
                 </div>
+                {isStaff && ticket.viewerAccess !== 'requester' && <RequesterDeviceRows ticketId={ticket.id} />}
             </SidebarCard>
 
             {/* Ticket properties */}

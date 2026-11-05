@@ -76,6 +76,8 @@ import { TicketResolutionService } from '../services/ticket-resolution.service';
 import { AgentRatingService } from '../services/agent-rating.service';
 import { DisputeResolutionDto, SubmitAgentRatingsDto } from '../dto/ticket-resolution.dto';
 import { TICKET_AGENT_ROLES } from '../ticket-roles.constants';
+import { RequesterDeviceService, type RequesterDeviceSnapshot } from '../requester-device/requester-device.service';
+import { extractClientIp } from '../../../shared/security/client-ip';
 
 @ApiTags('Tickets')
 @Controller('tickets')
@@ -98,7 +100,15 @@ export class TicketsController {
         @InjectRepository(User) private readonly userRepo: Repository<User>,
         private readonly ticketVendorVisitService: TicketVendorVisitService,
         @Optional() private readonly eventEmitter?: EventEmitter2,
+        @Optional() private readonly requesterDevice?: RequesterDeviceService,
     ) { }
+
+    /** Only when requesters file for themselves: an agent filing for someone is on the agent's own PC. */
+    private requesterDeviceFor(req: any, requesterId: string): Promise<RequesterDeviceSnapshot | null> {
+        if (!this.requesterDevice || requesterId !== req.user.userId) return Promise.resolve(null);
+        const ip = extractClientIp(req);
+        return this.requesterDevice.snapshot(requesterId, ip === 'unknown' ? null : ip);
+    }
 
     @Post()
     @ApiOperation({ summary: 'Create a new ticket' })
@@ -118,6 +128,8 @@ export class TicketsController {
                 createTicketDto,
                 attachmentInfo.map((a) => a.path),
                 attachmentInfo,
+                undefined,
+                (requesterId) => this.requesterDeviceFor(req, requesterId),
             );
         } catch (error) {
             discardUploads(files);

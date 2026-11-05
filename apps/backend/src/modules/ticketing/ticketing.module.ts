@@ -60,6 +60,9 @@ import { SavedRepliesController } from './presentation/saved-replies.controller'
 import { UserTicketTemplate } from './user-templates/user-ticket-template.entity';
 import { UserTicketTemplatesService } from './user-templates/user-ticket-templates.service';
 import { UserTicketTemplatesController } from './user-templates/user-ticket-templates.controller';
+import { UserDevice } from './requester-device/user-device.entity';
+import { RequesterDeviceService } from './requester-device/requester-device.service';
+import { RequesterDeviceController } from './requester-device/requester-device.controller';
 import { TicketSurvey } from './entities/ticket-survey.entity';
 import { SurveysService } from './surveys.service';
 import { SurveysController } from './presentation/surveys.controller';
@@ -117,6 +120,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
             SlaConfig,
             SavedReply,
             UserTicketTemplate,
+            UserDevice,
             TicketSurvey,
             TicketAttribute,
             TimeEntry,
@@ -146,6 +150,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         SlaConfigController,
         SavedRepliesController,
         UserTicketTemplatesController,
+        RequesterDeviceController,
         SurveysController,
         TicketAttributesController,
         TimeTrackingController,
@@ -184,6 +189,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         SlaConfigService,
         SavedRepliesService,
         UserTicketTemplatesService,
+        RequesterDeviceService,
         SurveysService,
         TicketAttributesService,
         EventsGateway,

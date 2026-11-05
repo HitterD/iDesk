@@ -27,6 +27,8 @@ export interface ExternalTicketRef {
     filedById?: string | null;
 }
 
+import type { RequesterDeviceSnapshot } from '../requester-device/requester-device.service';
+
 @Injectable()
 export class TicketCreateService {
     private readonly logger = new Logger(TicketCreateService.name);
@@ -71,6 +73,8 @@ export class TicketCreateService {
         files: string[] = [],
         attachmentInfo: AttachmentInfo[] = [],
         external?: ExternalTicketRef,
+        /** Resolves where the request came from, given the final requester; web submissions only. */
+        requesterDevice?: (requesterId: string) => Promise<RequesterDeviceSnapshot | null>,
     ): Promise<Ticket> {
         try {
             const creator = await this.userRepo.findOne({
@@ -105,6 +109,7 @@ export class TicketCreateService {
                 criticalReason: createTicketDto.criticalReason || null,
                 externalSource: external?.source ?? null,
                 externalRef: external?.ref ?? null,
+                ...(requesterDevice ? await requesterDevice(user.id) : null),
             } as DeepPartial<Ticket>);
 
             const date = new Date();
