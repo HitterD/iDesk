@@ -155,13 +155,14 @@ export function DraftStatus({ savedAt, onClear }: { savedAt: Date | null; onClea
     );
 }
 
-export function SubmitBar({ draftStatus, disabled, loading, label, loadingLabel }: {
-    draftStatus?: ReactNode; disabled: boolean; loading: boolean; label: string; loadingLabel: string;
+export function SubmitBar({ draftStatus, extra, disabled, loading, label, loadingLabel }: {
+    draftStatus?: ReactNode; extra?: ReactNode; disabled: boolean; loading: boolean; label: string; loadingLabel: string;
 }) {
     return (
         <div className="ct-submit-bar">
             {draftStatus}
             <span className="ct-spacer" />
+            {extra}
             <span className="ct-shortcut"><kbd>Ctrl</kbd> <kbd>Enter</kbd></span>
             <button type="submit" disabled={disabled} className="idesk-cta ct-submit">
                 {loading

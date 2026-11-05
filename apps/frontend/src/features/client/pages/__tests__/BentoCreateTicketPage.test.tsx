@@ -24,6 +24,8 @@ vi.mock('@/lib/api', () => ({
     default: {
         get: vi.fn(),
         post: vi.fn(),
+        patch: vi.fn(),
+        delete: vi.fn(),
     },
 }));
 
@@ -68,12 +70,20 @@ const lastPostedFormData = () => {
 const seedDraft = (type: string, draft: Record<string, string>) =>
     localStorage.setItem(`ticket-draft-${type}`, JSON.stringify({ priority: 'MEDIUM', category: '', device: '', software: '', savedAt: new Date().toISOString(), ...draft }));
 
+const MY_TEMPLATE = {
+    id: 'tpl-1', ticketType: 'service', label: 'Laporan bulanan', title: 'Akses folder laporan bulanan',
+    description: 'Mohon buka akses folder laporan bulan ini', priority: 'LOW', category: 'Printer Kantor', device: 'Laptop Dell', software: null,
+};
+let myTemplates: unknown[] = [];
+
 beforeEach(() => {
     localStorage.clear();
+    myTemplates = [];
     authState.user = { id: 'u-1', role: 'USER', fullName: 'Test User' };
     mockedGet.mockImplementation((url: string) => {
         if (url === '/ticket-attributes') return Promise.resolve({ data: ATTRIBUTES });
         if (url.startsWith('/users/approvers')) return Promise.resolve({ data: APPROVERS });
+        if (url === '/me/ticket-templates') return Promise.resolve({ data: myTemplates });
         return Promise.resolve({ data: {} });
     });
     mockedPost.mockReset();
@@ -189,6 +199,47 @@ describe('BentoCreateTicketPage forms', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Email Issue' }));
         fireEvent.click(screen.getByRole('button', { name: 'Ganti isi' }));
         expect(document.getElementById('service-ticket-title')).toHaveValue('Email tidak bisa diakses');
+    });
+
+    describe('personal templates', () => {
+        it('shows the user templates for this form and fills every saved field', async () => {
+            myTemplates = [MY_TEMPLATE];
+            renderPage('/client/create?type=service');
+
+            fireEvent.click(await screen.findByRole('button', { name: 'Laporan bulanan' }));
+
+            expect(mockedGet).toHaveBeenCalledWith('/me/ticket-templates', { params: { ticketType: 'service' } });
+            expect(document.getElementById('service-ticket-title')).toHaveValue('Akses folder laporan bulanan');
+            expect(screen.getByRole('radio', { name: 'Low (Minor/Cosmetic)' })).toHaveAttribute('aria-checked', 'true');
+            expect(screen.getByRole('button', { name: 'Kategori' })).toHaveTextContent('Printer Kantor');
+            expect(screen.getByRole('button', { name: 'Perangkat' })).toHaveTextContent('Laptop Dell');
+            expect(screen.getByRole('button', { name: 'Laporan bulanan' })).toHaveAttribute('aria-pressed', 'true');
+        });
+
+        it('hides the section when the user has no templates', async () => {
+            renderPage('/client/create?type=service');
+            await waitFor(() => expect(mockedGet).toHaveBeenCalledWith('/me/ticket-templates', expect.anything()));
+            expect(screen.queryByText('Template saya')).not.toBeInTheDocument();
+        });
+
+        it('saves the filled form as a named template', async () => {
+            const user = userEvent.setup();
+            mockedPost.mockResolvedValueOnce({ data: { ...MY_TEMPLATE, id: 'tpl-2', label: 'Reset VPN' } });
+            renderPage('/client/create?type=service');
+
+            const save = screen.getByRole('button', { name: 'Simpan sebagai template' });
+            expect(save).toBeDisabled();
+            fireEvent.change(document.getElementById('service-ticket-title')!, { target: { value: 'Reset akun VPN' } });
+            fireEvent.change(document.getElementById('service-ticket-description')!, { target: { value: 'Mohon reset VPN saya' } });
+            await user.click(save);
+            await user.type(screen.getByRole('textbox', { name: /Nama template/ }), 'Reset VPN');
+            await user.click(screen.getByRole('button', { name: 'Simpan template' }));
+
+            await waitFor(() => expect(mockedPost).toHaveBeenCalledWith('/me/ticket-templates', expect.objectContaining({
+                ticketType: 'service', label: 'Reset VPN', title: 'Reset akun VPN', description: 'Mohon reset VPN saya',
+                priority: 'MEDIUM', category: null, device: null, software: null,
+            }), { skipToast: true }));
+        });
     });
 
     it('confirms in an app dialog before leaving a filled form', () => {
