@@ -17,12 +17,18 @@ export const PRIORITY_OPTIONS = [
 ] as const;
 
 export interface TicketTemplate {
+    /** Selection key; defaults to the label (built-ins). Personal templates use `my:<id>`. */
+    key?: string;
     label: string;
     priority: string;
     subject: string;
     description: string;
     category?: string;
+    device?: string;
+    software?: string;
 }
+
+export const templateKey = (template: TicketTemplate): string => template.key ?? template.label;
 
 const ORACLE_TEMPLATES: readonly TicketTemplate[] = [
     { label: 'Login Issue', priority: 'MEDIUM', subject: 'Lupa Password / Gagal Login Oracle', description: 'Gagal login ke portal Oracle. Error message: ' },

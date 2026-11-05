@@ -909,6 +909,26 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
 .ct-chip[aria-pressed="true"] { background: hsl(var(--idesk-sapphire)); color: #fff;
   box-shadow: 0 4px 12px -4px hsl(var(--idesk-sapphire) / .5); }
 .ct-chip[aria-pressed="true"] svg { color: #fff; }
+/* Personal templates: the chip plus a small manage button glued to its right. */
+.ct-my-templates { margin-top: 0; }
+.ct-my-chip { display: inline-flex; align-items: center; }
+.ct-my-chip .ct-chip { border-top-right-radius: 0; border-bottom-right-radius: 0; padding-right: 10px; }
+.ct-my-chip-menu {
+  display: inline-grid; place-items: center; width: 28px; height: 34px; cursor: pointer;
+  border-radius: 0 9999px 9999px 0; background: hsl(var(--idesk-surface)); color: hsl(var(--idesk-text-secondary));
+  box-shadow: 0 1px 2px hsl(220 40% 20% / .06), inset 0 0 0 1px hsl(var(--idesk-border)); margin-left: -1px;
+}
+.ct-my-chip-menu:hover { background: hsl(var(--idesk-selection)); color: hsl(var(--idesk-text)); }
+.ct-my-chip-menu:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
+.ct-my-chip-menu svg { width: 15px; height: 15px; }
+.ct-save-template {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 9999px; cursor: pointer;
+  font-size: 12.5px; font-weight: 550; color: hsl(var(--idesk-sapphire)); background: transparent;
+}
+.ct-save-template:hover:not(:disabled) { background: hsl(var(--idesk-selection)); }
+.ct-save-template:disabled { opacity: .5; cursor: not-allowed; }
+.ct-save-template:focus-visible { outline: 2px solid hsl(var(--idesk-focus)); outline-offset: 2px; }
+.ct-save-template svg { width: 15px; height: 15px; }
 .ct-form { display: grid; gap: 14px; }
 .ct-alert { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 12px; font-size: 12.5px; font-weight: 500;
   color: hsl(var(--ticket-red-ink)); background: color-mix(in srgb, hsl(var(--ticket-red)) 9%, hsl(var(--idesk-surface))); }

@@ -24,6 +24,7 @@ import {
     TICKET_TYPES,
     matchesCatalogQuery,
     type TicketCardConfig,
+    templateKey,
     type TicketTemplate,
     type TicketType,
 } from '../components/create-ticket/createTicketConfig';
@@ -46,6 +47,7 @@ import {
     type TicketField, type TicketFormErrors,
 } from '../components/create-ticket/createTicketValidation';
 import { AddAttributeModal, ClassificationFields, LightboxModal, type AttributeKind } from '../components/create-ticket/ClassificationFields';
+import { useMyTemplateControls } from '../components/create-ticket/MyTemplatesBar';
 
 interface TicketDraft {
     title: string;
@@ -559,20 +561,22 @@ export const BentoCreateTicketPage: React.FC = () => {
 
     const applyTemplate = (template: TicketTemplate) => {
         setPendingTemplate(null);
-        setSelectedTemplate(template.label);
+        setSelectedTemplate(templateKey(template));
         setFormData(prev => ({
             ...prev,
             title: template.subject,
             description: template.description,
             priority: template.priority,
             ...(template.category ? { category: template.category } : {}),
+            ...(template.device ? { device: template.device } : {}),
+            ...(template.software ? { software: template.software } : {}),
         }));
         resetValidation();
     };
 
     // Template selection helper: typed text is only replaced after the user agrees.
     const handleTemplateClick = (template: TicketTemplate) => {
-        if (selectedTemplate === template.label) {
+        if (selectedTemplate === templateKey(template)) {
             setSelectedTemplate(null);
             return;
         }
@@ -583,6 +587,16 @@ export const BentoCreateTicketPage: React.FC = () => {
         }
         applyTemplate(template);
     };
+
+    const myTemplates = useMyTemplateControls({
+        ticketType: ticketType === 'none' ? null : ticketType,
+        form: {
+            title: formData.title, description: formData.description, priority: formData.priority,
+            category: formData.category || null, device: formData.device || null, software: formData.software || null,
+        },
+        selectedKey: selectedTemplate,
+        onPick: handleTemplateClick,
+    });
 
     const updateField = <K extends keyof typeof formData>(key: K, value: (typeof formData)[K]) => {
         setFormData(prev => ({ ...prev, [key]: value }));
@@ -663,6 +677,7 @@ export const BentoCreateTicketPage: React.FC = () => {
         <div className="ct-page ct-page-form">
             <TicketFormHeader title={config.title} subtitle={config.subtitle} icon={config.icon} tone={config.tone} onBack={handleBack} />
             <TemplateChips templates={config.templates} selected={selectedTemplate} onPick={handleTemplateClick} />
+            {myTemplates.chips}
 
             <form
                 noValidate // our own summary + field highlights replace the browser's one-field bubble
@@ -725,6 +740,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                 </TicketFormSection>
 
                 <SubmitBar draftStatus={draftStatus} disabled={submitDisabled} loading={isLoading}
+                    extra={myTemplates.saveButton}
                     label={config.submitLabel} loadingLabel={config.loadingLabel} />
             </form>
 
@@ -753,6 +769,7 @@ export const BentoCreateTicketPage: React.FC = () => {
                 onCancel={() => setPendingTemplate(null)}
                 onConfirm={() => { if (pendingTemplate) applyTemplate(pendingTemplate); }}
             />
+            {myTemplates.dialogs}
 
             {config.hasClassification && showAddModal.show && (
                 <AddAttributeModal type={showAddModal.type} value={newAttributeValue} busy={isAddingAttribute}

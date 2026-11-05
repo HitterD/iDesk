@@ -57,6 +57,9 @@ import { SavedReply } from './entities/saved-reply.entity';
 import { SlaAdjustment } from './entities/sla-adjustment.entity';
 import { SavedRepliesService } from './saved-replies.service';
 import { SavedRepliesController } from './presentation/saved-replies.controller';
+import { UserTicketTemplate } from './user-templates/user-ticket-template.entity';
+import { UserTicketTemplatesService } from './user-templates/user-ticket-templates.service';
+import { UserTicketTemplatesController } from './user-templates/user-ticket-templates.controller';
 import { TicketSurvey } from './entities/ticket-survey.entity';
 import { SurveysService } from './surveys.service';
 import { SurveysController } from './presentation/surveys.controller';
@@ -113,6 +116,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
             User,
             SlaConfig,
             SavedReply,
+            UserTicketTemplate,
             TicketSurvey,
             TicketAttribute,
             TimeEntry,
@@ -141,6 +145,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         TicketModulesController,
         SlaConfigController,
         SavedRepliesController,
+        UserTicketTemplatesController,
         SurveysController,
         TicketAttributesController,
         TimeTrackingController,
@@ -178,6 +183,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         SlaCheckerService,
         SlaConfigService,
         SavedRepliesService,
+        UserTicketTemplatesService,
         SurveysService,
         TicketAttributesService,
         EventsGateway,
