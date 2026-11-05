@@ -261,6 +261,19 @@ export class Ticket {
     @Column({ type: 'varchar', length: TICKET_CANCEL_NOTE_MAX_LENGTH, nullable: true })
     cancelReason: string | null;
 
+    /** Requester's IP when the ticket was created. Agents only: select: false keeps it out of every
+     *  normal query; read it through RequesterDeviceService. */
+    @Column({ type: 'varchar', length: 45, nullable: true, select: false })
+    requesterIp: string | null;
+
+    /** Requester's computer name when the ticket was created (desktop app or reverse DNS). */
+    @Column({ type: 'varchar', length: 253, nullable: true, select: false })
+    requesterHostname: string | null;
+
+    /** AGENT (desktop app heartbeat) or RDNS (reverse DNS of requesterIp). */
+    @Column({ type: 'varchar', length: 10, nullable: true, select: false })
+    requesterHostnameSource: string | null;
+
     @Column({ type: 'timestamp', nullable: true })
     waitingVendorAt: Date | null;
 

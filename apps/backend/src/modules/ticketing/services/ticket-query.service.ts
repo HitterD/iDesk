@@ -667,16 +667,16 @@ export class TicketQueryService {
 
     /**
      * Same access rule as opening the ticket (findOne), without loading its conversation.
-     * Throws NotFound / Forbidden like findOne does.
+     * Throws NotFound / Forbidden like findOne does; returns how the viewer may see it.
      */
-    async assertCanView(id: string, user: { id?: string; role: UserRole | string; siteId?: string | null }): Promise<void> {
+    async assertCanView(id: string, user: { id?: string; role: UserRole | string; siteId?: string | null }): Promise<TicketViewerAccess> {
         const ticket = await this.ticketRepo.findOne({
             where: { id },
             select: ['id', 'userId', 'createdById', 'category', 'ticketType', 'handlingTeam', 'siteId'],
             relations: ['participants'],
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
-        resolveTicketViewerAccess(ticket, user);
+        return resolveTicketViewerAccess(ticket, user);
     }
 
     async findOne(id: string, user?: { id?: string; role: UserRole | string; siteId?: string | null }): Promise<any> {
