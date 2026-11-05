@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookmarkPlus, Check, Ellipsis, Pencil, Star, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -63,26 +63,31 @@ export function useMyTemplates(ticketType: FormTicketType | null) {
     return { templates: list.data ?? [], save, rename, remove };
 }
 
-/** Ask for a chip name: used both to save the current form and to rename a template. */
-export function TemplateNameDialog({ open, mode, initialLabel = '', busy, onClose, onSubmit }: {
+interface TemplateNameDialogProps {
     open: boolean;
     mode: 'save' | 'rename';
     initialLabel?: string;
     busy: boolean;
     onClose: () => void;
     onSubmit: (label: string) => Promise<unknown>;
-}) {
+}
+
+/** Ask for a chip name: used both to save the current form and to rename a template. */
+export function TemplateNameDialog(props: TemplateNameDialogProps) {
+    const title = props.mode === 'save' ? 'Simpan sebagai template' : 'Ganti nama template';
+    return (
+        <TicketActionDialog open={props.open} onClose={props.onClose} title={title} busy={props.busy}>
+            {/* Remounted on every open, so the field always starts from initialLabel without an effect. */}
+            {props.open && <TemplateNameForm key={props.initialLabel ?? ''} title={title} {...props} />}
+        </TicketActionDialog>
+    );
+}
+
+function TemplateNameForm({ mode, initialLabel = '', busy, onClose, onSubmit, title }: TemplateNameDialogProps & { title: string }) {
     const [label, setLabel] = useState(initialLabel);
     const [error, setError] = useState<string | null>(null);
-    useEffect(() => {
-        if (!open) return;
-        setLabel(initialLabel);
-        setError(null);
-    }, [open, initialLabel]);
-
     const trimmed = label.trim();
     const tooShort = trimmed.length < MY_TEMPLATE_LABEL_MIN;
-    const title = mode === 'save' ? 'Simpan sebagai template' : 'Ganti nama template';
 
     const submit = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -96,30 +101,28 @@ export function TemplateNameDialog({ open, mode, initialLabel = '', busy, onClos
     };
 
     return (
-        <TicketActionDialog open={open} onClose={onClose} title={title} busy={busy}>
-            <form className="ticket-action-inner ticket-action-simple" onSubmit={submit}>
-                <header className="ticket-action-header">
-                    <div><h2>{title}</h2>{mode === 'save' && <p>Judul, detail, urgensi, kategori, perangkat dan aplikasi ikut disimpan. Lampiran tidak.</p>}</div>
-                    <Button variant="subtle" size="icon" type="button" aria-label="Tutup dialog" onClick={onClose} disabled={busy}><X /></Button>
-                </header>
-                <div className="ticket-action-body">
-                    <div className="ticket-action-field">
-                        <label htmlFor="my-template-label">Nama template <span aria-hidden="true" className="ticket-action-required">*</span></label>
-                        <input id="my-template-label" value={label} autoFocus required maxLength={MY_TEMPLATE_LABEL_MAX} disabled={busy}
-                            placeholder="Contoh: Laporan bulanan, Reset VPN mingguan"
-                            onChange={(event) => { setLabel(event.target.value); setError(null); }} />
-                        <span className="ticket-action-help ticket-action-count">{label.length}/{MY_TEMPLATE_LABEL_MAX}</span>
-                        {error && <p role="alert">{error}</p>}
-                    </div>
+        <form className="ticket-action-inner ticket-action-simple" onSubmit={submit}>
+            <header className="ticket-action-header">
+                <div><h2>{title}</h2>{mode === 'save' && <p>Judul, detail, urgensi, kategori, perangkat dan aplikasi ikut disimpan. Lampiran tidak.</p>}</div>
+                <Button variant="subtle" size="icon" type="button" aria-label="Tutup dialog" onClick={onClose} disabled={busy}><X /></Button>
+            </header>
+            <div className="ticket-action-body">
+                <div className="ticket-action-field">
+                    <label htmlFor="my-template-label">Nama template <span aria-hidden="true" className="ticket-action-required">*</span></label>
+                    <input id="my-template-label" value={label} autoFocus required maxLength={MY_TEMPLATE_LABEL_MAX} disabled={busy}
+                        placeholder="Contoh: Laporan bulanan, Reset VPN mingguan"
+                        onChange={(event) => { setLabel(event.target.value); setError(null); }} />
+                    <span className="ticket-action-help ticket-action-count">{label.length}/{MY_TEMPLATE_LABEL_MAX}</span>
+                    {error && <p role="alert">{error}</p>}
                 </div>
-                <footer className="ticket-action-footer"><div>
-                    <Button variant="soft" type="button" onClick={onClose} disabled={busy}>Batal</Button>
-                    <Button variant="primary" type="submit" loading={busy} disabled={tooShort || busy}>
-                        <BookmarkPlus />{mode === 'save' ? 'Simpan template' : 'Simpan nama'}
-                    </Button>
-                </div></footer>
-            </form>
-        </TicketActionDialog>
+            </div>
+            <footer className="ticket-action-footer"><div>
+                <Button variant="soft" type="button" onClick={onClose} disabled={busy}>Batal</Button>
+                <Button variant="primary" type="submit" loading={busy} disabled={tooShort || busy}>
+                    <BookmarkPlus />{mode === 'save' ? 'Simpan template' : 'Simpan nama'}
+                </Button>
+            </div></footer>
+        </form>
     );
 }
 
