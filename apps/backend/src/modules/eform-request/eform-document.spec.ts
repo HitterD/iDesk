@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { EFormRequestService } from './eform-request.service';
 import { EFormDocumentService } from './eform-document.service';
@@ -177,6 +177,38 @@ describe('EFormDocumentService', () => {
             await expect(service.uploadGmApproval(ICT, 'undefined', 'agent-1', pdf())).rejects.toBeInstanceOf(BadRequestException);
             expect(repo.findOne).not.toHaveBeenCalled();
             expect(unlink).toHaveBeenCalledWith(expect.stringContaining(STORED));
+        });
+
+        describe('by the requester', () => {
+            const REQUESTER = { role: UserRole.USER, siteId: 'site-1' };
+
+            it('records the signed copy on the paper route and flags it as the requester\'s', async () => {
+                load({ requesterId: 'u-1', gmApproverId: null });
+                const saved = await service.uploadGmApproval(REQUESTER, ID, 'u-1', pdf());
+                expect(saved).toMatchObject({ status: EFormStatus.PENDING_ICT, gmApprovalUploadedById: 'u-1' });
+                expect(emit).toHaveBeenCalledWith('eform.gm-approved', expect.objectContaining({ userId: 'u-1' }));
+                expect(audit.logAsync).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringContaining('by requester') }));
+            });
+
+            it('may replace the scan while IT has not started', async () => {
+                load({ requesterId: 'u-1', status: EFormStatus.PENDING_ICT, gmApprovalFile: '11111111-2222-4333-8444-555566667777.pdf' });
+                const saved = await service.uploadGmApproval(REQUESTER, ID, 'u-1', pdf());
+                expect(saved.status).toBe(EFormStatus.PENDING_ICT);
+                expect(emit).not.toHaveBeenCalled();
+            });
+
+            it('is refused when a GM approves in iDesk, and the file is dropped', async () => {
+                load({ requesterId: 'u-1', gmApproverId: 'gm-1' });
+                await expect(service.uploadGmApproval(REQUESTER, ID, 'u-1', pdf())).rejects.toBeInstanceOf(ForbiddenException);
+                expect(repo.save).not.toHaveBeenCalled();
+                expect(unlink).toHaveBeenCalledWith(expect.stringContaining(STORED));
+            });
+
+            it('is refused for someone else\'s request', async () => {
+                load({ requesterId: 'u-2' });
+                await expect(service.uploadGmApproval(REQUESTER, ID, 'u-1', pdf())).rejects.toBeInstanceOf(NotFoundException);
+                expect(repo.save).not.toHaveBeenCalled();
+            });
         });
 
         it('asks for a file when none came', async () => {

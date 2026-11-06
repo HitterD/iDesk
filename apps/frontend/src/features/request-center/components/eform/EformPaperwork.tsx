@@ -83,11 +83,13 @@ export const DocumentNumberField: React.FC<{ request: EFormRequest; canEdit: boo
  * The GM's signature. A GM chosen in iDesk approves there; otherwise (or as a fallback) ICT prints the form, has the
  * GM sign it and uploads the scan. Afterwards everyone who can open the request can download the signed copy.
  */
-export const GmApprovalPanel: React.FC<{ request: EFormRequest; isICT: boolean; onReject: () => void }> = ({ request, isICT, onReject }) => {
+export const GmApprovalPanel: React.FC<{ request: EFormRequest; isICT: boolean; isRequester?: boolean; onReject: () => void }> = ({ request, isICT, isRequester = false, onReject }) => {
   const upload = useUploadGmApproval();
   const input = useRef<HTMLInputElement>(null);
   const waiting = request.status === EFormStatus.PENDING_GM;
-  const canReplace = isICT && request.status === EFormStatus.PENDING_ICT;
+  // The requester may carry the paper to the GM themselves, but only when no GM approves in iDesk.
+  const canUpload = isICT || (isRequester && !request.gmApproverId && !request.gmApproverName);
+  const canReplace = canUpload && request.status === EFormStatus.PENDING_ICT;
   if (!waiting && !request.gmApprovalFileName && !request.gmApprovedAt) return null;
   // Approved in iDesk with no paper copy: the signature shows with the others, nothing to download here.
   if (!waiting && !request.gmApprovalFileName) {
@@ -144,24 +146,24 @@ export const GmApprovalPanel: React.FC<{ request: EFormRequest; isICT: boolean; 
                 ? isICT
                   ? 'GM menyetujui langsung di iDesk. Bila GM menandatangani di kertas, unggah hasil pindainya (PDF) sebagai gantinya.'
                   : 'Atasan sudah menyetujui. Permintaan menunggu persetujuan GM di iDesk.'
-                : isICT
-                  ? 'Atasan sudah menyetujui. Cetak form, mintakan tanda tangan GM, lalu unggah hasil pindainya (PDF) agar akses bisa diproses.'
-                  : 'Atasan sudah menyetujui. Tim ICT sedang memintakan tanda tangan GM pada form ini.'}
+                : 'Atasan sudah menyetujui. Cetak form, mintakan tanda tangan GM, lalu unggah hasil pindainya (PDF) agar akses bisa diproses.'}
             </p>
           </div>
         </div>
-        {isICT && (
-          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {canUpload && (
+          <div className={`mt-4 grid grid-cols-1 gap-2 ${isICT ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
             <Button variant="outline" className="rounded-xl font-semibold" onClick={() => void downloadEformPdf(request.id, `${request.documentNumber ?? 'EForm'}.pdf`.replace(/\//g, '-'))}>
               <Download className="mr-1.5 h-4 w-4" aria-hidden="true" />Unduh form untuk GM
             </Button>
             <Button className="rounded-xl font-bold" onClick={() => input.current?.click()} loading={upload.isPending}>
               <Upload className="mr-1.5 h-4 w-4" aria-hidden="true" />Unggah PDF TTD GM
             </Button>
-            <Button variant="outline" onClick={onReject}
-              className="rounded-xl border-destructive/40 font-semibold text-destructive hover:bg-destructive/5">
-              <Ban className="mr-1.5 h-4 w-4" aria-hidden="true" />GM tidak menyetujui
-            </Button>
+            {isICT && (
+              <Button variant="outline" onClick={onReject}
+                className="rounded-xl border-destructive/40 font-semibold text-destructive hover:bg-destructive/5">
+                <Ban className="mr-1.5 h-4 w-4" aria-hidden="true" />GM tidak menyetujui
+              </Button>
+            )}
             {fileInput}
           </div>
         )}

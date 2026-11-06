@@ -70,10 +70,29 @@ describe('DocumentNumberField', () => {
 describe('GmApprovalPanel', () => {
     beforeEach(() => vi.clearAllMocks());
 
-    it('tells the requester ICT is collecting the GM signature, with nothing to do', () => {
+    it('gives someone who is neither ICT nor the requester nothing to do', () => {
         renderIn(<GmApprovalPanel request={request()} isICT={false} onReject={vi.fn()} />);
         expect(screen.getByText('Menunggu tanda tangan GM')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /Unggah PDF TTD GM/ })).not.toBeInTheDocument();
+    });
+
+    it('lets the requester upload on the paper route, without the reject button', async () => {
+        vi.mocked(api.post).mockResolvedValue({ data: request({ status: 'PENDING_ICT' }) });
+        const { container } = renderIn(<GmApprovalPanel request={request()} isICT={false} isRequester onReject={vi.fn()} />);
+        expect(screen.getByRole('button', { name: /Unduh form untuk GM/ })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /GM tidak menyetujui/ })).not.toBeInTheDocument();
+        fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [pdf] } });
+        await waitFor(() => expect(api.post).toHaveBeenCalledWith('/eform-request/ef-1/gm-approval', expect.any(FormData), { skipToast: true }));
+    });
+
+    it('does not offer the requester an upload when a GM approves in iDesk', () => {
+        renderIn(<GmApprovalPanel request={request({ gmApproverId: 'gm-1', gmApproverName: 'Pak GM' })} isICT={false} isRequester onReject={vi.fn()} />);
+        expect(screen.queryByRole('button', { name: /Unggah PDF TTD GM/ })).not.toBeInTheDocument();
+    });
+
+    it('lets the requester replace the scan while ICT has not started', () => {
+        renderIn(<GmApprovalPanel request={request({ status: 'PENDING_ICT', gmApprovalFileName: 'ttd-gm.pdf' })} isICT={false} isRequester onReject={vi.fn()} />);
+        expect(screen.getByRole('button', { name: /Ganti/ })).toBeInTheDocument();
     });
 
     it('lets ICT upload the signed PDF', async () => {

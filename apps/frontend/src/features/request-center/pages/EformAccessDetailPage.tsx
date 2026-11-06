@@ -245,7 +245,7 @@ export const EformAccessDetailPage: React.FC = () => {
         />
       </div>
 
-      <GmApprovalPanel request={request} isICT={isICT} onReject={() => setRejectOpen(true)} />
+      <GmApprovalPanel request={request} isICT={isICT} isRequester={isRequester} onReject={() => setRejectOpen(true)} />
       {/* key: start the form over from the server's state after each save */}
       {isICT && <GmStepSettings key={`${request.requiresGm}-${request.gmApproverId ?? ''}-${request.status}`} request={request} />}
 
