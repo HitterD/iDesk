@@ -25,6 +25,8 @@ export interface TvBoardCard {
     ticketType?: string | null;
     /** Origin site code; the hub board labels dev tickets from other sites with it. */
     siteCode: string | null;
+    /** Team it was last forwarded from ("Diteruskan dari ..."); null if never forwarded. */
+    forwardedFromTeam: string | null;
 }
 
 export interface TvBoardRingtones {
@@ -134,6 +136,7 @@ export class TvBoardService {
                 category: t.category,
                 ticketType: t.ticketType,
                 siteCode: t.site?.code ?? null,
+                forwardedFromTeam: t.forwardedFromTeam ?? null,
             };
         };
 

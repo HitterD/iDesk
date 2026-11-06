@@ -175,6 +175,16 @@ export class Ticket {
     })
     handlingTeam: HandlingTeam;
 
+    /** Team the ticket was last forwarded from ("Diteruskan dari <tim>"); null if never forwarded. */
+    @Column({ type: 'varchar', length: 20, nullable: true })
+    forwardedFromTeam: HandlingTeam | null;
+
+    @Column({ type: 'timestamp', nullable: true })
+    forwardedAt: Date | null;
+
+    @Column({ type: 'uuid', nullable: true })
+    forwardedById: string | null;
+
     // Required reason for CRITICAL priority
     @Column({ nullable: true, type: 'text' })
     criticalReason: string;

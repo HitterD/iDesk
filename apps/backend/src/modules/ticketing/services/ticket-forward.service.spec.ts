@@ -78,6 +78,14 @@ describe('TicketForwardService', () => {
         expect(msg.content).toContain(dto.reason);
     });
 
+    it('remembers the team it came from, when and by whom', async () => {
+        const result = await service.forwardTicket('t1', dto, actor);
+
+        expect(result.forwardedFromTeam).toBe(HandlingTeam.OPS_SUPPORT);
+        expect(result.forwardedAt).toBeInstanceOf(Date);
+        expect(result.forwardedById).toBe('u-agent');
+    });
+
     it('clears the overdue marker on forward', async () => {
         const result = await service.forwardTicket('t1', dto, actor);
         expect(result.isOverdue).toBe(false);

@@ -1,5 +1,5 @@
 import type { TvBoardCard } from '../hooks/useTvBoardSocket';
-import { DIVISION_CONFIGS, resolveCardDivision } from '../utils/tvBoardDivisions';
+import { DIVISION_CONFIGS, resolveCardDivision, type DivisionKey } from '../utils/tvBoardDivisions';
 import { formatSlaDeadline, formatSlaStatus } from '../utils/tvBoardTime';
 import { useSlaClock } from '@/lib/slaCountdown';
 import { toDisplayName } from '@/features/ticket-board/components/ticket-detail/messageThread';
@@ -30,6 +30,7 @@ export function TvBoardTicketRow({ card, now, boardSiteCode }: { card: TvBoardCa
     const foreignSite = card.siteCode && boardSiteCode && card.siteCode !== boardSiteCode ? card.siteCode : null;
     const requester = toDisplayName(card.requesterName);
     const pic = card.assignedToName ? toDisplayName(card.assignedToName) : null;
+    const forwardedFrom = card.forwardedFromTeam ? DIVISION_CONFIGS[card.forwardedFromTeam as DivisionKey] : undefined;
 
     return (
         <li
@@ -55,6 +56,15 @@ export function TvBoardTicketRow({ card, now, boardSiteCode }: { card: TvBoardCa
                     <span className="shrink-0 font-medium" style={{ color: division.color }}>
                         {divisionKey === 'ORACLE_DEV' ? 'ORACLE / K2' : division.shortLabel}
                     </span>
+                    {forwardedFrom && (
+                        <span
+                            data-testid="tv-board-forwarded-from"
+                            className="shrink-0 rounded-[0.4rem] px-[0.45rem] py-[0.2rem] text-[0.85rem] font-semibold"
+                            style={{ color: forwardedFrom.color, backgroundColor: `${forwardedFrom.color}1F` }}
+                        >
+                            ↪ dari {forwardedFrom.shortLabel}
+                        </span>
+                    )}
                     <span className="shrink-0 text-[var(--tv-separator)]" aria-hidden="true">·</span>
                     <span className="truncate" title={requester}>{requester}</span>
                 </div>

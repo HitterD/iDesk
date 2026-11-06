@@ -2,11 +2,15 @@ import { Controller, Get, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Public } from '../../shared/core/decorators/public.decorator';
 import { TvBoardService } from './tv-board.service';
+import { TvLeaderboardService } from './tv-leaderboard.service';
 
 @ApiTags('TV Board')
 @Controller('tv')
 export class TvBoardController {
-    constructor(private readonly tvBoardService: TvBoardService) { }
+    constructor(
+        private readonly tvBoardService: TvBoardService,
+        private readonly leaderboardService: TvLeaderboardService,
+    ) { }
 
     @Public()
     @Get('board/:token')
@@ -14,5 +18,13 @@ export class TvBoardController {
     async getBoard(@Param('token') token: string) {
         const siteId = await this.tvBoardService.resolveSiteIdByToken(token);
         return this.tvBoardService.getBoardData(siteId);
+    }
+
+    @Public()
+    @Get('board/:token/leaderboard')
+    @ApiOperation({ summary: 'Agent leaderboard of a TV board (public, no auth): month top agents, agent of the day, badges' })
+    async getLeaderboard(@Param('token') token: string) {
+        const siteId = await this.tvBoardService.resolveSiteIdByToken(token);
+        return this.leaderboardService.getLeaderboard(siteId);
     }
 }

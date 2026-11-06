@@ -29,7 +29,10 @@ vi.mock('../../hooks/useTvBoardSocket', () => ({
     useTvBoardSocket: () => socketState,
 }));
 
-const ringtoneState = { blocked: false, enqueue: vi.fn(), unlockAudio: vi.fn(), playTestSound: vi.fn() };
+const ringtoneState = { blocked: false, enqueue: vi.fn(), unlockAudio: vi.fn(), playTestSound: vi.fn(), playSynth: vi.fn(() => true) };
+
+// The leaderboard has its own tests; here it stays off so every api.get goes to the board.
+vi.mock('../../hooks/useTvLeaderboard', () => ({ useTvLeaderboard: () => null }));
 
 vi.mock('../../hooks/useRingtone', () => ({
     useRingtone: () => ringtoneState,

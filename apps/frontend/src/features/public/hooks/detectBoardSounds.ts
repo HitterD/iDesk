@@ -16,6 +16,8 @@ export interface BoardSnapshot {
 export interface DetectedSoundResult {
     event: BoardSoundEvent;
     division?: DivisionSoundKey;
+    /** The ticket behind a newTicket sound, for the on-screen announcement. */
+    ticketId?: string;
 }
 
 function getItemId(entry: SnapshotEntry): string {
@@ -67,7 +69,19 @@ export function detectBoardSoundDetails(
             results.push({
                 event: 'newTicket',
                 division: getItemDivision(entry) || 'OPS_SUPPORT',
+                ticketId: id,
             });
+        }
+    }
+
+    // A ticket forwarded to another team is new to that team: replay its new-ticket sound.
+    const prevDivision = new Map([...prev.open, ...prev.inProgress].map((entry) => [getItemId(entry), getItemDivision(entry)]));
+    for (const entry of [...next.open, ...next.inProgress]) {
+        const id = getItemId(entry);
+        const before = prevDivision.get(id);
+        const after = getItemDivision(entry);
+        if (before && after && before !== after) {
+            results.push({ event: 'newTicket', division: after, ticketId: id });
         }
     }
 
