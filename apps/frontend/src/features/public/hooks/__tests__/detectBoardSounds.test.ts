@@ -60,9 +60,33 @@ describe('detectBoardSounds', () => {
         };
         const results = detectBoardSoundDetails(prev, next);
         expect(results).toEqual([
-            { event: 'newTicket', division: 'ORACLE_DEV' },
-            { event: 'newTicket', division: 'WEB_DEV' },
+            { event: 'newTicket', division: 'ORACLE_DEV', ticketId: '2' },
+            { event: 'newTicket', division: 'WEB_DEV', ticketId: '3' },
             { event: 'inProgress' },
         ]);
     });
 });
+
+describe('detectBoardSoundDetails: forwarded tickets', () => {
+    it('replays the new-ticket sound of the target team when a ticket moves to another team', () => {
+        expect(detectBoardSoundDetails(
+            { open: [{ id: 'a', division: 'OPS_SUPPORT' }], inProgress: [] },
+            { open: [{ id: 'a', division: 'ORACLE_DEV' }], inProgress: [] },
+        )).toEqual([{ event: 'newTicket', division: 'ORACLE_DEV', ticketId: 'a' }]);
+    });
+
+    it('also replays for an in-progress ticket that moves team', () => {
+        expect(detectBoardSoundDetails(
+            { open: [], inProgress: [{ id: 'a', division: 'OPS_SUPPORT' }] },
+            { open: [], inProgress: [{ id: 'a', division: 'WEB_DEV' }] },
+        )).toEqual([{ event: 'newTicket', division: 'WEB_DEV', ticketId: 'a' }]);
+    });
+
+    it('stays silent when the team is unchanged', () => {
+        expect(detectBoardSoundDetails(
+            { open: [{ id: 'a', division: 'ORACLE_DEV' }], inProgress: [] },
+            { open: [{ id: 'a', division: 'ORACLE_DEV' }], inProgress: [] },
+        )).toEqual([]);
+    });
+});
+
