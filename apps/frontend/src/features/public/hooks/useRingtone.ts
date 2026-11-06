@@ -28,6 +28,8 @@ export function useRingtone(): {
     blocked: boolean;
     unlockAudio: () => void;
     playTestSound: (url?: string) => void;
+    /** Plays a synthesized cue (e.g. the leaderboard fanfare) on the unlocked Web Audio context; false while blocked. */
+    playSynth: (play: (context: AudioContext | null) => boolean) => boolean;
 } {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
@@ -169,5 +171,10 @@ export function useRingtone(): {
         };
     }, [unlockAudio]);
 
-    return { enqueue, blocked, unlockAudio, playTestSound };
+    const playSynth = useCallback((play: (context: AudioContext | null) => boolean) => {
+        resumeAudioContext();
+        return play(audioContextRef.current);
+    }, [resumeAudioContext]);
+
+    return { enqueue, blocked, unlockAudio, playTestSound, playSynth };
 }

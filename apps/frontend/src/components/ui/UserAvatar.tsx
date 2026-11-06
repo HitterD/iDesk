@@ -31,7 +31,8 @@ const iconSizes = {
     xl: 'w-10 h-10',
 };
 
-const getImageUrl = (url?: string | null): string | null => {
+/** Avatar URL: absolute as is, an upload path prefixed with the API host. */
+export const getImageUrl = (url?: string | null): string | null => {
     if (!url) return null;
     if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) return url;
     const apiUrl = import.meta.env.VITE_API_URL || '';

@@ -12,6 +12,10 @@ import { sortByUrgency } from '../utils/tvBoardTime';
 import { DIVISION_CONFIGS, DIVISION_ORDER, resolveCardDivision, type DivisionKey } from '../utils/tvBoardDivisions';
 import { readThemeOverride, TV_THEME_VARS, writeThemeOverride, type TvTheme } from '../utils/tvBoardTheme';
 import { setSlaClockInfo } from '@/lib/slaCountdown';
+import { useTvLeaderboard } from '../hooks/useTvLeaderboard';
+import { TvLeaderboard } from '../components/TvLeaderboard';
+import { playFanfare } from '../utils/tvLeaderboard';
+import '../components/tv-leaderboard.css';
 import { cn } from '@/lib/utils';
 
 /**
@@ -48,6 +52,8 @@ const COLUMNS: Array<{
 ];
 
 const TV_ROOT_STYLE_ID = 'tv-board-root-font-size';
+/** How long a new ticket stays announced over the leaderboard. */
+export const LEADERBOARD_TICKET_BANNER_MS = 10_000;
 
 /** Scales rem for this page only; the style is removed when leaving the board. */
 function useTvRootFontSize() {
@@ -181,7 +187,11 @@ export const BentoTvBoardPage: React.FC = () => {
     const [isPollFailing, setIsPollFailing] = useState(false);
     const [now, setNow] = useState(new Date());
     const { boardData: liveData, isConnected, isTokenInvalid } = useTvBoardSocket(token);
-    const { enqueue, blocked, unlockAudio, playTestSound } = useRingtone();
+    const { enqueue, blocked, unlockAudio, playTestSound, playSynth } = useRingtone();
+    const leaderboard = useTvLeaderboard(token);
+    const showLeaderboard = Boolean(leaderboard?.active);
+    const [ticketBanner, setTicketBanner] = useState<{ card: TvBoardCard; division: DivisionKey } | null>(null);
+    const fanfareDateRef = useRef<string | null>(null);
     const prevSnapshotRef = useRef<BoardSnapshot | null>(null);
     const lastClosingDateRef = useRef<string | null>(null);
     const hasEverLoadedRef = useRef(false);
@@ -260,7 +270,11 @@ export const BentoTvBoardPage: React.FC = () => {
                 id: card.id,
                 division: resolveCardDivision(card),
             })),
-            inProgress: board.inProgress.map((card) => card.id),
+            // Division on both columns, so a forward of an in-progress ticket is heard too.
+            inProgress: board.inProgress.map((card) => ({
+                id: card.id,
+                division: resolveCardDivision(card),
+            })),
         };
         const events = detectBoardSoundDetails(prevSnapshotRef.current, snapshot);
         prevSnapshotRef.current = snapshot;
@@ -277,7 +291,30 @@ export const BentoTvBoardPage: React.FC = () => {
         if (sounds.length > 0) {
             enqueue(sounds);
         }
+
+        // Over the leaderboard, a new (or newly forwarded) ticket is also announced on screen.
+        const arrived = events.find((ev) => ev.event === 'newTicket');
+        if (arrived && showLeaderboardRef.current) {
+            const card = [...board.open, ...board.inProgress].find((c) => c.id === arrived.ticketId);
+            if (card) setTicketBanner({ card, division: arrived.division ?? 'OPS_SUPPORT' });
+        }
     }, [board, enqueue]);
+
+    const showLeaderboardRef = useRef(false);
+    showLeaderboardRef.current = showLeaderboard;
+
+    useEffect(() => {
+        if (!ticketBanner) return;
+        const timer = setTimeout(() => setTicketBanner(null), LEADERBOARD_TICKET_BANNER_MS);
+        return () => clearTimeout(timer);
+    }, [ticketBanner]);
+
+    // Congratulation fanfare once per day, when the leaderboard comes up.
+    useEffect(() => {
+        if (!showLeaderboard || !leaderboard) return;
+        if (fanfareDateRef.current === leaderboard.dateKey) return;
+        if (playSynth(playFanfare)) fanfareDateRef.current = leaderboard.dateKey;
+    }, [showLeaderboard, leaderboard, playSynth, blocked]);
 
     useEffect(() => {
         if (!board) return;
@@ -426,6 +463,23 @@ export const BentoTvBoardPage: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {showLeaderboard && leaderboard && (
+                <TvLeaderboard
+                    data={leaderboard}
+                    siteName={data.siteName}
+                    time={formattedTime}
+                    queue={{ open: data.open.length, inProgress: data.inProgress.length, overdue: overdueCount }}
+                />
+            )}
+            {showLeaderboard && ticketBanner && (
+                <div className="tv-lb-ticket" data-testid="tv-leaderboard-ticket-banner" role="status"
+                    style={{ ['--lb-banner' as string]: DIVISION_CONFIGS[ticketBanner.division].color }}>
+                    <Inbox aria-hidden="true" />
+                    <b>Tiket baru · {DIVISION_CONFIGS[ticketBanner.division].shortLabel}</b>
+                    <span>{ticketBanner.card.title || ticketBanner.card.description}</span>
+                </div>
+            )}
 
             {/* Setup controls: out of sight on the wall, revealed by moving the mouse. Blocked audio always shows. */}
             <div className={cn('absolute bottom-6 right-8 flex items-center gap-2 transition-opacity duration-300',
