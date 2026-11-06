@@ -1,0 +1,246 @@
+/*
+ * Nine leaderboard looks, one per working day in turn (utils/tvLeaderboard.ts themeForDate).
+ * Each look sets the palette variables, the panel / podium / avatar shapes and its own background
+ * decoration (LeaderboardDecor). Everything is CSS or crisp SVG, so it stays sharp on 4K panels.
+ */
+
+.tv-lb-decor { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.tv-lb-panel { position: relative; }
+.tv-lb-ornaments { position: absolute; inset: 0; pointer-events: none; }
+
+/* ---------- Shared pixel language (arcadeMaze, pixelSky, pixelSpace, blockStack, pixelForest) ---------- */
+.tv-lb.is-pixel {
+  --px: 0.32rem; /* one "pixel" of the frames */
+  font-family: 'Press Start 2P', 'VT323', ui-monospace, monospace;
+  image-rendering: pixelated;
+}
+/* Headline and numbers in a chunky weight; body copy stays the normal font so names stay readable. */
+.tv-lb.is-pixel .tv-lb-name, .tv-lb.is-pixel .tv-lb-list-name, .tv-lb.is-pixel .tv-lb-sub, .tv-lb.is-pixel .tv-lb-badge,
+.tv-lb.is-pixel .tv-lb-queue, .tv-lb.is-pixel .tv-lb-stat small, .tv-lb.is-pixel .tv-lb-count { font-family: var(--font-sans, Inter, system-ui); }
+.tv-lb.is-pixel .tv-lb-head h1, .tv-lb.is-pixel .tv-lb-clock, .tv-lb.is-pixel .tv-lb-medal, .tv-lb.is-pixel .tv-lb-stat b,
+.tv-lb.is-pixel .tv-lb-rank, .tv-lb.is-pixel .tv-lb-list-count, .tv-lb.is-pixel .tv-lb-aotd h2 { font-family: var(--font-sans, Inter, system-ui); font-weight: 900; letter-spacing: 0.02em; }
+.tv-lb.is-pixel .tv-lb-head h1 span { animation: none; background: none; color: var(--lb-gold); -webkit-text-fill-color: currentColor; text-shadow: 0.2rem 0.2rem 0 rgba(0, 0, 0, 0.45); }
+/* Stepped "pixel" corners on every panel, badge and stat. */
+.tv-lb.is-pixel .tv-lb-panel, .tv-lb.is-pixel .tv-lb-stat, .tv-lb.is-pixel .tv-lb-badge, .tv-lb.is-pixel .tv-lb-queue, .tv-lb.is-pixel .tv-lb-list li {
+  border-radius: 0;
+  clip-path: polygon(0 var(--px), var(--px) var(--px), var(--px) 0, calc(100% - var(--px)) 0, calc(100% - var(--px)) var(--px), 100% var(--px),
+    100% calc(100% - var(--px)), calc(100% - var(--px)) calc(100% - var(--px)), calc(100% - var(--px)) 100%, var(--px) 100%, var(--px) calc(100% - var(--px)), 0 calc(100% - var(--px)));
+}
+.tv-lb.is-pixel .tv-lb-panel { border: var(--px) solid var(--lb-frame); background: var(--lb-panel-bg); box-shadow: none; }
+.tv-lb.is-pixel .tv-lb-list li { background: transparent; border: calc(var(--px) * 0.6) solid var(--lb-row); }
+.tv-lb.is-pixel .tv-lb-stat { border: calc(var(--px) * 0.6) solid var(--lb-frame); background: transparent; }
+.tv-lb.is-pixel .tv-lb-badge { border: calc(var(--px) * 0.5) solid var(--lb-frame); background: var(--lb-badge-bg, rgba(0, 0, 0, 0.6)); }
+.tv-lb.is-pixel .tv-lb-queue { border: calc(var(--px) * 0.6) solid var(--lb-frame); background: var(--lb-panel-bg); }
+.tv-lb.is-pixel .tv-lb-eyebrow { color: var(--lb-gold); }
+/* Pixel avatars: a square tile with notched corners instead of a round coin. */
+.tv-lb.is-pixel .tv-lb-coin, .tv-lb.is-pixel .tv-lb-coin-face { border-radius: 0; }
+.tv-lb.is-pixel .tv-lb-coin { padding: var(--px); background: var(--lb-gold); box-shadow: 0.35rem 0.35rem 0 rgba(0, 0, 0, 0.45);
+  clip-path: polygon(0 calc(var(--px) * 2), calc(var(--px) * 2) 0, calc(100% - var(--px) * 2) 0, 100% calc(var(--px) * 2), 100% calc(100% - var(--px) * 2), calc(100% - var(--px) * 2) 100%, calc(var(--px) * 2) 100%, 0 calc(100% - var(--px) * 2)); }
+.tv-lb.is-pixel .tv-lb-coin-face { background: var(--lb-gold); color: #111; box-shadow: none; text-shadow: none; font-family: var(--font-sans, Inter, system-ui); font-weight: 900; }
+.tv-lb.is-pixel .tv-lb-coin.is-silver, .tv-lb.is-pixel .tv-lb-coin.is-silver .tv-lb-coin-face { background: #D9DEE5; }
+.tv-lb.is-pixel .tv-lb-coin.is-bronze, .tv-lb.is-pixel .tv-lb-coin.is-bronze .tv-lb-coin-face { background: #F0A35E; }
+.tv-lb.is-pixel .tv-lb-coin::after { display: none; }
+/* Pixel podium blocks: flat colour, hard top highlight, step bevel. */
+.tv-lb.is-pixel .tv-lb-block { border-radius: 0; background: var(--lb-block, #1B3BFF); color: #fff;
+  box-shadow: inset 0 var(--px) 0 rgba(255, 255, 255, 0.4), inset 0 calc(var(--px) * -1.5) 0 rgba(0, 0, 0, 0.35), 0.4rem 0.4rem 0 rgba(0, 0, 0, 0.45); }
+.tv-lb.is-pixel .tv-lb-block::before { display: none; }
+.tv-lb.is-pixel .tv-lb-medal { text-shadow: 0.25rem 0.25rem 0 rgba(0, 0, 0, 0.45); }
+.tv-lb.is-pixel .tv-lb-block small { align-self: end; padding: 0.3rem 0.6rem; background: var(--lb-gold); color: #111; letter-spacing: 0.08em; }
+.tv-lb.is-pixel .tv-lb-block.is-silver small { background: #D9DEE5; }
+.tv-lb.is-pixel .tv-lb-block.is-bronze small { background: #F0A35E; }
+.tv-lb.is-pixel .tv-lb-stage { display: none; }
+.tv-lb.is-pixel .tv-lb-crown { filter: none; top: -2rem; width: 2.4rem; height: 2.4rem; }
+/* Pixel frames are thicker, so keep the podium clear of the headline. */
+.tv-lb.is-pixel .tv-lb-podium { padding-top: 2.4rem; }
+/* Pixel movement steps instead of gliding. */
+.tv-lb.is-pixel .tv-lb-crown, .tv-lb.is-pixel .tv-lb-empty svg { animation-timing-function: steps(2, jump-none); }
+
+/* ---------- 1. Arcade maze: black hall, blue maze walls, pac-man chase ---------- */
+.tv-lb-theme-arcadeMaze { --lb-frame: #2E5BFF; --lb-row: #FFD60A; --lb-panel-bg: rgba(0, 0, 0, 0.88); --lb-gold: #FFD60A; --lb-block: #1B3BFF; background: #000; }
+.tv-lb-theme-arcadeMaze .tv-lb-aotd { --lb-frame: #FFD60A; }
+.tv-lb-maze { position: absolute; left: 0; right: 0; height: 3.4rem; border-block: 0.3rem solid #2E5BFF; }
+.tv-lb-maze.is-top { top: 0; border-top: 0; }
+.tv-lb-maze.is-bottom { bottom: 0; border-bottom: 0; }
+.tv-lb-maze-dots { position: absolute; inset: 0; background: radial-gradient(circle, #FFD60A 0 0.22rem, transparent 0.24rem) 0 50% / 2.2rem 100% repeat-x; animation: tv-lb-dots 1.4s linear infinite; }
+.tv-lb-maze-runners { position: absolute; top: 50%; display: flex; gap: 1.6rem; transform: translateY(-50%); animation: tv-lb-run 18s linear infinite; }
+.tv-lb-maze.is-bottom .tv-lb-maze-runners { animation-duration: 22s; animation-direction: reverse; }
+.tv-lb-maze.is-bottom .tv-lb-maze-runners svg { transform: scaleX(-1); }
+.tv-lb-chomp { animation: tv-lb-chomp 0.3s steps(2, jump-none) infinite; }
+.tv-lb-theme-arcadeMaze .tv-lb-head { padding-top: 2.6rem; }
+.tv-lb-theme-arcadeMaze .tv-lb-queue { margin-bottom: 2.4rem; }
+
+/* ---------- 2. Pixel sky: blue sky, clouds, brick podium, pipes, grass ---------- */
+.tv-lb-theme-pixelSky { --lb-frame: #FFD60A; --lb-row: #FFFFFF; --lb-panel-bg: #0F1B3D; --lb-gold: #FFD60A; background: linear-gradient(#4A9BFF, #6BB4FF 70%); }
+.tv-lb-theme-pixelSky .tv-lb-list { --lb-frame: #FFFFFF; }
+.tv-lb-theme-pixelSky .tv-lb-head h1, .tv-lb-theme-pixelSky .tv-lb-clock { padding: 0.2rem 0.9rem; background: #0F1B3D; }
+.tv-lb-theme-pixelSky .tv-lb-name, .tv-lb-theme-pixelSky .tv-lb-count { color: #fff; text-shadow: 0.14rem 0 0 #0F1B3D, -0.14rem 0 0 #0F1B3D, 0 0.14rem 0 #0F1B3D, 0 -0.14rem 0 #0F1B3D, 0.2rem 0.2rem 0 #0F1B3D; }
+.tv-lb-theme-pixelSky .tv-lb-count b { color: #fff; }
+.tv-lb.tv-lb-theme-pixelSky .tv-lb-block {
+  /* Brick wall: mortar lines over brick red, every other row offset. */
+  background:
+    linear-gradient(#0000 calc(50% - 0.14rem), #8A2A10 0 calc(50% + 0.14rem), #0000 0) 0 0 / 100% 2.2rem,
+    linear-gradient(90deg, #0000 calc(100% - 0.28rem), #8A2A10 0) 0 0 / 2.6rem 1.1rem,
+    linear-gradient(90deg, #0000 calc(100% - 0.28rem), #8A2A10 0) 1.3rem 1.1rem / 2.6rem 2.2rem,
+    #E0562B;
+}
+.tv-lb-theme-pixelSky .tv-lb-coin, .tv-lb-theme-pixelSky .tv-lb-coin.is-silver, .tv-lb-theme-pixelSky .tv-lb-coin.is-bronze { background: #FFD60A; }
+.tv-lb-theme-pixelSky .tv-lb-coin-face, .tv-lb-theme-pixelSky .tv-lb-coin.is-silver .tv-lb-coin-face, .tv-lb-theme-pixelSky .tv-lb-coin.is-bronze .tv-lb-coin-face {
+  /* Question block: rivets in the corners, a "?" behind the initials. */
+  background: radial-gradient(circle at 12% 12%, #8A5A00 0 6%, #0000 7%), radial-gradient(circle at 88% 12%, #8A5A00 0 6%, #0000 7%),
+              radial-gradient(circle at 12% 88%, #8A5A00 0 6%, #0000 7%), radial-gradient(circle at 88% 88%, #8A5A00 0 6%, #0000 7%), #FFC21A;
+}
+.tv-lb-theme-pixelSky .tv-lb-coin { animation: tv-lb-bump 2.4s steps(1, end) infinite; }
+.tv-lb-cloud { position: absolute; animation: tv-lb-drift 60s linear infinite; }
+.tv-lb-cloud.is-a { top: 4%; left: 48%; }
+.tv-lb-cloud.is-b { top: 7%; left: 68%; animation-duration: 80s; }
+.tv-lb-cloud.is-c { top: 18%; left: 24%; animation-duration: 95s; }
+.tv-lb-pipe { position: absolute; bottom: 5.8rem; z-index: 0; }
+.tv-lb-pipe.is-left { left: 27.4%; }
+.tv-lb-pipe.is-right { right: 27.4%; }
+.tv-lb-bush { position: absolute; bottom: 5.8rem; }
+.tv-lb-bush.is-left { left: 31%; }
+.tv-lb-bush.is-right { right: 31%; }
+.tv-lb-ground { position: absolute; left: 0; right: 0; bottom: 4.2rem; height: 1.6rem;
+  background: linear-gradient(#3BD15A 0 45%, #1E9C35 45%) , #1E9C35;
+  -webkit-mask: linear-gradient(90deg, #000 50%, #0000 0) 0 0 / 0.8rem 0.4rem repeat-x, linear-gradient(#000, #000) 0 0.4rem / 100% 100% no-repeat;
+  mask: linear-gradient(90deg, #000 50%, #0000 0) 0 0 / 0.8rem 0.4rem repeat-x, linear-gradient(#000, #000) 0 0.4rem / 100% 100% no-repeat; }
+
+/* ---------- 3. Pixel space: deep purple, invaders, neon cyan and pink frames ---------- */
+.tv-lb-theme-pixelSpace { --lb-frame: #38F2FF; --lb-row: #38F2FF; --lb-panel-bg: rgba(18, 6, 36, 0.9); --lb-gold: #FFD60A; --lb-block: #0B0420; background: radial-gradient(120% 90% at 50% 0%, #2A0B4F, #12052A 60%, #08021A); }
+.tv-lb.tv-lb-theme-pixelSpace .tv-lb-block { color: #fff; border: var(--px) solid #38F2FF; box-shadow: 0 0 0 calc(var(--px) * 0.6) #FF3CC7, 0.4rem 0.4rem 0 rgba(0, 0, 0, 0.5); }
+.tv-lb-theme-pixelSpace .tv-lb-block small { background: #FFD60A; }
+.tv-lb-theme-pixelSpace .tv-lb-eyebrow, .tv-lb-theme-pixelSpace .tv-lb-list h3 { color: #FF3CC7; }
+.tv-lb-invaders { position: absolute; inset: 0; }
+.tv-lb-invader { position: absolute; animation: tv-lb-invade 3s steps(4, jump-none) infinite alternate; }
+.tv-lb-invader.is-0 { top: 3%; left: 39%; }
+.tv-lb-invader.is-1 { top: 4%; left: 62%; animation-delay: -0.8s; }
+.tv-lb-invader.is-2 { top: 5%; left: 78%; animation-delay: -1.6s; }
+.tv-lb-invader.is-3 { top: 23%; left: 33%; animation-delay: -0.4s; }
+.tv-lb-invader.is-4 { top: 23%; left: 61%; animation-delay: -1.2s; }
+
+/* ---------- 4. Block stack: navy, falling tetrominoes, pixel-brick podium ---------- */
+.tv-lb-theme-blockStack { --lb-frame: #FFD60A; --lb-row: #9DB8FF; --lb-panel-bg: rgba(10, 18, 56, 0.9); --lb-gold: #FFD60A; background: #0A1238; }
+.tv-lb-theme-blockStack .tv-lb-list { --lb-frame: #9DB8FF; }
+.tv-lb.tv-lb-theme-blockStack .tv-lb-block { color: #0A1238;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.25) 0.18rem, #0000 0) 0 0 / 2rem 2rem, linear-gradient(rgba(0, 0, 0, 0.25) 0.18rem, #0000 0) 0 0 / 2rem 2rem, var(--lb-tile, #FFD60A); }
+.tv-lb.tv-lb-theme-blockStack .tv-lb-block.is-silver { --lb-tile: #C9CFD8; }
+.tv-lb.tv-lb-theme-blockStack .tv-lb-block.is-bronze { --lb-tile: #FF9F1C; }
+.tv-lb-theme-blockStack .tv-lb-block small { background: rgba(255, 255, 255, 0.85); }
+.tv-lb-blocks { position: absolute; inset: 0; }
+.tv-lb-tetro { position: absolute; top: -4rem; animation: tv-lb-fall 9s steps(18, end) infinite; }
+.tv-lb-tetro.is-0 { left: 6%; }
+.tv-lb-tetro.is-1 { left: 22%; animation-delay: -2s; animation-duration: 11s; }
+.tv-lb-tetro.is-2 { left: 47%; animation-delay: -5s; animation-duration: 10s; }
+.tv-lb-tetro.is-3 { left: 71%; animation-delay: -3s; animation-duration: 12s; }
+.tv-lb-tetro.is-4 { left: 86%; animation-delay: -7s; }
+.tv-lb-tetro.is-5 { left: 95%; animation-delay: -1s; animation-duration: 13s; }
+
+/* ---------- 5. Pixel forest: green, gold frames with hearts and gems, stone and brick podium ---------- */
+.tv-lb-theme-pixelForest { --lb-frame: #E7B416; --lb-row: #3CCB6A; --lb-panel-bg: rgba(16, 52, 22, 0.92); --lb-gold: #FFD60A; background: radial-gradient(120% 100% at 50% 0%, #1B5A24, #0F3A16 70%); }
+.tv-lb-theme-pixelForest .tv-lb-stat { --lb-frame: #3CCB6A; }
+.tv-lb.tv-lb-theme-pixelForest .tv-lb-block { color: #fff; text-shadow: 0.2rem 0.2rem 0 rgba(0, 0, 0, 0.5);
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.3) 0.2rem, #0000 0) 0 0 / 2.4rem 1.2rem, linear-gradient(rgba(0, 0, 0, 0.3) 0.2rem, #0000 0) 0 0 / 2.4rem 1.2rem, var(--lb-tile, #E7B416); }
+.tv-lb.tv-lb-theme-pixelForest .tv-lb-block.is-silver { --lb-tile: #8E99A6; }
+.tv-lb.tv-lb-theme-pixelForest .tv-lb-block.is-bronze { --lb-tile: #B5653A; }
+.tv-lb-heart { position: absolute; animation: tv-lb-beat 1.2s steps(2, jump-none) infinite; }
+.tv-lb-heart.is-tl { top: -0.9rem; left: -0.9rem; }
+.tv-lb-heart.is-tr { top: -0.9rem; right: -0.9rem; }
+.tv-lb-heart.is-bl { bottom: -0.9rem; left: -0.9rem; }
+.tv-lb-heart.is-br { bottom: -0.9rem; right: -0.9rem; }
+.tv-lb-gem { position: absolute; left: 50%; transform: translateX(-50%); animation: tv-lb-glint 2s steps(2, jump-none) infinite; }
+.tv-lb-gem.is-top { top: -0.9rem; }
+.tv-lb-gem.is-bottom { bottom: -0.9rem; }
+.tv-lb-leaves { position: absolute; top: -1rem; width: 16rem; height: 6rem;
+  background: radial-gradient(circle at 30% 50%, #2E8B3A 0 1.4rem, #0000 1.45rem), radial-gradient(circle at 60% 30%, #3FA54B 0 1.6rem, #0000 1.65rem), radial-gradient(circle at 80% 60%, #2E8B3A 0 1.2rem, #0000 1.25rem);
+  image-rendering: pixelated; animation: tv-lb-sway 4s steps(4, jump-none) infinite alternate; }
+.tv-lb-leaves.is-left { left: 54%; }
+.tv-lb-leaves.is-right { right: -2rem; transform: scaleX(-1); }
+.tv-lb-ground.is-forest { bottom: 0; height: 1.8rem; background: linear-gradient(#3BD15A 0 45%, #1E7A2C 45%); }
+
+/* ---------- 6. Neon circuit: violet, cyan / violet traces with travelling pulses ---------- */
+.tv-lb-theme-neonCircuit { --lb-gold: #FFD60A; --lb-line: rgba(56, 242, 255, 0.35); background: radial-gradient(120% 90% at 50% 0%, #2A1460, #150A38 60%, #0A0520); }
+.tv-lb-theme-neonCircuit .tv-lb-panel { background: rgba(20, 10, 48, 0.85); border: 0.14rem solid #38F2FF; box-shadow: 0 0 1.2rem rgba(56, 242, 255, 0.35), inset 0 0 1.2rem rgba(177, 92, 255, 0.2); border-radius: 0.6rem; }
+.tv-lb-theme-neonCircuit .tv-lb-aotd { border-color: #FFD60A; box-shadow: 0 0 1.4rem rgba(255, 214, 10, 0.4), inset 0 0 1.2rem rgba(255, 214, 10, 0.12); }
+.tv-lb-theme-neonCircuit .tv-lb-list li { border: 0.1rem solid rgba(56, 242, 255, 0.45); background: rgba(10, 5, 32, 0.6); }
+.tv-lb-theme-neonCircuit .tv-lb-block { color: #fff; background: linear-gradient(180deg, #1A1238, #0D0824); box-shadow: inset 0 0 0 0.14rem var(--m-mid), 0 0 1.6rem color-mix(in srgb, var(--m-mid) 55%, transparent); }
+.tv-lb-theme-neonCircuit .tv-lb-block small { color: #111; background: var(--m-mid); padding: 0.25rem 0.7rem; transform: skewX(-10deg); }
+.tv-lb-circuit { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tv-lb-circuit .is-trace { fill: none; stroke: rgba(56, 242, 255, 0.35); stroke-width: 3; }
+.tv-lb-circuit .is-pulse { fill: none; stroke: #B6FBFF; stroke-width: 4; stroke-linecap: round; stroke-dasharray: 60 2400; filter: drop-shadow(0 0 6px #38F2FF); animation: tv-lb-pulse-run 4.5s linear infinite; }
+.tv-lb-circuit .is-node { fill: #B15CFF; filter: drop-shadow(0 0 6px #B15CFF); animation: tv-lb-pulse 2s ease-in-out infinite; }
+
+/* ---------- 7. Hex tech: navy steel, hexagon mesh, cyan rim lights, octagon avatars ---------- */
+.tv-lb-theme-hexTech { --lb-gold: #FFC83D; background: radial-gradient(120% 90% at 50% 0%, #20204A, #121231 60%, #08081C); }
+.tv-lb-hexgrid { position: absolute; inset: 0; opacity: 0.18;
+  background:
+    radial-gradient(circle farthest-side at 0 50%, #0000 96%, #4CE1FF 97% 100%, #0000) 0 0 / 3.2rem 5.5rem,
+    radial-gradient(circle farthest-side at 100% 50%, #0000 96%, #4CE1FF 97% 100%, #0000) 1.6rem 2.75rem / 3.2rem 5.5rem;
+  -webkit-mask: radial-gradient(70% 60% at 50% 50%, #000, #0000); mask: radial-gradient(70% 60% at 50% 50%, #000, #0000); }
+.tv-lb-theme-hexTech .tv-lb-panel { background: linear-gradient(180deg, rgba(24, 26, 48, 0.92), rgba(12, 14, 30, 0.95)); border: 0.16rem solid #4CE1FF; border-radius: 0;
+  clip-path: polygon(1.4rem 0, calc(100% - 1.4rem) 0, 100% 1.4rem, 100% calc(100% - 1.4rem), calc(100% - 1.4rem) 100%, 1.4rem 100%, 0 calc(100% - 1.4rem), 0 1.4rem);
+  box-shadow: inset 0 0 0 0.3rem rgba(255, 200, 61, 0.55); }
+.tv-lb-theme-hexTech .tv-lb-coin, .tv-lb-theme-hexTech .tv-lb-coin-face { border-radius: 0; clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%); }
+.tv-lb-theme-hexTech .tv-lb-coin::after { border-radius: 0; }
+.tv-lb-theme-hexTech .tv-lb-block { clip-path: polygon(1rem 0, calc(100% - 1rem) 0, 100% 1rem, 100% 100%, 0 100%, 0 1rem); border-radius: 0; color: #fff;
+  background: linear-gradient(180deg, #2A2E44, #14172A); box-shadow: inset 0 0.25rem 0 var(--m-mid), inset 0 -0.3rem 0 #4CE1FF; }
+.tv-lb-theme-hexTech .tv-lb-block small { padding: 0.25rem 0.8rem; background: var(--m-mid); color: #111; transform: skewX(-10deg); }
+.tv-lb-theme-hexTech .tv-lb-stage::before { border-top-color: #4CE1FF; filter: drop-shadow(0 0 0.5rem #4CE1FF); }
+
+/* ---------- 8. Mecha steel: riveted gunmetal, amber rim lights, hazard stripes, welding sparks ---------- */
+.tv-lb-theme-mechaSteel { --lb-gold: #FFB020; background: radial-gradient(120% 90% at 50% 0%, #22233A, #14152A 60%, #0A0B18); }
+.tv-lb-theme-mechaSteel .tv-lb-panel { border-radius: 0.4rem; border: 0.3rem solid #3A3F52;
+  background: linear-gradient(135deg, #2A2E3E, #191C28); box-shadow: inset 0 0 0 0.14rem #FFB020, 0 0 1.6rem rgba(255, 176, 32, 0.25);
+  clip-path: polygon(2rem 0, calc(100% - 2rem) 0, 100% 2rem, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 2rem 100%, 0 calc(100% - 2rem), 0 2rem); }
+.tv-lb-theme-mechaSteel .tv-lb-coin, .tv-lb-theme-mechaSteel .tv-lb-coin-face { border-radius: 0; clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%); }
+.tv-lb-theme-mechaSteel .tv-lb-coin { background: #3A3F52; }
+.tv-lb-theme-mechaSteel .tv-lb-coin::after { border-radius: 0; }
+.tv-lb-theme-mechaSteel .tv-lb-block { color: #fff; border-radius: 0; clip-path: polygon(1.2rem 0, calc(100% - 1.2rem) 0, 100% 1.2rem, 100% 100%, 0 100%, 0 1.2rem);
+  background: linear-gradient(180deg, #343849, #1C1F2B); box-shadow: inset 0 0.25rem 0 #FFB020, inset 0 -0.4rem 0 #2AA3FF; }
+.tv-lb-theme-mechaSteel .tv-lb-block small { padding: 0.25rem 0.8rem; background: var(--m-mid); color: #111; transform: skewX(-10deg); }
+.tv-lb-theme-mechaSteel .tv-lb-stage::before { border-top-color: #FFB020; }
+.tv-lb-hazard { position: absolute; left: 34%; right: 34%; top: 1.4rem; height: 1rem;
+  background: repeating-linear-gradient(-45deg, #FFB020 0 0.8rem, #0000 0.8rem 1.6rem); animation: tv-lb-hazard 1.6s linear infinite; }
+.tv-lb-lights { position: absolute; top: 30%; width: 0.5rem; height: 40%; background: repeating-linear-gradient(#2AA3FF 0 1.2rem, #0000 1.2rem 2rem); animation: tv-lb-pulse 1.6s steps(2, jump-none) infinite; }
+.tv-lb-lights.is-left { left: 0.7rem; }
+.tv-lb-lights.is-right { right: 0.7rem; animation-delay: -0.8s; }
+
+/* ---------- 9. Racing: carbon black, red / orange speed stripes, checkered flags ---------- */
+.tv-lb-theme-racing { --lb-gold: #FFC83D; background: radial-gradient(120% 90% at 50% 0%, #241A44, #15102C 60%, #0A0818); }
+.tv-lb-theme-racing .tv-lb-panel { border-radius: 0.4rem; border: 0.16rem solid #FFC83D;
+  background: repeating-linear-gradient(45deg, #1A1A1F 0 0.3rem, #141418 0.3rem 0.6rem); box-shadow: 0 0 1.4rem rgba(255, 200, 61, 0.25);
+  clip-path: polygon(1.6rem 0, 100% 0, 100% calc(100% - 1.6rem), calc(100% - 1.6rem) 100%, 0 100%, 0 1.6rem); }
+.tv-lb-theme-racing .tv-lb-list li { transform: skewX(-8deg); background: linear-gradient(90deg, #2A2A30, #18181C); border-right: 0.3rem solid #FF3B30; }
+.tv-lb-theme-racing .tv-lb-list li > * { transform: skewX(8deg); }
+.tv-lb-theme-racing .tv-lb-coin, .tv-lb-theme-racing .tv-lb-coin-face { border-radius: 0 0 50% 50% / 0 0 40% 40%; clip-path: polygon(50% 0, 100% 12%, 100% 60%, 50% 100%, 0 60%, 0 12%); }
+.tv-lb-theme-racing .tv-lb-coin::after { border-radius: 0; }
+.tv-lb-theme-racing .tv-lb-block { border-radius: 0; color: #fff;
+  background: linear-gradient(115deg, #0000 55%, rgba(255, 59, 48, 0.55) 55% 62%, #0000 62% 66%, rgba(255, 140, 0, 0.5) 66% 70%, #0000 70%), linear-gradient(180deg, #2A2A30, #121216); }
+.tv-lb-theme-racing .tv-lb-block small { padding: 0.25rem 0.9rem; background: var(--m-mid); color: #111; transform: skewX(-12deg); }
+.tv-lb-theme-racing .tv-lb-medal { font-style: italic; }
+.tv-lb-speed { position: absolute; height: 0.5rem; background: linear-gradient(90deg, #0000, #FF3B30 40%, #FFB020 80%, #0000); animation: tv-lb-zoom 2.8s ease-in infinite; }
+.tv-lb-speed.is-top { top: 9%; left: 40%; width: 24rem; }
+.tv-lb-speed.is-bottom { bottom: 12%; left: 30%; width: 34rem; animation-delay: -1.4s; }
+.tv-lb-flag { position: absolute; top: 22%; width: 4rem; height: 2.4rem;
+  background: conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0) 0 0 / 0.8rem 0.8rem; animation: tv-lb-wave 1.2s ease-in-out infinite alternate; }
+.tv-lb-flag.is-left { left: 1.6rem; }
+.tv-lb-flag.is-right { right: 1.6rem; animation-delay: -0.6s; }
+
+/* ---------- Motion ---------- */
+@keyframes tv-lb-dots { to { background-position: -2.2rem 50%; } }
+@keyframes tv-lb-run { from { transform: translate(-20rem, -50%); } to { transform: translate(110vw, -50%); } }
+@keyframes tv-lb-chomp { 50% { clip-path: polygon(0 0, 100% 0, 100% 45%, 60% 50%, 100% 55%, 100% 100%, 0 100%); } }
+@keyframes tv-lb-drift { from { transform: translateX(0); } to { transform: translateX(-120vw); } }
+@keyframes tv-lb-bump { 0%, 88%, 100% { transform: none; } 92% { transform: translateY(-0.6rem); } }
+@keyframes tv-lb-invade { from { transform: translateX(-1.5rem); } to { transform: translateX(1.5rem); } }
+@keyframes tv-lb-fall { from { transform: translateY(0); } to { transform: translateY(110vh); } }
+@keyframes tv-lb-beat { 50% { transform: scale(1.18); } }
+@keyframes tv-lb-glint { 50% { filter: brightness(1.6); } }
+@keyframes tv-lb-sway { from { transform: translateX(0); } to { transform: translateX(0.6rem); } }
+@keyframes tv-lb-pulse-run { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -2460; } }
+@keyframes tv-lb-hazard { to { background-position: 2.26rem 0; } }
+@keyframes tv-lb-zoom { from { transform: translateX(-60vw); opacity: 0; } 30% { opacity: 1; } to { transform: translateX(60vw); opacity: 0; } }
+@keyframes tv-lb-wave { from { transform: skewY(-6deg); } to { transform: skewY(6deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tv-lb-decor * { animation: none !important; }
+}

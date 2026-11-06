@@ -11,7 +11,7 @@
   background: radial-gradient(120% 90% at 50% 0%, #22408f 0%, #101c45 55%, #070d24 100%);
   animation: tv-lb-in 0.8s var(--ease-out, cubic-bezier(.2,.8,.2,1)) both;
 }
-.tv-lb > *:not(.tv-lb-canvas):not(.tv-lb-spotlight) { position: relative; z-index: 1; }
+.tv-lb > *:not(.tv-lb-canvas):not(.tv-lb-decor) { position: relative; z-index: 1; }
 .tv-lb-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
 
 /* Header */
@@ -131,7 +131,6 @@
 .tv-lb-crown { position: absolute; top: -2.6rem; width: 3rem; height: 3rem; color: var(--lb-gold); filter: drop-shadow(0 0 0.8rem rgba(255, 200, 61, 0.8)); animation: tv-lb-bob 2.2s ease-in-out infinite; }
 .tv-lb-step.is-empty { visibility: hidden; }
 .tv-lb-step .tv-lb-badges { margin-top: 0.6rem; min-height: 2rem; }
-.tv-lb-theme-spotlight .tv-lb-step { animation-duration: 1.2s; }
 
 /* Ranks 4-10 */
 .tv-lb-list { display: flex; flex-direction: column; min-height: 0; padding: 1.2rem 1.3rem; border-radius: 1.8rem; background: var(--lb-card); border: 1px solid var(--lb-line); }
@@ -166,22 +165,6 @@
 .tv-lb-ticket svg { width: 2rem; height: 2rem; flex: none; }
 .tv-lb-ticket b { font-size: 1.5rem; }
 .tv-lb-ticket span { font-size: 1.25rem; opacity: 0.92; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* Day themes */
-.tv-lb-theme-spotlight { background: radial-gradient(120% 90% at 50% 0%, #2a2350 0%, #120f2b 55%, #07061a 100%); }
-.tv-lb-spotlight { position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
-.tv-lb-spotlight span { position: absolute; top: -10%; width: 46%; height: 130%; background: conic-gradient(from 160deg at 50% 0%, transparent 0deg, rgba(255, 236, 170, 0.45) 20deg, transparent 40deg); filter: blur(0.6rem); transform-origin: 50% 0; mix-blend-mode: screen; }
-.tv-lb-spotlight::after { content: ''; position: absolute; left: 50%; bottom: 12%; width: 36rem; height: 8rem; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(closest-side, rgba(255, 236, 170, 0.35), transparent); animation: tv-lb-pulse 3s ease-in-out infinite; }
-.tv-lb-spotlight .is-left { left: 5%; animation: tv-lb-sweep 6s ease-in-out infinite alternate; }
-.tv-lb-spotlight .is-right { right: 5%; animation: tv-lb-sweep 6s ease-in-out infinite alternate-reverse; }
-.tv-lb-theme-fireworks { background: radial-gradient(120% 90% at 50% 0%, #1b2a6b 0%, #0b1236 60%, #04081c 100%); }
-.tv-lb-theme-shootingStars { background: radial-gradient(130% 100% at 50% 0%, #0f2a5c 0%, #071634 55%, #030919 100%); }
-.tv-lb-theme-goldRibbon { background: radial-gradient(120% 90% at 50% 0%, #4a3410 0%, #24180a 55%, #120b04 100%); }
-.tv-lb-theme-goldRibbon .tv-lb-name, .tv-lb-theme-goldRibbon .tv-lb-aotd h2 {
-  background: linear-gradient(90deg, #FFF4CC, #FFC83D, #F5A623, #FFF4CC); background-size: 200% 100%;
-  -webkit-background-clip: text; background-clip: text; color: transparent; animation: tv-lb-shine 3s linear infinite;
-}
-.tv-lb-theme-shootingStars .tv-lb-count b, .tv-lb-theme-shootingStars .tv-lb-list-count { animation: tv-lb-pop 0.9s 0.8s var(--ease-out, ease-out) both; }
 
 @keyframes tv-lb-in { from { opacity: 0; transform: scale(1.02); } to { opacity: 1; transform: none; } }
 @keyframes tv-lb-rise { from { opacity: 0; transform: translateY(2.5rem); } to { opacity: 1; transform: none; } }

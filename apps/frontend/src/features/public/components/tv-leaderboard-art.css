@@ -1,0 +1,104 @@
+/*
+ * Artwork leaderboards. The art is the full picture; text only fills its blank slots.
+ * The stage keeps the art's aspect ratio and is a size container, so every text size is in cqw
+ * (percent of the stage width) and stays put on the art at any TV size.
+ */
+.tv-lba {
+  position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; overflow: hidden;
+  background: #000; animation: tv-lb-in 0.8s var(--ease-out, cubic-bezier(.2, .8, .2, 1)) both;
+}
+.tv-lba-stage { position: relative; width: min(100vw, calc(100vh * 1672 / 941)); container-type: inline-size; }
+.tv-lba-art { display: block; width: 100%; height: 100%; user-select: none; image-rendering: auto; }
+.tv-lba .tv-lb-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; mix-blend-mode: screen; }
+
+.tv-lba-slot {
+  position: absolute; display: flex; align-items: center; justify-content: center; text-align: center; overflow: hidden;
+  color: #fff; font-family: 'Press Start 2P', var(--font-sans, Inter, system-ui); font-weight: 800; line-height: 1.1;
+}
+.tv-lba-slot.is-site { justify-content: flex-start; font-size: 1.25cqw; color: #FFD60A; letter-spacing: 0.06em; text-transform: uppercase; }
+.tv-lba-slot.is-title { justify-content: flex-start; padding-left: 1cqw; }
+.tv-lba-slot.is-title h1 { margin: 0; font-size: 3.1cqw; font-weight: 900; letter-spacing: -0.01em; white-space: nowrap; text-shadow: 0.22cqw 0.22cqw 0 rgba(0, 0, 0, 0.45); }
+.tv-lba-slot.is-title h1 span { color: #FFD60A; }
+.tv-lba-slot.is-clock { font-size: 3.2cqw; font-weight: 900; font-variant-numeric: tabular-nums; }
+.tv-lba-slot.is-label { font-size: 1.35cqw; color: #FFD60A; letter-spacing: 0.04em; text-transform: uppercase; }
+.tv-lba-slot.is-list-title { justify-content: flex-start; padding-left: 1.2cqw; color: #fff; }
+.tv-lba-slot.is-name { padding: 0 0.6cqw; }
+.tv-lba-slot.is-name.is-big { font-size: 2.05cqw; font-weight: 900; text-shadow: 0.18cqw 0.18cqw 0 rgba(0, 0, 0, 0.45); }
+.tv-lba-slot.is-sub { font-size: 1.25cqw; font-weight: 600; color: rgba(255, 255, 255, 0.85); }
+.tv-lba-slot.is-stat { flex-direction: column; gap: 0.2cqw; padding-top: 2.2cqw; }
+.tv-lba-slot.is-stat b { font-size: 2.2cqw; font-weight: 900; font-variant-numeric: tabular-nums; }
+.tv-lba-slot.is-stat small { font-size: 1cqw; font-weight: 600; color: rgba(255, 255, 255, 0.85); }
+/* The art draws the icon at the left of each pill; text starts after it. */
+.tv-lba-slot.is-pill { justify-content: center; padding-left: 2.1cqw; padding-right: 0.4cqw; font-size: 0.86cqw; letter-spacing: -0.01em; white-space: nowrap; }
+.tv-lba-slot.is-pill.is-plain { padding-left: 0.4cqw; }
+.tv-lba-slot.is-podium-name { flex-direction: column; justify-content: flex-end; gap: 0.3cqw; padding-bottom: 0.3cqw; }
+.tv-lba-slot.is-podium-name > b { font-size: 1.5cqw; font-weight: 900; line-height: 1.12; text-shadow: 0.16cqw 0.16cqw 0 rgba(0, 0, 0, 0.5);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tv-lba-slot.is-podium-name > span { font-size: 1.1cqw; font-weight: 600; text-shadow: 0.12cqw 0.12cqw 0 rgba(0, 0, 0, 0.5); }
+.tv-lba-slot.is-podium-name > span b { font-size: 1.6cqw; font-weight: 900; }
+.tv-lba-slot.is-rank-no { font-size: 1.7cqw; font-weight: 900; }
+.tv-lba-slot.is-chip { font-size: 1.15cqw; font-weight: 900; color: #111; }
+.tv-lba-slot.is-row { justify-content: flex-start; gap: 0.8cqw; font-size: 1.3cqw; }
+.tv-lba-slot.is-row .is-row-name { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.tv-lba-slot.is-row .is-row-rating { display: inline-flex; align-items: center; gap: 0.2cqw; color: #FFD60A; font-size: 1.05cqw; }
+.tv-lba-slot.is-row .is-row-rating svg { width: 1cqw; height: 1cqw; fill: currentColor; }
+.tv-lba-slot.is-row .is-row-count { min-width: 2.4cqw; text-align: right; font-size: 1.7cqw; font-weight: 900; font-variant-numeric: tabular-nums; }
+.tv-lba-slot.is-queue { justify-content: flex-start; gap: 2.4cqw; padding: 0 2.6cqw 0 2.4cqw; font-size: 1.3cqw; font-weight: 700; }
+.tv-lba-slot.is-queue b { font-size: 1.55cqw; font-weight: 900; }
+.tv-lba-slot.is-queue .is-bad, .tv-lba-slot.is-queue .is-bad b { color: #FF4D4D; }
+.tv-lba-slot.is-queue .is-note { margin-left: auto; font-weight: 600; font-size: 1.15cqw; }
+
+/* Avatars: the art's own picture stays; initials only where the art leaves room. */
+.tv-lba-avatar { position: absolute; }
+/* The cut repaints the art's tile at the same spot; it is what moves. */
+.tv-lba-avatar-cut { position: absolute; inset: 0; display: grid; place-items: center; background-repeat: no-repeat; }
+.tv-lba-avatar img { width: 82%; height: 82%; object-fit: cover; }
+.tv-lba-avatar span { font-weight: 900; color: #111; font-family: 'Press Start 2P', var(--font-sans, Inter, system-ui); line-height: 1; }
+.tv-lba-avatar.is-center span { font-size: 2.3cqw; }
+.tv-lba-avatar.is-center.is-big span { font-size: 3.4cqw; }
+.tv-lba-avatar.is-cap .tv-lba-avatar-cut { place-items: start center; }
+.tv-lba-avatar.is-cap span { margin-top: 9%; font-size: 1.2cqw; }
+.tv-lba-avatar.is-cap.is-big span { font-size: 1.9cqw; }
+.tv-lba-avatar.is-bottom .tv-lba-avatar-cut { place-items: end center; }
+.tv-lba-avatar.is-bottom span { margin-bottom: 6%; font-size: 1.3cqw; }
+.tv-lba-avatar.is-bottom.is-big span { font-size: 2cqw; }
+.tv-lba-avatar.is-bob .tv-lba-avatar-cut { animation: tv-lba-bob 1.8s steps(2, jump-none) infinite; }
+.tv-lba-avatar.is-big .tv-lba-avatar-cut { animation: tv-lba-glow 2.6s ease-in-out infinite; }
+/* Where the art already draws an icon in a slot, the text leaves room for it. */
+.tv-lba-slot.is-label.has-art-icon { padding-left: 3cqw; }
+.tv-lba-slot.is-site.has-art-icon { padding-left: 0.4cqw; }
+.tv-lba-slot.is-queue.has-art-icons { gap: 0; padding-left: 0; }
+.tv-lba-slot.is-queue.has-art-icons .is-q-open { position: absolute; left: 3.2%; }
+.tv-lba-slot.is-queue.has-art-icons .is-q-progress { position: absolute; left: 13.6%; }
+.tv-lba-slot.is-queue.has-art-icons .is-q-overdue { position: absolute; left: 27.8%; }
+.tv-lba-slot.is-queue.has-art-icons .is-note { position: absolute; right: 2.4%; }
+
+/* Motion on top of the art: entrances, a glint sweeping across, the art breathing a little. */
+.tv-lba-rank > *, .tv-lba-row > * { animation: tv-lba-pop 0.55s cubic-bezier(.2, 1.4, .4, 1) both; animation-delay: inherit; }
+.tv-lba-rank, .tv-lba-row { display: contents; }
+.tv-lba-glint { position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.16) 48%, transparent 56%) no-repeat;
+  background-size: 60% 100%; background-position: -80% 0; mix-blend-mode: screen; animation: tv-lba-glint 6s ease-in-out infinite; }
+
+/* Per-art moves of the drawn elements (these sprites are part of the art, so they move by glow / bounce only). */
+.tv-lba-arcadeMaze .tv-lba-art { animation: tv-lba-flicker 3.5s steps(1, end) infinite; }
+.tv-lba-pixelSpace .tv-lba-art { animation: tv-lba-twinkle 4s ease-in-out infinite; }
+/* Question blocks bump like they were hit, one after another. */
+.tv-lba-pixelSky .tv-lba-avatar .tv-lba-avatar-cut { animation: tv-lba-bump 2.6s steps(1, end) infinite; }
+.tv-lba-pixelSky .tv-lba-avatar.is-big .tv-lba-avatar-cut { animation-delay: -1.3s; }
+.tv-lba-blockStack .tv-lba-art, .tv-lba-pixelForest .tv-lba-art { animation: tv-lba-breathe 5s ease-in-out infinite; }
+
+.tv-lba-empty { position: absolute; left: 30%; right: 30%; top: 42%; text-align: center; color: #fff; font-size: 1.6cqw; font-weight: 800; text-shadow: 0.2cqw 0.2cqw 0 #000; }
+
+@keyframes tv-lba-pop { from { opacity: 0; transform: translateY(1.2cqw) scale(0.92); } to { opacity: 1; transform: none; } }
+@keyframes tv-lba-glow { 0%, 100% { filter: none; } 50% { filter: drop-shadow(0 0 0.9cqw rgba(255, 214, 10, 0.85)); } }
+@keyframes tv-lba-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.4cqw); } }
+@keyframes tv-lba-bump { 0%, 86%, 100% { transform: none; } 90% { transform: translateY(-0.6cqw); } }
+@keyframes tv-lba-glint { 0%, 55% { background-position: -80% 0; } 100% { background-position: 180% 0; } }
+@keyframes tv-lba-flicker { 0%, 92%, 100% { filter: none; } 94% { filter: brightness(1.18) saturate(1.2); } }
+@keyframes tv-lba-twinkle { 0%, 100% { filter: none; } 50% { filter: brightness(1.08) saturate(1.15); } }
+@keyframes tv-lba-breathe { 0%, 100% { filter: none; } 50% { filter: brightness(1.06); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tv-lba, .tv-lba * { animation: none !important; }
+}
