@@ -14,8 +14,10 @@ import { readThemeOverride, TV_THEME_VARS, writeThemeOverride, type TvTheme } fr
 import { setSlaClockInfo } from '@/lib/slaCountdown';
 import { useTvLeaderboard } from '../hooks/useTvLeaderboard';
 import { TvLeaderboard } from '../components/TvLeaderboard';
-import { playFanfare } from '../utils/tvLeaderboard';
+import { fanfareWave, playFanfare, themeForDate } from '../utils/tvLeaderboard';
 import '../components/tv-leaderboard.css';
+import '../components/tv-leaderboard-themes.css';
+import '../components/tv-leaderboard-art.css';
 import { cn } from '@/lib/utils';
 
 /**
@@ -313,7 +315,8 @@ export const BentoTvBoardPage: React.FC = () => {
     useEffect(() => {
         if (!showLeaderboard || !leaderboard) return;
         if (fanfareDateRef.current === leaderboard.dateKey) return;
-        if (playSynth(playFanfare)) fanfareDateRef.current = leaderboard.dateKey;
+        const wave = fanfareWave(themeForDate(leaderboard.dateKey));
+        if (playSynth((context) => playFanfare(context, wave))) fanfareDateRef.current = leaderboard.dateKey;
     }, [showLeaderboard, leaderboard, playSynth, blocked]);
 
     useEffect(() => {

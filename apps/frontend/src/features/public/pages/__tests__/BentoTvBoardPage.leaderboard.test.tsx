@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BentoTvBoardPage } from '../BentoTvBoardPage';
-import type { TvLeaderboardData } from '../../utils/tvLeaderboard';
+import { themeForDate, type TvLeaderboardData } from '../../utils/tvLeaderboard';
 
 const card = (id: string, over: Record<string, unknown> = {}) => ({
     id, title: `Tiket ${id}`, description: '', requesterName: 'Nur', requesterDepartment: null, assignedToName: null,
@@ -49,7 +49,7 @@ describe('TV board leaderboard hour', () => {
     it('swaps to the leaderboard on the same link while it is active, with the day theme', () => {
         renderBoard();
         const view = screen.getByTestId('tv-leaderboard');
-        expect(view).toHaveAttribute('data-lb-theme', 'confetti'); // Monday
+        expect(view).toHaveAttribute('data-lb-theme', themeForDate('2026-11-09'));
         expect(screen.getByText('Agent of the Day')).toBeInTheDocument();
         expect(screen.getAllByText('Budi Santoso').length).toBeGreaterThan(0);
         expect(screen.getByText('Doni')).toBeInTheDocument(); // rank 4 in the list

@@ -23,6 +23,12 @@ export interface TvLeaderboardData {
     topAgents: LeaderboardAgent[];
 }
 
+/** Company shown on the leaderboard header, before the board's site (same name as the login page). */
+export const COMPANY_NAME = 'PT Santos Jaya Abadi';
+
+/** "PT Santos Jaya Abadi · Sepanjang" from the board's site name. */
+export const leaderboardOwner = (siteName: string): string => (siteName ? `${COMPANY_NAME} · ${siteName}` : COMPANY_NAME);
+
 export const BADGES: Record<BadgeKey, { emoji: string; label: string; hint: string }> = {
     champion: { emoji: '🏆', label: 'Juara Bulan Ini', hint: 'Tiket selesai terbanyak' },
     fastest: { emoji: '⚡', label: 'Kilat', hint: 'Penyelesaian tercepat' },
@@ -32,20 +38,42 @@ export const BADGES: Record<BadgeKey, { emoji: string; label: string; hint: stri
     criticalSolver: { emoji: '💪', label: 'Penakluk Kritis', hint: 'Critical & High terbanyak' },
 };
 
-/** One theme per working day, Monday to Friday; weekends wrap around the same list. */
-export const LEADERBOARD_THEMES = ['confetti', 'spotlight', 'fireworks', 'shootingStars', 'goldRibbon'] as const;
-export type LeaderboardTheme = (typeof LEADERBOARD_THEMES)[number];
-
 /**
- * The day's theme from the server's WIB date ("YYYY-MM-DD"), so every TV shows the same one:
- * Monday confetti, Tuesday spotlight, Wednesday fireworks, Thursday shooting stars, Friday gold ribbon.
+ * Nine looks, one per working day in turn, so two weeks in a row never look the same.
+ * The first five are pixel / retro, the last four are polished "tech" panels.
  */
-export function themeForDate(dateKey: string): LeaderboardTheme {
+export const LEADERBOARD_THEMES = [
+    'arcadeMaze', 'pixelSky', 'pixelSpace', 'blockStack', 'pixelForest',
+    'neonCircuit', 'hexTech', 'mechaSteel', 'racing',
+] as const;
+export type LeaderboardTheme = (typeof LEADERBOARD_THEMES)[number];
+const PIXEL_THEMES: ReadonlySet<LeaderboardTheme> = new Set(['arcadeMaze', 'pixelSky', 'pixelSpace', 'blockStack', 'pixelForest']);
+
+export const isPixelTheme = (theme: LeaderboardTheme): boolean => PIXEL_THEMES.has(theme);
+
+/** A Monday the rotation counts from; any Monday works, it only fixes the order. */
+const ROTATION_START_UTC = Date.UTC(2024, 0, 1);
+const MS_PER_DAY = 86_400_000;
+const DAYS_PER_WEEK = 7;
+const WORKING_DAYS_PER_WEEK = 5;
+
+/** Working days (Mon-Fri) since the rotation start; a weekend counts as its Friday. */
+export function workingDayIndex(dateKey: string): number {
     const [y, m, d] = dateKey.split('-').map(Number);
-    const weekday = new Date(Date.UTC(y, (m || 1) - 1, d || 1)).getUTCDay(); // 0 = Sunday
-    const index = (weekday + 6) % 7; // Monday = 0
-    return LEADERBOARD_THEMES[index % LEADERBOARD_THEMES.length];
+    const days = Math.floor((Date.UTC(y, (m || 1) - 1, d || 1) - ROTATION_START_UTC) / MS_PER_DAY);
+    const weeks = Math.floor(days / DAYS_PER_WEEK);
+    const weekday = days - weeks * DAYS_PER_WEEK; // 0 = Monday
+    return weeks * WORKING_DAYS_PER_WEEK + Math.min(weekday, WORKING_DAYS_PER_WEEK - 1);
 }
+
+/** The day's look from the server's WIB date ("YYYY-MM-DD"): every TV shows the same one, the next working day the next. */
+export function themeForDate(dateKey: string): LeaderboardTheme {
+    const count = LEADERBOARD_THEMES.length;
+    return LEADERBOARD_THEMES[((workingDayIndex(dateKey) % count) + count) % count];
+}
+
+/** Pixel looks get an 8-bit (square wave) fanfare, the others a softer one. */
+export const fanfareWave = (theme: LeaderboardTheme): OscillatorType => (isPixelTheme(theme) ? 'square' : 'triangle');
 
 /** "135" -> "2j 15m", "45" -> "45m". */
 export function minutesLabel(minutes: number | null): string {
@@ -73,16 +101,17 @@ export const FANFARE_NOTES: ReadonlyArray<readonly [number, number, number]> = [
 ];
 
 /** Plays the fanfare on a Web Audio context (no file to load, no license). Returns false when it cannot play. */
-export function playFanfare(context: AudioContext | null): boolean {
+export function playFanfare(context: AudioContext | null, wave: OscillatorType = 'triangle'): boolean {
     if (!context || context.state !== 'running') return false;
     const start = context.currentTime + 0.05;
     const master = context.createGain();
-    master.gain.value = 0.22;
+    // Square waves are much louder at the same gain.
+    master.gain.value = wave === 'square' ? 0.08 : 0.22;
     master.connect(context.destination);
     for (const [frequency, at, length] of FANFARE_NOTES) {
         const osc = context.createOscillator();
         const gain = context.createGain();
-        osc.type = 'triangle';
+        osc.type = wave;
         osc.frequency.value = frequency;
         gain.gain.setValueAtTime(0, start + at);
         gain.gain.linearRampToValueAtTime(1, start + at + 0.02);

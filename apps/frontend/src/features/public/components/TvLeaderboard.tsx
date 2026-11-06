@@ -2,9 +2,12 @@ import { AlertTriangle, CircleDot, Clock, Crown, Inbox, Star, Target, Trophy } f
 import { getImageUrl } from '@/components/ui/UserAvatar';
 import { cn } from '@/lib/utils';
 import { LeaderboardEffects } from './LeaderboardEffects';
+import { LeaderboardDecor, PanelOrnaments } from './LeaderboardDecor';
+import { TvLeaderboardArt } from './TvLeaderboardArt';
+import { LEADERBOARD_ARTS, type ArtTheme } from '../utils/leaderboardArt';
 import {
-    BADGES, initialsOf, minutesLabel, themeForDate, titleName,
-    type LeaderboardAgent, type TvLeaderboardData,
+    BADGES, initialsOf, isPixelTheme, leaderboardOwner, minutesLabel, themeForDate, titleName,
+    type LeaderboardAgent, type LeaderboardTheme, type TvLeaderboardData,
 } from '../utils/tvLeaderboard';
 
 const PODIUM_ORDER = [1, 0, 2] as const; // silver, gold, bronze, left to right
@@ -46,10 +49,11 @@ function Stat({ icon: Icon, value, label }: { icon: React.ElementType; value: st
     );
 }
 
-function AgentOfTheDayCard({ data }: { data: NonNullable<TvLeaderboardData['agentOfTheDay']> }) {
+function AgentOfTheDayCard({ data, theme }: { data: NonNullable<TvLeaderboardData['agentOfTheDay']>; theme: LeaderboardTheme }) {
     const { agent } = data;
     return (
-        <section className="tv-lb-aotd" aria-label="Agent of the Day">
+        <section className="tv-lb-aotd tv-lb-panel" aria-label="Agent of the Day">
+            <PanelOrnaments theme={theme} />
             <span className="tv-lb-eyebrow"><Crown aria-hidden="true" />Agent of the Day</span>
             <Avatar agent={agent} size="is-xl" />
             <h2>{titleName(agent.name)}</h2>
@@ -90,10 +94,11 @@ function Podium({ agents }: { agents: LeaderboardAgent[] }) {
     );
 }
 
-function RankList({ agents }: { agents: LeaderboardAgent[] }) {
+function RankList({ agents, theme }: { agents: LeaderboardAgent[]; theme: LeaderboardTheme }) {
     if (agents.length === 0) return null;
     return (
-        <section className="tv-lb-list" aria-label="Peringkat 4 sampai 10">
+        <section className="tv-lb-list tv-lb-panel" aria-label="Peringkat 4 sampai 10">
+            <PanelOrnaments theme={theme} />
             <h3>Peringkat lainnya</h3>
             <ol start={4}>
                 {agents.map((agent, i) => (
@@ -120,12 +125,17 @@ interface TvLeaderboardProps {
 /** The 12:00-13:00 view: agent of the day, the month's podium and ranks, badges, the day's animation. */
 export function TvLeaderboard({ data, siteName, time, queue }: TvLeaderboardProps) {
     const theme = themeForDate(data.dateKey);
+    // Looks with supplied artwork show it 1:1; the others are drawn in CSS until their art arrives.
+    if (theme in LEADERBOARD_ARTS) {
+        return <TvLeaderboardArt theme={theme as ArtTheme} data={data} siteName={siteName} time={time} queue={queue} />;
+    }
     return (
-        <div className={cn('tv-lb', `tv-lb-theme-${theme}`)} data-testid="tv-leaderboard" data-lb-theme={theme}>
+        <div className={cn('tv-lb', `tv-lb-theme-${theme}`, isPixelTheme(theme) && 'is-pixel')} data-testid="tv-leaderboard" data-lb-theme={theme}>
+            <LeaderboardDecor theme={theme} />
             <LeaderboardEffects theme={theme} />
             <header className="tv-lb-head">
                 <div>
-                    <span className="tv-lb-eyebrow"><Trophy aria-hidden="true" />{siteName}</span>
+                    <span className="tv-lb-eyebrow"><Trophy aria-hidden="true" />{leaderboardOwner(siteName)}</span>
                     <h1>Top Agent <span>{data.monthLabel}</span></h1>
                 </div>
                 <div className="tv-lb-clock">{time}</div>
@@ -138,9 +148,9 @@ export function TvLeaderboard({ data, siteName, time, queue }: TvLeaderboardProp
                 </div>
             ) : (
                 <div className="tv-lb-grid">
-                    {data.agentOfTheDay ? <AgentOfTheDayCard data={data.agentOfTheDay} /> : <div />}
+                    {data.agentOfTheDay ? <AgentOfTheDayCard data={data.agentOfTheDay} theme={theme} /> : <div />}
                     <Podium agents={data.topAgents.slice(0, 3)} />
-                    <RankList agents={data.topAgents.slice(3, 10)} />
+                    <RankList agents={data.topAgents.slice(3, 10)} theme={theme} />
                 </div>
             )}
 
