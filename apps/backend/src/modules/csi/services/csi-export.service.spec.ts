@@ -2,6 +2,9 @@ import * as ExcelJS from 'exceljs';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiRespondentMode } from '../csi.constants';
 import { CsiExportService, sanitizeCell } from './csi-export.service';
+import { reportFixture } from './csi-report-model.fixture';
+
+const EXECUTIVE = ['Ringkasan', 'Peringkat Tim', 'Peringkat Orang', 'Partisipasi', 'Per Pertanyaan Tim', 'Per Pertanyaan Orang', 'Departemen', 'Komentar', 'Basis Partisipasi'];
 
 const NOW = new Date('2026-10-24T18:30:00Z'); // 2026-10-25 01:30 WIB
 
@@ -10,7 +13,7 @@ const score = (dimension: string, type: string, value: number | null, answerLabe
     ({ dimension, type, score: value, answerLabel, answerText });
 
 describe('CsiExportService', () => {
-    let reports: { getReport: jest.Mock; listAnswers: jest.Mock };
+    let reports: { getReport: jest.Mock; listAnswers: jest.Mock; getRaterMatrix: jest.Mock; getExecutiveModel: jest.Mock };
     let service: CsiExportService;
 
     const load = async () => {
@@ -45,6 +48,8 @@ describe('CsiExportService', () => {
                     },
                 ],
             }])),
+            getRaterMatrix: jest.fn(async () => ({ subjects: [], rows: [], totals: [] })),
+            getExecutiveModel: jest.fn(async (_s: unknown, _p: unknown, input: { notes?: string }) => ({ ...reportFixture({ people: 3, sites: 2 }).model, notes: input.notes ?? '' })),
         };
         service = new CsiExportService(reports as any);
     });
@@ -61,7 +66,7 @@ describe('CsiExportService', () => {
 
     it('excel has Rekap/Penilaian Tim/Penilaian Per Orang with Point columns only for scored questions', async () => {
         const workbook = await load();
-        expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['Rekap', 'Penilaian Tim', 'Penilaian Per Orang', 'Penilai x Subjek']);
+        expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual([...EXECUTIVE, 'Rekap', 'Penilaian Tim', 'Penilaian Per Orang', 'Penilai x Subjek']);
 
         const recap = workbook.getWorksheet('Rekap')!;
         expect(recap.getRow(1).values).toEqual([undefined, 'Lokasi', 'Nama', 'Average', 'Average survei', '% Pengisi (SLA)']);
@@ -85,7 +90,7 @@ describe('CsiExportService', () => {
         const report = await reports.getReport();
         report.ratees = report.ratees.filter((ratee: any) => ratee.kind === 'PERSON');
         reports.getReport.mockResolvedValue(report);
-        expect((await load()).worksheets.map((sheet) => sheet.name)).toEqual(['Rekap', 'Penilaian Per Orang', 'Penilai x Subjek']);
+        expect((await load()).worksheets.map((sheet) => sheet.name)).toEqual([...EXECUTIVE, 'Rekap', 'Penilaian Per Orang', 'Penilai x Subjek']);
     });
 
     it('excel header style teal and wrapped', async () => {
@@ -118,5 +123,24 @@ describe('CsiExportService', () => {
         expect(sheet.getRow(4).getCell(6).value).toBe(5);
         expect(sheet.getRow(2).getCell(6).fill).toMatchObject({ fgColor: { argb: 'FFD7F0DE' } });
         expect(sheet.views[0]).toMatchObject({ state: 'frozen', xSplit: 4, ySplit: 1 });
+    });
+
+    it('executive sheets carry the same parameters as the PDF: separate team/people rankings, notes, every basis person', async () => {
+        const { buffer } = await service.buildWorkbook(ServiceScope.ICT, 'p1', NOW, { notes: 'Tindak lanjut A' });
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(buffer as any);
+        const summary = workbook.getWorksheet('Ringkasan')!;
+        const labels = summary.getColumn(1).values as unknown[];
+        expect(labels).toEqual(expect.arrayContaining(['Nilai keseluruhan (1-5)', 'Predikat', 'Δ vs periode lalu', 'Poin utama', 'Catatan & tindak lanjut']));
+        const notesRow = labels.indexOf('Catatan & tindak lanjut');
+        expect(summary.getRow(notesRow).getCell(2).value).toBe('Tindak lanjut A');
+        expect(workbook.getWorksheet('Peringkat Tim')!.rowCount).toBe(1 + 2);
+        expect(workbook.getWorksheet('Peringkat Orang')!.rowCount).toBe(1 + 3);
+        expect(workbook.getWorksheet('Peringkat Orang')!.getRow(1).values).toEqual([
+            undefined, '#', 'Nama', 'Site', 'Penilai', 'Nilai', 'Predikat', 'Indeks (%)', 'Periode lalu', 'Δ', '★1', '★2', '★3', '★4', '★5',
+        ]);
+        expect(workbook.getWorksheet('Departemen')!.getRow(3).values).toEqual([undefined, 'Keuangan', 0, 0]);
+        expect(workbook.getWorksheet('Basis Partisipasi')!.rowCount).toBe(1 + 12);
+        expect(reports.getExecutiveModel).toHaveBeenCalledWith(ServiceScope.ICT, 'p1', expect.objectContaining({ notes: 'Tindak lanjut A' }));
     });
 });

@@ -5,8 +5,9 @@ import type { CsiReport } from '../../../types';
 import { PeriodReport } from '../PeriodReport';
 import { PERIOD, report } from '../report/__tests__/reportFixture';
 
-const fx = vi.hoisted(() => ({ useCsiReport: vi.fn(), useCsiRaterMatrix: vi.fn(), report: null as unknown as CsiReport }));
+const fx = vi.hoisted(() => ({ dialog: vi.fn(), useCsiReport: vi.fn(), useCsiRaterMatrix: vi.fn(), report: null as unknown as CsiReport }));
 vi.mock('../../../hooks/useCsi', () => ({ useCsiReport: fx.useCsiReport, useCsiRaterMatrix: fx.useCsiRaterMatrix }));
+vi.mock('../report/ReportExportDialog', () => ({ ReportExportDialog: (props: unknown) => { fx.dialog(props); return null; } }));
 
 beforeEach(() => {
     fx.report = report();
@@ -92,9 +93,11 @@ describe('PeriodReport', () => {
         expect(within(panel).getByRole('rowheader', { name: /Dodi/ })).toBeInTheDocument();
     });
 
-    it('offers both PDF and Excel downloads', () => {
+    it('opens the report dialog (PDF preview + Excel) for the selected site', async () => {
+        const user = userEvent.setup();
         renderReport();
-        expect(screen.getByRole('button', { name: 'Unduh PDF' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Export Excel' })).toBeInTheDocument();
+        await user.click(within(screen.getByRole('group', { name: 'Filter site laporan' })).getByRole('button', { name: 'KRW' }));
+        await user.click(screen.getByRole('button', { name: 'Laporan PDF & Excel' }));
+        expect(fx.dialog).toHaveBeenLastCalledWith(expect.objectContaining({ open: true, siteId: 's2', periodId: 'p1' }));
     });
 });

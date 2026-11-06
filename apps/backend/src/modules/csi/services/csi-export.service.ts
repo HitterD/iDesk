@@ -1,7 +1,8 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { defaultSignoff, SignoffLayout } from '../../reports/generators/report-signoff';
+import { defaultSignoff, parseSignoffParam, SignoffLayout } from '../../reports/generators/report-signoff';
+import { CsiSignoffType, ReportSignoffService } from '../../reports/services/report-signoff.service';
 import { CsiMemoSetting } from '../entities/csi-memo-setting.entity';
 import { renderCsiReportPdf } from './csi-report-pdf';
 import * as ExcelJS from 'exceljs';
@@ -10,6 +11,7 @@ import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.
 import { CsiRateeKind } from '../csi.constants';
 import { answerColumns, answerRows, questionsOf } from './csi-export.answers';
 import { addMatrixSheet } from './csi-export.matrix';
+import { addExecutiveSheets } from './csi-export.executive';
 import { raterMatrix } from './csi-rater-matrix.calc';
 import { addStyledSheet, AVERAGE_COLUMN, PERCENT_COLUMN, sanitizeCell, WIDTH } from './csi-export.sheet';
 import { formatLocation } from './csi-format.util';
@@ -37,6 +39,9 @@ function addRecap(workbook: ExcelJS.Workbook, report: Report) {
 }
 
 /** Sign-off of the report PDF: the two signers remembered from the scope's last Interoffice Memo. */
+export const csiSignoffType = (scope: ServiceScope): CsiSignoffType => `csi-${scope}` as CsiSignoffType;
+export type CsiExportOptions = { siteId?: string; notes?: string; signoff?: string };
+
 function signoffFrom(setting: CsiMemoSetting | null): SignoffLayout {
     const left = setting?.data?.signerLeft;
     const right = setting?.data?.signerRight;
@@ -49,29 +54,43 @@ export class CsiExportService {
     constructor(
         private readonly reports: CsiReportService,
         @Optional() @InjectRepository(CsiMemoSetting) private readonly memoSettings?: Repository<CsiMemoSetting>,
+        @Optional() private readonly signoffs?: ReportSignoffService,
     ) { }
 
-    /** Survey report PDF (no respondent names); signers come from the scope's memo settings. */
-    async buildPdf(scope: ServiceScope, periodId: string, siteId?: string, now: Date = new Date()): Promise<{ filename: string; buffer: Buffer }> {
-        const [report, matrix, setting] = await Promise.all([
-            this.reports.getReport(scope, periodId, siteId),
-            this.reports.getRaterMatrix(scope, periodId, siteId),
-            this.memoSettings ? this.memoSettings.findOne({ where: { scope } }) : Promise.resolve(null),
-        ]);
-        const buffer = await renderCsiReportPdf({ report, matrix, scopeLabel: scope, signoff: signoffFrom(setting), now });
+    /** One-off layout from the preview, else the saved CSI layout of the scope, else the memo signers. */
+    async signoffFor(scope: ServiceScope, override?: string): Promise<SignoffLayout> {
+        const oneOff = parseSignoffParam(override, undefined);
+        if (oneOff) return oneOff;
+        const saved = await this.signoffs?.resolve(csiSignoffType(scope));
+        if (saved) return saved;
+        return signoffFrom(this.memoSettings ? await this.memoSettings.findOne({ where: { scope } }) : null);
+    }
+
+    private async model(scope: ServiceScope, periodId: string, options: CsiExportOptions) {
+        const matrix = await this.reports.getRaterMatrix(scope, periodId, options.siteId);
+        return this.reports.getExecutiveModel(scope, periodId, { siteId: options.siteId, notes: options.notes, matrix });
+    }
+
+    /** Executive survey report PDF (rankings and comments carry no respondent names). */
+    async buildPdf(scope: ServiceScope, periodId: string, options: CsiExportOptions = {}, now: Date = new Date()): Promise<{ filename: string; buffer: Buffer }> {
+        const [model, signoff] = await Promise.all([this.model(scope, periodId, options), this.signoffFor(scope, options.signoff)]);
+        const buffer = await renderCsiReportPdf({ model, signoff, now });
         return { filename: `laporan-csi-${scope.toLowerCase()}-${localDateKey(now, DEFAULT_TIMEZONE)}.pdf`, buffer };
     }
 
-    async buildWorkbook(scope: ServiceScope, periodId: string, now: Date = new Date()): Promise<{ filename: string; buffer: Buffer }> {
-        const [report, answers] = await Promise.all([
+    /** Executive sheets (same parameters as the PDF) followed by the raw answer sheets and the rater matrix. */
+    async buildWorkbook(scope: ServiceScope, periodId: string, now: Date = new Date(), options: CsiExportOptions = {}): Promise<{ filename: string; buffer: Buffer }> {
+        const [report, answers, model] = await Promise.all([
             this.reports.getReport(scope, periodId),
             this.reports.listAnswers(scope, periodId),
+            this.model(scope, periodId, { notes: options.notes }),
         ]);
         const workbook = new ExcelJS.Workbook();
         workbook.creator = 'iDesk CSI';
         workbook.created = now;
         workbook.title = sanitizeCell(report.period.title);
 
+        addExecutiveSheets(workbook, model);
         addRecap(workbook, report);
         const kinds: Array<[CsiRateeKind, string]> = [[CsiRateeKind.TEAM, SHEET_TEAM], [CsiRateeKind.PERSON, SHEET_PERSON]];
         for (const [kind, sheetName] of kinds) {

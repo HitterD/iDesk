@@ -1,118 +1,164 @@
 import { Logger } from '@nestjs/common';
 import * as PDFDocument from 'pdfkit';
-import { Cell, INK, Kpi, PAGE, ReportCanvas, Tone } from '../../reports/generators/report-pdf-canvas';
+import { Cell, Column, fmtDate, INK, Kpi, PAGE, ReportCanvas, Tone } from '../../reports/generators/report-pdf-canvas';
 import { SignoffLayout } from '../../reports/generators/report-signoff';
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
 import { CsiRateeKind } from '../csi.constants';
-import { cleanText, formatLocation } from './csi-format.util';
-import { formatAverage, formatLongDate, formatPercent } from './csi-memo-page';
-import { CsiRaterMatrix } from './csi-rater-matrix.calc';
-import { CsiReportService } from './csi-report.service';
+import { cleanText } from './csi-format.util';
+import { formatLongDate } from './csi-memo-page';
+import {
+    CSI_SCORE_FAIR, CSI_SCORE_GOOD, CsiQuestionGrid, CsiReportModel, CsiReportRow, HIGHLIGHT_COUNT, HIGHLIGHT_FROM,
+} from './csi-report-model';
 
-export type CsiReportData = Awaited<ReturnType<CsiReportService['getReport']>>;
-export type CsiReportPdfInput = {
-    report: CsiReportData;
-    matrix: CsiRaterMatrix;
-    scopeLabel: string;
-    signoff: SignoffLayout;
-    now: Date;
-};
+export type CsiReportPdfInput = { model: CsiReportModel; signoff: SignoffLayout; now: Date };
 
-const SCORE_MAX = 5;
-const GOOD_SCORE = 4.2;
-const WARN_SCORE = 3.5;
-const COMMENTS_MAX = 40;
-/** Columns of the coverage table before it is split into several tables (keeps text legible on A4 portrait). */
-const SUBJECTS_PER_TABLE = 6;
+/** Question columns per grid table on A4 portrait (more questions continue in a second table). */
+const GRID_COLUMNS = 7;
+/** Score bars on page 1 up to this many questions; more move the "Aspek layanan" chart to page 2. */
+const ASPECTS_ON_PAGE_ONE = 12;
 const logger = new Logger('CsiReportPdf');
 
+const DASH = '–';
 const text = (value: string | null | undefined) => cleanText(value ?? '').replace(/^'([=+\-@\t\r])/, '$1');
-const scoreTone = (value: number | null): Tone => value === null ? 'neutral' : value >= GOOD_SCORE ? 'good' : value >= WARN_SCORE ? 'warn' : 'bad';
-const scoreColor = (value: number | null) => ({ good: INK.green, warn: INK.amber, bad: INK.red, neutral: INK.secondary })[scoreTone(value)];
-const kindLabel = (kind: CsiRateeKind) => (kind === CsiRateeKind.TEAM ? 'Tim' : 'Individu');
-const nameOf = (report: CsiReportData, ratee: CsiReportData['ratees'][number]) =>
-    text(ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || report.period.teamLabel : ratee.displayName);
-const questionLabel = (question: { name: string; shortLabel?: string | null; description?: string | null }) =>
-    text(question.shortLabel?.trim() || question.description?.trim().match(/^\[([\s\S]+)\]$/)?.[1] || question.name);
+const dec = (value: number | null | undefined, digits = 2) =>
+    value === null || value === undefined || !Number.isFinite(value) ? DASH : value.toLocaleString('id-ID', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+const pct = (value: number | null | undefined, digits = 0) => (value === null || value === undefined ? DASH : `${dec(value, digits)}%`);
+const signed = (value: number | null) => (value === null ? DASH : `${value > 0 ? '+' : value < 0 ? '-' : ''}${dec(Math.abs(value))}`);
+const scoreColor = (value: number | null) => (value === null ? INK.secondary : value >= CSI_SCORE_GOOD ? INK.green : value >= CSI_SCORE_FAIR ? INK.amber : INK.red);
+const scoreTone = (value: number | null): Tone => (value === null ? 'neutral' : value >= CSI_SCORE_GOOD ? 'good' : value >= CSI_SCORE_FAIR ? 'warn' : 'bad');
+const deltaColor = (value: number | null) => (value === null || value === 0 ? INK.secondary : value > 0 ? INK.green : INK.red);
+const kindWord = (kind: CsiRateeKind) => (kind === CsiRateeKind.TEAM ? 'tim' : 'orang');
 
-function summary(canvas: ReportCanvas, report: CsiReportData, matrix: CsiRaterMatrix) {
-    const average = report.overall.average;
-    const ranked = [...report.ratees].filter((ratee) => ratee.average !== null).sort((a, b) => (b.average ?? 0) - (a.average ?? 0));
-    const kpis: Kpi[] = [
-        { label: 'Nilai keseluruhan', value: `${formatAverage(average)} / ${SCORE_MAX}`, note: average === null ? 'Belum ada nilai' : `Indeks ${formatPercent(Math.round((average / SCORE_MAX) * 1000) / 10)}`, tone: scoreTone(average) },
-        { label: 'Jawaban masuk', value: String(report.overall.respondentCount), note: `${matrix.subjects.length} subjek dinilai` },
-        { label: '% Pengisi (SLA)', value: formatPercent(report.sla.pengisiPct), note: `Target ${report.period.slaTargetPct ?? '-'}%`, tone: report.sla.pengisiPct === null ? 'neutral' : report.sla.pengisiPct >= (report.period.slaTargetPct ?? 0) ? 'good' : 'warn' },
-        { label: 'Nilai tertinggi', value: ranked[0] ? formatAverage(ranked[0].average) : '-', note: ranked[0] ? nameOf(report, ranked[0]) : undefined },
+function summary(canvas: ReportCanvas, model: CsiReportModel) {
+    const { overall, participation, counts } = model;
+    const cards: Kpi[] = [
+        { label: 'Nilai keseluruhan', value: `${dec(overall.average)} / 5`, note: overall.word ? `${overall.word} · indeks ${pct(overall.indexPct, 1)}` : 'Belum ada nilai', tone: scoreTone(overall.average) },
+        { label: 'Dibanding periode lalu', value: overall.delta === null ? DASH : signed(overall.delta), note: overall.previous === null ? 'Belum ada periode pembanding' : `Periode lalu: ${dec(overall.previous)}`, tone: overall.delta === null ? 'neutral' : overall.delta >= 0 ? 'good' : 'bad' },
+        { label: participation.reached ? 'Partisipasi · target tercapai' : 'Partisipasi · target belum tercapai', value: pct(participation.respondenPct), note: `${participation.responses} dari ${participation.basis} · target ${model.targetPct}%`, tone: participation.reached ? 'good' : 'warn' },
+        { label: 'Yang dinilai', value: String(counts.teams + counts.people), note: `${counts.teams} tim · ${counts.people} orang · ${counts.sites} site` },
     ];
-    canvas.kpis(kpis);
-    const delta = average !== null && report.previousAverage !== null ? average - report.previousAverage : null;
-    const lines = [
-        average === null ? 'Belum ada jawaban yang bernilai pada survei ini.' : `Nilai rata-rata survei ${formatAverage(average)} dari ${SCORE_MAX}.`,
-        delta === null ? '' : `${delta >= 0 ? 'Naik' : 'Turun'} ${formatAverage(Math.abs(delta))} dibanding periode sebelumnya (${formatAverage(report.previousAverage)}).`,
-        ranked.length > 1 ? `Nilai terendah: ${nameOf(report, ranked[ranked.length - 1])} (${formatAverage(ranked[ranked.length - 1].average)}).` : '',
-    ].filter(Boolean);
-    canvas.highlights(lines);
+    canvas.kpis(cards);
+    canvas.highlights(model.highlights);
+    if (model.notes) canvas.highlights(model.notes.split(/\r?\n/).map((line) => line.trim()).filter(Boolean), 'CATATAN & TINDAK LANJUT', 'amber');
 }
 
-function ranking(canvas: ReportCanvas, report: CsiReportData) {
-    canvas.section('Peringkat per subjek', 'Rata-rata dari nilai setiap penilai, skala 1-5.');
-    const rows: Cell[][] = [...report.ratees]
-        .sort((a, b) => (b.average ?? -1) - (a.average ?? -1))
-        .map((ratee, index) => [
-            { text: String(index + 1) },
-            { text: nameOf(report, ratee), bold: true },
-            { text: kindLabel(ratee.kind) },
-            { text: String(ratee.respondentCount) },
-            { text: formatAverage(ratee.average), bold: true, color: scoreColor(ratee.average) },
-            { text: ratee.indexPct === null ? '-' : formatPercent(ratee.indexPct) },
-        ]);
+function siteAndAspects(canvas: ReportCanvas, model: CsiReportModel, aspectsHere: boolean) {
+    const siteRows = model.sites.map((site) => ({
+        label: `${site.code ?? ''} ${site.name ?? ''}`.trim(), value: site.respondenPct, color: site.reached ? INK.green : INK.amber,
+        text: `${dec(site.average)} · ${site.responses}/${site.basis} (${pct(site.respondenPct)})`,
+    }));
+    const aspectRows = model.aspects.map((aspect) => ({ label: text(aspect.label), value: aspect.average, color: scoreColor(aspect.average), text: dec(aspect.average) }));
+    const groups: Parameters<ReportCanvas['scoreBars']>[0] = [{ title: `Per site · nilai dan partisipasi (garis = target ${model.targetPct}%)`, max: 100, target: model.targetPct, rows: siteRows }];
+    if (aspectsHere) groups.push({ title: 'Aspek layanan · dari yang terlemah', max: 5, rows: aspectRows });
+    canvas.section('Gambaran per site dan aspek layanan', 'Nilai rata-rata skala 1-5; partisipasi = responden dibanding basis site.');
+    canvas.scoreBars(groups);
+}
+
+function rankingTable(canvas: ReportCanvas, rows: CsiReportRow[], kind: CsiRateeKind) {
+    // Widths in points (scaled to the A4 content width); every cell has 16pt padding, so narrow columns stay >= 26.
+    const columns: Column[] = [
+        { header: '#', width: 32 }, { header: kind === CsiRateeKind.TEAM ? 'Tim' : 'Nama', width: 90 }, { header: 'Site', width: 34 },
+        { header: 'Penilai', width: 44, align: 'right' }, { header: 'Nilai', width: 38, align: 'right' }, { header: 'Indeks', width: 44, align: 'right' },
+        { header: 'Predikat', width: 92 }, { header: 'Lalu', width: 36, align: 'right' }, { header: 'Selisih', width: 44, align: 'right' },
+        { header: 'Bintang', width: 62, align: 'right' },
+    ];
+    const body: Cell[][] = rows.map((row) => [
+        { text: String(row.rank) }, { text: text(row.name), bold: true }, { text: row.siteCode ?? DASH }, { text: String(row.raters) },
+        { text: dec(row.average), bold: true, color: scoreColor(row.average) }, { text: pct(row.indexPct, 1) },
+        { text: row.word ?? DASH, color: scoreColor(row.average) }, { text: dec(row.previous) }, { text: signed(row.delta), color: deltaColor(row.delta) },
+        { text: row.stars.join('/') },
+    ]);
+    canvas.table(columns, body, `Belum ada ${kindWord(kind)} yang dinilai.`);
+}
+
+/** Top and "needs attention" names above a long people table (the table itself always lists everyone). */
+function peopleSpotlight(canvas: ReportCanvas, rows: CsiReportRow[]) {
+    if (rows.length < HIGHLIGHT_FROM) return;
+    const scored = rows.filter((row) => row.average !== null);
+    const top = scored.slice(0, HIGHLIGHT_COUNT).map((row) => `${text(row.name)} (${dec(row.average)})`);
+    const attention = [...scored].filter((row) => row.average! < CSI_SCORE_FAIR || (row.delta ?? 0) < 0)
+        .sort((a, b) => a.average! - b.average!).slice(0, HIGHLIGHT_COUNT)
+        .map((row) => `${text(row.name)} (${dec(row.average)}${row.delta !== null && row.delta < 0 ? `, turun ${dec(-row.delta)}` : ''})`);
+    canvas.miniStats([
+        { label: `${HIGHLIGHT_COUNT} tertinggi`, value: top.join(' · ') || DASH, tone: 'good' },
+        { label: 'Perlu perhatian', value: attention.join(' · ') || 'Tidak ada', tone: attention.length ? 'bad' : 'good' },
+    ], 1);
+}
+
+function participation(canvas: ReportCanvas, model: CsiReportModel) {
+    canvas.section('Partisipasi', `Basis = ${model.participation.basisLabel}. Target = ${model.targetPct}% dari basis. % Pengisi (SLA) = responden dibanding target, maks. 100%.`);
+    const body: Cell[][] = model.sites.map((site) => [
+        { text: `${site.code ?? ''} ${site.name ?? ''}`.trim(), bold: true }, { text: String(site.basis) }, { text: String(site.target) },
+        { text: String(site.responses) }, { text: pct(site.respondenPct) }, { text: pct(site.pengisiPct) },
+        { text: site.reached ? 'Tercapai' : 'Belum', color: site.reached ? INK.green : INK.red, bold: true }, { text: dec(site.average), color: scoreColor(site.average) },
+    ]);
+    const total = model.participation;
+    body.push([
+        { text: 'Total', bold: true }, { text: String(total.basis), bold: true }, { text: String(total.target), bold: true }, { text: String(total.responses), bold: true },
+        { text: pct(total.respondenPct), bold: true }, { text: pct(total.pengisiPct), bold: true },
+        { text: total.reached ? 'Tercapai' : 'Belum', color: total.reached ? INK.green : INK.red, bold: true }, { text: dec(model.overall.average), bold: true, color: scoreColor(model.overall.average) },
+    ]);
     canvas.table([
-        { header: '#', width: 4 }, { header: 'Subjek', width: 34 }, { header: 'Jenis', width: 12 },
-        { header: 'Penilai', width: 10, align: 'right' }, { header: 'Nilai', width: 10, align: 'right' }, { header: 'Indeks', width: 10, align: 'right' },
-    ], rows, 'Belum ada subjek yang dinilai.');
+        { header: 'Site', width: 20 }, { header: 'Basis', width: 9, align: 'right' }, { header: 'Target', width: 9, align: 'right' },
+        { header: 'Responden', width: 13, align: 'right' }, { header: '% Responden', width: 15, align: 'right' }, { header: '% Pengisi', width: 12, align: 'right' },
+        { header: 'Status', width: 12 }, { header: 'Nilai', width: 10, align: 'right' },
+    ], body);
 }
 
-function perQuestion(canvas: ReportCanvas, report: CsiReportData) {
-    report.ratees.forEach((ratee) => {
-        const scored = ratee.questions.filter((question) => question.average !== null);
-        if (!scored.length) return;
-        canvas.section(`Nilai per pertanyaan - ${nameOf(report, ratee)}`, `${ratee.respondentCount} penilai · rata-rata ${formatAverage(ratee.average)}`);
-        canvas.table([{ header: 'Pertanyaan', width: 70 }, { header: 'Jawaban', width: 12, align: 'right' }, { header: 'Nilai', width: 12, align: 'right' }],
-            scored.map((question) => [
-                { text: questionLabel(question) }, { text: String(question.count) },
-                { text: formatAverage(question.average), bold: true, color: scoreColor(question.average) },
+/** Rows = teams/people, columns = question codes; wide grids continue in a second table with the names repeated. */
+function questionGrid(canvas: ReportCanvas, grid: CsiQuestionGrid, title: string) {
+    if (!grid.rows.length) return;
+    canvas.section(title, 'Kosong (–) = pertanyaan tidak dipasang untuk yang dinilai itu.');
+    canvas.table([{ header: 'Kode', width: 9 }, { header: 'Pertanyaan', width: 91 }],
+        grid.columns.map((column) => [{ text: column.code, bold: true }, { text: text(column.label === column.full ? column.full : `${column.label} — ${column.full}`) }]));
+    for (let start = 0; start < Math.max(1, grid.columns.length); start += GRID_COLUMNS) {
+        const slice = grid.columns.slice(start, start + GRID_COLUMNS);
+        const columns: Column[] = [{ header: 'Nama', width: 30 }, { header: 'Site', width: 8 }, ...slice.map((column) => ({ header: column.code, width: 62 / GRID_COLUMNS, align: 'right' as const }))];
+        canvas.table(columns, grid.rows.map((row) => [
+            { text: text(row.name), bold: true }, { text: row.siteCode ?? DASH },
+            ...row.values.slice(start, start + GRID_COLUMNS).map((value) => ({ text: dec(value), color: scoreColor(value), bold: value !== null })),
+        ]));
+    }
+}
+
+function appendix(canvas: ReportCanvas, model: CsiReportModel) {
+    canvas.pageBreak();
+    questionGrid(canvas, model.teamGrid, 'Lampiran A1 · Nilai per pertanyaan — Tim');
+    questionGrid(canvas, model.peopleGrid, 'Lampiran A2 · Nilai per pertanyaan — Orang');
+    if (model.choices.length) {
+        canvas.section('Lampiran A3 · Jawaban pilihan', 'Pertanyaan tanpa nilai (jumlah jawaban per pilihan).');
+        canvas.table([{ header: 'Pertanyaan', width: 40 }, { header: 'Jawaban', width: 60 }],
+            model.choices.map((choice) => [{ text: text(choice.label), bold: true }, { text: choice.counts.map((row) => `${text(row.option)}: ${row.count}`).join('  ·  ') }]));
+    }
+    canvas.section('Lampiran B · Partisipasi per departemen', 'Semua departemen aktif, termasuk yang belum ada jawaban.');
+    canvas.table([{ header: 'Departemen', width: 70 }, { header: 'Jawaban', width: 15, align: 'right' }, { header: '% dari total', width: 15, align: 'right' }],
+        model.departments.map((row) => [{ text: text(row.name) }, { text: String(row.responses), bold: row.responses > 0, color: row.responses ? INK.text : INK.tertiary }, { text: pct(row.pct, 1) }]));
+    canvas.section('Lampiran C · Semua saran & komentar', `${model.counts.comments} komentar, dikelompokkan per tim/orang. Tanpa nama penilai.`);
+    if (!model.comments.length) canvas.table([{ header: 'Komentar', width: 100 }], [], 'Tidak ada komentar.');
+    model.comments.forEach((group) => {
+        canvas.subheading(`${text(group.name)} (${kindWord(group.kind)})`, `${group.comments.length} komentar`);
+        canvas.table([{ header: 'Komentar', width: 60 }, { header: 'Departemen', width: 25 }, { header: 'Tanggal', width: 15 }],
+            group.comments.map((comment) => [{ text: text(comment.text) }, { text: text(comment.department) }, { text: fmtDate(comment.date) }]));
+    });
+    canvas.section('Lampiran D · Basis partisipasi', `Orang yang menjadi basis target (${model.participation.basisLabel}). Per site, yang belum mengisi di atas.`);
+    const bySite = new Map<string, typeof model.basis>();
+    model.basis.forEach((person) => bySite.set(person.siteCode ?? '-', [...(bySite.get(person.siteCode ?? '-') ?? []), person]));
+    if (!bySite.size) canvas.table([{ header: 'Nama', width: 100 }], [], 'Tidak ada basis partisipasi.');
+    bySite.forEach((people, code) => {
+        const done = people.filter((person) => person.answered).length;
+        canvas.subheading(`Site ${code}`, `${done} dari ${people.length} sudah mengisi`);
+        canvas.table([{ header: 'Nama', width: 30 }, { header: 'Email', width: 32 }, { header: 'Departemen', width: 26 }, { header: 'Status', width: 12 }],
+            people.map((person) => [
+                { text: text(person.fullName), bold: true }, { text: text(person.email) }, { text: text(person.department) || DASH },
+                { text: person.answered ? 'Sudah' : 'Belum', bold: true, color: person.answered ? INK.green : INK.red },
             ]));
     });
 }
 
-/** Who rated whom, as counts per subject only: names stay out of the PDF (it is shared more widely than the Excel). */
-function coverage(canvas: ReportCanvas, matrix: CsiRaterMatrix) {
-    if (!matrix.subjects.length) return;
-    canvas.section('Cakupan penilaian', 'Jumlah penilai dan nilai rata-rata per subjek. Nama penilai hanya tersedia di Excel untuk admin.');
-    for (let start = 0; start < matrix.subjects.length; start += SUBJECTS_PER_TABLE) {
-        const slice = matrix.subjects.slice(start, start + SUBJECTS_PER_TABLE);
-        canvas.table([{ header: 'Subjek', width: 46 }, { header: 'Jenis', width: 14 }, { header: 'Penilai', width: 14, align: 'right' }, { header: 'Nilai', width: 14, align: 'right' }],
-            slice.map((subject, offset) => {
-                const total = matrix.totals[start + offset];
-                return [{ text: text(subject.displayName), bold: true }, { text: kindLabel(subject.kind) }, { text: String(total.raters) },
-                    { text: formatAverage(total.average), color: scoreColor(total.average) }];
-            }));
-    }
-}
-
-function comments(canvas: ReportCanvas, report: CsiReportData) {
-    const rows: Cell[][] = report.ratees.flatMap((ratee) => ratee.comments.map((comment) => [
-        { text: nameOf(report, ratee), bold: true }, { text: text(comment.text) }, { text: text(comment.departmentName) },
-    ])).slice(0, COMMENTS_MAX);
-    canvas.section('Saran & komentar', rows.length >= COMMENTS_MAX ? `${COMMENTS_MAX} komentar terbaru; selengkapnya di Excel.` : 'Tanpa nama penilai.');
-    canvas.table([{ header: 'Untuk', width: 24 }, { header: 'Komentar', width: 56 }, { header: 'Departemen', width: 20 }], rows, 'Tidak ada komentar.');
-}
-
-/** Survey report PDF: summary, ranking, per-question scores, coverage, comments and the sign-off block. */
-export function renderCsiReportPdf(input: CsiReportPdfInput): Promise<Buffer> {
-    const { report, matrix, scopeLabel, signoff, now } = input;
+/** Executive survey report (A4): page 1 summary, page 2+ analysis, then every detail as appendices and the sign-off. */
+export function renderCsiReportPdf({ model, signoff, now }: CsiReportPdfInput): Promise<Buffer> {
     return new Promise<Buffer>((resolve, reject) => {
-        const doc = new PDFDocument({ margin: PAGE.margin, size: 'A4', bufferPages: true, info: { Title: text(report.period.title), Creator: 'iDesk CSI' } });
+        const doc = new PDFDocument({ margin: PAGE.margin, size: 'A4', bufferPages: true, info: { Title: text(model.title), Creator: 'iDesk CSI' } });
         const chunks: Buffer[] = [];
         doc.on('data', (chunk: Buffer) => chunks.push(chunk));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -120,16 +166,28 @@ export function renderCsiReportPdf(input: CsiReportPdfInput): Promise<Buffer> {
         try {
             const canvas = new ReportCanvas(doc, logger);
             canvas.header({
-                title: `Laporan ${text(report.period.title)}`,
-                period: `${formatLongDate(report.period.startDate)} - ${formatLongDate(report.period.endDate)}`,
-                scope: `CSI ${scopeLabel} · ${text(formatLocation(report.period.sites)) || 'Semua site'}`,
-                docNo: `CSI-${scopeLabel}-${report.period.id.slice(0, 8).toUpperCase()}`,
+                title: `Laporan Kepuasan Layanan ${model.scopeLabel}`,
+                period: `${text(model.title)} · ${formatLongDate(model.startDate)} - ${formatLongDate(model.endDate)}`,
+                scope: `${text(model.siteLabel)} · Mode: ${model.modeLabel} · Target partisipasi ${model.targetPct}%`,
+                docNo: model.docNo,
             });
-            summary(canvas, report, matrix);
-            ranking(canvas, report);
-            perQuestion(canvas, report);
-            coverage(canvas, matrix);
-            comments(canvas, report);
+            summary(canvas, model);
+            const aspectsHere = model.aspects.length <= ASPECTS_ON_PAGE_ONE;
+            siteAndAspects(canvas, model, aspectsHere);
+
+            canvas.pageBreak();
+            if (!aspectsHere) {
+                canvas.section('Aspek layanan', 'Rata-rata per pertanyaan untuk semua yang dinilai, dari yang terlemah.');
+                canvas.scoreBars([{ title: 'Nilai rata-rata (1-5)', max: 5, rows: model.aspects.map((aspect) => ({ label: text(aspect.label), value: aspect.average, color: scoreColor(aspect.average), text: dec(aspect.average) })) }]);
+            }
+            canvas.section(`Peringkat tim · ${model.teams.length} tim`, 'Skala 1-5. Indeks = nilai/5 (%). Lalu = periode sebelumnya. Bintang = jumlah jawaban bintang 1/2/3/4/5.');
+            rankingTable(canvas, model.teams, CsiRateeKind.TEAM);
+            canvas.section(`Peringkat orang · ${model.people.length} orang`, 'Urut dari nilai tertinggi, semua orang dicantumkan.');
+            peopleSpotlight(canvas, model.people);
+            rankingTable(canvas, model.people, CsiRateeKind.PERSON);
+            participation(canvas, model);
+
+            appendix(canvas, model);
             canvas.section('Pengesahan', `Dicetak ${formatLongDate(localDateKey(now, DEFAULT_TIMEZONE))}`);
             canvas.signOff(signoff);
             canvas.finish();

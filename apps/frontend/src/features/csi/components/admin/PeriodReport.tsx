@@ -1,12 +1,9 @@
 import { useState } from 'react';
-import { FileSpreadsheet, FileText } from 'lucide-react';
-import { toast } from 'sonner';
+import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { SegmentedControl } from '@/components/ui/segmented-control';
-import { CsiApi } from '../../api/csi.api';
 import { useCsiReport } from '../../hooks/useCsi';
-import { blobErrorMessage, downloadBlob } from '../../lib/csiAdmin';
 import type { CsiReportRatee, CsiScopeParam, CsiSiteSummary } from '../../types';
 import { AdminSection, EmptyNote } from './AdminParts';
 import { byAverageDesc } from './report/reportModel';
@@ -15,33 +12,11 @@ import { ScoreHeatmap } from './report/ScoreHeatmap';
 import { SubjectDetailSheet } from './report/SubjectDetailSheet';
 import { SubjectScoreCard } from './report/SubjectScoreCard';
 import { RaterMatrixPanel } from './report/RaterMatrixPanel';
+import { ReportExportDialog } from './report/ReportExportDialog';
 
 const ALL_SITES = 'all';
 type ReportView = 'cards' | 'heatmap';
 const VIEW_OPTIONS = [{ value: 'cards', label: 'Kartu' }, { value: 'heatmap', label: 'Perbandingan' }] as const;
-
-type Exporter = () => Promise<{ blob: Blob; filename: string }>;
-
-function ExportButton({ label, icon: Icon, run: exporter }: { label: string; icon: typeof FileText; run: Exporter }) {
-    const [busy, setBusy] = useState(false);
-    const run = async () => {
-        setBusy(true);
-        try {
-            const { blob, filename } = await exporter();
-            downloadBlob(blob, filename);
-        } catch (error) {
-            // skipToast on the request: this is the only toast for a failed export.
-            toast.error(await blobErrorMessage(error));
-        } finally {
-            setBusy(false);
-        }
-    };
-    return (
-        <Button variant="soft" onClick={run} loading={busy}>
-            {!busy && <Icon aria-hidden="true" />}{label}
-        </Button>
-    );
-}
 
 function SubjectCards({ ratees, siteCodeOf, onOpen }: {
     ratees: CsiReportRatee[]; siteCodeOf: (siteId: string | null) => string | null; onOpen: (id: string) => void;
@@ -64,6 +39,7 @@ export function PeriodReport({ scope, periodId, sites, initialSiteId }: {
     const siteParam = site === ALL_SITES ? undefined : site;
     const [view, setView] = useState<ReportView>('cards');
     const [openId, setOpenId] = useState<string | null>(null);
+    const [exportOpen, setExportOpen] = useState(false);
     const { data: report, isLoading, isError, refetch } = useCsiReport(scope, periodId, siteParam);
     const siteOf = (siteId: string | null) => sites.find((row) => row.id === siteId) ?? null;
     const siteCodeOf = (siteId: string | null) => siteOf(siteId)?.code ?? null;
@@ -75,10 +51,7 @@ export function PeriodReport({ scope, periodId, sites, initialSiteId }: {
         <>
         <AdminSection title="Laporan penilaian" description="Skala maksimal 5, dari rata-rata nilai setiap responden."
             actions={(
-                <div className="flex flex-wrap gap-2">
-                    <ExportButton label="Unduh PDF" icon={FileText} run={() => CsiApi.exportPdf(scope, periodId, siteParam)} />
-                    <ExportButton label="Export Excel" icon={FileSpreadsheet} run={() => CsiApi.exportPeriod(scope, periodId)} />
-                </div>
+                <Button variant="soft" onClick={() => setExportOpen(true)}><FileText aria-hidden="true" />Laporan PDF & Excel</Button>
             )}>
             <div className="grid gap-4">
                 {sites.length > 1 && (
@@ -104,6 +77,7 @@ export function PeriodReport({ scope, periodId, sites, initialSiteId }: {
                 siteCode={open ? siteCodeOf(open.siteId) : null} onClose={() => setOpenId(null)} />
         </AdminSection>
         <RaterMatrixPanel scope={scope} periodId={periodId} siteId={siteParam} />
+        <ReportExportDialog scope={scope} periodId={periodId} siteId={siteParam} open={exportOpen} onOpenChange={setExportOpen} />
         </>
     );
 }
