@@ -1,4 +1,5 @@
 import api from '@/lib/api';
+import type { SignoffLayout } from '@/features/reports/signoff';
 import type {
     ConfirmCsiPeriodAction, CsiPairMode,
     CsiActivePeriod, CsiAssignments, CsiDashboard, CsiDepartment, CsiDimension, CsiForm, CsiPeriod, CsiPeriodDetail,
@@ -10,6 +11,8 @@ import type {
 } from '../types';
 
 const adminPath = (scope: CsiScopeParam) => `/csi/admin/${scope}`;
+/** Executive report download: site filter, the admin's notes and a one-off sign-off (from the preview). */
+export type CsiReportExportOptions = { siteId?: string; notes?: string; signoff?: SignoffLayout | null };
 const periodPath = (scope: CsiScopeParam, id: string) => `${adminPath(scope)}/periods/${encodeURIComponent(id)}`;
 const itemPath = (scope: CsiScopeParam, resource: string, id: string) =>
     `${adminPath(scope)}/${resource}/${encodeURIComponent(id)}`;
@@ -197,9 +200,10 @@ export const CsiApi = {
     async raterMatrix(scope: CsiScopeParam, id: string, siteId?: string): Promise<CsiRaterMatrix> {
         return (await api.get<CsiRaterMatrix>(`${periodPath(scope, id)}/rater-matrix`, { params: { siteId } })).data;
     },
-    async exportPdf(scope: CsiScopeParam, id: string, siteId?: string): Promise<{ blob: Blob; filename: string }> {
+    async exportPdf(scope: CsiScopeParam, id: string, options: CsiReportExportOptions = {}): Promise<{ blob: Blob; filename: string }> {
+        const params = { siteId: options.siteId, notes: options.notes || undefined, signoff: options.signoff ? JSON.stringify(options.signoff) : undefined };
         // A blob error body hides the server message from the interceptor; the caller shows one toast instead.
-        const response = await api.get<Blob>(`${periodPath(scope, id)}/report.pdf`, { params: { siteId }, responseType: 'blob', skipToast: true });
+        const response = await api.get<Blob>(`${periodPath(scope, id)}/report.pdf`, { params, responseType: 'blob', skipToast: true });
         return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope, 'pdf') };
     },
     async sendReminders(scope: CsiScopeParam, id: string, payload: SendCsiReminders = {}): Promise<CsiReminderResult> {
@@ -217,10 +221,19 @@ export const CsiApi = {
     async resetResponse(scope: CsiScopeParam, id: string, responseId: string, payload: ResetCsiResponse): Promise<CsiResetResult> {
         return (await api.delete<CsiResetResult>(`${periodPath(scope, id)}/responses/${encodeURIComponent(responseId)}`, { data: payload })).data;
     },
-    async exportPeriod(scope: CsiScopeParam, id: string): Promise<{ blob: Blob; filename: string }> {
+    async exportPeriod(scope: CsiScopeParam, id: string, notes?: string): Promise<{ blob: Blob; filename: string }> {
         // A blob error body hides the server message from the interceptor; the caller shows one toast instead.
-        const response = await api.get<Blob>(`${periodPath(scope, id)}/export`, { responseType: 'blob', skipToast: true });
+        const response = await api.get<Blob>(`${periodPath(scope, id)}/export`, { params: { notes: notes || undefined }, responseType: 'blob', skipToast: true });
         return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope) };
+    },
+    async reportSignoff(scope: CsiScopeParam): Promise<SignoffLayout> {
+        return (await api.get<{ layout: SignoffLayout }>(`${adminPath(scope)}/report-signoff`)).data.layout;
+    },
+    async saveReportSignoff(scope: CsiScopeParam, layout: SignoffLayout): Promise<SignoffLayout> {
+        return (await api.put<{ layout: SignoffLayout }>(`${adminPath(scope)}/report-signoff`, layout)).data.layout;
+    },
+    async resetReportSignoff(scope: CsiScopeParam): Promise<SignoffLayout> {
+        return (await api.delete<{ layout: SignoffLayout }>(`${adminPath(scope)}/report-signoff`)).data.layout;
     },
     async memoSettings(scope: CsiScopeParam): Promise<CsiMemoHeader> {
         return (await api.get<CsiMemoHeader>(`${adminPath(scope)}/memo-settings`)).data;

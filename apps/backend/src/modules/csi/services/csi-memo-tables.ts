@@ -17,12 +17,15 @@ export function drawAnswerPages(doc: Doc, survey: MemoSurvey): void {
     const questions = questionsOf(report.ratees, kind);
     const specs = answerColumns(questions, kind === CsiRateeKind.PERSON);
     const lastIndex = specs.length - 1;
-    const rows = answerRows(answers, kind, questions)
+    const raw = answerRows(answers, kind, questions);
+    const numeric = specs.map((_, i) => raw.length > 0 && raw.every((values) => values[i] === null || typeof values[i] === 'number'));
+    const rows = raw
         .map((values) => values.map((value, i) => i === lastIndex && typeof value === 'number' ? formatAverage(value) : unquote(cell(value))));
 
     doc.addPage(LANDSCAPE);
     const widths = scaleWidths(specs.map((spec) => spec.width), contentWidth(doc));
-    const columns: TableColumn[] = specs.map((spec, i) => ({ header: cell(spec.header), width: widths[i] }));
+    // Numeric columns (scores, points, average) are centred so the figures line up under their header.
+    const columns: TableColumn[] = specs.map((spec, i) => ({ header: cell(spec.header), width: widths[i], align: numeric[i] ? 'center' : 'left' }));
     doc.font('Helvetica-Bold').fontSize(HEADING_SIZE).fillColor('#000000')
         .text(`${cell(formatLocation(report.period.sites))} — ${cell(report.period.title)}`, MARGIN, MARGIN, { width: contentWidth(doc) });
     drawTable(doc, columns, rows, doc.y + HEADING_GAP, ANSWER_FONT, () => {

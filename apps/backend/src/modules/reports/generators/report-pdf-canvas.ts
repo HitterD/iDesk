@@ -168,7 +168,8 @@ export class ReportCanvas {
             while (fitted.length > 1 && doc.widthOfString(`${fitted}...`) > width) fitted = fitted.slice(0, -1);
             fitted = `${fitted.trimEnd()}...`;
         }
-        doc.text(fitted, x, y, { width, align, lineBreak: false });
+        // Never narrower than the fitted text: pdfkit would otherwise break it per character and spill onto new pages.
+        doc.text(fitted, x, y, { width: Math.max(width, doc.widthOfString(fitted)), align, lineBreak: false });
     }
 
     /**
@@ -281,7 +282,7 @@ export class ReportCanvas {
     }
 
     /** "Poin utama": the sentences an executive reads first. */
-    highlights(lines: string[]): void {
+    highlights(lines: string[], title = 'POIN UTAMA', tone: 'brand' | 'amber' = 'brand'): void {
         if (lines.length === 0) return;
         const { doc } = this;
         const pad = 14;
@@ -292,12 +293,13 @@ export class ReportCanvas {
         const h = pad * 2 + 16 + heights.reduce((a, b) => a + b, 0) + (texts.length - 1) * 6;
         this.ensure(h + 16);
 
-        doc.roundedRect(PAGE.margin, this.y, CONTENT_W, h, 8).fill(INK.brandSoft);
-        this.font(true, 8.5, INK.brand);
-        doc.text('POIN UTAMA', PAGE.margin + pad, this.y + pad, { characterSpacing: 0.6, lineBreak: false });
+        const accent = tone === 'amber' ? INK.amber : INK.brand;
+        doc.roundedRect(PAGE.margin, this.y, CONTENT_W, h, 8).fill(tone === 'amber' ? '#FFF6E5' : INK.brandSoft);
+        this.font(true, 8.5, accent);
+        doc.text(title, PAGE.margin + pad, this.y + pad, { characterSpacing: 0.6, lineBreak: false });
         let y = this.y + pad + 16;
         texts.forEach((text, i) => {
-            doc.circle(PAGE.margin + pad + 2.5, y + 5.5, 2.5).fill(INK.brand);
+            doc.circle(PAGE.margin + pad + 2.5, y + 5.5, 2.5).fill(accent);
             this.font(false, 9.5, INK.text);
             doc.text(text, PAGE.margin + pad + 12, y, { width: textW, lineGap: 2 });
             y += heights[i] + 6;
@@ -338,6 +340,63 @@ export class ReportCanvas {
             });
         });
         this.y += 18 + tallest * rowH + 10;
+    }
+
+    /**
+     * Side-by-side lists of scored bars on a fixed scale (e.g. 0-5 or 0-100%), each bar in its own colour, with an
+     * optional target tick. Rows are compact (16 pt) so long lists stay readable; a column that would not fit the page
+     * continues on the next one.
+     */
+    scoreBars(groups: { title: string; max: number; target?: number; rows: { label: string; value: number | null; text: string; color: string }[] }[]): void {
+        const { doc } = this;
+        const gap = 18;
+        const w = (CONTENT_W - gap * (groups.length - 1)) / groups.length;
+        const rowH = 22;
+        const tallest = Math.max(1, ...groups.map((g) => g.rows.length));
+        this.ensure(18 + Math.min(tallest, 6) * rowH + 10);
+        const top = this.y;
+        groups.forEach((group, gi) => {
+            const x = PAGE.margin + gi * (w + gap);
+            this.font(true, 9, INK.secondary);
+            this.line(group.title, x, top, w);
+            if (!group.rows.length) {
+                this.font(false, 9, INK.tertiary);
+                this.line('Tidak ada data', x, top + 18, w);
+            }
+            group.rows.forEach((row, ri) => {
+                const ry = top + 18 + ri * rowH;
+                this.font(false, 8.5, INK.text);
+                this.line(row.label, x, ry, w - 92);
+                this.font(true, 8.5, row.color);
+                this.line(row.text, x + w - 90, ry, 90, 'right');
+                doc.roundedRect(x, ry + 12, w, 4, 2).fill(INK.fill);
+                if (row.value !== null && row.value > 0) doc.roundedRect(x, ry + 12, Math.max(4, (w * Math.min(row.value, group.max)) / group.max), 4, 2).fill(row.color);
+                if (group.target !== undefined) {
+                    const tx = x + (w * group.target) / group.max;
+                    doc.moveTo(tx, ry + 9).lineTo(tx, ry + 19).lineWidth(1).strokeColor(INK.text).stroke();
+                }
+            });
+        });
+        this.y = top + 18 + tallest * rowH + 10;
+    }
+
+    /** Small bold sub-heading inside a section (e.g. one group of comments). */
+    subheading(text: string, note?: string): void {
+        // Keep the heading with its table header and first rows (no orphan heading at the page bottom).
+        this.ensure(16 + 22 + 22 * 2);
+        this.font(true, 10, INK.text);
+        this.line(text, PAGE.margin, this.y, CONTENT_W - 140);
+        if (note) {
+            this.font(false, 8.5, INK.secondary);
+            this.line(note, PAGE.margin + CONTENT_W - 140, this.y + 1, 140, 'right');
+        }
+        this.y += 16;
+    }
+
+    /** Starts the next content on a fresh page (used to keep the executive summary on page 1). */
+    pageBreak(): void {
+        this.doc.addPage();
+        this.y = PAGE.margin;
     }
 
     /** Rows of small outlined figures (SLA details and the like). */

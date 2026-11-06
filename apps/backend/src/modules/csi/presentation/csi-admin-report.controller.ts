@@ -1,10 +1,11 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
-import { ReportQueryDto, ResetResponseDto, SendRemindersDto } from '../dto/report.dto';
+import { ReportExportQueryDto, ReportQueryDto, ResetResponseDto, SendRemindersDto } from '../dto/report.dto';
+import { ReportSignoffService } from '../../reports/services/report-signoff.service';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
-import { CsiExportService } from '../services/csi-export.service';
+import { csiSignoffType, CsiExportService } from '../services/csi-export.service';
 import { CsiReminderService } from '../services/csi-reminder.service';
 import { CsiReportService } from '../services/csi-report.service';
 
@@ -60,18 +61,41 @@ export class CsiAdminReportController {
     }
 
     @Get('report.pdf')
-    async reportPdf(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Query() query: ReportQueryDto, @Res() res: Response) {
-        const { filename, buffer } = await this.exporter.buildPdf(req.csiScope, id, query.siteId);
+    async reportPdf(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Query() query: ReportExportQueryDto, @Res() res: Response) {
+        const { filename, buffer } = await this.exporter.buildPdf(req.csiScope, id, query);
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.send(buffer);
     }
 
     @Get('export')
-    async export(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Res() res: Response) {
-        const { filename, buffer } = await this.exporter.buildWorkbook(req.csiScope, id);
+    async export(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Query() query: ReportExportQueryDto, @Res() res: Response) {
+        const { filename, buffer } = await this.exporter.buildWorkbook(req.csiScope, id, new Date(), { notes: query.notes });
         res.setHeader('Content-Type', XLSX_CONTENT_TYPE);
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.send(buffer);
+    }
+}
+
+/** Sign-off of the CSI report PDF, one saved layout per CSI scope (none saved = the memo signers). */
+@Controller('csi/admin/:scope/report-signoff')
+@UseGuards(JwtAuthGuard, CsiAdminGuard)
+export class CsiAdminReportSignoffController {
+    constructor(private readonly exporter: CsiExportService, private readonly signoffs: ReportSignoffService) { }
+
+    @Get()
+    async get(@Req() req: CsiAdminRequest) {
+        return { layout: await this.exporter.signoffFor(req.csiScope) };
+    }
+
+    @Put()
+    async save(@Req() req: CsiAdminRequest, @Body() body: unknown) {
+        return { layout: await this.signoffs.save(csiSignoffType(req.csiScope), null, body, req.user.userId) };
+    }
+
+    @Delete()
+    async reset(@Req() req: CsiAdminRequest) {
+        await this.signoffs.reset(csiSignoffType(req.csiScope));
+        return { layout: await this.exporter.signoffFor(req.csiScope) };
     }
 }

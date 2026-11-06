@@ -19,6 +19,9 @@ import { assertPeriodInScope } from './csi-scope.util';
 import { CsiAssignmentService } from './csi-assignment.service';
 import { raterMatrix } from './csi-rater-matrix.calc';
 import { CsiSlaService } from './csi-sla.service';
+import { CsiDepartment } from '../entities/csi-department.entity';
+import { User } from '../../users/entities/user.entity';
+import { buildReportModel, CsiReportModel, subjectKeyOf } from './csi-report-model';
 import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
 
 const RESPONSE_NOT_FOUND_MESSAGE = 'Jawaban tidak ditemukan';
@@ -144,17 +147,73 @@ export class CsiReportService {
 
     /** Overall average of the latest earlier PUBLISHED period of the scope sharing a site (that site when filtered). */
     private async previousAverage(scope: ServiceScope, period: CsiPeriod, siteId?: string): Promise<number | null> {
+        const previous = await this.previousPeriod(scope, period, siteId);
+        if (!previous) return null;
+        const data = narrowToSite(await this.loadPeriodData(scope, previous), siteId);
+        return overallStats(data.items, data.responses.length).average;
+    }
+
+    private async previousPeriod(scope: ServiceScope, period: CsiPeriod, siteId?: string): Promise<CsiPeriod | null> {
         const wanted = siteId ? [siteId] : (period.sites ?? []).map((row) => row.siteId);
         const candidates = await this.periods.find({
             where: { scope, publishStatus: CsiPeriodPublishStatus.PUBLISHED, endDate: LessThan(period.startDate) },
             relations: { sites: true },
         });
-        const previous = candidates
+        return candidates
             .filter((row) => (row.sites ?? []).some((site) => wanted.includes(site.siteId)))
-            .sort((a, b) => b.endDate.localeCompare(a.endDate))[0];
-        if (!previous) return null;
-        const data = narrowToSite(await this.loadPeriodData(scope, previous), siteId);
-        return overallStats(data.items, data.responses.length).average;
+            .sort((a, b) => b.endDate.localeCompare(a.endDate))[0] ?? null;
+    }
+
+    /**
+     * Executive report model (PDF + Excel): every parameter, nothing capped. Adds to the report the previous period per
+     * subject, participation per site with its basis people (answered or not), every active department (also 0 answers)
+     * and every comment.
+     */
+    async getExecutiveModel(scope: ServiceScope, periodId: string, input: { siteId?: string; notes?: string; matrix: Awaited<ReturnType<CsiReportService['getRaterMatrix']>> }): Promise<CsiReportModel> {
+        const { siteId, matrix } = input;
+        const report = await this.getReport(scope, periodId, siteId);
+        const period = await this.findInScope(scope, periodId, { sites: { site: true } });
+        const sites = siteId ? report.period.sites.filter((site) => site.id === siteId) : report.period.sites;
+        const data = narrowToSite(await this.loadPeriodData(scope, period), siteId);
+        // Previous period, per subject (people by name, teams by name + site).
+        const previousBySubject = new Map<string, number | null>();
+        const previous = await this.previousPeriod(scope, period, siteId);
+        if (previous) {
+            const before = narrowToSite(await this.loadPeriodData(scope, previous), siteId);
+            before.ratees.forEach((ratee) => {
+                const stats = rateeStats(ratee, before.dimensions, before.items);
+                const name = ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || previous.teamLabel : ratee.displayName;
+                previousBySubject.set(subjectKeyOf({ kind: ratee.kind, siteId: rateeSiteOf(before, ratee) }, name), stats.average);
+            });
+        }
+        // Participation per site (same SLA rules, one site at a time).
+        const siteStats = await this.siteStats(scope, period, sites.map((site) => site.id));
+        const siteBasis = [];
+        for (const site of sites) {
+            const stats = siteStats.get(site.id);
+            const sla = await this.sla.compute(period, [site], stats?.responses ?? 0);
+            siteBasis.push({ siteId: site.id, reporters: sla.reporters, responses: stats?.responses ?? 0, average: stats?.average ?? null });
+        }
+        const answeredUserIds = new Set(data.responses.map((response) => response.respondentId));
+        const reporterUserIds = new Map(data.responses.map((response) => [(response.respondent?.email ?? '').toLowerCase(), response.respondentId]));
+        const basisEmails = siteBasis.flatMap((row) => row.reporters.map((reporter) => reporter.email.toLowerCase()));
+        if (basisEmails.length) {
+            const users = await this.dataSource.getRepository(User).find({ where: { email: In([...new Set(basisEmails)]) }, select: { id: true, email: true } });
+            users.forEach((user) => reporterUserIds.set(user.email.toLowerCase(), user.id));
+        }
+        // Every active department of the scope, including the ones without any answer.
+        const departmentRows = await this.dataSource.getRepository(CsiDepartment).find({ where: { scope, isActive: true }, order: { sortOrder: 'ASC', name: 'ASC' } });
+        const counts = new Map<string, number>();
+        data.responses.forEach((response) => counts.set(response.departmentName, (counts.get(response.departmentName) ?? 0) + 1));
+        const names = new Set([...departmentRows.map((row) => row.name), ...counts.keys()]);
+        const departments = [...names].map((name) => ({ name, responses: counts.get(name) ?? 0 }));
+        const comments = report.ratees.flatMap((ratee) => ratee.comments.map((comment) => ({
+            periodRateeId: ratee.periodRateeId, text: comment.text, department: comment.departmentName, date: comment.submittedAt,
+        })));
+        return buildReportModel({
+            report, matrix, scopeLabel: scope, previousBySubject, siteBasis, answeredUserIds, reporterUserIds, departments, comments,
+            notes: input.notes ?? '',
+        });
     }
 
     private async loadPeriodData(scope: ServiceScope, period: CsiPeriod): Promise<PeriodData> {
