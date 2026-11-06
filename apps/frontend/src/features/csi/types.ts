@@ -76,6 +76,12 @@ export interface CsiPeriod extends CsiTimestamps {
     teamEnabled: boolean;
     teamLabel: string;
     individualEnabled: boolean;
+    /** HC per PIC: respondents pick the PICs who served them (opt-in; default = HC decides). */
+    respondentPicks?: boolean;
+    /** HC "respondents pick": target number of respondents (participation basis). */
+    targetRespondents?: number | null;
+    /** HC "who rates whom" per respondent unit (the source of raters + pairs when set). */
+    unitRules?: import('./hcTypes').CsiUnitRule[];
     slaTargetPct: number;
     createdById: string;
     /** "Siapa menilai siapa": null until chosen in the wizard. */
@@ -115,6 +121,10 @@ export interface CsiPeriodRatee extends CsiTimestamps {
     /** Per-period overrides; null means the master value applies. */
     photoUrl?: string | null;
     tagline?: string | null;
+    /** HC PIC ratee (csi_pics) with its layanan / bagian snapshot. */
+    picId?: string | null;
+    serviceCode?: string | null;
+    bagian?: string | null;
     dimensions: CsiPeriodRateeDimension[];
 }
 
@@ -164,6 +174,11 @@ export interface CsiFormRatee {
     siteCode: string | null;
     tagline: string | null;
     photoUrl: string | null;
+    /** HC PIC ratee: layanan (HCC/HCD/HCS) and bagian; absent / null for teams and ICT people. */
+    picId?: string | null;
+    serviceCode?: string | null;
+    serviceName?: string | null;
+    bagian?: string | null;
     dimensions: CsiFormDimension[];
 }
 
@@ -175,6 +190,8 @@ export interface CsiForm {
     intro: string;
     endDate: string;
     teamLabel: string;
+    /** HC per PIC: the respondent first picks the PICs who served them and rates only those. */
+    respondentPicks?: boolean;
     /** `departmentId`: the department the account is locked to in this list (null = choose once). */
     respondent: { fullName: string; departmentId?: string | null };
     /** When this account answered (ISO), or null / absent when it has not. */
@@ -308,6 +325,8 @@ export interface CreateCsiPeriod {
     teamEnabled?: boolean;
     teamLabel?: string;
     individualEnabled?: boolean;
+    respondentPicks?: boolean;
+    targetRespondents?: number | null;
     slaTargetPct?: number;
     copyFromPeriodId?: string;
 }

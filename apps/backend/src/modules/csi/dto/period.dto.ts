@@ -7,6 +7,9 @@ const TITLE_MAX_LENGTH = 150;
 const TEXT_MAX_LENGTH = 2000;
 const TEAM_LABEL_MAX_LENGTH = 100;
 const SITES_MAX = 20;
+const PICS_MAX = 500;
+const TARGET_RESPONDENTS_MAX = 100000;
+const QUESTIONS_MAX = 50;
 const SLA_TARGET_MIN = 1;
 const SLA_TARGET_MAX = 100;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -47,6 +50,17 @@ class PeriodFieldsDto {
     @ValidateIf(isProvided)
     @IsBoolean({ message: 'Penilaian per orang harus berupa boolean' })
     individualEnabled?: boolean;
+
+    @ValidateIf(isProvided)
+    @IsBoolean({ message: 'Mode pilih PIC harus berupa boolean' })
+    respondentPicks?: boolean;
+
+    /** "Respondent picks" mode: HC target number of respondents (participation basis). */
+    @ValidateIf((_object, value) => value !== undefined && value !== null)
+    @IsInt({ message: 'Target responden harus berupa bilangan bulat' })
+    @Min(1, { message: 'Target responden minimal 1' })
+    @Max(TARGET_RESPONDENTS_MAX, { message: 'Target responden maksimal 100000' })
+    targetRespondents?: number | null;
 
     @ValidateIf(isProvided)
     @IsInt({ message: 'Target SLA harus berupa bilangan bulat' })
@@ -113,6 +127,19 @@ export class SetRateesDto {
     @ValidateNested({ each: true })
     @Type(() => RateeAssignmentDto)
     ratees: RateeAssignmentDto[];
+}
+
+/** HC per PIC: the PICs of the period, all with the same questions. */
+export class SetPeriodPicsDto {
+    @IsArray({ message: 'Daftar PIC harus berupa array' })
+    @ArrayMaxSize(PICS_MAX, { message: 'Maksimal 500 PIC' })
+    @IsUUID('all', { each: true, message: 'ID PIC harus berupa UUID' })
+    picIds: string[];
+
+    @IsArray({ message: 'Daftar pertanyaan harus berupa array' })
+    @ArrayMaxSize(QUESTIONS_MAX, { message: 'Maksimal 50 pertanyaan' })
+    @IsUUID('all', { each: true, message: 'ID pertanyaan harus berupa UUID' })
+    dimensionIds: string[];
 }
 
 export class SetTeamQuestionsDto {

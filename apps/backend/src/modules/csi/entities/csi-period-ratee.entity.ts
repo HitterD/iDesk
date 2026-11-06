@@ -3,6 +3,7 @@ import { User } from '../../users/entities/user.entity';
 import { CsiRateeKind } from '../csi.constants';
 import { CsiPeriod } from './csi-period.entity';
 import { CsiTeam } from './csi-team.entity';
+import { CsiPic } from './csi-pic.entity';
 
 @Entity('csi_period_ratees')
 @Index('UQ_csi_period_ratees_period_user', ['periodId', 'userId'], { unique: true })
@@ -38,6 +39,21 @@ export class CsiPeriodRatee {
     @ManyToOne(() => CsiTeam, { nullable: true })
     @JoinColumn({ name: 'teamId' })
     team: CsiTeam | null;
+
+    /** HC PIC ratee (csi_pics); null for user people and teams. */
+    @Column({ type: 'uuid', nullable: true })
+    picId: string | null;
+
+    @ManyToOne(() => CsiPic, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'picId' })
+    pic: CsiPic | null;
+
+    /** Snapshot of the PIC's layanan (HCC/HCD/HCS) and bagian when assigned. */
+    @Column({ type: 'varchar', length: 10, nullable: true })
+    serviceCode: string | null;
+
+    @Column({ type: 'varchar', length: 150, nullable: true })
+    bagian: string | null;
 
     @Column({ type: 'varchar', nullable: true })
     photoUrl: string | null;

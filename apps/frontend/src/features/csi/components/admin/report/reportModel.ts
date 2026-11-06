@@ -65,4 +65,5 @@ export const byAverageDesc = (ratees: readonly CsiReportRatee[]) =>
     [...ratees].sort((a, b) => (b.average ?? -1) - (a.average ?? -1));
 
 export const scorePct = (average: number | null) => average === null ? 0 : (average / SCORE_MAX) * PERCENT;
-export const ratioPct = (part: number, whole: number) => whole > 0 ? Math.round((part / whole) * PERCENT) : 0;
+/** Share of the basis, never above 100% (more answers than the basis reads as complete). */
+export const ratioPct = (part: number, whole: number) => whole > 0 ? Math.min(PERCENT, Math.round((part / whole) * PERCENT)) : 0;

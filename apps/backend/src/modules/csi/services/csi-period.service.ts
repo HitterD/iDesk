@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, FindOptionsRelations, In, LessThanOrEqual, MoreThanOrEqual, Not, QueryFailedError, Repository } from 'typeorm';
+import { DataSource, EntityManager, FindOptionsRelations, In, IsNull, LessThanOrEqual, MoreThanOrEqual, Not, QueryFailedError, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { wibEndOfDate, wibStartOfDate } from '../../../shared/core/utils/wib-date.util';
 import { Site } from '../../sites/entities/site.entity';
@@ -20,6 +20,8 @@ import { CsiAssignmentService } from './csi-assignment.service';
 import { lockPeriodRow, lockUnlockedPeriod } from './csi-period-lock.util';
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiSubjectService } from './csi-subject.service';
+import { CsiOrgService } from '../org/csi-org.service';
+import { CsiPic } from '../entities/csi-pic.entity';
 
 export { lockPeriodRow, lockUnlockedPeriod };
 
@@ -95,7 +97,7 @@ const withSites = (period: CsiPeriod) => ({
 const teamFirst = (a: CsiPeriodRatee, b: CsiPeriodRatee) =>
     Number(b.kind === CsiRateeKind.TEAM) - Number(a.kind === CsiRateeKind.TEAM) || a.sortOrder - b.sortOrder;
 /** Fields that become immutable once the period has answers (`siteIds` is compared separately). */
-const LOCKED_FIELDS = ['respondentMode', 'teamEnabled', 'individualEnabled', 'teamLabel'] as const;
+const LOCKED_FIELDS = ['respondentMode', 'teamEnabled', 'individualEnabled', 'teamLabel', 'respondentPicks'] as const;
 const changesLockedField = (period: Omit<CsiPeriod, 'sites'>, dto: UpdatePeriodDto) =>
     LOCKED_FIELDS.some((field) => dto[field] !== undefined && dto[field] !== period[field]);
 const sameIds =(a: string[], b: string[]) => a.length === b.length && a.every((id) => b.includes(id));
@@ -137,6 +139,7 @@ export class CsiPeriodService {
         @InjectDataSource() private readonly dataSource: DataSource,
         private readonly assignments: CsiAssignmentService,
         private readonly subjects: CsiSubjectService,
+        private readonly org: CsiOrgService,
     ) { }
 
     async list(scope: ServiceScope, siteId?: string, now: Date = new Date()) {
@@ -282,6 +285,10 @@ export class CsiPeriodService {
             teamLabel: dto.teamLabel ?? source?.teamLabel ?? CSI_TEAM_LABEL_DEFAULT,
             individualEnabled: dto.individualEnabled ?? source?.individualEnabled ?? true,
             slaTargetPct: dto.slaTargetPct ?? source?.slaTargetPct ?? CSI_SLA_TARGET_DEFAULT,
+            // HC defaults to "respondents pick the PICs who served them"; ICT keeps rating every visible ratee.
+            // HC decides who rates whom by default (unit rules); "respondents pick" is opt-in.
+            respondentPicks: dto.respondentPicks ?? source?.respondentPicks ?? false,
+            targetRespondents: dto.targetRespondents ?? source?.targetRespondents ?? null,
         };
         assertSomeSection(sections);
         // New periods are drafts: they may overlap; the clash is enforced at publish (see assertNoOverlap).
@@ -296,6 +303,7 @@ export class CsiPeriodService {
                 startDate: dto.startDate, endDate: dto.endDate,
                 respondentMode: dto.respondentMode ?? source?.respondentMode ?? DEFAULT_RESPONDENT_MODE[scope],
                 pairMode: source?.pairMode ?? null,
+                unitRules: source?.unitRules ?? [],
                 publishStatus: CsiPeriodPublishStatus.DRAFT,
                 createdById: actorId,
             });
@@ -360,6 +368,48 @@ export class CsiPeriodService {
             await this.syncPeople(manager, id, ratees);
         });
         await this.applyTemplateWhileUnmapped(scope, id, unmapped);
+        return this.get(scope, id);
+    }
+
+    /**
+     * HC per PIC: replaces the PIC ratees of the period with the given active PICs, every one with the same questions
+     * (in master order). PICs who stay keep their row (and pairs); user people and teams are not touched.
+     */
+    async setPics(scope: ServiceScope, id: string, picIds: string[], dimensionIds: string[]) {
+        await this.findInScope(scope, id);
+        const ids = [...new Set(picIds)];
+        if (ids.length && !dimensionIds.length) throw new BadRequestException('Pilih minimal satu pertanyaan untuk PIC');
+        if (new Set(dimensionIds).size !== dimensionIds.length) throw new BadRequestException('Pertanyaan tidak boleh duplikat');
+        const pics = (await this.org.findPics(scope, ids)).filter((pic) => pic.isActive);
+        if (pics.length !== ids.length) throw new BadRequestException('PIC tidak ditemukan atau tidak aktif');
+        const questions = await this.activeDimensions(scope, dimensionIds);
+        if (questions.size !== dimensionIds.length) throw new BadRequestException(QUESTION_NOT_FOUND_MESSAGE);
+        const ordered = [...questions.values()].sort((a, b) => a.sortOrder - b.sortOrder);
+        const byId = new Map(pics.map((pic) => [pic.id, pic]));
+        const snapshots = [...pics].sort(picOrder).map((pic) => picSnapshot(pic, ordered));
+        await this.dataSource.transaction(async (manager) => {
+            await lockUnlockedPeriod(manager, id);
+            const repository = manager.getRepository(CsiPeriodRatee);
+            const existing = await repository.find({ where: { periodId: id, picId: Not(IsNull()) } });
+            const keep = new Map(existing.filter((row) => byId.has(row.picId!)).map((row) => [row.picId!, row]));
+            const removed = existing.filter((row) => !byId.has(row.picId!)).map((row) => row.id);
+            if (removed.length) await manager.delete(CsiPeriodRatee, { id: In(removed) });
+            const keptIds = [...keep.values()].map((row) => row.id);
+            if (keptIds.length) await manager.delete(CsiPeriodRateeDimension, { periodRateeId: In(keptIds) });
+            if (!snapshots.length) return;
+            const offset = await repository.count({ where: { periodId: id, kind: CsiRateeKind.PERSON, picId: IsNull() } });
+            const saved = await manager.save(CsiPeriodRatee, snapshots.map((snapshot, index) => {
+                const kept = keep.get(snapshot.picId!);
+                return {
+                    ...(kept ? { id: kept.id } : {}), periodId: id, kind: snapshot.kind, userId: snapshot.userId,
+                    displayName: snapshot.displayName, jobTitle: snapshot.jobTitle, siteId: snapshot.siteId, teamId: null,
+                    photoUrl: kept?.photoUrl ?? null, tagline: kept?.tagline ?? null,
+                    picId: snapshot.picId, serviceCode: snapshot.serviceCode, bagian: snapshot.bagian, sortOrder: offset + index,
+                };
+            }));
+            await manager.save(CsiPeriodRateeDimension, saved.flatMap((row, index) => snapshots[index].dimensions.map((dimension, order) =>
+                dimensionRow(row.id, dimension, order))));
+        });
         return this.get(scope, id);
     }
 
@@ -567,7 +617,8 @@ export class CsiPeriodService {
         const sourceRaters = await this.periodRaters.find({ where: { periodId: sourceId } });
         const teamSources = sourceRatees.filter((ratee): ratee is CsiPeriodRatee & { siteId: string } =>
             ratee.kind === CsiRateeKind.TEAM && ratee.siteId !== null && siteIds.includes(ratee.siteId));
-        const personRatees = sourceRatees.filter((ratee): ratee is CsiPeriodRatee & { userId: string } => ratee.kind !== CsiRateeKind.TEAM && ratee.userId !== null);
+        const personRatees = sourceRatees.filter((ratee): ratee is CsiPeriodRatee & { userId: string } => ratee.kind !== CsiRateeKind.TEAM && !ratee.picId && ratee.userId !== null);
+        const picRatees = sourceRatees.filter((ratee): ratee is CsiPeriodRatee & { picId: string } => ratee.kind !== CsiRateeKind.TEAM && !!ratee.picId);
         const users = await this.activeUsers([...new Set([...personRatees, ...sourceRaters].map((row) => row.userId))]);
         const dimensions = await this.activeDimensions(scope, [...new Set(sourceDimensions.map((row) => row.dimensionId))]);
         const keptOf = (rateeId: string) => sourceDimensions.filter((row) => row.periodRateeId === rateeId)
@@ -583,7 +634,14 @@ export class CsiPeriodService {
             const kept = keptOf(source.id);
             if (kept.length) teams.push(teamSnapshot(await this.subjects.createTeam(scope, source.siteId), kept));
         }
-        const ratees = [...teams, ...people.map((person, index) => ({ ...person, sortOrder: index }))];
+        // HC PICs: still-active PICs keep their questions (re-snapshotted from the current master).
+        const activePics = new Map((await this.org.findPics(scope, picRatees.map((ratee) => ratee.picId))).filter((pic) => pic.isActive).map((pic) => [pic.id, pic]));
+        const pics = picRatees.flatMap((ratee) => {
+            const pic = activePics.get(ratee.picId);
+            const kept = keptOf(ratee.id);
+            return pic && kept.length ? [picSnapshot(pic, kept)] : [];
+        });
+        const ratees = [...teams, ...[...people, ...pics].map((person, index) => ({ ...person, sortOrder: index }))];
         return { ratees, raterIds: sourceRaters.map((rater) => rater.userId).filter((userId) => users.has(userId)) };
     }
 
@@ -592,6 +650,7 @@ export class CsiPeriodService {
         const saved = await manager.save(CsiPeriodRatee, ratees.map((ratee, index) => ({
             periodId, kind: ratee.kind, userId: ratee.userId, displayName: ratee.displayName, jobTitle: ratee.jobTitle,
             siteId: ratee.siteId, teamId: ratee.teamId, photoUrl: ratee.photoUrl, tagline: ratee.tagline,
+            picId: ratee.picId ?? null, serviceCode: ratee.serviceCode ?? null, bagian: ratee.bagian ?? null,
             sortOrder: ratee.sortOrder ?? index,
         })));
         await manager.save(CsiPeriodRateeDimension, saved.flatMap((row, rateeIndex) => ratees[rateeIndex].dimensions.map((dimension, index) =>
@@ -604,7 +663,7 @@ export class CsiPeriodService {
      * job title, order and question snapshots are refreshed in place.
      */
     private async syncPeople(manager: EntityManager, periodId: string, ratees: RateeSnapshot[]) {
-        const existing = await manager.getRepository(CsiPeriodRatee).find({ where: { periodId, kind: CsiRateeKind.PERSON } });
+        const existing = await manager.getRepository(CsiPeriodRatee).find({ where: { periodId, kind: CsiRateeKind.PERSON, picId: IsNull() } });
         const byUser = new Map(existing.map((row) => [row.userId, row]));
         const wanted = new Set(ratees.map((ratee) => ratee.userId));
         const removed = existing.filter((row) => !wanted.has(row.userId)).map((row) => row.id);
@@ -640,6 +699,8 @@ type RateeSnapshot = {
     siteId: string | null; teamId: string | null;
     /** Per-period overrides; always null in a snapshot (master values are resolved on read). */
     photoUrl: null; tagline: null;
+    /** HC PIC ratee: the PIC and its layanan / bagian. */
+    picId?: string | null; serviceCode?: string | null; bagian?: string | null;
     /** Explicit order (TEAM = -1); absent means the index in the written list. */
     sortOrder?: number; dimensions: QuestionSnapshot[];
 };
@@ -660,6 +721,15 @@ function toSnapshot(user: User, dimensions: CsiDimension[]): RateeSnapshot {
     };
 }
 
+function picSnapshot(pic: CsiPic, dimensions: CsiDimension[]): RateeSnapshot {
+    return {
+        kind: CsiRateeKind.PERSON, userId: pic.userId, displayName: pic.fullName, jobTitle: pic.jobTitle,
+        siteId: pic.siteId, teamId: null, photoUrl: null, tagline: null,
+        picId: pic.id, serviceCode: pic.serviceCode, bagian: pic.bagian,
+        dimensions: dimensions.map(questionSnapshot),
+    };
+}
+
 function teamSnapshot(team: { teamId: string | null; name: string; siteId: string }, dimensions: CsiDimension[]): RateeSnapshot {
     return {
         kind: CsiRateeKind.TEAM, userId: null, displayName: team.name, jobTitle: null, sortOrder: TEAM_SORT_ORDER,
@@ -667,6 +737,10 @@ function teamSnapshot(team: { teamId: string | null; name: string; siteId: strin
         dimensions: dimensions.map(questionSnapshot),
     };
 }
+
+/** PICs in layanan -> bagian -> name order (the order respondents and reports see). */
+const picOrder = (a: CsiPic, b: CsiPic) =>
+    a.serviceCode.localeCompare(b.serviceCode) || (a.bagian ?? '').localeCompare(b.bagian ?? '') || a.fullName.localeCompare(b.fullName);
 
 /** 400 unless the site belongs to the period; returns the site id. */
 function assertPeriodSite(period: CsiPeriod, siteId: string) {

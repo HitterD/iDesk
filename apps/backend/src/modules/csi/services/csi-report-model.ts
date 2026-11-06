@@ -3,6 +3,7 @@ import { CsiRaterMatrix } from './csi-rater-matrix.calc';
 import { CsiReportService } from './csi-report.service';
 import { CsiSlaReporter } from './csi-sla.service';
 import { averageOfAverages } from './csi-score.util';
+import type { CsiHcRecap } from '../org/csi-hc-report.calc';
 
 /**
  * Everything the executive report shows (PDF and Excel read the same model, so both always carry every parameter).
@@ -67,6 +68,8 @@ export type CsiReportModel = {
     highlights: string[];
     notes: string;
     counts: { teams: number; people: number; sites: number; comments: number };
+    /** HC per-PIC recap (set only when the period rates HC PICs). */
+    hcRecap?: CsiHcRecap | null;
 };
 
 /** Report label of a question: the short label, else the bracketed aspect of the description, else the text. */
@@ -175,7 +178,8 @@ export type CsiReportModelInput = {
     notes: string;
 };
 
-const respondenPct = (responses: number, basis: number) => (basis > 0 ? Math.round((responses / basis) * PERCENT) : null);
+/** Responses against the basis, never above 100% (more answers than the basis still reads as complete). */
+const respondenPct = (responses: number, basis: number) => (basis > 0 ? Math.min(PERCENT, Math.round((responses / basis) * PERCENT)) : null);
 
 export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
     const { report, scopeLabel } = input;

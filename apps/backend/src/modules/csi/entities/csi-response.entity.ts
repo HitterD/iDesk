@@ -39,6 +39,23 @@ export class CsiResponse {
     @Column({ type: 'varchar', length: 100 })
     departmentName: string;
 
+    /** Organisation of the respondent when they answered (directory by NIK, else their choice / account). */
+    @Column({ type: 'varchar', length: 20, nullable: true })
+    respondentNik: string | null;
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    orgDivision: string | null;
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    orgDepartment: string | null;
+
+    @Column({ type: 'varchar', length: 150, nullable: true })
+    orgBagian: string | null;
+
+    /** Report location code (SJA1..SJA4, JKT). */
+    @Column({ type: 'varchar', length: 10, nullable: true })
+    orgLocation: string | null;
+
     @Column({ type: 'timestamptz' })
     submittedAt: Date;
 

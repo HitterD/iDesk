@@ -23,6 +23,8 @@ import { CsiDepartment } from '../entities/csi-department.entity';
 import { User } from '../../users/entities/user.entity';
 import { buildReportModel, CsiReportModel, subjectKeyOf } from './csi-report-model';
 import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
+import { buildHcRecap, CsiHcRecap } from '../org/csi-hc-report.calc';
+import { locationOfSiteCode } from '../org/csi-org.constants';
 
 const RESPONSE_NOT_FOUND_MESSAGE = 'Jawaban tidak ditemukan';
 const RESET_ENTITY_TYPE = 'csi_response';
@@ -216,6 +218,55 @@ export class CsiReportService {
         });
     }
 
+    /**
+     * HC per-PIC recap: layanan / bagian / PIC and respondent division / department / bagian, each averaged per
+     * location (SJA 1-4, Jakarta) and ALL SJA, plus every respondent's stars. Only scored answers count.
+     */
+    async getHcRecap(scope: ServiceScope, periodId: string): Promise<CsiHcRecap & { period: { id: string; title: string; startDate: string; endDate: string } }> {
+        const period = await this.findInScope(scope, periodId, { sites: { site: true } });
+        const data = await this.loadPeriodData(scope, period);
+        const people = data.ratees.filter((ratee) => ratee.kind !== CsiRateeKind.TEAM);
+        const ids = new Set(people.map((ratee) => ratee.id));
+        const labelOf = new Map(data.dimensions.map((row) => [row.id, row.shortLabel || row.dimensionName]));
+        const scored = data.dimensions.filter((row) => ids.has(row.periodRateeId) && row.type !== CsiQuestionType.CHOICE && row.type !== CsiQuestionType.TEXT);
+        const dimensions = [...new Set(scored.sort((a, b) => a.sortOrder - b.sortOrder).map((row) => labelOf.get(row.id)!))];
+        const responses = new Map(data.responses.map((response) => [response.id, response]));
+        const siteCodes = await this.siteCodes(data.responses.map((response) => response.respondent?.siteId).filter((id): id is string => !!id));
+        const grouped = new Map<string, { responseId: string; periodRateeId: string; scores: Record<string, number> }>();
+        for (const item of data.items) {
+            if (!ids.has(item.periodRateeId) || item.score === null || item.score === undefined) continue;
+            const key = `${item.responseId}:${item.periodRateeId}`;
+            const entry = grouped.get(key) ?? { responseId: item.responseId, periodRateeId: item.periodRateeId, scores: {} };
+            entry.scores[labelOf.get(item.periodRateeDimensionId) ?? '-'] = item.score;
+            grouped.set(key, entry);
+        }
+        const ratings = [...grouped.values()].flatMap((entry) => {
+            const response = responses.get(entry.responseId);
+            if (!response) return [];
+            const fallbackLocation = locationOfSiteCode(siteCodes.get(response.respondent?.siteId ?? '') ?? null);
+            const [division, department] = response.orgDivision || response.orgDepartment
+                ? [response.orgDivision, response.orgDepartment] : splitDepartment(response.departmentName);
+            return [{
+                ...entry, location: response.orgLocation ?? fallbackLocation,
+                respondent: { name: response.respondentName, division, department, bagian: response.orgBagian ?? null },
+            }];
+        });
+        const pics = people.map((ratee) => ({
+            periodRateeId: ratee.id, name: ratee.displayName, jobTitle: ratee.jobTitle, serviceCode: ratee.serviceCode ?? null, bagian: ratee.bagian ?? null,
+        }));
+        return {
+            period: { id: period.id, title: period.title, startDate: period.startDate, endDate: period.endDate },
+            ...buildHcRecap({ pics, ratings, dimensions }),
+        };
+    }
+
+    private async siteCodes(siteIds: string[]) {
+        const unique = [...new Set(siteIds)];
+        if (!unique.length) return new Map<string, string>();
+        const rows: Array<{ id: string; code: string }> = await this.dataSource.query('SELECT "id", "code" FROM "sites" WHERE "id" = ANY($1)', [unique]);
+        return new Map(rows.map((row) => [row.id, row.code]));
+    }
+
     private async loadPeriodData(scope: ServiceScope, period: CsiPeriod): Promise<PeriodData> {
         const ratees = (await this.ratees.find({ where: { periodId: period.id }, order: { sortOrder: 'ASC' } })).filter(inEnabledSection(period));
         const rateeIds = ratees.map((ratee) => ratee.id);
@@ -359,14 +410,22 @@ const rateeSiteOf = (data: Pick<PeriodData, 'views'>, ratee: CsiPeriodRatee) => 
 /** Site filter: ratees of the site, and only responses (and their items) of respondents whose user site is the site. */
 function narrowToSite(data: PeriodData, siteId?: string): PeriodData {
     if (!siteId) return data;
-    const ratees = data.ratees.filter((ratee) => rateeSiteOf(data, ratee) === siteId);
+    // HC PICs serve every site from head office: only the respondent's site decides (they stay in every site view).
+    const siteOfRatee = (ratee: CsiPeriodRatee) => (ratee.picId ? siteId : rateeSiteOf(data, ratee));
+    const ratees = data.ratees.filter((ratee) => siteOfRatee(ratee) === siteId);
     const responseSite = new Map(data.responses.map((response) => [response.id, response.respondent?.siteId ?? null]));
-    const rateeSite = new Map(ratees.map((ratee) => [ratee.id, rateeSiteOf(data, ratee)]));
+    const rateeSite = new Map(ratees.map((ratee) => [ratee.id, siteOfRatee(ratee)]));
     return {
         ...data, ratees,
         items: itemsForSite(data.items, rateeSite, responseSite, siteId),
         responses: data.responses.filter((response) => responseSite.get(response.id) === siteId),
     };
+}
+
+/** Older answers carry only "DIVISION / DEPARTMENT". */
+function splitDepartment(name: string): [string | null, string | null] {
+    const at = (name ?? '').indexOf(' / ');
+    return at >= 0 ? [name.slice(0, at), name.slice(at + 3)] : [null, name || null];
 }
 
 /** Sorted copy; strings compare with Indonesian collation. */

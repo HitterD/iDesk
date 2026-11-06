@@ -24,6 +24,8 @@ import { CsiAssignmentService } from './csi-assignment.service';
 import { lockPeriodRow } from './csi-period-lock.util';
 import { computeStatus } from './csi-period.service';
 import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
+import { CsiOrgService, CsiRespondentOrg } from '../org/csi-org.service';
+import { normalizeBagian, serviceName } from '../org/csi-org.constants';
 
 /** Only the user id is taken from the token; site and active flag are always re-read from the database. */
 export type CsiRespondentRef = { id: string };
@@ -35,9 +37,10 @@ const DEPARTMENT_LOCKED_MESSAGE = 'Departemen Anda sudah terkunci dan tidak dapa
 const WRONG_TYPE_MESSAGE = 'Jawaban tidak sesuai jenis pertanyaan ini';
 const OPTION_POINTS_MESSAGE = 'Pilihan tidak memiliki nilai yang valid';
 const REQUIRED_MESSAGE = 'Semua pertanyaan wajib harus dijawab';
+const PICK_ONE_MESSAGE = 'Pilih dan nilai minimal satu PIC';
 const PG_UNIQUE_VIOLATION = '23505';
 
-type Respondent = Pick<User, 'id' | 'fullName' | 'siteId'> & { profileDepartment: string | null };
+type Respondent = Pick<User, 'id' | 'fullName' | 'siteId'> & { profileDepartment: string | null; org?: CsiRespondentOrg };
 type DepartmentRow = Pick<CsiDepartment, 'id' | 'name'>;
 type Audience = { respondent: Respondent; ratees: CsiPeriodRatee[]; dimensions: CsiPeriodRateeDimension[] };
 type ResolvedItem = { dimension: CsiPeriodRateeDimension; score: number | null; answerLabel: string | null; answerText: string | null };
@@ -74,6 +77,7 @@ export class CsiRespondentService {
         @InjectDataSource() private readonly dataSource: DataSource,
         private readonly assignments: CsiAssignmentService,
         private readonly subjects: CsiSubjectService,
+        private readonly org: CsiOrgService,
     ) { }
 
     private get readers(): AssignmentReaders {
@@ -121,6 +125,7 @@ export class CsiRespondentService {
         return {
             id: period.id, scope: period.scope, title: period.title, intro: period.intro, endDate: period.endDate,
             teamLabel: period.teamLabel,
+            ...(period.respondentPicks ? { respondentPicks: true } : {}),
             respondent: { fullName: audience.respondent.fullName, departmentId: lockedDepartment?.id ?? null },
             submittedAt,
             /** Kept for older clients: the account name once it has answered. */
@@ -128,6 +133,8 @@ export class CsiRespondentService {
             departments: departments.map((department) => ({ id: department.id, name: department.name })),
             ratees: audience.ratees.map((ratee) => ({
                 ...formProfile(ratee, views.get(ratee.id)),
+                // HC PIC fields only on PIC ratees, so other forms keep their exact shape.
+                ...(ratee.picId ? { picId: ratee.picId, serviceCode: ratee.serviceCode, serviceName: serviceName(ratee.serviceCode), bagian: ratee.bagian } : {}),
                 dimensions: audience.dimensions.filter((row) => row.periodRateeId === ratee.id).map((row) => ({
                     periodRateeDimensionId: row.id, name: row.dimensionName, description: descriptions.get(row.dimensionId) ?? null,
                     type: row.type, required: row.required, options: row.options ?? [],
@@ -164,9 +171,15 @@ export class CsiRespondentService {
                 const active = await readers.departments.find({ where: { scope: locked.scope, isActive: true } });
                 const lockedDepartment = await this.lockedDepartmentIn(active, audience.respondent, manager);
                 if (lockedDepartment && lockedDepartment.id !== department.id) throw new BadRequestException(DEPARTMENT_LOCKED_MESSAGE);
-                const items = validateItems(dto.items ?? [], current.dimensions);
-                const comments = validateComments(dto.comments ?? [], current.ratees);
-                await this.writeResponse(manager, { periodId: period.id, respondentId, respondentName, department, items, comments, now });
+                // "Respondent picks": only the PICs answered are rated (all their required questions), at least one.
+                const rated = locked.respondentPicks ? pickedRatees(dto.items ?? [], current.dimensions) : null;
+                if (rated && !rated.size) throw new BadRequestException(PICK_ONE_MESSAGE);
+                const dimensions = rated ? current.dimensions.filter((row) => rated.has(row.periodRateeId)) : current.dimensions;
+                const ratees = rated ? current.ratees.filter((ratee) => rated.has(ratee.id)) : current.ratees;
+                const items = validateItems(dto.items ?? [], dimensions);
+                const comments = validateComments(dto.comments ?? [], ratees);
+                const org = orgSnapshot(await this.org.respondentOrg(respondentId), department.name, audience.respondent.profileDepartment);
+                await this.writeResponse(manager, { periodId: period.id, respondentId, respondentName, department, items, comments, now, org });
             });
         } catch (error) {
             if (error instanceof QueryFailedError && (error.driverError as { code?: string })?.code === PG_UNIQUE_VIOLATION) {
@@ -204,7 +217,9 @@ export class CsiRespondentService {
     private async lockedDepartmentIn(departments: DepartmentRow[], respondent: Respondent, manager?: EntityManager): Promise<DepartmentRow | null> {
         const responses = manager ? manager.getRepository(CsiResponse) : this.responses;
         const latest = await responses.findOne({ where: { respondentId: respondent.id }, order: { submittedAt: 'DESC' } });
-        const sources = [latest?.departmentName, respondent.profileDepartment].filter((name): name is string => Boolean(name?.trim()));
+        const org = respondent.org ?? await this.org.respondentOrg(respondent.id);
+        const directory = org.fromDirectory && org.division && org.department ? `${org.division}${CSI_DEPARTMENT_SEPARATOR}${org.department}` : null;
+        const sources = [directory, latest?.departmentName, respondent.profileDepartment].filter((name): name is string => Boolean(name?.trim()));
         for (const source of sources) {
             const match = matchDepartment(departments, source);
             if (match) return match;
@@ -271,11 +286,11 @@ export class CsiRespondentService {
 
     private async writeResponse(manager: EntityManager, input: {
         periodId: string; respondentId: string; respondentName: string; department: CsiDepartment;
-        items: ResolvedItem[]; comments: CommentRow[]; now: Date;
+        items: ResolvedItem[]; comments: CommentRow[]; now: Date; org: OrgSnapshot;
     }) {
         const response = await manager.save(CsiResponse, {
             periodId: input.periodId, respondentId: input.respondentId, respondentName: input.respondentName,
-            departmentId: input.department.id, departmentName: input.department.name, submittedAt: input.now,
+            departmentId: input.department.id, departmentName: input.department.name, submittedAt: input.now, ...input.org,
         });
         await manager.save(CsiResponseItem, input.items.map(({ dimension, score, answerLabel, answerText }) => ({
             responseId: response.id, periodRateeId: dimension.periodRateeId, periodRateeDimensionId: dimension.id, score, answerLabel, answerText,
@@ -397,4 +412,34 @@ function validateComments(comments: NonNullable<SubmitResponseDto['comments']>, 
         if (text.length > CSI_COMMENT_MAX) throw new BadRequestException(`Komentar maksimal ${CSI_COMMENT_MAX} karakter`);
         return text ? [{ periodRateeId, comment: text }] : [];
     });
+}
+
+type OrgSnapshot = {
+    respondentNik: string | null; orgDivision: string | null; orgDepartment: string | null; orgBagian: string | null; orgLocation: string | null;
+};
+
+/**
+ * Organisation stored with the answer: the directory row of the NIK when known; otherwise division / department from
+ * the department the respondent chose ("DIVISION / DEPARTMENT") and bagian from the account's HR department.
+ */
+function orgSnapshot(org: CsiRespondentOrg, chosenDepartment: string, profileDepartment: string | null): OrgSnapshot {
+    if (org.fromDirectory) {
+        return { respondentNik: org.nik, orgDivision: org.division, orgDepartment: org.department, orgBagian: org.bagian, orgLocation: org.location };
+    }
+    const at = chosenDepartment.indexOf(CSI_DEPARTMENT_SEPARATOR);
+    const division = at >= 0 ? chosenDepartment.slice(0, at) : null;
+    const department = at >= 0 ? chosenDepartment.slice(at + CSI_DEPARTMENT_SEPARATOR.length) : chosenDepartment;
+    return {
+        respondentNik: org.nik, orgDivision: division, orgDepartment: department,
+        orgBagian: normalizeBagian(profileDepartment), orgLocation: org.location,
+    };
+}
+
+/** Ratees that received at least one answer (the PICs a respondent picked). Unknown ids are rejected later. */
+function pickedRatees(items: SubmitResponseDto['items'], dimensions: CsiPeriodRateeDimension[]): Set<string> {
+    const rateeOf = new Map(dimensions.map((dimension) => [dimension.id, dimension.periodRateeId]));
+    return new Set(items.flatMap((item) => {
+        const rateeId = rateeOf.get(item.periodRateeDimensionId);
+        return rateeId ? [rateeId] : [];
+    }));
 }

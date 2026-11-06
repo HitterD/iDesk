@@ -1,0 +1,114 @@
+import { useRef, useState } from 'react';
+import { FileSpreadsheet, Upload } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { useCsiDirectory, useCsiPics, useImportCsiDirectory, useSetCsiPicActive } from '../../../hooks/useCsiHc';
+import type { CsiScopeParam } from '../../../types';
+import type { CsiPicView } from '../../../hcTypes';
+import { RateeAvatar } from '../../respond/RateeAvatar';
+import { AdminSection, EmptyNote, MUTED_TEXT } from '../AdminParts';
+import { titleCase } from './hcFormat';
+
+/**
+ * Pengaturan → PIC HC: import "Data Hirarki Approver.xlsx" (employee directory + every HCC / HCD / HCS person as PIC)
+ * and the PIC list per layanan and bagian, where single PICs can be switched off.
+ */
+const groupBy = <T,>(rows: T[], key: (row: T) => string) => {
+    const map = new Map<string, T[]>();
+    rows.forEach((row) => map.set(key(row), [...(map.get(key(row)) ?? []), row]));
+    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+};
+
+function ImportCard({ scope }: { scope: CsiScopeParam }) {
+    const input = useRef<HTMLInputElement>(null);
+    const { data: directory } = useCsiDirectory(scope);
+    const importer = useImportCsiDirectory(scope);
+    const result = importer.data;
+    return (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-[hsl(var(--muted)/.45)] p-4">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-[hsl(var(--ticket-green)/.14)] text-[hsl(var(--ticket-green-ink))]">
+                <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-semibold">Data Hirarki Approver</p>
+                <p className={MUTED_TEXT}>
+                    {result
+                        ? `Terimpor ${result.people.toLocaleString('id-ID')} karyawan · PIC baru ${result.picsAdded}, diperbarui ${result.picsUpdated}.`
+                        : `${(directory?.people ?? 0).toLocaleString('id-ID')} karyawan di direktori. Sheet "4. ALL DATA_SJA": divisi, departemen, bagian dan lokasi responden + PIC HCC/HCD/HCS.`}
+                </p>
+            </div>
+            <input ref={input} type="file" accept=".xlsx" className="hidden" onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) importer.mutate(file);
+                event.target.value = '';
+            }} />
+            <Button variant="primary" disabled={importer.isPending} onClick={() => input.current?.click()}>
+                <Upload aria-hidden="true" />{importer.isPending ? 'Mengimpor…' : 'Impor file Excel'}
+            </Button>
+        </div>
+    );
+}
+
+function PicRow({ pic, onToggle, pending }: { pic: CsiPicView; onToggle: () => void; pending: boolean }) {
+    return (
+        <li className={cn('flex items-start gap-2.5 rounded-xl px-2 py-1.5', !pic.isActive && 'opacity-55')}>
+            <RateeAvatar name={pic.fullName} avatarUrl={pic.photoUrl} size="sm" />
+            {/* Names and titles wrap instead of being cut off. */}
+            <span className="min-w-0 flex-1">
+                <span className="block break-words text-[13px] font-semibold leading-snug">{titleCase(pic.fullName)}</span>
+                <span className="block break-words text-[12px] leading-snug text-[hsl(var(--idesk-text-secondary))]">{titleCase(pic.jobTitle ?? '')}</span>
+                <span className="mt-0.5 flex flex-wrap gap-1">
+                    {pic.workLocation && <span className="rounded-md bg-[hsl(var(--muted))] px-1.5 text-[11px] font-medium">{pic.workLocation}</span>}
+                    {pic.userId && <span className="rounded-md bg-[hsl(var(--ticket-green)/.13)] px-1.5 text-[11px] font-medium text-[hsl(var(--ticket-green-ink))]">akun iDesk</span>}
+                </span>
+            </span>
+            <button type="button" role="switch" aria-checked={pic.isActive} aria-label={`${pic.fullName} aktif`} disabled={pending} onClick={onToggle}
+                className={cn('relative h-5 w-9 shrink-0 rounded-full transition-colors', pic.isActive ? 'bg-[hsl(var(--idesk-sapphire))]' : 'bg-[hsl(var(--border))]')}>
+                <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform', pic.isActive ? 'translate-x-[18px]' : 'translate-x-0.5')} />
+            </button>
+        </li>
+    );
+}
+
+export function PicsTab({ scope }: { scope: CsiScopeParam }) {
+    const { data: pics = [], isLoading } = useCsiPics(scope, true);
+    const toggle = useSetCsiPicActive(scope);
+    const [service, setService] = useState<string | null>(null);
+    const services = groupBy(pics, (pic) => pic.serviceCode);
+    const shown = services.filter(([code]) => !service || code === service);
+    return (
+        <AdminSection title="PIC HC per layanan & bagian" description="Semua staf HCC, HCD dan HCS dari Data Hirarki Approver. PIC yang dinonaktifkan tidak muncul di survei baru.">
+            <div className="grid gap-4">
+                <ImportCard scope={scope} />
+                {isLoading && <div className="h-40 animate-pulse rounded-2xl bg-[hsl(var(--muted))]" aria-busy="true" />}
+                {!isLoading && !pics.length && <EmptyNote>Belum ada PIC. Impor file Excel di atas.</EmptyNote>}
+                {services.length > 0 && (
+                    <div className="flex flex-wrap gap-2" role="group" aria-label="Filter layanan">
+                        {[['', `Semua · ${pics.length}`] as const, ...services.map(([code, rows]) => [code, `${code} · ${rows.length}`] as const)].map(([code, label]) => (
+                            <button key={code || 'all'} type="button" aria-pressed={(service ?? '') === code} onClick={() => setService(code || null)}
+                                className={cn('rounded-full px-3 py-1.5 text-[12.5px] font-semibold',
+                                    (service ?? '') === code ? 'bg-[hsl(var(--idesk-sapphire))] text-white' : 'bg-[hsl(var(--muted))]')}>{label}</button>
+                        ))}
+                    </div>
+                )}
+                <div className={cn('grid gap-3', shown.length > 1 && 'lg:grid-cols-2')}>
+                    {shown.map(([code, rows]) => (
+                        <section key={code} className="rounded-2xl bg-[hsl(var(--muted)/.45)] p-3">
+                            <h3 className="mb-2 text-[14px] font-bold">{`${code} · ${rows[0]?.serviceName ?? ''}`}<span className="ml-1 font-medium text-[hsl(var(--idesk-text-secondary))]">{`(${rows.filter((pic) => pic.isActive).length} aktif)`}</span></h3>
+                            <div className={cn('grid max-h-[620px] gap-2 overflow-auto pr-1', shown.length === 1 && 'md:grid-cols-2 xl:grid-cols-3')}>
+                                {groupBy(rows, (pic) => pic.bagian ?? '-').map(([bagian, people]) => (
+                                    <div key={bagian} className="rounded-xl bg-[hsl(var(--idesk-surface))] p-2">
+                                        <p className="mb-1 px-2 text-[11.5px] font-bold uppercase tracking-wide text-[hsl(var(--idesk-text-secondary))]">{`${titleCase(bagian)} · ${people.length}`}</p>
+                                        <ul>{people.map((pic) => (
+                                            <PicRow key={pic.id} pic={pic} pending={toggle.isPending} onToggle={() => toggle.mutate({ id: pic.id, isActive: !pic.isActive })} />
+                                        ))}</ul>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    ))}
+                </div>
+            </div>
+        </AdminSection>
+    );
+}

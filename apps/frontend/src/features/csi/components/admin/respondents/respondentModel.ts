@@ -19,7 +19,11 @@ export interface Progress { done: number; total: number; target: number; pct: nu
 
 export const targetOf = (total: number, targetPct: number) => Math.ceil((total * targetPct) / PERCENT);
 
-export function progressOf(done: number, total: number, targetPct: number): Progress {
+/** "x/basis" never shows more answers than the basis (50 answers over a basis of 17 reads 17/17). */
+export const capped = (done: number, total: number) => (total > 0 ? Math.min(done, total) : done);
+
+export function progressOf(rawDone: number, total: number, targetPct: number): Progress {
+    const done = capped(rawDone, total);
     const target = targetOf(total, targetPct);
     return { done, total, target, pct: total > 0 ? Math.min(PERCENT, (done / total) * PERCENT) : 0, reached: total > 0 && done >= target };
 }

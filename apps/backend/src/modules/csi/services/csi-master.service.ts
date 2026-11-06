@@ -10,8 +10,10 @@ import { CsiRater } from '../entities/csi-rater.entity';
 import { CreateDepartmentDto, CreateDimensionDto, DEFAULT_USER_SEARCH_LIMIT, MAX_USER_SEARCH_LIMIT, UpdateDepartmentDto, UpdateDimensionDto } from '../dto/master.dto';
 import { CsiQuestionType } from '../csi.constants';
 import { INVALID_OPTIONS_MESSAGE, optionsMatchType } from '../csi-question.util';
-import { CSI_TEMPLATE_2025, CSI_TEMPLATE_HC } from '../csi-template';
+import { CSI_TEMPLATE_2025, CSI_TEMPLATE_HC, CsiTemplateQuestion } from '../csi-template';
 
+/** Template questions match existing ones case- and space-insensitively. */
+const templateKey = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
 const INCOMPLETE_ORDER_MESSAGE = 'Urutan tidak lengkap';
 type Ordered = { id: string; scope: ServiceScope; sortOrder: number };
 
@@ -45,12 +47,21 @@ export class CsiMasterService {
         }));
     }
 
-    /** Appends the scope's standard questionnaire (ICT: CSI 2025; HC: the HC set). Not idempotent. */
+    /**
+     * Appends the scope's standard questionnaire (ICT: CSI 2025, appended every time as before; HC: the five star
+     * dimensions, skipping any already present by name so pressing the button twice adds nothing).
+     */
     async createTemplateDimensions(scope: ServiceScope) {
+        const template: ReadonlyArray<CsiTemplateQuestion> = scope === ServiceScope.HC ? CSI_TEMPLATE_HC : CSI_TEMPLATE_2025;
+        const existing = scope === ServiceScope.HC
+            ? new Set((await this.dimensions.find({ where: { scope }, select: { id: true, name: true } })).map((row) => templateKey(row.name)))
+            : new Set<string>();
+        const missing = template.filter((question) => !existing.has(templateKey(question.name)));
+        if (!missing.length) return [];
         const start = await this.nextSortOrder(this.dimensions, scope);
-        const template = scope === ServiceScope.HC ? CSI_TEMPLATE_HC : CSI_TEMPLATE_2025;
-        return this.dimensions.save(template.map((question, index) => this.dimensions.create({
-            scope, name: question.name, description: null, type: question.type, required: true,
+        return this.dimensions.save(missing.map((question, index) => this.dimensions.create({
+            scope, name: question.name, shortLabel: question.shortLabel ?? null,
+            description: question.description ?? null, type: question.type, required: true,
             options: question.options.map((option) => ({ ...option })), sortOrder: start + index,
         })));
     }

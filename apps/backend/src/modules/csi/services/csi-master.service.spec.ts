@@ -235,11 +235,23 @@ describe('CSI master scope boundaries', () => {
         expect(await service.updateDimension(scope, 'd1', { shortLabel: '' })).toMatchObject({ shortLabel: null });
     });
 
-    it('HC gets its own standard questionnaire', async () => {
+    it('HC gets the five star service dimensions (Knowledge … Tangible) with short labels', async () => {
         const created = await service.createTemplateDimensions(ServiceScope.HC);
-        expect(created).toHaveLength(8);
-        expect(created.every((row: any) => row.scope === ServiceScope.HC)).toBe(true);
-        expect(created.map((row: any) => row.name).join(' ')).toMatch(/Human Capital|tim HC/);
+        expect(created).toHaveLength(5);
+        expect(created.every((row: any) => row.scope === ServiceScope.HC && row.type === CsiQuestionType.STAR && row.options.length === 0)).toBe(true);
+        expect(created.map((row: any) => row.shortLabel)).toEqual(['Knowledge', 'Responsiveness', 'Courtesy', 'Communication', 'Tangible']);
+        expect(created[0].name).toBe('Knowledge — Pengetahuan/pemahaman PIC terkait jasa atau pelayanan');
         expect(created.map((row: any) => row.name).join(' ')).not.toMatch(/IT Support/);
+    });
+
+    it('HC template is idempotent: questions already present (by name) are not added again', async () => {
+        dimensions.find.mockResolvedValue([{ id: 'k', name: '  knowledge —  Pengetahuan/pemahaman PIC terkait jasa atau pelayanan' }]);
+        const created = await service.createTemplateDimensions(ServiceScope.HC);
+        expect(created.map((row: any) => row.shortLabel)).toEqual(['Responsiveness', 'Courtesy', 'Communication', 'Tangible']);
+        // Everything present: nothing is added and nothing is saved.
+        dimensions.find.mockResolvedValue([...created, { name: '  knowledge —  Pengetahuan/pemahaman PIC terkait jasa atau pelayanan' }]);
+        dimensions.save.mockClear();
+        expect(await service.createTemplateDimensions(ServiceScope.HC)).toEqual([]);
+        expect(dimensions.save).not.toHaveBeenCalled();
     });
 });

@@ -7,6 +7,8 @@ const SUBJECT_KEY = /^(user|team):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 export const userSubjectKey = (userId: string) => `user:${userId}`;
 export const teamSubjectKey = (teamId: string) => `team:${teamId}`;
+/** HC PIC (csi_pics) — no account needed. */
+export const picSubjectKey = (picId: string) => `pic:${picId}`;
 
 /** Parses a subject key; anything other than `user:<uuid>` / `team:<uuid>` is a 400. */
 export function parseSubjectKey(key: string): CsiSubjectRef {

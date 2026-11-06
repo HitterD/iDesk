@@ -15,6 +15,10 @@ import { Site } from '../../sites/entities/site.entity';
 import { CsiAssignmentService } from './csi-assignment.service';
 import { CsiPeriodService } from './csi-period.service';
 
+/** No directory / HC PICs in these scenarios. */
+const ORG = { findPics: async () => [], respondentOrg: async () => ({ nik: null, division: null, department: null, bagian: null, location: null, fromDirectory: false }) };
+
+
 const ICT = ServiceScope.ICT;
 const SPJ = 'site-spj';
 const KRW = 'site-krw';
@@ -24,6 +28,7 @@ function matches(row: Record<string, any>, where: Record<string, any> = {}): boo
     return Object.entries(where).every(([key, value]): boolean => {
         if (value && typeof value === 'object' && '_type' in value) {
             if (value._type === 'in') return value._value.includes(row[key]);
+            if (value._type === 'isNull') return row[key] === null || row[key] === undefined;
             if (value._type === 'not') return row[key] !== value._value;
             if (value._type === 'lessThanOrEqual') return row[key] <= value._value;
             if (value._type === 'moreThanOrEqual') return row[key] >= value._value;
@@ -261,7 +266,7 @@ describe('CsiAssignmentService', () => {
             periods = new CsiPeriodService(
                 db.repo(CsiPeriod) as any, db.repo(CsiPeriodRatee) as any, db.repo(CsiPeriodRateeDimension) as any,
                 db.repo(CsiPeriodRater) as any, db.repo(CsiResponse) as any, db.repo(CsiDimension) as any, db.repo(User) as any,
-                db.repo(Site) as any, {} as any, db.dataSource as any, service, {} as any,
+                db.repo(Site) as any, {} as any, db.dataSource as any, service, {} as any, ORG as any,
             );
             jest.spyOn(periods, 'get').mockResolvedValue({} as any);
             await periods.create(ICT, { siteIds: [SPJ], title: 'Baru', startDate: '2026-12-01', endDate: '2026-12-31' }, 'admin');
@@ -304,6 +309,7 @@ describe('CsiAssignmentService', () => {
                 db.repo(CsiPeriodRater) as any, db.repo(CsiResponse) as any, db.repo(CsiDimension) as any, db.repo(User) as any,
                 {} as any, {} as any, db.dataSource as any, service,
                 { createTeam: async (_scope: string, siteId: string) => ({ teamId: siteId === SPJ ? 'team-spj' : 'team-krw', name: `Tim ${siteId}`, siteId }) } as any,
+                ORG as any,
             );
             jest.spyOn(periods, 'get').mockResolvedValue({} as any);
             await service.setPairs(ICT, 'p1', [
@@ -353,7 +359,7 @@ describe('CsiAssignmentService', () => {
         const periods = new CsiPeriodService(
             db.repo(CsiPeriod) as any, db.repo(CsiPeriodRatee) as any, db.repo(CsiPeriodRateeDimension) as any,
             db.repo(CsiPeriodRater) as any, db.repo(CsiResponse) as any, db.repo(CsiDimension) as any, db.repo(User) as any,
-            {} as any, {} as any, db.dataSource as any, service, {} as any,
+            {} as any, {} as any, db.dataSource as any, service, {} as any, ORG as any,
         );
         jest.spyOn(periods, 'get').mockResolvedValue({} as any);
 

@@ -21,6 +21,11 @@ export const QUESTION_COPY = {
     cancel: 'Batal',
     showInactive: 'Tampilkan nonaktif',
     empty: 'Belum ada pertanyaan. Tambahkan satu atau pakai template CSI 2025.',
+    /** HC: the five star service dimensions (Knowledge … Tangible); only missing ones are added. */
+    hcTemplate: 'Gunakan template 5 dimensi pelayanan',
+    hcTemplateTitle: 'Gunakan template 5 dimensi pelayanan?',
+    hcTemplateDescription: 'Menambahkan pertanyaan bintang 1-5: Knowledge, Responsiveness, Courtesy, Communication, Tangible. Yang sudah ada tidak ditambahkan lagi.',
+    hcEmpty: 'Belum ada pertanyaan. Tambahkan satu atau pakai template 5 dimensi pelayanan.',
     titleLabel: 'Pertanyaan',
     titlePlaceholder: 'Tulis pertanyaan…',
     titleEmpty: 'Pertanyaan tidak boleh kosong',

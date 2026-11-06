@@ -8,6 +8,8 @@ export const SCORE_MAX = 5;
 
 /** Responses reached the per-site target (an empty basis never counts as reached). */
 export const isReached = (row: CsiDashboardActive) => row.basis > 0 && row.responses >= row.target;
+/** A site counts only when it has a basis (assigned raters / reporters) or answers; "0/0" sites are not shown. */
+export const hasAudience = (row: CsiDashboardActive) => row.basis > 0 || row.responses > 0;
 export const fillPct = (row: CsiDashboardActive) => ratioPct(row.responses, row.basis);
 /** Calendar days until the end date (parsed as a local date, no UTC shift). */
 export const daysLeft = (endDate: string, today: Date) => differenceInCalendarDays(parseISO(endDate), today);
@@ -63,7 +65,7 @@ export function liveSummary(data: CsiDashboard): LiveSummary {
         basis: active.reduce((sum, row) => sum + row.basis, 0),
         average: weight > 0 ? scored.reduce((sum, row) => sum + (row.average as number) * row.responses, 0) / weight : null,
         delta: mean(deltas),
-        behind: active.filter((row) => !isReached(row)),
+        behind: active.filter((row) => hasAudience(row) && !isReached(row)),
     };
 }
 

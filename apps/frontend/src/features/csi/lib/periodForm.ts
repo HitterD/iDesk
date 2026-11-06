@@ -24,14 +24,19 @@ export interface PeriodFormState {
     individualEnabled: boolean;
     /** Kept as typed text so the field can be empty while editing. */
     slaTargetPct: string;
+    /** HC: respondents pick the PICs themselves (opt-in); otherwise HC decides who rates whom. */
+    respondentPicks: boolean;
+    /** HC "respondents pick": target number of respondents (typed text; empty = none). */
+    targetRespondents: string;
     /** Create only: "Salin dari survei sebelumnya" chosen. */
     copying: boolean;
     copyFromPeriodId: string;
 }
 
-type SectionSource = Pick<CsiPeriodDetail, 'teamEnabled' | 'teamLabel' | 'individualEnabled' | 'slaTargetPct'>;
+type SectionSource = Pick<CsiPeriodDetail, 'teamEnabled' | 'teamLabel' | 'individualEnabled' | 'slaTargetPct' | 'respondentPicks' | 'targetRespondents'>;
 const sectionFields = (source: SectionSource) => ({
     teamEnabled: source.teamEnabled, teamLabel: source.teamLabel, individualEnabled: source.individualEnabled, slaTargetPct: String(source.slaTargetPct),
+    respondentPicks: source.respondentPicks ?? false, targetRespondents: source.targetRespondents ? String(source.targetRespondents) : '',
 });
 
 export const initialState = (scope: CsiScopeParam, period?: CsiPeriodDetail): PeriodFormState => period ? {
@@ -41,6 +46,7 @@ export const initialState = (scope: CsiScopeParam, period?: CsiPeriodDetail): Pe
 } : {
     siteIds: [], title: '', intro: '', thankYou: '', startDate: '', endDate: '', respondentMode: CSI_DEFAULT_MODE[scope],
     teamEnabled: false, teamLabel: DEFAULT_TEAM_LABEL, individualEnabled: true, slaTargetPct: String(DEFAULT_SLA_TARGET),
+    respondentPicks: false, targetRespondents: '',
     copying: false, copyFromPeriodId: NO_COPY,
 };
 
@@ -57,10 +63,16 @@ export const slaInvalid = (form: PeriodFormState) => {
     const value = slaTargetValue(form);
     return !form.slaTargetPct.trim() || !Number.isInteger(value) || value < SLA_TARGET_MIN || value > SLA_TARGET_MAX;
 };
+/** Empty = no target; otherwise a whole number >= 1. */
+export const targetRespondentsValue = (form: PeriodFormState): number | null => (form.targetRespondents.trim() ? Number(form.targetRespondents) : null);
+export const targetRespondentsInvalid = (form: PeriodFormState) => {
+    const value = targetRespondentsValue(form);
+    return value !== null && (!Number.isInteger(value) || value < 1);
+};
 export const teamLabelInvalid = (form: PeriodFormState) => form.teamEnabled && !form.teamLabel.trim();
 
 const TEXT_FIELDS = ['title', 'intro', 'thankYou', 'startDate', 'endDate'] as const;
-const FROZEN_FIELDS = ['respondentMode', 'teamEnabled', 'individualEnabled', 'teamLabel'] as const;
+const FROZEN_FIELDS = ['respondentMode', 'teamEnabled', 'individualEnabled', 'teamLabel', 'respondentPicks'] as const;
 const sameIdSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && [...a].sort().join('|') === [...b].sort().join('|');
 
 /** A new period is always "dirty"; an existing one only when an editable field changed (frozen fields only while unlocked). */
@@ -68,8 +80,9 @@ export function formDirty(form: PeriodFormState, period?: CsiPeriodDetail): bool
     if (!period) return true;
     if (TEXT_FIELDS.some((key) => (key === 'title' ? form.title.trim() : form[key]) !== period[key])) return true;
     if (slaTargetValue(form) !== period.slaTargetPct) return true;
+    if (targetRespondentsValue(form) !== (period.targetRespondents ?? null)) return true;
     if (period.locked) return false;
-    return FROZEN_FIELDS.some((key) => form[key] !== period[key]) || !sameIdSet(form.siteIds, period.sites.map((site) => site.id));
+    return FROZEN_FIELDS.some((key) => form[key] !== (key === 'respondentPicks' ? period[key] ?? false : period[key])) || !sameIdSet(form.siteIds, period.sites.map((site) => site.id));
 }
 
 /** Switching to copy mode always clears the dates: a copied survey must get its own range. */
@@ -115,17 +128,21 @@ export function withCopySource(form: PeriodFormState, periods: readonly CsiPerio
 const textAndDates = (form: PeriodFormState) => ({
     title: form.title.trim(), intro: form.intro, thankYou: form.thankYou, startDate: form.startDate, endDate: form.endDate,
     slaTargetPct: slaTargetValue(form),
+    // HC "respondents pick" only: other surveys keep their exact payload.
+    ...(form.respondentPicks || form.targetRespondents.trim() ? { targetRespondents: targetRespondentsValue(form) } : {}),
 });
 
-const frozenPayload = (form: PeriodFormState) => ({
+const frozenPayload = (form: PeriodFormState, saved?: Pick<CsiPeriodDetail, 'respondentPicks'>) => ({
     siteIds: form.siteIds, respondentMode: form.respondentMode, teamEnabled: form.teamEnabled,
     individualEnabled: form.individualEnabled, ...(form.teamEnabled ? { teamLabel: form.teamLabel.trim() } : {}),
+    // Sent only when it differs from the saved value (or is on), so other surveys keep their exact payload.
+    ...(form.respondentPicks !== (saved?.respondentPicks ?? false) || form.respondentPicks ? { respondentPicks: form.respondentPicks } : {}),
 });
 
 /** Once the survey has answers the backend freezes sites, mode and sections; only texts, dates and SLA stay. */
-export const toUpdatePayload = (form: PeriodFormState, locked: boolean): UpdateCsiPeriod => ({
+export const toUpdatePayload = (form: PeriodFormState, locked: boolean, saved?: Pick<CsiPeriodDetail, 'respondentPicks'>): UpdateCsiPeriod => ({
     ...textAndDates(form),
-    ...(locked ? {} : frozenPayload(form)),
+    ...(locked ? {} : frozenPayload(form, saved)),
 });
 
 export const toCreatePayload = (form: PeriodFormState): CreateCsiPeriod => ({

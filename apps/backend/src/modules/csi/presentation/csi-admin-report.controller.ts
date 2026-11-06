@@ -29,6 +29,12 @@ export class CsiAdminReportController {
         return this.reports.getReport(req.csiScope, id, query.siteId);
     }
 
+    /** HC per-PIC recap (layanan / bagian / PIC and respondent groups, per location and ALL SJA). */
+    @Get('hc-recap')
+    hcRecap(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string) {
+        return this.reports.getHcRecap(req.csiScope, id);
+    }
+
     @Get('rater-matrix')
     raterMatrix(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Query() query: ReportQueryDto) {
         return this.reports.getRaterMatrix(req.csiScope, id, query.siteId);
