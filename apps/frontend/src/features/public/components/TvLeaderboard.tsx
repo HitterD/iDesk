@@ -8,14 +8,17 @@ import {
 } from '../utils/tvLeaderboard';
 
 const PODIUM_ORDER = [1, 0, 2] as const; // silver, gold, bronze, left to right
-const MEDAL = ['#FFC83D', '#C9D1DA', '#E0A36B'];
+/** Metal of each podium rank; the CSS draws the coin rim and the brushed block per metal. */
+const METAL = ['gold', 'silver', 'bronze'] as const;
+type Metal = (typeof METAL)[number];
 const MEDAL_LABEL = ['Juara 1', 'Juara 2', 'Juara 3'];
 
-function Avatar({ agent, size, ring }: { agent: LeaderboardAgent; size: string; ring?: string }) {
+/** Agent photo or initials struck on a medal coin: metal rim, bevel and a sheen. */
+function Avatar({ agent, size, metal = 'gold' }: { agent: LeaderboardAgent; size: string; metal?: Metal }) {
     const url = agent.avatarUrl ? getImageUrl(agent.avatarUrl) : null;
     return (
-        <span className={cn('tv-lb-avatar', size)} style={ring ? { boxShadow: `0 0 0 0.3rem ${ring}` } : undefined}>
-            {url ? <img src={url} alt="" /> : initialsOf(agent.name)}
+        <span className={cn('tv-lb-coin', size, `is-${metal}`)}>
+            <span className="tv-lb-coin-face">{url ? <img src={url} alt="" /> : initialsOf(agent.name)}</span>
         </span>
     );
 }
@@ -48,7 +51,7 @@ function AgentOfTheDayCard({ data }: { data: NonNullable<TvLeaderboardData['agen
     return (
         <section className="tv-lb-aotd" aria-label="Agent of the Day">
             <span className="tv-lb-eyebrow"><Crown aria-hidden="true" />Agent of the Day</span>
-            <Avatar agent={agent} size="is-xl" ring="#FFC83D" />
+            <Avatar agent={agent} size="is-xl" />
             <h2>{titleName(agent.name)}</h2>
             <p className="tv-lb-sub">
                 {data.period === 'today' ? `${agent.resolved} tiket selesai hari ini` : `Juara hari kerja terakhir · ${agent.resolved} tiket`}
@@ -65,16 +68,17 @@ function AgentOfTheDayCard({ data }: { data: NonNullable<TvLeaderboardData['agen
 function Podium({ agents }: { agents: LeaderboardAgent[] }) {
     return (
         <section className="tv-lb-podium" aria-label="Top 3 bulan ini">
+            <span className="tv-lb-stage" aria-hidden="true" />
             {PODIUM_ORDER.map((rank) => {
                 const agent = agents[rank];
                 if (!agent) return <div key={rank} className="tv-lb-step is-empty" />;
                 return (
                     <div key={agent.agentId} className={cn('tv-lb-step', `is-rank-${rank + 1}`)} style={{ animationDelay: `${(2 - rank) * 0.35}s` }}>
                         {rank === 0 && <Crown className="tv-lb-crown" aria-hidden="true" />}
-                        <Avatar agent={agent} size={rank === 0 ? 'is-lg' : 'is-md'} ring={MEDAL[rank]} />
+                        <Avatar agent={agent} size={rank === 0 ? 'is-lg' : 'is-md'} metal={METAL[rank]} />
                         <b className="tv-lb-name">{titleName(agent.name)}</b>
                         <span className="tv-lb-count"><b>{agent.resolved}</b> tiket</span>
-                        <div className="tv-lb-block" style={{ background: `linear-gradient(180deg, ${MEDAL[rank]}, color-mix(in srgb, ${MEDAL[rank]} 55%, #000))` }}>
+                        <div className={cn('tv-lb-block', `is-${METAL[rank]}`)}>
                             <span className="tv-lb-medal">{rank + 1}</span>
                             <small>{MEDAL_LABEL[rank]}</small>
                         </div>
