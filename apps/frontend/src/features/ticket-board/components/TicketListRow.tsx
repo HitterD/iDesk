@@ -10,6 +10,7 @@ import {
     TriangleAlert,
     UserRoundPlus,
     Users,
+    Share2,
 } from 'lucide-react';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { cn } from '@/lib/utils';
@@ -91,6 +92,8 @@ export interface TicketRowData {
     };
     /** Owning team; legacy rows without one are IT Support. */
     handlingTeam?: string | null;
+    /** Team it was last forwarded from; null if never forwarded. */
+    forwardedFromTeam?: string | null;
 }
 
 export interface Agent {
@@ -237,8 +240,17 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
     ));
 
     const devTeam = ticket.handlingTeam && ticket.handlingTeam !== 'OPS_SUPPORT' ? ticket.handlingTeam : null;
-    const teamTag = devTeam && (
-        <span className="queue-src" title="Tim penanganan">{REPORT_TEAM_LABELS[devTeam as keyof typeof REPORT_TEAM_LABELS] ?? devTeam}</span>
+    const fromTeam = ticket.forwardedFromTeam;
+    const forwardedTag = fromTeam && (
+        <span className="queue-src queue-forwarded" title={`Diteruskan dari ${REPORT_TEAM_LABELS[fromTeam as keyof typeof REPORT_TEAM_LABELS] ?? fromTeam}`}>
+            <Share2 aria-hidden="true" />dari {REPORT_TEAM_LABELS[fromTeam as keyof typeof REPORT_TEAM_LABELS] ?? fromTeam}
+        </span>
+    );
+    const teamTag = (devTeam || forwardedTag) && (
+        <>
+            {devTeam && <span className="queue-src" title="Tim penanganan">{REPORT_TEAM_LABELS[devTeam as keyof typeof REPORT_TEAM_LABELS] ?? devTeam}</span>}
+            {forwardedTag}
+        </>
     );
 
     // Combine custom style with staggered animation delay

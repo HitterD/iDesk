@@ -63,6 +63,9 @@ export class TicketForwardService {
             `Ticket forwarded from ${previousTeam} to ${dto.targetTeam} by ${actor.fullName}. Reason: ${dto.reason}`,
         ];
         ticket.handlingTeam = dto.targetTeam;
+        ticket.forwardedFromTeam = previousTeam ?? HandlingTeam.OPS_SUPPORT;
+        ticket.forwardedAt = new Date();
+        ticket.forwardedById = actor.userId;
 
         // Release previous assignee and adjust ticket type based on target team
         ticket.assignedTo = null;

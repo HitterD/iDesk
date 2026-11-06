@@ -19,6 +19,8 @@ export interface TvBoardCard {
     ticketType?: string | null;
     /** Origin site code; absent from older servers. */
     siteCode?: string | null;
+    /** Team it was last forwarded from; absent from older servers. */
+    forwardedFromTeam?: string | null;
 }
 
 export interface TvBoardRingtones {

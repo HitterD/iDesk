@@ -1199,6 +1199,8 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   font-family: var(--font-sans); font-size: 10.5px; font-weight: 500; line-height: 17px; color: hsl(var(--idesk-text-secondary)); background: hsl(var(--muted));
 }
 .queue-src svg { width: 11px; height: 11px; }
+/* "Diteruskan dari <tim>": blue so a handed-over ticket stands out in the queue */
+.queue-src.queue-forwarded { color: hsl(var(--ticket-blue)); background: color-mix(in srgb, hsl(var(--ticket-blue)) 12%, transparent); }
 /* Ticket source badge (ExternalSourceBadge): neutral chip, the app is told apart by its dot. */
 .src-badge {
   --src: var(--src-slate);
