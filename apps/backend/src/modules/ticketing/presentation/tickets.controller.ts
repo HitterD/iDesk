@@ -34,6 +34,7 @@ import { TicketUpdateService } from '../services/ticket-update.service';
 import { TicketVendorVisitService } from '../services/ticket-vendor-visit.service';
 import { TicketMessagingService } from '../services/ticket-messaging.service';
 import { TicketQueryService, QUEUE_KEYS, effectiveQueue } from '../services/ticket-query.service';
+import { REPORT_TEAMS, type ReportTeam } from '../../reports/utils/report-team-scope.util';
 import { CreateTicketDto } from '../dto/create-ticket.dto';
 import { PaginationDto, QueueStatsQueryDto } from '../dto/pagination.dto';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
@@ -155,8 +156,10 @@ export class TicketsController {
     @ApiOperation({ summary: 'Get all tickets (supports queue isolation: it-support, oracle, web-dev, mobile-dev)' })
     @ApiResponse({ status: 200, description: 'Return all tickets.' })
     @ApiQuery({ name: 'queue', required: false, enum: ['it-support', 'oracle', 'web-dev', 'mobile-dev'] })
-    async findAll(@Request() req: any, @Query('queue') queue?: string) {
-        return this.ticketQueryService.findAll(req.user.userId, req.user.role, req.user.siteId ?? null, queue);
+    @ApiQuery({ name: 'handlingTeam', required: false, enum: REPORT_TEAMS, description: 'ADMIN/MANAGER: one team, or ALL_DEV' })
+    async findAll(@Request() req: any, @Query('queue') queue?: string, @Query('handlingTeam') handlingTeam?: string) {
+        const team = handlingTeam && (REPORT_TEAMS as readonly string[]).includes(handlingTeam) ? handlingTeam as ReportTeam : undefined;
+        return this.ticketQueryService.findAll(req.user.userId, req.user.role, req.user.siteId ?? null, queue, team);
     }
 
     @Get('paginated')

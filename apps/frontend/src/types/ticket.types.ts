@@ -86,6 +86,10 @@ export interface Ticket {
     updatedAt: string;
     resolvedAt?: string;
     closedAt?: string;
+    /** Site the ticket belongs to (always sent by the API). */
+    siteId?: string | null;
+    /** Owning team; legacy rows without one are IT Support. */
+    handlingTeam?: string | null;
 }
 
 export interface TicketStats {

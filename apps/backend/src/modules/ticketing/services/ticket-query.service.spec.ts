@@ -138,6 +138,49 @@ describe('TicketQueryService', () => {
         );
     });
 
+    it.each([UserRole.ADMIN, UserRole.MANAGER])('lets %s list every team with allTeams', async (role) => {
+        await service.findAllPaginated('actor-1', role, null, { allTeams: true });
+
+        expect(mockQueryBuilder.andWhere).not.toHaveBeenCalledWith(OPS_SUPPORT_ONLY, OPS_SUPPORT_PARAMS);
+    });
+
+    it('ignores allTeams for agents so they stay on the IT Support queue', async () => {
+        await service.findAllPaginated('agent-1', UserRole.AGENT, 'site-1', { allTeams: true });
+
+        expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(OPS_SUPPORT_ONLY, OPS_SUPPORT_PARAMS);
+    });
+
+    it('narrows the all-teams list to one handling team', async () => {
+        await service.findAllPaginated('mgr-1', UserRole.MANAGER, null, { allTeams: true, handlingTeam: 'ORACLE_DEV' });
+
+        expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('ticket.handlingTeam = :reportTeam', { reportTeam: 'ORACLE_DEV' });
+    });
+
+    it('narrows the all-teams list to every developer team with ALL_DEV', async () => {
+        await service.findAllPaginated('mgr-1', UserRole.MANAGER, null, { allTeams: true, handlingTeam: 'ALL_DEV' });
+
+        expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('ticket.handlingTeam IN (:...reportTeams)', { reportTeams: ['ORACLE_DEV', 'WEB_DEV', 'MOBILE_DEV'] });
+    });
+
+    it('gives the admin team dashboard every ICT team too, outside Request Center', async () => {
+        mockQueryBuilder.take = jest.fn().mockReturnThis();
+        await service.findAll('admin-1', UserRole.ADMIN, null);
+
+        const predicates = [...mockQueryBuilder.where.mock.calls, ...mockQueryBuilder.andWhere.mock.calls].map(([sql]: [string]) => sql);
+        expect(predicates).not.toContain('(ticket."handlingTeam" = :opsTeam)');
+        expect(predicates.some((sql: string) => sql.includes('requestCenterCategories'))).toBe(true);
+    });
+
+    it('gives the manager every team on the team dashboard, not only their own tickets', async () => {
+        mockQueryBuilder.take = jest.fn().mockReturnThis();
+        mockQueryBuilder.orderBy = jest.fn().mockReturnThis();
+        await service.findAll('mgr-1', UserRole.MANAGER, null);
+
+        const predicates = [...mockQueryBuilder.where.mock.calls, ...mockQueryBuilder.andWhere.mock.calls].map(([sql]: [string]) => sql);
+        expect(predicates.some((sql: string) => sql.includes('ticket.userId = :userId'))).toBe(false);
+        expect(predicates).not.toContain('(ticket."handlingTeam" = :opsTeam)');
+    });
+
     it('keeps the Oracle queue Oracle-only', async () => {
         await service.findAllPaginatedOracle('oracle-1', UserRole.AGENT_ORACLE, 'site-1');
 
@@ -308,7 +351,7 @@ describe('TicketQueryService queue stats', () => {
     let qb: any;
 
     beforeEach(() => {
-        const terminals: Record<string, unknown> = { getRawOne: { total: '9', open: '2', waitingVendor: '1', critical: '3' } };
+        const terminals: Record<string, unknown> = { getRawOne: { total: '9', open: '2', waitingVendor: '1', critical: '3', priority_HIGH: '4', priority_LOW: '5' } };
         qb = new Proxy({} as any, {
             get(target, prop: string) {
                 if (prop in terminals) return jest.fn().mockResolvedValue(terminals[prop]);
@@ -323,7 +366,7 @@ describe('TicketQueryService queue stats', () => {
         const stats = await service.getQueueStats('oracle', 'dev-1', UserRole.AGENT_ORACLE, null);
 
         expect(qb.where).toHaveBeenCalledWith(ORACLE_ONLY, ORACLE_FILTER_PARAMS);
-        expect(stats).toEqual({ total: 9, open: 2, inProgress: 0, waitingVendor: 1, resolved: 0, overdue: 0, critical: 3 });
+        expect(stats).toEqual({ total: 9, open: 2, inProgress: 0, waitingVendor: 1, resolved: 0, overdue: 0, critical: 3, byPriority: { CRITICAL: 0, HIGH: 4, MEDIUM: 0, LOW: 5 } });
     });
 
     it('keeps the IT Support queue on OPS_SUPPORT and out of Request Center categories', async () => {
@@ -334,6 +377,28 @@ describe('TicketQueryService queue stats', () => {
             requestCenterCategories: ['ICT_BUDGET', 'LOST_ITEM', 'ACCESS_REQUEST'],
         });
         expect(qb.andWhere).toHaveBeenCalledWith('ticket.siteId = :userSiteId', { userSiteId: 'site-1' });
+    });
+
+    it('counts the all-teams queue over every team, by site, outside Request Center', async () => {
+        await service.getQueueStats('all', 'mgr-1', UserRole.MANAGER, null, { siteIds: ['site-1'] });
+
+        expect(qb.andWhere).not.toHaveBeenCalledWith(OPS_SUPPORT_ONLY, OPS_SUPPORT_PARAMS);
+        expect(qb.andWhere).toHaveBeenCalledWith('ticket.siteId IN (:...siteIds)', { siteIds: ['site-1'] });
+        expect(qb.andWhere).toHaveBeenCalledWith('ticket.category NOT IN (:...requestCenterCategories)', {
+            requestCenterCategories: ['ICT_BUDGET', 'LOST_ITEM', 'ACCESS_REQUEST'],
+        });
+    });
+
+    it('counts nothing on the all-teams queue for a role that may not span teams', async () => {
+        await service.getQueueStats('all', 'agent-1', UserRole.AGENT, 'site-1');
+
+        expect(qb.andWhere).toHaveBeenCalledWith('1 = 0');
+    });
+
+    it('counts legacy rows without a team as IT Support when narrowing by team', async () => {
+        await service.getQueueStats('all', 'mgr-1', UserRole.MANAGER, null, { handlingTeam: 'OPS_SUPPORT' });
+
+        expect(qb.andWhere).toHaveBeenCalledWith('(ticket.handlingTeam = :reportTeam OR ticket.handlingTeam IS NULL)', { reportTeam: 'OPS_SUPPORT' });
     });
 
     it('scopes "Tugas Saya" counts to the caller', async () => {

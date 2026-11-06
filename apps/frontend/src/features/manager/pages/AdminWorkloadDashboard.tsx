@@ -10,6 +10,11 @@ import { ResEmpty, ResHead } from '@/components/resources/ResourceParts';
 import { MgStat } from '@/components/management/MgmtParts';
 import { useAuth } from '@/stores/useAuth';
 import { CircleDot, Gauge, RefreshCw, Users, Weight, TriangleAlert } from 'lucide-react';
+import { ALL_TEAMS_LABEL, REPORT_TEAMS_SCOPE_TITLE, TEAM_FILTER_ORDER, lockedTeamForRole, reportTeamLabel, teamMatches, type ReportTeam } from '@/features/reports/reportTeams';
+import { CustomDropdown } from '@/features/ticket-board/components/TicketDropdowns';
+
+const ALL_VALUE = 'ALL';
+const TEAM_OPTIONS = [{ value: ALL_VALUE, label: ALL_TEAMS_LABEL }, ...TEAM_FILTER_ORDER.map((t) => ({ value: t, label: reportTeamLabel(t) }))];
 
 export const AdminWorkloadDashboard: React.FC = () => {
     const { user } = useAuth();
@@ -20,7 +25,10 @@ export const AdminWorkloadDashboard: React.FC = () => {
     const showActions = isAdmin || isManager;
     const isAgentOps = user?.role === 'AGENT_OPERATIONAL_SUPPORT' || user?.role === 'AGENT' || user?.role === 'AGENT_ADMIN';
 
-    const [agents, setAgents] = useState<AgentWorkloadDto[]>([]);
+    const [allAgents, setAgents] = useState<AgentWorkloadDto[]>([]);
+    const [teamFilter, setTeamFilter] = useState<ReportTeam | null>(null);
+    // The team follows each agent's role; summary cards and the table count the same filtered agents.
+    const agents = useMemo(() => allAgents.filter((a) => teamMatches(teamFilter, lockedTeamForRole(a.role))), [allAgents, teamFilter]);
     const [loading, setLoading] = useState(true);
     const [recalculating, setRecalculating] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -81,8 +89,8 @@ export const AdminWorkloadDashboard: React.FC = () => {
     // Personal workload of the logged-in agent (if agent)
     const myPersonalWorkload = useMemo(() => {
         if (!user?.id) return null;
-        return agents.find(a => a.agentId === user.id) || null;
-    }, [agents, user?.id]);
+        return allAgents.find(a => a.agentId === user.id) || null;
+    }, [allAgents, user?.id]);
 
     // Calculate aggregated metrics
     const metrics = useMemo(() => {
@@ -176,6 +184,10 @@ export const AdminWorkloadDashboard: React.FC = () => {
                 actions={(
                     <>
                         {/* Site switch only for cross-site roles (Admin & Manager) */}
+                        {(isAdmin || isManager) && (
+                            <CustomDropdown value={teamFilter ?? ''} filterKey={REPORT_TEAMS_SCOPE_TITLE} placeholder={ALL_TEAMS_LABEL}
+                                options={TEAM_OPTIONS} onChange={(v) => setTeamFilter(v && v !== ALL_VALUE ? (v as ReportTeam) : null)} />
+                        )}
                         {(isAdmin || isManager) && <SiteTabs selectedSiteId={activeSiteId} onSelectionChange={setActiveSiteId} />}
                         {/* Priority weights configuration is strictly for ADMIN */}
                         {isAdmin && <PriorityWeightsDialog />}
@@ -189,7 +201,7 @@ export const AdminWorkloadDashboard: React.FC = () => {
             {/* Personal workload card for operational agents */}
             {isAgentOps && (
                 <div className="mb-3">
-                    <AgentPersonalWorkloadCard workload={myPersonalWorkload} siteName={agents[0]?.siteName} loading={loading} />
+                    <AgentPersonalWorkloadCard workload={myPersonalWorkload} siteName={allAgents[0]?.siteName} loading={loading} />
                 </div>
             )}
 

@@ -112,7 +112,6 @@ export const BentoLoginPage = () => {
             import('../../../components/layout/ManagerLayout');
             import('../../../components/layout/ClientLayout');
             import('../../dashboard/pages/BentoDashboardPage');
-            import('../../manager/pages/ManagerDashboard');
             import('../../client/pages/BentoMyTicketsPage');
             import('../../ticket-board/pages/BentoOracleK2TicketsPage');
         };

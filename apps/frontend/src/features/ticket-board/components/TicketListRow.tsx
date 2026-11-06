@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { AgentSelectList } from './AgentSelectList';
 import { ReassignConfirmDialog, type TargetAgentInfo } from './ReassignConfirmDialog';
 import { useAuth } from '@/stores/useAuth';
+import { REPORT_TEAM_LABELS } from '@/features/reports/reportTeams';
 
 import { PRIORITY_CONFIG } from '@/lib/constants/ticket.constants';
 import { PriorityDropdown, StatusDropdown } from './TicketDropdowns';
@@ -88,6 +89,8 @@ export interface TicketRowData {
         code: string;
         name: string;
     };
+    /** Owning team; legacy rows without one are IT Support. */
+    handlingTeam?: string | null;
 }
 
 export interface Agent {
@@ -233,6 +236,11 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
         </span>
     ));
 
+    const devTeam = ticket.handlingTeam && ticket.handlingTeam !== 'OPS_SUPPORT' ? ticket.handlingTeam : null;
+    const teamTag = devTeam && (
+        <span className="queue-src" title="Tim penanganan">{REPORT_TEAM_LABELS[devTeam as keyof typeof REPORT_TEAM_LABELS] ?? devTeam}</span>
+    );
+
     // Combine custom style with staggered animation delay
     const rowStyle: React.CSSProperties = {
         ...style,
@@ -271,6 +279,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                         {ticket.site && <TicketPill tone="neutral" className="queue-src font-mono">{ticket.site.code}</TicketPill>}
                         {hardwareLink}
                         {ticket.isParticipant && <span className="queue-src"><Users aria-hidden="true" />Partisipan</span>}
+                        {teamTag}
                         {showOverdue && <span className="queue-flag"><TriangleAlert aria-hidden="true" />Overdue</span>}
                         {showCriticalIndicator && !showOverdue && <span className="queue-flag"><Flame aria-hidden="true" />{PRIORITY_CONFIG.CRITICAL.shortLabel}</span>}
                         {unreadChip}
@@ -371,6 +380,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                             {ticket.isParticipant && (
                                 <span className="queue-src"><Users aria-hidden="true" />Partisipan</span>
                             )}
+                            {teamTag}
                             {messageCount > 0 && (
                                 <span className="queue-src" title={`${messageCount} pesan`}><MessageSquare aria-hidden="true" />{messageCount}</span>
                             )}
