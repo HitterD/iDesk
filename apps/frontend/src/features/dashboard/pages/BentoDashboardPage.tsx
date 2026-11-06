@@ -16,6 +16,11 @@ import {
 import { computeTeamStats, TEAM_RANGES, toIndonesianDuration, type TeamRange } from './teamDashboard.stats';
 import { TeamActivityChart } from './TeamActivityChart';
 import { TeamFeed, TeamRecentTickets, TeamTopAgents } from './TeamDashboardLists';
+import { DONE_STATUS_FILTER } from '@/features/ticket-board/constants/statusFilters';
+import { useQueueStats, type StatsQueue } from '@/features/ticket-board/hooks/useQueueStats';
+import { CustomDropdown } from '@/features/ticket-board/components/TicketDropdowns';
+import { SiteSelector } from '@/components/site/SiteSelector';
+import { ALL_TEAMS_LABEL, REPORT_TEAMS_SCOPE_TITLE, TEAM_FILTER_ORDER, reportTeamLabel, type ReportTeam } from '@/features/reports/reportTeams';
 
 interface DashboardStats {
     avgResolutionTime: string;
@@ -35,6 +40,37 @@ const FEED_OPTIONS: readonly { value: FeedView; label: string }[] = [
 ];
 
 const isAgentRole = (role?: string) => role === 'AGENT' || Boolean(role?.startsWith('AGENT_'));
+
+/**
+ * Queue whose server-side counts match what `/tickets` loads for the role. `/tickets` stops at 500 rows,
+ * so the stat cards and donuts come from the server; charts and lists stay on the loaded tickets.
+ * Roles not listed keep the counts computed from the loaded tickets.
+ */
+const SERVER_COUNT_QUEUE: Readonly<Record<string, StatsQueue>> = {
+    ADMIN: 'all',
+    AGENT: 'it-support',
+    AGENT_ADMIN: 'it-support',
+    AGENT_OPERATIONAL_SUPPORT: 'it-support',
+    MANAGER: 'all',
+};
+/** ADMIN / MANAGER see every ICT team and site, and narrow the whole dashboard by team and site. */
+const OVERSIGHT_ROLES = ['ADMIN', 'MANAGER'];
+const ALL_VALUE = 'ALL';
+const TEAM_OPTIONS = [{ value: ALL_VALUE, label: ALL_TEAMS_LABEL }, ...TEAM_FILTER_ORDER.map((t) => ({ value: t, label: reportTeamLabel(t) }))];
+
+/** Same team / site in the list the stat cards link to. */
+function listQuery(team: ReportTeam | null, siteId: string | null, extra = ''): string {
+    const params = new URLSearchParams(extra);
+    if (team) params.set('team', team);
+    if (siteId) params.set('sites', siteId);
+    const query = params.toString();
+    return query ? `?${query}` : '';
+}
+
+/** Where the dashboard links lead: the manager portal has its own list, reports and workload routes. */
+interface DashboardLinks { tickets: string; reports: string; agents: string; agentsLabel: string; myTasks: boolean }
+const STAFF_LINKS: DashboardLinks = { tickets: '/tickets/list', reports: '/reports', agents: '/agents', agentsLabel: 'Semua agent', myTasks: true };
+const MANAGER_LINKS: DashboardLinks = { tickets: '/manager/tickets', reports: '/manager/reports', agents: '/manager/workloads', agentsLabel: 'Workload agent', myTasks: false };
 
 function updatedLabel(dataUpdatedAt: number): string | null {
     if (!dataUpdatedAt) return null;
@@ -70,6 +106,10 @@ export const BentoDashboardPage = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const canOpenAgentDashboard = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+    const links = user?.role === 'MANAGER' ? MANAGER_LINKS : STAFF_LINKS;
+    const oversight = OVERSIGHT_ROLES.includes(user?.role ?? '');
+    const [team, setTeam] = useState<ReportTeam | null>(null);
+    const [siteId, setSiteId] = useState<string | null>(null);
     const [range, setRange] = useState<TeamRange>(7);
     const [reloading, setReloading] = useState(false);
     const [feedView, setFeedView] = useState<FeedView>('live');
@@ -87,9 +127,9 @@ export const BentoDashboardPage = () => {
     // useTicketListSocket already invalidates ['tickets'] and ['dashboard-stats']; no second refetch here.
     const { isConnected } = useTicketListSocket({ onNewTicket: handleNewTicket });
 
-    const { data: tickets = [], isError: ticketsError, error: ticketsErrorData, refetch: refetchTickets, dataUpdatedAt } = useQuery<TicketType[]>({
-        queryKey: ['tickets'],
-        queryFn: async () => (await api.get('/tickets')).data,
+    const { data: allTickets = [], isError: ticketsError, error: ticketsErrorData, refetch: refetchTickets, dataUpdatedAt } = useQuery<TicketType[]>({
+        queryKey: ['tickets', 'team-dashboard', team ?? 'all'],
+        queryFn: async () => (await api.get(team ? `/tickets?handlingTeam=${team}` : '/tickets')).data,
         staleTime: DASHBOARD_STALE_TIME_MS,
         refetchOnWindowFocus: true,
     });
@@ -100,7 +140,18 @@ export const BentoDashboardPage = () => {
         refetchOnWindowFocus: true,
     });
 
-    const live = useMemo(() => computeTeamStats(tickets, range), [tickets, range]);
+    // The site filter narrows the loaded tickets here; the team filter is applied by the server.
+    const tickets = useMemo(() => (siteId ? allTickets.filter((t) => t.siteId === siteId) : allTickets), [allTickets, siteId]);
+    const countQueue = SERVER_COUNT_QUEUE[user?.role ?? ''];
+    const countScope = useMemo(() => ({ siteIds: siteId ? [siteId] : [], assignedToMe: false, createdByMe: false, handlingTeam: team ?? undefined }), [siteId, team]);
+    const { data: serverCounts } = useQueueStats(countQueue ?? 'it-support', countScope, Boolean(countQueue));
+
+    const live = useMemo(() => {
+        const local = computeTeamStats(tickets, range);
+        if (!serverCounts) return local;
+        const { total, open, inProgress, waitingVendor, resolved, overdue, byPriority } = serverCounts;
+        return { ...local, total, open, inProgress, waitingVendor, resolved, overdue, byPriority: byPriority ?? local.byPriority };
+    }, [tickets, range, serverCounts]);
     const lastUpdated = updatedLabel(dataUpdatedAt);
 
     const handleRefresh = () => {
@@ -150,26 +201,36 @@ export const BentoDashboardPage = () => {
                 <span className="nav-tile dash-ptile" data-tone="navy"><LayoutGrid aria-hidden="true" /></span>
                 <div className="min-w-0">
                     <h1>Dashboard Tim</h1>
-                    <p>Ringkasan performa iDesk untuk semua site Anda</p>
+                    <p>{oversight
+                        ? `Ringkasan seluruh tiket ICT · ${team ? reportTeamLabel(team) : ALL_TEAMS_LABEL}`
+                        : 'Ringkasan performa iDesk untuk semua site Anda'}</p>
                     {lastUpdated && <p className="dash-meta">Diperbarui {lastUpdated}</p>}
                 </div>
                 <span className="dash-spacer" />
                 <div className="dash-head-actions">
-                    <Button variant="soft" asChild><Link to="/tickets/list?filter=assigned_to_me"><Users aria-hidden="true" />Tugas Saya</Link></Button>
+                    {oversight && (
+                        <>
+                            <CustomDropdown value={team ?? ''} filterKey={REPORT_TEAMS_SCOPE_TITLE} placeholder={ALL_TEAMS_LABEL}
+                                options={TEAM_OPTIONS} onChange={(v) => setTeam(v && v !== ALL_VALUE ? (v as ReportTeam) : null)} />
+                            <SiteSelector mode="single" variant="pop" selectedSiteIds={siteId ? [siteId] : []}
+                                onSelectionChange={(ids) => setSiteId(ids[0] ?? null)} />
+                        </>
+                    )}
+                    {links.myTasks && <Button variant="soft" asChild><Link to={`${links.tickets}?filter=assigned_to_me`}><Users aria-hidden="true" />Tugas Saya</Link></Button>}
                     <Button variant="soft" onClick={handleRefresh} loading={reloading}>{!reloading && <RefreshCw aria-hidden="true" />}Muat ulang</Button>
                 </div>
             </header>
 
             <section className="dash-stats is-five" aria-label="Ringkasan tiket">
-                <DashStat icon={Layers} tone="neutral" label="Total tiket" value={live.total} zero={live.total === 0} to="/tickets/list"
+                <DashStat icon={Layers} tone="neutral" label="Total tiket" value={live.total} zero={live.total === 0} to={`${links.tickets}${listQuery(team, siteId)}`}
                     sub={<>{live.thisWeekTickets} minggu ini <WeekTrend change={live.weekChange.created} /></>} />
-                <DashStat icon={Inbox} tone="blue" label="Open & aktif" value={openActive} zero={openActive === 0} to="/tickets/list?status=TODO,IN_PROGRESS"
+                <DashStat icon={Inbox} tone="blue" label="Open & aktif" value={openActive} zero={openActive === 0} to={`${links.tickets}${listQuery(team, siteId, 'status=TODO,IN_PROGRESS')}`}
                     sub={`${live.todayTickets} baru hari ini`} />
-                <DashStat icon={CircleCheck} tone="green" label="Resolved" value={live.resolved} zero={live.resolved === 0} to="/tickets/list?status=RESOLVED"
+                <DashStat icon={CircleCheck} tone="green" label="Resolved" value={live.resolved} zero={live.resolved === 0} to={`${links.tickets}${listQuery(team, siteId, `status=${DONE_STATUS_FILTER}`)}`}
                     sub={live.weekChange.resolved
                         ? <><WeekTrend change={live.weekChange.resolved} /> vs periode sama minggu lalu · {live.resolvedToday} hari ini</>
                         : `${live.resolvedToday} selesai hari ini`} />
-                <DashStat icon={TriangleAlert} tone="red" label="Overdue" value={live.overdue} attention={live.overdue > 0} zero={live.overdue === 0} to="/tickets/list?overdue=1"
+                <DashStat icon={TriangleAlert} tone="red" label="Overdue" value={live.overdue} attention={live.overdue > 0} zero={live.overdue === 0} to={`${links.tickets}${listQuery(team, siteId, 'overdue=1')}`}
                     sub={live.overdue > 0 ? 'Perlu tindakan' : 'Semua tepat waktu'} />
                 <DashStat icon={Gauge} tone="navy" label="Kepatuhan SLA" value={live.slaCompliance === null ? '—' : `${live.slaCompliance.toLocaleString('id-ID')}%`} zero={live.slaCompliance === null}
                     sub={`Rata-rata selesai ${toIndonesianDuration(stats?.avgResolutionTime)}`} />
@@ -190,12 +251,12 @@ export const BentoDashboardPage = () => {
             </div>
 
             <div className="dgrid">
-                <DashPanel className="s4" label="Tiket per kategori" title={<>Tiket per kategori <DashMore to="/reports">Laporan</DashMore></>}>
+                <DashPanel className="s4" label="Tiket per kategori" title={<>Tiket per kategori <DashMore to={links.reports}>Laporan</DashMore></>}>
                     {live.byCategory.length === 0 ? <DashEmpty>Belum ada tiket.</DashEmpty> : (
                         <ul className="dash-list">
                             {live.byCategory.map(({ category, count }) => (
                                 <li key={category}>
-                                    <button type="button" className="dash-li dash-cat" onClick={() => navigate(`/tickets/list?category=${encodeURIComponent(category)}`)}>
+                                    <button type="button" className="dash-li dash-cat" onClick={() => navigate(`${links.tickets}${listQuery(team, siteId, `category=${encodeURIComponent(category)}`)}`)}>
                                         <span><span>{categoryLabel(category)}</span><b>{count}</b></span>
                                         <span className="dash-meter"><i style={cssVars({ '--p': `${(count / catMax) * 100}%`, '--c': CATEGORY_CHART_COLOR })} /></span>
                                     </button>
@@ -210,7 +271,7 @@ export const BentoDashboardPage = () => {
                 </>}>
                     {feedView === 'live' ? <TeamFeed tickets={live.recentTickets} /> : <TeamRecentTickets tickets={live.recentTickets} />}
                 </DashPanel>
-                <DashPanel className="s4 is-wide-md" label="Agent terbaik" title={<>Agent terbaik <DashMore to="/agents">Semua agent</DashMore></>}>
+                <DashPanel className="s4 is-wide-md" label="Agent terbaik" title={<>Agent terbaik <DashMore to={links.agents}>{links.agentsLabel}</DashMore></>}>
                     <TeamTopAgents agents={live.topAgents} linkAgents={canOpenAgentDashboard} />
                 </DashPanel>
             </div>

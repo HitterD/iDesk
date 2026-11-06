@@ -106,6 +106,30 @@ describe('TicketResolutionService', () => {
         });
     });
 
+    describe('disputeResolution SLA', () => {
+        const target = new Date('2026-09-28T04:00:00Z');
+
+        it('keeps the original target, so a dispute after it passed is overdue', async () => {
+            // Resolved at 02:00 with 2h left, disputed long after the 04:00 target.
+            ticket = { ...makeTicket(TicketStatus.RESOLVED), slaStartedAt: new Date('2026-09-28T00:00:00Z'), slaTarget: target, slaRemainingMinutes: 120, isOverdue: false };
+            await service.disputeResolution('t-1', owner.id, 'Belum beres');
+
+            const reopened = saved.tickets[0];
+            expect(reopened.slaTarget).toEqual(target);
+            expect(reopened.slaRemainingMinutes).toBeNull();
+            expect(reopened.isOverdue).toBe(true);
+        });
+
+        it('stays on time when disputed before the original target', async () => {
+            const future = new Date(Date.now() + 3_600_000);
+            ticket = { ...makeTicket(TicketStatus.RESOLVED), slaStartedAt: new Date(), slaTarget: future, slaRemainingMinutes: 60, isOverdue: false };
+            await service.disputeResolution('t-1', owner.id, 'Belum beres');
+
+            expect(saved.tickets[0].slaTarget).toEqual(future);
+            expect(saved.tickets[0].isOverdue).toBe(false);
+        });
+    });
+
     describe('selfResolve', () => {
         it.each([TicketStatus.TODO, TicketStatus.IN_PROGRESS, TicketStatus.WAITING_VENDOR])('closes a %s ticket', async (status) => {
             ticket = { ...makeTicket(status), resolvedAt: null, lastPausedAt: status === TicketStatus.WAITING_VENDOR ? new Date() : null };

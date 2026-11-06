@@ -1,6 +1,9 @@
 import { IsOptional, IsInt, Min, Max, IsString, IsIn, IsDateString, IsBoolean } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { REPORT_TEAMS, type ReportTeam } from '../../reports/utils/report-team-scope.util';
+
+const toBoolean = ({ value }: { value: unknown }) => value === true || value === 'true';
 
 export class PaginationDto {
     @ApiPropertyOptional({ default: 1, minimum: 1 })
@@ -106,6 +109,17 @@ export class PaginationDto {
     @Transform(({ value }) => value === true || value === 'true')
     @IsBoolean()
     assignedToMe?: boolean;
+
+    @ApiPropertyOptional({ description: 'ADMIN/MANAGER: list every team, not just the IT Support queue' })
+    @IsOptional()
+    @Transform(toBoolean)
+    @IsBoolean()
+    allTeams?: boolean;
+
+    @ApiPropertyOptional({ enum: REPORT_TEAMS, description: 'Only tickets of this team, or ALL_DEV for every developer team' })
+    @IsOptional()
+    @IsIn(REPORT_TEAMS)
+    handlingTeam?: ReportTeam;
 }
 
 export interface PaginatedResult<T> {
@@ -121,9 +135,9 @@ export interface PaginatedResult<T> {
 }
 /** GET /tickets/queue-stats: which queue, plus the scope filters of its list. */
 export class QueueStatsQueryDto {
-    @ApiPropertyOptional({ enum: ['it-support', 'oracle', 'web-dev', 'mobile-dev'] })
-    @IsIn(['it-support', 'oracle', 'web-dev', 'mobile-dev'])
-    queue: 'it-support' | 'oracle' | 'web-dev' | 'mobile-dev';
+    @ApiPropertyOptional({ enum: ['it-support', 'all', 'oracle', 'web-dev', 'mobile-dev'] })
+    @IsIn(['it-support', 'all', 'oracle', 'web-dev', 'mobile-dev'])
+    queue: 'it-support' | 'all' | 'oracle' | 'web-dev' | 'mobile-dev';
 
     @ApiPropertyOptional({ description: 'Filter by multiple site IDs (cross-site roles only)', type: [String] })
     @IsOptional()
@@ -145,4 +159,9 @@ export class QueueStatsQueryDto {
     @Transform(({ value }) => value === true || value === 'true')
     @IsBoolean()
     assignedToMe?: boolean;
+
+    @ApiPropertyOptional({ enum: REPORT_TEAMS, description: 'Only tickets of this team, or ALL_DEV (queue=all)' })
+    @IsOptional()
+    @IsIn(REPORT_TEAMS)
+    handlingTeam?: ReportTeam;
 }

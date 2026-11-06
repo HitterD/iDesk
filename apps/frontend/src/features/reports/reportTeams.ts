@@ -13,6 +13,16 @@ export const REPORT_TEAM_LABELS: Record<ReportTeam, string> = {
     ALL_DEV: 'Semua Tim Dev',
 };
 export const ALL_TEAMS_LABEL = 'Semua Tim';
+/** Team filter of every manager page, in one order: all, IT Support, all developer teams, each developer team. */
+export const TEAM_FILTER_ORDER: readonly ReportTeam[] = ['OPS_SUPPORT', 'ALL_DEV', 'ORACLE_DEV', 'WEB_DEV', 'MOBILE_DEV'];
+const DEV_TEAMS: readonly ReportTeam[] = ['ORACLE_DEV', 'WEB_DEV', 'MOBILE_DEV'];
+
+/** Whether a role-derived team falls under the picked filter (ALL_DEV covers every developer team). */
+export function teamMatches(filter: ReportTeam | null | undefined, team: ReportTeam | undefined): boolean {
+    if (!filter) return true;
+    if (filter === 'ALL_DEV') return !!team && DEV_TEAMS.includes(team);
+    return team === filter;
+}
 /** Every report team today belongs to the ICT department scope. */
 export const REPORT_TEAMS_SCOPE_TITLE = 'Tim ICT';
 

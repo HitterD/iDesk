@@ -15,6 +15,7 @@ import { wibDateSql, wibStartOfMonth, wibStartOfToday, wibStartOfWeek } from '..
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
 import { presentThread } from '../utils/message-presenter.util';
 import { loadMentionNames } from '../utils/mention-names.util';
+import { applyTeamFilter, type ReportTeam } from '../../reports/utils/report-team-scope.util';
 
 const AGENT_ROLES_NON_ORACLE = [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT, UserRole.AGENT_ADMIN] as const;
 const ORACLE_FILTER_PARAMS = { oracleTeam: 'ORACLE_DEV' } as const;
@@ -24,8 +25,20 @@ const DEV_QUEUE_ROLES: readonly UserRole[] = [UserRole.AGENT_ORACLE, UserRole.AG
 const DEV_QUEUES = ['oracle', 'web-dev', 'mobile-dev'];
 
 export type DevQueue = 'oracle' | 'web-dev' | 'mobile-dev';
-export type QueueKey = 'it-support' | DevQueue;
-export const QUEUE_KEYS: readonly QueueKey[] = ['it-support', 'oracle', 'web-dev', 'mobile-dev'];
+/** `all`: every ICT team at once (IT Support + developer queues) — the manager's Ticket Overview. */
+export type QueueKey = 'it-support' | 'all' | DevQueue;
+export const QUEUE_KEYS: readonly QueueKey[] = ['it-support', 'all', 'oracle', 'web-dev', 'mobile-dev'];
+/** Roles that oversee every team, so their list and counts may span all teams. */
+const ALL_TEAMS_ROLES: readonly UserRole[] = [UserRole.ADMIN, UserRole.MANAGER];
+
+export function canSpanAllTeams(role: UserRole): boolean {
+    return ALL_TEAMS_ROLES.includes(role);
+}
+
+/** Team filter (one team, or ALL_DEV for every developer team): the same rule the reports use. */
+function applyHandlingTeamFilter(qb: import('typeorm').SelectQueryBuilder<Ticket>, team?: ReportTeam): void {
+    applyTeamFilter(qb, 'ticket', team);
+}
 
 const DEV_TICKET_TYPES = [TicketType.ORACLE_REQUEST, TicketType.WEB_DEV_REQUEST, TicketType.MOBILE_DEV_REQUEST];
 /** Request Center tickets live on their own pages, never in the IT Support queue. */
@@ -72,6 +85,7 @@ export interface DevQueueOptions {
     endDate?: string;
     createdByMe?: boolean;
     assignedToMe?: boolean;
+    handlingTeam?: ReportTeam;
 }
 
 type DevQueuePage = { data: Ticket[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean } };
@@ -84,7 +98,12 @@ export interface QueueStats {
     resolved: number;
     overdue: number;
     critical: number;
+    /** Every ticket in the queue per priority, any status (dashboard priority donut). */
+    byPriority: Record<QueuePriority, number>;
 }
+
+const QUEUE_PRIORITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const;
+type QueuePriority = (typeof QUEUE_PRIORITIES)[number];
 
 /** Comma-separated TicketStatus list (e.g. `RESOLVED,CLOSED`); anything else is a 400. */
 function applyStatusFilter(qb: import('typeorm').SelectQueryBuilder<Ticket>, status?: string): void {
@@ -211,6 +230,7 @@ export class TicketQueryService {
         role: UserRole,
         userSiteId: string | null = null,
         queue?: string,
+        handlingTeam?: ReportTeam,
     ): Promise<Ticket[]> {
         const query = this.ticketRepo.createQueryBuilder('ticket')
             .leftJoinAndSelect('ticket.user', 'user')
@@ -252,12 +272,13 @@ export class TicketQueryService {
                     mobileDevLike: '%mobile%',
                 },
             );
-        } else if (role === UserRole.ADMIN) {
-            // IT Support Queue (default)
-            query.where('(ticket."handlingTeam" = :opsTeam)', { opsTeam: HandlingTeam.OPS_SUPPORT });
-            query.andWhere('ticket.ticketType NOT IN (:...excludedTypes)', { 
-                excludedTypes: [TicketType.ORACLE_REQUEST, TicketType.WEB_DEV_REQUEST, TicketType.MOBILE_DEV_REQUEST, TicketType.ICT_BUDGET, TicketType.HARDWARE_INSTALLATION] 
+        } else if (canSpanAllTeams(role)) {
+            // ADMIN / MANAGER team dashboard: every ICT team on every site, minus Request Center.
+            query.where('(ticket.ticketType NOT IN (:...excludedTypes) OR ticket.ticketType IS NULL)', {
+                excludedTypes: [TicketType.ICT_BUDGET, TicketType.HARDWARE_INSTALLATION]
             });
+            query.andWhere('(ticket.category NOT IN (:...requestCenterCategories) OR ticket.category IS NULL)', { requestCenterCategories: REQUEST_CENTER_CATEGORIES });
+            applyHandlingTeamFilter(query, handlingTeam);
         } else if (role === UserRole.AGENT_ORACLE) {
             // Oracle agent sees only developer requests
             query.where('(ticket."handlingTeam" = :oracleTeam)', ORACLE_FILTER_PARAMS);
@@ -310,6 +331,8 @@ export class TicketQueryService {
             createdByMe?: boolean; // Requested/filed by the caller, across teams and sites
             assignedToMe?: boolean; // Assigned to the caller (filtered server-side so paging and totals stay right)
             overdue?: boolean;
+            allTeams?: boolean; // ADMIN/MANAGER: span every team instead of the IT Support queue only
+            handlingTeam?: ReportTeam;
         } = {}
     ) {
         const {
@@ -331,6 +354,8 @@ export class TicketQueryService {
             createdByMe,
             assignedToMe,
             overdue,
+            allTeams,
+            handlingTeam,
         } = options;
 
         const qb = this.ticketRepo
@@ -347,16 +372,19 @@ export class TicketQueryService {
             // bind param gets a single inferred type -> "character varying = uuid".
             qb.andWhere('(ticket.userId = :userId OR ticket."createdById" = :filerId)', { userId, filerId: userId });
         } else if (role !== UserRole.USER) {
-            // IT Support list must strictly show OPS_SUPPORT tickets only and exclude
-            // developer requests (Oracle, Web Dev, Mobile Dev).
-            qb.andWhere(
-                '(ticket."handlingTeam" = :opsTeam OR ticket."handlingTeam" IS NULL)',
-                { opsTeam: HandlingTeam.OPS_SUPPORT },
-            );
-            qb.andWhere(
-                '(ticket.ticketType NOT IN (:...devTypes) OR ticket.ticketType IS NULL)',
-                { devTypes: DEV_TICKET_TYPES }
-            );
+            if (!(allTeams && canSpanAllTeams(role))) {
+                // IT Support list must strictly show OPS_SUPPORT tickets only and exclude
+                // developer requests (Oracle, Web Dev, Mobile Dev).
+                qb.andWhere(
+                    '(ticket."handlingTeam" = :opsTeam OR ticket."handlingTeam" IS NULL)',
+                    { opsTeam: HandlingTeam.OPS_SUPPORT },
+                );
+                qb.andWhere(
+                    '(ticket.ticketType NOT IN (:...devTypes) OR ticket.ticketType IS NULL)',
+                    { devTypes: DEV_TICKET_TYPES }
+                );
+            }
+            applyHandlingTeamFilter(qb, handlingTeam);
             // Site isolation: cross-site roles may narrow by site, everyone else is
             // pinned to their own — and fail closed when they have none.
             applySiteFilter(qb, role, userSiteId, { siteId, siteIds });
@@ -447,9 +475,16 @@ export class TicketQueryService {
 
         // P1 perf: getCount() + getMany() replaced with getManyAndCount() — single
         // round-trip instead of two. Paginator/sort still applied to the same builder.
-        const validSortFields = ['createdAt', 'updatedAt', 'status', 'priority', 'title'];
-        const actualSortBy = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
-        qb.orderBy(`ticket.${actualSortBy}`, sortOrder);
+        const sortColumns: Record<string, string> = {
+            createdAt: 'ticket.createdAt',
+            updatedAt: 'ticket.updatedAt',
+            status: 'ticket.status',
+            priority: 'ticket.priority',
+            title: 'ticket.title',
+            ticketNumber: 'ticket.ticketNumber',
+            site: 'site.code',
+        };
+        qb.orderBy(sortColumns[sortBy] ?? sortColumns.createdAt, sortOrder === 'ASC' ? 'ASC' : 'DESC');
 
         const skip = (page - 1) * limit;
         qb.skip(skip).take(limit);
@@ -623,19 +658,24 @@ export class TicketQueryService {
     async getQueueStats(queue: QueueKey, userId: string, role: UserRole, userSiteId: string | null, options: DevQueueOptions = {}): Promise<QueueStats> {
         const qb = queue === 'it-support'
             ? this.itSupportQueueQb(userId, role, userSiteId, options)
-            : this.devQueueQb(queue, userId, role, userSiteId, options);
+            : queue === 'all'
+                ? this.allTeamsQueueQb(role, userSiteId, options)
+                : this.devQueueQb(queue, userId, role, userSiteId, options);
 
-        const raw = await qb
+        const raw = qb
             .select('COUNT(*)', 'total')
             .addSelect(`SUM(CASE WHEN ticket.status = 'TODO' THEN 1 ELSE 0 END)`, 'open')
             .addSelect(`SUM(CASE WHEN ticket.status = 'IN_PROGRESS' THEN 1 ELSE 0 END)`, 'inProgress')
             .addSelect(`SUM(CASE WHEN ticket.status = 'WAITING_VENDOR' THEN 1 ELSE 0 END)`, 'waitingVendor')
             .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
             .addSelect(`SUM(CASE WHEN ${OVERDUE_SQL} THEN 1 ELSE 0 END)`, 'overdue')
-            .addSelect(`SUM(CASE WHEN ticket.priority = 'CRITICAL' AND ticket.status IN (${TICKET_ACTIVE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'critical')
-            .getRawOne();
+            .addSelect(`SUM(CASE WHEN ticket.priority = 'CRITICAL' AND ticket.status IN (${TICKET_ACTIVE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'critical');
+        QUEUE_PRIORITIES.forEach((priority) => {
+            raw.addSelect(`SUM(CASE WHEN ticket.priority = '${priority}' THEN 1 ELSE 0 END)`, `priority_${priority}`);
+        });
+        const row = await raw.getRawOne();
 
-        const count = (key: string) => parseInt(raw?.[key]) || 0;
+        const count = (key: string) => parseInt(row?.[key]) || 0;
         return {
             total: count('total'),
             open: count('open'),
@@ -644,7 +684,25 @@ export class TicketQueryService {
             resolved: count('resolved'),
             overdue: count('overdue'),
             critical: count('critical'),
+            byPriority: Object.fromEntries(QUEUE_PRIORITIES.map((priority) => [priority, count(`priority_${priority}`)])) as Record<QueuePriority, number>,
         };
+    }
+
+    /**
+     * Scope of the all-teams list (findAllPaginated with allTeams, minus Request Center) without its
+     * list filters. Roles that may not span teams fall back to the IT Support queue.
+     */
+    private allTeamsQueueQb(role: UserRole, userSiteId: string | null, options: DevQueueOptions): import('typeorm').SelectQueryBuilder<Ticket> {
+        const qb = this.ticketRepo.createQueryBuilder('ticket');
+        if (!canSpanAllTeams(role)) {
+            qb.andWhere('1 = 0');
+            return qb;
+        }
+        applySiteFilter(qb, role, userSiteId, { siteId: options.siteId, siteIds: options.siteIds });
+        applyServiceScopeFilter(qb, role);
+        applyHandlingTeamFilter(qb, options.handlingTeam);
+        qb.andWhere('ticket.category NOT IN (:...requestCenterCategories)', { requestCenterCategories: REQUEST_CENTER_CATEGORIES });
+        return qb;
     }
 
     /** Scope of the IT Support list (findAllPaginated for staff, minus Request Center) without its list filters. */

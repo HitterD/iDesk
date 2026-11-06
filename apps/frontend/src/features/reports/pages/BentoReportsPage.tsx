@@ -16,18 +16,24 @@ import { PDFPreviewModal, usePDFPreview } from '../components/PDFPreviewModal';
 import { ScheduledReportsTab } from '../components/scheduled/ScheduledReportsTab';
 import { monthRange } from '../components/ReportParts';
 import { AgentTab, MonthlyTab, VolumeTab, type AgentMetrics, type MonthlyStats, type TicketVolumeData } from '../components/ReportTabs';
-import { REPORT_TEAMS, ReportTeam, lockedTeamForRole, reportTeamLabel, teamQueryParam, ALL_TEAMS_LABEL, REPORT_TEAMS_SCOPE_TITLE } from '../reportTeams';
+import { TEAM_FILTER_ORDER, ReportTeam, lockedTeamForRole, reportTeamLabel, teamQueryParam, ALL_TEAMS_LABEL, REPORT_TEAMS_SCOPE_TITLE } from '../reportTeams';
 
 type ReportTab = 'monthly' | 'agent' | 'volume' | 'scheduled';
 const TAB_ORDER: readonly ReportTab[] = ['monthly', 'agent', 'volume', 'scheduled'];
 const ALL_VALUE = 'ALL';
 const isTab = (v: string | null): v is ReportTab => !!v && (TAB_ORDER as readonly string[]).includes(v);
+/** Managers read reports; scheduling recurring ones stays with the admin. */
+const ROLES_WITHOUT_SCHEDULED = ['MANAGER'];
 
 export const BentoReportsPage: React.FC = () => {
     const [params] = useSearchParams();
-    const initialTab: ReportTab = isTab(params.get('tab')) ? (params.get('tab') as ReportTab) : 'monthly';
+    const { user: authUser } = useAuth();
+    const showScheduled = !ROLES_WITHOUT_SCHEDULED.includes(authUser?.role ?? '');
+    const tabOrder = useMemo(() => TAB_ORDER.filter((t) => showScheduled || t !== 'scheduled'), [showScheduled]);
+    const requestedTab = params.get('tab');
+    const initialTab: ReportTab = isTab(requestedTab) && tabOrder.includes(requestedTab) ? requestedTab : 'monthly';
     const [activeTab, setActiveTab] = useState<ReportTab>(initialTab);
-    const tabDir = useTabDirection(TAB_ORDER, activeTab);
+    const tabDir = useTabDirection(tabOrder, activeTab);
     const [month, setMonth] = useState<string>((new Date().getMonth() + 1).toString());
     const [year, setYear] = useState<string>(new Date().getFullYear().toString());
 
@@ -48,7 +54,6 @@ export const BentoReportsPage: React.FC = () => {
 
     // Team scope — applies to every tab and export. Agents are locked to their
     // own team (enforced server-side too); ADMIN/MANAGER may pick any team.
-    const { user: authUser } = useAuth();
     const lockedTeam = lockedTeamForRole(authUser?.role);
     const [selectedTeam, setSelectedTeam] = useState<ReportTeam | null>(null);
     const team = lockedTeam ?? selectedTeam;
@@ -215,7 +220,7 @@ export const BentoReportsPage: React.FC = () => {
         { value: 'monthly', label: 'Monthly Summary', icon: Calendar },
         { value: 'agent', label: 'Agent Performance', icon: Users },
         { value: 'volume', label: 'Ticket Volume', icon: BarChart3 },
-        { value: 'scheduled', label: 'Scheduled Reports', icon: Clock },
+        ...(showScheduled ? [{ value: 'scheduled' as const, label: 'Scheduled Reports', icon: Clock }] : []),
     ];
     const onRange = (s: string, e: string) => { setStartDate(s); setEndDate(e); };
 
@@ -247,7 +252,7 @@ export const BentoReportsPage: React.FC = () => {
                             <DropdownMenuContent align="end" variant="compact" className="res-pop-menu" aria-label="Pilih tim">
                                 <DropdownMenuRadioGroup value={selectedTeam ?? ALL_VALUE} onValueChange={(v) => setSelectedTeam(v === ALL_VALUE ? null : (v as ReportTeam))}>
                                     <DropdownMenuRadioItem value={ALL_VALUE}>{ALL_TEAMS_LABEL}</DropdownMenuRadioItem>
-                                    {REPORT_TEAMS.map((t) => <DropdownMenuRadioItem key={t} value={t}>{reportTeamLabel(t)}</DropdownMenuRadioItem>)}
+                                    {TEAM_FILTER_ORDER.map((t) => <DropdownMenuRadioItem key={t} value={t}>{reportTeamLabel(t)}</DropdownMenuRadioItem>)}
                                 </DropdownMenuRadioGroup>
                             </DropdownMenuContent>
                         </DropdownMenu>
@@ -270,7 +275,7 @@ export const BentoReportsPage: React.FC = () => {
                         <VolumeTab volume={volumeData} loading={volumeLoading} startDate={startDate} endDate={endDate} onRange={onRange}
                             disabled={exporting || volumeLoading} onPreview={handlePreviewVolumePDF} onPdf={handleExportVolumePDF} onExcel={handleExportCustomExcel} />
                     )}
-                    {activeTab === 'scheduled' && (
+                    {showScheduled && activeTab === 'scheduled' && (
                         <ScheduledReportsTab canManage={canManageScheduled} currentSiteId={authUser?.siteId} />
                     )}
                 </MgPanel>

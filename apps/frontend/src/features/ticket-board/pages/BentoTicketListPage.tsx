@@ -75,9 +75,18 @@ import { BentoTicketKanban } from '../components/BentoTicketKanban';
 import { ACTIVE_STATUS_FILTER, DONE_STATUS_FILTER } from '../constants/statusFilters';
 import { useResetPageOnChange, useTicketListUrlState } from '../hooks/useTicketListUrlState';
 import { SiteSelector } from '@/components/site/SiteSelector';
+import { REPORT_TEAM_LABELS, TEAM_FILTER_ORDER } from '@/features/reports/reportTeams';
 
 const CROSS_SITE_ROLES = ['ADMIN','MANAGER','AGENT_ORACLE'] as const;
 const isCrossSiteRole = (role?: string | null) => (CROSS_SITE_ROLES as readonly string[]).includes(role as string);
+/** The manager oversees every team: one overview of IT Support and the developer queues. */
+const ALL_TEAMS_ROLES = ['MANAGER'] as const;
+const seesAllTeams = (role?: string | null) => (ALL_TEAMS_ROLES as readonly string[]).includes(role as string);
+const TEAM_PARAM = 'team';
+const TEAM_FILTER_OPTIONS = [
+    { value: 'ALL', label: 'Semua' },
+    ...TEAM_FILTER_ORDER.map((team) => ({ value: team, label: REPORT_TEAM_LABELS[team] })),
+];
 
 interface LocalPaginationMeta {
     total: number;
@@ -135,6 +144,13 @@ export const BentoTicketListPage: React.FC = () => {
     const showAssignedToMe = searchParams.get('filter') === 'assigned_to_me';
     // Tickets I filed (for myself or on behalf of someone), from any team.
     const showCreatedByMe = searchParams.get('filter') === 'created_by_me';
+    const allTeams = seesAllTeams(user?.role);
+    const teamFilter = allTeams ? (searchParams.get(TEAM_PARAM) ?? '') : '';
+    const setTeamFilter = (team: string) => setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        if (team) next.set(TEAM_PARAM, team); else next.delete(TEAM_PARAM);
+        return next;
+    }, { replace: true });
 
     // Sorting state
     const [sortBy, setSortBy] = useState<SortField>('createdAt');
@@ -185,7 +201,7 @@ export const BentoTicketListPage: React.FC = () => {
     };
 
     // Reset to page 1 when filters change (before the query)
-    useResetPageOnChange([debouncedSearch, statusFilter, priorityFilter, overdueFilter, showAssignedToMe, showCreatedByMe, selectedSites], setCurrentPage);
+    useResetPageOnChange([debouncedSearch, statusFilter, priorityFilter, overdueFilter, showAssignedToMe, showCreatedByMe, selectedSites, teamFilter], setCurrentPage);
 
     // Server-side paginated tickets query
     const { data: paginatedData, isLoading, isFetching } = useQuery<PaginatedResponse>({
@@ -199,6 +215,8 @@ export const BentoTicketListPage: React.FC = () => {
             siteIds: selectedSites.length > 0 ? selectedSites : undefined,
             assignedToMe: showAssignedToMe || undefined,
             createdByMe: showCreatedByMe || undefined,
+            allTeams: allTeams || undefined,
+            team: teamFilter || undefined,
             sortBy: sortBy || 'createdAt',
             sortOrder: sortOrder || 'DESC',
         }],
@@ -218,6 +236,8 @@ export const BentoTicketListPage: React.FC = () => {
             params.append('sortOrder', sortOrder);
             if (showCreatedByMe) params.append('createdByMe', 'true');
             if (showAssignedToMe) params.append('assignedToMe', 'true');
+            if (allTeams) params.append('allTeams', 'true');
+            if (teamFilter) params.append('handlingTeam', teamFilter);
             const res = await api.get(`/tickets/paginated?${params.toString()}`);
             return res.data;
         },
@@ -227,7 +247,7 @@ export const BentoTicketListPage: React.FC = () => {
 
     // Stat cards count the same IT Support queue as the list (team, sites, "Tugas Saya" / "Saya Buat"),
     // so clicking a card always shows that many tickets. Not refetched on pagination.
-    const { data: statsData } = useQueueStats('it-support', { siteIds: selectedSites, assignedToMe: showAssignedToMe, createdByMe: showCreatedByMe });
+    const { data: statsData } = useQueueStats(allTeams ? 'all' : 'it-support', { siteIds: selectedSites, assignedToMe: showAssignedToMe, createdByMe: showCreatedByMe, handlingTeam: teamFilter || undefined });
 
     const isAdmin = user?.role === 'ADMIN';
     const { data: agents = [] } = useQuery<Agent[]>({
@@ -464,7 +484,7 @@ export const BentoTicketListPage: React.FC = () => {
     }, [paginationInfo]);
 
     const currentView = searchParams.get('view') === 'kanban' ? 'kanban' : 'table';
-    const hasActiveFilters = Boolean(searchQuery || statusFilter || priorityFilter || overdueFilter || showAssignedToMe || showCreatedByMe || selectedSites.length > 0);
+    const hasActiveFilters = Boolean(searchQuery || statusFilter || priorityFilter || overdueFilter || showAssignedToMe || showCreatedByMe || selectedSites.length > 0 || teamFilter);
     const canEdit = user?.role === 'ADMIN' || Boolean(user?.role && user.role.startsWith('AGENT')) || user?.role === 'MANAGER';
     const showSiteColumn = isCrossSiteRole(user?.role);
 
@@ -496,7 +516,9 @@ export const BentoTicketListPage: React.FC = () => {
 
     return (
         <div className="queue-page space-y-4 pb-28 sm:pb-10 min-w-0">
-            <QueueHeader title="IT Support Tickets" description="Antrian IT Support untuk semua site Anda" icon={TicketIcon} tone="blue" />
+            {allTeams
+                ? <QueueHeader title="Ticket Overview" description="Semua tiket dari semua tim dan cabang" icon={TicketIcon} tone="blue" />
+                : <QueueHeader title="IT Support Tickets" description="Antrian IT Support untuk semua site Anda" icon={TicketIcon} tone="blue" />}
 
             {/* Stats Cards - Horizontally scrollable snap strip on mobile, grid on tablet/desktop */}
             <div className="queue-stats queue-stats-7" aria-label="Ringkasan status">
@@ -537,6 +559,15 @@ export const BentoTicketListPage: React.FC = () => {
                         icon={AlertTriangle}
                         options={PRIORITY_FILTER_OPTIONS}
                     />
+
+                    {allTeams && (
+                        <CustomDropdown
+                            value={teamFilter}
+                            onChange={(val) => setTeamFilter(val === 'ALL' ? '' : val)}
+                            placeholder="Semua" filterKey="Tim"
+                            options={TEAM_FILTER_OPTIONS}
+                        />
+                    )}
 
                     {/* Site Selector - cross-site roles only */}
                     {isCrossSiteRole(user?.role) && (

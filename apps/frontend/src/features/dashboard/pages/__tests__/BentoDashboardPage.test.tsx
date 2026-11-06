@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BentoDashboardPage } from '../BentoDashboardPage';
@@ -24,6 +24,11 @@ const tickets = [
     { id: 't3', ticketNumber: 'A-3', title: 'Wifi', status: 'RESOLVED', priority: 'MEDIUM', isOverdue: false, slaStartedAt: hourAgo, slaTarget: inAnHour, resolvedAt: now, user: { id: 'u', fullName: 'Nur' }, assignedTo: { id: 'ag', fullName: 'Beny Saputra' }, createdAt: now, updatedAt: now },
 ];
 
+/** Server counts that mirror the three sample tickets (1 open, 1 in progress, 1 resolved, 1 overdue). */
+const sampleCounts = { total: 3, open: 1, inProgress: 1, waitingVendor: 0, resolved: 1, overdue: 1, critical: 1, byPriority: { CRITICAL: 1, HIGH: 1, MEDIUM: 1, LOW: 0 } };
+const respond = (list: unknown[], counts: unknown, avg: string) => (url: string) => Promise.resolve({ data:
+    url === '/tickets' ? list : url.startsWith('/tickets/queue-stats') ? counts : { avgResolutionTime: avg } });
+
 const renderPage = () => render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter><BentoDashboardPage /></MemoryRouter>
@@ -34,7 +39,7 @@ describe('BentoDashboardPage (Dashboard Tim)', () => {
     beforeEach(() => {
         auth.role = 'ADMIN';
         api.get.mockReset();
-        api.get.mockImplementation((url: string) => Promise.resolve({ data: url === '/tickets' ? tickets : { avgResolutionTime: '4h 20m' } }));
+        api.get.mockImplementation(respond(tickets, sampleCounts, '4h 20m'));
     });
 
     it('links Tugas Saya to the personal ticket scope', async () => {
@@ -42,12 +47,45 @@ describe('BentoDashboardPage (Dashboard Tim)', () => {
         expect(await screen.findByRole('link', { name: 'Tugas Saya' })).toHaveAttribute('href', '/tickets/list?filter=assigned_to_me');
     });
 
+    it('counts the stat cards on the server, beyond the 500 tickets the page loads', async () => {
+        api.get.mockImplementation(respond(tickets, { ...sampleCounts, total: 887, open: 8, inProgress: 20, resolved: 813 }, '4h 20m'));
+        auth.role = 'MANAGER';
+        renderPage();
+        const stats = await screen.findByRole('region', { name: 'Ringkasan tiket' });
+        await waitFor(() => expect(within(stats).getByRole('link', { name: /Total tiket/ })).toHaveTextContent('887'));
+        expect(within(stats).getByRole('link', { name: /Open & aktif/ })).toHaveTextContent('28');
+        expect(api.get).toHaveBeenCalledWith('/tickets/queue-stats?queue=all');
+    });
+
+    it('narrows the dashboard to the developer teams and keeps the team in its links', async () => {
+        api.get.mockImplementation(respond(tickets, sampleCounts, '1h'));
+        auth.role = 'MANAGER';
+        renderPage();
+        fireEvent.click(await screen.findByRole('button', { name: /Tim ICT: Semua Tim/ }));
+        fireEvent.click(await screen.findByRole('option', { name: 'Semua Tim Dev' }));
+
+        await waitFor(() => expect(api.get).toHaveBeenCalledWith('/tickets?handlingTeam=ALL_DEV'));
+        expect(api.get).toHaveBeenCalledWith('/tickets/queue-stats?queue=all&handlingTeam=ALL_DEV');
+        const stats = screen.getByRole('region', { name: 'Ringkasan tiket' });
+        expect(within(stats).getByRole('link', { name: /Overdue/ })).toHaveAttribute('href', '/manager/tickets?overdue=1&team=ALL_DEV');
+    });
+
+    it('sends the manager to the manager portal pages, with no personal Tugas Saya', async () => {
+        auth.role = 'MANAGER';
+        renderPage();
+        const stats = await screen.findByRole('region', { name: 'Ringkasan tiket' });
+        expect(within(stats).getByRole('link', { name: /Open & aktif/ })).toHaveAttribute('href', '/manager/tickets?status=TODO%2CIN_PROGRESS');
+        expect(within(stats).getByRole('link', { name: /Resolved/ })).toHaveAttribute('href', '/manager/tickets?status=RESOLVED%2CCLOSED');
+        expect(screen.getByRole('link', { name: 'Laporan' })).toHaveAttribute('href', '/manager/reports');
+        expect(screen.queryByRole('link', { name: 'Tugas Saya' })).not.toBeInTheDocument();
+    });
+
     it('shows the five stat cards with real counts and mockup copy', async () => {
         renderPage();
         const stats = await screen.findByRole('region', { name: 'Ringkasan tiket' });
         expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Dashboard Tim');
         expect(within(stats).getByRole('link', { name: /Total tiket/ })).toHaveTextContent('3');
-        expect(within(stats).getByRole('link', { name: /Open & aktif/ })).toHaveAttribute('href', '/tickets/list?status=TODO,IN_PROGRESS');
+        expect(within(stats).getByRole('link', { name: /Open & aktif/ })).toHaveAttribute('href', '/tickets/list?status=TODO%2CIN_PROGRESS');
         expect(within(stats).getByRole('link', { name: /Overdue/ })).toHaveClass('is-attn');
         // The ticket list reads overdue=1; overdue=true was silently ignored.
         expect(within(stats).getByRole('link', { name: /Overdue/ })).toHaveAttribute('href', '/tickets/list?overdue=1');
@@ -72,7 +110,7 @@ describe('BentoDashboardPage (Dashboard Tim)', () => {
             id: `r${i}`, ticketNumber: `R-${i}`, title: `Tiket ${i}`, status: i % 2 ? 'IN_PROGRESS' : 'TODO', priority: 'MEDIUM',
             isOverdue: false, user: { id: 'u', fullName: 'Nur' }, createdAt: new Date(Date.now() - i * 60_000).toISOString(), updatedAt: now,
         }));
-        api.get.mockImplementation((url: string) => Promise.resolve({ data: url === '/tickets' ? many : { avgResolutionTime: '1h' } }));
+        api.get.mockImplementation(respond(many, { ...sampleCounts, total: 10 }, '1h'));
         renderPage();
         const feed = await screen.findByRole('region', { name: 'Aktivitas tim' });
         const seg = within(feed).getByRole('group', { name: 'Tampilan feed' });

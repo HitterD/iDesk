@@ -60,7 +60,7 @@ export class TicketForwardService {
         const previousTeam = ticket.handlingTeam;
         const previousAssignee = ticket.assignedTo?.fullName || null;
         const changeNotes: string[] = [
-            `Ticket forwarded from ${previousTeam} to ${dto.targetTeam}. Reason: ${dto.reason}`,
+            `Ticket forwarded from ${previousTeam} to ${dto.targetTeam} by ${actor.fullName}. Reason: ${dto.reason}`,
         ];
         ticket.handlingTeam = dto.targetTeam;
 

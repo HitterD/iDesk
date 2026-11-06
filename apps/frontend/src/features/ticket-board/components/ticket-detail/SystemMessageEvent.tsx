@@ -12,7 +12,6 @@ import {
     AlertCircle,
     UserPlus,
     UserMinus,
-    Share2,
     Truck,
     UserRoundCog,
     Calendar,
@@ -29,6 +28,7 @@ import { cn } from '@/lib/utils';
 import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { formatRelativeTime, formatDateTimeID } from '@/lib/utils/dateFormat';
 import { formatMessageTime, toDisplayName } from './messageThread';
+import { ForwardEventCard, parseForwardEvent } from './ForwardEventCard';
 
 interface SystemMessageEventProps {
     content: string;
@@ -115,6 +115,10 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
     className,
     audience = 'staff',
 }) => {
+    // Team handover first: its notes span several lines and would otherwise read as a raw system note.
+    const forward = parseForwardEvent(content);
+    if (forward) return <ForwardEventCard event={forward} createdAt={createdAt} audience={audience} className={className} />;
+
     // 0. Detect Resolution Statement Notice
     const isResolvedStatement =
         content.includes('Tiket Dinyatakan Selesai') ||
@@ -493,32 +497,6 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                     <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-semibold", toCfg.bg, toCfg.text)}>
                         {toCfg.label}
                     </span>
-                </div>
-                <small className="flex items-center gap-1">
-                    {actor && (
-                        <>
-                            <span>oleh <strong className="font-medium">{toDisplayName(actor)}</strong></span>
-                            <span>·</span>
-                        </>
-                    )}
-                    <span>{formatMessageTime(createdAt)}</span>
-                </small>
-            </div>
-        );
-    }
-
-    // 5. Parse Ticket Forwarded
-    const forwardMatch = cleanContent.match(/Ticket forwarded to (.+?)(?:\s+by\s+([^,.]+))?$/i);
-    if (forwardMatch) {
-        const target = forwardMatch[1].trim();
-        const actor = forwardMatch[2]?.trim();
-
-        return (
-            <div className={cn("chat-sys", className)}>
-                <span className="chat-sys-ic"><Share2 aria-hidden="true" /></span>
-                <div className="inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs leading-relaxed">
-                    <span>Tiket Diteruskan ke:</span>
-                    <b>{target}</b>
                 </div>
                 <small className="flex items-center gap-1">
                     {actor && (

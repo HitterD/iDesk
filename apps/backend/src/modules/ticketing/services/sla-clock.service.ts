@@ -152,6 +152,16 @@ export class SlaClockService {
         }
     }
 
+    /**
+     * Drops a hold without moving the targets, as if the clock never stopped: the time spent held
+     * counts. Used when a resolve is disputed, so the ticket is overdue once its original target passed.
+     */
+    resumeOnOriginalTarget(ticket: Ticket, now: Date = new Date()): void {
+        ticket.slaRemainingMinutes = null;
+        ticket.firstResponseRemainingMinutes = null;
+        if (ticket.slaTarget) ticket.isOverdue = new Date(ticket.slaTarget).getTime() < now.getTime();
+    }
+
     /** Restarts held clocks from their remaining minutes. Returns true when a target moved. */
     async release(ticket: Ticket, now: Date = new Date()): Promise<boolean> {
         if (ticket.slaRemainingMinutes == null && ticket.firstResponseRemainingMinutes == null) return false;

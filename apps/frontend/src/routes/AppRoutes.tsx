@@ -50,10 +50,7 @@ const NotificationCenterPage = lazy(() => import('../features/notifications/page
 const NotificationHistoryPage = lazy(() => import('../features/notifications/pages/NotificationHistoryPage').then(m => ({ default: m.NotificationHistoryPage })));
 const ClientNotificationCenter = lazy(() => import('../features/client/pages/ClientNotificationCenter').then(m => ({ default: m.ClientNotificationCenter })));
 const AutomationRulesPage = lazy(() => import('../features/automation/pages/AutomationRulesPage').then(m => ({ default: m.AutomationRulesPage })));
-const ManagerDashboard = lazy(() => import('../features/manager/pages/ManagerDashboard').then(m => ({ default: m.ManagerDashboard })));
 const AdminWorkloadDashboard = lazy(() => import('../features/manager/pages/AdminWorkloadDashboard').then(m => ({ default: m.AdminWorkloadDashboard })));
-const ManagerReportsPage = lazy(() => import('../features/manager/pages/ManagerReportsPage').then(m => ({ default: m.ManagerReportsPage })));
-const ManagerTicketsPage = lazy(() => import('../features/manager/pages/ManagerTicketsPage').then(m => ({ default: m.ManagerTicketsPage })));
 const ManagerLayout = lazy(() => import('../components/layout/ManagerLayout').then(m => ({ default: m.ManagerLayout })));
 
 // Admin Feature Pages
@@ -277,10 +274,10 @@ export default function AppRoutes() {
                         }
                     >
                         <Route index element={<Navigate to="/manager/dashboard" replace />} />
-                        <Route path="dashboard" element={<LazyRoute component={ManagerDashboard} featureName="Manager Dashboard" />} />
+                        <Route path="dashboard" element={<LazyRoute component={BentoDashboardPage} featureName="Dashboard" />} />
                         <Route path="workloads" element={<LazyRoute component={AdminWorkloadDashboard} featureName="Admin Workload Dashboard" />} />
-                        <Route path="tickets" element={<LazyRoute component={ManagerTicketsPage} featureName="Manager Tickets" />} />
-                        <Route path="reports" element={<LazyRoute component={ManagerReportsPage} featureName="Manager Reports" requiredPageAccess="reports" />} />
+                        <Route path="tickets" element={<LazyRoute component={BentoTicketListPage} featureName="Ticket Overview" />} />
+                        <Route path="reports" element={<LazyRoute component={BentoReportsPage} featureName="Reports" requiredPageAccess="reports" />} />
                         <Route path="kb" element={<LazyRoute component={BentoKnowledgeBasePage} featureName="Knowledge Base" requiredPageAccess="knowledge_base" />} />
                         <Route path="kb/articles/:id" element={<LazyRoute component={BentoArticleDetailPage} featureName="Article Detail" requiredPageAccess="knowledge_base" />} />
 

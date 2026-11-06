@@ -79,4 +79,13 @@ describe('BentoReportsPage (round-2 layout)', () => {
         expect(screen.getByLabelText('Tim ICT: Oracle / K2')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Pilih tim' })).not.toBeInTheDocument();
     });
+
+    it('gives the manager the admin layout across sites, without Scheduled Reports', async () => {
+        auth.user = { id: 'mgr', role: 'MANAGER', siteId: 's1' };
+        renderAt('/manager/reports?tab=scheduled');
+        expect(await screen.findByText('277')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Pilih tim' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Semua site/ })).toBeInTheDocument();
+        expect(screen.queryByText('Scheduled Reports')).not.toBeInTheDocument();
+    });
 });

@@ -93,8 +93,8 @@ export class TicketResolutionService {
             ticket.resolutionDeadlineAt = null;
             // The ticket is no longer done; the next resolve sets a fresh timestamp.
             ticket.resolvedAt = null;
-            // Resume the SLA from what was left at resolve; time spent RESOLVED does not count.
-            await this.slaClock.release(ticket);
+            // A disputed resolve was never finished: the clock kept running, so the original target stands.
+            this.slaClock.resumeOnOriginalTarget(ticket);
             const reasonMessage = await this.saveMessage(manager, ticket.id, `Sanggahan penyelesaian: ${reason.trim()}`, owner.id, false);
             // Chat clients render user bubbles from the embedded sender, like a normal reply.
             const reasonWithSender = Object.assign(reasonMessage, { sender: { id: owner.id, fullName: owner.fullName, role: owner.role } });

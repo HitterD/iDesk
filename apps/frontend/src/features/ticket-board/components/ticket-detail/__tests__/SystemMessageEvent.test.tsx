@@ -68,8 +68,79 @@ SLA Timer di-pause selama menunggu vendor.`;
             />
         );
 
-        expect(screen.getByText(/Tiket Diteruskan ke:/i)).toBeInTheDocument();
-        expect(screen.getByText('ORACLE_DEV')).toBeInTheDocument();
+        expect(screen.getByText('Diteruskan ke tim Oracle / K2')).toBeInTheDocument();
+        expect(screen.queryByText('ORACLE_DEV')).not.toBeInTheDocument();
+    });
+
+    it('renders a team handover as a readable card: teams by name, reason, new SLA, new PIC', () => {
+        render(
+            <SystemMessageEvent
+                content={[
+                    'Ticket forwarded from OPS_SUPPORT to ORACLE_DEV. Reason: [Terkait aplikasi Oracle / K2] Error saat posting jurnal',
+                    'SLA reset. Target: 2026-08-28T09:00:00.000Z (480 minutes for HIGH)',
+                    'Auto-assigned to BUDI SANTOSO (3f0c8a52-1111-4c3e-9d1a-2b7e0f6a9c11)',
+                ].join('\n')}
+                createdAt="2026-08-28T07:42:59.000Z"
+            />
+        );
+
+        expect(screen.getByText('Diteruskan ke tim Oracle / K2')).toBeInTheDocument();
+        expect(screen.getByText('IT Support')).toBeInTheDocument();
+        expect(screen.getByText('Oracle / K2')).toBeInTheDocument();
+        expect(screen.getByText('Error saat posting jurnal')).toBeInTheDocument();
+        expect(screen.getByText('Terkait aplikasi Oracle / K2')).toBeInTheDocument();
+        expect(screen.getByText('Budi Santoso')).toBeInTheDocument();
+        expect(screen.getByText(/8 jam/)).toBeInTheDocument();
+        // No raw codes, ISO timestamps or ids leak into the card.
+        const text = document.body.textContent ?? '';
+        expect(text).not.toMatch(/OPS_SUPPORT|ORACLE_DEV|\d{4}-\d{2}-\d{2}T|3f0c8a52/);
+    });
+
+    it('splits the reason the forward dialog sends ("<preset>: <note>")', () => {
+        render(
+            <SystemMessageEvent
+                content={'Ticket forwarded from OPS_SUPPORT to MOBILE_DEV by RINA KARTIKA. Reason: Terkait aplikasi Mobile (iOS / Android): Login gagal di Android 14'}
+                createdAt="2026-08-28T07:42:59.000Z"
+            />
+        );
+
+        expect(screen.getByText('Terkait aplikasi Mobile (iOS / Android)')).toBeInTheDocument();
+        expect(screen.getByText('Login gagal di Android 14')).toBeInTheDocument();
+        expect(screen.getByText('Rina Kartika')).toBeInTheDocument();
+    });
+
+    it('tells the requester only which team now handles the ticket', () => {
+        render(
+            <SystemMessageEvent
+                audience="requester"
+                content={[
+                    'Ticket forwarded from OPS_SUPPORT to WEB_DEV. Reason: Salah routing awal',
+                    'SLA reset. Target: 2026-08-28T09:00:00.000Z (480 minutes for HIGH)',
+                    'Auto-assign skipped (tidak ada agent yang tersedia untuk modul ini)',
+                ].join('\n')}
+                createdAt="2026-08-28T07:42:59.000Z"
+            />
+        );
+
+        expect(screen.getByText('Tiket Anda diteruskan ke tim Web Dev')).toBeInTheDocument();
+        expect(screen.queryByText(/Salah routing/)).not.toBeInTheDocument();
+        expect(screen.queryByText(/SLA/)).not.toBeInTheDocument();
+    });
+
+    it('says the ticket waits for a PIC when no agent was auto-assigned', () => {
+        render(
+            <SystemMessageEvent
+                content={[
+                    'Ticket forwarded from ORACLE_DEV to OPS_SUPPORT. Reason: Masalah perangkat',
+                    'SLA cleared (ticket not in progress)',
+                    'Auto-assign skipped (tidak ada agent yang tersedia untuk modul ini)',
+                ].join('\n')}
+                createdAt="2026-08-28T07:42:59.000Z"
+            />
+        );
+
+        expect(screen.getByText('Menunggu PIC dari tim IT Support')).toBeInTheDocument();
+        expect(screen.getByText(/SLA dimulai saat tiket dikerjakan/)).toBeInTheDocument();
     });
 
     it('renders Resolution Statement Card with solution notes and attachments correctly', () => {
