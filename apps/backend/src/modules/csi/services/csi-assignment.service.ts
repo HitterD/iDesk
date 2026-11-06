@@ -12,7 +12,7 @@ import { CsiRaterAssignment } from '../entities/csi-rater-assignment.entity';
 import { CsiSubjectProfile } from '../entities/csi-subject-profile.entity';
 import { lockUnlockedPeriod } from './csi-period-lock.util';
 import { assertPeriodInScope } from './csi-scope.util';
-import { teamSubjectKey, userSubjectKey } from './csi-subject-key.util';
+import { picSubjectKey, teamSubjectKey, userSubjectKey } from './csi-subject-key.util';
 
 const SELF_PAIR_MESSAGE = 'Penilai tidak bisa menilai dirinya sendiri';
 const FOREIGN_PAIR_MESSAGE = 'Penilai atau subjek tidak termasuk periode ini';
@@ -29,8 +29,11 @@ const isTeam = (ratee: CsiPeriodRatee) => ratee.kind === CsiRateeKind.TEAM;
 /** TEAM rows first, then people by sortOrder (same order as the period detail). */
 const teamFirst = (a: CsiPeriodRatee, b: CsiPeriodRatee) => Number(isTeam(b)) - Number(isTeam(a)) || a.sortOrder - b.sortOrder;
 /** Template subject key of a period ratee; null for a legacy TEAM ratee without a csi_teams row. */
-const subjectKeyOf = (ratee: CsiPeriodRatee) =>
-    isTeam(ratee) ? (ratee.teamId ? teamSubjectKey(ratee.teamId) : null) : (ratee.userId ? userSubjectKey(ratee.userId) : null);
+const subjectKeyOf = (ratee: CsiPeriodRatee) => {
+    if (isTeam(ratee)) return ratee.teamId ? teamSubjectKey(ratee.teamId) : null;
+    if (ratee.picId) return picSubjectKey(ratee.picId);
+    return ratee.userId ? userSubjectKey(ratee.userId) : null;
+};
 const uniquePairs = (pairs: CsiAssignmentPair[]) =>
     [...new Map(pairs.map((pair) => [pairKey(pair), { periodRaterId: pair.periodRaterId, periodRateeId: pair.periodRateeId }])).values()];
 

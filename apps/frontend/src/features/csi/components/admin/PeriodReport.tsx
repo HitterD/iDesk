@@ -13,6 +13,7 @@ import { SubjectDetailSheet } from './report/SubjectDetailSheet';
 import { SubjectScoreCard } from './report/SubjectScoreCard';
 import { RaterMatrixPanel } from './report/RaterMatrixPanel';
 import { ReportExportDialog } from './report/ReportExportDialog';
+import { HcRecapPanel } from './hc/HcRecapPanel';
 
 const ALL_SITES = 'all';
 type ReportView = 'cards' | 'heatmap';
@@ -76,6 +77,7 @@ export function PeriodReport({ scope, periodId, sites, initialSiteId }: {
             <SubjectDetailSheet ratee={open} siteName={open ? siteOf(open.siteId)?.name ?? null : null}
                 siteCode={open ? siteCodeOf(open.siteId) : null} onClose={() => setOpenId(null)} />
         </AdminSection>
+        {scope === 'hc' && <HcRecapPanel scope={scope} periodId={periodId} />}
         <RaterMatrixPanel scope={scope} periodId={periodId} siteId={siteParam} />
         <ReportExportDialog scope={scope} periodId={periodId} siteId={siteParam} open={exportOpen} onOpenChange={setExportOpen} />
         </>

@@ -40,6 +40,13 @@ export function QuestionList({ scope }: { scope: CsiScopeParam }) {
             setAddError(saveErrorMessage(error, QUESTION_COPY.createFailed));
         }
     };
+    const hc = scope === 'hc';
+    const copy = {
+        template: hc ? QUESTION_COPY.hcTemplate : QUESTION_COPY.template,
+        title: hc ? QUESTION_COPY.hcTemplateTitle : QUESTION_COPY.templateTitle,
+        description: hc ? QUESTION_COPY.hcTemplateDescription : QUESTION_COPY.templateDescription,
+        empty: hc ? QUESTION_COPY.hcEmpty : QUESTION_COPY.empty,
+    };
     const applyTemplate = () => template.mutate(undefined, { onSettled: () => setConfirmTemplate(false) });
     const save = (id: string, payload: UpdateCsiDimension) => update.mutateAsync({ id, payload });
 
@@ -52,13 +59,13 @@ export function QuestionList({ scope }: { scope: CsiScopeParam }) {
                 </label>
                 <span className="flex-1" />
                 <Button type="button" variant="soft" disabled={template.isPending} onClick={() => setConfirmTemplate(true)}>
-                    <Sparkles aria-hidden="true" />{QUESTION_COPY.template}
+                    <Sparkles aria-hidden="true" />{copy.template}
                 </Button>
             </div>
             <section aria-label={QUESTION_COPY.listLabel} className="grid gap-3">
                 {list.isLoading && <div className="h-32 animate-pulse rounded-2xl bg-[hsl(var(--muted)/.5)] motion-reduce:animate-none" aria-busy="true" />}
                 {list.isError && <ErrorState compact message={QUESTION_COPY.loadFailed} onRetry={() => list.refetch()} />}
-                {list.data && !visible.length && <EmptyNote>{QUESTION_COPY.empty}</EmptyNote>}
+                {list.data && !visible.length && <EmptyNote>{copy.empty}</EmptyNote>}
                 <SortableList items={visible} getId={(question) => question.id} label={QUESTION_COPY.handleNoun}
                     onReorder={(ids) => reorder.mutateAsync(mergeVisibleOrder(all.map((question) => question.id), ids))}
                     renderItem={(question, handle) => (
@@ -69,8 +76,8 @@ export function QuestionList({ scope }: { scope: CsiScopeParam }) {
                 </Button>
                 {addError && <p role="alert" className="text-[12.5px] font-medium text-[hsl(var(--destructive))]">{addError}</p>}
             </section>
-            <ConfirmationDialog isOpen={confirmTemplate} appearance="ticket" variant="default" title={QUESTION_COPY.templateTitle}
-                description={QUESTION_COPY.templateDescription} confirmText={QUESTION_COPY.templateConfirm} cancelText={QUESTION_COPY.cancel}
+            <ConfirmationDialog isOpen={confirmTemplate} appearance="ticket" variant="default" title={copy.title}
+                description={copy.description} confirmText={QUESTION_COPY.templateConfirm} cancelText={QUESTION_COPY.cancel}
                 isLoading={template.isPending} onCancel={() => setConfirmTemplate(false)} onConfirm={applyTemplate} />
         </div>
     );

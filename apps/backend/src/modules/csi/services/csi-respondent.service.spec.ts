@@ -16,6 +16,10 @@ import { CsiAssignmentService } from './csi-assignment.service';
 import { CsiRespondentService } from './csi-respondent.service';
 import { CsiSubjectService } from './csi-subject.service';
 
+/** No directory / HC PICs in these scenarios. */
+const NO_ORG = { findPics: async () => [], respondentOrg: async () => ({ nik: null, division: null, department: null, bagian: null, location: null, fromDirectory: false }) };
+
+
 const ICT = ServiceScope.ICT;
 const HC = ServiceScope.HC;
 const NOW = new Date('2026-10-15T10:00:00+07:00');
@@ -169,7 +173,7 @@ describe('CsiRespondentService', () => {
         const subjects = new CsiSubjectService(users as any, sites as any, teams as any, profiles as any);
         service = new CsiRespondentService(
             periods as any, ratees as any, rateeDimensions as any, periodRaters as any, responses as any,
-            departments as any, users as any, dimensions as any, dataSource as any, assignments, subjects,
+            departments as any, users as any, dimensions as any, dataSource as any, assignments, subjects, NO_ORG as any,
         );
     });
 
@@ -455,6 +459,18 @@ describe('CsiRespondentService', () => {
                 .rejects.toBeInstanceOf(BadRequestException);
             await expect(service.submit(me, 'p1', dto({ items: [...fullItems(), fullItems()[0]] }), NOW)).rejects.toBeInstanceOf(BadRequestException);
             expect(manager.save).not.toHaveBeenCalled();
+        });
+
+        it('respondent picks (HC per PIC): only the answered PICs are rated, each fully; none at all is 400', async () => {
+            periods.rows[0].respondentPicks = true;
+            await expect(service.submit(me, 'p1', dto({ items: [] }), NOW)).rejects.toThrow('Pilih dan nilai minimal satu PIC');
+            // r1 picked but only half answered: its remaining required question is still enforced.
+            await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd1a', score: 4 }] }), NOW)).rejects.toBeInstanceOf(BadRequestException);
+            // Comment on a PIC that was not picked is rejected.
+            await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd2a', score: 5 }], comments: [{ periodRateeId: 'r1', comment: 'x' }] }), NOW))
+                .rejects.toBeInstanceOf(BadRequestException);
+            expect(manager.save).not.toHaveBeenCalled();
+            await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd2a', score: 5 }] }), NOW)).resolves.toMatchObject({ submitted: true });
         });
 
         it('submit rejects score 0 or 6 (400)', async () => {

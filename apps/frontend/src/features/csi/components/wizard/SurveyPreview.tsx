@@ -4,7 +4,7 @@ import { useAuth } from '@/stores/useAuth';
 import { useCsiDepartments, useCsiDimensions } from '../../hooks/useCsi';
 import { toPreviewForm } from '../../lib/wizard';
 import type { CsiPeriodDetail, CsiScopeParam } from '../../types';
-import { SurveyFlow } from '../respond/SurveyFlow';
+import { RespondentFlow } from '../respond/PicSurveyFlow';
 import { EmptyNote } from '../admin/AdminParts';
 import { WIZARD_COPY } from './wizardCopy';
 
@@ -35,7 +35,7 @@ export function SurveyPreview({ open, onOpenChange, period }: SurveyPreviewProps
                     {form.ratees.length === 0 ? (
                         <EmptyNote>Tambahkan orang yang dinilai untuk melihat pratinjau.</EmptyNote>
                     ) : (
-                        <SurveyFlow key={period.id} form={form} userId={user?.id ?? ''} mode="preview" headingLevel="h2" />
+                        <RespondentFlow key={period.id} form={form} userId={user?.id ?? ''} mode="preview" headingLevel="h2" />
                     )}
                 </div>
             </SheetContent>

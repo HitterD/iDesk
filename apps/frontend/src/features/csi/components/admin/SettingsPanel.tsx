@@ -9,8 +9,10 @@ import { DepartmentsTab } from './DepartmentsTab';
 import { DimensionsTab } from './DimensionsTab';
 import { RatersTab } from './RatersTab';
 import { SubjectsTab } from './subjects/SubjectsTab';
+import { PicsTab } from './hc/PicsTab';
+import { useCsiPics } from '../../hooks/useCsiHc';
 
-export type SettingsSection = 'subjects' | 'questions' | 'raters' | 'departments';
+export type SettingsSection = 'subjects' | 'pics' | 'questions' | 'raters' | 'departments';
 
 interface SectionStatus { key: SettingsSection; label: string; hint: string; done: boolean; description: string }
 
@@ -20,11 +22,18 @@ export function useSettingsStatus(scope: CsiScopeParam): SectionStatus[] {
     const { data: questions = [] } = useCsiDimensions(scope);
     const { data: raters = [] } = useCsiRaters(scope);
     const { data: departments = [] } = useCsiDepartments(scope);
+    const { data: pics = [] } = useCsiPics(scope);
     const people = groups.flatMap((group) => [...(group.team ? [group.team] : []), ...group.people]);
     const noPhoto = people.filter((subject) => !subject.photoUrl).length;
     const raterSites = new Set(raters.map((rater) => rater.user.site?.code).filter(Boolean));
     const sitesWithoutRaters = groups.filter((group) => group.people.length > 0 && !raterSites.has(group.siteCode)).map((group) => group.siteCode);
+    const hcPics: SectionStatus[] = scope === 'hc' ? [{
+        key: 'pics', label: 'PIC HC', done: pics.length > 0,
+        hint: pics.length ? `${pics.length} PIC` : 'belum ada',
+        description: 'Staf HCC, HCD dan HCS per layanan dan bagian, diimpor dari Data Hirarki Approver.',
+    }] : [];
     return [
+        ...hcPics,
         {
             key: 'subjects', label: 'Orang & foto', done: people.length > 0 && noPhoto === 0,
             hint: !people.length ? 'belum ada' : noPhoto ? `${noPhoto} tanpa foto` : `${people.length} subjek`,
@@ -53,6 +62,7 @@ function Body({ scope, section }: { scope: CsiScopeParam; section: SettingsSecti
         case 'questions': return <DimensionsTab scope={scope} />;
         case 'raters': return <RatersTab scope={scope} />;
         case 'departments': return <DepartmentsTab scope={scope} />;
+        case 'pics': return <PicsTab scope={scope} />;
         default: return <SubjectsTab scope={scope} />;
     }
 }
@@ -61,8 +71,8 @@ function Body({ scope, section }: { scope: CsiScopeParam; section: SettingsSecti
  * "Pengaturan": everything set up once and reused by every survey, as numbered sections with their status
  * (replaces the separate "Subjek & foto" and "Master data" tabs).
  */
-export function SettingsPanel({ scope, initial = 'subjects' }: { scope: CsiScopeParam; initial?: SettingsSection }) {
-    const [section, setSection] = useState<SettingsSection>(initial);
+export function SettingsPanel({ scope, initial }: { scope: CsiScopeParam; initial?: SettingsSection }) {
+    const [section, setSection] = useState<SettingsSection>(initial ?? (scope === 'hc' ? 'pics' : 'subjects'));
     const status = useSettingsStatus(scope);
     const current = status.find((row) => row.key === section)!;
     return (

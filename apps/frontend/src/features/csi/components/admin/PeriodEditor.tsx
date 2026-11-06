@@ -5,7 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useCreateCsiPeriod, useUpdateCsiPeriod } from '../../hooks/useCsi';
 import { CSI_MODE_LABELS, CSI_TEXT_MAX, CSI_TITLE_MAX } from '../../lib/csiAdmin';
 import {
-    datesInvalid, formDirty, initialState, nextPeriodForm, sectionsInvalid, slaInvalid, teamLabelInvalid, toCreatePayload, toUpdatePayload,
+    datesInvalid, formDirty, targetRespondentsInvalid, initialState, nextPeriodForm, sectionsInvalid, slaInvalid, teamLabelInvalid, toCreatePayload, toUpdatePayload,
     withCopyMode, withCopySource, type PeriodFormState,
 } from '../../lib/periodForm';
 import type { CsiPeriodDetail, CsiPeriodListItem, CsiRespondentMode, CsiScopeParam } from '../../types';
@@ -15,6 +15,7 @@ import { CopySourceField } from './CopySourceField';
 import { OverlapNotice } from './OverlapNotice';
 import { SectionFields } from './SectionFields';
 import { SiteChips } from './SiteChips';
+import { HcRaterModeField } from './hc/HcRaterModeField';
 
 const MODE_OPTIONS = (Object.keys(CSI_MODE_LABELS) as CsiRespondentMode[]).map((value) => ({ value, label: CSI_MODE_LABELS[value] }));
 const DATE_ERROR_ID = 'csi-period-date-error';
@@ -47,7 +48,7 @@ export function PeriodEditor({ scope, period, periods = [], copyFrom, onSaved, f
     const set: SetField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
     const dirty = formDirty(form, period);
     const canSubmit = form.siteIds.length > 0 && !!form.title.trim() && !!form.startDate && !!form.endDate && !datesInvalid(form)
-        && !sectionsInvalid(form) && !slaInvalid(form) && !teamLabelInvalid(form) && !pending;
+        && !sectionsInvalid(form) && !slaInvalid(form) && !teamLabelInvalid(form) && !targetRespondentsInvalid(form) && !pending;
 
     useEffect(() => { onStatusChange?.({ canSubmit, dirty, pending }); }, [canSubmit, dirty, pending, onStatusChange]);
 
@@ -56,7 +57,7 @@ export function PeriodEditor({ scope, period, periods = [], copyFrom, onSaved, f
         if (!canSubmit) return;
         const options = { onSuccess: (saved: CsiPeriodDetail) => onSaved(saved) };
         if (!period) create.mutate(toCreatePayload(form), options);
-        else if (dirty) update.mutate({ id: period.id, payload: toUpdatePayload(form, locked) }, options);
+        else if (dirty) update.mutate({ id: period.id, payload: toUpdatePayload(form, locked, period) }, options);
         else onSaved(period);
     };
 
@@ -83,6 +84,7 @@ export function PeriodEditor({ scope, period, periods = [], copyFrom, onSaved, f
                 overlap={<OverlapNotice scope={scope} siteIds={form.siteIds} startDate={form.startDate} endDate={form.endDate} excludeId={period?.id}
                     onUseDates={(range) => setForm((current) => ({ ...current, ...range }))} />} />
             <SectionFields form={form} set={set} locked={locked} />
+            {scope === 'hc' && <HcRaterModeField form={form} set={set} locked={locked} />}
         </form>
     );
 }

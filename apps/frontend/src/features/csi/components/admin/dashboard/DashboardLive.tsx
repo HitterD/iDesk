@@ -1,3 +1,4 @@
+import { capped } from '../respondents/respondentModel';
 import { AlertTriangle, ArrowRight, CheckCircle2, LayoutGrid, Star, TrendingDown, TrendingUp, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { scoreTone, siteTone, toneClasses } from '../../../lib/csiTone';
@@ -9,7 +10,7 @@ import { SiteBadge } from '../report/reportParts';
 import { ratioPct } from '../report/reportModel';
 import { StatCard } from '../StatCard';
 import { CommentsPanel, PendingPanel } from './DashboardLists';
-import { fillPct, isReached, liveSummary, remainingLabel, type LiveSummary } from './dashboardModel';
+import { fillPct, hasAudience, isReached, liveSummary, remainingLabel, type LiveSummary } from './dashboardModel';
 
 export const PILL = 'inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[12px] font-semibold';
 const STAT_SPAN = 'col-span-12 sm:col-span-6 xl:col-span-3';
@@ -34,7 +35,7 @@ function LiveStats({ summary }: { summary: LiveSummary }) {
             </div>
             <div className={STAT_SPAN}>
                 <StatCard tone="sky" icon={Users} label="Jawaban masuk"
-                    value={<>{summary.responses}<span className={cn(MUTED_TEXT, 'font-medium')}>{` / ${summary.basis}`}</span></>}
+                    value={<>{capped(summary.responses, summary.basis)}<span className={cn(MUTED_TEXT, 'font-medium')}>{` / ${summary.basis}`}</span></>}
                     hint={`${ratioPct(summary.responses, summary.basis)}% dari basis`} />
             </div>
             <div className={STAT_SPAN}>
@@ -70,7 +71,7 @@ function SiteTargetCard({ row, today, onOpen }: { row: CsiDashboardActive; today
                     <SiteBadge code={row.siteCode} />
                     <b className="min-w-0 truncate text-[13.5px]">{row.siteName ?? row.title}</b>
                 </div>
-                <p className={cn(MUTED_TEXT, 'mt-1 text-[12px]')}>{`${row.responses}/${row.basis} penilai · target ${row.targetPct}%`}</p>
+                <p className={cn(MUTED_TEXT, 'mt-1 text-[12px]')}>{`${capped(row.responses, row.basis)}/${row.basis} penilai · target ${row.targetPct}%`}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px]">
                     <span>Skor <b className="tabular-nums">{formatFixed2(row.average)}</b></span>
                     <span className={cn(PILL, status.soft, status.ink)}>{reached ? 'Tercapai' : remainingLabel(row.endDate, today)}</span>
@@ -93,7 +94,7 @@ export function DashboardLive({ scope, data, today, onOpenReport }: { scope: Csi
             <LiveStats summary={liveSummary(data)} />
             <AdminSection title="Target per site" description={onOpenReport ? 'Klik kartu untuk melihat siapa menilai siapa dan nilai per subjek.' : undefined} className="col-span-12">
                 <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(250px,100%),1fr))]">
-                    {data.active.map((row) => <SiteTargetCard key={`${row.periodId}:${row.siteId}`} row={row} today={today} onOpen={onOpenReport} />)}
+                    {data.active.filter(hasAudience).map((row) => <SiteTargetCard key={`${row.periodId}:${row.siteId}`} row={row} today={today} onOpen={onOpenReport} />)}
                 </div>
             </AdminSection>
             <PendingPanel scope={scope} data={data} className="col-span-12 lg:col-span-6" />

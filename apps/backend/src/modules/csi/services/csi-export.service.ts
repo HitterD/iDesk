@@ -16,6 +16,7 @@ import { raterMatrix } from './csi-rater-matrix.calc';
 import { addStyledSheet, AVERAGE_COLUMN, PERCENT_COLUMN, sanitizeCell, WIDTH } from './csi-export.sheet';
 import { formatLocation } from './csi-format.util';
 import { CsiReportService } from './csi-report.service';
+import { addHcRecapSheets } from '../org/csi-hc-report.render';
 
 export { sanitizeCell } from './csi-export.sheet';
 
@@ -68,7 +69,15 @@ export class CsiExportService {
 
     private async model(scope: ServiceScope, periodId: string, options: CsiExportOptions) {
         const matrix = await this.reports.getRaterMatrix(scope, periodId, options.siteId);
-        return this.reports.getExecutiveModel(scope, periodId, { siteId: options.siteId, notes: options.notes, matrix });
+        const model = await this.reports.getExecutiveModel(scope, periodId, { siteId: options.siteId, notes: options.notes, matrix });
+        return { ...model, hcRecap: await this.hcRecap(scope, periodId) };
+    }
+
+    /** HC per-PIC recap of the period, or null when it has no HC PIC (ICT never has one). */
+    private async hcRecap(scope: ServiceScope, periodId: string) {
+        if (scope !== ServiceScope.HC) return null;
+        const recap = await this.reports.getHcRecap(scope, periodId);
+        return recap.services.some((row) => row.level === 'pic' && row.serviceCode) ? recap : null;
     }
 
     /** Executive survey report PDF (rankings and comments carry no respondent names). */
@@ -91,6 +100,8 @@ export class CsiExportService {
         workbook.title = sanitizeCell(report.period.title);
 
         addExecutiveSheets(workbook, model);
+        // Admin-only workbook: the HC detail sheet names the respondents (the PDF never does).
+        if (model.hcRecap) addHcRecapSheets(workbook, model.hcRecap, true);
         addRecap(workbook, report);
         const kinds: Array<[CsiRateeKind, string]> = [[CsiRateeKind.TEAM, SHEET_TEAM], [CsiRateeKind.PERSON, SHEET_PERSON]];
         for (const [kind, sheetName] of kinds) {

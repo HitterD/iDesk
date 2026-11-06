@@ -246,6 +246,11 @@ export class CsiSubjectService {
         return team;
     }
 
+    /** Deletes a CSI-uploaded photo (PIC photos); anything outside /uploads/csi/ is never touched. */
+    removeCsiPhoto(url: string | null) {
+        return this.removeOldPhoto(url);
+    }
+
     private async removeOldPhoto(oldUrl: string | null) {
         if (oldUrl?.startsWith(CSI_PHOTO_URL_PREFIX)) await this.unlinkQuietly(`.${oldUrl}`);
     }

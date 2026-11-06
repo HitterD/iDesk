@@ -6,6 +6,7 @@ import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.
 import { CsiRateeKind } from '../csi.constants';
 import { cleanText } from './csi-format.util';
 import { formatLongDate } from './csi-memo-page';
+import { renderHcRecapPdf } from '../org/csi-hc-report.render';
 import {
     CSI_SCORE_FAIR, CSI_SCORE_GOOD, CsiQuestionGrid, CsiReportModel, CsiReportRow, HIGHLIGHT_COUNT, HIGHLIGHT_FROM,
 } from './csi-report-model';
@@ -14,6 +15,8 @@ export type CsiReportPdfInput = { model: CsiReportModel; signoff: SignoffLayout;
 
 /** Question columns per grid table on A4 portrait (more questions continue in a second table). */
 const GRID_COLUMNS = 7;
+/** Short labels up to this length replace the P1..Pn codes as grid headers. */
+const SHORT_HEADER_MAX = 16;
 /** Score bars on page 1 up to this many questions; more move the "Aspek layanan" chart to page 2. */
 const ASPECTS_ON_PAGE_ONE = 12;
 const logger = new Logger('CsiReportPdf');
@@ -43,7 +46,8 @@ function summary(canvas: ReportCanvas, model: CsiReportModel) {
 }
 
 function siteAndAspects(canvas: ReportCanvas, model: CsiReportModel, aspectsHere: boolean) {
-    const siteRows = model.sites.map((site) => ({
+    // Sites without any basis or answer (e.g. not part of the rater list) are left out instead of showing 0/0.
+    const siteRows = model.sites.filter((site) => site.basis > 0 || site.responses > 0).map((site) => ({
         label: `${site.code ?? ''} ${site.name ?? ''}`.trim(), value: site.respondenPct, color: site.reached ? INK.green : INK.amber,
         text: `${dec(site.average)} · ${site.responses}/${site.basis} (${pct(site.respondenPct)})`,
     }));
@@ -87,7 +91,7 @@ function peopleSpotlight(canvas: ReportCanvas, rows: CsiReportRow[]) {
 
 function participation(canvas: ReportCanvas, model: CsiReportModel) {
     canvas.section('Partisipasi', `Basis = ${model.participation.basisLabel}. Target = ${model.targetPct}% dari basis. % Pengisi (SLA) = responden dibanding target, maks. 100%.`);
-    const body: Cell[][] = model.sites.map((site) => [
+    const body: Cell[][] = model.sites.filter((site) => site.basis > 0 || site.responses > 0).map((site) => [
         { text: `${site.code ?? ''} ${site.name ?? ''}`.trim(), bold: true }, { text: String(site.basis) }, { text: String(site.target) },
         { text: String(site.responses) }, { text: pct(site.respondenPct) }, { text: pct(site.pengisiPct) },
         { text: site.reached ? 'Tercapai' : 'Belum', color: site.reached ? INK.green : INK.red, bold: true }, { text: dec(site.average), color: scoreColor(site.average) },
@@ -108,12 +112,15 @@ function participation(canvas: ReportCanvas, model: CsiReportModel) {
 /** Rows = teams/people, columns = question codes; wide grids continue in a second table with the names repeated. */
 function questionGrid(canvas: ReportCanvas, grid: CsiQuestionGrid, title: string) {
     if (!grid.rows.length) return;
-    canvas.section(title, 'Kosong (–) = pertanyaan tidak dipasang untuk yang dinilai itu.');
-    canvas.table([{ header: 'Kode', width: 9 }, { header: 'Pertanyaan', width: 91 }],
-        grid.columns.map((column) => [{ text: column.code, bold: true }, { text: text(column.label === column.full ? column.full : `${column.label} — ${column.full}`) }]));
+    canvas.section(title, 'Angka = RATA-RATA nilai (skala 1-5) dari semua responden yang menilai, jadi bisa desimal (mis. 3,50). Kosong (–) = pertanyaan tidak dipasang untuk yang dinilai itu.');
+    // Short labels (e.g. the HC dimensions Knowledge … Tangible) are clear enough to be the column headers themselves.
+    const named = grid.columns.every((column) => column.label !== column.full && column.label.length <= SHORT_HEADER_MAX);
+    const header = (column: CsiQuestionGrid['columns'][number]) => (named ? text(column.label) : column.code);
+    canvas.table([{ header: named ? 'Kolom' : 'Kode', width: 18 }, { header: 'Pertanyaan', width: 82 }],
+        grid.columns.map((column) => [{ text: header(column), bold: true }, { text: text(column.full) }]));
     for (let start = 0; start < Math.max(1, grid.columns.length); start += GRID_COLUMNS) {
         const slice = grid.columns.slice(start, start + GRID_COLUMNS);
-        const columns: Column[] = [{ header: 'Nama', width: 30 }, { header: 'Site', width: 8 }, ...slice.map((column) => ({ header: column.code, width: 62 / GRID_COLUMNS, align: 'right' as const }))];
+        const columns: Column[] = [{ header: 'Nama', width: 30 }, { header: 'Site', width: 8 }, ...slice.map((column) => ({ header: header(column), width: 62 / GRID_COLUMNS, align: 'right' as const }))];
         canvas.table(columns, grid.rows.map((row) => [
             { text: text(row.name), bold: true }, { text: row.siteCode ?? DASH },
             ...row.values.slice(start, start + GRID_COLUMNS).map((value) => ({ text: dec(value), color: scoreColor(value), bold: value !== null })),
@@ -186,6 +193,7 @@ export function renderCsiReportPdf({ model, signoff, now }: CsiReportPdfInput): 
             peopleSpotlight(canvas, model.people);
             rankingTable(canvas, model.people, CsiRateeKind.PERSON);
             participation(canvas, model);
+            if (model.hcRecap?.services.length) renderHcRecapPdf(canvas, model.hcRecap);
 
             appendix(canvas, model);
             canvas.section('Pengesahan', `Dicetak ${formatLongDate(localDateKey(now, DEFAULT_TIMEZONE))}`);

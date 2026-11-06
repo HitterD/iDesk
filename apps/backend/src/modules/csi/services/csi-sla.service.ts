@@ -38,8 +38,16 @@ export class CsiSlaService {
     ) { }
 
     /** SLA basis, target and % Pengisi for a period over the given sites (`responses` = distinct responses). */
-    async compute(period: Pick<CsiPeriod, 'id' | 'respondentMode' | 'startDate' | 'slaTargetPct'>, sites: Array<{ id: string }>, responses: number): Promise<CsiSla> {
+    async compute(period: Pick<CsiPeriod, 'id' | 'respondentMode' | 'startDate' | 'slaTargetPct'> & Partial<Pick<CsiPeriod, 'targetRespondents'>>, sites: Array<{ id: string }>, responses: number): Promise<CsiSla> {
         const siteIds = sites.map((site) => site.id);
+        // HC "respondents pick" (open) with a target set by HC: the target number is the basis, no people list.
+        if (period.respondentMode === CsiRespondentMode.OPEN && period.targetRespondents) {
+            // The HC target covers the whole survey; one site of several gets its share (rounded up).
+            const allSites = (period as { sites?: unknown[] }).sites?.length || siteIds.length || 1;
+            const basis = siteIds.length >= allSites ? period.targetRespondents : Math.ceil((period.targetRespondents * siteIds.length) / allSites);
+            const target = slaTarget(basis, period.slaTargetPct);
+            return { mode: period.respondentMode, basis, targetPct: period.slaTargetPct, target, responses, pengisiPct: pengisiPct(basis, responses, target), reporters: [] };
+        }
         const rows = !siteIds.length ? []
             : period.respondentMode === CsiRespondentMode.LISTED
                 ? await this.listedReporters(period.id, siteIds)

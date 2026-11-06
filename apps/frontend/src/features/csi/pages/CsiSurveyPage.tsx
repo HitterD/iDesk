@@ -10,7 +10,7 @@ import { formatDateTime } from '../lib/format';
 import { clearDraft, draftKey } from '../lib/surveyDraft';
 import { BackLink, CsiStatusScreen, CSI_CARD, FadeIn } from '../components/CsiSurveyParts';
 import { ThankYouScreen } from '../components/respond/ThankYouScreen';
-import { SurveyFlow } from '../components/respond/SurveyFlow';
+import { clearPicks, RespondentFlow } from '../components/respond/PicSurveyFlow';
 import { NextSurveyCard } from '../components/respond/NextSurveyCard';
 import { answeredOnText, RESPOND_COPY } from '../components/respond/respondCopy';
 import type { CsiOpenForm, SubmitCsiResponse } from '../types';
@@ -32,9 +32,18 @@ function SurveySkeleton() {
 /** The server is the authority: after a successful submit or an ended period (410) the local draft is obsolete; a 409 keeps it. */
 function useClearDraftWhen(done: boolean, userId: string, periodId: string) {
     useEffect(() => {
-        if (done && userId) clearDraft(draftKey(userId, periodId));
+        if (!done || !userId) return;
+        clearDraft(draftKey(userId, periodId));
+        clearPicks(userId, periodId);
     }, [done, userId, periodId]);
 }
+
+/** Ratees the payload actually answered (HC per PIC rates only the picked PICs); everyone otherwise. */
+const ratedIn = (form: CsiOpenForm, payload: SubmitCsiResponse | null) => {
+    if (!form.respondentPicks || !payload) return form.ratees;
+    const answered = new Set(payload.items.map((item) => item.periodRateeDimensionId));
+    return form.ratees.filter((ratee) => ratee.dimensions.some((dimension) => answered.has(dimension.periodRateeDimensionId)));
+};
 
 /** The account already answered: one answer per account, so the survey is closed for it (with the next one offered). */
 function AlreadyAnswered({ form, basePath }: { form: CsiOpenForm; basePath: string }) {
@@ -63,7 +72,7 @@ function SurveyForm({ form, basePath, userId }: { form: CsiOpenForm; basePath: s
 
     if (submit.isSuccess) {
         return (
-            <ThankYouScreen periodId={form.id} respondentName={form.respondent.fullName} ratees={form.ratees} payload={lastPayload}
+            <ThankYouScreen periodId={form.id} respondentName={form.respondent.fullName} ratees={ratedIn(form, lastPayload)} payload={lastPayload}
                 message={submit.data.thankYou} basePath={basePath} />
         );
     }
@@ -76,7 +85,7 @@ function SurveyForm({ form, basePath, userId }: { form: CsiOpenForm; basePath: s
     return (
         <div className={PAGE_WIDTH}>
             <FadeIn className="mb-4 pt-1"><BackLink to={basePath} /></FadeIn>
-            <SurveyFlow form={form} userId={userId}
+            <RespondentFlow form={form} userId={userId}
                 onSubmit={(payload) => { setLastPayload(payload); submit.mutate(payload); }}
                 submitting={submit.isPending} error={submit.error} />
         </div>

@@ -2,6 +2,8 @@ import type { CsiDepartment, CsiDimension, CsiOpenForm, CsiPeriodDetail } from '
 import { orderRatees } from './csiForm';
 
 type PeriodRatee = CsiPeriodDetail['ratees'][number];
+/** HC layanan names (same as the backend org constants). */
+export const SERVICE_NAMES: Readonly<Record<string, string>> = { HCC: 'HC Compensation & Benefit', HCD: 'HC Development', HCS: 'HC Services' };
 
 /** Same section rule as the respondent form: TEAM only while the team section is on, PERSON only while individuals are. */
 const inEnabledSection = (period: CsiPeriodDetail) => (ratee: PeriodRatee) =>
@@ -18,11 +20,13 @@ export function toPreviewForm(
     return {
         id: period.id, scope: period.scope, title: period.title,
         intro: period.intro, endDate: period.endDate, teamLabel: period.teamLabel, submittedNames: [], respondent: { fullName: respondentName },
+        ...(period.respondentPicks ? { respondentPicks: true } : {}),
         departments: departments.filter((department) => department.isActive).map(({ id, name }) => ({ id, name })),
         ratees: orderRatees([...period.ratees].filter(inEnabledSection(period)).sort((a, b) => a.sortOrder - b.sortOrder).map((ratee) => ({
             periodRateeId: ratee.id, kind: ratee.kind, displayName: ratee.displayName, jobTitle: ratee.jobTitle, avatarUrl: ratee.photoUrl ?? null,
             siteId: ratee.siteId ?? null, siteCode: period.sites.find((site) => site.id === ratee.siteId)?.code ?? null,
             tagline: ratee.tagline ?? null, photoUrl: ratee.photoUrl ?? null,
+            ...(ratee.picId ? { picId: ratee.picId, serviceCode: ratee.serviceCode ?? null, serviceName: SERVICE_NAMES[ratee.serviceCode ?? ''] ?? null, bagian: ratee.bagian ?? null } : {}),
             dimensions: [...ratee.dimensions].sort((a, b) => a.sortOrder - b.sortOrder).map((dimension) => ({
                 periodRateeDimensionId: dimension.id, name: dimension.dimensionName,
                 description: descriptions.get(dimension.dimensionId) ?? null,

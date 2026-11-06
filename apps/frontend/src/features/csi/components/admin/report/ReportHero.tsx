@@ -1,3 +1,4 @@
+import { capped } from '../respondents/respondentModel';
 import type { ReactNode } from 'react';
 import { AlertTriangle, TrendingDown, TrendingUp, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -71,7 +72,7 @@ export function ReportHero({ report }: { report: CsiReport }) {
                 </div>
             </div>
             <StatCard label="Jawaban masuk" tone={reached ? 'green' : 'amber'} icon={<Users className={ICON} aria-hidden="true" />}
-                value={<span className="tabular-nums">{sla.responses}<span className={cn(MUTED_TEXT, 'font-medium')}>{` / ${sla.basis}`}</span></span>}>
+                value={<span className="tabular-nums">{capped(sla.responses, sla.basis)}<span className={cn(MUTED_TEXT, 'font-medium')}>{` / ${sla.basis}`}</span></span>}>
                 <span className={cn('text-[12px] font-medium', toneClasses(reached ? 'green' : 'amber').ink)}>
                     {`${ratioPct(sla.responses, sla.basis)}% dari basis · target ${sla.targetPct}%${reached ? ' tercapai' : ''}`}
                 </span>

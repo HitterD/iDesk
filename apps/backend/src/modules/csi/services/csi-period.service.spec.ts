@@ -10,6 +10,10 @@ import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiPeriodService, computeReadiness, computeStatus } from './csi-period.service';
 
+/** No directory / HC PICs in these scenarios. */
+const NO_PICS = { findPics: async () => [], respondentOrg: async () => ({ nik: null, division: null, department: null, bagian: null, location: null, fromDirectory: false }) };
+
+
 const ICT = ServiceScope.ICT;
 const HC = ServiceScope.HC;
 
@@ -18,6 +22,7 @@ function matches(row: Record<string, any>, where: Record<string, any> = {}): boo
     return Object.entries(where).every(([key, value]): boolean => {
         if (value && typeof value === 'object' && '_type' in value) {
             if (value._type === 'in') return value._value.includes(row[key]);
+            if (value._type === 'isNull') return row[key] === null || row[key] === undefined;
             if (value._type === 'not') return row[key] !== value._value;
             if (value._type === 'lessThanOrEqual') return row[key] <= value._value;
             if (value._type === 'moreThanOrEqual') return row[key] >= value._value;
@@ -93,7 +98,7 @@ const SCALE_OPTIONS = [{ label: 'Puas', points: 5 }, { label: 'Tidak puas', poin
 const basePeriod = (over: Partial<CsiPeriod> = {}): CsiPeriod => ({
     id: 'p1', scope: ICT, sites: [{ siteId: 'site-a', site } as any], title: 'Q3', intro: 'Halo', thankYou: 'Terima kasih',
     startDate: '2026-07-01', endDate: '2026-09-30', respondentMode: CsiRespondentMode.OPEN, publishStatus: CsiPeriodPublishStatus.PUBLISHED, createdById: 'admin',
-    teamEnabled: false, teamLabel: 'Tim IT Support', individualEnabled: true, slaTargetPct: 80, pairMode: null, cancelledAt: null, cancelledById: null, cancelReason: null,
+    teamEnabled: false, teamLabel: 'Tim IT Support', individualEnabled: true, respondentPicks: false, unitRules: [], targetRespondents: null, slaTargetPct: 80, pairMode: null, cancelledAt: null, cancelledById: null, cancelReason: null,
     createdAt: new Date(), updatedAt: new Date(), ...over,
 });
 
@@ -204,7 +209,7 @@ describe('CsiPeriodService', () => {
         service = new CsiPeriodService(
             periods as any, ratees as any, rateeDimensions as any, periodRaters as any, responses as any,
             dimensions as any, users as any, sites as any, departments as any, dataSource as any,
-            assignments as any, subjects as any,
+            assignments as any, subjects as any, NO_PICS as any,
         );
     });
 

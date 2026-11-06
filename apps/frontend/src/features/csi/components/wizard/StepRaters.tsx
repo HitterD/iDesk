@@ -5,6 +5,8 @@ import { PeriodRaters } from '../admin/PeriodRaters';
 import { AddRatersPanel } from '../admin/raters/AddRatersPanel';
 import { PairsPanel } from './StepPairs';
 import { WIZARD_COPY } from './wizardCopy';
+import { HcPairsPanel } from '../admin/hc/HcPairsPanel';
+import { isHcDecided } from '../../lib/hcMode';
 
 /** LISTED only: tick who fills this survey (from the Daftar penilai), add missing people, then choose who rates whom. */
 export function StepRaters({ scope, period, onDirtyChange }: {
@@ -17,6 +19,8 @@ export function StepRaters({ scope, period, onDirtyChange }: {
     const pairsDirty = useCallback((value: boolean) => setDirty((current) => ({ ...current, pairs: value })), []);
     useEffect(() => { onDirtyChange(dirty.raters || dirty.pairs); }, [dirty, onDirtyChange]);
     const registered = new Set(raters.map((rater) => rater.userId));
+    // HC decides who rates which PIC: one panel (per unit / search names / Excel) instead of raters + matrix.
+    if (isHcDecided(scope, period)) return <HcPairsPanel scope={scope} period={period} />;
     return (
         <div className="grid gap-5">
             <PeriodRaters scope={scope} period={period} onDirtyChange={ratersDirty} />

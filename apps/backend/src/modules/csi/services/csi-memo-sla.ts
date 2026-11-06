@@ -11,7 +11,7 @@ const PERCENT = 100;
 
 /** Spec: "% Responden" = responden / pelapor (uncapped, like the 2025 appendix); null when there is no basis. */
 const respondenPct = (responses: number, basis: number): number | null =>
-    basis > 0 ? Math.round((responses / basis) * PERCENT) : null;
+    basis > 0 ? Math.min(PERCENT, Math.round((responses / basis) * PERCENT)) : null;
 
 /** Summary box rows: label | value. */
 function summaryRows(survey: MemoSurvey): Array<[string, string]> {
