@@ -74,13 +74,17 @@ export class EFormDocumentService {
     return saved;
   }
 
-  /** IT records the GM's signature by uploading the signed form; the first upload hands the request to provisioning. */
+  /**
+   * The GM's signature is recorded by uploading the signed form; the first upload hands the request to provisioning.
+   * IT may always do it; the requester may too, but only on the paper route (no GM picked to approve in iDesk).
+   */
   async uploadGmApproval(actor: SiteActor, id: string, userId: string, file: Express.Multer.File | undefined): Promise<EFormRequest> {
     if (!file) throw new BadRequestException('Pilih berkas PDF yang sudah ditandatangani GM');
     try {
       if (!isUUID(id)) throw new BadRequestException('ID pengajuan tidak valid');
       if (!validateFileMagicBytes(file)) throw new BadRequestException('Berkas bukan PDF yang valid');
-      const request = await this.loadForIct(actor, id, true);
+      const isIct = ICT_ROLES.includes(actor.role as UserRole);
+      const request = await this.loadForUpload(actor, id, userId, isIct);
       if (!GM_UPLOAD_STATES.includes(request.status)) throw new BadRequestException('Pengajuan ini tidak sedang menunggu tanda tangan GM');
 
       const replaced = request.gmApprovalFile;
@@ -103,7 +107,7 @@ export class EFormDocumentService {
         action: AuditAction.EFORM_APPROVE_MANAGER2,
         entityType: 'EFormRequest',
         entityId: id,
-        description: first ? 'Uploaded the GM-signed E-Form' : 'Replaced the GM-signed E-Form',
+        description: `${first ? 'Uploaded' : 'Replaced'} the GM-signed E-Form${isIct ? '' : ' (by requester)'}`,
         newValue: { fileName: request.gmApprovalFileName },
       });
       delete (saved as Partial<EFormRequest>).gmApprovalFile;
@@ -131,6 +135,18 @@ export class EFormDocumentService {
     });
     if (!request) throw new NotFoundException('Request not found');
     assertSiteAccess(actor, request.siteId);
+    return request;
+  }
+
+  /** IT (within its site) or the requester on the paper route; anyone else is refused. */
+  private async loadForUpload(actor: SiteActor, id: string, userId: string, isIct: boolean): Promise<EFormRequest> {
+    if (isIct) return this.loadForIct(actor, id, true);
+    const request = await this.repo.findOne({
+      where: { id },
+      select: this.repo.metadata.columns.map((column) => column.propertyName) as (keyof EFormRequest)[],
+    });
+    if (!request || request.requesterId !== userId) throw new NotFoundException('Request not found');
+    if (request.gmApproverId) throw new ForbiddenException('GM menyetujui langsung di iDesk; berkas tidak perlu diunggah');
     return request;
   }
 

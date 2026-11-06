@@ -52,9 +52,9 @@ export class EFormDocumentController {
   }
 
   @Post(':id/gm-approval')
-  @Roles(...ICT_ROLES)
+  // No @Roles: the service lets IT and the requester (paper route only) through and refuses everyone else.
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'ICT uploads the form signed by the GM (PDF)' })
+  @ApiOperation({ summary: 'ICT or the requester uploads the form signed by the GM (PDF)' })
   @UseInterceptors(FileInterceptor('file', GM_APPROVAL_UPLOAD))
   // No ParseUUIDPipe here: pipes run after multer has stored the file, so a refusal there would orphan it.
   // The service checks the id and removes the file whenever it refuses.
