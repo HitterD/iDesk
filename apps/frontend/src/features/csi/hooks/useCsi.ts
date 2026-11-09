@@ -30,6 +30,9 @@ const periodKeys = (scope: CsiScopeParam, id: string): QueryKey[] => [
 /** Active surveys change rarely; submitting a response invalidates this query anyway. */
 const ACTIVE_SURVEYS_STALE_TIME_MS = 60_000;
 
+export function useCsiMyResults() {
+    return useQuery({ queryKey: ['csi', 'me', 'results'], queryFn: CsiApi.myResults });
+}
 export function useCsiActive() {
     return useQuery({ queryKey: keys.active(), queryFn: CsiApi.active, staleTime: ACTIVE_SURVEYS_STALE_TIME_MS });
 }

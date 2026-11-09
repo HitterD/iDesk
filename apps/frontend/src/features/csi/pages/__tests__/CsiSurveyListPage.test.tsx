@@ -11,7 +11,7 @@ import type { CsiActivePeriod } from '../../types';
 vi.mock('@/stores/useAuth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
 
 vi.mock('../../api/csi.api', () => ({
-    CsiApi: { active: vi.fn(), form: vi.fn(), submit: vi.fn() },
+    CsiApi: { active: vi.fn(), form: vi.fn(), submit: vi.fn(), myResults: vi.fn(async () => []) },
 }));
 const hcAccess = vi.hoisted(() => ({ services: [] as string[] }));
 vi.mock('../../api/csiHc.api', () => ({
@@ -122,5 +122,12 @@ describe('CsiPendingCard', () => {
         renderAt('/csi', <CsiSurveyListPage />);
         await screen.findByText('Survei ICT Q4');
         expect(screen.queryByRole('link', { name: /report csi layanan/i })).toBeNull();
+    });
+
+    it('links to "Hasil penilaian saya" only for people who are rated', async () => {
+        vi.mocked(CsiApi.active).mockResolvedValue(SURVEYS);
+        vi.mocked(CsiApi.myResults).mockResolvedValueOnce([{ periodId: 'p1' } as never]);
+        renderAt('/csi', <CsiSurveyListPage />);
+        expect(await screen.findByRole('link', { name: /hasil penilaian saya/i })).toHaveAttribute('href', '/csi/hasil-saya');
     });
 });

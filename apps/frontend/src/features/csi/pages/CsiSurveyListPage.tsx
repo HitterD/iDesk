@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom';
-import { BarChart3, CheckCircle2, ChevronRight, ClipboardList, Star } from 'lucide-react';
+import { Award, BarChart3, CheckCircle2, ChevronRight, ClipboardList, Star } from 'lucide-react';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { TicketPill } from '@/components/ui/ticket-pill';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/stores/useAuth';
 import { hasDraft } from '../lib/surveyDraft';
-import { useCsiActive } from '../hooks/useCsi';
+import { useCsiActive, useCsiMyResults } from '../hooks/useCsi';
 import { useCsiMyReportAccess } from '../hooks/useCsiHc';
 import { useCsiBasePath } from '../lib/useCsiBasePath';
 import { formatDate } from '../lib/format';
@@ -19,6 +19,7 @@ export function CsiSurveyListPage() {
     const { user } = useAuth();
     const { data: surveys, isLoading, isError, refetch } = useCsiActive();
     const { data: reportAccess } = useCsiMyReportAccess();
+    const { data: myResults } = useCsiMyResults();
 
     return (
         <div className="mx-auto max-w-3xl space-y-6">
@@ -26,6 +27,14 @@ export function CsiSurveyListPage() {
                 <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight text-foreground">{CSI_SURVEY_PAGE_TITLE}</h1>
                 <p className="text-[15px] text-muted-foreground">Bantu kami meningkatkan layanan dengan menilai tim yang melayani Anda.</p>
             </FadeIn>
+
+            {myResults && myResults.length > 0 && (
+                <Link to={`${basePath}/hasil-saya`} className={cn(CSI_CARD, 'flex items-center gap-3 px-5 py-3 text-[14px] font-semibold hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}>
+                    <Award className="h-5 w-5 text-[hsl(var(--ticket-amber))]" aria-hidden="true" />
+                    <span className="flex-1">Hasil penilaian saya <span className="font-normal text-muted-foreground">· anonim</span></span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                </Link>
+            )}
 
             {reportAccess && reportAccess.services.length > 0 && (
                 <Link to={`${basePath}/report`} className={cn(CSI_CARD, 'flex items-center gap-3 px-5 py-3 text-[14px] font-semibold hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}>

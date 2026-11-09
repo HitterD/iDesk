@@ -436,3 +436,10 @@ export interface CsiDashboard {
     pending: CsiDashboardPending[];
     comments: CsiDashboardComment[];
 }
+
+/** "Hasil penilaian saya": anonymous results about the signed-in account (scores only from `minRaters` raters on). */
+export interface CsiSelfResult {
+    periodId: string; title: string; startDate: string; endDate: string; status: 'UPCOMING' | 'ACTIVE' | 'ENDED';
+    serviceFunction: string | null; raters: number; minRaters: number; ready: boolean;
+    average: number | null; dimensions: Array<{ label: string; average: number }>; comments: string[];
+}
