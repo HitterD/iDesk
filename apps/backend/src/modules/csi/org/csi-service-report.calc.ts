@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap, CsiRecapRow, CsiRespondentDetail, ratingValue } from './csi-hc-report.calc';
 
 /** Name shown instead of the rater on ratings the viewer may not attribute (ratings about the viewer themself). */
@@ -13,15 +14,15 @@ export type CsiPendingDepartment = { department: string; pending: number; total:
  * is computed without them, so subtracting the named answers can never reveal them.
  */
 export function buildServiceReport(input: {
-    pics: CsiHcPic[]; ratings: CsiHcRating[]; dimensions: string[]; serviceCode: string; hiddenRateeIds: ReadonlySet<string>;
+    pics: CsiHcPic[]; ratings: CsiHcRating[]; dimensions: string[]; serviceCode: string; hiddenRateeIds: ReadonlySet<string>; scope?: ServiceScope;
 }): CsiHcRecap {
     const pics = input.pics.filter((pic) => pic.serviceCode === input.serviceCode);
     const ids = new Set(pics.map((pic) => pic.periodRateeId));
     const ratings = input.ratings.filter((rating) => ids.has(rating.periodRateeId));
     const visible = ratings.filter((rating) => !input.hiddenRateeIds.has(rating.periodRateeId));
     const hidden = ratings.filter((rating) => input.hiddenRateeIds.has(rating.periodRateeId));
-    const full = buildHcRecap({ pics, ratings, dimensions: input.dimensions });
-    const named = buildHcRecap({ pics, ratings: visible, dimensions: input.dimensions });
+    const full = buildHcRecap({ pics, ratings, dimensions: input.dimensions, scope: input.scope });
+    const named = buildHcRecap({ pics, ratings: visible, dimensions: input.dimensions, scope: input.scope });
     const ownRow = new Map(full.services.filter((row) => row.level === 'pic' && input.hiddenRateeIds.has(row.key.slice(PIC_KEY_PREFIX.length)))
         .map((row) => [row.key, maskOwnRow(row)]));
     const services = named.services.map((row) => ownRow.get(row.key) ?? row);

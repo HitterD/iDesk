@@ -45,4 +45,12 @@ describe('CsiReportAccessService', () => {
         await expect(service.setOwners(ServiceScope.HC, 'XYZ', [])).rejects.toBeInstanceOf(BadRequestException);
         await expect(service.setOwners(ServiceScope.HC, 'HCC', ['ghost'])).rejects.toBeInstanceOf(BadRequestException);
     });
+
+    it('ICT has its own services (the handling teams); an HC owner owns nothing in ICT', async () => {
+        owners.push({ id: 'o9', scope: 'ICT', serviceCode: 'ORACLE', userId: 'budi' });
+        expect(await service.servicesFor('budi', ServiceScope.ICT)).toEqual({ admin: false, services: ['ORACLE'] });
+        expect(await service.servicesFor('rara', ServiceScope.ICT)).toEqual({ admin: false, services: [] });
+        await expect(service.setOwners(ServiceScope.ICT, 'HCD', [])).rejects.toBeInstanceOf(BadRequestException);
+        expect((await service.listOwners(ServiceScope.ICT)).map((row) => row.serviceCode)).toEqual(['OPS', 'ORACLE', 'WEB', 'MOBILE', 'MGR']);
+    });
 });

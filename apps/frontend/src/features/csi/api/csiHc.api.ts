@@ -7,9 +7,9 @@ const periodPath = (scope: CsiScopeParam, id: string) => `/csi/admin/${scope}/pe
 /** Multipart field expected by the backend FileInterceptor('file'). */
 const FILE_FIELD = 'file';
 
-const meHcPath = '/csi/me/hc';
-const serviceReportPath = (periodId: string, serviceCode: string) =>
-    `${meHcPath}/periods/${encodeURIComponent(periodId)}/services/${encodeURIComponent(serviceCode)}`;
+const mePath = (scope: CsiScopeParam) => `/csi/me/${scope}`;
+const serviceReportPath = (scope: CsiScopeParam, periodId: string, serviceCode: string) =>
+    `${mePath(scope)}/periods/${encodeURIComponent(periodId)}/services/${encodeURIComponent(serviceCode)}`;
 
 const templatePath = (scope: CsiScopeParam) => `/csi/admin/${scope}/templates`;
 
@@ -46,17 +46,17 @@ export const CsiHcApi = {
     async createPeriodFromTemplate(scope: CsiScopeParam, templateId: string, body: { title: string; startDate: string; endDate: string }): Promise<{ periodId: string; report: CsiTemplateApplyReport }> {
         return (await api.post<{ periodId: string; report: CsiTemplateApplyReport }>(`${templatePath(scope)}/${encodeURIComponent(templateId)}/create-period`, body)).data;
     },
-    async myReportAccess(): Promise<CsiReportAccess> {
-        return (await api.get<CsiReportAccess>(`${meHcPath}/report-access`, { skipToast: true })).data;
+    async myReportAccess(scope: CsiScopeParam): Promise<CsiReportAccess> {
+        return (await api.get<CsiReportAccess>(`${mePath(scope)}/report-access`, { skipToast: true })).data;
     },
-    async myReportPeriods(): Promise<CsiReportPeriods> {
-        return (await api.get<CsiReportPeriods>(`${meHcPath}/periods`)).data;
+    async myReportPeriods(scope: CsiScopeParam): Promise<CsiReportPeriods> {
+        return (await api.get<CsiReportPeriods>(`${mePath(scope)}/periods`)).data;
     },
-    async myServiceReport(periodId: string, serviceCode: string): Promise<CsiServiceReport> {
-        return (await api.get<CsiServiceReport>(`${serviceReportPath(periodId, serviceCode)}/report`)).data;
+    async myServiceReport(scope: CsiScopeParam, periodId: string, serviceCode: string): Promise<CsiServiceReport> {
+        return (await api.get<CsiServiceReport>(`${serviceReportPath(scope, periodId, serviceCode)}/report`)).data;
     },
-    async myServiceReportExport(periodId: string, serviceCode: string): Promise<Blob> {
-        return (await api.get<Blob>(`${serviceReportPath(periodId, serviceCode)}/export`, { responseType: 'blob', skipToast: true })).data;
+    async myServiceReportExport(scope: CsiScopeParam, periodId: string, serviceCode: string): Promise<Blob> {
+        return (await api.get<Blob>(`${serviceReportPath(scope, periodId, serviceCode)}/export`, { responseType: 'blob', skipToast: true })).data;
     },
     async reportOwners(scope: CsiScopeParam): Promise<CsiServiceReportOwners[]> {
         return (await api.get<CsiServiceReportOwners[]>(`/csi/admin/${scope}/report-owners`)).data;

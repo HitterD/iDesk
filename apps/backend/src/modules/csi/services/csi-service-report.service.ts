@@ -12,14 +12,13 @@ import { addStyledSheet } from './csi-export.sheet';
 import { CsiReportAccessService } from './csi-report-access.service';
 import { CsiHcPeriodRef, CsiReportService } from './csi-report.service';
 
-const SCOPE = ServiceScope.HC;
 const PENDING_SHEET = 'Belum menilai per departemen';
 
 export type CsiServiceReport = CsiHcRecap & { period: CsiHcPeriodRef; serviceCode: string; pending: CsiPendingDepartment[] | null };
 
 /**
- * HC report of one service for its report owners (and HC admins), every location. Ratings about the viewer's own PIC
- * rows are anonymous; who has not answered yet is shown per department only.
+ * Report of one service (HC layanan or ICT team) for its report owners (and scope admins), every location. Ratings
+ * about the viewer's own rows are anonymous; who has not answered yet is shown per department only.
  */
 @Injectable()
 export class CsiServiceReportService {
@@ -29,37 +28,37 @@ export class CsiServiceReportService {
         @InjectRepository(CsiPeriod) private readonly periods: Repository<CsiPeriod>,
     ) { }
 
-    async listPeriods(userId: string) {
-        const { services } = await this.access.servicesFor(userId, SCOPE);
+    async listPeriods(userId: string, scope: ServiceScope) {
+        const { services } = await this.access.servicesFor(userId, scope);
         if (!services.length) return { services, periods: [] };
         const rows = await this.periods.find({
-            where: { scope: SCOPE, publishStatus: Not(CsiPeriodPublishStatus.DRAFT), cancelledAt: IsNull() }, order: { startDate: 'DESC' },
+            where: { scope, publishStatus: Not(CsiPeriodPublishStatus.DRAFT), cancelledAt: IsNull() }, order: { startDate: 'DESC' },
             select: { id: true, title: true, startDate: true, endDate: true },
         });
         return { services, periods: rows.map((row) => ({ id: row.id, title: row.title, startDate: row.startDate, endDate: row.endDate })) };
     }
 
-    async get(userId: string, periodId: string, serviceCode: string): Promise<CsiServiceReport> {
+    async get(userId: string, periodId: string, serviceCode: string, scope: ServiceScope): Promise<CsiServiceReport> {
         const code = serviceCode.toUpperCase();
-        const { admin } = await this.access.assertService(userId, SCOPE, code);
-        await this.assertReadable(periodId, admin);
-        const input = await this.reports.hcRecapInput(SCOPE, periodId);
+        const { admin } = await this.access.assertService(userId, scope, code);
+        await this.assertReadable(periodId, admin, scope);
+        const input = await this.reports.hcRecapInput(scope, periodId);
         const hiddenRateeIds = new Set(admin ? [] : [...input.userIdOf].filter(([, owner]) => owner === userId).map(([rateeId]) => rateeId));
-        const recap = buildServiceReport({ pics: input.pics, ratings: input.ratings, dimensions: input.dimensions, serviceCode: code, hiddenRateeIds });
-        const respondents = await this.reports.getRespondents(SCOPE, periodId);
+        const recap = buildServiceReport({ pics: input.pics, ratings: input.ratings, dimensions: input.dimensions, serviceCode: code, hiddenRateeIds, scope });
+        const respondents = await this.reports.getRespondents(scope, periodId);
         return { ...recap, period: input.period, serviceCode: code, pending: respondents.pendingByDepartment };
     }
 
     /** Owners read published, not-cancelled HC surveys only; admins any HC survey (drafts included, as in the admin page). */
-    private async assertReadable(periodId: string, admin: boolean) {
+    private async assertReadable(periodId: string, admin: boolean, scope: ServiceScope) {
         const period = await this.periods.findOne({ where: { id: periodId } });
-        const visible = period && period.scope === SCOPE
+        const visible = period && period.scope === scope
             && (admin || (period.publishStatus !== CsiPeriodPublishStatus.DRAFT && !period.cancelledAt));
         if (!visible) throw new NotFoundException('Periode tidak ditemukan');
     }
 
-    async exportWorkbook(userId: string, periodId: string, serviceCode: string): Promise<{ filename: string; buffer: Buffer }> {
-        const report = await this.get(userId, periodId, serviceCode);
+    async exportWorkbook(userId: string, periodId: string, serviceCode: string, scope: ServiceScope): Promise<{ filename: string; buffer: Buffer }> {
+        const report = await this.get(userId, periodId, serviceCode, scope);
         const workbook = new ExcelJS.Workbook();
         workbook.creator = 'iDesk CSI';
         addHcRecapSheets(workbook, report, true);
@@ -68,7 +67,7 @@ export class CsiServiceReportService {
                 { header: 'Departemen', width: 36 }, { header: 'Belum menilai', width: 14 }, { header: 'Total penilai', width: 14 },
             ], report.pending.map((row) => [row.department, row.pending, row.total]));
         }
-        const filename = `csi-hc-${report.serviceCode}-${report.period.id.slice(0, 8)}.xlsx`;
+        const filename = `csi-${scope.toLowerCase()}-${report.serviceCode}-${report.period.id.slice(0, 8)}.xlsx`;
         return { filename, buffer: Buffer.from(await workbook.xlsx.writeBuffer()) };
     }
 }

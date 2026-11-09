@@ -37,7 +37,7 @@ describe('CsiServiceReportService', () => {
 
     it('a service owner who is also a rated PIC never sees who rated them', async () => {
         access.assertService.mockResolvedValue({ admin: false });
-        const report = await service.get('u-rara', 'p1', 'HCD');
+        const report = await service.get('u-rara', 'p1', 'HCD', ServiceScope.HC);
         expect(access.assertService).toHaveBeenCalledWith('u-rara', ServiceScope.HC, 'HCD');
         const names = report.respondents.flatMap((row) => row.pics.map((pic) => [row.name, pic.name]));
         expect(names).toEqual([['ELVI CYNTHIA', 'PRISCILLA'], ['Anonim', 'RARA']]);
@@ -48,19 +48,19 @@ describe('CsiServiceReportService', () => {
 
     it('admins see every rater by name', async () => {
         access.assertService.mockResolvedValue({ admin: true });
-        const report = await service.get('admin', 'p1', 'HCD');
+        const report = await service.get('admin', 'p1', 'HCD', ServiceScope.HC);
         expect(report.respondents.map((row) => row.name)).toEqual(['ELVI CYNTHIA']);
     });
 
     it('anyone else gets 403 before any data is read', async () => {
         access.assertService.mockRejectedValue(new ForbiddenException());
-        await expect(service.get('budi', 'p1', 'HCD')).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(service.get('budi', 'p1', 'HCD', ServiceScope.HC)).rejects.toBeInstanceOf(ForbiddenException);
         expect(reports.hcRecapInput).not.toHaveBeenCalled();
     });
 
     it('the Excel export keeps the self rows anonymous', async () => {
         access.assertService.mockResolvedValue({ admin: false });
-        const { buffer, filename } = await service.exportWorkbook('u-rara', 'p1', 'HCD');
+        const { buffer, filename } = await service.exportWorkbook('u-rara', 'p1', 'HCD', ServiceScope.HC);
         expect(filename).toMatch(/HCD/);
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(buffer as any);
@@ -73,17 +73,35 @@ describe('CsiServiceReportService', () => {
 
     it('lists HC periods only for users with at least one service', async () => {
         access.servicesFor.mockResolvedValueOnce({ admin: false, services: [] });
-        expect(await service.listPeriods('budi')).toEqual({ services: [], periods: [] });
+        expect(await service.listPeriods('budi', ServiceScope.HC)).toEqual({ services: [], periods: [] });
         access.servicesFor.mockResolvedValueOnce({ admin: false, services: ['HCD'] });
-        expect((await service.listPeriods('u-rara')).periods.map((row) => row.id)).toEqual(['p1']);
+        expect((await service.listPeriods('u-rara', ServiceScope.HC)).periods.map((row) => row.id)).toEqual(['p1']);
     });
 
     it('cancelled surveys are not listed; draft and cancelled surveys cannot be opened by owners', async () => {
         access.servicesFor.mockResolvedValueOnce({ admin: false, services: ['HCD'] });
-        expect((await service.listPeriods('u-rara')).periods.map((row) => row.id)).toEqual(['p1']);
+        expect((await service.listPeriods('u-rara', ServiceScope.HC)).periods.map((row) => row.id)).toEqual(['p1']);
         access.assertService.mockResolvedValue({ admin: false });
-        await expect(service.get('u-rara', 'p-draft', 'HCD')).rejects.toBeInstanceOf(NotFoundException);
-        await expect(service.get('u-rara', 'p-cancel', 'HCD')).rejects.toBeInstanceOf(NotFoundException);
-        await expect(service.get('u-rara', 'missing', 'HCD')).rejects.toBeInstanceOf(NotFoundException);
+        await expect(service.get('u-rara', 'p-draft', 'HCD', ServiceScope.HC)).rejects.toBeInstanceOf(NotFoundException);
+        await expect(service.get('u-rara', 'p-cancel', 'HCD', ServiceScope.HC)).rejects.toBeInstanceOf(NotFoundException);
+        await expect(service.get('u-rara', 'missing', 'HCD', ServiceScope.HC)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('ICT: an owner of the Oracle team reads that team only, by ICT period', async () => {
+        rows.push({ id: 'p-ict', scope: 'ICT', title: 'CSI ICT Desember', startDate: '2026-12-01', endDate: '2026-12-20', publishStatus: 'PUBLISHED', cancelledAt: null } as any);
+        reports.hcRecapInput.mockResolvedValueOnce({
+            ...input(), period: { id: 'p-ict', title: 'CSI ICT Desember', startDate: '2026-12-01', endDate: '2026-12-20' },
+            pics: [
+                { periodRateeId: 'agus', name: 'AGUS', jobTitle: 'Oracle Dev', serviceCode: 'ORACLE', bagian: 'SPJ', serviceFunction: 'Oracle EBS' },
+                { periodRateeId: 'tono', name: 'TONO', jobTitle: 'Support', serviceCode: 'OPS', bagian: 'SPJ', serviceFunction: null },
+            ],
+            ratings: [], userIdOf: new Map(),
+        });
+        access.assertService.mockResolvedValue({ admin: false });
+        const report = await service.get('u-agus', 'p-ict', 'oracle', ServiceScope.ICT);
+        expect(access.assertService).toHaveBeenCalledWith('u-agus', ServiceScope.ICT, 'ORACLE');
+        expect(reports.hcRecapInput).toHaveBeenCalledWith(ServiceScope.ICT, 'p-ict');
+        expect(report.services.map((row) => row.label)).toEqual(['ORACLE · Oracle / K2', 'SPJ', 'AGUS']);
+        await expect(service.get('u-agus', 'p1', 'ORACLE', ServiceScope.ICT)).rejects.toBeInstanceOf(NotFoundException);
     });
 });

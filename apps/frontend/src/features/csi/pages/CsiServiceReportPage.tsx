@@ -8,30 +8,45 @@ import { CsiHcApi } from '../api/csiHc.api';
 import { HcRecapBody } from '../components/admin/hc/HcRecapPanel';
 import { PendingByDepartment } from '../components/admin/hc/PendingByDepartment';
 import { CSI_CARD, FadeIn } from '../components/CsiSurveyParts';
-import { useCsiMyReportPeriods, useCsiMyServiceReport } from '../hooks/useCsiHc';
+import { useCsiMyReportAccess, useCsiMyReportPeriods, useCsiMyServiceReport } from '../hooks/useCsiHc';
+import { serviceLabel } from '../lib/services';
+import type { CsiScopeParam } from '../types';
 import { downloadBlob } from '../lib/csiAdmin';
 import { formatDate } from '../lib/format';
 
-const SERVICE_NAMES: Record<string, string> = { HCC: 'HC Compensation & Benefit', HCD: 'HC Development', HCS: 'HC Services' };
 const SELECT = 'h-9 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--idesk-surface))] px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
+/** Which units (HC / ICT) the account owns a report in; HC first. */
+function useReportScopes() {
+    const hc = useCsiMyReportAccess('hc');
+    const ict = useCsiMyReportAccess('ict');
+    const scopes = ([['hc', hc.data], ['ict', ict.data]] as const).filter(([, access]) => (access?.services.length ?? 0) > 0).map(([scope]) => scope);
+    return { scopes, loading: hc.isLoading || ict.isLoading };
+}
+
 /**
- * "Report CSI layanan": the HC service report for its report owners (every location). Ratings about the viewer are
- * anonymous; who has not answered is shown per department only. The combined report stays in the HC admin page.
+ * "Report CSI layanan": the service report of an HC layanan or an ICT team for its report owners (every location).
+ * Ratings about the viewer are anonymous; who has not answered is shown per department only. The combined report
+ * stays in the admin page.
  */
 export function CsiServiceReportPage() {
-    const { data: access, isLoading, isError, refetch } = useCsiMyReportPeriods();
+    const owned = useReportScopes();
+    const [chosenScope, setChosenScope] = useState<CsiScopeParam | null>(null);
+    const scope: CsiScopeParam = chosenScope ?? owned.scopes[0] ?? 'hc';
+    const { data: access, isLoading: periodsLoading, isError, refetch } = useCsiMyReportPeriods(scope, !owned.loading);
+    const isLoading = owned.loading || periodsLoading;
     const [periodId, setPeriodId] = useState<string | null>(null);
     const [serviceCode, setServiceCode] = useState<string | null>(null);
     const period = periodId ?? access?.periods[0]?.id ?? null;
     const service = serviceCode ?? access?.services[0] ?? null;
-    const report = useCsiMyServiceReport(period, service);
+    const report = useCsiMyServiceReport(scope, period, service);
+    const switchScope = (next: CsiScopeParam) => { setChosenScope(next); setPeriodId(null); setServiceCode(null); };
     const [exporting, setExporting] = useState(false);
     const download = async () => {
         if (!period || !service) return;
         setExporting(true);
         try {
-            downloadBlob(await CsiHcApi.myServiceReportExport(period, service), `csi-hc-${service}.xlsx`);
+            downloadBlob(await CsiHcApi.myServiceReportExport(scope, period, service), `csi-${scope}-${service}.xlsx`);
         } catch {
             toast.error('Gagal mengunduh Excel.');
         } finally {
@@ -48,16 +63,21 @@ export function CsiServiceReportPage() {
             {isLoading && <div className={cn(CSI_CARD, 'h-40 animate-pulse')} aria-busy="true" />}
             {isError && <ErrorState title="Gagal memuat report" message="Silakan coba lagi." onRetry={() => refetch()} />}
             {access && !access.services.length && (
-                <p className={cn(CSI_CARD, 'p-6 text-[14px] text-muted-foreground')}>Akun Anda belum ditunjuk sebagai penanggung jawab report layanan HC. Hubungi admin HC.</p>
+                <p className={cn(CSI_CARD, 'p-6 text-[14px] text-muted-foreground')}>Akun Anda belum ditunjuk sebagai penanggung jawab report layanan. Hubungi admin CSI.</p>
             )}
             {access && access.services.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2">
+                    {owned.scopes.length > 1 && (
+                        <select aria-label="Unit" className={SELECT} value={scope} onChange={(event) => switchScope(event.target.value as CsiScopeParam)}>
+                            {owned.scopes.map((code) => <option key={code} value={code}>{code === 'hc' ? 'HC' : 'ICT'}</option>)}
+                        </select>
+                    )}
                     <select aria-label="Survei" className={SELECT} value={period ?? ''} onChange={(event) => setPeriodId(event.target.value)}>
                         {access.periods.map((row) => <option key={row.id} value={row.id}>{`${row.title} (${formatDate(row.startDate)} – ${formatDate(row.endDate)})`}</option>)}
                     </select>
                     {access.services.length > 1 && (
                         <select aria-label="Layanan" className={SELECT} value={service ?? ''} onChange={(event) => setServiceCode(event.target.value)}>
-                            {access.services.map((code) => <option key={code} value={code}>{`${code} · ${SERVICE_NAMES[code] ?? ''}`}</option>)}
+                            {access.services.map((code) => <option key={code} value={code}>{serviceLabel(scope, code)}</option>)}
                         </select>
                     )}
                     <Button variant="soft" className="ml-auto" disabled={!period || exporting} onClick={download}>
@@ -71,7 +91,7 @@ export function CsiServiceReportPage() {
                 <>
                     {report.data.pending && <PendingByDepartment rows={report.data.pending} className={cn(CSI_CARD, 'p-4')} />}
                     <section className={cn(CSI_CARD, 'p-4')}>
-                        <h2 className="mb-3 text-[15px] font-bold">{`${report.data.serviceCode} · ${SERVICE_NAMES[report.data.serviceCode] ?? ''}`}</h2>
+                        <h2 className="mb-3 text-[15px] font-bold">{serviceLabel(scope, report.data.serviceCode)}</h2>
                         {report.data.services.length ? <HcRecapBody recap={report.data} expandAll /> : <p className="text-[13px] text-muted-foreground">Belum ada PIC layanan ini pada survei tersebut.</p>}
                     </section>
                 </>

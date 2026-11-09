@@ -18,7 +18,9 @@ export function CsiSurveyListPage() {
     const basePath = useCsiBasePath();
     const { user } = useAuth();
     const { data: surveys, isLoading, isError, refetch } = useCsiActive();
-    const { data: reportAccess } = useCsiMyReportAccess();
+    const { data: hcReport } = useCsiMyReportAccess('hc');
+    const { data: ictReport } = useCsiMyReportAccess('ict');
+    const reportServices = [...(hcReport?.services ?? []), ...(ictReport?.services ?? [])];
     const { data: myResults } = useCsiMyResults();
 
     return (
@@ -36,10 +38,10 @@ export function CsiSurveyListPage() {
                 </Link>
             )}
 
-            {reportAccess && reportAccess.services.length > 0 && (
+            {reportServices.length > 0 && (
                 <Link to={`${basePath}/report`} className={cn(CSI_CARD, 'flex items-center gap-3 px-5 py-3 text-[14px] font-semibold hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}>
                     <BarChart3 className="h-5 w-5 text-[hsl(var(--idesk-sapphire))]" aria-hidden="true" />
-                    <span className="flex-1">Report CSI layanan <span className="font-normal text-muted-foreground">{`· ${reportAccess.services.join(', ')}`}</span></span>
+                    <span className="flex-1">Report CSI layanan <span className="font-normal text-muted-foreground">{`· ${reportServices.join(', ')}`}</span></span>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 </Link>
             )}
