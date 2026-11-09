@@ -115,6 +115,9 @@ const team = (id: string, periodId: string, teamId: string, siteId: string) => (
     photoUrl: null, tagline: null, displayName: `Tim ${siteId}`, jobTitle: null, sortOrder: -1,
 });
 
+/** Subject master stub: no agent has a fungsi pelayanan in these scenarios. */
+const NO_SUBJECTS = { serviceFunctionsOf: async () => new Map<string, string>() };
+
 describe('CsiAssignmentService', () => {
     let db: ReturnType<typeof memoryDb>;
     let service: CsiAssignmentService;
@@ -266,7 +269,7 @@ describe('CsiAssignmentService', () => {
             periods = new CsiPeriodService(
                 db.repo(CsiPeriod) as any, db.repo(CsiPeriodRatee) as any, db.repo(CsiPeriodRateeDimension) as any,
                 db.repo(CsiPeriodRater) as any, db.repo(CsiResponse) as any, db.repo(CsiDimension) as any, db.repo(User) as any,
-                db.repo(Site) as any, {} as any, db.dataSource as any, service, {} as any, ORG as any,
+                db.repo(Site) as any, {} as any, db.dataSource as any, service, NO_SUBJECTS as any, ORG as any,
             );
             jest.spyOn(periods, 'get').mockResolvedValue({} as any);
             await periods.create(ICT, { siteIds: [SPJ], title: 'Baru', startDate: '2026-12-01', endDate: '2026-12-31' }, 'admin');
@@ -308,7 +311,7 @@ describe('CsiAssignmentService', () => {
                 db.repo(CsiPeriod) as any, db.repo(CsiPeriodRatee) as any, db.repo(CsiPeriodRateeDimension) as any,
                 db.repo(CsiPeriodRater) as any, db.repo(CsiResponse) as any, db.repo(CsiDimension) as any, db.repo(User) as any,
                 {} as any, {} as any, db.dataSource as any, service,
-                { createTeam: async (_scope: string, siteId: string) => ({ teamId: siteId === SPJ ? 'team-spj' : 'team-krw', name: `Tim ${siteId}`, siteId }) } as any,
+                { ...NO_SUBJECTS, createTeam: async (_scope: string, siteId: string) => ({ teamId: siteId === SPJ ? 'team-spj' : 'team-krw', name: `Tim ${siteId}`, siteId }) } as any,
                 ORG as any,
             );
             jest.spyOn(periods, 'get').mockResolvedValue({} as any);
@@ -359,7 +362,7 @@ describe('CsiAssignmentService', () => {
         const periods = new CsiPeriodService(
             db.repo(CsiPeriod) as any, db.repo(CsiPeriodRatee) as any, db.repo(CsiPeriodRateeDimension) as any,
             db.repo(CsiPeriodRater) as any, db.repo(CsiResponse) as any, db.repo(CsiDimension) as any, db.repo(User) as any,
-            {} as any, {} as any, db.dataSource as any, service, {} as any, ORG as any,
+            {} as any, {} as any, db.dataSource as any, service, NO_SUBJECTS as any, ORG as any,
         );
         jest.spyOn(periods, 'get').mockResolvedValue({} as any);
 
