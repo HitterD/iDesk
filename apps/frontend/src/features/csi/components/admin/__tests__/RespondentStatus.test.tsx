@@ -87,6 +87,16 @@ describe('RespondentStatus', () => {
         expect(screen.getByText(/User SPJ/)).toBeInTheDocument();
     });
 
+    it('ICT: the same department summary; names after "Tampilkan nama"', async () => {
+        fx.respondents = { ...LISTED, pendingByDepartment: [{ department: 'GUDANG', pending: 1, total: 1 }] };
+        const user = userEvent.setup();
+        render(<RespondentStatus scope="ict" periodId="p1" sites={PERIOD.sites} onOpenResponse={vi.fn()} />);
+        expect(within(screen.getByRole('region', { name: 'Belum menilai per departemen' })).getByText('Gudang')).toBeInTheDocument();
+        expect(screen.queryByRole('list', { name: 'Daftar responden' })).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Tampilkan nama' }));
+        expect(names()).toEqual(['Andi', 'Citra', 'Rina']);
+    });
+
     it('HC: pending raters are summarised per department; names only after "Tampilkan nama"', async () => {
         fx.respondents = { ...LISTED, pendingByDepartment: [{ department: 'GUDANG', pending: 1, total: 1 }, { department: 'HRGA', pending: 1, total: 2 }] };
         const user = userEvent.setup();

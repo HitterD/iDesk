@@ -2,9 +2,10 @@ import { CsiPeriodPublishStatus } from '../csi.constants';
 import { CsiSelfResultService } from './csi-self-result.service';
 
 const NOW = new Date('2026-11-15T03:00:00Z');
-const matches = (row: any, where: any) => Object.entries(where ?? {}).every(([key, value]: [string, any]) => {
+const matches = (row: any, where: any): boolean => Object.entries(where ?? {}).every(([key, value]: [string, any]) => {
     if (value && typeof value === 'object' && value._type === 'in') return value._value.includes(row[key]);
-    if (value && typeof value === 'object' && !('_type' in value)) return Object.entries(value).every(([k, v]) => row[key]?.[k] === v);
+    if (value && typeof value === 'object' && value._type === 'moreThanOrEqual') return row[key] !== undefined && new Date(row[key]) >= value._value;
+    if (value && typeof value === 'object' && !(value instanceof Date) && !('_type' in value)) return matches(row[key] ?? {}, value);
     return row[key] === value;
 });
 /** In-memory repository; an array `where` is an OR of its entries, as in TypeORM. */
@@ -78,5 +79,12 @@ describe('CsiSelfResultService', () => {
         pics.rows.push({ id: 'pic-rara', userId: 'u-rara' });
         expect((await service.list('u-rara', NOW)).map((row) => row.periodId)).toEqual(['p1']);
         expect(await service.list('u-nobody', NOW)).toEqual([]);
+    });
+
+    it('ICT agents see results of ICT surveys created from the release on, never of older ICT surveys', async () => {
+        const ict = (id: string, createdAt: string) => ({ id: `r-${id}`, periodId: id, userId: 'u-agent', kind: 'PERSON', serviceFunction: 'Oracle EBS',
+            period: { ...period, id, scope: 'ICT', createdAt: new Date(createdAt) } });
+        ratees.rows.push(ict('p-ict-old', '2026-10-01T00:00:00Z'), ict('p-ict-new', '2026-11-12T00:00:00Z'));
+        expect((await service.list('u-agent', NOW)).map((row) => row.periodId)).toEqual(['p-ict-new']);
     });
 });

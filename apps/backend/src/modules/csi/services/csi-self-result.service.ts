@@ -1,6 +1,6 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, MoreThanOrEqual, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind } from '../csi.constants';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
@@ -14,6 +14,10 @@ import { ratedAccountOf } from './csi-ratee-owner.util';
 /** Results stay hidden until this many people rated the person, so no single rater can be singled out. */
 export const CSI_SELF_RESULT_MIN_RATERS = 3;
 export const CSI_RANDOM = Symbol('CSI_RANDOM');
+/** ICT surveys created from this moment on show "Hasil penilaian saya" (release of the feature for ICT, WIB midnight). */
+export const CSI_ICT_SELF_RESULTS_FROM = new Date('2026-11-10T00:00:00+07:00');
+const isNewIctPeriod = (period: { scope: string; createdAt?: Date | null } | null | undefined) =>
+    !!period && period.scope === ServiceScope.ICT && !!period.createdAt && new Date(period.createdAt).getTime() >= CSI_ICT_SELF_RESULTS_FROM.getTime();
 const NOT_SCORED = new Set<string>([CsiQuestionType.CHOICE, CsiQuestionType.TEXT]);
 
 export type CsiSelfResult = {
@@ -36,7 +40,8 @@ function shuffled<T>(rows: T[], random: () => number): T[] {
 }
 
 /**
- * "Hasil penilaian saya": what people rated about the signed-in account, live while the survey runs. Never carries a
+ * "Hasil penilaian saya" (HC, and ICT surveys from CSI_ICT_SELF_RESULTS_FROM on): what people rated about the
+ * signed-in account, live while the survey runs. Never carries a
  * rater's name, unit, answer id or date; scores and comments only appear from CSI_SELF_RESULT_MIN_RATERS raters on.
  */
 @Injectable()
@@ -53,12 +58,15 @@ export class CsiSelfResultService {
     async list(userId: string, now: Date = new Date()): Promise<CsiSelfResult[]> {
         // A PIC linked to this account later than the survey was built is still this person (see ratedAccountOf).
         const picIds = (await this.pics.find({ where: { userId }, select: { id: true } })).map((pic) => pic.id);
-        // HC only: ICT results stay as they were (not shown to the rated people).
-        const base = { kind: CsiRateeKind.PERSON, period: { scope: ServiceScope.HC, publishStatus: CsiPeriodPublishStatus.PUBLISHED } };
+        // HC surveys, and ICT surveys created from the release on (older ICT surveys were answered without that promise).
+        const published = { publishStatus: CsiPeriodPublishStatus.PUBLISHED };
+        const hc = { kind: CsiRateeKind.PERSON, period: { ...published, scope: ServiceScope.HC } };
+        const ict = { kind: CsiRateeKind.PERSON, period: { ...published, scope: ServiceScope.ICT, createdAt: MoreThanOrEqual(CSI_ICT_SELF_RESULTS_FROM) } };
         const rows = (await this.ratees.find({
-            where: [{ ...base, userId }, ...(picIds.length ? [{ ...base, picId: In(picIds) }] : [])],
+            where: [{ ...hc, userId }, { ...ict, userId }, ...(picIds.length ? [{ ...hc, picId: In(picIds) }] : [])],
             relations: { period: true },
-        })).filter((row, index, all) => all.findIndex((other) => other.id === row.id) === index)
+        }))
+            .filter((row) => row.period?.scope === ServiceScope.HC || isNewIctPeriod(row.period)).filter((row, index, all) => all.findIndex((other) => other.id === row.id) === index)
             .filter((row) => ratedAccountOf(row, new Map(row.picId && picIds.includes(row.picId) ? [[row.picId, userId]] : [])) === userId)
             .filter((row) => row.period && !row.period.cancelledAt && row.period.individualEnabled !== false);
         const results = await Promise.all(rows.map((row) => this.resultOf(row, now)));
