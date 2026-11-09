@@ -72,8 +72,8 @@ function DimensionChips({ recap, row }: { recap: CsiHcRecap; row: Pick<CsiRecapR
     );
 }
 
-function ServicesTable({ recap }: { recap: CsiHcRecap }) {
-    const [open, setOpen] = useState<Set<string>>(() => new Set(recap.services.filter((row) => row.level === 'service').map((row) => row.key)));
+function ServicesTable({ recap, expandAll }: { recap: CsiHcRecap; expandAll?: boolean }) {
+    const [open, setOpen] = useState<Set<string>>(() => new Set(recap.services.filter((row) => row.level === 'service' || (expandAll && row.level === 'bagian')).map((row) => row.key)));
     const [dims, setDims] = useState(false);
     const toggle = (key: string) => setOpen((previous) => {
         const next = new Set(previous);
@@ -106,6 +106,7 @@ function ServicesTable({ recap }: { recap: CsiHcRecap }) {
                                                     {row.level === 'service' ? row.label : titleCase(row.label)}
                                                 </span>
                                                 {row.level === 'pic' && row.jobTitle && <span className="text-[11.5px] text-[hsl(var(--idesk-text-secondary))]">{`· ${titleCase(row.jobTitle)}`}</span>}
+                                                {row.level === 'pic' && row.serviceFunction && <span className="rounded-md bg-[hsl(var(--idesk-sapphire)/.09)] px-1.5 text-[11.5px] font-medium text-[hsl(var(--idesk-sapphire))]">{row.serviceFunction}</span>}
                                             </button>
                                         </td>
                                         <LocationCells recap={recap} row={row} strong={row.level !== 'pic'} />
@@ -238,24 +239,30 @@ function Overview({ recap }: { recap: CsiHcRecap }) {
     );
 }
 
+/** Overview, view switch and the three tables; shared by the admin recap and the service owner report. */
+/** `expandAll` also opens every bagian (one-service reports are short enough to show every PIC at once). */
+export function HcRecapBody({ recap, expandAll }: { recap: CsiHcRecap; expandAll?: boolean }) {
+    const [view, setView] = useState<View>('services');
+    return (
+        <div className="grid gap-4">
+            <Overview recap={recap} />
+            <SegmentedControl aria-label="Tampilan rekap HC" className="dash-seg w-fit" options={VIEWS} value={view} onValueChange={setView} />
+            {view === 'services' && <ServicesTable recap={recap} expandAll={expandAll} />}
+            {view === 'respondents' && <RespondentTable recap={recap} />}
+            {view === 'answers' && <AnswersTable recap={recap} />}
+        </div>
+    );
+}
+
 export function HcRecapPanel({ scope, periodId }: { scope: CsiScopeParam; periodId: string }) {
     const { data: recap, isLoading, isError, refetch } = useCsiHcRecap(scope, periodId);
-    const [view, setView] = useState<View>('services');
     return (
         <AdminSection title="Rekap HC per layanan, bagian dan PIC"
             description="Angka = rata-rata bintang (skala 1-5) dari semua penilaian, sehingga bisa desimal (mis. 4,35). Kolom SJA 1-4/Jakarta = lokasi responden yang menilai, bukan lokasi PIC. SJA 4 = Semarang.">
             {isLoading && <div className="h-40 animate-pulse rounded-2xl bg-[hsl(var(--muted))]" aria-busy="true" aria-label="Memuat rekap" />}
             {isError && <ErrorState compact message="Gagal memuat rekap HC." onRetry={() => refetch()} />}
             {recap && !recap.services.length && <EmptyNote>Belum ada PIC pada survei ini.</EmptyNote>}
-            {recap && recap.services.length > 0 && (
-                <div className="grid gap-4">
-                    <Overview recap={recap} />
-                    <SegmentedControl aria-label="Tampilan rekap HC" className="dash-seg w-fit" options={VIEWS} value={view} onValueChange={setView} />
-                    {view === 'services' && <ServicesTable recap={recap} />}
-                    {view === 'respondents' && <RespondentTable recap={recap} />}
-                    {view === 'answers' && <AnswersTable recap={recap} />}
-                </div>
-            )}
+            {recap && recap.services.length > 0 && <HcRecapBody recap={recap} />}
         </AdminSection>
     );
 }

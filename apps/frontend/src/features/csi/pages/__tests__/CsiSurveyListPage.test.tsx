@@ -13,6 +13,10 @@ vi.mock('@/stores/useAuth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 vi.mock('../../api/csi.api', () => ({
     CsiApi: { active: vi.fn(), form: vi.fn(), submit: vi.fn() },
 }));
+const hcAccess = vi.hoisted(() => ({ services: [] as string[] }));
+vi.mock('../../api/csiHc.api', () => ({
+    CsiHcApi: { myReportAccess: vi.fn(async () => ({ admin: false, services: hcAccess.services })) },
+}));
 
 const SURVEYS: CsiActivePeriod[] = [
     { id: 'p1', scope: 'ICT', title: 'Survei ICT Q4', submitted: false },
@@ -106,5 +110,17 @@ describe('CsiPendingCard', () => {
         await vi.waitFor(() => expect(CsiApi.active).toHaveBeenCalled());
         await new Promise((resolve) => setTimeout(resolve, 0));
         expect(container).toBeEmptyDOMElement();
+    });
+
+    it('shows the service report link only to service report owners', async () => {
+        vi.mocked(CsiApi.active).mockResolvedValue(SURVEYS);
+        hcAccess.services = ['HCD'];
+        renderAt('/csi', <CsiSurveyListPage />);
+        expect(await screen.findByRole('link', { name: /report csi layanan/i })).toHaveAttribute('href', '/csi/report');
+        cleanup();
+        hcAccess.services = [];
+        renderAt('/csi', <CsiSurveyListPage />);
+        await screen.findByText('Survei ICT Q4');
+        expect(screen.queryByRole('link', { name: /report csi layanan/i })).toBeNull();
     });
 });

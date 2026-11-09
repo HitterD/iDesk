@@ -263,6 +263,8 @@ export interface CsiRespondents {
     }>;
     /** LISTED only: raters without a response (department + site of the user account). */
     pending: Array<{ userId: string; fullName: string; department: string | null; siteId: string | null }> | null;
+    /** LISTED only: raters per department (directory department), without names. */
+    pendingByDepartment?: Array<{ department: string; pending: number; total: number }> | null;
     totals: { submitted: number; pending: number | null };
 }
 

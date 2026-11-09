@@ -10,6 +10,18 @@ const directoryKey = (scope: CsiScopeParam) => ['csi', scope, 'directory'] as co
 const ownersKey = (scope: CsiScopeParam) => ['csi', scope, 'report-owners'] as const;
 const recapKey = (scope: CsiScopeParam, id: string) => ['csi', scope, 'hc-recap', id] as const;
 
+export function useCsiMyReportAccess() {
+    return useQuery({ queryKey: ['csi', 'me', 'hc', 'report-access'], queryFn: () => CsiHcApi.myReportAccess(), staleTime: 5 * 60_000 });
+}
+export function useCsiMyReportPeriods() {
+    return useQuery({ queryKey: ['csi', 'me', 'hc', 'periods'], queryFn: () => CsiHcApi.myReportPeriods() });
+}
+export function useCsiMyServiceReport(periodId: string | null, serviceCode: string | null) {
+    return useQuery({
+        queryKey: ['csi', 'me', 'hc', 'report', periodId, serviceCode], enabled: !!periodId && !!serviceCode,
+        queryFn: () => CsiHcApi.myServiceReport(periodId!, serviceCode!),
+    });
+}
 export function useCsiReportOwners(scope: CsiScopeParam, enabled = true) {
     return useQuery({ queryKey: ownersKey(scope), queryFn: () => CsiHcApi.reportOwners(scope), enabled });
 }

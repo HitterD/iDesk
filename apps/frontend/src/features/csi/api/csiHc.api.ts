@@ -1,13 +1,29 @@
 import api from '@/lib/api';
 import type { CsiPeriodDetail, CsiScopeParam } from '../types';
-import type { CsiDirectoryImportResult, CsiHcRater, CsiHcRecap, CsiPairsImportReport, CsiPicView, CsiServiceReportOwners, CsiUnitOption, CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
+import type { CsiDirectoryImportResult, CsiHcRater, CsiHcRecap, CsiPairsImportReport, CsiPicView, CsiReportAccess, CsiReportPeriods, CsiServiceReport, CsiServiceReportOwners, CsiUnitOption, CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
 
 const orgPath = (scope: CsiScopeParam) => `/csi/admin/${scope}/org`;
 const periodPath = (scope: CsiScopeParam, id: string) => `/csi/admin/${scope}/periods/${encodeURIComponent(id)}`;
 /** Multipart field expected by the backend FileInterceptor('file'). */
 const FILE_FIELD = 'file';
 
+const meHcPath = '/csi/me/hc';
+const serviceReportPath = (periodId: string, serviceCode: string) =>
+    `${meHcPath}/periods/${encodeURIComponent(periodId)}/services/${encodeURIComponent(serviceCode)}`;
+
 export const CsiHcApi = {
+    async myReportAccess(): Promise<CsiReportAccess> {
+        return (await api.get<CsiReportAccess>(`${meHcPath}/report-access`, { skipToast: true })).data;
+    },
+    async myReportPeriods(): Promise<CsiReportPeriods> {
+        return (await api.get<CsiReportPeriods>(`${meHcPath}/periods`)).data;
+    },
+    async myServiceReport(periodId: string, serviceCode: string): Promise<CsiServiceReport> {
+        return (await api.get<CsiServiceReport>(`${serviceReportPath(periodId, serviceCode)}/report`)).data;
+    },
+    async myServiceReportExport(periodId: string, serviceCode: string): Promise<Blob> {
+        return (await api.get<Blob>(`${serviceReportPath(periodId, serviceCode)}/export`, { responseType: 'blob', skipToast: true })).data;
+    },
     async reportOwners(scope: CsiScopeParam): Promise<CsiServiceReportOwners[]> {
         return (await api.get<CsiServiceReportOwners[]>(`/csi/admin/${scope}/report-owners`)).data;
     },

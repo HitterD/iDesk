@@ -59,6 +59,8 @@ import { CsiServiceReportOwner } from './entities/csi-service-report-owner.entit
 import { CsiAccessReader } from './guards/csi-access-reader';
 import { CsiReportAccessService } from './services/csi-report-access.service';
 import { CsiAdminReportOwnerController } from './presentation/csi-admin-report-owner.controller';
+import { CsiMeReportController } from './presentation/csi-me-report.controller';
+import { CsiServiceReportService } from './services/csi-service-report.service';
 import { SystemSettings } from '../settings/entities/system-settings.entity';
 import { ReportSignoffService } from '../reports/services/report-signoff.service';
 
@@ -77,10 +79,10 @@ import { ReportSignoffService } from '../reports/services/report-signoff.service
     controllers: [
         CsiAdminMasterController, CsiAdminPeriodController, CsiAdminReportController, CsiAdminReportSignoffController, CsiAdminMemoController, CsiMeController,
         CsiAdminSubjectController, CsiAdminAssignmentController, CsiAdminDashboardController, CsiAdminQuestionSetController, CsiAdminRaterBulkController,
-        CsiAdminOrgController, CsiAdminReportOwnerController,
+        CsiAdminOrgController, CsiAdminReportOwnerController, CsiMeReportController,
     ],
     providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService, CsiMemoService,
         CsiSubjectService, CsiAssignmentService, CsiReminderService, CsiDashboardService, CsiQuestionSetService, CsiRaterBulkService, ReportSignoffService, CsiOrgService, CsiUnitRulesService, CsiPairsExcelService,
-        CsiAccessReader, CsiReportAccessService],
+        CsiAccessReader, CsiReportAccessService, CsiServiceReportService],
 })
 export class CsiModule { }

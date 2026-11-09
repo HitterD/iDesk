@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom';
-import { CheckCircle2, ChevronRight, ClipboardList, Star } from 'lucide-react';
+import { BarChart3, CheckCircle2, ChevronRight, ClipboardList, Star } from 'lucide-react';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { TicketPill } from '@/components/ui/ticket-pill';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/stores/useAuth';
 import { hasDraft } from '../lib/surveyDraft';
 import { useCsiActive } from '../hooks/useCsi';
+import { useCsiMyReportAccess } from '../hooks/useCsiHc';
 import { useCsiBasePath } from '../lib/useCsiBasePath';
 import { formatDate } from '../lib/format';
 import { CSI_CARD, FadeIn } from '../components/CsiSurveyParts';
@@ -17,6 +18,7 @@ export function CsiSurveyListPage() {
     const basePath = useCsiBasePath();
     const { user } = useAuth();
     const { data: surveys, isLoading, isError, refetch } = useCsiActive();
+    const { data: reportAccess } = useCsiMyReportAccess();
 
     return (
         <div className="mx-auto max-w-3xl space-y-6">
@@ -24,6 +26,14 @@ export function CsiSurveyListPage() {
                 <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight text-foreground">{CSI_SURVEY_PAGE_TITLE}</h1>
                 <p className="text-[15px] text-muted-foreground">Bantu kami meningkatkan layanan dengan menilai tim yang melayani Anda.</p>
             </FadeIn>
+
+            {reportAccess && reportAccess.services.length > 0 && (
+                <Link to={`${basePath}/report`} className={cn(CSI_CARD, 'flex items-center gap-3 px-5 py-3 text-[14px] font-semibold hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}>
+                    <BarChart3 className="h-5 w-5 text-[hsl(var(--idesk-sapphire))]" aria-hidden="true" />
+                    <span className="flex-1">Report CSI layanan <span className="font-normal text-muted-foreground">{`· ${reportAccess.services.join(', ')}`}</span></span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                </Link>
+            )}
 
             {isLoading && (
                 <div className="space-y-3 animate-pulse motion-reduce:animate-none" aria-busy="true" aria-label="Memuat survei">

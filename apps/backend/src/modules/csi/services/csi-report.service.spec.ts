@@ -225,6 +225,11 @@ describe('CsiReportService', () => {
             { userId: 'x3', fullName: 'Yudi', department: 'Gudang', siteId: 'site-a' },
         ]);
         expect(result.totals).toEqual({ submitted: 2, pending: 2 });
+        // Statistic without names: raters per department (answered ones count in the total).
+        expect(result.pendingByDepartment).toEqual([
+            { department: 'Gudang', pending: 1, total: 1 },
+            { department: 'Tanpa departemen', pending: 1, total: 2 },
+        ]);
     });
 
     describe('pending in a mapped LISTED period', () => {
@@ -254,6 +259,7 @@ describe('CsiReportService', () => {
         const result = await service.getRespondents(ICT, 'p1');
         expect(result.pending).toBeNull();
         expect(result.totals).toEqual({ submitted: 2, pending: null });
+        expect(result.pendingByDepartment).toBeNull();
     });
 
     it('response detail lists scores and comments per ratee, 404 for other period', async () => {

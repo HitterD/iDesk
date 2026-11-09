@@ -80,3 +80,8 @@ export interface CsiPairsImportReport {
 }
 export interface CsiReportOwnerUser { id: string; fullName: string; email: string | null }
 export interface CsiServiceReportOwners { serviceCode: string; users: CsiReportOwnerUser[] }
+export interface CsiHcPeriodRef { id: string; title: string; startDate: string; endDate: string }
+export interface CsiPendingDepartment { department: string; pending: number; total: number }
+export interface CsiServiceReport extends CsiHcRecap { period: CsiHcPeriodRef; serviceCode: string; pending: CsiPendingDepartment[] | null }
+export interface CsiReportPeriods { services: string[]; periods: CsiHcPeriodRef[] }
+export interface CsiReportAccess { admin: boolean; services: string[] }

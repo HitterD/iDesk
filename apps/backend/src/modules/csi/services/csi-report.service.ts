@@ -23,8 +23,9 @@ import { CsiDepartment } from '../entities/csi-department.entity';
 import { User } from '../../users/entities/user.entity';
 import { buildReportModel, CsiReportModel, subjectKeyOf } from './csi-report-model';
 import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
-import { buildHcRecap, CsiHcRecap } from '../org/csi-hc-report.calc';
+import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap } from '../org/csi-hc-report.calc';
 import { locationOfSiteCode } from '../org/csi-org.constants';
+import { CsiPendingDepartment, pendingByDepartment } from '../org/csi-service-report.calc';
 
 const RESPONSE_NOT_FOUND_MESSAGE = 'Jawaban tidak ditemukan';
 const RESET_ENTITY_TYPE = 'csi_response';
@@ -33,6 +34,12 @@ const RATEE_ORDER_FACTOR = 1e6;
 const SITE_NOT_IN_PERIOD_MESSAGE = 'Site tidak termasuk dalam periode ini';
 
 export type CsiActorRef = { id: string };
+export type CsiHcPeriodRef = { id: string; title: string; startDate: string; endDate: string };
+export type CsiHcRecapInput = {
+    period: CsiHcPeriodRef; pics: CsiHcPic[]; ratings: CsiHcRating[]; dimensions: string[];
+    /** Account behind each PIC row (null when the PIC has no iDesk account). */
+    userIdOf: Map<string, string | null>;
+};
 /** `score` is null for CHOICE/TEXT answers; `answerLabel` (SCALE/CHOICE) and `answerText` (TEXT) carry the non-numeric answer. */
 export type CsiAnswerScore = {
     dimension: string; type: CsiQuestionType; score: number | null; answerLabel: string | null; answerText: string | null;
@@ -222,7 +229,13 @@ export class CsiReportService {
      * HC per-PIC recap: layanan / bagian / PIC and respondent division / department / bagian, each averaged per
      * location (SJA 1-4, Jakarta) and ALL SJA, plus every respondent's stars. Only scored answers count.
      */
-    async getHcRecap(scope: ServiceScope, periodId: string): Promise<CsiHcRecap & { period: { id: string; title: string; startDate: string; endDate: string } }> {
+    async getHcRecap(scope: ServiceScope, periodId: string): Promise<CsiHcRecap & { period: CsiHcPeriodRef }> {
+        const { period, pics, ratings, dimensions } = await this.hcRecapInput(scope, periodId);
+        return { period, ...buildHcRecap({ pics, ratings, dimensions }) };
+    }
+
+    /** Period, PIC rows (with the viewer-relevant userId), scored ratings and dimension labels behind every HC recap. */
+    async hcRecapInput(scope: ServiceScope, periodId: string): Promise<CsiHcRecapInput> {
         const period = await this.findInScope(scope, periodId, { sites: { site: true } });
         const data = await this.loadPeriodData(scope, period);
         const people = data.ratees.filter((ratee) => ratee.kind !== CsiRateeKind.TEAM);
@@ -256,7 +269,7 @@ export class CsiReportService {
         }));
         return {
             period: { id: period.id, title: period.title, startDate: period.startDate, endDate: period.endDate },
-            ...buildHcRecap({ pics, ratings, dimensions }),
+            pics, ratings, dimensions, userIdOf: new Map(people.map((ratee) => [ratee.id, ratee.userId])),
         };
     }
 
@@ -305,12 +318,18 @@ export class CsiReportService {
             departmentName: response.departmentName, siteId: response.respondent.siteId ?? null, submittedAt: response.submittedAt,
         }));
         let pending: Array<{ userId: string; fullName: string; department: string | null; siteId: string | null }> | null = null;
+        let byDepartment: CsiPendingDepartment[] | null = null;
         if (period.respondentMode === CsiRespondentMode.LISTED) {
             const answered = new Set(responses.map((response) => response.respondentId));
             const raters = await this.periodRaters.find({ where: { periodId }, relations: { user: { department: true } } });
             // In a mapped period a rater without pairs cannot see the survey, so they are not pending.
             const paired = await this.assignments.ratersWithPairs(periodId);
-            const audience = raters.filter((rater) => !answered.has(rater.userId) && (!paired || paired.has(rater.id)));
+            const expected = raters.filter((rater) => !paired || paired.has(rater.id));
+            const audience = expected.filter((rater) => !answered.has(rater.userId));
+            const departmentOf = await this.directoryDepartments(expected.map((rater) => rater.user.employeeId));
+            byDepartment = pendingByDepartment(expected.map((rater) => ({
+                department: departmentOf.get(rater.user.employeeId ?? '') ?? rater.user.department?.name ?? null, answered: answered.has(rater.userId),
+            })));
             pending = sortBy(audience, (rater) => rater.user.fullName)
                 .map((rater) => ({
                     userId: rater.userId, fullName: rater.user.fullName,
@@ -318,9 +337,18 @@ export class CsiReportService {
                 }));
         }
         return {
-            mode: period.respondentMode, submitted, pending,
+            mode: period.respondentMode, submitted, pending, pendingByDepartment: byDepartment,
             totals: { submitted: submitted.length, pending: pending ? pending.length : null },
         };
+    }
+
+    /** Directory department (csi_org_people) per NIK; accounts without a directory row fall back to their own department. */
+    private async directoryDepartments(niks: Array<string | null | undefined>) {
+        const unique = [...new Set(niks.filter((nik): nik is string => !!nik))];
+        if (!unique.length) return new Map<string, string>();
+        const rows: Array<{ nik: string; department: string | null }> = await this.dataSource.query(
+            'SELECT "nik", "department" FROM "csi_org_people" WHERE "nik" = ANY($1)', [unique]);
+        return new Map(rows.filter((row) => row.department).map((row) => [row.nik, row.department!]));
     }
 
     async getResponseDetail(scope: ServiceScope, periodId: string, responseId: string): Promise<CsiAnswer> {
