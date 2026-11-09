@@ -27,3 +27,17 @@ describe('CsiOrgService.updatePic', () => {
         expect(pics.save).toHaveBeenCalledWith(expect.objectContaining({ isActive: false, serviceFunction: null }));
     });
 });
+
+describe('CsiOrgService.syncPicsFromDirectory', () => {
+    it('keeps PICs used by an assignment template active even when they are not in an HC department', async () => {
+        const existing = [
+            { id: 'pic-tpl', scope: ServiceScope.HC, nik: '2001', fullName: 'PRISCILLA', isActive: true },
+            { id: 'pic-gone', scope: ServiceScope.HC, nik: '9999', fullName: 'LEFT', isActive: true },
+        ];
+        const people = { find: jest.fn(async () => []) };
+        const pics = { find: jest.fn(async () => existing), save: jest.fn(), update: jest.fn(), query: jest.fn(async () => [{ picId: 'pic-tpl' }]) };
+        const service = new CsiOrgService(people as any, pics as any, { find: jest.fn(async () => []) } as any, { find: jest.fn(async () => []) } as any);
+        await service.syncPicsFromDirectory(ServiceScope.HC);
+        expect(pics.update).toHaveBeenCalledWith({ id: expect.objectContaining({ _value: ['pic-gone'] }) }, { isActive: false });
+    });
+});

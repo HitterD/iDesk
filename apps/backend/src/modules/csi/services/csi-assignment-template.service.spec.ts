@@ -22,10 +22,14 @@ describe('CsiAssignmentTemplateService', () => {
     let raters: ReturnType<typeof memoryTable>;
     let csiPics: ReturnType<typeof memoryTable>;
     let users: ReturnType<typeof memoryTable>;
+    let people: ReturnType<typeof memoryTable>;
+    let sites: ReturnType<typeof memoryTable>;
     let service: CsiAssignmentTemplateService;
 
     beforeEach(() => {
         templates = memoryTable(); pics = memoryTable(); raters = memoryTable(); csiPics = memoryTable(); users = memoryTable();
+        people = memoryTable(); sites = memoryTable();
+        sites.rows.push({ id: 's-smg', code: 'SMG' });
         csiPics.rows.push(
             { id: 'pic-rara', scope: HC, fullName: 'RARA KURNIA MAHARANI PONGDATU', serviceFunction: null, isActive: true },
             { id: 'pic-mega', scope: HC, fullName: 'MEGA DRESTI RARASTYA NUGRAHENI', serviceFunction: 'Diisi manual', isActive: true },
@@ -39,7 +43,7 @@ describe('CsiAssignmentTemplateService', () => {
             [CsiAssignmentTemplate, templates], [CsiAssignmentTemplatePic, pics], [CsiAssignmentTemplateRater, raters],
         ]);
         const dataSource = { transaction: jest.fn(async (work: any) => work({ getRepository: (target: unknown) => repositories.get(target) })) };
-        service = new CsiAssignmentTemplateService(templates as any, pics as any, raters as any, csiPics as any, users as any, dataSource as any);
+        service = new CsiAssignmentTemplateService(templates as any, pics as any, raters as any, csiPics as any, users as any, people as any, sites as any, dataSource as any);
     });
 
     it('loads the bundled Semarang template once: 19 PICs, service functions, four new staff without raters', async () => {
@@ -116,5 +120,30 @@ describe('CsiAssignmentTemplateService', () => {
         await service.loadBundled(HC, 'SMG');
         expect(jingga().picId).toBe('pic-jingga');
         expect(templates.rows.map((row) => row.id)).toEqual([template.id]);
+    });
+
+    it('a template PIC missing from the PIC master is added from the directory (HC staff under HCBP AREA)', async () => {
+        people.rows.push(
+            { nik: '2001', fullName: 'PRISCILLA NATHANIA OZORA', department: 'HCBP AREA SEMARANG', bagian: 'HC DEVELOPMENT AREA - SEMARANG', jobTitle: 'HC DEVELOPMENT SUPERVISOR', workLocation: 'SJA-SEMARANG' },
+        );
+        users.rows.push({ id: 'u-pris', fullName: 'Priscilla Nathania Ozora', employeeId: '2001', isActive: true });
+        await service.loadBundled(HC, 'SMG');
+        const created = csiPics.rows.find((row) => row.nik === '2001')!;
+        expect(created).toMatchObject({
+            scope: HC, fullName: 'PRISCILLA NATHANIA OZORA', serviceCode: 'HCD', serviceFunction: 'Talent Acquisition & Assessment - People & Organization Development',
+            siteId: 's-smg', userId: 'u-pris', workLocation: 'SJA-SEMARANG', isActive: true,
+        });
+        expect(pics.rows.find((row) => row.picName === 'PRISCILLA NATHANIA OZORA')!.picId).toBe(created.id);
+        // Not in the directory (new staff): no PIC is invented.
+        expect(csiPics.rows.some((row) => row.fullName === 'JINGGA FERDASIWI')).toBe(false);
+        await service.loadBundled(HC, 'SMG');
+        expect(csiPics.rows.filter((row) => row.nik === '2001')).toHaveLength(1);
+    });
+
+    it('a deactivated PIC listed in a template is switched back on', async () => {
+        csiPics.rows.push({ id: 'pic-off', scope: HC, nik: '3001', fullName: 'BAGUS ARDIAN WIJAYA', serviceCode: 'HCS', serviceFunction: null, isActive: false });
+        await service.loadBundled(HC, 'SMG');
+        expect(csiPics.rows.find((row) => row.id === 'pic-off')!.isActive).toBe(true);
+        expect(pics.rows.find((row) => row.picName === 'BAGUS ARDIAN WIJAYA')!.picId).toBe('pic-off');
     });
 });

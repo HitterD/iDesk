@@ -2,12 +2,15 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
+import { Site } from '../../sites/entities/site.entity';
 import { User } from '../../users/entities/user.entity';
 import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
 import { CsiAssignmentTemplateRater } from '../entities/csi-assignment-template-rater.entity';
 import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entity';
+import { CsiOrgPerson } from '../entities/csi-org-person.entity';
 import { CsiPic } from '../entities/csi-pic.entity';
 import { matchByName, normalizeName } from '../org/csi-name-match';
+import { normalizeBagian } from '../org/csi-org.constants';
 import { normalizeServiceFunction } from '../org/csi-org.service';
 import { CsiTemplateSeed, CsiTemplateSeedPic, parseTemplateWorkbook } from '../org/csi-template-excel';
 import { buildTemplateView, CsiTemplateView } from '../org/csi-template-view';
@@ -40,6 +43,8 @@ export class CsiAssignmentTemplateService {
         @InjectRepository(CsiAssignmentTemplateRater) private readonly raters: Repository<CsiAssignmentTemplateRater>,
         @InjectRepository(CsiPic) private readonly csiPics: Repository<CsiPic>,
         @InjectRepository(User) private readonly users: Repository<User>,
+        @InjectRepository(CsiOrgPerson) private readonly people: Repository<CsiOrgPerson>,
+        @InjectRepository(Site) private readonly sites: Repository<Site>,
         @InjectDataSource() private readonly dataSource: DataSource,
     ) { }
 
@@ -61,6 +66,7 @@ export class CsiAssignmentTemplateService {
     async loadBundled(scope: ServiceScope, locationCode: string): Promise<CsiTemplateView> {
         const seed = BUNDLED[locationCode.toUpperCase()];
         if (!seed || seed.scope !== scope) throw new NotFoundException('Template bawaan untuk lokasi ini tidak ada');
+        await this.ensurePicMaster(scope, seed.locationCode, seed.pics);
         const id = await this.dataSource.transaction((manager) => this.merge(manager, scope, seed.locationCode, seed.name, seed.pics));
         await this.fillPicServiceFunctions(scope, seed.pics);
         return this.get(scope, id);
@@ -76,6 +82,7 @@ export class CsiAssignmentTemplateService {
         if (!commit) return { ...report, problems: draft.problems, committed: false };
         if (!draft.pics.length) throw new BadRequestException('Tidak ada PIC di file');
         const name = existing?.name ?? `CSI ${scope} – ${LOCATION_NAMES[code]}`;
+        await this.ensurePicMaster(scope, code, draft.pics);
         await this.dataSource.transaction((manager) => this.merge(manager, scope, code, name, draft.pics));
         await this.fillPicServiceFunctions(scope, draft.pics);
         return { ...report, problems: draft.problems, committed: true };
@@ -201,8 +208,40 @@ export class CsiAssignmentTemplateService {
     }
 
     private async matchPic(scope: ServiceScope, picName: string): Promise<string | null> {
-        const hit = matchByName(picName, await this.csiPics.find({ where: { scope, isActive: true } }), (row) => row.fullName);
+        const hit = matchByName(picName, await this.csiPics.find({ where: { scope } }), (row) => row.fullName);
         return hit && hit !== 'ambiguous' ? hit.id : null;
+    }
+
+    /**
+     * Every template PIC must exist in the PIC master: a deactivated one is switched back on, a missing one is created
+     * from the employee directory (HC staff of a location are filed under "HCBP AREA <lokasi>", which the directory
+     * sync does not treat as HC). Names not in the directory (new staff) stay unmatched.
+     */
+    private async ensurePicMaster(scope: ServiceScope, locationCode: string, seedPics: CsiTemplateSeedPic[]) {
+        const all = await this.csiPics.find({ where: { scope } });
+        const missing: CsiTemplateSeedPic[] = [];
+        for (const seed of seedPics) {
+            const hit = matchByName(seed.picName, all, (row) => row.fullName);
+            if (hit === 'ambiguous') continue;
+            if (!hit) missing.push(seed);
+            else if (!hit.isActive) await this.csiPics.save({ ...hit, isActive: true });
+        }
+        if (missing.length) await this.createPicsFromDirectory(scope, locationCode, missing, all);
+    }
+
+    private async createPicsFromDirectory(scope: ServiceScope, locationCode: string, seeds: CsiTemplateSeedPic[], existing: CsiPic[]) {
+        const people = await this.people.find({ where: { fullName: In(seeds.map((seed) => seed.picName)) } });
+        const site = await this.sites.findOne({ where: { code: locationCode } });
+        for (const seed of seeds) {
+            const person = matchByName(seed.picName, people, (row) => row.fullName);
+            if (!person || person === 'ambiguous' || existing.some((pic) => pic.nik === person.nik)) continue;
+            const account = await this.users.findOne({ where: { employeeId: person.nik } });
+            await this.csiPics.save({
+                scope, nik: person.nik, fullName: person.fullName, jobTitle: person.jobTitle ?? seed.jobTitle, serviceCode: seed.serviceCode,
+                serviceFunction: normalizeServiceFunction(seed.serviceFunction), bagian: normalizeBagian(person.bagian), workLocation: person.workLocation,
+                siteId: site?.id ?? null, userId: account?.id ?? null, photoUrl: null, isActive: true,
+            });
+        }
     }
 
     private async findPic(scope: ServiceScope, templatePicId: string) {

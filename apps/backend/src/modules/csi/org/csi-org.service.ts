@@ -107,7 +107,10 @@ export class CsiOrgService {
         });
         if (rows.length) await this.pics.save(rows);
         const listed = new Set(staff.map((person) => person.nik));
-        const gone = existing.filter((pic) => !listed.has(pic.nik) && pic.isActive).map((pic) => pic.id);
+        // PICs named in an assignment template stay active (e.g. HC staff filed under "HCBP AREA <lokasi>").
+        const templated = new Set((await this.pics.query('SELECT DISTINCT "picId" FROM "csi_assignment_template_pics" WHERE "picId" IS NOT NULL') as Array<{ picId: string }>)
+            .map((row) => row.picId));
+        const gone = existing.filter((pic) => !listed.has(pic.nik) && pic.isActive && !templated.has(pic.id)).map((pic) => pic.id);
         if (gone.length) await this.pics.update({ id: In(gone) }, { isActive: false });
         return { added, updated, deactivated: gone.length };
     }
