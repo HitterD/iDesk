@@ -98,7 +98,7 @@ const SCALE_OPTIONS = [{ label: 'Puas', points: 5 }, { label: 'Tidak puas', poin
 const basePeriod = (over: Partial<CsiPeriod> = {}): CsiPeriod => ({
     id: 'p1', scope: ICT, sites: [{ siteId: 'site-a', site } as any], title: 'Q3', intro: 'Halo', thankYou: 'Terima kasih',
     startDate: '2026-07-01', endDate: '2026-09-30', respondentMode: CsiRespondentMode.OPEN, publishStatus: CsiPeriodPublishStatus.PUBLISHED, createdById: 'admin',
-    teamEnabled: false, teamLabel: 'Tim IT Support', individualEnabled: true, respondentPicks: false, unitRules: [], targetRespondents: null, slaTargetPct: 80, pairMode: null, cancelledAt: null, cancelledById: null, cancelReason: null,
+    teamEnabled: false, teamLabel: 'Tim IT Support', individualEnabled: true, respondentPicks: false, unitRules: [], targetRespondents: null, selfResults: false, slaTargetPct: 80, pairMode: null, cancelledAt: null, cancelledById: null, cancelReason: null,
     createdAt: new Date(), updatedAt: new Date(), ...over,
 });
 
@@ -169,7 +169,7 @@ describe('CsiPeriodService', () => {
     let departments: ReturnType<typeof memoryRepository>;
     let manager: ReturnType<typeof transactionManager>;
     let assignments: { applyTemplate: jest.Mock; copyPairs: jest.Mock; hasPairs: jest.Mock };
-    let subjects: { createTeam: jest.Mock };
+    let subjects: { createTeam: jest.Mock; serviceFunctionsOf: jest.Mock };
     let service: CsiPeriodService;
 
     beforeEach(() => {
@@ -185,7 +185,7 @@ describe('CsiPeriodService', () => {
             { id: 'd-hc', scope: HC, name: 'HC', isActive: true, ...STAR_SNAPSHOT },
         ]);
         users = memoryRepository<any>([
-            { id: 'u1', fullName: 'Budi Baru', jobTitle: 'Staf IT', siteId: 'site-a', isActive: true },
+            { id: 'u1', fullName: 'Budi Baru', jobTitle: 'Staf IT', siteId: 'site-a', isActive: true, role: 'AGENT_ORACLE' },
             { id: 'u2', fullName: 'Sari', jobTitle: null, siteId: 'site-b', isActive: true },
             { id: 'u-off', fullName: 'Nonaktif', jobTitle: 'X', isActive: false },
         ]);
@@ -205,7 +205,10 @@ describe('CsiPeriodService', () => {
             hasPairs: jest.fn().mockResolvedValue(false), setPairs: jest.fn().mockResolvedValue(undefined),
         } as any;
         const teamNames: Record<string, string> = { 'site-a': 'Tim Sepanjang', 'site-b': 'Tim Semarang' };
-        subjects = { createTeam: jest.fn(async (_scope: string, siteId: string) => ({ teamId: `team-${siteId}`, name: teamNames[siteId], siteId })) };
+        subjects = {
+            createTeam: jest.fn(async (_scope: string, siteId: string) => ({ teamId: `team-${siteId}`, name: teamNames[siteId], siteId })),
+            serviceFunctionsOf: jest.fn(async () => new Map([['u1', 'Oracle EBS & K2']])),
+        } as any;
         service = new CsiPeriodService(
             periods as any, ratees as any, rateeDimensions as any, periodRaters as any, responses as any,
             dimensions as any, users as any, sites as any, departments as any, dataSource as any,
@@ -224,6 +227,11 @@ describe('CsiPeriodService', () => {
         it('a new draft may overlap a published period (the clash is enforced at publish)', async () => {
             await service.create(ICT, createDto(), 'admin');
             expect(savedPeriod()).toMatchObject({ publishStatus: CsiPeriodPublishStatus.DRAFT });
+        });
+
+        it('a new survey promises rated people their anonymous results (older surveys keep false)', async () => {
+            await service.create(ICT, createDto(), 'admin');
+            expect(savedPeriod()).toMatchObject({ selfResults: true });
         });
 
         it('overlaps() names the published survey sharing a site and dates; drafts and other scopes never count', async () => {
@@ -498,6 +506,14 @@ describe('CsiPeriodService', () => {
             await service.setPics(HC, 'p1', ['pic-1'], ['d-hc']);
             const savedRatees = manager.saved.find((entry) => entry.target === CsiPeriodRatee)!.value;
             expect(savedRatees).toEqual([expect.objectContaining({ picId: 'pic-1', serviceCode: 'HCD', serviceFunction: 'People & Organization Development' })]);
+        });
+
+        it('ICT people get their team (from the role) and service function snapshotted; HC user people do not', async () => {
+            await service.setRatees(ICT, 'p1', [{ userId: 'u1', dimensionIds: ['d1'] }, { userId: 'u2', dimensionIds: ['d1'] }]);
+            const savedRatees = manager.saved.find((entry) => entry.target === CsiPeriodRatee)!.value;
+            expect(savedRatees.map((row: any) => [row.userId, row.serviceCode, row.serviceFunction])).toEqual([
+                ['u1', 'ORACLE', 'Oracle EBS & K2'], ['u2', null, null],
+            ]);
         });
 
         it('setRatees snapshots displayName/jobTitle/dimensionName', async () => {

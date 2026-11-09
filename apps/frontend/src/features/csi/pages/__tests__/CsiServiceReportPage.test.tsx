@@ -25,9 +25,11 @@ const REPORT: CsiServiceReport = {
     pending: [{ department: 'PRODUCTION RTD', pending: 3, total: 8 }],
 };
 
+const fx = vi.hoisted(() => ({ access: { hc: ['HCD'], ict: [] } as Record<string, string[]> }));
 vi.mock('../../api/csiHc.api', () => ({
     CsiHcApi: {
-        myReportPeriods: vi.fn(async () => ({ services: ['HCD'], periods: [REPORT.period] })),
+        myReportAccess: vi.fn(async (scope: string) => ({ admin: false, services: fx.access[scope] ?? [] })),
+        myReportPeriods: vi.fn(async (scope: string) => ({ services: fx.access[scope] ?? [], periods: [REPORT.period] })),
         myServiceReport: vi.fn(async () => REPORT),
         myServiceReportExport: vi.fn(),
     },
@@ -39,7 +41,7 @@ const renderPage = () => render(
     </QueryClientProvider>,
 );
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); fx.access = { hc: ['HCD'], ict: [] }; });
 
 describe('CsiServiceReportPage', () => {
     it('shows the service report with the service function and the pending count per department (no names)', async () => {
@@ -58,8 +60,22 @@ describe('CsiServiceReportPage', () => {
 
     it('explains when the account owns no service', async () => {
         const { CsiHcApi } = await import('../../api/csiHc.api');
-        vi.mocked(CsiHcApi.myReportPeriods).mockResolvedValueOnce({ services: [], periods: [] });
+        fx.access = { hc: [], ict: [] };
         renderPage();
         expect(await screen.findByText(/belum ditunjuk sebagai penanggung jawab/i)).toBeInTheDocument();
+    });
+
+    it('an ICT team owner gets the ICT report (team names), and both units can be switched', async () => {
+        fx.access = { hc: [], ict: ['ORACLE'] };
+        const { CsiHcApi } = await import('../../api/csiHc.api');
+        vi.mocked(CsiHcApi.myServiceReport).mockResolvedValueOnce({ ...REPORT, serviceCode: 'ORACLE' });
+        renderPage();
+        expect(await screen.findByRole('heading', { name: 'ORACLE · Oracle / K2' })).toBeInTheDocument();
+        expect(CsiHcApi.myServiceReport).toHaveBeenCalledWith('ict', 'p1', 'ORACLE');
+        expect(screen.queryByRole('combobox', { name: 'Unit' })).toBeNull();
+        cleanup();
+        fx.access = { hc: ['HCD'], ict: ['ORACLE'] };
+        renderPage();
+        expect(await screen.findByRole('combobox', { name: 'Unit' })).toBeInTheDocument();
     });
 });

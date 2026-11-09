@@ -22,6 +22,12 @@ export class UpdateSubjectDto {
     @MaxLength(CSI_JOB_TITLE_MAX, { message: 'Jabatan maksimal 150 karakter' })
     jobTitle?: string | null;
 
+    @ValidateIf(isSet)
+    @Transform(trimString)
+    @IsString({ message: 'Fungsi pelayanan harus berupa teks' })
+    @MaxLength(CSI_JOB_TITLE_MAX, { message: 'Fungsi pelayanan maksimal 150 karakter' })
+    serviceFunction?: string | null;
+
     /** Team subjects only. */
     @ValidateIf((_object: object, value: unknown) => value !== undefined)
     @Transform(trimString)

@@ -28,16 +28,19 @@ describe('CsiServiceReportService', () => {
     ];
     const periods = {
         // Mirrors the where clause: not DRAFT and cancelledAt IS NULL.
-        find: jest.fn(async ({ where }: any) => rows.filter((row) => row.publishStatus !== 'DRAFT' && (where.cancelledAt ? row.cancelledAt === null : true))),
+        find: jest.fn(async ({ where }: any) => rows.filter((row) => row.scope === where.scope && row.publishStatus !== 'DRAFT' && (where.cancelledAt ? row.cancelledAt === null : true))),
         findOne: jest.fn(async ({ where }: any) => rows.find((row) => row.id === where.id) ?? null),
     };
-    const service = new CsiServiceReportService(access as any, reports as any, periods as any);
+    // Periods that have at least one rated person with a layanan (serviceCode).
+    const rateeRows: { rows: Array<{ periodId: string }> } = { rows: [{ periodId: 'p1' }] };
+    const ratees = { find: jest.fn(async () => rateeRows.rows) };
+    const service = new CsiServiceReportService(access as any, reports as any, periods as any, ratees as any);
 
     beforeEach(() => jest.clearAllMocks());
 
     it('a service owner who is also a rated PIC never sees who rated them', async () => {
         access.assertService.mockResolvedValue({ admin: false });
-        const report = await service.get('u-rara', 'p1', 'HCD');
+        const report = await service.get('u-rara', 'p1', 'HCD', ServiceScope.HC);
         expect(access.assertService).toHaveBeenCalledWith('u-rara', ServiceScope.HC, 'HCD');
         const names = report.respondents.flatMap((row) => row.pics.map((pic) => [row.name, pic.name]));
         expect(names).toEqual([['ELVI CYNTHIA', 'PRISCILLA'], ['Anonim', 'RARA']]);
@@ -48,19 +51,19 @@ describe('CsiServiceReportService', () => {
 
     it('admins see every rater by name', async () => {
         access.assertService.mockResolvedValue({ admin: true });
-        const report = await service.get('admin', 'p1', 'HCD');
+        const report = await service.get('admin', 'p1', 'HCD', ServiceScope.HC);
         expect(report.respondents.map((row) => row.name)).toEqual(['ELVI CYNTHIA']);
     });
 
     it('anyone else gets 403 before any data is read', async () => {
         access.assertService.mockRejectedValue(new ForbiddenException());
-        await expect(service.get('budi', 'p1', 'HCD')).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(service.get('budi', 'p1', 'HCD', ServiceScope.HC)).rejects.toBeInstanceOf(ForbiddenException);
         expect(reports.hcRecapInput).not.toHaveBeenCalled();
     });
 
     it('the Excel export keeps the self rows anonymous', async () => {
         access.assertService.mockResolvedValue({ admin: false });
-        const { buffer, filename } = await service.exportWorkbook('u-rara', 'p1', 'HCD');
+        const { buffer, filename } = await service.exportWorkbook('u-rara', 'p1', 'HCD', ServiceScope.HC);
         expect(filename).toMatch(/HCD/);
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(buffer as any);
@@ -73,17 +76,45 @@ describe('CsiServiceReportService', () => {
 
     it('lists HC periods only for users with at least one service', async () => {
         access.servicesFor.mockResolvedValueOnce({ admin: false, services: [] });
-        expect(await service.listPeriods('budi')).toEqual({ services: [], periods: [] });
+        expect(await service.listPeriods('budi', ServiceScope.HC)).toEqual({ services: [], periods: [] });
         access.servicesFor.mockResolvedValueOnce({ admin: false, services: ['HCD'] });
-        expect((await service.listPeriods('u-rara')).periods.map((row) => row.id)).toEqual(['p1']);
+        expect((await service.listPeriods('u-rara', ServiceScope.HC)).periods.map((row) => row.id)).toEqual(['p1']);
     });
 
     it('cancelled surveys are not listed; draft and cancelled surveys cannot be opened by owners', async () => {
         access.servicesFor.mockResolvedValueOnce({ admin: false, services: ['HCD'] });
-        expect((await service.listPeriods('u-rara')).periods.map((row) => row.id)).toEqual(['p1']);
+        expect((await service.listPeriods('u-rara', ServiceScope.HC)).periods.map((row) => row.id)).toEqual(['p1']);
         access.assertService.mockResolvedValue({ admin: false });
-        await expect(service.get('u-rara', 'p-draft', 'HCD')).rejects.toBeInstanceOf(NotFoundException);
-        await expect(service.get('u-rara', 'p-cancel', 'HCD')).rejects.toBeInstanceOf(NotFoundException);
-        await expect(service.get('u-rara', 'missing', 'HCD')).rejects.toBeInstanceOf(NotFoundException);
+        await expect(service.get('u-rara', 'p-draft', 'HCD', ServiceScope.HC)).rejects.toBeInstanceOf(NotFoundException);
+        await expect(service.get('u-rara', 'p-cancel', 'HCD', ServiceScope.HC)).rejects.toBeInstanceOf(NotFoundException);
+        await expect(service.get('u-rara', 'missing', 'HCD', ServiceScope.HC)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('ICT: an owner of the Oracle team reads that team only, by ICT period', async () => {
+        rows.push({ id: 'p-ict', scope: 'ICT', title: 'CSI ICT Desember', startDate: '2026-12-01', endDate: '2026-12-20', publishStatus: 'PUBLISHED', cancelledAt: null } as any);
+        reports.hcRecapInput.mockResolvedValueOnce({
+            ...input(), period: { id: 'p-ict', title: 'CSI ICT Desember', startDate: '2026-12-01', endDate: '2026-12-20' },
+            pics: [
+                { periodRateeId: 'agus', name: 'AGUS', jobTitle: 'Oracle Dev', serviceCode: 'ORACLE', bagian: 'SPJ', serviceFunction: 'Oracle EBS' },
+                { periodRateeId: 'tono', name: 'TONO', jobTitle: 'Support', serviceCode: 'OPS', bagian: 'SPJ', serviceFunction: null },
+            ],
+            ratings: [], userIdOf: new Map(),
+        });
+        access.assertService.mockResolvedValue({ admin: false });
+        const report = await service.get('u-agus', 'p-ict', 'oracle', ServiceScope.ICT);
+        expect(access.assertService).toHaveBeenCalledWith('u-agus', ServiceScope.ICT, 'ORACLE');
+        expect(reports.hcRecapInput).toHaveBeenCalledWith(ServiceScope.ICT, 'p-ict');
+        expect(report.services.map((row) => row.label)).toEqual(['ORACLE · Oracle / K2', 'SPJ', 'AGUS']);
+        await expect(service.get('u-agus', 'p1', 'ORACLE', ServiceScope.ICT)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('ICT owners only see ICT surveys that carry team data (older ICT surveys have none)', async () => {
+        rows.push(
+            { id: 'p-ict-old', scope: 'ICT', title: 'Lama', startDate: '2026-10-01', endDate: '2026-10-05', publishStatus: 'PUBLISHED', cancelledAt: null } as any,
+            { id: 'p-ict-new', scope: 'ICT', title: 'Baru', startDate: '2026-12-01', endDate: '2026-12-05', publishStatus: 'PUBLISHED', cancelledAt: null } as any,
+        );
+        rateeRows.rows = [{ periodId: 'p-ict-new' }];
+        access.servicesFor.mockResolvedValueOnce({ admin: false, services: ['OPS'] });
+        expect((await service.listPeriods('u-x', ServiceScope.ICT)).periods.map((row) => row.id)).toEqual(['p-ict-new']);
     });
 });

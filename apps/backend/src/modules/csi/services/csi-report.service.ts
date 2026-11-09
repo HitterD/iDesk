@@ -232,7 +232,7 @@ export class CsiReportService {
      */
     async getHcRecap(scope: ServiceScope, periodId: string): Promise<CsiHcRecap & { period: CsiHcPeriodRef }> {
         const { period, pics, ratings, dimensions } = await this.hcRecapInput(scope, periodId);
-        return { period, ...buildHcRecap({ pics, ratings, dimensions }) };
+        return { period, ...buildHcRecap({ pics, ratings, dimensions, scope }) };
     }
 
     /** Period, PIC rows (with the viewer-relevant userId), scored ratings and dimension labels behind every HC recap. */
@@ -265,8 +265,11 @@ export class CsiReportService {
                 respondent: { name: response.respondentName, division, department, bagian: response.orgBagian ?? null },
             }];
         });
+        // ICT has no bagian: its people are grouped by the site they serve.
+        const rateeSites = scope === ServiceScope.ICT ? await this.siteCodes(people.map((ratee) => ratee.siteId).filter((id): id is string => !!id)) : new Map<string, string>();
         const pics = people.map((ratee) => ({
-            periodRateeId: ratee.id, name: ratee.displayName, jobTitle: ratee.jobTitle, serviceCode: ratee.serviceCode ?? null, bagian: ratee.bagian ?? null, serviceFunction: ratee.serviceFunction ?? null,
+            periodRateeId: ratee.id, name: ratee.displayName, jobTitle: ratee.jobTitle, serviceCode: ratee.serviceCode ?? null,
+            bagian: ratee.bagian ?? (ratee.siteId ? rateeSites.get(ratee.siteId) ?? null : null), serviceFunction: ratee.serviceFunction ?? null,
         }));
         const linkedByPic = await this.linkedAccounts(people.map((ratee) => ratee.picId).filter((id): id is string => !!id));
         return {

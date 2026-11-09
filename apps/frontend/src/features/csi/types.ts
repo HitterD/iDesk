@@ -366,6 +366,8 @@ export interface CsiSubjectView {
     jobTitle: string | null;
     photoUrl: string | null;
     tagline: string | null;
+    /** Fungsi pelayanan (people only). */
+    serviceFunction?: string | null;
 }
 export interface CsiSubjectGroup {
     siteId: string;
@@ -375,7 +377,7 @@ export interface CsiSubjectGroup {
     people: CsiSubjectView[];
 }
 /** Empty / null clears tagline and jobTitle; `name` applies to team subjects only. */
-export interface UpdateCsiSubject { tagline?: string | null; jobTitle?: string | null; name?: string }
+export interface UpdateCsiSubject { tagline?: string | null; jobTitle?: string | null; serviceFunction?: string | null; name?: string }
 export interface CreateCsiTeam { siteId: string }
 
 // ─── "Siapa menilai siapa" (respondents × subjects) ─────────────────────────

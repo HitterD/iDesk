@@ -1,4 +1,6 @@
-import { CSI_LOCATIONS, CSI_UNKNOWN_LABEL, CsiOrgLocation, serviceName } from './csi-org.constants';
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
+import { CSI_LOCATIONS, CSI_UNKNOWN_LABEL, CsiOrgLocation } from './csi-org.constants';
+import { serviceNameOf } from './csi-services';
 
 /**
  * HC per-PIC recap (pure). The unit is one rating = one respondent's stars for one PIC; its value is the average of
@@ -64,7 +66,7 @@ const groupBy = <T>(rows: T[], key: (row: T) => string) => {
 const label = (value: string | null | undefined) => value || CSI_UNKNOWN_LABEL;
 
 /** Layanan → bagian → PIC rows (PICs without any rating are listed too, with empty cells). */
-function serviceRows(pics: CsiHcPic[], ratings: CsiHcRating[], dimensions: string[]): CsiRecapRow[] {
+function serviceRows(pics: CsiHcPic[], ratings: CsiHcRating[], dimensions: string[], scope: ServiceScope): CsiRecapRow[] {
     const byPic = groupBy(ratings, (rating) => rating.periodRateeId);
     const rows: CsiRecapRow[] = [];
     const services = groupBy(pics, (pic) => pic.serviceCode ?? '');
@@ -72,7 +74,7 @@ function serviceRows(pics: CsiHcPic[], ratings: CsiHcRating[], dimensions: strin
         const servicePics = services.get(serviceCode)!;
         const serviceRatings = servicePics.flatMap((pic) => byPic.get(pic.periodRateeId) ?? []);
         rows.push({
-            level: 'service', key: `s:${serviceCode}`, label: serviceCode ? `${serviceCode} · ${serviceName(serviceCode) ?? ''}`.trim() : CSI_UNKNOWN_LABEL,
+            level: 'service', key: `s:${serviceCode}`, label: serviceCode ? `${serviceCode} · ${serviceNameOf(scope, serviceCode) ?? ''}`.trim() : CSI_UNKNOWN_LABEL,
             serviceCode: serviceCode || null, bagian: null, jobTitle: null, serviceFunction: null, ...cells(serviceRatings), dimensions: dimensionAverages(serviceRatings, dimensions),
         });
         const bagians = groupBy(servicePics, (pic) => pic.bagian ?? '');
@@ -131,12 +133,14 @@ function respondentDetails(pics: CsiHcPic[], ratings: CsiHcRating[]): CsiRespond
     }).sort((a, b) => a.name.localeCompare(b.name, 'id'));
 }
 
-export function buildHcRecap(input: { pics: CsiHcPic[]; ratings: CsiHcRating[]; dimensions: string[] }): CsiHcRecap {
+/** `scope` names the layanan rows (HC departments or ICT teams); HC when omitted. */
+export function buildHcRecap(input: { pics: CsiHcPic[]; ratings: CsiHcRating[]; dimensions: string[]; scope?: ServiceScope }): CsiHcRecap {
     const { pics, ratings, dimensions } = input;
+    const scope = input.scope ?? ServiceScope.HC;
     return {
         dimensions, locations: [...CSI_LOCATIONS],
         overall: { ...cells(ratings), dimensions: dimensionAverages(ratings, dimensions), respondents: new Set(ratings.map((rating) => rating.responseId)).size },
-        services: serviceRows(pics, ratings, dimensions),
+        services: serviceRows(pics, ratings, dimensions, scope),
         respondentGroups: respondentRows(ratings),
         respondents: respondentDetails(pics, ratings),
     };

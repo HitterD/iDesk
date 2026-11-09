@@ -15,7 +15,7 @@ vi.mock('../../api/csi.api', () => ({
 }));
 const hcAccess = vi.hoisted(() => ({ services: [] as string[] }));
 vi.mock('../../api/csiHc.api', () => ({
-    CsiHcApi: { myReportAccess: vi.fn(async () => ({ admin: false, services: hcAccess.services })) },
+    CsiHcApi: { myReportAccess: vi.fn(async (scope: string) => ({ admin: false, services: scope === 'hc' ? hcAccess.services : [] })) },
 }));
 
 const SURVEYS: CsiActivePeriod[] = [

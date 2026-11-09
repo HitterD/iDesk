@@ -81,7 +81,8 @@ export function RespondentStatus({ scope, periodId, sites, onOpenResponse, hcTar
     const { data: report } = useCsiReport(scope, periodId);
     const reminders = useReminders(scope, periodId);
     const [showNames, setShowNames] = useState(false);
-    const byDepartment = scope === 'hc' && !!data?.pendingByDepartment;
+    // Both scopes: who has not answered is summarised per department; names stay one click away for follow-up.
+    const byDepartment = !!data?.pendingByDepartment;
     const listed = data?.mode === 'LISTED';
     const rows = data ? personRows(data) : [];
     const pendingIds = rows.filter((row) => !row.done && row.userId && !reminders.reminded.has(row.userId)).map((row) => row.userId as string);

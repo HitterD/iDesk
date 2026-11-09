@@ -22,6 +22,7 @@ import { assertPeriodInScope } from './csi-scope.util';
 import { CsiSubjectService } from './csi-subject.service';
 import { CsiOrgService } from '../org/csi-org.service';
 import { CsiPic } from '../entities/csi-pic.entity';
+import { ictServiceOfRole } from '../org/csi-services';
 
 export { lockPeriodRow, lockUnlockedPeriod };
 
@@ -305,6 +306,8 @@ export class CsiPeriodService {
                 pairMode: source?.pairMode ?? null,
                 unitRules: source?.unitRules ?? [],
                 publishStatus: CsiPeriodPublishStatus.DRAFT,
+                // New surveys promise rated people their anonymous results; surveys from before the feature never do.
+                selfResults: true,
                 createdById: actorId,
             });
             await this.writeRatees(manager, saved.id, copied.ratees);
@@ -579,8 +582,18 @@ export class CsiPeriodService {
 
     private async activeUsers(ids: string[]) {
         if (!ids.length) return new Map<string, User>();
-        const rows = await this.users.find({ where: { id: In(ids), isActive: true }, select: { id: true, fullName: true, jobTitle: true, siteId: true } });
+        const rows = await this.users.find({ where: { id: In(ids), isActive: true }, select: { id: true, fullName: true, jobTitle: true, siteId: true, role: true } });
         return new Map(rows.map((user) => [user.id, user]));
+    }
+
+    /**
+     * ICT people carry their layanan (team from the account role) and fungsi pelayanan into the period, like HC PICs;
+     * HC user people (picked by hand) have neither.
+     */
+    private async servicesOf(scope: ServiceScope, users: User[]): Promise<ServiceSnapshots> {
+        if (scope !== ServiceScope.ICT || !users.length) return new Map();
+        const functions = await this.subjects.serviceFunctionsOf(scope, users.map((user) => user.id));
+        return new Map(users.map((user) => [user.id, { serviceCode: ictServiceOfRole(user.role), serviceFunction: functions.get(user.id) ?? null }]));
     }
 
     private async activeDimensions(scope: ServiceScope, ids: string[]) {
@@ -602,7 +615,8 @@ export class CsiPeriodService {
         const allDimensionIds = [...new Set(assignments.flatMap((assignment) => assignment.dimensionIds))];
         const dimensions = await this.activeDimensions(scope, allDimensionIds);
         if (dimensions.size !== allDimensionIds.length) throw new BadRequestException('Dimensi tidak ditemukan atau tidak aktif');
-        return assignments.map((assignment) => toSnapshot(users.get(assignment.userId)!, assignment.dimensionIds.map((dimensionId) => dimensions.get(dimensionId)!)));
+        const services = await this.servicesOf(scope, [...users.values()]);
+        return assignments.map((assignment) => toSnapshot(users.get(assignment.userId)!, assignment.dimensionIds.map((dimensionId) => dimensions.get(dimensionId)!), services));
     }
 
     /**
@@ -625,10 +639,11 @@ export class CsiPeriodService {
         const keptOf = (rateeId: string) => sourceDimensions.filter((row) => row.periodRateeId === rateeId)
             .sort((a, b) => a.sortOrder - b.sortOrder)
             .map((row) => dimensions.get(row.dimensionId)).filter((dimension): dimension is CsiDimension => !!dimension);
+        const services = await this.servicesOf(scope, [...users.values()]);
         const people = [...personRatees].sort((a, b) => a.sortOrder - b.sortOrder).flatMap((ratee) => {
             const user = users.get(ratee.userId);
             const kept = keptOf(ratee.id);
-            return user && kept.length ? [toSnapshot(user, kept)] : [];
+            return user && kept.length ? [toSnapshot(user, kept, services)] : [];
         });
         const teams: RateeSnapshot[] = [];
         for (const source of teamSources) {
@@ -679,6 +694,7 @@ export class CsiPeriodService {
                 periodId, kind: ratee.kind, userId: ratee.userId, displayName: ratee.displayName, jobTitle: ratee.jobTitle,
                 siteId: kept ? kept.siteId : ratee.siteId, teamId: ratee.teamId,
                 photoUrl: kept ? kept.photoUrl : ratee.photoUrl, tagline: kept ? kept.tagline : ratee.tagline,
+                serviceCode: ratee.serviceCode ?? null, serviceFunction: ratee.serviceFunction ?? null,
                 sortOrder: ratee.sortOrder ?? index,
             };
         }));
@@ -714,10 +730,14 @@ const dimensionRow = (periodRateeId: string, question: QuestionSnapshot, sortOrd
     type: question.type, required: question.required, options: question.options, sortOrder,
 });
 
-function toSnapshot(user: User, dimensions: CsiDimension[]): RateeSnapshot {
+type ServiceSnapshots = Map<string, { serviceCode: string | null; serviceFunction: string | null }>;
+
+function toSnapshot(user: User, dimensions: CsiDimension[], services: ServiceSnapshots = new Map()): RateeSnapshot {
+    const service = services.get(user.id);
     return {
         kind: CsiRateeKind.PERSON, userId: user.id, displayName: user.fullName, jobTitle: user.jobTitle ?? null,
         siteId: user.siteId ?? null, teamId: null, photoUrl: null, tagline: null,
+        serviceCode: service?.serviceCode ?? null, serviceFunction: service?.serviceFunction ?? null,
         dimensions: dimensions.map(questionSnapshot),
     };
 }

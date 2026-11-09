@@ -14,8 +14,8 @@ function DimensionBars({ result }: { result: CsiSelfResult }) {
     return (
         <ul className="grid gap-2">
             {result.dimensions.map((row) => (
-                <li key={row.label} className="grid grid-cols-[minmax(0,130px)_minmax(0,1fr)_44px] items-center gap-2 text-[13px]">
-                    <span className="truncate font-semibold">{row.label}</span>
+                <li key={row.label} className="grid grid-cols-[minmax(0,200px)_minmax(0,1fr)_44px] items-center gap-2 text-[13px]">
+                    <span className="line-clamp-2 font-semibold" title={row.label}>{row.label}</span>
                     <span className="h-2 overflow-hidden rounded-full bg-[hsl(var(--border))]">
                         <span className="block h-full rounded-full bg-[hsl(var(--ticket-amber))]" style={{ width: `${(row.average / MAX_SCORE) * 100}%` }} />
                     </span>

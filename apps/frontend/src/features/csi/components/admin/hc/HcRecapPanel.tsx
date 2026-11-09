@@ -224,8 +224,9 @@ function Overview({ recap }: { recap: CsiHcRecap }) {
                 {recap.dimensions.map((label) => {
                     const value = recap.overall.dimensions[label];
                     return (
-                        <div key={label} className="grid grid-cols-[120px_minmax(0,1fr)_44px] items-center gap-2 text-[12.5px]">
-                            <span className="font-semibold">{label}</span>
+                        <div key={label} className="grid grid-cols-[minmax(0,180px)_minmax(0,1fr)_44px] items-center gap-2 text-[12.5px]">
+                            {/* ICT questions have no short label: long texts are clamped to two lines, full text on hover. */}
+                            <span className="line-clamp-2 font-semibold" title={label}>{label}</span>
                             <span className="h-2 overflow-hidden rounded-full bg-[hsl(var(--border))]">
                                 <span className={cn('block h-full rounded-full', value !== null && value >= 4.5 ? 'bg-[hsl(var(--ticket-green))]' : value !== null && value >= 4 ? 'bg-[hsl(var(--ticket-amber))]' : 'bg-[hsl(var(--ticket-red))]')}
                                     style={{ width: `${((value ?? 0) / 5) * 100}%` }} />

@@ -19,16 +19,16 @@ export function useCsiTemplateMutation<TInput>(scope: CsiScopeParam, run: (input
     const client = useQueryClient();
     return useMutation({ mutationFn: run, onSuccess: () => client.invalidateQueries({ queryKey: templatesKey(scope) }) });
 }
-export function useCsiMyReportAccess() {
-    return useQuery({ queryKey: ['csi', 'me', 'hc', 'report-access'], queryFn: () => CsiHcApi.myReportAccess(), staleTime: 5 * 60_000 });
+export function useCsiMyReportAccess(scope: CsiScopeParam) {
+    return useQuery({ queryKey: ['csi', 'me', scope, 'report-access'], queryFn: () => CsiHcApi.myReportAccess(scope), staleTime: 5 * 60_000 });
 }
-export function useCsiMyReportPeriods() {
-    return useQuery({ queryKey: ['csi', 'me', 'hc', 'periods'], queryFn: () => CsiHcApi.myReportPeriods() });
+export function useCsiMyReportPeriods(scope: CsiScopeParam, enabled = true) {
+    return useQuery({ queryKey: ['csi', 'me', scope, 'periods'], queryFn: () => CsiHcApi.myReportPeriods(scope), enabled });
 }
-export function useCsiMyServiceReport(periodId: string | null, serviceCode: string | null) {
+export function useCsiMyServiceReport(scope: CsiScopeParam, periodId: string | null, serviceCode: string | null) {
     return useQuery({
-        queryKey: ['csi', 'me', 'hc', 'report', periodId, serviceCode], enabled: !!periodId && !!serviceCode,
-        queryFn: () => CsiHcApi.myServiceReport(periodId!, serviceCode!),
+        queryKey: ['csi', 'me', scope, 'report', periodId, serviceCode], enabled: !!periodId && !!serviceCode,
+        queryFn: () => CsiHcApi.myServiceReport(scope, periodId!, serviceCode!),
     });
 }
 export function useCsiReportOwners(scope: CsiScopeParam, enabled = true) {

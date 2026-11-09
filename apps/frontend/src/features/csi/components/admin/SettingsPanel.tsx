@@ -11,6 +11,7 @@ import { RatersTab } from './RatersTab';
 import { SubjectsTab } from './subjects/SubjectsTab';
 import { PicsTab } from './hc/PicsTab';
 import { ReportOwnersTab } from './hc/ReportOwnersTab';
+import { CSI_SERVICE_NAMES } from '../../lib/services';
 import { TemplatesTab } from './hc/templates/TemplatesTab';
 import { useCsiPics, useCsiReportOwners, useCsiTemplates } from '../../hooks/useCsiHc';
 
@@ -25,7 +26,7 @@ export function useSettingsStatus(scope: CsiScopeParam): SectionStatus[] {
     const { data: raters = [] } = useCsiRaters(scope);
     const { data: departments = [] } = useCsiDepartments(scope);
     const { data: pics = [] } = useCsiPics(scope);
-    const { data: owners = [] } = useCsiReportOwners(scope, scope === 'hc');
+    const { data: owners = [] } = useCsiReportOwners(scope);
     const { data: templateList } = useCsiTemplates(scope, scope === 'hc');
     const templateCount = templateList?.templates.length ?? 0;
     const people = groups.flatMap((group) => [...(group.team ? [group.team] : []), ...group.people]);
@@ -40,13 +41,18 @@ export function useSettingsStatus(scope: CsiScopeParam): SectionStatus[] {
         key: 'templates', label: 'Template penugasan', done: templateCount > 0,
         hint: templateCount ? `${templateCount} lokasi` : 'belum ada',
         description: 'Siapa menilai siapa per lokasi (mis. Semarang), lengkap dengan fungsi pelayanan PIC.',
-    }, {
-        key: 'report-owners', label: 'Penanggung jawab report', done: owners.length > 0 && owners.every((row) => row.users.length > 0),
-        hint: `${owners.filter((row) => row.users.length > 0).length}/${owners.length || 3} layanan`,
-        description: 'Siapa yang boleh membuka report CSI per layanan (HCC / HCD / HCS) untuk semua lokasi.',
     }] : [];
+    // Both scopes: HC per layanan (HCC / HCD / HCS), ICT per handling team.
+    const reportOwners: SectionStatus = {
+        key: 'report-owners', label: 'Penanggung jawab report', done: owners.length > 0 && owners.every((row) => row.users.length > 0),
+        hint: `${owners.filter((row) => row.users.length > 0).length}/${owners.length || Object.keys(CSI_SERVICE_NAMES[scope]).length} ${scope === 'hc' ? 'layanan' : 'tim'}`,
+        description: scope === 'hc'
+            ? 'Siapa yang boleh membuka report CSI per layanan (HCC / HCD / HCS) untuk semua lokasi.'
+            : 'Siapa yang boleh membuka report CSI per tim (Operational Support, Oracle, Web, Mobile, Manager) untuk semua lokasi.',
+    };
     return [
         ...hcPics,
+        reportOwners,
         {
             key: 'subjects', label: 'Orang & foto', done: people.length > 0 && noPhoto === 0,
             hint: !people.length ? 'belum ada' : noPhoto ? `${noPhoto} tanpa foto` : `${people.length} subjek`,

@@ -22,6 +22,8 @@ const TEAM_NAME_PREFIX = 'Tim ';
 export type CsiSubjectView = {
     key: string; kind: 'PERSON' | 'TEAM'; userId: string | null; teamId: string | null; siteId: string;
     name: string; jobTitle: string | null; photoUrl: string | null; tagline: string | null;
+    /** Fungsi pelayanan (people only; teams have none). */
+    serviceFunction: string | null;
 };
 export type CsiSubjectGroup = { siteId: string; siteCode: string; siteName: string; team: CsiSubjectView | null; people: CsiSubjectView[] };
 
@@ -40,11 +42,12 @@ const personView = (user: SubjectUser, profile: CsiSubjectProfile | undefined): 
     jobTitle: profile?.jobTitle ?? user.jobTitle ?? null,
     photoUrl: profile?.photoUrl ?? user.avatarUrl ?? null,
     tagline: profile?.tagline ?? null,
+    serviceFunction: profile?.serviceFunction ?? null,
 });
 
 const teamView = (team: CsiTeam): CsiSubjectView => ({
     key: teamSubjectKey(team.id), kind: 'TEAM', userId: null, teamId: team.id, siteId: team.siteId, name: team.name,
-    jobTitle: team.jobTitle ?? null, photoUrl: team.photoUrl ?? null, tagline: team.tagline ?? null,
+    jobTitle: team.jobTitle ?? null, photoUrl: team.photoUrl ?? null, tagline: team.tagline ?? null, serviceFunction: null,
 });
 
 /** Resolved display profile of one period ratee. */
@@ -66,6 +69,7 @@ const personMaster = (user: SubjectUser | undefined, profile: CsiSubjectProfile 
 function assertLengths(dto: UpdateSubjectDto) {
     if (typeof dto.tagline === 'string' && dto.tagline.length > CSI_TAGLINE_MAX) throw new BadRequestException('Tagline maksimal 90 karakter');
     if (typeof dto.jobTitle === 'string' && dto.jobTitle.length > CSI_JOB_TITLE_MAX) throw new BadRequestException('Jabatan maksimal 150 karakter');
+    if (typeof dto.serviceFunction === 'string' && dto.serviceFunction.trim().length > CSI_JOB_TITLE_MAX) throw new BadRequestException('Fungsi pelayanan maksimal 150 karakter');
     if (dto.name !== undefined && (!dto.name || dto.name.length > CSI_TEAM_NAME_MAX)) {
         throw new BadRequestException('Nama tim harus terdiri dari 1–100 karakter');
     }
@@ -142,6 +146,14 @@ export class CsiSubjectService {
         }));
     }
 
+    /** Fungsi pelayanan of people of a scope (only those with one set). */
+    async serviceFunctionsOf(scope: ServiceScope, userIds: string[]): Promise<Map<string, string>> {
+        const ids = unique(userIds);
+        if (!ids.length) return new Map();
+        const rows = await this.profiles.find({ where: { scope, userId: In(ids) }, select: { userId: true, serviceFunction: true } });
+        return new Map(rows.filter((row) => row.serviceFunction).map((row) => [row.userId, row.serviceFunction!]));
+    }
+
     /** Single-ratee form of `viewsFor`. */
     async viewFor(scope: ServiceScope, ratee: CsiPeriodRatee): Promise<CsiRateeView> {
         return (await this.viewsFor(scope, [ratee])).get(ratee.id)!;
@@ -153,13 +165,15 @@ export class CsiSubjectService {
         assertLengths(dto);
         const fields = definedOnly({ tagline: nullable(dto.tagline), jobTitle: nullable(dto.jobTitle) });
         if (ref.kind === 'team') {
+            if (dto.serviceFunction !== undefined) throw new BadRequestException('Fungsi pelayanan hanya untuk orang');
             const team = await this.findTeam(scope, ref.id);
             return teamView(await this.teams.save({ ...team, ...fields, ...(dto.name !== undefined ? { name: dto.name } : {}) }));
         }
         if (dto.name !== undefined) throw new BadRequestException('Nama hanya bisa diubah untuk tim');
+        const serviceFunction = dto.serviceFunction === undefined ? {} : { serviceFunction: nullable(dto.serviceFunction?.trim()) ?? null };
         const user = await this.findPerson(scope, ref.id);
         const profile = await this.profiles.findOne({ where: { scope, userId: user.id } });
-        const saved = await this.profiles.save({ ...(profile ?? { scope, userId: user.id, photoUrl: null, tagline: null, jobTitle: null }), ...fields });
+        const saved = await this.profiles.save({ ...(profile ?? { scope, userId: user.id, photoUrl: null, tagline: null, jobTitle: null }), ...fields, ...serviceFunction });
         return personView(user, saved as CsiSubjectProfile);
     }
 

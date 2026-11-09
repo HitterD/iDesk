@@ -27,6 +27,10 @@ export class CsiSubjectProfile {
     @Column({ type: 'varchar', length: 150, nullable: true })
     jobTitle: string | null;
 
+    /** Fungsi pelayanan shown on the rating card (ICT agents; snapshotted onto the period ratee). */
+    @Column({ type: 'varchar', length: 150, nullable: true })
+    serviceFunction: string | null;
+
     /**
      * Picked by hand as a subject of the scope. HC has no staff roles of its own, so its people are exactly the
      * members; ICT people come from the ICT roles and ignore this flag.
