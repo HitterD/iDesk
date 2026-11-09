@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import * as ExcelJS from 'exceljs';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiOrgLocation } from '../org/csi-org.constants';
@@ -21,7 +21,16 @@ const input = () => ({
 describe('CsiServiceReportService', () => {
     const access = { assertService: jest.fn(), servicesFor: jest.fn() };
     const reports = { hcRecapInput: jest.fn(async () => input()), getRespondents: jest.fn(async () => ({ pendingByDepartment: [{ department: 'PROD', pending: 1, total: 2 }], pending: [{ fullName: 'SECRET' }] })) };
-    const periods = { find: jest.fn(async () => [{ id: 'p1', title: 'CSI HC 2026 – Semarang', startDate: '2026-11-01', endDate: '2026-11-30', publishStatus: 'PUBLISHED' }]) };
+    const rows = [
+        { id: 'p1', scope: 'HC', title: 'CSI HC 2026 – Semarang', startDate: '2026-11-01', endDate: '2026-11-30', publishStatus: 'PUBLISHED', cancelledAt: null },
+        { id: 'p-cancel', scope: 'HC', title: 'Batal', startDate: '2026-10-01', endDate: '2026-10-30', publishStatus: 'PUBLISHED', cancelledAt: new Date() },
+        { id: 'p-draft', scope: 'HC', title: 'Draft', startDate: '2026-12-01', endDate: '2026-12-30', publishStatus: 'DRAFT', cancelledAt: null },
+    ];
+    const periods = {
+        // Mirrors the where clause: not DRAFT and cancelledAt IS NULL.
+        find: jest.fn(async ({ where }: any) => rows.filter((row) => row.publishStatus !== 'DRAFT' && (where.cancelledAt ? row.cancelledAt === null : true))),
+        findOne: jest.fn(async ({ where }: any) => rows.find((row) => row.id === where.id) ?? null),
+    };
     const service = new CsiServiceReportService(access as any, reports as any, periods as any);
 
     beforeEach(() => jest.clearAllMocks());
@@ -67,5 +76,14 @@ describe('CsiServiceReportService', () => {
         expect(await service.listPeriods('budi')).toEqual({ services: [], periods: [] });
         access.servicesFor.mockResolvedValueOnce({ admin: false, services: ['HCD'] });
         expect((await service.listPeriods('u-rara')).periods.map((row) => row.id)).toEqual(['p1']);
+    });
+
+    it('cancelled surveys are not listed; draft and cancelled surveys cannot be opened by owners', async () => {
+        access.servicesFor.mockResolvedValueOnce({ admin: false, services: ['HCD'] });
+        expect((await service.listPeriods('u-rara')).periods.map((row) => row.id)).toEqual(['p1']);
+        access.assertService.mockResolvedValue({ admin: false });
+        await expect(service.get('u-rara', 'p-draft', 'HCD')).rejects.toBeInstanceOf(NotFoundException);
+        await expect(service.get('u-rara', 'p-cancel', 'HCD')).rejects.toBeInstanceOf(NotFoundException);
+        await expect(service.get('u-rara', 'missing', 'HCD')).rejects.toBeInstanceOf(NotFoundException);
     });
 });

@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as ExcelJS from 'exceljs';
-import { Not, Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiPeriodPublishStatus } from '../csi.constants';
 import { CsiPeriod } from '../entities/csi-period.entity';
@@ -33,7 +33,7 @@ export class CsiServiceReportService {
         const { services } = await this.access.servicesFor(userId, SCOPE);
         if (!services.length) return { services, periods: [] };
         const rows = await this.periods.find({
-            where: { scope: SCOPE, publishStatus: Not(CsiPeriodPublishStatus.DRAFT) }, order: { startDate: 'DESC' },
+            where: { scope: SCOPE, publishStatus: Not(CsiPeriodPublishStatus.DRAFT), cancelledAt: IsNull() }, order: { startDate: 'DESC' },
             select: { id: true, title: true, startDate: true, endDate: true },
         });
         return { services, periods: rows.map((row) => ({ id: row.id, title: row.title, startDate: row.startDate, endDate: row.endDate })) };
@@ -42,11 +42,20 @@ export class CsiServiceReportService {
     async get(userId: string, periodId: string, serviceCode: string): Promise<CsiServiceReport> {
         const code = serviceCode.toUpperCase();
         const { admin } = await this.access.assertService(userId, SCOPE, code);
+        await this.assertReadable(periodId, admin);
         const input = await this.reports.hcRecapInput(SCOPE, periodId);
         const hiddenRateeIds = new Set(admin ? [] : [...input.userIdOf].filter(([, owner]) => owner === userId).map(([rateeId]) => rateeId));
         const recap = buildServiceReport({ pics: input.pics, ratings: input.ratings, dimensions: input.dimensions, serviceCode: code, hiddenRateeIds });
         const respondents = await this.reports.getRespondents(SCOPE, periodId);
         return { ...recap, period: input.period, serviceCode: code, pending: respondents.pendingByDepartment };
+    }
+
+    /** Owners read published, not-cancelled HC surveys only; admins any HC survey (drafts included, as in the admin page). */
+    private async assertReadable(periodId: string, admin: boolean) {
+        const period = await this.periods.findOne({ where: { id: periodId } });
+        const visible = period && period.scope === SCOPE
+            && (admin || (period.publishStatus !== CsiPeriodPublishStatus.DRAFT && !period.cancelledAt));
+        if (!visible) throw new NotFoundException('Periode tidak ditemukan');
     }
 
     async exportWorkbook(userId: string, periodId: string, serviceCode: string): Promise<{ filename: string; buffer: Buffer }> {

@@ -48,7 +48,9 @@ async function load(buffer: Buffer) {
 /** Job title per employee name from the optional "Karyawan SMG"-style sheet (name, title). */
 function employeeTitles(workbook: ExcelJS.Workbook) {
     const titles = new Map<string, string>();
-    workbook.getWorksheet(EMPLOYEE_SHEET)?.eachRow((row, number) => {
+    const sheet = workbook.getWorksheet(EMPLOYEE_SHEET);
+    if (sheet && sheet.rowCount - 1 > ROWS_MAX) throw new BadRequestException(`Maksimal ${ROWS_MAX} baris per sheet`);
+    sheet?.eachRow((row, number) => {
         if (number === 1) return;
         const values = row.values as ExcelJS.CellValue[];
         const name = clean(values[1]);

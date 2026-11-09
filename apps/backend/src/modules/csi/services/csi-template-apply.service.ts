@@ -4,6 +4,7 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { Site } from '../../sites/entities/site.entity';
 import { CsiPairMode, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { CreatePeriodDto } from '../dto/period.dto';
 import { CsiDimension } from '../entities/csi-dimension.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
@@ -42,6 +43,7 @@ type Repos = {
     raters: Repository<CsiPeriodRater>; pairs: Repository<CsiPeriodRaterRatee>; periods: Repository<CsiPeriod>;
 };
 
+const NO_QUESTIONS_MESSAGE = 'Belum ada pertanyaan HC aktif. Buat template 5 dimensi dulu.';
 const unique = (values: string[]) => [...new Set(values)].sort((a, b) => a.localeCompare(b));
 const NOT_SCORED = new Set<string>([CsiQuestionType.CHOICE, CsiQuestionType.TEXT]);
 
@@ -73,7 +75,7 @@ export class CsiTemplateApplyService {
             plan.report = { ...plan.report, blockedReason };
             if (!commit) return { ...plan.report, committed: false };
             if (blockedReason) throw new BadRequestException(blockedReason);
-            if (plan.pics.length && !questions.length) throw new BadRequestException('Belum ada pertanyaan HC aktif. Buat template 5 dimensi dulu.');
+            if (plan.pics.length && !questions.length) throw new BadRequestException(NO_QUESTIONS_MESSAGE);
             await this.write(manager, repos, periodId, plan, questions);
             return { ...plan.report, committed: true };
         });
@@ -84,11 +86,19 @@ export class CsiTemplateApplyService {
         const view = await this.templates.get(scope, templateId);
         const site = await this.sites.findOne({ where: { code: view.locationCode } });
         if (!site) throw new BadRequestException(`Site ${view.locationCode} tidak ditemukan`);
-        const period = await this.periodService.create(scope, {
+        if (!(await this.hcQuestions(scope)).length) throw new BadRequestException(NO_QUESTIONS_MESSAGE);
+        const dto: CreatePeriodDto = {
             ...input, siteIds: [site.id], respondentMode: CsiRespondentMode.LISTED, individualEnabled: true, teamEnabled: false,
-        } as never, actorId);
-        const report = await this.applyToPeriod(scope, templateId, period.id, true);
-        return { periodId: period.id, report };
+        };
+        const period = await this.periodService.create(scope, dto, actorId);
+        try {
+            const report = await this.applyToPeriod(scope, templateId, period.id, true);
+            return { periodId: period.id, report };
+        } catch (error) {
+            // No half-built survey is left behind: the draft has no answers yet, so it can go.
+            await this.periodService.remove(scope, period.id).catch(() => undefined);
+            throw error;
+        }
     }
 
     private async plan(scope: ServiceScope, view: CsiTemplateView, periodId: string, repos: Repos): Promise<Plan> {

@@ -45,10 +45,14 @@ describe('CsiTemplateApplyService', () => {
         { id: 'd-k', name: 'Knowledge — Pengetahuan', shortLabel: 'Knowledge', type: CsiQuestionType.STAR, required: true, options: [], sortOrder: 0, isActive: true, scope: HC },
         { id: 'd-c', name: 'Courtesy — Kesopanan', shortLabel: 'Courtesy', type: CsiQuestionType.STAR, required: true, options: [], sortOrder: 1, isActive: true, scope: HC },
     ]) };
-    const periodService = { create: jest.fn(async () => { periods.rows.push({ id: 'p-new', scope: HC, respondentMode: CsiRespondentMode.LISTED, pairMode: null, unitRules: [] }); return { id: 'p-new' }; }) };
+    const periodService = {
+        create: jest.fn(async () => { periods.rows.push({ id: 'p-new', scope: HC, respondentMode: CsiRespondentMode.LISTED, pairMode: null, unitRules: [] }); return { id: 'p-new' }; }),
+        remove: jest.fn(async () => undefined),
+    };
     const sites = { findOne: jest.fn(async () => ({ id: 's-smg', code: 'SMG' })) };
 
     beforeEach(() => {
+        jest.clearAllMocks();
         periods = memoryTable(); ratees = memoryTable(); rateeDims = memoryTable(); raters = memoryTable(); pairs = memoryTable();
         periods.rows.push({ id: 'p1', scope: HC, respondentMode: CsiRespondentMode.LISTED, pairMode: null, unitRules: [], publishStatus: CsiPeriodPublishStatus.PUBLISHED });
         const repositories = new Map<unknown, unknown>([
@@ -123,5 +127,18 @@ describe('CsiTemplateApplyService', () => {
         expect(report.blockedReason).toBeNull();
         expect(pairs.rows.map((row) => row.id)).toContain('pair-old');
         expect(pairs.rows).toHaveLength(3);
+    });
+
+    it('creating from a template without HC questions fails before any survey is created', async () => {
+        dimensions.find.mockResolvedValueOnce([]);
+        await expect(service.createPeriodFromTemplate(HC, 't1', { title: 'X', startDate: '2026-12-01', endDate: '2026-12-31' }, 'admin'))
+            .rejects.toBeInstanceOf(BadRequestException);
+        expect(periodService.create).not.toHaveBeenCalled();
+    });
+
+    it('a failing apply removes the draft it just created', async () => {
+        org.findPics.mockRejectedValueOnce(new Error('boom'));
+        await expect(service.createPeriodFromTemplate(HC, 't1', { title: 'X', startDate: '2026-12-01', endDate: '2026-12-31' }, 'admin')).rejects.toThrow('boom');
+        expect(periodService.remove).toHaveBeenCalledWith(HC, 'p-new');
     });
 });

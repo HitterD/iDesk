@@ -40,7 +40,8 @@ describe('NotificationPermissionGate', () => {
 
         await waitFor(() => expect(screen.getByText('Isi iDesk')).toBeInTheDocument());
         expect(requestPermission).toHaveBeenCalled();
-        expect(ensurePushSubscription).toHaveBeenCalled();
+        // The subscription starts from an effect after the re-render: wait for it (raced on slow CI runners).
+        await waitFor(() => expect(ensurePushSubscription).toHaveBeenCalled());
         vi.unstubAllGlobals();
     });
 

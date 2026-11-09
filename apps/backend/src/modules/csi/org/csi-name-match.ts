@@ -11,3 +11,13 @@ export function matchByName<T>(name: string, candidates: readonly T[], nameOf: (
     if (hits.length > 1) return 'ambiguous';
     return hits[0] ?? null;
 }
+
+/** Name → the single matching row, 'ambiguous' or null; each candidate name is normalised once (large lists). */
+export function buildNameIndex<T>(candidates: readonly T[], nameOf: (row: T) => string): (name: string) => T | 'ambiguous' | null {
+    const index = new Map<string, T | 'ambiguous'>();
+    candidates.forEach((row) => {
+        const key = normalizeName(nameOf(row));
+        if (key) index.set(key, index.has(key) ? 'ambiguous' : row);
+    });
+    return (name) => index.get(normalizeName(name)) ?? null;
+}

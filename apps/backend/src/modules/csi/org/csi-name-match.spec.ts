@@ -1,4 +1,4 @@
-import { matchByName, normalizeName } from './csi-name-match';
+import { buildNameIndex, matchByName, normalizeName } from './csi-name-match';
 
 describe('normalizeName', () => {
     it('ignores case, extra spaces, dots and commas', () => {
@@ -15,5 +15,18 @@ describe('matchByName', () => {
     it('two people with the same name are ambiguous, none is null', () => {
         expect(matchByName('Agus Subekti', people, (row) => row.name)).toBe('ambiguous');
         expect(matchByName('Nobody', people, (row) => row.name)).toBeNull();
+    });
+});
+
+describe('buildNameIndex', () => {
+    it('gives the same answers as matchByName, normalising every candidate once', () => {
+        const people = [{ id: 'a', name: 'Rara Kurnia' }, { id: 'b', name: 'AGUS SUBEKTI' }, { id: 'c', name: 'agus  subekti' }];
+        const nameOf = jest.fn((row: { name: string }) => row.name);
+        const find = buildNameIndex(people, nameOf);
+        expect(find('RARA  KURNIA')).toEqual(people[0]);
+        expect(find('Agus Subekti')).toBe('ambiguous');
+        expect(find('nobody')).toBeNull();
+        expect(find('')).toBeNull();
+        expect(nameOf).toHaveBeenCalledTimes(3);
     });
 });

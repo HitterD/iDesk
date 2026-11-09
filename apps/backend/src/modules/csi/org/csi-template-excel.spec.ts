@@ -54,4 +54,9 @@ describe('parseTemplateWorkbook', () => {
         expect(draft.pics).toHaveLength(1);
         expect(draft.pics[0].raters.map((rater) => rater.name)).toEqual(['BUDI', 'CITRA']);
     });
+
+    it('an oversized employee sheet is refused like the main sheet (no unbounded read)', async () => {
+        const rows = Array.from({ length: 20001 }, (_, index) => [`ORANG ${index}`, 'STAFF']);
+        await expect(parseTemplateWorkbook(await workbook([[1, 'HC Services', 'X', 'Y', 'Z', 'A', null]], rows))).rejects.toThrow(/Maksimal/);
+    });
 });
