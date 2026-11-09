@@ -7,8 +7,40 @@ import type { CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
 const keys = queryKeys.csi;
 const picsKey = (scope: CsiScopeParam, includeInactive = false) => ['csi', scope, 'pics', includeInactive] as const;
 const directoryKey = (scope: CsiScopeParam) => ['csi', scope, 'directory'] as const;
+const ownersKey = (scope: CsiScopeParam) => ['csi', scope, 'report-owners'] as const;
 const recapKey = (scope: CsiScopeParam, id: string) => ['csi', scope, 'hc-recap', id] as const;
 
+const templatesKey = (scope: CsiScopeParam) => ['csi', scope, 'templates'] as const;
+export function useCsiTemplates(scope: CsiScopeParam, enabled = true) {
+    return useQuery({ queryKey: templatesKey(scope), queryFn: () => CsiHcApi.templates(scope), enabled });
+}
+/** Every template edit returns the fresh template; the list is refetched so counts stay right. */
+export function useCsiTemplateMutation<TInput>(scope: CsiScopeParam, run: (input: TInput) => Promise<unknown>) {
+    const client = useQueryClient();
+    return useMutation({ mutationFn: run, onSuccess: () => client.invalidateQueries({ queryKey: templatesKey(scope) }) });
+}
+export function useCsiMyReportAccess() {
+    return useQuery({ queryKey: ['csi', 'me', 'hc', 'report-access'], queryFn: () => CsiHcApi.myReportAccess(), staleTime: 5 * 60_000 });
+}
+export function useCsiMyReportPeriods() {
+    return useQuery({ queryKey: ['csi', 'me', 'hc', 'periods'], queryFn: () => CsiHcApi.myReportPeriods() });
+}
+export function useCsiMyServiceReport(periodId: string | null, serviceCode: string | null) {
+    return useQuery({
+        queryKey: ['csi', 'me', 'hc', 'report', periodId, serviceCode], enabled: !!periodId && !!serviceCode,
+        queryFn: () => CsiHcApi.myServiceReport(periodId!, serviceCode!),
+    });
+}
+export function useCsiReportOwners(scope: CsiScopeParam, enabled = true) {
+    return useQuery({ queryKey: ownersKey(scope), queryFn: () => CsiHcApi.reportOwners(scope), enabled });
+}
+export function useSetCsiReportOwners(scope: CsiScopeParam) {
+    const client = useQueryClient();
+    return useMutation({
+        mutationFn: ({ serviceCode, userIds }: { serviceCode: string; userIds: string[] }) => CsiHcApi.setReportOwners(scope, serviceCode, userIds),
+        onSuccess: (data) => client.setQueryData(ownersKey(scope), data),
+    });
+}
 export function useCsiPics(scope: CsiScopeParam, includeInactive = false) {
     return useQuery({ queryKey: picsKey(scope, includeInactive), queryFn: () => CsiHcApi.pics(scope, includeInactive) });
 }
@@ -24,10 +56,10 @@ export function useImportCsiDirectory(scope: CsiScopeParam) {
         ]),
     });
 }
-export function useSetCsiPicActive(scope: CsiScopeParam) {
+export function useUpdateCsiPic(scope: CsiScopeParam) {
     const client = useQueryClient();
     return useMutation({
-        mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => CsiHcApi.setPicActive(scope, id, isActive),
+        mutationFn: ({ id, ...patch }: { id: string; isActive?: boolean; serviceFunction?: string | null }) => CsiHcApi.updatePic(scope, id, patch),
         onSuccess: () => client.invalidateQueries({ queryKey: ['csi', scope, 'pics'] }),
     });
 }

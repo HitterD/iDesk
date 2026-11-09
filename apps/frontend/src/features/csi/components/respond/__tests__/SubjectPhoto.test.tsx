@@ -22,6 +22,21 @@ describe('SubjectPhoto', () => {
         expect(classes().filter((name) => /^(sticky|top-|h-\[|min-h-)/.test(name))).toEqual([]);
     });
 
+    it('is a narrower, shorter column than before so the form leads (max 640 px tall)', () => {
+        render(<SubjectPhoto ratee={RATEE} index={0} total={3} />);
+        expect(classes()).toContain('lg:@min-[780px]:max-h-[640px]');
+        expect(classes()).not.toContain('lg:@min-[780px]:max-h-[820px]');
+    });
+
+    it('shows the service function under the job title, and nothing when there is none', () => {
+        render(<SubjectPhoto ratee={{ ...RATEE, serviceFunction: 'People & Organization Development' }} index={0} total={1} />);
+        expect(screen.getByText('People & Organization Development')).toBeInTheDocument();
+        expect(screen.getByText(/fungsi pelayanan/i)).toBeInTheDocument();
+        cleanup();
+        render(<SubjectPhoto ratee={RATEE} index={0} total={1} />);
+        expect(screen.queryByText(/fungsi pelayanan/i)).toBeNull();
+    });
+
     it('shows the badge, kind chip, name and job title; no tagline line when null', () => {
         render(<SubjectPhoto ratee={RATEE} index={1} total={3} />);
         expect(screen.getByText('2 / 3')).toBeInTheDocument();

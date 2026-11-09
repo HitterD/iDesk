@@ -11,7 +11,11 @@ import type { CsiActivePeriod } from '../../types';
 vi.mock('@/stores/useAuth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
 
 vi.mock('../../api/csi.api', () => ({
-    CsiApi: { active: vi.fn(), form: vi.fn(), submit: vi.fn() },
+    CsiApi: { active: vi.fn(), form: vi.fn(), submit: vi.fn(), myResults: vi.fn(async () => []) },
+}));
+const hcAccess = vi.hoisted(() => ({ services: [] as string[] }));
+vi.mock('../../api/csiHc.api', () => ({
+    CsiHcApi: { myReportAccess: vi.fn(async () => ({ admin: false, services: hcAccess.services })) },
 }));
 
 const SURVEYS: CsiActivePeriod[] = [
@@ -106,5 +110,24 @@ describe('CsiPendingCard', () => {
         await vi.waitFor(() => expect(CsiApi.active).toHaveBeenCalled());
         await new Promise((resolve) => setTimeout(resolve, 0));
         expect(container).toBeEmptyDOMElement();
+    });
+
+    it('shows the service report link only to service report owners', async () => {
+        vi.mocked(CsiApi.active).mockResolvedValue(SURVEYS);
+        hcAccess.services = ['HCD'];
+        renderAt('/csi', <CsiSurveyListPage />);
+        expect(await screen.findByRole('link', { name: /report csi layanan/i })).toHaveAttribute('href', '/csi/report');
+        cleanup();
+        hcAccess.services = [];
+        renderAt('/csi', <CsiSurveyListPage />);
+        await screen.findByText('Survei ICT Q4');
+        expect(screen.queryByRole('link', { name: /report csi layanan/i })).toBeNull();
+    });
+
+    it('links to "Hasil penilaian saya" only for people who are rated', async () => {
+        vi.mocked(CsiApi.active).mockResolvedValue(SURVEYS);
+        vi.mocked(CsiApi.myResults).mockResolvedValueOnce([{ periodId: 'p1' } as never]);
+        renderAt('/csi', <CsiSurveyListPage />);
+        expect(await screen.findByRole('link', { name: /hasil penilaian saya/i })).toHaveAttribute('href', '/csi/hasil-saya');
     });
 });

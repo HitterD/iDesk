@@ -168,6 +168,8 @@ export interface CsiFormRatee {
     kind: CsiRateeKind;
     displayName: string;
     jobTitle: string | null;
+    /** HC PIC: fungsi pelayanan snapshot; null otherwise. */
+    serviceFunction?: string | null;
     /** Kept for compatibility; equals photoUrl. */
     avatarUrl: string | null;
     siteId: string | null;
@@ -261,6 +263,8 @@ export interface CsiRespondents {
     }>;
     /** LISTED only: raters without a response (department + site of the user account). */
     pending: Array<{ userId: string; fullName: string; department: string | null; siteId: string | null }> | null;
+    /** LISTED only: raters per department (directory department), without names. */
+    pendingByDepartment?: Array<{ department: string; pending: number; total: number }> | null;
     totals: { submitted: number; pending: number | null };
 }
 
@@ -431,4 +435,11 @@ export interface CsiDashboard {
     peopleDelta: CsiDashboardPersonDelta[];
     pending: CsiDashboardPending[];
     comments: CsiDashboardComment[];
+}
+
+/** "Hasil penilaian saya": anonymous results about the signed-in account (scores only from `minRaters` raters on). */
+export interface CsiSelfResult {
+    periodId: string; title: string; startDate: string; endDate: string; status: 'UPCOMING' | 'ACTIVE' | 'ENDED';
+    serviceFunction: string | null; raters: number; minRaters: number; ready: boolean;
+    average: number | null; dimensions: Array<{ label: string; average: number }>; comments: string[];
 }

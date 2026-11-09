@@ -11,7 +11,7 @@ export type CsiHcRating = {
     /** Stars per dimension label, e.g. { Knowledge: 5 }. */
     scores: Record<string, number>;
 };
-export type CsiHcPic = { periodRateeId: string; name: string; jobTitle: string | null; serviceCode: string | null; bagian: string | null };
+export type CsiHcPic = { periodRateeId: string; name: string; jobTitle: string | null; serviceCode: string | null; bagian: string | null; serviceFunction: string | null };
 
 /** Average per location column plus ALL SJA, with the number of ratings behind each. */
 export type CsiLocationCells = { all: CsiCell; byLocation: Record<CsiOrgLocation, CsiCell> };
@@ -19,6 +19,8 @@ export type CsiCell = { average: number | null; ratings: number };
 export type CsiRecapRow = CsiLocationCells & {
     level: 'service' | 'bagian' | 'pic';
     key: string; label: string; serviceCode: string | null; bagian: string | null; jobTitle: string | null;
+    /** Fungsi pelayanan (PIC rows only). */
+    serviceFunction: string | null;
     /** Dimension averages (ALL SJA). */
     dimensions: Record<string, number | null>;
 };
@@ -71,7 +73,7 @@ function serviceRows(pics: CsiHcPic[], ratings: CsiHcRating[], dimensions: strin
         const serviceRatings = servicePics.flatMap((pic) => byPic.get(pic.periodRateeId) ?? []);
         rows.push({
             level: 'service', key: `s:${serviceCode}`, label: serviceCode ? `${serviceCode} · ${serviceName(serviceCode) ?? ''}`.trim() : CSI_UNKNOWN_LABEL,
-            serviceCode: serviceCode || null, bagian: null, jobTitle: null, ...cells(serviceRatings), dimensions: dimensionAverages(serviceRatings, dimensions),
+            serviceCode: serviceCode || null, bagian: null, jobTitle: null, serviceFunction: null, ...cells(serviceRatings), dimensions: dimensionAverages(serviceRatings, dimensions),
         });
         const bagians = groupBy(servicePics, (pic) => pic.bagian ?? '');
         [...bagians.keys()].sort().forEach((bagian) => {
@@ -79,13 +81,13 @@ function serviceRows(pics: CsiHcPic[], ratings: CsiHcRating[], dimensions: strin
             const bagianRatings = bagianPics.flatMap((pic) => byPic.get(pic.periodRateeId) ?? []);
             rows.push({
                 level: 'bagian', key: `b:${serviceCode}:${bagian}`, label: label(bagian), serviceCode: serviceCode || null, bagian: bagian || null,
-                jobTitle: null, ...cells(bagianRatings), dimensions: dimensionAverages(bagianRatings, dimensions),
+                jobTitle: null, serviceFunction: null, ...cells(bagianRatings), dimensions: dimensionAverages(bagianRatings, dimensions),
             });
             bagianPics.forEach((pic) => {
                 const own = byPic.get(pic.periodRateeId) ?? [];
                 rows.push({
                     level: 'pic', key: `p:${pic.periodRateeId}`, label: pic.name, serviceCode: serviceCode || null, bagian: bagian || null,
-                    jobTitle: pic.jobTitle, ...cells(own), dimensions: dimensionAverages(own, dimensions),
+                    jobTitle: pic.jobTitle, serviceFunction: pic.serviceFunction, ...cells(own), dimensions: dimensionAverages(own, dimensions),
                 });
             });
         });

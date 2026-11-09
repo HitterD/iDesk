@@ -82,6 +82,8 @@ const DeviceActivationPage = lazy(() => import('../features/devices/DeviceActiva
 const CsiSurveyListPage = lazy(() => import('../features/csi/pages/CsiSurveyListPage').then(m => ({ default: m.CsiSurveyListPage })));
 const CsiSurveyPage = lazy(() => import('../features/csi/pages/CsiSurveyPage').then(m => ({ default: m.CsiSurveyPage })));
 // CSI admin: the page checks csi_admin_<scope> itself (no ADMIN bypass), so only the role gate lives here.
+const CsiMyResultsPage = lazy(() => import('../features/csi/pages/CsiMyResultsPage').then(m => ({ default: m.CsiMyResultsPage })));
+const CsiServiceReportPage = lazy(() => import('../features/csi/pages/CsiServiceReportPage').then(m => ({ default: m.CsiServiceReportPage })));
 const CsiAdminPage = lazy(() => import('../features/csi/pages/CsiAdminPage').then(m => ({ default: m.CsiAdminPage })));
 
 // VPN Access and Google Sync are now integrated into RenewalHubPage
@@ -258,6 +260,8 @@ export default function AppRoutes() {
 
                         {/* CSI survey (respondent) */}
                         <Route path="csi" element={<LazyRoute component={CsiSurveyListPage} featureName="Survei Kepuasan" />} />
+                        <Route path="csi/report" element={<LazyRoute component={CsiServiceReportPage} featureName="Report CSI layanan" />} />
+                        <Route path="csi/hasil-saya" element={<LazyRoute component={CsiMyResultsPage} featureName="Hasil penilaian saya" />} />
                         <Route path="csi/:id" element={<LazyRoute component={CsiSurveyPage} featureName="Survei Kepuasan" />} />
                         <Route path="csi/admin/:scope" element={<LazyRoute component={CsiAdminPage} featureName="Admin CSI" allowedRoles={['ADMIN', 'MANAGER', 'HC_ADMIN']} />} />
                     </Route>
@@ -299,6 +303,8 @@ export default function AppRoutes() {
                         <Route path="zoom-calendar" element={<LazyRoute component={ZoomCalendarPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
                         <Route path="renewal" element={<LazyRoute component={RenewalHubPage} featureName="Renewal Hub" requiredPageAccess="renewal" />} />
                         <Route path="csi" element={<LazyRoute component={CsiSurveyListPage} featureName="Survei Kepuasan" />} />
+                        <Route path="csi/report" element={<LazyRoute component={CsiServiceReportPage} featureName="Report CSI layanan" />} />
+                        <Route path="csi/hasil-saya" element={<LazyRoute component={CsiMyResultsPage} featureName="Hasil penilaian saya" />} />
                         <Route path="csi/:id" element={<LazyRoute component={CsiSurveyPage} featureName="Survei Kepuasan" />} />
                         <Route path="csi/admin/:scope" element={<LazyRoute component={CsiAdminPage} featureName="Admin CSI" allowedRoles={['ADMIN', 'MANAGER']} />} />
                     </Route>
@@ -341,6 +347,8 @@ export default function AppRoutes() {
 
                         <Route path="profile" element={<LazyRoute component={ClientProfilePage} featureName="Profile" />} />
                         <Route path="csi" element={<LazyRoute component={CsiSurveyListPage} featureName="Survei Kepuasan" />} />
+                        <Route path="csi/report" element={<LazyRoute component={CsiServiceReportPage} featureName="Report CSI layanan" />} />
+                        <Route path="csi/hasil-saya" element={<LazyRoute component={CsiMyResultsPage} featureName="Hasil penilaian saya" />} />
                         <Route path="csi/:id" element={<LazyRoute component={CsiSurveyPage} featureName="Survei Kepuasan" />} />
                         <Route index element={<Navigate to="/client/my-tickets" replace />} />
                     </Route>

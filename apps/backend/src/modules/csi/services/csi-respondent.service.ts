@@ -320,7 +320,7 @@ function formProfile(ratee: CsiPeriodRatee, view: CsiRateeView | undefined) {
     const photoUrl = view?.photoUrl ?? null;
     return {
         periodRateeId: ratee.id, kind: ratee.kind ?? CsiRateeKind.PERSON, displayName: ratee.displayName,
-        jobTitle: view?.jobTitle ?? ratee.jobTitle, avatarUrl: photoUrl,
+        jobTitle: view?.jobTitle ?? ratee.jobTitle, serviceFunction: ratee.serviceFunction ?? null, avatarUrl: photoUrl,
         siteId: view?.siteId ?? null, siteCode: view?.siteCode ?? null, tagline: view?.tagline ?? null, photoUrl,
     };
 }

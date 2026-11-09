@@ -6,6 +6,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { useCsiReport, useCsiRespondents, useSendCsiReminders } from '../../hooks/useCsi';
 import type { CsiReminderResult, CsiRespondents, CsiScopeParam, CsiSiteSummary, CsiSla } from '../../types';
 import { AdminSection } from './AdminParts';
+import { PendingByDepartment } from './hc/PendingByDepartment';
 import { PersonList } from './respondents/PersonList';
 import { RespondentHero, type SiteProgress } from './respondents/RespondentHero';
 import { overallProgress, personRows, progressOf, type PersonRow } from './respondents/respondentModel';
@@ -46,11 +47,13 @@ function useReminders(scope: CsiScopeParam, periodId: string) {
     return { reminded, rowId, remindOne, remindAll, allPending: send.isPending && rowId === null };
 }
 
-function StatusBody({ data, rows, sites, targetPct, reminders, onOpenResponse, basis, hcTarget }: {
+function StatusBody({ data, rows, sites, targetPct, reminders, onOpenResponse, basis, hcTarget, namesHidden }: {
     data: CsiRespondents; rows: PersonRow[]; sites: readonly CsiSiteSummary[]; targetPct: number;
     reminders: ReturnType<typeof useReminders>; onOpenResponse: (responseId: string) => void;
     basis: CsiSla | undefined;
     hcTarget?: boolean;
+    /** HC: the statistic shows departments only until the admin asks for the names (follow-up). */
+    namesHidden: boolean;
 }) {
     const listed = data.mode === 'LISTED';
     const progress = basis ? overallProgress(data, basis) : null;
@@ -60,8 +63,11 @@ function StatusBody({ data, rows, sites, targetPct, reminders, onOpenResponse, b
                 <RespondentHero progress={progress} targetPct={targetPct} basisLabel={hcTarget ? 'target responden (HC)' : BASIS_LABEL[data.mode]}
                     sites={listed && sites.length > 1 ? siteProgress(rows, sites, targetPct) : []} />
             )}
-            <PersonList rows={rows} sites={sites} canRemind={listed} reminded={reminders.reminded} remindingId={reminders.rowId}
-                onRemind={reminders.remindOne} onOpenResponse={onOpenResponse} />
+            {data.pendingByDepartment && namesHidden && <PendingByDepartment rows={data.pendingByDepartment} />}
+            {!(data.pendingByDepartment && namesHidden) && (
+                <PersonList rows={rows} sites={sites} canRemind={listed} reminded={reminders.reminded} remindingId={reminders.rowId}
+                    onRemind={reminders.remindOne} onOpenResponse={onOpenResponse} />
+            )}
         </div>
     );
 }
@@ -74,6 +80,8 @@ export function RespondentStatus({ scope, periodId, sites, onOpenResponse, hcTar
     const { data, isLoading, isError, refetch } = useCsiRespondents(scope, periodId);
     const { data: report } = useCsiReport(scope, periodId);
     const reminders = useReminders(scope, periodId);
+    const [showNames, setShowNames] = useState(false);
+    const byDepartment = scope === 'hc' && !!data?.pendingByDepartment;
     const listed = data?.mode === 'LISTED';
     const rows = data ? personRows(data) : [];
     const pendingIds = rows.filter((row) => !row.done && row.userId && !reminders.reminded.has(row.userId)).map((row) => row.userId as string);
@@ -82,14 +90,18 @@ export function RespondentStatus({ scope, periodId, sites, onOpenResponse, hcTar
             {!reminders.allPending && <BellRing aria-hidden="true" />}Ingatkan semua yang belum
         </Button>
     );
+    const namesToggle = byDepartment && (
+        <Button variant="soft" onClick={() => setShowNames((value) => !value)}>{showNames ? 'Sembunyikan nama' : 'Tampilkan nama'}</Button>
+    );
+    const actions = (namesToggle || remindAll) ? <>{namesToggle}{remindAll}</> : undefined;
     return (
-        <AdminSection title="Status responden" actions={remindAll || undefined}
+        <AdminSection title="Status responden" actions={actions}
             description={data && !listed ? openDescription(!!hcTarget) : undefined}>
             {isLoading && <div className="h-24 animate-pulse rounded-2xl bg-[hsl(var(--muted))] motion-reduce:animate-none" aria-busy="true" aria-label="Memuat responden" />}
             {isError && <ErrorState compact message="Gagal memuat status responden." onRetry={() => refetch()} />}
             {data && (
                 <StatusBody data={data} rows={rows} sites={sites} targetPct={report?.sla.targetPct ?? 0} reminders={reminders}
-                    onOpenResponse={onOpenResponse} basis={report?.sla} hcTarget={hcTarget} />
+                    onOpenResponse={onOpenResponse} basis={report?.sla} hcTarget={hcTarget} namesHidden={byDepartment && !showNames} />
             )}
         </AdminSection>
     );

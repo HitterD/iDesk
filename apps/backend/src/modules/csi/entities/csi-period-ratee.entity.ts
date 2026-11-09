@@ -55,6 +55,10 @@ export class CsiPeriodRatee {
     @Column({ type: 'varchar', length: 150, nullable: true })
     bagian: string | null;
 
+    /** Snapshot of the PIC's fungsi pelayanan when assigned. */
+    @Column({ type: 'varchar', length: 150, nullable: true })
+    serviceFunction: string | null;
+
     @Column({ type: 'varchar', nullable: true })
     photoUrl: string | null;
 

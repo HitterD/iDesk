@@ -66,7 +66,7 @@ function CommentField({ ratee, comment, onComment }: { ratee: Ratee; comment: st
     );
 }
 
-/** One subject: large sticky photo on the left, questions on the right. The page is the only scroller. */
+/** One subject: sticky photo on the left (about 40% wide, so the form leads), questions on the right. The page is the only scroller. */
 export function RateeScreen(props: RateeScreenProps) {
     const { ratees, index, saved, answers, comment, missing, isComplete, onAnswer, onComment, onSelect, onBack, onNext } = props;
     const card = useRef<HTMLElement>(null);
@@ -79,7 +79,7 @@ export function RateeScreen(props: RateeScreenProps) {
 
             <section ref={card} aria-labelledby={`csi-ratee-${ratee.periodRateeId}`} className={cn(CSI_CARD, 'scroll-mt-3 overflow-clip rounded-[22px] @container')}>
                 {/* Two columns only where the photo can stick (lg viewport and a container of at least 780 px); stacked otherwise. */}
-                <div className="grid grid-cols-1 items-start lg:@min-[780px]:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+                <div className="grid grid-cols-1 items-start lg:@min-[780px]:grid-cols-[minmax(0,0.68fr)_minmax(0,1fr)]">
                     <SubjectPhoto ratee={ratee} index={index} total={ratees.length} scrollTarget={card} />
                     <div className="flex flex-col gap-3 p-4 [--flow-gutter:1rem] @min-[780px]:p-[clamp(16px,2.2cqi,30px)]">
                         {ratee.dimensions.map((dimension) => (

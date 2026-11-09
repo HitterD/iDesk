@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post,
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { SubmitResponseDto } from '../dto/submit.dto';
 import { CsiRespondentService } from '../services/csi-respondent.service';
+import { CsiSelfResultService } from '../services/csi-self-result.service';
 
 type CsiMeRequest = { user: { userId: string } };
 const CSI_ID_PIPE = new ParseUUIDPipe({
@@ -13,7 +14,13 @@ const toRespondent = (req: CsiMeRequest) => ({ id: req.user.userId });
 @Controller('csi/me')
 @UseGuards(JwtAuthGuard)
 export class CsiMeController {
-    constructor(private readonly respondent: CsiRespondentService) { }
+    constructor(private readonly respondent: CsiRespondentService, private readonly selfResults: CsiSelfResultService) { }
+
+    /** "Hasil penilaian saya": anonymous results about the signed-in account (live, from 3 raters on). */
+    @Get('results')
+    myResults(@Req() req: CsiMeRequest) {
+        return this.selfResults.list(req.user.userId);
+    }
 
     @Get('active')
     listActive(@Req() req: CsiMeRequest) {

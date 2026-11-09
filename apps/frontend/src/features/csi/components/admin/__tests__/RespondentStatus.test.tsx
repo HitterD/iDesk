@@ -86,4 +86,17 @@ describe('RespondentStatus', () => {
         expect(screen.getByText(/Pelapor tiket iDesk/)).toBeInTheDocument();
         expect(screen.getByText(/User SPJ/)).toBeInTheDocument();
     });
+
+    it('HC: pending raters are summarised per department; names only after "Tampilkan nama"', async () => {
+        fx.respondents = { ...LISTED, pendingByDepartment: [{ department: 'GUDANG', pending: 1, total: 1 }, { department: 'HRGA', pending: 1, total: 2 }] };
+        const user = userEvent.setup();
+        render(<RespondentStatus scope="hc" periodId="p1" sites={PERIOD.sites} onOpenResponse={vi.fn()} />);
+        const summary = screen.getByRole('region', { name: 'Belum menilai per departemen' });
+        expect(within(summary).getByText('Gudang')).toBeInTheDocument();
+        expect(within(summary).getByText('1 dari 2 belum menilai')).toBeInTheDocument();
+        expect(screen.queryByRole('list', { name: 'Daftar responden' })).not.toBeInTheDocument();
+        expect(screen.queryByText('Andi')).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Tampilkan nama' }));
+        expect(names()).toEqual(['Andi', 'Citra', 'Rina']);
+    });
 });

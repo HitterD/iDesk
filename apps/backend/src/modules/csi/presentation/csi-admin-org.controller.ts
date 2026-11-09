@@ -6,7 +6,7 @@ import { MULTER_OPTIONS } from '../../../shared/core/config/upload.config';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { MasterListQueryDto } from '../dto/master.dto';
-import { SetPicActiveDto } from '../dto/pic.dto';
+import { UpdatePicDto } from '../dto/pic.dto';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiOrgService } from '../org/csi-org.service';
 import { CsiUnitRulesService } from '../org/csi-unit-rules.service';
@@ -22,7 +22,7 @@ const XLSX_EXTENSION = '.xlsx';
 const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const ID_PIPE = new ParseUUIDPipe({ exceptionFactory: () => new BadRequestException('ID harus berupa UUID') });
 
-const DIRECTORY_UPLOAD = {
+export const XLSX_UPLOAD = {
     storage: memoryStorage(),
     limits: { fileSize: DIRECTORY_MAX_BYTES, files: 1 },
     fileFilter: (_req: unknown, file: Express.Multer.File, callback: (error: Error | null, accept: boolean) => void) => {
@@ -50,7 +50,7 @@ export class CsiAdminOrgController {
 
     /** Dry run by default; `?commit=true` replaces the period's raters and pairs. */
     @Post('periods/:periodId/pairs/import')
-    @UseInterceptors(FileInterceptor('file', DIRECTORY_UPLOAD))
+    @UseInterceptors(FileInterceptor('file', XLSX_UPLOAD))
     importPairs(@Req() req: CsiAdminRequest, @Param('periodId', ID_PIPE) periodId: string, @UploadedFile() file: Express.Multer.File, @Query('commit') commit?: string) {
         if (!file?.buffer?.length) throw new BadRequestException('File Excel wajib diunggah');
         return this.pairsExcel.importWorkbook(req.csiScope, periodId, file.buffer, commit === 'true');
@@ -88,7 +88,7 @@ export class CsiAdminOrgController {
     }
 
     @Post('directory/import')
-    @UseInterceptors(FileInterceptor('file', DIRECTORY_UPLOAD))
+    @UseInterceptors(FileInterceptor('file', XLSX_UPLOAD))
     importDirectory(@Req() req: CsiAdminRequest, @UploadedFile() file: Express.Multer.File) {
         if (!file?.buffer?.length) throw new BadRequestException('File Excel wajib diunggah');
         return this.org.importWorkbook(req.csiScope, file.buffer);
@@ -100,8 +100,8 @@ export class CsiAdminOrgController {
     }
 
     @Patch('pics/:id')
-    setPicActive(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Body() dto: SetPicActiveDto) {
-        return this.org.setPicActive(req.csiScope, id, dto.isActive);
+    updatePic(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Body() dto: UpdatePicDto) {
+        return this.org.updatePic(req.csiScope, id, dto);
     }
 
     @Post('pics/:id/photo')

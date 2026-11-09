@@ -281,12 +281,12 @@ describe('CsiRespondentService', () => {
                 respondent: { fullName: 'Andi Responden', departmentId: null }, submittedAt: null, submittedNames: [],
                 departments: [{ id: 'dep1', name: 'Produksi' }],
                 ratees: [
-                    { periodRateeId: 'r1', kind: 'PERSON', displayName: 'Budi', jobTitle: 'Teknisi', avatarUrl: '/uploads/budi.png',
+                    { periodRateeId: 'r1', kind: 'PERSON', displayName: 'Budi', jobTitle: 'Teknisi', serviceFunction: null, avatarUrl: '/uploads/budi.png',
                         siteId: 'site-a', siteCode: 'SPJ', tagline: null, photoUrl: '/uploads/budi.png', dimensions: [
                         { periodRateeDimensionId: 'rd1a', name: 'Responsif', description: 'Cepat menanggapi', type: 'STAR', required: true, options: [] },
                         { periodRateeDimensionId: 'rd1b', name: 'Ramah', description: null, type: 'STAR', required: true, options: [] },
                     ] },
-                    { periodRateeId: 'r2', kind: 'PERSON', displayName: 'Sari', jobTitle: null, avatarUrl: null,
+                    { periodRateeId: 'r2', kind: 'PERSON', displayName: 'Sari', jobTitle: null, serviceFunction: null, avatarUrl: null,
                         siteId: 'site-a', siteCode: 'SPJ', tagline: null, photoUrl: null, dimensions: [
                         { periodRateeDimensionId: 'rd2a', name: 'Responsif', description: 'Cepat menanggapi', type: 'STAR', required: true, options: [] },
                     ] },
@@ -308,6 +308,13 @@ describe('CsiRespondentService', () => {
             // One batched lookup each, not one query per ratee or dimension.
             expect(dimensions.find).toHaveBeenCalledTimes(1);
             expect(users.find).toHaveBeenCalledTimes(1);
+        });
+
+        it('getForm carries the service function snapshot of a PIC ratee (null for others)', async () => {
+            ratees.rows[1] = { ...ratees.rows[1], serviceFunction: 'People & Organization Development' };
+            const form: any = await service.getForm(me, 'p1', NOW);
+            expect(form.ratees.find((ratee: any) => ratee.periodRateeId === 'r1').serviceFunction).toBe('People & Organization Development');
+            expect(form.ratees.find((ratee: any) => ratee.periodRateeId === 'r2').serviceFunction).toBeNull();
         });
 
         it('getForm reports when the account answered and TEAM first', async () => {

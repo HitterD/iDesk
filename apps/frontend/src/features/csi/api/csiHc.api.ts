@@ -1,13 +1,69 @@
 import api from '@/lib/api';
 import type { CsiPeriodDetail, CsiScopeParam } from '../types';
-import type { CsiDirectoryImportResult, CsiHcRater, CsiHcRecap, CsiPairsImportReport, CsiPicView, CsiUnitOption, CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
+import type { CsiDirectoryImportResult, CsiHcRater, CsiHcRecap, CsiPairsImportReport, CsiPicView, CsiReportAccess, CsiReportPeriods, CsiServiceReport, CsiServiceReportOwners, CsiTemplate, CsiTemplateApplyReport, CsiTemplateImportReport, CsiTemplateList, CsiUnitOption, CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
 
 const orgPath = (scope: CsiScopeParam) => `/csi/admin/${scope}/org`;
 const periodPath = (scope: CsiScopeParam, id: string) => `/csi/admin/${scope}/periods/${encodeURIComponent(id)}`;
 /** Multipart field expected by the backend FileInterceptor('file'). */
 const FILE_FIELD = 'file';
 
+const meHcPath = '/csi/me/hc';
+const serviceReportPath = (periodId: string, serviceCode: string) =>
+    `${meHcPath}/periods/${encodeURIComponent(periodId)}/services/${encodeURIComponent(serviceCode)}`;
+
+const templatePath = (scope: CsiScopeParam) => `/csi/admin/${scope}/templates`;
+
 export const CsiHcApi = {
+    async templates(scope: CsiScopeParam): Promise<CsiTemplateList> {
+        return (await api.get<CsiTemplateList>(templatePath(scope))).data;
+    },
+    async loadBundledTemplate(scope: CsiScopeParam, location: string): Promise<CsiTemplate> {
+        return (await api.post<CsiTemplate>(`${templatePath(scope)}/bundled/${encodeURIComponent(location)}`)).data;
+    },
+    async importTemplate(scope: CsiScopeParam, location: string, file: File, commit: boolean): Promise<CsiTemplateImportReport> {
+        const body = new FormData();
+        body.append(FILE_FIELD, file);
+        return (await api.post<CsiTemplateImportReport>(`${templatePath(scope)}/import/${encodeURIComponent(location)}`, body, { params: { commit } })).data;
+    },
+    async addTemplatePic(scope: CsiScopeParam, templateId: string, body: { serviceCode: string; picName: string; jobTitle?: string; serviceFunction?: string }): Promise<CsiTemplate> {
+        return (await api.post<CsiTemplate>(`${templatePath(scope)}/${encodeURIComponent(templateId)}/pics`, body)).data;
+    },
+    async updateTemplatePic(scope: CsiScopeParam, picId: string, body: { jobTitle?: string | null; serviceFunction?: string | null }): Promise<CsiTemplate> {
+        return (await api.patch<CsiTemplate>(`${templatePath(scope)}/pics/${encodeURIComponent(picId)}`, body)).data;
+    },
+    async removeTemplatePic(scope: CsiScopeParam, picId: string): Promise<CsiTemplate> {
+        return (await api.delete<CsiTemplate>(`${templatePath(scope)}/pics/${encodeURIComponent(picId)}`)).data;
+    },
+    async addTemplateRater(scope: CsiScopeParam, picId: string, body: { name?: string; userId?: string }): Promise<CsiTemplate> {
+        return (await api.post<CsiTemplate>(`${templatePath(scope)}/pics/${encodeURIComponent(picId)}/raters`, body)).data;
+    },
+    async removeTemplateRater(scope: CsiScopeParam, raterId: string): Promise<CsiTemplate> {
+        return (await api.delete<CsiTemplate>(`${templatePath(scope)}/raters/${encodeURIComponent(raterId)}`)).data;
+    },
+    async applyTemplate(scope: CsiScopeParam, templateId: string, periodId: string, commit: boolean): Promise<CsiTemplateApplyReport> {
+        return (await api.post<CsiTemplateApplyReport>(`${templatePath(scope)}/${encodeURIComponent(templateId)}/apply/${encodeURIComponent(periodId)}`, null, { params: { commit } })).data;
+    },
+    async createPeriodFromTemplate(scope: CsiScopeParam, templateId: string, body: { title: string; startDate: string; endDate: string }): Promise<{ periodId: string; report: CsiTemplateApplyReport }> {
+        return (await api.post<{ periodId: string; report: CsiTemplateApplyReport }>(`${templatePath(scope)}/${encodeURIComponent(templateId)}/create-period`, body)).data;
+    },
+    async myReportAccess(): Promise<CsiReportAccess> {
+        return (await api.get<CsiReportAccess>(`${meHcPath}/report-access`, { skipToast: true })).data;
+    },
+    async myReportPeriods(): Promise<CsiReportPeriods> {
+        return (await api.get<CsiReportPeriods>(`${meHcPath}/periods`)).data;
+    },
+    async myServiceReport(periodId: string, serviceCode: string): Promise<CsiServiceReport> {
+        return (await api.get<CsiServiceReport>(`${serviceReportPath(periodId, serviceCode)}/report`)).data;
+    },
+    async myServiceReportExport(periodId: string, serviceCode: string): Promise<Blob> {
+        return (await api.get<Blob>(`${serviceReportPath(periodId, serviceCode)}/export`, { responseType: 'blob', skipToast: true })).data;
+    },
+    async reportOwners(scope: CsiScopeParam): Promise<CsiServiceReportOwners[]> {
+        return (await api.get<CsiServiceReportOwners[]>(`/csi/admin/${scope}/report-owners`)).data;
+    },
+    async setReportOwners(scope: CsiScopeParam, serviceCode: string, userIds: string[]): Promise<CsiServiceReportOwners[]> {
+        return (await api.put<CsiServiceReportOwners[]>(`/csi/admin/${scope}/report-owners/${encodeURIComponent(serviceCode)}`, { userIds })).data;
+    },
     async directory(scope: CsiScopeParam): Promise<{ people: number }> {
         return (await api.get<{ people: number }>(`${orgPath(scope)}/directory`)).data;
     },
@@ -19,8 +75,8 @@ export const CsiHcApi = {
     async pics(scope: CsiScopeParam, includeInactive = false): Promise<CsiPicView[]> {
         return (await api.get<CsiPicView[]>(`${orgPath(scope)}/pics`, { params: { includeInactive } })).data;
     },
-    async setPicActive(scope: CsiScopeParam, id: string, isActive: boolean): Promise<CsiPicView> {
-        return (await api.patch<CsiPicView>(`${orgPath(scope)}/pics/${encodeURIComponent(id)}`, { isActive })).data;
+    async updatePic(scope: CsiScopeParam, id: string, patch: { isActive?: boolean; serviceFunction?: string | null }): Promise<CsiPicView> {
+        return (await api.patch<CsiPicView>(`${orgPath(scope)}/pics/${encodeURIComponent(id)}`, patch)).data;
     },
     async uploadPicPhoto(scope: CsiScopeParam, id: string, file: File): Promise<CsiPicView> {
         const body = new FormData();

@@ -28,6 +28,10 @@ export class CsiPic {
     @Column({ type: 'varchar', length: 10 })
     serviceCode: string;
 
+    /** Fungsi pelayanan (free text, e.g. "People & Organization Development"). */
+    @Column({ type: 'varchar', length: 150, nullable: true })
+    serviceFunction: string | null;
+
     /** Normalised bagian. */
     @Column({ type: 'varchar', length: 150, nullable: true })
     bagian: string | null;

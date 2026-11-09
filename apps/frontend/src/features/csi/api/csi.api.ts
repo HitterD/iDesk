@@ -7,7 +7,7 @@ import type {
     CsiPeriodOverlap, CsiQuestionSet, CsiRaterDepartmentOption, CsiRaterGroupFilter, CsiRaterGroupPreview, CsiRaterImportResult, CsiRaterMatrix, CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, SaveCsiQuestionSet, CsiSubjectView, CsiSubmitResult, CsiUserIds, CsiUserSearchResult,
     CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, CreateCsiTeam, CsiMemoHeader, CsiMemoRequest, CsiReorder,
     ResetCsiResponse, SendCsiReminders, SetCsiAssignments, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
-    UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject,
+    UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject, CsiSelfResult,
 } from '../types';
 
 const adminPath = (scope: CsiScopeParam) => `/csi/admin/${scope}`;
@@ -31,6 +31,9 @@ function exportFilename(disposition: unknown, scope: CsiScopeParam, extension = 
 }
 
 export const CsiApi = {
+    async myResults(): Promise<CsiSelfResult[]> {
+        return (await api.get<CsiSelfResult[]>('/csi/me/results', { skipToast: true })).data;
+    },
     async active(): Promise<CsiActivePeriod[]> {
         // Background nav probe: a failure just hides the entry point, no toast.
         return (await api.get<CsiActivePeriod[]>('/csi/me/active', { skipToast: true })).data;

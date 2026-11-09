@@ -488,6 +488,18 @@ describe('CsiPeriodService', () => {
     describe('assignment', () => {
         beforeEach(() => periods.rows.push(basePeriod()));
 
+        it('setPics snapshots the PIC service function onto the period ratee', async () => {
+            const pic = {
+                id: 'pic-1', scope: HC, nik: '1001', fullName: 'RARA KURNIA MAHARANI PONGDATU', jobTitle: 'PEOPLE & ORGANIZATION DEVELOPMENT STAFF',
+                serviceCode: 'HCD', serviceFunction: 'People & Organization Development', bagian: 'HC DEVELOPMENT', siteId: 'site-b', userId: null, isActive: true,
+            };
+            periods.rows[0] = basePeriod({ scope: HC });
+            (service as any).org = { ...NO_PICS, findPics: async () => [pic] };
+            await service.setPics(HC, 'p1', ['pic-1'], ['d-hc']);
+            const savedRatees = manager.saved.find((entry) => entry.target === CsiPeriodRatee)!.value;
+            expect(savedRatees).toEqual([expect.objectContaining({ picId: 'pic-1', serviceCode: 'HCD', serviceFunction: 'People & Organization Development' })]);
+        });
+
         it('setRatees snapshots displayName/jobTitle/dimensionName', async () => {
             await service.setRatees(ICT, 'p1', [{ userId: 'u1', dimensionIds: ['d2', 'd1'] }, { userId: 'u2', dimensionIds: ['d1'] }]);
             // Nothing to remove on an empty period: people are diffed by userId, not wiped.

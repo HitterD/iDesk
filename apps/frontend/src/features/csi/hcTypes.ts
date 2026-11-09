@@ -7,6 +7,8 @@ export interface CsiPicView {
     jobTitle: string | null;
     serviceCode: string;
     serviceName: string | null;
+    /** Fungsi pelayanan (free text). */
+    serviceFunction: string | null;
     bagian: string | null;
     workLocation: string | null;
     siteId: string | null;
@@ -28,6 +30,8 @@ export interface CsiRecapRow extends CsiLocationCells {
     serviceCode: string | null;
     bagian: string | null;
     jobTitle: string | null;
+    /** Fungsi pelayanan (PIC rows only). */
+    serviceFunction?: string | null;
     dimensions: Record<string, number | null>;
 }
 export interface CsiRespondentGroupRow extends CsiLocationCells {
@@ -73,4 +77,34 @@ export interface CsiHcRater {
 }
 export interface CsiPairsImportReport {
     rows: number; pairs: number; raters: number; problems: Array<{ row: number; message: string }>; problemCount: number; committed: boolean;
+}
+export interface CsiReportOwnerUser { id: string; fullName: string; email: string | null }
+export interface CsiServiceReportOwners { serviceCode: string; users: CsiReportOwnerUser[] }
+export interface CsiHcPeriodRef { id: string; title: string; startDate: string; endDate: string }
+export interface CsiPendingDepartment { department: string; pending: number; total: number }
+export interface CsiServiceReport extends CsiHcRecap { period: CsiHcPeriodRef; serviceCode: string; pending: CsiPendingDepartment[] | null }
+export interface CsiReportPeriods { services: string[]; periods: CsiHcPeriodRef[] }
+export interface CsiReportAccess { admin: boolean; services: string[] }
+
+/** Assignment templates per location ("siapa menilai siapa" by name, with the PIC service function). */
+export type CsiTemplateRaterStatus = 'ok' | 'no-account' | 'ambiguous';
+export interface CsiTemplateRater { id: string; raterName: string; raterJobTitle: string | null; userId: string | null; status: CsiTemplateRaterStatus }
+export interface CsiTemplatePic {
+    id: string; area: string; serviceCode: string; picName: string; jobTitle: string | null; serviceFunction: string | null;
+    picId: string | null; raterCount: number; raters: CsiTemplateRater[];
+}
+export interface CsiTemplate {
+    id: string; scope: string; locationCode: string; name: string; updatedAt: string | null;
+    summary: { pics: number; picsUnmatched: number; picsWithoutRaters: number; raters: number; ratersOk: number; ratersNoAccount: number; ratersAmbiguous: number };
+    pics: CsiTemplatePic[];
+}
+export interface CsiTemplateList { templates: CsiTemplate[]; bundledAvailable: string[] }
+export interface CsiTemplateImportReport {
+    pics: number; picsAdded: number; picsUpdated: number; ratersAdded: number; problems: Array<{ row: number; message: string }>; committed: boolean;
+}
+export interface CsiTemplateApplyReport {
+    picsAdded: number; ratersAdded: number; pairsAdded: number;
+    picsSkippedNoRaters: string[]; picsUnmatched: string[]; ratersNoAccount: string[]; ratersAmbiguous: string[]; committed: boolean;
+    /** Why this survey cannot take the template without hiding it from current raters (null = it can). */
+    blockedReason: string | null;
 }

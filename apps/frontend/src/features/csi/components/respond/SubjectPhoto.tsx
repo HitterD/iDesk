@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type RefObject } from 'react';
-import { User, Users } from 'lucide-react';
+import { BriefcaseBusiness, User, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { siteTone, toneClasses } from '../../lib/csiTone';
 import type { CsiFormRatee } from '../../types';
@@ -8,7 +8,7 @@ import { imageUrl } from './RateeAvatar';
 
 const KIND_TEXT = { TEAM: 'Penilaian tim', PERSON: 'Penilaian individu' } as const;
 /** Caption lines fade in one after another (ms). */
-const CAPTION_DELAY = { kind: 0, name: 120, role: 180, tagline: 300 } as const;
+const CAPTION_DELAY = { kind: 0, name: 120, role: 180, service: 240, tagline: 300 } as const;
 const delay = (ms: number): CSSProperties => ({ animationDelay: `${ms}ms` });
 
 interface SubjectPhotoProps {
@@ -49,7 +49,7 @@ function Picture({ ratee }: { ratee: CsiFormRatee }) {
  */
 /** Phones: a short banner so the first question shows without scrolling; larger screens keep the tall photo. */
 export const PHOTO_STACKED = 'relative aspect-[16/10] max-h-[34vh] w-full sm:aspect-[4/3.8] sm:max-h-[64vh]';
-export const PHOTO_STICKY = cn('lg:@min-[780px]:sticky lg:@min-[780px]:top-[var(--csi-stick,64px)] lg:@min-[780px]:aspect-auto lg:@min-[780px]:max-h-[820px] lg:@min-[780px]:min-h-[480px]',
+export const PHOTO_STICKY = cn('lg:@min-[780px]:sticky lg:@min-[780px]:top-[var(--csi-stick,64px)] lg:@min-[780px]:aspect-auto lg:@min-[780px]:max-h-[640px] lg:@min-[780px]:min-h-[420px]',
     'lg:@min-[780px]:h-[calc(100dvh-var(--csi-chrome,0px)-var(--csi-stick,64px)-16px)] lg:@min-[780px]:rounded-l-[22px]');
 
 /** Left column of the respondent screen (see PHOTO_STACKED / PHOTO_STICKY). */
@@ -74,6 +74,12 @@ export function SubjectPhoto({ ratee, index, total, scrollTarget }: SubjectPhoto
                     </ScreenHeading>
                 </div>
                 {ratee.jobTitle && <p style={delay(CAPTION_DELAY.role)} className="csi-cap-in mt-1 font-medium text-white/80">{ratee.jobTitle}</p>}
+                {ratee.serviceFunction && (
+                    <p style={delay(CAPTION_DELAY.service)} className="csi-cap-in mt-2 inline-flex max-w-full items-start gap-1.5 rounded-lg bg-white/15 px-2.5 py-1 text-[13px] text-white backdrop-blur-md">
+                        <BriefcaseBusiness className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        <span className="min-w-0 break-words"><span className="text-white/75">Fungsi pelayanan: </span><span className="font-semibold">{ratee.serviceFunction}</span></span>
+                    </p>
+                )}
                 {ratee.tagline && (
                     <p style={delay(CAPTION_DELAY.tagline)} className="csi-cap-in mt-[clamp(10px,1.4cqi,18px)] max-w-[520px] text-pretty text-[clamp(13.5px,1.25cqi,17px)] italic leading-[1.4]">
                         <span aria-hidden="true" className="mb-2 block h-0.5 w-7 rounded-sm bg-[hsl(var(--idesk-cta))]" />
