@@ -30,10 +30,11 @@ export function photoError(file: File): string | null {
 const orNull = (value: string) => value.trim() || null;
 
 /** SubjectPhoto renders a respondent-form ratee; map the master subject onto that shape. */
-function toPreviewRatee(subject: CsiSubjectView, siteCode: string, draft: { name: string; jobTitle: string; tagline: string; photoUrl: string | null }): CsiFormRatee {
+function toPreviewRatee(subject: CsiSubjectView, siteCode: string, draft: { name: string; jobTitle: string; tagline: string; photoUrl: string | null; serviceFunction?: string }): CsiFormRatee {
     return {
         periodRateeId: subject.key, kind: subject.kind, displayName: draft.name.trim() || subject.name, jobTitle: orNull(draft.jobTitle),
         avatarUrl: draft.photoUrl, photoUrl: draft.photoUrl, siteId: subject.siteId, siteCode, tagline: orNull(draft.tagline), dimensions: [],
+        serviceFunction: orNull(draft.serviceFunction ?? subject.serviceFunction ?? ''),
     };
 }
 
@@ -82,18 +83,21 @@ function EditForm({ scope, subject, group, onClose }: { scope: CsiScopeParam; su
     const update = useUpdateCsiSubject(scope);
     const upload = useUploadCsiSubjectPhoto(scope);
     const remove = useRemoveCsiSubjectMember(scope);
-    const [draft, setDraft] = useState({ name: subject.name, jobTitle: subject.jobTitle ?? '', tagline: subject.tagline ?? '' });
+    const [draft, setDraft] = useState({ name: subject.name, jobTitle: subject.jobTitle ?? '', tagline: subject.tagline ?? '', serviceFunction: subject.serviceFunction ?? '' });
     const [photo, setPhoto] = useState<PickedPhoto | null>(null);
     const [fileError, setFileError] = useState<string | null>(null);
     useRevokeOnChange(photo);
     const file = photo?.file ?? null;
     const isTeam = subject.kind === 'TEAM';
-    const ids = { jobTitle: useId(), name: useId() };
+    const ids = { jobTitle: useId(), name: useId(), serviceFunction: useId() };
     const set = (field: keyof typeof draft) => (value: string) => setDraft((prev) => ({ ...prev, [field]: value }));
     const pick = (next: File) => { const error = photoError(next); setFileError(error); setPhoto(error ? null : pickPhoto(next)); };
 
     const save = () => {
-        const payload: UpdateCsiSubject = { tagline: orNull(draft.tagline), jobTitle: orNull(draft.jobTitle), ...(isTeam ? { name: draft.name.trim() } : {}) };
+        const payload: UpdateCsiSubject = {
+            tagline: orNull(draft.tagline), jobTitle: orNull(draft.jobTitle),
+            ...(isTeam ? { name: draft.name.trim() } : { serviceFunction: orNull(draft.serviceFunction) }),
+        };
         const saveText = () => update.mutate({ key: subject.key, payload }, { onSuccess: onClose });
         if (file) upload.mutate({ key: subject.key, file }, { onSuccess: saveText });
         else saveText();
@@ -112,6 +116,7 @@ function EditForm({ scope, subject, group, onClose }: { scope: CsiScopeParam; su
                 <PhotoDropzone fileName={file?.name ?? null} error={fileError} onPick={pick} />
                 <TaglineField value={draft.tagline} onChange={set('tagline')} />
                 <TextField id={ids.jobTitle} label="Jabatan yang ditampilkan" value={draft.jobTitle} onChange={set('jobTitle')} />
+                {!isTeam && <TextField id={ids.serviceFunction} label="Fungsi pelayanan" value={draft.serviceFunction} onChange={set('serviceFunction')} />}
                 {isTeam && <TextField id={ids.name} label="Nama tim" value={draft.name} onChange={set('name')} />}
             </div>
             <SheetFooter onClose={onClose} onSave={save} pending={pending} disabled={isTeam && !draft.name.trim()}

@@ -99,8 +99,18 @@ describe('SubjectsTab', () => {
         await actor.type(screen.getByLabelText(/Tagline/), '  Selalu siap ');
         await actor.clear(screen.getByLabelText('Jabatan yang ditampilkan'));
         await actor.click(screen.getByRole('button', { name: 'Simpan' }));
-        expect(hooks.update).toHaveBeenCalledWith({ key: 'user:u1', payload: { tagline: 'Selalu siap', jobTitle: null } }, expect.anything());
+        expect(hooks.update).toHaveBeenCalledWith({ key: 'user:u1', payload: { tagline: 'Selalu siap', jobTitle: null, serviceFunction: null } }, expect.anything());
         expect(screen.queryByLabelText('Nama tim')).not.toBeInTheDocument();
+    });
+
+    it('a person gets a service function field, shown on the preview and saved', async () => {
+        const actor = userEvent.setup();
+        render(<SubjectsTab scope="ict" />);
+        await openCard(actor, 'Andi');
+        await actor.type(screen.getByLabelText('Fungsi pelayanan'), 'Network & Infrastruktur');
+        expect(within(screen.getByTestId('csi-subject-photo')).getByText('Network & Infrastruktur')).toBeInTheDocument();
+        await actor.click(screen.getByRole('button', { name: 'Simpan' }));
+        expect(hooks.update).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ serviceFunction: 'Network & Infrastruktur' }) }), expect.anything());
     });
 
     it('uploads a valid photo before saving and edits the team name', async () => {

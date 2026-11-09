@@ -84,6 +84,14 @@ describe('CsiSubjectService', () => {
         expect(view).toMatchObject({ photoUrl: '/uploads/avatars/u1.jpg', tagline: 'Siap bantu', jobTitle: 'Teknisi' });
     });
 
+    it('stores the service function of a person and shows it; teams have none', async () => {
+        const view = await service.update(ICT, `user:${U1}`, { serviceFunction: '  Network & Infrastruktur  ' });
+        expect(view.serviceFunction).toBe('Network & Infrastruktur');
+        expect((await service.list(ICT)).find((group) => group.siteId === SPJ.id)!.people[0].serviceFunction).toBe('Network & Infrastruktur');
+        expect((await service.update(ICT, `user:${U1}`, { serviceFunction: '' })).serviceFunction).toBeNull();
+        await expect(service.update(ICT, `user:${U1}`, { serviceFunction: 'x'.repeat(151) })).rejects.toBeInstanceOf(BadRequestException);
+    });
+
     it('rejects tagline longer than 90 characters', async () => {
         await expect(service.update(ICT, `user:${U1}`, { tagline: 'x'.repeat(91) })).rejects.toBeInstanceOf(BadRequestException);
         const view = await service.update(ICT, `user:${U1}`, { tagline: 'x'.repeat(90) });
