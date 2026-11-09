@@ -59,4 +59,16 @@ describe('parseTemplateWorkbook', () => {
         const rows = Array.from({ length: 20001 }, (_, index) => [`ORANG ${index}`, 'STAFF']);
         await expect(parseTemplateWorkbook(await workbook([[1, 'HC Services', 'X', 'Y', 'Z', 'A', null]], rows))).rejects.toThrow(/Maksimal/);
     });
+
+    it('values longer than the database columns are reported in the dry run, never sent to the database', async () => {
+        const long = 'X'.repeat(151);
+        const draft = await parseTemplateWorkbook(await workbook([
+            [1, 'HC Services', long, 'STAFF', 'Fungsi', 'BUDI', null],
+            [2, 'HC Services', 'KUSMANTO', 'STAFF', long, 'CITRA', null],
+            [3, 'HC Services', 'BAGUS', 'STAFF', 'Fungsi', long, null],
+        ]));
+        expect(draft.pics.map((pic) => [pic.picName, pic.raters.map((rater) => rater.name)])).toEqual([['BAGUS', []]]);
+        expect(draft.problems.map((problem) => problem.row)).toEqual([2, 3, 4]);
+        expect(draft.problems.every((problem) => /150/.test(problem.message))).toBe(true);
+    });
 });

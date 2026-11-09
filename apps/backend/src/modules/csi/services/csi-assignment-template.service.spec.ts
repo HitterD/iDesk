@@ -4,6 +4,10 @@ import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
 import { CsiAssignmentTemplateRater } from '../entities/csi-assignment-template-rater.entity';
 import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entity';
+import { Site } from '../../sites/entities/site.entity';
+import { User } from '../../users/entities/user.entity';
+import { CsiOrgPerson } from '../entities/csi-org-person.entity';
+import { CsiPic } from '../entities/csi-pic.entity';
 import { CsiAssignmentTemplateService } from './csi-assignment-template.service';
 import { memoryTable } from './csi-memory-table.fixture';
 
@@ -39,8 +43,11 @@ describe('CsiAssignmentTemplateService', () => {
             { id: 'u-agus1', fullName: 'AGUS SUBEKTI', isActive: true },
             { id: 'u-agus2', fullName: 'Agus Subekti', isActive: true },
         );
+        // The directory query filters on department in SQL; here every directory row is a candidate.
+        const directory = { ...people, createQueryBuilder: () => ({ where: () => ({ getMany: async () => people.rows }) }) };
         const repositories = new Map<unknown, unknown>([
             [CsiAssignmentTemplate, templates], [CsiAssignmentTemplatePic, pics], [CsiAssignmentTemplateRater, raters],
+            [CsiPic, csiPics], [User, users], [Site, sites], [CsiOrgPerson, directory],
         ]);
         const dataSource = { transaction: jest.fn(async (work: any) => work({ getRepository: (target: unknown) => repositories.get(target) })) };
         service = new CsiAssignmentTemplateService(templates as any, pics as any, raters as any, csiPics as any, users as any, people as any, sites as any, dataSource as any);
@@ -145,5 +152,12 @@ describe('CsiAssignmentTemplateService', () => {
         await service.loadBundled(HC, 'SMG');
         expect(csiPics.rows.find((row) => row.id === 'pic-off')!.isActive).toBe(true);
         expect(pics.rows.find((row) => row.picName === 'BAGUS ARDIAN WIJAYA')!.picId).toBe('pic-off');
+    });
+
+    it('a directory name with other casing or punctuation still becomes the PIC', async () => {
+        people.rows.push({ nik: '2002', fullName: 'Jenny Erine  Valentina.', department: 'HCBP AREA SEMARANG', bagian: null, jobTitle: 'TA STAFF', workLocation: 'SJA-SEMARANG' });
+        await service.loadBundled(HC, 'SMG');
+        expect(csiPics.rows.find((row) => row.nik === '2002')).toMatchObject({ serviceCode: 'HCD', serviceFunction: 'Talent Acquisition & Assessment' });
+        expect(pics.rows.find((row) => row.picName === 'JENNY ERINE VALENTINA')!.picId).toBe(csiPics.rows.find((row) => row.nik === '2002')!.id);
     });
 });

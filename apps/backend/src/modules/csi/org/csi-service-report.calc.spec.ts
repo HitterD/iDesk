@@ -34,8 +34,8 @@ describe('buildServiceReport', () => {
         expect(anonymous[0].responseId).not.toBe('r1');
         // The unit breakdown cannot point at the rater either.
         expect(report.respondentGroups.find((row) => row.level === 'division' && row.label === 'OPERATION')!.all.ratings).toBe(2);
-        // The score itself still counts in the service total.
-        expect(report.services.find((row) => row.key === 's:HCD')!.all.ratings).toBe(3);
+        // The service total leaves them out (otherwise total − named answers reveals them).
+        expect(report.services.find((row) => row.key === 's:HCD')!.all.ratings).toBe(2);
     });
 
     it('the viewer own PIC row shows no location split, and nothing at all below 3 ratings', () => {
@@ -51,6 +51,28 @@ describe('buildServiceReport', () => {
         expect(ownEnough.dimensions).toEqual({ Knowledge: 4 });
         expect(ownEnough.byLocation.SJA1).toEqual({ average: null, ratings: 0 });
         expect(enough.services.find((row) => row.key === 'p:pris')!.byLocation.SJA1.ratings).toBe(1);
+    });
+
+    it('service, bagian and overall exclude the viewer own ratings, so they cannot be worked back out', () => {
+        const many = [...ratings, rating('r4', 'rara', 1), rating('r5', 'rara', 2, CsiOrgLocation.SJA1)];
+        const report = buildServiceReport({ pics, ratings: many, dimensions: DIMS, serviceCode: 'HCD', hiddenRateeIds: new Set(['rara']) });
+        const visibleOnly = buildServiceReport({ pics: pics.filter((pic) => pic.periodRateeId !== 'rara'), ratings: many.filter((r) => r.periodRateeId !== 'rara'), dimensions: DIMS, serviceCode: 'HCD', hiddenRateeIds: new Set() });
+        for (const key of ['s:HCD', 'b:HCD:HCD']) {
+            const row = report.services.find((entry) => entry.key === key)!;
+            const expected = visibleOnly.services.find((entry) => entry.key === key)!;
+            expect([row.all, row.byLocation, row.dimensions]).toEqual([expected.all, expected.byLocation, expected.dimensions]);
+        }
+        expect(report.overall.all).toEqual(visibleOnly.overall.all);
+        expect(report.overall.byLocation).toEqual(visibleOnly.overall.byLocation);
+        // Own row keeps its own total once there are 3 ratings (same rule as "Hasil penilaian saya").
+        expect(report.services.find((row) => row.key === 'p:rara')!.all).toEqual({ average: 2.67, ratings: 3 });
+    });
+
+    it('anonymous rows with equal averages are not in answer order', () => {
+        const same = [rating('z9', 'rara', 4), rating('a1', 'rara', 4), rating('m5', 'rara', 4)].map((entry, index) => ({ ...entry, scores: { Knowledge: 4 - index, Extra: index } }));
+        const report = buildServiceReport({ pics, ratings: same, dimensions: ['Knowledge', 'Extra'], serviceCode: 'HCD', hiddenRateeIds: new Set(['rara']) });
+        const extras = report.respondents.filter((row) => row.name === ANONYMOUS_RESPONDENT).map((row) => row.pics[0].scores.Extra);
+        expect(extras).toEqual([2, 1, 0]);
     });
 
     it('admins (no hidden ratees) see every rater by name', () => {

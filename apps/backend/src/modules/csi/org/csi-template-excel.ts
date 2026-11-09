@@ -69,6 +69,57 @@ function columnsOf(sheet: ExcelJS.Worksheet) {
     return columns;
 }
 
+/** Longest text the template tables store (varchar(150)). */
+const TEXT_MAX = 150;
+type ParseState = {
+    columns: Record<keyof typeof HEADERS, number>; titles: Map<string, string>;
+    pics: CsiTemplateSeedPic[]; problems: CsiTemplateDraft['problems']; area: string | null; current: CsiTemplateSeedPic | null;
+};
+
+/** First value longer than the column allows, as a row problem (the row is then skipped). */
+function tooLong(state: ParseState, row: number, fields: Array<[string, string | null]>): boolean {
+    const field = fields.find(([, value]) => (value ?? '').length > TEXT_MAX);
+    if (field) state.problems.push({ row, message: `${field[0]} lebih dari ${TEXT_MAX} karakter` });
+    return !!field;
+}
+
+/** A row that names a PIC starts (or continues) that PIC; the area carries down from the rows above. */
+function readPic(state: ParseState, values: ExcelJS.CellValue[], row: number, picName: string) {
+    const { columns, titles } = state;
+    const serviceCode = CSI_TEMPLATE_AREA_SERVICE[(state.area ?? '').toUpperCase()];
+    if (!serviceCode) {
+        state.problems.push({ row, message: `Area "${state.area ?? ''}" bukan HC Development / HC Comben / HC Services` });
+        state.current = null;
+        return;
+    }
+    const name = normalizeName(picName);
+    const jobTitle = titles.get(name) ?? clean(values[columns.jobTitle]);
+    const serviceFunction = clean(values[columns.serviceFunction]);
+    if (tooLong(state, row, [['Nama PIC', name], ['Jabatan', jobTitle], ['Fungsi pelayanan', serviceFunction]])) {
+        state.current = null;
+        return;
+    }
+    // A PIC written twice in the file continues the first block (one PIC, raters of both).
+    state.current = state.pics.find((pic) => pic.picName === name) ?? null;
+    if (state.current) return;
+    state.current = { area: state.area!, serviceCode, picName: name, jobTitle, serviceFunction, raters: [] };
+    state.pics.push(state.current);
+}
+
+function readRow(state: ParseState, values: ExcelJS.CellValue[], row: number) {
+    const { columns, titles } = state;
+    state.area = clean(values[columns.area]) ?? state.area;
+    const picName = clean(values[columns.pic]);
+    if (picName) readPic(state, values, row, picName);
+    const rater = clean(values[columns.rater]);
+    if (!rater || !state.current) return;
+    const name = normalizeName(rater);
+    const jobTitle = titles.get(name) ?? clean(values[columns.raterJobTitle]);
+    if (tooLong(state, row, [['Nama penilai', name], ['Jabatan penilai', jobTitle]])) return;
+    if (state.current.raters.some((entry) => entry.name === name)) return;
+    state.current.raters.push({ name, jobTitle });
+}
+
 /**
  * Reads the HC assignment workbook (layout of "CSI HC 2026 (semarang).xlsx"): one row per rater; the area and PIC
  * name are written on the PIC's first row only and carry down. Names are stored upper case; a rater listed twice
@@ -79,40 +130,8 @@ export async function parseTemplateWorkbook(buffer: Buffer): Promise<CsiTemplate
     const sheet = workbook.worksheets.find((candidate) => candidate.name !== EMPLOYEE_SHEET) ?? workbook.worksheets[0];
     if (!sheet) throw new BadRequestException('Sheet tidak ditemukan');
     if (sheet.rowCount - 1 > ROWS_MAX) throw new BadRequestException(`Maksimal ${ROWS_MAX} baris`);
-    const columns = columnsOf(sheet);
-    const titles = employeeTitles(workbook);
-    const pics: CsiTemplateSeedPic[] = [];
-    const problems: CsiTemplateDraft['problems'] = [];
-    let area: string | null = null;
-    let current: CsiTemplateSeedPic | null = null;
-    sheet.eachRow((row, number) => {
-        if (number === 1) return;
-        const values = row.values as ExcelJS.CellValue[];
-        area = clean(values[columns.area]) ?? area;
-        const picName = clean(values[columns.pic]);
-        if (picName) {
-            const serviceCode = CSI_TEMPLATE_AREA_SERVICE[(area ?? '').toUpperCase()];
-            if (!serviceCode) {
-                problems.push({ row: number, message: `Area "${area ?? ''}" bukan HC Development / HC Comben / HC Services` });
-                current = null;
-                return;
-            }
-            const name = normalizeName(picName);
-            // A PIC written twice in the file continues the first block (one PIC, raters of both).
-            current = pics.find((pic) => pic.picName === name) ?? null;
-            if (!current) {
-                current = {
-                    area: area!, serviceCode, picName: name, jobTitle: titles.get(name) ?? clean(values[columns.jobTitle]),
-                    serviceFunction: clean(values[columns.serviceFunction]), raters: [],
-                };
-                pics.push(current);
-            }
-        }
-        const rater = clean(values[columns.rater]);
-        if (!rater || !current) return;
-        const name = normalizeName(rater);
-        if (current.raters.some((entry) => entry.name === name)) return;
-        current.raters.push({ name, jobTitle: titles.get(name) ?? clean(values[columns.raterJobTitle]) });
-    });
+    const state: ParseState = { columns: columnsOf(sheet), titles: employeeTitles(workbook), pics: [], problems: [], area: null, current: null };
+    sheet.eachRow((row, number) => { if (number > 1) readRow(state, row.values as ExcelJS.CellValue[], number); });
+    const { pics, problems } = state;
     return { pics, problems };
 }

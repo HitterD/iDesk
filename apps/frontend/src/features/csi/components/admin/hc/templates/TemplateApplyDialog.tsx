@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -52,6 +53,7 @@ export function TemplateApplyDialog({ scope, template, open, onOpenChange }: {
     const [form, setForm] = useState({ title: template.name, startDate: '', endDate: '' });
     const [report, setReport] = useState<CsiTemplateApplyReport | null>(null);
     const [busy, setBusy] = useState(false);
+    const client = useQueryClient();
     const run = async (work: () => Promise<void>) => {
         setBusy(true);
         try { await work(); } catch { toast.error('Gagal memproses template.'); } finally { setBusy(false); }
@@ -62,9 +64,12 @@ export function TemplateApplyDialog({ scope, template, open, onOpenChange }: {
             ? await CsiHcApi.applyTemplate(scope, template.id, periodId, true)
             : (await CsiHcApi.createPeriodFromTemplate(scope, template.id, form)).report;
         setReport(result);
+        // Survey lists, details and the template counts all changed.
+        await client.invalidateQueries({ queryKey: ['csi', scope] });
         toast.success(mode === 'existing' ? 'Template disinkronkan ke survei.' : 'Survei draft dibuat dari template.');
     });
-    const canApply = mode === 'existing' ? !!report && !report.committed && !report.blockedReason : !!form.title && !!form.startDate && !!form.endDate;
+    // After a successful apply the button stays off: a second click would build a second survey.
+    const canApply = !report?.committed && (mode === 'existing' ? !!report && !report.blockedReason : !!form.title && !!form.startDate && !!form.endDate);
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-lg">

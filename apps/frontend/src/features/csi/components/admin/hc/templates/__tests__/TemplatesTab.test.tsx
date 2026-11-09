@@ -33,7 +33,9 @@ vi.mock('../../../../../api/csiHc.api', () => ({
             picsAdded: 1, ratersAdded: 1, pairsAdded: 1, picsSkippedNoRaters: ['JINGGA FERDASIWI'], picsUnmatched: [],
             ratersNoAccount: ['ARIEF NOEGROHO'], ratersAmbiguous: ['AGUS SUBEKTI'], blockedReason: fx.blocked, committed: commit,
         })),
-        createPeriodFromTemplate: vi.fn(),
+        createPeriodFromTemplate: vi.fn(async () => ({ periodId: 'p-new', report: {
+            picsAdded: 15, ratersAdded: 108, pairsAdded: 423, picsSkippedNoRaters: [], picsUnmatched: [], ratersNoAccount: [], ratersAmbiguous: [], blockedReason: null, committed: true,
+        } })),
     },
 }));
 vi.mock('../../../../../api/csi.api', () => ({
@@ -100,5 +102,18 @@ describe('TemplatesTab', () => {
         await userEvent.click(within(dialog).getByRole('button', { name: /pratinjau/i }));
         expect(await within(dialog).findByText(/terbuka untuk semua user/)).toBeInTheDocument();
         expect(within(dialog).getByRole('button', { name: /terapkan/i })).toBeDisabled();
+    });
+
+    it('a new survey is created once: the button locks after success', async () => {
+        renderWithQuery(<TemplatesTab scope="hc" />);
+        await userEvent.click(await screen.findByRole('button', { name: /gunakan template/i }));
+        const dialog = await screen.findByRole('dialog');
+        await userEvent.type(within(dialog).getByLabelText(/tanggal mulai/i), '2026-12-01');
+        await userEvent.type(within(dialog).getByLabelText(/tanggal selesai/i), '2026-12-31');
+        const create = within(dialog).getByRole('button', { name: /buat survei/i });
+        await userEvent.click(create);
+        expect(await within(dialog).findByText(/423 pasangan baru/)).toBeInTheDocument();
+        expect(within(dialog).getByRole('button', { name: /buat survei/i })).toBeDisabled();
+        expect((await api()).createPeriodFromTemplate).toHaveBeenCalledTimes(1);
     });
 });

@@ -30,7 +30,15 @@ const BLOCKED = {
     open: 'Survei ini terbuka untuk semua user di site. Template hanya bisa dipakai di survei dengan penilai terdaftar; buat survei baru dari template.',
     picks: 'Di survei ini responden memilih PIC sendiri. Template hanya bisa dipakai di survei yang siapa-menilai-siapa ditetapkan HC.',
     unmapped: 'Survei ini memakai "semua orang menilai semua PIC" untuk penilai yang sudah terdaftar. Menambah pasangan akan menyembunyikan survei dari mereka; buat survei baru dari template.',
+    cancelled: 'Survei ini sudah dibatalkan.',
 } as const;
+
+/** A cancelled survey, or one whose sites do not include the template location (its raters could never see it). */
+function blockedByPeriod(period: CsiPeriod, locationCode: string): string | null {
+    if (period.cancelledAt) return BLOCKED.cancelled;
+    const codes = (period.sites ?? []).map((row) => row.site?.code).filter(Boolean);
+    return codes.includes(locationCode) ? null : `Survei ini tidak mencakup site ${locationCode}; penilai template tidak akan bisa melihatnya.`;
+}
 type Plan = {
     report: Omit<CsiTemplateApplyReport, 'committed'>; pics: CsiPic[]; pairs: Array<{ picId: string; userId: string }>;
     /** Service function of each PIC in the template (fallback when the PIC master has none yet). */
@@ -68,10 +76,10 @@ export class CsiTemplateApplyService {
         const questions = await this.hcQuestions(scope);
         return this.dataSource.transaction(async (manager) => {
             const repos = this.repos(manager);
-            const period = assertPeriodInScope(await repos.periods.findOne({ where: { id: periodId } }), scope);
+            const period = assertPeriodInScope(await repos.periods.findOne({ where: { id: periodId }, relations: { sites: { site: true } } }), scope);
             await manager.query('SELECT "id" FROM "csi_periods" WHERE "id" = $1 FOR UPDATE', [periodId]);
             const plan = await this.plan(scope, view, periodId, repos);
-            const blockedReason = await this.blockedReason(period, repos);
+            const blockedReason = blockedByPeriod(period, view.locationCode) ?? await this.blockedReason(period, repos);
             plan.report = { ...plan.report, blockedReason };
             if (!commit) return { ...plan.report, committed: false };
             if (blockedReason) throw new BadRequestException(blockedReason);

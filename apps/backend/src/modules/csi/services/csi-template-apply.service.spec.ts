@@ -46,7 +46,7 @@ describe('CsiTemplateApplyService', () => {
         { id: 'd-c', name: 'Courtesy — Kesopanan', shortLabel: 'Courtesy', type: CsiQuestionType.STAR, required: true, options: [], sortOrder: 1, isActive: true, scope: HC },
     ]) };
     const periodService = {
-        create: jest.fn(async () => { periods.rows.push({ id: 'p-new', scope: HC, respondentMode: CsiRespondentMode.LISTED, pairMode: null, unitRules: [] }); return { id: 'p-new' }; }),
+        create: jest.fn(async () => { periods.rows.push({ id: 'p-new', scope: HC, respondentMode: CsiRespondentMode.LISTED, pairMode: null, unitRules: [], cancelledAt: null, sites: [{ siteId: 's-smg', site: { code: 'SMG' } }] }); return { id: 'p-new' }; }),
         remove: jest.fn(async () => undefined),
     };
     const sites = { findOne: jest.fn(async () => ({ id: 's-smg', code: 'SMG' })) };
@@ -54,7 +54,8 @@ describe('CsiTemplateApplyService', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         periods = memoryTable(); ratees = memoryTable(); rateeDims = memoryTable(); raters = memoryTable(); pairs = memoryTable();
-        periods.rows.push({ id: 'p1', scope: HC, respondentMode: CsiRespondentMode.LISTED, pairMode: null, unitRules: [], publishStatus: CsiPeriodPublishStatus.PUBLISHED });
+        periods.rows.push({ id: 'p1', scope: HC, respondentMode: CsiRespondentMode.LISTED, pairMode: null, unitRules: [], publishStatus: CsiPeriodPublishStatus.PUBLISHED,
+            cancelledAt: null, sites: [{ siteId: 's-smg', site: { code: 'SMG' } }] });
         const repositories = new Map<unknown, unknown>([
             [CsiPeriod, periods], [CsiPeriodRatee, ratees], [CsiPeriodRateeDimension, rateeDims], [CsiPeriodRater, raters], [CsiPeriodRaterRatee, pairs],
         ]);
@@ -140,5 +141,14 @@ describe('CsiTemplateApplyService', () => {
         org.findPics.mockRejectedValueOnce(new Error('boom'));
         await expect(service.createPeriodFromTemplate(HC, 't1', { title: 'X', startDate: '2026-12-01', endDate: '2026-12-31' }, 'admin')).rejects.toThrow('boom');
         expect(periodService.remove).toHaveBeenCalledWith(HC, 'p-new');
+    });
+
+    it('a cancelled survey, or one without the template location, is refused with a reason', async () => {
+        periods.rows[0] = { ...periods.rows[0], cancelledAt: new Date() };
+        expect((await service.applyToPeriod(HC, 't1', 'p1', false)).blockedReason).toMatch(/dibatalkan/);
+        periods.rows[0] = { ...periods.rows[0], cancelledAt: null, sites: [{ siteId: 's-spj', site: { code: 'SPJ' } }] };
+        expect((await service.applyToPeriod(HC, 't1', 'p1', false)).blockedReason).toMatch(/SMG/);
+        await expect(service.applyToPeriod(HC, 't1', 'p1', true)).rejects.toBeInstanceOf(BadRequestException);
+        expect(pairs.rows).toEqual([]);
     });
 });

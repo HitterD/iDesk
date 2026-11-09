@@ -9,8 +9,8 @@ import { CsiAssignmentTemplateRater } from '../entities/csi-assignment-template-
 import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entity';
 import { CsiOrgPerson } from '../entities/csi-org-person.entity';
 import { CsiPic } from '../entities/csi-pic.entity';
-import { matchByName, normalizeName } from '../org/csi-name-match';
-import { normalizeBagian } from '../org/csi-org.constants';
+import { buildNameIndex, normalizeName } from '../org/csi-name-match';
+import { CSI_HC_SERVICES, normalizeBagian } from '../org/csi-org.constants';
 import { normalizeServiceFunction } from '../org/csi-org.service';
 import { CsiTemplateSeed, CsiTemplateSeedPic, parseTemplateWorkbook } from '../org/csi-template-excel';
 import { buildTemplateView, CsiTemplateView } from '../org/csi-template-view';
@@ -28,6 +28,8 @@ export type CsiTemplateImportReport = {
     pics: number; picsAdded: number; picsUpdated: number; ratersAdded: number;
     problems: Array<{ row: number; message: string }>; committed: boolean;
 };
+type PicIndex = (name: string) => CsiPic | 'ambiguous' | null;
+const idOf = (hit: CsiPic | 'ambiguous' | null) => (hit && hit !== 'ambiguous' ? hit.id : null);
 type Repos = { templates: Repository<CsiAssignmentTemplate>; pics: Repository<CsiAssignmentTemplatePic>; raters: Repository<CsiAssignmentTemplateRater> };
 
 /**
@@ -66,9 +68,7 @@ export class CsiAssignmentTemplateService {
     async loadBundled(scope: ServiceScope, locationCode: string): Promise<CsiTemplateView> {
         const seed = BUNDLED[locationCode.toUpperCase()];
         if (!seed || seed.scope !== scope) throw new NotFoundException('Template bawaan untuk lokasi ini tidak ada');
-        await this.ensurePicMaster(scope, seed.locationCode, seed.pics);
-        const id = await this.dataSource.transaction((manager) => this.merge(manager, scope, seed.locationCode, seed.name, seed.pics));
-        await this.fillPicServiceFunctions(scope, seed.pics);
+        const id = await this.dataSource.transaction((manager) => this.loadInto(manager, scope, seed.locationCode, seed.name, seed.pics));
         return this.get(scope, id);
     }
 
@@ -82,9 +82,7 @@ export class CsiAssignmentTemplateService {
         if (!commit) return { ...report, problems: draft.problems, committed: false };
         if (!draft.pics.length) throw new BadRequestException('Tidak ada PIC di file');
         const name = existing?.name ?? `CSI ${scope} – ${LOCATION_NAMES[code]}`;
-        await this.ensurePicMaster(scope, code, draft.pics);
-        await this.dataSource.transaction((manager) => this.merge(manager, scope, code, name, draft.pics));
-        await this.fillPicServiceFunctions(scope, draft.pics);
+        await this.dataSource.transaction((manager) => this.loadInto(manager, scope, code, name, draft.pics));
         return { ...report, problems: draft.problems, committed: true };
     }
 
@@ -155,7 +153,21 @@ export class CsiAssignmentTemplateService {
         return { view: await this.get(scope, templateId), template: (await this.templates.findOne({ where: { id: templateId, scope } }))! };
     }
 
-    private async merge(manager: EntityManager, scope: ServiceScope, locationCode: string, name: string, seedPics: CsiTemplateSeedPic[]): Promise<string> {
+    /**
+     * One transaction: PIC master first (so new PICs can be linked), then the template rows, then empty service
+     * functions on the master. Any failure leaves nothing half-written.
+     */
+    private async loadInto(manager: EntityManager, scope: ServiceScope, locationCode: string, name: string, seedPics: CsiTemplateSeedPic[]) {
+        const picRepo = manager.getRepository(CsiPic);
+        await this.ensurePicMaster(manager, scope, locationCode, seedPics);
+        const picIndex = buildNameIndex(await picRepo.find({ where: { scope } }), (row) => row.fullName);
+        const id = await this.merge(manager, scope, locationCode, name, seedPics, picIndex);
+        await this.fillPicServiceFunctions(picRepo, seedPics, picIndex);
+        return id;
+    }
+
+    private async merge(manager: EntityManager, scope: ServiceScope, locationCode: string, name: string, seedPics: CsiTemplateSeedPic[],
+        picIndex: PicIndex): Promise<string> {
         const repos = this.repos(manager);
         const template = (await repos.templates.findOne({ where: { scope, locationCode } })) ?? await repos.templates.save({ scope, locationCode, name });
         const existing = await repos.pics.find({ where: { templateId: template.id } });
@@ -166,7 +178,7 @@ export class CsiAssignmentTemplateService {
             const saved = await repos.pics.save({
                 ...(known ?? { templateId: template.id, sortOrder: order++ }),
                 // Re-matched on every load: a PIC imported into the master later gets linked then.
-                picId: known?.picId ?? await this.matchPic(scope, seed.picName),
+                picId: known?.picId ?? idOf(picIndex(seed.picName)),
                 area: seed.area, serviceCode: seed.serviceCode, picName: seed.picName,
                 jobTitle: seed.jobTitle ?? known?.jobTitle ?? null, serviceFunction: normalizeServiceFunction(seed.serviceFunction) ?? known?.serviceFunction ?? null,
             });
@@ -198,18 +210,16 @@ export class CsiAssignmentTemplateService {
     }
 
     /** csi_pics.serviceFunction is filled from the template only while it is still empty (manual edits win). */
-    private async fillPicServiceFunctions(scope: ServiceScope, seedPics: CsiTemplateSeedPic[]) {
-        const all = await this.csiPics.find({ where: { scope } });
+    private async fillPicServiceFunctions(picRepo: Repository<CsiPic>, seedPics: CsiTemplateSeedPic[], picIndex: PicIndex) {
         for (const seed of seedPics) {
             const value = normalizeServiceFunction(seed.serviceFunction);
-            const pic = matchByName(seed.picName, all, (row) => row.fullName);
-            if (value && pic && pic !== 'ambiguous' && !pic.serviceFunction) await this.csiPics.save({ ...pic, serviceFunction: value });
+            const pic = picIndex(seed.picName);
+            if (value && pic && pic !== 'ambiguous' && !pic.serviceFunction) await picRepo.save({ ...pic, serviceFunction: value });
         }
     }
 
     private async matchPic(scope: ServiceScope, picName: string): Promise<string | null> {
-        const hit = matchByName(picName, await this.csiPics.find({ where: { scope } }), (row) => row.fullName);
-        return hit && hit !== 'ambiguous' ? hit.id : null;
+        return idOf(buildNameIndex(await this.csiPics.find({ where: { scope } }), (row) => row.fullName)(picName));
     }
 
     /**
@@ -217,26 +227,41 @@ export class CsiAssignmentTemplateService {
      * from the employee directory (HC staff of a location are filed under "HCBP AREA <lokasi>", which the directory
      * sync does not treat as HC). Names not in the directory (new staff) stay unmatched.
      */
-    private async ensurePicMaster(scope: ServiceScope, locationCode: string, seedPics: CsiTemplateSeedPic[]) {
-        const all = await this.csiPics.find({ where: { scope } });
+    private async ensurePicMaster(manager: EntityManager, scope: ServiceScope, locationCode: string, seedPics: CsiTemplateSeedPic[]) {
+        const picRepo = manager.getRepository(CsiPic);
+        const all = await picRepo.find({ where: { scope } });
+        const index = buildNameIndex(all, (row) => row.fullName);
         const missing: CsiTemplateSeedPic[] = [];
         for (const seed of seedPics) {
-            const hit = matchByName(seed.picName, all, (row) => row.fullName);
+            const hit = index(seed.picName);
             if (hit === 'ambiguous') continue;
             if (!hit) missing.push(seed);
-            else if (!hit.isActive) await this.csiPics.save({ ...hit, isActive: true });
+            else if (!hit.isActive) await picRepo.save({ ...hit, isActive: true });
         }
-        if (missing.length) await this.createPicsFromDirectory(scope, locationCode, missing, all);
+        if (missing.length) await this.createPicsFromDirectory(manager, scope, locationCode, missing, all);
     }
 
-    private async createPicsFromDirectory(scope: ServiceScope, locationCode: string, seeds: CsiTemplateSeedPic[], existing: CsiPic[]) {
-        const people = await this.people.find({ where: { fullName: In(seeds.map((seed) => seed.picName)) } });
-        const site = await this.sites.findOne({ where: { code: locationCode } });
+    /**
+     * Directory rows that can become HC PICs: HCBP AREA staff and the three HC departments. Names are compared in memory
+     * with normalizeName, so the directory's own casing, dots or commas never hide a match.
+     */
+    private directoryCandidates(manager: EntityManager, seeds: CsiTemplateSeedPic[]): Promise<CsiOrgPerson[]> {
+        if (!seeds.length) return Promise.resolve([]);
+        return manager.getRepository(CsiOrgPerson).createQueryBuilder('p')
+            .where('p."department" ILIKE :hcbp OR UPPER(p."department") IN (:...hc)', {
+                hcbp: 'HCBP AREA%', hc: CSI_HC_SERVICES.map((service) => service.department),
+            })
+            .getMany();
+    }
+
+    private async createPicsFromDirectory(manager: EntityManager, scope: ServiceScope, locationCode: string, seeds: CsiTemplateSeedPic[], existing: CsiPic[]) {
+        const findPerson = buildNameIndex(await this.directoryCandidates(manager, seeds), (row) => row.fullName);
+        const site = await manager.getRepository(Site).findOne({ where: { code: locationCode } });
         for (const seed of seeds) {
-            const person = matchByName(seed.picName, people, (row) => row.fullName);
+            const person = findPerson(seed.picName);
             if (!person || person === 'ambiguous' || existing.some((pic) => pic.nik === person.nik)) continue;
-            const account = await this.users.findOne({ where: { employeeId: person.nik } });
-            await this.csiPics.save({
+            const account = await manager.getRepository(User).findOne({ where: { employeeId: person.nik } });
+            await manager.getRepository(CsiPic).save({
                 scope, nik: person.nik, fullName: person.fullName, jobTitle: person.jobTitle ?? seed.jobTitle, serviceCode: seed.serviceCode,
                 serviceFunction: normalizeServiceFunction(seed.serviceFunction), bagian: normalizeBagian(person.bagian), workLocation: person.workLocation,
                 siteId: site?.id ?? null, userId: account?.id ?? null, photoUrl: null, isActive: true,

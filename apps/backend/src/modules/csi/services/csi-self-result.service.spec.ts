@@ -2,13 +2,15 @@ import { CsiPeriodPublishStatus } from '../csi.constants';
 import { CsiSelfResultService } from './csi-self-result.service';
 
 const NOW = new Date('2026-11-15T03:00:00Z');
+const matches = (row: any, where: any) => Object.entries(where ?? {}).every(([key, value]: [string, any]) => {
+    if (value && typeof value === 'object' && value._type === 'in') return value._value.includes(row[key]);
+    if (value && typeof value === 'object' && !('_type' in value)) return Object.entries(value).every(([k, v]) => row[key]?.[k] === v);
+    return row[key] === value;
+});
+/** In-memory repository; an array `where` is an OR of its entries, as in TypeORM. */
 const repo = (rows: any[]) => ({
     rows,
-    find: jest.fn(async ({ where }: any = {}) => rows.filter((row) => Object.entries(where ?? {}).every(([key, value]: [string, any]) => {
-        if (value && typeof value === 'object' && value._type === 'in') return value._value.includes(row[key]);
-        if (value && typeof value === 'object' && !('_type' in value)) return Object.entries(value).every(([k, v]) => row[key]?.[k] === v);
-        return row[key] === value;
-    }))),
+    find: jest.fn(async ({ where }: any = {}) => rows.filter((row) => (Array.isArray(where) ? where.some((part) => matches(row, part)) : matches(row, where)))),
 });
 
 describe('CsiSelfResultService', () => {
@@ -16,6 +18,7 @@ describe('CsiSelfResultService', () => {
     let dimensions: ReturnType<typeof repo>;
     let items: ReturnType<typeof repo>;
     let comments: ReturnType<typeof repo>;
+    let pics: ReturnType<typeof repo>;
     let service: CsiSelfResultService;
     const period = { id: 'p1', scope: 'HC', title: 'CSI HC 2026 – Semarang', startDate: '2026-11-01', endDate: '2026-11-30', publishStatus: CsiPeriodPublishStatus.PUBLISHED, individualEnabled: true };
     const rated = (responseId: string, knowledge: number, courtesy: number) => [
@@ -37,7 +40,8 @@ describe('CsiSelfResultService', () => {
             { responseId: 'a', periodRateeId: 'r-rara', comment: 'Sangat membantu', response: { respondentName: 'Penilai a' } },
             { responseId: 'b', periodRateeId: 'r-rara', comment: 'Cepat tanggap', response: { respondentName: 'Penilai b' } },
         ]);
-        service = new CsiSelfResultService(ratees as any, dimensions as any, items as any, comments as any, () => 0);
+        pics = repo([]);
+        service = new CsiSelfResultService(ratees as any, dimensions as any, items as any, comments as any, pics as any, () => 0);
     });
 
     it('with fewer than 3 raters nothing but the count is returned', async () => {
@@ -67,5 +71,12 @@ describe('CsiSelfResultService', () => {
     it('ICT periods are never listed (only HC people see their results)', async () => {
         ratees.rows.push({ id: 'r-ict', periodId: 'p-ict', userId: 'u-rara', kind: 'PERSON', serviceFunction: null, period: { ...period, id: 'p-ict', scope: 'ICT' } });
         expect((await service.list('u-rara', NOW)).map((row) => row.periodId)).toEqual(['p1']);
+    });
+
+    it('a PIC whose account was linked after the survey was built still sees their results', async () => {
+        ratees.rows[0] = { ...ratees.rows[0], userId: null, picId: 'pic-rara' };
+        pics.rows.push({ id: 'pic-rara', userId: 'u-rara' });
+        expect((await service.list('u-rara', NOW)).map((row) => row.periodId)).toEqual(['p1']);
+        expect(await service.list('u-nobody', NOW)).toEqual([]);
     });
 });

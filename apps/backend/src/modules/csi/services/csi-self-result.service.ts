@@ -7,7 +7,9 @@ import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
+import { CsiPic } from '../entities/csi-pic.entity';
 import { computeStatus, CsiPeriodStatus } from './csi-period.service';
+import { ratedAccountOf } from './csi-ratee-owner.util';
 
 /** Results stay hidden until this many people rated the person, so no single rater can be singled out. */
 export const CSI_SELF_RESULT_MIN_RATERS = 3;
@@ -44,15 +46,21 @@ export class CsiSelfResultService {
         @InjectRepository(CsiPeriodRateeDimension) private readonly dimensions: Repository<CsiPeriodRateeDimension>,
         @InjectRepository(CsiResponseItem) private readonly items: Repository<CsiResponseItem>,
         @InjectRepository(CsiResponseComment) private readonly comments: Repository<CsiResponseComment>,
+        @InjectRepository(CsiPic) private readonly pics: Repository<CsiPic>,
         @Optional() @Inject(CSI_RANDOM) private readonly random: () => number = Math.random,
     ) { }
 
     async list(userId: string, now: Date = new Date()): Promise<CsiSelfResult[]> {
+        // A PIC linked to this account later than the survey was built is still this person (see ratedAccountOf).
+        const picIds = (await this.pics.find({ where: { userId }, select: { id: true } })).map((pic) => pic.id);
+        // HC only: ICT results stay as they were (not shown to the rated people).
+        const base = { kind: CsiRateeKind.PERSON, period: { scope: ServiceScope.HC, publishStatus: CsiPeriodPublishStatus.PUBLISHED } };
         const rows = (await this.ratees.find({
-            // HC only: ICT results stay as they were (not shown to the rated people).
-            where: { userId, kind: CsiRateeKind.PERSON, period: { scope: ServiceScope.HC, publishStatus: CsiPeriodPublishStatus.PUBLISHED } },
+            where: [{ ...base, userId }, ...(picIds.length ? [{ ...base, picId: In(picIds) }] : [])],
             relations: { period: true },
-        })).filter((row) => row.period && !row.period.cancelledAt && row.period.individualEnabled !== false);
+        })).filter((row, index, all) => all.findIndex((other) => other.id === row.id) === index)
+            .filter((row) => ratedAccountOf(row, new Map(row.picId && picIds.includes(row.picId) ? [[row.picId, userId]] : [])) === userId)
+            .filter((row) => row.period && !row.period.cancelledAt && row.period.individualEnabled !== false);
         const results = await Promise.all(rows.map((row) => this.resultOf(row, now)));
         return results.sort((a, b) => b.startDate.localeCompare(a.startDate));
     }

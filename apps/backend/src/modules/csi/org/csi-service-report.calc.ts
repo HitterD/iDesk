@@ -8,8 +8,9 @@ export type CsiPendingDepartment = { department: string; pending: number; total:
 
 /**
  * Report of one HC service (pure): the recap restricted to the service's PICs, all locations. Ratings of the
- * `hiddenRateeIds` (the viewer's own PIC rows) still count in every score, but are left out of the respondent unit
- * breakdown and listed as separate anonymous answers without name, unit or location.
+ * `hiddenRateeIds` (the viewer's own PIC rows) only show on the viewer's own PIC row (masked, see maskOwnRow) and as
+ * anonymous answers without name, unit or location. Every other total (service, bagian, overall, respondent units)
+ * is computed without them, so subtracting the named answers can never reveal them.
  */
 export function buildServiceReport(input: {
     pics: CsiHcPic[]; ratings: CsiHcRating[]; dimensions: string[]; serviceCode: string; hiddenRateeIds: ReadonlySet<string>;
@@ -21,8 +22,10 @@ export function buildServiceReport(input: {
     const hidden = ratings.filter((rating) => input.hiddenRateeIds.has(rating.periodRateeId));
     const full = buildHcRecap({ pics, ratings, dimensions: input.dimensions });
     const named = buildHcRecap({ pics, ratings: visible, dimensions: input.dimensions });
-    const services = full.services.map((row) => (row.level === 'pic' && input.hiddenRateeIds.has(row.key.slice(PIC_KEY_PREFIX.length)) ? maskOwnRow(row) : row));
-    return { ...full, services, respondentGroups: named.respondentGroups, respondents: [...named.respondents, ...anonymousDetails(pics, hidden)] };
+    const ownRow = new Map(full.services.filter((row) => row.level === 'pic' && input.hiddenRateeIds.has(row.key.slice(PIC_KEY_PREFIX.length)))
+        .map((row) => [row.key, maskOwnRow(row)]));
+    const services = named.services.map((row) => ownRow.get(row.key) ?? row);
+    return { ...named, services, respondents: [...named.respondents, ...anonymousDetails(pics, hidden)] };
 }
 
 const PIC_KEY_PREFIX = 'p:';
@@ -43,12 +46,12 @@ function maskOwnRow(row: CsiRecapRow): CsiRecapRow {
     };
 }
 
-/** One anonymous row per rating, ordered by score so the order says nothing about who answered first. */
+/** One anonymous row per rating, ordered by score then by the stars themselves: the order never follows answer time. */
 function anonymousDetails(pics: CsiHcPic[], hidden: CsiHcRating[]): CsiRespondentDetail[] {
     const picOf = new Map(pics.map((pic) => [pic.periodRateeId, pic]));
     return hidden
         .map((rating) => ({ rating, average: ratingValue(rating) }))
-        .sort((a, b) => (b.average ?? 0) - (a.average ?? 0))
+        .sort((a, b) => (b.average ?? 0) - (a.average ?? 0) || JSON.stringify(a.rating.scores).localeCompare(JSON.stringify(b.rating.scores)))
         .map(({ rating, average }, index) => {
             const pic = picOf.get(rating.periodRateeId);
             return {

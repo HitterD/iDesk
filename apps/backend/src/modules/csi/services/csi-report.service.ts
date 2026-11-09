@@ -26,6 +26,7 @@ import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
 import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap } from '../org/csi-hc-report.calc';
 import { locationOfSiteCode } from '../org/csi-org.constants';
 import { CsiPendingDepartment, pendingByDepartment } from '../org/csi-service-report.calc';
+import { ratedAccountOf } from './csi-ratee-owner.util';
 
 const RESPONSE_NOT_FOUND_MESSAGE = 'Jawaban tidak ditemukan';
 const RESET_ENTITY_TYPE = 'csi_response';
@@ -267,10 +268,19 @@ export class CsiReportService {
         const pics = people.map((ratee) => ({
             periodRateeId: ratee.id, name: ratee.displayName, jobTitle: ratee.jobTitle, serviceCode: ratee.serviceCode ?? null, bagian: ratee.bagian ?? null, serviceFunction: ratee.serviceFunction ?? null,
         }));
+        const linkedByPic = await this.linkedAccounts(people.map((ratee) => ratee.picId).filter((id): id is string => !!id));
         return {
             period: { id: period.id, title: period.title, startDate: period.startDate, endDate: period.endDate },
-            pics, ratings, dimensions, userIdOf: new Map(people.map((ratee) => [ratee.id, ratee.userId])),
+            pics, ratings, dimensions, userIdOf: new Map(people.map((ratee) => [ratee.id, ratedAccountOf(ratee, linkedByPic)])),
         };
+    }
+
+    /** Account linked to each PIC now (a PIC may get its account after the survey was built). */
+    private async linkedAccounts(picIds: string[]): Promise<Map<string, string | null>> {
+        if (!picIds.length) return new Map();
+        const rows: Array<{ id: string; userId: string | null }> = await this.dataSource.query(
+            'SELECT "id", "userId" FROM "csi_pics" WHERE "id" = ANY($1)', [[...new Set(picIds)]]);
+        return new Map(rows.map((row) => [row.id, row.userId]));
     }
 
     private async siteCodes(siteIds: string[]) {
