@@ -9,7 +9,7 @@ import { useRemoveCsiSubjectMember, useUpdateCsiPeriodRatee, useUpdateCsiSubject
 import { toneClasses } from '../../../lib/csiTone';
 import type { CsiFormRatee, CsiScopeParam, CsiSubjectGroup, CsiSubjectView, UpdateCsiPeriodRatee, UpdateCsiSubject } from '../../../types';
 import { FlowChromeContext } from '../../respond/FlowChrome';
-import { SubjectPhoto } from '../../respond/SubjectPhoto';
+import { SubjectHeader } from '../../respond/SubjectHeader';
 import { FIELD_LABEL, MUTED_TEXT } from '../AdminParts';
 import { SUBJECT_KIND_LABEL } from './SubjectCard';
 
@@ -29,7 +29,7 @@ export function photoError(file: File): string | null {
 
 const orNull = (value: string) => value.trim() || null;
 
-/** SubjectPhoto renders a respondent-form ratee; map the master subject onto that shape. */
+/** SubjectHeader renders a respondent-form ratee; map the master subject onto that shape. */
 function toPreviewRatee(subject: CsiSubjectView, siteCode: string, draft: { name: string; jobTitle: string; tagline: string; photoUrl: string | null }): CsiFormRatee {
     return {
         periodRateeId: subject.key, kind: subject.kind, displayName: draft.name.trim() || subject.name, jobTitle: orNull(draft.jobTitle),
@@ -106,7 +106,7 @@ function EditForm({ scope, subject, group, onClose }: { scope: CsiScopeParam; su
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
                 <FlowChromeContext.Provider value={PREVIEW_CHROME}>
                     <div aria-label="Pratinjau" role="group" className="@container overflow-hidden rounded-2xl">
-                        <SubjectPhoto ratee={preview} index={0} total={1} />
+                        <SubjectHeader ratee={preview} index={0} total={1} />
                     </div>
                 </FlowChromeContext.Provider>
                 <PhotoDropzone fileName={file?.name ?? null} error={fileError} onPick={pick} />
@@ -164,7 +164,7 @@ function PeriodEditForm({ scope, periodId, target, onClose }: { scope: CsiScopeP
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
                 <FlowChromeContext.Provider value={PREVIEW_CHROME}>
                     <div aria-label="Pratinjau" role="group" className="@container overflow-hidden rounded-2xl">
-                        <SubjectPhoto ratee={preview} index={0} total={1} />
+                        <SubjectHeader ratee={preview} index={0} total={1} />
                     </div>
                 </FlowChromeContext.Provider>
                 {target.photoOverride && (

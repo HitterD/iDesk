@@ -145,7 +145,7 @@ describe('SurveyFlow screens', () => {
         renderFlow();
         await startFilling(user);
         await user.click(chips().getByRole('button', { name: new RegExp(LONG_NAME) }));
-        const subject = screen.getByTestId('csi-subject-photo');
+        const subject = screen.getByTestId('csi-subject-header');
         const photo = subject.querySelector('img');
         expect(photo).toHaveAttribute('alt', '');
         fireEvent.error(photo as HTMLImageElement);

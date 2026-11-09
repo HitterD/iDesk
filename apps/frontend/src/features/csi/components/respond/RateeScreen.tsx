@@ -9,16 +9,11 @@ import { CSI_CARD } from '../CsiSurveyParts';
 import { FlowFooter } from './FlowChrome';
 import { QuestionField } from './QuestionField';
 import { commentLabel, missingText, RESPOND_COPY } from './respondCopy';
-import { SubjectPhoto } from './SubjectPhoto';
+import { SubjectHeader } from './SubjectHeader';
 import { SubjectRail } from './SubjectRail';
 
 type Ratee = CsiOpenForm['ratees'][number];
 
-/**
- * Sticky photo offsets. The topbar (h-14 = 56px in BentoTopbar and ClientTopbar) sits outside the page scroller,
- * so the photo sticks a small gap below the scroller's top and its height leaves room for the topbar.
- */
-const STICKY_VARS = '[--csi-chrome:56px] [--csi-stick:12px]';
 
 interface RateeScreenProps {
     ratees: Ratee[];
@@ -66,22 +61,21 @@ function CommentField({ ratee, comment, onComment }: { ratee: Ratee; comment: st
     );
 }
 
-/** One subject: large sticky photo on the left, questions on the right. The page is the only scroller. */
+/** One subject: a compact header (small photo, name, job title, service function) above full-width questions. */
 export function RateeScreen(props: RateeScreenProps) {
     const { ratees, index, saved, answers, comment, missing, isComplete, onAnswer, onComment, onSelect, onBack, onNext } = props;
     const card = useRef<HTMLElement>(null);
     const ratee = ratees[index];
     return (
-        <div className={cn('space-y-4', STICKY_VARS)}>
+        <div className="space-y-4">
             <SubjectRail ratees={ratees} current={index} saved={saved} onSelect={onSelect}
                 answeredCount={(at) => ratees[at].dimensions.filter((dimension) => isAnswered(dimension, answers)).length}
                 questionCount={(at) => ratees[at].dimensions.length} done={(at) => isComplete(ratees[at], at)} />
 
             <section ref={card} aria-labelledby={`csi-ratee-${ratee.periodRateeId}`} className={cn(CSI_CARD, 'scroll-mt-3 overflow-clip rounded-[22px] @container')}>
-                {/* Two columns only where the photo can stick (lg viewport and a container of at least 780 px); stacked otherwise. */}
-                <div className="grid grid-cols-1 items-start lg:@min-[780px]:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
-                    <SubjectPhoto ratee={ratee} index={index} total={ratees.length} scrollTarget={card} />
-                    <div className="flex flex-col gap-3 p-4 [--flow-gutter:1rem] @min-[780px]:p-[clamp(16px,2.2cqi,30px)]">
+                <SubjectHeader ratee={ratee} index={index} total={ratees.length} scrollTarget={card} />
+                <div>
+                    <div className="mx-auto flex max-w-3xl flex-col gap-3 p-4 [--flow-gutter:1rem] @min-[780px]:p-[clamp(16px,2.2cqi,30px)]">
                         {ratee.dimensions.map((dimension) => (
                             <QuestionField key={dimension.periodRateeDimensionId} dimension={dimension} rateeName={ratee.displayName}
                                 answer={answers[dimension.periodRateeDimensionId]} missing={missing.has(dimension.periodRateeDimensionId)}

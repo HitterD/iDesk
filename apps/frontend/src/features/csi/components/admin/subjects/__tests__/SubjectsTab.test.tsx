@@ -67,7 +67,7 @@ describe('SubjectsTab', () => {
         const actor = userEvent.setup();
         render(<SubjectsTab scope="ict" />);
         await openCard(actor, 'Andi');
-        const preview = screen.getByTestId('csi-subject-photo');
+        const preview = screen.getByTestId('csi-subject-header');
         expect(within(preview).getByRole('heading', { name: 'Andi' })).toBeInTheDocument();
         expect(within(preview).queryByText(/“/)).not.toBeInTheDocument();
 
