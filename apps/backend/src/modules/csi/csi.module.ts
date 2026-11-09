@@ -62,6 +62,11 @@ import { CsiAdminReportOwnerController } from './presentation/csi-admin-report-o
 import { CsiMeReportController } from './presentation/csi-me-report.controller';
 import { CsiServiceReportService } from './services/csi-service-report.service';
 import { CsiSelfResultService } from './services/csi-self-result.service';
+import { CsiAssignmentTemplate } from './entities/csi-assignment-template.entity';
+import { CsiAssignmentTemplatePic } from './entities/csi-assignment-template-pic.entity';
+import { CsiAssignmentTemplateRater } from './entities/csi-assignment-template-rater.entity';
+import { CsiAssignmentTemplateService } from './services/csi-assignment-template.service';
+import { CsiAdminTemplateController } from './presentation/csi-admin-template.controller';
 import { SystemSettings } from '../settings/entities/system-settings.entity';
 import { ReportSignoffService } from '../reports/services/report-signoff.service';
 
@@ -71,7 +76,7 @@ import { ReportSignoffService } from '../reports/services/report-signoff.service
             CsiDimension, CsiDepartment, CsiRater, CsiPeriod, CsiPeriodSite, CsiPeriodRatee,
             CsiPeriodRateeDimension, CsiPeriodRater, CsiResponse, CsiResponseItem, CsiResponseComment,
             CsiMemoSetting, CsiTeam, CsiSubjectProfile, CsiRaterAssignment, CsiPeriodRaterRatee, CsiQuestionSet,
-            CsiOrgPerson, CsiPic, CsiServiceReportOwner, User, PermissionPreset, Site, Ticket, Notification, SystemSettings,
+            CsiOrgPerson, CsiPic, CsiServiceReportOwner, CsiAssignmentTemplate, CsiAssignmentTemplatePic, CsiAssignmentTemplateRater, User, PermissionPreset, Site, Ticket, Notification, SystemSettings,
         ]),
         AuthModule,
         AuditModule,
@@ -80,10 +85,11 @@ import { ReportSignoffService } from '../reports/services/report-signoff.service
     controllers: [
         CsiAdminMasterController, CsiAdminPeriodController, CsiAdminReportController, CsiAdminReportSignoffController, CsiAdminMemoController, CsiMeController,
         CsiAdminSubjectController, CsiAdminAssignmentController, CsiAdminDashboardController, CsiAdminQuestionSetController, CsiAdminRaterBulkController,
-        CsiAdminOrgController, CsiAdminReportOwnerController, CsiMeReportController,
+        CsiAdminOrgController, CsiAdminReportOwnerController, CsiMeReportController, CsiAdminTemplateController,
     ],
     providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService, CsiMemoService,
         CsiSubjectService, CsiAssignmentService, CsiReminderService, CsiDashboardService, CsiQuestionSetService, CsiRaterBulkService, ReportSignoffService, CsiOrgService, CsiUnitRulesService, CsiPairsExcelService,
-        CsiAccessReader, CsiReportAccessService, CsiServiceReportService, CsiSelfResultService],
+        CsiAccessReader, CsiReportAccessService, CsiServiceReportService, CsiSelfResultService,
+        CsiAssignmentTemplateService],
 })
 export class CsiModule { }

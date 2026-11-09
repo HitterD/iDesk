@@ -22,7 +22,7 @@ const XLSX_EXTENSION = '.xlsx';
 const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const ID_PIPE = new ParseUUIDPipe({ exceptionFactory: () => new BadRequestException('ID harus berupa UUID') });
 
-const DIRECTORY_UPLOAD = {
+export const XLSX_UPLOAD = {
     storage: memoryStorage(),
     limits: { fileSize: DIRECTORY_MAX_BYTES, files: 1 },
     fileFilter: (_req: unknown, file: Express.Multer.File, callback: (error: Error | null, accept: boolean) => void) => {
@@ -50,7 +50,7 @@ export class CsiAdminOrgController {
 
     /** Dry run by default; `?commit=true` replaces the period's raters and pairs. */
     @Post('periods/:periodId/pairs/import')
-    @UseInterceptors(FileInterceptor('file', DIRECTORY_UPLOAD))
+    @UseInterceptors(FileInterceptor('file', XLSX_UPLOAD))
     importPairs(@Req() req: CsiAdminRequest, @Param('periodId', ID_PIPE) periodId: string, @UploadedFile() file: Express.Multer.File, @Query('commit') commit?: string) {
         if (!file?.buffer?.length) throw new BadRequestException('File Excel wajib diunggah');
         return this.pairsExcel.importWorkbook(req.csiScope, periodId, file.buffer, commit === 'true');
@@ -88,7 +88,7 @@ export class CsiAdminOrgController {
     }
 
     @Post('directory/import')
-    @UseInterceptors(FileInterceptor('file', DIRECTORY_UPLOAD))
+    @UseInterceptors(FileInterceptor('file', XLSX_UPLOAD))
     importDirectory(@Req() req: CsiAdminRequest, @UploadedFile() file: Express.Multer.File) {
         if (!file?.buffer?.length) throw new BadRequestException('File Excel wajib diunggah');
         return this.org.importWorkbook(req.csiScope, file.buffer);

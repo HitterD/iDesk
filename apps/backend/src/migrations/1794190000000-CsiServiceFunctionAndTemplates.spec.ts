@@ -20,6 +20,18 @@ describe('CsiServiceFunctionAndTemplates migration', () => {
         expect(sql).toContain('"UQ_csi_service_report_owners"');
     });
 
+    it('adds the assignment template tables, unique per scope/location, PIC name and rater name', async () => {
+        const sql = await run('up');
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS "csi_assignment_templates"');
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS "csi_assignment_template_pics"');
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS "csi_assignment_template_raters"');
+        expect(sql).toContain('"UQ_csi_assignment_templates_scope_location"');
+        expect(sql).toContain('"UQ_csi_assignment_template_pics_name"');
+        expect(sql).toContain('"UQ_csi_assignment_template_raters_name"');
+        const down = await run('down');
+        expect(down.indexOf('"csi_assignment_template_raters"')).toBeLessThan(down.indexOf('"csi_assignment_templates"'));
+    });
+
     it('down removes only what it added', async () => {
         const sql = await run('down');
         expect(sql).toContain('DROP COLUMN IF EXISTS "serviceFunction"');

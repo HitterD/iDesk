@@ -1,0 +1,73 @@
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
+import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
+import { AddTemplatePicDto, AddTemplateRaterDto, SetTemplateRaterAccountDto, UpdateTemplatePicDto } from '../dto/template.dto';
+import { CsiAdminGuard } from '../guards/csi-admin.guard';
+import { CsiAssignmentTemplateService } from '../services/csi-assignment-template.service';
+import { XLSX_UPLOAD } from './csi-admin-org.controller';
+
+type CsiAdminRequest = { csiScope: ServiceScope; user: { userId: string } };
+const ID_PIPE = new ParseUUIDPipe({ exceptionFactory: () => new BadRequestException('ID harus berupa UUID') });
+
+/** Pengaturan → Template penugasan: per-location "siapa menilai siapa" with each PIC's service function. */
+@Controller('csi/admin/:scope/templates')
+@UseGuards(JwtAuthGuard, CsiAdminGuard)
+export class CsiAdminTemplateController {
+    constructor(private readonly templates: CsiAssignmentTemplateService) { }
+
+    @Get()
+    list(@Req() req: CsiAdminRequest) {
+        return this.templates.list(req.csiScope);
+    }
+
+    @Get(':id')
+    get(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string) {
+        return this.templates.get(req.csiScope, id);
+    }
+
+    /** Loads (or merges) the template bundled with the app for a location, e.g. SMG. */
+    @Post('bundled/:location')
+    loadBundled(@Req() req: CsiAdminRequest, @Param('location') location: string) {
+        return this.templates.loadBundled(req.csiScope, location);
+    }
+
+    /** Dry run by default; `?commit=true` merges the workbook into the location's template. */
+    @Post('import/:location')
+    @UseInterceptors(FileInterceptor('file', XLSX_UPLOAD))
+    importExcel(@Req() req: CsiAdminRequest, @Param('location') location: string, @UploadedFile() file: Express.Multer.File, @Query('commit') commit?: string) {
+        if (!file?.buffer?.length) throw new BadRequestException('File Excel wajib diunggah');
+        return this.templates.importExcel(req.csiScope, location, file.buffer, commit === 'true');
+    }
+
+    @Post(':id/pics')
+    addPic(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Body() dto: AddTemplatePicDto) {
+        return this.templates.addPic(req.csiScope, id, dto);
+    }
+
+    @Patch('pics/:picId')
+    updatePic(@Req() req: CsiAdminRequest, @Param('picId', ID_PIPE) picId: string, @Body() dto: UpdateTemplatePicDto) {
+        return this.templates.updatePic(req.csiScope, picId, dto);
+    }
+
+    @Delete('pics/:picId')
+    removePic(@Req() req: CsiAdminRequest, @Param('picId', ID_PIPE) picId: string) {
+        return this.templates.removePic(req.csiScope, picId);
+    }
+
+    @Post('pics/:picId/raters')
+    addRater(@Req() req: CsiAdminRequest, @Param('picId', ID_PIPE) picId: string, @Body() dto: AddTemplateRaterDto) {
+        if (!dto.name && !dto.userId) throw new BadRequestException('Isi nama penilai atau pilih akun');
+        return this.templates.addRater(req.csiScope, picId, dto);
+    }
+
+    @Put('raters/:raterId/account')
+    setRaterAccount(@Req() req: CsiAdminRequest, @Param('raterId', ID_PIPE) raterId: string, @Body() dto: SetTemplateRaterAccountDto) {
+        return this.templates.setRaterAccount(req.csiScope, raterId, dto.userId);
+    }
+
+    @Delete('raters/:raterId')
+    removeRater(@Req() req: CsiAdminRequest, @Param('raterId', ID_PIPE) raterId: string) {
+        return this.templates.removeRater(req.csiScope, raterId);
+    }
+}
