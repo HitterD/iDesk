@@ -2,9 +2,10 @@ import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPip
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
-import { AddTemplatePicDto, AddTemplateRaterDto, SetTemplateRaterAccountDto, UpdateTemplatePicDto } from '../dto/template.dto';
+import { AddTemplatePicDto, AddTemplateRaterDto, CreatePeriodFromTemplateDto, SetTemplateRaterAccountDto, UpdateTemplatePicDto } from '../dto/template.dto';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiAssignmentTemplateService } from '../services/csi-assignment-template.service';
+import { CsiTemplateApplyService } from '../services/csi-template-apply.service';
 import { XLSX_UPLOAD } from './csi-admin-org.controller';
 
 type CsiAdminRequest = { csiScope: ServiceScope; user: { userId: string } };
@@ -14,7 +15,19 @@ const ID_PIPE = new ParseUUIDPipe({ exceptionFactory: () => new BadRequestExcept
 @Controller('csi/admin/:scope/templates')
 @UseGuards(JwtAuthGuard, CsiAdminGuard)
 export class CsiAdminTemplateController {
-    constructor(private readonly templates: CsiAssignmentTemplateService) { }
+    constructor(private readonly templates: CsiAssignmentTemplateService, private readonly applier: CsiTemplateApplyService) { }
+
+    /** Add-only sync into an existing survey; dry run by default, `?commit=true` writes. */
+    @Post(':id/apply/:periodId')
+    apply(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Param('periodId', ID_PIPE) periodId: string, @Query('commit') commit?: string) {
+        return this.applier.applyToPeriod(req.csiScope, id, periodId, commit === 'true');
+    }
+
+    /** New draft survey for the template's location with the template applied. */
+    @Post(':id/create-period')
+    createPeriod(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Body() dto: CreatePeriodFromTemplateDto) {
+        return this.applier.createPeriodFromTemplate(req.csiScope, id, dto, req.user.userId);
+    }
 
     @Get()
     list(@Req() req: CsiAdminRequest) {

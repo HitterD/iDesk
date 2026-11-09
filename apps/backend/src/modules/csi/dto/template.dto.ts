@@ -1,4 +1,6 @@
-import { IsDateString, IsIn, IsOptional, IsString, IsUUID, Length, MaxLength, ValidateIf } from 'class-validator';
+import { IsDateString, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, ValidateIf } from 'class-validator';
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 const NAME_MAX = 150;
 const SERVICE_CODES = ['HCC', 'HCD', 'HCS'];
@@ -45,9 +47,9 @@ export class CreatePeriodFromTemplateDto {
     @IsString() @Length(3, NAME_MAX, { message: 'Judul 3-150 karakter' })
     title: string;
 
-    @IsDateString({}, { message: 'Tanggal mulai tidak valid' })
+    @IsDateString({ strict: true }, { message: 'Tanggal mulai tidak valid' }) @Matches(DATE_ONLY, { message: 'Tanggal mulai harus berformat YYYY-MM-DD' })
     startDate: string;
 
-    @IsDateString({}, { message: 'Tanggal selesai tidak valid' })
+    @IsDateString({ strict: true }, { message: 'Tanggal selesai tidak valid' }) @Matches(DATE_ONLY, { message: 'Tanggal selesai harus berformat YYYY-MM-DD' })
     endDate: string;
 }
