@@ -89,6 +89,7 @@ function EditForm({ scope, subject, group, onClose }: { scope: CsiScopeParam; su
     useRevokeOnChange(photo);
     const file = photo?.file ?? null;
     const isTeam = subject.kind === 'TEAM';
+    const hasServiceFunction = !isTeam && scope === 'ict';
     const ids = { jobTitle: useId(), name: useId(), serviceFunction: useId() };
     const set = (field: keyof typeof draft) => (value: string) => setDraft((prev) => ({ ...prev, [field]: value }));
     const pick = (next: File) => { const error = photoError(next); setFileError(error); setPhoto(error ? null : pickPhoto(next)); };
@@ -96,7 +97,8 @@ function EditForm({ scope, subject, group, onClose }: { scope: CsiScopeParam; su
     const save = () => {
         const payload: UpdateCsiSubject = {
             tagline: orNull(draft.tagline), jobTitle: orNull(draft.jobTitle),
-            ...(isTeam ? { name: draft.name.trim() } : { serviceFunction: orNull(draft.serviceFunction) }),
+            ...(isTeam ? { name: draft.name.trim() } : {}),
+            ...(hasServiceFunction ? { serviceFunction: orNull(draft.serviceFunction) } : {}),
         };
         const saveText = () => update.mutate({ key: subject.key, payload }, { onSuccess: onClose });
         if (file) upload.mutate({ key: subject.key, file }, { onSuccess: saveText });
@@ -116,7 +118,8 @@ function EditForm({ scope, subject, group, onClose }: { scope: CsiScopeParam; su
                 <PhotoDropzone fileName={file?.name ?? null} error={fileError} onPick={pick} />
                 <TaglineField value={draft.tagline} onChange={set('tagline')} />
                 <TextField id={ids.jobTitle} label="Jabatan yang ditampilkan" value={draft.jobTitle} onChange={set('jobTitle')} />
-                {!isTeam && <TextField id={ids.serviceFunction} label="Fungsi pelayanan" value={draft.serviceFunction} onChange={set('serviceFunction')} />}
+                {/* ICT people only: HC people get their fungsi pelayanan from the PIC master (Pengaturan → PIC HC). */}
+                {hasServiceFunction && <TextField id={ids.serviceFunction} label="Fungsi pelayanan" value={draft.serviceFunction} onChange={set('serviceFunction')} />}
                 {isTeam && <TextField id={ids.name} label="Nama tim" value={draft.name} onChange={set('name')} />}
             </div>
             <SheetFooter onClose={onClose} onSave={save} pending={pending} disabled={isTeam && !draft.name.trim()}

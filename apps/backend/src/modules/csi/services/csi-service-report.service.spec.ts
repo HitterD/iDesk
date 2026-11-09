@@ -28,10 +28,13 @@ describe('CsiServiceReportService', () => {
     ];
     const periods = {
         // Mirrors the where clause: not DRAFT and cancelledAt IS NULL.
-        find: jest.fn(async ({ where }: any) => rows.filter((row) => row.publishStatus !== 'DRAFT' && (where.cancelledAt ? row.cancelledAt === null : true))),
+        find: jest.fn(async ({ where }: any) => rows.filter((row) => row.scope === where.scope && row.publishStatus !== 'DRAFT' && (where.cancelledAt ? row.cancelledAt === null : true))),
         findOne: jest.fn(async ({ where }: any) => rows.find((row) => row.id === where.id) ?? null),
     };
-    const service = new CsiServiceReportService(access as any, reports as any, periods as any);
+    // Periods that have at least one rated person with a layanan (serviceCode).
+    const rateeRows: { rows: Array<{ periodId: string }> } = { rows: [{ periodId: 'p1' }] };
+    const ratees = { find: jest.fn(async () => rateeRows.rows) };
+    const service = new CsiServiceReportService(access as any, reports as any, periods as any, ratees as any);
 
     beforeEach(() => jest.clearAllMocks());
 
@@ -103,5 +106,15 @@ describe('CsiServiceReportService', () => {
         expect(reports.hcRecapInput).toHaveBeenCalledWith(ServiceScope.ICT, 'p-ict');
         expect(report.services.map((row) => row.label)).toEqual(['ORACLE · Oracle / K2', 'SPJ', 'AGUS']);
         await expect(service.get('u-agus', 'p1', 'ORACLE', ServiceScope.ICT)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('ICT owners only see ICT surveys that carry team data (older ICT surveys have none)', async () => {
+        rows.push(
+            { id: 'p-ict-old', scope: 'ICT', title: 'Lama', startDate: '2026-10-01', endDate: '2026-10-05', publishStatus: 'PUBLISHED', cancelledAt: null } as any,
+            { id: 'p-ict-new', scope: 'ICT', title: 'Baru', startDate: '2026-12-01', endDate: '2026-12-05', publishStatus: 'PUBLISHED', cancelledAt: null } as any,
+        );
+        rateeRows.rows = [{ periodId: 'p-ict-new' }];
+        access.servicesFor.mockResolvedValueOnce({ admin: false, services: ['OPS'] });
+        expect((await service.listPeriods('u-x', ServiceScope.ICT)).periods.map((row) => row.id)).toEqual(['p-ict-new']);
     });
 });

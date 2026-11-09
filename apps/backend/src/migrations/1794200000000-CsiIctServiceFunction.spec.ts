@@ -13,7 +13,13 @@ describe('CsiIctServiceFunction migration', () => {
         expect(sql).not.toMatch(/DROP (TABLE|COLUMN)|DELETE FROM|^\s*UPDATE\b/m);
     });
 
-    it('down removes only that column', async () => {
-        expect(await run('down')).toBe('ALTER TABLE "csi_subject_profiles" DROP COLUMN IF EXISTS "serviceFunction"');
+    it('adds a per-survey self results flag that is off for every existing survey', async () => {
+        expect(await run('up')).toMatch(/ALTER TABLE "csi_periods"\s+ADD COLUMN IF NOT EXISTS "selfResults" boolean NOT NULL DEFAULT false/);
+    });
+
+    it('down removes only what it added', async () => {
+        const sql = await run('down');
+        expect(sql).toContain('ALTER TABLE "csi_subject_profiles" DROP COLUMN IF EXISTS "serviceFunction"');
+        expect(sql).toContain('ALTER TABLE "csi_periods" DROP COLUMN IF EXISTS "selfResults"');
     });
 });

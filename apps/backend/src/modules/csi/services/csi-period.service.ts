@@ -306,6 +306,8 @@ export class CsiPeriodService {
                 pairMode: source?.pairMode ?? null,
                 unitRules: source?.unitRules ?? [],
                 publishStatus: CsiPeriodPublishStatus.DRAFT,
+                // New surveys promise rated people their anonymous results; surveys from before the feature never do.
+                selfResults: true,
                 createdById: actorId,
             });
             await this.writeRatees(manager, saved.id, copied.ratees);

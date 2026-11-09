@@ -11,6 +11,7 @@ import { RatersTab } from './RatersTab';
 import { SubjectsTab } from './subjects/SubjectsTab';
 import { PicsTab } from './hc/PicsTab';
 import { ReportOwnersTab } from './hc/ReportOwnersTab';
+import { CSI_SERVICE_NAMES } from '../../lib/services';
 import { TemplatesTab } from './hc/templates/TemplatesTab';
 import { useCsiPics, useCsiReportOwners, useCsiTemplates } from '../../hooks/useCsiHc';
 
@@ -44,7 +45,7 @@ export function useSettingsStatus(scope: CsiScopeParam): SectionStatus[] {
     // Both scopes: HC per layanan (HCC / HCD / HCS), ICT per handling team.
     const reportOwners: SectionStatus = {
         key: 'report-owners', label: 'Penanggung jawab report', done: owners.length > 0 && owners.every((row) => row.users.length > 0),
-        hint: `${owners.filter((row) => row.users.length > 0).length}/${owners.length || (scope === 'hc' ? 3 : 5)} ${scope === 'hc' ? 'layanan' : 'tim'}`,
+        hint: `${owners.filter((row) => row.users.length > 0).length}/${owners.length || Object.keys(CSI_SERVICE_NAMES[scope]).length} ${scope === 'hc' ? 'layanan' : 'tim'}`,
         description: scope === 'hc'
             ? 'Siapa yang boleh membuka report CSI per layanan (HCC / HCD / HCS) untuk semua lokasi.'
             : 'Siapa yang boleh membuka report CSI per tim (Operational Support, Oracle, Web, Mobile, Manager) untuk semua lokasi.',

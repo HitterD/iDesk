@@ -63,6 +63,13 @@ export class CsiPeriod {
     @Column({ type: 'int', nullable: true })
     targetRespondents: number | null;
 
+    /**
+     * Rated people may see their own anonymous results ("Hasil penilaian saya") for this survey. False for every
+     * survey that existed before the feature (answered without that promise); true for surveys created since.
+     */
+    @Column({ type: 'boolean', default: false })
+    selfResults: boolean;
+
     @Column({ type: 'smallint', default: CSI_SLA_TARGET_DEFAULT })
     slaTargetPct: number;
 

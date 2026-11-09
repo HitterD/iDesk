@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as ExcelJS from 'exceljs';
-import { IsNull, Not, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiPeriodPublishStatus } from '../csi.constants';
+import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiHcRecap } from '../org/csi-hc-report.calc';
 import { addHcRecapSheets } from '../org/csi-hc-report.render';
@@ -26,6 +27,7 @@ export class CsiServiceReportService {
         private readonly access: CsiReportAccessService,
         private readonly reports: CsiReportService,
         @InjectRepository(CsiPeriod) private readonly periods: Repository<CsiPeriod>,
+        @InjectRepository(CsiPeriodRatee) private readonly ratees: Repository<CsiPeriodRatee>,
     ) { }
 
     async listPeriods(userId: string, scope: ServiceScope) {
@@ -35,7 +37,18 @@ export class CsiServiceReportService {
             where: { scope, publishStatus: Not(CsiPeriodPublishStatus.DRAFT), cancelledAt: IsNull() }, order: { startDate: 'DESC' },
             select: { id: true, title: true, startDate: true, endDate: true },
         });
-        return { services, periods: rows.map((row) => ({ id: row.id, title: row.title, startDate: row.startDate, endDate: row.endDate })) };
+        const withServices = await this.periodsWithServices(rows.map((row) => row.id));
+        return {
+            services,
+            periods: rows.filter((row) => withServices.has(row.id)).map((row) => ({ id: row.id, title: row.title, startDate: row.startDate, endDate: row.endDate })),
+        };
+    }
+
+    /** Surveys where somebody is rated under a layanan (older ICT surveys have none, so their report would be empty). */
+    private async periodsWithServices(periodIds: string[]): Promise<Set<string>> {
+        if (!periodIds.length) return new Set();
+        const rows = await this.ratees.find({ where: { periodId: In(periodIds), serviceCode: Not(IsNull()) }, select: { periodId: true } });
+        return new Set(rows.map((row) => row.periodId));
     }
 
     async get(userId: string, periodId: string, serviceCode: string, scope: ServiceScope): Promise<CsiServiceReport> {

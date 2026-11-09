@@ -81,10 +81,11 @@ describe('CsiSelfResultService', () => {
         expect(await service.list('u-nobody', NOW)).toEqual([]);
     });
 
-    it('ICT agents see results of ICT surveys created from the release on, never of older ICT surveys', async () => {
-        const ict = (id: string, createdAt: string) => ({ id: `r-${id}`, periodId: id, userId: 'u-agent', kind: 'PERSON', serviceFunction: 'Oracle EBS',
-            period: { ...period, id, scope: 'ICT', createdAt: new Date(createdAt) } });
-        ratees.rows.push(ict('p-ict-old', '2026-10-01T00:00:00Z'), ict('p-ict-new', '2026-11-12T00:00:00Z'));
+    it('ICT agents see results of ICT surveys created with self results on, never of older ICT surveys', async () => {
+        // The flag, not a date: an old ICT survey created minutes before the release must stay hidden whatever the timezones.
+        const ict = (id: string, selfResults: boolean) => ({ id: `r-${id}`, periodId: id, userId: 'u-agent', kind: 'PERSON', serviceFunction: 'Oracle EBS',
+            period: { ...period, id, scope: 'ICT', selfResults, createdAt: new Date('2026-11-10T03:00:00Z') } });
+        ratees.rows.push(ict('p-ict-old', false), ict('p-ict-new', true));
         expect((await service.list('u-agent', NOW)).map((row) => row.periodId)).toEqual(['p-ict-new']);
     });
 });

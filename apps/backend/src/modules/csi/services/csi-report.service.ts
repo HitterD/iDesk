@@ -232,7 +232,7 @@ export class CsiReportService {
      */
     async getHcRecap(scope: ServiceScope, periodId: string): Promise<CsiHcRecap & { period: CsiHcPeriodRef }> {
         const { period, pics, ratings, dimensions } = await this.hcRecapInput(scope, periodId);
-        return { period, ...buildHcRecap({ pics, ratings, dimensions }) };
+        return { period, ...buildHcRecap({ pics, ratings, dimensions, scope }) };
     }
 
     /** Period, PIC rows (with the viewer-relevant userId), scored ratings and dimension labels behind every HC recap. */

@@ -98,7 +98,7 @@ const SCALE_OPTIONS = [{ label: 'Puas', points: 5 }, { label: 'Tidak puas', poin
 const basePeriod = (over: Partial<CsiPeriod> = {}): CsiPeriod => ({
     id: 'p1', scope: ICT, sites: [{ siteId: 'site-a', site } as any], title: 'Q3', intro: 'Halo', thankYou: 'Terima kasih',
     startDate: '2026-07-01', endDate: '2026-09-30', respondentMode: CsiRespondentMode.OPEN, publishStatus: CsiPeriodPublishStatus.PUBLISHED, createdById: 'admin',
-    teamEnabled: false, teamLabel: 'Tim IT Support', individualEnabled: true, respondentPicks: false, unitRules: [], targetRespondents: null, slaTargetPct: 80, pairMode: null, cancelledAt: null, cancelledById: null, cancelReason: null,
+    teamEnabled: false, teamLabel: 'Tim IT Support', individualEnabled: true, respondentPicks: false, unitRules: [], targetRespondents: null, selfResults: false, slaTargetPct: 80, pairMode: null, cancelledAt: null, cancelledById: null, cancelReason: null,
     createdAt: new Date(), updatedAt: new Date(), ...over,
 });
 
@@ -227,6 +227,11 @@ describe('CsiPeriodService', () => {
         it('a new draft may overlap a published period (the clash is enforced at publish)', async () => {
             await service.create(ICT, createDto(), 'admin');
             expect(savedPeriod()).toMatchObject({ publishStatus: CsiPeriodPublishStatus.DRAFT });
+        });
+
+        it('a new survey promises rated people their anonymous results (older surveys keep false)', async () => {
+            await service.create(ICT, createDto(), 'admin');
+            expect(savedPeriod()).toMatchObject({ selfResults: true });
         });
 
         it('overlaps() names the published survey sharing a site and dates; drafts and other scopes never count', async () => {

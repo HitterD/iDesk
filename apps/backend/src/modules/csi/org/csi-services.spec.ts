@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { CSI_SERVICES, ictServiceOfRole, serviceCodesOf, serviceNameOf } from './csi-services';
@@ -25,5 +27,13 @@ describe('CSI services per scope', () => {
         expect(ictServiceOfRole(UserRole.USER)).toBeNull();
         expect(ictServiceOfRole(UserRole.HC_ADMIN)).toBeNull();
         expect(ictServiceOfRole(undefined)).toBeNull();
+    });
+});
+
+describe('frontend copy of the services', () => {
+    // apps/frontend/src/features/csi/lib/services.ts repeats the names for labels; they must not drift apart.
+    const frontend = fs.readFileSync(path.resolve(__dirname, '../../../../../frontend/src/features/csi/lib/services.ts'), 'utf8');
+    it.each([ServiceScope.HC, ServiceScope.ICT])('%s codes and names match', (scope) => {
+        CSI_SERVICES[scope].forEach(({ code, name }) => expect(frontend).toContain(`${code}: '${name}'`));
     });
 });
