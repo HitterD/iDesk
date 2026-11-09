@@ -10,6 +10,15 @@ const directoryKey = (scope: CsiScopeParam) => ['csi', scope, 'directory'] as co
 const ownersKey = (scope: CsiScopeParam) => ['csi', scope, 'report-owners'] as const;
 const recapKey = (scope: CsiScopeParam, id: string) => ['csi', scope, 'hc-recap', id] as const;
 
+const templatesKey = (scope: CsiScopeParam) => ['csi', scope, 'templates'] as const;
+export function useCsiTemplates(scope: CsiScopeParam, enabled = true) {
+    return useQuery({ queryKey: templatesKey(scope), queryFn: () => CsiHcApi.templates(scope), enabled });
+}
+/** Every template edit returns the fresh template; the list is refetched so counts stay right. */
+export function useCsiTemplateMutation<TInput>(scope: CsiScopeParam, run: (input: TInput) => Promise<unknown>) {
+    const client = useQueryClient();
+    return useMutation({ mutationFn: run, onSuccess: () => client.invalidateQueries({ queryKey: templatesKey(scope) }) });
+}
 export function useCsiMyReportAccess() {
     return useQuery({ queryKey: ['csi', 'me', 'hc', 'report-access'], queryFn: () => CsiHcApi.myReportAccess(), staleTime: 5 * 60_000 });
 }

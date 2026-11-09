@@ -1,6 +1,6 @@
 import api from '@/lib/api';
 import type { CsiPeriodDetail, CsiScopeParam } from '../types';
-import type { CsiDirectoryImportResult, CsiHcRater, CsiHcRecap, CsiPairsImportReport, CsiPicView, CsiReportAccess, CsiReportPeriods, CsiServiceReport, CsiServiceReportOwners, CsiUnitOption, CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
+import type { CsiDirectoryImportResult, CsiHcRater, CsiHcRecap, CsiPairsImportReport, CsiPicView, CsiReportAccess, CsiReportPeriods, CsiServiceReport, CsiServiceReportOwners, CsiTemplate, CsiTemplateApplyReport, CsiTemplateImportReport, CsiTemplateList, CsiUnitOption, CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
 
 const orgPath = (scope: CsiScopeParam) => `/csi/admin/${scope}/org`;
 const periodPath = (scope: CsiScopeParam, id: string) => `/csi/admin/${scope}/periods/${encodeURIComponent(id)}`;
@@ -11,7 +11,41 @@ const meHcPath = '/csi/me/hc';
 const serviceReportPath = (periodId: string, serviceCode: string) =>
     `${meHcPath}/periods/${encodeURIComponent(periodId)}/services/${encodeURIComponent(serviceCode)}`;
 
+const templatePath = (scope: CsiScopeParam) => `/csi/admin/${scope}/templates`;
+
 export const CsiHcApi = {
+    async templates(scope: CsiScopeParam): Promise<CsiTemplateList> {
+        return (await api.get<CsiTemplateList>(templatePath(scope))).data;
+    },
+    async loadBundledTemplate(scope: CsiScopeParam, location: string): Promise<CsiTemplate> {
+        return (await api.post<CsiTemplate>(`${templatePath(scope)}/bundled/${encodeURIComponent(location)}`)).data;
+    },
+    async importTemplate(scope: CsiScopeParam, location: string, file: File, commit: boolean): Promise<CsiTemplateImportReport> {
+        const body = new FormData();
+        body.append(FILE_FIELD, file);
+        return (await api.post<CsiTemplateImportReport>(`${templatePath(scope)}/import/${encodeURIComponent(location)}`, body, { params: { commit } })).data;
+    },
+    async addTemplatePic(scope: CsiScopeParam, templateId: string, body: { serviceCode: string; picName: string; jobTitle?: string; serviceFunction?: string }): Promise<CsiTemplate> {
+        return (await api.post<CsiTemplate>(`${templatePath(scope)}/${encodeURIComponent(templateId)}/pics`, body)).data;
+    },
+    async updateTemplatePic(scope: CsiScopeParam, picId: string, body: { jobTitle?: string | null; serviceFunction?: string | null }): Promise<CsiTemplate> {
+        return (await api.patch<CsiTemplate>(`${templatePath(scope)}/pics/${encodeURIComponent(picId)}`, body)).data;
+    },
+    async removeTemplatePic(scope: CsiScopeParam, picId: string): Promise<CsiTemplate> {
+        return (await api.delete<CsiTemplate>(`${templatePath(scope)}/pics/${encodeURIComponent(picId)}`)).data;
+    },
+    async addTemplateRater(scope: CsiScopeParam, picId: string, body: { name?: string; userId?: string }): Promise<CsiTemplate> {
+        return (await api.post<CsiTemplate>(`${templatePath(scope)}/pics/${encodeURIComponent(picId)}/raters`, body)).data;
+    },
+    async removeTemplateRater(scope: CsiScopeParam, raterId: string): Promise<CsiTemplate> {
+        return (await api.delete<CsiTemplate>(`${templatePath(scope)}/raters/${encodeURIComponent(raterId)}`)).data;
+    },
+    async applyTemplate(scope: CsiScopeParam, templateId: string, periodId: string, commit: boolean): Promise<CsiTemplateApplyReport> {
+        return (await api.post<CsiTemplateApplyReport>(`${templatePath(scope)}/${encodeURIComponent(templateId)}/apply/${encodeURIComponent(periodId)}`, null, { params: { commit } })).data;
+    },
+    async createPeriodFromTemplate(scope: CsiScopeParam, templateId: string, body: { title: string; startDate: string; endDate: string }): Promise<{ periodId: string; report: CsiTemplateApplyReport }> {
+        return (await api.post<{ periodId: string; report: CsiTemplateApplyReport }>(`${templatePath(scope)}/${encodeURIComponent(templateId)}/create-period`, body)).data;
+    },
     async myReportAccess(): Promise<CsiReportAccess> {
         return (await api.get<CsiReportAccess>(`${meHcPath}/report-access`, { skipToast: true })).data;
     },
