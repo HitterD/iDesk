@@ -1,4 +1,6 @@
-/* TV leaderboard (12:00-13:00). Sized in rem: the TV page scales the root font with the viewport. */
+/* TV leaderboard (12:00-13:00). Laid out on a 1920x1080 frame (rem pinned) and scaled to the screen. */
+.tv-lb-fit { position: absolute; inset: 0; z-index: 20; overflow: hidden; background: #070d24; }
+.tv-lb-frame { position: absolute; left: 50%; top: 50%; transform-origin: center; }
 .tv-lb {
   --lb-gold: #FFC83D;
   --lb-ink: #F4F7FF;

@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { LeaderboardEffects } from './LeaderboardEffects';
 import { LeaderboardDecor, PanelOrnaments } from './LeaderboardDecor';
 import { TvLeaderboardArt } from './TvLeaderboardArt';
+import { DESIGN_HEIGHT, DESIGN_WIDTH, useDesignRem, useFitToScreen } from './useFitToScreen';
 import { LEADERBOARD_ARTS, type ArtTheme } from '../utils/leaderboardArt';
 import {
     BADGES, initialsOf, isPixelTheme, leaderboardOwner, minutesLabel, themeForDate, titleName,
@@ -129,6 +130,26 @@ export function TvLeaderboard({ data, siteName, time, queue }: TvLeaderboardProp
     if (theme in LEADERBOARD_ARTS) {
         return <TvLeaderboardArt theme={theme as ArtTheme} data={data} siteName={siteName} time={time} queue={queue} />;
     }
+    return <FittedLeaderboard theme={theme} data={data} siteName={siteName} time={time} queue={queue} />;
+}
+
+/**
+ * The CSS looks are laid out on a fixed 1920x1080 frame and scaled to the screen as one picture,
+ * so a TV browser at 1280x720, 1366x768 or with zoom shows everything, letterboxed, never cropped.
+ */
+function FittedLeaderboard({ theme, data, siteName, time, queue }: TvLeaderboardProps & { theme: LeaderboardTheme }) {
+    useDesignRem();
+    const scale = useFitToScreen();
+    return (
+        <div className="tv-lb-fit" data-testid="tv-leaderboard-fit">
+            <div className="tv-lb-frame" style={{ width: DESIGN_WIDTH, height: DESIGN_HEIGHT, transform: `translate(-50%, -50%) scale(${scale})` }}>
+                <LeaderboardBody theme={theme} data={data} siteName={siteName} time={time} queue={queue} />
+            </div>
+        </div>
+    );
+}
+
+function LeaderboardBody({ theme, data, siteName, time, queue }: TvLeaderboardProps & { theme: LeaderboardTheme }) {
     return (
         <div className={cn('tv-lb', `tv-lb-theme-${theme}`, isPixelTheme(theme) && 'is-pixel')} data-testid="tv-leaderboard" data-lb-theme={theme}>
             <LeaderboardDecor theme={theme} />
