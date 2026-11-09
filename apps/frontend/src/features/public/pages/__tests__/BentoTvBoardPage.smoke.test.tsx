@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { vi, describe, it, expect, afterEach } from 'vitest';
 import { BentoTvBoardPage } from '../BentoTvBoardPage';
@@ -214,32 +214,41 @@ describe('BentoTvBoardPage', () => {
     it('queues a custom division sound with the built-in one as fallback', async () => {
         const api = (await import('@/lib/api')).default;
         ringtoneState.enqueue.mockClear();
-        (api.get as any).mockResolvedValueOnce({
+        // Every call of this test gets the snapshot (a one-shot mock could be used up by a late call of an earlier test).
+        const original = (api.get as any).getMockImplementation();
+        (api.get as any).mockImplementation(() => Promise.resolve({
             data: {
                 siteName: 'Sampoerna Jaya', siteCode: 'SPJ', waitingVendorCount: 0, inProgress: [],
                 open: [{ id: 'n1', description: 'Baru', requesterName: 'A', requesterDepartment: null, assignedToName: null, priority: 'LOW', slaTarget: null, isOverdue: false, isOracleRequest: false, handlingTeam: 'OPS_SUPPORT' }],
                 ringtones: { newTicket: null, newTicketSupport: '/uploads/sounds/support.mp3', inProgress: null, closing: null, closingTime: null },
             },
-        });
+        }));
         // The first snapshot only seeds the baseline; a ticket appearing afterwards rings.
         socketState.boardData = { siteName: 'Sampoerna Jaya', siteCode: 'SPJ', open: [], inProgress: [], waitingVendorCount: 0, ringtones: { newTicket: null, inProgress: null, closing: null, closingTime: null } };
         renderBoard();
 
-        await screen.findByText('Baru');
-        expect(ringtoneState.enqueue).toHaveBeenCalledWith([
-            { src: '/uploads/sounds/support.mp3', fallback: '/sounds/divisions/new-ticket-it-support.mp3' },
-        ]);
-        socketState.boardData = null;
+        try {
+            await screen.findByText('Baru');
+            await waitFor(() => expect(ringtoneState.enqueue).toHaveBeenCalledWith([
+                { src: '/uploads/sounds/support.mp3', fallback: '/sounds/divisions/new-ticket-it-support.mp3' },
+            ]));
+        } finally {
+            (api.get as any).mockImplementation(original);
+            socketState.boardData = null;
+        }
     });
 
     it('shows reconnecting on startup network error without crashing into fatal error screen', async () => {
         const api = (await import('@/lib/api')).default;
-        (api.get as any).mockRejectedValueOnce(new Error('Network Error'));
-
-        renderBoard();
-
-        expect(await screen.findByText('Menghubungkan ke TV Monitoring Board...')).toBeInTheDocument();
-        expect(screen.queryByText(/Link tidak valid/i)).toBeNull();
+        const original = (api.get as any).getMockImplementation();
+        (api.get as any).mockImplementation(() => Promise.reject(new Error('Network Error')));
+        try {
+            renderBoard();
+            expect(await screen.findByText('Menghubungkan ke TV Monitoring Board...')).toBeInTheDocument();
+            expect(screen.queryByText(/Link tidak valid/i)).toBeNull();
+        } finally {
+            (api.get as any).mockImplementation(original);
+        }
     });
 
     it('labels only cards from another site with their origin site', async () => {
