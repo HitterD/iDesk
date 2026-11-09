@@ -78,3 +78,5 @@ export interface CsiHcRater {
 export interface CsiPairsImportReport {
     rows: number; pairs: number; raters: number; problems: Array<{ row: number; message: string }>; problemCount: number; committed: boolean;
 }
+export interface CsiReportOwnerUser { id: string; fullName: string; email: string | null }
+export interface CsiServiceReportOwners { serviceCode: string; users: CsiReportOwnerUser[] }

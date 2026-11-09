@@ -1,6 +1,6 @@
 import api from '@/lib/api';
 import type { CsiPeriodDetail, CsiScopeParam } from '../types';
-import type { CsiDirectoryImportResult, CsiHcRater, CsiHcRecap, CsiPairsImportReport, CsiPicView, CsiUnitOption, CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
+import type { CsiDirectoryImportResult, CsiHcRater, CsiHcRecap, CsiPairsImportReport, CsiPicView, CsiServiceReportOwners, CsiUnitOption, CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
 
 const orgPath = (scope: CsiScopeParam) => `/csi/admin/${scope}/org`;
 const periodPath = (scope: CsiScopeParam, id: string) => `/csi/admin/${scope}/periods/${encodeURIComponent(id)}`;
@@ -8,6 +8,12 @@ const periodPath = (scope: CsiScopeParam, id: string) => `/csi/admin/${scope}/pe
 const FILE_FIELD = 'file';
 
 export const CsiHcApi = {
+    async reportOwners(scope: CsiScopeParam): Promise<CsiServiceReportOwners[]> {
+        return (await api.get<CsiServiceReportOwners[]>(`/csi/admin/${scope}/report-owners`)).data;
+    },
+    async setReportOwners(scope: CsiScopeParam, serviceCode: string, userIds: string[]): Promise<CsiServiceReportOwners[]> {
+        return (await api.put<CsiServiceReportOwners[]>(`/csi/admin/${scope}/report-owners/${encodeURIComponent(serviceCode)}`, { userIds })).data;
+    },
     async directory(scope: CsiScopeParam): Promise<{ people: number }> {
         return (await api.get<{ people: number }>(`${orgPath(scope)}/directory`)).data;
     },

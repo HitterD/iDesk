@@ -14,6 +14,12 @@ describe('CsiServiceFunctionAndTemplates migration', () => {
         expect(sql).not.toMatch(/DROP (TABLE|COLUMN)|DELETE FROM|^\s*UPDATE\b/m);
     });
 
+    it('adds the service report owners table with one row per scope/service/user', async () => {
+        const sql = await run('up');
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS "csi_service_report_owners"');
+        expect(sql).toContain('"UQ_csi_service_report_owners"');
+    });
+
     it('down removes only what it added', async () => {
         const sql = await run('down');
         expect(sql).toContain('DROP COLUMN IF EXISTS "serviceFunction"');

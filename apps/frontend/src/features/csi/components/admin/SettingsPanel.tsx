@@ -10,9 +10,10 @@ import { DimensionsTab } from './DimensionsTab';
 import { RatersTab } from './RatersTab';
 import { SubjectsTab } from './subjects/SubjectsTab';
 import { PicsTab } from './hc/PicsTab';
-import { useCsiPics } from '../../hooks/useCsiHc';
+import { ReportOwnersTab } from './hc/ReportOwnersTab';
+import { useCsiPics, useCsiReportOwners } from '../../hooks/useCsiHc';
 
-export type SettingsSection = 'subjects' | 'pics' | 'questions' | 'raters' | 'departments';
+export type SettingsSection = 'subjects' | 'pics' | 'report-owners' | 'questions' | 'raters' | 'departments';
 
 interface SectionStatus { key: SettingsSection; label: string; hint: string; done: boolean; description: string }
 
@@ -23,6 +24,7 @@ export function useSettingsStatus(scope: CsiScopeParam): SectionStatus[] {
     const { data: raters = [] } = useCsiRaters(scope);
     const { data: departments = [] } = useCsiDepartments(scope);
     const { data: pics = [] } = useCsiPics(scope);
+    const { data: owners = [] } = useCsiReportOwners(scope, scope === 'hc');
     const people = groups.flatMap((group) => [...(group.team ? [group.team] : []), ...group.people]);
     const noPhoto = people.filter((subject) => !subject.photoUrl).length;
     const raterSites = new Set(raters.map((rater) => rater.user.site?.code).filter(Boolean));
@@ -31,6 +33,10 @@ export function useSettingsStatus(scope: CsiScopeParam): SectionStatus[] {
         key: 'pics', label: 'PIC HC', done: pics.length > 0,
         hint: pics.length ? `${pics.length} PIC` : 'belum ada',
         description: 'Staf HCC, HCD dan HCS per layanan dan bagian, diimpor dari Data Hirarki Approver.',
+    }, {
+        key: 'report-owners', label: 'Penanggung jawab report', done: owners.length > 0 && owners.every((row) => row.users.length > 0),
+        hint: `${owners.filter((row) => row.users.length > 0).length}/${owners.length || 3} layanan`,
+        description: 'Siapa yang boleh membuka report CSI per layanan (HCC / HCD / HCS) untuk semua lokasi.',
     }] : [];
     return [
         ...hcPics,
@@ -63,6 +69,7 @@ function Body({ scope, section }: { scope: CsiScopeParam; section: SettingsSecti
         case 'raters': return <RatersTab scope={scope} />;
         case 'departments': return <DepartmentsTab scope={scope} />;
         case 'pics': return <PicsTab scope={scope} />;
+        case 'report-owners': return <ReportOwnersTab scope={scope} />;
         default: return <SubjectsTab scope={scope} />;
     }
 }

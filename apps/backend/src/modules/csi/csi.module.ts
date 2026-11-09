@@ -55,6 +55,10 @@ import { CsiOrgService } from './org/csi-org.service';
 import { CsiUnitRulesService } from './org/csi-unit-rules.service';
 import { CsiPairsExcelService } from './org/csi-pairs-excel.service';
 import { CsiAdminOrgController } from './presentation/csi-admin-org.controller';
+import { CsiServiceReportOwner } from './entities/csi-service-report-owner.entity';
+import { CsiAccessReader } from './guards/csi-access-reader';
+import { CsiReportAccessService } from './services/csi-report-access.service';
+import { CsiAdminReportOwnerController } from './presentation/csi-admin-report-owner.controller';
 import { SystemSettings } from '../settings/entities/system-settings.entity';
 import { ReportSignoffService } from '../reports/services/report-signoff.service';
 
@@ -64,7 +68,7 @@ import { ReportSignoffService } from '../reports/services/report-signoff.service
             CsiDimension, CsiDepartment, CsiRater, CsiPeriod, CsiPeriodSite, CsiPeriodRatee,
             CsiPeriodRateeDimension, CsiPeriodRater, CsiResponse, CsiResponseItem, CsiResponseComment,
             CsiMemoSetting, CsiTeam, CsiSubjectProfile, CsiRaterAssignment, CsiPeriodRaterRatee, CsiQuestionSet,
-            CsiOrgPerson, CsiPic, User, PermissionPreset, Site, Ticket, Notification, SystemSettings,
+            CsiOrgPerson, CsiPic, CsiServiceReportOwner, User, PermissionPreset, Site, Ticket, Notification, SystemSettings,
         ]),
         AuthModule,
         AuditModule,
@@ -73,9 +77,10 @@ import { ReportSignoffService } from '../reports/services/report-signoff.service
     controllers: [
         CsiAdminMasterController, CsiAdminPeriodController, CsiAdminReportController, CsiAdminReportSignoffController, CsiAdminMemoController, CsiMeController,
         CsiAdminSubjectController, CsiAdminAssignmentController, CsiAdminDashboardController, CsiAdminQuestionSetController, CsiAdminRaterBulkController,
-        CsiAdminOrgController,
+        CsiAdminOrgController, CsiAdminReportOwnerController,
     ],
     providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService, CsiMemoService,
-        CsiSubjectService, CsiAssignmentService, CsiReminderService, CsiDashboardService, CsiQuestionSetService, CsiRaterBulkService, ReportSignoffService, CsiOrgService, CsiUnitRulesService, CsiPairsExcelService],
+        CsiSubjectService, CsiAssignmentService, CsiReminderService, CsiDashboardService, CsiQuestionSetService, CsiRaterBulkService, ReportSignoffService, CsiOrgService, CsiUnitRulesService, CsiPairsExcelService,
+        CsiAccessReader, CsiReportAccessService],
 })
 export class CsiModule { }

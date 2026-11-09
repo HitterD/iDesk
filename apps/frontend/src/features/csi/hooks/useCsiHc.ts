@@ -7,8 +7,19 @@ import type { CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
 const keys = queryKeys.csi;
 const picsKey = (scope: CsiScopeParam, includeInactive = false) => ['csi', scope, 'pics', includeInactive] as const;
 const directoryKey = (scope: CsiScopeParam) => ['csi', scope, 'directory'] as const;
+const ownersKey = (scope: CsiScopeParam) => ['csi', scope, 'report-owners'] as const;
 const recapKey = (scope: CsiScopeParam, id: string) => ['csi', scope, 'hc-recap', id] as const;
 
+export function useCsiReportOwners(scope: CsiScopeParam, enabled = true) {
+    return useQuery({ queryKey: ownersKey(scope), queryFn: () => CsiHcApi.reportOwners(scope), enabled });
+}
+export function useSetCsiReportOwners(scope: CsiScopeParam) {
+    const client = useQueryClient();
+    return useMutation({
+        mutationFn: ({ serviceCode, userIds }: { serviceCode: string; userIds: string[] }) => CsiHcApi.setReportOwners(scope, serviceCode, userIds),
+        onSuccess: (data) => client.setQueryData(ownersKey(scope), data),
+    });
+}
 export function useCsiPics(scope: CsiScopeParam, includeInactive = false) {
     return useQuery({ queryKey: picsKey(scope, includeInactive), queryFn: () => CsiHcApi.pics(scope, includeInactive) });
 }
