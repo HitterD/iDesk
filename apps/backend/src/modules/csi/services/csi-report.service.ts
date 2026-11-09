@@ -252,7 +252,7 @@ export class CsiReportService {
             }];
         });
         const pics = people.map((ratee) => ({
-            periodRateeId: ratee.id, name: ratee.displayName, jobTitle: ratee.jobTitle, serviceCode: ratee.serviceCode ?? null, bagian: ratee.bagian ?? null,
+            periodRateeId: ratee.id, name: ratee.displayName, jobTitle: ratee.jobTitle, serviceCode: ratee.serviceCode ?? null, bagian: ratee.bagian ?? null, serviceFunction: ratee.serviceFunction ?? null,
         }));
         return {
             period: { id: period.id, title: period.title, startDate: period.startDate, endDate: period.endDate },

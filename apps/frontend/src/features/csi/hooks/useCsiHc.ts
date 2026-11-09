@@ -24,10 +24,10 @@ export function useImportCsiDirectory(scope: CsiScopeParam) {
         ]),
     });
 }
-export function useSetCsiPicActive(scope: CsiScopeParam) {
+export function useUpdateCsiPic(scope: CsiScopeParam) {
     const client = useQueryClient();
     return useMutation({
-        mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => CsiHcApi.setPicActive(scope, id, isActive),
+        mutationFn: ({ id, ...patch }: { id: string; isActive?: boolean; serviceFunction?: string | null }) => CsiHcApi.updatePic(scope, id, patch),
         onSuccess: () => client.invalidateQueries({ queryKey: ['csi', scope, 'pics'] }),
     });
 }

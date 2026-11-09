@@ -19,8 +19,8 @@ export const CsiHcApi = {
     async pics(scope: CsiScopeParam, includeInactive = false): Promise<CsiPicView[]> {
         return (await api.get<CsiPicView[]>(`${orgPath(scope)}/pics`, { params: { includeInactive } })).data;
     },
-    async setPicActive(scope: CsiScopeParam, id: string, isActive: boolean): Promise<CsiPicView> {
-        return (await api.patch<CsiPicView>(`${orgPath(scope)}/pics/${encodeURIComponent(id)}`, { isActive })).data;
+    async updatePic(scope: CsiScopeParam, id: string, patch: { isActive?: boolean; serviceFunction?: string | null }): Promise<CsiPicView> {
+        return (await api.patch<CsiPicView>(`${orgPath(scope)}/pics/${encodeURIComponent(id)}`, patch)).data;
     },
     async uploadPicPhoto(scope: CsiScopeParam, id: string, file: File): Promise<CsiPicView> {
         const body = new FormData();

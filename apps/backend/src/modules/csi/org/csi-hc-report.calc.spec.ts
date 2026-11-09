@@ -3,10 +3,10 @@ import { CsiOrgLocation } from './csi-org.constants';
 
 const DIMS = ['Knowledge', 'Responsiveness'];
 const pics: CsiHcPic[] = [
-    { periodRateeId: 'a', name: 'ANITA', jobTitle: 'Payroll', serviceCode: 'HCC', bagian: 'PAYROLL & BENEFIT' },
-    { periodRateeId: 'b', name: 'BUDI', jobTitle: 'Payroll', serviceCode: 'HCC', bagian: 'PAYROLL & BENEFIT' },
-    { periodRateeId: 'c', name: 'CICI', jobTitle: 'GA', serviceCode: 'HCS', bagian: 'GA MANAGEMENT' },
-    { periodRateeId: 'd', name: 'DODI', jobTitle: 'TA', serviceCode: 'HCD', bagian: 'TALENT ACQUISITION & ASSESSMENT' },
+    { periodRateeId: 'a', name: 'ANITA', jobTitle: 'Payroll', serviceCode: 'HCC', bagian: 'PAYROLL & BENEFIT', serviceFunction: 'Benefit, Payroll & HRIS' },
+    { periodRateeId: 'b', name: 'BUDI', jobTitle: 'Payroll', serviceCode: 'HCC', bagian: 'PAYROLL & BENEFIT', serviceFunction: null },
+    { periodRateeId: 'c', name: 'CICI', jobTitle: 'GA', serviceCode: 'HCS', bagian: 'GA MANAGEMENT', serviceFunction: null },
+    { periodRateeId: 'd', name: 'DODI', jobTitle: 'TA', serviceCode: 'HCD', bagian: 'TALENT ACQUISITION & ASSESSMENT', serviceFunction: null },
 ];
 const rating = (responseId: string, periodRateeId: string, location: CsiOrgLocation | null, scores: number[], division = 'OPERATION SJA 1'): CsiHcRating => ({
     responseId, periodRateeId, location,
@@ -43,6 +43,8 @@ describe('buildHcRecap', () => {
         expect(row('p:a').byLocation.SJA2.average).toBe(4);
         expect(row('p:a').dimensions).toEqual({ Knowledge: 4.5, Responsiveness: 4 });
         expect(row('p:d').all).toEqual({ average: null, ratings: 0 });
+        expect(row('p:a').serviceFunction).toBe('Benefit, Payroll & HRIS');
+        expect(row('s:HCC').serviceFunction).toBeNull();
     });
 
     it('groups respondents by division → department → bagian and lists each answer', () => {

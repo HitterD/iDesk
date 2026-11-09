@@ -168,6 +168,8 @@ export interface CsiFormRatee {
     kind: CsiRateeKind;
     displayName: string;
     jobTitle: string | null;
+    /** HC PIC: fungsi pelayanan snapshot; null otherwise. */
+    serviceFunction?: string | null;
     /** Kept for compatibility; equals photoUrl. */
     avatarUrl: string | null;
     siteId: string | null;

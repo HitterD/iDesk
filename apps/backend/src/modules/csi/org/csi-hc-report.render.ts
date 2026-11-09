@@ -82,9 +82,10 @@ const LEVEL_LABEL: Record<string, string> = { service: 'Layanan', bagian: 'Bagia
 export function addHcRecapSheets(workbook: ExcelJS.Workbook, recap: CsiHcRecap, withNames: boolean) {
     addStyledSheet(workbook, HC_SHEETS.recap, [
         { header: 'Tingkat', width: 10 }, { header: 'Layanan', width: 10 }, { header: 'Bagian', width: 30 }, { header: 'Nama', width: 32 },
-        { header: 'Jabatan', width: 28 }, ...LOCATION_COLUMNS(recap), ...recap.dimensions.map((label) => AVERAGE_COLUMN(label)),
+        { header: 'Jabatan', width: 28 }, { header: 'Fungsi Pelayanan', width: 32 }, ...LOCATION_COLUMNS(recap), ...recap.dimensions.map((label) => AVERAGE_COLUMN(label)),
     ], recap.services.map((row) => [
         LEVEL_LABEL[row.level], row.serviceCode ?? '', sanitizeCell(row.bagian), sanitizeCell(row.level === 'pic' ? row.label : ''), sanitizeCell(row.jobTitle),
+        sanitizeCell(row.serviceFunction ?? ''),
         ...locationValues(recap, row), ...recap.dimensions.map((label) => row.dimensions[label]),
     ]));
     addStyledSheet(workbook, HC_SHEETS.respondents, [

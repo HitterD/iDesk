@@ -14,6 +14,14 @@ import {
 
 const UPSERT_CHUNK = 500;
 const PIC_NOT_FOUND_MESSAGE = 'PIC tidak ditemukan';
+export const CSI_SERVICE_FUNCTION_MAX = 150;
+
+/** Trimmed service function; blank clears it. */
+export function normalizeServiceFunction(value: string | null | undefined): string | null {
+    const text = (value ?? '').replace(/\s+/g, ' ').trim();
+    if (text.length > CSI_SERVICE_FUNCTION_MAX) throw new BadRequestException(`Fungsi pelayanan maksimal ${CSI_SERVICE_FUNCTION_MAX} karakter`);
+    return text || null;
+}
 
 /** Organisation of a respondent at answer time. */
 export type CsiRespondentOrg = {
@@ -23,13 +31,13 @@ export type CsiRespondentOrg = {
 };
 
 export type CsiPicView = {
-    id: string; nik: string; fullName: string; jobTitle: string | null; serviceCode: string; serviceName: string | null;
+    id: string; nik: string; fullName: string; jobTitle: string | null; serviceCode: string; serviceName: string | null; serviceFunction: string | null;
     bagian: string | null; workLocation: string | null; siteId: string | null; userId: string | null; photoUrl: string | null; isActive: boolean;
 };
 
 export const picView = (pic: CsiPic): CsiPicView => ({
     id: pic.id, nik: pic.nik, fullName: pic.fullName, jobTitle: pic.jobTitle, serviceCode: pic.serviceCode,
-    serviceName: CSI_HC_SERVICES.find((service) => service.code === pic.serviceCode)?.name ?? null,
+    serviceName: CSI_HC_SERVICES.find((service) => service.code === pic.serviceCode)?.name ?? null, serviceFunction: pic.serviceFunction ?? null,
     bagian: pic.bagian, workLocation: pic.workLocation, siteId: pic.siteId, userId: pic.userId,
     photoUrl: pic.photoUrl ?? pic.user?.avatarUrl ?? null, isActive: pic.isActive,
 });
@@ -112,10 +120,15 @@ export class CsiOrgService {
         return rows.map(picView);
     }
 
-    async setPicActive(scope: ServiceScope, id: string, isActive: boolean): Promise<CsiPicView> {
+    /** Updates the active flag and/or the service function; omitted fields stay as they are. */
+    async updatePic(scope: ServiceScope, id: string, input: { isActive?: boolean; serviceFunction?: string | null }): Promise<CsiPicView> {
         const pic = await this.pics.findOne({ where: { id, scope }, relations: { user: true } });
         if (!pic) throw new NotFoundException(PIC_NOT_FOUND_MESSAGE);
-        return picView(await this.pics.save({ ...pic, isActive }));
+        const patch = {
+            ...(input.isActive === undefined ? {} : { isActive: input.isActive }),
+            ...(input.serviceFunction === undefined ? {} : { serviceFunction: normalizeServiceFunction(input.serviceFunction) }),
+        };
+        return picView(await this.pics.save({ ...pic, ...patch }));
     }
 
     async setPicPhoto(scope: ServiceScope, id: string, photoUrl: string): Promise<{ view: CsiPicView; previous: string | null }> {

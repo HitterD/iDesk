@@ -404,7 +404,8 @@ export class CsiPeriodService {
                     ...(kept ? { id: kept.id } : {}), periodId: id, kind: snapshot.kind, userId: snapshot.userId,
                     displayName: snapshot.displayName, jobTitle: snapshot.jobTitle, siteId: snapshot.siteId, teamId: null,
                     photoUrl: kept?.photoUrl ?? null, tagline: kept?.tagline ?? null,
-                    picId: snapshot.picId, serviceCode: snapshot.serviceCode, bagian: snapshot.bagian, sortOrder: offset + index,
+                    picId: snapshot.picId, serviceCode: snapshot.serviceCode, bagian: snapshot.bagian,
+                    serviceFunction: snapshot.serviceFunction ?? null, sortOrder: offset + index,
                 };
             }));
             await manager.save(CsiPeriodRateeDimension, saved.flatMap((row, index) => snapshots[index].dimensions.map((dimension, order) =>
@@ -650,7 +651,7 @@ export class CsiPeriodService {
         const saved = await manager.save(CsiPeriodRatee, ratees.map((ratee, index) => ({
             periodId, kind: ratee.kind, userId: ratee.userId, displayName: ratee.displayName, jobTitle: ratee.jobTitle,
             siteId: ratee.siteId, teamId: ratee.teamId, photoUrl: ratee.photoUrl, tagline: ratee.tagline,
-            picId: ratee.picId ?? null, serviceCode: ratee.serviceCode ?? null, bagian: ratee.bagian ?? null,
+            picId: ratee.picId ?? null, serviceCode: ratee.serviceCode ?? null, bagian: ratee.bagian ?? null, serviceFunction: ratee.serviceFunction ?? null,
             sortOrder: ratee.sortOrder ?? index,
         })));
         await manager.save(CsiPeriodRateeDimension, saved.flatMap((row, rateeIndex) => ratees[rateeIndex].dimensions.map((dimension, index) =>
@@ -700,7 +701,7 @@ type RateeSnapshot = {
     /** Per-period overrides; always null in a snapshot (master values are resolved on read). */
     photoUrl: null; tagline: null;
     /** HC PIC ratee: the PIC and its layanan / bagian. */
-    picId?: string | null; serviceCode?: string | null; bagian?: string | null;
+    picId?: string | null; serviceCode?: string | null; bagian?: string | null; serviceFunction?: string | null;
     /** Explicit order (TEAM = -1); absent means the index in the written list. */
     sortOrder?: number; dimensions: QuestionSnapshot[];
 };
@@ -725,7 +726,7 @@ function picSnapshot(pic: CsiPic, dimensions: CsiDimension[]): RateeSnapshot {
     return {
         kind: CsiRateeKind.PERSON, userId: pic.userId, displayName: pic.fullName, jobTitle: pic.jobTitle,
         siteId: pic.siteId, teamId: null, photoUrl: null, tagline: null,
-        picId: pic.id, serviceCode: pic.serviceCode, bagian: pic.bagian,
+        picId: pic.id, serviceCode: pic.serviceCode, bagian: pic.bagian, serviceFunction: pic.serviceFunction ?? null,
         dimensions: dimensions.map(questionSnapshot),
     };
 }

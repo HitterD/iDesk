@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
-import { FileSpreadsheet, Upload } from 'lucide-react';
+import { FileSpreadsheet, Pencil, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useCsiDirectory, useCsiPics, useImportCsiDirectory, useSetCsiPicActive } from '../../../hooks/useCsiHc';
+import { useCsiDirectory, useCsiPics, useImportCsiDirectory, useUpdateCsiPic } from '../../../hooks/useCsiHc';
 import type { CsiScopeParam } from '../../../types';
 import type { CsiPicView } from '../../../hcTypes';
 import { RateeAvatar } from '../../respond/RateeAvatar';
@@ -49,7 +49,38 @@ function ImportCard({ scope }: { scope: CsiScopeParam }) {
     );
 }
 
-function PicRow({ pic, onToggle, pending }: { pic: CsiPicView; onToggle: () => void; pending: boolean }) {
+const SERVICE_FUNCTION_MAX = 150;
+
+/** Fungsi pelayanan shown under the title; a pencil turns it into an input (Enter saves, Escape cancels). */
+function ServiceFunctionField({ pic, onSave }: { pic: CsiPicView; onSave: (value: string | null) => void }) {
+    const [draft, setDraft] = useState<string | null>(null);
+    if (draft === null) {
+        return (
+            <span className="mt-0.5 flex items-start gap-1">
+                <span className={cn('break-words text-[12px] leading-snug', pic.serviceFunction ? 'font-medium text-[hsl(var(--idesk-sapphire))]' : 'italic text-[hsl(var(--idesk-text-secondary))]')}>
+                    {pic.serviceFunction ?? 'Fungsi pelayanan belum diisi'}
+                </span>
+                <button type="button" aria-label={`Ubah fungsi pelayanan ${titleCase(pic.fullName)}`} onClick={() => setDraft(pic.serviceFunction ?? '')}
+                    className="shrink-0 rounded p-0.5 text-[hsl(var(--idesk-text-secondary))] hover:bg-[hsl(var(--muted))]">
+                    <Pencil className="h-3 w-3" aria-hidden="true" />
+                </button>
+            </span>
+        );
+    }
+    const save = () => { onSave(draft.trim() || null); setDraft(null); };
+    return (
+        <input autoFocus aria-label="Fungsi pelayanan" value={draft} maxLength={SERVICE_FUNCTION_MAX} onChange={(event) => setDraft(event.target.value)}
+            onBlur={save} onKeyDown={(event) => {
+                if (event.key === 'Enter') { event.preventDefault(); save(); }
+                if (event.key === 'Escape') setDraft(null);
+            }}
+            className="mt-1 w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--idesk-surface))] px-2 py-1 text-[12px]" />
+    );
+}
+
+interface PicRowProps { pic: CsiPicView; onToggle: () => void; onServiceFunction: (value: string | null) => void; pending: boolean }
+
+function PicRow({ pic, onToggle, onServiceFunction, pending }: PicRowProps) {
     return (
         <li className={cn('flex items-start gap-2.5 rounded-xl px-2 py-1.5', !pic.isActive && 'opacity-55')}>
             <RateeAvatar name={pic.fullName} avatarUrl={pic.photoUrl} size="sm" />
@@ -57,6 +88,7 @@ function PicRow({ pic, onToggle, pending }: { pic: CsiPicView; onToggle: () => v
             <span className="min-w-0 flex-1">
                 <span className="block break-words text-[13px] font-semibold leading-snug">{titleCase(pic.fullName)}</span>
                 <span className="block break-words text-[12px] leading-snug text-[hsl(var(--idesk-text-secondary))]">{titleCase(pic.jobTitle ?? '')}</span>
+                <ServiceFunctionField key={pic.serviceFunction ?? ''} pic={pic} onSave={onServiceFunction} />
                 <span className="mt-0.5 flex flex-wrap gap-1">
                     {pic.workLocation && <span className="rounded-md bg-[hsl(var(--muted))] px-1.5 text-[11px] font-medium">{pic.workLocation}</span>}
                     {pic.userId && <span className="rounded-md bg-[hsl(var(--ticket-green)/.13)] px-1.5 text-[11px] font-medium text-[hsl(var(--ticket-green-ink))]">akun iDesk</span>}
@@ -72,7 +104,7 @@ function PicRow({ pic, onToggle, pending }: { pic: CsiPicView; onToggle: () => v
 
 export function PicsTab({ scope }: { scope: CsiScopeParam }) {
     const { data: pics = [], isLoading } = useCsiPics(scope, true);
-    const toggle = useSetCsiPicActive(scope);
+    const update = useUpdateCsiPic(scope);
     const [service, setService] = useState<string | null>(null);
     const services = groupBy(pics, (pic) => pic.serviceCode);
     const shown = services.filter(([code]) => !service || code === service);
@@ -100,7 +132,8 @@ export function PicsTab({ scope }: { scope: CsiScopeParam }) {
                                     <div key={bagian} className="rounded-xl bg-[hsl(var(--idesk-surface))] p-2">
                                         <p className="mb-1 px-2 text-[11.5px] font-bold uppercase tracking-wide text-[hsl(var(--idesk-text-secondary))]">{`${titleCase(bagian)} · ${people.length}`}</p>
                                         <ul>{people.map((pic) => (
-                                            <PicRow key={pic.id} pic={pic} pending={toggle.isPending} onToggle={() => toggle.mutate({ id: pic.id, isActive: !pic.isActive })} />
+                                            <PicRow key={pic.id} pic={pic} pending={update.isPending} onToggle={() => update.mutate({ id: pic.id, isActive: !pic.isActive })}
+                                                onServiceFunction={(value) => value !== pic.serviceFunction && update.mutate({ id: pic.id, serviceFunction: value })} />
                                         ))}</ul>
                                     </div>
                                 ))}

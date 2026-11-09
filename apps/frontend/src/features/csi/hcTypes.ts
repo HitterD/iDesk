@@ -7,6 +7,8 @@ export interface CsiPicView {
     jobTitle: string | null;
     serviceCode: string;
     serviceName: string | null;
+    /** Fungsi pelayanan (free text). */
+    serviceFunction: string | null;
     bagian: string | null;
     workLocation: string | null;
     siteId: string | null;
@@ -28,6 +30,8 @@ export interface CsiRecapRow extends CsiLocationCells {
     serviceCode: string | null;
     bagian: string | null;
     jobTitle: string | null;
+    /** Fungsi pelayanan (PIC rows only). */
+    serviceFunction?: string | null;
     dimensions: Record<string, number | null>;
 }
 export interface CsiRespondentGroupRow extends CsiLocationCells {

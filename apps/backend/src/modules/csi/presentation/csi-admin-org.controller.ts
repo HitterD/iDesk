@@ -6,7 +6,7 @@ import { MULTER_OPTIONS } from '../../../shared/core/config/upload.config';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { MasterListQueryDto } from '../dto/master.dto';
-import { SetPicActiveDto } from '../dto/pic.dto';
+import { UpdatePicDto } from '../dto/pic.dto';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiOrgService } from '../org/csi-org.service';
 import { CsiUnitRulesService } from '../org/csi-unit-rules.service';
@@ -100,8 +100,8 @@ export class CsiAdminOrgController {
     }
 
     @Patch('pics/:id')
-    setPicActive(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Body() dto: SetPicActiveDto) {
-        return this.org.setPicActive(req.csiScope, id, dto.isActive);
+    updatePic(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Body() dto: UpdatePicDto) {
+        return this.org.updatePic(req.csiScope, id, dto);
     }
 
     @Post('pics/:id/photo')
