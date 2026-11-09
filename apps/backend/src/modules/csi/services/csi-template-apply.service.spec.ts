@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
@@ -98,5 +99,29 @@ describe('CsiTemplateApplyService', () => {
         expect(periodService.create).toHaveBeenCalledWith(HC, expect.objectContaining({ siteIds: ['s-smg'], respondentMode: CsiRespondentMode.LISTED, individualEnabled: true, teamEnabled: false }), 'admin');
         expect(result.periodId).toBe('p-new');
         expect(result.report.committed).toBe(true);
+    });
+
+    it('never locks people out: OPEN, respondent-picks and "everyone rates everyone" surveys are refused, mode untouched', async () => {
+        periods.rows[0] = { ...periods.rows[0], respondentMode: CsiRespondentMode.OPEN };
+        expect((await service.applyToPeriod(HC, 't1', 'p1', false)).blockedReason).toMatch(/terbuka/);
+        await expect(service.applyToPeriod(HC, 't1', 'p1', true)).rejects.toBeInstanceOf(BadRequestException);
+        periods.rows[0] = { ...periods.rows[0], respondentMode: CsiRespondentMode.LISTED, respondentPicks: true };
+        expect((await service.applyToPeriod(HC, 't1', 'p1', false)).blockedReason).toMatch(/memilih PIC sendiri/);
+        periods.rows[0] = { ...periods.rows[0], respondentPicks: false };
+        raters.rows.push({ id: 'old', periodId: 'p1', userId: 'u-old' });
+        expect((await service.applyToPeriod(HC, 't1', 'p1', false)).blockedReason).toMatch(/semua orang/);
+        await expect(service.applyToPeriod(HC, 't1', 'p1', true)).rejects.toBeInstanceOf(BadRequestException);
+        expect(pairs.rows).toEqual([]);
+        expect(periods.rows[0].respondentMode).toBe(CsiRespondentMode.LISTED);
+    });
+
+    it('a mapped survey with answers keeps its raters and pairs; template pairs are added next to them', async () => {
+        raters.rows.push({ id: 'old', periodId: 'p1', userId: 'u-old' });
+        ratees.rows.push({ id: 'r-old', periodId: 'p1', picId: 'pic-other', kind: CsiRateeKind.PERSON });
+        pairs.rows.push({ id: 'pair-old', periodId: 'p1', periodRaterId: 'old', periodRateeId: 'r-old' });
+        const report = await service.applyToPeriod(HC, 't1', 'p1', true);
+        expect(report.blockedReason).toBeNull();
+        expect(pairs.rows.map((row) => row.id)).toContain('pair-old');
+        expect(pairs.rows).toHaveLength(3);
     });
 });

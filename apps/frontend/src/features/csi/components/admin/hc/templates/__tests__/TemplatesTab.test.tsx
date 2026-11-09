@@ -21,7 +21,7 @@ const TEMPLATE: CsiTemplate = {
         { id: 'tp-jingga', area: 'HC Services', serviceCode: 'HCS', picName: 'JINGGA FERDASIWI', jobTitle: 'RECEPTIONIST', serviceFunction: null, picId: null, raterCount: 0, raters: [] },
     ],
 };
-const fx = vi.hoisted(() => ({ list: { templates: [] as unknown[], bundledAvailable: ['SMG'] } }));
+const fx = vi.hoisted(() => ({ list: { templates: [] as unknown[], bundledAvailable: ['SMG'] }, blocked: null as string | null }));
 vi.mock('../../../../../api/csiHc.api', () => ({
     CsiHcApi: {
         templates: vi.fn(async () => fx.list),
@@ -31,7 +31,7 @@ vi.mock('../../../../../api/csiHc.api', () => ({
         removeTemplateRater: vi.fn(async () => TEMPLATE),
         applyTemplate: vi.fn(async (_scope: string, _id: string, _period: string, commit: boolean) => ({
             picsAdded: 1, ratersAdded: 1, pairsAdded: 1, picsSkippedNoRaters: ['JINGGA FERDASIWI'], picsUnmatched: [],
-            ratersNoAccount: ['ARIEF NOEGROHO'], ratersAmbiguous: ['AGUS SUBEKTI'], committed: commit,
+            ratersNoAccount: ['ARIEF NOEGROHO'], ratersAmbiguous: ['AGUS SUBEKTI'], blockedReason: fx.blocked, committed: commit,
         })),
         createPeriodFromTemplate: vi.fn(),
     },
@@ -43,7 +43,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const api = async () => (await import('../../../../../api/csiHc.api')).CsiHcApi;
 
-beforeEach(() => { fx.list = { templates: [TEMPLATE], bundledAvailable: [] }; });
+beforeEach(() => { fx.list = { templates: [TEMPLATE], bundledAvailable: [] }; fx.blocked = null; });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('TemplatesTab', () => {
@@ -88,5 +88,17 @@ describe('TemplatesTab', () => {
         expect(within(dialog).getByText(/Jingga Ferdasiwi/)).toBeInTheDocument();
         await userEvent.click(within(dialog).getByRole('button', { name: /terapkan/i }));
         expect((await api()).applyTemplate).toHaveBeenLastCalledWith('hc', 't1', 'p1', true);
+    });
+
+    it('a survey that cannot be synced shows why and cannot be applied', async () => {
+        fx.blocked = 'Survei ini terbuka untuk semua user di site.';
+        renderWithQuery(<TemplatesTab scope="hc" />);
+        await userEvent.click(await screen.findByRole('button', { name: /gunakan template/i }));
+        const dialog = await screen.findByRole('dialog');
+        await userEvent.click(within(dialog).getByRole('radio', { name: /survei yang sudah ada/i }));
+        await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: /survei/i }), 'p1');
+        await userEvent.click(within(dialog).getByRole('button', { name: /pratinjau/i }));
+        expect(await within(dialog).findByText(/terbuka untuk semua user/)).toBeInTheDocument();
+        expect(within(dialog).getByRole('button', { name: /terapkan/i })).toBeDisabled();
     });
 });

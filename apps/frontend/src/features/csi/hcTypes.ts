@@ -105,4 +105,6 @@ export interface CsiTemplateImportReport {
 export interface CsiTemplateApplyReport {
     picsAdded: number; ratersAdded: number; pairsAdded: number;
     picsSkippedNoRaters: string[]; picsUnmatched: string[]; ratersNoAccount: string[]; ratersAmbiguous: string[]; committed: boolean;
+    /** Why this survey cannot take the template without hiding it from current raters (null = it can). */
+    blockedReason: string | null;
 }

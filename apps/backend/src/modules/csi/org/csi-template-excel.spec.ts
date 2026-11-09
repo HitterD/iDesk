@@ -45,4 +45,13 @@ describe('parseTemplateWorkbook', () => {
         book.addWorksheet('x').addRow(['Nama']);
         await expect(parseTemplateWorkbook(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow(/Kolom/);
     });
+
+    it('a PIC listed twice in the file becomes one PIC with the raters of both blocks', async () => {
+        const draft = await parseTemplateWorkbook(await workbook([
+            [1, 'HC Services', 'KUSMANTO', 'KOMANDAN REGU SECURITY', 'SECURITY SERVICES', 'BUDI', null],
+            [2, 'HC Services', 'Kusmanto', 'KOMANDAN REGU SECURITY', 'SECURITY SERVICES', 'CITRA', null],
+        ]));
+        expect(draft.pics).toHaveLength(1);
+        expect(draft.pics[0].raters.map((rater) => rater.name)).toEqual(['BUDI', 'CITRA']);
+    });
 });

@@ -34,8 +34,23 @@ describe('buildServiceReport', () => {
         expect(anonymous[0].responseId).not.toBe('r1');
         // The unit breakdown cannot point at the rater either.
         expect(report.respondentGroups.find((row) => row.level === 'division' && row.label === 'OPERATION')!.all.ratings).toBe(2);
-        // The score itself still counts.
-        expect(report.services.find((row) => row.key === 'p:rara')!.all.average).toBe(5);
+        // The score itself still counts in the service total.
+        expect(report.services.find((row) => row.key === 's:HCD')!.all.ratings).toBe(3);
+    });
+
+    it('the viewer own PIC row shows no location split, and nothing at all below 3 ratings', () => {
+        const few = buildServiceReport({ pics, ratings, dimensions: DIMS, serviceCode: 'HCD', hiddenRateeIds: new Set(['rara']) });
+        const own = few.services.find((row) => row.key === 'p:rara')!;
+        expect(Object.values(own.byLocation).every((cell) => cell.average === null && cell.ratings === 0)).toBe(true);
+        expect(own.all).toEqual({ average: null, ratings: 1 });
+        expect(own.dimensions).toEqual({ Knowledge: null });
+        const many = [...ratings, rating('r4', 'rara', 3), rating('r5', 'rara', 4, CsiOrgLocation.SJA1)];
+        const enough = buildServiceReport({ pics, ratings: many, dimensions: DIMS, serviceCode: 'HCD', hiddenRateeIds: new Set(['rara']) });
+        const ownEnough = enough.services.find((row) => row.key === 'p:rara')!;
+        expect(ownEnough.all).toEqual({ average: 4, ratings: 3 });
+        expect(ownEnough.dimensions).toEqual({ Knowledge: 4 });
+        expect(ownEnough.byLocation.SJA1).toEqual({ average: null, ratings: 0 });
+        expect(enough.services.find((row) => row.key === 'p:pris')!.byLocation.SJA1.ratings).toBe(1);
     });
 
     it('admins (no hidden ratees) see every rater by name', () => {

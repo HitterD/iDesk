@@ -107,4 +107,14 @@ describe('CsiAssignmentTemplateService', () => {
         expect(pics.rows.find((row) => row.id === rara.id)).toBeUndefined();
         expect(raters.rows.filter((row) => row.templatePicId === rara.id)).toEqual([]);
     });
+
+    it('a PIC that did not match the PIC master is matched again on the next load', async () => {
+        const template = await service.loadBundled(HC, 'SMG');
+        const jingga = () => pics.rows.find((row) => row.picName === 'JINGGA FERDASIWI')!;
+        expect(jingga().picId).toBeNull();
+        csiPics.rows.push({ id: 'pic-jingga', scope: HC, fullName: 'Jingga Ferdasiwi', serviceFunction: null, isActive: true });
+        await service.loadBundled(HC, 'SMG');
+        expect(jingga().picId).toBe('pic-jingga');
+        expect(templates.rows.map((row) => row.id)).toEqual([template.id]);
+    });
 });

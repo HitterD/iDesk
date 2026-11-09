@@ -1,4 +1,4 @@
-import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap, CsiRespondentDetail, ratingValue } from './csi-hc-report.calc';
+import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap, CsiRecapRow, CsiRespondentDetail, ratingValue } from './csi-hc-report.calc';
 
 /** Name shown instead of the rater on ratings the viewer may not attribute (ratings about the viewer themself). */
 export const ANONYMOUS_RESPONDENT = 'Anonim';
@@ -21,7 +21,26 @@ export function buildServiceReport(input: {
     const hidden = ratings.filter((rating) => input.hiddenRateeIds.has(rating.periodRateeId));
     const full = buildHcRecap({ pics, ratings, dimensions: input.dimensions });
     const named = buildHcRecap({ pics, ratings: visible, dimensions: input.dimensions });
-    return { ...full, respondentGroups: named.respondentGroups, respondents: [...named.respondents, ...anonymousDetails(pics, hidden)] };
+    const services = full.services.map((row) => (row.level === 'pic' && input.hiddenRateeIds.has(row.key.slice(PIC_KEY_PREFIX.length)) ? maskOwnRow(row) : row));
+    return { ...full, services, respondentGroups: named.respondentGroups, respondents: [...named.respondents, ...anonymousDetails(pics, hidden)] };
+}
+
+const PIC_KEY_PREFIX = 'p:';
+/** Below this many ratings the viewer's own averages are hidden (same rule as "Hasil penilaian saya"). */
+export const CSI_OWN_ROW_MIN_RATINGS = 3;
+const EMPTY_CELL = { average: null, ratings: 0 };
+
+/**
+ * The viewer's own PIC row: no split per rater location (one rater from a location would be identifiable), and no
+ * averages at all until enough people rated (the count stays visible).
+ */
+function maskOwnRow(row: CsiRecapRow): CsiRecapRow {
+    const byLocation = Object.fromEntries(Object.keys(row.byLocation).map((code) => [code, EMPTY_CELL])) as CsiRecapRow['byLocation'];
+    if (row.all.ratings >= CSI_OWN_ROW_MIN_RATINGS) return { ...row, byLocation };
+    return {
+        ...row, byLocation, all: { average: null, ratings: row.all.ratings },
+        dimensions: Object.fromEntries(Object.keys(row.dimensions).map((label) => [label, null])),
+    };
 }
 
 /** One anonymous row per rating, ordered by score so the order says nothing about who answered first. */

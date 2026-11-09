@@ -22,6 +22,9 @@ function NameList({ title, names }: { title: string; names: string[] }) {
 }
 
 function ReportView({ report }: { report: CsiTemplateApplyReport }) {
+    if (report.blockedReason) {
+        return <p role="alert" className="rounded-xl bg-[hsl(var(--ticket-amber)/.14)] px-3 py-2 text-[13px] text-[hsl(var(--ticket-amber-ink))]">{report.blockedReason}</p>;
+    }
     return (
         <div className="grid gap-2">
             <p className="text-[13.5px] font-semibold">
@@ -61,7 +64,7 @@ export function TemplateApplyDialog({ scope, template, open, onOpenChange }: {
         setReport(result);
         toast.success(mode === 'existing' ? 'Template disinkronkan ke survei.' : 'Survei draft dibuat dari template.');
     });
-    const canApply = mode === 'existing' ? !!report && !report.committed : !!form.title && !!form.startDate && !!form.endDate;
+    const canApply = mode === 'existing' ? !!report && !report.committed && !report.blockedReason : !!form.title && !!form.startDate && !!form.endDate;
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-lg">

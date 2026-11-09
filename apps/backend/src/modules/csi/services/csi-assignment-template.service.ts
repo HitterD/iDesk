@@ -157,7 +157,9 @@ export class CsiAssignmentTemplateService {
         for (const seed of seedPics) {
             const known = byName.get(seed.picName);
             const saved = await repos.pics.save({
-                ...(known ?? { templateId: template.id, sortOrder: order++, picId: await this.matchPic(scope, seed.picName) }),
+                ...(known ?? { templateId: template.id, sortOrder: order++ }),
+                // Re-matched on every load: a PIC imported into the master later gets linked then.
+                picId: known?.picId ?? await this.matchPic(scope, seed.picName),
                 area: seed.area, serviceCode: seed.serviceCode, picName: seed.picName,
                 jobTitle: seed.jobTitle ?? known?.jobTitle ?? null, serviceFunction: normalizeServiceFunction(seed.serviceFunction) ?? known?.serviceFunction ?? null,
             });

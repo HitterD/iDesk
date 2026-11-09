@@ -96,11 +96,15 @@ export async function parseTemplateWorkbook(buffer: Buffer): Promise<CsiTemplate
                 return;
             }
             const name = normalizeName(picName);
-            current = {
-                area: area!, serviceCode, picName: name, jobTitle: titles.get(name) ?? clean(values[columns.jobTitle]),
-                serviceFunction: clean(values[columns.serviceFunction]), raters: [],
-            };
-            pics.push(current);
+            // A PIC written twice in the file continues the first block (one PIC, raters of both).
+            current = pics.find((pic) => pic.picName === name) ?? null;
+            if (!current) {
+                current = {
+                    area: area!, serviceCode, picName: name, jobTitle: titles.get(name) ?? clean(values[columns.jobTitle]),
+                    serviceFunction: clean(values[columns.serviceFunction]), raters: [],
+                };
+                pics.push(current);
+            }
         }
         const rater = clean(values[columns.rater]);
         if (!rater || !current) return;

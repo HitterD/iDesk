@@ -17,7 +17,7 @@ describe('CsiSelfResultService', () => {
     let items: ReturnType<typeof repo>;
     let comments: ReturnType<typeof repo>;
     let service: CsiSelfResultService;
-    const period = { id: 'p1', title: 'CSI HC 2026 – Semarang', startDate: '2026-11-01', endDate: '2026-11-30', publishStatus: CsiPeriodPublishStatus.PUBLISHED, individualEnabled: true };
+    const period = { id: 'p1', scope: 'HC', title: 'CSI HC 2026 – Semarang', startDate: '2026-11-01', endDate: '2026-11-30', publishStatus: CsiPeriodPublishStatus.PUBLISHED, individualEnabled: true };
     const rated = (responseId: string, knowledge: number, courtesy: number) => [
         { responseId, periodRateeId: 'r-rara', periodRateeDimensionId: 'd-k', score: knowledge, response: { respondentName: `Penilai ${responseId}` } },
         { responseId, periodRateeId: 'r-rara', periodRateeDimensionId: 'd-c', score: courtesy, response: { respondentName: `Penilai ${responseId}` } },
@@ -62,5 +62,10 @@ describe('CsiSelfResultService', () => {
         ratees.rows.push({ id: 'r-draft', periodId: 'p2', userId: 'u-rara', kind: 'PERSON', serviceFunction: null, period: { ...period, id: 'p2', publishStatus: CsiPeriodPublishStatus.DRAFT } });
         expect((await service.list('u-rara', NOW)).map((row) => row.periodId)).toEqual(['p1']);
         expect(await service.list('nobody', NOW)).toEqual([]);
+    });
+
+    it('ICT periods are never listed (only HC people see their results)', async () => {
+        ratees.rows.push({ id: 'r-ict', periodId: 'p-ict', userId: 'u-rara', kind: 'PERSON', serviceFunction: null, period: { ...period, id: 'p-ict', scope: 'ICT' } });
+        expect((await service.list('u-rara', NOW)).map((row) => row.periodId)).toEqual(['p1']);
     });
 });

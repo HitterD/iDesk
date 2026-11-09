@@ -20,12 +20,22 @@ import { assertPeriodInScope } from './csi-scope.util';
 export type CsiTemplateApplyReport = {
     picsAdded: number; ratersAdded: number; pairsAdded: number;
     picsSkippedNoRaters: string[]; picsUnmatched: string[]; ratersNoAccount: string[]; ratersAmbiguous: string[];
+    /** Why the template cannot be synced into this survey without locking people out (null = it can). */
+    blockedReason: string | null;
     committed: boolean;
 };
+
+const BLOCKED = {
+    open: 'Survei ini terbuka untuk semua user di site. Template hanya bisa dipakai di survei dengan penilai terdaftar; buat survei baru dari template.',
+    picks: 'Di survei ini responden memilih PIC sendiri. Template hanya bisa dipakai di survei yang siapa-menilai-siapa ditetapkan HC.',
+    unmapped: 'Survei ini memakai "semua orang menilai semua PIC" untuk penilai yang sudah terdaftar. Menambah pasangan akan menyembunyikan survei dari mereka; buat survei baru dari template.',
+} as const;
 type Plan = {
     report: Omit<CsiTemplateApplyReport, 'committed'>; pics: CsiPic[]; pairs: Array<{ picId: string; userId: string }>;
     /** Service function of each PIC in the template (fallback when the PIC master has none yet). */
     templateFunctionOf: Map<string, string | null>;
+    /** The survey already had raters before the sync (its mode is then left alone). */
+    hadRaters: boolean;
 };
 type Repos = {
     ratees: Repository<CsiPeriodRatee>; rateeDims: Repository<CsiPeriodRateeDimension>;
@@ -56,10 +66,13 @@ export class CsiTemplateApplyService {
         const questions = await this.hcQuestions(scope);
         return this.dataSource.transaction(async (manager) => {
             const repos = this.repos(manager);
-            assertPeriodInScope(await repos.periods.findOne({ where: { id: periodId } }), scope);
+            const period = assertPeriodInScope(await repos.periods.findOne({ where: { id: periodId } }), scope);
             await manager.query('SELECT "id" FROM "csi_periods" WHERE "id" = $1 FOR UPDATE', [periodId]);
             const plan = await this.plan(scope, view, periodId, repos);
+            const blockedReason = await this.blockedReason(period, repos);
+            plan.report = { ...plan.report, blockedReason };
             if (!commit) return { ...plan.report, committed: false };
+            if (blockedReason) throw new BadRequestException(blockedReason);
             if (plan.pics.length && !questions.length) throw new BadRequestException('Belum ada pertanyaan HC aktif. Buat template 5 dimensi dulu.');
             await this.write(manager, repos, periodId, plan, questions);
             return { ...plan.report, committed: true };
@@ -102,7 +115,9 @@ export class CsiTemplateApplyService {
             pics: pics.filter((pic) => !rateeOfPic.has(pic.id)),
             pairs: fresh,
             templateFunctionOf: new Map(matched.map((pic) => [pic.picId, pic.serviceFunction])),
+            hadRaters: existingRaters.length > 0,
             report: {
+                blockedReason: null,
                 picsAdded: pics.filter((pic) => !rateeOfPic.has(pic.id)).length,
                 ratersAdded: new Set(fresh.map((pair) => pair.userId).filter((userId) => !raterOfUser.has(userId))).size,
                 pairsAdded: new Set(fresh.map((pair) => `${pair.userId}|${pair.picId}`)).size,
@@ -137,7 +152,20 @@ export class CsiTemplateApplyService {
             return [`${row.periodRaterId}|${row.periodRateeId}`, row] as const;
         })).values()];
         if (rows.length) await repos.pairs.save(rows);
-        await manager.update(CsiPeriod, { id: periodId }, { respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM, respondentPicks: false });
+        // Only an empty survey switches to the template's mode; an existing mapping already is LISTED + pairs.
+        if (!plan.hadRaters) await manager.update(CsiPeriod, { id: periodId }, { respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM, respondentPicks: false });
+    }
+
+    /**
+     * Sync must never take the survey away from anyone who can answer it now: OPEN and respondent-picks surveys, and
+     * LISTED surveys whose registered raters have no pairs yet ("everyone rates every PIC"), are refused.
+     */
+    private async blockedReason(period: CsiPeriod, repos: Repos): Promise<string | null> {
+        if (period.respondentMode === CsiRespondentMode.OPEN) return BLOCKED.open;
+        if (period.respondentPicks) return BLOCKED.picks;
+        const raters = await repos.raters.count({ where: { periodId: period.id } });
+        const pairs = await repos.pairs.count({ where: { periodId: period.id } });
+        return raters > 0 && pairs === 0 ? BLOCKED.unmapped : null;
     }
 
     /** Active scored HC questions in master order (the five star dimensions). */

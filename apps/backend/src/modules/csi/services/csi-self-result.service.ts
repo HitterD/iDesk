@@ -1,6 +1,7 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind } from '../csi.constants';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
@@ -48,7 +49,8 @@ export class CsiSelfResultService {
 
     async list(userId: string, now: Date = new Date()): Promise<CsiSelfResult[]> {
         const rows = (await this.ratees.find({
-            where: { userId, kind: CsiRateeKind.PERSON, period: { publishStatus: CsiPeriodPublishStatus.PUBLISHED } },
+            // HC only: ICT results stay as they were (not shown to the rated people).
+            where: { userId, kind: CsiRateeKind.PERSON, period: { scope: ServiceScope.HC, publishStatus: CsiPeriodPublishStatus.PUBLISHED } },
             relations: { period: true },
         })).filter((row) => row.period && !row.period.cancelledAt && row.period.individualEnabled !== false);
         const results = await Promise.all(rows.map((row) => this.resultOf(row, now)));
