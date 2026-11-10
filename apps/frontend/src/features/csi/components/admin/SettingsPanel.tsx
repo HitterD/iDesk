@@ -76,7 +76,7 @@ export function useSettingsStatus(scope: CsiScopeParam): SectionStatus[] {
     ];
 }
 
-function Body({ scope, section }: { scope: CsiScopeParam; section: SettingsSection }) {
+function Body({ scope, section, onSection }: { scope: CsiScopeParam; section: SettingsSection; onSection: (section: SettingsSection) => void }) {
     switch (section) {
         case 'questions': return <DimensionsTab scope={scope} />;
         case 'raters': return <RatersTab scope={scope} />;
@@ -84,7 +84,7 @@ function Body({ scope, section }: { scope: CsiScopeParam; section: SettingsSecti
         case 'pics': return <PicsTab scope={scope} />;
         case 'report-owners': return <ReportOwnersTab scope={scope} />;
         case 'templates': return <TemplatesTab scope={scope} />;
-        default: return <SubjectsTab scope={scope} />;
+        default: return <SubjectsTab scope={scope} onOpenTemplates={scope === 'hc' ? () => onSection('templates') : undefined} />;
     }
 }
 
@@ -122,7 +122,7 @@ export function SettingsPanel({ scope, initial }: { scope: CsiScopeParam; initia
                         <p className="text-[13px] text-[hsl(var(--idesk-text-secondary))]">{current.description}</p>
                     </div>
                 </header>
-                <Body scope={scope} section={section} />
+                <Body scope={scope} section={section} onSection={setSection} />
             </div>
         </div>
     );
