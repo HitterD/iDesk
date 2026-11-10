@@ -43,6 +43,7 @@ vi.mock('../../../../../api/csiHc.api', () => ({
         loadBundledTemplate: vi.fn(async () => TEMPLATE),
         updateTemplatePic: vi.fn(async () => TEMPLATE),
         addTemplateRater: vi.fn(async () => TEMPLATE),
+        templateAccountSuggestions: vi.fn(async () => []),
         removeTemplateRater: vi.fn(async () => TEMPLATE),
         applyTemplate: vi.fn(async (_scope: string, _id: string, _period: string, commit: boolean) => ({
             picsAdded: 1, ratersAdded: 1, pairsAdded: 1, picsSkippedNoRaters: ['JINGGA FERDASIWI'], picsUnmatched: [],
@@ -190,7 +191,7 @@ describe('TemplatesTab', () => {
         await userEvent.clear(input);
         await userEvent.type(input, 'POD{Enter}');
         expect((await api()).updateTemplatePic).toHaveBeenCalledWith('hc', 'tp-rara', { serviceFunction: 'POD' });
-        await userEvent.type(within(rara).getByRole('textbox', { name: /tambah penilai/i }), 'budi santoso{Enter}');
+        await userEvent.type(within(rara).getByRole('combobox', { name: /tambah penilai/i }), 'budi santoso{Enter}');
         expect((await api()).addTemplateRater).toHaveBeenCalledWith('hc', 'tp-rara', { name: 'budi santoso' });
     });
 

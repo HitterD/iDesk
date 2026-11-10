@@ -11,7 +11,9 @@ import { CSI_TEMPLATE_LOCATIONS } from '../hcFormat';
 import { TemplateApplyDialog } from './TemplateApplyDialog';
 import { BlankTemplateButton, TemplateEmptyState, type TemplateLocation } from './TemplateEmptyState';
 import { TemplateImportDialog } from './TemplateImportDialog';
+import { TemplateIssuesPanel } from './TemplateIssuesPanel';
 import { TemplatePicCard } from './TemplatePicCard';
+import type { AddRaterBody } from './RaterRow';
 
 const SERVICE_ORDER = ['HCD', 'HCC', 'HCS'];
 const SERVICE_NAMES: Record<string, string> = { HCD: 'HC Development', HCC: 'HC Compensation & Benefit', HCS: 'HC Services' };
@@ -21,7 +23,7 @@ function TemplateEditor({ scope, template, location, onImport }: {
 }) {
     const [applying, setApplying] = useState(false);
     const update = useCsiTemplateMutation(scope, ({ id, serviceFunction }: { id: string; serviceFunction: string | null }) => CsiHcApi.updateTemplatePic(scope, id, { serviceFunction }));
-    const addRater = useCsiTemplateMutation(scope, ({ id, name }: { id: string; name: string }) => CsiHcApi.addTemplateRater(scope, id, { name }));
+    const addRater = useCsiTemplateMutation(scope, ({ id, body }: { id: string; body: AddRaterBody }) => CsiHcApi.addTemplateRater(scope, id, body));
     const removeRater = useCsiTemplateMutation(scope, (raterId: string) => CsiHcApi.removeTemplateRater(scope, raterId));
     const removePic = useCsiTemplateMutation(scope, (picId: string) => CsiHcApi.removeTemplatePic(scope, picId));
     const pending = update.isPending || addRater.isPending || removeRater.isPending || removePic.isPending;
@@ -32,13 +34,14 @@ function TemplateEditor({ scope, template, location, onImport }: {
                 <div className="min-w-0 flex-1">
                     <p className="text-[15px] font-bold">{template.name}</p>
                     <p className={MUTED_TEXT}>
-                        {`${summary.pics} PIC · ${summary.raters} pasangan penilai · ${summary.ratersOk} cocok, ${summary.ratersNoAccount} belum punya akun, ${summary.ratersAmbiguous} nama ganda · ${summary.picsWithoutRaters} PIC belum ada penilai`}
+                        {`${summary.pics} PIC · ${summary.raters} penilai · ${summary.ratersConfirmed} terkonfirmasi · ${summary.ratersOk} cocok otomatis · ${summary.ratersAmbiguous} nama ganda · ${summary.ratersNoAccount} belum punya akun`}
                     </p>
                 </div>
                 <BlankTemplateButton scope={scope} location={location} variant="subtle" />
                 <Button variant="soft" onClick={onImport}><FileSpreadsheet aria-hidden="true" />Impor Excel</Button>
                 <Button variant="primary" onClick={() => setApplying(true)}><Play aria-hidden="true" />Gunakan template</Button>
             </div>
+            <TemplateIssuesPanel scope={scope} template={template} />
             {SERVICE_ORDER.map((code) => {
                 const pics = template.pics.filter((pic) => pic.serviceCode === code);
                 if (!pics.length) return null;
@@ -47,9 +50,9 @@ function TemplateEditor({ scope, template, location, onImport }: {
                         <h3 className="text-[14px] font-bold">{`${code} · ${SERVICE_NAMES[code]} (${pics.length})`}</h3>
                         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                             {pics.map((pic) => (
-                                <TemplatePicCard key={pic.id} pic={pic} pending={pending}
+                                <TemplatePicCard key={pic.id} scope={scope} templateId={template.id} pic={pic} pending={pending}
                                     onServiceFunction={(serviceFunction) => update.mutate({ id: pic.id, serviceFunction })}
-                                    onAddRater={(name) => addRater.mutate({ id: pic.id, name })}
+                                    onAddRater={(body) => addRater.mutate({ id: pic.id, body })}
                                     onRemoveRater={(raterId) => removeRater.mutate(raterId)}
                                     onRemovePic={() => window.confirm(`Hapus ${pic.picName} beserta penilainya dari template?`) && removePic.mutate(pic.id)} />
                             ))}
