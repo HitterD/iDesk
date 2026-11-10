@@ -53,6 +53,81 @@ describe('CsiAssignmentTemplateService', () => {
         service = new CsiAssignmentTemplateService(templates as any, pics as any, raters as any, csiPics as any, users as any, people as any, sites as any, dataSource as any);
     });
 
+    function seedRaters() {
+        templates.rows.push({ id: 't', scope: HC, locationCode: 'SMG', name: 'Template' });
+        pics.rows.push({ id: 'p', templateId: 't', picName: 'PIC', sortOrder: 0 });
+        raters.rows.push(
+            { id: 'r1', templatePicId: 'p', raterName: 'ELVI CYNTHIA', userId: null },
+            { id: 'r2', templatePicId: 'p', raterName: 'AGUS SUBEKTI', userId: null },
+        );
+    }
+
+    it('confirm rejects ambiguous and missing accounts before any write', async () => {
+        seedRaters();
+        await expect(service.confirmRaters(HC, ['r1', 'r2'], true, 'actor')).rejects.toThrow('Pilih akun dulu untuk: AGUS SUBEKTI');
+        expect(raters.rows[0].confirmedAt).toBeUndefined();
+        raters.rows[1].raterName = 'TIDAK ADA';
+        await expect(service.confirmRaters(HC, ['r2'], true, 'actor')).rejects.toThrow('Pilih akun dulu untuk: TIDAK ADA');
+    });
+
+    it('bulk account pins and confirms all ids, and null clears both', async () => {
+        seedRaters();
+        const result = await service.setRaterAccounts(HC, ['r1', 'r2'], 'u-elvi', 'actor');
+        expect(result.id).toBe('t');
+        for (const row of raters.rows) expect(row).toMatchObject({ userId: 'u-elvi', confirmedAt: expect.any(Date), confirmedById: 'actor' });
+        await service.setRaterAccounts(HC, ['r1', 'r2'], null, 'actor');
+        for (const row of raters.rows) expect(row).toMatchObject({ userId: null, confirmedAt: null, confirmedById: null });
+    });
+
+    it('confirm resolves names and NIK, unconfirm preserves pins, single account delegates', async () => {
+        seedRaters();
+        raters.rows[1].raterNik = '277';
+        users.rows[2].employeeId = '00000277';
+        await service.confirmRaters(HC, ['r1', 'r2'], true, 'actor');
+        expect(raters.rows[0]).toMatchObject({ userId: 'u-elvi', confirmedById: 'actor' });
+        expect(raters.rows[1]).toMatchObject({ userId: 'u-agus2', confirmedAt: expect.any(Date) });
+        await service.confirmRaters(HC, ['r1'], false, 'actor');
+        expect(raters.rows[0]).toMatchObject({ userId: 'u-elvi', confirmedAt: null, confirmedById: null });
+        await service.setRaterAccount(HC, 'r1', 'u-agus1', 'actor');
+        expect(raters.rows[0]).toMatchObject({ userId: 'u-agus1', confirmedAt: expect.any(Date) });
+    });
+
+    it('rejects unknown or other-scope raters and inactive accounts without writes', async () => {
+        seedRaters();
+        templates.rows.push({ id: 'ict', scope: ServiceScope.ICT });
+        pics.rows.push({ id: 'ip', templateId: 'ict' });
+        raters.rows.push({ id: 'ir', templatePicId: 'ip', raterName: 'ELVI CYNTHIA' });
+        await expect(service.setRaterAccounts(HC, ['r1', 'ir'], 'u-elvi', 'actor')).rejects.toThrow('Penilai tidak ditemukan');
+        await expect(service.confirmRaters(HC, ['r1', 'missing'], false, 'actor')).rejects.toThrow('Penilai tidak ditemukan');
+        await expect(service.setRaterAccounts(HC, ['r1'], 'inactive', 'actor')).rejects.toThrow('Pengguna tidak ditemukan atau tidak aktif');
+        expect(raters.rows[0].userId).toBeNull();
+    });
+
+    it('returns first requested raters template when ids span templates', async () => {
+        seedRaters();
+        templates.rows.push({ id: 't2', scope: HC, locationCode: 'KRW', name: 'Other' });
+        pics.rows.push({ id: 'p2', templateId: 't2', sortOrder: 0 });
+        raters.rows.push({ id: 'r3', templatePicId: 'p2', raterName: 'ELVI CYNTHIA' });
+        expect((await service.setRaterAccounts(HC, ['r3', 'r1'], 'u-elvi', 'actor')).id).toBe('t2');
+    });
+
+    it('addRater by account is confirmed', async () => {
+        seedRaters();
+        raters.rows.splice(1, 1);
+        await service.addRater(HC, 'p', { userId: 'u-agus1' }, 'actor');
+        expect(raters.rows.find((row) => row.userId === 'u-agus1')).toMatchObject({ confirmedAt: expect.any(Date), confirmedById: 'actor' });
+    });
+
+    it('loads suggestions using active users with site and department in one query', async () => {
+        seedRaters();
+        users.rows[0] = { ...users.rows[0], siteId: 's-smg', site: { code: 'SMG' }, department: { name: 'HC' }, email: 'elvi@example.test', employeeId: '123' };
+        users.rows.push({ id: 'off', fullName: 'Elvi Cynthia', isActive: false });
+        const result = await service.accountSuggestions(HC, 't', 'Elvi');
+        expect(result).toEqual([expect.objectContaining({ id: 'u-elvi', siteCode: 'SMG', department: 'HC', email: 'elvi@example.test' })]);
+        expect(users.find).toHaveBeenCalledWith(expect.objectContaining({ where: { isActive: true }, relations: { site: true, department: true }, relationLoadStrategy: 'join' }));
+        await expect(service.accountSuggestions(HC, 't', ' a ')).rejects.toBeInstanceOf(BadRequestException);
+    });
+
     it('loads the bundled Semarang template once: 19 PICs, service functions, four new staff without raters', async () => {
         const first = await service.loadBundled(HC, 'SMG');
         await service.loadBundled(HC, 'SMG');
@@ -98,8 +173,8 @@ describe('CsiAssignmentTemplateService', () => {
     it('a rater added later by hand is kept; adding the same name twice is refused', async () => {
         const template = await service.loadBundled(HC, 'SMG');
         const jingga = (await service.get(HC, template.id)).pics.find((pic) => pic.picName === 'JINGGA FERDASIWI')!;
-        await service.addRater(HC, jingga.id, { name: 'elvi cynthia' });
-        await expect(service.addRater(HC, jingga.id, { name: 'ELVI  CYNTHIA' })).rejects.toBeInstanceOf(BadRequestException);
+        await service.addRater(HC, jingga.id, { name: 'elvi cynthia' }, 'actor');
+        await expect(service.addRater(HC, jingga.id, { name: 'ELVI  CYNTHIA' }, 'actor')).rejects.toBeInstanceOf(BadRequestException);
         const after = (await service.get(HC, template.id)).pics.find((pic) => pic.id === jingga.id)!;
         expect(after.raters.map((rater) => [rater.raterName, rater.status])).toEqual([['ELVI CYNTHIA', 'ok']]);
     });

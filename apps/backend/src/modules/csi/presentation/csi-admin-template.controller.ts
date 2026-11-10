@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPip
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
-import { AddTemplatePicDto, AddTemplateRaterDto, CreatePeriodFromTemplateDto, SetTemplateRaterAccountDto, UpdateTemplatePicDto } from '../dto/template.dto';
+import { AddTemplatePicDto, AddTemplateRaterDto, CreatePeriodFromTemplateDto, ConfirmTemplateRatersDto, SetTemplateRaterAccountsDto, SetTemplateRaterAccountDto, UpdateTemplatePicDto } from '../dto/template.dto';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiAssignmentTemplateService } from '../services/csi-assignment-template.service';
 import { CsiTemplateApplyService } from '../services/csi-template-apply.service';
@@ -35,6 +35,11 @@ export class CsiAdminTemplateController {
     @Get()
     list(@Req() req: CsiAdminRequest) {
         return this.templates.list(hc(req));
+    }
+
+    @Get(':id/account-suggestions')
+    accountSuggestions(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Query('name') name: string) {
+        return this.templates.accountSuggestions(hc(req), id, name);
     }
 
     @Get(':id')
@@ -74,12 +79,22 @@ export class CsiAdminTemplateController {
     @Post('pics/:picId/raters')
     addRater(@Req() req: CsiAdminRequest, @Param('picId', ID_PIPE) picId: string, @Body() dto: AddTemplateRaterDto) {
         if (!dto.name && !dto.userId) throw new BadRequestException('Isi nama penilai atau pilih akun');
-        return this.templates.addRater(hc(req), picId, dto);
+        return this.templates.addRater(hc(req), picId, dto, req.user.userId);
+    }
+
+    @Put('raters/account')
+    setRaterAccounts(@Req() req: CsiAdminRequest, @Body() dto: SetTemplateRaterAccountsDto) {
+        return this.templates.setRaterAccounts(hc(req), dto.raterIds, dto.userId ?? null, req.user.userId);
+    }
+
+    @Put('raters/confirm')
+    confirmRaters(@Req() req: CsiAdminRequest, @Body() dto: ConfirmTemplateRatersDto) {
+        return this.templates.confirmRaters(hc(req), dto.raterIds, dto.confirmed, req.user.userId);
     }
 
     @Put('raters/:raterId/account')
     setRaterAccount(@Req() req: CsiAdminRequest, @Param('raterId', ID_PIPE) raterId: string, @Body() dto: SetTemplateRaterAccountDto) {
-        return this.templates.setRaterAccount(hc(req), raterId, dto.userId);
+        return this.templates.setRaterAccount(hc(req), raterId, dto.userId, req.user.userId);
     }
 
     @Delete('raters/:raterId')

@@ -13,7 +13,8 @@ import { buildNameIndex, normalizeName } from '../org/csi-name-match';
 import { CSI_HC_SERVICES, normalizeBagian } from '../org/csi-org.constants';
 import { normalizeServiceFunction } from '../org/csi-org.service';
 import { CsiTemplateSeed, CsiTemplateSeedPic, parseTemplateWorkbook } from '../org/csi-template-excel';
-import { buildTemplateView, CsiTemplateView } from '../org/csi-template-view';
+import { buildTemplateView, CsiTemplateView, resolveRater } from '../org/csi-template-view';
+import { suggestAccounts } from '../org/csi-account-suggest';
 import { CSI_TEMPLATE_HC_SMG_2026 } from '../org/templates/hc-smg-2026.data';
 
 /** Templates shipped with the app, loaded on request (idempotent). */
@@ -62,6 +63,22 @@ export class CsiAssignmentTemplateService {
         const pics = await this.pics.find({ where: { templateId: id } });
         const raters = pics.length ? await this.raters.find({ where: { templatePicId: In(pics.map((pic) => pic.id)) } }) : [];
         return buildTemplateView(template, pics, raters, await this.activeAccounts());
+    }
+
+    async accountSuggestions(scope: ServiceScope, templateId: string, name: string) {
+        if (typeof name !== 'string' || name.trim().length < 2) throw new BadRequestException('Nama minimal 2 karakter');
+        const template = await this.templates.findOne({ where: { id: templateId, scope } });
+        if (!template) throw new NotFoundException(NOT_FOUND_MESSAGE);
+        const site = await this.sites.findOne({ where: { code: template.locationCode } });
+        // Joined relations keep suggestions to one active-user query, without per-candidate lookups.
+        const accounts = await this.users.find({
+            where: { isActive: true }, relations: { site: true, department: true }, relationLoadStrategy: 'join',
+            select: { id: true, fullName: true, email: true, employeeId: true, siteId: true, site: { code: true }, department: { name: true } },
+        });
+        return suggestAccounts(name.trim(), accounts.map((account) => ({
+            id: account.id, fullName: account.fullName, email: account.email, employeeId: account.employeeId ?? null,
+            siteId: account.siteId ?? null, siteCode: account.site?.code ?? null, department: account.department?.name ?? null,
+        })), { siteId: site?.id ?? null });
     }
 
     /** Creates (or merges into) the template of a location from the copy bundled with the app. */
@@ -119,25 +136,73 @@ export class CsiAssignmentTemplateService {
     }
 
     /** Adds a rater by name, or by account (`userId`, which then also gives the name). */
-    async addRater(scope: ServiceScope, templatePicId: string, input: { name?: string; userId?: string; jobTitle?: string | null }) {
+    async addRater(scope: ServiceScope, templatePicId: string, input: { name?: string; userId?: string; jobTitle?: string | null }, actorId: string) {
         const pic = await this.findPic(scope, templatePicId);
         const account = input.userId ? await this.users.findOne({ where: { id: input.userId, isActive: true } }) : null;
         if (input.userId && !account) throw new BadRequestException('Pengguna tidak ditemukan atau tidak aktif');
         const raterName = normalizeName(account?.fullName ?? input.name);
         if (!raterName) throw new BadRequestException('Nama penilai wajib diisi');
         if (await this.raters.findOne({ where: { templatePicId: pic.id, raterName } })) throw new BadRequestException('Penilai sudah ada untuk PIC ini');
-        await this.raters.save({ templatePicId: pic.id, raterName, raterJobTitle: input.jobTitle?.trim() || account?.jobTitle || null, userId: account?.id ?? null });
+        await this.raters.save({
+            templatePicId: pic.id, raterName, raterJobTitle: input.jobTitle?.trim() || account?.jobTitle || null, userId: account?.id ?? null,
+            confirmedAt: account ? new Date() : null, confirmedById: account ? actorId ?? null : null,
+        });
         return this.get(scope, pic.templateId);
     }
 
-    /** Pins an ambiguous or unmatched rater to one account (null clears the pin). */
-    async setRaterAccount(scope: ServiceScope, raterId: string, userId: string | null) {
-        const rater = await this.raters.findOne({ where: { id: raterId } });
-        if (!rater) throw new NotFoundException('Penilai tidak ditemukan');
-        const pic = await this.findPic(scope, rater.templatePicId);
-        if (userId && !(await this.users.findOne({ where: { id: userId, isActive: true } }))) throw new BadRequestException('Pengguna tidak ditemukan atau tidak aktif');
-        await this.raters.save({ ...rater, userId });
-        return this.get(scope, pic.templateId);
+    /** Legacy single-row API shares the bulk transaction and audit trail. */
+    async setRaterAccount(scope: ServiceScope, raterId: string, userId: string | null, actorId: string) {
+        return this.setRaterAccounts(scope, [raterId], userId, actorId);
+    }
+
+    async setRaterAccounts(scope: ServiceScope, raterIds: string[], userId: string | null, actorId: string) {
+        const templateId = await this.dataSource.transaction(async (manager) => {
+            const selection = await this.scopedRaters(manager, scope, raterIds);
+            if (userId != null && !(await manager.getRepository(User).findOne({ where: { id: userId, isActive: true } }))) {
+                throw new BadRequestException('Pengguna tidak ditemukan atau tidak aktif');
+            }
+            const confirmedAt = userId == null ? null : new Date();
+            await manager.getRepository(CsiAssignmentTemplateRater).save(selection.raters.map((rater) => ({
+                ...rater, userId, confirmedAt, confirmedById: userId == null ? null : actorId,
+            })));
+            return selection.templateId;
+        });
+        return this.get(scope, templateId);
+    }
+
+    async confirmRaters(scope: ServiceScope, raterIds: string[], confirmed: boolean, actorId: string) {
+        const templateId = await this.dataSource.transaction(async (manager) => {
+            const selection = await this.scopedRaters(manager, scope, raterIds);
+            const accounts = confirmed ? await this.activeAccounts(manager.getRepository(User)) : [];
+            const resolved = selection.raters.map((rater) => ({ rater, match: resolveRater(rater, accounts) }));
+            const rejected = resolved.filter(({ match }) => match.status === 'ambiguous' || match.status === 'no-account');
+            if (confirmed && rejected.length) {
+                throw new BadRequestException('Pilih akun dulu untuk: ' + [...new Set(rejected.map(({ rater }) => rater.raterName))].join(', '));
+            }
+            const confirmedAt = confirmed ? new Date() : null;
+            await manager.getRepository(CsiAssignmentTemplateRater).save(resolved.map(({ rater, match }) => ({
+                ...rater, userId: confirmed ? match.userId : rater.userId, confirmedAt, confirmedById: confirmed ? actorId : null,
+            })));
+            return selection.templateId;
+        });
+        return this.get(scope, templateId);
+    }
+
+    /** Validate the complete selection before writing; return the first requested rater's template across locations. */
+    private async scopedRaters(manager: EntityManager, scope: ServiceScope, raterIds: string[]) {
+        const ids = [...new Set(raterIds)];
+        if (!ids.length) throw new NotFoundException('Penilai tidak ditemukan');
+        const repos = this.repos(manager);
+        const raters = await repos.raters.find({ where: { id: In(ids) } });
+        const pics = await repos.pics.find({ where: { id: In(raters.map((rater) => rater.templatePicId)) } });
+        const templates = await repos.templates.find({ where: { id: In(pics.map((pic) => pic.templateId)), scope } });
+        const templateIds = new Set(templates.map((template) => template.id));
+        const picTemplates = new Map(pics.filter((pic) => templateIds.has(pic.templateId)).map((pic) => [pic.id, pic.templateId]));
+        const byId = new Map(raters.map((rater) => [rater.id, rater]));
+        if (raters.length !== ids.length || raters.some((rater) => !picTemplates.has(rater.templatePicId))) {
+            throw new NotFoundException('Penilai tidak ditemukan');
+        }
+        return { raters: ids.map((id) => byId.get(id)!), templateId: picTemplates.get(byId.get(ids[0])!.templatePicId)! };
     }
 
     async removeRater(scope: ServiceScope, raterId: string) {
@@ -275,8 +340,8 @@ export class CsiAssignmentTemplateService {
         return pic;
     }
 
-    private async activeAccounts() {
-        return this.users.find({ where: { isActive: true }, select: { id: true, fullName: true, employeeId: true, siteId: true } });
+    private async activeAccounts(users: Repository<User> = this.users) {
+        return users.find({ where: { isActive: true }, select: { id: true, fullName: true, employeeId: true, siteId: true } });
     }
 
     private repos(manager: EntityManager): Repos {

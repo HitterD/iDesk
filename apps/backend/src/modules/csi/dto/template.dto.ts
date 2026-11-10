@@ -1,4 +1,4 @@
-import { IsDateString, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, ValidateIf } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, ValidateIf } from 'class-validator';
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -41,6 +41,23 @@ export class AddTemplateRaterDto {
 export class SetTemplateRaterAccountDto {
     @ValidateIf((_dto, value) => value !== null) @IsUUID('all', { message: 'ID pengguna harus berupa UUID' })
     userId: string | null;
+}
+
+const MAX_BULK_RATERS = 2000;
+
+class TemplateRaterSelectionDto {
+    @IsArray() @ArrayMinSize(1) @ArrayMaxSize(MAX_BULK_RATERS) @IsUUID('4', { each: true })
+    raterIds: string[];
+}
+
+export class SetTemplateRaterAccountsDto extends TemplateRaterSelectionDto {
+    @IsOptional() @IsUUID('4', { message: 'ID pengguna harus berupa UUID' })
+    userId?: string | null;
+}
+
+export class ConfirmTemplateRatersDto extends TemplateRaterSelectionDto {
+    @IsBoolean()
+    confirmed: boolean;
 }
 
 export class CreatePeriodFromTemplateDto {
