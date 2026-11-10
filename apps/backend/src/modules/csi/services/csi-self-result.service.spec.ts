@@ -42,7 +42,56 @@ describe('CsiSelfResultService', () => {
             { responseId: 'b', periodRateeId: 'r-rara', comment: 'Cepat tanggap', response: { respondentName: 'Penilai b' } },
         ]);
         pics = repo([]);
-        service = new CsiSelfResultService(ratees as any, dimensions as any, items as any, comments as any, pics as any, () => 0);
+        service = new CsiSelfResultService(ratees as any, dimensions as any, items as any, comments as any, pics as any, () => 0, repo([]) as any);
+    });
+
+    describe('custom team results', () => {
+        let members: ReturnType<typeof repo>;
+        beforeEach(() => {
+            members = repo([{ teamId: 'team-custom', userId: 'u-member', team: { kind: 'CUSTOM' } }]);
+            ratees.rows.push({ id: 'r-team', periodId: 'p1', kind: 'TEAM', teamId: 'team-custom',
+                displayName: 'Snapshot tim', team: { kind: 'CUSTOM', name: 'Payroll' }, period });
+            dimensions.rows.push({ id: 'd-team', periodRateeId: 'r-team', dimensionName: 'Courtesy', type: 'STAR', sortOrder: 0 });
+            items.rows.push(...['a', 'b', 'c'].map((responseId) => ({ responseId, periodRateeId: 'r-team', periodRateeDimensionId: 'd-team', score: 4 })));
+            comments.rows.push({ responseId: 'a', periodRateeId: 'r-team', comment: 'Tim membantu', respondentName: 'Rahasia' });
+            service = new CsiSelfResultService(ratees as any, dimensions as any, items as any, comments as any, pics as any, () => 0, members as any);
+        });
+
+        it('team result listed for member with team label', async () => {
+            expect(await service.list('u-member', NOW)).toEqual([expect.objectContaining({ teamName: 'Payroll', ready: true, raters: 3, average: 4, comments: ['Tim membantu'] })]);
+            expect(JSON.stringify(await service.list('u-member', NOW))).not.toMatch(/Rahasia|responseId/);
+        });
+
+        it('hidden below 3 raters', async () => {
+            items.rows.splice(items.rows.findIndex((row) => row.periodRateeId === 'r-team'), 1);
+            expect(await service.list('u-member', NOW)).toEqual([expect.objectContaining({ teamName: 'Payroll', raters: 2, ready: false, average: null, dimensions: [], comments: [] })]);
+        });
+
+        it('non-member not listed', async () => {
+            expect(await service.list('u-outsider', NOW)).toEqual([]);
+        });
+
+        it('site team not listed', async () => {
+            members.rows[0].team.kind = 'SITE';
+            ratees.rows.find((row) => row.id === 'r-team').team.kind = 'SITE';
+            expect(await service.list('u-member', NOW)).toEqual([]);
+        });
+
+        it('keeps personal results before team results in the same period', async () => {
+            members.rows[0].userId = 'u-rara';
+            ratees.rows.reverse();
+            expect((await service.list('u-rara', NOW)).map((row) => (row as any).teamName)).toEqual([null, 'Payroll']);
+        });
+
+        it('reuses HC visibility rules and the display-name fallback', async () => {
+            const team = ratees.rows.find((row) => row.id === 'r-team');
+            team.team.name = null;
+            expect(await service.list('u-member', NOW)).toEqual([expect.objectContaining({ teamName: 'Snapshot tim' })]);
+            for (const override of [{ cancelledAt: NOW }, { individualEnabled: false }, { publishStatus: CsiPeriodPublishStatus.DRAFT }, { scope: 'ICT', selfResults: false }]) {
+                team.period = { ...period, ...override };
+                expect(await service.list('u-member', NOW)).toEqual([]);
+            }
+        });
     });
 
     it('with fewer than 3 raters nothing but the count is returned', async () => {

@@ -32,6 +32,7 @@ function ResultCard({ result, index }: { result: CsiSelfResult; index: number })
             <header className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                     <h2 className="text-[16px] font-bold">{result.title}</h2>
+                    {result.teamName && <p className="mt-1 text-[13px] font-semibold text-muted-foreground">{`Tim ${result.teamName}`}</p>}
                     <p className="text-[12.5px] text-muted-foreground">{`${formatDate(result.startDate)} – ${formatDate(result.endDate)} · ${STATUS_TEXT[result.status]}`}</p>
                     {result.serviceFunction && <p className="mt-1 text-[13px] text-[hsl(var(--idesk-sapphire))]">{`Fungsi pelayanan: ${result.serviceFunction}`}</p>}
                 </div>
@@ -87,7 +88,7 @@ export function CsiMyResultsPage() {
             {results && !results.length && (
                 <p className={cn(CSI_CARD, 'p-6 text-[14px] text-muted-foreground')}>Anda belum menjadi orang yang dinilai pada survei mana pun.</p>
             )}
-            {results?.map((result, index) => <ResultCard key={result.periodId} result={result} index={index} />)}
+            {results?.map((result, index) => <ResultCard key={`${result.periodId}-${index}`} result={result} index={index} />)}
         </div>
     );
 }

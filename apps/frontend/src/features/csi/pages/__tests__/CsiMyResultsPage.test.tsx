@@ -7,7 +7,7 @@ import { CsiMyResultsPage } from '../CsiMyResultsPage';
 
 const base: CsiSelfResult = {
     periodId: 'p1', title: 'CSI HC 2026 – Semarang', startDate: '2026-11-01', endDate: '2026-11-30', status: 'ACTIVE',
-    serviceFunction: 'People & Organization Development', raters: 2, minRaters: 3, ready: false, average: null, dimensions: [], comments: [],
+    serviceFunction: 'People & Organization Development', teamName: null, raters: 2, minRaters: 3, ready: false, average: null, dimensions: [], comments: [],
 };
 const fx = vi.hoisted(() => ({ results: [] as unknown[] }));
 vi.mock('../../api/csi.api', () => ({ CsiApi: { myResults: vi.fn(async () => fx.results) } }));
@@ -37,6 +37,13 @@ describe('CsiMyResultsPage', () => {
         expect(screen.getByText('“Sangat membantu”')).toBeInTheDocument();
         expect(screen.getByText(/dari 4 penilai/)).toBeInTheDocument();
         expect(screen.getByText(/People & Organization Development/)).toBeInTheDocument();
+    });
+
+    it('shows a team label alongside a personal result in the same period', async () => {
+        fx.results = [base, { ...base, teamName: 'Payroll' }];
+        renderPage();
+        expect(await screen.findByText('Tim Payroll')).toBeInTheDocument();
+        expect(screen.getAllByRole('heading', { name: base.title })).toHaveLength(2);
     });
 
     it('explains when nobody rated the account', async () => {
