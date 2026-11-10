@@ -55,6 +55,18 @@ beforeEach(() => { fx.template = TEMPLATE; });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('Template raters', () => {
+    it('defaults to Per PIC and switches to the per-rater table and back', async () => {
+        renderWithQuery(<TemplatesTab scope="hc" />);
+        await card(/RARA KURNIA/);
+        expect(screen.getByRole('button', { name: 'Per PIC' })).toHaveAttribute('aria-pressed', 'true');
+        await userEvent.click(screen.getByRole('button', { name: 'Per penilai' }));
+        expect(screen.getByRole('table', { name: 'Daftar per penilai' })).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: /RARA KURNIA/ })).not.toBeInTheDocument();
+        await userEvent.click(screen.getByRole('button', { name: 'Per PIC' }));
+        expect(await card(/RARA KURNIA/)).toBeInTheDocument();
+        expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    });
+
     it('ambiguous badge opens picker and pins account', async () => {
         renderWithQuery(<TemplatesTab scope="hc" />);
         const rara = await card(/RARA KURNIA/);

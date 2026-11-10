@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FileSpreadsheet, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { cn } from '@/lib/utils';
 import { CsiHcApi } from '../../../../api/csiHc.api';
 import { useCsiTemplateMutation, useCsiTemplates } from '../../../../hooks/useCsiHc';
@@ -14,12 +15,17 @@ import { TemplateImportDialog } from './TemplateImportDialog';
 import { TemplateIssuesPanel } from './TemplateIssuesPanel';
 import { TemplatePicCard } from './TemplatePicCard';
 import type { AddRaterBody } from './RaterRow';
+import { RaterTableView } from './RaterTableView';
+
+type TemplateView = 'pic' | 'rater';
+const VIEW_OPTIONS = [{ value: 'pic', label: 'Per PIC' }, { value: 'rater', label: 'Per penilai' }] as const;
 
 const SERVICE_ORDER = ['HCD', 'HCC', 'HCS'];
 const SERVICE_NAMES: Record<string, string> = { HCD: 'HC Development', HCC: 'HC Compensation & Benefit', HCS: 'HC Services' };
 
-function TemplateEditor({ scope, template, location, onImport }: {
+function TemplateEditor({ scope, template, location, onImport, view, onViewChange }: {
     scope: CsiScopeParam; template: CsiTemplate; location: TemplateLocation; onImport: () => void;
+    view: TemplateView; onViewChange: (view: TemplateView) => void;
 }) {
     const [applying, setApplying] = useState(false);
     const update = useCsiTemplateMutation(scope, ({ id, serviceFunction }: { id: string; serviceFunction: string | null }) => CsiHcApi.updateTemplatePic(scope, id, { serviceFunction }));
@@ -37,12 +43,14 @@ function TemplateEditor({ scope, template, location, onImport }: {
                         {`${summary.pics} PIC · ${summary.raters} penilai · ${summary.ratersConfirmed} terkonfirmasi · ${summary.ratersOk} cocok otomatis · ${summary.ratersAmbiguous} nama ganda · ${summary.ratersNoAccount} belum punya akun`}
                     </p>
                 </div>
+                <SegmentedControl options={VIEW_OPTIONS} value={view} onValueChange={onViewChange} aria-label="Tampilan template" />
                 <BlankTemplateButton scope={scope} location={location} variant="subtle" />
                 <Button variant="soft" onClick={onImport}><FileSpreadsheet aria-hidden="true" />Impor Excel</Button>
                 <Button variant="primary" onClick={() => setApplying(true)}><Play aria-hidden="true" />Gunakan template</Button>
             </div>
             <TemplateIssuesPanel scope={scope} template={template} />
-            {SERVICE_ORDER.map((code) => {
+            {view === 'rater' && <RaterTableView scope={scope} template={template} />}
+            {view === 'pic' && SERVICE_ORDER.map((code) => {
                 const pics = template.pics.filter((pic) => pic.serviceCode === code);
                 if (!pics.length) return null;
                 return (
@@ -99,6 +107,7 @@ export function TemplatesTab({ scope }: { scope: CsiScopeParam }) {
     const { data, isLoading } = useCsiTemplates(scope);
     const [selected, setSelected] = useState<string>(CSI_TEMPLATE_LOCATIONS[0].code);
     const [importing, setImporting] = useState(false);
+    const [view, setView] = useState<TemplateView>('pic');
     const templates = data?.templates ?? [];
     const location = CSI_TEMPLATE_LOCATIONS.find((row) => row.code === selected) ?? CSI_TEMPLATE_LOCATIONS[0];
     const current = templates.find((row) => row.locationCode === location.code);
@@ -113,7 +122,7 @@ export function TemplatesTab({ scope }: { scope: CsiScopeParam }) {
                     <TemplateEmptyState scope={scope} location={location} onImport={openImport}
                         bundled={(data?.bundledAvailable ?? []).includes(location.code)} />
                 )}
-                {current && <TemplateEditor key={current.id} scope={scope} template={current} location={location} onImport={openImport} />}
+                {current && <TemplateEditor key={current.id} scope={scope} template={current} location={location} onImport={openImport} view={view} onViewChange={setView} />}
                 {importing && <TemplateImportDialog key={location.code} scope={scope} location={location} open={importing} onOpenChange={setImporting} />}
             </div>
         </AdminSection>
