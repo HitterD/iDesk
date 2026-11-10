@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiRateeKind } from '../csi.constants';
 import { answerColumns, answerRows, questionsOf } from './csi-export.answers';
 import { formatLocation } from './csi-format.util';
@@ -10,10 +11,25 @@ const HEADING_GAP = 8;
 
 export const LANDSCAPE = { size: 'A4', layout: 'landscape', margin: MARGIN } as const;
 
-/** Landscape page(s) with the survey's answer table (team sheet when a TEAM ratee exists, else per person). */
+/**
+ * Kinds that get an answer table. ICT: one table, the team sheet when a TEAM ratee exists, else per person.
+ * HC: PIC (PERSON) answers and custom-team answers live side by side, so each kind present gets its own table.
+ */
+function answerKinds(survey: MemoSurvey): CsiRateeKind[] {
+    const kinds = new Set(survey.report.ratees.map((ratee) => ratee.kind));
+    if (survey.report.period.scope === ServiceScope.HC && kinds.size > 0) {
+        return [CsiRateeKind.PERSON, CsiRateeKind.TEAM].filter((kind) => kinds.has(kind));
+    }
+    return [kinds.has(CsiRateeKind.TEAM) ? CsiRateeKind.TEAM : CsiRateeKind.PERSON];
+}
+
+/** Landscape page(s) with the survey's answer table(s), see answerKinds. */
 export function drawAnswerPages(doc: Doc, survey: MemoSurvey): void {
+    answerKinds(survey).forEach((kind) => drawAnswerTable(doc, survey, kind));
+}
+
+function drawAnswerTable(doc: Doc, survey: MemoSurvey, kind: CsiRateeKind): void {
     const { report, answers } = survey;
-    const kind = report.ratees.some((ratee) => ratee.kind === CsiRateeKind.TEAM) ? CsiRateeKind.TEAM : CsiRateeKind.PERSON;
     const questions = questionsOf(report.ratees, kind);
     const specs = answerColumns(questions, kind === CsiRateeKind.PERSON);
     const lastIndex = specs.length - 1;

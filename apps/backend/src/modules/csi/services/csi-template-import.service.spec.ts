@@ -83,7 +83,7 @@ describe('CsiTemplateImportService', () => {
         expect(report).toEqual({
             format: 'list', committed: false, services: ['HCD'],
             pics: { added: ['ERNA', 'TIM REKRUT'], changed: ['RARA'], removed: ['LAMA'] },
-            raters: { added: 3, removed: 1 }, teams: { added: ['TIM REKRUT'] }, newMasterPics: ['ERNA'], unresolved: [], problems: [],
+            raters: { added: 3, removed: 1 }, teams: { added: ['TIM REKRUT'] }, newMasterPics: ['ERNA'], ambiguousMasters: [], unresolved: [], problems: [],
         });
         for (const table of Object.values(tables)) {
             expect(table.save).not.toHaveBeenCalled();
@@ -230,6 +230,18 @@ describe('CsiTemplateImportService', () => {
             .rejects.toThrow('Perbaiki dulu baris bermasalah sebelum menghapus data yang tidak ada di Excel');
         expect(tables.pics.rows.map((row) => row.picName)).toEqual(['RARA', 'LAMA']);
         expect((await service.importExcel(HC, 'SMG', buffer, options({ commit: true }))).committed).toBe(true);
+    });
+
+    it('reports rows left without a PIC link because the PIC master name is ambiguous', async () => {
+        tables.masters.rows.push({ id: 'pic-rara-2', scope: HC, nik: '00001002', fullName: 'RARA', serviceCode: 'HCC', siteId: 's-krw', serviceFunction: null, isActive: true });
+        const buffer = await workbook([['HC Development', 'RARA', null, null, 'BUDI'], ['HC Development', 'ERNA', null, null, 'BUDI']]);
+        expect((await service.importExcel(HC, 'SMG', buffer, options())).ambiguousMasters).toEqual(['RARA']);
+        const report = await service.importExcel(HC, 'SMG', buffer, options({ commit: true }));
+        expect(report.ambiguousMasters).toEqual(['RARA']);
+        expect(tables.pics.rows.find((row) => row.picName === 'RARA')).toMatchObject({ picId: null });
+        // Once the row is linked by hand it is no longer reported.
+        tables.pics.rows.find((row) => row.picName === 'RARA')!.picId = 'pic-rara';
+        expect((await service.importExcel(HC, 'SMG', buffer, options())).ambiguousMasters).toEqual([]);
     });
 
     it('import into empty KRW creates template', async () => {

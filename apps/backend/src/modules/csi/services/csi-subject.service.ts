@@ -74,10 +74,17 @@ export const teamView = (team: CsiTeam, members?: CsiTeamMember[]): CsiSubjectVi
     ...(members ? { members: [...members].sort(byMemberOrder).map(({ id, name, userId }) => ({ id, name, userId: userId ?? null })) } : {}),
 });
 
-/** A PIC master: its own photo first, then the linked account's avatar (a PIC without account can still have a photo). */
-const picView = (pic: CsiPic, siteId: string, user: SubjectUser | undefined): CsiSubjectView => ({
+/**
+ * A PIC master: its own photo/tagline first, then the linked account's legacy csi_subject_profiles row (set before the
+ * PIC master existed), then the account avatar (a PIC without account can still have a photo).
+ */
+const picPhoto = (pic: CsiPic, profile: CsiSubjectProfile | undefined, user: SubjectUser | undefined) =>
+    pic.photoUrl ?? profile?.photoUrl ?? user?.avatarUrl ?? null;
+const picTagline = (pic: CsiPic, profile: CsiSubjectProfile | undefined) => pic.tagline ?? profile?.tagline ?? null;
+
+const picView = (pic: CsiPic, siteId: string, user: SubjectUser | undefined, profile: CsiSubjectProfile | undefined): CsiSubjectView => ({
     key: picSubjectKey(pic.id), kind: 'PERSON', userId: pic.userId ?? null, teamId: null, siteId, name: pic.fullName,
-    jobTitle: pic.jobTitle ?? null, photoUrl: pic.photoUrl ?? user?.avatarUrl ?? null, tagline: pic.tagline ?? null,
+    jobTitle: pic.jobTitle ?? null, photoUrl: picPhoto(pic, profile, user), tagline: picTagline(pic, profile),
     serviceFunction: pic.serviceFunction ?? null, teamKind: null, serviceCode: pic.serviceCode, picId: pic.id, hasAccount: !!pic.userId,
 });
 
@@ -100,10 +107,10 @@ const personMaster = (user: SubjectUser | undefined, profile: CsiSubjectProfile 
     tagline: profile?.tagline ?? null,
     jobTitle: profile?.jobTitle ?? null,
 });
-const picMaster = (pic: CsiPic, user: SubjectUser | undefined): RateeMaster => ({
+const picMaster = (pic: CsiPic, user: SubjectUser | undefined, profile: CsiSubjectProfile | undefined): RateeMaster => ({
     siteId: pic.siteId ?? user?.siteId ?? null,
-    photoUrl: pic.photoUrl ?? user?.avatarUrl ?? null,
-    tagline: pic.tagline ?? null,
+    photoUrl: picPhoto(pic, profile, user),
+    tagline: picTagline(pic, profile),
     jobTitle: pic.jobTitle ?? null,
 });
 
@@ -210,7 +217,10 @@ export class CsiSubjectService {
         return new Map(ratees.map((ratee): [string, RateeMaster] => {
             if (isTeam(ratee)) return [ratee.id, teamMaster(ratee.teamId ? teamById.get(ratee.teamId) : undefined)];
             const pic = ratee.picId ? picById.get(ratee.picId) : undefined;
-            if (pic) return [ratee.id, picMaster(pic, userOf(pic.userId ?? ratee.userId))];
+            if (pic) {
+                const accountId = pic.userId ?? ratee.userId;
+                return [ratee.id, picMaster(pic, userOf(accountId), accountId ? profileByUser.get(accountId) : undefined)];
+            }
             return [ratee.id, personMaster(userOf(ratee.userId), ratee.userId ? profileByUser.get(ratee.userId) : undefined)];
         }));
     }
@@ -323,9 +333,11 @@ export class CsiSubjectService {
         const picsBySite = await this.templatePicsBySite(sites);
         const allPics = [...picsBySite.values()].flat();
         const legacy = (await this.eligibleUsers(scope)).filter((user) => !allPics.some((pic) => pic.userId === user.id));
-        const profiles = legacy.length ? await this.profiles.find({ where: { scope, userId: In(legacy.map((user) => user.id)) } }) : [];
-        const profileByUser = new Map(profiles.map((profile) => [profile.userId, profile]));
         const accountIds = unique(allPics.flatMap((pic) => (pic.userId ? [pic.userId] : [])));
+        // Legacy members plus PIC accounts: a PIC falls back to its account's old profile photo/tagline.
+        const profileIds = unique([...legacy.map((user) => user.id), ...accountIds]);
+        const profiles = profileIds.length ? await this.profiles.find({ where: { scope, userId: In(profileIds) } }) : [];
+        const profileByUser = new Map(profiles.map((profile) => [profile.userId, profile]));
         const accounts = accountIds.length ? await this.users.find({ where: { id: In(accountIds) }, select: USER_FIELDS }) : [];
         const accountById = new Map(accounts.map((user) => [user.id, user]));
         const teams = (await this.teams.find({ where: { scope } })).filter((team) => team.kind !== CsiTeamKind.CUSTOM || team.isActive);
@@ -334,7 +346,8 @@ export class CsiSubjectService {
         return sites.map((site) => {
             const siteTeam = teams.find((team) => team.siteId === site.id && team.kind !== CsiTeamKind.CUSTOM);
             const people = [
-                ...(picsBySite.get(site.id) ?? []).map((pic) => picView(pic, site.id, pic.userId ? accountById.get(pic.userId) : undefined)),
+                ...(picsBySite.get(site.id) ?? []).map((pic) => picView(pic, site.id,
+                    pic.userId ? accountById.get(pic.userId) : undefined, pic.userId ? profileByUser.get(pic.userId) : undefined)),
                 ...legacy.filter((user) => user.siteId === site.id).map((user) => personView(user, profileByUser.get(user.id))),
             ];
             return {
@@ -379,7 +392,8 @@ export class CsiSubjectService {
 
     private async picSubject(pic: CsiPic): Promise<CsiSubjectView> {
         const user = pic.userId ? await this.users.findOne({ where: { id: pic.userId }, select: USER_FIELDS }) : null;
-        return picView(pic, pic.siteId ?? user?.siteId ?? '', user ?? undefined);
+        const profile = pic.userId ? await this.profiles.findOne({ where: { scope: pic.scope, userId: pic.userId } }) : null;
+        return picView(pic, pic.siteId ?? user?.siteId ?? '', user ?? undefined, profile ?? undefined);
     }
 
     /** Scope staff roles (ICT) plus hand-picked members (HC, or extra people of any scope). */

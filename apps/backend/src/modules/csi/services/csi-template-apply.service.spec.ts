@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode, CsiTeamKind } from '../csi.constants';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
@@ -10,6 +10,7 @@ import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiTeamMember } from '../entities/csi-team-member.entity';
 import { CsiTeam } from '../entities/csi-team.entity';
 import { CsiTemplateView } from '../org/csi-template-view';
+import { User } from '../../users/entities/user.entity';
 import { memoryTable } from './csi-memory-table.fixture';
 import { CsiTemplateApplyService } from './csi-template-apply.service';
 
@@ -52,6 +53,7 @@ describe('CsiTemplateApplyService', () => {
     let teams: ReturnType<typeof memoryTable>;
     let members: ReturnType<typeof memoryTable>;
     let periodSites: ReturnType<typeof memoryTable>;
+    let users: ReturnType<typeof memoryTable>;
     let dataSource: { transaction: jest.Mock };
     let service: CsiTemplateApplyService;
     const templates = { get: jest.fn(async (_scope: string, id: string) => (id === 't2' ? krwView() : view())) };
@@ -80,14 +82,15 @@ describe('CsiTemplateApplyService', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         periods = memoryTable(); ratees = memoryTable(); rateeDims = memoryTable(); raters = memoryTable(); pairs = memoryTable();
-        teams = memoryTable(); members = memoryTable(); periodSites = memoryTable();
+        teams = memoryTable(); members = memoryTable(); periodSites = memoryTable(); users = memoryTable();
+        users.rows.push({ id: 'u-elvi', siteId: 's-smg' }, { id: 'u-cici', siteId: 's-krw' }, { id: 'u-budi', siteId: 's-krw' }, { id: 'u-confirmed', siteId: 's-smg' });
         teams.rows.push({ id: 'team-a', scope: HC, kind: CsiTeamKind.CUSTOM, serviceCode: null, siteId: 's-krw', name: 'TIM RECEPTION', isActive: true });
         members.rows.push({ id: 'm1', teamId: 'team-a', userId: 'u-cici', name: 'CICI' }, { id: 'm2', teamId: 'team-a', userId: null, name: 'DEDE' });
         periods.rows.push({ id: 'p1', scope: HC, respondentMode: CsiRespondentMode.LISTED, pairMode: null, unitRules: [], publishStatus: CsiPeriodPublishStatus.PUBLISHED,
             cancelledAt: null, sites: [{ siteId: 's-smg', site: { code: 'SMG' } }] });
         const repositories = new Map<unknown, unknown>([
             [CsiPeriod, periods], [CsiPeriodRatee, ratees], [CsiPeriodRateeDimension, rateeDims], [CsiPeriodRater, raters], [CsiPeriodRaterRatee, pairs],
-            [CsiTeam, teams], [CsiTeamMember, members], [CsiPeriodSite, periodSites],
+            [CsiTeam, teams], [CsiTeamMember, members], [CsiPeriodSite, periodSites], [User, users],
         ]);
         const manager = {
             getRepository: (target: unknown) => repositories.get(target),
@@ -180,6 +183,15 @@ describe('CsiTemplateApplyService', () => {
         org.findPics.mockRejectedValueOnce(new Error('boom'));
         await expect(service.createPeriodFromTemplates(HC, ['t1'], { title: 'X', startDate: '2026-12-01', endDate: '2026-12-31' }, 'admin')).rejects.toThrow('boom');
         expect(periodService.remove).toHaveBeenCalledWith(HC, 'p-new');
+    });
+
+    it('a failed draft cleanup is logged, and the original error still surfaces', async () => {
+        const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+        org.findPics.mockRejectedValueOnce(new Error('boom'));
+        periodService.remove.mockRejectedValueOnce(new Error('db down'));
+        await expect(service.createPeriodFromTemplates(HC, ['t1'], INPUT, 'admin')).rejects.toThrow('boom');
+        expect(warn).toHaveBeenCalledWith(expect.stringMatching(/p-new.*db down/));
+        warn.mockRestore();
     });
 
     it('a cancelled survey is refused with a reason', async () => {
@@ -286,6 +298,20 @@ describe('CsiTemplateApplyService', () => {
         dimensions.find.mockResolvedValueOnce([]);
         expect((await service.previewPeriod(HC, ['t1'])).blockedReason).toBe('Belum ada pertanyaan HC aktif. Buat template 5 dimensi dulu.');
         expect(periodService.create).not.toHaveBeenCalled();
+    });
+
+    it('reports raters whose account site is outside the survey sites (they would never see it)', async () => {
+        users.rows.find((row) => row.id === 'u-budi')!.siteId = 's-spj';
+        expect((await service.previewPeriod(HC, ['t2'])).ratersOutsideSites).toEqual(['BUDI', 'ELVI CYNTHIA']);
+        expect((await service.previewPeriod(HC, ['t1', 't2'])).ratersOutsideSites).toEqual(['BUDI']);
+        expect((await service.applyToPeriod(HC, 't1', 'p1', false)).ratersOutsideSites).toEqual([]);
+        // A sync that adds the template site counts that site as covered.
+        periods.rows[0] = { ...periods.rows[0], sites: [{ siteId: 's-spj', site: { code: 'SPJ' } }] };
+        expect((await service.applyToPeriod(HC, 't1', 'p1', false)).ratersOutsideSites).toEqual([]);
+        users.rows.find((row) => row.id === 'u-elvi')!.siteId = null;
+        expect((await service.applyToPeriod(HC, 't1', 'p1', false)).ratersOutsideSites).toEqual(['ELVI CYNTHIA']);
+        const created = await service.createPeriodFromTemplates(HC, ['t2'], INPUT, 'admin');
+        expect(created.report.ratersOutsideSites).toEqual(['BUDI', 'ELVI CYNTHIA']);
     });
 
     it('the overlap check of an added site runs on the sync transaction', async () => {

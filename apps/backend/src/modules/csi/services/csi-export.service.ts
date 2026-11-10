@@ -25,12 +25,16 @@ const SHEET_RECAP = 'Rekap';
 const SHEET_TEAM = 'Penilaian Tim';
 const SHEET_PERSON = 'Penilaian Per Orang';
 
-/** Rekap: Lokasi, Nama (team label or person), Average per ratee, Average survei, % Pengisi (SLA). */
+/** Shown name of a ratee: a team carries its own name (HC custom teams), falling back to the period team label. */
+const rateeName = (ratee: Report['ratees'][number], report: Report): string =>
+    ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || report.period.teamLabel : ratee.displayName;
+
+/** Rekap: Lokasi, Nama (team or person name), Average per ratee, Average survei, % Pengisi (SLA). */
 function addRecap(workbook: ExcelJS.Workbook, report: Report) {
     const location = sanitizeCell(formatLocation(report.period.sites));
     const rows = report.ratees.map((ratee) => [
         location,
-        sanitizeCell(ratee.kind === CsiRateeKind.TEAM ? report.period.teamLabel : ratee.displayName),
+        sanitizeCell(rateeName(ratee, report)),
         ratee.average, report.overall.average, report.sla.pengisiPct,
     ]);
     addStyledSheet(workbook, SHEET_RECAP, [
@@ -111,7 +115,7 @@ export class CsiExportService {
         }
         addMatrixSheet(workbook, raterMatrix(report.ratees.map((ratee) => ({
             periodRateeId: ratee.periodRateeId, kind: ratee.kind, siteId: ratee.siteId ?? null,
-            displayName: ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || report.period.teamLabel : ratee.displayName,
+            displayName: rateeName(ratee, report),
         })), answers));
         return {
             filename: `csi-${scope.toLowerCase()}-${localDateKey(now, DEFAULT_TIMEZONE)}.xlsx`,

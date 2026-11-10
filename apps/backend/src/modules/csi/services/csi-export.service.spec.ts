@@ -86,6 +86,18 @@ describe('CsiExportService', () => {
         ]);
     });
 
+    it('Rekap names each custom team by its own name, falling back to the period team label', async () => {
+        const report = await reports.getReport();
+        report.ratees = [
+            { periodRateeId: 't1', kind: 'TEAM', displayName: 'Tim Payroll', average: 4, questions: [q('Kecepatan', 'STAR')] },
+            { periodRateeId: 't2', kind: 'TEAM', displayName: '', average: 3, questions: [q('Kecepatan', 'STAR')] },
+        ];
+        reports.getReport.mockResolvedValue(report);
+        const recap = (await load()).getWorksheet('Rekap')!;
+        expect(recap.getRow(2).getCell(2).value).toBe('Tim Payroll');
+        expect(recap.getRow(3).getCell(2).value).toBe('Tim IT Support');
+    });
+
     it('omits Penilaian Tim without a TEAM ratee', async () => {
         const report = await reports.getReport();
         report.ratees = report.ratees.filter((ratee: any) => ratee.kind === 'PERSON');

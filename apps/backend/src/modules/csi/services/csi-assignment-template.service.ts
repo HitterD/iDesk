@@ -23,6 +23,8 @@ import { csiTemplateLocation } from '../org/csi-template-locations';
 /** Templates shipped with the app, loaded on request (idempotent). */
 const BUNDLED: Readonly<Record<string, CsiTemplateSeed>> = { SMG: CSI_TEMPLATE_HC_SMG_2026 };
 const NOT_FOUND_MESSAGE = 'Template tidak ditemukan';
+/** Same as the DB text limit of a template name. */
+const SUGGESTION_NAME_MAX = 150;
 const PIC_NOT_FOUND_MESSAGE = 'PIC template tidak ditemukan';
 const SERVICE_CODES = new Set(['HCC', 'HCD', 'HCS']);
 const AREA_OF_SERVICE: Readonly<Record<string, string>> = { HCD: 'HC Development', HCC: 'HC Comben', HCS: 'HC Services' };
@@ -65,6 +67,8 @@ export class CsiAssignmentTemplateService {
 
     async accountSuggestions(scope: ServiceScope, templateId: string, name: string) {
         if (typeof name !== 'string' || name.trim().length < 2) throw new BadRequestException('Nama minimal 2 karakter');
+        // A query param has no DTO limit; an unbounded name would be fuzzy-matched against every active user.
+        if (name.trim().length > SUGGESTION_NAME_MAX) throw new BadRequestException('Nama terlalu panjang');
         const template = await this.templates.findOne({ where: { id: templateId, scope } });
         if (!template) throw new NotFoundException(NOT_FOUND_MESSAGE);
         const site = await this.sites.findOne({ where: { code: template.locationCode } });

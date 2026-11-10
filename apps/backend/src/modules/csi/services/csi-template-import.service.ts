@@ -33,6 +33,8 @@ export type CsiTemplateImportOptions = {
 export type CsiTemplateImportReport = CsiTemplateDiff & {
     format: CsiTemplateDraft['format']; committed: boolean;
     unresolved: Array<{ name: string; suggestions: string[] }>; problems: CsiTemplateDraft['problems'];
+    /** PIC rows left without a PIC master link because several masters share the name (HC picks one in PIC HC). */
+    ambiguousMasters: string[];
 };
 type Hit<T> = T | 'ambiguous' | null;
 type IdentityIndex<T> = (name: string, nik: string | null) => Hit<T>;
@@ -89,6 +91,15 @@ function existingMaster(state: ImportState, findMaster: IdentityIndex<CsiPic>, p
     return person ? findMaster('', person.nik) : null;
 }
 
+/** PIC rows whose master is ambiguous and whose template row is not linked yet (mergeRows keeps an existing link). */
+function ambiguousMastersOf(state: ImportState, pics: ClassifiedPic[]): string[] {
+    const findMaster = mastersIndex(state.masters);
+    const linked = new Set(state.rows.filter((row) => row.picId).map((row) => row.picName));
+    const names = pics.filter((pic) => pic.kind === 'pic' && !linked.has(pic.picName) && existingMaster(state, findMaster, pic) === 'ambiguous')
+        .map((pic) => pic.picName);
+    return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+}
+
 /** Only rows that will really create a master keep newMasterPic, so the report lists exactly what a commit creates. */
 function withoutLinkedMasters(state: ImportState, pics: ClassifiedPic[]): ClassifiedPic[] {
     const findMaster = mastersIndex(state.masters);
@@ -118,7 +129,8 @@ export class CsiTemplateImportService {
         const pics = withoutLinkedMasters(state, classified.pics);
         const prune = options.prune ? prunePlan(pics, state.rows, state.raters, options.pruneConfirmed) : null;
         const report: CsiTemplateImportReport = {
-            format: draft.format, committed: options.commit, ...diffOf(pics, state.rows, state.raters, prune), unresolved, problems: draft.problems,
+            format: draft.format, committed: options.commit, ...diffOf(pics, state.rows, state.raters, prune),
+            ambiguousMasters: ambiguousMastersOf(state, pics), unresolved, problems: draft.problems,
         };
         if (!options.commit) return report;
         if (unresolved.length) throw new BadRequestException('Tentukan dulu: ' + unresolved.map((row) => row.name).join(', '));

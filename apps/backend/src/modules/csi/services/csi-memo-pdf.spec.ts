@@ -91,6 +91,25 @@ describe('renderMemoPdf', () => {
         expect(pages).toHaveLength(3); // memo, answers, SLA: the oversized row never spills onto an extra page
     });
 
+    it('HC survey with PIC and a custom team renders both answer tables', async () => {
+        const survey = memoSurvey(1);
+        survey.report.period.scope = 'HC';
+        const pages = await pagesOf(await renderMemoPdf(memoHeader(), [survey]));
+        const answerPages = pages.filter((page) => page.includes('Timestamp'));
+        expect(answerPages).toHaveLength(2);
+        expect(answerPages[0]).toContain('Dinilai');
+        expect(answerPages[0]).toContain('Budi Hartono');
+        expect(answerPages[1]).not.toContain('Dinilai');
+        expect(answerPages[1]).toContain('Kecepatan');
+    });
+
+    it('ICT survey with team and people keeps the single team table', async () => {
+        const pages = await pagesOf(await renderMemoPdf(memoHeader(), [memoSurvey(1)]));
+        const answerPages = pages.filter((page) => page.includes('Timestamp'));
+        expect(answerPages).toHaveLength(1);
+        expect(answerPages[0]).not.toContain('Dinilai');
+    });
+
     it('a long signer title does not add a page', async () => {
         const title = 'Kepala Bagian Teknologi Informasi dan Operasional '.repeat(12);
         const buffer = await renderMemoPdf(memoHeader({ signerRight: { name: 'Siti Aminah', title } }), [memoSurvey(1)]);

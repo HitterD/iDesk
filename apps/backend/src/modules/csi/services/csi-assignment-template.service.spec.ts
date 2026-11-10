@@ -130,6 +130,14 @@ describe('CsiAssignmentTemplateService', () => {
         await expect(service.accountSuggestions(HC, 't', ' a ')).rejects.toBeInstanceOf(BadRequestException);
     });
 
+    it('refuses a suggestion query longer than 150 characters before reading users', async () => {
+        seedRaters();
+        users.find.mockClear();
+        await expect(service.accountSuggestions(HC, 't', 'a'.repeat(151))).rejects.toThrow('Nama terlalu panjang');
+        expect(users.find).not.toHaveBeenCalled();
+        await expect(service.accountSuggestions(HC, 't', 'a'.repeat(150))).resolves.toBeDefined();
+    });
+
     it('builds the blank workbook from active users in one sorted query; unknown locations are refused', async () => {
         users.find.mockResolvedValueOnce([{ fullName: 'ELVI CYNTHIA', jobTitle: 'PLANT MANAGER 1', employeeId: '277' }]);
         const { filename, buffer } = await service.blankWorkbook(HC, 'smg');

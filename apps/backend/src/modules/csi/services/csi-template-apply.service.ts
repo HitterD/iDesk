@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { Site } from '../../sites/entities/site.entity';
+import { User } from '../../users/entities/user.entity';
 import { CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CreatePeriodDto } from '../dto/period.dto';
 import { CsiDimension } from '../entities/csi-dimension.entity';
@@ -26,6 +27,11 @@ export type CsiTemplateApplyReport = {
     /** Distinct applied rater accounts matched by name only (status ok), i.e. not yet confirmed by HC. */
     ratersUnconfirmed: number;
     picsSkippedNoRaters: string[]; picsUnmatched: string[]; ratersNoAccount: string[]; ratersAmbiguous: string[];
+    /**
+     * Applied raters (template names) whose account site is not a site of the survey: they are added as raters but the
+     * survey only shows to respondents of its sites, so they would never see it. A warning, never a block.
+     */
+    ratersOutsideSites: string[];
     /** Site code a sync adds to the survey so the template's raters can see it (null = already covered). */
     siteAdded: string | null;
     /** Why the template cannot be synced into this survey without locking people out (null = it can). */
@@ -63,21 +69,27 @@ const emptyTally = (): Tally => ({
     skipped: new Set(), unmatched: new Set(), noAccount: new Set(), ambiguous: new Set(),
 });
 const mergeTally = (into: Tally, from: Tally) => (Object.keys(into) as Array<keyof Tally>).forEach((key) => from[key].forEach((value) => into[key].add(value)));
-const toReport = (tally: Tally, extra: Pick<CsiTemplateApplyReport, 'siteAdded' | 'blockedReason' | 'committed'>): CsiTemplateApplyReport => ({
+type ReportExtra = Pick<CsiTemplateApplyReport, 'ratersOutsideSites' | 'siteAdded' | 'blockedReason' | 'committed'>;
+const toReport = (tally: Tally, extra: ReportExtra): CsiTemplateApplyReport => ({
     picsAdded: tally.pics.size, teamsAdded: tally.teams.size, ratersAdded: tally.raters.size, pairsAdded: tally.pairs.size,
     ratersUnconfirmed: tally.unconfirmed.size, picsSkippedNoRaters: unique(tally.skipped), picsUnmatched: unique(tally.unmatched),
     ratersNoAccount: unique(tally.noAccount), ratersAmbiguous: unique(tally.ambiguous), ...extra,
 });
 
+const mergeNames = (into: Map<string, string>, from: Map<string, string>) =>
+    from.forEach((name, userId) => { if (!into.has(userId)) into.set(userId, name); });
+
 type Plan = {
     tally: Tally; newSubjects: Subject[]; pairs: Array<{ key: string; userId: string }>;
+    /** Every applied rater account (new or already in the survey) -> its template name. */
+    raterNames: Map<string, string>;
     /** The survey already had raters before the sync (its mode is then left alone). */
     hadRaters: boolean;
 };
 type Repos = {
     ratees: Repository<CsiPeriodRatee>; rateeDims: Repository<CsiPeriodRateeDimension>;
     raters: Repository<CsiPeriodRater>; pairs: Repository<CsiPeriodRaterRatee>; periods: Repository<CsiPeriod>;
-    teams: Repository<CsiTeam>; members: Repository<CsiTeamMember>;
+    teams: Repository<CsiTeam>; members: Repository<CsiTeamMember>; users: Repository<User>;
 };
 /** Ratees, raters and pairs already in the survey (all empty for a preview without a survey). */
 type PeriodState = { ratees: CsiPeriodRatee[]; raters: CsiPeriodRater[]; pairs: CsiPeriodRaterRatee[] };
@@ -90,6 +102,8 @@ const EMPTY_STATE: PeriodState = { ratees: [], raters: [], pairs: [] };
  */
 @Injectable()
 export class CsiTemplateApplyService {
+    private readonly logger = new Logger(CsiTemplateApplyService.name);
+
     constructor(
         private readonly templates: CsiAssignmentTemplateService,
         private readonly org: CsiOrgService,
@@ -109,7 +123,9 @@ export class CsiTemplateApplyService {
             const plan = await this.plan(scope, view, repos, await this.stateOf(repos, periodId));
             const missing = await this.missingSite(manager, period, view.locationCode);
             const blockedReason = period.cancelledAt ? BLOCKED.cancelled : missing.blockedReason ?? await this.blockedReason(period, repos);
-            const report = toReport(plan.tally, { siteAdded: missing.site?.code ?? null, blockedReason, committed: commit });
+            const siteIds = [...(period.sites ?? []).map((row) => row.siteId), ...(missing.site ? [missing.site.id] : [])];
+            const ratersOutsideSites = await this.ratersOutside(repos, plan.raterNames, siteIds);
+            const report = toReport(plan.tally, { ratersOutsideSites, siteAdded: missing.site?.code ?? null, blockedReason, committed: commit });
             if (!commit) return report;
             if (blockedReason) throw new BadRequestException(blockedReason);
             if (plan.newSubjects.length && !questions.length) throw new BadRequestException(NO_QUESTIONS_MESSAGE);
@@ -125,12 +141,18 @@ export class CsiTemplateApplyService {
      */
     async previewPeriod(scope: ServiceScope, templateIds: string[]): Promise<CsiTemplateApplyReport> {
         const views = await Promise.all(templateIds.map((id) => this.templates.get(scope, id)));
-        const { blockedReason } = await this.preflight(scope, views);
+        const { blockedReason, foundSiteIds } = await this.preflight(scope, views);
         return this.dataSource.transaction(async (manager) => {
             const repos = this.repos(manager);
             const total = emptyTally();
-            for (const view of views) mergeTally(total, (await this.plan(scope, view, repos, EMPTY_STATE)).tally);
-            return toReport(total, { siteAdded: null, blockedReason, committed: false });
+            const raterNames = new Map<string, string>();
+            for (const view of views) {
+                const plan = await this.plan(scope, view, repos, EMPTY_STATE);
+                mergeTally(total, plan.tally);
+                mergeNames(raterNames, plan.raterNames);
+            }
+            const ratersOutsideSites = await this.ratersOutside(repos, raterNames, foundSiteIds);
+            return toReport(total, { ratersOutsideSites, siteAdded: null, blockedReason, committed: false });
         });
     }
 
@@ -148,17 +170,22 @@ export class CsiTemplateApplyService {
             const report = await this.dataSource.transaction(async (manager) => {
                 const repos = this.repos(manager);
                 const total = emptyTally();
+                const raterNames = new Map<string, string>();
                 for (const view of views) {
                     const draft = assertPeriodInScope(await repos.periods.findOne({ where: { id: period.id } }), scope);
                     const plan = await this.plan(scope, view, repos, await this.stateOf(repos, period.id));
                     await this.write(manager, repos, draft, plan, questions);
                     mergeTally(total, plan.tally);
+                    mergeNames(raterNames, plan.raterNames);
                 }
-                return toReport(total, { siteAdded: null, blockedReason: null, committed: true });
+                const ratersOutsideSites = await this.ratersOutside(repos, raterNames, siteIds);
+                return toReport(total, { ratersOutsideSites, siteAdded: null, blockedReason: null, committed: true });
             });
             return { periodId: period.id, report };
         } catch (error) {
-            await this.periodService.remove(scope, period.id).catch(() => undefined);
+            // The original error is what the caller needs; a failed cleanup is logged so the stray draft can be found.
+            await this.periodService.remove(scope, period.id).catch((cleanup: unknown) => this.logger.warn(
+                `Failed to remove draft CSI period ${period.id} after a failed template apply: ${(cleanup as Error)?.message ?? String(cleanup)}`));
             throw error;
         }
     }
@@ -170,7 +197,7 @@ export class CsiTemplateApplyService {
         const existingPairs = new Set(state.pairs.map((row) => `${row.periodRaterId}|${row.periodRateeId}`));
         const applied = subjects.flatMap((subject) => subject.row.raters
             .filter((rater) => APPLIED_STATUSES.has(rater.status) && rater.userId && !subject.excluded.has(rater.userId))
-            .map((rater) => ({ key: subject.key, userId: rater.userId!, unconfirmed: rater.status === 'ok' })));
+            .map((rater) => ({ key: subject.key, userId: rater.userId!, name: rater.raterName, unconfirmed: rater.status === 'ok' })));
         const fresh = applied.filter((pair) => {
             const raterId = raterOfUser.get(pair.userId)?.id;
             const rateeId = existingRatee.get(pair.key)?.id;
@@ -184,7 +211,9 @@ export class CsiTemplateApplyService {
             if (!raterOfUser.has(pair.userId)) tally.raters.add(pair.userId);
         });
         applied.filter((pair) => pair.unconfirmed).forEach((pair) => tally.unconfirmed.add(pair.userId));
-        return { tally, newSubjects, pairs: fresh, hadRaters: state.raters.length > 0 };
+        const raterNames = new Map<string, string>();
+        applied.forEach((pair) => { if (!raterNames.has(pair.userId)) raterNames.set(pair.userId, pair.name); });
+        return { tally, newSubjects, pairs: fresh, raterNames, hadRaters: state.raters.length > 0 };
     }
 
     private tallyOf(view: CsiTemplateView, subjects: Subject[], newSubjects: Subject[]): Tally {
@@ -275,7 +304,7 @@ export class CsiTemplateApplyService {
         const questions = await this.hcQuestions(scope);
         const blockedReason = missing ? siteMissingMessage(missing) : questions.length ? null : NO_QUESTIONS_MESSAGE;
         const siteIds = missing ? [] : wanted.map((code) => found.find((site) => site.code === code)!.id);
-        return { siteIds, questions, blockedReason };
+        return { siteIds, foundSiteIds: found.map((site) => site.id), questions, blockedReason };
     }
 
     /**
@@ -288,6 +317,14 @@ export class CsiTemplateApplyService {
         const raters = await repos.raters.count({ where: { periodId: period.id } });
         const pairs = await repos.pairs.count({ where: { periodId: period.id } });
         return raters > 0 && pairs === 0 ? BLOCKED.unmapped : null;
+    }
+
+    /** Template names of the rater accounts whose User.siteId is none of the survey sites (see ratersOutsideSites). */
+    private async ratersOutside(repos: Repos, raterNames: Map<string, string>, siteIds: string[]): Promise<string[]> {
+        if (!raterNames.size) return [];
+        const covered = new Set(siteIds);
+        const accounts = await repos.users.find({ where: { id: In([...raterNames.keys()]) }, select: { id: true, siteId: true } });
+        return unique(accounts.filter((user) => !user.siteId || !covered.has(user.siteId)).map((user) => raterNames.get(user.id)!));
     }
 
     private async stateOf(repos: Repos, periodId: string): Promise<PeriodState> {
@@ -307,7 +344,7 @@ export class CsiTemplateApplyService {
         return {
             ratees: manager.getRepository(CsiPeriodRatee), rateeDims: manager.getRepository(CsiPeriodRateeDimension),
             raters: manager.getRepository(CsiPeriodRater), pairs: manager.getRepository(CsiPeriodRaterRatee), periods: manager.getRepository(CsiPeriod),
-            teams: manager.getRepository(CsiTeam), members: manager.getRepository(CsiTeamMember),
+            teams: manager.getRepository(CsiTeam), members: manager.getRepository(CsiTeamMember), users: manager.getRepository(User),
         };
     }
 }

@@ -268,6 +268,22 @@ describe('CsiSubjectService', () => {
                     members: [{ id: 'm1', name: 'Hana HC', userId: HCU }, { id: 'm2', name: 'Budi', userId: null }] })]);
             });
 
+            it('PIC with account falls back to the legacy subject profile photo/tagline before the avatar', async () => {
+                profiles.rows.push({ id: 'pf-h', scope: HC, userId: HCU, isMember: true, photoUrl: '/uploads/csi/hana-lama.jpg', tagline: 'Tagline lama' });
+                pics.rows.find((row) => row.id === P1)!.tagline = null;
+                const spj = (await service.list(HC)).find((group) => group.siteId === SPJ.id)!;
+                expect(spj.people[0]).toMatchObject({ picId: P1, photoUrl: '/uploads/csi/hana-lama.jpg', tagline: 'Tagline lama' });
+                const ratee = { id: 'r', periodId: 'p1', kind: 'PERSON', userId: HCU, picId: P1, siteId: SPJ.id, teamId: null,
+                    photoUrl: null, tagline: null, displayName: 'Zaki', jobTitle: null, sortOrder: 0 } as any;
+                expect(await service.viewFor(HC, ratee)).toMatchObject({ photoUrl: '/uploads/csi/hana-lama.jpg', tagline: 'Tagline lama' });
+                // The PIC's own values still win over the legacy profile.
+                pics.rows.find((row) => row.id === P1)!.photoUrl = '/uploads/csi/zaki.jpg';
+                pics.rows.find((row) => row.id === P1)!.tagline = 'Siap';
+                expect(await service.viewFor(HC, ratee)).toMatchObject({ photoUrl: '/uploads/csi/zaki.jpg', tagline: 'Siap' });
+                const view = await service.update(HC, `pic:${P1}`, { jobTitle: 'HC Officer' });
+                expect(view).toMatchObject({ photoUrl: '/uploads/csi/zaki.jpg', tagline: 'Siap' });
+            });
+
             it('pic key tagline saved on csi_pics', async () => {
                 const view = await service.update(HC, `pic:${P2}`, { tagline: 'Rapi selalu' });
                 expect(view).toMatchObject({ key: `pic:${P2}`, tagline: 'Rapi selalu' });
