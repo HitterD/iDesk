@@ -1,5 +1,5 @@
-import { buildHcRecap, CSI_SMALL_BAGIAN_LABEL, CsiHcPic, CsiHcRating } from './csi-hc-report.calc';
-import { CSI_SMALL_GROUP_LABEL } from '../csi.constants';
+import { buildHcRecap, CsiHcPic, CsiHcRating } from './csi-hc-report.calc';
+import { CSI_SMALL_BAGIAN_LABEL, CSI_SMALL_GROUP_LABEL } from '../csi.constants';
 import { CsiOrgLocation } from './csi-org.constants';
 
 const DIMS = ['Knowledge', 'Responsiveness'];
@@ -49,9 +49,9 @@ describe('buildHcRecap', () => {
     });
 
     it('groups respondents by division → department → bagian and lists each answer', () => {
-        // Each unit here has 1 respondent (< CSI_ANON_MIN_GROUP): all of them sit in the merged row only.
-        expect(recap.respondentGroups.map((entry) => [entry.level, entry.label, entry.all.average]))
-            .toEqual([['division', CSI_SMALL_GROUP_LABEL, 3.63]]);
+        // Each unit here has 1 respondent (< CSI_ANON_MIN_GROUP): all sit in the merged row, which (2 people) shows counts only.
+        expect(recap.respondentGroups.map((entry) => [entry.level, entry.label, entry.all.average, entry.respondents]))
+            .toEqual([['division', CSI_SMALL_GROUP_LABEL, null, 2]]);
         const r1 = recap.respondents.find((entry) => entry.responseId === 'r1')!;
         expect(r1.pics.map((pic) => [pic.name, pic.average])).toEqual([['ANITA', 4.5], ['CICI', 3]]);
         expect(r1.average).toBe(3.75);
@@ -77,5 +77,24 @@ describe('buildHcRecap', () => {
         // Nothing small: no merged row.
         const large = buildHcRecap({ pics, dimensions: DIMS, ratings: ['x1', 'x2', 'x3'].map((id) => unit(id, 'PRODUKSI')) });
         expect(large.respondentGroups.map((entry) => entry.label)).toEqual(['OPERATION', 'PRODUKSI', 'QC']);
+    });
+
+    it('a merged row below 3 respondents shows only its count, never a score or a location', () => {
+        const one = (responseId: string, department: string, bagian: string, location = CsiOrgLocation.SJA1): CsiHcRating => ({
+            responseId, periodRateeId: 'a', location, scores: { Knowledge: 2, Responsiveness: 3 },
+            respondent: { name: `R-${responseId}`, division: 'OPERATION', department, bagian },
+        });
+        // Single small department with 1 respondent (rating 2 PICs).
+        const single = buildHcRecap({ pics, dimensions: DIMS, ratings: [one('s1', 'GUDANG', 'G'), { ...one('s1', 'GUDANG', 'G'), periodRateeId: 'b' }] });
+        const merged = single.respondentGroups.find((entry) => entry.label === CSI_SMALL_GROUP_LABEL)!;
+        expect(merged.respondents).toBe(1);
+        expect(merged.all).toEqual({ average: null, ratings: 2 });
+        expect(Object.values(merged.byLocation).every((cell) => cell.average === null && cell.ratings === 0)).toBe(true);
+        // Bagian split 3 + 1: "Bagian kecil" holds one person, so it is masked; the kept bagian is not.
+        const split = buildHcRecap({ pics, dimensions: DIMS, ratings: [one('k1', 'PROD', 'L1'), one('k2', 'PROD', 'L1'), one('k3', 'PROD', 'L1'), one('k4', 'PROD', 'L2', CsiOrgLocation.SJA2)] });
+        const bagian = (name: string) => split.respondentGroups.find((entry) => entry.label === name)!;
+        expect(bagian(CSI_SMALL_BAGIAN_LABEL)).toMatchObject({ respondents: 1, all: { average: null, ratings: 1 } });
+        expect(bagian(CSI_SMALL_BAGIAN_LABEL).byLocation.SJA2).toEqual({ average: null, ratings: 0 });
+        expect(bagian('L1')).toMatchObject({ respondents: 3, all: { average: 2.5, ratings: 3 } });
     });
 });

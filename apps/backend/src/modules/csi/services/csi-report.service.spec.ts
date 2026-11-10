@@ -66,10 +66,12 @@ describe('CsiReportService', () => {
     let subjects: { viewsFor: jest.Mock };
     let paired: Set<string> | null;
     let service: CsiReportService;
+    let ratees: ReturnType<typeof memoryRepository>;
+    let dataSource: any;
 
     beforeEach(() => {
         periods = memoryRepository<any>([period(), period({ id: 'p-hc', scope: HC })]);
-        const ratees = memoryRepository<any>([ratee2, ratee1]);
+        ratees = memoryRepository<any>([ratee2, ratee1]);
         rateeDimensions = memoryRepository<any>([dimB, dimA, dim2A]);
         periodRaters = memoryRepository<any>([]);
         responses = memoryRepository<any>([
@@ -103,7 +105,7 @@ describe('CsiReportService', () => {
                 if (index >= 0) responses.rows.splice(index, 1);
             }),
         };
-        const dataSource = { transaction: jest.fn(async (work: (m: any) => unknown) => work(manager)) };
+        dataSource = { transaction: jest.fn(async (work: (m: any) => unknown) => work(manager)), query: jest.fn(async () => []) };
         sla = { compute: jest.fn(async () => ({ basis: 0, pengisiPct: null })) };
         paired = null;
         const assignments = { ratersWithPairs: jest.fn(async () => paired) };
@@ -122,6 +124,33 @@ describe('CsiReportService', () => {
         Object.assign(periods.rows[0], { scoreFairMin: 3.5, scoreGoodMin: 4.2 });
         expect((await service.getReport(ICT, 'p1')).scoreBands).toEqual({ fairMin: 3.5, goodMin: 4.2 });
         expect((await service.getHcRecap(ICT, 'p1')).scoreBands).toEqual({ fairMin: 3.5, goodMin: 4.2 });
+    });
+
+    it('HC executive model: layanan highlight and recap follow the site filter, recap input loaded once', async () => {
+        const sites = [{ siteId: 'site-a', site: { code: 'SMG', name: 'Semarang' } }, { siteId: 'site-b', site: { code: 'SPJ', name: 'Sepanjang' } }];
+        Object.assign(periods.rows[1], { sites });
+        ratees.rows.push(
+            { id: 'h1', periodId: 'p-hc', kind: 'PERSON', picId: 'pic1', serviceCode: 'HCD', bagian: 'TA', displayName: 'Dewi', sortOrder: 0 },
+            { id: 'h2', periodId: 'p-hc', kind: 'PERSON', picId: 'pic2', serviceCode: 'HCS', bagian: 'GA', displayName: 'Sinta', sortOrder: 1 },
+        );
+        rateeDimensions.rows.push(
+            { id: 'hd1', periodRateeId: 'h1', dimensionName: 'Knowledge', type: 'STAR', options: [], sortOrder: 0 },
+            { id: 'hd2', periodRateeId: 'h2', dimensionName: 'Knowledge', type: 'STAR', options: [], sortOrder: 0 },
+        );
+        const response = (id: string, siteId: string) => ({ id, periodId: 'p-hc', respondentId: `u-${id}`, departmentName: 'PROD', respondentName: id, submittedAt: new Date('2026-10-10T03:00:00Z'), respondent: { id: `u-${id}`, siteId } });
+        responses.rows.push(response('ra', 'site-a'), response('rb', 'site-b'));
+        const item = (responseId: string, rateeId: string, score: number) => ({ id: `${responseId}${rateeId}`, responseId, periodRateeId: rateeId, periodRateeDimensionId: rateeId === 'h1' ? 'hd1' : 'hd2', score });
+        // All sites: HCD (5+3)/2 = 4, HCS (3+4)/2 = 3.5. Site b only: HCD 3, HCS 4.
+        items.rows.push(item('ra', 'h1', 5), item('ra', 'h2', 3), item('rb', 'h1', 3), item('rb', 'h2', 4));
+        sla.compute.mockResolvedValue({ basis: 0, target: 0, responses: 0, pengisiPct: null, reporters: [] });
+        const loads = jest.spyOn(service, 'hcRecapInput');
+        const all = await service.getExecutiveModel(HC, 'p-hc', { matrix: {} as any });
+        expect(all.serviceHighlight).toMatchObject({ best: { code: 'HCD', average: 4 }, worst: { code: 'HCS', average: 3.5 } });
+        expect(loads).toHaveBeenCalledTimes(1);
+        const siteB = await service.getExecutiveModel(HC, 'p-hc', { siteId: 'site-b', matrix: {} as any });
+        expect(siteB.serviceHighlight).toMatchObject({ best: { code: 'HCS', average: 4 }, worst: { code: 'HCD', average: 3 } });
+        expect(siteB.hcRecap?.overall.respondents).toBe(1);
+        expect(loads).toHaveBeenLastCalledWith(HC, 'p-hc', 'site-b');
     });
 
     it('ratee average is mean of response averages', async () => {

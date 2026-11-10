@@ -1,5 +1,5 @@
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CSI_ANON_MIN_GROUP, CSI_SMALL_GROUP_LABEL } from '../csi.constants';
+import { CSI_ANON_MIN_GROUP, CSI_SMALL_BAGIAN_LABEL, CSI_SMALL_GROUP_LABEL } from '../csi.constants';
 import { CSI_LOCATIONS, CSI_UNKNOWN_LABEL, CsiOrgLocation } from './csi-org.constants';
 import { serviceNameOf } from './csi-services';
 
@@ -27,7 +27,11 @@ export type CsiRecapRow = CsiLocationCells & {
     /** Dimension averages (ALL SJA). */
     dimensions: Record<string, number | null>;
 };
-export type CsiRespondentRow = CsiLocationCells & { level: 'division' | 'department' | 'bagian'; key: string; label: string; division: string; department: string | null };
+export type CsiRespondentRow = CsiLocationCells & {
+    level: 'division' | 'department' | 'bagian'; key: string; label: string; division: string; department: string | null;
+    /** Distinct respondents behind the row. */
+    respondents: number;
+};
 export type CsiRespondentDetail = {
     responseId: string; name: string; division: string | null; department: string | null; bagian: string | null; location: string | null;
     pics: Array<{ name: string; serviceCode: string | null; bagian: string | null; scores: Record<string, number>; average: number | null }>;
@@ -65,8 +69,6 @@ const groupBy = <T>(rows: T[], key: (row: T) => string) => {
     return groups;
 };
 const label = (value: string | null | undefined) => value || CSI_UNKNOWN_LABEL;
-/** Row that holds the bagians of a department below CSI_ANON_MIN_GROUP respondents. */
-export const CSI_SMALL_BAGIAN_LABEL = 'Bagian kecil (gabungan)';
 
 /** Layanan → bagian → PIC rows (PICs without any rating are listed too, with empty cells). */
 function serviceRows(pics: CsiHcPic[], ratings: CsiHcRating[], dimensions: string[], scope: ServiceScope): CsiRecapRow[] {
@@ -102,14 +104,24 @@ function serviceRows(pics: CsiHcPic[], ratings: CsiHcRating[], dimensions: strin
 
 const respondentsOf = (ratings: CsiHcRating[]) => new Set(ratings.map((rating) => rating.responseId)).size;
 const isSmall = (ratings: CsiHcRating[]) => respondentsOf(ratings) < CSI_ANON_MIN_GROUP;
+const NO_SCORE: CsiCell = { average: null, ratings: 0 };
+
+/** Cells of a respondent group; a merged group still below CSI_ANON_MIN_GROUP keeps only its counts (no score, no location). */
+function groupCells(ratings: CsiHcRating[], merged = false): CsiLocationCells & { respondents: number } {
+    const respondents = respondentsOf(ratings);
+    if (!merged || respondents >= CSI_ANON_MIN_GROUP) return { ...cells(ratings), respondents };
+    const byLocation = Object.fromEntries(CSI_LOCATIONS.map(({ code }) => [code, NO_SCORE])) as Record<CsiOrgLocation, CsiCell>;
+    return { all: { average: null, ratings: ratings.length }, byLocation, respondents };
+}
 
 /** Bagian rows of one department; bagians below CSI_ANON_MIN_GROUP respondents share one merged row. */
 function bagianRows(ratings: CsiHcRating[], division: string, department: string): CsiRespondentRow[] {
     const bagians = groupBy(ratings, (rating) => label(rating.respondent.bagian));
-    const row = (name: string, own: CsiHcRating[]): CsiRespondentRow => ({ level: 'bagian', key: `bg:${division}:${department}:${name}`, label: name, division, department, ...cells(own) });
+    const row = (name: string, own: CsiHcRating[], merged = false): CsiRespondentRow =>
+        ({ level: 'bagian', key: `bg:${division}:${department}:${name}`, label: name, division, department, ...groupCells(own, merged) });
     const small = [...bagians.values()].filter(isSmall).flat();
     const rows = [...bagians.keys()].sort().filter((bagian) => !isSmall(bagians.get(bagian)!)).map((bagian) => row(bagian, bagians.get(bagian)!));
-    return small.length ? [...rows, row(CSI_SMALL_BAGIAN_LABEL, small)] : rows;
+    return small.length ? [...rows, row(CSI_SMALL_BAGIAN_LABEL, small, true)] : rows;
 }
 
 /**
@@ -126,15 +138,15 @@ function respondentRows(ratings: CsiHcRating[]): CsiRespondentRow[] {
     const divisions = groupBy(kept, (rating) => label(rating.respondent.division));
     [...divisions.keys()].sort().forEach((division) => {
         const divisionRatings = divisions.get(division)!;
-        rows.push({ level: 'division', key: `d:${division}`, label: division, division, department: null, ...cells(divisionRatings) });
+        rows.push({ level: 'division', key: `d:${division}`, label: division, division, department: null, ...groupCells(divisionRatings) });
         const departments = groupBy(divisionRatings, (rating) => label(rating.respondent.department));
         [...departments.keys()].sort().forEach((department) => {
             const departmentRatings = departments.get(department)!;
-            rows.push({ level: 'department', key: `dp:${division}:${department}`, label: department, division, department, ...cells(departmentRatings) });
+            rows.push({ level: 'department', key: `dp:${division}:${department}`, label: department, division, department, ...groupCells(departmentRatings) });
             rows.push(...bagianRows(departmentRatings, division, department));
         });
     });
-    if (small.length) rows.push({ level: 'division', key: 'd:small', label: CSI_SMALL_GROUP_LABEL, division: CSI_SMALL_GROUP_LABEL, department: null, ...cells(small) });
+    if (small.length) rows.push({ level: 'division', key: 'd:small', label: CSI_SMALL_GROUP_LABEL, division: CSI_SMALL_GROUP_LABEL, department: null, ...groupCells(small, true) });
     return rows;
 }
 

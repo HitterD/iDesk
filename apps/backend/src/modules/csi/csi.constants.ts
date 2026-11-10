@@ -27,6 +27,8 @@ export const CSI_RANK_MIN_RATERS = 5;
 export const CSI_ANON_MIN_GROUP = 3;
 /** Row that holds every merged small group (CSI_ANON_MIN_GROUP). */
 export const CSI_SMALL_GROUP_LABEL = 'Departemen kecil (gabungan)';
+/** Row that holds the bagians of a department below CSI_ANON_MIN_GROUP respondents (HC recap). */
+export const CSI_SMALL_BAGIAN_LABEL = 'Bagian kecil (gabungan)';
 
 /** Question kinds; only STAR and SCALE carry a 1–5 score. */
 export enum CsiQuestionType {

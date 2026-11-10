@@ -73,15 +73,8 @@ export class CsiExportService {
 
     private async model(scope: ServiceScope, periodId: string, options: CsiExportOptions) {
         const matrix = await this.reports.getRaterMatrix(scope, periodId, options.siteId);
-        const model = await this.reports.getExecutiveModel(scope, periodId, { siteId: options.siteId, notes: options.notes, matrix });
-        return { ...model, hcRecap: await this.hcRecap(scope, periodId) };
-    }
-
-    /** HC per-PIC recap of the period, or null when it has no HC PIC (ICT never has one). */
-    private async hcRecap(scope: ServiceScope, periodId: string) {
-        if (scope !== ServiceScope.HC) return null;
-        const recap = await this.reports.getHcRecap(scope, periodId);
-        return recap.services.some((row) => row.level === 'pic' && row.serviceCode) ? recap : null;
+        // The model carries the HC recap (same site filter), or null when the period has no HC PIC (ICT never has one).
+        return this.reports.getExecutiveModel(scope, periodId, { siteId: options.siteId, notes: options.notes, matrix });
     }
 
     /** Executive survey report PDF (rankings and comments carry no respondent names). */

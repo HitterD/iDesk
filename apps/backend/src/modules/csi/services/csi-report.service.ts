@@ -210,12 +210,15 @@ export class CsiReportService {
         const comments = report.ratees.flatMap((ratee) => ratee.comments.map((comment) => ({
             periodRateeId: ratee.periodRateeId, text: comment.text, department: comment.departmentName, date: comment.submittedAt,
         })));
-        return buildReportModel({
+        // HC: the per-PIC recap with the same site filter, loaded once (layanan averages for the highlight + recap pages).
+        const hcRecap = scope === ServiceScope.HC ? await this.executiveHcRecap(scope, periodId, siteId) : null;
+        const model = buildReportModel({
             report, matrix, scopeLabel: scope, scope, previousBySubject, hasPrevious: !!previous, siteBasis, comments,
             raters: await this.basisRaters(reporters, data.responses),
-            serviceAverages: scope === ServiceScope.HC ? await this.serviceAverages(scope, periodId) : [],
+            serviceAverages: (hcRecap?.services ?? []).filter((row) => row.level === 'service').map((row) => ({ serviceCode: row.serviceCode, average: row.all.average })),
             notes: input.notes ?? '',
         });
+        return { ...model, hcRecap: hcRecap?.services.some((row) => row.level === 'pic' && row.serviceCode) ? hcRecap : null };
     }
 
     /**
@@ -237,11 +240,10 @@ export class CsiReportService {
         });
     }
 
-    /** Average per HC layanan as in the recap "Nilai per layanan" (every rating of its PICs, all locations). */
-    private async serviceAverages(scope: ServiceScope, periodId: string) {
-        const { pics, ratings, dimensions } = await this.hcRecapInput(scope, periodId);
-        return buildHcRecap({ pics, ratings, dimensions, scope }).services
-            .filter((row) => row.level === 'service').map((row) => ({ serviceCode: row.serviceCode, average: row.all.average }));
+    /** HC recap of the executive report (site filter as the rest of the report: respondents of that site only). */
+    private async executiveHcRecap(scope: ServiceScope, periodId: string, siteId?: string): Promise<CsiHcRecap> {
+        const { pics, ratings, dimensions } = await this.hcRecapInput(scope, periodId, siteId);
+        return buildHcRecap({ pics, ratings, dimensions, scope });
     }
 
     /**
@@ -253,10 +255,13 @@ export class CsiReportService {
         return { period, scoreBands, ...buildHcRecap({ pics, ratings, dimensions, scope }) };
     }
 
-    /** Period, PIC rows (with the viewer-relevant userId), scored ratings and dimension labels behind every HC recap. */
-    async hcRecapInput(scope: ServiceScope, periodId: string): Promise<CsiHcRecapInput> {
+    /**
+     * Period, PIC rows (with the viewer-relevant userId), scored ratings and dimension labels behind every HC recap.
+     * `siteId` keeps only answers of respondents of that site (same rule as the report site filter).
+     */
+    async hcRecapInput(scope: ServiceScope, periodId: string, siteId?: string): Promise<CsiHcRecapInput> {
         const period = await this.findInScope(scope, periodId, { sites: { site: true } });
-        const data = await this.loadPeriodData(scope, period);
+        const data = narrowToSite(await this.loadPeriodData(scope, period), siteId);
         const people = data.ratees.filter((ratee) => ratee.kind !== CsiRateeKind.TEAM);
         const ids = new Set(people.map((ratee) => ratee.id));
         const labelOf = new Map(data.dimensions.map((row) => [row.id, row.shortLabel || row.dimensionName]));
