@@ -6,7 +6,10 @@ export type CsiTemplateRaterStatus = 'confirmed' | 'ok' | 'ambiguous' | 'no-acco
 export type CsiTemplateRaterView = { id: string; raterName: string; raterNik: string | null; raterJobTitle: string | null; userId: string | null; status: CsiTemplateRaterStatus; confirmed: boolean };
 export type CsiTemplatePicView = {
     id: string; area: string; serviceCode: string; picName: string; jobTitle: string | null; serviceFunction: string | null;
-    picId: string | null; raterCount: number; raters: CsiTemplateRaterView[];
+    picId: string | null;
+    /** Custom team row (rated as a TEAM ratee); picId is then null. */
+    teamId: string | null;
+    raterCount: number; raters: CsiTemplateRaterView[];
 };
 export type CsiTemplateView = {
     id: string; scope: string; locationCode: string; name: string; updatedAt: Date | null;
@@ -42,7 +45,7 @@ export function resolveRater(rater: RaterMatch, accounts: readonly CsiAccountRef
 }
 
 type TemplateRow = { id: string; scope: string; locationCode: string; name: string; updatedAt?: Date | null };
-type PicRow = Omit<CsiTemplatePicView, 'raterCount' | 'raters'> & { sortOrder: number };
+type PicRow = Omit<CsiTemplatePicView, 'raterCount' | 'raters' | 'teamId'> & { teamId?: string | null; sortOrder: number };
 type RaterRow = RaterMatch & { id: string; templatePicId: string; raterJobTitle: string | null };
 
 /** Template → PICs (template order) → raters (name order) with the account match of each rater. */
@@ -52,7 +55,7 @@ export function buildTemplateView(template: TemplateRow, pics: PicRow[], raters:
         const own = raters.filter((rater) => rater.templatePicId === pic.id).sort((a, b) => a.raterName.localeCompare(b.raterName));
         return {
             id: pic.id, area: pic.area, serviceCode: pic.serviceCode, picName: pic.picName, jobTitle: pic.jobTitle, serviceFunction: pic.serviceFunction,
-            picId: pic.picId, raterCount: own.length,
+            picId: pic.picId, teamId: pic.teamId ?? null, raterCount: own.length,
             raters: own.map((rater) => {
                 const match = resolveRater(rater, lookup);
                 return { id: rater.id, raterName: rater.raterName, raterNik: rater.raterNik ?? null, raterJobTitle: rater.raterJobTitle, ...match, confirmed: match.status === 'confirmed' };

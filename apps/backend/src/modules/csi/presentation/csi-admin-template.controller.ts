@@ -5,8 +5,8 @@ import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { AddTemplatePicDto, AddTemplateRaterDto, CreatePeriodFromTemplateDto, ConfirmTemplateRatersDto, ImportOptionsDto, PicResolutionInput,
-    SetTemplateRaterAccountsDto, SetTemplateRaterAccountDto, UpdateTemplatePicDto } from '../dto/template.dto';
+import { AddTemplatePicDto, AddTemplateRaterDto, CreatePeriodFromTemplateDto, CreatePeriodFromTemplatesDto, ConfirmTemplateRatersDto, ImportOptionsDto, PicResolutionInput,
+    PreviewPeriodFromTemplatesDto, SetTemplateRaterAccountsDto, SetTemplateRaterAccountDto, UpdateTemplatePicDto } from '../dto/template.dto';
 import { PicResolution } from '../org/csi-template-identity';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiAssignmentTemplateService } from '../services/csi-assignment-template.service';
@@ -46,16 +46,30 @@ export class CsiAdminTemplateController {
     constructor(private readonly templates: CsiAssignmentTemplateService, private readonly applier: CsiTemplateApplyService,
         private readonly importer: CsiTemplateImportService) { }
 
+    /** One new draft survey for several locations (1-4 templates), all applied in one transaction. */
+    @Post('create-period')
+    createPeriodFromTemplates(@Req() req: CsiAdminRequest, @Body() dto: CreatePeriodFromTemplatesDto) {
+        const { templateIds, title, startDate, endDate } = dto;
+        return this.applier.createPeriodFromTemplates(hc(req), templateIds, { title, startDate, endDate }, req.user.userId);
+    }
+
+    /** Merged dry run of `create-period` (nothing is written, no survey is created). */
+    @Post('preview-period')
+    previewPeriod(@Req() req: CsiAdminRequest, @Body() dto: PreviewPeriodFromTemplatesDto) {
+        return this.applier.previewPeriod(hc(req), dto.templateIds);
+    }
+
     /** Add-only sync into an existing survey; dry run by default, `?commit=true` writes. */
     @Post(':id/apply/:periodId')
     apply(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Param('periodId', ID_PIPE) periodId: string, @Query('commit') commit?: string) {
         return this.applier.applyToPeriod(hc(req), id, periodId, commit === 'true');
     }
 
-    /** New draft survey for the template's location with the template applied. */
+    /** New draft survey for the template's location with the template applied (single-location form of `create-period`). */
     @Post(':id/create-period')
     createPeriod(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Body() dto: CreatePeriodFromTemplateDto) {
-        return this.applier.createPeriodFromTemplate(hc(req), id, dto, req.user.userId);
+        const { title, startDate, endDate } = dto;
+        return this.applier.createPeriodFromTemplates(hc(req), [id], { title, startDate, endDate }, req.user.userId);
     }
 
     @Get()

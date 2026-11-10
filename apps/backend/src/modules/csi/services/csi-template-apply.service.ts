@@ -1,17 +1,20 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { Site } from '../../sites/entities/site.entity';
-import { CsiPairMode, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CreatePeriodDto } from '../dto/period.dto';
 import { CsiDimension } from '../entities/csi-dimension.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRaterRatee } from '../entities/csi-period-rater-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
+import { CsiPeriodSite } from '../entities/csi-period-site.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiPic } from '../entities/csi-pic.entity';
+import { CsiTeamMember } from '../entities/csi-team-member.entity';
+import { CsiTeam } from '../entities/csi-team.entity';
 import { CsiOrgService } from '../org/csi-org.service';
 import { CsiTemplatePicView, CsiTemplateView } from '../org/csi-template-view';
 import { CsiAssignmentTemplateService } from './csi-assignment-template.service';
@@ -19,12 +22,17 @@ import { CsiPeriodService } from './csi-period.service';
 import { assertPeriodInScope } from './csi-scope.util';
 
 export type CsiTemplateApplyReport = {
-    picsAdded: number; ratersAdded: number; pairsAdded: number;
+    picsAdded: number; teamsAdded: number; ratersAdded: number; pairsAdded: number;
+    /** Distinct applied rater accounts matched by name only (status ok), i.e. not yet confirmed by HC. */
+    ratersUnconfirmed: number;
     picsSkippedNoRaters: string[]; picsUnmatched: string[]; ratersNoAccount: string[]; ratersAmbiguous: string[];
+    /** Site code a sync adds to the survey so the template's raters can see it (null = already covered). */
+    siteAdded: string | null;
     /** Why the template cannot be synced into this survey without locking people out (null = it can). */
     blockedReason: string | null;
     committed: boolean;
 };
+type PeriodInput = { title: string; startDate: string; endDate: string };
 
 const BLOCKED = {
     open: 'Survei ini terbuka untuk semua user di site. Template hanya bisa dipakai di survei dengan penilai terdaftar; buat survei baru dari template.',
@@ -32,33 +40,53 @@ const BLOCKED = {
     unmapped: 'Survei ini memakai "semua orang menilai semua PIC" untuk penilai yang sudah terdaftar. Menambah pasangan akan menyembunyikan survei dari mereka; buat survei baru dari template.',
     cancelled: 'Survei ini sudah dibatalkan.',
 } as const;
+const NO_QUESTIONS_MESSAGE = 'Belum ada pertanyaan HC aktif. Buat template 5 dimensi dulu.';
+const siteMissingMessage = (code: string) => `Site ${code} tidak ditemukan`;
+const overlapMessage = (code: string, title: string) => `Menambah site ${code} membuat survei ini bertabrakan dengan survei "${title}" yang sudah terbit.`;
+const APPLIED_STATUSES = new Set(['ok', 'confirmed']);
+const NOT_SCORED = new Set<string>([CsiQuestionType.CHOICE, CsiQuestionType.TEXT]);
+const unique = (values: Iterable<string>) => [...new Set(values)].sort((a, b) => a.localeCompare(b));
 
-/** A cancelled survey, or one whose sites do not include the template location (its raters could never see it). */
-function blockedByPeriod(period: CsiPeriod, locationCode: string): string | null {
-    if (period.cancelledAt) return BLOCKED.cancelled;
-    const codes = (period.sites ?? []).map((row) => row.site?.code).filter(Boolean);
-    return codes.includes(locationCode) ? null : `Survei ini tidak mencakup site ${locationCode}; penilai template tidak akan bisa melihatnya.`;
-}
+/** One rated subject of a template row: a PIC master (PERSON ratee) or an active custom team (TEAM ratee). */
+type Subject = { key: string; row: CsiTemplatePicView; pic?: CsiPic; team?: CsiTeam; excluded: ReadonlySet<string> };
+const picKey = (picId: string) => `pic:${picId}`;
+const teamKey = (teamId: string) => `team:${teamId}`;
+const rateeKey = (ratee: CsiPeriodRatee) => (ratee.kind === CsiRateeKind.TEAM ? (ratee.teamId ? teamKey(ratee.teamId) : null) : (ratee.picId ? picKey(ratee.picId) : null));
+
+/** What one template adds; sets so several templates (and a rater in two locations) merge without double counting. */
+type Tally = {
+    pics: Set<string>; teams: Set<string>; raters: Set<string>; pairs: Set<string>; unconfirmed: Set<string>;
+    skipped: Set<string>; unmatched: Set<string>; noAccount: Set<string>; ambiguous: Set<string>;
+};
+const emptyTally = (): Tally => ({
+    pics: new Set(), teams: new Set(), raters: new Set(), pairs: new Set(), unconfirmed: new Set(),
+    skipped: new Set(), unmatched: new Set(), noAccount: new Set(), ambiguous: new Set(),
+});
+const mergeTally = (into: Tally, from: Tally) => (Object.keys(into) as Array<keyof Tally>).forEach((key) => from[key].forEach((value) => into[key].add(value)));
+const toReport = (tally: Tally, extra: Pick<CsiTemplateApplyReport, 'siteAdded' | 'blockedReason' | 'committed'>): CsiTemplateApplyReport => ({
+    picsAdded: tally.pics.size, teamsAdded: tally.teams.size, ratersAdded: tally.raters.size, pairsAdded: tally.pairs.size,
+    ratersUnconfirmed: tally.unconfirmed.size, picsSkippedNoRaters: unique(tally.skipped), picsUnmatched: unique(tally.unmatched),
+    ratersNoAccount: unique(tally.noAccount), ratersAmbiguous: unique(tally.ambiguous), ...extra,
+});
+
 type Plan = {
-    report: Omit<CsiTemplateApplyReport, 'committed'>; pics: CsiPic[]; pairs: Array<{ picId: string; userId: string }>;
-    /** Service function of each PIC in the template (fallback when the PIC master has none yet). */
-    templateFunctionOf: Map<string, string | null>;
+    tally: Tally; newSubjects: Subject[]; pairs: Array<{ key: string; userId: string }>;
     /** The survey already had raters before the sync (its mode is then left alone). */
     hadRaters: boolean;
 };
 type Repos = {
     ratees: Repository<CsiPeriodRatee>; rateeDims: Repository<CsiPeriodRateeDimension>;
     raters: Repository<CsiPeriodRater>; pairs: Repository<CsiPeriodRaterRatee>; periods: Repository<CsiPeriod>;
+    teams: Repository<CsiTeam>; members: Repository<CsiTeamMember>;
 };
-
-const NO_QUESTIONS_MESSAGE = 'Belum ada pertanyaan HC aktif. Buat template 5 dimensi dulu.';
-const unique = (values: string[]) => [...new Set(values)].sort((a, b) => a.localeCompare(b));
-const NOT_SCORED = new Set<string>([CsiQuestionType.CHOICE, CsiQuestionType.TEXT]);
+/** Ratees, raters and pairs already in the survey (all empty for a preview without a survey). */
+type PeriodState = { ratees: CsiPeriodRatee[]; raters: CsiPeriodRater[]; pairs: CsiPeriodRaterRatee[] };
+const EMPTY_STATE: PeriodState = { ratees: [], raters: [], pairs: [] };
 
 /**
- * Puts a location template into a survey, add-only: PICs missing from the period become ratees (with the scope's
- * active HC questions and the service function snapshot), rater accounts become raters, and their pairs are added.
- * Nothing already in the period is removed or changed, so it also works after answers came in ("Sinkronkan").
+ * Puts location templates into a survey, add-only: PICs and active custom teams missing from the period become ratees
+ * (with the scope's active HC questions and the service function snapshot), rater accounts become raters, and their
+ * pairs are added. Nothing already in the period is removed or changed, so it also works after answers ("Sinkronkan").
  */
 @Injectable()
 export class CsiTemplateApplyService {
@@ -78,100 +106,172 @@ export class CsiTemplateApplyService {
             const repos = this.repos(manager);
             const period = assertPeriodInScope(await repos.periods.findOne({ where: { id: periodId }, relations: { sites: { site: true } } }), scope);
             await manager.query('SELECT "id" FROM "csi_periods" WHERE "id" = $1 FOR UPDATE', [periodId]);
-            const plan = await this.plan(scope, view, periodId, repos);
-            const blockedReason = blockedByPeriod(period, view.locationCode) ?? await this.blockedReason(period, repos);
-            plan.report = { ...plan.report, blockedReason };
-            if (!commit) return { ...plan.report, committed: false };
+            const plan = await this.plan(scope, view, repos, await this.stateOf(repos, periodId));
+            const missing = await this.missingSite(period, view.locationCode);
+            const blockedReason = period.cancelledAt ? BLOCKED.cancelled : missing.blockedReason ?? await this.blockedReason(period, repos);
+            const report = toReport(plan.tally, { siteAdded: missing.site?.code ?? null, blockedReason, committed: commit });
+            if (!commit) return report;
             if (blockedReason) throw new BadRequestException(blockedReason);
-            if (plan.pics.length && !questions.length) throw new BadRequestException(NO_QUESTIONS_MESSAGE);
-            await this.write(manager, repos, periodId, plan, questions);
-            return { ...plan.report, committed: true };
+            if (plan.newSubjects.length && !questions.length) throw new BadRequestException(NO_QUESTIONS_MESSAGE);
+            if (missing.site) await manager.getRepository(CsiPeriodSite).save({ periodId, siteId: missing.site.id });
+            await this.write(manager, repos, period, plan, questions);
+            return report;
         });
     }
 
-    /** Draft HC period for the template's location (individual section, listed raters), then the template applied. */
-    async createPeriodFromTemplate(scope: ServiceScope, templateId: string, input: { title: string; startDate: string; endDate: string }, actorId: string) {
-        const view = await this.templates.get(scope, templateId);
-        const site = await this.sites.findOne({ where: { code: view.locationCode } });
-        if (!site) throw new BadRequestException(`Site ${view.locationCode} tidak ditemukan`);
-        if (!(await this.hcQuestions(scope)).length) throw new BadRequestException(NO_QUESTIONS_MESSAGE);
-        const dto: CreatePeriodDto = {
-            ...input, siteIds: [site.id], respondentMode: CsiRespondentMode.LISTED, individualEnabled: true, teamEnabled: false,
-        };
+    /** Merged dry run of several location templates as if they went into one new survey; nothing is written. */
+    async previewPeriod(scope: ServiceScope, templateIds: string[]): Promise<CsiTemplateApplyReport> {
+        const views = await Promise.all(templateIds.map((id) => this.templates.get(scope, id)));
+        return this.dataSource.transaction(async (manager) => {
+            const repos = this.repos(manager);
+            const total = emptyTally();
+            for (const view of views) mergeTally(total, (await this.plan(scope, view, repos, EMPTY_STATE)).tally);
+            return toReport(total, { siteAdded: null, blockedReason: null, committed: false });
+        });
+    }
+
+    /** Draft HC period for the template's location (kept for the single-template endpoint). */
+    createPeriodFromTemplate(scope: ServiceScope, templateId: string, input: PeriodInput, actorId: string) {
+        return this.createPeriodFromTemplates(scope, [templateId], input, actorId);
+    }
+
+    /**
+     * One draft HC survey covering every template location (individual section, listed raters), then all templates
+     * applied in one transaction. Any failure removes the draft: it has no answers yet, so nothing half-built is left.
+     */
+    async createPeriodFromTemplates(scope: ServiceScope, templateIds: string[], input: PeriodInput, actorId: string) {
+        const views = await Promise.all(templateIds.map((id) => this.templates.get(scope, id)));
+        const siteIds = await this.siteIdsOf(views.map((view) => view.locationCode));
+        const questions = await this.hcQuestions(scope);
+        if (!questions.length) throw new BadRequestException(NO_QUESTIONS_MESSAGE);
+        const dto: CreatePeriodDto = { ...input, siteIds, respondentMode: CsiRespondentMode.LISTED, individualEnabled: true, teamEnabled: false };
         const period = await this.periodService.create(scope, dto, actorId);
         try {
-            const report = await this.applyToPeriod(scope, templateId, period.id, true);
+            const report = await this.dataSource.transaction(async (manager) => {
+                const repos = this.repos(manager);
+                const total = emptyTally();
+                for (const view of views) {
+                    const draft = assertPeriodInScope(await repos.periods.findOne({ where: { id: period.id } }), scope);
+                    const plan = await this.plan(scope, view, repos, await this.stateOf(repos, period.id));
+                    await this.write(manager, repos, draft, plan, questions);
+                    mergeTally(total, plan.tally);
+                }
+                return toReport(total, { siteAdded: null, blockedReason: null, committed: true });
+            });
             return { periodId: period.id, report };
         } catch (error) {
-            // No half-built survey is left behind: the draft has no answers yet, so it can go.
             await this.periodService.remove(scope, period.id).catch(() => undefined);
             throw error;
         }
     }
 
-    private async plan(scope: ServiceScope, view: CsiTemplateView, periodId: string, repos: Repos): Promise<Plan> {
-        const withRaters = view.pics.filter((pic) => pic.raterCount > 0);
-        const matched = withRaters.filter((pic): pic is CsiTemplatePicView & { picId: string } => !!pic.picId);
-        const pics = (await this.org.findPics(scope, matched.map((pic) => pic.picId))).filter((pic) => pic.isActive);
-        const active = new Set(pics.map((pic) => pic.id));
-        const existingRatees = await repos.ratees.find({ where: { periodId } });
-        const rateeOfPic = new Map(existingRatees.filter((row) => row.picId).map((row) => [row.picId!, row]));
-        const existingRaters = await repos.raters.find({ where: { periodId } });
-        const raterOfUser = new Map(existingRaters.map((row) => [row.userId, row]));
-        const existingPairs = new Set((await repos.pairs.find({ where: { periodId } })).map((row) => `${row.periodRaterId}|${row.periodRateeId}`));
-        const pairs = matched.filter((pic) => active.has(pic.picId)).flatMap((pic) => pic.raters
-            .filter((rater) => (rater.status === 'ok' || rater.status === 'confirmed') && rater.userId)
-            .map((rater) => ({ picId: pic.picId, userId: rater.userId! })))
-            .filter((pair) => pics.find((pic) => pic.id === pair.picId)?.userId !== pair.userId);
-        const fresh = pairs.filter((pair) => {
+    private async plan(scope: ServiceScope, view: CsiTemplateView, repos: Repos, state: PeriodState): Promise<Plan> {
+        const subjects = await this.subjectsOf(scope, view, repos);
+        const existingRatee = new Map(state.ratees.map((row) => [rateeKey(row), row] as const).filter(([key]) => key !== null));
+        const raterOfUser = new Map(state.raters.map((row) => [row.userId, row]));
+        const existingPairs = new Set(state.pairs.map((row) => `${row.periodRaterId}|${row.periodRateeId}`));
+        const applied = subjects.flatMap((subject) => subject.row.raters
+            .filter((rater) => APPLIED_STATUSES.has(rater.status) && rater.userId && !subject.excluded.has(rater.userId))
+            .map((rater) => ({ key: subject.key, userId: rater.userId!, unconfirmed: rater.status === 'ok' })));
+        const fresh = applied.filter((pair) => {
             const raterId = raterOfUser.get(pair.userId)?.id;
-            const rateeId = rateeOfPic.get(pair.picId)?.id;
+            const rateeId = existingRatee.get(pair.key)?.id;
             return !raterId || !rateeId || !existingPairs.has(`${raterId}|${rateeId}`);
         });
-        const all = view.pics.flatMap((pic) => pic.raters);
-        return {
-            pics: pics.filter((pic) => !rateeOfPic.has(pic.id)),
-            pairs: fresh,
-            templateFunctionOf: new Map(matched.map((pic) => [pic.picId, pic.serviceFunction])),
-            hadRaters: existingRaters.length > 0,
-            report: {
-                blockedReason: null,
-                picsAdded: pics.filter((pic) => !rateeOfPic.has(pic.id)).length,
-                ratersAdded: new Set(fresh.map((pair) => pair.userId).filter((userId) => !raterOfUser.has(userId))).size,
-                pairsAdded: new Set(fresh.map((pair) => `${pair.userId}|${pair.picId}`)).size,
-                picsSkippedNoRaters: unique(view.pics.filter((pic) => !pic.raterCount).map((pic) => pic.picName)),
-                picsUnmatched: unique(withRaters.filter((pic) => !pic.picId || !active.has(pic.picId)).map((pic) => pic.picName)),
-                ratersNoAccount: unique(all.filter((rater) => rater.status === 'no-account').map((rater) => rater.raterName)),
-                ratersAmbiguous: unique(all.filter((rater) => rater.status === 'ambiguous').map((rater) => rater.raterName)),
-            },
-        };
+        const newSubjects = subjects.filter((subject) => !existingRatee.has(subject.key));
+        const tally = this.tallyOf(view, subjects, newSubjects);
+        fresh.forEach((pair) => {
+            tally.pairs.add(`${pair.userId}|${pair.key}`);
+            if (!raterOfUser.has(pair.userId)) tally.raters.add(pair.userId);
+        });
+        applied.filter((pair) => pair.unconfirmed).forEach((pair) => tally.unconfirmed.add(pair.userId));
+        return { tally, newSubjects, pairs: fresh, hadRaters: state.raters.length > 0 };
     }
 
-    private async write(manager: EntityManager, repos: Repos, periodId: string, plan: Plan, questions: CsiDimension[]) {
-        const offset = await repos.ratees.count({ where: { periodId } });
-        const savedRatees = plan.pics.length ? await repos.ratees.save(plan.pics.map((pic, index) => ({
-            periodId, kind: CsiRateeKind.PERSON, userId: pic.userId, displayName: pic.fullName, jobTitle: pic.jobTitle, siteId: pic.siteId, teamId: null,
-            photoUrl: null, tagline: null, picId: pic.id, serviceCode: pic.serviceCode, bagian: pic.bagian,
-            serviceFunction: pic.serviceFunction ?? plan.templateFunctionOf.get(pic.id) ?? null,
-            sortOrder: offset + index,
-        }))) : [];
-        if (savedRatees.length) {
-            await repos.rateeDims.save(savedRatees.flatMap((ratee) => questions.map((question, order) => ({
-                periodRateeId: ratee.id, dimensionId: question.id, dimensionName: question.name, shortLabel: question.shortLabel ?? null,
-                type: question.type, required: question.required, options: question.options, sortOrder: order,
-            }))));
-        }
-        const rateeOfPic = new Map((await repos.ratees.find({ where: { periodId } })).filter((row) => row.picId).map((row) => [row.picId!, row.id]));
+    private tallyOf(view: CsiTemplateView, subjects: Subject[], newSubjects: Subject[]): Tally {
+        const tally = emptyTally();
+        const used = new Set(subjects.map((subject) => subject.row.id));
+        newSubjects.forEach((subject) => (subject.team ? tally.teams : tally.pics).add(subject.key));
+        view.pics.filter((row) => !row.raterCount).forEach((row) => tally.skipped.add(row.picName));
+        view.pics.filter((row) => row.raterCount > 0 && !used.has(row.id)).forEach((row) => tally.unmatched.add(row.picName));
+        const all = view.pics.flatMap((row) => row.raters);
+        all.filter((rater) => rater.status === 'no-account').forEach((rater) => tally.noAccount.add(rater.raterName));
+        all.filter((rater) => rater.status === 'ambiguous').forEach((rater) => tally.ambiguous.add(rater.raterName));
+        return tally;
+    }
+
+    /**
+     * Template rows with raters that can be rated: an active PIC master (the PIC never rates themself) or an active
+     * custom team (its members never rate their own team). Other rows are reported as unmatched.
+     */
+    private async subjectsOf(scope: ServiceScope, view: CsiTemplateView, repos: Repos): Promise<Subject[]> {
+        const rows = view.pics.filter((row) => row.raterCount > 0);
+        const picIds = rows.flatMap((row) => (row.picId ? [row.picId] : []));
+        const teamIds = rows.flatMap((row) => (!row.picId && row.teamId ? [row.teamId] : []));
+        const pics = new Map((await this.org.findPics(scope, picIds)).filter((pic) => pic.isActive).map((pic) => [pic.id, pic]));
+        const teams = teamIds.length ? (await repos.teams.find({ where: { id: In(teamIds), scope } })).filter((team) => team.isActive) : [];
+        const teamById = new Map(teams.map((team) => [team.id, team]));
+        const members = teams.length ? await repos.members.find({ where: { teamId: In(teams.map((team) => team.id)) } }) : [];
+        return rows.flatMap((row): Subject[] => {
+            const pic = row.picId ? pics.get(row.picId) : undefined;
+            if (pic) return [{ key: picKey(pic.id), row, pic, excluded: new Set(pic.userId ? [pic.userId] : []) }];
+            const team = !row.picId && row.teamId ? teamById.get(row.teamId) : undefined;
+            if (!team) return [];
+            const own = members.filter((member) => member.teamId === team.id && member.userId).map((member) => member.userId!);
+            return [{ key: teamKey(team.id), row, team, excluded: new Set(own) }];
+        });
+    }
+
+    private async write(manager: EntityManager, repos: Repos, period: CsiPeriod, plan: Plan, questions: CsiDimension[]) {
+        const periodId = period.id;
+        await this.writeRatees(repos, periodId, plan.newSubjects, questions);
+        const rateeOf = new Map((await repos.ratees.find({ where: { periodId } })).map((row) => [rateeKey(row), row.id] as const).filter(([key]) => key !== null));
         const raterOfUser = new Map((await repos.raters.find({ where: { periodId } })).map((row) => [row.userId, row.id]));
         const newUsers = [...new Set(plan.pairs.map((pair) => pair.userId))].filter((userId) => !raterOfUser.has(userId));
         if (newUsers.length) (await repos.raters.save(newUsers.map((userId) => ({ periodId, userId })))).forEach((row) => raterOfUser.set(row.userId, row.id));
         const rows = [...new Map(plan.pairs.map((pair) => {
-            const row = { periodId, periodRaterId: raterOfUser.get(pair.userId)!, periodRateeId: rateeOfPic.get(pair.picId)! };
+            const row = { periodId, periodRaterId: raterOfUser.get(pair.userId)!, periodRateeId: rateeOf.get(pair.key)! };
             return [`${row.periodRaterId}|${row.periodRateeId}`, row] as const;
         })).values()];
         if (rows.length) await repos.pairs.save(rows);
         // Only an empty survey switches to the template's mode; an existing mapping already is LISTED + pairs.
         if (!plan.hadRaters) await manager.update(CsiPeriod, { id: periodId }, { respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM, respondentPicks: false });
+        // A TEAM ratee is only shown and reported while the team section is on.
+        if (plan.newSubjects.some((subject) => subject.team) && !period.teamEnabled) await manager.update(CsiPeriod, { id: periodId }, { teamEnabled: true });
+    }
+
+    private async writeRatees(repos: Repos, periodId: string, subjects: Subject[], questions: CsiDimension[]) {
+        if (!subjects.length) return;
+        const offset = await repos.ratees.count({ where: { periodId } });
+        const saved = await repos.ratees.save(subjects.map((subject, index) => ({
+            periodId, photoUrl: null, tagline: null, sortOrder: offset + index, ...rateeFields(subject),
+        })));
+        await repos.rateeDims.save(saved.flatMap((ratee) => questions.map((question, order) => ({
+            periodRateeId: ratee.id, dimensionId: question.id, dimensionName: question.name, shortLabel: question.shortLabel ?? null,
+            type: question.type, required: question.required, options: question.options, sortOrder: order,
+        }))));
+    }
+
+    /**
+     * Sync adds the template location to a survey that lacks it (its raters could not see the survey otherwise). A
+     * published survey must not then clash with another published survey of that site.
+     */
+    private async missingSite(period: CsiPeriod, locationCode: string): Promise<{ site: Site | null; blockedReason: string | null }> {
+        if ((period.sites ?? []).some((row) => row.site?.code === locationCode)) return { site: null, blockedReason: null };
+        const [site] = await this.sites.find({ where: { code: In([locationCode]) } });
+        if (!site) return { site: null, blockedReason: siteMissingMessage(locationCode) };
+        if (period.publishStatus !== CsiPeriodPublishStatus.PUBLISHED) return { site, blockedReason: null };
+        const [clash] = await this.periodService.overlaps(period.scope, [site.id], period.startDate, period.endDate, period.id);
+        return { site, blockedReason: clash ? overlapMessage(locationCode, clash.title) : null };
+    }
+
+    /** Site ids of the template locations (template order, de-duplicated); an unknown location is a 400. */
+    private async siteIdsOf(codes: string[]) {
+        const wanted = [...new Set(codes)];
+        const found = await this.sites.find({ where: { code: In(wanted) } });
+        const missing = wanted.find((code) => !found.some((site) => site.code === code));
+        if (missing) throw new BadRequestException(siteMissingMessage(missing));
+        return wanted.map((code) => found.find((site) => site.code === code)!.id);
     }
 
     /**
@@ -186,6 +286,13 @@ export class CsiTemplateApplyService {
         return raters > 0 && pairs === 0 ? BLOCKED.unmapped : null;
     }
 
+    private async stateOf(repos: Repos, periodId: string): Promise<PeriodState> {
+        const [ratees, raters, pairs] = await Promise.all([
+            repos.ratees.find({ where: { periodId } }), repos.raters.find({ where: { periodId } }), repos.pairs.find({ where: { periodId } }),
+        ]);
+        return { ratees, raters, pairs };
+    }
+
     /** Active scored HC questions in master order (the five star dimensions). */
     private async hcQuestions(scope: ServiceScope) {
         const rows = await this.dimensions.find({ where: { scope, isActive: true } });
@@ -196,7 +303,22 @@ export class CsiTemplateApplyService {
         return {
             ratees: manager.getRepository(CsiPeriodRatee), rateeDims: manager.getRepository(CsiPeriodRateeDimension),
             raters: manager.getRepository(CsiPeriodRater), pairs: manager.getRepository(CsiPeriodRaterRatee), periods: manager.getRepository(CsiPeriod),
+            teams: manager.getRepository(CsiTeam), members: manager.getRepository(CsiTeamMember),
         };
     }
 }
 
+/** Ratee snapshot of a subject: PIC fields from the master (template function as fallback), a team by its master name. */
+function rateeFields(subject: Subject) {
+    const { row, pic, team } = subject;
+    if (team) {
+        return {
+            kind: CsiRateeKind.TEAM, userId: null, picId: null, teamId: team.id, siteId: team.siteId, displayName: team.name, jobTitle: null,
+            serviceCode: team.serviceCode ?? row.serviceCode, bagian: null, serviceFunction: row.serviceFunction,
+        };
+    }
+    return {
+        kind: CsiRateeKind.PERSON, userId: pic!.userId, picId: pic!.id, teamId: null, siteId: pic!.siteId, displayName: pic!.fullName, jobTitle: pic!.jobTitle,
+        serviceCode: pic!.serviceCode, bagian: pic!.bagian, serviceFunction: pic!.serviceFunction ?? row.serviceFunction ?? null,
+    };
+}

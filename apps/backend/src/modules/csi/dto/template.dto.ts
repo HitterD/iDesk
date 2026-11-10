@@ -1,4 +1,4 @@
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, Validate, ValidateIf,
+import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, Validate, ValidateIf,
     ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -113,4 +113,19 @@ export class CreatePeriodFromTemplateDto {
 
     @IsDateString({ strict: true }, { message: 'Tanggal selesai tidak valid' }) @Matches(DATE_ONLY, { message: 'Tanggal selesai harus berformat YYYY-MM-DD' })
     endDate: string;
+}
+
+/** A survey spans at most the four HC locations (SMG, KRW, SPJ, JTB): one template each. */
+const MAX_TEMPLATES_PER_PERIOD = 4;
+
+export class PreviewPeriodFromTemplatesDto {
+    @IsArray() @ArrayMinSize(1, { message: 'Pilih minimal satu lokasi' }) @ArrayMaxSize(MAX_TEMPLATES_PER_PERIOD, { message: 'Maksimal 4 lokasi' })
+    @ArrayUnique(undefined, { message: 'Lokasi tidak boleh duplikat' }) @IsUUID('all', { each: true, message: 'ID template harus berupa UUID' })
+    templateIds: string[];
+}
+
+export class CreatePeriodFromTemplatesDto extends CreatePeriodFromTemplateDto {
+    @IsArray() @ArrayMinSize(1, { message: 'Pilih minimal satu lokasi' }) @ArrayMaxSize(MAX_TEMPLATES_PER_PERIOD, { message: 'Maksimal 4 lokasi' })
+    @ArrayUnique(undefined, { message: 'Lokasi tidak boleh duplikat' }) @IsUUID('all', { each: true, message: 'ID template harus berupa UUID' })
+    templateIds: string[];
 }

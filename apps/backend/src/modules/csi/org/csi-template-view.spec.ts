@@ -55,4 +55,9 @@ describe('buildTemplateView', () => {
         expect(view.summary.ratersOk).toBe(40);
         expect(fullNames.length).toBeLessThanOrEqual(accounts.length);
     });
+
+    it('exposes the custom team of a team row (null for PIC rows)', () => {
+        const view = buildTemplateView(template, [pic, { ...pic, id: 'p2', picName: 'TIM A', teamId: 'team-a', sortOrder: 1 }], [], []);
+        expect(view.pics.map((row) => row.teamId)).toEqual([null, 'team-a']);
+    });
 });

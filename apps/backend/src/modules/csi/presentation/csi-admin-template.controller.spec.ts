@@ -1,13 +1,14 @@
 import 'reflect-metadata';
-import { BadRequestException } from '@nestjs/common';
+import { ArgumentMetadata, BadRequestException, ValidationPipe } from '@nestjs/common';
 import { PATH_METADATA } from '@nestjs/common/constants';
 import { validate } from 'class-validator';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { ConfirmTemplateRatersDto, SetTemplateRaterAccountsDto } from '../dto/template.dto';
+import { ConfirmTemplateRatersDto, CreatePeriodFromTemplatesDto, PreviewPeriodFromTemplatesDto, SetTemplateRaterAccountsDto } from '../dto/template.dto';
 import { CsiAssignmentTemplateService } from '../services/csi-assignment-template.service';
 import { CsiAdminTemplateController, parseImportOptions } from './csi-admin-template.controller';
 
 const ID = '12345678-1234-4234-8234-123456789012';
+const OTHER = '22345678-1234-4234-8234-123456789012';
 const request = { csiScope: ServiceScope.HC, user: { userId: ID } };
 
 describe('CsiAdminTemplateController bulk contracts', () => {
@@ -18,6 +19,10 @@ describe('CsiAdminTemplateController bulk contracts', () => {
         expect(path('setRaterAccounts')).toBe('raters/account');
         expect(path('confirmRaters')).toBe('raters/confirm');
         expect(path('blankTemplate')).toBe('blank/:location');
+        expect(path('createPeriodFromTemplates')).toBe('create-period');
+        expect(path('previewPeriod')).toBe('preview-period');
+        expect(methods.indexOf('createPeriodFromTemplates')).toBeLessThan(methods.indexOf('createPeriod'));
+        expect(methods.indexOf('previewPeriod')).toBeLessThan(methods.indexOf('get'));
         expect(methods.indexOf('blankTemplate')).toBeLessThan(methods.indexOf('get'));
         expect(methods.indexOf('accountSuggestions')).toBeLessThan(methods.indexOf('get'));
         expect(methods.indexOf('setRaterAccounts')).toBeLessThan(methods.indexOf('setRaterAccount'));
@@ -83,5 +88,27 @@ describe('CsiAdminTemplateController bulk contracts', () => {
         await expect(controller.blankTemplate(request, 'XXX', res as any)).rejects.toThrow(new BadRequestException('Lokasi tidak dikenal'));
         await expect(controller.blankTemplate({ ...request, csiScope: ServiceScope.ICT }, 'SMG', res as any)).rejects.toBeInstanceOf(BadRequestException);
         expect(res.send).toHaveBeenCalledTimes(1);
+    });
+    it('create-period and preview-period forward 1-4 unique template ids; the legacy route delegates with [id]', async () => {
+        const applier = { createPeriodFromTemplates: jest.fn(), previewPeriod: jest.fn() };
+        const controller = new CsiAdminTemplateController({} as any, applier as any, {} as any);
+        const period = { title: 'CSI HC 2026', startDate: '2026-12-01', endDate: '2026-12-31' };
+        controller.createPeriodFromTemplates(request, { ...period, templateIds: [ID, OTHER] });
+        expect(applier.createPeriodFromTemplates).toHaveBeenLastCalledWith(ServiceScope.HC, [ID, OTHER], period, ID);
+        controller.createPeriod(request, ID, period);
+        expect(applier.createPeriodFromTemplates).toHaveBeenLastCalledWith(ServiceScope.HC, [ID], period, ID);
+        controller.previewPeriod(request, { templateIds: [ID] });
+        expect(applier.previewPeriod).toHaveBeenCalledWith(ServiceScope.HC, [ID]);
+        expect(() => controller.previewPeriod({ ...request, csiScope: ServiceScope.ICT }, { templateIds: [ID] })).toThrow(BadRequestException);
+
+        const pipe = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true });
+        const body = (metatype: ArgumentMetadata['metatype']): ArgumentMetadata => ({ type: 'body', metatype });
+        await expect(pipe.transform({ templateIds: [ID, OTHER] }, body(PreviewPeriodFromTemplatesDto))).resolves.toBeDefined();
+        await expect(pipe.transform({ ...period, templateIds: [ID] }, body(CreatePeriodFromTemplatesDto))).resolves.toBeDefined();
+        const five = ['1', '2', '3', '4', '5'].map((digit) => `${digit}2345678-1234-4234-8234-123456789012`);
+        for (const templateIds of [[], five, [ID, ID], ['bad'], undefined]) {
+            await expect(pipe.transform({ templateIds }, body(PreviewPeriodFromTemplatesDto))).rejects.toBeInstanceOf(BadRequestException);
+            await expect(pipe.transform({ ...period, templateIds }, body(CreatePeriodFromTemplatesDto))).rejects.toBeInstanceOf(BadRequestException);
+        }
     });
 });
