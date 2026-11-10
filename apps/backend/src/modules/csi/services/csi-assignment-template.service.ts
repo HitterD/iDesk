@@ -13,7 +13,7 @@ import { buildNameIndex, normalizeName } from '../org/csi-name-match';
 import { CSI_HC_SERVICES, normalizeBagian } from '../org/csi-org.constants';
 import { normalizeServiceFunction } from '../org/csi-org.service';
 import { CsiTemplateSeed, CsiTemplateSeedPic, parseTemplateWorkbook } from '../org/csi-template-excel';
-import { buildTemplateView, CsiTemplateView, resolveRater } from '../org/csi-template-view';
+import { buildTemplateView, CsiTemplateView, lookupOf, resolveRater } from '../org/csi-template-view';
 import { suggestAccounts } from '../org/csi-account-suggest';
 import { CSI_TEMPLATE_HC_SMG_2026 } from '../org/templates/hc-smg-2026.data';
 
@@ -174,7 +174,8 @@ export class CsiAssignmentTemplateService {
         const templateId = await this.dataSource.transaction(async (manager) => {
             const selection = await this.scopedRaters(manager, scope, raterIds);
             const accounts = confirmed ? await this.activeAccounts(manager.getRepository(User)) : [];
-            const resolved = selection.raters.map((rater) => ({ rater, match: resolveRater(rater, accounts) }));
+            const lookup = lookupOf(accounts);
+            const resolved = selection.raters.map((rater) => ({ rater, match: resolveRater(rater, lookup) }));
             const rejected = resolved.filter(({ match }) => match.status === 'ambiguous' || match.status === 'no-account');
             if (confirmed && rejected.length) {
                 throw new BadRequestException('Pilih akun dulu untuk: ' + [...new Set(rejected.map(({ rater }) => rater.raterName))].join(', '));

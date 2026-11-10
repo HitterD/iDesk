@@ -18,7 +18,7 @@ type RaterMatch = { raterName: string; raterNik: string | null; userId: string |
 
 /** Active account indexes are built once per view; duplicate NIKs must never confirm an identity. */
 type AccountLookup = { activeIds: ReadonlySet<string>; byNik: ReadonlyMap<string, CsiAccountRef | null>; byName: (name: string) => CsiAccountRef | 'ambiguous' | null };
-function lookupOf(accounts: readonly CsiAccountRef[]): AccountLookup {
+export function lookupOf(accounts: readonly CsiAccountRef[]): AccountLookup {
     const byNik = new Map<string, CsiAccountRef | null>();
     for (const account of accounts) {
         const nik = normalizeNik(account.employeeId);

@@ -70,6 +70,17 @@ describe('CsiAssignmentTemplateService', () => {
         await expect(service.confirmRaters(HC, ['r2'], true, 'actor')).rejects.toThrow('Pilih akun dulu untuk: TIDAK ADA');
     });
 
+    it('indexes active account names once per confirmation batch, not per rater', async () => {
+        seedRaters();
+        raters.rows[1].raterName = 'ELVI CYNTHIA';
+        const readName = jest.fn(() => 'Elvi Cynthia');
+        Object.defineProperty(users.rows[0], 'fullName', { get: readName, configurable: true });
+        const result = await service.confirmRaters(HC, ['r1', 'r2'], true, 'actor');
+        expect(result.pics[0].raters.every((rater) => rater.status === 'confirmed')).toBe(true);
+        // One index in the transaction, one in the returned template view.
+        expect(readName).toHaveBeenCalledTimes(2);
+    });
+
     it('bulk account pins and confirms all ids, and null clears both', async () => {
         seedRaters();
         const result = await service.setRaterAccounts(HC, ['r1', 'r2'], 'u-elvi', 'actor');
