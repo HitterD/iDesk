@@ -1,5 +1,6 @@
 import * as ExcelJS from 'exceljs';
 import { parseTemplateWorkbook } from './csi-template-excel';
+import { parseMatrixWorkbook } from './csi-template-matrix';
 
 const SERVICES = ['Pelayanan Cuti dan Absensi', 'Pelayanan Perjalanan Dinas', 'Pelayanan Uang Makan Uang Transport Uang Lembur', 'Pelatihan'];
 async function matrix(pics: unknown[][], raters: unknown[][], sum = true) {
@@ -81,6 +82,9 @@ describe('matrix template workbook', () => {
         const draft = await parseTemplateWorkbook(Buffer.from(await book.xlsx.writeBuffer()));
         expect(draft.pics).toEqual([]);
         expect(draft.problems).toEqual([{ row: 2, message: 'Grup layanan PIC tidak dikenali' }]);
+        const reads = book.worksheets.map((sheet) => jest.spyOn(sheet, 'getRow'));
+        expect(parseMatrixWorkbook(book).problems).toEqual([{ row: 2, message: 'Grup layanan PIC tidak dikenali' }]);
+        for (const read of reads) expect(read).not.toHaveBeenCalledWith(0);
     });
 
     it('rejects matrix sheets without NIK and NAMA headers in the first ten rows', async () => {

@@ -37,7 +37,9 @@ function matrixColumns(sheet: ExcelJS.Worksheet) {
         const services: ServiceColumn[] = [];
         let group: string | null = null;
         for (let index = after + 1; index < headers.length; index++) {
-            group = cleanTemplateCell(sheet.getRow(row - 1).getCell(index).value)?.toUpperCase() ?? group;
+            // A header in row one has no group row; never depend on ExcelJS accepting row zero.
+            const groupCell = row > 1 ? sheet.getRow(row - 1).getCell(index).value : null;
+            group = cleanTemplateCell(groupCell)?.toUpperCase() ?? group;
             const name = cleanTemplateCell(sheet.getRow(row).getCell(index).value);
             if (name) services.push({ index, name, serviceCode: GROUP_SERVICE[group ?? ''] ?? null });
         }
