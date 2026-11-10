@@ -103,11 +103,13 @@ function LocationTabs({ templates, selected, onSelect }: {
  * Pengaturan → Template penugasan: per-location lists of HC PICs, their service function and who rates them.
  * Edited here or imported from Excel (dry-run preview first), then used to create a survey or synced (add-only) into one.
  */
-export function TemplatesTab({ scope }: { scope: CsiScopeParam }) {
+export function TemplatesTab({ scope, initialLocation, initialView }: {
+    scope: CsiScopeParam; initialLocation?: string; initialView?: TemplateView;
+}) {
     const { data, isLoading } = useCsiTemplates(scope);
-    const [selected, setSelected] = useState<string>(CSI_TEMPLATE_LOCATIONS[0].code);
+    const [selected, setSelected] = useState<string>(initialLocation ?? CSI_TEMPLATE_LOCATIONS[0].code);
     const [importing, setImporting] = useState(false);
-    const [view, setView] = useState<TemplateView>('pic');
+    const [view, setView] = useState<TemplateView>(initialView ?? 'pic');
     const templates = data?.templates ?? [];
     const location = CSI_TEMPLATE_LOCATIONS.find((row) => row.code === selected) ?? CSI_TEMPLATE_LOCATIONS[0];
     const current = templates.find((row) => row.locationCode === location.code);

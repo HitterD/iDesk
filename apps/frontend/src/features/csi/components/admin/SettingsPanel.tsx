@@ -13,6 +13,7 @@ import { PicsTab } from './hc/PicsTab';
 import { ReportOwnersTab } from './hc/ReportOwnersTab';
 import { CSI_SERVICE_NAMES } from '../../lib/services';
 import { TemplatesTab } from './hc/templates/TemplatesTab';
+import { templateRaterCounts } from './hc/templates/templateRaterCounts';
 import { useCsiPics, useCsiReportOwners, useCsiTemplates } from '../../hooks/useCsiHc';
 
 export type SettingsSection = 'subjects' | 'pics' | 'templates' | 'report-owners' | 'questions' | 'raters' | 'departments';
@@ -29,6 +30,7 @@ export function useSettingsStatus(scope: CsiScopeParam): SectionStatus[] {
     const { data: owners = [] } = useCsiReportOwners(scope);
     const { data: templateList } = useCsiTemplates(scope, scope === 'hc');
     const templateCount = templateList?.templates.length ?? 0;
+    const templateRaters = templateRaterCounts(templateList?.templates ?? []);
     const people = groups.flatMap((group) => [...(group.team ? [group.team] : []), ...group.people]);
     const noPhoto = people.filter((subject) => !subject.photoUrl).length;
     const raterSites = new Set(raters.map((rater) => rater.user.site?.code).filter(Boolean));
@@ -39,7 +41,7 @@ export function useSettingsStatus(scope: CsiScopeParam): SectionStatus[] {
         description: 'Staf HCC, HCD dan HCS per layanan dan bagian, diimpor dari Data Hirarki Approver.',
     }, {
         key: 'templates', label: 'Template penugasan', done: templateCount > 0,
-        hint: templateCount ? `${templateCount} lokasi` : 'belum ada',
+        hint: `${templateCount} lokasi${templateRaters.issues ? ` · ${templateRaters.issues} perlu dicek` : ''}`,
         description: 'Siapa menilai siapa per lokasi (mis. Semarang), lengkap dengan fungsi pelayanan PIC.',
     }] : [];
     // Both scopes: HC per layanan (HCC / HCD / HCS), ICT per handling team.
@@ -64,9 +66,12 @@ export function useSettingsStatus(scope: CsiScopeParam): SectionStatus[] {
             description: 'Bank pertanyaan yang bisa dipasang ke tim dan orang di setiap survei.',
         },
         {
-            key: 'raters', label: 'Penilai', done: raters.length > 0 && !sitesWithoutRaters.length,
-            hint: !raters.length ? 'belum ada' : sitesWithoutRaters.length ? `${sitesWithoutRaters.join(', ')} kosong` : `${raters.length} orang`,
-            description: 'Orang yang boleh mengisi survei dengan mode "Hanya penilai terdaftar".',
+            key: 'raters', label: 'Penilai',
+            done: scope === 'hc' ? templateCount > 0 && templateRaters.issues === 0 : raters.length > 0 && !sitesWithoutRaters.length,
+            hint: scope === 'hc'
+                ? !templateCount ? 'belum ada template' : templateRaters.issues ? `${templateRaters.issues} perlu dicek` : `${templateRaters.total} orang`
+                : !raters.length ? 'belum ada' : sitesWithoutRaters.length ? `${sitesWithoutRaters.join(', ')} kosong` : `${raters.length} orang`,
+            description: scope === 'hc' ? 'Penilai ditentukan di Template penugasan tiap lokasi.' : 'Orang yang boleh mengisi survei dengan mode "Hanya penilai terdaftar".',
         },
         {
             key: 'departments', label: 'Departemen', done: departments.length > 0,
@@ -76,14 +81,17 @@ export function useSettingsStatus(scope: CsiScopeParam): SectionStatus[] {
     ];
 }
 
-function Body({ scope, section, onSection }: { scope: CsiScopeParam; section: SettingsSection; onSection: (section: SettingsSection) => void }) {
+function Body({ scope, section, onSection, templateFocus, onFix }: {
+    scope: CsiScopeParam; section: SettingsSection; onSection: (section: SettingsSection) => void;
+    templateFocus?: string; onFix: (locationCode: string) => void;
+}) {
     switch (section) {
         case 'questions': return <DimensionsTab scope={scope} />;
-        case 'raters': return <RatersTab scope={scope} />;
+        case 'raters': return <RatersTab scope={scope} onFix={onFix} />;
         case 'departments': return <DepartmentsTab scope={scope} />;
         case 'pics': return <PicsTab scope={scope} />;
         case 'report-owners': return <ReportOwnersTab scope={scope} />;
-        case 'templates': return <TemplatesTab scope={scope} />;
+        case 'templates': return <TemplatesTab scope={scope} initialLocation={templateFocus} initialView={templateFocus ? 'rater' : undefined} />;
         default: return <SubjectsTab scope={scope} onOpenTemplates={scope === 'hc' ? () => onSection('templates') : undefined} />;
     }
 }
@@ -94,6 +102,8 @@ function Body({ scope, section, onSection }: { scope: CsiScopeParam; section: Se
  */
 export function SettingsPanel({ scope, initial }: { scope: CsiScopeParam; initial?: SettingsSection }) {
     const [section, setSection] = useState<SettingsSection>(initial ?? (scope === 'hc' ? 'pics' : 'subjects'));
+    const [templateFocus, setTemplateFocus] = useState<string>();
+    const openTemplate = (locationCode: string) => { setTemplateFocus(locationCode); setSection('templates'); };
     const status = useSettingsStatus(scope);
     const current = status.find((row) => row.key === section)!;
     return (
@@ -122,7 +132,7 @@ export function SettingsPanel({ scope, initial }: { scope: CsiScopeParam; initia
                         <p className="text-[13px] text-[hsl(var(--idesk-text-secondary))]">{current.description}</p>
                     </div>
                 </header>
-                <Body scope={scope} section={section} onSection={setSection} />
+                <Body scope={scope} section={section} onSection={setSection} templateFocus={templateFocus} onFix={openTemplate} />
             </div>
         </div>
     );

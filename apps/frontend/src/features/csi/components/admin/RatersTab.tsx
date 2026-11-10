@@ -11,6 +11,7 @@ import { siteTone, toneClasses } from '../../lib/csiTone';
 import type { CsiRater, CsiScopeParam } from '../../types';
 import { ADMIN_PANEL, AdminSection, EmptyNote, MUTED_TEXT } from './AdminParts';
 import { AddRatersPanel } from './raters/AddRatersPanel';
+import { TemplateRatersSummary } from './hc/TemplateRatersSummary';
 
 const NO_SITE = 'Tanpa site';
 type SiteGroup = { code: string | null; name: string; raters: CsiRater[] };
@@ -61,7 +62,11 @@ function SiteSection({ group, selected, onToggle, onToggleAll, onRemove }: {
 }
 
 /** Registered raters of the scope: three ways to add, a searchable per-site list and bulk removal. */
-export function RatersTab({ scope }: { scope: CsiScopeParam }) {
+export function RatersTab({ scope, onFix }: { scope: CsiScopeParam; onFix?: (locationCode: string) => void }) {
+    return scope === 'hc' ? <TemplateRatersSummary onFix={onFix} /> : <EditableRatersTab scope={scope} />;
+}
+
+function EditableRatersTab({ scope }: { scope: CsiScopeParam }) {
     const { data: raters, isLoading, isError, refetch } = useCsiRaters(scope);
     const remove = useRemoveCsiRaters(scope);
     const [search, setSearch] = useState('');

@@ -76,6 +76,13 @@ async function openPreview() {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('TemplatesTab', () => {
+    it('opens the requested location in the per-rater view with issues filtered', async () => {
+        fx.list.templates = [{ ...TEMPLATE, locationCode: 'KRW' }];
+        renderWithQuery(<TemplatesTab scope="hc" initialLocation="KRW" initialView="rater" />);
+        expect(await screen.findByRole('tab', { name: /karawang\s*2 PIC/i })).toHaveAttribute('aria-selected', 'true');
+        expect(await screen.findByRole('button', { name: 'Perlu dicek' })).toHaveAttribute('aria-pressed', 'true');
+    });
+
     it('shows four location tabs', async () => {
         renderWithQuery(<TemplatesTab scope="hc" />);
         await screen.findByRole('tab', { name: /semarang\s*2 PIC/i });
