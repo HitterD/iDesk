@@ -113,8 +113,9 @@ function hash(value: string): number {
     for (let i = 0; i < value.length; i++) result = Math.imul(result ^ value.charCodeAt(i), 0x01000193) >>> 0;
     return result;
 }
-export const shuffledTexts = (comments: CsiCommentGroup['comments']) =>
-    comments.map((comment) => comment.text).sort((a, b) => hash(a) - hash(b) || a.localeCompare(b, 'id'));
+/** Stable pseudo-random order of comment texts, shared by the PDF and the Excel "Komentar" sheet. */
+export const commentOrder = (a: string, b: string) => hash(a) - hash(b) || a.localeCompare(b, 'id');
+export const shuffledTexts = (comments: CsiCommentGroup['comments']) => comments.map((comment) => comment.text).sort(commentOrder);
 
 /** Anonymous comments: one sentence for the section, per group a sub-heading and a plain list (no date, department, rater). */
 export function commentsSection(canvas: ReportCanvas, title: string, groups: Array<{ heading: string; texts: string[] }>) {

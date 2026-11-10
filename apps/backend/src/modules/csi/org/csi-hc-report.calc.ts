@@ -228,6 +228,7 @@ export function collapseRespondentRows(rows: CsiRespondentRow[]): CsiRespondentR
     });
 }
 
+/** Every respondent's ratings (admin Excel only); PICs in report layanan order (HCD, HCC, HCS), then by name. */
 function respondentDetails(pics: CsiHcPic[], ratings: CsiHcRating[]): CsiRespondentDetail[] {
     const picOf = new Map(pics.map((pic) => [pic.periodRateeId, pic]));
     return [...groupBy(ratings, (rating) => rating.responseId).values()].map((own) => {
@@ -235,7 +236,7 @@ function respondentDetails(pics: CsiHcPic[], ratings: CsiHcRating[]): CsiRespond
         const picRows = own.map((rating) => {
             const pic = picOf.get(rating.periodRateeId);
             return { name: pic?.name ?? '-', serviceCode: pic?.serviceCode ?? null, bagian: pic?.bagian ?? null, scores: rating.scores, average: ratingValue(rating) };
-        }).sort((a, b) => (a.serviceCode ?? '').localeCompare(b.serviceCode ?? '') || a.name.localeCompare(b.name, 'id'));
+        }).sort((a, b) => compareServiceCodes(a.serviceCode, b.serviceCode) || a.name.localeCompare(b.name, 'id'));
         return {
             responseId: first.responseId, name: first.respondent.name, division: first.respondent.division, department: first.respondent.department,
             bagian: first.respondent.bagian, location: first.location, pics: picRows,

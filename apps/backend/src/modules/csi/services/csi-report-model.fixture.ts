@@ -1,6 +1,6 @@
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiRateeKind, CsiRespondentMode } from '../csi.constants';
-import { buildHcRecap, CsiHcPic, CsiHcRating, recapAverages } from '../org/csi-hc-report.calc';
+import { buildHcRecap, CsiHcPic, CsiHcRating } from '../org/csi-hc-report.calc';
 import { CsiOrgLocation } from '../org/csi-org.constants';
 import { buildReportModel, CsiReportModelInput } from './csi-report-model';
 
@@ -112,6 +112,7 @@ export function hcReportFixture({ respondents = 30, previous = false, title = 'C
         serviceAverages: recap.services.filter((row) => row.level === 'service').map((row) => ({ serviceCode: row.serviceCode, average: row.all.average })),
         comments: ratees.flatMap((ratee) => ratee.comments.map((comment) => ({ periodRateeId: ratee.periodRateeId, text: comment.text, department: comment.departmentName, date: comment.submittedAt }))),
     };
-    const hcRecap = previous ? { ...recap, previous: { ...recapAverages(recap), 's:HCC': 4.0, 'pic:pic0': 3.9 } } : recap;
+    // Only what the previous period really had: layanan HCC, Anita (master PIC) and Bambang (name); others show "–".
+    const hcRecap = previous ? { ...recap, previous: { 's:HCC': 4.0, 'pic:pic0': 3.9, 'p:HCC:bambang benefit': 4.2 } } : recap;
     return { input: hcInput, model: { ...buildReportModel(hcInput), hcRecap }, ratings };
 }

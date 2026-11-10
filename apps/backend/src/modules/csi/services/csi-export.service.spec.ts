@@ -2,9 +2,9 @@ import * as ExcelJS from 'exceljs';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiRespondentMode } from '../csi.constants';
 import { CsiExportService, sanitizeCell } from './csi-export.service';
-import { reportFixture } from './csi-report-model.fixture';
+import { hcReportFixture, reportFixture } from './csi-report-model.fixture';
 
-const EXECUTIVE = ['Ringkasan', 'Peringkat Tim', 'Peringkat Orang', 'Partisipasi', 'Per Pertanyaan Tim', 'Per Pertanyaan Orang', 'Departemen', 'Komentar'];
+const EXECUTIVE = ['Ringkasan', 'Peringkat', 'Partisipasi', 'Per Pertanyaan Tim', 'Per Pertanyaan Orang', 'Departemen', 'Komentar'];
 
 const NOW = new Date('2026-10-24T18:30:00Z'); // 2026-10-25 01:30 WIB
 
@@ -150,7 +150,7 @@ describe('CsiExportService', () => {
         expect(sheet.getRow(2).getCell(5).fill).toMatchObject({ fgColor: { argb: 'FFFCEBC8' } });
     });
 
-    it('executive sheets carry the same parameters as the PDF: separate team/people rankings, notes, departments without names', async () => {
+    it('executive sheets carry the same parameters as the PDF: notes, departments without names', async () => {
         const { buffer } = await service.buildWorkbook(ServiceScope.ICT, 'p1', NOW, { notes: 'Tindak lanjut A' });
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(buffer as any);
@@ -159,14 +159,80 @@ describe('CsiExportService', () => {
         expect(labels).toEqual(expect.arrayContaining(['Nilai keseluruhan (1-5)', 'Predikat', 'Δ vs periode lalu', 'Poin utama', 'Catatan & tindak lanjut']));
         const notesRow = labels.indexOf('Catatan & tindak lanjut');
         expect(summary.getRow(notesRow).getCell(2).value).toBe('Tindak lanjut A');
-        expect(workbook.getWorksheet('Peringkat Tim')!.rowCount).toBe(1 + 2);
-        expect(workbook.getWorksheet('Peringkat Orang')!.rowCount).toBe(1 + 3);
-        expect(workbook.getWorksheet('Peringkat Orang')!.getRow(1).values).toEqual([
-            undefined, '#', 'Nama', 'Site', 'Penilai', 'Nilai', 'Predikat', 'Indeks (%)', 'Periode lalu', 'Δ', '★1', '★2', '★3', '★4', '★5',
-        ]);
         expect(workbook.getWorksheet('Departemen')!.getRow(1).values).toEqual([undefined, 'Departemen', 'Sudah', 'Total', '%', 'Target']);
         expect(workbook.getWorksheet('Departemen')!.getRow(2).values).toEqual([undefined, 'Departemen kecil (gabungan)', 0, 2, 0, 'Belum']);
         expect(workbook.getWorksheet('Basis Partisipasi')).toBeUndefined();
         expect(reports.getExecutiveModel).toHaveBeenCalledWith(ServiceScope.ICT, 'p1', expect.objectContaining({ notes: 'Tindak lanjut A' }));
+    });
+    const workbookOf = async (model: unknown) => {
+        reports.getExecutiveModel.mockImplementation(async () => model);
+        return load();
+    };
+    const rowsOf = (sheet: ExcelJS.Worksheet) => Array.from({ length: sheet.rowCount - 1 }, (_, i) => (sheet.getRow(i + 2).values as unknown[]).slice(1));
+    const summaryValue = (workbook: ExcelJS.Workbook, label: string) => {
+        const summary = workbook.getWorksheet('Ringkasan')!;
+        const index = (summary.getColumn(1).values as unknown[]).indexOf(label);
+        return index < 0 ? undefined : summary.getRow(index).getCell(2).value;
+    };
+
+    it('summary sheet carries the SLA cells: sudah/basis, %, target % and orang, status with the missing answers', async () => {
+        const { model } = hcReportFixture({ respondents: 30 });
+        const workbook = await workbookOf(model);
+        expect(summaryValue(workbook, 'SLA sudah mengisi / basis')).toBe('30/40');
+        expect(summaryValue(workbook, 'SLA % sudah mengisi')).toBe(75);
+        expect(summaryValue(workbook, 'Target SLA (%)')).toBe(90);
+        expect(summaryValue(workbook, 'Target SLA (orang)')).toBe(36);
+        expect(summaryValue(workbook, 'Status SLA')).toBe('Belum memenuhi SLA — kurang 6 jawaban');
+        const met = await workbookOf({ ...model, sla: { ...model.sla, submitted: 36, met: true, missing: 0 } });
+        expect(summaryValue(met, 'Status SLA')).toBe('Memenuhi SLA');
+    });
+
+    it('one "Peringkat" sheet per layanan: competition ranks, insufficient rows unnumbered with a note, no Bintang', async () => {
+        const { model } = hcReportFixture({ respondents: 30 });
+        const row = (name: string, raters: number, average: number) => ({ name, detail: 'PAYROLL', raters, average, word: 'Puas', previous: null, delta: null });
+        const ranking = [
+            { serviceCode: 'HCD', serviceName: 'HC Development', ranked: [{ ...row('A', 6, 4.5), rank: 1 }, { ...row('B', 5, 4.5), rank: 1 }, { ...row('C', 7, 4.1), rank: 3 }], insufficient: [{ ...row('D', 2, 4.9), rank: null }] },
+            { serviceCode: 'HCC', serviceName: 'HC Compensation & Benefit', ranked: [{ ...row('E', 5, 4.2), rank: 1 }], insufficient: [] },
+        ];
+        const sheet = (await workbookOf({ ...model, hasPrevious: false, rankingByService: ranking })).getWorksheet('Peringkat')!;
+        const header = (sheet.getRow(1).values as unknown[]).slice(1);
+        expect(header).toEqual(['Layanan', '#', 'Nama', 'Bagian / fungsi', 'Penilai', 'Nilai', 'Predikat', 'Keterangan']);
+        expect(header.join('|')).not.toMatch(/★|Bintang|Lalu|Δ/);
+        expect(rowsOf(sheet).map((cells) => [cells[0], cells[1] ?? null, cells[2], cells[7] ?? null])).toEqual([
+            ['HCD · HC Development', 1, 'A', null], ['HCD · HC Development', 1, 'B', null], ['HCD · HC Development', 3, 'C', null],
+            ['HCD · HC Development', null, 'D', 'Belum cukup penilai (< 5)'], ['HCC · HC Compensation & Benefit', 1, 'E', null],
+        ]);
+    });
+
+    it('"Peringkat" adds Lalu / Δ only with a previous period; ICT groups are Tim and Orang with a Site column', async () => {
+        const hc = (await workbookOf(hcReportFixture({ previous: true }).model)).getWorksheet('Peringkat')!;
+        expect((hc.getRow(1).values as unknown[]).slice(1)).toEqual(['Layanan', '#', 'Nama', 'Bagian / fungsi', 'Penilai', 'Nilai', 'Predikat', 'Lalu', 'Δ', 'Keterangan']);
+        const ict = (await workbookOf(reportFixture({ people: 3, sites: 2 }).model)).getWorksheet('Peringkat')!;
+        expect((ict.getRow(1).values as unknown[])[4]).toBe('Site');
+        expect(new Set(rowsOf(ict).map((cells) => cells[0]))).toEqual(new Set(['Tim', 'Orang']));
+    });
+
+    it('"Komentar" has no date or department columns and is ordered per layanan HCD, HCC, HCS', async () => {
+        const { model } = hcReportFixture();
+        const sheet = (await workbookOf(model)).getWorksheet('Komentar')!;
+        expect((sheet.getRow(1).values as unknown[]).slice(1)).toEqual(['Layanan', 'Dinilai', 'Jenis', 'Komentar']);
+        const rows = rowsOf(sheet);
+        expect(rows.flat().join(' ')).not.toMatch(/PRODUKSI|2026/);
+        const services = rows.map((cells) => String(cells[0]).slice(0, 3));
+        const firstOf = (code: string) => services.indexOf(code);
+        expect(firstOf('HCD')).toBe(0);
+        expect(firstOf('HCD') < firstOf('HCC') && firstOf('HCC') < firstOf('HCS')).toBe(true);
+        expect([...services]).toEqual([...services].sort((a, b) => ['HCD', 'HCC', 'HCS'].indexOf(a) - ['HCD', 'HCC', 'HCS'].indexOf(b)));
+        // Stable: the same model gives the same order.
+        expect(rowsOf((await workbookOf(model)).getWorksheet('Komentar')!)).toEqual(rows);
+    });
+
+    it('admin respondent-detail sheet lists each respondent\'s PICs in layanan order HCD, HCC, HCS', async () => {
+        const sheet = (await workbookOf(hcReportFixture().model)).getWorksheet('HC Jawaban Responden')!;
+        const order = ['HCD', 'HCC', 'HCS'];
+        const byRespondent = new Map<string, string[]>();
+        rowsOf(sheet).forEach((cells) => byRespondent.set(String(cells[0]), [...(byRespondent.get(String(cells[0])) ?? []), String(cells[5])]));
+        byRespondent.forEach((codes) => expect(codes).toEqual([...codes].sort((a, b) => order.indexOf(a) - order.indexOf(b))));
+        expect([...byRespondent.values()].some((codes) => new Set(codes).size > 1)).toBe(true);
     });
 });

@@ -119,6 +119,22 @@ describe('renderCsiReportPdf', () => {
             expect((await allText(hcReportFixture({ previous: false }).model))).not.toContain('Dibanding periode lalu');
         });
 
+        it('Selisih is a dash where the previous period has no value (only HCC, Anita and Bambang have one)', async () => {
+            const spy = jest.spyOn(ReportCanvas.prototype, 'table');
+            try {
+                await renderCsiReportPdf({ model: hcReportFixture({ previous: true }).model, signoff, now: NOW });
+                const rows = spy.mock.calls.filter(([columns]) => columns.some((column) => column.header === 'Selisih') && columns[0].header !== '#'
+                    && columns.some((column) => column.header === 'Rata-rata'))
+                    .flatMap(([, cells]) => cells.map((row) => [String(row[0].text).replace(/^•\s*/, ''), row[row.length - 1].text]));
+                const selisih = (label: string) => rows.find(([name]) => name.startsWith(label))?.[1];
+                expect(selisih('HCC')).not.toBe('–');
+                expect(selisih('HCD')).toBe('–');
+                expect(selisih('HCS')).toBe('–');
+            } finally {
+                spy.mockRestore();
+            }
+        });
+
         it('headers are not truncated: full dimension names and words are passed to the canvas', async () => {
             const headers = await tableHeaders(hcReportFixture({ previous: true }).model);
             expect(headers).toEqual(expect.arrayContaining(['Knowledge', 'Responsiveness', 'Courtesy', 'Communication', 'Tangible', 'Rata-rata', 'Penilai', 'Bagian / fungsi', 'Semua lokasi']));

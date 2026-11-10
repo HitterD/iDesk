@@ -62,6 +62,11 @@ describe('renderMemoPdf', () => {
         }
     });
 
+    it('no person spotlight: no top/attention boxes and no highlight sentence naming anyone', async () => {
+        const { text } = await parse([memoSurvey(1), memoSurvey(2)]);
+        expect(text).not.toMatch(/tertinggi|terendah|terbaik|Perlu perhatian|Poin utama|Peringkat/i);
+    });
+
     it('strips control characters from user strings', async () => {
         const buffer = await renderMemoPdf(memoHeader({ to: 'Pak\u0000 Budi' }), [memoSurvey(1)]);
         expect(norm((await pdfParse(buffer)).text)).toContain('Pak Budi');

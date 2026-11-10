@@ -1,12 +1,15 @@
 import * as ExcelJS from 'exceljs';
-import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
-import { CsiRateeKind } from '../csi.constants';
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
+import { CSI_RANK_MIN_RATERS, CsiRateeKind } from '../csi.constants';
+import { serviceName } from '../org/csi-org.constants';
 import { addStyledSheet, AVERAGE_COLUMN, CellValue, ColumnSpec, PERCENT_COLUMN, sanitizeCell, WIDTH } from './csi-export.sheet';
-import { CsiQuestionGrid, CsiReportModel, CsiReportRow } from './csi-report-model';
+import { CsiQuestionGrid, CsiReportModel } from './csi-report-model';
+import { commentOrder, slaStatusText } from './csi-report-pdf-sections';
+import { compareServiceCodes, CsiRankRow, CsiServiceRanking } from './csi-report-ranking';
 
 /** Sheets of the executive report, in workbook order (before the raw answer sheets). */
 export const EXECUTIVE_SHEETS = {
-    summary: 'Ringkasan', teams: 'Peringkat Tim', people: 'Peringkat Orang', participation: 'Partisipasi',
+    summary: 'Ringkasan', ranking: 'Peringkat', participation: 'Partisipasi',
     teamGrid: 'Per Pertanyaan Tim', peopleGrid: 'Per Pertanyaan Orang', departments: 'Departemen', comments: 'Komentar',
 } as const;
 
@@ -15,6 +18,20 @@ const LABEL = 30;
 const SHORT = 10;
 const text = (value: string | null | undefined) => sanitizeCell(value ?? '');
 const COUNT = (header: string): ColumnSpec => ({ header, width: SHORT });
+const INSUFFICIENT_NOTE = `Belum cukup penilai (< ${CSI_RANK_MIN_RATERS})`;
+/** "HCD · HC Development"; a group without a layanan (ICT Tim / Orang, HC Lainnya) keeps its own name. */
+const groupLabel = (code: string | null, fallback: string) => (code ? `${code} · ${serviceName(code) ?? fallback}` : fallback);
+const OTHER_SERVICE = 'Lainnya';
+const isHc = (model: CsiReportModel) => model.scopeLabel === ServiceScope.HC;
+
+/** Official SLA cells, the same figures and status sentence as the PDF block. */
+function slaRows({ sla }: CsiReportModel): CellValue[][] {
+    return [
+        ['SLA sudah mengisi / basis', `${sla.submitted}/${sla.basis}`], ['SLA % sudah mengisi', sla.pct],
+        ['Target SLA (%)', sla.targetPct], ['Target SLA (orang)', sla.targetCount],
+        ['Status SLA', sla.basis > 0 ? slaStatusText(sla) : 'Belum ada basis partisipasi'],
+    ];
+}
 
 function summarySheet(workbook: ExcelJS.Workbook, model: CsiReportModel) {
     const { overall, participation, counts } = model;
@@ -25,7 +42,7 @@ function summarySheet(workbook: ExcelJS.Workbook, model: CsiReportModel) {
         ['Nilai periode lalu', overall.previous], ['Δ vs periode lalu', overall.delta],
         ['Basis partisipasi', `${participation.basis} (${participation.basisLabel})`], ['Target partisipasi', `${participation.target} (${model.targetPct}%)`],
         ['Responden', participation.responses], ['% Responden', participation.respondenPct], ['% Pengisi (SLA)', participation.pengisiPct],
-        ['Status target', participation.reached ? 'Tercapai' : 'Belum tercapai'],
+        ['Status target', participation.reached ? 'Tercapai' : 'Belum tercapai'], ...slaRows(model),
         ['Jumlah dinilai', `${counts.teams} tim · ${counts.people} orang · ${counts.sites} site`], ['Jumlah komentar', counts.comments],
         ...model.highlights.map((line, index): CellValue[] => [index ? '' : 'Poin utama', text(line)]),
         ...(model.notes ? model.notes.split(/\r?\n/).filter((line) => line.trim()) : ['-']).map((line, index): CellValue[] => [index ? '' : 'Catatan & tindak lanjut', text(line)]),
@@ -36,12 +53,24 @@ function summarySheet(workbook: ExcelJS.Workbook, model: CsiReportModel) {
     sheet.getColumn(1).font = { bold: true };
 }
 
-function rankingSheet(workbook: ExcelJS.Workbook, name: string, rows: CsiReportRow[], kind: CsiRateeKind) {
-    addStyledSheet(workbook, name, [
-        COUNT('#'), { header: kind === CsiRateeKind.TEAM ? 'Tim' : 'Nama', width: WIDTH.name }, COUNT('Site'), COUNT('Penilai'),
-        AVERAGE_COLUMN('Nilai'), { header: 'Predikat', width: 16 }, { ...AVERAGE_COLUMN('Indeks (%)'), format: '0.0' },
-        AVERAGE_COLUMN('Periode lalu'), AVERAGE_COLUMN('Δ'), COUNT('★1'), COUNT('★2'), COUNT('★3'), COUNT('★4'), COUNT('★5'),
-    ], rows.map((row) => [row.rank, text(row.name), row.siteCode, row.raters, row.average, row.word, row.indexPct, row.previous, row.delta, ...row.stars]));
+function rankCells(group: CsiServiceRanking, row: CsiRankRow, withPrevious: boolean): CellValue[] {
+    return [
+        text(groupLabel(group.serviceCode, group.serviceName)), row.rank, text(row.name), text(row.detail),
+        row.raters, row.average, row.word, ...(withPrevious ? [row.previous, row.delta] : []), row.rank === null ? INSUFFICIENT_NOTE : null,
+    ];
+}
+
+/**
+ * "Peringkat": the PDF ranking in one sheet, one block per layanan (HC) or Tim / Orang (ICT). Ties share a rank;
+ * fewer than CSI_RANK_MIN_RATERS raters = no rank and a note. Lalu / Δ only when an earlier period exists.
+ */
+function rankingSheet(workbook: ExcelJS.Workbook, model: CsiReportModel) {
+    const hc = isHc(model);
+    addStyledSheet(workbook, EXECUTIVE_SHEETS.ranking, [
+        { header: hc ? 'Layanan' : 'Kelompok', width: LABEL }, COUNT('#'), { header: 'Nama', width: WIDTH.name },
+        hc ? { header: 'Bagian / fungsi', width: LABEL } : COUNT('Site'), COUNT('Penilai'), AVERAGE_COLUMN('Nilai'), { header: 'Predikat', width: 16 },
+        ...(model.hasPrevious ? [AVERAGE_COLUMN('Lalu'), AVERAGE_COLUMN('Δ')] : []), { header: 'Keterangan', width: 24 },
+    ], model.rankingByService.flatMap((group) => [...group.ranked, ...group.insufficient].map((row) => rankCells(group, row, model.hasPrevious))));
 }
 
 function participationSheet(workbook: ExcelJS.Workbook, model: CsiReportModel) {
@@ -64,21 +93,31 @@ function gridSheet(workbook: ExcelJS.Workbook, name: string, grid: CsiQuestionGr
     ], grid.rows.map((row) => [text(row.name), row.siteCode, ...row.values]));
 }
 
+/**
+ * Anonymous comments like the PDF: no date, department or rater. Ordered per layanan (HCD, HCC, HCS, ...) and, inside
+ * a layanan, in the PDF's stable shuffled order; subjects without a layanan (ICT) keep their group order.
+ */
+function commentsSheet(workbook: ExcelJS.Workbook, model: CsiReportModel) {
+    const rows = model.comments.flatMap((group, index) => group.comments.map((comment) => ({ group, index, text: comment.text })))
+        .sort((a, b) => compareServiceCodes(a.group.serviceCode, b.group.serviceCode)
+            || (a.group.serviceCode ? 0 : a.index - b.index) || commentOrder(a.text, b.text));
+    addStyledSheet(workbook, EXECUTIVE_SHEETS.comments, [
+        { header: 'Layanan', width: LABEL }, { header: 'Dinilai', width: WIDTH.name }, { header: 'Jenis', width: SHORT }, { header: 'Komentar', width: WIDE },
+    ], rows.map(({ group, text: comment }): CellValue[] => [
+        text(groupLabel(group.serviceCode, isHc(model) ? OTHER_SERVICE : '')), text(group.name),
+        group.kind === CsiRateeKind.TEAM ? 'Tim' : 'Orang', text(comment),
+    ]));
+}
+
 /** Every sheet of the executive report: the same parameters as the PDF, nothing capped. */
 export function addExecutiveSheets(workbook: ExcelJS.Workbook, model: CsiReportModel) {
     summarySheet(workbook, model);
-    rankingSheet(workbook, EXECUTIVE_SHEETS.teams, model.teams, CsiRateeKind.TEAM);
-    rankingSheet(workbook, EXECUTIVE_SHEETS.people, model.people, CsiRateeKind.PERSON);
+    rankingSheet(workbook, model);
     participationSheet(workbook, model);
     gridSheet(workbook, EXECUTIVE_SHEETS.teamGrid, model.teamGrid);
     gridSheet(workbook, EXECUTIVE_SHEETS.peopleGrid, model.peopleGrid);
     // Basis raters per department, numbers only (small departments merged); names stay on the admin screen.
     addStyledSheet(workbook, EXECUTIVE_SHEETS.departments, [{ header: 'Departemen', width: LABEL }, COUNT('Sudah'), COUNT('Total'), PERCENT_COLUMN('%'), { header: 'Target', width: 14 }],
         model.departments.map((row) => [text(row.name), row.submitted, row.total, row.pct, row.met ? 'Tercapai' : 'Belum']));
-    addStyledSheet(workbook, EXECUTIVE_SHEETS.comments, [
-        { header: 'Dinilai', width: WIDTH.name }, { header: 'Jenis', width: SHORT }, { header: 'Komentar', width: WIDE },
-        { header: 'Departemen', width: WIDTH.department }, { header: 'Tanggal', width: 14 },
-    ], model.comments.flatMap((group) => group.comments.map((comment): CellValue[] => [
-        text(group.name), group.kind === CsiRateeKind.TEAM ? 'Tim' : 'Orang', text(comment.text), text(comment.department), localDateKey(comment.date, DEFAULT_TIMEZONE),
-    ])));
+    commentsSheet(workbook, model);
 }
