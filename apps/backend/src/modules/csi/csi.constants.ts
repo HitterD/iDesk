@@ -16,6 +16,11 @@ export const CSI_OPTIONS_MAX = 10;
 export const CSI_OPTION_LABEL_MAX = 200;
 export const CSI_TEAM_LABEL_DEFAULT = 'Tim IT Support';
 export const CSI_SLA_TARGET_DEFAULT = 80;
+/** New HC surveys aim higher; ICT keeps CSI_SLA_TARGET_DEFAULT. */
+export const CSI_SLA_TARGET_DEFAULT_HC = 90;
+/** Score colour bands: < fair red, fair..good orange, >= good green (legacy surveys keep these). */
+export const CSI_SCORE_FAIR_MIN_DEFAULT = 4.0;
+export const CSI_SCORE_GOOD_MIN_DEFAULT = 4.5;
 
 /** Question kinds; only STAR and SCALE carry a 1–5 score. */
 export enum CsiQuestionType {

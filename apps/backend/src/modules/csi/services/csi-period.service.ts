@@ -5,7 +5,7 @@ import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { wibEndOfDate, wibStartOfDate } from '../../../shared/core/utils/wib-date.util';
 import { Site } from '../../sites/entities/site.entity';
 import { User } from '../../users/entities/user.entity';
-import { CSI_CANCEL_REASON_MIN, CSI_SLA_TARGET_DEFAULT, CSI_TEAM_LABEL_DEFAULT, CsiPairMode, CsiPeriodPublishStatus, CsiRateeKind, CsiRespondentMode, CsiTeamKind } from '../csi.constants';
+import { CSI_CANCEL_REASON_MIN, CSI_SLA_TARGET_DEFAULT, CSI_SLA_TARGET_DEFAULT_HC, CSI_TEAM_LABEL_DEFAULT, CsiPairMode, CsiPeriodPublishStatus, CsiRateeKind, CsiRespondentMode, CsiTeamKind } from '../csi.constants';
 import { CreatePeriodDto, RateeAssignmentDto, UpdatePeriodDto, UpdatePeriodRateeDto } from '../dto/period.dto';
 import { CSI_TAGLINE_MAX } from '../dto/subject.dto';
 import { CsiDepartment } from '../entities/csi-department.entity';
@@ -20,6 +20,7 @@ import { CsiAssignmentService } from './csi-assignment.service';
 import { lockPeriodRow, lockUnlockedPeriod } from './csi-period-lock.util';
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiSubjectService } from './csi-subject.service';
+import { assertBandOrder, bandsOf } from './csi-score-bands';
 import { CsiOrgService } from '../org/csi-org.service';
 import { CsiPic } from '../entities/csi-pic.entity';
 import { ictServiceOfRole } from '../org/csi-services';
@@ -34,6 +35,10 @@ export type CsiPeriodStatus = 'UPCOMING' | 'ACTIVE' | 'ENDED';
 const DEFAULT_RESPONDENT_MODE: Record<ServiceScope, CsiRespondentMode> = {
     ICT: CsiRespondentMode.LISTED,
     HC: CsiRespondentMode.LISTED,
+};
+const DEFAULT_SLA_TARGET: Record<ServiceScope, number> = {
+    ICT: CSI_SLA_TARGET_DEFAULT,
+    HC: CSI_SLA_TARGET_DEFAULT_HC,
 };
 const INACTIVE_USER_MESSAGE = 'Pengguna tidak ditemukan atau tidak aktif';
 const INCOMPLETE_MESSAGE = 'Survei belum lengkap';
@@ -294,13 +299,16 @@ export class CsiPeriodService {
             teamEnabled: dto.teamEnabled ?? source?.teamEnabled ?? false,
             teamLabel: dto.teamLabel ?? source?.teamLabel ?? CSI_TEAM_LABEL_DEFAULT,
             individualEnabled: dto.individualEnabled ?? source?.individualEnabled ?? true,
-            slaTargetPct: dto.slaTargetPct ?? source?.slaTargetPct ?? CSI_SLA_TARGET_DEFAULT,
+            slaTargetPct: dto.slaTargetPct ?? source?.slaTargetPct ?? DEFAULT_SLA_TARGET[scope],
             // HC defaults to "respondents pick the PICs who served them"; ICT keeps rating every visible ratee.
             // HC decides who rates whom by default (unit rules); "respondents pick" is opt-in.
             respondentPicks: dto.respondentPicks ?? source?.respondentPicks ?? false,
             targetRespondents: dto.targetRespondents ?? source?.targetRespondents ?? null,
         };
         assertSomeSection(sections);
+        const sourceBands = bandsOf(source ?? {});
+        const bands = { fairMin: dto.scoreFairMin ?? sourceBands.fairMin, goodMin: dto.scoreGoodMin ?? sourceBands.goodMin };
+        assertBandOrder(bands);
         // New periods are drafts: they may overlap; the clash is enforced at publish (see assertNoOverlap).
         const copied = source ? await this.copyAssignments(scope, source.id, siteIds) : { ratees: [], raterIds: [] };
 
@@ -317,6 +325,7 @@ export class CsiPeriodService {
                 publishStatus: CsiPeriodPublishStatus.DRAFT,
                 // New surveys promise rated people their anonymous results; surveys from before the feature never do.
                 selfResults: true,
+                scoreFairMin: bands.fairMin, scoreGoodMin: bands.goodMin,
                 createdById: actorId,
             });
             await this.writeRatees(manager, saved.id, copied.ratees);
@@ -335,6 +344,7 @@ export class CsiPeriodService {
         const next = { ...period, ...definedOnly(fields) };
         assertDateOrder(next.startDate, next.endDate);
         assertSomeSection(next);
+        assertBandOrder(bandsOf(next));
         const currentSiteIds = (sites ?? []).map((row) => row.siteId);
         const siteIds = requestedSiteIds ? await this.resolveSiteIds(requestedSiteIds) : currentSiteIds;
         if (period.publishStatus === CsiPeriodPublishStatus.PUBLISHED) await this.assertNoOverlap(scope, siteIds, next.startDate, next.endDate, id);

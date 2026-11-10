@@ -1,8 +1,14 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, Index } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CSI_SLA_TARGET_DEFAULT, CSI_TEAM_LABEL_DEFAULT, CsiPairMode, CsiPeriodPublishStatus, CsiRespondentMode } from '../csi.constants';
+import { CSI_SCORE_FAIR_MIN_DEFAULT, CSI_SCORE_GOOD_MIN_DEFAULT, CSI_SLA_TARGET_DEFAULT, CSI_TEAM_LABEL_DEFAULT, CsiPairMode, CsiPeriodPublishStatus, CsiRespondentMode } from '../csi.constants';
 import { CsiPeriodSite } from './csi-period-site.entity';
 import type { CsiUnitRule } from '../org/csi-unit-rules';
+
+/** Postgres numeric comes back as a string: read it as a number (null stays null). */
+const numericToNumber = {
+    to: (value: number | null | undefined) => value,
+    from: (value: string | number | null) => (value === null || value === undefined ? value : Number(value)),
+};
 
 @Entity('csi_periods')
 @Index('IDX_csi_periods_scope_start', ['scope', 'startDate'])
@@ -72,6 +78,14 @@ export class CsiPeriod {
 
     @Column({ type: 'smallint', default: CSI_SLA_TARGET_DEFAULT })
     slaTargetPct: number;
+
+    /** Score colour band: averages below this are red, from it (inclusive) orange. */
+    @Column({ type: 'numeric', precision: 2, scale: 1, default: CSI_SCORE_FAIR_MIN_DEFAULT, transformer: numericToNumber })
+    scoreFairMin: number;
+
+    /** Score colour band: averages from this (inclusive) are green. Always greater than scoreFairMin. */
+    @Column({ type: 'numeric', precision: 2, scale: 1, default: CSI_SCORE_GOOD_MIN_DEFAULT, transformer: numericToNumber })
+    scoreGoodMin: number;
 
     @Column({ type: 'uuid' })
     createdById: string;

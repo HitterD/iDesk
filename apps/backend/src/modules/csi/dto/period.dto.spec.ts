@@ -45,6 +45,15 @@ describe('CSI period DTO validation', () => {
         await expect(parse(UpdatePeriodDto, { teamEnabled: 'yes' })).rejects.toThrow();
     });
 
+    it('validates score bands (1–5, one decimal)', async () => {
+        expect(await parse(UpdatePeriodDto, { scoreFairMin: 3.5, scoreGoodMin: 4.2 })).toMatchObject({ scoreFairMin: 3.5, scoreGoodMin: 4.2 });
+        expect(await parse(CreatePeriodDto, { ...valid, scoreFairMin: 1, scoreGoodMin: 5 })).toMatchObject({ scoreFairMin: 1, scoreGoodMin: 5 });
+        for (const bad of [0.9, 5.1, 4.25, '4.0']) {
+            await expect(parse(UpdatePeriodDto, { scoreFairMin: bad })).rejects.toThrow();
+            await expect(parse(UpdatePeriodDto, { scoreGoodMin: bad })).rejects.toThrow();
+        }
+    });
+
     it('validates team question ids per site', async () => {
         expect(await parse(SetTeamQuestionsDto, { siteId: SITE, questionIds: [SITE] })).toMatchObject({ siteId: SITE, questionIds: [SITE] });
         expect(await parse(SetTeamQuestionsDto, { siteId: SITE, questionIds: [] })).toMatchObject({ questionIds: [] });

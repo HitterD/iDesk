@@ -98,7 +98,7 @@ const SCALE_OPTIONS = [{ label: 'Puas', points: 5 }, { label: 'Tidak puas', poin
 const basePeriod = (over: Partial<CsiPeriod> = {}): CsiPeriod => ({
     id: 'p1', scope: ICT, sites: [{ siteId: 'site-a', site } as any], title: 'Q3', intro: 'Halo', thankYou: 'Terima kasih',
     startDate: '2026-07-01', endDate: '2026-09-30', respondentMode: CsiRespondentMode.OPEN, publishStatus: CsiPeriodPublishStatus.PUBLISHED, createdById: 'admin',
-    teamEnabled: false, teamLabel: 'Tim IT Support', individualEnabled: true, respondentPicks: false, unitRules: [], targetRespondents: null, selfResults: false, slaTargetPct: 80, pairMode: null, cancelledAt: null, cancelledById: null, cancelReason: null,
+    teamEnabled: false, teamLabel: 'Tim IT Support', individualEnabled: true, respondentPicks: false, unitRules: [], targetRespondents: null, selfResults: false, slaTargetPct: 80, scoreFairMin: 4.0, scoreGoodMin: 4.5, pairMode: null, cancelledAt: null, cancelledById: null, cancelReason: null,
     createdAt: new Date(), updatedAt: new Date(), ...over,
 });
 
@@ -384,6 +384,33 @@ describe('CsiPeriodService', () => {
             ]);
         });
 
+        it('HC default SLA 90', async () => {
+            await service.create(HC, createDto({ startDate: '2026-11-01', endDate: '2026-11-30' }), 'admin');
+            expect(savedPeriod()).toMatchObject({ slaTargetPct: 90, scoreFairMin: 4.0, scoreGoodMin: 4.5 });
+        });
+
+        it('ICT default SLA 80', async () => {
+            await service.create(ICT, createDto({ startDate: '2026-11-01', endDate: '2026-11-30' }), 'admin');
+            expect(savedPeriod()).toMatchObject({ slaTargetPct: 80, scoreFairMin: 4.0, scoreGoodMin: 4.5 });
+        });
+
+        it('copy carries bands (and the source SLA, even for HC)', async () => {
+            periods.rows[0] = basePeriod({ scope: HC, slaTargetPct: 75, scoreFairMin: 3.5, scoreGoodMin: 4.2 });
+            await service.create(HC, { startDate: '2026-10-01', endDate: '2026-12-31', copyFromPeriodId: 'p1' }, 'admin');
+            expect(savedPeriod()).toMatchObject({ slaTargetPct: 75, scoreFairMin: 3.5, scoreGoodMin: 4.2 });
+        });
+
+        it('fair >= good rejected', async () => {
+            const dates = { startDate: '2026-11-01', endDate: '2026-11-30' };
+            const message = new BadRequestException('Batas oranye harus lebih kecil dari batas hijau');
+            await expect(service.create(ICT, createDto({ ...dates, scoreFairMin: 4.5, scoreGoodMin: 4.5 }), 'admin')).rejects.toThrow(message);
+            // Only one band sent: compared with the default of the other.
+            await expect(service.create(ICT, createDto({ ...dates, scoreFairMin: 4.6 }), 'admin')).rejects.toThrow(message);
+            expect(manager.save).not.toHaveBeenCalled();
+            await service.create(ICT, createDto({ ...dates, scoreFairMin: 3.5, scoreGoodMin: 4.2 }), 'admin');
+            expect(savedPeriod()).toMatchObject({ scoreFairMin: 3.5, scoreGoodMin: 4.2 });
+        });
+
         it('with copyFromPeriodId from another scope throws 404', async () => {
             periods.rows.push(basePeriod({ id: 'p-hc', scope: HC }));
             await expect(service.create(ICT, createDto({ startDate: '2026-11-01', endDate: '2026-11-30', copyFromPeriodId: 'p-hc' }), 'admin'))
@@ -473,6 +500,20 @@ describe('CsiPeriodService', () => {
             expect(txPeriods.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', teamLabel: 'Tim Helpdesk' }));
             expect(txRatees.update).not.toHaveBeenCalled();
             expect(ratees.update).not.toHaveBeenCalled();
+        });
+
+        it('fair >= good rejected on update, comparing with the stored band when only one is sent', async () => {
+            const message = new BadRequestException('Batas oranye harus lebih kecil dari batas hijau');
+            await expect(service.update(ICT, 'p1', { scoreGoodMin: 4.0 })).rejects.toThrow(message);
+            await expect(service.update(ICT, 'p1', { scoreFairMin: 4.7 })).rejects.toThrow(message);
+            expect(periods.save).not.toHaveBeenCalled();
+            await service.update(ICT, 'p1', { scoreGoodMin: 4.2, scoreFairMin: 3.5 });
+            expect(periods.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', scoreFairMin: 3.5, scoreGoodMin: 4.2 }));
+        });
+
+        it('get and list expose the score bands', async () => {
+            expect(await service.get(ICT, 'p1')).toMatchObject({ scoreFairMin: 4.0, scoreGoodMin: 4.5 });
+            expect((await service.list(ICT))[0]).toMatchObject({ scoreFairMin: 4.0, scoreGoodMin: 4.5 });
         });
 
         describe('immutable once the period has answers', () => {
