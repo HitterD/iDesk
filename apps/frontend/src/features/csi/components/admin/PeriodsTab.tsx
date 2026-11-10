@@ -57,11 +57,13 @@ interface PeriodsTabProps {
     /** Drafts resume in the wizard, published surveys open the detail. */
     onOpen: (period: CsiPeriodListItem) => void;
     onCreate: () => void;
+    /** HC only: open the draft the template wizard just created. */
+    onCreated?: (periodId: string) => void;
     /** "Buat lagi untuk periode berikutnya" (copy with the next dates). */
     onRepeat?: (period: CsiPeriodListItem) => void;
 }
 
-export function PeriodsTab({ scope, onOpen, onCreate, onRepeat }: PeriodsTabProps) {
+export function PeriodsTab({ scope, onOpen, onCreate, onCreated, onRepeat }: PeriodsTabProps) {
     const [siteId, setSiteId] = useState(ALL_SITES);
     const [showCancelled, setShowCancelled] = useState(false);
     const [memoOpen, setMemoOpen] = useState(false);
@@ -113,7 +115,8 @@ export function PeriodsTab({ scope, onOpen, onCreate, onRepeat }: PeriodsTabProp
                 )}
             </section>
             {memoOpen && <MemoExportDialog scope={scope} open onOpenChange={setMemoOpen} />}
-            {hcWizardOpen && <HcSurveyWizard scope={scope} open onOpenChange={setHcWizardOpen} />}
+            {hcWizardOpen && <HcSurveyWizard scope={scope} open onOpenChange={setHcWizardOpen}
+                onCreated={onCreated && ((periodId) => { setHcWizardOpen(false); onCreated(periodId); })} />}
         </div>
     );
 }

@@ -37,10 +37,12 @@ function CreateStep({ info, locations, report }: { info: SurveyInfo; locations: 
  * HC "Buat survei": name & period → locations (only those with a template) → preview of what the templates add and skip
  * → create one draft survey from all checked templates. Raters who appear in several locations count once.
  */
-export function HcSurveyWizard({ scope, open, onOpenChange, initialLocation }: {
+export function HcSurveyWizard({ scope, open, onOpenChange, initialLocation, onCreated }: {
     scope: CsiScopeParam; open: boolean; onOpenChange: (open: boolean) => void;
     /** Location tab the wizard was opened from; preselected when it has a template. */
     initialLocation?: string;
+    /** Opens the new draft (survey list). Without it the result stays in the dialog (template tab). */
+    onCreated?: (periodId: string) => void;
 }) {
     const { data } = useCsiTemplates(scope);
     const templates = data?.templates ?? [];
@@ -56,7 +58,11 @@ export function HcSurveyWizard({ scope, open, onOpenChange, initialLocation }: {
     const create = useCreatePeriodFromTemplates(scope);
     const toggle = (code: string, checked: boolean) => setPicked((current) => checked ? [...current, code] : current.filter((row) => row !== code));
     const submit = () => create.mutate({ ...info, title: info.title.trim(), templateIds }, {
-        onSuccess: (result) => { setCreated(result.report); toast.success('Survei dibuat'); },
+        onSuccess: (result) => {
+            setCreated(result.report);
+            toast.success('Survei dibuat');
+            onCreated?.(result.periodId);
+        },
         onError: () => toast.error('Gagal membuat survei.'),
     });
     const canNext = [

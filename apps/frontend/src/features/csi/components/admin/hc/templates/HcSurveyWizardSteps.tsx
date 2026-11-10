@@ -12,9 +12,14 @@ const NOTE_AMBER = 'rounded-xl bg-[hsl(var(--ticket-amber)/.14)] px-3 py-2 text-
 
 export interface SurveyInfo { title: string; startDate: string; endDate: string }
 
+const TITLE_MIN = 3;
+const TITLE_MAX = 150;
+/** Mirrors the backend title limits so the create call does not fail at the last step. */
+export const titleInvalid = (info: SurveyInfo) => info.title.trim().length < TITLE_MIN || info.title.trim().length > TITLE_MAX;
+
 /** ISO dates compare correctly as strings; an empty end date is reported by the required check, not here. */
 export const endBeforeStart = (info: SurveyInfo) => !!info.startDate && !!info.endDate && info.endDate < info.startDate;
-export const infoComplete = (info: SurveyInfo) => !!info.title.trim() && !!info.startDate && !!info.endDate && !endBeforeStart(info);
+export const infoComplete = (info: SurveyInfo) => !titleInvalid(info) && !!info.startDate && !!info.endDate && !endBeforeStart(info);
 
 export function StepIndicator({ step }: { step: number }) {
     return (
@@ -38,6 +43,7 @@ export function InfoStep({ info, onChange }: { info: SurveyInfo; onChange: (info
                 <input type="date" aria-label="Tanggal mulai" className={FIELD} value={info.startDate} onChange={(event) => onChange({ ...info, startDate: event.target.value })} />
                 <input type="date" aria-label="Tanggal selesai" className={FIELD} value={info.endDate} onChange={(event) => onChange({ ...info, endDate: event.target.value })} />
             </div>
+            {titleInvalid(info) && <p className="text-[12.5px] text-[hsl(var(--ticket-red-ink))]">{`Judul ${TITLE_MIN}–${TITLE_MAX} karakter.`}</p>}
             {endBeforeStart(info) && <p className="text-[12.5px] text-[hsl(var(--ticket-red-ink))]">Tanggal selesai harus sama atau setelah tanggal mulai.</p>}
         </div>
     );

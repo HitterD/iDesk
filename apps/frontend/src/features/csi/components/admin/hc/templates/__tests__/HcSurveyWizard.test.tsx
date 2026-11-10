@@ -59,6 +59,40 @@ describe('HcSurveyWizard', () => {
         expect(next).toBeDisabled();
     });
 
+    it('rejects a title shorter than 3 or longer than 150 characters', async () => {
+        renderWithQuery(<HcSurveyWizard scope="hc" open onOpenChange={() => undefined} />);
+        const dialog = await screen.findByRole('dialog');
+        await userEvent.type(within(dialog).getByLabelText(/tanggal mulai/i), '2026-12-01');
+        await userEvent.type(within(dialog).getByLabelText(/tanggal selesai/i), '2026-12-31');
+        const title = within(dialog).getByLabelText(/judul survei/i);
+        await userEvent.clear(title);
+        await userEvent.type(title, ' ab ');
+        expect(within(dialog).getByText('Judul 3–150 karakter.')).toBeInTheDocument();
+        expect(within(dialog).getByRole('button', { name: /lanjut/i })).toBeDisabled();
+        await userEvent.clear(title);
+        await userEvent.click(title);
+        await userEvent.paste('x'.repeat(151));
+        expect(within(dialog).getByRole('button', { name: /lanjut/i })).toBeDisabled();
+        await userEvent.clear(title);
+        await userEvent.type(title, 'CSI HC Q4');
+        expect(within(dialog).queryByText('Judul 3–150 karakter.')).not.toBeInTheDocument();
+        expect(within(dialog).getByRole('button', { name: /lanjut/i })).toBeEnabled();
+    });
+
+    it('hands the new survey id to onCreated when the caller navigates', async () => {
+        const onCreated = vi.fn();
+        renderWithQuery(<HcSurveyWizard scope="hc" open onOpenChange={() => undefined} initialLocation="SMG" onCreated={onCreated} />);
+        const dialog = await screen.findByRole('dialog');
+        await userEvent.type(within(dialog).getByLabelText(/tanggal mulai/i), '2026-12-01');
+        await userEvent.type(within(dialog).getByLabelText(/tanggal selesai/i), '2026-12-31');
+        await userEvent.click(within(dialog).getByRole('button', { name: /lanjut/i }));
+        await userEvent.click(await within(dialog).findByRole('button', { name: /lanjut/i }));
+        await within(dialog).findByText('120');
+        await userEvent.click(within(dialog).getByRole('button', { name: /lanjut/i }));
+        await userEvent.click(within(dialog).getByRole('button', { name: /buat survei/i }));
+        await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith('p-new'));
+    });
+
     it('locations without template are disabled', async () => {
         const dialog = await openLocations();
         expect(within(dialog).getByRole('checkbox', { name: /sepanjang/i })).toBeDisabled();
