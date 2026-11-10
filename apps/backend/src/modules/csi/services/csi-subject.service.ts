@@ -7,7 +7,7 @@ import { Site } from '../../sites/entities/site.entity';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { CSI_JOB_TITLE_MAX, CSI_TAGLINE_MAX, CSI_TEAM_NAME_MAX, UpdateSubjectDto } from '../dto/subject.dto';
-import { CsiRateeKind } from '../csi.constants';
+import { CsiRateeKind, CsiTeamKind } from '../csi.constants';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiSubjectProfile } from '../entities/csi-subject-profile.entity';
 import { CsiTeam } from '../entities/csi-team.entity';
@@ -98,7 +98,7 @@ export class CsiSubjectService {
         const people = await this.eligibleUsers(scope);
         const profiles = people.length ? await this.profiles.find({ where: { scope, userId: In(people.map((user) => user.id)) } }) : [];
         const profileByUser = new Map(profiles.map((profile) => [profile.userId, profile]));
-        const teams = await this.teams.find({ where: { scope } });
+        const teams = await this.teams.find({ where: { scope, kind: CsiTeamKind.SITE } });
         return sites.map((site) => {
             const team = teams.find((row) => row.siteId === site.id);
             return {
@@ -203,12 +203,12 @@ export class CsiSubjectService {
 
     /** Idempotent: returns the existing team of the site, otherwise creates `Tim <site.name>`. */
     async createTeam(scope: ServiceScope, siteId: string): Promise<CsiSubjectView> {
-        const existing = await this.teams.findOne({ where: { scope, siteId } });
+        const existing = await this.teams.findOne({ where: { scope, siteId, kind: CsiTeamKind.SITE } });
         if (existing) return teamView(existing);
         const site = await this.sites.findOne({ where: { id: siteId } });
         if (!site) throw new NotFoundException(SITE_NOT_FOUND_MESSAGE);
         const saved = await this.teams.save({
-            scope, siteId, name: `${TEAM_NAME_PREFIX}${site.name}`.slice(0, CSI_TEAM_NAME_MAX),
+            scope, siteId, kind: CsiTeamKind.SITE, name: `${TEAM_NAME_PREFIX}${site.name}`.slice(0, CSI_TEAM_NAME_MAX),
             photoUrl: null, tagline: null, jobTitle: null, isActive: true,
         });
         return teamView(saved as CsiTeam);

@@ -7,7 +7,7 @@ import { CsiPic } from './csi-pic.entity';
 
 @Entity('csi_period_ratees')
 @Index('UQ_csi_period_ratees_period_user', ['periodId', 'userId'], { unique: true })
-@Index('UQ_csi_period_ratees_team_site', ['periodId', 'siteId'], { unique: true, where: `"kind" = 'TEAM'` })
+@Index('UQ_csi_period_ratees_team', ['periodId', 'teamId'], { unique: true, where: `"kind" = 'TEAM'` })
 export class CsiPeriodRatee {
     @PrimaryGeneratedColumn('uuid')
     id: string;

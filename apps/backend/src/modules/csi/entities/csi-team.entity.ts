@@ -1,15 +1,22 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { Site } from '../../sites/entities/site.entity';
+import { CsiTeamKind } from '../csi.constants';
 
 @Entity('csi_teams')
-@Unique('UQ_csi_teams_scope_site', ['scope', 'siteId'])
+@Index('UQ_csi_teams_site_kind', ['scope', 'siteId'], { unique: true, where: `"kind" = 'SITE'` })
 export class CsiTeam {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
     @Column({ type: 'varchar', length: 10 })
     scope: ServiceScope;
+
+    @Column({ type: 'varchar', length: 10, default: CsiTeamKind.SITE })
+    kind: CsiTeamKind;
+
+    @Column({ type: 'varchar', length: 10, nullable: true })
+    serviceCode: string | null;
 
     @Column({ type: 'uuid' })
     siteId: string;

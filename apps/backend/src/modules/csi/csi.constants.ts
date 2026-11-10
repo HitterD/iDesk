@@ -27,7 +27,12 @@ export enum CsiQuestionType {
 
 export type CsiOption = { label: string; points: number | null };
 
-/** A TEAM ratee is the single "Penilaian tim" section of a period (no user). */
+/** SITE preserves the existing per-site team; CUSTOM allows additional named teams. */
+export enum CsiTeamKind {
+    SITE = 'SITE',
+    CUSTOM = 'CUSTOM',
+}
+
 export enum CsiRateeKind {
     PERSON = 'PERSON',
     TEAM = 'TEAM',

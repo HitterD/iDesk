@@ -52,6 +52,9 @@ export class CsiPic {
     @Column({ type: 'varchar', nullable: true })
     photoUrl: string | null;
 
+    @Column({ type: 'varchar', length: 90, nullable: true })
+    tagline: string | null;
+
     @Column({ default: true })
     isActive: boolean;
 

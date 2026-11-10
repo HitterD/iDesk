@@ -59,7 +59,7 @@ describe('CsiSubjectService', () => {
             agent('44444444-4444-4444-8444-444444444444', SPJ.id, { role: UserRole.USER }),
         ]);
         sites = memoryRepository<any>([KRW, SPJ]);
-        teams = memoryRepository<any>([{ id: T1, scope: ICT, siteId: SPJ.id, name: 'Tim Sepanjang', photoUrl: null, tagline: null, jobTitle: null, isActive: true }]);
+        teams = memoryRepository<any>([{ id: T1, scope: ICT, siteId: SPJ.id, kind: 'SITE', name: 'Tim Sepanjang', photoUrl: null, tagline: null, jobTitle: null, isActive: true }]);
         profiles = memoryRepository<any>([]);
         service = new CsiSubjectService(users as any, sites as any, teams as any, profiles as any);
         unlink = jest.spyOn(fs.promises, 'unlink').mockResolvedValue(undefined);
@@ -102,6 +102,15 @@ describe('CsiSubjectService', () => {
         await expect(service.update(ICT, `team:${T1}`, { name: 'Tim SPJ' })).resolves.toMatchObject({ name: 'Tim SPJ' });
         await expect(service.update(ICT, `team:${U1}`, { tagline: 'a' })).rejects.toBeInstanceOf(NotFoundException);
         await expect(service.update(ICT, 'nope', { tagline: 'a' })).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('ignores custom teams when listing or creating the single site team', async () => {
+        teams.rows.unshift({ id: 'custom', scope: ICT, siteId: KRW.id, kind: 'CUSTOM', name: 'Custom' });
+        expect((await service.list(ICT)).find((group) => group.siteId === KRW.id)!.team).toBeNull();
+        const created = await service.createTeam(ICT, KRW.id);
+        expect(created.teamId).not.toBe('custom');
+        expect(teams.rows.find((row) => row.id === created.teamId)).toMatchObject({ kind: 'SITE' });
+        expect((await service.createTeam(ICT, KRW.id)).teamId).toBe(created.teamId);
     });
 
     it('creates a site team once with the default name', async () => {

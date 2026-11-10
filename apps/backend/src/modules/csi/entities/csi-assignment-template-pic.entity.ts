@@ -2,6 +2,7 @@ import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, PrimaryGenerat
 import { CsiAssignmentTemplate } from './csi-assignment-template.entity';
 import { CsiAssignmentTemplateRater } from './csi-assignment-template-rater.entity';
 import { CsiPic } from './csi-pic.entity';
+import { CsiTeam } from './csi-team.entity';
 
 /** One PIC of a template, by name (linked to csi_pics when the name matches exactly one PIC). */
 @Entity('csi_assignment_template_pics')
@@ -38,6 +39,17 @@ export class CsiAssignmentTemplatePic {
     @ManyToOne(() => CsiPic, { nullable: true, onDelete: 'SET NULL' })
     @JoinColumn({ name: 'picId' })
     pic: CsiPic | null;
+
+    @Column({ type: 'varchar', length: 20, nullable: true })
+    picNik: string | null;
+
+    /** Team template rows link here instead of picId. */
+    @Column({ type: 'uuid', nullable: true })
+    teamId: string | null;
+
+    @ManyToOne(() => CsiTeam, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'teamId' })
+    team: CsiTeam | null;
 
     @Column({ type: 'int', default: 0 })
     sortOrder: number;
