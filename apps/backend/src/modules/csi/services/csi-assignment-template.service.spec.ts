@@ -130,6 +130,18 @@ describe('CsiAssignmentTemplateService', () => {
         await expect(service.accountSuggestions(HC, 't', ' a ')).rejects.toBeInstanceOf(BadRequestException);
     });
 
+    it('builds the blank workbook from active users in one sorted query; unknown locations are refused', async () => {
+        users.find.mockResolvedValueOnce([{ fullName: 'ELVI CYNTHIA', jobTitle: 'PLANT MANAGER 1', employeeId: '277' }]);
+        const { filename, buffer } = await service.blankWorkbook(HC, 'smg');
+        expect(filename).toBe('CSI HC Semarang - template.xlsx');
+        expect(buffer.length).toBeGreaterThan(0);
+        expect(users.find).toHaveBeenCalledTimes(1);
+        expect(users.find).toHaveBeenCalledWith({
+            where: { isActive: true, site: { code: 'SMG' } }, select: { fullName: true, jobTitle: true, employeeId: true }, order: { fullName: 'ASC' },
+        });
+        await expect(service.blankWorkbook(HC, 'XXX')).rejects.toThrow('Lokasi tidak dikenal');
+    });
+
     it('loads the bundled Semarang template once: 19 PICs, service functions, four new staff without raters', async () => {
         const first = await service.loadBundled(HC, 'SMG');
         await service.loadBundled(HC, 'SMG');

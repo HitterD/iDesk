@@ -4,6 +4,7 @@ import { PATH_METADATA } from '@nestjs/common/constants';
 import { validate } from 'class-validator';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { ConfirmTemplateRatersDto, SetTemplateRaterAccountsDto } from '../dto/template.dto';
+import { CsiAssignmentTemplateService } from '../services/csi-assignment-template.service';
 import { CsiAdminTemplateController, parseImportOptions } from './csi-admin-template.controller';
 
 const ID = '12345678-1234-4234-8234-123456789012';
@@ -16,6 +17,8 @@ describe('CsiAdminTemplateController bulk contracts', () => {
         expect(path('accountSuggestions')).toBe(':id/account-suggestions');
         expect(path('setRaterAccounts')).toBe('raters/account');
         expect(path('confirmRaters')).toBe('raters/confirm');
+        expect(path('blankTemplate')).toBe('blank/:location');
+        expect(methods.indexOf('blankTemplate')).toBeLessThan(methods.indexOf('get'));
         expect(methods.indexOf('accountSuggestions')).toBeLessThan(methods.indexOf('get'));
         expect(methods.indexOf('setRaterAccounts')).toBeLessThan(methods.indexOf('setRaterAccount'));
         expect(methods.indexOf('confirmRaters')).toBeLessThan(methods.indexOf('setRaterAccount'));
@@ -64,5 +67,21 @@ describe('CsiAdminTemplateController bulk contracts', () => {
         }
         await expect(controller.importExcel(request, 'krw', {} as Express.Multer.File)).rejects.toThrow('File Excel wajib diunggah');
         await expect(controller.importExcel({ ...request, csiScope: ServiceScope.ICT }, 'krw', file)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('blank template downloads as an attachment for SMG and refuses unknown locations and ICT', async () => {
+        const users = { find: jest.fn(async () => [{ fullName: 'ELVI CYNTHIA', jobTitle: null, employeeId: null }]) };
+        const service = new CsiAssignmentTemplateService({} as any, {} as any, {} as any, {} as any, users as any, {} as any, {} as any, {} as any);
+        const controller = new CsiAdminTemplateController(service, {} as any, {} as any);
+        const res = { set: jest.fn(), send: jest.fn() };
+        await controller.blankTemplate(request, 'SMG', res as any);
+        expect(res.set).toHaveBeenCalledWith({
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': 'attachment; filename="CSI HC Semarang - template.xlsx"',
+        });
+        expect(res.send).toHaveBeenCalledWith(expect.any(Buffer));
+        await expect(controller.blankTemplate(request, 'XXX', res as any)).rejects.toThrow(new BadRequestException('Lokasi tidak dikenal'));
+        await expect(controller.blankTemplate({ ...request, csiScope: ServiceScope.ICT }, 'SMG', res as any)).rejects.toBeInstanceOf(BadRequestException);
+        expect(res.send).toHaveBeenCalledTimes(1);
     });
 });

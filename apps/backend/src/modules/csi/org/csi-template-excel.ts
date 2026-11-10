@@ -9,8 +9,24 @@ import { cleanTemplateCell as clean, templateCellText as cellText, parseMatrixWo
 export const CSI_TEMPLATE_AREA_SERVICE: Readonly<Record<string, string>> = {
     'HC DEVELOPMENT': 'HCD', 'HC COMBEN': 'HCC', 'HC COMPENSATION & BENEFIT': 'HCC', 'HC SERVICES': 'HCS',
 };
-const HEADERS = { area: 'area', pic: 'nama lengkap karyawan (hc)', jobTitle: 'jabatan', serviceFunction: 'fungsi pelayanan', rater: 'nama lengkap penilai', raterJobTitle: 'jabatan (akan terisi otomatis)' } as const;
-const isEmployeeSheet = (name: string) => /^karyawan/i.test(name);
+/** Header labels of the list layout as written in the workbook; matched case- and space-insensitively. */
+export const TEMPLATE_LIST_HEADERS = {
+    area: 'Area', pic: 'Nama Lengkap Karyawan (HC)', jobTitle: 'Jabatan', serviceFunction: 'Fungsi pelayanan',
+    rater: 'Nama Lengkap Penilai', raterJobTitle: 'Jabatan (akan terisi otomatis)',
+} as const;
+/** Optional rater NIK column; the 2026 Semarang file used the legacy label. */
+export const TEMPLATE_RATER_NIK_HEADER = 'NIK Penilai';
+const LEGACY_RATER_NIK_HEADER = 'NIK HRIS (dikosongkan saja)';
+/** Employee sheets ("Karyawan SMG", …) are read by position: name, job title, NIK. */
+export const TEMPLATE_EMPLOYEE_SHEET_PREFIX = 'Karyawan';
+export const TEMPLATE_EMPLOYEE_HEADERS = ['Nama', 'Jabatan', 'NIK'] as const;
+export const TEMPLATE_TEAM_SHEET = 'Tim';
+export const TEMPLATE_TEAM_HEADERS = { team: 'Nama Tim', member: 'Anggota', nik: 'NIK' } as const;
+export const TEMPLATE_GUIDE_SHEET = 'Petunjuk';
+const HEADERS = Object.fromEntries(Object.entries(TEMPLATE_LIST_HEADERS).map(([key, label]) => [key, label.toLowerCase()])) as
+    { [key in keyof typeof TEMPLATE_LIST_HEADERS]: string };
+const isEmployeeSheet = (name: string) => name.toLowerCase().startsWith(TEMPLATE_EMPLOYEE_SHEET_PREFIX.toLowerCase());
+const isSheet = (name: string, expected: string) => name.toLowerCase() === expected.toLowerCase();
 type Employee = { jobTitle: string | null; nik: string | null };
 type Columns = Record<keyof typeof HEADERS, number> & { raterNik: number };
 
@@ -53,13 +69,13 @@ function employeeTitles(workbook: ExcelJS.Workbook) {
 
 function readTeams(workbook: ExcelJS.Workbook, employees: Map<string, Employee>, problems: CsiTemplateDraft['problems']): CsiTemplateDraft['teams'] {
     const teams: CsiTemplateDraft['teams'] = [];
-    const sheet = workbook.worksheets.find((candidate) => candidate.name.toLowerCase() === 'tim');
+    const sheet = workbook.worksheets.find((candidate) => isSheet(candidate.name, TEMPLATE_TEAM_SHEET));
     if (!sheet) return teams;
     if (sheet.rowCount - 1 > ROWS_MAX) throw new BadRequestException(`Maksimal ${ROWS_MAX} baris per sheet`);
     const headers = (sheet.getRow(1).values as ExcelJS.CellValue[]).map((value) => clean(value)?.toLowerCase());
-    const teamColumn = headers.indexOf('nama tim');
-    const memberColumn = headers.indexOf('anggota');
-    const nikColumn = headers.indexOf('nik');
+    const teamColumn = headers.indexOf(TEMPLATE_TEAM_HEADERS.team.toLowerCase());
+    const memberColumn = headers.indexOf(TEMPLATE_TEAM_HEADERS.member.toLowerCase());
+    const nikColumn = headers.indexOf(TEMPLATE_TEAM_HEADERS.nik.toLowerCase());
     if (teamColumn < 1 || memberColumn < 1) throw new BadRequestException('Kolom Nama Tim dan Anggota wajib ada di sheet Tim');
     let current: CsiTemplateDraft['teams'][number] | undefined;
     sheet.eachRow((row, number) => {
@@ -88,7 +104,7 @@ function columnsOf(sheet: ExcelJS.Worksheet) {
     if (columns.pic < 1 || columns.rater < 1 || columns.area < 1) {
         throw new BadRequestException('Kolom "Area", "Nama Lengkap Karyawan (HC)" dan "Nama Lengkap Penilai" wajib ada di baris pertama');
     }
-    return { ...columns, raterNik: header.findIndex((label) => label === 'nik hris (dikosongkan saja)' || label === 'nik penilai') };
+    return { ...columns, raterNik: header.findIndex((label) => [LEGACY_RATER_NIK_HEADER, TEMPLATE_RATER_NIK_HEADER].some((nik) => label === nik.toLowerCase())) };
 }
 
 type ParseState = {
@@ -155,7 +171,8 @@ export async function parseTemplateWorkbook(buffer: Buffer): Promise<CsiTemplate
         const draft = parseMatrixWorkbook(workbook);
         return { ...draft, teams: readTeams(workbook, titles, draft.problems) };
     }
-    const sheet = workbook.worksheets.find((candidate) => !isEmployeeSheet(candidate.name) && !/^(tim|petunjuk)$/i.test(candidate.name));
+    const sheet = workbook.worksheets.find((candidate) => !isEmployeeSheet(candidate.name)
+        && ![TEMPLATE_TEAM_SHEET, TEMPLATE_GUIDE_SHEET].some((name) => isSheet(candidate.name, name)));
     if (!sheet) throw new BadRequestException('Sheet tidak ditemukan');
     if (sheet.rowCount - 1 > ROWS_MAX) throw new BadRequestException(`Maksimal ${ROWS_MAX} baris`);
     const state: ParseState = { columns: columnsOf(sheet), titles, pics: [], problems: [], area: null, current: null };

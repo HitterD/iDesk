@@ -17,6 +17,8 @@ import { buildTemplateView, CsiTemplateView, lookupOf, resolveRater } from '../o
 import { suggestAccounts } from '../org/csi-account-suggest';
 import { CSI_TEMPLATE_HC_SMG_2026 } from '../org/templates/hc-smg-2026.data';
 import { hcDirectoryCandidates } from './csi-template-import.service';
+import { buildBlankTemplate } from '../org/csi-template-blank';
+import { csiTemplateLocation } from '../org/csi-template-locations';
 
 /** Templates shipped with the app, loaded on request (idempotent). */
 const BUNDLED: Readonly<Record<string, CsiTemplateSeed>> = { SMG: CSI_TEMPLATE_HC_SMG_2026 };
@@ -84,6 +86,18 @@ export class CsiAssignmentTemplateService {
         const pics = seed.pics.map((pic) => ({ ...pic, nik: pic.nik ?? null, raters: pic.raters.map((rater) => ({ ...rater, nik: rater.nik ?? null })) }));
         const id = await this.dataSource.transaction((manager) => this.loadInto(manager, scope, seed.locationCode, seed.name, pics));
         return this.get(scope, id);
+    }
+
+    /** Blank workbook to fill in for a location, listing its active employees (one query, by name) to copy from. */
+    async blankWorkbook(scope: ServiceScope, locationCode: string): Promise<{ filename: string; buffer: Buffer }> {
+        const location = csiTemplateLocation(locationCode);
+        const employees = await this.users.find({
+            where: { isActive: true, site: { code: location.code } }, select: { fullName: true, jobTitle: true, employeeId: true }, order: { fullName: 'ASC' },
+        });
+        const buffer = await buildBlankTemplate(location, employees.map((user) => ({
+            fullName: user.fullName, jobTitle: user.jobTitle ?? null, employeeId: user.employeeId ?? null,
+        })));
+        return { filename: `CSI ${scope} ${location.name} - template.xlsx`, buffer };
     }
 
     async addPic(scope: ServiceScope, templateId: string, input: { serviceCode: string; picName: string; jobTitle?: string | null; serviceFunction?: string | null }) {

@@ -20,8 +20,8 @@ import { CsiTemplateDraft, parseTemplateWorkbook } from '../org/csi-template-exc
 import { ClassifiedPic, ClassifyContext, PicResolution } from '../org/csi-template-identity';
 import { classifyDraft, CsiTemplateDiff, CsiTemplatePrune, diffOf, normalizeResolutions, prunePlan } from '../org/csi-template-import.plan';
 import { lookupOf } from '../org/csi-template-view';
+import { CSI_TEMPLATE_LOCATION_NAMES, csiTemplateLocation } from '../org/csi-template-locations';
 
-export const CSI_TEMPLATE_LOCATION_NAMES: Readonly<Record<string, string>> = { SMG: 'Semarang', SPJ: 'Sepanjang', KRW: 'Karawang', JTB: 'Jakarta' };
 const SUGGESTION_POOL_MAX = 5000;
 const FALLBACK_NIK_PREFIX = 'TPL-';
 const FALLBACK_NIK_BYTES = 4;
@@ -105,8 +105,7 @@ export class CsiTemplateImportService {
     constructor(@InjectDataSource() private readonly dataSource: DataSource) { }
 
     async importExcel(scope: ServiceScope, locationCode: string, buffer: Buffer, options: CsiTemplateImportOptions): Promise<CsiTemplateImportReport> {
-        const code = locationCode.toUpperCase();
-        if (!CSI_TEMPLATE_LOCATION_NAMES[code]) throw new BadRequestException('Lokasi tidak dikenal');
+        const { code } = csiTemplateLocation(locationCode);
         const draft = await parseTemplateWorkbook(buffer);
         if (!options.commit) return this.run(this.dataSource.manager, scope, code, draft, options);
         return this.dataSource.transaction((manager) => this.run(manager, scope, code, draft, options));

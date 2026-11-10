@@ -1,5 +1,6 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { plainToInstance } from 'class-transformer';
@@ -11,7 +12,7 @@ import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiAssignmentTemplateService } from '../services/csi-assignment-template.service';
 import { CsiTemplateApplyService } from '../services/csi-template-apply.service';
 import { CsiTemplateImportService } from '../services/csi-template-import.service';
-import { XLSX_UPLOAD } from './csi-admin-org.controller';
+import { XLSX_CONTENT_TYPE, XLSX_UPLOAD } from './csi-admin-org.controller';
 import { assertHcScope } from '../services/csi-scope.util';
 
 type CsiAdminRequest = { csiScope: ServiceScope; user: { userId: string } };
@@ -65,6 +66,14 @@ export class CsiAdminTemplateController {
     @Get(':id/account-suggestions')
     accountSuggestions(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Query('name') name: string) {
         return this.templates.accountSuggestions(hc(req), id, name);
+    }
+
+    /** Empty workbook to fill in for a location (SMG/SPJ/KRW/JTB), with its active employees to copy names from. */
+    @Get('blank/:location')
+    async blankTemplate(@Req() req: CsiAdminRequest, @Param('location') location: string, @Res() res: Response) {
+        const { filename, buffer } = await this.templates.blankWorkbook(hc(req), location);
+        res.set({ 'Content-Type': XLSX_CONTENT_TYPE, 'Content-Disposition': `attachment; filename="${filename}"` });
+        res.send(buffer);
     }
 
     @Get(':id')
