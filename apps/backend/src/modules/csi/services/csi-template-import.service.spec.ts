@@ -173,6 +173,16 @@ describe('CsiTemplateImportService', () => {
         expect(tables.members.rows).toHaveLength(3);
     });
 
+    it('import with the name of a deactivated team reactivates it (same id, no new team)', async () => {
+        tables.teams.rows.push({ id: 'old-team', scope: HC, kind: CsiTeamKind.CUSTOM, siteId: 's-smg', serviceCode: 'HCD', name: 'Tim Rekrut', isActive: false });
+        const buffer = await workbook([['HC Services', 'TIM REKRUT', null, 'Rekrutmen', 'BUDI']], { team: [['Tim Rekrut', 'Agus', null]] });
+        const report = await service.importExcel(HC, 'SMG', buffer, options({ commit: true }));
+        expect(report.teams.added).toEqual(['TIM REKRUT']);
+        expect(tables.teams.rows).toEqual([expect.objectContaining({ id: 'old-team', isActive: true, serviceCode: 'HCS' })]);
+        expect(tables.pics.rows).toEqual([expect.objectContaining({ picName: 'TIM REKRUT', teamId: 'old-team' })]);
+        expect(tables.members.rows).toEqual([expect.objectContaining({ teamId: 'old-team', name: 'AGUS' })]);
+    });
+
     it('creates master pic without directory row', async () => {
         const buffer = await workbook([
             ['HC Comben', 'STAFF BARU', 'ADMIN', 'Payroll', 'BUDI'],

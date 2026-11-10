@@ -38,7 +38,10 @@ export class CsiTeamService {
 
     constructor(@InjectDataSource() private readonly dataSource: DataSource) { }
 
-    /** HC only; name and layanan are required and the name is unique (normalised) among the site's active custom teams. */
+    /**
+     * HC only; name and layanan are required. A deactivated custom team of the site with the same (normalised) name is
+     * reactivated with the new layanan instead of inserting a twin, so names stay unique per site.
+     */
     async createCustom(scope: ServiceScope, input: CsiCreateCustomTeamInput): Promise<CsiSubjectView> {
         assertHcScope(scope);
         const manager = this.dataSource.manager;
@@ -47,6 +50,12 @@ export class CsiTeamService {
         if (name.length > CSI_CUSTOM_TEAM_NAME_MAX) throw new BadRequestException('Nama tim harus terdiri dari 1–150 karakter');
         const site = await manager.getRepository(Site).findOne({ where: { id: input.siteId } });
         if (!site) throw new NotFoundException(SITE_NOT_FOUND_MESSAGE);
+        const inactive = (await this.customTeamsOf(manager, scope, site.id))
+            .find((team) => !team.isActive && normalizeName(team.name) === normalizeName(name));
+        if (inactive) {
+            const revived = await manager.getRepository(CsiTeam).save({ ...inactive, isActive: true, serviceCode: input.serviceCode });
+            return teamView(revived, await this.membersOf(manager, revived.id));
+        }
         await this.assertNameFree(manager, scope, site.id, name);
         const saved = await manager.getRepository(CsiTeam).save({
             scope, siteId: site.id, kind: CsiTeamKind.CUSTOM, name, serviceCode: input.serviceCode,
@@ -104,8 +113,10 @@ export class CsiTeamService {
             const previous = await repo.find({ where: { teamId: team.id } });
             const nikOf = new Map(previous.map((member) => [normalizeName(member.name), member.nik ?? null]));
             await repo.delete({ teamId: team.id });
-            for (const [sortOrder, member] of wanted.entries()) {
-                await repo.save({ teamId: team.id, name: member.name, userId: member.userId, nik: nikOf.get(normalizeName(member.name)) ?? null, sortOrder });
+            if (wanted.length) {
+                await repo.save(wanted.map((member, sortOrder) => ({
+                    teamId: team.id, name: member.name, userId: member.userId, nik: nikOf.get(normalizeName(member.name)) ?? null, sortOrder,
+                })));
             }
             return teamView(team, await this.membersOf(manager, team.id));
         });
@@ -137,9 +148,14 @@ export class CsiTeamService {
         return periodIds.length ? manager.getRepository(CsiPeriod).find({ where: { id: In(periodIds) } }) : [];
     }
 
+    /** Checks active and deactivated custom teams alike: a name never matches two teams of a site (template import links by name). */
     private async assertNameFree(manager: EntityManager, scope: ServiceScope, siteId: string, name: string) {
-        const teams = await manager.getRepository(CsiTeam).find({ where: { scope, siteId, kind: CsiTeamKind.CUSTOM, isActive: true } });
+        const teams = await this.customTeamsOf(manager, scope, siteId);
         if (teams.some((team) => normalizeName(team.name) === normalizeName(name))) throw new BadRequestException(NAME_TAKEN_MESSAGE);
+    }
+
+    private customTeamsOf(manager: EntityManager, scope: ServiceScope, siteId: string) {
+        return manager.getRepository(CsiTeam).find({ where: { scope, siteId, kind: CsiTeamKind.CUSTOM } });
     }
 
     private async findTeam(manager: EntityManager, scope: ServiceScope, id: string): Promise<CsiTeam> {

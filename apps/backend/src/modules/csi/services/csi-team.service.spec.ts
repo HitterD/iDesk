@@ -64,6 +64,13 @@ describe('CsiTeamService', () => {
         await expect(service.update(ICT, team.teamId!, { name: 'X' })).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    it('createCustom with the name of an inactive team reactivates it', async () => {
+        tables.teams.rows.push({ id: 'old-team', scope: HC, siteId: SITE, kind: 'CUSTOM', serviceCode: 'HCC', name: 'TIM REKRUTMEN', isActive: false });
+        const view = await custom();
+        expect(view).toMatchObject({ teamId: 'old-team', serviceCode: 'HCD', name: 'TIM REKRUTMEN' });
+        expect(tables.teams.rows).toEqual([expect.objectContaining({ id: 'old-team', isActive: true, serviceCode: 'HCD' })]);
+    });
+
     it('members replaced', async () => {
         const team = await custom();
         tables.members.rows.push({ id: 'old', teamId: team.teamId, userId: null, name: 'Lama', nik: null, sortOrder: 0 });

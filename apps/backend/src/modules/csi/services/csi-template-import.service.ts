@@ -153,7 +153,8 @@ export class CsiTemplateImportService {
         return {
             findPic: (name, nik) => statusOf(findPic(name, nik)),
             findPerson: (name, nik) => statusOf(state.findPerson(name, nik)),
-            teamsOfSite: state.teams.map((team) => ({ id: team.id, name: team.name })),
+            // Deactivated teams are hidden from the subjects list: rows never link to them (ensureTeams revives one instead).
+            teamsOfSite: state.teams.filter((team) => team.isActive).map((team) => ({ id: team.id, name: team.name })),
             resolutions, suggestionPool: pool.slice(0, SUGGESTION_POOL_MAX),
         };
     }
@@ -215,15 +216,23 @@ export class CsiTemplateImportService {
         if (!state.site) throw new BadRequestException('Site lokasi tidak ditemukan');
         for (const pic of pics) {
             if (ids.has(pic.picName)) continue;
-            const team = pic.existingTeamId ? { id: pic.existingTeamId } : await manager.getRepository(CsiTeam).save({
-                scope: state.scope, kind: CsiTeamKind.CUSTOM, siteId: state.site.id, serviceCode: pic.serviceCode, name: pic.picName,
-                photoUrl: null, tagline: null, jobTitle: null, isActive: true,
-            });
+            const team = pic.existingTeamId ? { id: pic.existingTeamId } : await this.reviveOrCreateTeam(manager, state, state.site, pic);
             ids.set(pic.picName, team.id);
             const members = sheetTeams.filter((sheet) => normalizeName(sheet.name) === pic.picName).flatMap((sheet) => sheet.members);
             await this.addMembers(manager, state.accounts, team.id, members);
         }
         return ids;
+    }
+
+    /** A deactivated custom team with the same normalised name is reactivated (same id) rather than duplicated. */
+    private reviveOrCreateTeam(manager: EntityManager, state: ImportState, site: Site, pic: ClassifiedPic): Promise<{ id: string }> {
+        const repo = manager.getRepository(CsiTeam);
+        const inactive = state.teams.find((team) => !team.isActive && normalizeName(team.name) === pic.picName);
+        if (inactive) return repo.save({ ...inactive, isActive: true, serviceCode: pic.serviceCode });
+        return repo.save({
+            scope: state.scope, kind: CsiTeamKind.CUSTOM, siteId: site.id, serviceCode: pic.serviceCode, name: pic.picName,
+            photoUrl: null, tagline: null, jobTitle: null, isActive: true,
+        });
     }
 
     /** Account match: unique active NIK first, then the unique active name; otherwise a named member without account. */
