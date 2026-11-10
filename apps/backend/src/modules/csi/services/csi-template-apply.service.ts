@@ -107,7 +107,7 @@ export class CsiTemplateApplyService {
             const period = assertPeriodInScope(await repos.periods.findOne({ where: { id: periodId }, relations: { sites: { site: true } } }), scope);
             await manager.query('SELECT "id" FROM "csi_periods" WHERE "id" = $1 FOR UPDATE', [periodId]);
             const plan = await this.plan(scope, view, repos, await this.stateOf(repos, periodId));
-            const missing = await this.missingSite(period, view.locationCode);
+            const missing = await this.missingSite(manager, period, view.locationCode);
             const blockedReason = period.cancelledAt ? BLOCKED.cancelled : missing.blockedReason ?? await this.blockedReason(period, repos);
             const report = toReport(plan.tally, { siteAdded: missing.site?.code ?? null, blockedReason, committed: commit });
             if (!commit) return report;
@@ -119,20 +119,19 @@ export class CsiTemplateApplyService {
         });
     }
 
-    /** Merged dry run of several location templates as if they went into one new survey; nothing is written. */
+    /**
+     * Merged dry run of several location templates as if they went into one new survey; nothing is written. What
+     * create-period would refuse up front (a location without site, no HC questions) is reported as blockedReason.
+     */
     async previewPeriod(scope: ServiceScope, templateIds: string[]): Promise<CsiTemplateApplyReport> {
         const views = await Promise.all(templateIds.map((id) => this.templates.get(scope, id)));
+        const { blockedReason } = await this.preflight(scope, views);
         return this.dataSource.transaction(async (manager) => {
             const repos = this.repos(manager);
             const total = emptyTally();
             for (const view of views) mergeTally(total, (await this.plan(scope, view, repos, EMPTY_STATE)).tally);
-            return toReport(total, { siteAdded: null, blockedReason: null, committed: false });
+            return toReport(total, { siteAdded: null, blockedReason, committed: false });
         });
-    }
-
-    /** Draft HC period for the template's location (kept for the single-template endpoint). */
-    createPeriodFromTemplate(scope: ServiceScope, templateId: string, input: PeriodInput, actorId: string) {
-        return this.createPeriodFromTemplates(scope, [templateId], input, actorId);
     }
 
     /**
@@ -141,9 +140,8 @@ export class CsiTemplateApplyService {
      */
     async createPeriodFromTemplates(scope: ServiceScope, templateIds: string[], input: PeriodInput, actorId: string) {
         const views = await Promise.all(templateIds.map((id) => this.templates.get(scope, id)));
-        const siteIds = await this.siteIdsOf(views.map((view) => view.locationCode));
-        const questions = await this.hcQuestions(scope);
-        if (!questions.length) throw new BadRequestException(NO_QUESTIONS_MESSAGE);
+        const { siteIds, questions, blockedReason } = await this.preflight(scope, views);
+        if (blockedReason) throw new BadRequestException(blockedReason);
         const dto: CreatePeriodDto = { ...input, siteIds, respondentMode: CsiRespondentMode.LISTED, individualEnabled: true, teamEnabled: false };
         const period = await this.periodService.create(scope, dto, actorId);
         try {
@@ -178,7 +176,8 @@ export class CsiTemplateApplyService {
             const rateeId = existingRatee.get(pair.key)?.id;
             return !raterId || !rateeId || !existingPairs.has(`${raterId}|${rateeId}`);
         });
-        const newSubjects = subjects.filter((subject) => !existingRatee.has(subject.key));
+        // Two template rows may name the same PIC or team: it becomes one ratee (pairs of both rows still apply).
+        const newSubjects = [...new Map(subjects.filter((subject) => !existingRatee.has(subject.key)).map((subject) => [subject.key, subject])).values()];
         const tally = this.tallyOf(view, subjects, newSubjects);
         fresh.forEach((pair) => {
             tally.pairs.add(`${pair.userId}|${pair.key}`);
@@ -256,22 +255,27 @@ export class CsiTemplateApplyService {
      * Sync adds the template location to a survey that lacks it (its raters could not see the survey otherwise). A
      * published survey must not then clash with another published survey of that site.
      */
-    private async missingSite(period: CsiPeriod, locationCode: string): Promise<{ site: Site | null; blockedReason: string | null }> {
+    private async missingSite(manager: EntityManager, period: CsiPeriod, locationCode: string): Promise<{ site: Site | null; blockedReason: string | null }> {
         if ((period.sites ?? []).some((row) => row.site?.code === locationCode)) return { site: null, blockedReason: null };
         const [site] = await this.sites.find({ where: { code: In([locationCode]) } });
         if (!site) return { site: null, blockedReason: siteMissingMessage(locationCode) };
         if (period.publishStatus !== CsiPeriodPublishStatus.PUBLISHED) return { site, blockedReason: null };
-        const [clash] = await this.periodService.overlaps(period.scope, [site.id], period.startDate, period.endDate, period.id);
+        const [clash] = await this.periodService.overlaps(period.scope, [site.id], period.startDate, period.endDate, period.id, manager);
         return { site, blockedReason: clash ? overlapMessage(locationCode, clash.title) : null };
     }
 
-    /** Site ids of the template locations (template order, de-duplicated); an unknown location is a 400. */
-    private async siteIdsOf(codes: string[]) {
-        const wanted = [...new Set(codes)];
+    /**
+     * What a new survey from these templates needs: the site of every location (template order, de-duplicated) and the
+     * active HC questions. blockedReason names the first missing one (create-period throws it, preview reports it).
+     */
+    private async preflight(scope: ServiceScope, views: CsiTemplateView[]) {
+        const wanted = [...new Set(views.map((view) => view.locationCode))];
         const found = await this.sites.find({ where: { code: In(wanted) } });
         const missing = wanted.find((code) => !found.some((site) => site.code === code));
-        if (missing) throw new BadRequestException(siteMissingMessage(missing));
-        return wanted.map((code) => found.find((site) => site.code === code)!.id);
+        const questions = await this.hcQuestions(scope);
+        const blockedReason = missing ? siteMissingMessage(missing) : questions.length ? null : NO_QUESTIONS_MESSAGE;
+        const siteIds = missing ? [] : wanted.map((code) => found.find((site) => site.code === code)!.id);
+        return { siteIds, questions, blockedReason };
     }
 
     /**

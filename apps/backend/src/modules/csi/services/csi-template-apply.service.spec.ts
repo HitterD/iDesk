@@ -139,7 +139,7 @@ describe('CsiTemplateApplyService', () => {
     });
 
     it('creates a draft period for the template location and applies the template', async () => {
-        const result = await service.createPeriodFromTemplate(HC, 't1', { title: 'CSI HC 2026 – Semarang', startDate: '2026-12-01', endDate: '2026-12-31' }, 'admin');
+        const result = await service.createPeriodFromTemplates(HC, ['t1'], { title: 'CSI HC 2026 – Semarang', startDate: '2026-12-01', endDate: '2026-12-31' }, 'admin');
         expect(periodService.create).toHaveBeenCalledWith(HC, expect.objectContaining({ siteIds: ['s-smg'], respondentMode: CsiRespondentMode.LISTED, individualEnabled: true, teamEnabled: false }), 'admin');
         expect(result.periodId).toBe('p-new');
         expect(result.report.committed).toBe(true);
@@ -171,14 +171,14 @@ describe('CsiTemplateApplyService', () => {
 
     it('creating from a template without HC questions fails before any survey is created', async () => {
         dimensions.find.mockResolvedValueOnce([]);
-        await expect(service.createPeriodFromTemplate(HC, 't1', { title: 'X', startDate: '2026-12-01', endDate: '2026-12-31' }, 'admin'))
+        await expect(service.createPeriodFromTemplates(HC, ['t1'], { title: 'X', startDate: '2026-12-01', endDate: '2026-12-31' }, 'admin'))
             .rejects.toBeInstanceOf(BadRequestException);
         expect(periodService.create).not.toHaveBeenCalled();
     });
 
     it('a failing apply removes the draft it just created', async () => {
         org.findPics.mockRejectedValueOnce(new Error('boom'));
-        await expect(service.createPeriodFromTemplate(HC, 't1', { title: 'X', startDate: '2026-12-01', endDate: '2026-12-31' }, 'admin')).rejects.toThrow('boom');
+        await expect(service.createPeriodFromTemplates(HC, ['t1'], { title: 'X', startDate: '2026-12-01', endDate: '2026-12-31' }, 'admin')).rejects.toThrow('boom');
         expect(periodService.remove).toHaveBeenCalledWith(HC, 'p-new');
     });
 
@@ -268,5 +268,29 @@ describe('CsiTemplateApplyService', () => {
         expect((await service.applyToPeriod(HC, 't1', 'p1', false)).ratersUnconfirmed).toBe(1);
         // ELVI (ok) counts once across both locations, CICI is ok, BUDI is confirmed.
         expect((await service.previewPeriod(HC, ['t1', 't2'])).ratersUnconfirmed).toBe(2);
+    });
+
+    it('two template rows linked to the same PIC become one ratee', async () => {
+        const twice = view();
+        twice.pics.push({ ...twice.pics[0], id: 'tp-rara-2', picName: 'RARA (dobel)', raters: [rater('k', 'BUDI', 'u-budi')] });
+        templates.get.mockResolvedValueOnce(twice);
+        const report = await service.applyToPeriod(HC, 't1', 'p1', true);
+        expect(ratees.rows.filter((row) => row.picId === 'pic-rara')).toHaveLength(1);
+        expect(report.picsAdded).toBe(2);
+        expect(pairs.rows).toHaveLength(3);
+    });
+
+    it('preview reports the create-period failures as blockedReason instead of throwing', async () => {
+        sites.find.mockResolvedValueOnce([{ id: 's-smg', code: 'SMG' }]);
+        expect((await service.previewPeriod(HC, ['t1', 't2'])).blockedReason).toBe('Site KRW tidak ditemukan');
+        dimensions.find.mockResolvedValueOnce([]);
+        expect((await service.previewPeriod(HC, ['t1'])).blockedReason).toBe('Belum ada pertanyaan HC aktif. Buat template 5 dimensi dulu.');
+        expect(periodService.create).not.toHaveBeenCalled();
+    });
+
+    it('the overlap check of an added site runs on the sync transaction', async () => {
+        periods.rows[0] = { ...periods.rows[0], sites: [{ siteId: 's-spj', site: { code: 'SPJ' } }] };
+        await service.applyToPeriod(HC, 't1', 'p1', false);
+        expect(periodService.overlaps).toHaveBeenCalledWith(HC, ['s-smg'], undefined, undefined, 'p1', expect.objectContaining({ getRepository: expect.any(Function) }));
     });
 });

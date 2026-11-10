@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { In, Not, QueryFailedError } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode, CsiTeamKind } from '../csi.constants';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
@@ -367,6 +367,23 @@ describe('CsiPeriodService', () => {
             ]);
         });
 
+        it('copy keeps custom TEAM ratees as they are (two custom teams in one site keep both teamIds); inactive teams are dropped', async () => {
+            periods.rows[0] = basePeriod({ scope: HC, teamEnabled: true });
+            const custom = (id: string, teamId: string, isActive = true) => ({
+                id, periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, siteId: 'site-a', teamId, displayName: 'Lama', jobTitle: null, sortOrder: 2,
+                photoUrl: null, tagline: null, serviceCode: 'HCS', serviceFunction: 'Reception', team: { id: teamId, kind: CsiTeamKind.CUSTOM, isActive, name: `Tim ${teamId}` },
+            });
+            ratees.rows.push(custom('r-c1', 'custom-1'), custom('r-c2', 'custom-2'), custom('r-c3', 'custom-off', false));
+            rateeDimensions.rows.push(...['r-c1', 'r-c2', 'r-c3'].map((periodRateeId) => ({ id: `${periodRateeId}-d`, periodRateeId, dimensionId: 'd-hc', dimensionName: 'HC', sortOrder: 0 })));
+            await service.create(HC, { startDate: '2026-10-01', endDate: '2026-12-31', copyFromPeriodId: 'p1' }, 'admin');
+            expect(subjects.createTeam).not.toHaveBeenCalled();
+            const savedRatees = manager.saved.filter((entry) => entry.target === CsiPeriodRatee).flatMap((entry) => entry.value);
+            expect(savedRatees).toEqual([
+                expect.objectContaining({ kind: CsiRateeKind.TEAM, teamId: 'custom-1', siteId: 'site-a', displayName: 'Tim custom-1', serviceCode: 'HCS', serviceFunction: 'Reception' }),
+                expect.objectContaining({ kind: CsiRateeKind.TEAM, teamId: 'custom-2', siteId: 'site-a', displayName: 'Tim custom-2' }),
+            ]);
+        });
+
         it('with copyFromPeriodId from another scope throws 404', async () => {
             periods.rows.push(basePeriod({ id: 'p-hc', scope: HC }));
             await expect(service.create(ICT, createDto({ startDate: '2026-11-01', endDate: '2026-11-30', copyFromPeriodId: 'p-hc' }), 'admin'))
@@ -610,8 +627,9 @@ describe('CsiPeriodService', () => {
         });
 
         it('setTeamQuestions [] removes only the TEAM ratee of that site', async () => {
+            ratees.rows.push({ id: 'r-team-a', periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, siteId: 'site-a', teamId: 'team-site-a', displayName: 'Tim Sepanjang', jobTitle: null, sortOrder: -1 });
             await service.setTeamQuestions(ICT, 'p1', 'site-a', []);
-            expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRatee, { periodId: 'p1', kind: CsiRateeKind.TEAM, siteId: 'site-a' });
+            expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRatee, { id: In(['r-team-a']) });
             expect(manager.save).not.toHaveBeenCalled();
         });
 
@@ -624,6 +642,49 @@ describe('CsiPeriodService', () => {
             expect(savedRatees[0].id).not.toBe('r-team-a');
             expect(manager.delete).not.toHaveBeenCalledWith(CsiPeriodRatee, expect.anything());
             expect(manager.delete).not.toHaveBeenCalledWith(CsiPeriodRateeDimension, { periodRateeId: 'r-team-a' });
+        });
+
+        describe('custom team ratees (HC templates) are not the site team', () => {
+            const customTeam = (id: string, teamId: string) => ({
+                id, periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, siteId: 'site-a', teamId, displayName: `Tim ${teamId}`, jobTitle: null,
+                sortOrder: 3, photoUrl: null, tagline: null, serviceCode: 'HCS', serviceFunction: 'Reception',
+                team: { id: teamId, kind: CsiTeamKind.CUSTOM, isActive: true, name: `Tim ${teamId}` },
+            });
+
+            it('setTeamQuestions with questions leaves a custom team ratee intact and adds the site team', async () => {
+                ratees.rows.push(customTeam('r-custom', 'custom-1'));
+                await service.setTeamQuestions(ICT, 'p1', 'site-a', ['d1']);
+                const savedRatees = manager.saved.filter((entry) => entry.target === CsiPeriodRatee).map((entry) => entry.value);
+                expect(savedRatees).toEqual([expect.objectContaining({ teamId: 'team-site-a', displayName: 'Tim Sepanjang' })]);
+                expect(savedRatees[0].id).not.toBe('r-custom');
+                expect(manager.delete).not.toHaveBeenCalledWith(CsiPeriodRateeDimension, { periodRateeId: 'r-custom' });
+            });
+
+            it('setTeamQuestions [] removes the site team only, never a custom team ratee', async () => {
+                ratees.rows.push(customTeam('r-custom', 'custom-1'), { id: 'r-site', periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, siteId: 'site-a',
+                    teamId: 'team-site-a', displayName: 'Tim Sepanjang', jobTitle: null, sortOrder: -1, team: { id: 'team-site-a', kind: CsiTeamKind.SITE } });
+                await service.setTeamQuestions(ICT, 'p1', 'site-a', []);
+                expect(manager.delete).toHaveBeenCalledTimes(1);
+                expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRatee, { id: In(['r-site']) });
+                manager.delete.mockClear();
+                ratees.rows.splice(1, 1);
+                await service.setTeamQuestions(ICT, 'p1', 'site-a', []);
+                expect(manager.delete).not.toHaveBeenCalled();
+            });
+
+            it('moving a custom team ratee keeps its team and is not refused by the site team there', async () => {
+                periods.rows[0] = basePeriod({ sites: [{ siteId: 'site-a', site } as any, { siteId: 'site-b', site: siteB } as any] });
+                ratees.rows.push(customTeam('r-custom', 'custom-1'), { id: 'r-team-b', periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, siteId: 'site-b',
+                    teamId: 'team-site-b', displayName: 'Tim Semarang', jobTitle: null, sortOrder: -1, team: { id: 'team-site-b', kind: CsiTeamKind.SITE } });
+                await service.updateRatee(ICT, 'p1', 'r-custom', { siteId: 'site-b' });
+                expect(subjects.createTeam).not.toHaveBeenCalled();
+                const saved = manager.getRepository(CsiPeriodRatee) as unknown as ReturnType<typeof memoryRepository>;
+                expect(saved.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'r-custom', siteId: 'site-b', teamId: 'custom-1', displayName: 'Tim custom-1' }));
+                // The site team is still unique per site: moving a site team onto a site with a site team is refused.
+                ratees.rows.push({ id: 'r-team-a', periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, siteId: 'site-a', teamId: 'team-site-a',
+                    displayName: 'Tim Sepanjang', jobTitle: null, sortOrder: -1, team: { id: 'team-site-a', kind: CsiTeamKind.SITE } });
+                await expect(service.updateRatee(ICT, 'p1', 'r-team-a', { siteId: 'site-b' })).rejects.toBeInstanceOf(ConflictException);
+            });
         });
 
         it('setTeamQuestions rejects a site outside the period (400)', async () => {
