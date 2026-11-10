@@ -29,15 +29,16 @@ const REPORT = {
     problems: [] as Array<{ row: number; message: string }>,
 };
 const fx = vi.hoisted(() => ({
-    list: { templates: [] as unknown[], bundledAvailable: ['SMG'] }, blocked: null as string | null, report: null as unknown as typeof REPORT,
+    list: { templates: [] as unknown[], bundledAvailable: ['SMG'] }, blocked: null as string | null, report: null as unknown as typeof REPORT, failPrune: false,
 }));
 vi.mock('../../../../../lib/csiAdmin', async (importOriginal) => ({ ...(await importOriginal<object>()), downloadBlob: vi.fn() }));
 vi.mock('../../../../../api/csiHc.api', () => ({
     CsiHcApi: {
         templates: vi.fn(async () => fx.list),
-        importTemplate: vi.fn(async (_scope: string, _location: string, _file: File, options: { commit?: boolean; prune?: boolean }) => ({
-            ...fx.report, committed: !!options.commit, pics: { ...fx.report.pics, removed: options.prune ? ['LAMA'] : [] },
-        })),
+        importTemplate: vi.fn(async (_scope: string, _location: string, _file: File, options: { commit?: boolean; prune?: boolean }) => {
+            if (options.prune && fx.failPrune) throw new Error('network');
+            return { ...fx.report, committed: !!options.commit, pics: { ...fx.report.pics, removed: options.prune ? ['LAMA'] : [] } };
+        }),
         downloadBlankTemplate: vi.fn(async () => new Blob(['x'])),
         loadBundledTemplate: vi.fn(async () => TEMPLATE),
         updateTemplatePic: vi.fn(async () => TEMPLATE),
@@ -59,7 +60,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const api = async () => (await import('../../../../../api/csiHc.api')).CsiHcApi;
 
-beforeEach(() => { fx.list = { templates: [TEMPLATE], bundledAvailable: [] }; fx.blocked = null; fx.report = REPORT; });
+beforeEach(() => { fx.list = { templates: [TEMPLATE], bundledAvailable: [] }; fx.blocked = null; fx.report = REPORT; fx.failPrune = false; });
 
 const XLSX = new File(['x'], 'smg.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 /** Opens the import dialog on the Semarang template and waits for the dry run. */
@@ -135,6 +136,16 @@ describe('TemplatesTab', () => {
         expect(within(dialog).getByRole('button', { name: /simpan/i })).toBeEnabled();
         await userEvent.click(within(dialog).getByRole('checkbox', { name: /hapus yang tidak ada/i }));
         expect(await within(dialog).findByText(/perbaiki dulu baris bermasalah/i)).toBeInTheDocument();
+        expect(within(dialog).getByRole('button', { name: /simpan/i })).toBeDisabled();
+    });
+
+    it('a failed prune preview keeps save disabled', async () => {
+        fx.report = { ...REPORT, unresolved: [] };
+        fx.failPrune = true;
+        const dialog = await openPreview();
+        expect(within(dialog).getByRole('button', { name: /simpan/i })).toBeEnabled();
+        await userEvent.click(within(dialog).getByRole('checkbox', { name: /hapus yang tidak ada/i }));
+        expect(await within(dialog).findByText('Pratinjau gagal dimuat, coba lagi')).toBeInTheDocument();
         expect(within(dialog).getByRole('button', { name: /simpan/i })).toBeDisabled();
     });
 

@@ -11,12 +11,22 @@ import type { TemplateLocation } from './TemplateEmptyState';
 import { isChoiceComplete, TemplateImportPreview, type ImportChoices, type PruneState } from './TemplateImportPreview';
 
 const NO_PRUNE: PruneState = { prune: false, pruneConfirmed: false };
+const PREVIEW_FAILED = 'Pratinjau gagal dimuat, coba lagi';
 
-/** Save needs every unknown name decided, and refuses to prune while rows failed to parse (they would look absent). */
-function canCommit(report: CsiTemplateImportReport | null, choices: ImportChoices, prune: PruneState) {
-    if (!report) return false;
-    if (prune.prune && report.problems.length) return false;
-    return report.unresolved.every((item) => isChoiceComplete(choices[item.name]));
+/** A dry-run result together with the prune options it was computed for. */
+interface Preview { report: CsiTemplateImportReport; options: PruneState }
+
+const sameOptions = (a: PruneState, b: PruneState) => a.prune === b.prune && a.pruneConfirmed === b.pruneConfirmed;
+
+/**
+ * Save only commits what was previewed: the report must belong to exactly the current prune options (a failed or
+ * pending re-run leaves it stale), every unknown name must be decided, and pruning is refused while rows failed to
+ * parse (they would look absent).
+ */
+function canCommit(preview: Preview | null, choices: ImportChoices, prune: PruneState) {
+    if (!preview || !sameOptions(preview.options, prune)) return false;
+    if (prune.prune && preview.report.problems.length) return false;
+    return preview.report.unresolved.every((item) => isChoiceComplete(choices[item.name]));
 }
 
 /**
@@ -31,23 +41,27 @@ export function TemplateImportDialog({ scope, location, open, onOpenChange }: {
     const input = useRef<HTMLInputElement>(null);
     const latest = useRef(0);
     const [file, setFile] = useState<File | null>(null);
-    const [report, setReport] = useState<CsiTemplateImportReport | null>(null);
+    const [preview, setPreview] = useState<Preview | null>(null);
+    const [failed, setFailed] = useState(false);
+    const report = preview?.report ?? null;
     const [choices, setChoices] = useState<ImportChoices>({});
     const [prune, setPrune] = useState<PruneState>(NO_PRUNE);
 
     /** Only the newest dry run may land: a slow earlier one must not overwrite the prune counts. */
     const dryRun = async (target: File, nextPrune: PruneState) => {
         const request = ++latest.current;
+        setFailed(false);
         try {
             const result = await importer.mutateAsync({ file: target, options: { commit: false, ...nextPrune } });
-            if (request === latest.current) setReport(result);
+            if (request === latest.current) setPreview({ report: result, options: nextPrune });
         } catch {
-            // Already toasted by the API client.
+            // The API client toasts the cause; the stale preview stays visible but cannot be saved.
+            if (request === latest.current) setFailed(true);
         }
     };
     const pickFile = (picked: File) => {
         setFile(picked);
-        setReport(null);
+        setPreview(null);
         setChoices({});
         setPrune(NO_PRUNE);
         void dryRun(picked, NO_PRUNE);
@@ -73,29 +87,33 @@ export function TemplateImportDialog({ scope, location, open, onOpenChange }: {
     };
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-xl">
+            <DialogContent className="max-h-[90dvh] max-w-xl grid-rows-[auto_minmax(0,1fr)_auto]">
                 <DialogHeader>
                     <DialogTitle>{`Impor Excel – ${location.name}`}</DialogTitle>
                     <DialogDescription>Pratinjau dulu; template baru berubah setelah Simpan.</DialogDescription>
                 </DialogHeader>
-                <div className="flex flex-wrap items-center gap-2">
-                    <input ref={input} type="file" accept=".xlsx" aria-label="File Excel" className="hidden" onChange={(event) => {
-                        const picked = event.target.files?.[0];
-                        if (picked) pickFile(picked);
-                        event.target.value = '';
-                    }} />
-                    <Button variant="soft" disabled={importer.isPending} onClick={() => input.current?.click()}>
-                        <FileSpreadsheet aria-hidden="true" />{file ? 'Ganti file' : 'Pilih file .xlsx'}
-                    </Button>
-                    <span className={MUTED_TEXT}>{importer.isPending ? 'Membaca file…' : file?.name ?? 'Belum ada file'}</span>
+                {/* Only the body scrolls: a long unresolved list must not push Simpan/Batal off-screen. */}
+                <div className="grid max-h-[60vh] gap-4 overflow-y-auto pr-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <input ref={input} type="file" accept=".xlsx" aria-label="File Excel" className="hidden" onChange={(event) => {
+                            const picked = event.target.files?.[0];
+                            if (picked) pickFile(picked);
+                            event.target.value = '';
+                        }} />
+                        <Button variant="soft" disabled={importer.isPending} onClick={() => input.current?.click()}>
+                            <FileSpreadsheet aria-hidden="true" />{file ? 'Ganti file' : 'Pilih file .xlsx'}
+                        </Button>
+                        <span className={MUTED_TEXT}>{importer.isPending ? 'Membaca file…' : file?.name ?? 'Belum ada file'}</span>
+                    </div>
+                    {report && (
+                        <TemplateImportPreview report={report} choices={choices} prune={prune} onPrune={changePrune}
+                            onChoose={(name, choice) => setChoices((current) => ({ ...current, [name]: choice }))} />
+                    )}
+                    {failed && <p role="alert" className="text-[13px] font-medium text-[hsl(var(--destructive))]">{PREVIEW_FAILED}</p>}
                 </div>
-                {report && (
-                    <TemplateImportPreview report={report} choices={choices} prune={prune} onPrune={changePrune}
-                        onChoose={(name, choice) => setChoices((current) => ({ ...current, [name]: choice }))} />
-                )}
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Batal</Button>
-                    <Button variant="primary" disabled={importer.isPending || !canCommit(report, choices, prune)} onClick={save}>Simpan</Button>
+                    <Button variant="primary" disabled={importer.isPending || !canCommit(preview, choices, prune)} onClick={save}>Simpan</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
