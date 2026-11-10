@@ -4,7 +4,7 @@ import { PATH_METADATA } from '@nestjs/common/constants';
 import { validate } from 'class-validator';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { ConfirmTemplateRatersDto, SetTemplateRaterAccountsDto } from '../dto/template.dto';
-import { CsiAdminTemplateController } from './csi-admin-template.controller';
+import { CsiAdminTemplateController, parseImportOptions } from './csi-admin-template.controller';
 
 const ID = '12345678-1234-4234-8234-123456789012';
 const request = { csiScope: ServiceScope.HC, user: { userId: ID } };
@@ -23,7 +23,7 @@ describe('CsiAdminTemplateController bulk contracts', () => {
 
     it('forwards actor on account additions, single pins and bulk changes', () => {
         const templates = { addRater: jest.fn(), setRaterAccount: jest.fn(), setRaterAccounts: jest.fn(), confirmRaters: jest.fn() };
-        const controller = new CsiAdminTemplateController(templates as any, {} as any);
+        const controller = new CsiAdminTemplateController(templates as any, {} as any, {} as any);
         controller.addRater(request, ID, { userId: ID });
         controller.setRaterAccount(request, ID, { userId: ID });
         controller.setRaterAccounts(request, { raterIds: [ID], userId: null });
@@ -46,5 +46,23 @@ describe('CsiAdminTemplateController bulk contracts', () => {
         }
         expect((await validate(accountDto({ raterIds: [ID], userId: 'bad' }))).length).toBeGreaterThan(0);
         expect((await validate(confirmDto({ raterIds: [ID], confirmed: 'true' }))).length).toBeGreaterThan(0);
+    });
+
+    it('import reads the options field, honours legacy ?commit and refuses invalid options', async () => {
+        const importer = { importExcel: jest.fn(async () => ({})) };
+        const controller = new CsiAdminTemplateController({} as any, {} as any, importer as any);
+        const file = { buffer: Buffer.from('x') } as Express.Multer.File;
+        const resolutions = { 'Erna Wati': { as: 'rename', picName: 'ERNA' }, 'TIM A': { as: 'team' } };
+        await controller.importExcel(request, 'krw', file, JSON.stringify({ commit: true, prune: true, resolutions }), 'false');
+        expect(importer.importExcel).toHaveBeenLastCalledWith(ServiceScope.HC, 'krw', file.buffer, {
+            commit: true, prune: true, pruneConfirmed: false, resolutions: { 'Erna Wati': { as: 'rename', picName: 'ERNA' }, 'TIM A': { as: 'team' } },
+        });
+        await controller.importExcel(request, 'krw', file, undefined, 'true');
+        expect(importer.importExcel).toHaveBeenLastCalledWith(ServiceScope.HC, 'krw', file.buffer, { commit: true, prune: false, pruneConfirmed: false, resolutions: {} });
+        for (const raw of ['{bad', '[]', '{"commit":"yes"}', '{"extra":1}', '{"resolutions":{"X":{"as":"rename"}}}', '{"resolutions":{"X":{"as":"drop"}}}']) {
+            await expect(parseImportOptions(raw)).rejects.toThrow('Opsi impor tidak valid');
+        }
+        await expect(controller.importExcel(request, 'krw', {} as Express.Multer.File)).rejects.toThrow('File Excel wajib diunggah');
+        await expect(controller.importExcel({ ...request, csiScope: ServiceScope.ICT }, 'krw', file)).rejects.toBeInstanceOf(BadRequestException);
     });
 });

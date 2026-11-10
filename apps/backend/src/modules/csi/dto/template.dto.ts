@@ -1,4 +1,5 @@
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, ValidateIf } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, Validate, ValidateIf,
+    ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -58,6 +59,49 @@ export class SetTemplateRaterAccountsDto extends TemplateRaterSelectionDto {
 export class ConfirmTemplateRatersDto extends TemplateRaterSelectionDto {
     @IsBoolean()
     confirmed: boolean;
+}
+
+const RESOLUTION_KINDS: ReadonlySet<unknown> = new Set(['team', 'pic', 'rename']);
+const MAX_RESOLUTIONS = 500;
+
+/** Admin decision for one unresolved PIC-column name (key of `resolutions`). */
+export type PicResolutionInput = { as: 'team' | 'pic' | 'rename'; picName?: string };
+
+const isResolution = (value: unknown): boolean => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const { as, picName } = value as Record<string, unknown>;
+    if (!RESOLUTION_KINDS.has(as)) return false;
+    if (as !== 'rename') return picName === undefined || typeof picName === 'string';
+    return typeof picName === 'string' && picName.trim().length >= 2 && picName.length <= NAME_MAX;
+};
+
+/** Keys are PIC names from the file; each value is `{ as }`, a rename also needs `picName`. */
+@ValidatorConstraint({ name: 'csiTemplateResolutions', async: false })
+class ResolutionMapConstraint implements ValidatorConstraintInterface {
+    validate(value: unknown): boolean {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+        const entries = Object.entries(value as Record<string, unknown>);
+        return entries.length <= MAX_RESOLUTIONS && entries.every(([name, resolution]) => name.length <= NAME_MAX && isResolution(resolution));
+    }
+
+    defaultMessage(): string {
+        return 'Resolusi PIC tidak valid';
+    }
+}
+
+/** Multipart field `options` (JSON) of the template import. */
+export class ImportOptionsDto {
+    @IsOptional() @IsBoolean()
+    commit?: boolean;
+
+    @IsOptional() @Validate(ResolutionMapConstraint)
+    resolutions?: Record<string, PicResolutionInput>;
+
+    @IsOptional() @IsBoolean()
+    prune?: boolean;
+
+    @IsOptional() @IsBoolean()
+    pruneConfirmed?: boolean;
 }
 
 export class CreatePeriodFromTemplateDto {

@@ -1,5 +1,4 @@
 import { BadRequestException } from '@nestjs/common';
-import * as ExcelJS from 'exceljs';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
 import { CsiAssignmentTemplateRater } from '../entities/csi-assignment-template-rater.entity';
@@ -12,14 +11,6 @@ import { CsiAssignmentTemplateService } from './csi-assignment-template.service'
 import { memoryTable } from './csi-memory-table.fixture';
 
 const HC = ServiceScope.HC;
-async function excel(rows: unknown[][]) {
-    const book = new ExcelJS.Workbook();
-    const sheet = book.addWorksheet('List Penilai 2026');
-    sheet.addRow(['No.', 'Area', 'Nama Lengkap Karyawan (HC)', 'Jabatan', 'FUNGSI PELAYANAN', 'Nama Lengkap Penilai', 'Jabatan (akan terisi otomatis)']);
-    rows.forEach((row) => sheet.addRow(row));
-    return Buffer.from(await book.xlsx.writeBuffer());
-}
-
 describe('CsiAssignmentTemplateService', () => {
     let templates: ReturnType<typeof memoryTable>;
     let pics: ReturnType<typeof memoryTable>;
@@ -139,18 +130,6 @@ describe('CsiAssignmentTemplateService', () => {
         await expect(service.accountSuggestions(HC, 't', ' a ')).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('stores parsed PIC and rater NIK when importing seeds', async () => {
-        const book = new ExcelJS.Workbook();
-        book.addWorksheet('Daftar').addRows([
-            ['Area', 'Nama Lengkap Karyawan (HC)', 'Nama Lengkap Penilai', 'NIK Penilai'],
-            ['HC Development', 'RARA KURNIA MAHARANI PONGDATU', 'BUDI', 71],
-        ]);
-        book.addWorksheet('Karyawan KRW').addRows([['Nama', 'Jabatan', 'NIK'], ['RARA KURNIA MAHARANI PONGDATU', 'STAFF', 43328]]);
-        await service.importExcel(HC, 'SMG', Buffer.from(await book.xlsx.writeBuffer()), true);
-        expect(pics.rows[0]).toMatchObject({ picNik: '00043328' });
-        expect(raters.rows[0]).toMatchObject({ raterNik: '00000071' });
-    });
-
     it('loads the bundled Semarang template once: 19 PICs, service functions, four new staff without raters', async () => {
         const first = await service.loadBundled(HC, 'SMG');
         await service.loadBundled(HC, 'SMG');
@@ -200,23 +179,6 @@ describe('CsiAssignmentTemplateService', () => {
         await expect(service.addRater(HC, jingga.id, { name: 'ELVI  CYNTHIA' }, 'actor')).rejects.toBeInstanceOf(BadRequestException);
         const after = (await service.get(HC, template.id)).pics.find((pic) => pic.id === jingga.id)!;
         expect(after.raters.map((rater) => [rater.raterName, rater.status])).toEqual([['ELVI CYNTHIA', 'ok']]);
-    });
-
-    it('Excel import: dry run writes nothing, commit merges (adds, never removes)', async () => {
-        const template = await service.loadBundled(HC, 'SMG');
-        const buffer = await excel([
-            [1, 'HC Services', 'KUSMANTO', 'KOMANDAN REGU SECURITY', 'SECURITY SERVICES', 'ELVI CYNTHIA', null],
-            [2, 'HC Services', 'PIC BARU', 'STAFF', 'Layanan baru', 'ARIEF NOEGROHO', null],
-        ]);
-        const before = raters.rows.length;
-        const dry = await service.importExcel(HC, 'SMG', buffer, false);
-        expect(dry).toMatchObject({ picsAdded: 1, ratersAdded: 2, committed: false });
-        expect(raters.rows.length).toBe(before);
-        const done = await service.importExcel(HC, 'SMG', buffer, true);
-        expect(done.committed).toBe(true);
-        expect(pics.rows).toHaveLength(20);
-        expect(raters.rows.length).toBe(before + 2);
-        expect(templates.rows.map((row) => row.id)).toEqual([template.id]);
     });
 
     it('editing a PIC trims the service function; removing a PIC removes its raters', async () => {

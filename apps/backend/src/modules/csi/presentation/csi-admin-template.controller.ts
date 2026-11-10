@@ -2,23 +2,48 @@ import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPip
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
-import { AddTemplatePicDto, AddTemplateRaterDto, CreatePeriodFromTemplateDto, ConfirmTemplateRatersDto, SetTemplateRaterAccountsDto, SetTemplateRaterAccountDto, UpdateTemplatePicDto } from '../dto/template.dto';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { AddTemplatePicDto, AddTemplateRaterDto, CreatePeriodFromTemplateDto, ConfirmTemplateRatersDto, ImportOptionsDto, PicResolutionInput,
+    SetTemplateRaterAccountsDto, SetTemplateRaterAccountDto, UpdateTemplatePicDto } from '../dto/template.dto';
+import { PicResolution } from '../org/csi-template-identity';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiAssignmentTemplateService } from '../services/csi-assignment-template.service';
 import { CsiTemplateApplyService } from '../services/csi-template-apply.service';
+import { CsiTemplateImportService } from '../services/csi-template-import.service';
 import { XLSX_UPLOAD } from './csi-admin-org.controller';
 import { assertHcScope } from '../services/csi-scope.util';
 
 type CsiAdminRequest = { csiScope: ServiceScope; user: { userId: string } };
 /** Templates are an HC feature: the ICT scope is refused. */
 const hc = (req: CsiAdminRequest) => assertHcScope(req.csiScope);
+const INVALID_OPTIONS_MESSAGE = 'Opsi impor tidak valid';
+
+/** Multipart fields arrive as text: the JSON is parsed and validated here (unknown keys are refused). */
+export async function parseImportOptions(raw: string | undefined): Promise<ImportOptionsDto> {
+    if (raw === undefined || raw === '') return new ImportOptionsDto();
+    let plain: unknown;
+    try {
+        plain = JSON.parse(raw);
+    } catch {
+        throw new BadRequestException(INVALID_OPTIONS_MESSAGE);
+    }
+    if (!plain || typeof plain !== 'object' || Array.isArray(plain)) throw new BadRequestException(INVALID_OPTIONS_MESSAGE);
+    const options = plainToInstance(ImportOptionsDto, plain);
+    if ((await validate(options, { whitelist: true, forbidNonWhitelisted: true })).length) throw new BadRequestException(INVALID_OPTIONS_MESSAGE);
+    return options;
+}
+
+const toResolutions = (input: Record<string, PicResolutionInput> = {}): Record<string, PicResolution> => Object.fromEntries(
+    Object.entries(input).map(([name, { as, picName }]) => [name, as === 'rename' ? { as, picName: picName! } : { as }]));
 const ID_PIPE = new ParseUUIDPipe({ exceptionFactory: () => new BadRequestException('ID harus berupa UUID') });
 
 /** Pengaturan → Template penugasan: per-location "siapa menilai siapa" with each PIC's service function. */
 @Controller('csi/admin/:scope/templates')
 @UseGuards(JwtAuthGuard, CsiAdminGuard)
 export class CsiAdminTemplateController {
-    constructor(private readonly templates: CsiAssignmentTemplateService, private readonly applier: CsiTemplateApplyService) { }
+    constructor(private readonly templates: CsiAssignmentTemplateService, private readonly applier: CsiTemplateApplyService,
+        private readonly importer: CsiTemplateImportService) { }
 
     /** Add-only sync into an existing survey; dry run by default, `?commit=true` writes. */
     @Post(':id/apply/:periodId')
@@ -53,12 +78,21 @@ export class CsiAdminTemplateController {
         return this.templates.loadBundled(hc(req), location);
     }
 
-    /** Dry run by default; `?commit=true` merges the workbook into the location's template. */
+    /**
+     * Dry run by default. Multipart field `options` (JSON) carries commit / resolutions / prune; the legacy
+     * `?commit=true` query is still honoured when `options.commit` is absent.
+     */
     @Post('import/:location')
     @UseInterceptors(FileInterceptor('file', XLSX_UPLOAD))
-    importExcel(@Req() req: CsiAdminRequest, @Param('location') location: string, @UploadedFile() file: Express.Multer.File, @Query('commit') commit?: string) {
+    async importExcel(@Req() req: CsiAdminRequest, @Param('location') location: string, @UploadedFile() file: Express.Multer.File,
+        @Body('options') rawOptions?: string, @Query('commit') commit?: string) {
+        const scope = hc(req);
         if (!file?.buffer?.length) throw new BadRequestException('File Excel wajib diunggah');
-        return this.templates.importExcel(hc(req), location, file.buffer, commit === 'true');
+        const options = await parseImportOptions(rawOptions);
+        return this.importer.importExcel(scope, location, file.buffer, {
+            commit: options.commit ?? commit === 'true', resolutions: toResolutions(options.resolutions),
+            prune: options.prune ?? false, pruneConfirmed: options.pruneConfirmed ?? false,
+        });
     }
 
     @Post(':id/pics')

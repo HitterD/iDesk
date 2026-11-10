@@ -10,33 +10,29 @@ import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entit
 import { CsiOrgPerson } from '../entities/csi-org-person.entity';
 import { CsiPic } from '../entities/csi-pic.entity';
 import { buildNameIndex, normalizeName } from '../org/csi-name-match';
-import { CSI_HC_SERVICES, normalizeBagian } from '../org/csi-org.constants';
+import { normalizeBagian } from '../org/csi-org.constants';
 import { normalizeServiceFunction } from '../org/csi-org.service';
-import { CsiTemplateSeed, CsiTemplateSeedPic, parseTemplateWorkbook } from '../org/csi-template-excel';
+import { CsiTemplateSeed, CsiTemplateSeedPic } from '../org/csi-template-excel';
 import { buildTemplateView, CsiTemplateView, lookupOf, resolveRater } from '../org/csi-template-view';
 import { suggestAccounts } from '../org/csi-account-suggest';
 import { CSI_TEMPLATE_HC_SMG_2026 } from '../org/templates/hc-smg-2026.data';
+import { hcDirectoryCandidates } from './csi-template-import.service';
 
 /** Templates shipped with the app, loaded on request (idempotent). */
 const BUNDLED: Readonly<Record<string, CsiTemplateSeed>> = { SMG: CSI_TEMPLATE_HC_SMG_2026 };
-const LOCATION_NAMES: Readonly<Record<string, string>> = { SMG: 'Semarang', SPJ: 'Sepanjang', KRW: 'Karawang', JTB: 'Jakarta' };
 const NOT_FOUND_MESSAGE = 'Template tidak ditemukan';
 const PIC_NOT_FOUND_MESSAGE = 'PIC template tidak ditemukan';
 const SERVICE_CODES = new Set(['HCC', 'HCD', 'HCS']);
 const AREA_OF_SERVICE: Readonly<Record<string, string>> = { HCD: 'HC Development', HCC: 'HC Comben', HCS: 'HC Services' };
 
-export type CsiTemplateImportReport = {
-    pics: number; picsAdded: number; picsUpdated: number; ratersAdded: number;
-    problems: Array<{ row: number; message: string }>; committed: boolean;
-};
 type PicIndex = (name: string) => CsiPic | 'ambiguous' | null;
 const idOf = (hit: CsiPic | 'ambiguous' | null) => (hit && hit !== 'ambiguous' ? hit.id : null);
 type Repos = { templates: Repository<CsiAssignmentTemplate>; pics: Repository<CsiAssignmentTemplatePic>; raters: Repository<CsiAssignmentTemplateRater> };
 
 /**
- * Assignment templates per location ("siapa menilai siapa" by name, with each PIC's service function). Loading or
- * importing merges: new PICs and raters are added, titles/service functions refreshed, nothing is removed except by
- * an explicit delete in the editor.
+ * Assignment templates per location ("siapa menilai siapa" by name, with each PIC's service function). Loading the
+ * bundled copy merges: new PICs and raters are added, titles/service functions refreshed, nothing is removed except by
+ * an explicit delete in the editor. Excel import (diff, resolutions, prune, teams) lives in CsiTemplateImportService.
  */
 @Injectable()
 export class CsiAssignmentTemplateService {
@@ -88,20 +84,6 @@ export class CsiAssignmentTemplateService {
         const pics = seed.pics.map((pic) => ({ ...pic, nik: pic.nik ?? null, raters: pic.raters.map((rater) => ({ ...rater, nik: rater.nik ?? null })) }));
         const id = await this.dataSource.transaction((manager) => this.loadInto(manager, scope, seed.locationCode, seed.name, pics));
         return this.get(scope, id);
-    }
-
-    /** Excel in the Semarang layout; without `commit` only the report is returned. */
-    async importExcel(scope: ServiceScope, locationCode: string, buffer: Buffer, commit: boolean): Promise<CsiTemplateImportReport> {
-        const code = locationCode.toUpperCase();
-        if (!LOCATION_NAMES[code]) throw new BadRequestException('Lokasi tidak dikenal');
-        const draft = await parseTemplateWorkbook(buffer);
-        const existing = await this.templates.findOne({ where: { scope, locationCode: code } });
-        const report = await this.diff(existing?.id ?? null, draft.pics);
-        if (!commit) return { ...report, problems: draft.problems, committed: false };
-        if (!draft.pics.length) throw new BadRequestException('Tidak ada PIC di file');
-        const name = existing?.name ?? `CSI ${scope} – ${LOCATION_NAMES[code]}`;
-        await this.dataSource.transaction((manager) => this.loadInto(manager, scope, code, name, draft.pics));
-        return { ...report, problems: draft.problems, committed: true };
     }
 
     async addPic(scope: ServiceScope, templateId: string, input: { serviceCode: string; picName: string; jobTitle?: string | null; serviceFunction?: string | null }) {
@@ -260,22 +242,6 @@ export class CsiAssignmentTemplateService {
         if (fresh.length) await repos.raters.save(fresh.map((rater) => ({ templatePicId, raterName: rater.name, raterJobTitle: rater.jobTitle, raterNik: rater.nik, userId: null })));
     }
 
-    /** What a merge would add / change (dry run of an import). */
-    private async diff(templateId: string | null, seedPics: CsiTemplateSeedPic[]) {
-        const existing = templateId ? await this.pics.find({ where: { templateId } }) : [];
-        const byName = new Map(existing.map((pic) => [pic.picName, pic]));
-        const raters = existing.length ? await this.raters.find({ where: { templatePicId: In(existing.map((pic) => pic.id)) } }) : [];
-        const ratersOf = (picId: string) => new Set(raters.filter((rater) => rater.templatePicId === picId).map((rater) => rater.raterName));
-        let ratersAdded = 0;
-        seedPics.forEach((seed) => {
-            const known = byName.get(seed.picName);
-            const names = known ? ratersOf(known.id) : new Set<string>();
-            ratersAdded += seed.raters.filter((rater) => !names.has(rater.name)).length;
-        });
-        const picsAdded = seedPics.filter((seed) => !byName.has(seed.picName)).length;
-        return { pics: seedPics.length, picsAdded, picsUpdated: seedPics.length - picsAdded, ratersAdded };
-    }
-
     /** csi_pics.serviceFunction is filled from the template only while it is still empty (manual edits win). */
     private async fillPicServiceFunctions(picRepo: Repository<CsiPic>, seedPics: CsiTemplateSeedPic[], picIndex: PicIndex) {
         for (const seed of seedPics) {
@@ -308,21 +274,8 @@ export class CsiAssignmentTemplateService {
         if (missing.length) await this.createPicsFromDirectory(manager, scope, locationCode, missing, all);
     }
 
-    /**
-     * Directory rows that can become HC PICs: HCBP AREA staff and the three HC departments. Names are compared in memory
-     * with normalizeName, so the directory's own casing, dots or commas never hide a match.
-     */
-    private directoryCandidates(manager: EntityManager, seeds: CsiTemplateSeedPic[]): Promise<CsiOrgPerson[]> {
-        if (!seeds.length) return Promise.resolve([]);
-        return manager.getRepository(CsiOrgPerson).createQueryBuilder('p')
-            .where('p."department" ILIKE :hcbp OR UPPER(p."department") IN (:...hc)', {
-                hcbp: 'HCBP AREA%', hc: CSI_HC_SERVICES.map((service) => service.department),
-            })
-            .getMany();
-    }
-
     private async createPicsFromDirectory(manager: EntityManager, scope: ServiceScope, locationCode: string, seeds: CsiTemplateSeedPic[], existing: CsiPic[]) {
-        const findPerson = buildNameIndex(await this.directoryCandidates(manager, seeds), (row) => row.fullName);
+        const findPerson = buildNameIndex(await hcDirectoryCandidates(manager), (row) => row.fullName);
         const site = await manager.getRepository(Site).findOne({ where: { code: locationCode } });
         for (const seed of seeds) {
             const person = findPerson(seed.picName);
