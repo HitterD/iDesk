@@ -91,7 +91,7 @@ export type CsiTemplateRaterStatus = 'confirmed' | 'ok' | 'ambiguous' | 'no-acco
 export interface CsiTemplateRater { id: string; raterName: string; raterNik: string | null; raterJobTitle: string | null; userId: string | null; status: CsiTemplateRaterStatus; confirmed: boolean }
 export interface CsiTemplatePic {
     id: string; area: string; serviceCode: string; picName: string; jobTitle: string | null; serviceFunction: string | null;
-    picId: string | null; raterCount: number; raters: CsiTemplateRater[];
+    picId: string | null; teamId: string | null; raterCount: number; raters: CsiTemplateRater[];
 }
 export interface CsiTemplate {
     id: string; scope: string; locationCode: string; name: string; updatedAt: string | null;
@@ -99,11 +99,30 @@ export interface CsiTemplate {
     pics: CsiTemplatePic[];
 }
 export interface CsiTemplateList { templates: CsiTemplate[]; bundledAvailable: string[] }
-export interface CsiTemplateImportReport {
-    pics: number; picsAdded: number; picsUpdated: number; ratersAdded: number; problems: Array<{ row: number; message: string }>; committed: boolean;
+export interface AccountSuggestion {
+    id: string; fullName: string; email: string; employeeId: string | null;
+    siteId: string | null; siteCode: string | null; department: string | null; score: number;
 }
+export type CsiTemplatePicResolution = { as: 'team' | 'pic' | 'rename'; picName?: string };
+export interface CsiTemplateImportOptions {
+    commit?: boolean; resolutions?: Record<string, CsiTemplatePicResolution>; prune?: boolean; pruneConfirmed?: boolean;
+}
+export interface CsiTemplateImportReport {
+    format: 'list' | 'matrix'; committed: boolean;
+    services: string[];
+    pics: { added: string[]; changed: string[]; removed: string[] };
+    raters: { added: number; removed: number };
+    teams: { added: string[] }; newMasterPics: string[];
+    unresolved: Array<{ name: string; suggestions: string[] }>;
+    problems: Array<{ row: number; message: string }>;
+}
+export interface CreateCsiPeriodFromTemplates {
+    title: string; startDate: string; endDate: string; templateIds: string[];
+}
+export interface CsiPeriodFromTemplatesResult { periodId: string; report: CsiTemplateApplyReport }
 export interface CsiTemplateApplyReport {
-    picsAdded: number; ratersAdded: number; pairsAdded: number;
+    picsAdded: number; teamsAdded: number; ratersAdded: number; pairsAdded: number;
+    ratersUnconfirmed: number; siteAdded: string | null;
     picsSkippedNoRaters: string[]; picsUnmatched: string[]; ratersNoAccount: string[]; ratersAmbiguous: string[]; committed: boolean;
     /** Why this survey cannot take the template without hiding it from current raters (null = it can). */
     blockedReason: string | null;

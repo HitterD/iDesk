@@ -368,7 +368,7 @@ export interface CsiSubjectView {
     photoUrl: string | null;
     tagline: string | null;
     /** Fungsi pelayanan (people only). */
-    serviceFunction?: string | null;
+    serviceFunction: string | null;
     /** Teams only: SITE (one per site) or CUSTOM (HC). */
     teamKind: 'SITE' | 'CUSTOM' | null;
     /** HC layanan (HCC/HCD/HCS) of a PIC or a custom team. */
@@ -391,7 +391,10 @@ export interface CsiSubjectGroup {
 }
 /** Empty / null clears tagline and jobTitle; `name` applies to team subjects only. */
 export interface UpdateCsiSubject { tagline?: string | null; jobTitle?: string | null; serviceFunction?: string | null; name?: string }
-export interface CreateCsiTeam { siteId: string }
+export interface CreateCsiTeam { siteId: string; kind?: 'SITE' | 'CUSTOM'; name?: string; serviceCode?: string }
+export interface CreateCsiCustomTeam { siteId: string; name: string; serviceCode: string }
+export interface UpdateCsiCustomTeam { name?: string; serviceCode?: string }
+export interface CsiTeamMemberInput { userId?: string; name?: string }
 
 // ─── "Siapa menilai siapa" (respondents × subjects) ─────────────────────────
 export interface CsiRaterMatrix {

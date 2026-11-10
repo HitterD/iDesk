@@ -11,14 +11,14 @@ const TEMPLATE: CsiTemplate = {
     pics: [
         {
             id: 'tp-rara', area: 'HC Development', serviceCode: 'HCD', picName: 'RARA KURNIA MAHARANI PONGDATU', jobTitle: 'PEOPLE & ORGANIZATION DEVELOPMENT STAFF',
-            serviceFunction: 'People & Organization Development', picId: 'pic-rara', raterCount: 3,
+            serviceFunction: 'People & Organization Development', picId: 'pic-rara', teamId: null, raterCount: 3,
             raters: [
                 { id: 'a', raterName: 'ELVI CYNTHIA', raterNik: null, confirmed: false, raterJobTitle: 'PLANT MANAGER 1', userId: 'u1', status: 'ok' },
                 { id: 'b', raterName: 'ARIEF NOEGROHO', raterNik: null, confirmed: false, raterJobTitle: null, userId: null, status: 'no-account' },
                 { id: 'c', raterName: 'AGUS SUBEKTI', raterNik: null, confirmed: false, raterJobTitle: null, userId: null, status: 'ambiguous' },
             ],
         },
-        { id: 'tp-jingga', area: 'HC Services', serviceCode: 'HCS', picName: 'JINGGA FERDASIWI', jobTitle: 'RECEPTIONIST', serviceFunction: null, picId: null, raterCount: 0, raters: [] },
+        { id: 'tp-jingga', area: 'HC Services', serviceCode: 'HCS', picName: 'JINGGA FERDASIWI', jobTitle: 'RECEPTIONIST', serviceFunction: null, picId: null, teamId: null, raterCount: 0, raters: [] },
     ],
 };
 const fx = vi.hoisted(() => ({ list: { templates: [] as unknown[], bundledAvailable: ['SMG'] }, blocked: null as string | null }));
@@ -60,7 +60,7 @@ describe('TemplatesTab', () => {
         renderWithQuery(<TemplatesTab scope="hc" />);
         const rara = await screen.findByRole('region', { name: /RARA KURNIA MAHARANI PONGDATU/ });
         expect(within(rara).getByText('People & Organization Development')).toBeInTheDocument();
-        expect(within(rara).getByText('Cocok')).toBeInTheDocument();
+        expect(within(rara).getByText('Cocok otomatis')).toBeInTheDocument();
         expect(within(rara).getByText('Belum punya akun')).toBeInTheDocument();
         expect(within(rara).getByText('Nama ganda')).toBeInTheDocument();
         expect(within(screen.getByRole('region', { name: /JINGGA FERDASIWI/ })).getByText(/belum ada penilai/i)).toBeInTheDocument();

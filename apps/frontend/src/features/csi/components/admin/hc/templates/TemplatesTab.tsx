@@ -10,17 +10,23 @@ import { AdminSection, EmptyNote, MUTED_TEXT } from '../../AdminParts';
 import { TemplateApplyDialog } from './TemplateApplyDialog';
 import { TemplatePicCard } from './TemplatePicCard';
 
-const LOCATION_NAMES: Record<string, string> = { SMG: 'Semarang', SPJ: 'Sepanjang', KRW: 'Karawang', JTB: 'Jakarta' };
+import { CSI_TEMPLATE_LOCATIONS } from '../hcFormat';
+
+const locationName = (code: string) => CSI_TEMPLATE_LOCATIONS.find((location) => location.code === code)?.name ?? code;
 const SERVICE_ORDER = ['HCD', 'HCC', 'HCS'];
 const SERVICE_NAMES: Record<string, string> = { HCD: 'HC Development', HCC: 'HC Compensation & Benefit', HCS: 'HC Services' };
 
 function ImportButton({ scope, location }: { scope: CsiScopeParam; location: string }) {
     const input = useRef<HTMLInputElement>(null);
     const importer = useCsiTemplateMutation(scope, async (file: File) => {
-        const dry = await CsiHcApi.importTemplate(scope, location, file, false);
+        const dry = await CsiHcApi.importTemplate(scope, location, file, { commit: false });
+        if (dry.unresolved.length) {
+            toast.error(`${dry.unresolved.length} nama PIC/tim belum dikenali. Perbaiki nama di Excel sebelum mengimpor.`);
+            return;
+        }
         const problems = dry.problems.length ? `\n${dry.problems.length} baris bermasalah (dilewati).` : '';
-        if (!window.confirm(`${dry.pics} PIC di file: ${dry.picsAdded} baru, ${dry.ratersAdded} penilai baru.${problems}\nGabungkan ke template?`)) return;
-        await CsiHcApi.importTemplate(scope, location, file, true);
+        if (!window.confirm(`${dry.pics.added.length} PIC/tim baru, ${dry.pics.changed.length} diperbarui, ${dry.raters.added} penilai baru.${problems}\nGabungkan ke template?`)) return;
+        await CsiHcApi.importTemplate(scope, location, file, { commit: true });
         toast.success('Template diperbarui dari Excel.');
     });
     return (
@@ -97,11 +103,11 @@ export function TemplatesTab({ scope }: { scope: CsiScopeParam }) {
                 {isLoading && <div className="h-40 animate-pulse rounded-2xl bg-[hsl(var(--muted))]" aria-busy="true" />}
                 <div className="flex flex-wrap items-center gap-2">
                     {templates.map((row) => (
-                        <Button key={row.id} variant={row.id === current?.id ? 'primary' : 'soft'} onClick={() => setSelected(row.id)}>{LOCATION_NAMES[row.locationCode] ?? row.locationCode}</Button>
+                        <Button key={row.id} variant={row.id === current?.id ? 'primary' : 'soft'} onClick={() => setSelected(row.id)}>{locationName(row.locationCode)}</Button>
                     ))}
                     {(data?.bundledAvailable ?? []).map((code) => (
                         <Button key={code} variant="soft" disabled={load.isPending} onClick={() => load.mutate(code)}>
-                            <Download aria-hidden="true" />{`Muat template ${LOCATION_NAMES[code] ?? code}`}
+                            <Download aria-hidden="true" />{`Muat template ${locationName(code)}`}
                         </Button>
                     ))}
                 </div>

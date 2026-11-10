@@ -6,7 +6,7 @@ import { titleCase } from '../hcFormat';
 
 const STATUS: Record<CsiTemplateRaterStatus, { label: string; className: string; hint: string }> = {
     confirmed: { label: 'Terkonfirmasi', className: 'bg-[hsl(var(--ticket-green)/.14)] text-[hsl(var(--ticket-green-ink))]', hint: 'Akun dikonfirmasi atau cocok berdasarkan NIK' },
-    ok: { label: 'Cocok', className: 'bg-[hsl(var(--ticket-green)/.14)] text-[hsl(var(--ticket-green-ink))]', hint: 'Nama cocok dengan satu akun iDesk' },
+    ok: { label: 'Cocok otomatis', className: 'bg-[hsl(var(--ticket-green)/.14)] text-[hsl(var(--ticket-green-ink))]', hint: 'Nama cocok dengan satu akun iDesk' },
     'no-account': { label: 'Belum punya akun', className: 'bg-[hsl(var(--ticket-amber)/.16)] text-[hsl(var(--ticket-amber-ink))]', hint: 'Masuk survei otomatis saat akunnya ada (Sinkronkan)' },
     ambiguous: { label: 'Nama ganda', className: 'bg-[hsl(var(--ticket-red)/.12)] text-[hsl(var(--ticket-red))]', hint: 'Lebih dari satu akun dengan nama ini: hapus lalu tambah ulang lewat akun' },
 };

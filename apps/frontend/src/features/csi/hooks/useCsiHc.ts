@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { CsiHcApi } from '../api/csiHc.api';
-import type { CsiScopeParam } from '../types';
-import type { CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
+import { CsiApi } from '../api/csi.api';
+import type { CreateCsiCustomTeam, CsiScopeParam, CsiTeamMemberInput, UpdateCsiCustomTeam } from '../types';
+import type { CreateCsiPeriodFromTemplates, CsiTemplateImportOptions, CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
 
 const keys = queryKeys.csi;
 const picsKey = (scope: CsiScopeParam, includeInactive = false) => ['csi', scope, 'pics', includeInactive] as const;
@@ -15,9 +16,68 @@ export function useCsiTemplates(scope: CsiScopeParam, enabled = true) {
     return useQuery({ queryKey: templatesKey(scope), queryFn: () => CsiHcApi.templates(scope), enabled });
 }
 /** Every template edit returns the fresh template; the list is refetched so counts stay right. */
-export function useCsiTemplateMutation<TInput>(scope: CsiScopeParam, run: (input: TInput) => Promise<unknown>) {
+export function useCsiTemplateMutation<TInput, TData>(scope: CsiScopeParam, run: (input: TInput) => Promise<TData>) {
     const client = useQueryClient();
     return useMutation({ mutationFn: run, onSuccess: () => client.invalidateQueries({ queryKey: templatesKey(scope) }) });
+}
+/** Imports may create PIC/team masters, so refresh subjects as well as templates. */
+export function useTemplateImport(scope: CsiScopeParam, location: string) {
+    return useTemplateSubjectsMutation(scope, ({ file, options }: { file: File; options: CsiTemplateImportOptions }) =>
+        CsiHcApi.importTemplate(scope, location, file, options));
+}
+export function useAccountSuggestions(scope: CsiScopeParam, templateId: string, name: string) {
+    const search = name.trim();
+    return useQuery({
+        queryKey: [...templatesKey(scope), templateId, 'account-suggestions', search],
+        queryFn: () => CsiHcApi.templateAccountSuggestions(scope, templateId, search), enabled: !!templateId && search.length >= 2,
+    });
+}
+export function useSetRaterAccount(scope: CsiScopeParam) {
+    return useCsiTemplateMutation(scope, ({ raterIds, userId }: { raterIds: string[]; userId: string | null }) =>
+        CsiHcApi.setTemplateRaterAccount(scope, raterIds, userId));
+}
+export function useConfirmRaters(scope: CsiScopeParam) {
+    return useCsiTemplateMutation(scope, ({ raterIds, confirmed }: { raterIds: string[]; confirmed: boolean }) =>
+        CsiHcApi.confirmTemplateRaters(scope, raterIds, confirmed));
+}
+export function useBlankTemplateDownload(scope: CsiScopeParam) {
+    return useMutation({ mutationFn: (location: string) => CsiHcApi.downloadBlankTemplate(scope, location) });
+}
+export function useCreatePeriodFromTemplates(scope: CsiScopeParam) {
+    const client = useQueryClient();
+    return useMutation({
+        mutationFn: (body: CreateCsiPeriodFromTemplates) => CsiHcApi.createPeriodFromTemplates(scope, body),
+        onSuccess: () => Promise.all([
+            client.invalidateQueries({ queryKey: templatesKey(scope) }), client.invalidateQueries({ queryKey: keys.periods(scope) }),
+        ]),
+    });
+}
+export function usePreviewPeriod(scope: CsiScopeParam, templateIds: string[]) {
+    return useQuery({
+        queryKey: [...templatesKey(scope), 'preview-period', templateIds],
+        queryFn: () => CsiHcApi.previewPeriodFromTemplates(scope, templateIds), enabled: templateIds.length > 0,
+    });
+}
+/** Team edits can change template rows and period snapshots as well as the subject list. */
+function useTemplateSubjectsMutation<TInput, TData>(scope: CsiScopeParam, mutationFn: (input: TInput) => Promise<TData>) {
+    const client = useQueryClient();
+    return useMutation({
+        mutationFn,
+        onSuccess: () => Promise.all([templatesKey(scope), keys.subjects(scope), keys.periodDetails(scope)].map((queryKey) =>
+            client.invalidateQueries({ queryKey }))),
+    });
+}
+export function useCreateCustomTeam(scope: CsiScopeParam) {
+    return useTemplateSubjectsMutation(scope, (body: CreateCsiCustomTeam) => CsiApi.createCustomTeam(scope, body));
+}
+export function useUpdateCustomTeam(scope: CsiScopeParam) {
+    return useTemplateSubjectsMutation(scope, ({ id, ...body }: UpdateCsiCustomTeam & { id: string }) => CsiApi.updateCustomTeam(scope, id, body));
+}
+export function useDeleteCustomTeam(scope: CsiScopeParam) {
+    return useTemplateSubjectsMutation(scope, (id: string) => CsiApi.deleteCustomTeam(scope, id));
+}
+export function useSetCustomTeamMembers(scope: CsiScopeParam) {
+    return useTemplateSubjectsMutation(scope, ({ id, members }: { id: string; members: CsiTeamMemberInput[] }) => CsiApi.setCustomTeamMembers(scope, id, members));
 }
 export function useCsiMyReportAccess(scope: CsiScopeParam) {
     return useQuery({ queryKey: ['csi', 'me', scope, 'report-access'], queryFn: () => CsiHcApi.myReportAccess(scope), staleTime: 5 * 60_000 });

@@ -1,3 +1,9 @@
+/** Canonical HC template locations; Jakarta's template/site code is JTB, not JKT. */
+export const CSI_TEMPLATE_LOCATIONS = [
+    { code: 'SMG', name: 'Semarang' }, { code: 'KRW', name: 'Karawang' },
+    { code: 'SPJ', name: 'Sepanjang' }, { code: 'JTB', name: 'Jakarta' },
+] as const;
+
 /** Acronyms kept upper-case after title-casing (HC, GA, PSW, HSE, SJA, ...). */
 const ACRONYMS = new Set(['HC', 'HCC', 'HCD', 'HCS', 'HCBP', 'GA', 'PSW', 'HSE', 'SJA', 'IR', 'TA', 'QC', 'QA', 'PPIC', 'ICT', 'RTD', 'BM', 'ATK', 'PPJP', 'CSV', 'HRIS', 'DAFT', 'R&D', 'S&OE', 'FGW', 'MT']);
 
