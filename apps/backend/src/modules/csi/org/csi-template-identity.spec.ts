@@ -67,6 +67,19 @@ describe('classifyPics', () => {
             .toEqual({ ...pic('ERNA WATI'), kind: 'pic', existingTeamId: null, newMasterPic: !exists });
     });
 
+    it('PIC resolution never creates a master when the master name is ambiguous', () => {
+        const ctx = context({ findPic: () => 'ambiguous', resolutions: { ERNAWATI: { as: 'pic' } } });
+        expect(classifyPics(draftOf(pic()), ctx).pics[0])
+            .toMatchObject({ picName: 'ERNAWATI', kind: 'pic', newMasterPic: false });
+    });
+
+    it('rename resolution never creates a master when the renamed master is ambiguous', () => {
+        const ctx = context({ findPic: (name) => name === 'ERNA WATI' ? 'ambiguous' : null,
+            resolutions: { ERNAWATI: { as: 'rename', picName: ' Erna., Wati ' } } });
+        expect(classifyPics(draftOf(pic()), ctx).pics[0])
+            .toMatchObject({ picName: 'ERNA WATI', kind: 'pic', newMasterPic: false });
+    });
+
     it('Tim sheet name forces team and reuses an existing site team if available', () => {
         const draft = { ...draftOf(pic('ADMIN HC')), teams: [{ name: 'Admin., HC', members: [] }] };
         expect(classifyPics(draft, context()).pics[0]).toMatchObject({ kind: 'team', existingTeamId: null });
@@ -82,8 +95,8 @@ describe('classifyPics', () => {
             const match = byName(name);
             return match === 'ambiguous' ? 'ambiguous' : match ? 'found' : null;
         };
-        expect(classifyPics(draftOf(pic('WRONG NAME', '12')), context({ findPic }))).toEqual({
-            pics: [{ ...pic('WRONG NAME', '12'), kind: 'pic', existingTeamId: null, newMasterPic: false }], unresolved: [],
+        expect(classifyPics(draftOf(pic('BUDI', '12')), context({ findPic }))).toEqual({
+            pics: [{ ...pic('BUDI', '12'), kind: 'pic', existingTeamId: null, newMasterPic: false }], unresolved: [],
         });
     });
 

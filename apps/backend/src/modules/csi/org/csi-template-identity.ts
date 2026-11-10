@@ -40,14 +40,14 @@ function classifyRow(row: CsiTemplateSeedPic, ctx: ClassifyContext, siteTeams: R
         if (resolution.as === 'team') return team();
         const resolvedName = resolution.as === 'rename' ? normalizeName(resolution.picName) : picName;
         return { ...seed, picName: resolvedName, kind: 'pic', existingTeamId: null,
-            newMasterPic: ctx.findPic(resolvedName, nik) !== 'found' };
+            newMasterPic: ctx.findPic(resolvedName, nik) === null };
     }
     // Lookups own NIK-first matching; ambiguous identities remain PICs for the import service to resolve.
     const master = ctx.findPic(picName, nik);
     const person = ctx.findPerson(picName, nik);
     if (master !== null || person !== null) {
         return { ...seed, kind: 'pic', existingTeamId: null,
-            newMasterPic: master !== 'found' && master !== 'ambiguous' && person !== 'ambiguous' };
+            newMasterPic: master === null && person !== 'ambiguous' };
     }
     if (sheetTeams.has(picName) || existingTeamId !== null || TEAM_PREFIX.test(picName)) return team();
     return null;
