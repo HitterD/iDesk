@@ -1,4 +1,5 @@
-import { cleanup, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CsiTemplate, CsiTemplateRater } from '../../../../../hcTypes';
@@ -34,6 +35,32 @@ describe('RaterTableView', () => {
         expect(within(table).getByText('ARIEF')).toBeInTheDocument();
         expect(within(table).getByText('AGUS')).toBeInTheDocument();
         expect(within(table).queryByText('BUDI')).not.toBeInTheDocument();
+    });
+
+    it('automatically switches to Semua after the last issue is resolved on refetch', () => {
+        const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+        const { rerender } = render(<RaterTableView scope="hc" template={TEMPLATE} />, {
+            wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+        });
+        const clean = { ...TEMPLATE, pics: TEMPLATE.pics.map((pic) => ({ ...pic, raters: pic.raters.filter((row) => row.status === 'ok') })) };
+        rerender(<RaterTableView scope="hc" template={clean} />);
+        expect(screen.getByRole('button', { name: 'Semua' })).toHaveAttribute('aria-pressed', 'true');
+        expect(within(screen.getByRole('table')).getByText('BUDI')).toBeInTheDocument();
+    });
+
+    it('preserves an explicit Perlu dicek choice and offers Tampilkan semua when it becomes empty', async () => {
+        const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+        const { rerender } = render(<RaterTableView scope="hc" template={TEMPLATE} />, {
+            wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+        });
+        await userEvent.click(screen.getByRole('button', { name: 'Perlu dicek' }));
+        const clean = { ...TEMPLATE, pics: TEMPLATE.pics.map((pic) => ({ ...pic, raters: pic.raters.filter((row) => row.status === 'ok') })) };
+        rerender(<RaterTableView scope="hc" template={clean} />);
+        expect(screen.getByRole('button', { name: 'Perlu dicek' })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByText('Tidak ada penilai yang sesuai.')).toBeInTheDocument();
+        await userEvent.click(screen.getByRole('button', { name: 'Tampilkan semua' }));
+        expect(screen.getByRole('button', { name: 'Semua' })).toHaveAttribute('aria-pressed', 'true');
+        expect(within(screen.getByRole('table')).getByText('BUDI')).toBeInTheDocument();
     });
 
     it('search filters by NIK', async () => {

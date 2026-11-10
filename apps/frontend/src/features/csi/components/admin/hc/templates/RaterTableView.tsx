@@ -59,7 +59,9 @@ function PersonRow({ scope, templateId, row, pending, onConfirm }: {
 /** One correction or confirmation updates every assignment belonging to the grouped person. */
 export function RaterTableView({ scope, template }: { scope: CsiScopeParam; template: CsiTemplate }) {
     const rows = useMemo(() => groupRaters(template), [template]);
-    const [filter, setFilter] = useState<StatusFilter>(() => rows.some(hasIssue) ? 'issues' : 'all');
+    // Only explicit choices persist: the automatic default follows refreshed issue counts.
+    const [selectedFilter, setFilter] = useState<StatusFilter | null>(null);
+    const filter = selectedFilter ?? (rows.some(hasIssue) ? 'issues' : 'all');
     const [search, setSearch] = useState('');
     const [visible, setVisible] = useState(PAGE_SIZE);
     const confirm = useConfirmRaters(scope);
@@ -85,7 +87,10 @@ export function RaterTableView({ scope, template }: { scope: CsiScopeParam; temp
                     <tbody>
                         {filtered.slice(0, visible).map((row) => <PersonRow key={row.key} scope={scope} templateId={template.id} row={row}
                             pending={confirm.isPending} onConfirm={() => confirm.mutate({ raterIds: row.raterIds, confirmed: true })} />)}
-                        {!filtered.length && <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">Tidak ada penilai yang sesuai.</td></tr>}
+                        {!filtered.length && <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">
+                            <p>Tidak ada penilai yang sesuai.</p>
+                            {selectedFilter === 'issues' && <Button variant="subtle" size="sm" onClick={() => { setFilter('all'); setSearch(''); setVisible(PAGE_SIZE); }}>Tampilkan semua</Button>}
+                        </td></tr>}
                     </tbody>
                 </table>
             </div>
