@@ -25,6 +25,7 @@ export const CSI_TEMPLATE_LOCATION_NAMES: Readonly<Record<string, string>> = { S
 const SUGGESTION_POOL_MAX = 5000;
 const FALLBACK_NIK_PREFIX = 'TPL-';
 const FALLBACK_NIK_BYTES = 4;
+const PRUNE_WITH_PROBLEMS_MESSAGE = 'Perbaiki dulu baris bermasalah sebelum menghapus data yang tidak ada di Excel';
 
 export type CsiTemplateImportOptions = {
     commit: boolean; resolutions: Readonly<Record<string, PicResolution>>; prune: boolean; pruneConfirmed: boolean;
@@ -39,6 +40,7 @@ type Accounts = ReturnType<typeof lookupOf>;
 /** Everything read before classifying; a commit reuses it inside the same transaction. */
 type ImportState = {
     scope: ServiceScope; code: string; site: Site | null; masters: CsiPic[]; directory: CsiOrgPerson[]; accounts: Accounts; teams: CsiTeam[];
+    findPerson: IdentityIndex<CsiOrgPerson>;
     template: CsiAssignmentTemplate | null; rows: CsiAssignmentTemplatePic[]; raters: CsiAssignmentTemplateRater[];
 };
 
@@ -73,6 +75,25 @@ function identityIndex<T>(rows: readonly T[], nikOf: (row: T) => string | null, 
 const statusOf = (hit: Hit<unknown>) => (hit === 'ambiguous' ? 'ambiguous' : hit ? 'found' : null);
 const rowOf = <T>(hit: Hit<T>): T | null => (hit && hit !== 'ambiguous' ? hit : null);
 const mastersIndex = (masters: readonly CsiPic[]) => identityIndex(masters, (row) => row.nik, (row) => row.fullName);
+/** Latest saved master per PIC name of the file: rows and service functions link through it, never via a stale copy. */
+type MasterLinks = Map<string, CsiPic>;
+
+/**
+ * The master a PIC row already has: by NIK/name, or (same NIK = same person) the master owning the NIK of the row's
+ * directory person, even when the master's name is spelled differently.
+ */
+function existingMaster(state: ImportState, findMaster: IdentityIndex<CsiPic>, pic: ClassifiedPic): Hit<CsiPic> {
+    const hit = findMaster(pic.picName, pic.nik);
+    if (hit) return hit;
+    const person = rowOf(state.findPerson(pic.picName, pic.nik));
+    return person ? findMaster('', person.nik) : null;
+}
+
+/** Only rows that will really create a master keep newMasterPic, so the report lists exactly what a commit creates. */
+function withoutLinkedMasters(state: ImportState, pics: ClassifiedPic[]): ClassifiedPic[] {
+    const findMaster = mastersIndex(state.masters);
+    return pics.map((pic) => (pic.newMasterPic && existingMaster(state, findMaster, pic) ? { ...pic, newMasterPic: false } : pic));
+}
 
 /**
  * Excel import into a location's assignment template: classify the PIC column (PIC / team / unresolved), report the
@@ -93,7 +114,9 @@ export class CsiTemplateImportService {
 
     private async run(manager: EntityManager, scope: ServiceScope, code: string, draft: CsiTemplateDraft, options: CsiTemplateImportOptions) {
         const state = await this.load(manager, scope, code);
-        const { pics, unresolved } = classifyDraft(draft, this.classifyContext(state, normalizeResolutions(options.resolutions)));
+        const classified = classifyDraft(draft, this.classifyContext(state, normalizeResolutions(options.resolutions)));
+        const { unresolved } = classified;
+        const pics = withoutLinkedMasters(state, classified.pics);
         const prune = options.prune ? prunePlan(pics, state.rows, state.raters, options.pruneConfirmed) : null;
         const report: CsiTemplateImportReport = {
             format: draft.format, committed: options.commit, ...diffOf(pics, state.rows, state.raters, prune), unresolved, problems: draft.problems,
@@ -101,6 +124,8 @@ export class CsiTemplateImportService {
         if (!options.commit) return report;
         if (unresolved.length) throw new BadRequestException('Tentukan dulu: ' + unresolved.map((row) => row.name).join(', '));
         if (!pics.length) throw new BadRequestException('Tidak ada PIC di file');
+        // A row that failed to parse looks "absent" and would be pruned; the file must be clean first.
+        if (prune && draft.problems.length) throw new BadRequestException(PRUNE_WITH_PROBLEMS_MESSAGE);
         await this.write(manager, state, pics, draft.teams, prune);
         return report;
     }
@@ -113,21 +138,22 @@ export class CsiTemplateImportService {
         const accounts = await manager.getRepository(User).find({ where: { isActive: true }, select: { id: true, fullName: true, employeeId: true } });
         const site = await manager.getRepository(Site).findOne({ where: { code } });
         const teams = site ? await manager.getRepository(CsiTeam).find({ where: { scope, siteId: site.id, kind: CsiTeamKind.CUSTOM } }) : [];
+        const directory = await hcDirectoryCandidates(manager);
         return {
-            scope, code, site, template, rows, raters, teams, accounts: lookupOf(accounts),
-            masters: await manager.getRepository(CsiPic).find({ where: { scope } }), directory: await hcDirectoryCandidates(manager),
+            scope, code, site, template, rows, raters, teams, accounts: lookupOf(accounts), directory,
+            masters: await manager.getRepository(CsiPic).find({ where: { scope } }),
+            findPerson: identityIndex(directory, (row) => row.nik, (row) => row.fullName),
         };
     }
 
     /** Suggestions come from the location's PIC master and the HC directory, capped so similarity stays cheap. */
     private classifyContext(state: ImportState, resolutions: Record<string, PicResolution>): ClassifyContext {
         const findPic = mastersIndex(state.masters);
-        const findPerson = identityIndex(state.directory, (row) => row.nik, (row) => row.fullName);
         const siteMasters = state.masters.filter((row) => !!state.site && row.siteId === state.site.id).map((row) => row.fullName);
         const pool = [...new Set([...siteMasters, ...state.directory.map((row) => row.fullName)].map(normalizeName).filter(Boolean))];
         return {
             findPic: (name, nik) => statusOf(findPic(name, nik)),
-            findPerson: (name, nik) => statusOf(findPerson(name, nik)),
+            findPerson: (name, nik) => statusOf(state.findPerson(name, nik)),
             teamsOfSite: state.teams.map((team) => ({ id: team.id, name: team.name })),
             resolutions, suggestionPool: pool.slice(0, SUGGESTION_POOL_MAX),
         };
@@ -136,41 +162,44 @@ export class CsiTemplateImportService {
     /** Order matters: masters and teams first so the template rows can link to them; prune last. */
     private async write(manager: EntityManager, state: ImportState, pics: ClassifiedPic[], sheetTeams: CsiTemplateDraft['teams'],
         prune: CsiTemplatePrune | null) {
-        const masters = await this.ensureMasters(manager, state, pics.filter((pic) => pic.kind === 'pic'));
+        const links = await this.ensureMasters(manager, state, pics.filter((pic) => pic.kind === 'pic'));
         const teamIds = await this.ensureTeams(manager, state, pics.filter((pic) => pic.kind === 'team'), sheetTeams);
         const template = state.template ?? await manager.getRepository(CsiAssignmentTemplate)
             .save({ scope: state.scope, locationCode: state.code, name: csiTemplateName(state.scope, state.code) });
-        await this.mergeRows(manager, state, template.id, pics, mastersIndex(masters), teamIds);
-        await this.fillMasterServiceFunctions(manager, pics, mastersIndex(masters));
+        await this.mergeRows(manager, state, template.id, pics, links, teamIds);
+        await this.fillMasterServiceFunctions(manager, pics, links);
         if (prune?.raterIds.length) await manager.getRepository(CsiAssignmentTemplateRater).delete({ id: In(prune.raterIds) });
         if (prune?.picIds.length) await manager.getRepository(CsiAssignmentTemplatePic).delete({ id: In(prune.picIds) });
     }
 
     /**
      * Every PIC row must exist in the PIC master: a deactivated one is switched back on, a missing one is created from
-     * the HC directory, or (new staff not in the directory) from the file itself. Returns the master list after writes.
+     * the HC directory, or (new staff not in the directory) from the file itself. Saved entities replace the loaded
+     * copies, so later writes never resurrect stale fields (e.g. isActive false).
      */
-    private async ensureMasters(manager: EntityManager, state: ImportState, pics: ClassifiedPic[]): Promise<CsiPic[]> {
+    private async ensureMasters(manager: EntityManager, state: ImportState, pics: ClassifiedPic[]): Promise<MasterLinks> {
         const repo = manager.getRepository(CsiPic);
         const masters = [...state.masters];
+        const links: MasterLinks = new Map();
+        const keep = (stale: CsiPic | null, saved: CsiPic) => {
+            const index = stale ? masters.indexOf(stale) : -1;
+            if (index >= 0) masters[index] = saved; else masters.push(saved);
+            for (const [name, master] of links) if (master === stale) links.set(name, saved);
+            return saved;
+        };
         for (const pic of pics) {
-            const hit = mastersIndex(masters)(pic.picName, pic.nik);
+            const hit = existingMaster(state, mastersIndex(masters), pic);
             if (hit === 'ambiguous') continue;
-            if (hit) {
-                if (!hit.isActive) await repo.save({ ...hit, isActive: true });
-                continue;
-            }
-            const fresh = pic.newMasterPic ? this.newMaster(state, pic, masters) : null;
-            if (fresh) masters.push(await repo.save(fresh));
+            if (hit) links.set(pic.picName, hit.isActive ? hit : keep(hit, await repo.save({ ...hit, isActive: true })));
+            else if (pic.newMasterPic) links.set(pic.picName, keep(null, await repo.save(this.newMaster(state, pic))));
         }
-        return masters;
+        return links;
     }
 
-    /** Null when the NIK already belongs to another master (the unique scope+NIK key; that master is kept as is). */
-    private newMaster(state: ImportState, pic: ClassifiedPic, masters: readonly CsiPic[]): Partial<CsiPic> | null {
-        const usable = rowOf(identityIndex(state.directory, (row) => row.nik, (row) => row.fullName)(pic.picName, pic.nik));
+    /** Called only when no master owns the row's NIK (existingMaster checked it), so the unique scope+NIK key holds. */
+    private newMaster(state: ImportState, pic: ClassifiedPic): Partial<CsiPic> {
+        const usable = rowOf(state.findPerson(pic.picName, pic.nik));
         const nik = normalizeNik(usable?.nik ?? pic.nik) ?? FALLBACK_NIK_PREFIX + randomBytes(FALLBACK_NIK_BYTES).toString('hex').toUpperCase();
-        if (masters.some((row) => normalizeNik(row.nik) === nik)) return null;
         const account = state.accounts.byNik.get(nik) ?? null;
         return {
             scope: state.scope, nik, fullName: usable?.fullName ?? pic.picName, jobTitle: usable?.jobTitle ?? pic.jobTitle,
@@ -214,7 +243,7 @@ export class CsiTemplateImportService {
     }
 
     private async mergeRows(manager: EntityManager, state: ImportState, templateId: string, pics: ClassifiedPic[],
-        findMaster: IdentityIndex<CsiPic>, teamIds: ReadonlyMap<string, string>) {
+        links: MasterLinks, teamIds: ReadonlyMap<string, string>) {
         const repo = manager.getRepository(CsiAssignmentTemplatePic);
         const byName = new Map(state.rows.filter((row) => row.templateId === templateId).map((row) => [row.picName, row]));
         let order = byName.size;
@@ -224,7 +253,7 @@ export class CsiTemplateImportService {
             const saved = await repo.save({
                 ...(known ?? { templateId, sortOrder: order++ }),
                 // Re-matched on every import: a PIC added to the master later gets linked then.
-                picId: isTeam ? null : known?.picId ?? rowOf(findMaster(pic.picName, pic.nik))?.id ?? null,
+                picId: isTeam ? null : known?.picId ?? links.get(pic.picName)?.id ?? null,
                 teamId: isTeam ? teamIds.get(pic.picName) ?? null : null,
                 area: pic.area, serviceCode: pic.serviceCode, picName: pic.picName, picNik: normalizeNik(pic.nik) ?? known?.picNik ?? null,
                 jobTitle: pic.jobTitle ?? known?.jobTitle ?? null,
@@ -253,11 +282,15 @@ export class CsiTemplateImportService {
     }
 
     /** csi_pics.serviceFunction is filled from the template only while it is still empty (manual edits win). */
-    private async fillMasterServiceFunctions(manager: EntityManager, pics: ClassifiedPic[], findMaster: IdentityIndex<CsiPic>) {
+    private async fillMasterServiceFunctions(manager: EntityManager, pics: ClassifiedPic[], links: MasterLinks) {
+        const latest = new Map<string, CsiPic>();
         for (const pic of pics.filter((row) => row.kind === 'pic')) {
             const value = normalizeServiceFunction(pic.serviceFunction);
-            const master = rowOf(findMaster(pic.picName, pic.nik));
-            if (value && master && !master.serviceFunction) await manager.getRepository(CsiPic).save({ ...master, serviceFunction: value });
+            const linked = links.get(pic.picName);
+            const master = linked ? latest.get(linked.id) ?? linked : null;
+            if (value && master && !master.serviceFunction) {
+                latest.set(master.id, await manager.getRepository(CsiPic).save({ ...master, serviceFunction: value }));
+            }
         }
     }
 }

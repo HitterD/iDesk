@@ -190,6 +190,38 @@ describe('CsiTemplateImportService', () => {
         expect(tables.pics.rows.map((row) => [row.picName, row.picId])).toEqual([['STAFF BARU', staff.id], ['TANPA NIK', unnamed.id]]);
     });
 
+    it('reactivated master keeps isActive when its empty service function is filled', async () => {
+        Object.assign(tables.masters.rows[0], { isActive: false, serviceFunction: null });
+        const rows = tables.masters.rows;
+        tables.masters.find.mockImplementation(async () => rows.map((row) => ({ ...row })));
+        await service.importExcel(HC, 'SMG', await workbook([['HC Development', 'RARA', null, 'Rekrutmen', 'BUDI']]), options({ commit: true }));
+        // A fresh copy per save mirrors TypeORM: a stale object must not write isActive=false back.
+        expect(tables.masters.rows[0]).toMatchObject({ isActive: true, serviceFunction: 'Rekrutmen' });
+    });
+
+    it('directory NIK owned by another master links to that master instead of creating one', async () => {
+        tables.masters.rows[0].fullName = 'RARA K';
+        tables.people.rows.push({ nik: '00001001', fullName: 'RARA KURNIA', department: 'HCBP AREA SEMARANG', bagian: null, jobTitle: 'STAFF', workLocation: null });
+        const buffer = await workbook([['HC Development', 'RARA KURNIA', null, null, 'BUDI']]);
+        expect((await service.importExcel(HC, 'SMG', buffer, options())).newMasterPics).toEqual([]);
+        const report = await service.importExcel(HC, 'SMG', buffer, options({ commit: true }));
+        expect(report.newMasterPics).toEqual([]);
+        expect(tables.masters.rows).toHaveLength(1);
+        expect(tables.pics.rows).toEqual([expect.objectContaining({ picName: 'RARA KURNIA', picId: 'pic-rara' })]);
+    });
+
+    it('prune commit is refused while the file has problem rows; dry run still reports removals', async () => {
+        seedTemplate();
+        addTemplatePic('p-old', 'LAMA', 'HCD', [['X', null]]);
+        const buffer = await workbook([['HC Development', 'RARA', null, null, 'BUDI'], ['Keuangan', 'SALAH AREA', null, null, 'BUDI']]);
+        const dry = await service.importExcel(HC, 'SMG', buffer, options({ prune: true }));
+        expect(dry).toMatchObject({ pics: { removed: ['LAMA'] }, problems: [expect.objectContaining({ row: 3 })] });
+        await expect(service.importExcel(HC, 'SMG', buffer, options({ commit: true, prune: true })))
+            .rejects.toThrow('Perbaiki dulu baris bermasalah sebelum menghapus data yang tidak ada di Excel');
+        expect(tables.pics.rows.map((row) => row.picName)).toEqual(['RARA', 'LAMA']);
+        expect((await service.importExcel(HC, 'SMG', buffer, options({ commit: true }))).committed).toBe(true);
+    });
+
     it('import into empty KRW creates template', async () => {
         const buffer = await workbook([['HC Development', 'RARA', null, null, 'BUDI']]);
         await expect(service.importExcel(HC, 'JKT', buffer, options({ commit: true }))).rejects.toThrow('Lokasi tidak dikenal');
