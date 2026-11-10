@@ -37,8 +37,8 @@ function siteAndAspects(canvas: ReportCanvas, model: CsiReportModel, aspectsHere
 }
 
 function participation(canvas: ReportCanvas, model: CsiReportModel) {
-    canvas.section('Partisipasi per site', `Basis = ${model.participation.basisLabel}; target = ${model.targetPct}% dari basis.`, TABLE_KEEP);
-    canvas.note('% Responden = responden dibanding basis; % Pengisi (SLA) = responden dibanding target, maks. 100%.');
+    canvas.section('Partisipasi per site', undefined, TABLE_KEEP);
+    canvas.note(`Basis = ${model.participation.basisLabel}; % Pengisi (SLA) = responden dibanding target ${model.targetPct}% dari basis.`);
     const body: Cell[][] = model.sites.filter((site) => site.basis > 0 || site.responses > 0).map((site) => [
         { text: `${site.code ?? ''} ${site.name ?? ''}`.trim(), bold: true }, { text: String(site.basis) }, { text: String(site.target) },
         { text: String(site.responses) }, { text: pct(site.respondenPct) }, { text: pct(site.pengisiPct) },
@@ -60,8 +60,8 @@ function participation(canvas: ReportCanvas, model: CsiReportModel) {
 /** Rows = teams/people, columns = question codes; wide grids continue in a second table with the names repeated. */
 function questionGrid(canvas: ReportCanvas, grid: CsiQuestionGrid, title: string, bands: CsiScoreBands) {
     if (!grid.rows.length) return;
-    canvas.section(title, 'Rata-rata nilai (skala 1-5) dari semua responden yang menilai.', TABLE_KEEP);
-    canvas.note('Kolom = pertanyaan (lihat daftar di bawah); – = pertanyaan tidak dipasang untuk yang dinilai itu.');
+    canvas.section(title, undefined, TABLE_KEEP);
+    canvas.note('Rata-rata nilai (1-5) per pertanyaan (kode di tabel pertama); – = pertanyaan tidak dipasang untuk yang dinilai itu.');
     // Short labels (e.g. the HC dimensions Knowledge … Tangible) are clear enough to be the column headers themselves.
     const named = grid.columns.every((column) => column.label !== column.full && column.label.length <= SHORT_HEADER_MAX);
     const header = (column: CsiQuestionGrid['columns'][number]) => (named ? text(column.label) : column.code);
@@ -69,9 +69,12 @@ function questionGrid(canvas: ReportCanvas, grid: CsiQuestionGrid, title: string
         grid.columns.map((column) => [{ text: header(column), bold: true }, { text: text(column.full) }]));
     for (let start = 0; start < Math.max(1, grid.columns.length); start += GRID_COLUMNS) {
         const slice = grid.columns.slice(start, start + GRID_COLUMNS);
-        const columns: Column[] = [{ header: 'Nama', width: 30 }, { header: 'Site', width: 8 }, ...slice.map((column) => ({ header: header(column), width: 62 / GRID_COLUMNS, align: 'right' as const }))];
+        // The Site column only when some row has a site (ICT people usually have none).
+        const withSite = grid.rows.some((row) => !!row.siteCode);
+        const columns: Column[] = [{ header: 'Nama', width: withSite ? 30 : 38 }, ...(withSite ? [{ header: 'Site', width: 8 }] : []),
+            ...slice.map((column) => ({ header: header(column), width: 62 / GRID_COLUMNS, align: 'right' as const }))];
         canvas.table(columns, grid.rows.map((row) => [
-            { text: text(row.name), bold: true }, { text: row.siteCode ?? DASH },
+            { text: text(row.name), bold: true }, ...(withSite ? [{ text: row.siteCode ?? DASH }] : []),
             ...row.values.slice(start, start + GRID_COLUMNS).map((value) => ({ text: dec(value), color: scoreInk(value, bands), bold: value !== null })),
         ]));
     }
@@ -85,7 +88,7 @@ function appendix(canvas: ReportCanvas, model: CsiReportModel) {
     choicesTable(canvas, model, 'Lampiran A3 · Jawaban pilihan');
     departmentsTable(canvas, model, 'Lampiran B · Partisipasi per departemen');
     commentsSection(canvas, 'Lampiran C · Semua saran & komentar', model.comments.map((group) => ({
-        heading: `${text(group.name)} (${kindWord(group.kind)})`, texts: shuffledTexts(group.comments),
+        heading: `${text(group.name)} · ${kindWord(group.kind)}`, texts: shuffledTexts(group.comments),
     })));
 }
 

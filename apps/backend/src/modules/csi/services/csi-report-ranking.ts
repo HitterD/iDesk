@@ -57,6 +57,9 @@ const hcServiceOrder = (code: string | null) => {
     const index = code === null ? -1 : HC_SERVICE_ORDER.indexOf(code);
     return index < 0 ? HC_SERVICE_ORDER.length : index;
 };
+/** Report order of layanan codes everywhere (HCD, HCC, HCS, then others A-Z, no layanan last). */
+export const compareServiceCodes = (a: string | null, b: string | null) =>
+    hcServiceOrder(a || null) - hcServiceOrder(b || null) || (a === b ? 0 : !a ? 1 : !b ? -1 : a.localeCompare(b));
 
 /** HC: one group per service (PICs and teams together); ICT: the old split, "Tim" then "Orang". Empty groups are left out. */
 export function rankingByService(input: { scope: ServiceScope; subjects: CsiRankSubject[]; bands: CsiScoreBands }): CsiServiceRanking[] {
@@ -67,7 +70,7 @@ export function rankingByService(input: { scope: ServiceScope; subjects: CsiRank
     }
     const known = (code: string | null) => (code && CSI_HC_SERVICES.some((service) => service.code === code) ? code : null);
     const codes = [...new Set(subjects.map((subject) => known(subject.serviceCode)))]
-        .sort((a, b) => hcServiceOrder(a) - hcServiceOrder(b) || (a ?? '').localeCompare(b ?? ''));
+        .sort(compareServiceCodes);
     return codes.map((code) => serviceGroup(code, serviceName(code) ?? OTHER_SERVICE, subjects.filter((subject) => known(subject.serviceCode) === code), bands));
 }
 

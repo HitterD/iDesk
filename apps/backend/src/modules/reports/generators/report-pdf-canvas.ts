@@ -150,6 +150,8 @@ export interface PageMarks { banner?: string; footerNote?: string }
  * HEADER_MAX_LINES lines (a word still too wide at the smallest size is hyphenated, never cut).
  */
 const HEADER_SIZES = [8.5, 8, 7.5, 7];
+/** Last resort when a header still needs more than HEADER_MAX_LINES lines at 7 pt: shrink, never drop text. */
+const HEADER_SIZE_FLOOR = 5.5;
 const HEADER_LINE_H = 10;
 const HEADER_MAX_LINES = 3;
 const BANNER = { y: 8, h: 18 } as const;
@@ -242,7 +244,12 @@ export class ReportCanvas {
         };
         const words = cols.flatMap((c) => c.header.split(/\s+/).map((word) => ({ word, room: headerRoom(c) })))
             .filter(({ word, room }) => widthAt(smallest, word) <= room);
-        const size = HEADER_SIZES.find((candidate) => words.every(({ word, room }) => widthAt(candidate, word) <= room)) ?? smallest;
+        let size = HEADER_SIZES.find((candidate) => words.every(({ word, room }) => widthAt(candidate, word) <= room)) ?? smallest;
+        const tooTall = () => {
+            this.font(true, size, INK.secondary);
+            return cols.some((c) => this.headerLines(c.header, headerRoom(c)).length > HEADER_MAX_LINES);
+        };
+        while (size > HEADER_SIZE_FLOOR && tooTall()) size -= 0.5;
         this.font(true, size, INK.secondary);
         return size;
     }
@@ -467,6 +474,23 @@ export class ReportCanvas {
         this.y += h + 16;
     }
 
+    /** Plain bulleted lines (e.g. comments): wrapped, no table header; long lists continue on the next page. */
+    bulletList(lines: string[]): void {
+        const { doc } = this;
+        const indent = 12;
+        const width = CONTENT_W - indent;
+        lines.forEach((text) => {
+            this.font(false, 9.5, INK.text);
+            const wrapped = this.wrap(text, width);
+            this.ensure(wrapped.length * 13 + 4);
+            doc.circle(PAGE.margin + 2.5, this.y + 5, 2).fill(INK.tertiary);
+            this.font(false, 9.5, INK.text);
+            wrapped.forEach((line, i) => doc.text(line, PAGE.margin + indent, this.y + i * 13, { lineBreak: false }));
+            this.y += wrapped.length * 13 + 4;
+        });
+        this.y += 10;
+    }
+
     /** Small bold sub-heading inside a section (e.g. one group of comments). */
     subheading(text: string, note?: string): void {
         // Keep the heading with its table header and first rows (no orphan heading at the page bottom).
@@ -517,7 +541,8 @@ export class ReportCanvas {
         const rowPad = 11;
         // Headers never get cut: a header too wide for its column wraps (one line keeps the usual 22 pt row).
         const headSize = this.headerSize(cols);
-        const headLines = cols.map((c) => this.headerLines(c.header, headerRoom(c)).slice(0, HEADER_MAX_LINES));
+        // Every header line is drawn (headerSize shrinks the font until each header fits HEADER_MAX_LINES).
+        const headLines = cols.map((c) => this.headerLines(c.header, headerRoom(c)));
         const headH = 12 + Math.max(...headLines.map((lines) => lines.length)) * HEADER_LINE_H;
 
         const drawHead = () => {

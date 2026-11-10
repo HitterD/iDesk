@@ -2,6 +2,7 @@ import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CSI_ANON_MIN_GROUP, CSI_SMALL_GROUP_LABEL } from '../csi.constants';
 import { CSI_LOCATIONS, CSI_UNKNOWN_LABEL, CsiOrgLocation } from './csi-org.constants';
 import { serviceNameOf } from './csi-services';
+import { compareServiceCodes } from '../services/csi-report-ranking';
 
 /**
  * HC per-PIC recap (pure). The unit is one rating = one respondent's stars for one PIC; its value is the average of
@@ -14,7 +15,11 @@ export type CsiHcRating = {
     /** Stars per dimension label, e.g. { Knowledge: 5 }. */
     scores: Record<string, number>;
 };
-export type CsiHcPic = { periodRateeId: string; name: string; jobTitle: string | null; serviceCode: string | null; bagian: string | null; serviceFunction: string | null };
+export type CsiHcPic = {
+    periodRateeId: string; name: string; jobTitle: string | null; serviceCode: string | null; bagian: string | null; serviceFunction: string | null;
+    /** Master PIC (same person across periods); null for legacy rows. */
+    picId?: string | null;
+};
 
 /** Average per location column plus ALL SJA, with the number of ratings behind each. */
 export type CsiLocationCells = { all: CsiCell; byLocation: Record<CsiOrgLocation, CsiCell> };
@@ -28,6 +33,8 @@ export type CsiRecapRow = CsiLocationCells & {
     dimensions: Record<string, number | null>;
     /** Distinct respondents behind the row ("Penilai"). */
     respondents: number;
+    /** Master PIC of a PIC row (previous-period matching); null otherwise. */
+    picId: string | null;
 };
 export type CsiRespondentRow = CsiLocationCells & {
     level: 'division' | 'department' | 'bagian'; key: string; label: string; division: string; department: string | null;
@@ -75,30 +82,51 @@ const groupBy = <T>(rows: T[], key: (row: T) => string) => {
 const label = (value: string | null | undefined) => value || CSI_UNKNOWN_LABEL;
 const respondentsOf = (ratings: CsiHcRating[]) => new Set(ratings.map((rating) => rating.responseId)).size;
 
-/** Row identity across periods (period rows have new ids): layanan code, bagian name, PIC name. */
-export function recapRowKey(row: Pick<CsiRecapRow, 'level' | 'serviceCode' | 'bagian' | 'label'>): string {
-    const norm = (value: string | null) => (value ?? '').trim().toLowerCase();
+type KeyRow = Pick<CsiRecapRow, 'level' | 'serviceCode' | 'bagian' | 'label'> & { picId?: string | null };
+const norm = (value: string | null) => (value ?? '').trim().toLowerCase();
+/** Row identity by name across periods (period rows have new ids): layanan code, bagian name, PIC name. */
+export function recapRowKey(row: KeyRow): string {
     if (row.level === 'service') return `s:${row.serviceCode ?? ''}`;
     if (row.level === 'bagian') return `b:${row.serviceCode ?? ''}:${norm(row.bagian)}`;
     return `p:${row.serviceCode ?? ''}:${norm(row.label)}`;
 }
+/** PIC rows: identity by master PIC (survives a renamed PIC or a moved layanan); null without one. */
+export const recapPicKey = (row: KeyRow) => (row.level === 'pic' && row.picId ? `pic:${row.picId}` : null);
 
-/** ALL SJA average per recapRowKey (the previous period of the executive report). */
-export const recapAverages = (recap: Pick<CsiHcRecap, 'services'>): Record<string, number | null> =>
-    Object.fromEntries(recap.services.map((row) => [recapRowKey(row), row.all.average]));
+/**
+ * ALL SJA average per row key of the previous period: master-PIC key when known, plus the name key unless two PIC
+ * rows share it (an ambiguous name never borrows another person's score).
+ */
+export function recapAverages(recap: Pick<CsiHcRecap, 'services'>): Record<string, number | null> {
+    const counts = new Map<string, number>();
+    recap.services.forEach((row) => counts.set(recapRowKey(row), (counts.get(recapRowKey(row)) ?? 0) + 1));
+    const entries = recap.services.flatMap((row): Array<[string, number | null]> => {
+        const byPic = recapPicKey(row);
+        const byName: Array<[string, number | null]> = counts.get(recapRowKey(row)) === 1 ? [[recapRowKey(row), row.all.average]] : [];
+        return byPic ? [[byPic, row.all.average], ...byName] : byName;
+    });
+    return Object.fromEntries(entries);
+}
+
+/** Previous average of a row: master PIC first, then the (unambiguous) name; undefined when unknown. */
+export function previousOf(previous: Record<string, number | null>, row: KeyRow, sameNameRows = 1): number | null | undefined {
+    const byPic = recapPicKey(row);
+    if (byPic && byPic in previous) return previous[byPic];
+    return sameNameRows === 1 ? previous[recapRowKey(row)] : undefined;
+}
 
 /** Layanan → bagian → PIC rows (PICs without any rating are listed too, with empty cells). */
 function serviceRows(pics: CsiHcPic[], ratings: CsiHcRating[], dimensions: string[], scope: ServiceScope): CsiRecapRow[] {
     const byPic = groupBy(ratings, (rating) => rating.periodRateeId);
     const rows: CsiRecapRow[] = [];
     const services = groupBy(pics, (pic) => pic.serviceCode ?? '');
-    [...services.keys()].sort().forEach((serviceCode) => {
+    [...services.keys()].sort(compareServiceCodes).forEach((serviceCode) => {
         const servicePics = services.get(serviceCode)!;
         const serviceRatings = servicePics.flatMap((pic) => byPic.get(pic.periodRateeId) ?? []);
         rows.push({
             level: 'service', key: `s:${serviceCode}`, label: serviceCode ? `${serviceCode} · ${serviceNameOf(scope, serviceCode) ?? ''}`.trim() : CSI_UNKNOWN_LABEL,
             serviceCode: serviceCode || null, bagian: null, jobTitle: null, serviceFunction: null, ...cells(serviceRatings), dimensions: dimensionAverages(serviceRatings, dimensions),
-            respondents: respondentsOf(serviceRatings),
+            respondents: respondentsOf(serviceRatings), picId: null,
         });
         const bagians = groupBy(servicePics, (pic) => pic.bagian ?? '');
         [...bagians.keys()].sort().forEach((bagian) => {
@@ -107,14 +135,14 @@ function serviceRows(pics: CsiHcPic[], ratings: CsiHcRating[], dimensions: strin
             rows.push({
                 level: 'bagian', key: `b:${serviceCode}:${bagian}`, label: label(bagian), serviceCode: serviceCode || null, bagian: bagian || null,
                 jobTitle: null, serviceFunction: null, ...cells(bagianRatings), dimensions: dimensionAverages(bagianRatings, dimensions),
-                respondents: respondentsOf(bagianRatings),
+                respondents: respondentsOf(bagianRatings), picId: null,
             });
             bagianPics.forEach((pic) => {
                 const own = byPic.get(pic.periodRateeId) ?? [];
                 rows.push({
                     level: 'pic', key: `p:${pic.periodRateeId}`, label: pic.name, serviceCode: serviceCode || null, bagian: bagian || null,
                     jobTitle: pic.jobTitle, serviceFunction: pic.serviceFunction, ...cells(own), dimensions: dimensionAverages(own, dimensions),
-                    respondents: respondentsOf(own),
+                    respondents: respondentsOf(own), picId: pic.picId ?? null,
                 });
             });
         });
@@ -180,6 +208,24 @@ function respondentRows(ratings: CsiHcRating[]): CsiRespondentRow[] {
     });
     if (small.length) rows.push({ level: 'division', key: 'd:small', label: CSI_SMALL_GROUP_LABEL, division: CSI_SMALL_GROUP_LABEL, department: null, ...groupCells(small, true) });
     return rows;
+}
+
+/**
+ * Report view of the respondent rows without repeats: a division with a single department becomes one row
+ * ("FINANCE · AKUNTANSI"), and a department's only bagian (same respondents, same numbers) is left out.
+ */
+export function collapseRespondentRows(rows: CsiRespondentRow[]): CsiRespondentRow[] {
+    const children = (parent: CsiRespondentRow, level: CsiRespondentRow['level']) => rows.filter((row) => row.level === level
+        && row.division === parent.division && (level === 'department' || row.department === parent.department));
+    return rows.flatMap((row): CsiRespondentRow[] => {
+        if (row.level === 'division') {
+            const departments = children(row, 'department');
+            return departments.length === 1 ? [{ ...row, label: `${row.label} · ${departments[0].label}`, department: departments[0].department }] : [row];
+        }
+        if (row.level === 'department') return children({ ...row, level: 'division' }, 'department').length === 1 ? [] : [row];
+        const parent = rows.find((other) => other.level === 'department' && other.division === row.division && other.department === row.department);
+        return parent && children(parent, 'bagian').length === 1 ? [] : [row];
+    });
 }
 
 function respondentDetails(pics: CsiHcPic[], ratings: CsiHcRating[]): CsiRespondentDetail[] {

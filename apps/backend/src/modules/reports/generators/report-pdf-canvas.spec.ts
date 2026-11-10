@@ -124,7 +124,19 @@ describe('report PDF formatting', () => {
         });
     });
 
-    it('finish draws the banner at the top and the footer note on every page', () => {
+    it('a header that needs more than three lines shrinks instead of losing words', () => {
+        const PDFDocument = require('pdfkit');
+        const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+        doc.on('data', () => undefined);
+        const spy = jest.spyOn(doc, 'text');
+        const header = 'Jumlah penilaian yang sudah masuk dari semua lokasi';
+        new ReportCanvas(doc, new Logger('test')).table([{ header: 'Nama', width: 88 }, { header, width: 12 }], [[{ text: 'A' }, { text: '1' }]]);
+        doc.end();
+        const drawn = spy.mock.calls.map((call) => String(call[0])).join(' ').replace(/- /g, '');
+        header.split(' ').forEach((word) => expect(drawn).toContain(word));
+    });
+
+        it('finish draws the banner at the top and the footer note on every page', () => {
         const PDFDocument = require('pdfkit');
         const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
         doc.on('data', () => undefined);

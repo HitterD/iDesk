@@ -1,6 +1,6 @@
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiRateeKind } from '../csi.constants';
-import { buildReportModel, indexPct, questionLabel } from './csi-report-model';
+import { buildReportModel, indexPct, previousSubjectMap, questionLabel } from './csi-report-model';
 import { reportFixture } from './csi-report-model.fixture';
 
 describe('csi-report-model', () => {
@@ -93,6 +93,39 @@ describe('csi-report-model', () => {
         [...model.people, ...model.teams].forEach((row) => expect(sentences).not.toContain(row.name));
     });
 
+    it('previous period: master PIC first, then an unambiguous name (renamed PIC keeps its Δ; duplicate names get none)', () => {
+        const { input } = reportFixture({ people: 3 });
+        const ratees = input.report.ratees.map((ratee: any) => (ratee.kind !== CsiRateeKind.PERSON ? ratee
+            : ratee.periodRateeId === 'p0' ? { ...ratee, picId: 'P0', displayName: 'Orang Baru' }
+                : { ...ratee, picId: null, displayName: 'Kembar' }));
+        const previousBySubject = previousSubjectMap([
+            { kind: CsiRateeKind.PERSON, siteId: null, name: 'Orang Lama', picId: 'P0', average: 3.5 },
+            { kind: CsiRateeKind.PERSON, siteId: null, name: 'Kembar', picId: null, average: 4.9 },
+        ]);
+        const model = buildReportModel({ ...input, previousBySubject, report: { ...input.report, ratees } });
+        const person = (name: string) => model.people.filter((row) => row.name === name);
+        expect(person('Orang Baru')[0].previous).toBe(3.5);
+        // Two people named "Kembar" now: neither borrows the old "Kembar" score.
+        expect(person('Kembar').map((row) => row.previous)).toEqual([null, null]);
+        const ranked = model.rankingByService.flatMap((group) => [...group.ranked, ...group.insufficient]);
+        expect(ranked.find((row) => row.name === 'Orang Baru')?.previous).toBe(3.5);
+        // Two people of the previous period with one name: that name is not a key at all.
+        expect(previousSubjectMap([
+            { kind: CsiRateeKind.PERSON, siteId: null, name: 'Sama', picId: null, average: 1 },
+            { kind: CsiRateeKind.PERSON, siteId: null, name: 'Sama', picId: null, average: 2 },
+        ]).size).toBe(0);
+    });
+
+    it('highlights: HC says PIC, ICT says tim/orang; participation per site is not repeated (SLA block has it)', () => {
+        const ict = reportFixture({ people: 4 }).model.highlights.join(' ');
+        expect(ict).toMatch(/\d+ tim\/orang di bawah/);
+        expect(ict).not.toMatch(/Site belum mencapai|Semua site mencapai/);
+        const { input } = reportFixture({ people: 4 });
+        const hc = buildReportModel({ ...input, scope: ServiceScope.HC }).highlights.join(' ');
+        expect(hc).toMatch(/\d+ PIC di bawah/);
+        expect(hc).not.toContain('tim/orang');
+    });
+
     it('no previous → hasPrevious false', () => {
         const { input } = reportFixture();
         const model = buildReportModel({ ...input, hasPrevious: false, previousBySubject: new Map(), report: { ...input.report, previousAverage: null } });
@@ -110,7 +143,7 @@ describe('csi-report-model', () => {
         expect(model.choices).toEqual([{ label: 'Kanal', counts: [{ option: 'Email', count: 3 }, { option: 'WA', count: 2 }] }]);
     });
 
-    it('aspects are weakest first and highlights mention the weakest aspect and missed sites', () => {
+    it('aspects are weakest first and highlights mention the weakest aspect', () => {
         const { model } = reportFixture({ people: 3 });
         const values = model.aspects.map((aspect) => aspect.average ?? 99);
         expect([...values].sort((a, b) => a - b)).toEqual(values);

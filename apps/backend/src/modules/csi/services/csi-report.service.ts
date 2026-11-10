@@ -20,7 +20,7 @@ import { CsiAssignmentService } from './csi-assignment.service';
 import { raterMatrix } from './csi-rater-matrix.calc';
 import { CsiSlaReporter, CsiSlaService } from './csi-sla.service';
 import { User } from '../../users/entities/user.entity';
-import { buildReportModel, CsiReportModel, subjectKeyOf } from './csi-report-model';
+import { buildReportModel, CsiReportModel, previousSubjectMap } from './csi-report-model';
 import { bandsOf, CsiScoreBands } from './csi-score-bands';
 import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
 import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap, recapAverages } from '../org/csi-hc-report.calc';
@@ -186,16 +186,16 @@ export class CsiReportService {
         const period = await this.findInScope(scope, periodId, { sites: { site: true } });
         const sites = siteId ? report.period.sites.filter((site) => site.id === siteId) : report.period.sites;
         const data = narrowToSite(await this.loadPeriodData(scope, period), siteId);
-        // Previous period, per subject (people by name, teams by name + site).
-        const previousBySubject = new Map<string, number | null>();
+        // Previous period, per subject (master PIC, else people by name and teams by name + site).
         const previous = await this.previousPeriod(scope, period, siteId);
+        let previousBySubject = new Map<string, number | null>();
         if (previous) {
             const before = narrowToSite(await this.loadPeriodData(scope, previous), siteId);
-            before.ratees.forEach((ratee) => {
-                const stats = rateeStats(ratee, before.dimensions, before.items);
-                const name = ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || previous.teamLabel : ratee.displayName;
-                previousBySubject.set(subjectKeyOf({ kind: ratee.kind, siteId: rateeSiteOf(before, ratee) }, name), stats.average);
-            });
+            previousBySubject = previousSubjectMap(before.ratees.map((ratee) => ({
+                kind: ratee.kind, siteId: rateeSiteOf(before, ratee), picId: ratee.picId ?? null,
+                name: ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || previous.teamLabel : ratee.displayName,
+                average: rateeStats(ratee, before.dimensions, before.items).average,
+            })));
         }
         // Participation per site (same SLA rules, one site at a time).
         const siteStats = await this.siteStats(scope, period, sites.map((site) => site.id));
@@ -297,7 +297,7 @@ export class CsiReportService {
         // ICT has no bagian: its people are grouped by the site they serve.
         const rateeSites = scope === ServiceScope.ICT ? await this.siteCodes(people.map((ratee) => ratee.siteId).filter((id): id is string => !!id)) : new Map<string, string>();
         const pics = people.map((ratee) => ({
-            periodRateeId: ratee.id, name: ratee.displayName, jobTitle: ratee.jobTitle, serviceCode: ratee.serviceCode ?? null,
+            periodRateeId: ratee.id, name: ratee.displayName, jobTitle: ratee.jobTitle, serviceCode: ratee.serviceCode ?? null, picId: ratee.picId ?? null,
             bagian: ratee.bagian ?? (ratee.siteId ? rateeSites.get(ratee.siteId) ?? null : null), serviceFunction: ratee.serviceFunction ?? null,
         }));
         const linkedByPic = await this.linkedAccounts(people.map((ratee) => ratee.picId).filter((id): id is string => !!id));

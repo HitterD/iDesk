@@ -86,11 +86,14 @@ const questionKey = (question: { name: string; description?: string | null }) =>
 type RowContext = { siteCodeOf: (id: string | null) => string | null; previous: Map<string, number | null>; teamLabel: string; bands: CsiScoreBands };
 
 function rows(ratees: Ratee[], kind: CsiRateeKind, { siteCodeOf, previous, teamLabel, bands }: RowContext): CsiReportRow[] {
-    return ratees.filter((ratee) => ratee.kind === kind)
+    const own = ratees.filter((ratee) => ratee.kind === kind);
+    const nameOf = (ratee: Ratee) => (kind === CsiRateeKind.TEAM ? ratee.displayName || teamLabel : ratee.displayName);
+    const sameName = (key: string) => own.filter((other) => subjectKeyOf(other, nameOf(other)) === key).length;
+    return own
         .sort((a, b) => (b.average ?? -1) - (a.average ?? -1) || a.displayName.localeCompare(b.displayName, 'id'))
         .map((ratee, index) => {
-            const name = kind === CsiRateeKind.TEAM ? ratee.displayName || teamLabel : ratee.displayName;
-            const before = previous.get(subjectKeyOf(ratee, name)) ?? null;
+            const name = nameOf(ratee);
+            const before = previousOfSubject(previous, ratee, name, sameName(subjectKeyOf(ratee, name)));
             return {
                 rank: index + 1, periodRateeId: ratee.periodRateeId, kind, name, siteCode: siteCodeOf(ratee.siteId), raters: ratee.respondentCount,
                 average: ratee.average, word: scoreWordFor(ratee.average, bands), band: scoreBand(ratee.average, bands), indexPct: ratee.indexPct, previous: before, delta: delta(ratee.average, before),
@@ -99,8 +102,28 @@ function rows(ratees: Ratee[], kind: CsiRateeKind, { siteCodeOf, previous, teamL
         });
 }
 
-/** Matches a subject across periods: people by name (user snapshot), teams by name + site. */
+/** Matches a subject across periods by name: people by name (user snapshot), teams by name + site. */
 export const subjectKeyOf = (ratee: Pick<Ratee, 'kind' | 'siteId'>, name: string) => `${ratee.kind}:${name.trim().toLowerCase()}:${ratee.kind === CsiRateeKind.TEAM ? ratee.siteId ?? '' : ''}`;
+/** Matches an HC PIC across periods by master PIC (renames and layanan moves keep the link). */
+export const picKeyOf = (picId: string) => `PIC:${picId}`;
+type PreviousSubject = { kind: CsiRateeKind; siteId: string | null; name: string; picId: string | null; average: number | null };
+
+/** Previous-period average: master PIC first, then the name key, never by a name two subjects share now. */
+function previousOfSubject(previous: Map<string, number | null>, ratee: Pick<Ratee, 'kind' | 'siteId'> & { picId?: string | null }, name: string, sameNameNow: number): number | null {
+    if (ratee.picId && previous.has(picKeyOf(ratee.picId))) return previous.get(picKeyOf(ratee.picId)) ?? null;
+    return sameNameNow === 1 ? previous.get(subjectKeyOf(ratee, name)) ?? null : null;
+}
+
+/** Previous-period map: master-PIC keys plus the name keys only one subject of that period carries. */
+export function previousSubjectMap(subjects: PreviousSubject[]): Map<string, number | null> {
+    const keyOf = (subject: PreviousSubject) => subjectKeyOf(subject, subject.name);
+    const counts = new Map<string, number>();
+    subjects.forEach((subject) => counts.set(keyOf(subject), (counts.get(keyOf(subject)) ?? 0) + 1));
+    return new Map(subjects.flatMap((subject): Array<[string, number | null]> => [
+        ...(subject.picId ? [[picKeyOf(subject.picId), subject.average] as [string, number | null]] : []),
+        ...(counts.get(keyOf(subject)) === 1 ? [[keyOf(subject), subject.average] as [string, number | null]] : []),
+    ]));
+}
 
 /** Questions across all subjects of one kind, in first-seen order, coded P1..Pn (team and people grids separately). */
 function grid(ratees: Ratee[], kind: CsiRateeKind, siteCodeOf: (id: string | null) => string | null, teamLabel: string, ordered: CsiReportRow[]): CsiQuestionGrid {
@@ -151,8 +174,8 @@ function choices(ratees: Ratee[]): CsiChoiceSummary[] {
 
 const fmt = (value: number) => value.toFixed(2).replace('.', ',');
 
-/** Summary sentences, never naming a person or team: overall, best/worst layanan (HC), count below fair, aspects, sites. */
-function highlightSentences(model: Pick<CsiReportModel, 'bands' | 'overall' | 'teams' | 'people' | 'aspects' | 'sites' | 'serviceHighlight'>): string[] {
+/** Summary sentences, never naming a person or team: overall, best/worst layanan (HC), count below fair, aspects. */
+function highlightSentences(model: Pick<CsiReportModel, 'bands' | 'overall' | 'teams' | 'people' | 'aspects' | 'serviceHighlight'>, scope: ServiceScope): string[] {
     const lines: string[] = [];
     const { overall } = model;
     if (overall.average === null) return ['Belum ada jawaban yang bernilai pada survei ini.'];
@@ -160,11 +183,10 @@ function highlightSentences(model: Pick<CsiReportModel, 'bands' | 'overall' | 't
     const highlight = model.serviceHighlight;
     if (highlight) lines.push(`Layanan tertinggi: ${highlight.best.code} ${fmt(highlight.best.average)} · terendah: ${highlight.worst.code} ${fmt(highlight.worst.average)}.`);
     const below = [...model.teams, ...model.people].filter((row) => row.band === 'poor').length;
-    if (below) lines.push(`${below} tim/orang di bawah ${fmt(model.bands.fairMin)} (Perlu perbaikan).`);
+    if (below) lines.push(`${below} ${scope === ServiceScope.HC ? 'PIC' : 'tim/orang'} di bawah ${fmt(model.bands.fairMin)} (Perlu perbaikan).`);
     const scored = model.aspects.filter((aspect) => aspect.average !== null);
     if (scored.length > 1) lines.push(`Aspek terlemah: ${scored[0].label} (${fmt(scored[0].average!)}). Terkuat: ${scored[scored.length - 1].label} (${fmt(scored[scored.length - 1].average!)}).`);
-    const missed = model.sites.filter((site) => !site.reached && site.basis > 0);
-    lines.push(missed.length ? `Site belum mencapai target partisipasi: ${missed.map((site) => `${site.code ?? site.name} (${site.respondenPct ?? 0}%)`).join(', ')}.` : 'Semua site mencapai target partisipasi.');
+    // Participation per site is in the "Partisipasi & SLA" block on the same page, so it is not repeated here.
     return lines;
 }
 
@@ -251,5 +273,5 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
         comments: commentGroups, notes: input.notes.trim(),
         counts: { teams: teams.length, people: people.length, sites: report.period.sites.length, comments: commentGroups.reduce((sum, group) => sum + group.comments.length, 0) },
     };
-    return { ...partial, highlights: highlightSentences(partial) };
+    return { ...partial, highlights: highlightSentences(partial, input.scope) };
 }

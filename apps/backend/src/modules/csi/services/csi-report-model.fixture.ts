@@ -59,7 +59,7 @@ const HC_PICS: CsiHcPic[] = [
     ['HCC', 'PAYROLL & BENEFIT', 'Anita Payroll'], ['HCC', 'PAYROLL & BENEFIT', 'Bambang Benefit'], ['HCC', 'HRIS', 'Citra Sistem'],
     ['HCD', 'TALENT ACQUISITION & ASSESSMENT', 'Dewi Rekrutmen'], ['HCD', 'TRAINING & DEVELOPMENT', 'Eko Pelatihan'], ['HCD', 'TRAINING & DEVELOPMENT', 'Fajar Mentor'],
     ['HCS', 'GA MANAGEMENT', 'Gita Umum'], ['HCS', 'GA MANAGEMENT', 'Hadi Kendaraan'], ['HCS', 'SECURITY', 'Indra Jaga'],
-].map(([serviceCode, bagian, name], i) => ({ periodRateeId: `h${i}`, name, jobTitle: 'Staff', serviceCode, bagian, serviceFunction: i === 0 ? 'Benefit, Payroll & HRIS' : null }));
+].map(([serviceCode, bagian, name], i) => ({ periodRateeId: `h${i}`, picId: `pic${i}`, name, jobTitle: 'Staff', serviceCode, bagian, serviceFunction: i === 0 ? 'Benefit, Payroll & HRIS' : null }));
 const HC_UNITS = [
     ['OPERATION', 'PRODUKSI', 'LINE 1'], ['OPERATION', 'PRODUKSI', 'LINE 2'], ['OPERATION', 'GUDANG', 'GUDANG'],
     ['MARKETING', 'SALES', 'SALES AREA'], ['FINANCE', 'AKUNTANSI', 'AKUNTANSI'],
@@ -88,7 +88,7 @@ function hcRatee(pic: CsiHcPic, ratings: CsiHcRating[], comments: number) {
     return {
         periodRateeId: pic.periodRateeId, kind: CsiRateeKind.PERSON, displayName: pic.name, siteId: null, respondentCount: own.length,
         average, indexPct: average === null ? null : Math.round(average * 200) / 10, starDistribution: [0, 0, 1, 2, 3],
-        serviceCode: pic.serviceCode, bagian: pic.bagian, serviceFunction: pic.serviceFunction,
+        serviceCode: pic.serviceCode, bagian: pic.bagian, serviceFunction: pic.serviceFunction, picId: pic.picId ?? null,
         questions: HC_DIMENSIONS.map(([label, description]) => ({
             name: `${label} — ${description}`, shortLabel: label, description: null, type: 'STAR', count: own.length, distribution: [],
             average: avg(own.map((rating) => rating.scores[label])),
@@ -107,10 +107,11 @@ export function hcReportFixture({ respondents = 30, previous = false, title = 'C
     const report: any = { ...input.report, period: { ...input.report.period, title, slaTargetPct: 90 }, sla, previousAverage: previous ? 4.1 : null, ratees };
     const hcInput: CsiReportModelInput = {
         ...input, report, scope: ServiceScope.HC, scopeLabel: 'HC', hasPrevious: previous,
-        previousBySubject: previous ? new Map([['PERSON:anita payroll:', 3.9]]) : new Map(),
+        // Anita by master PIC (her name changed since), Bambang by name.
+        previousBySubject: previous ? new Map([['PIC:pic0', 3.9], ['PERSON:bambang benefit:', 4.2]]) : new Map(),
         serviceAverages: recap.services.filter((row) => row.level === 'service').map((row) => ({ serviceCode: row.serviceCode, average: row.all.average })),
         comments: ratees.flatMap((ratee) => ratee.comments.map((comment) => ({ periodRateeId: ratee.periodRateeId, text: comment.text, department: comment.departmentName, date: comment.submittedAt }))),
     };
-    const hcRecap = previous ? { ...recap, previous: { ...recapAverages(recap), 's:HCC': 4.0 } } : recap;
+    const hcRecap = previous ? { ...recap, previous: { ...recapAverages(recap), 's:HCC': 4.0, 'pic:pic0': 3.9 } } : recap;
     return { input: hcInput, model: { ...buildReportModel(hcInput), hcRecap }, ratings };
 }

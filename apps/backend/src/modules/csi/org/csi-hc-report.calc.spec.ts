@@ -1,4 +1,4 @@
-import { buildHcRecap, CsiHcPic, CsiHcRating, recapAverages, recapRowKey } from './csi-hc-report.calc';
+import { buildHcRecap, collapseRespondentRows, CsiHcPic, CsiHcRating, CsiRespondentRow, previousOf, recapAverages, recapRowKey } from './csi-hc-report.calc';
 import { CSI_SMALL_GROUP_LABEL } from '../csi.constants';
 import { CsiOrgLocation } from './csi-org.constants';
 
@@ -34,9 +34,10 @@ describe('buildHcRecap', () => {
     });
 
     it('builds layanan → bagian → PIC rows, PICs without ratings included', () => {
+        // Report order of the layanan everywhere: HCD, HCC, HCS.
         expect(recap.services.map((entry) => entry.key)).toEqual([
-            's:HCC', 'b:HCC:PAYROLL & BENEFIT', 'p:a', 'p:b',
             's:HCD', 'b:HCD:TALENT ACQUISITION & ASSESSMENT', 'p:d',
+            's:HCC', 'b:HCC:PAYROLL & BENEFIT', 'p:a', 'p:b',
             's:HCS', 'b:HCS:GA MANAGEMENT', 'p:c',
         ]);
         expect(row('s:HCC').all).toEqual({ average: 3.83, ratings: 3 });
@@ -121,5 +122,40 @@ describe('buildHcRecap', () => {
         expect(recapRowKey(row('p:a'))).toBe('p:HCC:anita');
         expect(recapRowKey(row('s:HCC'))).toBe('s:HCC');
         expect(recapAverages(recap)['p:HCC:anita']).toBe(4.25);
+    });
+
+    it('previous period: master PIC first (rename / layanan move), never through a name two PICs share', () => {
+        const withPic = (pic: CsiHcPic, picId: string, over: Partial<CsiHcPic> = {}) => ({ ...pic, picId, ...over });
+        const before = buildHcRecap({
+            dimensions: DIMS, ratings: [rating('o1', 'a', CsiOrgLocation.SJA1, [3, 3]), rating('o2', 'b', CsiOrgLocation.SJA1, [5, 5])],
+            pics: [withPic(pics[0], 'P-ANITA', { name: 'ANITA LAMA' }), withPic(pics[1], 'P-BUDI', { name: 'ANITA' })],
+        });
+        const previous = recapAverages(before);
+        expect(previous['pic:P-ANITA']).toBe(3);
+        // "ANITA" was Budi's display name then: the name key points at his score, but the PIC key wins for Anita now.
+        const anitaNow = { level: 'pic' as const, serviceCode: 'HCC', bagian: 'PAYROLL & BENEFIT', label: 'ANITA', picId: 'P-ANITA' };
+        expect(previousOf(previous, anitaNow)).toBe(3);
+        expect(previousOf(previous, { ...anitaNow, picId: null })).toBe(5);
+        // Two rows named the same now: no name fallback.
+        expect(previousOf(previous, { ...anitaNow, picId: null }, 2)).toBeUndefined();
+        // Two PICs with the same name then: the name key is dropped.
+        const twins = recapAverages(buildHcRecap({ dimensions: DIMS, ratings: [], pics: [withPic(pics[0], 'X'), withPic(pics[1], 'Y', { name: 'ANITA' })] }));
+        expect(twins).not.toHaveProperty('p:HCC:anita');
+        expect(twins).toHaveProperty('pic:X');
+    });
+
+    it('collapse: a division with one department is one row, a single bagian with the same numbers is dropped', () => {
+        const cells = { all: { average: 4, ratings: 6 }, byLocation: {} as CsiRespondentRow['byLocation'], respondents: 6 };
+        const row = (level: CsiRespondentRow['level'], label: string, division: string, department: string | null): CsiRespondentRow =>
+            ({ level, key: `${level}:${label}`, label, division, department, ...cells });
+        const rows = [
+            row('division', 'FINANCE', 'FINANCE', null), row('department', 'AKUNTANSI', 'FINANCE', 'AKUNTANSI'), row('bagian', 'AKUNTANSI', 'FINANCE', 'AKUNTANSI'),
+            row('division', 'OPERATION', 'OPERATION', null), row('department', 'GUDANG', 'OPERATION', 'GUDANG'), row('bagian', 'GUDANG', 'OPERATION', 'GUDANG'),
+            row('department', 'PRODUKSI', 'OPERATION', 'PRODUKSI'), row('bagian', 'LINE 1', 'OPERATION', 'PRODUKSI'), row('bagian', 'LINE 2', 'OPERATION', 'PRODUKSI'),
+        ];
+        expect(collapseRespondentRows(rows).map((entry) => [entry.level, entry.label])).toEqual([
+            ['division', 'FINANCE · AKUNTANSI'],
+            ['division', 'OPERATION'], ['department', 'GUDANG'], ['department', 'PRODUKSI'], ['bagian', 'LINE 1'], ['bagian', 'LINE 2'],
+        ]);
     });
 });

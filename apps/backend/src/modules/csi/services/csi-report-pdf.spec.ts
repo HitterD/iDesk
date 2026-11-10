@@ -68,6 +68,18 @@ describe('renderCsiReportPdf', () => {
             expect(buffer.subarray(0, 5).toString()).toBe('%PDF-');
         });
 
+        it('person ranking drops the Site column when no person has a site; team ranking keeps it', async () => {
+            const spy = jest.spyOn(ReportCanvas.prototype, 'table');
+            try {
+                await renderCsiReportPdf({ model: reportFixture({ people: 6, responses: 8 }).model, signoff, now: NOW });
+                const headers = spy.mock.calls.map(([columns]) => columns.map((column) => column.header).join('|'));
+                expect(headers).toContain('#|Nama|Site|Penilai|Nilai|Predikat|Lalu|Selisih');
+                expect(headers).toContain('#|Nama|Penilai|Nilai|Predikat|Lalu|Selisih');
+            } finally {
+                spy.mockRestore();
+            }
+        });
+
         it('comments have no date or department', async () => {
             const { model } = reportFixture({ people: 1, comments: 2 });
             const text = await allText(model);
@@ -138,13 +150,54 @@ describe('renderCsiReportPdf', () => {
             real.forEach((page) => expect(page).not.toContain('SIMULASI'));
         });
 
-        it('comments have no date or department, grouped per layanan in a fixed shuffled order', async () => {
+        it('comments have no date or department, grouped per layanan (HCD, HCC, HCS) as a plain list', async () => {
             const { model } = hcReportFixture();
             const text = await allText(model);
             const comments = text.slice(text.indexOf('Komentar & saran'), text.indexOf('Lampiran A'));
-            expect(comments).toContain('HCC · HC Compensation & Benefit');
-            expect(comments).not.toMatch(/PRODUKSI|\d{1,2} Nov 2026/);
+            const order = ['HCD · HC Development', 'HCC · HC Compensation & Benefit', 'HCS · HC Services'].map((title) => comments.indexOf(title));
+            expect(order.every((index) => index > 0)).toBe(true);
+            expect([...order].sort((a, b) => a - b)).toEqual(order);
+            expect(comments).not.toMatch(/PRODUKSI|\d{1,2} Nov 2026|Komentar Saran/);
             expect(await allText(model)).toBe(text);
+        });
+
+        it('one reading sentence per section: ranking and comment notes are not repeated per layanan', async () => {
+            const notes: string[] = [];
+            const spy = jest.spyOn(ReportCanvas.prototype, 'note').mockImplementation(function (this: ReportCanvas, line: string) { notes.push(line); });
+            try {
+                await renderCsiReportPdf({ model: hcReportFixture({ previous: true }).model, signoff, now: NOW });
+            } finally {
+                spy.mockRestore();
+            }
+            expect(new Set(notes).size).toBe(notes.length);
+            expect(notes.filter((line) => /Urut dari nilai tertinggi/.test(line))).toHaveLength(1);
+            expect(notes.filter((line) => /urutan acak/i.test(line))).toHaveLength(1);
+        });
+
+        it('layanan order is HCD, HCC, HCS in every per-layanan table', async () => {
+            const { model } = hcReportFixture();
+            const text = await allText(model);
+            const section = (from: string, to: string) => text.slice(text.indexOf(from), text.indexOf(to, text.indexOf(from) + from.length));
+            [section('Nilai per layanan', 'Nilai per layanan menurut'), section('Nilai per layanan, bagian & PIC', 'Peringkat per layanan'),
+                section('Peringkat per layanan', 'Rekap responden')].forEach((part) => {
+                const at = ['HCD ·', 'HCC ·', 'HCS ·'].map((code) => part.indexOf(code));
+                expect(at.every((index) => index >= 0)).toBe(true);
+                expect([...at].sort((a, b) => a - b)).toEqual(at);
+            });
+            const header = text.slice(text.indexOf('Lampiran A'));
+            expect(header.indexOf('HCD')).toBeLessThan(header.indexOf('HCC'));
+            expect(header.indexOf('HCC')).toBeLessThan(header.indexOf('HCS'));
+        });
+
+        it('respondent recap: divisions in caps, single-department division merged, no repeated single bagian', async () => {
+            const { model } = hcReportFixture();
+            const text = await allText(model);
+            const recap = text.slice(text.indexOf('Rekap responden per divisi'), text.indexOf('Komentar & saran'));
+            expect(recap).toContain('FINANCE · AKUNTANSI');
+            expect(recap).not.toMatch(/• Akuntansi|• AKUNTANSI/);
+            expect(recap).toContain('Produksi');
+            expect(recap).toContain('• Line 1');
+            expect(recap).toContain('kurang dari 3 responden atau tidak ada data');
         });
 
         it('respondent recap masks cells under 3', async () => {
@@ -152,7 +205,7 @@ describe('renderCsiReportPdf', () => {
             const masked = model.hcRecap.respondentGroups.find((row) => Object.values(row.byLocation).some((cell) => cell.ratings > 0 && cell.average === null));
             expect(masked).toBeDefined();
             const text = await allText(model);
-            expect(text).toContain('kurang dari 3 responden');
+            expect(text).toContain('kurang dari 3 responden atau tidak ada data');
         });
     });
 });
