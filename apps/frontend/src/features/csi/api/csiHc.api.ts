@@ -63,9 +63,6 @@ export const CsiHcApi = {
     async applyTemplate(scope: CsiScopeParam, templateId: string, periodId: string, commit: boolean): Promise<CsiTemplateApplyReport> {
         return (await api.post<CsiTemplateApplyReport>(`${templatePath(scope)}/${encodeURIComponent(templateId)}/apply/${encodeURIComponent(periodId)}`, null, { params: { commit } })).data;
     },
-    async createPeriodFromTemplate(scope: CsiScopeParam, templateId: string, body: { title: string; startDate: string; endDate: string }): Promise<{ periodId: string; report: CsiTemplateApplyReport }> {
-        return (await api.post<{ periodId: string; report: CsiTemplateApplyReport }>(`${templatePath(scope)}/${encodeURIComponent(templateId)}/create-period`, body)).data;
-    },
     async myReportAccess(scope: CsiScopeParam): Promise<CsiReportAccess> {
         return (await api.get<CsiReportAccess>(`${mePath(scope)}/report-access`, { skipToast: true })).data;
     },

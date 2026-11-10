@@ -9,6 +9,7 @@ import type { CsiTemplate } from '../../../../hcTypes';
 import type { CsiScopeParam } from '../../../../types';
 import { AdminSection, MUTED_TEXT } from '../../AdminParts';
 import { CSI_TEMPLATE_LOCATIONS } from '../hcFormat';
+import { HcSurveyWizard } from './HcSurveyWizard';
 import { TemplateApplyDialog } from './TemplateApplyDialog';
 import { BlankTemplateButton, TemplateEmptyState, type TemplateLocation } from './TemplateEmptyState';
 import { TemplateImportDialog } from './TemplateImportDialog';
@@ -28,6 +29,7 @@ function TemplateEditor({ scope, template, location, onImport, view, onViewChang
     view: TemplateView; onViewChange: (view: TemplateView) => void;
 }) {
     const [applying, setApplying] = useState(false);
+    const [creating, setCreating] = useState(false);
     const update = useCsiTemplateMutation(scope, ({ id, serviceFunction }: { id: string; serviceFunction: string | null }) => CsiHcApi.updateTemplatePic(scope, id, { serviceFunction }));
     const addRater = useCsiTemplateMutation(scope, ({ id, body }: { id: string; body: AddRaterBody }) => CsiHcApi.addTemplateRater(scope, id, body));
     const removeRater = useCsiTemplateMutation(scope, (raterId: string) => CsiHcApi.removeTemplateRater(scope, raterId));
@@ -68,7 +70,9 @@ function TemplateEditor({ scope, template, location, onImport, view, onViewChang
                     </section>
                 );
             })}
-            {applying && <TemplateApplyDialog scope={scope} template={template} open={applying} onOpenChange={setApplying} />}
+            {applying && <TemplateApplyDialog scope={scope} template={template} open={applying} onOpenChange={setApplying}
+                onNewSurvey={() => { setApplying(false); setCreating(true); }} />}
+            {creating && <HcSurveyWizard scope={scope} open={creating} onOpenChange={setCreating} initialLocation={template.locationCode} />}
         </div>
     );
 }

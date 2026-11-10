@@ -14,6 +14,7 @@ import { WIZARD_COPY } from '../wizard/wizardCopy';
 import { ADMIN_PANEL, CreateButton, EmptyNote, MUTED_TEXT, SurveyStatePill } from './AdminParts';
 import { Button } from '@/components/ui/button';
 import { MemoExportDialog } from './MemoExportDialog';
+import { HcSurveyWizard } from './hc/templates/HcSurveyWizard';
 
 const ALL_SITES = '';
 const SKELETON_ROWS = 3;
@@ -64,6 +65,7 @@ export function PeriodsTab({ scope, onOpen, onCreate, onRepeat }: PeriodsTabProp
     const [siteId, setSiteId] = useState(ALL_SITES);
     const [showCancelled, setShowCancelled] = useState(false);
     const [memoOpen, setMemoOpen] = useState(false);
+    const [hcWizardOpen, setHcWizardOpen] = useState(false);
     const { data: all, isLoading, isError, refetch } = useCsiPeriods(scope, siteId || undefined);
     const cancelledCount = (all ?? []).filter((period) => period.publishStatus === 'CANCELLED').length;
     const periods = all?.filter((period) => showCancelled || period.publishStatus !== 'CANCELLED');
@@ -83,7 +85,8 @@ export function PeriodsTab({ scope, onOpen, onCreate, onRepeat }: PeriodsTabProp
                 )}
                 <span className="flex-1" />
                 <Button variant="soft" onClick={() => setMemoOpen(true)}>Export memo PDF</Button>
-                <CreateButton label={WIZARD_COPY.create} onClick={onCreate} />
+                {/* HC surveys are always built from location templates; ICT keeps the generic wizard. */}
+                <CreateButton label={WIZARD_COPY.create} onClick={scope === 'hc' ? () => setHcWizardOpen(true) : onCreate} />
             </div>
             <section aria-label="Daftar survei" className={cn(ADMIN_PANEL, 'overflow-hidden')}>
                 {isLoading && (
@@ -110,6 +113,7 @@ export function PeriodsTab({ scope, onOpen, onCreate, onRepeat }: PeriodsTabProp
                 )}
             </section>
             {memoOpen && <MemoExportDialog scope={scope} open onOpenChange={setMemoOpen} />}
+            {hcWizardOpen && <HcSurveyWizard scope={scope} open onOpenChange={setHcWizardOpen} />}
         </div>
     );
 }

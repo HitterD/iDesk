@@ -29,7 +29,7 @@ const REPORT = {
     problems: [] as Array<{ row: number; message: string }>,
 };
 const fx = vi.hoisted(() => ({
-    list: { templates: [] as unknown[], bundledAvailable: ['SMG'] }, blocked: null as string | null, report: null as unknown as typeof REPORT, failPrune: false,
+    list: { templates: [] as unknown[], bundledAvailable: ['SMG'] }, blocked: null as string | null, siteAdded: null as string | null, report: null as unknown as typeof REPORT, failPrune: false,
 }));
 vi.mock('../../../../../lib/csiAdmin', async (importOriginal) => ({ ...(await importOriginal<object>()), downloadBlob: vi.fn() }));
 vi.mock('../../../../../api/csiHc.api', () => ({
@@ -46,12 +46,10 @@ vi.mock('../../../../../api/csiHc.api', () => ({
         templateAccountSuggestions: vi.fn(async () => []),
         removeTemplateRater: vi.fn(async () => TEMPLATE),
         applyTemplate: vi.fn(async (_scope: string, _id: string, _period: string, commit: boolean) => ({
-            picsAdded: 1, ratersAdded: 1, pairsAdded: 1, picsSkippedNoRaters: ['JINGGA FERDASIWI'], picsUnmatched: [],
+            picsAdded: 1, teamsAdded: 0, ratersAdded: 1, pairsAdded: 1, ratersUnconfirmed: 0, siteAdded: fx.siteAdded,
+            picsSkippedNoRaters: ['JINGGA FERDASIWI'], picsUnmatched: [],
             ratersNoAccount: ['ARIEF NOEGROHO'], ratersAmbiguous: ['AGUS SUBEKTI'], blockedReason: fx.blocked, committed: commit,
         })),
-        createPeriodFromTemplate: vi.fn(async () => ({ periodId: 'p-new', report: {
-            picsAdded: 15, ratersAdded: 108, pairsAdded: 423, picsSkippedNoRaters: [], picsUnmatched: [], ratersNoAccount: [], ratersAmbiguous: [], blockedReason: null, committed: true,
-        } })),
     },
 }));
 vi.mock('../../../../../api/csi.api', () => ({
@@ -61,7 +59,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const api = async () => (await import('../../../../../api/csiHc.api')).CsiHcApi;
 
-beforeEach(() => { fx.list = { templates: [TEMPLATE], bundledAvailable: [] }; fx.blocked = null; fx.report = REPORT; fx.failPrune = false; });
+beforeEach(() => { fx.list = { templates: [TEMPLATE], bundledAvailable: [] }; fx.blocked = null; fx.siteAdded = null; fx.report = REPORT; fx.failPrune = false; });
 
 const XLSX = new File(['x'], 'smg.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 /** Opens the import dialog on the Semarang template and waits for the dry run. */
@@ -206,7 +204,6 @@ describe('TemplatesTab', () => {
         renderWithQuery(<TemplatesTab scope="hc" />);
         await userEvent.click(await screen.findByRole('button', { name: /gunakan template/i }));
         const dialog = await screen.findByRole('dialog');
-        await userEvent.click(within(dialog).getByRole('radio', { name: /survei yang sudah ada/i }));
         await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: /survei/i }), 'p1');
         await userEvent.click(within(dialog).getByRole('button', { name: /pratinjau/i }));
         expect((await api()).applyTemplate).toHaveBeenLastCalledWith('hc', 't1', 'p1', false);
@@ -221,23 +218,30 @@ describe('TemplatesTab', () => {
         renderWithQuery(<TemplatesTab scope="hc" />);
         await userEvent.click(await screen.findByRole('button', { name: /gunakan template/i }));
         const dialog = await screen.findByRole('dialog');
-        await userEvent.click(within(dialog).getByRole('radio', { name: /survei yang sudah ada/i }));
         await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: /survei/i }), 'p1');
         await userEvent.click(within(dialog).getByRole('button', { name: /pratinjau/i }));
         expect(await within(dialog).findByText(/terbuka untuk semua user/)).toBeInTheDocument();
         expect(within(dialog).getByRole('button', { name: /terapkan/i })).toBeDisabled();
     });
 
-    it('a new survey is created once: the button locks after success', async () => {
+    it('sync shows site will be added', async () => {
+        fx.siteAdded = 'SMG';
         renderWithQuery(<TemplatesTab scope="hc" />);
         await userEvent.click(await screen.findByRole('button', { name: /gunakan template/i }));
         const dialog = await screen.findByRole('dialog');
-        await userEvent.type(within(dialog).getByLabelText(/tanggal mulai/i), '2026-12-01');
-        await userEvent.type(within(dialog).getByLabelText(/tanggal selesai/i), '2026-12-31');
-        const create = within(dialog).getByRole('button', { name: /buat survei/i });
-        await userEvent.click(create);
-        expect(await within(dialog).findByText(/423 pasangan baru/)).toBeInTheDocument();
-        expect(within(dialog).getByRole('button', { name: /buat survei/i })).toBeDisabled();
-        expect((await api()).createPeriodFromTemplate).toHaveBeenCalledTimes(1);
+        await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: /survei/i }), 'p1');
+        await userEvent.click(within(dialog).getByRole('button', { name: /pratinjau/i }));
+        expect(await within(dialog).findByText('Site SMG akan ditambahkan ke survei ini.')).toBeInTheDocument();
+    });
+
+    it('a new survey opens the multi-location wizard with this location preselected', async () => {
+        renderWithQuery(<TemplatesTab scope="hc" />);
+        await userEvent.click(await screen.findByRole('button', { name: /gunakan template/i }));
+        await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /buat survei baru/i }));
+        const wizard = await screen.findByRole('dialog', { name: /buat survei hc/i });
+        await userEvent.type(within(wizard).getByLabelText(/tanggal mulai/i), '2026-12-01');
+        await userEvent.type(within(wizard).getByLabelText(/tanggal selesai/i), '2026-12-31');
+        await userEvent.click(within(wizard).getByRole('button', { name: /lanjut/i }));
+        expect(await within(wizard).findByRole('checkbox', { name: /semarang/i })).toBeChecked();
     });
 });
