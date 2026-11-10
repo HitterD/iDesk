@@ -1,5 +1,5 @@
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { CSI_SIMULATION_TITLE_PREFIX, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CsiRaterMatrix } from './csi-rater-matrix.calc';
 import { CsiDepartmentParticipation, CsiSlaBlock, departmentParticipation, slaBlock } from './csi-report-participation';
 import { CsiServiceHighlight, CsiServiceRanking, rankingByService, serviceHighlight } from './csi-report-ranking';
@@ -37,11 +37,14 @@ export type CsiSiteParticipation = {
     siteId: string; code: string | null; name: string | null; basis: number; target: number; responses: number;
     respondenPct: number | null; pengisiPct: number | null; reached: boolean; average: number | null;
 };
-export type CsiCommentGroup = { name: string; kind: CsiRateeKind; comments: Array<{ text: string; department: string; date: Date }> };
+/** Comments about one subject; `serviceCode` = its layanan (HC report groups the comments per layanan). */
+export type CsiCommentGroup = { name: string; kind: CsiRateeKind; serviceCode: string | null; comments: Array<{ text: string; department: string; date: Date }> };
 
 export type CsiReportModel = {
     title: string; scopeLabel: string; startDate: string; endDate: string; siteLabel: string; modeLabel: string;
     targetPct: number; docNo: string;
+    /** Title starts with CSI_SIMULATION_TITLE_PREFIX: fictitious answers, every PDF page carries the simulation banner. */
+    simulation: boolean;
     /** Colour bands of the survey (period scoreFairMin / scoreGoodMin): every colour and predikat follows them. */
     bands: CsiScoreBands;
     overall: { average: number | null; word: CsiScoreWord | null; band: CsiScoreBand | null; indexPct: number | null; previous: number | null; delta: number | null };
@@ -218,7 +221,8 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
     });
     const sla = report.sla;
     const byRatee = new Map<string, CsiCommentGroup>();
-    [...teams, ...people].forEach((row) => byRatee.set(row.periodRateeId, { name: row.name, kind: row.kind, comments: [] }));
+    const serviceOf = new Map(report.ratees.map((ratee) => [ratee.periodRateeId, ratee.serviceCode ?? null]));
+    [...teams, ...people].forEach((row) => byRatee.set(row.periodRateeId, { name: row.name, kind: row.kind, serviceCode: serviceOf.get(row.periodRateeId) ?? null, comments: [] }));
     input.comments.forEach((comment) => byRatee.get(comment.periodRateeId)?.comments.push({ text: comment.text, department: comment.department, date: comment.date }));
     const commentGroups = [...byRatee.values()].filter((group) => group.comments.length)
         .map((group) => ({ ...group, comments: [...group.comments].sort((a, b) => b.date.getTime() - a.date.getTime()) }));
@@ -228,6 +232,7 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
         siteLabel: report.period.sites.map((site) => site.name ?? site.code).filter(Boolean).join(', ') || 'Semua site',
         modeLabel: sla.mode === CsiRespondentMode.LISTED ? 'Hanya penilai terdaftar' : 'Semua user di site',
         targetPct, docNo: `CSI-${scopeLabel}-${report.period.id.slice(0, 8).toUpperCase()}`, bands,
+        simulation: report.period.title.startsWith(CSI_SIMULATION_TITLE_PREFIX),
         overall: { average: overallAverage, word: scoreWordFor(overallAverage, bands), band: scoreBand(overallAverage, bands), indexPct: indexPct(overallAverage), previous: report.previousAverage, delta: delta(overallAverage, report.previousAverage) },
         participation: {
             basis: sla.basis, target: sla.target, responses: sla.responses, respondenPct: respondenPct(sla.responses, sla.basis),

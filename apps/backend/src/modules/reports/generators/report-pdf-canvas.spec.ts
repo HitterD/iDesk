@@ -107,5 +107,35 @@ describe('report PDF formatting', () => {
             expect(drawn).toEqual(expect.arrayContaining(['Hasby Tri Ananda', 'Sepanjang (lintas site)', '2 batal · 12 eligible']));
             expect(drawn.some((t) => t.includes('...'))).toBe(false);
         });
+
+        it('headers are not truncated: a long header in a narrow column wraps (hyphenated) instead of "..."', () => {
+            const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+            doc.on('data', () => undefined);
+            const spy = jest.spyOn(doc, 'text');
+            new ReportCanvas(doc, new Logger('test')).table(
+                [{ header: 'Layanan / Bagian / PIC', width: 30 }, ...['Knowledge', 'Responsiveness', 'Courtesy', 'Communication', 'Tangible', 'Rata-rata', 'Penilai'].map((header) => ({ header, width: 10 }))],
+                [[{ text: 'HCC' }, ...Array.from({ length: 7 }, () => ({ text: '4,50' }))]],
+            );
+            doc.end();
+            const drawn = spy.mock.calls.map((call) => String(call[0]));
+            expect(drawn.some((t) => t.includes('...'))).toBe(false);
+            expect(drawn.join('|').replace(/-\|/g, '')).toMatch(/Responsiveness/);
+            expect(drawn.join('|').replace(/-\|/g, '')).toMatch(/Communication/);
+        });
+    });
+
+    it('finish draws the banner at the top and the footer note on every page', () => {
+        const PDFDocument = require('pdfkit');
+        const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+        doc.on('data', () => undefined);
+        const canvas = new ReportCanvas(doc, new Logger('test'));
+        canvas.pageBreak();
+        canvas.pageBreak();
+        const spy = jest.spyOn(doc, 'text');
+        canvas.finish({ banner: 'BANNER X', footerNote: 'CATATAN Y' });
+        doc.end();
+        const drawn = spy.mock.calls.map((call) => String(call[0]));
+        expect(drawn.filter((t) => t === 'BANNER X')).toHaveLength(3);
+        expect(drawn.filter((t) => t === 'CATATAN Y')).toHaveLength(3);
     });
 });

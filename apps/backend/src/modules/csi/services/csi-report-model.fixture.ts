@@ -1,5 +1,7 @@
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { buildHcRecap, CsiHcPic, CsiHcRating, recapAverages } from '../org/csi-hc-report.calc';
+import { CsiOrgLocation } from '../org/csi-org.constants';
 import { buildReportModel, CsiReportModelInput } from './csi-report-model';
 
 /** Test fixture of the executive report model: `people` persons, one team per site, `responses` answers. */
@@ -46,4 +48,69 @@ export function reportFixture({ people = 2, responses = 2, sites = 1, comments =
         notes: 'Tindak lanjut: pelatihan\nReview bulan depan',
     };
     return { input, model: buildReportModel(input) };
+}
+
+const HC_DIMENSIONS = [
+    ['Knowledge', 'Pengetahuan/pemahaman PIC terkait jasa atau pelayanan'], ['Responsiveness', 'Kecepatan respon terhadap permintaan atau keluhan pelayanan'],
+    ['Courtesy', 'Kesopanan / keramahan dalam melayani dan menerima keluhan'], ['Communication', 'Kemampuan menyampaikan informasi secara tepat'],
+    ['Tangible', 'Terpenuhinya kebutuhan pelayanan'],
+] as const;
+const HC_PICS: CsiHcPic[] = [
+    ['HCC', 'PAYROLL & BENEFIT', 'Anita Payroll'], ['HCC', 'PAYROLL & BENEFIT', 'Bambang Benefit'], ['HCC', 'HRIS', 'Citra Sistem'],
+    ['HCD', 'TALENT ACQUISITION & ASSESSMENT', 'Dewi Rekrutmen'], ['HCD', 'TRAINING & DEVELOPMENT', 'Eko Pelatihan'], ['HCD', 'TRAINING & DEVELOPMENT', 'Fajar Mentor'],
+    ['HCS', 'GA MANAGEMENT', 'Gita Umum'], ['HCS', 'GA MANAGEMENT', 'Hadi Kendaraan'], ['HCS', 'SECURITY', 'Indra Jaga'],
+].map(([serviceCode, bagian, name], i) => ({ periodRateeId: `h${i}`, name, jobTitle: 'Staff', serviceCode, bagian, serviceFunction: i === 0 ? 'Benefit, Payroll & HRIS' : null }));
+const HC_UNITS = [
+    ['OPERATION', 'PRODUKSI', 'LINE 1'], ['OPERATION', 'PRODUKSI', 'LINE 2'], ['OPERATION', 'GUDANG', 'GUDANG'],
+    ['MARKETING', 'SALES', 'SALES AREA'], ['FINANCE', 'AKUNTANSI', 'AKUNTANSI'],
+];
+const HC_LOCATIONS = [CsiOrgLocation.SJA1, CsiOrgLocation.SJA2, CsiOrgLocation.SJA4, CsiOrgLocation.JKT];
+
+/** Ratings of `respondents` HC respondents (each rates 3 PICs; the SECURITY PIC gets only 2 raters). */
+function hcRatings(respondents: number): CsiHcRating[] {
+    return Array.from({ length: respondents }, (_, r) => {
+        const [division, department, bagian] = HC_UNITS[r % HC_UNITS.length];
+        const respondent = { name: `Penilai Rahasia ${r}`, division, department, bagian };
+        const pics = [r % 8, (r + 3) % 8, (r + 5) % 8].concat(r < 2 ? [8] : []);
+        return [...new Set(pics)].map((p) => ({
+            responseId: `resp${r}`, periodRateeId: `h${p}`, location: HC_LOCATIONS[r % 7 === 6 ? 3 : r % 3], respondent,
+            scores: Object.fromEntries(HC_DIMENSIONS.map(([label], d) => [label, 3 + ((r + p * 2 + d) % 3)])),
+        }));
+    }).flat();
+}
+
+const avg = (values: number[]) => (values.length ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100 : null);
+
+/** Report ratee of one HC PIC, aggregated from its ratings (as getReport would). */
+function hcRatee(pic: CsiHcPic, ratings: CsiHcRating[], comments: number) {
+    const own = ratings.filter((rating) => rating.periodRateeId === pic.periodRateeId);
+    const average = avg(own.map((rating) => avg(Object.values(rating.scores))!));
+    return {
+        periodRateeId: pic.periodRateeId, kind: CsiRateeKind.PERSON, displayName: pic.name, siteId: null, respondentCount: own.length,
+        average, indexPct: average === null ? null : Math.round(average * 200) / 10, starDistribution: [0, 0, 1, 2, 3],
+        serviceCode: pic.serviceCode, bagian: pic.bagian, serviceFunction: pic.serviceFunction,
+        questions: HC_DIMENSIONS.map(([label, description]) => ({
+            name: `${label} — ${description}`, shortLabel: label, description: null, type: 'STAR', count: own.length, distribution: [],
+            average: avg(own.map((rating) => rating.scores[label])),
+        })),
+        comments: Array.from({ length: comments }, (_, c) => ({ text: `Saran untuk ${pic.serviceCode} nomor ${c}`, departmentName: 'PRODUKSI', submittedAt: new Date(2026, 10, 1 + c) })),
+    };
+}
+
+/** HC executive model with the per-PIC recap (9 PICs over HCC/HCD/HCS, `respondents` respondents, 2 sites). */
+export function hcReportFixture({ respondents = 30, previous = false, title = 'CSI HC November' } = {}) {
+    const { input } = reportFixture({ people: 0, responses: respondents, sites: 2, comments: 0 });
+    const ratings = hcRatings(respondents);
+    const ratees = HC_PICS.map((pic, i) => hcRatee(pic, ratings, i % 3 === 0 ? 2 : 0));
+    const recap = buildHcRecap({ pics: HC_PICS, ratings, dimensions: HC_DIMENSIONS.map(([label]) => label) });
+    const sla = { ...input.report.sla, target: Math.ceil(input.report.sla.basis * 0.9) };
+    const report: any = { ...input.report, period: { ...input.report.period, title, slaTargetPct: 90 }, sla, previousAverage: previous ? 4.1 : null, ratees };
+    const hcInput: CsiReportModelInput = {
+        ...input, report, scope: ServiceScope.HC, scopeLabel: 'HC', hasPrevious: previous,
+        previousBySubject: previous ? new Map([['PERSON:anita payroll:', 3.9]]) : new Map(),
+        serviceAverages: recap.services.filter((row) => row.level === 'service').map((row) => ({ serviceCode: row.serviceCode, average: row.all.average })),
+        comments: ratees.flatMap((ratee) => ratee.comments.map((comment) => ({ periodRateeId: ratee.periodRateeId, text: comment.text, department: comment.departmentName, date: comment.submittedAt }))),
+    };
+    const hcRecap = previous ? { ...recap, previous: { ...recapAverages(recap), 's:HCC': 4.0 } } : recap;
+    return { input: hcInput, model: { ...buildReportModel(hcInput), hcRecap }, ratings };
 }

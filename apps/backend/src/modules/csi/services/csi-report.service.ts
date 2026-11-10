@@ -23,7 +23,7 @@ import { User } from '../../users/entities/user.entity';
 import { buildReportModel, CsiReportModel, subjectKeyOf } from './csi-report-model';
 import { bandsOf, CsiScoreBands } from './csi-score-bands';
 import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
-import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap } from '../org/csi-hc-report.calc';
+import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap, recapAverages } from '../org/csi-hc-report.calc';
 import { locationOfSiteCode } from '../org/csi-org.constants';
 import { CsiPendingDepartment, pendingByDepartment } from '../org/csi-service-report.calc';
 import { ratedAccountOf } from './csi-ratee-owner.util';
@@ -211,7 +211,7 @@ export class CsiReportService {
             periodRateeId: ratee.periodRateeId, text: comment.text, department: comment.departmentName, date: comment.submittedAt,
         })));
         // HC: the per-PIC recap with the same site filter, loaded once (layanan averages for the highlight + recap pages).
-        const hcRecap = scope === ServiceScope.HC ? await this.executiveHcRecap(scope, periodId, siteId) : null;
+        const hcRecap = scope === ServiceScope.HC ? await this.executiveHcRecap(scope, periodId, siteId, previous?.id) : null;
         const model = buildReportModel({
             report, matrix, scopeLabel: scope, scope, previousBySubject, hasPrevious: !!previous, siteBasis, comments,
             raters: await this.basisRaters(reporters, data.responses),
@@ -240,10 +240,16 @@ export class CsiReportService {
         });
     }
 
-    /** HC recap of the executive report (site filter as the rest of the report: respondents of that site only). */
-    private async executiveHcRecap(scope: ServiceScope, periodId: string, siteId?: string): Promise<CsiHcRecap> {
+    /**
+     * HC recap of the executive report (site filter as the rest of the report: respondents of that site only), with the
+     * previous period's average per layanan / bagian / PIC (recapRowKey) when there is one.
+     */
+    private async executiveHcRecap(scope: ServiceScope, periodId: string, siteId?: string, previousId?: string): Promise<CsiHcRecap> {
         const { pics, ratings, dimensions } = await this.hcRecapInput(scope, periodId, siteId);
-        return buildHcRecap({ pics, ratings, dimensions, scope });
+        const recap = buildHcRecap({ pics, ratings, dimensions, scope });
+        if (!previousId) return recap;
+        const before = await this.hcRecapInput(scope, previousId, siteId);
+        return { ...recap, previous: recapAverages(buildHcRecap({ ...before, scope })) };
     }
 
     /**

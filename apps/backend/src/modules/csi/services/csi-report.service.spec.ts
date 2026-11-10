@@ -153,6 +153,31 @@ describe('CsiReportService', () => {
         expect(loads).toHaveBeenLastCalledWith(HC, 'p-hc', 'site-b');
     });
 
+    it('HC executive model carries the previous period average per layanan / PIC for the Selisih column', async () => {
+        Object.assign(periods.rows[1], { sites: [{ siteId: 'site-a', site: { code: 'SMG', name: 'Semarang' } }], startDate: '2026-10-01' });
+        periods.rows.push({ ...period({ id: 'p-hc-old', scope: HC, startDate: '2026-07-01', endDate: '2026-07-31', sites: [{ siteId: 'site-a' }] as any }), publishStatus: 'PUBLISHED' });
+        ratees.rows.push(
+            { id: 'h1', periodId: 'p-hc', kind: 'PERSON', picId: 'pic1', serviceCode: 'HCD', bagian: 'TA', displayName: 'Dewi', sortOrder: 0 },
+            { id: 'o1', periodId: 'p-hc-old', kind: 'PERSON', picId: 'pic1', serviceCode: 'HCD', bagian: 'TA', displayName: 'Dewi', sortOrder: 0 },
+        );
+        rateeDimensions.rows.push(
+            { id: 'hd1', periodRateeId: 'h1', dimensionName: 'Knowledge', type: 'STAR', options: [], sortOrder: 0 },
+            { id: 'od1', periodRateeId: 'o1', dimensionName: 'Knowledge', type: 'STAR', options: [], sortOrder: 0 },
+        );
+        responses.rows.push(
+            { id: 'rn', periodId: 'p-hc', respondentId: 'u-n', departmentName: 'PROD', respondentName: 'n', submittedAt: new Date('2026-10-10T03:00:00Z'), respondent: { id: 'u-n', siteId: 'site-a' } },
+            { id: 'ro', periodId: 'p-hc-old', respondentId: 'u-o', departmentName: 'PROD', respondentName: 'o', submittedAt: new Date('2026-07-10T03:00:00Z'), respondent: { id: 'u-o', siteId: 'site-a' } },
+        );
+        items.rows.push(
+            { id: 'in', responseId: 'rn', periodRateeId: 'h1', periodRateeDimensionId: 'hd1', score: 5 },
+            { id: 'io', responseId: 'ro', periodRateeId: 'o1', periodRateeDimensionId: 'od1', score: 3 },
+        );
+        sla.compute.mockResolvedValue({ basis: 0, target: 0, responses: 0, pengisiPct: null, reporters: [] });
+        const model = await service.getExecutiveModel(HC, 'p-hc', { matrix: {} as any });
+        expect(model.hasPrevious).toBe(true);
+        expect(model.hcRecap?.previous).toMatchObject({ 's:HCD': 3, 'p:HCD:dewi': 3 });
+    });
+
     it('ratee average is mean of response averages', async () => {
         const report = await service.getReport(ICT, 'p1');
         const budi = report.ratees[0];

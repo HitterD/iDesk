@@ -1,5 +1,5 @@
-import { buildHcRecap, CsiHcPic, CsiHcRating } from './csi-hc-report.calc';
-import { CSI_SMALL_BAGIAN_LABEL, CSI_SMALL_GROUP_LABEL } from '../csi.constants';
+import { buildHcRecap, CsiHcPic, CsiHcRating, recapAverages, recapRowKey } from './csi-hc-report.calc';
+import { CSI_SMALL_GROUP_LABEL } from '../csi.constants';
 import { CsiOrgLocation } from './csi-org.constants';
 
 const DIMS = ['Knowledge', 'Responsiveness'];
@@ -68,9 +68,10 @@ describe('buildHcRecap', () => {
                 unit('g1', 'GUDANG'), unit('g2', 'GUDANG'), unit('q1', 'QC'),
             ],
         });
-        // PRODUKSI (3) stays; its bagians (2 + 1) share one row; GUDANG (2) and QC (1) leave the division into one row.
+        // PRODUKSI (3) stays; its bagians (2 + 1) would need a merged row, so its bagians are hidden (no subtraction);
+        // GUDANG (2) and QC (1) leave the division into one row.
         expect(merged.respondentGroups.map((entry) => [entry.level, entry.label, entry.all.ratings])).toEqual([
-            ['division', 'OPERATION', 3], ['department', 'PRODUKSI', 3], ['bagian', CSI_SMALL_BAGIAN_LABEL, 3],
+            ['division', 'OPERATION', 3], ['department', 'PRODUKSI', 3],
             ['division', CSI_SMALL_GROUP_LABEL, 3],
         ]);
         expect(JSON.stringify(merged.respondentGroups)).not.toMatch(/GUDANG|LINE/);
@@ -90,11 +91,35 @@ describe('buildHcRecap', () => {
         expect(merged.respondents).toBe(1);
         expect(merged.all).toEqual({ average: null, ratings: 2 });
         expect(Object.values(merged.byLocation).every((cell) => cell.average === null && cell.ratings === 0)).toBe(true);
-        // Bagian split 3 + 1: "Bagian kecil" holds one person, so it is masked; the kept bagian is not.
+        // Bagian split 3 + 1: department (4) minus L1 (3) would reveal the one L2 person, so no bagian row is shown.
         const split = buildHcRecap({ pics, dimensions: DIMS, ratings: [one('k1', 'PROD', 'L1'), one('k2', 'PROD', 'L1'), one('k3', 'PROD', 'L1'), one('k4', 'PROD', 'L2', CsiOrgLocation.SJA2)] });
-        const bagian = (name: string) => split.respondentGroups.find((entry) => entry.label === name)!;
-        expect(bagian(CSI_SMALL_BAGIAN_LABEL)).toMatchObject({ respondents: 1, all: { average: null, ratings: 1 } });
-        expect(bagian(CSI_SMALL_BAGIAN_LABEL).byLocation.SJA2).toEqual({ average: null, ratings: 0 });
-        expect(bagian('L1')).toMatchObject({ respondents: 3, all: { average: 2.5, ratings: 3 } });
+        expect(split.respondentGroups.map((entry) => [entry.level, entry.label])).toEqual([['division', 'OPERATION'], ['department', 'PROD']]);
+        expect(JSON.stringify(split.respondentGroups)).not.toMatch(/Bagian kecil/);
+    });
+
+    it('respondent recap masks cells under 3: any location (or ALL) with fewer than 3 respondents shows no score', () => {
+        const one = (responseId: string, location: CsiOrgLocation, bagian = 'QC'): CsiHcRating => ({
+            responseId, periodRateeId: 'a', location, scores: { Knowledge: 4, Responsiveness: 5 },
+            respondent: { name: `R-${responseId}`, division: 'OPERATION', department: 'QUALITY CONTROL', bagian },
+        });
+        const recap = buildHcRecap({ pics, dimensions: DIMS, ratings: [
+            one('q1', CsiOrgLocation.SJA1), one('q2', CsiOrgLocation.SJA1), one('q3', CsiOrgLocation.SJA1), one('q4', CsiOrgLocation.SJA2),
+        ] });
+        const department = recap.respondentGroups.find((entry) => entry.level === 'department')!;
+        expect(department.all).toEqual({ average: 4.5, ratings: 4 });
+        expect(department.byLocation.SJA1).toEqual({ average: 4.5, ratings: 3 });
+        // One SJA 2 respondent: the count stays, the score is hidden.
+        expect(department.byLocation.SJA2).toEqual({ average: null, ratings: 1 });
+        recap.respondentGroups.forEach((row) => expect(row.byLocation.SJA2.average).toBeNull());
+        // Kept bagian with 4 respondents is shown (no merged sibling), with the same per-location masking.
+        expect(recap.respondentGroups.find((entry) => entry.level === 'bagian')).toMatchObject({ label: 'QC', byLocation: { SJA2: { average: null } } });
+    });
+
+    it('layanan rows count distinct respondents and have a key that matches across periods', () => {
+        expect(row('s:HCC').respondents).toBe(2);
+        expect(row('p:a').respondents).toBe(2);
+        expect(recapRowKey(row('p:a'))).toBe('p:HCC:anita');
+        expect(recapRowKey(row('s:HCC'))).toBe('s:HCC');
+        expect(recapAverages(recap)['p:HCC:anita']).toBe(4.25);
     });
 });
