@@ -1,29 +1,51 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Put, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MULTER_OPTIONS } from '../../../shared/core/config/upload.config';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
+import { CsiTeamKind } from '../csi.constants';
 import { AddRatersDto } from '../dto/master.dto';
-import { CreateTeamDto, UpdateSubjectDto } from '../dto/subject.dto';
+import { CreateTeamDto, SetTeamMembersDto, UpdateSubjectDto, UpdateTeamDto } from '../dto/subject.dto';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
+import { assertHcScope } from '../services/csi-scope.util';
 import { CSI_PHOTO_URL_PREFIX, CsiSubjectService } from '../services/csi-subject.service';
+import { CsiTeamService } from '../services/csi-team.service';
 
 type CsiAdminRequest = { csiScope: ServiceScope; user: { userId: string } };
+const ID_PIPE = new ParseUUIDPipe({ exceptionFactory: () => new BadRequestException('ID harus berupa UUID') });
 
 @Controller('csi/admin/:scope/subjects')
 @UseGuards(JwtAuthGuard, CsiAdminGuard)
 export class CsiAdminSubjectController {
-    constructor(private readonly subjects: CsiSubjectService) { }
+    constructor(private readonly subjects: CsiSubjectService, private readonly teams: CsiTeamService) { }
 
     @Get()
     list(@Req() req: CsiAdminRequest) {
         return this.subjects.list(req.csiScope);
     }
 
-    // Declared before ':key' routes so "teams" is never read as a subject key.
+    // Literal routes are declared before ':key' routes so "teams" / "members" are never read as a subject key.
+    /** SITE team (default; any scope, idempotent per site) or an HC custom team (refused outside HC). */
     @Post('teams')
     createTeam(@Req() req: CsiAdminRequest, @Body() dto: CreateTeamDto) {
+        if (dto.kind === CsiTeamKind.CUSTOM) return this.teams.createCustom(assertHcScope(req.csiScope), dto);
         return this.subjects.createTeam(req.csiScope, dto.siteId);
+    }
+
+    @Patch('teams/:id')
+    updateTeam(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Body() dto: UpdateTeamDto) {
+        return this.teams.update(req.csiScope, id, dto);
+    }
+
+    @Delete('teams/:id')
+    @HttpCode(HttpStatus.NO_CONTENT)
+    removeTeam(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string) {
+        return this.teams.remove(assertHcScope(req.csiScope), id);
+    }
+
+    @Put('teams/:id/members')
+    setTeamMembers(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Body() dto: SetTeamMembersDto) {
+        return this.teams.replaceMembers(assertHcScope(req.csiScope), id, dto.members);
     }
 
     @Post('members')
@@ -32,7 +54,7 @@ export class CsiAdminSubjectController {
     }
 
     @Delete('members/:userId')
-    removeMember(@Req() req: CsiAdminRequest, @Param('userId', new ParseUUIDPipe({ exceptionFactory: () => new BadRequestException('ID harus berupa UUID') })) userId: string) {
+    removeMember(@Req() req: CsiAdminRequest, @Param('userId', ID_PIPE) userId: string) {
         return this.subjects.removeMember(req.csiScope, userId);
     }
 

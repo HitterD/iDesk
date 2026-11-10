@@ -70,6 +70,7 @@ import { CsiAssignmentTemplateService } from './services/csi-assignment-template
 import { CsiAdminTemplateController } from './presentation/csi-admin-template.controller';
 import { CsiTemplateApplyService } from './services/csi-template-apply.service';
 import { CsiTemplateImportService } from './services/csi-template-import.service';
+import { CsiTeamService } from './services/csi-team.service';
 import { SystemSettings } from '../settings/entities/system-settings.entity';
 import { ReportSignoffService } from '../reports/services/report-signoff.service';
 
@@ -93,6 +94,6 @@ import { ReportSignoffService } from '../reports/services/report-signoff.service
     providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService, CsiMemoService,
         CsiSubjectService, CsiAssignmentService, CsiReminderService, CsiDashboardService, CsiQuestionSetService, CsiRaterBulkService, ReportSignoffService, CsiOrgService, CsiUnitRulesService, CsiPairsExcelService,
         CsiAccessReader, CsiReportAccessService, CsiServiceReportService, CsiSelfResultService,
-        CsiAssignmentTemplateService, CsiTemplateApplyService, CsiTemplateImportService],
+        CsiAssignmentTemplateService, CsiTemplateApplyService, CsiTemplateImportService, CsiTeamService],
 })
 export class CsiModule { }

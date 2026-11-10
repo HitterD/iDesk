@@ -102,8 +102,9 @@ function periodTarget(period: CsiPeriodDetail, data: MatrixData, rateeId: string
         subject: {
             key: rateeId, kind: ratee.kind, userId: ratee.userId, teamId: row?.teamId ?? null, siteId: ratee.siteId ?? '', name: ratee.name,
             jobTitle: row?.jobTitle ?? null, photoUrl: ratee.photoUrl, tagline: row?.tagline ?? null,
+            teamKind: null, serviceCode: null, picId: null, hasAccount: Boolean(ratee.userId),
         },
-        group: { siteId: ratee.siteId ?? '', siteCode: site.code ?? '', siteName: site.name, team: null, people: [] },
+        group: { siteId: ratee.siteId ?? '', siteCode: site.code ?? '', siteName: site.name, team: null, teams: [], people: [] },
         photoOverride: Boolean(row?.photoUrl),
     };
 }

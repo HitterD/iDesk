@@ -355,8 +355,9 @@ export interface ResetCsiResponse { reason: string }
 export interface CsiResetResult { reset: true }
 
 // ─── Subjects (master photo / tagline per person and per site team) ─────────
+export interface CsiTeamMemberView { id: string; name: string; userId: string | null }
 export interface CsiSubjectView {
-    /** `user:<userId>` or `team:<teamId>`. */
+    /** `user:<userId>`, `team:<teamId>` or `pic:<picId>` (HC PIC master, account optional). */
     key: string;
     kind: CsiRateeKind;
     userId: string | null;
@@ -368,12 +369,24 @@ export interface CsiSubjectView {
     tagline: string | null;
     /** Fungsi pelayanan (people only). */
     serviceFunction?: string | null;
+    /** Teams only: SITE (one per site) or CUSTOM (HC). */
+    teamKind: 'SITE' | 'CUSTOM' | null;
+    /** HC layanan (HCC/HCD/HCS) of a PIC or a custom team. */
+    serviceCode: string | null;
+    picId: string | null;
+    /** False for HC PICs without an iDesk account ("Belum punya akun") and for teams. */
+    hasAccount: boolean;
+    /** Custom teams only. */
+    members?: CsiTeamMemberView[];
 }
 export interface CsiSubjectGroup {
     siteId: string;
     siteCode: string;
     siteName: string;
+    /** The SITE team. */
     team: CsiSubjectView | null;
+    /** HC custom teams ([] for ICT). */
+    teams: CsiSubjectView[];
     people: CsiSubjectView[];
 }
 /** Empty / null clears tagline and jobTitle; `name` applies to team subjects only. */

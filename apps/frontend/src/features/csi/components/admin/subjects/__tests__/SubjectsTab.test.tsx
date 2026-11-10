@@ -6,13 +6,15 @@ import { SubjectsTab } from '../SubjectsTab';
 
 const person = (id: string, name: string, tagline: string | null): CsiSubjectView => ({
     key: `user:${id}`, kind: 'PERSON', userId: id, teamId: null, siteId: 's1', name, jobTitle: 'IT Support', photoUrl: null, tagline,
+    teamKind: null, serviceCode: null, picId: null, hasAccount: true,
 });
 const TEAM: CsiSubjectView = {
     key: 'team:t1', kind: 'TEAM', userId: null, teamId: 't1', siteId: 's1', name: 'Tim Sepanjang', jobTitle: null, photoUrl: null, tagline: 'Siap bantu',
+    teamKind: 'SITE', serviceCode: null, picId: null, hasAccount: false,
 };
 const GROUPS: CsiSubjectGroup[] = [
-    { siteId: 's1', siteCode: 'SPJ', siteName: 'Sepanjang', team: TEAM, people: [person('u1', 'Andi', null), person('u2', 'Budi', 'Cepat')] },
-    { siteId: 's2', siteCode: 'KRW', siteName: 'Karawang', team: null, people: [] },
+    { siteId: 's1', siteCode: 'SPJ', siteName: 'Sepanjang', team: TEAM, teams: [], people: [person('u1', 'Andi', null), person('u2', 'Budi', 'Cepat')] },
+    { siteId: 's2', siteCode: 'KRW', siteName: 'Karawang', team: null, teams: [], people: [] },
 ];
 
 const hooks = vi.hoisted(() => ({ update: vi.fn(), upload: vi.fn(), createTeam: vi.fn(), addMembers: vi.fn(), removeMember: vi.fn() }));
