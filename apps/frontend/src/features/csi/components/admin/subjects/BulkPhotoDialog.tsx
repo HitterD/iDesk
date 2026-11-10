@@ -8,13 +8,14 @@ import { errorMessage } from '../../../lib/csiForm';
 import { toneClasses } from '../../../lib/csiTone';
 import type { CsiScopeParam, CsiSubjectGroup, CsiSubjectView } from '../../../types';
 import { MUTED_TEXT } from '../AdminParts';
-import { expandZip, isPhotoName, isZipFile, matchPhotoFiles } from './photoMatch';
+import { expandZip, isPhotoName, isZipFile, matchPhotoFiles, ZIP_TOO_BIG, ZIP_TOO_MANY } from './photoMatch';
 import { photoError } from './SubjectEditSheet';
 
 const FIELD = 'h-8 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--idesk-surface))] px-2 text-[12.5px]';
 const SKIP = '';
 const UPLOAD_FAILED = 'Gagal mengunggah';
 const ZIP_FAILED = 'ZIP tidak bisa dibaca';
+const ZIP_LIMIT_ERRORS: readonly string[] = [ZIP_TOO_BIG, ZIP_TOO_MANY];
 
 type RowStatus = { state: 'idle' } | { state: 'done' } | { state: 'failed'; message: string };
 interface Row { id: number; file: File; url: string | null; key: string; ambiguous: boolean; status: RowStatus }
@@ -30,8 +31,9 @@ async function expandPicked(files: File[]): Promise<{ photos: File[]; problems: 
         if (isZipFile(file)) {
             try {
                 photos.push(...await expandZip(file));
-            } catch {
-                problems.push(`${file.name}: ${ZIP_FAILED}`);
+            } catch (failure) {
+                const reason = failure instanceof Error && ZIP_LIMIT_ERRORS.includes(failure.message) ? failure.message : ZIP_FAILED;
+                problems.push(`${file.name}: ${reason}`);
             }
         } else if (isPhotoName(file.name)) photos.push(file);
     }
@@ -92,6 +94,8 @@ export function BulkPhotoDialog({ scope, groups, open, onOpenChange }: {
     const upload = useUploadCsiSubjectPhoto(scope);
     const input = useRef<HTMLInputElement>(null);
     const nextId = useRef(0);
+    /** Bumped on close: a pick still unpacking a ZIP must not bring its rows (and object URLs) back afterwards. */
+    const generation = useRef(0);
     const [rows, setRows] = useState<Row[]>([]);
     const [problems, setProblems] = useState<string[]>([]);
     const [progress, setProgress] = useState<{ done: number; total: number; failed: number } | null>(null);
@@ -102,11 +106,13 @@ export function BulkPhotoDialog({ scope, groups, open, onOpenChange }: {
 
     const close = (next: boolean) => {
         if (running) return;
-        if (!next) { revokeAll(); setRows([]); setProblems([]); setProgress(null); }
+        if (!next) { generation.current += 1; revokeAll(); setRows([]); setProblems([]); setProgress(null); }
         onOpenChange(next);
     };
     const pick = async (files: File[]) => {
+        const pickGeneration = generation.current;
         const { photos, problems: zipProblems } = await expandPicked(files);
+        if (pickGeneration !== generation.current) return;
         const subjects = groups.flatMap(subjectsOf).map(({ key, name }) => ({ key, name }));
         const added = matchPhotoFiles(photos, subjects).map(({ file, key, candidates }): Row => {
             const url = objectUrl(file);
@@ -155,7 +161,7 @@ export function BulkPhotoDialog({ scope, groups, open, onOpenChange }: {
                             onChange={(event) => { const picked = Array.from(event.target.files ?? []); event.target.value = ''; void pick(picked); }} />
                         <p className={cn(MUTED_TEXT, 'mt-1 text-[12px]')}>JPG/PNG/WebP ≤ 5 MB per foto. File lain di dalam ZIP diabaikan.</p>
                     </div>
-                    {problems.map((problem) => <p key={problem} role="alert" className={cn('text-[12.5px]', toneClasses('red').ink)}>{problem}</p>)}
+                    {problems.map((problem, index) => <p key={`${index}-${problem}`} role="alert" className={cn('text-[12.5px]', toneClasses('red').ink)}>{problem}</p>)}
                     {rows.length > 0 && <RowsTable rows={rows} groups={groups} disabled={running} onAssign={assign} />}
                     {progress && <p role="status" className="text-[13px] font-semibold tabular-nums">{`${progress.done} / ${progress.total}`}</p>}
                     {progress && !running && (

@@ -1,6 +1,14 @@
+import * as fflate from 'fflate';
 import { strToU8, zipSync } from 'fflate';
-import { describe, expect, it } from 'vitest';
-import { expandZip, matchPhotoFiles, normalizePhotoName } from '../photoMatch';
+import { describe, expect, it, vi } from 'vitest';
+import { expandZip, matchPhotoFiles, normalizePhotoName, ZIP_MAX_BYTES, ZIP_MAX_PHOTOS } from '../photoMatch';
+
+vi.mock('fflate', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('fflate')>();
+    return { ...actual, unzipSync: vi.fn(actual.unzipSync) };
+});
+const zipFile = (entries: Record<string, Uint8Array>) => new File([zipSync(entries, { level: 1 })], 'foto.zip', { type: 'application/zip' });
+const MB = 1024 * 1024;
 
 const SUBJECTS = [
     { key: 'pic:p1', name: 'Rara Kurnia' },
@@ -43,5 +51,33 @@ describe('photoMatch', () => {
             ['Tim Payroll.PNG', 'image/png'],
             ['x.webp', 'image/webp'],
         ]);
+    });
+
+    it('does not decompress non-images, hidden or oversized entries', async () => {
+        const files = await expandZip(zipFile({ 'a.jpg': strToU8('a'), 'big.png': new Uint8Array(5 * MB + 1), 'notes.txt': strToU8('t') }));
+        expect(files.map((item) => item.name)).toEqual(['a.jpg']);
+        const filter = vi.mocked(fflate.unzipSync).mock.calls.at(-1)?.[1]?.filter;
+        expect(filter).toBeTypeOf('function');
+        const info = (name: string, originalSize = 10) => ({ name, size: 5, originalSize, compression: 8 });
+        expect(filter!(info('notes.txt'))).toBe(false);
+        expect(filter!(info('__MACOSX/._a.jpg'))).toBe(false);
+        expect(filter!(info('dir/.hidden.jpg'))).toBe(false);
+        expect(filter!(info('huge.jpg', 5 * MB + 1))).toBe(false);
+    });
+
+    it('rejects a ZIP with too many photos or one that is too big', async () => {
+        const many = Object.fromEntries(Array.from({ length: ZIP_MAX_PHOTOS + 1 }, (_, index) => [`p${index}.jpg`, strToU8('x')]));
+        await expect(expandZip(zipFile(many))).rejects.toThrow('ZIP berisi lebih dari 300 foto');
+
+        const large = zipFile({ 'a.jpg': strToU8('a') });
+        Object.defineProperty(large, 'size', { value: ZIP_MAX_BYTES + 1 });
+        const read = vi.spyOn(large, 'arrayBuffer');
+        await expect(expandZip(large)).rejects.toThrow('ZIP terlalu besar (maks 50 MB)');
+        expect(read).not.toHaveBeenCalled();
+    });
+
+    it('rejects a ZIP whose photos together exceed 50 MB once unpacked', async () => {
+        const entries = Object.fromEntries(Array.from({ length: 11 }, (_, index) => [`p${index}.jpg`, new Uint8Array(5 * MB - 1)]));
+        await expect(expandZip(zipFile(entries))).rejects.toThrow('ZIP terlalu besar (maks 50 MB)');
     });
 });

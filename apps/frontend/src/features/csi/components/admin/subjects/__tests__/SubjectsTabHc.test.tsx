@@ -1,4 +1,5 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { strToU8, zipSync } from 'fflate';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CsiSubjectGroup, CsiSubjectView } from '../../../../types';
@@ -90,6 +91,25 @@ describe('SubjectsTab (HC)', () => {
         expect(hooks.setMembers).toHaveBeenCalledWith({ id: 't9', members: [{ name: 'Joko Susilo' }, { userId: 'hc9' }] });
     });
 
+    it('a failed member save after create retries as an update, not a second create', async () => {
+        const actor = userEvent.setup();
+        hooks.setMembers.mockRejectedValueOnce({ response: { status: 400, data: { message: 'Anggota tidak valid' } } });
+        render(<SubjectsTab scope="hc" />);
+        await actor.click(screen.getByRole('button', { name: /Tim custom/ }));
+        const sheet = screen.getByRole('dialog');
+        await actor.type(within(sheet).getByLabelText('Nama tim'), 'Tim Rekrut');
+        await actor.selectOptions(within(sheet).getByLabelText('Layanan'), 'HCD');
+        await actor.click(within(sheet).getByRole('button', { name: 'Simpan' }));
+        expect(await within(sheet).findByText('Anggota tidak valid')).toBeInTheDocument();
+        expect(within(sheet).getByLabelText('Site')).toBeDisabled();
+
+        await actor.click(within(sheet).getByRole('button', { name: 'Simpan' }));
+        await waitFor(() => expect(hooks.setMembers).toHaveBeenCalledTimes(2));
+        expect(hooks.create).toHaveBeenCalledTimes(1);
+        expect(hooks.update).toHaveBeenCalledWith({ id: 't9', name: 'Tim Rekrut', serviceCode: 'HCD' });
+        expect(hooks.setMembers).toHaveBeenLastCalledWith({ id: 't9', members: [] });
+    });
+
     it('editing a custom team locks the site and shows the backend refusal on delete', async () => {
         const actor = userEvent.setup();
         vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -131,5 +151,20 @@ describe('SubjectsTab (HC)', () => {
         expect(hooks.upload.mock.calls.map(([vars]) => vars.key)).toEqual(['pic:p1', 'team:t5']);
         expect(hooks.upload.mock.calls[0][0].file.name).toBe('rara_kurnia.jpg');
         expect(within(dialog).getByText('Format foto tidak didukung')).toBeInTheDocument();
+    });
+
+    it('a ZIP still unpacking when the dialog closes does not reappear', async () => {
+        const actor = userEvent.setup();
+        const zip = new File([zipSync({ 'Rara Kurnia.jpg': strToU8('x') })], 'foto.zip', { type: 'application/zip' });
+        let release: () => void = () => undefined;
+        const buffer = zip.arrayBuffer();
+        vi.spyOn(zip, 'arrayBuffer').mockReturnValue(new Promise((resolve) => { release = () => resolve(buffer); }));
+        render(<SubjectsTab scope="hc" />);
+        await actor.click(screen.getByRole('button', { name: /Unggah foto massal/ }));
+        await actor.upload(within(screen.getByRole('dialog')).getByLabelText('Pilih foto atau ZIP'), zip);
+        await actor.click(within(screen.getByRole('dialog')).getAllByRole('button', { name: 'Tutup' }).at(-1)!);
+        await actor.click(screen.getByRole('button', { name: /Unggah foto massal/ }));
+        await act(async () => { release(); await buffer; });
+        expect(within(screen.getByRole('dialog')).queryByRole('table')).not.toBeInTheDocument();
     });
 });

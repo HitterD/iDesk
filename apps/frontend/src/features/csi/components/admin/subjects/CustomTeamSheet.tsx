@@ -83,6 +83,9 @@ function CustomTeamForm({ scope, groups, target, onClose, onEditPhoto }: FormPro
     const [members, setMembersDraft] = useState<DraftMember[]>((team?.members ?? []).map(({ userId, name: memberName }) => ({ userId, name: memberName })));
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    /** Set once a create succeeded: a retry after a failed member save must update that team, not create it again. */
+    const [createdId, setCreatedId] = useState<string | null>(null);
+    const teamId = team?.teamId ?? createdId;
     const ids = { site: useId(), name: useId(), service: useId() };
     const addMember = (member: DraftMember) => setMembersDraft((prev) =>
         prev.some((item) => (member.userId ? item.userId === member.userId : !item.userId && item.name === member.name)) ? prev : [...prev, member]);
@@ -101,9 +104,13 @@ function CustomTeamForm({ scope, groups, target, onClose, onEditPhoto }: FormPro
     };
     const save = () => run(async () => {
         const body = { name: name.trim(), serviceCode };
-        const id = team?.teamId ?? (await create.mutateAsync({ siteId, ...body })).teamId;
-        if (!id) throw new Error('missing team id');
-        if (team) await update.mutateAsync({ id, ...body });
+        let id = teamId;
+        if (id) await update.mutateAsync({ id, ...body });
+        else {
+            id = (await create.mutateAsync({ siteId, ...body })).teamId;
+            if (!id) throw new Error('missing team id');
+            setCreatedId(id);
+        }
         await setMembers.mutateAsync({ id, members: members.map(toInput) });
     }, SAVE_FAILED);
     const destroy = () => {
@@ -117,7 +124,7 @@ function CustomTeamForm({ scope, groups, target, onClose, onEditPhoto }: FormPro
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
                 <div className="grid gap-1.5">
                     <label htmlFor={ids.site} className={FIELD_LABEL}>Site</label>
-                    <select id={ids.site} className={FIELD} value={siteId} disabled={!!team} onChange={(event) => setSiteId(event.target.value)}>
+                    <select id={ids.site} className={FIELD} value={siteId} disabled={!!teamId} onChange={(event) => setSiteId(event.target.value)}>
                         {groups.map((group) => <option key={group.siteId} value={group.siteId}>{`${group.siteCode} · ${group.siteName}`}</option>)}
                     </select>
                 </div>
