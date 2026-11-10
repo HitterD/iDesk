@@ -1,7 +1,9 @@
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CsiRaterMatrix } from './csi-rater-matrix.calc';
+import { CsiDepartmentParticipation, CsiSlaBlock, departmentParticipation, slaBlock } from './csi-report-participation';
+import { CsiServiceHighlight, CsiServiceRanking, rankingByService, serviceHighlight } from './csi-report-ranking';
 import { CsiReportService } from './csi-report.service';
-import { CsiSlaReporter } from './csi-sla.service';
 import { bandsOf, CsiScoreBand, CsiScoreBands, CsiScoreWord, scoreBand, scoreWordFor } from './csi-score-bands';
 import { averageOfAverages } from './csi-score.util';
 import type { CsiHcRecap } from '../org/csi-hc-report.calc';
@@ -16,9 +18,6 @@ type Ratee = CsiReportData['ratees'][number];
 const SCORE_MAX = 5;
 const PERCENT = 100;
 const INDEX_DECIMALS = 10;
-/** Highlight boxes for long people lists: top and "needs attention" rows (the full table is always printed). */
-export const HIGHLIGHT_COUNT = 3;
-export const HIGHLIGHT_FROM = 10;
 const SCORED = new Set<string>([CsiQuestionType.STAR, CsiQuestionType.SCALE]);
 
 export const indexPct = (average: number | null) => (average === null ? null : Math.round((average / SCORE_MAX) * PERCENT * INDEX_DECIMALS) / INDEX_DECIMALS);
@@ -38,8 +37,6 @@ export type CsiSiteParticipation = {
     siteId: string; code: string | null; name: string | null; basis: number; target: number; responses: number;
     respondenPct: number | null; pengisiPct: number | null; reached: boolean; average: number | null;
 };
-export type CsiDepartmentRow = { name: string; responses: number; pct: number };
-export type CsiBasisPerson = CsiSlaReporter & { siteCode: string | null; answered: boolean };
 export type CsiCommentGroup = { name: string; kind: CsiRateeKind; comments: Array<{ text: string; department: string; date: Date }> };
 
 export type CsiReportModel = {
@@ -49,6 +46,10 @@ export type CsiReportModel = {
     bands: CsiScoreBands;
     overall: { average: number | null; word: CsiScoreWord | null; band: CsiScoreBand | null; indexPct: number | null; previous: number | null; delta: number | null };
     participation: { basis: number; target: number; responses: number; respondenPct: number | null; pengisiPct: number | null; reached: boolean; basisLabel: string };
+    /** Official SLA status of the survey (answers vs ceil(basis × target%)). */
+    sla: CsiSlaBlock;
+    /** True when an earlier published period exists (Lalu / Δ columns only then). */
+    hasPrevious: boolean;
     sites: CsiSiteParticipation[];
     teams: CsiReportRow[];
     people: CsiReportRow[];
@@ -56,9 +57,14 @@ export type CsiReportModel = {
     teamGrid: CsiQuestionGrid;
     peopleGrid: CsiQuestionGrid;
     choices: CsiChoiceSummary[];
-    departments: CsiDepartmentRow[];
+    /** Basis raters per department, numbers only; departments below CSI_ANON_MIN_GROUP merged. No names anywhere. */
+    departments: CsiDepartmentParticipation[];
+    /** Fair ranking: HC per layanan, ICT "Tim" and "Orang"; fewer than CSI_RANK_MIN_RATERS raters = insufficient. */
+    rankingByService: CsiServiceRanking[];
+    /** HC best / worst layanan (never a person); null for ICT or fewer than two scored layanan. */
+    serviceHighlight: CsiServiceHighlight | null;
     comments: CsiCommentGroup[];
-    basis: CsiBasisPerson[];
+    /** Summary sentences; they never name a person or team. */
     highlights: string[];
     notes: string;
     counts: { teams: number; people: number; sites: number; comments: number };
@@ -140,17 +146,17 @@ function choices(ratees: Ratee[]): CsiChoiceSummary[] {
     return [...groups].map(([label, counts]) => ({ label, counts: [...counts].map(([option, count]) => ({ option, count })) }));
 }
 
-function highlightSentences(model: Pick<CsiReportModel, 'bands' | 'overall' | 'teams' | 'people' | 'aspects' | 'sites'>): string[] {
+const fmt = (value: number) => value.toFixed(2).replace('.', ',');
+
+/** Summary sentences, never naming a person or team: overall, best/worst layanan (HC), count below fair, aspects, sites. */
+function highlightSentences(model: Pick<CsiReportModel, 'bands' | 'overall' | 'teams' | 'people' | 'aspects' | 'sites' | 'serviceHighlight'>): string[] {
     const lines: string[] = [];
-    const fmt = (value: number) => value.toFixed(2).replace('.', ',');
     const { overall } = model;
     if (overall.average === null) return ['Belum ada jawaban yang bernilai pada survei ini.'];
     lines.push(`Kepuasan keseluruhan ${overall.word} (${fmt(overall.average)} dari 5)${overall.delta === null ? '.' : `, ${overall.delta >= 0 ? 'naik' : 'turun'} ${fmt(Math.abs(overall.delta))} dari periode lalu.`}`);
-    const all = [...model.teams, ...model.people].filter((row) => row.average !== null);
-    const best = [...all].sort((a, b) => b.average! - a.average!)[0];
-    const worst = [...all].sort((a, b) => a.average! - b.average!)[0];
-    if (best && worst && best !== worst) lines.push(`Tertinggi: ${best.name} (${fmt(best.average!)}). Perlu perhatian: ${worst.name} (${fmt(worst.average!)})${worst.delta !== null && worst.delta < 0 ? `, turun ${fmt(-worst.delta)}` : ''}.`);
-    const below = all.filter((row) => row.band === 'poor').length;
+    const highlight = model.serviceHighlight;
+    if (highlight) lines.push(`Layanan tertinggi: ${highlight.best.code} ${fmt(highlight.best.average)} · terendah: ${highlight.worst.code} ${fmt(highlight.worst.average)}.`);
+    const below = [...model.teams, ...model.people].filter((row) => row.band === 'poor').length;
     if (below) lines.push(`${below} tim/orang di bawah ${fmt(model.bands.fairMin)} (Perlu perbaikan).`);
     const scored = model.aspects.filter((aspect) => aspect.average !== null);
     if (scored.length > 1) lines.push(`Aspek terlemah: ${scored[0].label} (${fmt(scored[0].average!)}). Terkuat: ${scored[scored.length - 1].label} (${fmt(scored[scored.length - 1].average!)}).`);
@@ -159,17 +165,31 @@ function highlightSentences(model: Pick<CsiReportModel, 'bands' | 'overall' | 't
     return lines;
 }
 
+/** Subjects of the per-layanan ranking; detail = HC bagian (else fungsi pelayanan), ICT site code. */
+function rankSubjects(report: CsiReportData, rows: CsiReportRow[], scope: ServiceScope) {
+    const byId = new Map(report.ratees.map((ratee) => [ratee.periodRateeId, ratee]));
+    return rows.map((row) => {
+        const ratee = byId.get(row.periodRateeId);
+        const detail = scope === ServiceScope.HC ? ratee?.bagian ?? ratee?.serviceFunction ?? null : row.siteCode;
+        return { name: row.name, kind: row.kind, average: row.average, raters: row.raters, serviceCode: ratee?.serviceCode ?? null, detail, previous: row.previous };
+    });
+}
+
 export type CsiReportModelInput = {
     report: CsiReportData;
     matrix: CsiRaterMatrix;
     scopeLabel: string;
+    scope: ServiceScope;
     /** Average per subject in the previous period (subjectKeyOf); empty when there is none. */
     previousBySubject: Map<string, number | null>;
-    /** Per site: basis people (SLA) and the user ids that answered. */
-    siteBasis: Array<{ siteId: string; reporters: Array<CsiSlaReporter & { userId?: string }>; responses: number; average: number | null }>;
-    answeredUserIds: Set<string>;
-    reporterUserIds: Map<string, string>;
-    departments: Array<{ name: string; responses: number }>;
+    /** An earlier published period exists (even when nobody answered it). */
+    hasPrevious: boolean;
+    /** Per site: SLA basis (number of people), responses and average. */
+    siteBasis: Array<{ siteId: string; basis: number; responses: number; average: number | null }>;
+    /** Every basis rater: department (directory, else account) and whether they answered; never a name. */
+    raters: Array<{ department: string | null; answered: boolean }>;
+    /** HC: average per layanan (mean of every rating of its PICs, as the recap); empty for ICT. */
+    serviceAverages: Array<{ serviceCode: string | null; average: number | null }>;
     comments: Array<{ periodRateeId: string; text: string; department: string; date: Date }>;
     notes: string;
 };
@@ -188,7 +208,7 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
     const targetPct = report.period.slaTargetPct;
     const sites: CsiSiteParticipation[] = input.siteBasis.map((row) => {
         const site = report.period.sites.find((item) => item.id === row.siteId);
-        const basis = row.reporters.length;
+        const basis = row.basis;
         const target = Math.ceil((basis * targetPct) / PERCENT);
         return {
             siteId: row.siteId, code: site?.code ?? null, name: site?.name ?? null, basis, target, responses: row.responses,
@@ -197,16 +217,11 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
         };
     });
     const sla = report.sla;
-    const totalDepartmentResponses = input.departments.reduce((sum, row) => sum + row.responses, 0);
     const byRatee = new Map<string, CsiCommentGroup>();
     [...teams, ...people].forEach((row) => byRatee.set(row.periodRateeId, { name: row.name, kind: row.kind, comments: [] }));
     input.comments.forEach((comment) => byRatee.get(comment.periodRateeId)?.comments.push({ text: comment.text, department: comment.department, date: comment.date }));
     const commentGroups = [...byRatee.values()].filter((group) => group.comments.length)
         .map((group) => ({ ...group, comments: [...group.comments].sort((a, b) => b.date.getTime() - a.date.getTime()) }));
-    const basis: CsiBasisPerson[] = input.siteBasis.flatMap((row) => row.reporters.map((reporter) => {
-        const userId = reporter.userId ?? input.reporterUserIds.get(reporter.email.toLowerCase());
-        return { ...reporter, siteCode: siteCodeOf(row.siteId), answered: !!userId && input.answeredUserIds.has(userId) };
-    })).sort((a, b) => (a.siteCode ?? '').localeCompare(b.siteCode ?? '') || Number(a.answered) - Number(b.answered) || a.fullName.localeCompare(b.fullName, 'id', { numeric: true }));
     const overallAverage = report.overall.average;
     const partial: Omit<CsiReportModel, 'highlights'> = {
         title: report.period.title, scopeLabel, startDate: report.period.startDate, endDate: report.period.endDate,
@@ -219,15 +234,16 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
             pengisiPct: sla.pengisiPct, reached: sla.target > 0 && sla.responses >= sla.target,
             basisLabel: sla.mode === CsiRespondentMode.LISTED ? 'penilai terdaftar' : 'pelapor iDesk 12 bulan terakhir',
         },
+        sla: slaBlock({ basis: sla.basis, targetPct, target: sla.target, responses: sla.responses }), hasPrevious: input.hasPrevious,
         sites, teams, people,
+        rankingByService: rankingByService({ scope: input.scope, bands, subjects: rankSubjects(report, [...teams, ...people], input.scope) }),
+        serviceHighlight: input.scope === ServiceScope.HC ? serviceHighlight(input.serviceAverages) : null,
         aspects: aspects(report.ratees),
         teamGrid: grid(report.ratees, CsiRateeKind.TEAM, siteCodeOf, teamLabel, teams),
         peopleGrid: grid(report.ratees, CsiRateeKind.PERSON, siteCodeOf, teamLabel, people),
         choices: choices(report.ratees),
-        departments: input.departments
-            .map((row) => ({ ...row, pct: totalDepartmentResponses ? Math.round((row.responses / totalDepartmentResponses) * 1000) / 10 : 0 }))
-            .sort((a, b) => b.responses - a.responses || a.name.localeCompare(b.name, 'id')),
-        comments: commentGroups, basis, notes: input.notes.trim(),
+        departments: departmentParticipation(input.raters, targetPct),
+        comments: commentGroups, notes: input.notes.trim(),
         counts: { teams: teams.length, people: people.length, sites: report.period.sites.length, comments: commentGroups.reduce((sum, group) => sum + group.comments.length, 0) },
     };
     return { ...partial, highlights: highlightSentences(partial) };

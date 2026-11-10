@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiRateeKind } from '../csi.constants';
 import { buildReportModel, indexPct, questionLabel } from './csi-report-model';
 import { reportFixture } from './csi-report-model.fixture';
@@ -44,16 +45,61 @@ describe('csi-report-model', () => {
         expect(first.delta).toBe(Math.round((first.average! - 4.9) * 100) / 100);
     });
 
-    it('keeps every parameter: 0-answer departments, all comments, every basis person (not answered first)', () => {
+    it('keeps every parameter: all comments, every site, participation per department without names', () => {
         const { model } = reportFixture({ people: 25, responses: 100, sites: 3, comments: 30 });
         expect(model.people).toHaveLength(25);
-        expect(model.departments.map((row) => row.name)).toEqual(['Produksi', 'Keuangan']);
         expect(model.counts.comments).toBe(3 * 30 + 1);
-        expect(model.basis).toHaveLength(110);
-        const firstSite = model.basis.filter((person) => person.siteCode === 'S0');
-        expect(firstSite[0].answered).toBe(false);
-        expect(firstSite[firstSite.length - 1].answered).toBe(true);
         expect(model.sites).toHaveLength(3);
+        expect(model.sites.reduce((sum, site) => sum + site.basis, 0)).toBe(110);
+        // 108 Produksi raters (100 answered) and 2 Keuangan raters merged into the small-department row.
+        expect(model.departments).toEqual([
+            { name: 'Departemen kecil (gabungan)', submitted: 0, total: 2, pct: 0, met: false },
+            { name: 'Produksi', submitted: 100, total: 108, pct: 93, met: true },
+        ]);
+        expect(model).not.toHaveProperty('basis');
+        expect(JSON.stringify(model.departments)).not.toMatch(/Keuangan|Basis \d/);
+    });
+
+    it('sla met/missing on the survey total', () => {
+        expect(reportFixture({ responses: 2 }).model.sla).toEqual({ basis: 12, submitted: 2, pct: 17, targetPct: 80, targetCount: 10, met: false, missing: 8 });
+        expect(reportFixture({ responses: 50 }).model.sla).toMatchObject({ basis: 60, submitted: 50, targetCount: 48, met: true, missing: 0 });
+    });
+
+    it('ranking per service: ICT keeps "Tim" and "Orang"; below 5 raters listed as insufficient', () => {
+        const { model } = reportFixture({ people: 4, responses: 6, sites: 2 });
+        expect(model.rankingByService.map((group) => group.serviceName)).toEqual(['Tim', 'Orang']);
+        const [teams, people] = model.rankingByService;
+        expect(teams.ranked.map((row) => row.detail)).toEqual(expect.arrayContaining(['S0', 'S1']));
+        // Fixture raters per person: 6, 5, 4, 3.
+        expect(people.ranked.map((row) => row.raters).sort()).toEqual([5, 6]);
+        expect(people.insufficient.map((row) => [row.rank, row.raters])).toEqual([[null, 4], [null, 3]]);
+        expect(model.serviceHighlight).toBeNull();
+    });
+
+    it('HC: ranking and highlight per layanan; highlight has no person names', () => {
+        const { input } = reportFixture({ people: 4, responses: 6 });
+        const codes = ['HCD', 'HCS', 'HCD', 'HCC'];
+        const ratees = input.report.ratees.map((ratee: any) => (ratee.kind === CsiRateeKind.PERSON
+            ? { ...ratee, serviceCode: codes[Number(ratee.periodRateeId.slice(1))], bagian: `Bagian ${ratee.periodRateeId}` } : ratee));
+        const model = buildReportModel({
+            ...input, scope: ServiceScope.HC, report: { ...input.report, ratees },
+            serviceAverages: [{ serviceCode: 'HCD', average: 4.41 }, { serviceCode: 'HCS', average: 4.05 }, { serviceCode: 'HCC', average: 4.2 }],
+        });
+        expect(model.rankingByService.map((group) => group.serviceCode)).toEqual(['HCD', 'HCC', 'HCS', null]);
+        expect(model.rankingByService[0].ranked.map((row) => row.detail)).toEqual(expect.arrayContaining(['Bagian p0']));
+        expect(model.serviceHighlight).toMatchObject({ best: { code: 'HCD', average: 4.41 }, worst: { code: 'HCS', average: 4.05 } });
+        const sentences = model.highlights.join(' ');
+        expect(sentences).toContain('Layanan tertinggi: HCD 4,41 · terendah: HCS 4,05.');
+        [...model.people, ...model.teams].forEach((row) => expect(sentences).not.toContain(row.name));
+    });
+
+    it('no previous → hasPrevious false', () => {
+        const { input } = reportFixture();
+        const model = buildReportModel({ ...input, hasPrevious: false, previousBySubject: new Map(), report: { ...input.report, previousAverage: null } });
+        expect(model.hasPrevious).toBe(false);
+        expect(model.overall.delta).toBeNull();
+        expect(model.rankingByService.flatMap((group) => [...group.ranked, ...group.insufficient]).every((row) => row.previous === null && row.delta === null)).toBe(true);
+        expect(reportFixture().model.hasPrevious).toBe(true);
     });
 
     it('question grids are transposed per kind with codes; an unassigned question is null', () => {

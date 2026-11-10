@@ -1,4 +1,5 @@
-import { buildHcRecap, CsiHcPic, CsiHcRating } from './csi-hc-report.calc';
+import { buildHcRecap, CSI_SMALL_BAGIAN_LABEL, CsiHcPic, CsiHcRating } from './csi-hc-report.calc';
+import { CSI_SMALL_GROUP_LABEL } from '../csi.constants';
 import { CsiOrgLocation } from './csi-org.constants';
 
 const DIMS = ['Knowledge', 'Responsiveness'];
@@ -48,10 +49,33 @@ describe('buildHcRecap', () => {
     });
 
     it('groups respondents by division → department → bagian and lists each answer', () => {
-        expect(recap.respondentGroups.filter((entry) => entry.level === 'division').map((entry) => [entry.label, entry.all.average]))
-            .toEqual([['MARKETING', 3.5], ['OPERATION SJA 1', 3.75]]);
+        // Each unit here has 1 respondent (< CSI_ANON_MIN_GROUP): all of them sit in the merged row only.
+        expect(recap.respondentGroups.map((entry) => [entry.level, entry.label, entry.all.average]))
+            .toEqual([['division', CSI_SMALL_GROUP_LABEL, 3.63]]);
         const r1 = recap.respondents.find((entry) => entry.responseId === 'r1')!;
         expect(r1.pics.map((pic) => [pic.name, pic.average])).toEqual([['ANITA', 4.5], ['CICI', 3]]);
         expect(r1.average).toBe(3.75);
+    });
+
+    it('anon boundary: respondent departments of 3 are kept, 2 are merged into one row', () => {
+        const unit = (responseId: string, department: string, bagian = 'QC'): CsiHcRating => ({
+            responseId, periodRateeId: 'a', location: CsiOrgLocation.SJA1, scores: { Knowledge: 4, Responsiveness: 4 },
+            respondent: { name: `R-${responseId}`, division: 'OPERATION', department, bagian },
+        });
+        const merged = buildHcRecap({
+            pics, dimensions: DIMS, ratings: [
+                unit('k1', 'PRODUKSI', 'LINE 1'), unit('k2', 'PRODUKSI', 'LINE 1'), unit('k3', 'PRODUKSI', 'LINE 2'),
+                unit('g1', 'GUDANG'), unit('g2', 'GUDANG'), unit('q1', 'QC'),
+            ],
+        });
+        // PRODUKSI (3) stays; its bagians (2 + 1) share one row; GUDANG (2) and QC (1) leave the division into one row.
+        expect(merged.respondentGroups.map((entry) => [entry.level, entry.label, entry.all.ratings])).toEqual([
+            ['division', 'OPERATION', 3], ['department', 'PRODUKSI', 3], ['bagian', CSI_SMALL_BAGIAN_LABEL, 3],
+            ['division', CSI_SMALL_GROUP_LABEL, 3],
+        ]);
+        expect(JSON.stringify(merged.respondentGroups)).not.toMatch(/GUDANG|LINE/);
+        // Nothing small: no merged row.
+        const large = buildHcRecap({ pics, dimensions: DIMS, ratings: ['x1', 'x2', 'x3'].map((id) => unit(id, 'PRODUKSI')) });
+        expect(large.respondentGroups.map((entry) => entry.label)).toEqual(['OPERATION', 'PRODUKSI', 'QC']);
     });
 });

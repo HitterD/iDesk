@@ -7,7 +7,7 @@ import { CsiQuestionGrid, CsiReportModel, CsiReportRow } from './csi-report-mode
 /** Sheets of the executive report, in workbook order (before the raw answer sheets). */
 export const EXECUTIVE_SHEETS = {
     summary: 'Ringkasan', teams: 'Peringkat Tim', people: 'Peringkat Orang', participation: 'Partisipasi',
-    teamGrid: 'Per Pertanyaan Tim', peopleGrid: 'Per Pertanyaan Orang', departments: 'Departemen', comments: 'Komentar', basis: 'Basis Partisipasi',
+    teamGrid: 'Per Pertanyaan Tim', peopleGrid: 'Per Pertanyaan Orang', departments: 'Departemen', comments: 'Komentar',
 } as const;
 
 const WIDE = 60;
@@ -72,15 +72,13 @@ export function addExecutiveSheets(workbook: ExcelJS.Workbook, model: CsiReportM
     participationSheet(workbook, model);
     gridSheet(workbook, EXECUTIVE_SHEETS.teamGrid, model.teamGrid);
     gridSheet(workbook, EXECUTIVE_SHEETS.peopleGrid, model.peopleGrid);
-    addStyledSheet(workbook, EXECUTIVE_SHEETS.departments, [{ header: 'Departemen', width: LABEL }, COUNT('Jawaban'), { ...PERCENT_COLUMN('% dari total'), format: '0.0"%"' }],
-        model.departments.map((row) => [text(row.name), row.responses, row.pct]));
+    // Basis raters per department, numbers only (small departments merged); names stay on the admin screen.
+    addStyledSheet(workbook, EXECUTIVE_SHEETS.departments, [{ header: 'Departemen', width: LABEL }, COUNT('Sudah'), COUNT('Total'), PERCENT_COLUMN('%'), { header: 'Target', width: 14 }],
+        model.departments.map((row) => [text(row.name), row.submitted, row.total, row.pct, row.met ? 'Tercapai' : 'Belum']));
     addStyledSheet(workbook, EXECUTIVE_SHEETS.comments, [
         { header: 'Dinilai', width: WIDTH.name }, { header: 'Jenis', width: SHORT }, { header: 'Komentar', width: WIDE },
         { header: 'Departemen', width: WIDTH.department }, { header: 'Tanggal', width: 14 },
     ], model.comments.flatMap((group) => group.comments.map((comment): CellValue[] => [
         text(group.name), group.kind === CsiRateeKind.TEAM ? 'Tim' : 'Orang', text(comment.text), text(comment.department), localDateKey(comment.date, DEFAULT_TIMEZONE),
     ])));
-    addStyledSheet(workbook, EXECUTIVE_SHEETS.basis, [
-        COUNT('Site'), { header: 'Nama', width: WIDTH.name }, { header: 'Email', width: LABEL }, { header: 'Departemen', width: WIDTH.department }, { header: 'Status', width: 14 },
-    ], model.basis.map((person) => [person.siteCode, text(person.fullName), text(person.email), text(person.department), person.answered ? 'Sudah mengisi' : 'Belum mengisi']));
 }

@@ -3,7 +3,7 @@ import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap, CsiRecapRow, CsiRespon
 
 /** Name shown instead of the rater on ratings the viewer may not attribute (ratings about the viewer themself). */
 export const ANONYMOUS_RESPONDENT = 'Anonim';
-const NO_DEPARTMENT = 'Tanpa departemen';
+export const NO_DEPARTMENT = 'Tanpa departemen';
 
 export type CsiPendingDepartment = { department: string; pending: number; total: number };
 

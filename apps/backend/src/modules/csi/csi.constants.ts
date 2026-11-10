@@ -21,6 +21,12 @@ export const CSI_SLA_TARGET_DEFAULT_HC = 90;
 /** Score colour bands: < fair red, fair..good orange, >= good green (legacy surveys keep these). */
 export const CSI_SCORE_FAIR_MIN_DEFAULT = 4.0;
 export const CSI_SCORE_GOOD_MIN_DEFAULT = 4.5;
+/** A person or team is ranked in the report only from this many raters on (fewer = "Belum cukup penilai"). */
+export const CSI_RANK_MIN_RATERS = 5;
+/** Respondent/rater groups smaller than this are merged in reports, so nobody can be singled out. */
+export const CSI_ANON_MIN_GROUP = 3;
+/** Row that holds every merged small group (CSI_ANON_MIN_GROUP). */
+export const CSI_SMALL_GROUP_LABEL = 'Departemen kecil (gabungan)';
 
 /** Question kinds; only STAR and SCALE carry a 1–5 score. */
 export enum CsiQuestionType {

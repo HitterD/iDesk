@@ -7,7 +7,7 @@ import { CsiRateeKind } from '../csi.constants';
 import { cleanText } from './csi-format.util';
 import { formatLongDate } from './csi-memo-page';
 import { renderHcRecapPdf } from '../org/csi-hc-report.render';
-import { CsiQuestionGrid, CsiReportModel, CsiReportRow, HIGHLIGHT_COUNT, HIGHLIGHT_FROM } from './csi-report-model';
+import { CsiQuestionGrid, CsiReportModel, CsiReportRow } from './csi-report-model';
 import { CsiScoreBand, CsiScoreBands, scoreBand } from './csi-score-bands';
 import { scoreInk } from './csi-score-ink';
 
@@ -78,20 +78,6 @@ function rankingTable(canvas: ReportCanvas, rows: CsiReportRow[], kind: CsiRatee
     canvas.table(columns, body, `Belum ada ${kindWord(kind)} yang dinilai.`);
 }
 
-/** Top and "needs attention" names above a long people table (the table itself always lists everyone). */
-function peopleSpotlight(canvas: ReportCanvas, rows: CsiReportRow[]) {
-    if (rows.length < HIGHLIGHT_FROM) return;
-    const scored = rows.filter((row) => row.average !== null);
-    const top = scored.slice(0, HIGHLIGHT_COUNT).map((row) => `${text(row.name)} (${dec(row.average)})`);
-    const attention = [...scored].filter((row) => row.band === 'poor' || (row.delta ?? 0) < 0)
-        .sort((a, b) => a.average! - b.average!).slice(0, HIGHLIGHT_COUNT)
-        .map((row) => `${text(row.name)} (${dec(row.average)}${row.delta !== null && row.delta < 0 ? `, turun ${dec(-row.delta)}` : ''})`);
-    canvas.miniStats([
-        { label: `${HIGHLIGHT_COUNT} tertinggi`, value: top.join(' · ') || DASH, tone: 'good' },
-        { label: 'Perlu perhatian', value: attention.join(' · ') || 'Tidak ada', tone: attention.length ? 'bad' : 'good' },
-    ], 1);
-}
-
 function participation(canvas: ReportCanvas, model: CsiReportModel) {
     canvas.section('Partisipasi', `Basis = ${model.participation.basisLabel}. Target = ${model.targetPct}% dari basis. % Pengisi (SLA) = responden dibanding target, maks. 100%.`);
     const body: Cell[][] = model.sites.filter((site) => site.basis > 0 || site.responses > 0).map((site) => [
@@ -140,28 +126,16 @@ function appendix(canvas: ReportCanvas, model: CsiReportModel) {
         canvas.table([{ header: 'Pertanyaan', width: 40 }, { header: 'Jawaban', width: 60 }],
             model.choices.map((choice) => [{ text: text(choice.label), bold: true }, { text: choice.counts.map((row) => `${text(row.option)}: ${row.count}`).join('  ·  ') }]));
     }
-    canvas.section('Lampiran B · Partisipasi per departemen', 'Semua departemen aktif, termasuk yang belum ada jawaban.');
-    canvas.table([{ header: 'Departemen', width: 70 }, { header: 'Jawaban', width: 15, align: 'right' }, { header: '% dari total', width: 15, align: 'right' }],
-        model.departments.map((row) => [{ text: text(row.name) }, { text: String(row.responses), bold: row.responses > 0, color: row.responses ? INK.text : INK.tertiary }, { text: pct(row.pct, 1) }]));
+    canvas.section('Lampiran B · Partisipasi per departemen', 'Penilai basis per departemen, tanpa nama. Departemen dengan kurang dari 3 penilai digabung.');
+    canvas.table([{ header: 'Departemen', width: 52 }, { header: 'Sudah', width: 12, align: 'right' }, { header: 'Total', width: 12, align: 'right' }, { header: '%', width: 12, align: 'right' }, { header: 'Target', width: 12 }],
+        model.departments.map((row) => [{ text: text(row.name) }, { text: String(row.submitted) }, { text: String(row.total) }, { text: pct(row.pct) }, { text: row.met ? 'Tercapai' : 'Belum', bold: true, color: row.met ? INK.green : INK.red }]),
+        'Tidak ada basis partisipasi.');
     canvas.section('Lampiran C · Semua saran & komentar', `${model.counts.comments} komentar, dikelompokkan per tim/orang. Tanpa nama penilai.`);
     if (!model.comments.length) canvas.table([{ header: 'Komentar', width: 100 }], [], 'Tidak ada komentar.');
     model.comments.forEach((group) => {
         canvas.subheading(`${text(group.name)} (${kindWord(group.kind)})`, `${group.comments.length} komentar`);
         canvas.table([{ header: 'Komentar', width: 60 }, { header: 'Departemen', width: 25 }, { header: 'Tanggal', width: 15 }],
             group.comments.map((comment) => [{ text: text(comment.text) }, { text: text(comment.department) }, { text: fmtDate(comment.date) }]));
-    });
-    canvas.section('Lampiran D · Basis partisipasi', `Orang yang menjadi basis target (${model.participation.basisLabel}). Per site, yang belum mengisi di atas.`);
-    const bySite = new Map<string, typeof model.basis>();
-    model.basis.forEach((person) => bySite.set(person.siteCode ?? '-', [...(bySite.get(person.siteCode ?? '-') ?? []), person]));
-    if (!bySite.size) canvas.table([{ header: 'Nama', width: 100 }], [], 'Tidak ada basis partisipasi.');
-    bySite.forEach((people, code) => {
-        const done = people.filter((person) => person.answered).length;
-        canvas.subheading(`Site ${code}`, `${done} dari ${people.length} sudah mengisi`);
-        canvas.table([{ header: 'Nama', width: 30 }, { header: 'Email', width: 32 }, { header: 'Departemen', width: 26 }, { header: 'Status', width: 12 }],
-            people.map((person) => [
-                { text: text(person.fullName), bold: true }, { text: text(person.email) }, { text: text(person.department) || DASH },
-                { text: person.answered ? 'Sudah' : 'Belum', bold: true, color: person.answered ? INK.green : INK.red },
-            ]));
     });
 }
 
@@ -193,7 +167,6 @@ export function renderCsiReportPdf({ model, signoff, now }: CsiReportPdfInput): 
             canvas.section(`Peringkat tim · ${model.teams.length} tim`, 'Skala 1-5. Indeks = nilai/5 (%). Lalu = periode sebelumnya. Bintang = jumlah jawaban bintang 1/2/3/4/5.');
             rankingTable(canvas, model.teams, CsiRateeKind.TEAM, model.bands);
             canvas.section(`Peringkat orang · ${model.people.length} orang`, 'Urut dari nilai tertinggi, semua orang dicantumkan.');
-            peopleSpotlight(canvas, model.people);
             rankingTable(canvas, model.people, CsiRateeKind.PERSON, model.bands);
             participation(canvas, model);
             if (model.hcRecap?.services.length) renderHcRecapPdf(canvas, model.hcRecap, model.bands);

@@ -4,7 +4,7 @@ import { CsiRespondentMode } from '../csi.constants';
 import { CsiExportService, sanitizeCell } from './csi-export.service';
 import { reportFixture } from './csi-report-model.fixture';
 
-const EXECUTIVE = ['Ringkasan', 'Peringkat Tim', 'Peringkat Orang', 'Partisipasi', 'Per Pertanyaan Tim', 'Per Pertanyaan Orang', 'Departemen', 'Komentar', 'Basis Partisipasi'];
+const EXECUTIVE = ['Ringkasan', 'Peringkat Tim', 'Peringkat Orang', 'Partisipasi', 'Per Pertanyaan Tim', 'Per Pertanyaan Orang', 'Departemen', 'Komentar'];
 
 const NOW = new Date('2026-10-24T18:30:00Z'); // 2026-10-25 01:30 WIB
 
@@ -150,7 +150,7 @@ describe('CsiExportService', () => {
         expect(sheet.getRow(2).getCell(5).fill).toMatchObject({ fgColor: { argb: 'FFFCEBC8' } });
     });
 
-    it('executive sheets carry the same parameters as the PDF: separate team/people rankings, notes, every basis person', async () => {
+    it('executive sheets carry the same parameters as the PDF: separate team/people rankings, notes, departments without names', async () => {
         const { buffer } = await service.buildWorkbook(ServiceScope.ICT, 'p1', NOW, { notes: 'Tindak lanjut A' });
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(buffer as any);
@@ -164,8 +164,9 @@ describe('CsiExportService', () => {
         expect(workbook.getWorksheet('Peringkat Orang')!.getRow(1).values).toEqual([
             undefined, '#', 'Nama', 'Site', 'Penilai', 'Nilai', 'Predikat', 'Indeks (%)', 'Periode lalu', 'Δ', '★1', '★2', '★3', '★4', '★5',
         ]);
-        expect(workbook.getWorksheet('Departemen')!.getRow(3).values).toEqual([undefined, 'Keuangan', 0, 0]);
-        expect(workbook.getWorksheet('Basis Partisipasi')!.rowCount).toBe(1 + 12);
+        expect(workbook.getWorksheet('Departemen')!.getRow(1).values).toEqual([undefined, 'Departemen', 'Sudah', 'Total', '%', 'Target']);
+        expect(workbook.getWorksheet('Departemen')!.getRow(2).values).toEqual([undefined, 'Departemen kecil (gabungan)', 0, 2, 0, 'Belum']);
+        expect(workbook.getWorksheet('Basis Partisipasi')).toBeUndefined();
         expect(reports.getExecutiveModel).toHaveBeenCalledWith(ServiceScope.ICT, 'p1', expect.objectContaining({ notes: 'Tindak lanjut A' }));
     });
 });

@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { buildReportModel, CsiReportModelInput } from './csi-report-model';
 
@@ -28,16 +29,19 @@ export function reportFixture({ people = 2, responses = 2, sites = 1, comments =
         sla: { mode: CsiRespondentMode.OPEN, basis: responses + 10, target: Math.ceil((responses + 10) * 0.8), responses, pengisiPct: 90 },
         ratees,
     };
-    const reporters = Array.from({ length: responses + 10 }, (_, i) => ({ email: `user${i}@x.id`, department: 'Produksi', fullName: `Basis ${i}`, userId: `u${i}` }));
+    const basis = responses + 10;
+    // Basis raters: Produksi holds everyone except two (Keuangan, merged as a small department).
+    const raters = Array.from({ length: basis }, (_, i) => ({ department: i < 2 ? 'Keuangan' : 'Produksi', answered: i >= basis - responses }));
     const input: CsiReportModelInput = {
         report,
         matrix: { subjects: [], rows: [{ responseId: 'a', respondentName: 'Rahasia Penilai', departmentName: 'Produksi', areaName: null, submittedAt: new Date(), scores: [], average: null }], totals: [] } as any,
         scopeLabel: 'ICT',
+        scope: ServiceScope.ICT,
         previousBySubject: new Map([['PERSON:orang 0:', 4.9]]),
-        siteBasis: siteRows.map((site, i) => ({ siteId: site.id, reporters: reporters.filter((_, r) => r % sites === i), responses: Math.floor(responses / sites), average: 4.2 })),
-        answeredUserIds: new Set(reporters.slice(0, responses).map((row) => row.userId)),
-        reporterUserIds: new Map(),
-        departments: [{ name: 'Produksi', responses }, { name: 'Keuangan', responses: 0 }],
+        hasPrevious: true,
+        siteBasis: siteRows.map((site, i) => ({ siteId: site.id, basis: Array.from({ length: basis }).filter((_, r) => r % sites === i).length, responses: Math.floor(responses / sites), average: 4.2 })),
+        raters,
+        serviceAverages: [],
         comments: ratees.flatMap((ratee) => ratee.comments.map((comment) => ({ periodRateeId: ratee.periodRateeId, text: comment.text, department: comment.departmentName, date: comment.submittedAt }))),
         notes: 'Tindak lanjut: pelatihan\nReview bulan depan',
     };

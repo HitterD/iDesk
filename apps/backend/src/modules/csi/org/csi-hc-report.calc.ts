@@ -1,4 +1,5 @@
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
+import { CSI_ANON_MIN_GROUP, CSI_SMALL_GROUP_LABEL } from '../csi.constants';
 import { CSI_LOCATIONS, CSI_UNKNOWN_LABEL, CsiOrgLocation } from './csi-org.constants';
 import { serviceNameOf } from './csi-services';
 
@@ -64,6 +65,8 @@ const groupBy = <T>(rows: T[], key: (row: T) => string) => {
     return groups;
 };
 const label = (value: string | null | undefined) => value || CSI_UNKNOWN_LABEL;
+/** Row that holds the bagians of a department below CSI_ANON_MIN_GROUP respondents. */
+export const CSI_SMALL_BAGIAN_LABEL = 'Bagian kecil (gabungan)';
 
 /** Layanan → bagian → PIC rows (PICs without any rating are listed too, with empty cells). */
 function serviceRows(pics: CsiHcPic[], ratings: CsiHcRating[], dimensions: string[], scope: ServiceScope): CsiRecapRow[] {
@@ -97,10 +100,30 @@ function serviceRows(pics: CsiHcPic[], ratings: CsiHcRating[], dimensions: strin
     return rows;
 }
 
-/** Respondent division → department → bagian rows (scores they gave, over all PICs). */
+const respondentsOf = (ratings: CsiHcRating[]) => new Set(ratings.map((rating) => rating.responseId)).size;
+const isSmall = (ratings: CsiHcRating[]) => respondentsOf(ratings) < CSI_ANON_MIN_GROUP;
+
+/** Bagian rows of one department; bagians below CSI_ANON_MIN_GROUP respondents share one merged row. */
+function bagianRows(ratings: CsiHcRating[], division: string, department: string): CsiRespondentRow[] {
+    const bagians = groupBy(ratings, (rating) => label(rating.respondent.bagian));
+    const row = (name: string, own: CsiHcRating[]): CsiRespondentRow => ({ level: 'bagian', key: `bg:${division}:${department}:${name}`, label: name, division, department, ...cells(own) });
+    const small = [...bagians.values()].filter(isSmall).flat();
+    const rows = [...bagians.keys()].sort().filter((bagian) => !isSmall(bagians.get(bagian)!)).map((bagian) => row(bagian, bagians.get(bagian)!));
+    return small.length ? [...rows, row(CSI_SMALL_BAGIAN_LABEL, small)] : rows;
+}
+
+/**
+ * Respondent division → department → bagian rows (scores they gave, over all PICs). Departments below
+ * CSI_ANON_MIN_GROUP respondents leave their division (so no total minus the rest reveals them) and are summed in one
+ * "Departemen kecil (gabungan)" row at the end.
+ */
 function respondentRows(ratings: CsiHcRating[]): CsiRespondentRow[] {
+    const departmentKey = (rating: CsiHcRating) => `${label(rating.respondent.division)}\u0000${label(rating.respondent.department)}`;
+    const byDepartment = groupBy(ratings, departmentKey);
+    const small = [...byDepartment.values()].filter(isSmall).flat();
+    const kept = [...byDepartment.values()].filter((own) => !isSmall(own)).flat();
     const rows: CsiRespondentRow[] = [];
-    const divisions = groupBy(ratings, (rating) => label(rating.respondent.division));
+    const divisions = groupBy(kept, (rating) => label(rating.respondent.division));
     [...divisions.keys()].sort().forEach((division) => {
         const divisionRatings = divisions.get(division)!;
         rows.push({ level: 'division', key: `d:${division}`, label: division, division, department: null, ...cells(divisionRatings) });
@@ -108,12 +131,10 @@ function respondentRows(ratings: CsiHcRating[]): CsiRespondentRow[] {
         [...departments.keys()].sort().forEach((department) => {
             const departmentRatings = departments.get(department)!;
             rows.push({ level: 'department', key: `dp:${division}:${department}`, label: department, division, department, ...cells(departmentRatings) });
-            const bagians = groupBy(departmentRatings, (rating) => label(rating.respondent.bagian));
-            [...bagians.keys()].sort().forEach((bagian) => {
-                rows.push({ level: 'bagian', key: `bg:${division}:${department}:${bagian}`, label: bagian, division, department, ...cells(bagians.get(bagian)!) });
-            });
+            rows.push(...bagianRows(departmentRatings, division, department));
         });
     });
+    if (small.length) rows.push({ level: 'division', key: 'd:small', label: CSI_SMALL_GROUP_LABEL, division: CSI_SMALL_GROUP_LABEL, department: null, ...cells(small) });
     return rows;
 }
 
