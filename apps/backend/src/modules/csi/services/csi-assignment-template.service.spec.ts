@@ -139,6 +139,18 @@ describe('CsiAssignmentTemplateService', () => {
         await expect(service.accountSuggestions(HC, 't', ' a ')).rejects.toBeInstanceOf(BadRequestException);
     });
 
+    it('stores parsed PIC and rater NIK when importing seeds', async () => {
+        const book = new ExcelJS.Workbook();
+        book.addWorksheet('Daftar').addRows([
+            ['Area', 'Nama Lengkap Karyawan (HC)', 'Nama Lengkap Penilai', 'NIK Penilai'],
+            ['HC Development', 'RARA KURNIA MAHARANI PONGDATU', 'BUDI', 71],
+        ]);
+        book.addWorksheet('Karyawan KRW').addRows([['Nama', 'Jabatan', 'NIK'], ['RARA KURNIA MAHARANI PONGDATU', 'STAFF', 43328]]);
+        await service.importExcel(HC, 'SMG', Buffer.from(await book.xlsx.writeBuffer()), true);
+        expect(pics.rows[0]).toMatchObject({ picNik: '00043328' });
+        expect(raters.rows[0]).toMatchObject({ raterNik: '00000071' });
+    });
+
     it('loads the bundled Semarang template once: 19 PICs, service functions, four new staff without raters', async () => {
         const first = await service.loadBundled(HC, 'SMG');
         await service.loadBundled(HC, 'SMG');

@@ -85,7 +85,8 @@ export class CsiAssignmentTemplateService {
     async loadBundled(scope: ServiceScope, locationCode: string): Promise<CsiTemplateView> {
         const seed = BUNDLED[locationCode.toUpperCase()];
         if (!seed || seed.scope !== scope) throw new NotFoundException('Template bawaan untuk lokasi ini tidak ada');
-        const id = await this.dataSource.transaction((manager) => this.loadInto(manager, scope, seed.locationCode, seed.name, seed.pics));
+        const pics = seed.pics.map((pic) => ({ ...pic, nik: pic.nik ?? null, raters: pic.raters.map((rater) => ({ ...rater, nik: rater.nik ?? null })) }));
+        const id = await this.dataSource.transaction((manager) => this.loadInto(manager, scope, seed.locationCode, seed.name, pics));
         return this.get(scope, id);
     }
 
@@ -245,7 +246,7 @@ export class CsiAssignmentTemplateService {
                 ...(known ?? { templateId: template.id, sortOrder: order++ }),
                 // Re-matched on every load: a PIC imported into the master later gets linked then.
                 picId: known?.picId ?? idOf(picIndex(seed.picName)),
-                area: seed.area, serviceCode: seed.serviceCode, picName: seed.picName,
+                area: seed.area, serviceCode: seed.serviceCode, picName: seed.picName, picNik: seed.nik ?? known?.picNik ?? null,
                 jobTitle: seed.jobTitle ?? known?.jobTitle ?? null, serviceFunction: normalizeServiceFunction(seed.serviceFunction) ?? known?.serviceFunction ?? null,
             });
             await this.mergeRaters(repos, saved.id, seed.raters);
@@ -256,7 +257,7 @@ export class CsiAssignmentTemplateService {
     private async mergeRaters(repos: Repos, templatePicId: string, seedRaters: CsiTemplateSeedPic['raters']) {
         const known = new Set((await repos.raters.find({ where: { templatePicId } })).map((rater) => rater.raterName));
         const fresh = seedRaters.filter((rater) => !known.has(rater.name));
-        if (fresh.length) await repos.raters.save(fresh.map((rater) => ({ templatePicId, raterName: rater.name, raterJobTitle: rater.jobTitle, userId: null })));
+        if (fresh.length) await repos.raters.save(fresh.map((rater) => ({ templatePicId, raterName: rater.name, raterJobTitle: rater.jobTitle, raterNik: rater.nik, userId: null })));
     }
 
     /** What a merge would add / change (dry run of an import). */
