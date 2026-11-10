@@ -6,7 +6,8 @@ import type { CsiTemplate, CsiTemplateRaterStatus } from '../../../../hcTypes';
 import type { CsiScopeParam } from '../../../../types';
 import { titleCase } from '../hcFormat';
 import { RATER_STATUS } from './RaterRow';
-import { RaterAccountPicker, suggestionDetail } from './RaterAccountPicker';
+import { suggestionDetail } from './AccountCombobox';
+import { RaterAccountPicker } from './RaterAccountPicker';
 
 const NEEDS_CHECK: ReadonlySet<CsiTemplateRaterStatus> = new Set(['ambiguous', 'no-account']);
 

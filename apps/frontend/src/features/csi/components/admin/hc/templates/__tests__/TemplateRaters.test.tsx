@@ -60,12 +60,41 @@ describe('Template raters', () => {
         const rara = await card(/RARA KURNIA/);
         await userEvent.click(within(rara).getByRole('button', { name: /pilih akun untuk agus subekti/i }));
         const picker = await screen.findByRole('dialog');
-        expect(within(picker).getByRole('textbox', { name: /cari akun/i })).toHaveValue('AGUS SUBEKTI');
+        expect(within(picker).getByRole('combobox', { name: /cari akun/i })).toHaveValue('AGUS SUBEKTI');
         const option = await within(picker).findByRole('option', { name: /Agus Subekti Prasetyo/ });
         expect(option).toHaveTextContent('Produksi · SMG · agus@x.id');
         expect(option).toHaveTextContent('NIK 1234');
         await userEvent.click(option);
         expect((await api()).setTemplateRaterAccount).toHaveBeenCalledWith('hc', ['c'], 'u-agus');
+    });
+
+    it('picker is keyboard operable: arrows move the active option, Enter pins it', async () => {
+        renderWithQuery(<TemplatesTab scope="hc" />);
+        const rara = await card(/RARA KURNIA/);
+        await userEvent.click(within(rara).getByRole('button', { name: /pilih akun untuk agus subekti/i }));
+        const picker = await screen.findByRole('dialog');
+        const search = within(picker).getByRole('combobox', { name: /cari akun/i });
+        await within(picker).findAllByRole('option');
+        await userEvent.keyboard('{ArrowDown}{ArrowDown}');
+        const second = within(picker).getByRole('option', { name: /KRW/ });
+        expect(search).toHaveAttribute('aria-activedescendant', second.id);
+        expect(second).toHaveAttribute('aria-selected', 'true');
+        await userEvent.keyboard('{Enter}');
+        expect((await api()).setTemplateRaterAccount).toHaveBeenCalledWith('hc', ['c'], 'u-agus2');
+    });
+
+    it('add-rater field exposes the active suggestion to assistive tech', async () => {
+        renderWithQuery(<TemplatesTab scope="hc" />);
+        const rara = await card(/RARA KURNIA/);
+        const input = within(rara).getByRole('combobox', { name: /tambah penilai/i });
+        await userEvent.type(input, 'agus');
+        await within(rara).findAllByRole('option');
+        await userEvent.keyboard('{ArrowDown}');
+        expect(input).toHaveAttribute('aria-activedescendant', within(rara).getByRole('option', { name: /Prasetyo/ }).id);
+        await userEvent.keyboard('{Escape}');
+        expect(within(rara).queryByRole('option')).not.toBeInTheDocument();
+        await userEvent.keyboard('{Enter}');
+        expect((await api()).addTemplateRater).toHaveBeenCalledWith('hc', 'tp-rara', { name: 'agus' });
     });
 
     it('lepas akun sends null', async () => {
