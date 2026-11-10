@@ -11,11 +11,11 @@ import { memoryTable } from './csi-memory-table.fixture';
 import { CsiTemplateApplyService } from './csi-template-apply.service';
 
 const HC = ServiceScope.HC;
-const rater = (id: string, raterName: string, userId: string | null, status: 'ok' | 'no-account' | 'ambiguous' = userId ? 'ok' : 'no-account') =>
-    ({ id, raterName, raterJobTitle: null, userId, status });
+const rater = (id: string, raterName: string, userId: string | null, status: 'confirmed' | 'ok' | 'no-account' | 'ambiguous' = userId ? 'ok' : 'no-account') =>
+    ({ id, raterName, raterNik: null, raterJobTitle: null, userId, status, confirmed: status === 'confirmed' });
 const view = (): CsiTemplateView => ({
     id: 't1', scope: 'HC', locationCode: 'SMG', name: 'CSI HC 2026 – Semarang', updatedAt: null,
-    summary: { pics: 4, picsUnmatched: 1, picsWithoutRaters: 1, raters: 4, ratersOk: 2, ratersNoAccount: 1, ratersAmbiguous: 1 },
+    summary: { pics: 4, picsUnmatched: 1, picsWithoutRaters: 1, raters: 4, ratersConfirmed: 0, ratersOk: 2, ratersNoAccount: 1, ratersAmbiguous: 1 },
     pics: [
         { id: 'tp-rara', area: 'HC Development', serviceCode: 'HCD', picName: 'RARA', jobTitle: 'Staff', serviceFunction: 'People & Organization Development', picId: 'pic-rara', raterCount: 3,
             raters: [rater('a', 'ELVI CYNTHIA', 'u-elvi'), rater('b', 'ARIEF NOEGROHO', null), rater('c', 'AGUS SUBEKTI', null, 'ambiguous')] },
@@ -88,6 +88,15 @@ describe('CsiTemplateApplyService', () => {
         expect(raters.rows.map((row) => row.userId)).toEqual(['u-elvi']);
         expect(pairs.rows).toHaveLength(2);
         expect(periods.rows[0]).toMatchObject({ respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM });
+    });
+
+    it('applies confirmed raters just like automatically matched raters', async () => {
+        const confirmedView = view();
+        confirmedView.pics[0].raters[0] = rater('a', 'ELVI CYNTHIA', 'u-confirmed', 'confirmed');
+        templates.get.mockResolvedValueOnce(confirmedView);
+        await service.applyToPeriod(HC, 't1', 'p1', true);
+        expect(raters.rows.map((row) => row.userId)).toContain('u-confirmed');
+        expect(pairs.rows).toHaveLength(2);
     });
 
     it('is add-only and idempotent: a second run adds nothing and keeps existing pairs', async () => {

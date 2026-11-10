@@ -83,6 +83,18 @@ describe('CsiAssignmentTemplateService', () => {
         expect(view.summary).toMatchObject({ pics: 19, raters: 434 });
     });
 
+    it('selects employeeId and siteId for active accounts and confirms a unique NIK', async () => {
+        const template = await service.loadBundled(HC, 'SMG');
+        const target = raters.rows.find((row) => row.raterName === 'AGUS SUBEKTI')!;
+        target.raterNik = '277';
+        users.rows.find((row) => row.id === 'u-agus2')!.employeeId = '00000277';
+        const find = jest.spyOn(users, 'find');
+        const result = await service.get(HC, template.id);
+        expect(result.pics.flatMap((pic) => pic.raters).find((row) => row.id === target.id))
+            .toMatchObject({ userId: 'u-agus2', status: 'confirmed', confirmed: true, raterNik: '277' });
+        expect(find).toHaveBeenCalledWith({ where: { isActive: true }, select: { id: true, fullName: true, employeeId: true, siteId: true } });
+    });
+
     it('a rater added later by hand is kept; adding the same name twice is refused', async () => {
         const template = await service.loadBundled(HC, 'SMG');
         const jingga = (await service.get(HC, template.id)).pics.find((pic) => pic.picName === 'JINGGA FERDASIWI')!;

@@ -276,7 +276,7 @@ export class CsiAssignmentTemplateService {
     }
 
     private async activeAccounts() {
-        return this.users.find({ where: { isActive: true }, select: { id: true, fullName: true } });
+        return this.users.find({ where: { isActive: true }, select: { id: true, fullName: true, employeeId: true, siteId: true } });
     }
 
     private repos(manager: EntityManager): Repos {

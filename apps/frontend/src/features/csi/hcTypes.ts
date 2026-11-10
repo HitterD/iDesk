@@ -87,15 +87,15 @@ export interface CsiReportPeriods { services: string[]; periods: CsiHcPeriodRef[
 export interface CsiReportAccess { admin: boolean; services: string[] }
 
 /** Assignment templates per location ("siapa menilai siapa" by name, with the PIC service function). */
-export type CsiTemplateRaterStatus = 'ok' | 'no-account' | 'ambiguous';
-export interface CsiTemplateRater { id: string; raterName: string; raterJobTitle: string | null; userId: string | null; status: CsiTemplateRaterStatus }
+export type CsiTemplateRaterStatus = 'confirmed' | 'ok' | 'ambiguous' | 'no-account';
+export interface CsiTemplateRater { id: string; raterName: string; raterNik: string | null; raterJobTitle: string | null; userId: string | null; status: CsiTemplateRaterStatus; confirmed: boolean }
 export interface CsiTemplatePic {
     id: string; area: string; serviceCode: string; picName: string; jobTitle: string | null; serviceFunction: string | null;
     picId: string | null; raterCount: number; raters: CsiTemplateRater[];
 }
 export interface CsiTemplate {
     id: string; scope: string; locationCode: string; name: string; updatedAt: string | null;
-    summary: { pics: number; picsUnmatched: number; picsWithoutRaters: number; raters: number; ratersOk: number; ratersNoAccount: number; ratersAmbiguous: number };
+    summary: { pics: number; picsUnmatched: number; picsWithoutRaters: number; raters: number; ratersConfirmed: number; ratersOk: number; ratersNoAccount: number; ratersAmbiguous: number };
     pics: CsiTemplatePic[];
 }
 export interface CsiTemplateList { templates: CsiTemplate[]; bundledAvailable: string[] }

@@ -120,7 +120,7 @@ export class CsiTemplateApplyService {
         const raterOfUser = new Map(existingRaters.map((row) => [row.userId, row]));
         const existingPairs = new Set((await repos.pairs.find({ where: { periodId } })).map((row) => `${row.periodRaterId}|${row.periodRateeId}`));
         const pairs = matched.filter((pic) => active.has(pic.picId)).flatMap((pic) => pic.raters
-            .filter((rater) => rater.status === 'ok' && rater.userId)
+            .filter((rater) => (rater.status === 'ok' || rater.status === 'confirmed') && rater.userId)
             .map((rater) => ({ picId: pic.picId, userId: rater.userId! })))
             .filter((pair) => pics.find((pic) => pic.id === pair.picId)?.userId !== pair.userId);
         const fresh = pairs.filter((pair) => {

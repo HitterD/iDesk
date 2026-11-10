@@ -7,15 +7,15 @@ import { TemplatesTab } from '../TemplatesTab';
 
 const TEMPLATE: CsiTemplate = {
     id: 't1', scope: 'HC', locationCode: 'SMG', name: 'CSI HC 2026 – Semarang', updatedAt: null,
-    summary: { pics: 2, picsUnmatched: 0, picsWithoutRaters: 1, raters: 3, ratersOk: 1, ratersNoAccount: 1, ratersAmbiguous: 1 },
+    summary: { pics: 2, picsUnmatched: 0, picsWithoutRaters: 1, raters: 3, ratersConfirmed: 0, ratersOk: 1, ratersNoAccount: 1, ratersAmbiguous: 1 },
     pics: [
         {
             id: 'tp-rara', area: 'HC Development', serviceCode: 'HCD', picName: 'RARA KURNIA MAHARANI PONGDATU', jobTitle: 'PEOPLE & ORGANIZATION DEVELOPMENT STAFF',
             serviceFunction: 'People & Organization Development', picId: 'pic-rara', raterCount: 3,
             raters: [
-                { id: 'a', raterName: 'ELVI CYNTHIA', raterJobTitle: 'PLANT MANAGER 1', userId: 'u1', status: 'ok' },
-                { id: 'b', raterName: 'ARIEF NOEGROHO', raterJobTitle: null, userId: null, status: 'no-account' },
-                { id: 'c', raterName: 'AGUS SUBEKTI', raterJobTitle: null, userId: null, status: 'ambiguous' },
+                { id: 'a', raterName: 'ELVI CYNTHIA', raterNik: null, confirmed: false, raterJobTitle: 'PLANT MANAGER 1', userId: 'u1', status: 'ok' },
+                { id: 'b', raterName: 'ARIEF NOEGROHO', raterNik: null, confirmed: false, raterJobTitle: null, userId: null, status: 'no-account' },
+                { id: 'c', raterName: 'AGUS SUBEKTI', raterNik: null, confirmed: false, raterJobTitle: null, userId: null, status: 'ambiguous' },
             ],
         },
         { id: 'tp-jingga', area: 'HC Services', serviceCode: 'HCS', picName: 'JINGGA FERDASIWI', jobTitle: 'RECEPTIONIST', serviceFunction: null, picId: null, raterCount: 0, raters: [] },
