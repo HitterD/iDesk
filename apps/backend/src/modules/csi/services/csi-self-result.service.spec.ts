@@ -112,6 +112,12 @@ describe('CsiSelfResultService', () => {
         expect(result.status).toBe('ACTIVE');
     });
 
+    it('every result carries the survey score bands (custom bands 3.5/4.2, legacy rows fall back to 4.0/4.5)', async () => {
+        expect((await service.list('u-rara', NOW))[0].scoreBands).toEqual({ fairMin: 4, goodMin: 4.5 });
+        ratees.rows[0] = { ...ratees.rows[0], period: { ...period, scoreFairMin: 3.5, scoreGoodMin: 4.2 } };
+        expect((await service.list('u-rara', NOW))[0].scoreBands).toEqual({ fairMin: 3.5, goodMin: 4.2 });
+    });
+
     it('only the viewer own rows of published periods', async () => {
         ratees.rows.push({ id: 'r-draft', periodId: 'p2', userId: 'u-rara', kind: 'PERSON', serviceFunction: null, period: { ...period, id: 'p2', publishStatus: CsiPeriodPublishStatus.DRAFT } });
         expect((await service.list('u-rara', NOW)).map((row) => row.periodId)).toEqual(['p1']);

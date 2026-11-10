@@ -116,7 +116,7 @@ export class CsiExportService {
         addMatrixSheet(workbook, raterMatrix(report.ratees.map((ratee) => ({
             periodRateeId: ratee.periodRateeId, kind: ratee.kind, siteId: ratee.siteId ?? null,
             displayName: rateeName(ratee, report),
-        })), answers));
+        })), answers), model.bands);
         return {
             filename: `csi-${scope.toLowerCase()}-${localDateKey(now, DEFAULT_TIMEZONE)}.xlsx`,
             buffer: Buffer.from(await workbook.xlsx.writeBuffer()),

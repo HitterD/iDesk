@@ -60,12 +60,13 @@ describe('CsiDashboardService', () => {
     });
 
     it('splits a multi-site period into one row per site', async () => {
-        rows.push(period('p-now', '2026-10-01', '2026-10-31', [SPJ, KRW]));
+        rows.push(period('p-now', '2026-10-01', '2026-10-31', [SPJ, KRW], { scoreFairMin: 3.5, scoreGoodMin: 4.2 }));
         siteStats.set('p-now', { [SPJ.id]: stats(4.6, 12), [KRW.id]: stats(3.9, 4) });
         const dashboard = await service.getDashboard(ICT, NOW);
+        const scoreBands = { fairMin: 3.5, goodMin: 4.2 };
         expect(dashboard.active).toEqual([
-            { periodId: 'p-now', title: 'CSI p-now', siteId: KRW.id, siteCode: 'KRW', siteName: 'Karawang', responses: 4, basis: 10, target: 9, targetPct: 90, average: 3.9, endDate: '2026-10-31' },
-            { periodId: 'p-now', title: 'CSI p-now', siteId: SPJ.id, siteCode: 'SPJ', siteName: 'Sepanjang', responses: 12, basis: 20, target: 18, targetPct: 90, average: 4.6, endDate: '2026-10-31' },
+            { periodId: 'p-now', title: 'CSI p-now', siteId: KRW.id, siteCode: 'KRW', siteName: 'Karawang', responses: 4, basis: 10, target: 9, targetPct: 90, average: 3.9, endDate: '2026-10-31', scoreBands },
+            { periodId: 'p-now', title: 'CSI p-now', siteId: SPJ.id, siteCode: 'SPJ', siteName: 'Sepanjang', responses: 12, basis: 20, target: 18, targetPct: 90, average: 4.6, endDate: '2026-10-31', scoreBands },
         ]);
         expect(sla.compute).toHaveBeenCalledWith(expect.objectContaining({ id: 'p-now' }), [{ id: SPJ.id }], 12);
     });

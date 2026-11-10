@@ -7,9 +7,9 @@ import { CsiRateeKind } from '../csi.constants';
 import { cleanText } from './csi-format.util';
 import { formatLongDate } from './csi-memo-page';
 import { renderHcRecapPdf } from '../org/csi-hc-report.render';
-import {
-    CSI_SCORE_FAIR, CSI_SCORE_GOOD, CsiQuestionGrid, CsiReportModel, CsiReportRow, HIGHLIGHT_COUNT, HIGHLIGHT_FROM,
-} from './csi-report-model';
+import { CsiQuestionGrid, CsiReportModel, CsiReportRow, HIGHLIGHT_COUNT, HIGHLIGHT_FROM } from './csi-report-model';
+import { CsiScoreBand, CsiScoreBands, scoreBand } from './csi-score-bands';
+import { scoreInk } from './csi-score-ink';
 
 export type CsiReportPdfInput = { model: CsiReportModel; signoff: SignoffLayout; now: Date };
 
@@ -27,15 +27,18 @@ const dec = (value: number | null | undefined, digits = 2) =>
     value === null || value === undefined || !Number.isFinite(value) ? DASH : value.toLocaleString('id-ID', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 const pct = (value: number | null | undefined, digits = 0) => (value === null || value === undefined ? DASH : `${dec(value, digits)}%`);
 const signed = (value: number | null) => (value === null ? DASH : `${value > 0 ? '+' : value < 0 ? '-' : ''}${dec(Math.abs(value))}`);
-const scoreColor = (value: number | null) => (value === null ? INK.secondary : value >= CSI_SCORE_GOOD ? INK.green : value >= CSI_SCORE_FAIR ? INK.amber : INK.red);
-const scoreTone = (value: number | null): Tone => (value === null ? 'neutral' : value >= CSI_SCORE_GOOD ? 'good' : value >= CSI_SCORE_FAIR ? 'warn' : 'bad');
+const BAND_TONE: Record<CsiScoreBand, Tone> = { good: 'good', fair: 'warn', poor: 'bad' };
+const scoreTone = (value: number | null, bands: CsiScoreBands): Tone => {
+    const band = scoreBand(value, bands);
+    return band ? BAND_TONE[band] : 'neutral';
+};
 const deltaColor = (value: number | null) => (value === null || value === 0 ? INK.secondary : value > 0 ? INK.green : INK.red);
 const kindWord = (kind: CsiRateeKind) => (kind === CsiRateeKind.TEAM ? 'tim' : 'orang');
 
 function summary(canvas: ReportCanvas, model: CsiReportModel) {
     const { overall, participation, counts } = model;
     const cards: Kpi[] = [
-        { label: 'Nilai keseluruhan', value: `${dec(overall.average)} / 5`, note: overall.word ? `${overall.word} · indeks ${pct(overall.indexPct, 1)}` : 'Belum ada nilai', tone: scoreTone(overall.average) },
+        { label: 'Nilai keseluruhan', value: `${dec(overall.average)} / 5`, note: overall.word ? `${overall.word} · indeks ${pct(overall.indexPct, 1)}` : 'Belum ada nilai', tone: scoreTone(overall.average, model.bands) },
         { label: 'Dibanding periode lalu', value: overall.delta === null ? DASH : signed(overall.delta), note: overall.previous === null ? 'Belum ada periode pembanding' : `Periode lalu: ${dec(overall.previous)}`, tone: overall.delta === null ? 'neutral' : overall.delta >= 0 ? 'good' : 'bad' },
         { label: participation.reached ? 'Partisipasi · target tercapai' : 'Partisipasi · target belum tercapai', value: pct(participation.respondenPct), note: `${participation.responses} dari ${participation.basis} · target ${model.targetPct}%`, tone: participation.reached ? 'good' : 'warn' },
         { label: 'Yang dinilai', value: String(counts.teams + counts.people), note: `${counts.teams} tim · ${counts.people} orang · ${counts.sites} site` },
@@ -51,14 +54,14 @@ function siteAndAspects(canvas: ReportCanvas, model: CsiReportModel, aspectsHere
         label: `${site.code ?? ''} ${site.name ?? ''}`.trim(), value: site.respondenPct, color: site.reached ? INK.green : INK.amber,
         text: `${dec(site.average)} · ${site.responses}/${site.basis} (${pct(site.respondenPct)})`,
     }));
-    const aspectRows = model.aspects.map((aspect) => ({ label: text(aspect.label), value: aspect.average, color: scoreColor(aspect.average), text: dec(aspect.average) }));
+    const aspectRows = model.aspects.map((aspect) => ({ label: text(aspect.label), value: aspect.average, color: scoreInk(aspect.average, model.bands), text: dec(aspect.average) }));
     const groups: Parameters<ReportCanvas['scoreBars']>[0] = [{ title: `Per site · nilai dan partisipasi (garis = target ${model.targetPct}%)`, max: 100, target: model.targetPct, rows: siteRows }];
     if (aspectsHere) groups.push({ title: 'Aspek layanan · dari yang terlemah', max: 5, rows: aspectRows });
     canvas.section('Gambaran per site dan aspek layanan', 'Nilai rata-rata skala 1-5; partisipasi = responden dibanding basis site.');
     canvas.scoreBars(groups);
 }
 
-function rankingTable(canvas: ReportCanvas, rows: CsiReportRow[], kind: CsiRateeKind) {
+function rankingTable(canvas: ReportCanvas, rows: CsiReportRow[], kind: CsiRateeKind, bands: CsiScoreBands) {
     // Widths in points (scaled to the A4 content width); every cell has 16pt padding, so narrow columns stay >= 26.
     const columns: Column[] = [
         { header: '#', width: 32 }, { header: kind === CsiRateeKind.TEAM ? 'Tim' : 'Nama', width: 90 }, { header: 'Site', width: 34 },
@@ -68,8 +71,8 @@ function rankingTable(canvas: ReportCanvas, rows: CsiReportRow[], kind: CsiRatee
     ];
     const body: Cell[][] = rows.map((row) => [
         { text: String(row.rank) }, { text: text(row.name), bold: true }, { text: row.siteCode ?? DASH }, { text: String(row.raters) },
-        { text: dec(row.average), bold: true, color: scoreColor(row.average) }, { text: pct(row.indexPct, 1) },
-        { text: row.word ?? DASH, color: scoreColor(row.average) }, { text: dec(row.previous) }, { text: signed(row.delta), color: deltaColor(row.delta) },
+        { text: dec(row.average), bold: true, color: scoreInk(row.average, bands) }, { text: pct(row.indexPct, 1) },
+        { text: row.word ?? DASH, color: scoreInk(row.average, bands) }, { text: dec(row.previous) }, { text: signed(row.delta), color: deltaColor(row.delta) },
         { text: row.stars.join('/') },
     ]);
     canvas.table(columns, body, `Belum ada ${kindWord(kind)} yang dinilai.`);
@@ -80,7 +83,7 @@ function peopleSpotlight(canvas: ReportCanvas, rows: CsiReportRow[]) {
     if (rows.length < HIGHLIGHT_FROM) return;
     const scored = rows.filter((row) => row.average !== null);
     const top = scored.slice(0, HIGHLIGHT_COUNT).map((row) => `${text(row.name)} (${dec(row.average)})`);
-    const attention = [...scored].filter((row) => row.average! < CSI_SCORE_FAIR || (row.delta ?? 0) < 0)
+    const attention = [...scored].filter((row) => row.band === 'poor' || (row.delta ?? 0) < 0)
         .sort((a, b) => a.average! - b.average!).slice(0, HIGHLIGHT_COUNT)
         .map((row) => `${text(row.name)} (${dec(row.average)}${row.delta !== null && row.delta < 0 ? `, turun ${dec(-row.delta)}` : ''})`);
     canvas.miniStats([
@@ -94,13 +97,13 @@ function participation(canvas: ReportCanvas, model: CsiReportModel) {
     const body: Cell[][] = model.sites.filter((site) => site.basis > 0 || site.responses > 0).map((site) => [
         { text: `${site.code ?? ''} ${site.name ?? ''}`.trim(), bold: true }, { text: String(site.basis) }, { text: String(site.target) },
         { text: String(site.responses) }, { text: pct(site.respondenPct) }, { text: pct(site.pengisiPct) },
-        { text: site.reached ? 'Tercapai' : 'Belum', color: site.reached ? INK.green : INK.red, bold: true }, { text: dec(site.average), color: scoreColor(site.average) },
+        { text: site.reached ? 'Tercapai' : 'Belum', color: site.reached ? INK.green : INK.red, bold: true }, { text: dec(site.average), color: scoreInk(site.average, model.bands) },
     ]);
     const total = model.participation;
     body.push([
         { text: 'Total', bold: true }, { text: String(total.basis), bold: true }, { text: String(total.target), bold: true }, { text: String(total.responses), bold: true },
         { text: pct(total.respondenPct), bold: true }, { text: pct(total.pengisiPct), bold: true },
-        { text: total.reached ? 'Tercapai' : 'Belum', color: total.reached ? INK.green : INK.red, bold: true }, { text: dec(model.overall.average), bold: true, color: scoreColor(model.overall.average) },
+        { text: total.reached ? 'Tercapai' : 'Belum', color: total.reached ? INK.green : INK.red, bold: true }, { text: dec(model.overall.average), bold: true, color: scoreInk(model.overall.average, model.bands) },
     ]);
     canvas.table([
         { header: 'Site', width: 20 }, { header: 'Basis', width: 9, align: 'right' }, { header: 'Target', width: 9, align: 'right' },
@@ -110,7 +113,7 @@ function participation(canvas: ReportCanvas, model: CsiReportModel) {
 }
 
 /** Rows = teams/people, columns = question codes; wide grids continue in a second table with the names repeated. */
-function questionGrid(canvas: ReportCanvas, grid: CsiQuestionGrid, title: string) {
+function questionGrid(canvas: ReportCanvas, grid: CsiQuestionGrid, title: string, bands: CsiScoreBands) {
     if (!grid.rows.length) return;
     canvas.section(title, 'Angka = RATA-RATA nilai (skala 1-5) dari semua responden yang menilai, jadi bisa desimal (mis. 3,50). Kosong (–) = pertanyaan tidak dipasang untuk yang dinilai itu.');
     // Short labels (e.g. the HC dimensions Knowledge … Tangible) are clear enough to be the column headers themselves.
@@ -123,15 +126,15 @@ function questionGrid(canvas: ReportCanvas, grid: CsiQuestionGrid, title: string
         const columns: Column[] = [{ header: 'Nama', width: 30 }, { header: 'Site', width: 8 }, ...slice.map((column) => ({ header: header(column), width: 62 / GRID_COLUMNS, align: 'right' as const }))];
         canvas.table(columns, grid.rows.map((row) => [
             { text: text(row.name), bold: true }, { text: row.siteCode ?? DASH },
-            ...row.values.slice(start, start + GRID_COLUMNS).map((value) => ({ text: dec(value), color: scoreColor(value), bold: value !== null })),
+            ...row.values.slice(start, start + GRID_COLUMNS).map((value) => ({ text: dec(value), color: scoreInk(value, bands), bold: value !== null })),
         ]));
     }
 }
 
 function appendix(canvas: ReportCanvas, model: CsiReportModel) {
     canvas.pageBreak();
-    questionGrid(canvas, model.teamGrid, 'Lampiran A1 · Nilai per pertanyaan — Tim');
-    questionGrid(canvas, model.peopleGrid, 'Lampiran A2 · Nilai per pertanyaan — Orang');
+    questionGrid(canvas, model.teamGrid, 'Lampiran A1 · Nilai per pertanyaan — Tim', model.bands);
+    questionGrid(canvas, model.peopleGrid, 'Lampiran A2 · Nilai per pertanyaan — Orang', model.bands);
     if (model.choices.length) {
         canvas.section('Lampiran A3 · Jawaban pilihan', 'Pertanyaan tanpa nilai (jumlah jawaban per pilihan).');
         canvas.table([{ header: 'Pertanyaan', width: 40 }, { header: 'Jawaban', width: 60 }],
@@ -185,15 +188,15 @@ export function renderCsiReportPdf({ model, signoff, now }: CsiReportPdfInput): 
             canvas.pageBreak();
             if (!aspectsHere) {
                 canvas.section('Aspek layanan', 'Rata-rata per pertanyaan untuk semua yang dinilai, dari yang terlemah.');
-                canvas.scoreBars([{ title: 'Nilai rata-rata (1-5)', max: 5, rows: model.aspects.map((aspect) => ({ label: text(aspect.label), value: aspect.average, color: scoreColor(aspect.average), text: dec(aspect.average) })) }]);
+                canvas.scoreBars([{ title: 'Nilai rata-rata (1-5)', max: 5, rows: model.aspects.map((aspect) => ({ label: text(aspect.label), value: aspect.average, color: scoreInk(aspect.average, model.bands), text: dec(aspect.average) })) }]);
             }
             canvas.section(`Peringkat tim · ${model.teams.length} tim`, 'Skala 1-5. Indeks = nilai/5 (%). Lalu = periode sebelumnya. Bintang = jumlah jawaban bintang 1/2/3/4/5.');
-            rankingTable(canvas, model.teams, CsiRateeKind.TEAM);
+            rankingTable(canvas, model.teams, CsiRateeKind.TEAM, model.bands);
             canvas.section(`Peringkat orang · ${model.people.length} orang`, 'Urut dari nilai tertinggi, semua orang dicantumkan.');
             peopleSpotlight(canvas, model.people);
-            rankingTable(canvas, model.people, CsiRateeKind.PERSON);
+            rankingTable(canvas, model.people, CsiRateeKind.PERSON, model.bands);
             participation(canvas, model);
-            if (model.hcRecap?.services.length) renderHcRecapPdf(canvas, model.hcRecap);
+            if (model.hcRecap?.services.length) renderHcRecapPdf(canvas, model.hcRecap, model.bands);
 
             appendix(canvas, model);
             canvas.section('Pengesahan', `Dicetak ${formatLongDate(localDateKey(now, DEFAULT_TIMEZONE))}`);

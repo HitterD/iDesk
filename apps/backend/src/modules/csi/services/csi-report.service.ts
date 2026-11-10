@@ -22,6 +22,7 @@ import { CsiSlaService } from './csi-sla.service';
 import { CsiDepartment } from '../entities/csi-department.entity';
 import { User } from '../../users/entities/user.entity';
 import { buildReportModel, CsiReportModel, subjectKeyOf } from './csi-report-model';
+import { bandsOf, CsiScoreBands } from './csi-score-bands';
 import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
 import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap } from '../org/csi-hc-report.calc';
 import { locationOfSiteCode } from '../org/csi-org.constants';
@@ -37,7 +38,7 @@ const SITE_NOT_IN_PERIOD_MESSAGE = 'Site tidak termasuk dalam periode ini';
 export type CsiActorRef = { id: string };
 export type CsiHcPeriodRef = { id: string; title: string; startDate: string; endDate: string };
 export type CsiHcRecapInput = {
-    period: CsiHcPeriodRef; pics: CsiHcPic[]; ratings: CsiHcRating[]; dimensions: string[];
+    period: CsiHcPeriodRef; scoreBands: CsiScoreBands; pics: CsiHcPic[]; ratings: CsiHcRating[]; dimensions: string[];
     /** Account behind each PIC row (null when the PIC has no iDesk account). */
     userIdOf: Map<string, string | null>;
 };
@@ -115,6 +116,7 @@ export class CsiReportService {
         const comments = await this.rateeComments(data);
         return {
             period: { ...period, sites: allSites },
+            scoreBands: bandsOf(period),
             overall: overallStats(data.items, data.responses.length),
             previousAverage: await this.previousAverage(scope, period, siteId),
             ratees: teamFirst(data.ratees).map((ratee) => rateeStats(ratee, data.dimensions, data.items, {
@@ -230,9 +232,9 @@ export class CsiReportService {
      * HC per-PIC recap: layanan / bagian / PIC and respondent division / department / bagian, each averaged per
      * location (SJA 1-4, Jakarta) and ALL SJA, plus every respondent's stars. Only scored answers count.
      */
-    async getHcRecap(scope: ServiceScope, periodId: string): Promise<CsiHcRecap & { period: CsiHcPeriodRef }> {
-        const { period, pics, ratings, dimensions } = await this.hcRecapInput(scope, periodId);
-        return { period, ...buildHcRecap({ pics, ratings, dimensions, scope }) };
+    async getHcRecap(scope: ServiceScope, periodId: string): Promise<CsiHcRecap & { period: CsiHcPeriodRef; scoreBands: CsiScoreBands }> {
+        const { period, scoreBands, pics, ratings, dimensions } = await this.hcRecapInput(scope, periodId);
+        return { period, scoreBands, ...buildHcRecap({ pics, ratings, dimensions, scope }) };
     }
 
     /** Period, PIC rows (with the viewer-relevant userId), scored ratings and dimension labels behind every HC recap. */
@@ -274,7 +276,7 @@ export class CsiReportService {
         const linkedByPic = await this.linkedAccounts(people.map((ratee) => ratee.picId).filter((id): id is string => !!id));
         return {
             period: { id: period.id, title: period.title, startDate: period.startDate, endDate: period.endDate },
-            pics, ratings, dimensions, userIdOf: new Map(people.map((ratee) => [ratee.id, ratedAccountOf(ratee, linkedByPic)])),
+            scoreBands: bandsOf(period), pics, ratings, dimensions, userIdOf: new Map(people.map((ratee) => [ratee.id, ratedAccountOf(ratee, linkedByPic)])),
         };
     }
 

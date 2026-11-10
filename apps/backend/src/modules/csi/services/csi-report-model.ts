@@ -2,6 +2,7 @@ import { CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constan
 import { CsiRaterMatrix } from './csi-rater-matrix.calc';
 import { CsiReportService } from './csi-report.service';
 import { CsiSlaReporter } from './csi-sla.service';
+import { bandsOf, CsiScoreBand, CsiScoreBands, CsiScoreWord, scoreBand, scoreWordFor } from './csi-score-bands';
 import { averageOfAverages } from './csi-score.util';
 import type { CsiHcRecap } from '../org/csi-hc-report.calc';
 
@@ -12,8 +13,6 @@ import type { CsiHcRecap } from '../org/csi-hc-report.calc';
 export type CsiReportData = Awaited<ReturnType<CsiReportService['getReport']>>;
 type Ratee = CsiReportData['ratees'][number];
 
-export const CSI_SCORE_GOOD = 4.5;
-export const CSI_SCORE_FAIR = 4;
 const SCORE_MAX = 5;
 const PERCENT = 100;
 const INDEX_DECIMALS = 10;
@@ -22,20 +21,13 @@ export const HIGHLIGHT_COUNT = 3;
 export const HIGHLIGHT_FROM = 10;
 const SCORED = new Set<string>([CsiQuestionType.STAR, CsiQuestionType.SCALE]);
 
-export type CsiScoreWord = 'Sangat puas' | 'Puas' | 'Perlu perbaikan';
-/** Same thresholds as the app (frontend lib/csiTone.ts): >= 4.5, >= 4.0, below. */
-export function scoreWord(average: number | null): CsiScoreWord | null {
-    if (average === null) return null;
-    if (average >= CSI_SCORE_GOOD) return 'Sangat puas';
-    return average >= CSI_SCORE_FAIR ? 'Puas' : 'Perlu perbaikan';
-}
 export const indexPct = (average: number | null) => (average === null ? null : Math.round((average / SCORE_MAX) * PERCENT * INDEX_DECIMALS) / INDEX_DECIMALS);
 const round2 = (value: number) => Math.round(value * 100) / 100;
 const delta = (now: number | null, before: number | null | undefined) => (now === null || before === null || before === undefined ? null : round2(now - before));
 
 export type CsiReportRow = {
     rank: number; periodRateeId: string; kind: CsiRateeKind; name: string; siteCode: string | null; raters: number;
-    average: number | null; word: CsiScoreWord | null; indexPct: number | null; previous: number | null; delta: number | null;
+    average: number | null; word: CsiScoreWord | null; band: CsiScoreBand | null; indexPct: number | null; previous: number | null; delta: number | null;
     stars: number[];
 };
 export type CsiAspect = { label: string; full: string; average: number | null; answers: number };
@@ -53,7 +45,9 @@ export type CsiCommentGroup = { name: string; kind: CsiRateeKind; comments: Arra
 export type CsiReportModel = {
     title: string; scopeLabel: string; startDate: string; endDate: string; siteLabel: string; modeLabel: string;
     targetPct: number; docNo: string;
-    overall: { average: number | null; word: CsiScoreWord | null; indexPct: number | null; previous: number | null; delta: number | null };
+    /** Colour bands of the survey (period scoreFairMin / scoreGoodMin): every colour and predikat follows them. */
+    bands: CsiScoreBands;
+    overall: { average: number | null; word: CsiScoreWord | null; band: CsiScoreBand | null; indexPct: number | null; previous: number | null; delta: number | null };
     participation: { basis: number; target: number; responses: number; respondenPct: number | null; pengisiPct: number | null; reached: boolean; basisLabel: string };
     sites: CsiSiteParticipation[];
     teams: CsiReportRow[];
@@ -80,7 +74,9 @@ export function questionLabel(question: { name: string; shortLabel?: string | nu
 }
 const questionKey = (question: { name: string; description?: string | null }) => `${question.name}\u0000${question.description?.trim() ?? ''}`;
 
-function rows(ratees: Ratee[], kind: CsiRateeKind, siteCodeOf: (id: string | null) => string | null, previous: Map<string, number | null>, teamLabel: string): CsiReportRow[] {
+type RowContext = { siteCodeOf: (id: string | null) => string | null; previous: Map<string, number | null>; teamLabel: string; bands: CsiScoreBands };
+
+function rows(ratees: Ratee[], kind: CsiRateeKind, { siteCodeOf, previous, teamLabel, bands }: RowContext): CsiReportRow[] {
     return ratees.filter((ratee) => ratee.kind === kind)
         .sort((a, b) => (b.average ?? -1) - (a.average ?? -1) || a.displayName.localeCompare(b.displayName, 'id'))
         .map((ratee, index) => {
@@ -88,7 +84,7 @@ function rows(ratees: Ratee[], kind: CsiRateeKind, siteCodeOf: (id: string | nul
             const before = previous.get(subjectKeyOf(ratee, name)) ?? null;
             return {
                 rank: index + 1, periodRateeId: ratee.periodRateeId, kind, name, siteCode: siteCodeOf(ratee.siteId), raters: ratee.respondentCount,
-                average: ratee.average, word: scoreWord(ratee.average), indexPct: ratee.indexPct, previous: before, delta: delta(ratee.average, before),
+                average: ratee.average, word: scoreWordFor(ratee.average, bands), band: scoreBand(ratee.average, bands), indexPct: ratee.indexPct, previous: before, delta: delta(ratee.average, before),
                 stars: ratee.starDistribution ?? [0, 0, 0, 0, 0],
             };
         });
@@ -144,7 +140,7 @@ function choices(ratees: Ratee[]): CsiChoiceSummary[] {
     return [...groups].map(([label, counts]) => ({ label, counts: [...counts].map(([option, count]) => ({ option, count })) }));
 }
 
-function highlightSentences(model: Pick<CsiReportModel, 'overall' | 'teams' | 'people' | 'aspects' | 'sites'>): string[] {
+function highlightSentences(model: Pick<CsiReportModel, 'bands' | 'overall' | 'teams' | 'people' | 'aspects' | 'sites'>): string[] {
     const lines: string[] = [];
     const fmt = (value: number) => value.toFixed(2).replace('.', ',');
     const { overall } = model;
@@ -154,8 +150,8 @@ function highlightSentences(model: Pick<CsiReportModel, 'overall' | 'teams' | 'p
     const best = [...all].sort((a, b) => b.average! - a.average!)[0];
     const worst = [...all].sort((a, b) => a.average! - b.average!)[0];
     if (best && worst && best !== worst) lines.push(`Tertinggi: ${best.name} (${fmt(best.average!)}). Perlu perhatian: ${worst.name} (${fmt(worst.average!)})${worst.delta !== null && worst.delta < 0 ? `, turun ${fmt(-worst.delta)}` : ''}.`);
-    const below = all.filter((row) => row.average! < CSI_SCORE_FAIR).length;
-    if (below) lines.push(`${below} tim/orang di bawah 4,00 (Perlu perbaikan).`);
+    const below = all.filter((row) => row.band === 'poor').length;
+    if (below) lines.push(`${below} tim/orang di bawah ${fmt(model.bands.fairMin)} (Perlu perbaikan).`);
     const scored = model.aspects.filter((aspect) => aspect.average !== null);
     if (scored.length > 1) lines.push(`Aspek terlemah: ${scored[0].label} (${fmt(scored[0].average!)}). Terkuat: ${scored[scored.length - 1].label} (${fmt(scored[scored.length - 1].average!)}).`);
     const missed = model.sites.filter((site) => !site.reached && site.basis > 0);
@@ -185,8 +181,10 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
     const { report, scopeLabel } = input;
     const siteCodeOf = (id: string | null) => report.period.sites.find((site) => site.id === id)?.code ?? null;
     const teamLabel = report.period.teamLabel;
-    const teams = rows(report.ratees, CsiRateeKind.TEAM, siteCodeOf, input.previousBySubject, teamLabel);
-    const people = rows(report.ratees, CsiRateeKind.PERSON, siteCodeOf, input.previousBySubject, teamLabel);
+    const bands = bandsOf(report.period);
+    const context: RowContext = { siteCodeOf, previous: input.previousBySubject, teamLabel, bands };
+    const teams = rows(report.ratees, CsiRateeKind.TEAM, context);
+    const people = rows(report.ratees, CsiRateeKind.PERSON, context);
     const targetPct = report.period.slaTargetPct;
     const sites: CsiSiteParticipation[] = input.siteBasis.map((row) => {
         const site = report.period.sites.find((item) => item.id === row.siteId);
@@ -214,8 +212,8 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
         title: report.period.title, scopeLabel, startDate: report.period.startDate, endDate: report.period.endDate,
         siteLabel: report.period.sites.map((site) => site.name ?? site.code).filter(Boolean).join(', ') || 'Semua site',
         modeLabel: sla.mode === CsiRespondentMode.LISTED ? 'Hanya penilai terdaftar' : 'Semua user di site',
-        targetPct, docNo: `CSI-${scopeLabel}-${report.period.id.slice(0, 8).toUpperCase()}`,
-        overall: { average: overallAverage, word: scoreWord(overallAverage), indexPct: indexPct(overallAverage), previous: report.previousAverage, delta: delta(overallAverage, report.previousAverage) },
+        targetPct, docNo: `CSI-${scopeLabel}-${report.period.id.slice(0, 8).toUpperCase()}`, bands,
+        overall: { average: overallAverage, word: scoreWordFor(overallAverage, bands), band: scoreBand(overallAverage, bands), indexPct: indexPct(overallAverage), previous: report.previousAverage, delta: delta(overallAverage, report.previousAverage) },
         participation: {
             basis: sla.basis, target: sla.target, responses: sla.responses, respondenPct: respondenPct(sla.responses, sla.basis),
             pengisiPct: sla.pengisiPct, reached: sla.target > 0 && sla.responses >= sla.target,

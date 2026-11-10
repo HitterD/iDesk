@@ -117,6 +117,13 @@ describe('CsiReportService', () => {
         );
     });
 
+    it('report and HC recap payloads carry the survey score bands (legacy rows default to 4.0/4.5)', async () => {
+        expect((await service.getReport(ICT, 'p1')).scoreBands).toEqual({ fairMin: 4, goodMin: 4.5 });
+        Object.assign(periods.rows[0], { scoreFairMin: 3.5, scoreGoodMin: 4.2 });
+        expect((await service.getReport(ICT, 'p1')).scoreBands).toEqual({ fairMin: 3.5, goodMin: 4.2 });
+        expect((await service.getHcRecap(ICT, 'p1')).scoreBands).toEqual({ fairMin: 3.5, goodMin: 4.2 });
+    });
+
     it('ratee average is mean of response averages', async () => {
         const report = await service.getReport(ICT, 'p1');
         const budi = report.ratees[0];

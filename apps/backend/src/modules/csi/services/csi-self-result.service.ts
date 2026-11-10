@@ -11,6 +11,7 @@ import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiPic } from '../entities/csi-pic.entity';
 import { computeStatus, CsiPeriodStatus } from './csi-period.service';
 import { ratedAccountOf } from './csi-ratee-owner.util';
+import { bandsOf, CsiScoreBands } from './csi-score-bands';
 
 /** Results stay hidden until this many people rated the person, so no single rater can be singled out. */
 export const CSI_SELF_RESULT_MIN_RATERS = 3;
@@ -20,6 +21,8 @@ const NOT_SCORED = new Set<string>([CsiQuestionType.CHOICE, CsiQuestionType.TEXT
 export type CsiSelfResult = {
     periodId: string; title: string; startDate: string; endDate: string; status: CsiPeriodStatus;
     serviceFunction: string | null; teamName: string | null; raters: number; minRaters: number; ready: boolean;
+    /** Colour bands of the survey (always sent, also before the results are ready). */
+    scoreBands: CsiScoreBands;
     average: number | null; dimensions: Array<{ label: string; average: number }>; comments: string[];
 };
 
@@ -96,7 +99,7 @@ export class CsiSelfResultService {
             periodId: period.id, title: period.title, startDate: period.startDate, endDate: period.endDate, status: computeStatus(period, now),
             serviceFunction: ratee.serviceFunction ?? null,
             teamName: ratee.kind === CsiRateeKind.TEAM ? ratee.team?.name ?? ratee.displayName : null,
-            raters, minRaters: CSI_SELF_RESULT_MIN_RATERS, ready,
+            raters, minRaters: CSI_SELF_RESULT_MIN_RATERS, ready, scoreBands: bandsOf(period),
         };
         if (!ready) return { ...base, average: null, dimensions: [], comments: [] };
         const dimensions = questions.flatMap((question) => {

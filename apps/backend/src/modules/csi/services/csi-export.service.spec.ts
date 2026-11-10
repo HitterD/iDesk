@@ -137,6 +137,19 @@ describe('CsiExportService', () => {
         expect(sheet.views[0]).toMatchObject({ state: 'frozen', xSplit: 4, ySplit: 1 });
     });
 
+    it('custom bands colour the "Penilai x Subjek" cells by the survey bands', async () => {
+        // Bands 3.0 / 3.8: the team score 4 is green here (orange with the default 4.0 / 4.5).
+        reports.getExecutiveModel.mockImplementation(async () => ({ ...reportFixture({ people: 3, sites: 2 }).model, bands: { fairMin: 3, goodMin: 3.8 } }));
+        const sheet = (await load()).getWorksheet('Penilai x Subjek')!;
+        expect(sheet.getRow(2).getCell(5).value).toBe(4);
+        expect(sheet.getRow(2).getCell(5).fill).toMatchObject({ fgColor: { argb: 'FFD7F0DE' } });
+    });
+
+    it('default bands colour a 4 orange in "Penilai x Subjek"', async () => {
+        const sheet = (await load()).getWorksheet('Penilai x Subjek')!;
+        expect(sheet.getRow(2).getCell(5).fill).toMatchObject({ fgColor: { argb: 'FFFCEBC8' } });
+    });
+
     it('executive sheets carry the same parameters as the PDF: separate team/people rankings, notes, every basis person', async () => {
         const { buffer } = await service.buildWorkbook(ServiceScope.ICT, 'p1', NOW, { notes: 'Tindak lanjut A' });
         const workbook = new ExcelJS.Workbook();

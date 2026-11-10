@@ -1,15 +1,29 @@
 import { CsiRateeKind } from '../csi.constants';
-import { buildReportModel, indexPct, questionLabel, scoreWord } from './csi-report-model';
+import { buildReportModel, indexPct, questionLabel } from './csi-report-model';
 import { reportFixture } from './csi-report-model.fixture';
 
 describe('csi-report-model', () => {
-    it('predikat uses the app thresholds (4.5 / 4.0)', () => {
-        expect(scoreWord(4.5)).toBe('Sangat puas');
-        expect(scoreWord(4.49)).toBe('Puas');
-        expect(scoreWord(4)).toBe('Puas');
-        expect(scoreWord(3.99)).toBe('Perlu perbaikan');
-        expect(scoreWord(null)).toBeNull();
+    it('legacy period keeps 4.0/4.5: predikat and colour band of every row', () => {
+        const { model } = reportFixture({ people: 4 });
+        expect(model.bands).toEqual({ fairMin: 4, goodMin: 4.5 });
+        const word = (average: number | null) => (average === null ? null : average >= 4.5 ? 'Sangat puas' : average >= 4 ? 'Puas' : 'Perlu perbaikan');
+        model.people.forEach((row) => expect(row.word).toBe(word(row.average)));
         expect(indexPct(4.35)).toBe(87);
+    });
+
+    it('custom bands 3.5/4.2 change predikat, colour band and the highlight threshold', () => {
+        const { input } = reportFixture({ people: 4 });
+        const period = { ...input.report.period, scoreFairMin: 3.5, scoreGoodMin: 4.2 };
+        const model = buildReportModel({ ...input, report: { ...input.report, period, overall: { average: 4.3, respondentCount: 2 } } });
+        expect(model.bands).toEqual({ fairMin: 3.5, goodMin: 4.2 });
+        expect(model.overall).toMatchObject({ word: 'Sangat puas', band: 'good' });
+        const row = (average: number) => model.people.find((item) => item.average === average)!;
+        // Fixture people averages: 3, 4.6, 4.1, 3.6 (4.1 is "Puas" here, "Puas" with the defaults too; 3.6 would be poor by default).
+        expect(row(3.6)).toMatchObject({ word: 'Puas', band: 'fair' });
+        expect(row(4.1)).toMatchObject({ word: 'Puas', band: 'fair' });
+        expect(row(3)).toMatchObject({ word: 'Perlu perbaikan', band: 'poor' });
+        expect(row(4.6)).toMatchObject({ word: 'Sangat puas', band: 'good' });
+        expect(model.highlights.join(' ')).toContain('di bawah 3,50 (Perlu perbaikan)');
     });
 
     it('question label: short label, else the bracketed description, else the text', () => {

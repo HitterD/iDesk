@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as PDFDocument from 'pdfkit';
 import { renderMemoPdf } from './csi-memo-pdf';
 import { memoHeader, memoSurvey } from './csi-memo.fixtures';
 
@@ -40,6 +41,25 @@ describe('renderMemoPdf', () => {
         ]) expect(text).toContain(expected);
         // Spec: % Responden = responden / pelapor (2 of 3 -> 67%), next to % Pengisi (SLA) = responden / target.
         expect(text).toMatch(/% Responden\s*67%/);
+    });
+
+    it('colours the survey average by its score bands (custom bands 3.5/4.2 vs legacy 4.0/4.5)', async () => {
+        const GREEN = '#1E7D46';
+        const AMBER = '#B26A00';
+        const spy = jest.spyOn((PDFDocument as any).prototype, 'fillColor');
+        try {
+            const custom = memoSurvey(1, 4.3);
+            custom.report.period = { ...custom.report.period, scoreFairMin: 3.5, scoreGoodMin: 4.2 };
+            await renderMemoPdf(memoHeader(), [custom]);
+            expect(spy.mock.calls.map(([color]) => color)).toContain(GREEN);
+            spy.mockClear();
+            await renderMemoPdf(memoHeader(), [memoSurvey(1, 4.3)]);
+            const colors = spy.mock.calls.map(([color]) => color);
+            expect(colors).toContain(AMBER);
+            expect(colors).not.toContain(GREEN);
+        } finally {
+            spy.mockRestore();
+        }
     });
 
     it('strips control characters from user strings', async () => {
