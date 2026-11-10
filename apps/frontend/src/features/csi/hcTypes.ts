@@ -113,6 +113,8 @@ export interface CsiTemplateImportReport {
     pics: { added: string[]; changed: string[]; removed: string[] };
     raters: { added: number; removed: number };
     teams: { added: string[] }; newMasterPics: string[];
+    /** PIC rows left unlinked because several PIC masters share the name. */
+    ambiguousMasters: string[];
     unresolved: Array<{ name: string; suggestions: string[] }>;
     problems: Array<{ row: number; message: string }>;
 }
@@ -123,6 +125,8 @@ export interface CsiPeriodFromTemplatesResult { periodId: string; report: CsiTem
 export interface CsiTemplateApplyReport {
     picsAdded: number; teamsAdded: number; ratersAdded: number; pairsAdded: number;
     ratersUnconfirmed: number; siteAdded: string | null;
+    /** Raters whose account site is not a survey site: added, but they will not see the survey. */
+    ratersOutsideSites: string[];
     picsSkippedNoRaters: string[]; picsUnmatched: string[]; ratersNoAccount: string[]; ratersAmbiguous: string[]; committed: boolean;
     /** Why this survey cannot take the template without hiding it from current raters (null = it can). */
     blockedReason: string | null;

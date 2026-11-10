@@ -179,6 +179,8 @@ describe('Template raters', () => {
         renderWithQuery(<TemplatesTab scope="hc" />);
         await card(/RARA KURNIA/);
         expect(screen.queryByText(/perlu dicek/i)).not.toBeInTheDocument();
-        expect(screen.getByText('2 PIC · 1 penilai · 1 terkonfirmasi · 0 cocok otomatis · 0 nama ganda · 0 belum punya akun')).toBeInTheDocument();
+        expect(within(screen.getByRole('list', { name: 'Ringkasan template' })).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+            '2 PIC', '1 penilai', '1 terkonfirmasi', '0 cocok otomatis', '0 nama ganda', '0 belum punya akun',
+        ]);
     });
 });

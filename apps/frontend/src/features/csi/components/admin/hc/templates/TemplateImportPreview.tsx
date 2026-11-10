@@ -15,6 +15,7 @@ const FORMAT_LABELS: Record<CsiTemplateImportReport['format'], string> = {
 };
 const FIELD = 'h-8 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--idesk-surface))] px-2 text-[12.5px] disabled:opacity-50';
 const NOTE = 'rounded-xl bg-[hsl(var(--muted)/.5)] px-3 py-2 text-[12.5px]';
+const NOTE_AMBER = 'rounded-xl bg-[hsl(var(--ticket-amber)/.14)] px-3 py-2 text-[12.5px] text-[hsl(var(--ticket-amber-ink))]';
 
 /** A rename only counts once a suggestion is picked; team/PIC need nothing more. */
 export const isChoiceComplete = (choice: CsiTemplatePicResolution | undefined) =>
@@ -113,6 +114,12 @@ export function TemplateImportPreview({ report, choices, onChoose, prune, onPrun
                 <details className={NOTE}>
                     <summary className="cursor-pointer font-semibold">{`${report.newMasterPics.length} PIC master baru akan dibuat`}</summary>
                     <p className="mt-1 text-muted-foreground">{report.newMasterPics.map(titleCase).join(', ')}</p>
+                </details>
+            )}
+            {report.ambiguousMasters.length > 0 && (
+                <details className={NOTE_AMBER} open>
+                    <summary className="cursor-pointer font-semibold">{`PIC master ganda, pilih manual di PIC HC (${report.ambiguousMasters.length})`}</summary>
+                    <p className="mt-1">{report.ambiguousMasters.map(titleCase).join(', ')}</p>
                 </details>
             )}
             <Problems problems={report.problems} />

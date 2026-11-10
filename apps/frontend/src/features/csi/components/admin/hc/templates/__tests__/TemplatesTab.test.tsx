@@ -24,12 +24,12 @@ const TEMPLATE: CsiTemplate = {
 const REPORT = {
     format: 'matrix', committed: false, services: ['HCC', 'HCS'],
     pics: { added: ['BUDI'], changed: ['RARA'], removed: [] as string[] }, raters: { added: 4, removed: 0 },
-    teams: { added: ['Tim Payroll'] }, newMasterPics: ['BUDI'],
+    teams: { added: ['Tim Payroll'] }, newMasterPics: ['BUDI'], ambiguousMasters: [] as string[],
     unresolved: [{ name: 'Tim Rekrut', suggestions: ['TIM REKRUTMEN', 'RARA'] }],
     problems: [] as Array<{ row: number; message: string }>,
 };
 const fx = vi.hoisted(() => ({
-    list: { templates: [] as unknown[], bundledAvailable: ['SMG'] }, blocked: null as string | null, siteAdded: null as string | null, report: null as unknown as typeof REPORT, failPrune: false,
+    list: { templates: [] as unknown[], bundledAvailable: ['SMG'] }, blocked: null as string | null, siteAdded: null as string | null, outside: [] as string[], report: null as unknown as typeof REPORT, failPrune: false,
 }));
 vi.mock('../../../../../lib/csiAdmin', async (importOriginal) => ({ ...(await importOriginal<object>()), downloadBlob: vi.fn() }));
 vi.mock('../../../../../api/csiHc.api', () => ({
@@ -46,7 +46,7 @@ vi.mock('../../../../../api/csiHc.api', () => ({
         templateAccountSuggestions: vi.fn(async () => []),
         removeTemplateRater: vi.fn(async () => TEMPLATE),
         applyTemplate: vi.fn(async (_scope: string, _id: string, _period: string, commit: boolean) => ({
-            picsAdded: 1, teamsAdded: 0, ratersAdded: 1, pairsAdded: 1, ratersUnconfirmed: 0, siteAdded: fx.siteAdded,
+            picsAdded: 1, teamsAdded: 0, ratersAdded: 1, pairsAdded: 1, ratersUnconfirmed: 0, ratersOutsideSites: fx.outside, siteAdded: fx.siteAdded,
             picsSkippedNoRaters: ['JINGGA FERDASIWI'], picsUnmatched: [],
             ratersNoAccount: ['ARIEF NOEGROHO'], ratersAmbiguous: ['AGUS SUBEKTI'], blockedReason: fx.blocked, committed: commit,
         })),
@@ -59,7 +59,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const api = async () => (await import('../../../../../api/csiHc.api')).CsiHcApi;
 
-beforeEach(() => { fx.list = { templates: [TEMPLATE], bundledAvailable: [] }; fx.blocked = null; fx.siteAdded = null; fx.report = REPORT; fx.failPrune = false; });
+beforeEach(() => { fx.list = { templates: [TEMPLATE], bundledAvailable: [] }; fx.blocked = null; fx.siteAdded = null; fx.outside = []; fx.report = REPORT; fx.failPrune = false; });
 
 const XLSX = new File(['x'], 'smg.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 /** Opens the import dialog on the Semarang template and waits for the dry run. */
@@ -232,6 +232,25 @@ describe('TemplatesTab', () => {
         await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: /survei/i }), 'p1');
         await userEvent.click(within(dialog).getByRole('button', { name: /pratinjau/i }));
         expect(await within(dialog).findByText('Site SMG akan ditambahkan ke survei ini.')).toBeInTheDocument();
+    });
+
+    it('sync preview warns about raters from another site and still allows apply', async () => {
+        fx.outside = ['ELVI CYNTHIA'];
+        renderWithQuery(<TemplatesTab scope="hc" />);
+        await userEvent.click(await screen.findByRole('button', { name: /gunakan template/i }));
+        const dialog = await screen.findByRole('dialog');
+        await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: /survei/i }), 'p1');
+        await userEvent.click(within(dialog).getByRole('button', { name: /pratinjau/i }));
+        expect(await within(dialog).findByText('1 penilai berada di site lain dan tidak akan melihat survei ini')).toBeInTheDocument();
+        expect(within(dialog).getByText('Elvi Cynthia')).toBeInTheDocument();
+        expect(within(dialog).getByRole('button', { name: /terapkan/i })).toBeEnabled();
+    });
+
+    it('import preview warns about PIC rows with an ambiguous PIC master', async () => {
+        fx.report = { ...REPORT, unresolved: [], ambiguousMasters: ['RARA'] };
+        const dialog = await openPreview();
+        expect(within(dialog).getByText('PIC master ganda, pilih manual di PIC HC (1)')).toBeInTheDocument();
+        expect(within(dialog).getByText('Rara')).toBeInTheDocument();
     });
 
     it('a new survey opens the multi-location wizard with this location preselected', async () => {

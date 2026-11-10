@@ -104,9 +104,9 @@ describe('CsiAdminPage', () => {
 
     it('survei HC dari template langsung membuka draft barunya (lanjut di langkah pertama yang belum lengkap)', async () => {
         const actor = userEvent.setup();
-        access.pageAccess = { csi_admin_ict: true };
-        renderAt('/csi/admin/ict');
+        renderAt('/csi/admin/hc');
         await actor.click(screen.getByRole('button', { name: 'Survei' }));
+        expect(screen.getByText('periods:hc')).toBeInTheDocument();
         await actor.click(screen.getByRole('button', { name: 'survei HC dibuat' }));
         expect(screen.getByText('wizard:hc-new:resume')).toBeInTheDocument();
     });

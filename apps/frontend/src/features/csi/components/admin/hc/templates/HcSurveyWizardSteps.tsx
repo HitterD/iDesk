@@ -100,6 +100,17 @@ export function UnconfirmedNote({ count }: { count: number }) {
     return <p className={NOTE_AMBER}>{`${count} penilai belum dikonfirmasi — tetap ikut survei; konfirmasi di Template penugasan bila perlu.`}</p>;
 }
 
+/** Non-blocking: raters whose account belongs to another site are added but never see the survey. */
+export function OutsideSitesNote({ names }: { names: string[] }) {
+    if (!names.length) return null;
+    return (
+        <details className={NOTE_AMBER}>
+            <summary className="cursor-pointer font-semibold">{`${names.length} penilai berada di site lain dan tidak akan melihat survei ini`}</summary>
+            <p className="mt-1">{names.map(titleCase).join(', ')}</p>
+        </details>
+    );
+}
+
 function Stat({ label, value }: { label: string; value: number }) {
     return (
         <div className="rounded-xl bg-[hsl(var(--muted)/.45)] px-3 py-2">
@@ -122,6 +133,7 @@ export function PreviewStep({ report, loading, failed }: { report: CsiTemplateAp
                 <Stat label="Pasangan" value={report.pairsAdded} />
             </div>
             <UnconfirmedNote count={report.ratersUnconfirmed} />
+            <OutsideSitesNote names={report.ratersOutsideSites} />
             {skipped > 0 && (
                 <details className="grid gap-1.5" open>
                     <summary className="cursor-pointer text-[13px] font-semibold">{`Dilewati (${skipped})`}</summary>

@@ -128,6 +128,8 @@ describe('SubjectsTab (HC)', () => {
         await actor.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Hapus tim/ }));
         expect(await screen.findByText('Tim dipakai di survei yang belum selesai')).toBeInTheDocument();
         expect(hooks.remove).toHaveBeenCalledWith('t5');
+        expect(window.confirm).toHaveBeenLastCalledWith(
+            'Hapus tim Tim Payroll? Baris tim ini di Template penugasan beserta penilainya ikut terhapus.');
     });
 
     it('bulk dialog uploads matched files', async () => {

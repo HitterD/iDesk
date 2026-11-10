@@ -24,6 +24,11 @@ const VIEW_OPTIONS = [{ value: 'pic', label: 'Per PIC' }, { value: 'rater', labe
 const SERVICE_ORDER = ['HCD', 'HCC', 'HCS'];
 const SERVICE_NAMES: Record<string, string> = { HCD: 'HC Development', HCC: 'HC Compensation & Benefit', HCS: 'HC Services' };
 
+const summaryItems = (summary: CsiTemplate['summary']) => [
+    `${summary.pics} PIC`, `${summary.raters} penilai`, `${summary.ratersConfirmed} terkonfirmasi`, `${summary.ratersOk} cocok otomatis`,
+    `${summary.ratersAmbiguous} nama ganda`, `${summary.ratersNoAccount} belum punya akun`,
+];
+
 function TemplateEditor({ scope, template, location, onImport, view, onViewChange }: {
     scope: CsiScopeParam; template: CsiTemplate; location: TemplateLocation; onImport: () => void;
     view: TemplateView; onViewChange: (view: TemplateView) => void;
@@ -38,17 +43,20 @@ function TemplateEditor({ scope, template, location, onImport, view, onViewChang
     const { summary } = template;
     return (
         <div className="grid gap-4">
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-[hsl(var(--muted)/.45)] p-4">
-                <div className="min-w-0 flex-1">
+            {/* Title + summary take the full width; the controls wrap on their own row so the summary never becomes a narrow column. */}
+            <div className="grid gap-3 rounded-2xl bg-[hsl(var(--muted)/.45)] p-4">
+                <div className="grid min-w-0 gap-1.5">
                     <p className="text-[15px] font-bold">{template.name}</p>
-                    <p className={MUTED_TEXT}>
-                        {`${summary.pics} PIC · ${summary.raters} penilai · ${summary.ratersConfirmed} terkonfirmasi · ${summary.ratersOk} cocok otomatis · ${summary.ratersAmbiguous} nama ganda · ${summary.ratersNoAccount} belum punya akun`}
-                    </p>
+                    <ul aria-label="Ringkasan template" className={cn(MUTED_TEXT, 'flex flex-wrap gap-x-3 gap-y-1')}>
+                        {summaryItems(summary).map((item) => <li key={item}>{item}</li>)}
+                    </ul>
                 </div>
-                <SegmentedControl options={VIEW_OPTIONS} value={view} onValueChange={onViewChange} aria-label="Tampilan template" />
-                <BlankTemplateButton scope={scope} location={location} variant="subtle" />
-                <Button variant="soft" onClick={onImport}><FileSpreadsheet aria-hidden="true" />Impor Excel</Button>
-                <Button variant="primary" onClick={() => setApplying(true)}><Play aria-hidden="true" />Gunakan template</Button>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    <SegmentedControl options={VIEW_OPTIONS} value={view} onValueChange={onViewChange} aria-label="Tampilan template" />
+                    <BlankTemplateButton scope={scope} location={location} variant="subtle" />
+                    <Button variant="soft" onClick={onImport}><FileSpreadsheet aria-hidden="true" />Impor Excel</Button>
+                    <Button variant="primary" onClick={() => setApplying(true)}><Play aria-hidden="true" />Gunakan template</Button>
+                </div>
             </div>
             <TemplateIssuesPanel scope={scope} template={template} />
             {view === 'rater' && <RaterTableView scope={scope} template={template} />}

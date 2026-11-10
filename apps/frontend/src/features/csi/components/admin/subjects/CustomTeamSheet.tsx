@@ -114,7 +114,7 @@ function CustomTeamForm({ scope, groups, target, onClose, onEditPhoto }: FormPro
         await setMembers.mutateAsync({ id, members: members.map(toInput) });
     }, SAVE_FAILED);
     const destroy = () => {
-        if (!team?.teamId || !window.confirm(`Hapus ${team.name}?`)) return;
+        if (!team?.teamId || !window.confirm(`Hapus tim ${team.name}? Baris tim ini di Template penugasan beserta penilainya ikut terhapus.`)) return;
         const id = team.teamId;
         void run(() => remove.mutateAsync(id), DELETE_FAILED);
     };

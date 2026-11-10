@@ -17,7 +17,7 @@ const template = (id: string, locationCode: string): CsiTemplate => ({
     }],
 });
 const REPORT: CsiTemplateApplyReport = {
-    picsAdded: 5, teamsAdded: 1, ratersAdded: 40, pairsAdded: 120, ratersUnconfirmed: 0, siteAdded: null,
+    picsAdded: 5, teamsAdded: 1, ratersAdded: 40, pairsAdded: 120, ratersUnconfirmed: 0, ratersOutsideSites: [], siteAdded: null,
     picsSkippedNoRaters: ['JINGGA FERDASIWI'], picsUnmatched: [], ratersNoAccount: ['ARIEF'], ratersAmbiguous: [], blockedReason: null, committed: false,
 };
 const fx = vi.hoisted(() => ({ templates: [] as unknown[], report: null as unknown }));
@@ -126,6 +126,15 @@ describe('HcSurveyWizard', () => {
         await userEvent.click(within(dialog).getByRole('button', { name: /lanjut/i }));
         expect(await within(dialog).findByText(/7 penilai belum dikonfirmasi/i)).toBeInTheDocument();
         expect(within(dialog).getByText(/Jingga Ferdasiwi/)).toBeInTheDocument();
+        expect(within(dialog).getByRole('button', { name: /lanjut/i })).toBeEnabled();
+    });
+
+    it('preview warns about raters from another site without blocking', async () => {
+        fx.report = { ...REPORT, ratersOutsideSites: ['ELVI CYNTHIA', 'BUDI'] };
+        const dialog = await openLocations('SMG');
+        await userEvent.click(within(dialog).getByRole('button', { name: /lanjut/i }));
+        expect(await within(dialog).findByText('2 penilai berada di site lain dan tidak akan melihat survei ini')).toBeInTheDocument();
+        expect(within(dialog).getByText(/Elvi Cynthia, Budi/)).toBeInTheDocument();
         expect(within(dialog).getByRole('button', { name: /lanjut/i })).toBeEnabled();
     });
 

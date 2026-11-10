@@ -7,7 +7,7 @@ import { CsiHcApi } from '../../../../api/csiHc.api';
 import { useCsiPeriods } from '../../../../hooks/useCsi';
 import type { CsiTemplate, CsiTemplateApplyReport } from '../../../../hcTypes';
 import type { CsiScopeParam } from '../../../../types';
-import { FIELD, SkippedLists, UnconfirmedNote } from './HcSurveyWizardSteps';
+import { FIELD, OutsideSitesNote, SkippedLists, UnconfirmedNote } from './HcSurveyWizardSteps';
 
 function ReportView({ report }: { report: CsiTemplateApplyReport }) {
     if (report.blockedReason) {
@@ -25,6 +25,7 @@ function ReportView({ report }: { report: CsiTemplateApplyReport }) {
                 </p>
             )}
             <UnconfirmedNote count={report.ratersUnconfirmed} />
+            <OutsideSitesNote names={report.ratersOutsideSites} />
             <SkippedLists report={report} />
         </div>
     );

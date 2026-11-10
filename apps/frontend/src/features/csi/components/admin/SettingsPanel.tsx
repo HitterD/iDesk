@@ -113,13 +113,16 @@ export function SettingsPanel({ scope, initial }: { scope: CsiScopeParam; initia
                     const tone = toneClasses(row.done ? 'green' : 'amber');
                     return (
                         <button key={row.key} type="button" onClick={() => setSection(row.key)} aria-current={row.key === section ? 'step' : undefined}
-                            className={cn('flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                            className={cn('flex items-start gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                                 row.key === section ? 'bg-[hsl(var(--idesk-sapphire)/.1)] text-[hsl(var(--idesk-sapphire))]' : 'hover:bg-[hsl(var(--muted)/.6)]')}>
                             <span aria-hidden="true" className={cn('grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11.5px]', tone.soft, tone.ink)}>
                                 {row.done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : index + 1}
                             </span>
-                            <span className="min-w-0 flex-1">{row.label}</span>
-                            <span className={cn('shrink-0 text-[11.5px] font-medium', row.done ? 'text-[hsl(var(--idesk-text-secondary))]' : tone.ink)}>{row.hint}</span>
+                            {/* Label and hint stacked: side by side they overlapped in the 230px nav. */}
+                            <span className="grid min-w-0 flex-1 gap-0.5">
+                                <span className="leading-6">{row.label}</span>
+                                <span className={cn('text-[11.5px] font-medium leading-snug', row.done ? 'text-[hsl(var(--idesk-text-secondary))]' : tone.ink)}>{row.hint}</span>
+                            </span>
                         </button>
                     );
                 })}

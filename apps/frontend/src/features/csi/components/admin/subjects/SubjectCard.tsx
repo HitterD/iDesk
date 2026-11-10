@@ -43,8 +43,8 @@ export function SubjectCard({ subject, siteCode, onEdit }: { subject: CsiSubject
     const KindIcon = subject.kind === 'TEAM' ? Users : User;
     return (
         <button type="button" onClick={onEdit} aria-label={`Ubah ${subject.name}`}
-            className="group flex flex-col overflow-hidden rounded-[18px] bg-[hsl(var(--idesk-surface))] text-left shadow-[var(--dash-shadow-1)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[var(--dash-shadow-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:hover:translate-y-0">
-            <div className="relative aspect-[4/3] w-full bg-[hsl(var(--muted))]">
+            className="group flex h-full flex-col overflow-hidden rounded-[18px] bg-[hsl(var(--idesk-surface))] text-left shadow-[var(--dash-shadow-1)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[var(--dash-shadow-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:hover:translate-y-0">
+            <div className="relative aspect-[4/3] w-full shrink-0 bg-[hsl(var(--muted))]">
                 <CardPhoto subject={subject} siteCode={siteCode} />
                 <TicketPill tone={subject.kind === 'TEAM' ? 'amber' : 'neutral'} className="absolute left-2.5 top-2.5 inline-flex items-center gap-1">
                     <KindIcon className="h-3.5 w-3.5" aria-hidden="true" />{SUBJECT_KIND_LABEL[subject.kind]}
