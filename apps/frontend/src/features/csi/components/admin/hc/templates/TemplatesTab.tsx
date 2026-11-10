@@ -1,49 +1,24 @@
-import { useRef, useState } from 'react';
-import { Download, FileSpreadsheet, Play } from 'lucide-react';
-import { toast } from 'sonner';
+import { useState } from 'react';
+import { FileSpreadsheet, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { CsiHcApi } from '../../../../api/csiHc.api';
 import { useCsiTemplateMutation, useCsiTemplates } from '../../../../hooks/useCsiHc';
 import type { CsiTemplate } from '../../../../hcTypes';
 import type { CsiScopeParam } from '../../../../types';
-import { AdminSection, EmptyNote, MUTED_TEXT } from '../../AdminParts';
+import { AdminSection, MUTED_TEXT } from '../../AdminParts';
+import { CSI_TEMPLATE_LOCATIONS } from '../hcFormat';
 import { TemplateApplyDialog } from './TemplateApplyDialog';
+import { BlankTemplateButton, TemplateEmptyState, type TemplateLocation } from './TemplateEmptyState';
+import { TemplateImportDialog } from './TemplateImportDialog';
 import { TemplatePicCard } from './TemplatePicCard';
 
-import { CSI_TEMPLATE_LOCATIONS } from '../hcFormat';
-
-const locationName = (code: string) => CSI_TEMPLATE_LOCATIONS.find((location) => location.code === code)?.name ?? code;
 const SERVICE_ORDER = ['HCD', 'HCC', 'HCS'];
 const SERVICE_NAMES: Record<string, string> = { HCD: 'HC Development', HCC: 'HC Compensation & Benefit', HCS: 'HC Services' };
 
-function ImportButton({ scope, location }: { scope: CsiScopeParam; location: string }) {
-    const input = useRef<HTMLInputElement>(null);
-    const importer = useCsiTemplateMutation(scope, async (file: File) => {
-        const dry = await CsiHcApi.importTemplate(scope, location, file, { commit: false });
-        if (dry.unresolved.length) {
-            toast.error(`${dry.unresolved.length} nama PIC/tim belum dikenali. Perbaiki nama di Excel sebelum mengimpor.`);
-            return;
-        }
-        const problems = dry.problems.length ? `\n${dry.problems.length} baris bermasalah (dilewati).` : '';
-        if (!window.confirm(`${dry.pics.added.length} PIC/tim baru, ${dry.pics.changed.length} diperbarui, ${dry.raters.added} penilai baru.${problems}\nGabungkan ke template?`)) return;
-        await CsiHcApi.importTemplate(scope, location, file, { commit: true });
-        toast.success('Template diperbarui dari Excel.');
-    });
-    return (
-        <>
-            <input ref={input} type="file" accept=".xlsx" className="hidden" onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) importer.mutate(file);
-                event.target.value = '';
-            }} />
-            <Button variant="soft" disabled={importer.isPending} onClick={() => input.current?.click()}>
-                <FileSpreadsheet aria-hidden="true" />{importer.isPending ? 'Mengimpor…' : 'Impor Excel'}
-            </Button>
-        </>
-    );
-}
-
-function TemplateEditor({ scope, template }: { scope: CsiScopeParam; template: CsiTemplate }) {
+function TemplateEditor({ scope, template, location, onImport }: {
+    scope: CsiScopeParam; template: CsiTemplate; location: TemplateLocation; onImport: () => void;
+}) {
     const [applying, setApplying] = useState(false);
     const update = useCsiTemplateMutation(scope, ({ id, serviceFunction }: { id: string; serviceFunction: string | null }) => CsiHcApi.updateTemplatePic(scope, id, { serviceFunction }));
     const addRater = useCsiTemplateMutation(scope, ({ id, name }: { id: string; name: string }) => CsiHcApi.addTemplateRater(scope, id, { name }));
@@ -60,7 +35,8 @@ function TemplateEditor({ scope, template }: { scope: CsiScopeParam; template: C
                         {`${summary.pics} PIC · ${summary.raters} pasangan penilai · ${summary.ratersOk} cocok, ${summary.ratersNoAccount} belum punya akun, ${summary.ratersAmbiguous} nama ganda · ${summary.picsWithoutRaters} PIC belum ada penilai`}
                     </p>
                 </div>
-                <ImportButton scope={scope} location={template.locationCode} />
+                <BlankTemplateButton scope={scope} location={location} variant="subtle" />
+                <Button variant="soft" onClick={onImport}><FileSpreadsheet aria-hidden="true" />Impor Excel</Button>
                 <Button variant="primary" onClick={() => setApplying(true)}><Play aria-hidden="true" />Gunakan template</Button>
             </div>
             {SERVICE_ORDER.map((code) => {
@@ -86,33 +62,56 @@ function TemplateEditor({ scope, template }: { scope: CsiScopeParam; template: C
     );
 }
 
+/** Always the four template locations, in a fixed order, whether or not a template exists yet. */
+function LocationTabs({ templates, selected, onSelect }: {
+    /** null while loading: no badge rather than a wrong "kosong". */
+    templates: CsiTemplate[] | null; selected: string; onSelect: (code: string) => void;
+}) {
+    return (
+        <div role="tablist" aria-label="Lokasi template" className="flex flex-wrap items-center gap-2">
+            {CSI_TEMPLATE_LOCATIONS.map(({ code, name }) => {
+                const template = templates?.find((row) => row.locationCode === code);
+                const active = code === selected;
+                return (
+                    <button key={code} type="button" role="tab" aria-selected={active} onClick={() => onSelect(code)}
+                        className={cn('idesk-btn', active ? 'is-primary' : 'is-soft')}>
+                        {name}
+                        {templates && (
+                            <span className={cn('rounded-full px-1.5 text-[11.5px] font-semibold', active ? 'bg-white/20' : 'bg-[hsl(var(--muted))]')}>
+                                {template ? `${template.summary.pics} PIC` : 'kosong'}
+                            </span>
+                        )}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
 /**
  * Pengaturan → Template penugasan: per-location lists of HC PICs, their service function and who rates them.
- * Edited here, then used to create a survey or synced (add-only) into one.
+ * Edited here or imported from Excel (dry-run preview first), then used to create a survey or synced (add-only) into one.
  */
 export function TemplatesTab({ scope }: { scope: CsiScopeParam }) {
     const { data, isLoading } = useCsiTemplates(scope);
-    const load = useCsiTemplateMutation(scope, (location: string) => CsiHcApi.loadBundledTemplate(scope, location));
-    const [selected, setSelected] = useState<string | null>(null);
+    const [selected, setSelected] = useState<string>(CSI_TEMPLATE_LOCATIONS[0].code);
+    const [importing, setImporting] = useState(false);
     const templates = data?.templates ?? [];
-    const current = templates.find((row) => row.id === selected) ?? templates[0];
+    const location = CSI_TEMPLATE_LOCATIONS.find((row) => row.code === selected) ?? CSI_TEMPLATE_LOCATIONS[0];
+    const current = templates.find((row) => row.locationCode === location.code);
+    const openImport = () => setImporting(true);
     return (
         <AdminSection title="Template penugasan per lokasi"
             description="Daftar PIC HC, fungsi pelayanan dan siapa yang menilai, per lokasi. Bisa diedit, ditambah, diimpor dari Excel, lalu dipakai untuk membuat survei.">
             <div className="grid gap-4">
+                <LocationTabs templates={data ? templates : null} selected={location.code} onSelect={setSelected} />
                 {isLoading && <div className="h-40 animate-pulse rounded-2xl bg-[hsl(var(--muted))]" aria-busy="true" />}
-                <div className="flex flex-wrap items-center gap-2">
-                    {templates.map((row) => (
-                        <Button key={row.id} variant={row.id === current?.id ? 'primary' : 'soft'} onClick={() => setSelected(row.id)}>{locationName(row.locationCode)}</Button>
-                    ))}
-                    {(data?.bundledAvailable ?? []).map((code) => (
-                        <Button key={code} variant="soft" disabled={load.isPending} onClick={() => load.mutate(code)}>
-                            <Download aria-hidden="true" />{`Muat template ${locationName(code)}`}
-                        </Button>
-                    ))}
-                </div>
-                {!isLoading && !templates.length && <EmptyNote>Belum ada template. Muat template bawaan atau impor Excel.</EmptyNote>}
-                {current && <TemplateEditor key={current.id} scope={scope} template={current} />}
+                {!isLoading && !current && (
+                    <TemplateEmptyState scope={scope} location={location} onImport={openImport}
+                        bundled={(data?.bundledAvailable ?? []).includes(location.code)} />
+                )}
+                {current && <TemplateEditor key={current.id} scope={scope} template={current} location={location} onImport={openImport} />}
+                {importing && <TemplateImportDialog key={location.code} scope={scope} location={location} open={importing} onOpenChange={setImporting} />}
             </div>
         </AdminSection>
     );
