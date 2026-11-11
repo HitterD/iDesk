@@ -18,10 +18,13 @@ describe('renderMemoPdf', () => {
         expect(buffer.slice(0, 4).toString()).toBe('%PDF');
         for (const expected of [
             'Interoffice Memo', 'Kepada', 'CC', 'Nomor', 'Dari', 'Perihal', 'Tanggal', '28 November 2025', 'Dengan hormat',
-            'Lokasi', 'Nama', 'Average', '% Pengisi (SLA)', 'SJA Sepanjang & SJA Sukodono', 'SJA Karawang',
-            'Budi Hartono', 'Dewi Lestari', '4,52', '100%', 'Hormat kami', 'Mengetahui', 'Budi Santoso', 'ICT Manager',
+            'Lokasi', 'Nama', 'Average', '% Sudah mengisi', 'SJA Sepanjang & SJA Sukodono', 'SJA Karawang',
+            'Budi Hartono', 'Dewi Lestari', '4,52', '67%', 'Hormat kami', 'Mengetahui', 'Budi Santoso', 'ICT Manager',
         ]) expect(text).toContain(expected);
         expect(text).toContain('Tim IT Support'); // survey 2 has no PERSON ratee: team label in Nama
+        // One SLA percentage, as the report: answers ÷ basis (2 of 3 = 67%), never answers ÷ target (100%).
+        expect(text).not.toContain('Pengisi');
+        expect(text).not.toContain('100%');
     });
 
     it('shows a dash when the average is unknown', async () => {
@@ -39,8 +42,9 @@ describe('renderMemoPdf', () => {
             'SJA Sepanjang & SJA Sukodono — CSI Operational Support 1', 'Timestamp', 'titi yusliyanti', 'SEPANJANG',
             'Lampiran SLA — SJA Karawang', 'Total pelapor iDesk', 'Target 80%', 'Total responden CSI', 'Email', 'Departemen', 'a@sja.co.id',
         ]) expect(text).toContain(expected);
-        // Spec: % Responden = responden / pelapor (2 of 3 -> 67%), next to % Pengisi (SLA) = responden / target.
-        expect(text).toMatch(/% Responden\s*67%/);
+        // One SLA percentage: % Sudah mengisi = responden / basis (2 of 3 -> 67%), the same figure as the report SLA block.
+        expect(text).toMatch(/% Sudah mengisi\s*67%/);
+        expect(text).not.toMatch(/% Responden|Pengisi/);
     });
 
     it('colours the survey average by its score bands (custom bands 3.5/4.2 vs legacy 4.0/4.5)', async () => {
@@ -96,7 +100,7 @@ describe('renderMemoPdf', () => {
         expect(pages[holder]).toContain('Budi Hartono');
         expect(pages[holder]).toContain('Dewi Lestari');
         // The memo page holding the block is the one with the recap header, not a stray overflow page.
-        expect(pages[holder]).toContain('% Pengisi (SLA)');
+        expect(pages[holder]).toContain('% Sudah mengisi');
         expect(pages[holder]).not.toContain('Timestamp');
     });
 

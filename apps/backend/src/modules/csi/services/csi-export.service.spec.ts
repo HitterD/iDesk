@@ -233,7 +233,7 @@ describe('CsiExportService', () => {
         ];
         const sheet = (await workbookOf({ ...model, hasPrevious: false, rankingByService: ranking })).getWorksheet('Peringkat')!;
         const header = (sheet.getRow(1).values as unknown[]).slice(1);
-        expect(header).toEqual(['Layanan', '#', 'Nama', 'Bagian / fungsi', 'Penilai', 'Nilai', 'Predikat', 'Keterangan']);
+        expect(header).toEqual(['Layanan', '#', 'Nama', 'Bagian', 'Penilai', 'Nilai', 'Predikat', 'Keterangan']);
         expect(header.join('|')).not.toMatch(/★|Bintang|Lalu|Δ/);
         expect(rowsOf(sheet).map((cells) => [cells[0], cells[1] ?? null, cells[2], cells[7] ?? null])).toEqual([
             ['HCD · HC Development', 1, 'A', null], ['HCD · HC Development', 1, 'B', null], ['HCD · HC Development', 3, 'C', null],
@@ -244,7 +244,7 @@ describe('CsiExportService', () => {
 
     it('"Peringkat" adds Lalu / Δ only with a previous period; ICT groups are Tim and Orang with a Site column', async () => {
         const hc = (await workbookOf(hcReportFixture({ previous: true }).model)).getWorksheet('Peringkat')!;
-        expect((hc.getRow(1).values as unknown[]).slice(1)).toEqual(['Layanan', '#', 'Nama', 'Bagian / fungsi', 'Penilai', 'Nilai', 'Predikat', 'Lalu', 'Δ', 'Keterangan']);
+        expect((hc.getRow(1).values as unknown[]).slice(1)).toEqual(['Layanan', '#', 'Nama', 'Bagian', 'Penilai', 'Nilai', 'Predikat', 'Lalu', 'Δ', 'Keterangan']);
         const ict = (await workbookOf(reportFixture({ people: 3, sites: 2 }).model)).getWorksheet('Peringkat')!;
         expect((ict.getRow(1).values as unknown[])[4]).toBe('Site');
         expect(new Set(rowsOf(ict).map((cells) => cells[0]))).toEqual(new Set(['Tim', 'Orang']));

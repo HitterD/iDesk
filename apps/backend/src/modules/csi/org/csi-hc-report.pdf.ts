@@ -3,7 +3,7 @@ import { CsiReportModel } from '../services/csi-report-model';
 import {
     choicesTable, commentsSection, dec, deltaColor, departmentsTable, DASH, rankingSection, scoreCell, shuffledTexts, signed, summary, TABLE_KEEP, text,
 } from '../services/csi-report-pdf-sections';
-import { collapseRespondentRows, CsiCell, CsiHcRecap, CsiLocationCells, CsiRecapRow, CsiRespondentRow, previousOf, recapRowKey } from './csi-hc-report.calc';
+import { collapseRespondentRows, CSI_NO_BAGIAN_LABEL, CsiCell, CsiHcRecap, CsiLocationCells, CsiRecapRow, CsiRespondentRow, previousOf, recapRowKey } from './csi-hc-report.calc';
 import { compareServiceCodes } from '../services/csi-report-ranking';
 import { serviceName } from './csi-org.constants';
 
@@ -30,6 +30,8 @@ const serviceTitle = (code: string | null) => (code ? `${code} · ${serviceName(
 const titleCase = (value: string) => value.split(' ').map((word) => (word.length <= 3 && /^[A-Z&]+$/.test(word) ? word
     : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())).join(' ');
 type HcModel = CsiReportModel & { hcRecap: CsiHcRecap };
+/** Ranking detail: bagian in title case; the "Tanpa bagian" label stays exactly as in the recap tables. */
+const bagianDetail = (value: string) => (value === CSI_NO_BAGIAN_LABEL ? value : titleCase(value));
 
 /** Change against the previous period: matched by master PIC, else by a name only one row of this report carries. */
 const delta = (recap: CsiHcRecap, row: CsiRecapRow): number | null => {
@@ -159,7 +161,7 @@ export function renderHcReportPdf(canvas: ReportCanvas, model: HcModel) {
     canvas.pageBreak();
     serviceScores(canvas, model);
     nestedScores(canvas, model);
-    rankingSection(canvas, model, { title: 'Peringkat per layanan', detailHeader: 'Bagian / fungsi', heading: (group) => serviceTitle(group.serviceCode), detail: titleCase });
+    rankingSection(canvas, model, { title: 'Peringkat per layanan', detailHeader: 'Bagian', heading: (group) => serviceTitle(group.serviceCode), detail: bagianDetail });
     respondentRecap(canvas, model);
     comments(canvas, model);
     appendix(canvas, model);

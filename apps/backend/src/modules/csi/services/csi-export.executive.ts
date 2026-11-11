@@ -78,7 +78,7 @@ function rankingSheet(workbook: ExcelJS.Workbook, model: CsiReportModel) {
     const hc = isHc(model);
     addStyledSheet(workbook, EXECUTIVE_SHEETS.ranking, [
         { header: hc ? 'Layanan' : 'Kelompok', width: LABEL }, COUNT('#'), { header: 'Nama', width: WIDTH.name },
-        hc ? { header: 'Bagian / fungsi', width: LABEL } : COUNT('Site'), COUNT('Penilai'), AVERAGE_COLUMN('Nilai'), { header: 'Predikat', width: 16 },
+        hc ? { header: 'Bagian', width: LABEL } : COUNT('Site'), COUNT('Penilai'), AVERAGE_COLUMN('Nilai'), { header: 'Predikat', width: 16 },
         ...(model.hasPrevious ? [AVERAGE_COLUMN('Lalu'), AVERAGE_COLUMN('Δ')] : []), { header: 'Keterangan', width: 24 },
     ], model.rankingByService.flatMap((group) => rankRowsOf(group).map((row) => rankCells(group, row, model.hasPrevious))));
 }

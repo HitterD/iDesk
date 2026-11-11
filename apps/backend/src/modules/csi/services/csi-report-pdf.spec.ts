@@ -144,7 +144,7 @@ describe('renderCsiReportPdf', () => {
 
         it('headers are not truncated: full dimension names and words are passed to the canvas', async () => {
             const headers = await tableHeaders(hcReportFixture({ previous: true }).model);
-            expect(headers).toEqual(expect.arrayContaining(['Knowledge', 'Responsiveness', 'Courtesy', 'Communication', 'Tangible', 'Rata-rata', 'Penilai', 'Bagian / fungsi', 'Semua lokasi']));
+            expect(headers).toEqual(expect.arrayContaining(['Knowledge', 'Responsiveness', 'Courtesy', 'Communication', 'Tangible', 'Rata-rata', 'Penilai', 'Bagian', 'Semua lokasi']));
             headers.forEach((header) => expect(header).not.toMatch(/\.\.\.|…/));
             expect(headers).not.toContain('Jml');
         });
@@ -167,14 +167,19 @@ describe('renderCsiReportPdf', () => {
             expect(first).toContain(`terendah: ${worst.serviceCode} ${fmt(worst.all.average)}`);
         });
 
-        it('ranking tables carry their layanan heading for "(lanjutan)"; Bagian / fungsi in title case', async () => {
+        it('ranking tables carry their layanan heading for "(lanjutan)"; Bagian in title case, "Tanpa bagian" kept as is', async () => {
             const spy = jest.spyOn(ReportCanvas.prototype, 'table');
             try {
-                await renderCsiReportPdf({ model: hcReportFixture().model, signoff, now: NOW });
-                const ranking = spy.mock.calls.filter(([columns]) => columns.some((column) => column.header === 'Bagian / fungsi'));
+                const { model } = hcReportFixture();
+                const groups = model.rankingByService.map((group, i) => (i === 0 ? { ...group, ranked: group.ranked.map((row, r) => (r === 0 ? { ...row, detail: 'Tanpa bagian' } : row)) } : group));
+                await renderCsiReportPdf({ model: { ...model, rankingByService: groups }, signoff, now: NOW });
+                const ranking = spy.mock.calls.filter(([columns]) => columns.some((column) => column.header === 'Bagian'));
                 expect(ranking.map((call) => call[3])).toEqual(expect.arrayContaining(['HCD · HC Development', 'HCC · HC Compensation & Benefit', 'HCS · HC Services']));
-                const details = ranking.flatMap(([columns, rows]) => rows.map((row) => row[columns.findIndex((column) => column.header === 'Bagian / fungsi')].text));
+                const details = ranking.flatMap(([columns, rows]) => rows.map((row) => row[columns.findIndex((column) => column.header === 'Bagian')].text));
                 expect(details).toEqual(expect.arrayContaining(['Payroll & Benefit', 'GA Management']));
+                expect(details).toContain('Tanpa bagian');
+                expect(details).not.toContain('Tanpa Bagian');
+                expect(spy.mock.calls.some(([columns]) => columns.some((column) => column.header === 'Bagian / fungsi'))).toBe(false);
                 details.forEach((detail) => expect(detail).not.toMatch(/^[A-Z &]{6,}$/));
             } finally {
                 spy.mockRestore();
