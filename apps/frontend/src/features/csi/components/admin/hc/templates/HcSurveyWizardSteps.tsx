@@ -12,6 +12,11 @@ const NOTE_AMBER = 'rounded-xl bg-[hsl(var(--ticket-amber)/.14)] px-3 py-2 text-
 
 export interface SurveyInfo { title: string; startDate: string; endDate: string }
 
+/** Template ids in the fixed location order, so the request (and the preview cache key) is stable. */
+export function selectedTemplateIds(templates: CsiTemplate[], locations: string[]) {
+    return CSI_TEMPLATE_LOCATIONS.flatMap(({ code }) => locations.includes(code) ? templates.filter((row) => row.locationCode === code).map((row) => row.id) : []);
+}
+
 const TITLE_MIN = 3;
 const TITLE_MAX = 150;
 /** Mirrors the backend title limits so the create call does not fail at the last step. */

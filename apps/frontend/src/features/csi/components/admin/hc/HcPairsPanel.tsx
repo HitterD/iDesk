@@ -10,6 +10,7 @@ import type { CsiPairsImportReport } from '../../../hcTypes';
 import { AdminSection, EmptyNote, LockedNote, MUTED_TEXT } from '../AdminParts';
 import { RaterPicEditor } from './RaterPicEditor';
 import { UnitRulesEditor } from './UnitRulesEditor';
+import { TemplatePullButton } from './templates/TemplatePullDialog';
 
 /**
  * HC "Siapa menilai siapa" (default mode, HC decides): per unit rules, per person (search the employee master) or an
@@ -88,7 +89,12 @@ export function HcPairsPanel({ scope, period }: { scope: CsiScopeParam; period: 
     return (
         <AdminSection title="Siapa menilai siapa" description="HC menentukan karyawan mana menilai PIC mana. Responden hanya melihat PIC yang ditetapkan untuknya."
             actions={period.locked ? <LockedNote /> : <span className={MUTED_TEXT}>{`${period.raters.length} penilai · ${pics.length} PIC`}</span>}>
-            {!pics.length ? <EmptyNote>Pilih PIC yang dinilai dulu (langkah "Orang yang dinilai").</EmptyNote> : (
+            {!pics.length ? (
+                <div className="grid gap-3">
+                    <EmptyNote>Pilih PIC yang dinilai dulu (langkah "Orang yang dinilai"), atau ambil PIC dan penilainya dari template lokasi.</EmptyNote>
+                    <div className="justify-self-center"><TemplatePullButton scope={scope} period={period} /></div>
+                </div>
+            ) : (
                 <div className="grid gap-4">
                     <SegmentedControl aria-label="Cara menentukan penilai" className="dash-seg w-fit" options={TABS} value={tab} onValueChange={setTab} />
                     {tab === 'unit' && <UnitRulesEditor scope={scope} period={period} picBagians={picBagians} />}

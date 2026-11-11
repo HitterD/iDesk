@@ -148,3 +148,6 @@ export interface CsiTemplateApplyReport {
     /** Why this survey cannot take the template without hiding it from current raters (null = it can). */
     blockedReason: string | null;
 }
+/** "Ambil dari template" into a survey: also counts the people who are no PIC (picked from user accounts). */
+export interface CsiTemplateApplyManyReport extends CsiTemplateApplyReport { nonPicRatees: number }
+export interface ApplyCsiTemplates { templateIds: string[]; replaceNonPic: boolean }

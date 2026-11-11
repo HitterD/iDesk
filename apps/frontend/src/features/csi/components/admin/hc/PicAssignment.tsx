@@ -8,14 +8,18 @@ import type { CsiPeriodDetail, CsiScopeParam } from '../../../types';
 import type { CsiPicView } from '../../../hcTypes';
 import { AdminSection, EmptyNote, LockedNote, MUTED_TEXT } from '../AdminParts';
 import { titleCase } from './hcFormat';
+import { TemplatePullButton } from './templates/TemplatePullDialog';
+import { isHcDecided } from '../../../lib/hcMode';
 
 /**
- * Wizard step "PIC yang dinilai" (HC): pick whole layanan / bagian or single PICs, and the star questions every PIC
- * gets. Respondents later choose, among these, the PICs who served them.
+ * Wizard step "PIC yang dinilai" (every HC survey): pick whole layanan / bagian or single PICs from the HC PIC master,
+ * and the star questions every PIC gets. Either respondents later choose among these PICs, or HC decides who rates
+ * which PIC on the Penilai step (then the PICs, raters and pairs can also come from a location template).
  */
 const COPY = {
     title: 'PIC yang dinilai',
     description: 'Pilih PIC HC yang bisa dinilai pada survei ini. Responden nanti memilih sendiri PIC yang pernah melayaninya.',
+    decidedDescription: 'Pilih PIC HC yang dinilai pada survei ini, atau ambil PIC beserta penilainya dari template lokasi. Siapa menilai siapa diatur di langkah Penilai.',
     questions: 'Pertanyaan untuk setiap PIC',
     save: 'Simpan PIC',
     saved: 'Tersimpan',
@@ -56,10 +60,19 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
         return new Set(used.length ? used : questions.filter((question) => question.type === 'STAR').map((question) => question.id));
     }, [current, questions]);
     const [selected, setSelected] = useState<Set<string>>(initialPics);
+    // Saved PICs changed elsewhere (e.g. "Ambil dari template"): follow them instead of keeping a stale selection
+    // that would look unsaved and, if saved, drop the new PICs.
+    const savedKey = [...initialPics].sort().join('|');
+    const [syncedKey, setSyncedKey] = useState(savedKey);
+    if (syncedKey !== savedKey) {
+        setSyncedKey(savedKey);
+        setSelected(new Set(initialPics));
+    }
     const [chosenQuestions, setChosenQuestions] = useState<Set<string> | null>(null);
     const questionIds = chosenQuestions ?? initialQuestions;
     const [query, setQuery] = useState('');
     const locked = period.locked;
+    const decided = isHcDecided(scope, period);
     const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.size && [...a].every((id) => b.has(id));
     const dirty = !sameSet(selected, initialPics) || (chosenQuestions !== null && !sameSet(chosenQuestions, initialQuestions));
     useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
@@ -82,9 +95,10 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
     }, { onSuccess: () => setChosenQuestions(null) });
 
     return (
-        <AdminSection title={COPY.title} description={COPY.description}
+        <AdminSection title={COPY.title} description={decided ? COPY.decidedDescription : COPY.description}
             actions={locked ? <LockedNote /> : (
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                    {decided && <TemplatePullButton scope={scope} period={period} />}
                     <span role="status" className={cn('text-[12.5px] font-medium', dirty ? 'text-[hsl(var(--ticket-amber-ink))]' : 'text-[hsl(var(--idesk-text-secondary))]')}>
                         {dirty ? COPY.unsaved : `${initialPics.size} PIC · ${COPY.saved}`}
                     </span>

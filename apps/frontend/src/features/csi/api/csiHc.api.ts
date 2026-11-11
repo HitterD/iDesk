@@ -1,6 +1,6 @@
 import api from '@/lib/api';
 import type { CsiPeriodDetail, CsiScopeParam } from '../types';
-import type { AccountSuggestion, CreateCsiPeriodFromTemplates, CsiPeriodFromTemplatesResult, CsiTemplateImportOptions } from '../hcTypes';
+import type { AccountSuggestion, ApplyCsiTemplates, CreateCsiPeriodFromTemplates, CsiTemplateApplyManyReport, CsiPeriodFromTemplatesResult, CsiTemplateImportOptions } from '../hcTypes';
 import type { CsiDirectoryImportResult, CsiHcRater, CsiHcRecap, CsiPairsImportReport, CsiPicView, CsiReportAccess, CsiReportPeriods, CsiServiceReport, CsiServiceReportOwners, CsiTemplate, CsiTemplateApplyReport, CsiTemplateImportReport, CsiTemplateList, CsiUnitOption, CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
 
 const orgPath = (scope: CsiScopeParam) => `/csi/admin/${scope}/org`;
@@ -62,6 +62,10 @@ export const CsiHcApi = {
     },
     async applyTemplate(scope: CsiScopeParam, templateId: string, periodId: string, commit: boolean): Promise<CsiTemplateApplyReport> {
         return (await api.post<CsiTemplateApplyReport>(`${templatePath(scope)}/${encodeURIComponent(templateId)}/apply/${encodeURIComponent(periodId)}`, null, { params: { commit } })).data;
+    },
+    /** Several location templates into one survey (dry run unless commit); replaceNonPic drops people who are no PIC. */
+    async applyTemplates(scope: CsiScopeParam, periodId: string, body: ApplyCsiTemplates, commit: boolean): Promise<CsiTemplateApplyManyReport> {
+        return (await api.post<CsiTemplateApplyManyReport>(`${templatePath(scope)}/apply-many/${encodeURIComponent(periodId)}`, body, { params: { commit }, skipToast: true })).data;
     },
     async myReportAccess(scope: CsiScopeParam): Promise<CsiReportAccess> {
         return (await api.get<CsiReportAccess>(`${mePath(scope)}/report-access`, { skipToast: true })).data;

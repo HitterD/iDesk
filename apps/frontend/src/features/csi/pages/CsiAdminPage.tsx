@@ -10,6 +10,7 @@ import { PeriodDetail } from '../components/admin/PeriodDetail';
 import { PeriodsTab } from '../components/admin/PeriodsTab';
 import { ADMIN_PANEL, MUTED_TEXT } from '../components/admin/AdminParts';
 import { WizardRoute } from '../components/wizard/WizardRoute';
+import { HcSurveyWizard } from '../components/admin/hc/templates/HcSurveyWizard';
 import { csiAdminPath, CSI_SCOPE_OF, isCsiScopeParam } from '../lib/csiAdmin';
 import { useAdminRoute, type AdminRoute } from '../lib/useAdminRoute';
 import { useCsiAdminAccess } from '../lib/useCsiAdminAccess';
@@ -31,12 +32,26 @@ function NotAuthorized() {
 }
 
 function SurveysArea({ scope, route }: { scope: CsiScopeParam; route: AdminRoute }) {
+    // A new HC survey is always built from location templates (a copy of an earlier survey keeps the generic wizard).
+    if (scope === 'hc' && route.wizard === null && !route.copyFrom) {
+        return (
+            <>
+                <SurveyList scope={scope} route={route} />
+                <HcSurveyWizard scope={scope} open onOpenChange={(open) => { if (!open) route.closeAll(); }}
+                    onCreated={(periodId) => route.openWizard(periodId, undefined, { replace: true })} />
+            </>
+        );
+    }
     if (route.wizard !== undefined) return <WizardRoute key={route.wizard ?? 'new'} scope={scope} route={route} />;
     if (route.periodId) {
         return <PeriodDetail key={route.periodId} scope={scope} periodId={route.periodId} onBack={route.closeAll}
             initialTab={route.detailTab} initialSiteId={route.siteId}
             onEditStep={(step) => route.openWizard(route.periodId, step)} />;
     }
+    return <SurveyList scope={scope} route={route} />;
+}
+
+function SurveyList({ scope, route }: { scope: CsiScopeParam; route: AdminRoute }) {
     // Drafts resume in the wizard (the step is resolved once the detail loads); published surveys open the detail.
     const open = (period: CsiPeriodListItem) => period.publishStatus === 'DRAFT' ? route.openWizard(period.id) : route.openDetail(period.id);
     // A template-built HC draft already has people, raters and pairs: no fixed step, so it resumes at the first gap.

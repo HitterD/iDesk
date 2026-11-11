@@ -3,22 +3,17 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useCreatePeriodFromTemplates, useCsiTemplates, usePreviewPeriod } from '../../../../hooks/useCsiHc';
-import type { CsiTemplate, CsiTemplateApplyReport } from '../../../../hcTypes';
+import type { CsiTemplateApplyReport } from '../../../../hcTypes';
 import type { CsiScopeParam } from '../../../../types';
 import { MUTED_TEXT } from '../../AdminParts';
 import { CSI_TEMPLATE_LOCATIONS } from '../hcFormat';
-import { InfoStep, LocationStep, PreviewStep, StepIndicator, infoComplete, type SurveyInfo } from './HcSurveyWizardSteps';
+import { InfoStep, LocationStep, PreviewStep, StepIndicator, infoComplete, selectedTemplateIds, type SurveyInfo } from './HcSurveyWizardSteps';
 
 const STEP_INFO = 0;
 const STEP_LOCATIONS = 1;
 const STEP_PREVIEW = 2;
 const STEP_CREATE = 3;
 const NO_IDS: string[] = [];
-
-/** Template ids in the fixed location order, so the request (and the preview cache key) is stable. */
-function selectedTemplateIds(templates: CsiTemplate[], locations: string[]) {
-    return CSI_TEMPLATE_LOCATIONS.flatMap(({ code }) => locations.includes(code) ? templates.filter((row) => row.locationCode === code).map((row) => row.id) : []);
-}
 
 function CreateStep({ info, locations, report }: { info: SurveyInfo; locations: string[]; report: CsiTemplateApplyReport | null }) {
     const names = CSI_TEMPLATE_LOCATIONS.filter(({ code }) => locations.includes(code)).map(({ name }) => name).join(', ');
