@@ -6,6 +6,7 @@ import { CsiServiceReportService } from './csi-service-report.service';
 
 const input = () => ({
     period: { id: 'p1', title: 'CSI HC 2026 – Semarang', startDate: '2026-11-01', endDate: '2026-11-30' },
+    scoreBands: { fairMin: 3.5, goodMin: 4.2 },
     pics: [
         { periodRateeId: 'rara', name: 'RARA', jobTitle: 'Staff', serviceCode: 'HCD', bagian: 'HCD', serviceFunction: 'People & Organization Development' },
         { periodRateeId: 'pris', name: 'PRISCILLA', jobTitle: 'Supervisor', serviceCode: 'HCD', bagian: 'HCD', serviceFunction: null },
@@ -45,7 +46,9 @@ describe('CsiServiceReportService', () => {
         const names = report.respondents.flatMap((row) => row.pics.map((pic) => [row.name, pic.name]));
         expect(names).toEqual([['ELVI CYNTHIA', 'PRISCILLA'], ['Anonim', 'RARA']]);
         expect(report.serviceCode).toBe('HCD');
-        expect(report.pending).toEqual([{ department: 'PROD', pending: 1, total: 2 }]);
+        expect(report.scoreBands).toEqual({ fairMin: 3.5, goodMin: 4.2 });
+        // PROD has 2 raters (< CSI_ANON_MIN_GROUP): merged, its name is not shown to the service owner.
+        expect(report.pending).toEqual([{ department: 'Departemen kecil (gabungan)', pending: 1, total: 2 }]);
         expect(JSON.stringify(report)).not.toContain('SECRET');
     });
 

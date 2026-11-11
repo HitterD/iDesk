@@ -49,7 +49,8 @@ function QuestionStat({ label, column, tone, icon }: { label: string; column: Qu
 /** Report header: overall score ring + word + index + trend, responses vs target, strongest / weakest question. */
 export function ReportHero({ report }: { report: CsiReport }) {
     const { average } = report.overall;
-    const tone = scoreTone(average);
+    const bands = report.scoreBands;
+    const tone = scoreTone(average, bands);
     const { sla } = report;
     const reached = sla.basis > 0 && sla.responses >= sla.target;
     const { strongest, weakest } = strongestAndWeakest(questionColumns(report.ratees));
@@ -65,7 +66,7 @@ export function ReportHero({ report }: { report: CsiReport }) {
                 <div className="grid min-w-0 gap-1.5">
                     <h3 className="text-[15px] font-semibold">Nilai keseluruhan</h3>
                     {average !== null && (
-                        <span className={cn('w-fit rounded-full px-2.5 py-0.5 text-[12.5px] font-semibold', toneClasses(tone).soft, toneClasses(tone).ink)}>{scoreWord(average)}</span>
+                        <span className={cn('w-fit rounded-full px-2.5 py-0.5 text-[12.5px] font-semibold', toneClasses(tone).soft, toneClasses(tone).ink)}>{scoreWord(average, bands)}</span>
                     )}
                     <span className={cn(MUTED_TEXT, 'text-[12.5px]')}>{`Indeks ${formatPercent(average === null ? null : scorePct(average))}`}</span>
                     <Trend average={average} previous={report.previousAverage} />

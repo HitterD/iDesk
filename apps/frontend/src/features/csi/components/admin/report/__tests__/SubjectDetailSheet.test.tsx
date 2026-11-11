@@ -4,7 +4,7 @@ process.env.TZ = 'Asia/Jakarta';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SubjectDetailSheet } from '../SubjectDetailSheet';
-import { ratee } from './reportFixture';
+import { BANDS, ratee } from './reportFixture';
 
 afterEach(cleanup);
 
@@ -14,7 +14,7 @@ describe('SubjectDetailSheet', () => {
             periodRateeId: 'r1', displayName: 'Dimas',
             comments: [{ text: 'Respon cepat', departmentName: 'Finance', submittedAt: '2026-10-29T19:00:00Z' }],
         });
-        render(<SubjectDetailSheet ratee={subject} siteName="Sepanjang" siteCode="SPJ" onClose={vi.fn()} />);
+        render(<SubjectDetailSheet ratee={subject} siteName="Sepanjang" siteCode="SPJ" bands={BANDS} onClose={vi.fn()} />);
         expect(screen.getByText('Finance · 30 Okt 2026')).toBeInTheDocument();
     });
 });

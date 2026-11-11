@@ -2,9 +2,14 @@
 export type CsiTone = 'green' | 'amber' | 'red' | 'teal' | 'sky' | 'brown' | 'navy' | 'neutral';
 export interface CsiToneClasses { fill: string; ink: string; soft: string; ring: string }
 
-/** Score thresholds on the 1–5 scale: >= 4.5 green, >= 4.0 amber, below red. */
-export const CSI_SCORE_GOOD = 4.5;
-export const CSI_SCORE_FAIR = 4;
+/**
+ * Per-survey score colour bands on the 1–5 scale (payload `scoreBands` / period scoreFairMin + scoreGoodMin):
+ * >= goodMin green, >= fairMin amber, below red. The default (4,0 / 4,5) is only for screens without a survey.
+ */
+export interface CsiScoreBands { fairMin: number; goodMin: number }
+export const CSI_SCORE_BANDS_DEFAULT: Readonly<CsiScoreBands> = Object.freeze({ fairMin: 4, goodMin: 4.5 });
+/** Bands are entered with one decimal, so "below goodMin" in the preview ends one step lower. */
+const BAND_STEP = 0.1;
 
 const SITE_TONES: Readonly<Record<string, CsiTone>> = { SPJ: 'teal', KRW: 'brown', SMG: 'green', JKT: 'sky' };
 const QUESTION_TONES: readonly CsiTone[] = ['sky', 'teal', 'brown', 'amber'];
@@ -19,10 +24,10 @@ export function siteTone(code: string | null): CsiTone {
     return (code && SITE_TONES[code.toUpperCase()]) || 'neutral';
 }
 
-export function scoreTone(avg: number | null): CsiTone {
+export function scoreTone(avg: number | null, bands: CsiScoreBands = CSI_SCORE_BANDS_DEFAULT): CsiTone {
     if (avg === null) return 'neutral';
-    if (avg >= CSI_SCORE_GOOD) return 'green';
-    return avg >= CSI_SCORE_FAIR ? 'amber' : 'red';
+    if (avg >= bands.goodMin) return 'green';
+    return avg >= bands.fairMin ? 'amber' : 'red';
 }
 
 /** Star or scale points (1–5): 1–2 red, 3 amber, 4–5 green; nothing chosen = neutral. */
@@ -39,9 +44,22 @@ export function questionTone(index: number): CsiTone {
     return QUESTION_TONES[((index % length) + length) % length];
 }
 
-export function scoreWord(avg: number): CsiScoreWord {
-    if (avg >= CSI_SCORE_GOOD) return 'Sangat puas';
-    return avg >= CSI_SCORE_FAIR ? 'Puas' : 'Perlu perbaikan';
+export function scoreWord(avg: number, bands: CsiScoreBands = CSI_SCORE_BANDS_DEFAULT): CsiScoreWord {
+    if (avg >= bands.goodMin) return 'Sangat puas';
+    return avg >= bands.fairMin ? 'Puas' : 'Perlu perbaikan';
+}
+
+const oneDecimal = (value: number) => value.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+/** The three colour ranges as text, e.g. "< 4,0 merah", "4,0–4,4 oranye", "≥ 4,5 hijau" (form preview). */
+export function scoreBandsPreview(bands: CsiScoreBands): Array<{ tone: CsiTone; label: string }> {
+    const amberTop = Math.round((bands.goodMin - BAND_STEP) * 10) / 10;
+    const amber = amberTop > bands.fairMin ? `${oneDecimal(bands.fairMin)}–${oneDecimal(amberTop)}` : oneDecimal(bands.fairMin);
+    return [
+        { tone: 'red', label: `< ${oneDecimal(bands.fairMin)} merah` },
+        { tone: 'amber', label: `${amber} oranye` },
+        { tone: 'green', label: `≥ ${oneDecimal(bands.goodMin)} hijau` },
+    ];
 }
 
 // Tailwind only generates classes it can see as literal strings, so every tone is spelled out.

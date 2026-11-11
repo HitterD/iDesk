@@ -10,32 +10,33 @@ import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entit
 import { CsiOrgPerson } from '../entities/csi-org-person.entity';
 import { CsiPic } from '../entities/csi-pic.entity';
 import { buildNameIndex, normalizeName } from '../org/csi-name-match';
-import { CSI_HC_SERVICES, normalizeBagian } from '../org/csi-org.constants';
+import { normalizeBagian } from '../org/csi-org.constants';
 import { normalizeServiceFunction } from '../org/csi-org.service';
-import { CsiTemplateSeed, CsiTemplateSeedPic, parseTemplateWorkbook } from '../org/csi-template-excel';
-import { buildTemplateView, CsiTemplateView } from '../org/csi-template-view';
+import { CsiTemplateSeed, CsiTemplateSeedPic } from '../org/csi-template-excel';
+import { buildTemplateView, CsiTemplateView, lookupOf, resolveRater } from '../org/csi-template-view';
+import { suggestAccounts } from '../org/csi-account-suggest';
 import { CSI_TEMPLATE_HC_SMG_2026 } from '../org/templates/hc-smg-2026.data';
+import { hcDirectoryCandidates } from './csi-template-import.service';
+import { buildBlankTemplate } from '../org/csi-template-blank';
+import { csiTemplateLocation } from '../org/csi-template-locations';
 
 /** Templates shipped with the app, loaded on request (idempotent). */
 const BUNDLED: Readonly<Record<string, CsiTemplateSeed>> = { SMG: CSI_TEMPLATE_HC_SMG_2026 };
-const LOCATION_NAMES: Readonly<Record<string, string>> = { SMG: 'Semarang', SPJ: 'Sepanjang', KRW: 'Karawang', JTB: 'Jakarta' };
 const NOT_FOUND_MESSAGE = 'Template tidak ditemukan';
+/** Same as the DB text limit of a template name. */
+const SUGGESTION_NAME_MAX = 150;
 const PIC_NOT_FOUND_MESSAGE = 'PIC template tidak ditemukan';
 const SERVICE_CODES = new Set(['HCC', 'HCD', 'HCS']);
 const AREA_OF_SERVICE: Readonly<Record<string, string>> = { HCD: 'HC Development', HCC: 'HC Comben', HCS: 'HC Services' };
 
-export type CsiTemplateImportReport = {
-    pics: number; picsAdded: number; picsUpdated: number; ratersAdded: number;
-    problems: Array<{ row: number; message: string }>; committed: boolean;
-};
 type PicIndex = (name: string) => CsiPic | 'ambiguous' | null;
 const idOf = (hit: CsiPic | 'ambiguous' | null) => (hit && hit !== 'ambiguous' ? hit.id : null);
 type Repos = { templates: Repository<CsiAssignmentTemplate>; pics: Repository<CsiAssignmentTemplatePic>; raters: Repository<CsiAssignmentTemplateRater> };
 
 /**
- * Assignment templates per location ("siapa menilai siapa" by name, with each PIC's service function). Loading or
- * importing merges: new PICs and raters are added, titles/service functions refreshed, nothing is removed except by
- * an explicit delete in the editor.
+ * Assignment templates per location ("siapa menilai siapa" by name, with each PIC's service function). Loading the
+ * bundled copy merges: new PICs and raters are added, titles/service functions refreshed, nothing is removed except by
+ * an explicit delete in the editor. Excel import (diff, resolutions, prune, teams) lives in CsiTemplateImportService.
  */
 @Injectable()
 export class CsiAssignmentTemplateService {
@@ -64,26 +65,43 @@ export class CsiAssignmentTemplateService {
         return buildTemplateView(template, pics, raters, await this.activeAccounts());
     }
 
+    async accountSuggestions(scope: ServiceScope, templateId: string, name: string) {
+        if (typeof name !== 'string' || name.trim().length < 2) throw new BadRequestException('Nama minimal 2 karakter');
+        // A query param has no DTO limit; an unbounded name would be fuzzy-matched against every active user.
+        if (name.trim().length > SUGGESTION_NAME_MAX) throw new BadRequestException('Nama terlalu panjang');
+        const template = await this.templates.findOne({ where: { id: templateId, scope } });
+        if (!template) throw new NotFoundException(NOT_FOUND_MESSAGE);
+        const site = await this.sites.findOne({ where: { code: template.locationCode } });
+        // Joined relations keep suggestions to one active-user query, without per-candidate lookups.
+        const accounts = await this.users.find({
+            where: { isActive: true }, relations: { site: true, department: true }, relationLoadStrategy: 'join',
+            select: { id: true, fullName: true, email: true, employeeId: true, siteId: true, site: { code: true }, department: { name: true } },
+        });
+        return suggestAccounts(name.trim(), accounts.map((account) => ({
+            id: account.id, fullName: account.fullName, email: account.email, employeeId: account.employeeId ?? null,
+            siteId: account.siteId ?? null, siteCode: account.site?.code ?? null, department: account.department?.name ?? null,
+        })), { siteId: site?.id ?? null });
+    }
+
     /** Creates (or merges into) the template of a location from the copy bundled with the app. */
     async loadBundled(scope: ServiceScope, locationCode: string): Promise<CsiTemplateView> {
         const seed = BUNDLED[locationCode.toUpperCase()];
         if (!seed || seed.scope !== scope) throw new NotFoundException('Template bawaan untuk lokasi ini tidak ada');
-        const id = await this.dataSource.transaction((manager) => this.loadInto(manager, scope, seed.locationCode, seed.name, seed.pics));
+        const pics = seed.pics.map((pic) => ({ ...pic, nik: pic.nik ?? null, raters: pic.raters.map((rater) => ({ ...rater, nik: rater.nik ?? null })) }));
+        const id = await this.dataSource.transaction((manager) => this.loadInto(manager, scope, seed.locationCode, seed.name, pics));
         return this.get(scope, id);
     }
 
-    /** Excel in the Semarang layout; without `commit` only the report is returned. */
-    async importExcel(scope: ServiceScope, locationCode: string, buffer: Buffer, commit: boolean): Promise<CsiTemplateImportReport> {
-        const code = locationCode.toUpperCase();
-        if (!LOCATION_NAMES[code]) throw new BadRequestException('Lokasi tidak dikenal');
-        const draft = await parseTemplateWorkbook(buffer);
-        const existing = await this.templates.findOne({ where: { scope, locationCode: code } });
-        const report = await this.diff(existing?.id ?? null, draft.pics);
-        if (!commit) return { ...report, problems: draft.problems, committed: false };
-        if (!draft.pics.length) throw new BadRequestException('Tidak ada PIC di file');
-        const name = existing?.name ?? `CSI ${scope} – ${LOCATION_NAMES[code]}`;
-        await this.dataSource.transaction((manager) => this.loadInto(manager, scope, code, name, draft.pics));
-        return { ...report, problems: draft.problems, committed: true };
+    /** Blank workbook to fill in for a location, listing its active employees (one query, by name) to copy from. */
+    async blankWorkbook(scope: ServiceScope, locationCode: string): Promise<{ filename: string; buffer: Buffer }> {
+        const location = csiTemplateLocation(locationCode);
+        const employees = await this.users.find({
+            where: { isActive: true, site: { code: location.code } }, select: { fullName: true, jobTitle: true, employeeId: true }, order: { fullName: 'ASC' },
+        });
+        const buffer = await buildBlankTemplate(location, employees.map((user) => ({
+            fullName: user.fullName, jobTitle: user.jobTitle ?? null, employeeId: user.employeeId ?? null,
+        })));
+        return { filename: `CSI ${scope} ${location.name} - template.xlsx`, buffer };
     }
 
     async addPic(scope: ServiceScope, templateId: string, input: { serviceCode: string; picName: string; jobTitle?: string | null; serviceFunction?: string | null }) {
@@ -119,25 +137,74 @@ export class CsiAssignmentTemplateService {
     }
 
     /** Adds a rater by name, or by account (`userId`, which then also gives the name). */
-    async addRater(scope: ServiceScope, templatePicId: string, input: { name?: string; userId?: string; jobTitle?: string | null }) {
+    async addRater(scope: ServiceScope, templatePicId: string, input: { name?: string; userId?: string; jobTitle?: string | null }, actorId: string) {
         const pic = await this.findPic(scope, templatePicId);
         const account = input.userId ? await this.users.findOne({ where: { id: input.userId, isActive: true } }) : null;
         if (input.userId && !account) throw new BadRequestException('Pengguna tidak ditemukan atau tidak aktif');
         const raterName = normalizeName(account?.fullName ?? input.name);
         if (!raterName) throw new BadRequestException('Nama penilai wajib diisi');
         if (await this.raters.findOne({ where: { templatePicId: pic.id, raterName } })) throw new BadRequestException('Penilai sudah ada untuk PIC ini');
-        await this.raters.save({ templatePicId: pic.id, raterName, raterJobTitle: input.jobTitle?.trim() || account?.jobTitle || null, userId: account?.id ?? null });
+        await this.raters.save({
+            templatePicId: pic.id, raterName, raterJobTitle: input.jobTitle?.trim() || account?.jobTitle || null, userId: account?.id ?? null,
+            confirmedAt: account ? new Date() : null, confirmedById: account ? actorId ?? null : null,
+        });
         return this.get(scope, pic.templateId);
     }
 
-    /** Pins an ambiguous or unmatched rater to one account (null clears the pin). */
-    async setRaterAccount(scope: ServiceScope, raterId: string, userId: string | null) {
-        const rater = await this.raters.findOne({ where: { id: raterId } });
-        if (!rater) throw new NotFoundException('Penilai tidak ditemukan');
-        const pic = await this.findPic(scope, rater.templatePicId);
-        if (userId && !(await this.users.findOne({ where: { id: userId, isActive: true } }))) throw new BadRequestException('Pengguna tidak ditemukan atau tidak aktif');
-        await this.raters.save({ ...rater, userId });
-        return this.get(scope, pic.templateId);
+    /** Legacy single-row API shares the bulk transaction and audit trail. */
+    async setRaterAccount(scope: ServiceScope, raterId: string, userId: string | null, actorId: string) {
+        return this.setRaterAccounts(scope, [raterId], userId, actorId);
+    }
+
+    async setRaterAccounts(scope: ServiceScope, raterIds: string[], userId: string | null, actorId: string) {
+        const templateId = await this.dataSource.transaction(async (manager) => {
+            const selection = await this.scopedRaters(manager, scope, raterIds);
+            if (userId != null && !(await manager.getRepository(User).findOne({ where: { id: userId, isActive: true } }))) {
+                throw new BadRequestException('Pengguna tidak ditemukan atau tidak aktif');
+            }
+            const confirmedAt = userId == null ? null : new Date();
+            await manager.getRepository(CsiAssignmentTemplateRater).save(selection.raters.map((rater) => ({
+                ...rater, userId, confirmedAt, confirmedById: userId == null ? null : actorId,
+            })));
+            return selection.templateId;
+        });
+        return this.get(scope, templateId);
+    }
+
+    async confirmRaters(scope: ServiceScope, raterIds: string[], confirmed: boolean, actorId: string) {
+        const templateId = await this.dataSource.transaction(async (manager) => {
+            const selection = await this.scopedRaters(manager, scope, raterIds);
+            const accounts = confirmed ? await this.activeAccounts(manager.getRepository(User)) : [];
+            const lookup = lookupOf(accounts);
+            const resolved = selection.raters.map((rater) => ({ rater, match: resolveRater(rater, lookup) }));
+            const rejected = resolved.filter(({ match }) => match.status === 'ambiguous' || match.status === 'no-account');
+            if (confirmed && rejected.length) {
+                throw new BadRequestException('Pilih akun dulu untuk: ' + [...new Set(rejected.map(({ rater }) => rater.raterName))].join(', '));
+            }
+            const confirmedAt = confirmed ? new Date() : null;
+            await manager.getRepository(CsiAssignmentTemplateRater).save(resolved.map(({ rater, match }) => ({
+                ...rater, userId: confirmed ? match.userId : rater.userId, confirmedAt, confirmedById: confirmed ? actorId : null,
+            })));
+            return selection.templateId;
+        });
+        return this.get(scope, templateId);
+    }
+
+    /** Validate the complete selection before writing; return the first requested rater's template across locations. */
+    private async scopedRaters(manager: EntityManager, scope: ServiceScope, raterIds: string[]) {
+        const ids = [...new Set(raterIds)];
+        if (!ids.length) throw new NotFoundException('Penilai tidak ditemukan');
+        const repos = this.repos(manager);
+        const raters = await repos.raters.find({ where: { id: In(ids) } });
+        const pics = await repos.pics.find({ where: { id: In(raters.map((rater) => rater.templatePicId)) } });
+        const templates = await repos.templates.find({ where: { id: In(pics.map((pic) => pic.templateId)), scope } });
+        const templateIds = new Set(templates.map((template) => template.id));
+        const picTemplates = new Map(pics.filter((pic) => templateIds.has(pic.templateId)).map((pic) => [pic.id, pic.templateId]));
+        const byId = new Map(raters.map((rater) => [rater.id, rater]));
+        if (raters.length !== ids.length || raters.some((rater) => !picTemplates.has(rater.templatePicId))) {
+            throw new NotFoundException('Penilai tidak ditemukan');
+        }
+        return { raters: ids.map((id) => byId.get(id)!), templateId: picTemplates.get(byId.get(ids[0])!.templatePicId)! };
     }
 
     async removeRater(scope: ServiceScope, raterId: string) {
@@ -179,7 +246,7 @@ export class CsiAssignmentTemplateService {
                 ...(known ?? { templateId: template.id, sortOrder: order++ }),
                 // Re-matched on every load: a PIC imported into the master later gets linked then.
                 picId: known?.picId ?? idOf(picIndex(seed.picName)),
-                area: seed.area, serviceCode: seed.serviceCode, picName: seed.picName,
+                area: seed.area, serviceCode: seed.serviceCode, picName: seed.picName, picNik: seed.nik ?? known?.picNik ?? null,
                 jobTitle: seed.jobTitle ?? known?.jobTitle ?? null, serviceFunction: normalizeServiceFunction(seed.serviceFunction) ?? known?.serviceFunction ?? null,
             });
             await this.mergeRaters(repos, saved.id, seed.raters);
@@ -190,23 +257,7 @@ export class CsiAssignmentTemplateService {
     private async mergeRaters(repos: Repos, templatePicId: string, seedRaters: CsiTemplateSeedPic['raters']) {
         const known = new Set((await repos.raters.find({ where: { templatePicId } })).map((rater) => rater.raterName));
         const fresh = seedRaters.filter((rater) => !known.has(rater.name));
-        if (fresh.length) await repos.raters.save(fresh.map((rater) => ({ templatePicId, raterName: rater.name, raterJobTitle: rater.jobTitle, userId: null })));
-    }
-
-    /** What a merge would add / change (dry run of an import). */
-    private async diff(templateId: string | null, seedPics: CsiTemplateSeedPic[]) {
-        const existing = templateId ? await this.pics.find({ where: { templateId } }) : [];
-        const byName = new Map(existing.map((pic) => [pic.picName, pic]));
-        const raters = existing.length ? await this.raters.find({ where: { templatePicId: In(existing.map((pic) => pic.id)) } }) : [];
-        const ratersOf = (picId: string) => new Set(raters.filter((rater) => rater.templatePicId === picId).map((rater) => rater.raterName));
-        let ratersAdded = 0;
-        seedPics.forEach((seed) => {
-            const known = byName.get(seed.picName);
-            const names = known ? ratersOf(known.id) : new Set<string>();
-            ratersAdded += seed.raters.filter((rater) => !names.has(rater.name)).length;
-        });
-        const picsAdded = seedPics.filter((seed) => !byName.has(seed.picName)).length;
-        return { pics: seedPics.length, picsAdded, picsUpdated: seedPics.length - picsAdded, ratersAdded };
+        if (fresh.length) await repos.raters.save(fresh.map((rater) => ({ templatePicId, raterName: rater.name, raterJobTitle: rater.jobTitle, raterNik: rater.nik, userId: null })));
     }
 
     /** csi_pics.serviceFunction is filled from the template only while it is still empty (manual edits win). */
@@ -241,21 +292,8 @@ export class CsiAssignmentTemplateService {
         if (missing.length) await this.createPicsFromDirectory(manager, scope, locationCode, missing, all);
     }
 
-    /**
-     * Directory rows that can become HC PICs: HCBP AREA staff and the three HC departments. Names are compared in memory
-     * with normalizeName, so the directory's own casing, dots or commas never hide a match.
-     */
-    private directoryCandidates(manager: EntityManager, seeds: CsiTemplateSeedPic[]): Promise<CsiOrgPerson[]> {
-        if (!seeds.length) return Promise.resolve([]);
-        return manager.getRepository(CsiOrgPerson).createQueryBuilder('p')
-            .where('p."department" ILIKE :hcbp OR UPPER(p."department") IN (:...hc)', {
-                hcbp: 'HCBP AREA%', hc: CSI_HC_SERVICES.map((service) => service.department),
-            })
-            .getMany();
-    }
-
     private async createPicsFromDirectory(manager: EntityManager, scope: ServiceScope, locationCode: string, seeds: CsiTemplateSeedPic[], existing: CsiPic[]) {
-        const findPerson = buildNameIndex(await this.directoryCandidates(manager, seeds), (row) => row.fullName);
+        const findPerson = buildNameIndex(await hcDirectoryCandidates(manager), (row) => row.fullName);
         const site = await manager.getRepository(Site).findOne({ where: { code: locationCode } });
         for (const seed of seeds) {
             const person = findPerson(seed.picName);
@@ -275,8 +313,8 @@ export class CsiAssignmentTemplateService {
         return pic;
     }
 
-    private async activeAccounts() {
-        return this.users.find({ where: { isActive: true }, select: { id: true, fullName: true } });
+    private async activeAccounts(users: Repository<User> = this.users) {
+        return users.find({ where: { isActive: true }, select: { id: true, fullName: true, employeeId: true, siteId: true } });
     }
 
     private repos(manager: EntityManager): Repos {

@@ -1,6 +1,6 @@
 import { Transform, Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, ArrayUnique, Equals, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
-import { CSI_CANCEL_REASON_MAX, CSI_CANCEL_REASON_MIN, CsiPairMode, CsiRespondentMode } from '../csi.constants';
+import { ArrayMaxSize, ArrayMinSize, ArrayUnique, Equals, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
+import { CSI_CANCEL_REASON_MAX, CSI_CANCEL_REASON_MIN, CSI_SCORE_MAX, CSI_SCORE_MIN, CsiPairMode, CsiRespondentMode } from '../csi.constants';
 import { CSI_TAGLINE_MAX } from './subject.dto';
 
 const TITLE_MAX_LENGTH = 150;
@@ -12,6 +12,7 @@ const TARGET_RESPONDENTS_MAX = 100000;
 const QUESTIONS_MAX = 50;
 const SLA_TARGET_MIN = 1;
 const SLA_TARGET_MAX = 100;
+const SCORE_BAND_DECIMALS = 1;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const trimString = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
 const isProvided = (_object: object, value: unknown) => value !== undefined;
@@ -67,6 +68,20 @@ class PeriodFieldsDto {
     @Min(SLA_TARGET_MIN, { message: 'Target SLA minimal 1' })
     @Max(SLA_TARGET_MAX, { message: 'Target SLA maksimal 100' })
     slaTargetPct?: number;
+
+    /** Orange band starts here (1–5, one decimal); must stay below scoreGoodMin (checked in the service). */
+    @ValidateIf(isProvided)
+    @IsNumber({ maxDecimalPlaces: SCORE_BAND_DECIMALS }, { message: 'Batas oranye harus berupa angka dengan maksimal 1 desimal' })
+    @Min(CSI_SCORE_MIN, { message: 'Batas oranye minimal 1' })
+    @Max(CSI_SCORE_MAX, { message: 'Batas oranye maksimal 5' })
+    scoreFairMin?: number;
+
+    /** Green band starts here (1–5, one decimal). */
+    @ValidateIf(isProvided)
+    @IsNumber({ maxDecimalPlaces: SCORE_BAND_DECIMALS }, { message: 'Batas hijau harus berupa angka dengan maksimal 1 desimal' })
+    @Min(CSI_SCORE_MIN, { message: 'Batas hijau minimal 1' })
+    @Max(CSI_SCORE_MAX, { message: 'Batas hijau maksimal 5' })
+    scoreGoodMin?: number;
 }
 
 const siteIdsRules = (): PropertyDecorator => (target, key) => [

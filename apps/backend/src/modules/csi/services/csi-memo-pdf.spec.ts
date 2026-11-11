@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as PDFDocument from 'pdfkit';
 import { renderMemoPdf } from './csi-memo-pdf';
 import { memoHeader, memoSurvey } from './csi-memo.fixtures';
 
@@ -40,6 +41,30 @@ describe('renderMemoPdf', () => {
         ]) expect(text).toContain(expected);
         // Spec: % Responden = responden / pelapor (2 of 3 -> 67%), next to % Pengisi (SLA) = responden / target.
         expect(text).toMatch(/% Responden\s*67%/);
+    });
+
+    it('colours the survey average by its score bands (custom bands 3.5/4.2 vs legacy 4.0/4.5)', async () => {
+        const GREEN = '#1E7D46';
+        const AMBER = '#B26A00';
+        const spy = jest.spyOn((PDFDocument as any).prototype, 'fillColor');
+        try {
+            const custom = memoSurvey(1, 4.3);
+            custom.report.period = { ...custom.report.period, scoreFairMin: 3.5, scoreGoodMin: 4.2 };
+            await renderMemoPdf(memoHeader(), [custom]);
+            expect(spy.mock.calls.map(([color]) => color)).toContain(GREEN);
+            spy.mockClear();
+            await renderMemoPdf(memoHeader(), [memoSurvey(1, 4.3)]);
+            const colors = spy.mock.calls.map(([color]) => color);
+            expect(colors).toContain(AMBER);
+            expect(colors).not.toContain(GREEN);
+        } finally {
+            spy.mockRestore();
+        }
+    });
+
+    it('no person spotlight: no top/attention boxes and no highlight sentence naming anyone', async () => {
+        const { text } = await parse([memoSurvey(1), memoSurvey(2)]);
+        expect(text).not.toMatch(/tertinggi|terendah|terbaik|Perlu perhatian|Poin utama|Peringkat/i);
     });
 
     it('strips control characters from user strings', async () => {
@@ -89,6 +114,25 @@ describe('renderMemoPdf', () => {
         expect(all).toMatch(/kata\d+(\s+\S*?)?(…|\.\.\.)/); // pdf-parse extracts the ellipsis glyph as three dots
         expect(all.replace(/\s/g, '')).not.toContain(long.replace(/\s/g, ''));
         expect(pages).toHaveLength(3); // memo, answers, SLA: the oversized row never spills onto an extra page
+    });
+
+    it('HC survey with PIC and a custom team renders both answer tables', async () => {
+        const survey = memoSurvey(1);
+        survey.report.period.scope = 'HC';
+        const pages = await pagesOf(await renderMemoPdf(memoHeader(), [survey]));
+        const answerPages = pages.filter((page) => page.includes('Timestamp'));
+        expect(answerPages).toHaveLength(2);
+        expect(answerPages[0]).toContain('Dinilai');
+        expect(answerPages[0]).toContain('Budi Hartono');
+        expect(answerPages[1]).not.toContain('Dinilai');
+        expect(answerPages[1]).toContain('Kecepatan');
+    });
+
+    it('ICT survey with team and people keeps the single team table', async () => {
+        const pages = await pagesOf(await renderMemoPdf(memoHeader(), [memoSurvey(1)]));
+        const answerPages = pages.filter((page) => page.includes('Timestamp'));
+        expect(answerPages).toHaveLength(1);
+        expect(answerPages[0]).not.toContain('Dinilai');
     });
 
     it('a long signer title does not add a page', async () => {

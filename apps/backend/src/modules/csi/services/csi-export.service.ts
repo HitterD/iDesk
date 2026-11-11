@@ -25,12 +25,16 @@ const SHEET_RECAP = 'Rekap';
 const SHEET_TEAM = 'Penilaian Tim';
 const SHEET_PERSON = 'Penilaian Per Orang';
 
-/** Rekap: Lokasi, Nama (team label or person), Average per ratee, Average survei, % Pengisi (SLA). */
+/** Shown name of a ratee: a team carries its own name (HC custom teams), falling back to the period team label. */
+const rateeName = (ratee: Report['ratees'][number], report: Report): string =>
+    ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || report.period.teamLabel : ratee.displayName;
+
+/** Rekap: Lokasi, Nama (team or person name), Average per ratee, Average survei, % Pengisi (SLA). */
 function addRecap(workbook: ExcelJS.Workbook, report: Report) {
     const location = sanitizeCell(formatLocation(report.period.sites));
     const rows = report.ratees.map((ratee) => [
         location,
-        sanitizeCell(ratee.kind === CsiRateeKind.TEAM ? report.period.teamLabel : ratee.displayName),
+        sanitizeCell(rateeName(ratee, report)),
         ratee.average, report.overall.average, report.sla.pengisiPct,
     ]);
     addStyledSheet(workbook, SHEET_RECAP, [
@@ -69,15 +73,8 @@ export class CsiExportService {
 
     private async model(scope: ServiceScope, periodId: string, options: CsiExportOptions) {
         const matrix = await this.reports.getRaterMatrix(scope, periodId, options.siteId);
-        const model = await this.reports.getExecutiveModel(scope, periodId, { siteId: options.siteId, notes: options.notes, matrix });
-        return { ...model, hcRecap: await this.hcRecap(scope, periodId) };
-    }
-
-    /** HC per-PIC recap of the period, or null when it has no HC PIC (ICT never has one). */
-    private async hcRecap(scope: ServiceScope, periodId: string) {
-        if (scope !== ServiceScope.HC) return null;
-        const recap = await this.reports.getHcRecap(scope, periodId);
-        return recap.services.some((row) => row.level === 'pic' && row.serviceCode) ? recap : null;
+        // The model carries the HC recap (same site filter), or null when the period has no HC PIC (ICT never has one).
+        return this.reports.getExecutiveModel(scope, periodId, { siteId: options.siteId, notes: options.notes, matrix });
     }
 
     /** Executive survey report PDF (rankings and comments carry no respondent names). */
@@ -111,8 +108,8 @@ export class CsiExportService {
         }
         addMatrixSheet(workbook, raterMatrix(report.ratees.map((ratee) => ({
             periodRateeId: ratee.periodRateeId, kind: ratee.kind, siteId: ratee.siteId ?? null,
-            displayName: ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || report.period.teamLabel : ratee.displayName,
-        })), answers));
+            displayName: rateeName(ratee, report),
+        })), answers), model.bands);
         return {
             filename: `csi-${scope.toLowerCase()}-${localDateKey(now, DEFAULT_TIMEZONE)}.xlsx`,
             buffer: Buffer.from(await workbook.xlsx.writeBuffer()),

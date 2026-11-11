@@ -7,7 +7,8 @@ import { useCsiHcRecap } from '../../../hooks/useCsiHc';
 import type { CsiScopeParam } from '../../../types';
 import type { CsiHcRecap, CsiLocationCells, CsiRecapRow } from '../../../hcTypes';
 import { AdminSection, EmptyNote } from '../AdminParts';
-import { formatScore, scoreFillClass, scoreToneClass, titleCase } from './hcFormat';
+import type { CsiScoreBands } from '../../../lib/csiTone';
+import { formatScore, scoreBarClass, scoreFillClass, scoreToneClass, titleCase } from './hcFormat';
 
 /**
  * HC recap: averages per layanan → bagian → PIC and per respondent division → department → bagian, in the columns
@@ -22,19 +23,28 @@ const VIEWS = [
 const TH = 'px-2.5 py-2 text-left text-[11.5px] font-bold uppercase tracking-wide text-[hsl(var(--idesk-text-secondary))]';
 const TD = 'px-2.5 py-1.5 text-[13px] tabular-nums';
 
-function ScoreCell({ value, ratings, strong }: { value: number | null; ratings: number; strong?: boolean }) {
+const MASKED_TITLE = 'Disembunyikan: kurang dari 3 responden';
+const cellTitle = (value: number | null, ratings: number) => {
+    if (!ratings) return 'Belum ada penilaian';
+    return value === null ? MASKED_TITLE : `${ratings} penilaian`;
+};
+
+/** A cell with ratings but no average is masked (fewer than 3 respondents): it shows "–" like an empty one. */
+function ScoreCell({ value, ratings, strong, bands }: { value: number | null; ratings: number; strong?: boolean; bands: CsiScoreBands }) {
+    const scored = ratings > 0 && value !== null;
     return (
-        <td className={cn(TD, 'text-right', ratings ? scoreFillClass(value) : '')} title={ratings ? `${ratings} penilaian` : 'Belum ada penilaian'}>
-            <span className={cn(scoreToneClass(ratings ? value : null), strong && 'font-bold')}>{ratings ? formatScore(value) : '–'}</span>
+        <td className={cn(TD, 'text-right', scored ? scoreFillClass(value, bands) : '')} title={cellTitle(value, ratings)}>
+            <span className={cn(scoreToneClass(scored ? value : null, bands), strong && 'font-bold')}>{scored ? formatScore(value) : '–'}</span>
         </td>
     );
 }
 
 function LocationCells({ recap, row, strong }: { recap: CsiHcRecap; row: CsiLocationCells; strong?: boolean }) {
+    const bands = recap.scoreBands;
     return (
         <>
-            {recap.locations.map((location) => <ScoreCell key={location.code} {...row.byLocation[location.code]} value={row.byLocation[location.code].average} strong={strong} />)}
-            <ScoreCell value={row.all.average} ratings={row.all.ratings} strong />
+            {recap.locations.map((location) => <ScoreCell key={location.code} {...row.byLocation[location.code]} value={row.byLocation[location.code].average} strong={strong} bands={bands} />)}
+            <ScoreCell value={row.all.average} ratings={row.all.ratings} strong bands={bands} />
             <td className={cn(TD, 'text-right text-[hsl(var(--idesk-text-secondary))]')}>{row.all.ratings}</td>
         </>
     );
@@ -64,8 +74,8 @@ function DimensionChips({ recap, row }: { recap: CsiHcRecap; row: Pick<CsiRecapR
     return (
         <span className="flex flex-wrap gap-1">
             {recap.dimensions.map((label) => (
-                <span key={label} className={cn('rounded-md px-1.5 py-0.5 text-[11.5px] font-medium', scoreFillClass(row.dimensions[label]))}>
-                    {`${label} `}<b className={scoreToneClass(row.dimensions[label])}>{formatScore(row.dimensions[label])}</b>
+                <span key={label} className={cn('rounded-md px-1.5 py-0.5 text-[11.5px] font-medium', scoreFillClass(row.dimensions[label], recap.scoreBands))}>
+                    {`${label} `}<b className={scoreToneClass(row.dimensions[label], recap.scoreBands)}>{formatScore(row.dimensions[label])}</b>
                 </span>
             ))}
         </span>
@@ -128,18 +138,26 @@ function ServicesTable({ recap, expandAll }: { recap: CsiHcRecap; expandAll?: bo
     );
 }
 
+/** Respondent units: total and respondent count only (a per-location split could be worked back out from the total). */
 function RespondentTable({ recap }: { recap: CsiHcRecap }) {
     return (
         <div className="max-h-[640px] overflow-auto rounded-2xl ring-1 ring-[hsl(var(--border))]">
-            <table className="w-full min-w-[860px] border-collapse">
-                <LocationHead recap={recap} first="Divisi / Departemen / Bagian responden" />
+            <table className="w-full min-w-[560px] border-collapse">
+                <thead className="sticky top-0 z-10 bg-[hsl(var(--idesk-surface))]">
+                    <tr className="border-b border-[hsl(var(--border))]">
+                        <th className={TH}>Divisi / Departemen / Bagian responden</th>
+                        <th className={cn(TH, 'text-right text-[hsl(var(--idesk-sapphire))]')}>Semua lokasi</th>
+                        <th className={cn(TH, 'text-right')}>Responden</th>
+                    </tr>
+                </thead>
                 <tbody>
                     {recap.respondentGroups.map((row) => (
                         <tr key={row.key} className={cn('border-b border-[hsl(var(--border)/.6)]', row.level === 'division' && 'bg-[hsl(var(--idesk-sapphire)/.07)]')}>
                             <td className={cn(TD, row.level === 'department' && 'pl-7', row.level === 'bagian' && 'pl-12', row.level === 'division' && 'font-bold', row.level === 'department' && 'font-semibold')}>
                                 {titleCase(row.label)}
                             </td>
-                            <LocationCells recap={recap} row={row} strong={row.level === 'division'} />
+                            <ScoreCell value={row.all.average} ratings={row.all.ratings} strong bands={recap.scoreBands} />
+                            <td className={cn(TD, 'text-right text-[hsl(var(--idesk-text-secondary))]')}>{row.respondents ?? '–'}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -184,7 +202,7 @@ function AnswersTable({ recap }: { recap: CsiHcRecap }) {
                                     <td rowSpan={respondent.pics.length} className={cn(TD, 'align-top')}>
                                         <p className="font-semibold">{respondent.name}</p>
                                         <p className="text-[11.5px] text-[hsl(var(--idesk-text-secondary))]">{[respondent.division, respondent.department, respondent.bagian].filter(Boolean).map((value) => titleCase(value!)).join(' · ')}</p>
-                                        <p className="text-[11.5px] text-[hsl(var(--idesk-text-secondary))]">{`${locationLabel(respondent.location)} · rata-rata `}<b className={scoreToneClass(respondent.average)}>{formatScore(respondent.average)}</b></p>
+                                        <p className="text-[11.5px] text-[hsl(var(--idesk-text-secondary))]">{`${locationLabel(respondent.location)} · rata-rata `}<b className={scoreToneClass(respondent.average, recap.scoreBands)}>{formatScore(respondent.average)}</b></p>
                                     </td>
                                 )}
                                 <td className={TD}>
@@ -192,7 +210,7 @@ function AnswersTable({ recap }: { recap: CsiHcRecap }) {
                                     <p className="text-[11.5px] text-[hsl(var(--idesk-text-secondary))]">{[pic.serviceCode, pic.bagian ? titleCase(pic.bagian) : null].filter(Boolean).join(' · ')}</p>
                                 </td>
                                 {recap.dimensions.map((label) => <td key={label} className={TD}><Stars value={pic.scores[label]} /></td>)}
-                                <td className={cn(TD, 'text-right font-bold', scoreToneClass(pic.average))}>{formatScore(pic.average)}</td>
+                                <td className={cn(TD, 'text-right font-bold', scoreToneClass(pic.average, recap.scoreBands))}>{formatScore(pic.average)}</td>
                             </tr>
                         )))}
                     </tbody>
@@ -203,12 +221,13 @@ function AnswersTable({ recap }: { recap: CsiHcRecap }) {
 }
 
 function Overview({ recap }: { recap: CsiHcRecap }) {
+    const bands = recap.scoreBands;
     return (
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
             <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-2xl bg-[hsl(var(--idesk-sapphire)/.08)] p-3">
+                <div role="group" aria-label="ALL SJA" className="rounded-2xl bg-[hsl(var(--idesk-sapphire)/.08)] p-3">
                     <p className="text-[11.5px] font-semibold uppercase text-[hsl(var(--idesk-text-secondary))]">ALL SJA</p>
-                    <p className={cn('text-[26px] font-bold tabular-nums', scoreToneClass(recap.overall.all.average))}>{formatScore(recap.overall.all.average)}</p>
+                    <p className={cn('text-[26px] font-bold tabular-nums', scoreToneClass(recap.overall.all.average, bands))}>{formatScore(recap.overall.all.average)}</p>
                     <p className="text-[11.5px] text-[hsl(var(--idesk-text-secondary))]">dari 5</p>
                 </div>
                 <div className="rounded-2xl bg-[hsl(var(--muted)/.6)] p-3">
@@ -228,10 +247,10 @@ function Overview({ recap }: { recap: CsiHcRecap }) {
                             {/* ICT questions have no short label: long texts are clamped to two lines, full text on hover. */}
                             <span className="line-clamp-2 font-semibold" title={label}>{label}</span>
                             <span className="h-2 overflow-hidden rounded-full bg-[hsl(var(--border))]">
-                                <span className={cn('block h-full rounded-full', value !== null && value >= 4.5 ? 'bg-[hsl(var(--ticket-green))]' : value !== null && value >= 4 ? 'bg-[hsl(var(--ticket-amber))]' : 'bg-[hsl(var(--ticket-red))]')}
+                                <span className={cn('block h-full rounded-full', scoreBarClass(value, bands))}
                                     style={{ width: `${((value ?? 0) / 5) * 100}%` }} />
                             </span>
-                            <b className={cn('text-right tabular-nums', scoreToneClass(value))}>{formatScore(value)}</b>
+                            <b className={cn('text-right tabular-nums', scoreToneClass(value, bands))}>{formatScore(value)}</b>
                         </div>
                     );
                 })}

@@ -5,7 +5,7 @@ import { DataSource, FindOptionsRelations, In, LessThan, Repository } from 'type
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
-import { CSI_RESET_REASON_MIN, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { CSI_RESET_REASON_MIN, isSimulation, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
@@ -18,12 +18,12 @@ import { CsiItemRow, itemsForSite, overallStats, rateeStats } from './csi-report
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiAssignmentService } from './csi-assignment.service';
 import { raterMatrix } from './csi-rater-matrix.calc';
-import { CsiSlaService } from './csi-sla.service';
-import { CsiDepartment } from '../entities/csi-department.entity';
+import { CsiSlaReporter, CsiSlaService } from './csi-sla.service';
 import { User } from '../../users/entities/user.entity';
-import { buildReportModel, CsiReportModel, subjectKeyOf } from './csi-report-model';
+import { buildReportModel, CsiReportModel, previousSubjectMap } from './csi-report-model';
+import { bandsOf, CsiScoreBands } from './csi-score-bands';
 import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
-import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap } from '../org/csi-hc-report.calc';
+import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap, recapAverages } from '../org/csi-hc-report.calc';
 import { locationOfSiteCode } from '../org/csi-org.constants';
 import { CsiPendingDepartment, pendingByDepartment } from '../org/csi-service-report.calc';
 import { ratedAccountOf } from './csi-ratee-owner.util';
@@ -37,7 +37,7 @@ const SITE_NOT_IN_PERIOD_MESSAGE = 'Site tidak termasuk dalam periode ini';
 export type CsiActorRef = { id: string };
 export type CsiHcPeriodRef = { id: string; title: string; startDate: string; endDate: string };
 export type CsiHcRecapInput = {
-    period: CsiHcPeriodRef; pics: CsiHcPic[]; ratings: CsiHcRating[]; dimensions: string[];
+    period: CsiHcPeriodRef; scoreBands: CsiScoreBands; pics: CsiHcPic[]; ratings: CsiHcRating[]; dimensions: string[];
     /** Account behind each PIC row (null when the PIC has no iDesk account). */
     userIdOf: Map<string, string | null>;
 };
@@ -115,6 +115,7 @@ export class CsiReportService {
         const comments = await this.rateeComments(data);
         return {
             period: { ...period, sites: allSites },
+            scoreBands: bandsOf(period),
             overall: overallStats(data.items, data.responses.length),
             previousAverage: await this.previousAverage(scope, period, siteId),
             ratees: teamFirst(data.ratees).map((ratee) => rateeStats(ratee, data.dimensions, data.items, {
@@ -169,15 +170,16 @@ export class CsiReportService {
             where: { scope, publishStatus: CsiPeriodPublishStatus.PUBLISHED, endDate: LessThan(period.startDate) },
             relations: { sites: true },
         });
+        // A simulation (fictitious answers) is never the previous period of another survey.
         return candidates
-            .filter((row) => (row.sites ?? []).some((site) => wanted.includes(site.siteId)))
+            .filter((row) => !isSimulation(row) && (row.sites ?? []).some((site) => wanted.includes(site.siteId)))
             .sort((a, b) => b.endDate.localeCompare(a.endDate))[0] ?? null;
     }
 
     /**
      * Executive report model (PDF + Excel): every parameter, nothing capped. Adds to the report the previous period per
-     * subject, participation per site with its basis people (answered or not), every active department (also 0 answers)
-     * and every comment.
+     * subject, participation per site, anonymous participation per rater department (numbers only), the HC layanan
+     * averages and every comment.
      */
     async getExecutiveModel(scope: ServiceScope, periodId: string, input: { siteId?: string; notes?: string; matrix: Awaited<ReturnType<CsiReportService['getRaterMatrix']>> }): Promise<CsiReportModel> {
         const { siteId, matrix } = input;
@@ -185,60 +187,88 @@ export class CsiReportService {
         const period = await this.findInScope(scope, periodId, { sites: { site: true } });
         const sites = siteId ? report.period.sites.filter((site) => site.id === siteId) : report.period.sites;
         const data = narrowToSite(await this.loadPeriodData(scope, period), siteId);
-        // Previous period, per subject (people by name, teams by name + site).
-        const previousBySubject = new Map<string, number | null>();
+        // Previous period, per subject (master PIC, else people by name and teams by name + site).
         const previous = await this.previousPeriod(scope, period, siteId);
+        let previousBySubject = new Map<string, number | null>();
         if (previous) {
             const before = narrowToSite(await this.loadPeriodData(scope, previous), siteId);
-            before.ratees.forEach((ratee) => {
-                const stats = rateeStats(ratee, before.dimensions, before.items);
-                const name = ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || previous.teamLabel : ratee.displayName;
-                previousBySubject.set(subjectKeyOf({ kind: ratee.kind, siteId: rateeSiteOf(before, ratee) }, name), stats.average);
-            });
+            previousBySubject = previousSubjectMap(before.ratees.map((ratee) => ({
+                kind: ratee.kind, siteId: rateeSiteOf(before, ratee), picId: ratee.picId ?? null,
+                name: ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || previous.teamLabel : ratee.displayName,
+                average: rateeStats(ratee, before.dimensions, before.items).average,
+            })));
         }
         // Participation per site (same SLA rules, one site at a time).
         const siteStats = await this.siteStats(scope, period, sites.map((site) => site.id));
         const siteBasis = [];
+        const reporters: CsiSlaReporter[] = [];
         for (const site of sites) {
             const stats = siteStats.get(site.id);
             const sla = await this.sla.compute(period, [site], stats?.responses ?? 0);
-            siteBasis.push({ siteId: site.id, reporters: sla.reporters, responses: stats?.responses ?? 0, average: stats?.average ?? null });
+            reporters.push(...sla.reporters);
+            siteBasis.push({ siteId: site.id, basis: sla.basis, responses: stats?.responses ?? 0, average: stats?.average ?? null });
         }
-        const answeredUserIds = new Set(data.responses.map((response) => response.respondentId));
-        const reporterUserIds = new Map(data.responses.map((response) => [(response.respondent?.email ?? '').toLowerCase(), response.respondentId]));
-        const basisEmails = siteBasis.flatMap((row) => row.reporters.map((reporter) => reporter.email.toLowerCase()));
-        if (basisEmails.length) {
-            const users = await this.dataSource.getRepository(User).find({ where: { email: In([...new Set(basisEmails)]) }, select: { id: true, email: true } });
-            users.forEach((user) => reporterUserIds.set(user.email.toLowerCase(), user.id));
-        }
-        // Every active department of the scope, including the ones without any answer.
-        const departmentRows = await this.dataSource.getRepository(CsiDepartment).find({ where: { scope, isActive: true }, order: { sortOrder: 'ASC', name: 'ASC' } });
-        const counts = new Map<string, number>();
-        data.responses.forEach((response) => counts.set(response.departmentName, (counts.get(response.departmentName) ?? 0) + 1));
-        const names = new Set([...departmentRows.map((row) => row.name), ...counts.keys()]);
-        const departments = [...names].map((name) => ({ name, responses: counts.get(name) ?? 0 }));
         const comments = report.ratees.flatMap((ratee) => ratee.comments.map((comment) => ({
             periodRateeId: ratee.periodRateeId, text: comment.text, department: comment.departmentName, date: comment.submittedAt,
         })));
-        return buildReportModel({
-            report, matrix, scopeLabel: scope, previousBySubject, siteBasis, answeredUserIds, reporterUserIds, departments, comments,
-            notes: input.notes ?? '',
+        // HC: the per-PIC recap with the same site filter, loaded once (layanan averages for the highlight + recap pages).
+        const hcRecap = scope === ServiceScope.HC ? await this.executiveHcRecap(scope, periodId, siteId, previous?.id) : null;
+        const model = buildReportModel({
+            report, matrix, scopeLabel: scope, scope, previousBySubject, hasPrevious: !!previous, siteBasis, comments,
+            raters: await this.basisRaters(reporters, data.responses),
+            serviceAverages: (hcRecap?.services ?? []).filter((row) => row.level === 'service').map((row) => ({ serviceCode: row.serviceCode, average: row.all.average })),
+            notes: input.notes ?? '', hcRecap,
         });
+        return { ...model, hcRecap: hcRecap?.services.some((row) => row.level === 'pic' && row.serviceCode) ? hcRecap : null };
+    }
+
+    /**
+     * Basis raters as department + answered, no names (report "Partisipasi per departemen"). Department as in
+     * getRespondents' pendingByDepartment: the directory department of the NIK, else the account's department.
+     */
+    private async basisRaters(reporters: CsiSlaReporter[], responses: CsiResponse[]): Promise<Array<{ department: string | null; answered: boolean }>> {
+        const unique = [...new Map(reporters.map((reporter) => [reporter.email.toLowerCase(), reporter])).values()];
+        if (!unique.length) return [];
+        const answered = new Set(responses.map((response) => response.respondentId));
+        const users = await this.dataSource.getRepository(User).find({
+            where: { email: In(unique.map((reporter) => reporter.email)) }, select: { id: true, email: true, employeeId: true },
+        });
+        const userOf = new Map(users.map((user) => [user.email.toLowerCase(), user]));
+        const departmentOf = await this.directoryDepartments(users.map((user) => user.employeeId));
+        return unique.map((reporter) => {
+            const user = userOf.get(reporter.email.toLowerCase());
+            return { department: departmentOf.get(user?.employeeId ?? '') ?? reporter.department, answered: !!user && answered.has(user.id) };
+        });
+    }
+
+    /**
+     * HC recap of the executive report (site filter as the rest of the report: respondents of that site only), with the
+     * previous period's average per layanan / bagian / PIC (recapRowKey) when there is one.
+     */
+    private async executiveHcRecap(scope: ServiceScope, periodId: string, siteId?: string, previousId?: string): Promise<CsiHcRecap> {
+        const { pics, ratings, dimensions } = await this.hcRecapInput(scope, periodId, siteId);
+        const recap = buildHcRecap({ pics, ratings, dimensions, scope });
+        if (!previousId) return recap;
+        const before = buildHcRecap({ ...(await this.hcRecapInput(scope, previousId, siteId)), scope });
+        return { ...recap, previous: recapAverages(before), previousOverall: before.overall.all.average };
     }
 
     /**
      * HC per-PIC recap: layanan / bagian / PIC and respondent division / department / bagian, each averaged per
      * location (SJA 1-4, Jakarta) and ALL SJA, plus every respondent's stars. Only scored answers count.
      */
-    async getHcRecap(scope: ServiceScope, periodId: string): Promise<CsiHcRecap & { period: CsiHcPeriodRef }> {
-        const { period, pics, ratings, dimensions } = await this.hcRecapInput(scope, periodId);
-        return { period, ...buildHcRecap({ pics, ratings, dimensions, scope }) };
+    async getHcRecap(scope: ServiceScope, periodId: string): Promise<CsiHcRecap & { period: CsiHcPeriodRef; scoreBands: CsiScoreBands }> {
+        const { period, scoreBands, pics, ratings, dimensions } = await this.hcRecapInput(scope, periodId);
+        return { period, scoreBands, ...buildHcRecap({ pics, ratings, dimensions, scope }) };
     }
 
-    /** Period, PIC rows (with the viewer-relevant userId), scored ratings and dimension labels behind every HC recap. */
-    async hcRecapInput(scope: ServiceScope, periodId: string): Promise<CsiHcRecapInput> {
+    /**
+     * Period, PIC rows (with the viewer-relevant userId), scored ratings and dimension labels behind every HC recap.
+     * `siteId` keeps only answers of respondents of that site (same rule as the report site filter).
+     */
+    async hcRecapInput(scope: ServiceScope, periodId: string, siteId?: string): Promise<CsiHcRecapInput> {
         const period = await this.findInScope(scope, periodId, { sites: { site: true } });
-        const data = await this.loadPeriodData(scope, period);
+        const data = narrowToSite(await this.loadPeriodData(scope, period), siteId);
         const people = data.ratees.filter((ratee) => ratee.kind !== CsiRateeKind.TEAM);
         const ids = new Set(people.map((ratee) => ratee.id));
         const labelOf = new Map(data.dimensions.map((row) => [row.id, row.shortLabel || row.dimensionName]));
@@ -268,13 +298,13 @@ export class CsiReportService {
         // ICT has no bagian: its people are grouped by the site they serve.
         const rateeSites = scope === ServiceScope.ICT ? await this.siteCodes(people.map((ratee) => ratee.siteId).filter((id): id is string => !!id)) : new Map<string, string>();
         const pics = people.map((ratee) => ({
-            periodRateeId: ratee.id, name: ratee.displayName, jobTitle: ratee.jobTitle, serviceCode: ratee.serviceCode ?? null,
+            periodRateeId: ratee.id, name: ratee.displayName, jobTitle: ratee.jobTitle, serviceCode: ratee.serviceCode ?? null, picId: ratee.picId ?? null,
             bagian: ratee.bagian ?? (ratee.siteId ? rateeSites.get(ratee.siteId) ?? null : null), serviceFunction: ratee.serviceFunction ?? null,
         }));
         const linkedByPic = await this.linkedAccounts(people.map((ratee) => ratee.picId).filter((id): id is string => !!id));
         return {
             period: { id: period.id, title: period.title, startDate: period.startDate, endDate: period.endDate },
-            pics, ratings, dimensions, userIdOf: new Map(people.map((ratee) => [ratee.id, ratedAccountOf(ratee, linkedByPic)])),
+            scoreBands: bandsOf(period), pics, ratings, dimensions, userIdOf: new Map(people.map((ratee) => [ratee.id, ratedAccountOf(ratee, linkedByPic)])),
         };
     }
 

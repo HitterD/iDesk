@@ -2,7 +2,8 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind } from '../csi.constants';
+import { CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiTeamKind } from '../csi.constants';
+import { CsiTeamMember } from '../entities/csi-team-member.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
@@ -10,6 +11,7 @@ import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiPic } from '../entities/csi-pic.entity';
 import { computeStatus, CsiPeriodStatus } from './csi-period.service';
 import { ratedAccountOf } from './csi-ratee-owner.util';
+import { bandsOf, CsiScoreBands } from './csi-score-bands';
 
 /** Results stay hidden until this many people rated the person, so no single rater can be singled out. */
 export const CSI_SELF_RESULT_MIN_RATERS = 3;
@@ -18,7 +20,9 @@ const NOT_SCORED = new Set<string>([CsiQuestionType.CHOICE, CsiQuestionType.TEXT
 
 export type CsiSelfResult = {
     periodId: string; title: string; startDate: string; endDate: string; status: CsiPeriodStatus;
-    serviceFunction: string | null; raters: number; minRaters: number; ready: boolean;
+    serviceFunction: string | null; teamName: string | null; raters: number; minRaters: number; ready: boolean;
+    /** Colour bands of the survey (always sent, also before the results are ready). */
+    scoreBands: CsiScoreBands;
     average: number | null; dimensions: Array<{ label: string; average: number }>; comments: string[];
 };
 
@@ -49,6 +53,7 @@ export class CsiSelfResultService {
         @InjectRepository(CsiResponseComment) private readonly comments: Repository<CsiResponseComment>,
         @InjectRepository(CsiPic) private readonly pics: Repository<CsiPic>,
         @Optional() @Inject(CSI_RANDOM) private readonly random: () => number = Math.random,
+        @InjectRepository(CsiTeamMember) private readonly members: Repository<CsiTeamMember>,
     ) { }
 
     async list(userId: string, now: Date = new Date()): Promise<CsiSelfResult[]> {
@@ -59,14 +64,21 @@ export class CsiSelfResultService {
         const hc = { kind: CsiRateeKind.PERSON, period: { ...published, scope: ServiceScope.HC } };
         // ICT only for surveys created with the promise (csi_periods.selfResults), never for older ICT surveys.
         const ict = { kind: CsiRateeKind.PERSON, period: { ...published, scope: ServiceScope.ICT, selfResults: true } };
+        const teamIds = (await this.members.find({ where: { userId, team: { kind: CsiTeamKind.CUSTOM } }, select: { teamId: true } }))
+            .map((member) => member.teamId);
+        const teams = teamIds.length ? [{ ...hc, kind: CsiRateeKind.TEAM, teamId: In(teamIds), team: { kind: CsiTeamKind.CUSTOM } }] : [];
         const rows = (await this.ratees.find({
-            where: [{ ...hc, userId }, { ...ict, userId }, ...(picIds.length ? [{ ...hc, picId: In(picIds) }] : [])],
-            relations: { period: true },
+            where: [{ ...hc, userId }, { ...ict, userId }, ...(picIds.length ? [{ ...hc, picId: In(picIds) }] : []), ...teams],
+            relations: { period: true, team: true },
         }))
             .filter((row) => row.period?.scope === ServiceScope.HC || (row.period?.scope === ServiceScope.ICT && row.period.selfResults === true)).filter((row, index, all) => all.findIndex((other) => other.id === row.id) === index)
-            .filter((row) => ratedAccountOf(row, new Map(row.picId && picIds.includes(row.picId) ? [[row.picId, userId]] : [])) === userId)
+            .filter((row) => row.kind === CsiRateeKind.TEAM
+                ? row.team?.kind === CsiTeamKind.CUSTOM && teamIds.includes(row.teamId!)
+                : ratedAccountOf(row, new Map(row.picId && picIds.includes(row.picId) ? [[row.picId, userId]] : [])) === userId)
             .filter((row) => row.period && !row.period.cancelledAt && row.period.individualEnabled !== false);
-        const results = await Promise.all(rows.map((row) => this.resultOf(row, now)));
+        // Stable partition: preserve personal order, then show custom teams within the same period.
+        const ordered = [...rows.filter((row) => row.kind !== CsiRateeKind.TEAM), ...rows.filter((row) => row.kind === CsiRateeKind.TEAM)];
+        const results = await Promise.all(ordered.map((row) => this.resultOf(row, now)));
         return results.sort((a, b) => b.startDate.localeCompare(a.startDate));
     }
 
@@ -85,7 +97,9 @@ export class CsiSelfResultService {
         const { period } = ratee;
         const base = {
             periodId: period.id, title: period.title, startDate: period.startDate, endDate: period.endDate, status: computeStatus(period, now),
-            serviceFunction: ratee.serviceFunction ?? null, raters, minRaters: CSI_SELF_RESULT_MIN_RATERS, ready,
+            serviceFunction: ratee.serviceFunction ?? null,
+            teamName: ratee.kind === CsiRateeKind.TEAM ? ratee.team?.name ?? ratee.displayName : null,
+            raters, minRaters: CSI_SELF_RESULT_MIN_RATERS, ready, scoreBands: bandsOf(period),
         };
         if (!ready) return { ...base, average: null, dimensions: [], comments: [] };
         const dimensions = questions.flatMap((question) => {

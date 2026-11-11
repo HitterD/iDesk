@@ -49,6 +49,10 @@ describe('CsiSubjectService', () => {
     let sites: ReturnType<typeof memoryRepository>;
     let teams: ReturnType<typeof memoryRepository>;
     let profiles: ReturnType<typeof memoryRepository>;
+    let pics: ReturnType<typeof memoryRepository>;
+    let templates: ReturnType<typeof memoryRepository>;
+    let templatePics: ReturnType<typeof memoryRepository>;
+    let members: ReturnType<typeof memoryRepository>;
     let service: CsiSubjectService;
     let unlink: jest.SpyInstance;
 
@@ -59,9 +63,14 @@ describe('CsiSubjectService', () => {
             agent('44444444-4444-4444-8444-444444444444', SPJ.id, { role: UserRole.USER }),
         ]);
         sites = memoryRepository<any>([KRW, SPJ]);
-        teams = memoryRepository<any>([{ id: T1, scope: ICT, siteId: SPJ.id, name: 'Tim Sepanjang', photoUrl: null, tagline: null, jobTitle: null, isActive: true }]);
+        teams = memoryRepository<any>([{ id: T1, scope: ICT, siteId: SPJ.id, kind: 'SITE', name: 'Tim Sepanjang', photoUrl: null, tagline: null, jobTitle: null, isActive: true }]);
         profiles = memoryRepository<any>([]);
-        service = new CsiSubjectService(users as any, sites as any, teams as any, profiles as any);
+        pics = memoryRepository<any>([]);
+        templates = memoryRepository<any>([]);
+        templatePics = memoryRepository<any>([]);
+        members = memoryRepository<any>([]);
+        service = new CsiSubjectService(users as any, sites as any, teams as any, profiles as any,
+            pics as any, templates as any, templatePics as any, members as any);
         unlink = jest.spyOn(fs.promises, 'unlink').mockResolvedValue(undefined);
     });
 
@@ -76,6 +85,15 @@ describe('CsiSubjectService', () => {
         const krw = groups.find((group) => group.siteId === KRW.id)!;
         expect(krw.team).toBeNull();
         expect(krw.people.map((view) => view.userId)).toEqual([U2]);
+    });
+
+    it('ICT list unchanged: staff people, one site team, no custom teams', async () => {
+        teams.rows.push({ id: 'custom', scope: ICT, siteId: SPJ.id, kind: 'CUSTOM', serviceCode: null, name: 'Custom', isActive: true });
+        const spj = (await service.list(ICT)).find((group) => group.siteId === SPJ.id)!;
+        expect(spj.teams).toEqual([]);
+        expect(spj.team).toMatchObject({ teamKind: 'SITE', serviceCode: null, picId: null, hasAccount: false });
+        expect(spj.people).toEqual([expect.objectContaining({ key: `user:${U1}`, teamKind: null, picId: null, serviceCode: null, hasAccount: true })]);
+        expect(pics.find).not.toHaveBeenCalled();
     });
 
     it('falls back to user avatar when profile has no photo', async () => {
@@ -102,6 +120,21 @@ describe('CsiSubjectService', () => {
         await expect(service.update(ICT, `team:${T1}`, { name: 'Tim SPJ' })).resolves.toMatchObject({ name: 'Tim SPJ' });
         await expect(service.update(ICT, `team:${U1}`, { tagline: 'a' })).rejects.toBeInstanceOf(NotFoundException);
         await expect(service.update(ICT, 'nope', { tagline: 'a' })).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('ignores custom teams when listing or creating the single site team', async () => {
+        teams.rows.unshift({ id: 'custom', scope: ICT, siteId: KRW.id, kind: 'CUSTOM', name: 'Custom' });
+        expect((await service.list(ICT)).find((group) => group.siteId === KRW.id)!.team).toBeNull();
+        const created = await service.createTeam(ICT, KRW.id);
+        expect(created.teamId).not.toBe('custom');
+        expect(teams.rows.find((row) => row.id === created.teamId)).toMatchObject({ kind: 'SITE' });
+        expect((await service.createTeam(ICT, KRW.id)).teamId).toBe(created.teamId);
+    });
+
+    it('site team stays unique per site', async () => {
+        teams.rows.push({ id: 'c1', scope: ICT, siteId: SPJ.id, kind: 'CUSTOM', name: 'Tim Rekrutmen', isActive: true });
+        expect((await service.createTeam(ICT, SPJ.id)).teamId).toBe(T1);
+        expect(teams.rows.filter((row) => row.siteId === SPJ.id && row.kind === 'SITE')).toHaveLength(1);
     });
 
     it('creates a site team once with the default name', async () => {
@@ -177,6 +210,108 @@ describe('CsiSubjectService', () => {
 
         it('ICT agents are not HC subjects unless added', async () => {
             await expect(service.update(HC, `user:${U1}`, { tagline: 'x' })).rejects.toBeInstanceOf(NotFoundException);
+        });
+
+        describe('template PICs and custom teams', () => {
+            const P1 = '88888888-8888-4888-8888-888888888881';
+            const P2 = '88888888-8888-4888-8888-888888888882';
+            const P3 = '88888888-8888-4888-8888-888888888883';
+            const pic = (id: string, over: Record<string, unknown>) => ({
+                id, scope: HC, nik: id.slice(-4), fullName: 'X', jobTitle: null, serviceCode: 'HCD', serviceFunction: null,
+                siteId: null, userId: null, photoUrl: null, tagline: null, isActive: true, ...over,
+            });
+
+            beforeEach(() => {
+                templates.rows.push({ id: 'tpl-spj', scope: HC, locationCode: 'SPJ' }, { id: 'tpl-krw', scope: HC, locationCode: 'KRW' });
+                pics.rows.push(
+                    pic(P1, { fullName: 'Zaki', serviceCode: 'HCC', userId: HCU, tagline: 'Siap' }),
+                    pic(P2, { fullName: 'Budi', serviceCode: 'HCS', serviceFunction: 'Seragam', photoUrl: '/uploads/csi/budi.jpg' }),
+                    pic(P3, { fullName: 'Ani', serviceCode: 'HCC' }),
+                );
+                templatePics.rows.push(
+                    { id: 'r1', templateId: 'tpl-spj', picId: P1, teamId: null },
+                    { id: 'r2', templateId: 'tpl-spj', picId: P2, teamId: null },
+                    { id: 'r3', templateId: 'tpl-krw', picId: P3, teamId: null },
+                    { id: 'r4', templateId: 'tpl-spj', picId: null, teamId: 'c1' },
+                );
+                users.rows.find((row) => row.id === HCU)!.avatarUrl = '/uploads/avatars/hana.jpg';
+            });
+
+            it('HC list groups template PICs by site', async () => {
+                const groups = await service.list(HC);
+                const spj = groups.find((group) => group.siteId === SPJ.id)!;
+                expect(spj.people.map((view) => view.key)).toEqual([`pic:${P1}`, `pic:${P2}`]);
+                expect(spj.people[0]).toMatchObject({ kind: 'PERSON', picId: P1, name: 'Zaki', userId: HCU, serviceCode: 'HCC',
+                    photoUrl: '/uploads/avatars/hana.jpg', tagline: 'Siap', hasAccount: true, teamKind: null });
+                expect(groups.find((group) => group.siteId === KRW.id)!.people.map((view) => view.picId)).toEqual([P3]);
+            });
+
+            it('PIC without account listed with hasAccount false', async () => {
+                const spj = (await service.list(HC)).find((group) => group.siteId === SPJ.id)!;
+                expect(spj.people[1]).toMatchObject({ picId: P2, userId: null, hasAccount: false, photoUrl: '/uploads/csi/budi.jpg', serviceFunction: 'Seragam' });
+            });
+
+            it('legacy hand-picked members stay listed unless a PIC already represents the account', async () => {
+                const other = '99999999-9999-4999-8999-999999999999';
+                users.rows.push({ id: other, fullName: 'Lama', siteId: SPJ.id, role: UserRole.USER, isActive: true, jobTitle: null, avatarUrl: null });
+                profiles.rows.push({ id: 'pf-h', scope: HC, userId: HCU, isMember: true }, { id: 'pf-o', scope: HC, userId: other, isMember: true });
+                const spj = (await service.list(HC)).find((group) => group.siteId === SPJ.id)!;
+                expect(spj.people.map((view) => view.key)).toEqual([`pic:${P1}`, `pic:${P2}`, `user:${other}`]);
+            });
+
+            it('lists active custom teams with members next to the site team', async () => {
+                teams.rows.push({ id: 'c1', scope: HC, siteId: SPJ.id, kind: 'CUSTOM', serviceCode: 'HCD', name: 'Tim Rekrutmen', isActive: true });
+                members.rows.push({ id: 'm2', teamId: 'c1', userId: null, name: 'Budi', sortOrder: 1 }, { id: 'm1', teamId: 'c1', userId: HCU, name: 'Hana HC', sortOrder: 0 });
+                const spj = (await service.list(HC)).find((group) => group.siteId === SPJ.id)!;
+                expect(spj.team).toBeNull();
+                expect(spj.teams).toEqual([expect.objectContaining({ key: 'team:c1', teamKind: 'CUSTOM', serviceCode: 'HCD', hasAccount: false,
+                    members: [{ id: 'm1', name: 'Hana HC', userId: HCU }, { id: 'm2', name: 'Budi', userId: null }] })]);
+            });
+
+            it('PIC with account falls back to the legacy subject profile photo/tagline before the avatar', async () => {
+                profiles.rows.push({ id: 'pf-h', scope: HC, userId: HCU, isMember: true, photoUrl: '/uploads/csi/hana-lama.jpg', tagline: 'Tagline lama' });
+                pics.rows.find((row) => row.id === P1)!.tagline = null;
+                const spj = (await service.list(HC)).find((group) => group.siteId === SPJ.id)!;
+                expect(spj.people[0]).toMatchObject({ picId: P1, photoUrl: '/uploads/csi/hana-lama.jpg', tagline: 'Tagline lama' });
+                const ratee = { id: 'r', periodId: 'p1', kind: 'PERSON', userId: HCU, picId: P1, siteId: SPJ.id, teamId: null,
+                    photoUrl: null, tagline: null, displayName: 'Zaki', jobTitle: null, sortOrder: 0 } as any;
+                expect(await service.viewFor(HC, ratee)).toMatchObject({ photoUrl: '/uploads/csi/hana-lama.jpg', tagline: 'Tagline lama' });
+                // The PIC's own values still win over the legacy profile.
+                pics.rows.find((row) => row.id === P1)!.photoUrl = '/uploads/csi/zaki.jpg';
+                pics.rows.find((row) => row.id === P1)!.tagline = 'Siap';
+                expect(await service.viewFor(HC, ratee)).toMatchObject({ photoUrl: '/uploads/csi/zaki.jpg', tagline: 'Siap' });
+                const view = await service.update(HC, `pic:${P1}`, { jobTitle: 'HC Officer' });
+                expect(view).toMatchObject({ photoUrl: '/uploads/csi/zaki.jpg', tagline: 'Siap' });
+            });
+
+            it('pic key tagline saved on csi_pics', async () => {
+                const view = await service.update(HC, `pic:${P2}`, { tagline: 'Rapi selalu' });
+                expect(view).toMatchObject({ key: `pic:${P2}`, tagline: 'Rapi selalu' });
+                expect(pics.rows.find((row) => row.id === P2)!.tagline).toBe('Rapi selalu');
+                expect(profiles.rows).toEqual([]);
+                await expect(service.update(HC, `pic:${P2}`, { name: 'Lain' })).rejects.toBeInstanceOf(BadRequestException);
+                await expect(service.update(ICT, `pic:${P2}`, { tagline: 'x' })).rejects.toBeInstanceOf(NotFoundException);
+            });
+
+            it('pic photo replaces the previous CSI upload on csi_pics', async () => {
+                const view = await service.setPhoto(HC, `pic:${P2}`, '/uploads/csi/new.jpg');
+                expect(view.photoUrl).toBe('/uploads/csi/new.jpg');
+                expect(pics.rows.find((row) => row.id === P2)!.photoUrl).toBe('/uploads/csi/new.jpg');
+                expect(unlink).toHaveBeenCalledWith('./uploads/csi/budi.jpg');
+            });
+
+            it('pic photo used for ratee view', async () => {
+                const ratee = (over: Record<string, unknown>) => ({
+                    id: 'r', periodId: 'p1', kind: 'PERSON', userId: null, picId: P2, siteId: null, teamId: null, photoUrl: null, tagline: null,
+                    displayName: 'Budi', jobTitle: 'Snapshot', sortOrder: 0, ...over,
+                }) as any;
+                pics.rows.find((row) => row.id === P2)!.tagline = 'Master PIC';
+                expect(await service.viewFor(HC, ratee({ siteId: SPJ.id }))).toEqual({
+                    siteId: SPJ.id, siteCode: 'SPJ', photoUrl: '/uploads/csi/budi.jpg', tagline: 'Master PIC', jobTitle: 'Snapshot',
+                });
+                expect(await service.viewFor(HC, ratee({ picId: P1, userId: HCU, tagline: 'Periode' })))
+                    .toMatchObject({ photoUrl: '/uploads/avatars/hana.jpg', tagline: 'Periode' });
+            });
         });
     });
 });

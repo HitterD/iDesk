@@ -64,6 +64,9 @@ export const SECTION_COPY = {
     sla: 'Target partisipasi',
     slaHint: 'Persentase penilai yang harus mengisi agar target tercapai.',
     slaError: 'Target partisipasi harus bilangan bulat 1–100',
+    fairMin: 'Batas oranye (mulai)',
+    goodMin: 'Batas hijau (mulai)',
+    bandsPreview: 'Warna nilai',
 } as const;
 
 export const TEAM_COPY = {

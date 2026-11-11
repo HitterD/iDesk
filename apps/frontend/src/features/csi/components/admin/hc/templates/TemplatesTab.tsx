@@ -1,63 +1,66 @@
-import { useRef, useState } from 'react';
-import { Download, FileSpreadsheet, Play } from 'lucide-react';
-import { toast } from 'sonner';
+import { useState } from 'react';
+import { FileSpreadsheet, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { cn } from '@/lib/utils';
 import { CsiHcApi } from '../../../../api/csiHc.api';
 import { useCsiTemplateMutation, useCsiTemplates } from '../../../../hooks/useCsiHc';
 import type { CsiTemplate } from '../../../../hcTypes';
 import type { CsiScopeParam } from '../../../../types';
-import { AdminSection, EmptyNote, MUTED_TEXT } from '../../AdminParts';
+import { AdminSection, MUTED_TEXT } from '../../AdminParts';
+import { CSI_TEMPLATE_LOCATIONS } from '../hcFormat';
+import { HcSurveyWizard } from './HcSurveyWizard';
 import { TemplateApplyDialog } from './TemplateApplyDialog';
+import { BlankTemplateButton, TemplateEmptyState, type TemplateLocation } from './TemplateEmptyState';
+import { TemplateImportDialog } from './TemplateImportDialog';
+import { TemplateIssuesPanel } from './TemplateIssuesPanel';
 import { TemplatePicCard } from './TemplatePicCard';
+import type { AddRaterBody } from './RaterRow';
+import { RaterTableView } from './RaterTableView';
 
-const LOCATION_NAMES: Record<string, string> = { SMG: 'Semarang', SPJ: 'Sepanjang', KRW: 'Karawang', JTB: 'Jakarta' };
+type TemplateView = 'pic' | 'rater';
+const VIEW_OPTIONS = [{ value: 'pic', label: 'Per PIC' }, { value: 'rater', label: 'Per penilai' }] as const;
+
 const SERVICE_ORDER = ['HCD', 'HCC', 'HCS'];
 const SERVICE_NAMES: Record<string, string> = { HCD: 'HC Development', HCC: 'HC Compensation & Benefit', HCS: 'HC Services' };
 
-function ImportButton({ scope, location }: { scope: CsiScopeParam; location: string }) {
-    const input = useRef<HTMLInputElement>(null);
-    const importer = useCsiTemplateMutation(scope, async (file: File) => {
-        const dry = await CsiHcApi.importTemplate(scope, location, file, false);
-        const problems = dry.problems.length ? `\n${dry.problems.length} baris bermasalah (dilewati).` : '';
-        if (!window.confirm(`${dry.pics} PIC di file: ${dry.picsAdded} baru, ${dry.ratersAdded} penilai baru.${problems}\nGabungkan ke template?`)) return;
-        await CsiHcApi.importTemplate(scope, location, file, true);
-        toast.success('Template diperbarui dari Excel.');
-    });
-    return (
-        <>
-            <input ref={input} type="file" accept=".xlsx" className="hidden" onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) importer.mutate(file);
-                event.target.value = '';
-            }} />
-            <Button variant="soft" disabled={importer.isPending} onClick={() => input.current?.click()}>
-                <FileSpreadsheet aria-hidden="true" />{importer.isPending ? 'Mengimpor…' : 'Impor Excel'}
-            </Button>
-        </>
-    );
-}
+const summaryItems = (summary: CsiTemplate['summary']) => [
+    `${summary.pics} PIC`, `${summary.raters} penilai`, `${summary.ratersConfirmed} terkonfirmasi`, `${summary.ratersOk} cocok otomatis`,
+    `${summary.ratersAmbiguous} nama ganda`, `${summary.ratersNoAccount} belum punya akun`,
+];
 
-function TemplateEditor({ scope, template }: { scope: CsiScopeParam; template: CsiTemplate }) {
+function TemplateEditor({ scope, template, location, onImport, view, onViewChange }: {
+    scope: CsiScopeParam; template: CsiTemplate; location: TemplateLocation; onImport: () => void;
+    view: TemplateView; onViewChange: (view: TemplateView) => void;
+}) {
     const [applying, setApplying] = useState(false);
+    const [creating, setCreating] = useState(false);
     const update = useCsiTemplateMutation(scope, ({ id, serviceFunction }: { id: string; serviceFunction: string | null }) => CsiHcApi.updateTemplatePic(scope, id, { serviceFunction }));
-    const addRater = useCsiTemplateMutation(scope, ({ id, name }: { id: string; name: string }) => CsiHcApi.addTemplateRater(scope, id, { name }));
+    const addRater = useCsiTemplateMutation(scope, ({ id, body }: { id: string; body: AddRaterBody }) => CsiHcApi.addTemplateRater(scope, id, body));
     const removeRater = useCsiTemplateMutation(scope, (raterId: string) => CsiHcApi.removeTemplateRater(scope, raterId));
     const removePic = useCsiTemplateMutation(scope, (picId: string) => CsiHcApi.removeTemplatePic(scope, picId));
     const pending = update.isPending || addRater.isPending || removeRater.isPending || removePic.isPending;
     const { summary } = template;
     return (
         <div className="grid gap-4">
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-[hsl(var(--muted)/.45)] p-4">
-                <div className="min-w-0 flex-1">
+            {/* Title + summary take the full width; the controls wrap on their own row so the summary never becomes a narrow column. */}
+            <div className="grid gap-3 rounded-2xl bg-[hsl(var(--muted)/.45)] p-4">
+                <div className="grid min-w-0 gap-1.5">
                     <p className="text-[15px] font-bold">{template.name}</p>
-                    <p className={MUTED_TEXT}>
-                        {`${summary.pics} PIC · ${summary.raters} pasangan penilai · ${summary.ratersOk} cocok, ${summary.ratersNoAccount} belum punya akun, ${summary.ratersAmbiguous} nama ganda · ${summary.picsWithoutRaters} PIC belum ada penilai`}
-                    </p>
+                    <ul aria-label="Ringkasan template" className={cn(MUTED_TEXT, 'flex flex-wrap gap-x-3 gap-y-1')}>
+                        {summaryItems(summary).map((item) => <li key={item}>{item}</li>)}
+                    </ul>
                 </div>
-                <ImportButton scope={scope} location={template.locationCode} />
-                <Button variant="primary" onClick={() => setApplying(true)}><Play aria-hidden="true" />Gunakan template</Button>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    <SegmentedControl options={VIEW_OPTIONS} value={view} onValueChange={onViewChange} aria-label="Tampilan template" />
+                    <BlankTemplateButton scope={scope} location={location} variant="subtle" />
+                    <Button variant="soft" onClick={onImport}><FileSpreadsheet aria-hidden="true" />Impor Excel</Button>
+                    <Button variant="primary" onClick={() => setApplying(true)}><Play aria-hidden="true" />Gunakan template</Button>
+                </div>
             </div>
-            {SERVICE_ORDER.map((code) => {
+            <TemplateIssuesPanel scope={scope} template={template} />
+            {view === 'rater' && <RaterTableView scope={scope} template={template} />}
+            {view === 'pic' && SERVICE_ORDER.map((code) => {
                 const pics = template.pics.filter((pic) => pic.serviceCode === code);
                 if (!pics.length) return null;
                 return (
@@ -65,9 +68,9 @@ function TemplateEditor({ scope, template }: { scope: CsiScopeParam; template: C
                         <h3 className="text-[14px] font-bold">{`${code} · ${SERVICE_NAMES[code]} (${pics.length})`}</h3>
                         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                             {pics.map((pic) => (
-                                <TemplatePicCard key={pic.id} pic={pic} pending={pending}
+                                <TemplatePicCard key={pic.id} scope={scope} templateId={template.id} pic={pic} pending={pending}
                                     onServiceFunction={(serviceFunction) => update.mutate({ id: pic.id, serviceFunction })}
-                                    onAddRater={(name) => addRater.mutate({ id: pic.id, name })}
+                                    onAddRater={(body) => addRater.mutate({ id: pic.id, body })}
                                     onRemoveRater={(raterId) => removeRater.mutate(raterId)}
                                     onRemovePic={() => window.confirm(`Hapus ${pic.picName} beserta penilainya dari template?`) && removePic.mutate(pic.id)} />
                             ))}
@@ -75,38 +78,66 @@ function TemplateEditor({ scope, template }: { scope: CsiScopeParam; template: C
                     </section>
                 );
             })}
-            {applying && <TemplateApplyDialog scope={scope} template={template} open={applying} onOpenChange={setApplying} />}
+            {applying && <TemplateApplyDialog scope={scope} template={template} open={applying} onOpenChange={setApplying}
+                onNewSurvey={() => { setApplying(false); setCreating(true); }} />}
+            {creating && <HcSurveyWizard scope={scope} open={creating} onOpenChange={setCreating} initialLocation={template.locationCode} />}
+        </div>
+    );
+}
+
+/** Always the four template locations, in a fixed order, whether or not a template exists yet. */
+function LocationTabs({ templates, selected, onSelect }: {
+    /** null while loading: no badge rather than a wrong "kosong". */
+    templates: CsiTemplate[] | null; selected: string; onSelect: (code: string) => void;
+}) {
+    return (
+        <div role="tablist" aria-label="Lokasi template" className="flex flex-wrap items-center gap-2">
+            {CSI_TEMPLATE_LOCATIONS.map(({ code, name }) => {
+                const template = templates?.find((row) => row.locationCode === code);
+                const active = code === selected;
+                return (
+                    <button key={code} type="button" role="tab" aria-selected={active} onClick={() => onSelect(code)}
+                        className={cn('idesk-btn', active ? 'is-primary' : 'is-soft')}>
+                        {name}
+                        {templates && (
+                            <span className={cn('rounded-full px-1.5 text-[11.5px] font-semibold', active ? 'bg-white/20' : 'bg-[hsl(var(--muted))]')}>
+                                {template ? `${template.summary.pics} PIC` : 'kosong'}
+                            </span>
+                        )}
+                    </button>
+                );
+            })}
         </div>
     );
 }
 
 /**
  * Pengaturan → Template penugasan: per-location lists of HC PICs, their service function and who rates them.
- * Edited here, then used to create a survey or synced (add-only) into one.
+ * Edited here or imported from Excel (dry-run preview first), then used to create a survey or synced (add-only) into one.
  */
-export function TemplatesTab({ scope }: { scope: CsiScopeParam }) {
+export function TemplatesTab({ scope, initialLocation, initialView }: {
+    scope: CsiScopeParam; initialLocation?: string; initialView?: TemplateView;
+}) {
     const { data, isLoading } = useCsiTemplates(scope);
-    const load = useCsiTemplateMutation(scope, (location: string) => CsiHcApi.loadBundledTemplate(scope, location));
-    const [selected, setSelected] = useState<string | null>(null);
+    const [selected, setSelected] = useState<string>(initialLocation ?? CSI_TEMPLATE_LOCATIONS[0].code);
+    const [importing, setImporting] = useState(false);
+    const [view, setView] = useState<TemplateView>(initialView ?? 'pic');
     const templates = data?.templates ?? [];
-    const current = templates.find((row) => row.id === selected) ?? templates[0];
+    const location = CSI_TEMPLATE_LOCATIONS.find((row) => row.code === selected) ?? CSI_TEMPLATE_LOCATIONS[0];
+    const current = templates.find((row) => row.locationCode === location.code);
+    const openImport = () => setImporting(true);
     return (
         <AdminSection title="Template penugasan per lokasi"
             description="Daftar PIC HC, fungsi pelayanan dan siapa yang menilai, per lokasi. Bisa diedit, ditambah, diimpor dari Excel, lalu dipakai untuk membuat survei.">
             <div className="grid gap-4">
+                <LocationTabs templates={data ? templates : null} selected={location.code} onSelect={setSelected} />
                 {isLoading && <div className="h-40 animate-pulse rounded-2xl bg-[hsl(var(--muted))]" aria-busy="true" />}
-                <div className="flex flex-wrap items-center gap-2">
-                    {templates.map((row) => (
-                        <Button key={row.id} variant={row.id === current?.id ? 'primary' : 'soft'} onClick={() => setSelected(row.id)}>{LOCATION_NAMES[row.locationCode] ?? row.locationCode}</Button>
-                    ))}
-                    {(data?.bundledAvailable ?? []).map((code) => (
-                        <Button key={code} variant="soft" disabled={load.isPending} onClick={() => load.mutate(code)}>
-                            <Download aria-hidden="true" />{`Muat template ${LOCATION_NAMES[code] ?? code}`}
-                        </Button>
-                    ))}
-                </div>
-                {!isLoading && !templates.length && <EmptyNote>Belum ada template. Muat template bawaan atau impor Excel.</EmptyNote>}
-                {current && <TemplateEditor key={current.id} scope={scope} template={current} />}
+                {!isLoading && !current && (
+                    <TemplateEmptyState scope={scope} location={location} onImport={openImport}
+                        bundled={(data?.bundledAvailable ?? []).includes(location.code)} />
+                )}
+                {current && <TemplateEditor key={current.id} scope={scope} template={current} location={location} onImport={openImport} view={view} onViewChange={setView} />}
+                {importing && <TemplateImportDialog key={location.code} scope={scope} location={location} open={importing} onOpenChange={setImporting} />}
             </div>
         </AdminSection>
     );

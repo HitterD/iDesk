@@ -60,12 +60,13 @@ describe('CsiDashboardService', () => {
     });
 
     it('splits a multi-site period into one row per site', async () => {
-        rows.push(period('p-now', '2026-10-01', '2026-10-31', [SPJ, KRW]));
+        rows.push(period('p-now', '2026-10-01', '2026-10-31', [SPJ, KRW], { scoreFairMin: 3.5, scoreGoodMin: 4.2 }));
         siteStats.set('p-now', { [SPJ.id]: stats(4.6, 12), [KRW.id]: stats(3.9, 4) });
         const dashboard = await service.getDashboard(ICT, NOW);
+        const scoreBands = { fairMin: 3.5, goodMin: 4.2 };
         expect(dashboard.active).toEqual([
-            { periodId: 'p-now', title: 'CSI p-now', siteId: KRW.id, siteCode: 'KRW', siteName: 'Karawang', responses: 4, basis: 10, target: 9, targetPct: 90, average: 3.9, endDate: '2026-10-31' },
-            { periodId: 'p-now', title: 'CSI p-now', siteId: SPJ.id, siteCode: 'SPJ', siteName: 'Sepanjang', responses: 12, basis: 20, target: 18, targetPct: 90, average: 4.6, endDate: '2026-10-31' },
+            { periodId: 'p-now', title: 'CSI p-now', siteId: KRW.id, siteCode: 'KRW', siteName: 'Karawang', responses: 4, basis: 10, target: 9, targetPct: 90, average: 3.9, endDate: '2026-10-31', scoreBands },
+            { periodId: 'p-now', title: 'CSI p-now', siteId: SPJ.id, siteCode: 'SPJ', siteName: 'Sepanjang', responses: 12, basis: 20, target: 18, targetPct: 90, average: 4.6, endDate: '2026-10-31', scoreBands },
         ]);
         expect(sla.compute).toHaveBeenCalledWith(expect.objectContaining({ id: 'p-now' }), [{ id: SPJ.id }], 12);
     });
@@ -116,6 +117,18 @@ describe('CsiDashboardService', () => {
             { name: 'BUDI', photoUrl: '/budi.jpg', siteId: SPJ.id, delta: 0.5 },
             { name: 'SARI', photoUrl: '/sari.jpg', siteId: SPJ.id, delta: -0.25 },
         ]);
+    });
+
+    it('simulation surveys (title "SIMULASI – ") stay out of active rows, trend and people delta', async () => {
+        rows.push(period('p-sim', '2026-07-01', '2026-09-30', [SPJ], { title: 'SIMULASI – CSI HC 2026' }));
+        rows.push(period('p-sim-now', '2026-10-01', '2026-10-31', [SPJ], { title: 'SIMULASI – CSI baru' }));
+        rows.push(period('p-now', '2026-10-01', '2026-10-31', [SPJ]));
+        siteStats.set('p-sim', { [SPJ.id]: stats(2, 1, [person('budi', 1)]) });
+        siteStats.set('p-now', { [SPJ.id]: stats(4, 1, [person('budi', 4)]) });
+        const dashboard = await service.getDashboard(ICT, NOW);
+        expect(dashboard.active.map((row) => row.periodId)).toEqual(['p-now']);
+        expect(dashboard.trend).toEqual([{ siteId: SPJ.id, siteCode: 'SPJ', points: [{ periodId: 'p-now', label: 'Q4 26', average: 4 }] }]);
+        expect(dashboard.peopleDelta).toEqual([]);
     });
 
     it('pending lists LISTED raters without a response, earliest-ending period first, at most 10', async () => {

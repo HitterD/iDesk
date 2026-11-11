@@ -22,6 +22,15 @@ export class CsiAssignmentTemplateRater {
     @Column({ type: 'varchar', length: 150, nullable: true })
     raterJobTitle: string | null;
 
+    @Column({ type: 'varchar', length: 20, nullable: true })
+    raterNik: string | null;
+
+    @Column({ type: 'timestamp', nullable: true })
+    confirmedAt: Date | null;
+
+    @Column({ type: 'uuid', nullable: true })
+    confirmedById: string | null;
+
     @Column({ type: 'uuid', nullable: true })
     userId: string | null;
 

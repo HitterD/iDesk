@@ -19,7 +19,7 @@ function DimensionBars({ result }: { result: CsiSelfResult }) {
                     <span className="h-2 overflow-hidden rounded-full bg-[hsl(var(--border))]">
                         <span className="block h-full rounded-full bg-[hsl(var(--ticket-amber))]" style={{ width: `${(row.average / MAX_SCORE) * 100}%` }} />
                     </span>
-                    <b className={cn('text-right tabular-nums', scoreToneClass(row.average))}>{formatScore(row.average)}</b>
+                    <b className={cn('text-right tabular-nums', scoreToneClass(row.average, result.scoreBands))}>{formatScore(row.average)}</b>
                 </li>
             ))}
         </ul>
@@ -32,6 +32,7 @@ function ResultCard({ result, index }: { result: CsiSelfResult; index: number })
             <header className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                     <h2 className="text-[16px] font-bold">{result.title}</h2>
+                    {result.teamName && <p className="mt-1 text-[13px] font-semibold text-muted-foreground">{`Tim ${result.teamName}`}</p>}
                     <p className="text-[12.5px] text-muted-foreground">{`${formatDate(result.startDate)} – ${formatDate(result.endDate)} · ${STATUS_TEXT[result.status]}`}</p>
                     {result.serviceFunction && <p className="mt-1 text-[13px] text-[hsl(var(--idesk-sapphire))]">{`Fungsi pelayanan: ${result.serviceFunction}`}</p>}
                 </div>
@@ -47,7 +48,7 @@ function ResultCard({ result, index }: { result: CsiSelfResult; index: number })
                     <div className="grid items-center gap-4 sm:grid-cols-[150px_minmax(0,1fr)]">
                         <div className="rounded-2xl bg-[hsl(var(--ticket-amber)/.12)] p-3 text-center">
                             <p className="text-[11.5px] font-semibold uppercase text-muted-foreground">Rata-rata</p>
-                            <p className={cn('flex items-center justify-center gap-1 text-[30px] font-bold tabular-nums', scoreToneClass(result.average))}>
+                            <p className={cn('flex items-center justify-center gap-1 text-[30px] font-bold tabular-nums', scoreToneClass(result.average, result.scoreBands))}>
                                 <Star className="h-6 w-6 fill-[hsl(var(--ticket-amber))] text-[hsl(var(--ticket-amber))]" aria-hidden="true" />{formatScore(result.average)}
                             </p>
                             <p className="text-[12px] text-muted-foreground">{`dari ${result.raters} penilai`}</p>
@@ -87,7 +88,7 @@ export function CsiMyResultsPage() {
             {results && !results.length && (
                 <p className={cn(CSI_CARD, 'p-6 text-[14px] text-muted-foreground')}>Anda belum menjadi orang yang dinilai pada survei mana pun.</p>
             )}
-            {results?.map((result, index) => <ResultCard key={result.periodId} result={result} index={index} />)}
+            {results?.map((result, index) => <ResultCard key={`${result.periodId}-${index}`} result={result} index={index} />)}
         </div>
     );
 }

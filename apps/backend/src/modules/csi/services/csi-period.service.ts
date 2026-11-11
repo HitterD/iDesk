@@ -5,7 +5,7 @@ import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { wibEndOfDate, wibStartOfDate } from '../../../shared/core/utils/wib-date.util';
 import { Site } from '../../sites/entities/site.entity';
 import { User } from '../../users/entities/user.entity';
-import { CSI_CANCEL_REASON_MIN, CSI_SLA_TARGET_DEFAULT, CSI_TEAM_LABEL_DEFAULT, CsiPairMode, CsiPeriodPublishStatus, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { CSI_CANCEL_REASON_MIN, CSI_SLA_TARGET_DEFAULT, CSI_SLA_TARGET_DEFAULT_HC, CSI_TEAM_LABEL_DEFAULT, CsiPairMode, CsiPeriodPublishStatus, CsiRateeKind, CsiRespondentMode, CsiTeamKind } from '../csi.constants';
 import { CreatePeriodDto, RateeAssignmentDto, UpdatePeriodDto, UpdatePeriodRateeDto } from '../dto/period.dto';
 import { CSI_TAGLINE_MAX } from '../dto/subject.dto';
 import { CsiDepartment } from '../entities/csi-department.entity';
@@ -20,9 +20,13 @@ import { CsiAssignmentService } from './csi-assignment.service';
 import { lockPeriodRow, lockUnlockedPeriod } from './csi-period-lock.util';
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiSubjectService } from './csi-subject.service';
+import { assertBandOrder, bandsOf } from './csi-score-bands';
 import { CsiOrgService } from '../org/csi-org.service';
 import { CsiPic } from '../entities/csi-pic.entity';
 import { ictServiceOfRole } from '../org/csi-services';
+import {
+    customTeamSnapshot, dimensionRow, picSnapshot, questionSnapshot, RateeSnapshot, ServiceSnapshots, TEAM_SORT_ORDER, teamSnapshot, toSnapshot,
+} from './csi-period-snapshot';
 
 export { lockPeriodRow, lockUnlockedPeriod };
 
@@ -31,6 +35,10 @@ export type CsiPeriodStatus = 'UPCOMING' | 'ACTIVE' | 'ENDED';
 const DEFAULT_RESPONDENT_MODE: Record<ServiceScope, CsiRespondentMode> = {
     ICT: CsiRespondentMode.LISTED,
     HC: CsiRespondentMode.LISTED,
+};
+const DEFAULT_SLA_TARGET: Record<ServiceScope, number> = {
+    ICT: CSI_SLA_TARGET_DEFAULT,
+    HC: CSI_SLA_TARGET_DEFAULT_HC,
 };
 const INACTIVE_USER_MESSAGE = 'Pengguna tidak ditemukan atau tidak aktif';
 const INCOMPLETE_MESSAGE = 'Survei belum lengkap';
@@ -42,7 +50,6 @@ const SITE_NOT_IN_PERIOD_MESSAGE = 'Site tidak termasuk periode ini';
 const TEAM_SITE_TAKEN_MESSAGE = 'Site ini sudah memiliki tim di periode ini';
 const RATEE_NOT_FOUND_MESSAGE = 'Subjek tidak ditemukan';
 const PG_UNIQUE_VIOLATION = '23505';
-const TEAM_SORT_ORDER = -1;
 
 export type CsiReadinessKey = 'team' | 'ratees' | 'dimensions' | 'departments' | 'raters';
 export type CsiReadiness = { ready: boolean; checks: Array<{ key: CsiReadinessKey; ok: boolean; label: string }> };
@@ -98,6 +105,13 @@ const withSites = (period: CsiPeriod) => ({
 const teamFirst = (a: CsiPeriodRatee, b: CsiPeriodRatee) =>
     Number(b.kind === CsiRateeKind.TEAM) - Number(a.kind === CsiRateeKind.TEAM) || a.sortOrder - b.sortOrder;
 /** Fields that become immutable once the period has answers (`siteIds` is compared separately). */
+/**
+ * The one site team of a period site (csi_teams kind SITE). Custom teams from HC templates are TEAM ratees too, but
+ * several may share a site and they keep their own team: they are never rebound, replaced or removed as "the" site team.
+ * A legacy TEAM ratee without a loaded team counts as the site team. Needs the `team` relation loaded.
+ */
+const isSiteTeamRatee = (ratee: CsiPeriodRatee) => ratee.kind === CsiRateeKind.TEAM && ratee.team?.kind !== CsiTeamKind.CUSTOM;
+const TEAM_RELATION = { team: true } as const;
 const LOCKED_FIELDS = ['respondentMode', 'teamEnabled', 'individualEnabled', 'teamLabel', 'respondentPicks'] as const;
 const changesLockedField = (period: Omit<CsiPeriod, 'sites'>, dto: UpdatePeriodDto) =>
     LOCKED_FIELDS.some((field) => dto[field] !== undefined && dto[field] !== period[field]);
@@ -285,13 +299,16 @@ export class CsiPeriodService {
             teamEnabled: dto.teamEnabled ?? source?.teamEnabled ?? false,
             teamLabel: dto.teamLabel ?? source?.teamLabel ?? CSI_TEAM_LABEL_DEFAULT,
             individualEnabled: dto.individualEnabled ?? source?.individualEnabled ?? true,
-            slaTargetPct: dto.slaTargetPct ?? source?.slaTargetPct ?? CSI_SLA_TARGET_DEFAULT,
+            slaTargetPct: dto.slaTargetPct ?? source?.slaTargetPct ?? DEFAULT_SLA_TARGET[scope],
             // HC defaults to "respondents pick the PICs who served them"; ICT keeps rating every visible ratee.
             // HC decides who rates whom by default (unit rules); "respondents pick" is opt-in.
             respondentPicks: dto.respondentPicks ?? source?.respondentPicks ?? false,
             targetRespondents: dto.targetRespondents ?? source?.targetRespondents ?? null,
         };
         assertSomeSection(sections);
+        const sourceBands = bandsOf(source ?? {});
+        const bands = { fairMin: dto.scoreFairMin ?? sourceBands.fairMin, goodMin: dto.scoreGoodMin ?? sourceBands.goodMin };
+        assertBandOrder(bands);
         // New periods are drafts: they may overlap; the clash is enforced at publish (see assertNoOverlap).
         const copied = source ? await this.copyAssignments(scope, source.id, siteIds) : { ratees: [], raterIds: [] };
 
@@ -308,6 +325,7 @@ export class CsiPeriodService {
                 publishStatus: CsiPeriodPublishStatus.DRAFT,
                 // New surveys promise rated people their anonymous results; surveys from before the feature never do.
                 selfResults: true,
+                scoreFairMin: bands.fairMin, scoreGoodMin: bands.goodMin,
                 createdById: actorId,
             });
             await this.writeRatees(manager, saved.id, copied.ratees);
@@ -326,6 +344,7 @@ export class CsiPeriodService {
         const next = { ...period, ...definedOnly(fields) };
         assertDateOrder(next.startDate, next.endDate);
         assertSomeSection(next);
+        assertBandOrder(bandsOf(next));
         const currentSiteIds = (sites ?? []).map((row) => row.siteId);
         const siteIds = requestedSiteIds ? await this.resolveSiteIds(requestedSiteIds) : currentSiteIds;
         if (period.publishStatus === CsiPeriodPublishStatus.PUBLISHED) await this.assertNoOverlap(scope, siteIds, next.startDate, next.endDate, id);
@@ -418,9 +437,9 @@ export class CsiPeriodService {
     }
 
     /**
-     * Replaces the question set of the TEAM ratee of one period site, in the given order (one team per site); an empty
-     * list removes that site's team only. The team is named after its csi_teams master (created when missing); a
-     * per-period photo/tagline override of an existing team ratee is kept.
+     * Replaces the question set of the site team ratee of one period site, in the given order (one site team per site);
+     * an empty list removes that site's team only. The team is named after its csi_teams master (created when missing); a
+     * per-period photo/tagline override of an existing team ratee is kept. Custom team ratees are left untouched.
      */
     async setTeamQuestions(scope: ServiceScope, id: string, siteId: string, questionIds: string[]) {
         const period = await this.findInScope(scope, id, { sites: true });
@@ -432,12 +451,14 @@ export class CsiPeriodService {
         const team = snapshots.length ? await this.subjects.createTeam(scope, siteId) : null;
         await rethrowTeamConflict(this.dataSource.transaction(async (manager) => {
             await lockUnlockedPeriod(manager, id);
-            const where = { periodId: id, kind: CsiRateeKind.TEAM, siteId };
+            const siteTeams = (await manager.getRepository(CsiPeriodRatee).find({ where: { periodId: id, kind: CsiRateeKind.TEAM, siteId }, relations: TEAM_RELATION }))
+                .filter(isSiteTeamRatee);
             if (!team) {
-                await manager.delete(CsiPeriodRatee, where);
+                if (siteTeams.length) await manager.delete(CsiPeriodRatee, { id: In(siteTeams.map((row) => row.id)) });
                 return;
             }
-            const existing = await manager.getRepository(CsiPeriodRatee).findOne({ where });
+            // The loaded team is only for the kind check; saving it back could override the rebound teamId.
+            const [existing] = siteTeams.map(({ team: _loaded, ...row }) => row);
             if (existing) await manager.delete(CsiPeriodRateeDimension, { periodRateeId: existing.id });
             const saved = await manager.save(CsiPeriodRatee, {
                 ...(existing ?? { photoUrl: null, tagline: null }), periodId: id, kind: CsiRateeKind.TEAM, userId: null,
@@ -450,13 +471,15 @@ export class CsiPeriodService {
 
     /**
      * Per-period override of one ratee ("Hanya untuk periode ini"): tagline (empty → back to master), photo reset (null)
-     * and site. The master (csi_teams / csi_subject_profiles) is never touched. Moving a TEAM ratee re-binds it to the
-     * target site's team; a site that already has a team in the period is a 409.
+     * and site. The master (csi_teams / csi_subject_profiles) is never touched. Moving a site team ratee re-binds it to
+     * the target site's team; a site that already has its site team in the period is a 409. A custom team ratee moves
+     * with its own team.
      */
     async updateRatee(scope: ServiceScope, id: string, periodRateeId: string, dto: UpdatePeriodRateeDto) {
         const period = await this.findInScope(scope, id, { sites: true });
-        const ratee = await this.ratees.findOne({ where: { id: periodRateeId, periodId: id } });
-        if (!ratee) throw new NotFoundException(RATEE_NOT_FOUND_MESSAGE);
+        const loaded = await this.ratees.findOne({ where: { id: periodRateeId, periodId: id }, relations: TEAM_RELATION });
+        if (!loaded) throw new NotFoundException(RATEE_NOT_FOUND_MESSAGE);
+        const { team: _loaded, ...ratee } = loaded;
         const tagline = normalizeTagline(dto.tagline);
         const overrides = definedOnly({ tagline, photoUrl: dto.photoUrl === null ? null : undefined });
         if (dto.siteId === undefined || dto.siteId === ratee.siteId) {
@@ -464,13 +487,12 @@ export class CsiPeriodService {
             return this.get(scope, id);
         }
         const siteId = assertPeriodSite(period, dto.siteId);
-        const team = ratee.kind === CsiRateeKind.TEAM ? await this.subjects.createTeam(scope, siteId) : null;
+        const team = isSiteTeamRatee(loaded) ? await this.subjects.createTeam(scope, siteId) : null;
         await rethrowTeamConflict(this.dataSource.transaction(async (manager) => {
             await lockUnlockedPeriod(manager, id);
             const repository = manager.getRepository(CsiPeriodRatee);
-            if (team && await repository.findOne({ where: { periodId: id, kind: CsiRateeKind.TEAM, siteId } })) {
-                throw new ConflictException(TEAM_SITE_TAKEN_MESSAGE);
-            }
+            const taken = team && (await repository.find({ where: { periodId: id, kind: CsiRateeKind.TEAM, siteId }, relations: TEAM_RELATION })).some(isSiteTeamRatee);
+            if (taken) throw new ConflictException(TEAM_SITE_TAKEN_MESSAGE);
             await repository.save({ ...ratee, ...overrides, siteId, ...(team ? { teamId: team.teamId, displayName: team.name } : {}) });
         }));
         return this.get(scope, id);
@@ -622,16 +644,19 @@ export class CsiPeriodService {
     /**
      * Lenient copy: drops users and questions that are no longer active, re-snapshotting their current definition.
      * Each site team (when it keeps at least one question and its site is in the new period) comes first, named after
-     * its current csi_teams master. Per-period overrides (photo/tagline) are not carried over.
+     * its current csi_teams master. Custom teams (HC templates) keep their own team while it is active, after the people.
+     * Per-period overrides (photo/tagline) are not carried over.
      */
     private async copyAssignments(scope: ServiceScope, sourceId: string, siteIds: string[]) {
-        const sourceRatees = await this.ratees.find({ where: { periodId: sourceId }, order: { sortOrder: 'ASC' } });
+        const sourceRatees = await this.ratees.find({ where: { periodId: sourceId }, order: { sortOrder: 'ASC' }, relations: TEAM_RELATION });
         const sourceDimensions = sourceRatees.length ? await this.rateeDimensions.find({
             where: { periodRateeId: In(sourceRatees.map((ratee) => ratee.id)) }, order: { sortOrder: 'ASC' },
         }) : [];
         const sourceRaters = await this.periodRaters.find({ where: { periodId: sourceId } });
         const teamSources = sourceRatees.filter((ratee): ratee is CsiPeriodRatee & { siteId: string } =>
             ratee.kind === CsiRateeKind.TEAM && ratee.siteId !== null && siteIds.includes(ratee.siteId));
+        const siteTeamSources = teamSources.filter(isSiteTeamRatee);
+        const customSources = teamSources.filter((ratee) => !isSiteTeamRatee(ratee) && ratee.team?.isActive);
         const personRatees = sourceRatees.filter((ratee): ratee is CsiPeriodRatee & { userId: string } => ratee.kind !== CsiRateeKind.TEAM && !ratee.picId && ratee.userId !== null);
         const picRatees = sourceRatees.filter((ratee): ratee is CsiPeriodRatee & { picId: string } => ratee.kind !== CsiRateeKind.TEAM && !!ratee.picId);
         const users = await this.activeUsers([...new Set([...personRatees, ...sourceRaters].map((row) => row.userId))]);
@@ -646,10 +671,14 @@ export class CsiPeriodService {
             return user && kept.length ? [toSnapshot(user, kept, services)] : [];
         });
         const teams: RateeSnapshot[] = [];
-        for (const source of teamSources) {
+        for (const source of siteTeamSources) {
             const kept = keptOf(source.id);
             if (kept.length) teams.push(teamSnapshot(await this.subjects.createTeam(scope, source.siteId), kept));
         }
+        const customTeams = customSources.flatMap((source) => {
+            const kept = keptOf(source.id);
+            return kept.length ? [customTeamSnapshot(source, kept)] : [];
+        });
         // HC PICs: still-active PICs keep their questions (re-snapshotted from the current master).
         const activePics = new Map((await this.org.findPics(scope, picRatees.map((ratee) => ratee.picId))).filter((pic) => pic.isActive).map((pic) => [pic.id, pic]));
         const pics = picRatees.flatMap((ratee) => {
@@ -657,7 +686,7 @@ export class CsiPeriodService {
             const kept = keptOf(ratee.id);
             return pic && kept.length ? [picSnapshot(pic, kept)] : [];
         });
-        const ratees = [...teams, ...[...people, ...pics].map((person, index) => ({ ...person, sortOrder: index }))];
+        const ratees = [...teams, ...[...people, ...pics, ...customTeams].map((ratee, index) => ({ ...ratee, sortOrder: index }))];
         return { ratees, raterIds: sourceRaters.map((rater) => rater.userId).filter((userId) => users.has(userId)) };
     }
 
@@ -706,57 +735,6 @@ export class CsiPeriodService {
         if (!userIds.length) return;
         await manager.save(CsiPeriodRater, userIds.map((userId) => ({ periodId, userId })));
     }
-}
-
-/** Question definition copied onto a ratee at assignment time (name, shortLabel, type/required/options). */
-type QuestionSnapshot = Pick<CsiDimension, 'id' | 'name' | 'shortLabel' | 'type' | 'required' | 'options'>;
-type RateeSnapshot = {
-    kind: CsiRateeKind; userId: string | null; displayName: string; jobTitle: string | null;
-    /** PERSON: User.siteId at snapshot time; TEAM: the team's site. */
-    siteId: string | null; teamId: string | null;
-    /** Per-period overrides; always null in a snapshot (master values are resolved on read). */
-    photoUrl: null; tagline: null;
-    /** HC PIC ratee: the PIC and its layanan / bagian. */
-    picId?: string | null; serviceCode?: string | null; bagian?: string | null; serviceFunction?: string | null;
-    /** Explicit order (TEAM = -1); absent means the index in the written list. */
-    sortOrder?: number; dimensions: QuestionSnapshot[];
-};
-
-const questionSnapshot = ({ id, name, shortLabel, type, required, options }: CsiDimension): QuestionSnapshot =>
-    ({ id, name, shortLabel: shortLabel ?? null, type, required, options });
-
-const dimensionRow = (periodRateeId: string, question: QuestionSnapshot, sortOrder: number) => ({
-    periodRateeId, dimensionId: question.id, dimensionName: question.name, shortLabel: question.shortLabel ?? null,
-    type: question.type, required: question.required, options: question.options, sortOrder,
-});
-
-type ServiceSnapshots = Map<string, { serviceCode: string | null; serviceFunction: string | null }>;
-
-function toSnapshot(user: User, dimensions: CsiDimension[], services: ServiceSnapshots = new Map()): RateeSnapshot {
-    const service = services.get(user.id);
-    return {
-        kind: CsiRateeKind.PERSON, userId: user.id, displayName: user.fullName, jobTitle: user.jobTitle ?? null,
-        siteId: user.siteId ?? null, teamId: null, photoUrl: null, tagline: null,
-        serviceCode: service?.serviceCode ?? null, serviceFunction: service?.serviceFunction ?? null,
-        dimensions: dimensions.map(questionSnapshot),
-    };
-}
-
-function picSnapshot(pic: CsiPic, dimensions: CsiDimension[]): RateeSnapshot {
-    return {
-        kind: CsiRateeKind.PERSON, userId: pic.userId, displayName: pic.fullName, jobTitle: pic.jobTitle,
-        siteId: pic.siteId, teamId: null, photoUrl: null, tagline: null,
-        picId: pic.id, serviceCode: pic.serviceCode, bagian: pic.bagian, serviceFunction: pic.serviceFunction ?? null,
-        dimensions: dimensions.map(questionSnapshot),
-    };
-}
-
-function teamSnapshot(team: { teamId: string | null; name: string; siteId: string }, dimensions: CsiDimension[]): RateeSnapshot {
-    return {
-        kind: CsiRateeKind.TEAM, userId: null, displayName: team.name, jobTitle: null, sortOrder: TEAM_SORT_ORDER,
-        siteId: team.siteId, teamId: team.teamId, photoUrl: null, tagline: null,
-        dimensions: dimensions.map(questionSnapshot),
-    };
 }
 
 /** PICs in layanan -> bagian -> name order (the order respondents and reports see). */

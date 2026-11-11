@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { useCsiReport } from '../../hooks/useCsi';
+import { CSI_SCORE_BANDS_DEFAULT, type CsiScoreBands } from '../../lib/csiTone';
 import type { CsiReportRatee, CsiScopeParam, CsiSiteSummary } from '../../types';
 import { AdminSection, EmptyNote } from './AdminParts';
 import { byAverageDesc } from './report/reportModel';
@@ -19,13 +20,13 @@ const ALL_SITES = 'all';
 type ReportView = 'cards' | 'heatmap';
 const VIEW_OPTIONS = [{ value: 'cards', label: 'Kartu' }, { value: 'heatmap', label: 'Perbandingan' }] as const;
 
-function SubjectCards({ ratees, siteCodeOf, onOpen }: {
-    ratees: CsiReportRatee[]; siteCodeOf: (siteId: string | null) => string | null; onOpen: (id: string) => void;
+function SubjectCards({ ratees, siteCodeOf, bands, onOpen }: {
+    ratees: CsiReportRatee[]; siteCodeOf: (siteId: string | null) => string | null; bands: CsiScoreBands; onOpen: (id: string) => void;
 }) {
     return (
         <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr))]">
             {ratees.map((ratee, index) => (
-                <SubjectScoreCard key={ratee.periodRateeId} ratee={ratee} rank={index + 1} siteCode={siteCodeOf(ratee.siteId)}
+                <SubjectScoreCard key={ratee.periodRateeId} ratee={ratee} rank={index + 1} siteCode={siteCodeOf(ratee.siteId)} bands={bands}
                     onOpen={() => onOpen(ratee.periodRateeId)} />
             ))}
         </div>
@@ -48,6 +49,8 @@ export function PeriodReport({ scope, periodId, sites, initialSiteId }: {
         ...sites.map((row) => ({ value: row.id, label: row.code ?? row.name ?? row.id }))];
     const ranked = report ? byAverageDesc(report.ratees) : [];
     const open = ranked.find((ratee) => ratee.periodRateeId === openId) ?? null;
+    // The sheet stays mounted while the report loads; it needs bands before any report exists.
+    const bands = report?.scoreBands ?? CSI_SCORE_BANDS_DEFAULT;
     return (
         <>
         <AdminSection title="Laporan penilaian" description="Skala maksimal 5, dari rata-rata nilai setiap responden."
@@ -69,16 +72,16 @@ export function PeriodReport({ scope, periodId, sites, initialSiteId }: {
                             <SegmentedControl aria-label="Tampilan laporan" className="dash-seg ml-auto" options={VIEW_OPTIONS} value={view} onValueChange={setView} />
                         </div>
                         {view === 'cards'
-                            ? <SubjectCards ratees={ranked} siteCodeOf={siteCodeOf} onOpen={setOpenId} />
-                            : <ScoreHeatmap ratees={ranked} siteCodeOf={siteCodeOf} />}
+                            ? <SubjectCards ratees={ranked} siteCodeOf={siteCodeOf} bands={bands} onOpen={setOpenId} />
+                            : <ScoreHeatmap ratees={ranked} siteCodeOf={siteCodeOf} bands={bands} />}
                     </>
                 )}
             </div>
             <SubjectDetailSheet ratee={open} siteName={open ? siteOf(open.siteId)?.name ?? null : null}
-                siteCode={open ? siteCodeOf(open.siteId) : null} onClose={() => setOpenId(null)} />
+                siteCode={open ? siteCodeOf(open.siteId) : null} bands={bands} onClose={() => setOpenId(null)} />
         </AdminSection>
         {scope === 'hc' && <HcRecapPanel scope={scope} periodId={periodId} />}
-        <RaterMatrixPanel scope={scope} periodId={periodId} siteId={siteParam} />
+        <RaterMatrixPanel scope={scope} periodId={periodId} siteId={siteParam} bands={bands} />
         <ReportExportDialog scope={scope} periodId={periodId} siteId={siteParam} open={exportOpen} onOpenChange={setExportOpen} />
         </>
     );

@@ -107,5 +107,61 @@ describe('report PDF formatting', () => {
             expect(drawn).toEqual(expect.arrayContaining(['Hasby Tri Ananda', 'Sepanjang (lintas site)', '2 batal · 12 eligible']));
             expect(drawn.some((t) => t.includes('...'))).toBe(false);
         });
+
+        it('headers are not truncated: a long header in a narrow column wraps (hyphenated) instead of "..."', () => {
+            const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+            doc.on('data', () => undefined);
+            const spy = jest.spyOn(doc, 'text');
+            new ReportCanvas(doc, new Logger('test')).table(
+                [{ header: 'Layanan / Bagian / PIC', width: 30 }, ...['Knowledge', 'Responsiveness', 'Courtesy', 'Communication', 'Tangible', 'Rata-rata', 'Penilai'].map((header) => ({ header, width: 10 }))],
+                [[{ text: 'HCC' }, ...Array.from({ length: 7 }, () => ({ text: '4,50' }))]],
+            );
+            doc.end();
+            const drawn = spy.mock.calls.map((call) => String(call[0]));
+            expect(drawn.some((t) => t.includes('...'))).toBe(false);
+            expect(drawn.join('|').replace(/-\|/g, '')).toMatch(/Responsiveness/);
+            expect(drawn.join('|').replace(/-\|/g, '')).toMatch(/Communication/);
+        });
+    });
+
+    it('a header that needs more than three lines shrinks instead of losing words', () => {
+        const PDFDocument = require('pdfkit');
+        const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+        doc.on('data', () => undefined);
+        const spy = jest.spyOn(doc, 'text');
+        const header = 'Jumlah penilaian yang sudah masuk dari semua lokasi';
+        new ReportCanvas(doc, new Logger('test')).table([{ header: 'Nama', width: 88 }, { header, width: 12 }], [[{ text: 'A' }, { text: '1' }]]);
+        doc.end();
+        const drawn = spy.mock.calls.map((call) => String(call[0])).join(' ').replace(/- /g, '');
+        header.split(' ').forEach((word) => expect(drawn).toContain(word));
+    });
+
+    it('a table that continues on a new page repeats its heading with "(lanjutan)" when given one', () => {
+        const PDFDocument = require('pdfkit');
+        const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+        doc.on('data', () => undefined);
+        const spy = jest.spyOn(doc, 'text');
+        const rows = Array.from({ length: 60 }, (_, i) => [{ text: `Baris ${i}` }, { text: '4,50' }]);
+        new ReportCanvas(doc, new Logger('test')).table([{ header: 'Nama', width: 80 }, { header: 'Nilai', width: 20 }], rows, undefined, 'HCD · HC Development');
+        const pages = doc.bufferedPageRange().count;
+        doc.end();
+        const drawn = spy.mock.calls.map((call) => String(call[0]));
+        expect(pages).toBeGreaterThan(1);
+        expect(drawn.filter((t) => t === 'HCD · HC Development (lanjutan)')).toHaveLength(pages - 1);
+    });
+
+        it('finish draws the banner at the top and the footer note on every page', () => {
+        const PDFDocument = require('pdfkit');
+        const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+        doc.on('data', () => undefined);
+        const canvas = new ReportCanvas(doc, new Logger('test'));
+        canvas.pageBreak();
+        canvas.pageBreak();
+        const spy = jest.spyOn(doc, 'text');
+        canvas.finish({ banner: 'BANNER X', footerNote: 'CATATAN Y' });
+        doc.end();
+        const drawn = spy.mock.calls.map((call) => String(call[0]));
+        expect(drawn.filter((t) => t === 'BANNER X')).toHaveLength(3);
+        expect(drawn.filter((t) => t === 'CATATAN Y')).toHaveLength(3);
     });
 });

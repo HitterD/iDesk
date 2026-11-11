@@ -5,7 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useCreateCsiPeriod, useUpdateCsiPeriod } from '../../hooks/useCsi';
 import { CSI_MODE_LABELS, CSI_TEXT_MAX, CSI_TITLE_MAX } from '../../lib/csiAdmin';
 import {
-    datesInvalid, formDirty, targetRespondentsInvalid, initialState, nextPeriodForm, sectionsInvalid, slaInvalid, teamLabelInvalid, toCreatePayload, toUpdatePayload,
+    datesInvalid, formDirty, targetRespondentsInvalid, initialState, nextPeriodForm, scoreBandsError, sectionsInvalid, slaInvalid, teamLabelInvalid, toCreatePayload, toUpdatePayload,
     withCopyMode, withCopySource, type PeriodFormState,
 } from '../../lib/periodForm';
 import type { CsiPeriodDetail, CsiPeriodListItem, CsiRespondentMode, CsiScopeParam } from '../../types';
@@ -39,7 +39,7 @@ interface PeriodEditorProps {
 
 /** Survey info form (wizard step 1). Actions live in the wizard footer. */
 export function PeriodEditor({ scope, period, periods = [], copyFrom, onSaved, formRef, onStatusChange }: PeriodEditorProps) {
-    // Backend freezes sites, mode and sections once answers exist; only texts, dates and the SLA target stay editable.
+    // Backend freezes sites, mode and sections once answers exist; texts, dates, the SLA target and colour bands stay editable.
     const locked = !!period?.locked;
     const [form, setForm] = useState(() => (!period && copyFrom && periods.length ? nextPeriodForm(scope, periods, copyFrom) : initialState(scope, period)));
     const create = useCreateCsiPeriod(scope);
@@ -48,7 +48,7 @@ export function PeriodEditor({ scope, period, periods = [], copyFrom, onSaved, f
     const set: SetField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
     const dirty = formDirty(form, period);
     const canSubmit = form.siteIds.length > 0 && !!form.title.trim() && !!form.startDate && !!form.endDate && !datesInvalid(form)
-        && !sectionsInvalid(form) && !slaInvalid(form) && !teamLabelInvalid(form) && !targetRespondentsInvalid(form) && !pending;
+        && !sectionsInvalid(form) && !slaInvalid(form) && !teamLabelInvalid(form) && !targetRespondentsInvalid(form) && !scoreBandsError(form) && !pending;
 
     useEffect(() => { onStatusChange?.({ canSubmit, dirty, pending }); }, [canSubmit, dirty, pending, onStatusChange]);
 

@@ -1,6 +1,6 @@
 import { AlertTriangle, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { toneClasses } from '../../../lib/csiTone';
+import { toneClasses, type CsiScoreBands } from '../../../lib/csiTone';
 import { formatPercent } from '../../../lib/format';
 import type { CsiReportRatee } from '../../../types';
 import { ADMIN_PANEL, MUTED_TEXT } from '../AdminParts';
@@ -10,10 +10,10 @@ import { kindLabel, ScoreBadge, SiteBadge, StarDistributionBar, SubjectPhoto, su
 const PILL = 'inline-flex min-w-0 max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium';
 
 /** Ranked subject card (mockup `.rcard`): photo + rank medal, name, site, score badge, index, star bar, strongest/weakest pill. */
-export function SubjectScoreCard({ ratee, rank, siteCode, onOpen }: {
-    ratee: CsiReportRatee; rank: number; siteCode: string | null; onOpen: () => void;
+export function SubjectScoreCard({ ratee, rank, siteCode, bands, onOpen }: {
+    ratee: CsiReportRatee; rank: number; siteCode: string | null; bands: CsiScoreBands; onOpen: () => void;
 }) {
-    const { strongest, weakest } = subjectExtremes(ratee);
+    const { strongest, weakest } = subjectExtremes(ratee, bands);
     const first = rank === 1;
     return (
         <button type="button" onClick={onOpen} aria-label={`Rincian ${ratee.displayName}`}
@@ -35,7 +35,7 @@ export function SubjectScoreCard({ ratee, rank, siteCode, onOpen }: {
                     {[kindLabel(ratee), ratee.jobTitle, `${ratee.respondentCount} penilai`].filter(Boolean).join(' · ')}
                 </span>
                 <span className="my-1.5 flex items-center gap-2">
-                    <ScoreBadge average={ratee.average} />
+                    <ScoreBadge average={ratee.average} bands={bands} />
                     <span className={cn(MUTED_TEXT, 'text-[12px]')}>{`indeks ${formatPercent(ratee.indexPct)}`}</span>
                 </span>
                 <StarDistributionBar counts={ratee.starDistribution} />

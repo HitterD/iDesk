@@ -1,7 +1,7 @@
 import { Star } from 'lucide-react';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { questionTone, scoreTone, starTone, toneClasses } from '../../../lib/csiTone';
+import { questionTone, scoreTone, starTone, toneClasses, type CsiScoreBands } from '../../../lib/csiTone';
 import { formatDate, formatFixed2, formatPercent, formatScore } from '../../../lib/format';
 import type { CsiReportRatee } from '../../../types';
 import { MUTED_TEXT } from '../AdminParts';
@@ -59,8 +59,8 @@ function StarBreakdown({ counts }: { counts: readonly number[] }) {
 }
 
 /** Drawer for one subject: photo, score ring, per-question bars (question colours), star breakdown, comments. */
-export function SubjectDetailSheet({ ratee, siteName, siteCode, onClose }: {
-    ratee: CsiReportRatee | null; siteName: string | null; siteCode: string | null; onClose: () => void;
+export function SubjectDetailSheet({ ratee, siteName, siteCode, bands, onClose }: {
+    ratee: CsiReportRatee | null; siteName: string | null; siteCode: string | null; bands: CsiScoreBands; onClose: () => void;
 }) {
     return (
         <Sheet open={!!ratee} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -74,7 +74,7 @@ export function SubjectDetailSheet({ ratee, siteName, siteCode, onClose }: {
                         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
                             <SubjectPhoto name={ratee.displayName} photoUrl={ratee.photoUrl} siteCode={siteCode} className="aspect-video w-full rounded-2xl" />
                             <div className="mt-4 flex items-center gap-3">
-                                <ScoreRing pct={scorePct(ratee.average)} tone={scoreTone(ratee.average)} size="sm">
+                                <ScoreRing pct={scorePct(ratee.average)} tone={scoreTone(ratee.average, bands)} size="sm">
                                     <b className="text-[14px] tabular-nums">{formatFixed2(ratee.average)}</b>
                                 </ScoreRing>
                                 <span className="grid">

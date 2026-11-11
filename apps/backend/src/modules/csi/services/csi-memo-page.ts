@@ -6,6 +6,8 @@ import {
     bottomOf, boxedText, cell, contentWidth, Doc, drawRow, fitText, LINE, MARGIN, maxRowHeight, MemoSurvey, PORTRAIT, scaleWidths, TableColumn,
 } from './csi-memo-draw';
 import { formatLocation } from './csi-format.util';
+import { bandsOf } from './csi-score-bands';
+import { scoreInk } from './csi-score-ink';
 
 const DASH = '—';
 const TITLE_SIZE = 24;
@@ -26,6 +28,8 @@ const LABELS: Array<[string, keyof MemoHeaderDto]> = [
 ];
 const TABLE_WEIGHTS = [34, 34, 16, 16];
 const TABLE_HEADERS = ['Lokasi', 'Nama', 'Average', '% Pengisi (SLA)'];
+const AVERAGE_COLUMN = 2;
+const BLACK = '#000000';
 
 const averageFormat = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dateFormat = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: DEFAULT_TIMEZONE });
@@ -100,7 +104,10 @@ function layoutBlock(doc: Doc, columns: TableColumn[], survey: MemoSurvey): Bloc
 
 /** One merged block: Lokasi, Average and % Pengisi span all name rows of the survey. */
 function drawBlock(doc: Doc, columns: TableColumn[], survey: MemoSurvey, layout: BlockLayout, y: number): number {
-    const merged = [layout.location, '', formatAverage(survey.report.overall.average), formatPercent(survey.report.sla.pengisiPct)];
+    const { average } = survey.report.overall;
+    const merged = [layout.location, '', formatAverage(average), formatPercent(survey.report.sla.pengisiPct)];
+    // Only the Average follows the survey colour bands; everything else stays black like the 2025 memo.
+    const averageInk = scoreInk(average, bandsOf(survey.report.period), BLACK);
     doc.font('Helvetica').fontSize(BODY_SIZE).lineWidth(0.5).strokeColor(LINE);
     let x = MARGIN;
     columns.forEach((column, index) => {
@@ -117,7 +124,7 @@ function drawBlock(doc: Doc, columns: TableColumn[], survey: MemoSurvey, layout:
         } else {
             doc.rect(x, y, column.width, layout.height).stroke();
             const textHeight = doc.heightOfString(merged[index], { width: inner });
-            doc.fillColor('#000000');
+            doc.fillColor(index === AVERAGE_COLUMN ? averageInk : BLACK);
             boxedText(doc, merged[index], x + CELL_PAD, y + (layout.height - textHeight) / 2, inner, layout.height, column.align);
         }
         x += column.width;

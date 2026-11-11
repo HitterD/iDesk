@@ -5,7 +5,7 @@ import type {
     CsiActivePeriod, CsiAssignments, CsiDashboard, CsiDepartment, CsiDimension, CsiForm, CsiPeriod, CsiPeriodDetail,
     CsiPeriodListItem, CsiRater, CsiReminderResult, CsiRemovedRater, CsiReport, CsiResetResult, CsiRespondents,
     CsiPeriodOverlap, CsiQuestionSet, CsiRaterDepartmentOption, CsiRaterGroupFilter, CsiRaterGroupPreview, CsiRaterImportResult, CsiRaterMatrix, CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, SaveCsiQuestionSet, CsiSubjectView, CsiSubmitResult, CsiUserIds, CsiUserSearchResult,
-    CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, CreateCsiTeam, CsiMemoHeader, CsiMemoRequest, CsiReorder,
+    CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, CreateCsiTeam, CreateCsiCustomTeam, UpdateCsiCustomTeam, CsiTeamMemberInput, CsiMemoHeader, CsiMemoRequest, CsiReorder,
     ResetCsiResponse, SendCsiReminders, SetCsiAssignments, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
     UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject, CsiSelfResult,
 } from '../types';
@@ -147,6 +147,18 @@ export const CsiApi = {
     },
     async removeSubjectMember(scope: CsiScopeParam, userId: string): Promise<CsiSubjectGroup[]> {
         return (await api.delete<CsiSubjectGroup[]>(itemPath(scope, 'subjects/members', userId))).data;
+    },
+    async createCustomTeam(scope: CsiScopeParam, body: CreateCsiCustomTeam): Promise<CsiSubjectView> {
+        return (await api.post<CsiSubjectView>(`${adminPath(scope)}/subjects/teams`, { ...body, kind: 'CUSTOM' })).data;
+    },
+    async updateCustomTeam(scope: CsiScopeParam, id: string, body: UpdateCsiCustomTeam): Promise<CsiSubjectView> {
+        return (await api.patch<CsiSubjectView>(itemPath(scope, 'subjects/teams', id), body)).data;
+    },
+    async deleteCustomTeam(scope: CsiScopeParam, id: string): Promise<void> {
+        await api.delete(itemPath(scope, 'subjects/teams', id));
+    },
+    async setCustomTeamMembers(scope: CsiScopeParam, id: string, members: CsiTeamMemberInput[]): Promise<CsiSubjectView> {
+        return (await api.put<CsiSubjectView>(`${itemPath(scope, 'subjects/teams', id)}/members`, { members })).data;
     },
     async createTeam(scope: CsiScopeParam, payload: CreateCsiTeam): Promise<CsiSubjectView> {
         return (await api.post<CsiSubjectView>(`${adminPath(scope)}/subjects/teams`, payload)).data;

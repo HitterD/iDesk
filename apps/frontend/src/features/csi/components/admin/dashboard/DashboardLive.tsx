@@ -39,7 +39,7 @@ function LiveStats({ summary }: { summary: LiveSummary }) {
                     hint={`${ratioPct(summary.responses, summary.basis)}% dari basis`} />
             </div>
             <div className={STAT_SPAN}>
-                <StatCard tone={scoreTone(summary.average)} icon={Star} label="Skor rata-rata" value={formatFixed2(summary.average)}
+                <StatCard tone={scoreTone(summary.average, summary.bands)} icon={Star} label="Skor rata-rata" value={formatFixed2(summary.average)}
                     hint={<ScoreHint delta={summary.delta} />} />
             </div>
             <div className={STAT_SPAN}>
@@ -73,7 +73,7 @@ function SiteTargetCard({ row, today, onOpen }: { row: CsiDashboardActive; today
                 </div>
                 <p className={cn(MUTED_TEXT, 'mt-1 text-[12px]')}>{`${capped(row.responses, row.basis)}/${row.basis} penilai · target ${row.targetPct}%`}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px]">
-                    <span>Skor <b className="tabular-nums">{formatFixed2(row.average)}</b></span>
+                    <span>Skor <b className={cn('tabular-nums', toneClasses(scoreTone(row.average, row.scoreBands)).ink)}>{formatFixed2(row.average)}</b></span>
                     <span className={cn(PILL, status.soft, status.ink)}>{reached ? 'Tercapai' : remainingLabel(row.endDate, today)}</span>
                 </div>
                 {onOpen && (

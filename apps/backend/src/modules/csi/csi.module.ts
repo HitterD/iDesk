@@ -30,6 +30,7 @@ import { CsiReminderService } from './services/csi-reminder.service';
 import { CsiDashboardService } from './services/csi-dashboard.service';
 import { CsiAdminDashboardController } from './presentation/csi-admin-dashboard.controller';
 import { CsiTeam } from './entities/csi-team.entity';
+import { CsiTeamMember } from './entities/csi-team-member.entity';
 import { CsiSubjectProfile } from './entities/csi-subject-profile.entity';
 import { CsiRaterAssignment } from './entities/csi-rater-assignment.entity';
 import { CsiPeriodRaterRatee } from './entities/csi-period-rater-ratee.entity';
@@ -68,6 +69,8 @@ import { CsiAssignmentTemplateRater } from './entities/csi-assignment-template-r
 import { CsiAssignmentTemplateService } from './services/csi-assignment-template.service';
 import { CsiAdminTemplateController } from './presentation/csi-admin-template.controller';
 import { CsiTemplateApplyService } from './services/csi-template-apply.service';
+import { CsiTemplateImportService } from './services/csi-template-import.service';
+import { CsiTeamService } from './services/csi-team.service';
 import { SystemSettings } from '../settings/entities/system-settings.entity';
 import { ReportSignoffService } from '../reports/services/report-signoff.service';
 
@@ -76,7 +79,7 @@ import { ReportSignoffService } from '../reports/services/report-signoff.service
         TypeOrmModule.forFeature([
             CsiDimension, CsiDepartment, CsiRater, CsiPeriod, CsiPeriodSite, CsiPeriodRatee,
             CsiPeriodRateeDimension, CsiPeriodRater, CsiResponse, CsiResponseItem, CsiResponseComment,
-            CsiMemoSetting, CsiTeam, CsiSubjectProfile, CsiRaterAssignment, CsiPeriodRaterRatee, CsiQuestionSet,
+            CsiMemoSetting, CsiTeam, CsiTeamMember, CsiSubjectProfile, CsiRaterAssignment, CsiPeriodRaterRatee, CsiQuestionSet,
             CsiOrgPerson, CsiPic, CsiServiceReportOwner, CsiAssignmentTemplate, CsiAssignmentTemplatePic, CsiAssignmentTemplateRater, User, PermissionPreset, Site, Ticket, Notification, SystemSettings,
         ]),
         AuthModule,
@@ -91,6 +94,6 @@ import { ReportSignoffService } from '../reports/services/report-signoff.service
     providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService, CsiMemoService,
         CsiSubjectService, CsiAssignmentService, CsiReminderService, CsiDashboardService, CsiQuestionSetService, CsiRaterBulkService, ReportSignoffService, CsiOrgService, CsiUnitRulesService, CsiPairsExcelService,
         CsiAccessReader, CsiReportAccessService, CsiServiceReportService, CsiSelfResultService,
-        CsiAssignmentTemplateService, CsiTemplateApplyService],
+        CsiAssignmentTemplateService, CsiTemplateApplyService, CsiTemplateImportService, CsiTeamService],
 })
 export class CsiModule { }

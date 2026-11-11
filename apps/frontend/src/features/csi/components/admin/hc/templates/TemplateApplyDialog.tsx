@@ -7,20 +7,7 @@ import { CsiHcApi } from '../../../../api/csiHc.api';
 import { useCsiPeriods } from '../../../../hooks/useCsi';
 import type { CsiTemplate, CsiTemplateApplyReport } from '../../../../hcTypes';
 import type { CsiScopeParam } from '../../../../types';
-import { titleCase } from '../hcFormat';
-
-type Mode = 'new' | 'existing';
-const FIELD = 'h-9 w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--idesk-surface))] px-3 text-[13px]';
-
-function NameList({ title, names }: { title: string; names: string[] }) {
-    if (!names.length) return null;
-    return (
-        <details className="rounded-xl bg-[hsl(var(--muted)/.5)] px-3 py-2 text-[12.5px]" open={names.length <= 6}>
-            <summary className="cursor-pointer font-semibold">{`${title} (${names.length})`}</summary>
-            <p className="mt-1 text-muted-foreground">{names.map(titleCase).join(', ')}</p>
-        </details>
-    );
-}
+import { FIELD, OutsideSitesNote, SkippedLists, UnconfirmedNote } from './HcSurveyWizardSteps';
 
 function ReportView({ report }: { report: CsiTemplateApplyReport }) {
     if (report.blockedReason) {
@@ -32,25 +19,27 @@ function ReportView({ report }: { report: CsiTemplateApplyReport }) {
                 {`${report.picsAdded} PIC baru · ${report.ratersAdded} penilai baru · ${report.pairsAdded} pasangan baru`}
                 {report.committed && ' — tersimpan'}
             </p>
-            <NameList title="PIC dilewati (belum ada penilai)" names={report.picsSkippedNoRaters} />
-            <NameList title="PIC belum cocok dengan PIC master" names={report.picsUnmatched} />
-            <NameList title="Penilai belum punya akun (masuk saat Sinkronkan berikutnya)" names={report.ratersNoAccount} />
-            <NameList title="Penilai dengan nama ganda (perbaiki di template)" names={report.ratersAmbiguous} />
+            {report.siteAdded && (
+                <p className="rounded-xl bg-[hsl(var(--muted)/.5)] px-3 py-2 text-[13px]">
+                    {report.committed ? `Site ${report.siteAdded} ditambahkan ke survei ini.` : `Site ${report.siteAdded} akan ditambahkan ke survei ini.`}
+                </p>
+            )}
+            <UnconfirmedNote count={report.ratersUnconfirmed} />
+            <OutsideSitesNote names={report.ratersOutsideSites} />
+            <SkippedLists report={report} />
         </div>
     );
 }
 
 /**
- * "Gunakan template": a new draft survey for the template's location, or an add-only sync into an existing HC survey
- * (preview first, then Terapkan). Nothing in the survey is removed.
+ * "Gunakan template": add-only sync into an existing HC survey (preview first, then Terapkan; nothing is removed and the
+ * template's site joins the survey). A new survey is built by the multi-location wizard instead (onNewSurvey).
  */
-export function TemplateApplyDialog({ scope, template, open, onOpenChange }: {
-    scope: CsiScopeParam; template: CsiTemplate; open: boolean; onOpenChange: (open: boolean) => void;
+export function TemplateApplyDialog({ scope, template, open, onOpenChange, onNewSurvey }: {
+    scope: CsiScopeParam; template: CsiTemplate; open: boolean; onOpenChange: (open: boolean) => void; onNewSurvey: () => void;
 }) {
     const { data: periods = [] } = useCsiPeriods(scope);
-    const [mode, setMode] = useState<Mode>('new');
     const [periodId, setPeriodId] = useState('');
-    const [form, setForm] = useState({ title: template.name, startDate: '', endDate: '' });
     const [report, setReport] = useState<CsiTemplateApplyReport | null>(null);
     const [busy, setBusy] = useState(false);
     const client = useQueryClient();
@@ -60,16 +49,13 @@ export function TemplateApplyDialog({ scope, template, open, onOpenChange }: {
     };
     const preview = () => run(async () => setReport(await CsiHcApi.applyTemplate(scope, template.id, periodId, false)));
     const apply = () => run(async () => {
-        const result = mode === 'existing'
-            ? await CsiHcApi.applyTemplate(scope, template.id, periodId, true)
-            : (await CsiHcApi.createPeriodFromTemplate(scope, template.id, form)).report;
-        setReport(result);
+        setReport(await CsiHcApi.applyTemplate(scope, template.id, periodId, true));
         // Survey lists, details and the template counts all changed.
         await client.invalidateQueries({ queryKey: ['csi', scope] });
-        toast.success(mode === 'existing' ? 'Template disinkronkan ke survei.' : 'Survei draft dibuat dari template.');
+        toast.success('Template disinkronkan ke survei.');
     });
-    // After a successful apply the button stays off: a second click would build a second survey.
-    const canApply = !report?.committed && (mode === 'existing' ? !!report && !report.blockedReason : !!form.title && !!form.startDate && !!form.endDate);
+    // After a successful apply the button stays off until another preview.
+    const canApply = !!report && !report.committed && !report.blockedReason;
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-lg">
@@ -77,31 +63,19 @@ export function TemplateApplyDialog({ scope, template, open, onOpenChange }: {
                     <DialogTitle>{`Gunakan template ${template.name}`}</DialogTitle>
                     <DialogDescription>Hanya menambah PIC, penilai dan pasangan; tidak ada yang dihapus dari survei.</DialogDescription>
                 </DialogHeader>
-                <div role="radiogroup" aria-label="Tujuan" className="grid gap-1.5 text-[13.5px]">
-                    <label className="flex items-center gap-2"><input type="radio" name="mode" checked={mode === 'new'} onChange={() => { setMode('new'); setReport(null); }} />Buat survei baru</label>
-                    <label className="flex items-center gap-2"><input type="radio" name="mode" checked={mode === 'existing'} onChange={() => { setMode('existing'); setReport(null); }} />Survei yang sudah ada (Sinkronkan)</label>
+                <Button variant="soft" className="justify-self-start" onClick={onNewSurvey}>Buat survei baru…</Button>
+                <p className="text-[13.5px] font-semibold">Masukkan ke survei existing (Sinkronkan)</p>
+                <div className="flex gap-2">
+                    <select aria-label="Survei" className={FIELD} value={periodId} onChange={(event) => { setPeriodId(event.target.value); setReport(null); }}>
+                        <option value="">Pilih survei HC…</option>
+                        {periods.map((period) => <option key={period.id} value={period.id}>{period.title}</option>)}
+                    </select>
+                    <Button variant="soft" disabled={!periodId || busy} onClick={preview}>Pratinjau</Button>
                 </div>
-                {mode === 'new' ? (
-                    <div className="grid gap-2">
-                        <input aria-label="Judul survei" className={FIELD} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
-                        <div className="grid grid-cols-2 gap-2">
-                            <input type="date" aria-label="Tanggal mulai" className={FIELD} value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} />
-                            <input type="date" aria-label="Tanggal selesai" className={FIELD} value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} />
-                        </div>
-                    </div>
-                ) : (
-                    <div className="flex gap-2">
-                        <select aria-label="Survei" className={FIELD} value={periodId} onChange={(event) => { setPeriodId(event.target.value); setReport(null); }}>
-                            <option value="">Pilih survei HC…</option>
-                            {periods.map((period) => <option key={period.id} value={period.id}>{period.title}</option>)}
-                        </select>
-                        <Button variant="soft" disabled={!periodId || busy} onClick={preview}>Pratinjau</Button>
-                    </div>
-                )}
                 {report && <ReportView report={report} />}
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Tutup</Button>
-                    <Button variant="primary" disabled={!canApply || busy} onClick={apply}>{mode === 'new' ? 'Buat survei' : 'Terapkan'}</Button>
+                    <Button variant="primary" disabled={!canApply || busy} onClick={apply}>Terapkan</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

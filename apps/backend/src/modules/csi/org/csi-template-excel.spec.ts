@@ -23,7 +23,7 @@ describe('parseTemplateWorkbook', () => {
             [4, 'HC Services', 'JINGGA FERDASIWI', 'RECEPTIONIST', 'RECEPTIONIST, Bagian Pelayanan dan Ruang Meeting', null, '#N/A'],
         ], [['ELVI CYNTHIA', 'PLANT MANAGER 1 SJA SEMARANG']]);
         const draft = await parseTemplateWorkbook(buffer);
-        expect(draft.pics).toEqual([
+        expect(draft.pics.map(({ nik, raters, ...pic }) => ({ ...pic, raters: raters.map(({ nik: raterNik, ...rater }) => rater) }))).toEqual([
             {
                 area: 'HC Development', serviceCode: 'HCD', picName: 'RARA KURNIA MAHARANI PONGDATU', jobTitle: 'PEOPLE & ORGANIZATION DEVELOPMENT STAFF',
                 serviceFunction: 'People & Organization Development',
@@ -32,6 +32,36 @@ describe('parseTemplateWorkbook', () => {
             { area: 'HC Services', serviceCode: 'HCS', picName: 'JINGGA FERDASIWI', jobTitle: 'RECEPTIONIST', serviceFunction: 'RECEPTIONIST, Bagian Pelayanan dan Ruang Meeting', raters: [] },
         ]);
         expect(draft.problems).toEqual([]);
+    });
+
+    it.each(['NIK HRIS (dikosongkan saja)', 'NIK Penilai'])('reads optional %s and employee NIK from any Karyawan suffix', async (nikHeader) => {
+        const book = new ExcelJS.Workbook();
+        book.addWorksheet('Petunjuk').addRow(['Instruksi']);
+        const employees = book.addWorksheet('Karyawan KRW');
+        employees.addRow(['Nama', 'Jabatan', 'NIK']);
+        employees.addRow(['PIC', 'HC STAFF', 43328]);
+        employees.addRow(['BUDI', 'STAFF', 71]);
+        const sheet = book.addWorksheet('Daftar');
+        sheet.addRow([...HEADER.slice(0, 7), nikHeader]);
+        sheet.addRow([1, 'HC Comben', 'PIC', null, 'Payroll', 'BUDI', null, 72]);
+        const draft = await parseTemplateWorkbook(Buffer.from(await book.xlsx.writeBuffer()));
+        expect(draft).toMatchObject({ format: 'list', teams: [], pics: [{ nik: '00043328', jobTitle: 'HC STAFF', raters: [{ nik: '00000072', jobTitle: 'STAFF' }] }] });
+    });
+
+    it('reads Tim sheet with carried team names and employee NIK fallback', async () => {
+        const book = new ExcelJS.Workbook();
+        const teams = book.addWorksheet('Tim');
+        teams.addRows([['Nama Tim', 'Anggota', 'NIK'], ['Tim HC', 'budi', 71], [null, 'citra', null]]);
+        book.addWorksheet('Karyawan JTB').addRows([['Nama', 'Jabatan', 'NIK'], ['CITRA', 'STAFF', 72]]);
+        book.addWorksheet('Daftar').addRow(HEADER);
+        const draft = await parseTemplateWorkbook(Buffer.from(await book.xlsx.writeBuffer()));
+        expect(draft).toMatchObject({ format: 'list', teams: [{ name: 'Tim HC', members: [{ name: 'BUDI', nik: '00000071' }, { name: 'CITRA', nik: '00000072' }] }] });
+    });
+
+    it('reports NIK exceeding the database limit instead of returning an unsafe rater', async () => {
+        const draft = await parseTemplateWorkbook(await workbook([[1, 'HC Comben', 'PIC', null, 'Payroll', 'BUDI', null, '1'.repeat(21)]]));
+        expect(draft.pics[0].raters).toEqual([]);
+        expect(draft.problems).toEqual([{ row: 2, message: 'NIK penilai lebih dari 20 karakter' }]);
     });
 
     it('reports an unknown area instead of guessing the service', async () => {

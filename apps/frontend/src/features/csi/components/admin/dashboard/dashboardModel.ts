@@ -1,5 +1,5 @@
 import { differenceInCalendarDays, parseISO } from 'date-fns';
-import { CSI_SCORE_FAIR } from '../../../lib/csiTone';
+import { CSI_SCORE_BANDS_DEFAULT, type CsiScoreBands } from '../../../lib/csiTone';
 import type { CsiDashboard, CsiDashboardActive, CsiDashboardPending, CsiDashboardTrend } from '../../../types';
 import { ratioPct } from '../report/reportModel';
 
@@ -35,6 +35,18 @@ export interface LiveSummary {
     average: number | null;
     delta: number | null;
     behind: CsiDashboardActive[];
+    /** Colour bands for the combined numbers (see sharedBands). */
+    bands: CsiScoreBands;
+}
+
+/**
+ * Bands of the active rows when they all agree; surveys with different bands have no common rule, so the combined
+ * average and the trend axis fall back to the default (each site card keeps its own survey's bands).
+ */
+export function sharedBands(rows: readonly CsiDashboardActive[]): CsiScoreBands {
+    const first = rows.find((row) => row.scoreBands)?.scoreBands;
+    const same = !!first && rows.every((row) => !row.scoreBands || (row.scoreBands.fairMin === first.fairMin && row.scoreBands.goodMin === first.goodMin));
+    return same && first ? first : CSI_SCORE_BANDS_DEFAULT;
 }
 
 /** Score of the trend point before this period's point on the same site, if any. */
@@ -66,6 +78,7 @@ export function liveSummary(data: CsiDashboard): LiveSummary {
         average: weight > 0 ? scored.reduce((sum, row) => sum + (row.average as number) * row.responses, 0) / weight : null,
         delta: mean(deltas),
         behind: active.filter((row) => hasAudience(row) && !isReached(row)),
+        bands: sharedBands(active),
     };
 }
 
@@ -122,11 +135,18 @@ export function chartLines(trend: readonly CsiDashboardTrend[], columns: readonl
     });
 }
 
-/** 4,00–5,00 when every score is at least 4 (differences stay visible); otherwise the full 1–5 scale. */
-export function yDomain(lines: readonly ChartLine[]): { min: number; max: number; ticks: number[] } {
+const ZOOM_TICKS = 5;
+const evenTicks = (min: number, max: number, count: number) =>
+    Array.from({ length: count }, (_, index) => Math.round((min + ((max - min) * index) / (count - 1)) * 100) / 100);
+
+/**
+ * Zoomed fairMin–5 axis when every score is at least the orange band (differences stay visible), five even ticks;
+ * otherwise the full 1–5 scale.
+ */
+export function yDomain(lines: readonly ChartLine[], bands: CsiScoreBands = CSI_SCORE_BANDS_DEFAULT): { min: number; max: number; ticks: number[] } {
     const values = lines.flatMap((line) => line.segments.flat().map((point) => point.average));
-    if (values.length > 0 && values.every((value) => value >= CSI_SCORE_FAIR)) {
-        return { min: CSI_SCORE_FAIR, max: SCORE_MAX, ticks: [4, 4.25, 4.5, 4.75, 5] };
+    if (values.length > 0 && bands.fairMin < SCORE_MAX && values.every((value) => value >= bands.fairMin)) {
+        return { min: bands.fairMin, max: SCORE_MAX, ticks: evenTicks(bands.fairMin, SCORE_MAX, ZOOM_TICKS) };
     }
     return { min: SCORE_MIN, max: SCORE_MAX, ticks: [1, 2, 3, 4, 5] };
 }

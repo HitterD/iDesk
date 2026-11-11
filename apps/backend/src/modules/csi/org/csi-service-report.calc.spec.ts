@@ -1,6 +1,7 @@
+import { CSI_SMALL_GROUP_LABEL } from '../csi.constants';
 import { CsiHcPic, CsiHcRating } from './csi-hc-report.calc';
 import { CsiOrgLocation } from './csi-org.constants';
-import { ANONYMOUS_RESPONDENT, buildServiceReport, pendingByDepartment } from './csi-service-report.calc';
+import { ANONYMOUS_RESPONDENT, buildServiceReport, mergeSmallDepartments, pendingByDepartment } from './csi-service-report.calc';
 
 const DIMS = ['Knowledge'];
 const pics: CsiHcPic[] = [
@@ -33,7 +34,8 @@ describe('buildServiceReport', () => {
         expect(anonymous[0].pics.map((pic) => [pic.name, pic.average])).toEqual([['RARA', 5]]);
         expect(anonymous[0].responseId).not.toBe('r1');
         // The unit breakdown cannot point at the rater either.
-        expect(report.respondentGroups.find((row) => row.level === 'division' && row.label === 'OPERATION')!.all.ratings).toBe(2);
+        // (2 respondents < CSI_ANON_MIN_GROUP: their unit only shows inside the merged small-department row.)
+        expect(report.respondentGroups.map((row) => [row.label, row.all.ratings])).toEqual([[CSI_SMALL_GROUP_LABEL, 2]]);
         // The service total leaves them out (otherwise total − named answers reveals them).
         expect(report.services.find((row) => row.key === 's:HCD')!.all.ratings).toBe(2);
     });
@@ -82,11 +84,23 @@ describe('buildServiceReport', () => {
 });
 
 describe('pendingByDepartment', () => {
-    it('counts pending raters per department without names, busiest first', () => {
-        const rows = pendingByDepartment([
-            { department: 'PRODUCTION', answered: false }, { department: 'PRODUCTION', answered: true }, { department: 'PRODUCTION', answered: false },
-            { department: 'QC', answered: true }, { department: null, answered: false },
+    const raters = [
+        { department: 'PRODUCTION', answered: false }, { department: 'PRODUCTION', answered: true }, { department: 'PRODUCTION', answered: false },
+        { department: 'QC', answered: true }, { department: null, answered: false },
+    ];
+
+    it('service report: departments under 3 raters are merged into "Departemen kecil (gabungan)"', () => {
+        const rows = mergeSmallDepartments(pendingByDepartment(raters));
+        expect(rows).toEqual([
+            { department: 'PRODUCTION', pending: 2, total: 3 },
+            { department: CSI_SMALL_GROUP_LABEL, pending: 1, total: 2 },
         ]);
+        expect(JSON.stringify(rows)).not.toMatch(/QC|Tanpa departemen/);
+        expect(mergeSmallDepartments([{ department: 'A', pending: 1, total: 3 }])).toEqual([{ department: 'A', pending: 1, total: 3 }]);
+    });
+
+    it('counts pending raters per department without names, busiest first', () => {
+        const rows = pendingByDepartment(raters);
         expect(rows).toEqual([
             { department: 'PRODUCTION', pending: 2, total: 3 },
             { department: 'Tanpa departemen', pending: 1, total: 1 },

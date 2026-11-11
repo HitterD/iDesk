@@ -8,14 +8,17 @@ import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiHcRecap } from '../org/csi-hc-report.calc';
 import { addHcRecapSheets } from '../org/csi-hc-report.render';
-import { buildServiceReport, CsiPendingDepartment } from '../org/csi-service-report.calc';
+import { buildServiceReport, CsiPendingDepartment, mergeSmallDepartments } from '../org/csi-service-report.calc';
 import { addStyledSheet } from './csi-export.sheet';
 import { CsiReportAccessService } from './csi-report-access.service';
 import { CsiHcPeriodRef, CsiReportService } from './csi-report.service';
+import { CsiScoreBands } from './csi-score-bands';
 
 const PENDING_SHEET = 'Belum menilai per departemen';
 
-export type CsiServiceReport = CsiHcRecap & { period: CsiHcPeriodRef; serviceCode: string; pending: CsiPendingDepartment[] | null };
+export type CsiServiceReport = CsiHcRecap & {
+    period: CsiHcPeriodRef; scoreBands: CsiScoreBands; serviceCode: string; pending: CsiPendingDepartment[] | null;
+};
 
 /**
  * Report of one service (HC layanan or ICT team) for its report owners (and scope admins), every location. Ratings
@@ -59,7 +62,8 @@ export class CsiServiceReportService {
         const hiddenRateeIds = new Set(admin ? [] : [...input.userIdOf].filter(([, owner]) => owner === userId).map(([rateeId]) => rateeId));
         const recap = buildServiceReport({ pics: input.pics, ratings: input.ratings, dimensions: input.dimensions, serviceCode: code, hiddenRateeIds, scope });
         const respondents = await this.reports.getRespondents(scope, periodId);
-        return { ...recap, period: input.period, serviceCode: code, pending: respondents.pendingByDepartment };
+        return { ...recap, period: input.period, scoreBands: input.scoreBands, serviceCode: code,
+            pending: respondents.pendingByDepartment ? mergeSmallDepartments(respondents.pendingByDepartment) : null };
     }
 
     /** Owners read published, not-cancelled HC surveys only; admins any HC survey (drafts included, as in the admin page). */

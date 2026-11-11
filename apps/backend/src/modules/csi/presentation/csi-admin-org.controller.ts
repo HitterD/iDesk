@@ -19,7 +19,7 @@ type CsiAdminRequest = { csiScope: ServiceScope };
 /** The approver hierarchy workbook is ~4.5 MB; read in memory and streamed sheet by sheet (never written to disk). */
 const DIRECTORY_MAX_BYTES = 15 * 1024 * 1024;
 const XLSX_EXTENSION = '.xlsx';
-const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+export const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const ID_PIPE = new ParseUUIDPipe({ exceptionFactory: () => new BadRequestException('ID harus berupa UUID') });
 
 export const XLSX_UPLOAD = {

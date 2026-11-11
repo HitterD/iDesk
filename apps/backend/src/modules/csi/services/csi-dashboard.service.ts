@@ -3,13 +3,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, LessThanOrEqual, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
-import { CsiPeriodPublishStatus, CsiRespondentMode } from '../csi.constants';
+import { CsiPeriodPublishStatus, CsiRespondentMode, isSimulation } from '../csi.constants';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiAssignmentService } from './csi-assignment.service';
 import { CsiReportService, CsiSiteStats } from './csi-report.service';
+import { bandsOf, CsiScoreBands } from './csi-score-bands';
 import { round2 } from './csi-score.util';
 import { CsiSlaService } from './csi-sla.service';
 
@@ -24,6 +25,8 @@ const SORT_LAST = '￿';
 export type CsiDashboardActive = {
     periodId: string; title: string; siteId: string; siteCode: string | null; siteName: string | null;
     responses: number; basis: number; target: number; targetPct: number; average: number | null; endDate: string;
+    /** Colour bands of the period the row belongs to. */
+    scoreBands: CsiScoreBands;
 };
 export type CsiDashboardTrend = { siteId: string; siteCode: string | null; points: Array<{ periodId: string; label: string; average: number | null }> };
 export type CsiDashboardPersonDelta = { name: string; photoUrl: string | null; siteId: string; delta: number };
@@ -64,7 +67,7 @@ export class CsiDashboardService {
         const started = (await this.periods.find({
             where: { scope, publishStatus: CsiPeriodPublishStatus.PUBLISHED, startDate: LessThanOrEqual(today) },
             relations: { sites: { site: true } },
-        })).sort(byEndDate);
+        })).filter((period) => !isSimulation(period)).sort(byEndDate);
         const active = started.filter((period) => period.endDate >= today);
         const stats = new StatsCache((period) => this.reports.siteStats(scope, period, sitesOf(period).map((site) => site.id)));
         return {
@@ -83,7 +86,7 @@ export class CsiDashboardService {
             return {
                 periodId: period.id, title: period.title, siteId: site.id, siteCode: site.code, siteName: site.name,
                 responses: siteStats.responses, basis: sla.basis, target: sla.target, targetPct: sla.targetPct,
-                average: siteStats.average, endDate: period.endDate,
+                average: siteStats.average, endDate: period.endDate, scoreBands: bandsOf(period),
             };
         })));
         return rows.sort((a, b) => a.endDate.localeCompare(b.endDate) || byCode(a, b));

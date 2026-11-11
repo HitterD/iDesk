@@ -3,22 +3,26 @@ import { CsiRateeKind } from '../csi.constants';
 import { addStyledSheet, AVERAGE_COLUMN, CellValue, ColumnSpec, sanitizeCell, WIDTH } from './csi-export.sheet';
 import { formatTimestampWib } from './csi-format.util';
 import { CsiRaterMatrix } from './csi-rater-matrix.calc';
+import { CsiScoreBand, CsiScoreBands, scoreBand } from './csi-score-bands';
 
 export const SHEET_MATRIX = 'Penilai x Subjek';
 const SUBJECT_WIDTH = 14;
-const GOOD_SCORE = 4.2;
-const WARN_SCORE = 3.5;
 const FILL = { good: 'FFD7F0DE', warn: 'FFFCEBC8', bad: 'FFF8D3CF', empty: 'FFF1F1F4' } as const;
+const BAND_FILL: Record<CsiScoreBand, string> = { good: FILL.good, fair: FILL.warn, poor: FILL.bad };
 
 const kindPrefix = (kind: CsiRateeKind) => (kind === CsiRateeKind.TEAM ? 'Tim · ' : '');
-const toneOf = (value: number) => (value >= GOOD_SCORE ? FILL.good : value >= WARN_SCORE ? FILL.warn : FILL.bad);
+/** Fill of a cell under the survey bands (same green / orange / red split as the PDF). */
+const toneOf = (value: unknown, bands: CsiScoreBands) => {
+    const band = typeof value === 'number' ? scoreBand(value, bands) : null;
+    return band ? BAND_FILL[band] : FILL.empty;
+};
 const fill = (argb: string): ExcelJS.Fill => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
 
 /**
  * "Penilai x Subjek": one row per respondent, one column per subject with the average they gave (empty = not rated),
- * a total row with rater counts and averages, and traffic-light cell fills. Admin-only (it carries respondent names).
+ * a total row with rater counts and averages, and cell fills by the survey score bands. Admin-only (it carries respondent names).
  */
-export function addMatrixSheet(workbook: ExcelJS.Workbook, matrix: CsiRaterMatrix) {
+export function addMatrixSheet(workbook: ExcelJS.Workbook, matrix: CsiRaterMatrix, bands: CsiScoreBands) {
     if (!matrix.subjects.length) return;
     const fixed: ColumnSpec[] = [
         { header: 'Timestamp', width: WIDTH.timestamp }, { header: 'Nama penilai', width: WIDTH.name },
@@ -36,7 +40,7 @@ export function addMatrixSheet(workbook: ExcelJS.Workbook, matrix: CsiRaterMatri
     const first = fixed.length + 1;
     rows.forEach((_, index) => matrix.subjects.forEach((__, offset) => {
         const cell = sheet.getRow(index + 2).getCell(first + offset);
-        cell.fill = fill(typeof cell.value === 'number' ? toneOf(cell.value) : FILL.empty);
+        cell.fill = fill(toneOf(cell.value, bands));
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
     }));
     const countRow = sheet.addRow(['', 'Jumlah penilai', '', '', ...matrix.totals.map((total) => total.raters), null]);

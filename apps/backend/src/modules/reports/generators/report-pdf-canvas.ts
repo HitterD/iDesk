@@ -142,6 +142,26 @@ export interface Kpi { label: string; value: string; note?: string; tone?: Tone 
 export interface Column { header: string; width: number; align?: 'left' | 'right' | 'center' }
 export interface Cell { text: string; color?: string; bold?: boolean }
 export interface MiniStat { label: string; value: string; tone?: Tone }
+/** Optional page decorations of finish(): a red band at the top of every page and an extra red footer line. */
+export interface PageMarks { banner?: string; footerNote?: string }
+
+/**
+ * Table header: bold, the largest of these sizes at which every header word fits its column; wrapped over at most
+ * HEADER_MAX_LINES lines (a word still too wide at the smallest size is hyphenated, never cut).
+ */
+const HEADER_SIZES = [8.5, 8, 7.5, 7];
+/** Last resort when a header still needs more than HEADER_MAX_LINES lines at 7 pt: shrink, never drop text. */
+const HEADER_SIZE_FLOOR = 5.5;
+const HEADER_LINE_H = 10;
+const HEADER_MAX_LINES = 3;
+const BANNER = { y: 8, h: 18 } as const;
+const NOTE_KEEP_WITH_TABLE = 100;
+/** Appended to a heading repeated above a table continued on a new page. */
+const CONTINUED_SUFFIX = ' (lanjutan)';
+const VOWEL = /[aeiouAEIOU]/;
+const LETTER = /[a-zA-Z]/;
+/** Horizontal room a header loses to padding: right-aligned headers only need the right padding plus a little. */
+const headerRoom = (c: Column) => c.width - (c.align === 'right' ? 12 : 16);
 
 /** One report document: tracks the write position and starts new pages when content would overflow. */
 export class ReportCanvas {
@@ -195,6 +215,47 @@ export class ReportCanvas {
         });
     }
 
+    /**
+     * Header text as lines: wrapped at word boundaries; a word still wider than `width` is split with a hyphen
+     * ("Responsive-" / "ness") so a full name is always readable instead of shortened with "...".
+     */
+    private headerLines(text: string, width: number): string[] {
+        const { doc } = this;
+        const split = (word: string): string[] => {
+            if (doc.widthOfString(word) <= width || word.length < 6) return [word];
+            const fits = (cut: number) => doc.widthOfString(`${word.slice(0, cut)}-`) <= width;
+            const cuts = Array.from({ length: word.length - 5 }, (_, i) => word.length - 3 - i).filter(fits);
+            // Prefer a syllable-like break (between two consonants, else after a vowel): "Respon-siveness", "Know-ledge".
+            const cut = cuts.find((at) => !VOWEL.test(word[at - 1]) && !VOWEL.test(word[at]) && LETTER.test(word[at - 1]) && LETTER.test(word[at]))
+                ?? cuts.find((at) => VOWEL.test(word[at - 1]) && !VOWEL.test(word[at]) && LETTER.test(word[at]))
+                ?? cuts[0] ?? 3;
+            return [`${word.slice(0, cut)}-`, ...split(word.slice(cut))];
+        };
+        return this.wrap(text, width).flatMap(split);
+    }
+
+    /**
+     * Largest HEADER_SIZES entry at which every header word fits its column; a word too wide even at the smallest
+     * size is hyphenated anyway and does not shrink the others (the current font is left at the chosen size).
+     */
+    private headerSize(cols: Column[]): number {
+        const smallest = HEADER_SIZES[HEADER_SIZES.length - 1];
+        const widthAt = (size: number, word: string) => {
+            this.font(true, size, INK.secondary);
+            return this.doc.widthOfString(word);
+        };
+        const words = cols.flatMap((c) => c.header.split(/\s+/).map((word) => ({ word, room: headerRoom(c) })))
+            .filter(({ word, room }) => widthAt(smallest, word) <= room);
+        let size = HEADER_SIZES.find((candidate) => words.every(({ word, room }) => widthAt(candidate, word) <= room)) ?? smallest;
+        const tooTall = () => {
+            this.font(true, size, INK.secondary);
+            return cols.some((c) => this.headerLines(c.header, headerRoom(c)).length > HEADER_MAX_LINES);
+        };
+        while (size > HEADER_SIZE_FLOOR && tooTall()) size -= 0.5;
+        this.font(true, size, INK.secondary);
+        return size;
+    }
+
     private font(bold: boolean, size: number, color: string): void {
         this.doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(size).fillColor(color);
     }
@@ -238,8 +299,9 @@ export class ReportCanvas {
         this.y = y + 26;
     }
 
-    section(title: string, caption?: string): void {
-        this.ensure(caption ? 44 : 32);
+    /** Section title (+ caption); `keep` = extra points that must fit below it (e.g. a table start), else a new page. */
+    section(title: string, caption?: string, keep = 0): void {
+        this.ensure((caption ? 44 : 32) + keep);
         this.font(true, 12, INK.text);
         this.line(title, PAGE.margin, this.y, CONTENT_W);
         this.y += 16;
@@ -380,6 +442,57 @@ export class ReportCanvas {
         this.y = top + 18 + tallest * rowH + 10;
     }
 
+    /** One grey "cara membaca" sentence right above a table; kept on the same page as the table header. */
+    note(text: string): void {
+        const { doc } = this;
+        this.font(false, 8, INK.secondary);
+        const lines = this.wrap(text, CONTENT_W);
+        // Room for the note, a two-line table header and the first rows.
+        this.ensure(lines.length * 11 + NOTE_KEEP_WITH_TABLE);
+        lines.forEach((line, i) => doc.text(line, PAGE.margin, this.y + i * 11, { lineBreak: false }));
+        this.y += lines.length * 11 + 4;
+    }
+
+    /**
+     * Rounded panel with a small caps title, plain lines and one coloured status sentence (e.g. "Partisipasi & SLA").
+     */
+    statusBlock(title: string, lines: string[], status: { text: string; tone: Tone }): void {
+        const { doc } = this;
+        const pad = 14;
+        const h = pad * 2 + 16 + lines.length * 14 + 18;
+        this.ensure(h + 16);
+        doc.roundedRect(PAGE.margin, this.y, CONTENT_W, h, 8).lineWidth(0.8).strokeColor(INK.line).stroke();
+        this.font(true, 8.5, INK.secondary);
+        doc.text(title, PAGE.margin + pad, this.y + pad, { characterSpacing: 0.6, lineBreak: false });
+        let y = this.y + pad + 16;
+        lines.forEach((line) => {
+            this.font(false, 10, INK.text);
+            this.line(line, PAGE.margin + pad, y, CONTENT_W - pad * 2);
+            y += 14;
+        });
+        doc.circle(PAGE.margin + pad + 3.5, y + 6, 3.5).fill(TONE_COLOR[status.tone]);
+        this.font(true, 11, TONE_COLOR[status.tone]);
+        this.line(status.text, PAGE.margin + pad + 12, y, CONTENT_W - pad * 2 - 12);
+        this.y += h + 16;
+    }
+
+    /** Plain bulleted lines (e.g. comments): wrapped, no table header; long lists continue on the next page. */
+    bulletList(lines: string[]): void {
+        const { doc } = this;
+        const indent = 12;
+        const width = CONTENT_W - indent;
+        lines.forEach((text) => {
+            this.font(false, 9.5, INK.text);
+            const wrapped = this.wrap(text, width);
+            this.ensure(wrapped.length * 13 + 4);
+            doc.circle(PAGE.margin + 2.5, this.y + 5, 2).fill(INK.tertiary);
+            this.font(false, 9.5, INK.text);
+            wrapped.forEach((line, i) => doc.text(line, PAGE.margin + indent, this.y + i * 13, { lineBreak: false }));
+            this.y += wrapped.length * 13 + 4;
+        });
+        this.y += 10;
+    }
+
     /** Small bold sub-heading inside a section (e.g. one group of comments). */
     subheading(text: string, note?: string): void {
         // Keep the heading with its table header and first rows (no orphan heading at the page bottom).
@@ -420,22 +533,29 @@ export class ReportCanvas {
         this.y += 8;
     }
 
-    /** Table with a light header row that repeats on every page it spans. Column widths are relative. */
-    table(columns: Column[], rows: Cell[][], emptyText = 'Tidak ada data pada periode ini.'): void {
+    /**
+     * Table with a light header row that repeats on every page it spans. Column widths are relative. With
+     * `continuedHeading`, a continued page first repeats that heading followed by " (lanjutan)".
+     */
+    table(columns: Column[], rows: Cell[][], emptyText = 'Tidak ada data pada periode ini.', continuedHeading?: string): void {
         const { doc } = this;
         const totalW = columns.reduce((sum, c) => sum + c.width, 0);
         const cols = columns.map((c) => ({ ...c, width: (c.width * CONTENT_W) / totalW }));
-        const headH = 22;
         const minRowH = 22;
         const lineH = 11;
         const rowPad = 11;
+        // Headers never get cut: a header too wide for its column wraps (one line keeps the usual 22 pt row).
+        const headSize = this.headerSize(cols);
+        // Every header line is drawn (headerSize shrinks the font until each header fits HEADER_MAX_LINES).
+        const headLines = cols.map((c) => this.headerLines(c.header, headerRoom(c)));
+        const headH = 12 + Math.max(...headLines.map((lines) => lines.length)) * HEADER_LINE_H;
 
         const drawHead = () => {
             doc.roundedRect(PAGE.margin, this.y, CONTENT_W, headH, 5).fill(INK.fill);
             let x = PAGE.margin;
-            this.font(true, 8.5, INK.secondary);
-            cols.forEach((c) => {
-                this.line(c.header, x + 8, this.y + 7, c.width - 16, c.align);
+            this.font(true, headSize, INK.secondary);
+            cols.forEach((c, ci) => {
+                headLines[ci].forEach((text, li) => this.line(text, x + c.width - 8 - headerRoom(c), this.y + 7 + li * HEADER_LINE_H, headerRoom(c), c.align));
                 x += c.width;
             });
             this.y += headH;
@@ -459,6 +579,7 @@ export class ReportCanvas {
             if (this.y + rowH > CONTENT_BOTTOM) {
                 doc.addPage();
                 this.y = PAGE.margin;
+                if (continuedHeading) this.subheading(`${continuedHeading}${CONTINUED_SUFFIX}`);
                 drawHead();
             }
             let x = PAGE.margin;
@@ -563,19 +684,31 @@ export class ReportCanvas {
         });
     }
 
-    /** Page footers; call once, after all content. */
-    finish(): void {
+    /** Page footers (and the optional banner / footer note on every page); call once, after all content. */
+    finish(marks: PageMarks = {}): void {
         const { doc } = this;
         const range = doc.bufferedPageRange();
         for (let i = 0; i < range.count; i++) {
             doc.switchToPage(range.start + i);
             const savedBottom = doc.page.margins.bottom;
             doc.page.margins.bottom = 0; // the footer sits in the margin; never trigger an automatic page break
+            if (marks.banner) this.banner(marks.banner);
             doc.moveTo(PAGE.margin, FOOTER_Y).lineTo(PAGE.width - PAGE.margin, FOOTER_Y).lineWidth(0.5).strokeColor(INK.line).stroke();
             this.font(false, 7.5, INK.tertiary);
             this.line('PT Santos Jaya Abadi  |  iDesk IT Helpdesk  |  Dokumen internal', PAGE.margin, FOOTER_Y + 7, CONTENT_W - 130);
             this.line(`Halaman ${i + 1} dari ${range.count}`, PAGE.width - PAGE.margin - 120, FOOTER_Y + 7, 120, 'right');
+            if (marks.footerNote) {
+                this.font(true, 7.5, INK.red);
+                this.line(marks.footerNote, PAGE.margin, FOOTER_Y + 17, CONTENT_W);
+            }
             doc.page.margins.bottom = savedBottom;
         }
+    }
+
+    /** Red band in the top margin (above the page header and content). */
+    private banner(text: string): void {
+        this.doc.rect(PAGE.margin, BANNER.y, CONTENT_W, BANNER.h).fill(INK.red);
+        this.font(true, 9, '#FFFFFF');
+        this.line(text, PAGE.margin, BANNER.y + 5, CONTENT_W, 'center');
     }
 }

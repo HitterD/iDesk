@@ -81,6 +81,10 @@ export function rateeStats(ratee: CsiPeriodRatee, dimensions: CsiPeriodRateeDime
     const average = averageOfAverages(responseAverages(items));
     return {
         periodRateeId: ratee.id, kind: ratee.kind, displayName: ratee.displayName, jobTitle: ratee.jobTitle,
+        // Layanan / bagian / fungsi snapshot (HC PICs and custom teams; ICT people carry their layanan): report ranking.
+        serviceCode: ratee.serviceCode ?? null, bagian: ratee.bagian ?? null, serviceFunction: ratee.serviceFunction ?? null,
+        /** Master PIC (HC): the same person across periods, whatever the name snapshot. */
+        picId: ratee.picId ?? null,
         siteId: display ? display.siteId : ratee.siteId ?? null,
         photoUrl: display ? display.photoUrl : ratee.photoUrl ?? null,
         respondentCount: new Set(items.map((item) => item.responseId)).size,

@@ -15,10 +15,11 @@ type ListItem = { id: string; publishStatus: 'DRAFT' | 'PUBLISHED' };
 const DRAFT_ROW: ListItem = { id: 'd1', publishStatus: 'DRAFT' };
 const PUBLISHED_ROW: ListItem = { id: 'p1', publishStatus: 'PUBLISHED' };
 vi.mock('../../components/admin/PeriodsTab', () => ({
-    PeriodsTab: ({ scope, onOpen, onCreate }: { scope: string; onOpen: (row: ListItem) => void; onCreate: () => void }) => (
+    PeriodsTab: ({ scope, onOpen, onCreate, onCreated }: { scope: string; onOpen: (row: ListItem) => void; onCreate: () => void; onCreated?: (id: string) => void }) => (
         <div>
             <p>{`periods:${scope}`}</p>
             <button type="button" onClick={onCreate}>Buat Survei</button>
+            <button type="button" onClick={() => onCreated?.('hc-new')}>survei HC dibuat</button>
             <button type="button" onClick={() => onOpen(DRAFT_ROW)}>buka draft</button>
             <button type="button" onClick={() => onOpen(PUBLISHED_ROW)}>buka terbit</button>
         </div>
@@ -99,6 +100,15 @@ describe('CsiAdminPage', () => {
         await actor.click(screen.getByRole('button', { name: 'tutup' }));
         await actor.click(screen.getByRole('button', { name: 'buka terbit' }));
         expect(screen.getByText('detail:p1')).toBeInTheDocument();
+    });
+
+    it('survei HC dari template langsung membuka draft barunya (lanjut di langkah pertama yang belum lengkap)', async () => {
+        const actor = userEvent.setup();
+        renderAt('/csi/admin/hc');
+        await actor.click(screen.getByRole('button', { name: 'Survei' }));
+        expect(screen.getByText('periods:hc')).toBeInTheDocument();
+        await actor.click(screen.getByRole('button', { name: 'survei HC dibuat' }));
+        expect(screen.getByText('wizard:hc-new:resume')).toBeInTheDocument();
     });
 
     it('Ubah di detail membuka wizard pada langkah pemilik', async () => {

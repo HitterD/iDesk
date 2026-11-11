@@ -3,7 +3,7 @@ import { Search, Users } from 'lucide-react';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { cn } from '@/lib/utils';
 import { useCsiRaterMatrix } from '../../../hooks/useCsi';
-import { scoreTone, toneClasses } from '../../../lib/csiTone';
+import { scoreTone, toneClasses, type CsiScoreBands } from '../../../lib/csiTone';
 import { formatDateTime, formatFixed2 } from '../../../lib/format';
 import type { CsiScopeParam } from '../../../types';
 import { AdminSection, EmptyNote, MUTED_TEXT } from '../AdminParts';
@@ -11,9 +11,9 @@ import { AdminSection, EmptyNote, MUTED_TEXT } from '../AdminParts';
 const HEAD = 'sticky top-0 z-[1] bg-[hsl(var(--idesk-surface))] px-2.5 py-2 text-[11.5px] font-semibold text-[hsl(var(--idesk-text-secondary))]';
 const CELL = 'px-2.5 py-2 text-[13px]';
 
-function ScoreCell({ value }: { value: number | null }) {
+function ScoreCell({ value, bands }: { value: number | null; bands: CsiScoreBands }) {
     if (value === null) return <td className={cn(CELL, 'text-center text-[hsl(var(--idesk-text-secondary))]')} aria-label="tidak menilai">–</td>;
-    const tone = toneClasses(scoreTone(value));
+    const tone = toneClasses(scoreTone(value, bands));
     return (
         <td className={cn(CELL, 'text-center')}>
             <span className={cn('inline-block min-w-[44px] rounded-lg px-2 py-0.5 font-semibold tabular-nums', tone.soft, tone.ink)}>{formatFixed2(value)}</span>
@@ -22,7 +22,8 @@ function ScoreCell({ value }: { value: number | null }) {
 }
 
 /** "Siapa menilai siapa": respondents × subjects with the average each respondent gave (admin only: names are shown). */
-export function RaterMatrixPanel({ scope, periodId, siteId }: { scope: CsiScopeParam; periodId: string; siteId?: string }) {
+/** `bands` = the survey's colour bands (the matrix payload has none; the report screen passes report.scoreBands). */
+export function RaterMatrixPanel({ scope, periodId, siteId, bands }: { scope: CsiScopeParam; periodId: string; siteId?: string; bands: CsiScoreBands }) {
     const { data, isLoading, isError, refetch } = useCsiRaterMatrix(scope, periodId, siteId);
     const [search, setSearch] = useState('');
     const term = search.trim().toLowerCase();
@@ -66,8 +67,8 @@ export function RaterMatrixPanel({ scope, periodId, siteId }: { scope: CsiScopeP
                                             <span className="block font-semibold">{row.respondentName}</span>
                                             <span className={cn(MUTED_TEXT, 'block text-[11.5px]')}>{[row.departmentName, formatDateTime(row.submittedAt)].join(' · ')}</span>
                                         </th>
-                                        {row.scores.map((value, index) => <ScoreCell key={data.subjects[index].periodRateeId} value={value} />)}
-                                        <ScoreCell value={row.average} />
+                                        {row.scores.map((value, index) => <ScoreCell key={data.subjects[index].periodRateeId} value={value} bands={bands} />)}
+                                        <ScoreCell value={row.average} bands={bands} />
                                     </tr>
                                 ))}
                             </tbody>

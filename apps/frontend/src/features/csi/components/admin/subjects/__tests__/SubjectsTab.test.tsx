@@ -6,13 +6,15 @@ import { SubjectsTab } from '../SubjectsTab';
 
 const person = (id: string, name: string, tagline: string | null): CsiSubjectView => ({
     key: `user:${id}`, kind: 'PERSON', userId: id, teamId: null, siteId: 's1', name, jobTitle: 'IT Support', photoUrl: null, tagline,
+    teamKind: null, serviceCode: null, picId: null, hasAccount: true,
 });
 const TEAM: CsiSubjectView = {
     key: 'team:t1', kind: 'TEAM', userId: null, teamId: 't1', siteId: 's1', name: 'Tim Sepanjang', jobTitle: null, photoUrl: null, tagline: 'Siap bantu',
+    teamKind: 'SITE', serviceCode: null, picId: null, hasAccount: false,
 };
 const GROUPS: CsiSubjectGroup[] = [
-    { siteId: 's1', siteCode: 'SPJ', siteName: 'Sepanjang', team: TEAM, people: [person('u1', 'Andi', null), person('u2', 'Budi', 'Cepat')] },
-    { siteId: 's2', siteCode: 'KRW', siteName: 'Karawang', team: null, people: [] },
+    { siteId: 's1', siteCode: 'SPJ', siteName: 'Sepanjang', team: TEAM, teams: [], people: [person('u1', 'Andi', null), person('u2', 'Budi', 'Cepat')] },
+    { siteId: 's2', siteCode: 'KRW', siteName: 'Karawang', team: null, teams: [], people: [] },
 ];
 
 const hooks = vi.hoisted(() => ({ update: vi.fn(), upload: vi.fn(), createTeam: vi.fn(), addMembers: vi.fn(), removeMember: vi.fn() }));
@@ -57,10 +59,10 @@ describe('SubjectsTab', () => {
         expect(hooks.createTeam).toHaveBeenCalledWith({ siteId: 's2' });
     });
 
-    it('uses scope-neutral empty copy for HC', () => {
+    it('HC empty site points at the location template', () => {
         render(<SubjectsTab scope="hc" />);
         expect(screen.getByRole('region', { name: 'HC Karawang' })).toBeInTheDocument();
-        expect(screen.getByText(/Belum ada anggota HC di site ini/)).toBeInTheDocument();
+        expect(screen.getByText('Belum ada orang di site ini. Impor template lokasi ini di Template penugasan.')).toBeInTheDocument();
     });
 
     it('typing a tagline updates the preview live', async () => {
@@ -129,9 +131,10 @@ describe('SubjectsTab', () => {
         expect(hooks.update).toHaveBeenCalledWith({ key: 'team:t1', payload: { tagline: null, jobTitle: null, name: 'Tim SPJ' } }, expect.anything());
     });
 
-    it('adds people as subjects (HC has no staff roles, so this builds its team)', async () => {
+    it('HC "tambah manual" still adds people as subjects', async () => {
         const actor = userEvent.setup();
         render(<SubjectsTab scope="hc" />);
+        await actor.click(screen.getByRole('button', { name: 'tambah manual' }));
         await actor.click(screen.getByRole('button', { name: 'Pilih anggota' }));
         await actor.click(await screen.findByRole('option', { name: /Hana HC/ }));
         await actor.keyboard('{Escape}');

@@ -1,5 +1,6 @@
 import api from '@/lib/api';
 import type { CsiPeriodDetail, CsiScopeParam } from '../types';
+import type { AccountSuggestion, CreateCsiPeriodFromTemplates, CsiPeriodFromTemplatesResult, CsiTemplateImportOptions } from '../hcTypes';
 import type { CsiDirectoryImportResult, CsiHcRater, CsiHcRecap, CsiPairsImportReport, CsiPicView, CsiReportAccess, CsiReportPeriods, CsiServiceReport, CsiServiceReportOwners, CsiTemplate, CsiTemplateApplyReport, CsiTemplateImportReport, CsiTemplateList, CsiUnitOption, CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
 
 const orgPath = (scope: CsiScopeParam) => `/csi/admin/${scope}/org`;
@@ -20,10 +21,29 @@ export const CsiHcApi = {
     async loadBundledTemplate(scope: CsiScopeParam, location: string): Promise<CsiTemplate> {
         return (await api.post<CsiTemplate>(`${templatePath(scope)}/bundled/${encodeURIComponent(location)}`)).data;
     },
-    async importTemplate(scope: CsiScopeParam, location: string, file: File, commit: boolean): Promise<CsiTemplateImportReport> {
+    async importTemplate(scope: CsiScopeParam, location: string, file: File, options: CsiTemplateImportOptions): Promise<CsiTemplateImportReport> {
         const body = new FormData();
         body.append(FILE_FIELD, file);
-        return (await api.post<CsiTemplateImportReport>(`${templatePath(scope)}/import/${encodeURIComponent(location)}`, body, { params: { commit } })).data;
+        body.append('options', JSON.stringify(options));
+        return (await api.post<CsiTemplateImportReport>(`${templatePath(scope)}/import/${encodeURIComponent(location)}`, body)).data;
+    },
+    async templateAccountSuggestions(scope: CsiScopeParam, templateId: string, name: string): Promise<AccountSuggestion[]> {
+        return (await api.get<AccountSuggestion[]>(`${templatePath(scope)}/${encodeURIComponent(templateId)}/account-suggestions`, { params: { name } })).data;
+    },
+    async setTemplateRaterAccount(scope: CsiScopeParam, raterIds: string[], userId: string | null): Promise<CsiTemplate> {
+        return (await api.put<CsiTemplate>(`${templatePath(scope)}/raters/account`, { raterIds, userId })).data;
+    },
+    async confirmTemplateRaters(scope: CsiScopeParam, raterIds: string[], confirmed: boolean): Promise<CsiTemplate> {
+        return (await api.put<CsiTemplate>(`${templatePath(scope)}/raters/confirm`, { raterIds, confirmed })).data;
+    },
+    async downloadBlankTemplate(scope: CsiScopeParam, location: string): Promise<Blob> {
+        return (await api.get<Blob>(`${templatePath(scope)}/blank/${encodeURIComponent(location)}`, { responseType: 'blob', skipToast: true })).data;
+    },
+    async createPeriodFromTemplates(scope: CsiScopeParam, body: CreateCsiPeriodFromTemplates): Promise<CsiPeriodFromTemplatesResult> {
+        return (await api.post<CsiPeriodFromTemplatesResult>(`${templatePath(scope)}/create-period`, body)).data;
+    },
+    async previewPeriodFromTemplates(scope: CsiScopeParam, templateIds: string[]): Promise<CsiTemplateApplyReport> {
+        return (await api.post<CsiTemplateApplyReport>(`${templatePath(scope)}/preview-period`, { templateIds })).data;
     },
     async addTemplatePic(scope: CsiScopeParam, templateId: string, body: { serviceCode: string; picName: string; jobTitle?: string; serviceFunction?: string }): Promise<CsiTemplate> {
         return (await api.post<CsiTemplate>(`${templatePath(scope)}/${encodeURIComponent(templateId)}/pics`, body)).data;
@@ -42,9 +62,6 @@ export const CsiHcApi = {
     },
     async applyTemplate(scope: CsiScopeParam, templateId: string, periodId: string, commit: boolean): Promise<CsiTemplateApplyReport> {
         return (await api.post<CsiTemplateApplyReport>(`${templatePath(scope)}/${encodeURIComponent(templateId)}/apply/${encodeURIComponent(periodId)}`, null, { params: { commit } })).data;
-    },
-    async createPeriodFromTemplate(scope: CsiScopeParam, templateId: string, body: { title: string; startDate: string; endDate: string }): Promise<{ periodId: string; report: CsiTemplateApplyReport }> {
-        return (await api.post<{ periodId: string; report: CsiTemplateApplyReport }>(`${templatePath(scope)}/${encodeURIComponent(templateId)}/create-period`, body)).data;
     },
     async myReportAccess(scope: CsiScopeParam): Promise<CsiReportAccess> {
         return (await api.get<CsiReportAccess>(`${mePath(scope)}/report-access`, { skipToast: true })).data;
