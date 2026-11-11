@@ -142,10 +142,13 @@ describe('CsiReportService', () => {
             { id: 'i1', responseId: 'ra', periodRateeId: 'h1', periodRateeDimensionId: 'hd1', score: 4 },
             { id: 'it', responseId: 'ra', periodRateeId: 'ht', periodRateeDimensionId: 'hdt', score: 2 },
         );
+        dataSource.query.mockImplementation(async (sql: string) => (sql.includes('csi_team_members')
+            ? [{ teamId: 'team-a', userId: 'u-m1' }, { teamId: 'team-a', userId: 'u-m2' }] : []));
         const input = await service.hcRecapInput(HC, 'p-hc');
         expect(input.pics.map((pic) => [pic.name, pic.team ?? false, pic.serviceCode])).toEqual([['Dewi', false, 'HCD'], ['TIM RECEPTION', true, 'HCS']]);
         expect(input.ratings.map((rating) => rating.periodRateeId).sort()).toEqual(['h1', 'ht']);
-        expect(input.userIdOf.get('ht')).toBeNull();
+        expect(input.ownersOf.get('ht')).toEqual(['u-m1', 'u-m2']);
+        expect(input.ownersOf.get('h1')).toEqual([]);
         const recap = await service.getHcRecap(HC, 'p-hc');
         expect(recap.services.find((row) => row.key === 'p:ht')).toMatchObject({ label: 'Tim · TIM RECEPTION', all: { average: 2, ratings: 1 } });
         expect(recap.overall.dimensions.Knowledge).toBe(3);

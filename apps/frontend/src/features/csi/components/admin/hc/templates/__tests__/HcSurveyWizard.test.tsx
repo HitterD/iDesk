@@ -127,7 +127,7 @@ describe('HcSurveyWizard', () => {
         expect(await within(dialog).findByText(/7 penilai belum dikonfirmasi/i)).toBeInTheDocument();
         expect(within(dialog).getByText(/Jingga Ferdasiwi/)).toBeInTheDocument();
         // A PIC without raters is still added: a warning of its own, never counted as "Dilewati".
-        expect(within(dialog).getByText('PIC belum punya penilai (tetap dicantumkan) (1)')).toBeInTheDocument();
+        expect(within(dialog).getByText('PIC/tim belum punya penilai (tetap dicantumkan) (1)')).toBeInTheDocument();
         expect(within(dialog).getByText('Dilewati (1)')).toBeInTheDocument();
         expect(within(dialog).getByRole('button', { name: /lanjut/i })).toBeEnabled();
     });

@@ -181,6 +181,16 @@ describe('CsiTemplateApplyService', () => {
         expect(periods.rows[0].respondentMode).toBe(CsiRespondentMode.LISTED);
     });
 
+    it('a sync does not warn "without raters" about a PIC that already has pairs in the survey', async () => {
+        raters.rows.push({ id: 'old', periodId: 'p1', userId: 'u-old' });
+        ratees.rows.push({ id: 'r-jingga', periodId: 'p1', picId: 'pic-jingga', kind: CsiRateeKind.PERSON });
+        pairs.rows.push({ id: 'pair-old', periodId: 'p1', periodRaterId: 'old', periodRateeId: 'r-jingga' });
+        expect((await service.applyToPeriod(HC, 't1', 'p1', false)).picsWithoutRaters).toEqual([]);
+        pairs.rows.length = 0;
+        pairs.rows.push({ id: 'pair-other', periodId: 'p1', periodRaterId: 'old', periodRateeId: 'r-elsewhere' });
+        expect((await service.applyToPeriod(HC, 't1', 'p1', false)).picsWithoutRaters).toEqual(['JINGGA']);
+    });
+
     it('a mapped survey with answers keeps its raters and pairs; template pairs are added next to them', async () => {
         raters.rows.push({ id: 'old', periodId: 'p1', userId: 'u-old' });
         ratees.rows.push({ id: 'r-old', periodId: 'p1', picId: 'pic-other', kind: CsiRateeKind.PERSON });

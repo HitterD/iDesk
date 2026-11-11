@@ -59,7 +59,7 @@ export class CsiServiceReportService {
         const { admin } = await this.access.assertService(userId, scope, code);
         await this.assertReadable(periodId, admin, scope);
         const input = await this.reports.hcRecapInput(scope, periodId);
-        const hiddenRateeIds = new Set(admin ? [] : [...input.userIdOf].filter(([, owner]) => owner === userId).map(([rateeId]) => rateeId));
+        const hiddenRateeIds = new Set(admin ? [] : [...input.ownersOf].filter(([, owners]) => owners.includes(userId)).map(([rateeId]) => rateeId));
         const recap = buildServiceReport({ pics: input.pics, ratings: input.ratings, dimensions: input.dimensions, serviceCode: code, hiddenRateeIds, scope });
         const respondents = await this.reports.getRespondents(scope, periodId);
         return { ...recap, period: input.period, scoreBands: input.scoreBands, serviceCode: code,

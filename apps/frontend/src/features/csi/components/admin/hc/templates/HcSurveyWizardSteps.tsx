@@ -88,8 +88,8 @@ export function NameList({ title, names }: { title: string; names: string[] }) {
     );
 }
 
-/** PICs added without any rater yet: still rated (0 pairs), so a warning and never part of "Dilewati". */
-export const WITHOUT_RATERS_TITLE = 'PIC belum punya penilai (tetap dicantumkan)';
+/** PICs / teams added without any rater yet: still rated (0 pairs), so a warning and never part of "Dilewati". */
+export const WITHOUT_RATERS_TITLE = 'PIC/tim belum punya penilai (tetap dicantumkan)';
 export function WithoutRatersNote({ names }: { names: string[] }) {
     if (!names.length) return null;
     return (

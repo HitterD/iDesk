@@ -139,6 +139,8 @@ export function previousOf(previous: Record<string, number | null>, row: KeyRow,
 
 /** Label of a custom team row in every HC table. */
 export const CSI_TEAM_ROW_PREFIX = 'Tim · ';
+/** Report name of a rated subject: "Tim · <name>" for a custom team, the PIC name otherwise. */
+export const recapSubjectName = (pic: Pick<CsiHcPic, 'name' | 'team'>) => `${pic.team ? CSI_TEAM_ROW_PREFIX : ''}${pic.name}`;
 
 /**
  * Layanan → bagian → PIC rows, then the layanan's custom teams (PICs and teams without any rating are listed too,
@@ -177,7 +179,7 @@ function serviceRows(pics: CsiHcPic[], ratings: CsiHcRating[], dimensions: strin
         servicePics.filter((pic) => pic.team).sort((a, b) => a.name.localeCompare(b.name, 'id')).forEach((pic) => {
             const own = byPic.get(pic.periodRateeId) ?? [];
             rows.push({
-                level: 'pic', key: `p:${pic.periodRateeId}`, label: `${CSI_TEAM_ROW_PREFIX}${pic.name}`, serviceCode: serviceCode || null, bagian: null,
+                level: 'pic', key: `p:${pic.periodRateeId}`, label: recapSubjectName(pic), serviceCode: serviceCode || null, bagian: null,
                 jobTitle: null, serviceFunction: pic.serviceFunction, ...cells(own), dimensions: dimensionAverages(own, dimensions),
                 respondents: respondentsOf(own), picId: null, team: true,
             });
@@ -252,7 +254,7 @@ function respondentDetails(pics: CsiHcPic[], ratings: CsiHcRating[]): CsiRespond
         const first = own[0];
         const picRows = own.map((rating) => {
             const pic = picOf.get(rating.periodRateeId);
-            return { name: pic ? `${pic.team ? CSI_TEAM_ROW_PREFIX : ''}${pic.name}` : '-', serviceCode: pic?.serviceCode ?? null, bagian: pic?.bagian ?? null, scores: rating.scores, average: ratingValue(rating) };
+            return { name: pic ? recapSubjectName(pic) : '-', serviceCode: pic?.serviceCode ?? null, bagian: pic?.bagian ?? null, scores: rating.scores, average: ratingValue(rating) };
         }).sort((a, b) => compareServiceCodes(a.serviceCode, b.serviceCode) || a.name.localeCompare(b.name, 'id'));
         return {
             responseId: first.responseId, name: first.respondent.name, division: first.respondent.division, department: first.respondent.department,

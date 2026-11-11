@@ -6,7 +6,7 @@ import { CsiServiceHighlight, CsiServiceRanking, rankingByService, serviceHighli
 import { CsiReportService } from './csi-report.service';
 import { bandsOf, CsiScoreBand, CsiScoreBands, CsiScoreWord, scoreBand, scoreWordFor } from './csi-score-bands';
 import { averageOfAverages } from './csi-score.util';
-import type { CsiHcRecap } from '../org/csi-hc-report.calc';
+import { CSI_TEAM_ROW_PREFIX, type CsiHcRecap } from '../org/csi-hc-report.calc';
 
 /**
  * Everything the executive report shows (PDF and Excel read the same model, so both always carry every parameter).
@@ -192,13 +192,18 @@ function highlightSentences(model: Pick<CsiReportModel, 'bands' | 'overall' | 't
     return lines;
 }
 
-/** Subjects of the per-layanan ranking; detail = HC bagian (else fungsi pelayanan), ICT site code. */
+/**
+ * Subjects of the per-layanan ranking; detail = HC bagian (else fungsi pelayanan), ICT site code. HC teams are named
+ * "Tim · <name>" as in the recap tables (ICT keeps its own Tim group).
+ */
 function rankSubjects(report: CsiReportData, rows: CsiReportRow[], scope: ServiceScope) {
     const byId = new Map(report.ratees.map((ratee) => [ratee.periodRateeId, ratee]));
     return rows.map((row) => {
         const ratee = byId.get(row.periodRateeId);
-        const detail = scope === ServiceScope.HC ? ratee?.bagian ?? ratee?.serviceFunction ?? null : row.siteCode;
-        return { name: row.name, kind: row.kind, average: row.average, raters: row.raters, serviceCode: ratee?.serviceCode ?? null, detail, previous: row.previous };
+        const hc = scope === ServiceScope.HC;
+        const detail = hc ? ratee?.bagian ?? ratee?.serviceFunction ?? null : row.siteCode;
+        const name = hc && row.kind === CsiRateeKind.TEAM ? `${CSI_TEAM_ROW_PREFIX}${row.name}` : row.name;
+        return { name, kind: row.kind, average: row.average, raters: row.raters, serviceCode: ratee?.serviceCode ?? null, detail, previous: row.previous };
     });
 }
 

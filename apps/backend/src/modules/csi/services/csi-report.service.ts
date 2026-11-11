@@ -38,8 +38,11 @@ export type CsiActorRef = { id: string };
 export type CsiHcPeriodRef = { id: string; title: string; startDate: string; endDate: string };
 export type CsiHcRecapInput = {
     period: CsiHcPeriodRef; scoreBands: CsiScoreBands; pics: CsiHcPic[]; ratings: CsiHcRating[]; dimensions: string[];
-    /** Account behind each PIC row (null when the PIC has no iDesk account). */
-    userIdOf: Map<string, string | null>;
+    /**
+     * Accounts that ARE each rated row: the PIC's account, or every member account of a custom team. A viewer listed
+     * here sees that row only as their own (masked, raters anonymous).
+     */
+    ownersOf: Map<string, string[]>;
 };
 /** `score` is null for CHOICE/TEXT answers; `answerLabel` (SCALE/CHOICE) and `answerText` (TEXT) carry the non-numeric answer. */
 export type CsiAnswerScore = {
@@ -310,11 +313,26 @@ export class CsiReportService {
             })),
         ];
         const linkedByPic = await this.linkedAccounts(people.map((ratee) => ratee.picId).filter((id): id is string => !!id));
+        const membersByTeam = await this.teamMemberAccounts(teams.map((ratee) => ratee.teamId).filter((id): id is string => !!id));
+        const pic = people.map((ratee): [string, string[]] => {
+            const owner = ratedAccountOf(ratee, linkedByPic);
+            return [ratee.id, owner ? [owner] : []];
+        });
+        const team = teams.map((ratee): [string, string[]] => [ratee.id, ratee.teamId ? membersByTeam.get(ratee.teamId) ?? [] : []]);
         return {
             period: { id: period.id, title: period.title, startDate: period.startDate, endDate: period.endDate },
-            scoreBands: bandsOf(period), pics, ratings, dimensions,
-            userIdOf: new Map([...people.map((ratee) => [ratee.id, ratedAccountOf(ratee, linkedByPic)] as const), ...teams.map((ratee) => [ratee.id, null] as const)]),
+            scoreBands: bandsOf(period), pics, ratings, dimensions, ownersOf: new Map([...pic, ...team]),
         };
+    }
+
+    /** Member accounts of each custom team now (a member is part of the rated team, like a PIC is their own row). */
+    private async teamMemberAccounts(teamIds: string[]): Promise<Map<string, string[]>> {
+        if (!teamIds.length) return new Map();
+        const rows: Array<{ teamId: string; userId: string }> = await this.dataSource.query(
+            'SELECT "teamId", "userId" FROM "csi_team_members" WHERE "teamId" = ANY($1) AND "userId" IS NOT NULL', [[...new Set(teamIds)]]);
+        const result = new Map<string, string[]>();
+        rows.forEach((row) => result.set(row.teamId, [...(result.get(row.teamId) ?? []), row.userId]));
+        return result;
     }
 
     /** Account linked to each PIC now (a PIC may get its account after the survey was built). */

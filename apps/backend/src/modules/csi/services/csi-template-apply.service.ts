@@ -326,7 +326,9 @@ export class CsiTemplateApplyService {
             if (!raterOfUser.has(pair.userId)) tally.raters.add(pair.userId);
         });
         applied.filter((pair) => pair.unconfirmed).forEach((pair) => tally.unconfirmed.add(pair.userId));
-        const rated = new Set(applied.map((pair) => pair.key));
+        // Rated = a template rater now, or already a pair in the survey (a sync never warns about a subject that has raters).
+        const pairedRatees = new Set(state.pairs.map((row) => row.periodRateeId));
+        const rated = new Set([...applied.map((pair) => pair.key), ...[...existingRatee].filter(([, ratee]) => pairedRatees.has(ratee.id)).map(([key]) => key)]);
         subjects.filter((subject) => !rated.has(subject.key)).forEach((subject) => tally.withoutRaters.add(subject.row.picName));
         const raterNames = new Map<string, string>();
         applied.forEach((pair) => { if (!raterNames.has(pair.userId)) raterNames.set(pair.userId, pair.name); });

@@ -1,6 +1,6 @@
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CSI_ANON_MIN_GROUP, CSI_SMALL_GROUP_LABEL } from '../csi.constants';
-import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap, CsiRecapRow, CsiRespondentDetail, ratingValue } from './csi-hc-report.calc';
+import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap, CsiRecapRow, CsiRespondentDetail, ratingValue, recapSubjectName } from './csi-hc-report.calc';
 
 /** Name shown instead of the rater on ratings the viewer may not attribute (ratings about the viewer themself). */
 export const ANONYMOUS_RESPONDENT = 'Anonim';
@@ -58,7 +58,7 @@ function anonymousDetails(pics: CsiHcPic[], hidden: CsiHcRating[]): CsiResponden
             const pic = picOf.get(rating.periodRateeId);
             return {
                 responseId: `anonim-${index + 1}`, name: ANONYMOUS_RESPONDENT, division: null, department: null, bagian: null, location: null,
-                pics: [{ name: pic?.name ?? '-', serviceCode: pic?.serviceCode ?? null, bagian: pic?.bagian ?? null, scores: rating.scores, average }],
+                pics: [{ name: pic ? recapSubjectName(pic) : '-', serviceCode: pic?.serviceCode ?? null, bagian: pic?.bagian ?? null, scores: rating.scores, average }],
                 average,
             };
         });
