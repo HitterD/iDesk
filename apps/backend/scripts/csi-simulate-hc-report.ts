@@ -175,7 +175,7 @@ async function createSimulation(s: Services, actorId: string) {
     });
     await s.periods.publish(HC, periodId);
     console.log(`Survei ${periodId}: PIC ${report.picsAdded}, tim ${report.teamsAdded}, penilai ${report.ratersAdded}, pasangan ${report.pairsAdded}`);
-    console.log(`  di luar site survei: ${report.ratersOutsideSites.length}, PIC tanpa penilai: ${report.picsSkippedNoRaters.length}`);
+    console.log(`  di luar site survei: ${report.ratersOutsideSites.length}, PIC tanpa penilai (tetap dinilai): ${report.picsWithoutRaters.length}, PIC tidak masuk: ${report.picsUnmatched.length}`);
     return periodId;
 }
 

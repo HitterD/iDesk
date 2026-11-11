@@ -88,12 +88,23 @@ export function NameList({ title, names }: { title: string; names: string[] }) {
     );
 }
 
+/** PICs added without any rater yet: still rated (0 pairs), so a warning and never part of "Dilewati". */
+export const WITHOUT_RATERS_TITLE = 'PIC belum punya penilai (tetap dicantumkan)';
+export function WithoutRatersNote({ names }: { names: string[] }) {
+    if (!names.length) return null;
+    return (
+        <details className={NOTE_AMBER} open={names.length <= 6}>
+            <summary className="cursor-pointer font-semibold">{`${WITHOUT_RATERS_TITLE} (${names.length})`}</summary>
+            <p className="mt-1">{names.map(titleCase).join(', ')}</p>
+        </details>
+    );
+}
+
 /** The per-category lists of what the apply leaves out (shared with the sync dialog). */
 export function SkippedLists({ report }: { report: CsiTemplateApplyReport }) {
     return (
         <>
-            <NameList title="PIC dilewati (belum ada penilai)" names={report.picsSkippedNoRaters} />
-            <NameList title="PIC belum cocok dengan PIC master" names={report.picsUnmatched} />
+            <NameList title="PIC tidak dimasukkan" names={report.picsUnmatched} />
             <NameList title="Penilai belum punya akun (masuk saat Sinkronkan berikutnya)" names={report.ratersNoAccount} />
             <NameList title="Penilai dengan nama ganda (perbaiki di template)" names={report.ratersAmbiguous} />
         </>
@@ -128,7 +139,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 export function PreviewStep({ report, loading, failed }: { report: CsiTemplateApplyReport | undefined; loading: boolean; failed: boolean }) {
     if (loading) return <div aria-busy="true" className="h-28 animate-pulse rounded-xl bg-[hsl(var(--muted))]" />;
     if (failed || !report) return <p role="alert" className={ALERT_RED}>Gagal memuat pratinjau.</p>;
-    const skipped = report.picsSkippedNoRaters.length + report.picsUnmatched.length + report.ratersNoAccount.length + report.ratersAmbiguous.length;
+    const skipped = report.picsUnmatched.length + report.ratersNoAccount.length + report.ratersAmbiguous.length;
     return (
         <div className="grid gap-2">
             {report.blockedReason && <p role="alert" className={ALERT_RED}>{report.blockedReason}</p>}
@@ -139,6 +150,7 @@ export function PreviewStep({ report, loading, failed }: { report: CsiTemplateAp
             </div>
             <UnconfirmedNote count={report.ratersUnconfirmed} />
             <OutsideSitesNote names={report.ratersOutsideSites} />
+            <WithoutRatersNote names={report.picsWithoutRaters} />
             {skipped > 0 && (
                 <details className="grid gap-1.5" open>
                     <summary className="cursor-pointer text-[13px] font-semibold">{`Dilewati (${skipped})`}</summary>

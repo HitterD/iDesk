@@ -126,6 +126,34 @@ describe('CsiReportService', () => {
         expect((await service.getHcRecap(ICT, 'p1')).scoreBands).toEqual({ fairMin: 3.5, goodMin: 4.2 });
     });
 
+    it('HC recap includes custom-team ratees with a layanan (answers included); ICT teams and teams without layanan stay out', async () => {
+        Object.assign(periods.rows[1], { teamEnabled: true, teamLabel: 'Tim' });
+        ratees.rows.push(
+            { id: 'h1', periodId: 'p-hc', kind: 'PERSON', picId: 'pic1', serviceCode: 'HCD', bagian: 'TA', displayName: 'Dewi', sortOrder: 0 },
+            { id: 'ht', periodId: 'p-hc', kind: 'TEAM', teamId: 'team-a', serviceCode: 'HCS', serviceFunction: 'Reception', displayName: 'TIM RECEPTION', sortOrder: 1 },
+            { id: 'hx', periodId: 'p-hc', kind: 'TEAM', teamId: 'team-x', serviceCode: null, displayName: 'TIM LAMA', sortOrder: 2 },
+        );
+        rateeDimensions.rows.push(
+            { id: 'hd1', periodRateeId: 'h1', dimensionName: 'Knowledge', type: 'STAR', options: [], sortOrder: 0 },
+            { id: 'hdt', periodRateeId: 'ht', dimensionName: 'Knowledge', type: 'STAR', options: [], sortOrder: 0 },
+        );
+        responses.rows.push({ id: 'ra', periodId: 'p-hc', respondentId: 'u-a', departmentName: 'PROD', respondentName: 'a', submittedAt: new Date('2026-10-10T03:00:00Z'), respondent: { id: 'u-a', siteId: 'site-a' } });
+        items.rows.push(
+            { id: 'i1', responseId: 'ra', periodRateeId: 'h1', periodRateeDimensionId: 'hd1', score: 4 },
+            { id: 'it', responseId: 'ra', periodRateeId: 'ht', periodRateeDimensionId: 'hdt', score: 2 },
+        );
+        const input = await service.hcRecapInput(HC, 'p-hc');
+        expect(input.pics.map((pic) => [pic.name, pic.team ?? false, pic.serviceCode])).toEqual([['Dewi', false, 'HCD'], ['TIM RECEPTION', true, 'HCS']]);
+        expect(input.ratings.map((rating) => rating.periodRateeId).sort()).toEqual(['h1', 'ht']);
+        expect(input.userIdOf.get('ht')).toBeNull();
+        const recap = await service.getHcRecap(HC, 'p-hc');
+        expect(recap.services.find((row) => row.key === 'p:ht')).toMatchObject({ label: 'Tim · TIM RECEPTION', all: { average: 2, ratings: 1 } });
+        expect(recap.overall.dimensions.Knowledge).toBe(3);
+        (service as any).ratees.rows.push({ id: 'rt', periodId: 'p1', kind: 'TEAM', serviceCode: 'OPS', displayName: 'Tim IT', sortOrder: -1 });
+        Object.assign(periods.rows[0], { teamEnabled: true });
+        expect((await service.hcRecapInput(ICT, 'p1')).pics.some((pic) => pic.team)).toBe(false);
+    });
+
     it('HC executive model: layanan highlight and recap follow the site filter, recap input loaded once', async () => {
         const sites = [{ siteId: 'site-a', site: { code: 'SMG', name: 'Semarang' } }, { siteId: 'site-b', site: { code: 'SPJ', name: 'Sepanjang' } }];
         Object.assign(periods.rows[1], { sites });

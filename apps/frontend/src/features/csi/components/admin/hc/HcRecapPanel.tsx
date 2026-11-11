@@ -103,17 +103,18 @@ function ServicesTable({ recap, expandAll }: { recap: CsiHcRecap; expandAll?: bo
                     <LocationHead recap={recap} first="Layanan / Bagian / PIC" />
                     <tbody>
                         {recap.services.map((row) => {
-                            const hidden = (row.level !== 'service' && !open.has(serviceKey(row))) || (row.level === 'pic' && !open.has(bagianKey(row)));
+                            const hidden = (row.level !== 'service' && !open.has(serviceKey(row))) || (row.level === 'pic' && !row.team && !open.has(bagianKey(row)));
                             if (hidden) return null;
                             const expandable = row.level !== 'pic';
                             return (
                                 <Fragment key={row.key}>
                                     <tr className={cn('border-b border-[hsl(var(--border)/.6)]', row.level === 'service' && 'bg-[hsl(var(--idesk-sapphire)/.07)]', row.level === 'bagian' && 'bg-[hsl(var(--muted)/.5)]')}>
-                                        <td className={cn(TD, row.level === 'bagian' && 'pl-7', row.level === 'pic' && 'pl-12')}>
+                                        {/* A custom team sits directly under its layanan (no bagian), so it is indented one step only. */}
+                                        <td className={cn(TD, (row.level === 'bagian' || row.team) && 'pl-7', row.level === 'pic' && !row.team && 'pl-12')}>
                                             <button type="button" disabled={!expandable} onClick={() => toggle(row.key)} className="flex items-center gap-1.5 text-left">
                                                 {expandable && (open.has(row.key) ? <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />)}
                                                 <span className={cn(row.level === 'service' ? 'font-bold' : row.level === 'bagian' ? 'font-semibold' : '')}>
-                                                    {row.level === 'service' ? row.label : titleCase(row.label)}
+                                                    {row.level === 'service' || row.team ? row.label : titleCase(row.label)}
                                                 </span>
                                                 {row.level === 'pic' && row.jobTitle && <span className="text-[11.5px] text-[hsl(var(--idesk-text-secondary))]">{`· ${titleCase(row.jobTitle)}`}</span>}
                                                 {row.level === 'pic' && row.serviceFunction && <span className="rounded-md bg-[hsl(var(--idesk-sapphire)/.09)] px-1.5 text-[11.5px] font-medium text-[hsl(var(--idesk-sapphire))]">{row.serviceFunction}</span>}

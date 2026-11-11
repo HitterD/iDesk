@@ -153,7 +153,9 @@ function appendix(canvas: ReportCanvas, model: HcModel) {
 /** Sections 1-7 of the HC report (the caller draws the header first and the sign-off after). */
 export function renderHcReportPdf(canvas: ReportCanvas, model: HcModel) {
     const services = model.hcRecap.services.filter((row) => row.level === 'service').length;
-    summary(canvas, model, { value: model.counts.people + model.counts.teams, note: `PIC di ${services} layanan · ${dec(model.hcRecap.overall.respondents, 0)} responden` }, HC_OVERALL_NOTE);
+    // "Yang dinilai" = the PIC / team rows of "Nilai per layanan, bagian & PIC" (rated or not).
+    const rated = model.hcRecap.services.filter((row) => row.level === 'pic').length;
+    summary(canvas, model, { value: rated, note: `PIC/tim di ${services} layanan · ${dec(model.hcRecap.overall.respondents, 0)} responden` }, HC_OVERALL_NOTE);
     canvas.pageBreak();
     serviceScores(canvas, model);
     nestedScores(canvas, model);

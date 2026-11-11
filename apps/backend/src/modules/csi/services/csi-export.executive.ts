@@ -1,11 +1,11 @@
 import * as ExcelJS from 'exceljs';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CSI_RANK_MIN_RATERS, CsiRateeKind } from '../csi.constants';
+import { CsiRateeKind } from '../csi.constants';
 import { serviceName } from '../org/csi-org.constants';
 import { addStyledSheet, AVERAGE_COLUMN, CellValue, ColumnSpec, PERCENT_COLUMN, sanitizeCell, WIDTH } from './csi-export.sheet';
 import { CsiQuestionGrid, CsiReportModel } from './csi-report-model';
-import { commentOrder, slaStatusText } from './csi-report-pdf-sections';
-import { compareServiceCodes, CsiRankRow, CsiServiceRanking } from './csi-report-ranking';
+import { commentOrder, INSUFFICIENT_LABEL, NO_ANSWERS_LABEL, slaStatusText } from './csi-report-pdf-sections';
+import { compareServiceCodes, CsiRankRow, CsiServiceRanking, rankRowsOf } from './csi-report-ranking';
 
 /** Sheets of the executive report, in workbook order (before the raw answer sheets). */
 export const EXECUTIVE_SHEETS = {
@@ -18,7 +18,6 @@ const LABEL = 30;
 const SHORT = 10;
 const text = (value: string | null | undefined) => sanitizeCell(value ?? '');
 const COUNT = (header: string): ColumnSpec => ({ header, width: SHORT });
-const INSUFFICIENT_NOTE = `Belum cukup penilai (< ${CSI_RANK_MIN_RATERS})`;
 /** "HCD · HC Development"; a group without a layanan (ICT Tim / Orang, HC Lainnya) keeps its own name. */
 const groupLabel = (code: string | null, fallback: string) => (code ? `${code} · ${serviceName(code) ?? fallback}` : fallback);
 const OTHER_SERVICE = 'Lainnya';
@@ -53,10 +52,14 @@ function summarySheet(workbook: ExcelJS.Workbook, model: CsiReportModel) {
     sheet.getColumn(1).font = { bold: true };
 }
 
+/** Keterangan of an unranked row: no score yet, or a score from fewer than CSI_RANK_MIN_RATERS raters. */
+const rankNote = (group: CsiServiceRanking, row: CsiRankRow) =>
+    (row.rank !== null ? null : group.noAnswers.includes(row) ? NO_ANSWERS_LABEL : INSUFFICIENT_LABEL);
+
 function rankCells(group: CsiServiceRanking, row: CsiRankRow, withPrevious: boolean): CellValue[] {
     return [
         text(groupLabel(group.serviceCode, group.serviceName)), row.rank, text(row.name), text(row.detail),
-        row.raters, row.average, row.word, ...(withPrevious ? [row.previous, row.delta] : []), row.rank === null ? INSUFFICIENT_NOTE : null,
+        row.raters, row.average, row.word, ...(withPrevious ? [row.previous, row.delta] : []), rankNote(group, row),
     ];
 }
 
@@ -70,7 +73,7 @@ function rankingSheet(workbook: ExcelJS.Workbook, model: CsiReportModel) {
         { header: hc ? 'Layanan' : 'Kelompok', width: LABEL }, COUNT('#'), { header: 'Nama', width: WIDTH.name },
         hc ? { header: 'Bagian / fungsi', width: LABEL } : COUNT('Site'), COUNT('Penilai'), AVERAGE_COLUMN('Nilai'), { header: 'Predikat', width: 16 },
         ...(model.hasPrevious ? [AVERAGE_COLUMN('Lalu'), AVERAGE_COLUMN('Δ')] : []), { header: 'Keterangan', width: 24 },
-    ], model.rankingByService.flatMap((group) => [...group.ranked, ...group.insufficient].map((row) => rankCells(group, row, model.hasPrevious))));
+    ], model.rankingByService.flatMap((group) => rankRowsOf(group).map((row) => rankCells(group, row, model.hasPrevious))));
 }
 
 function participationSheet(workbook: ExcelJS.Workbook, model: CsiReportModel) {

@@ -4,12 +4,18 @@ import { CSI_HC_SERVICES, serviceName } from '../org/csi-org.constants';
 import { CsiScoreBands, CsiScoreWord, scoreWordFor } from './csi-score-bands';
 import { round2 } from './csi-score.util';
 
-/** One ranked (rank set) or "Belum cukup penilai" (rank null) person/team of a service. */
+/** One ranked (rank set), "Belum cukup penilai" or "Belum ada penilaian" (rank null) person/team of a service. */
 export type CsiRankRow = {
     rank: number | null; name: string; detail: string | null; raters: number; average: number | null;
     word: CsiScoreWord | null; previous: number | null; delta: number | null;
 };
-export type CsiServiceRanking = { serviceCode: string | null; serviceName: string; ranked: CsiRankRow[]; insufficient: CsiRankRow[] };
+export type CsiServiceRanking = {
+    serviceCode: string | null; serviceName: string; ranked: CsiRankRow[];
+    /** 1 to CSI_RANK_MIN_RATERS - 1 raters with a score: listed with it, no rank. */
+    insufficient: CsiRankRow[];
+    /** No score yet (no rater, or no scored answer): listed by name, never dropped. */
+    noAnswers: CsiRankRow[];
+};
 export type CsiServiceHighlight = { best: CsiServiceScore; worst: CsiServiceScore };
 type CsiServiceScore = { code: string; name: string; average: number };
 
@@ -41,17 +47,28 @@ function rankRow(subject: CsiRankSubject, bands: CsiScoreBands, rank: number | n
     };
 }
 
-/** Ranked rows from CSI_RANK_MIN_RATERS raters on; the others are listed with their score but without a number. */
+const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'id');
+
+/**
+ * Ranked rows from CSI_RANK_MIN_RATERS raters on; fewer raters with a score are listed with it but without a number;
+ * subjects without any score (0 raters or no scored answer) are listed apart by name.
+ */
 function serviceGroup(serviceCode: string | null, name: string, subjects: CsiRankSubject[], bands: CsiScoreBands): CsiServiceRanking {
-    const enough = subjects.filter((subject) => subject.raters >= CSI_RANK_MIN_RATERS);
-    const insufficient = subjects.filter((subject) => subject.raters < CSI_RANK_MIN_RATERS)
-        .sort((a, b) => (b.average ?? -1) - (a.average ?? -1) || a.name.localeCompare(b.name, 'id'));
+    const scored = subjects.filter((subject) => subject.raters > 0 && subject.average !== null);
+    const enough = scored.filter((subject) => subject.raters >= CSI_RANK_MIN_RATERS);
+    const insufficient = scored.filter((subject) => subject.raters < CSI_RANK_MIN_RATERS)
+        .sort((a, b) => b.average! - a.average! || byName(a, b));
+    const noAnswers = subjects.filter((subject) => !scored.includes(subject)).sort(byName);
     return {
         serviceCode, serviceName: name,
         ranked: competitionRanks(enough).map((subject) => rankRow(subject, bands, subject.rank)),
         insufficient: insufficient.map((subject) => rankRow(subject, bands, null)),
+        noAnswers: noAnswers.map((subject) => rankRow(subject, bands, null)),
     };
 }
+
+/** Every row of a group in report order (ranked, Belum cukup penilai, Belum ada penilaian). */
+export const rankRowsOf = (group: CsiServiceRanking) => [...group.ranked, ...group.insufficient, ...group.noAnswers];
 
 const hcServiceOrder = (code: string | null) => {
     const index = code === null ? -1 : HC_SERVICE_ORDER.indexOf(code);
@@ -66,7 +83,7 @@ export function rankingByService(input: { scope: ServiceScope; subjects: CsiRank
     const { scope, subjects, bands } = input;
     if (scope === ServiceScope.ICT) {
         return ICT_GROUPS.map((group) => serviceGroup(null, group.name, subjects.filter((subject) => subject.kind === group.kind), bands))
-            .filter((group) => group.ranked.length || group.insufficient.length);
+            .filter((group) => rankRowsOf(group).length);
     }
     const known = (code: string | null) => (code && CSI_HC_SERVICES.some((service) => service.code === code) ? code : null);
     const codes = [...new Set(subjects.map((subject) => known(subject.serviceCode)))]

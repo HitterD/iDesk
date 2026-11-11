@@ -140,6 +140,21 @@ describe('buildHcRecap', () => {
         expect(JSON.stringify(recap)).not.toContain('Tidak diketahui');
     });
 
+    it('a custom team is a "Tim · <name>" row under its layanan after the bagian groups, counted in the layanan', () => {
+        const team: CsiHcPic = { periodRateeId: 't', name: 'TIM RECEPTION', jobTitle: null, serviceCode: 'HCS', bagian: null, serviceFunction: 'Reception', team: true };
+        const withTeam = buildHcRecap({ pics: [...pics, team], dimensions: DIMS, ratings: [...ratings, rating('r2', 't', CsiOrgLocation.SJA2, [5, 5], 'MARKETING')] });
+        const keys = withTeam.services.map((entry) => entry.key);
+        expect(keys.slice(keys.indexOf('s:HCS'))).toEqual(['s:HCS', 'b:HCS:GA MANAGEMENT', 'p:c', 'p:t']);
+        expect(withTeam.services.find((entry) => entry.key === 'p:t')).toMatchObject({
+            level: 'pic', label: 'Tim · TIM RECEPTION', bagian: null, team: true, serviceFunction: 'Reception', all: { average: 5, ratings: 1 },
+        });
+        expect(withTeam.services.find((entry) => entry.key === 's:HCS')!.all).toEqual({ average: 4, ratings: 2 });
+        expect(withTeam.respondents.find((entry) => entry.responseId === 'r2')!.pics.map((pic) => pic.name)).toContain('Tim · TIM RECEPTION');
+        // A team without any rating is listed too.
+        const unrated = buildHcRecap({ pics: [...pics, team], dimensions: DIMS, ratings });
+        expect(unrated.services.find((entry) => entry.key === 'p:t')!.all).toEqual({ average: null, ratings: 0 });
+    });
+
     it('layanan rows count distinct respondents and have a key that matches across periods', () => {
         expect(row('s:HCC').respondents).toBe(2);
         expect(row('p:a').respondents).toBe(2);

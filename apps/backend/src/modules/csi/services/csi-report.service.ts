@@ -270,7 +270,9 @@ export class CsiReportService {
         const period = await this.findInScope(scope, periodId, { sites: { site: true } });
         const data = narrowToSite(await this.loadPeriodData(scope, period), siteId);
         const people = data.ratees.filter((ratee) => ratee.kind !== CsiRateeKind.TEAM);
-        const ids = new Set(people.map((ratee) => ratee.id));
+        // HC custom teams are rated under a layanan like a PIC; ICT site teams keep their own report.
+        const teams = scope === ServiceScope.HC ? data.ratees.filter((ratee) => ratee.kind === CsiRateeKind.TEAM && ratee.serviceCode) : [];
+        const ids = new Set([...people, ...teams].map((ratee) => ratee.id));
         const labelOf = new Map(data.dimensions.map((row) => [row.id, row.shortLabel || row.dimensionName]));
         const scored = data.dimensions.filter((row) => ids.has(row.periodRateeId) && row.type !== CsiQuestionType.CHOICE && row.type !== CsiQuestionType.TEXT);
         const dimensions = [...new Set(scored.sort((a, b) => a.sortOrder - b.sortOrder).map((row) => labelOf.get(row.id)!))];
@@ -297,14 +299,21 @@ export class CsiReportService {
         });
         // ICT has no bagian: its people are grouped by the site they serve.
         const rateeSites = scope === ServiceScope.ICT ? await this.siteCodes(people.map((ratee) => ratee.siteId).filter((id): id is string => !!id)) : new Map<string, string>();
-        const pics = people.map((ratee) => ({
-            periodRateeId: ratee.id, name: ratee.displayName, jobTitle: ratee.jobTitle, serviceCode: ratee.serviceCode ?? null, picId: ratee.picId ?? null,
-            bagian: ratee.bagian ?? (ratee.siteId ? rateeSites.get(ratee.siteId) ?? null : null), serviceFunction: ratee.serviceFunction ?? null,
-        }));
+        const pics: CsiHcPic[] = [
+            ...people.map((ratee) => ({
+                periodRateeId: ratee.id, name: ratee.displayName, jobTitle: ratee.jobTitle, serviceCode: ratee.serviceCode ?? null, picId: ratee.picId ?? null,
+                bagian: ratee.bagian ?? (ratee.siteId ? rateeSites.get(ratee.siteId) ?? null : null), serviceFunction: ratee.serviceFunction ?? null,
+            })),
+            ...teams.map((ratee) => ({
+                periodRateeId: ratee.id, name: ratee.displayName || period.teamLabel, jobTitle: null, serviceCode: ratee.serviceCode ?? null, picId: null,
+                bagian: null, serviceFunction: ratee.serviceFunction ?? null, team: true,
+            })),
+        ];
         const linkedByPic = await this.linkedAccounts(people.map((ratee) => ratee.picId).filter((id): id is string => !!id));
         return {
             period: { id: period.id, title: period.title, startDate: period.startDate, endDate: period.endDate },
-            scoreBands: bandsOf(period), pics, ratings, dimensions, userIdOf: new Map(people.map((ratee) => [ratee.id, ratedAccountOf(ratee, linkedByPic)])),
+            scoreBands: bandsOf(period), pics, ratings, dimensions,
+            userIdOf: new Map([...people.map((ratee) => [ratee.id, ratedAccountOf(ratee, linkedByPic)] as const), ...teams.map((ratee) => [ratee.id, null] as const)]),
         };
     }
 

@@ -193,8 +193,9 @@ describe('CsiExportService', () => {
         const { model } = hcReportFixture({ respondents: 30 });
         const row = (name: string, raters: number, average: number) => ({ name, detail: 'PAYROLL', raters, average, word: 'Puas', previous: null, delta: null });
         const ranking = [
-            { serviceCode: 'HCD', serviceName: 'HC Development', ranked: [{ ...row('A', 6, 4.5), rank: 1 }, { ...row('B', 5, 4.5), rank: 1 }, { ...row('C', 7, 4.1), rank: 3 }], insufficient: [{ ...row('D', 2, 4.9), rank: null }] },
-            { serviceCode: 'HCC', serviceName: 'HC Compensation & Benefit', ranked: [{ ...row('E', 5, 4.2), rank: 1 }], insufficient: [] },
+            { serviceCode: 'HCD', serviceName: 'HC Development', ranked: [{ ...row('A', 6, 4.5), rank: 1 }, { ...row('B', 5, 4.5), rank: 1 }, { ...row('C', 7, 4.1), rank: 3 }], insufficient: [{ ...row('D', 2, 4.9), rank: null }],
+                noAnswers: [{ ...row('F', 0, 0), average: null, word: null, rank: null }] },
+            { serviceCode: 'HCC', serviceName: 'HC Compensation & Benefit', ranked: [{ ...row('E', 5, 4.2), rank: 1 }], insufficient: [], noAnswers: [] },
         ];
         const sheet = (await workbookOf({ ...model, hasPrevious: false, rankingByService: ranking })).getWorksheet('Peringkat')!;
         const header = (sheet.getRow(1).values as unknown[]).slice(1);
@@ -202,7 +203,8 @@ describe('CsiExportService', () => {
         expect(header.join('|')).not.toMatch(/★|Bintang|Lalu|Δ/);
         expect(rowsOf(sheet).map((cells) => [cells[0], cells[1] ?? null, cells[2], cells[7] ?? null])).toEqual([
             ['HCD · HC Development', 1, 'A', null], ['HCD · HC Development', 1, 'B', null], ['HCD · HC Development', 3, 'C', null],
-            ['HCD · HC Development', null, 'D', 'Belum cukup penilai (< 5)'], ['HCC · HC Compensation & Benefit', 1, 'E', null],
+            ['HCD · HC Development', null, 'D', 'Belum cukup penilai (< 5)'], ['HCD · HC Development', null, 'F', 'Belum ada penilaian'],
+            ['HCC · HC Compensation & Benefit', 1, 'E', null],
         ]);
     });
 

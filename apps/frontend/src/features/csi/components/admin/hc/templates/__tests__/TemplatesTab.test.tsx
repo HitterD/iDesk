@@ -47,7 +47,7 @@ vi.mock('../../../../../api/csiHc.api', () => ({
         removeTemplateRater: vi.fn(async () => TEMPLATE),
         applyTemplate: vi.fn(async (_scope: string, _id: string, _period: string, commit: boolean) => ({
             picsAdded: 1, teamsAdded: 0, ratersAdded: 1, pairsAdded: 1, ratersUnconfirmed: 0, ratersOutsideSites: fx.outside, siteAdded: fx.siteAdded,
-            picsSkippedNoRaters: ['JINGGA FERDASIWI'], picsUnmatched: [],
+            picsWithoutRaters: ['JINGGA FERDASIWI'], picsUnmatched: [],
             ratersNoAccount: ['ARIEF NOEGROHO'], ratersAmbiguous: ['AGUS SUBEKTI'], blockedReason: fx.blocked, committed: commit,
         })),
     },

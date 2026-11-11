@@ -19,6 +19,8 @@ export type CsiHcPic = {
     periodRateeId: string; name: string; jobTitle: string | null; serviceCode: string | null; bagian: string | null; serviceFunction: string | null;
     /** Master PIC (same person across periods); null for legacy rows. */
     picId?: string | null;
+    /** Custom team rated as one subject: listed under its layanan after the bagian groups, labelled "Tim · <name>". */
+    team?: boolean;
 };
 
 /**
@@ -38,6 +40,8 @@ export type CsiRecapRow = CsiLocationCells & {
     respondents: number;
     /** Master PIC of a PIC row (previous-period matching); null otherwise. */
     picId: string | null;
+    /** PIC-level row of a custom team (directly under its layanan, no bagian). */
+    team?: boolean;
 };
 /** Respondent unit rows carry no location split: a masked location could be worked back out from the unit total. */
 export type CsiRespondentRow = {
@@ -133,7 +137,13 @@ export function previousOf(previous: Record<string, number | null>, row: KeyRow,
     return sameNameRows === 1 ? previous[recapRowKey(row)] : undefined;
 }
 
-/** Layanan → bagian → PIC rows (PICs without any rating are listed too, with empty cells). */
+/** Label of a custom team row in every HC table. */
+export const CSI_TEAM_ROW_PREFIX = 'Tim · ';
+
+/**
+ * Layanan → bagian → PIC rows, then the layanan's custom teams (PICs and teams without any rating are listed too,
+ * with empty cells).
+ */
 function serviceRows(pics: CsiHcPic[], ratings: CsiHcRating[], dimensions: string[], scope: ServiceScope): CsiRecapRow[] {
     const byPic = groupBy(ratings, (rating) => rating.periodRateeId);
     const rows: CsiRecapRow[] = [];
@@ -146,7 +156,7 @@ function serviceRows(pics: CsiHcPic[], ratings: CsiHcRating[], dimensions: strin
             serviceCode: serviceCode || null, bagian: null, jobTitle: null, serviceFunction: null, ...cells(serviceRatings), dimensions: dimensionAverages(serviceRatings, dimensions),
             respondents: respondentsOf(serviceRatings), picId: null,
         });
-        const bagians = groupBy(servicePics, (pic) => pic.bagian ?? '');
+        const bagians = groupBy(servicePics.filter((pic) => !pic.team), (pic) => pic.bagian ?? '');
         [...bagians.keys()].sort().forEach((bagian) => {
             const bagianPics = [...bagians.get(bagian)!].sort((a, b) => a.name.localeCompare(b.name, 'id'));
             const bagianRatings = bagianPics.flatMap((pic) => byPic.get(pic.periodRateeId) ?? []);
@@ -162,6 +172,14 @@ function serviceRows(pics: CsiHcPic[], ratings: CsiHcRating[], dimensions: strin
                     jobTitle: pic.jobTitle, serviceFunction: pic.serviceFunction, ...cells(own), dimensions: dimensionAverages(own, dimensions),
                     respondents: respondentsOf(own), picId: pic.picId ?? null,
                 });
+            });
+        });
+        servicePics.filter((pic) => pic.team).sort((a, b) => a.name.localeCompare(b.name, 'id')).forEach((pic) => {
+            const own = byPic.get(pic.periodRateeId) ?? [];
+            rows.push({
+                level: 'pic', key: `p:${pic.periodRateeId}`, label: `${CSI_TEAM_ROW_PREFIX}${pic.name}`, serviceCode: serviceCode || null, bagian: null,
+                jobTitle: null, serviceFunction: pic.serviceFunction, ...cells(own), dimensions: dimensionAverages(own, dimensions),
+                respondents: respondentsOf(own), picId: null, team: true,
             });
         });
     });
@@ -234,7 +252,7 @@ function respondentDetails(pics: CsiHcPic[], ratings: CsiHcRating[]): CsiRespond
         const first = own[0];
         const picRows = own.map((rating) => {
             const pic = picOf.get(rating.periodRateeId);
-            return { name: pic?.name ?? '-', serviceCode: pic?.serviceCode ?? null, bagian: pic?.bagian ?? null, scores: rating.scores, average: ratingValue(rating) };
+            return { name: pic ? `${pic.team ? CSI_TEAM_ROW_PREFIX : ''}${pic.name}` : '-', serviceCode: pic?.serviceCode ?? null, bagian: pic?.bagian ?? null, scores: rating.scores, average: ratingValue(rating) };
         }).sort((a, b) => compareServiceCodes(a.serviceCode, b.serviceCode) || a.name.localeCompare(b.name, 'id'));
         return {
             responseId: first.responseId, name: first.respondent.name, division: first.respondent.division, department: first.respondent.department,

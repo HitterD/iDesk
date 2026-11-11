@@ -177,9 +177,34 @@ describe('renderCsiReportPdf', () => {
         it('a long ranking continues with "<layanan> (lanjutan)" on the next page', async () => {
             const { model } = hcReportFixture();
             const row = (i: number) => ({ rank: i + 1, name: `PIC ${i}`, detail: 'PAYROLL', raters: 9, average: 4.2, word: 'Puas' as const, previous: null, delta: null });
-            const long = { ...model, rankingByService: [{ serviceCode: 'HCC', serviceName: 'HC Compensation & Benefit', ranked: Array.from({ length: 60 }, (_, i) => row(i)), insufficient: [] }] };
+            const long = { ...model, rankingByService: [{ serviceCode: 'HCC', serviceName: 'HC Compensation & Benefit', ranked: Array.from({ length: 60 }, (_, i) => row(i)), insufficient: [], noAnswers: [] }] };
             const text = await allText(long);
             expect(text).toContain('HCC · HC Compensation & Benefit (lanjutan)');
+        });
+
+        it('"Belum ada penilaian" lists the PICs without a score (bagian + "–") after "Belum cukup penilai"', async () => {
+            const { model } = hcReportFixture();
+            const none = { rank: null, name: 'Jingga Ferdasiwi', detail: 'GA MANAGEMENT', raters: 0, average: null, word: null, previous: null, delta: null };
+            const groups = model.rankingByService.map((group) => (group.serviceCode === 'HCS' ? { ...group, noAnswers: [none] } : group));
+            const spy = jest.spyOn(ReportCanvas.prototype, 'table');
+            try {
+                await renderCsiReportPdf({ model: { ...model, rankingByService: groups }, signoff, now: NOW });
+                const call = spy.mock.calls.find((args) => args[3] === 'HCS · HC Services · Belum ada penilaian');
+                expect(call).toBeDefined();
+                expect(call![1].map((row) => row.map((cell) => cell.text))).toEqual([['Jingga Ferdasiwi', 'GA Management', '0', '–', '–']]);
+            } finally {
+                spy.mockRestore();
+            }
+            const text = await allText({ ...model, rankingByService: groups });
+            const section = text.slice(text.indexOf('Peringkat per layanan'));
+            expect(section.indexOf('Belum ada penilaian')).toBeGreaterThan(section.indexOf('Belum cukup penilai (< 5)'));
+        });
+
+        it('page 1 "Yang dinilai" equals the PIC / team rows of the layanan-bagian-PIC table', async () => {
+            const { model } = hcReportFixture();
+            const rows = model.hcRecap.services.filter((row) => row.level === 'pic').length;
+            const first = (await pagesOf({ ...model, counts: { ...model.counts, people: 99 } }))[0];
+            expect(first).toMatch(new RegExp(`Yang dinilai ${rows} PIC/tim di 3 layanan`));
         });
 
         it('ICT page 1 has no per-rating note', async () => {

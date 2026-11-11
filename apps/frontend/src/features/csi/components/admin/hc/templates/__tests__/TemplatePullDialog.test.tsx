@@ -14,7 +14,7 @@ const template = (id: string, locationCode: string): CsiTemplate => ({
 });
 const report = (over: Partial<CsiTemplateApplyManyReport> = {}): CsiTemplateApplyManyReport => ({
     picsAdded: 4, teamsAdded: 1, ratersAdded: 12, pairsAdded: 30, ratersUnconfirmed: 2, ratersOutsideSites: ['BUDI'], siteAdded: null,
-    picsSkippedNoRaters: ['JINGGA'], picsUnmatched: [], ratersNoAccount: [], ratersAmbiguous: [], blockedReason: null, committed: false, nonPicRatees: 0, ...over,
+    picsWithoutRaters: ['JINGGA'], picsUnmatched: [], ratersNoAccount: [], ratersAmbiguous: [], blockedReason: null, committed: false, nonPicRatees: 0, ...over,
 });
 const fx = vi.hoisted(() => ({ nonPic: 0, fail: null as string | null }));
 vi.mock('../../../../../api/csiHc.api', () => ({

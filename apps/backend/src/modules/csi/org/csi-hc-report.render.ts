@@ -12,6 +12,7 @@ const locationValues = (recap: CsiHcRecap, row: CsiLocationCells): CellValue[] =
     [...recap.locations.map((location) => row.byLocation[location.code].average), row.all.average, row.all.ratings];
 const ALL_LOCATIONS = 'Semua lokasi';
 const LEVEL_LABEL: Record<string, string> = { service: 'Layanan', bagian: 'Bagian', pic: 'PIC', division: 'Divisi', department: 'Departemen' };
+const TEAM_LEVEL_LABEL = 'Tim';
 
 /** Three sheets: layanan/bagian/PIC (+ dimensions), respondent unit groups, and every respondent's stars per PIC. */
 export function addHcRecapSheets(workbook: ExcelJS.Workbook, recap: CsiHcRecap, withNames: boolean) {
@@ -19,7 +20,7 @@ export function addHcRecapSheets(workbook: ExcelJS.Workbook, recap: CsiHcRecap, 
         { header: 'Tingkat', width: 10 }, { header: 'Layanan', width: 10 }, { header: 'Bagian', width: 30 }, { header: 'Nama', width: 32 },
         { header: 'Jabatan', width: 28 }, { header: 'Fungsi Pelayanan', width: 32 }, ...LOCATION_COLUMNS(recap), ...recap.dimensions.map((label) => AVERAGE_COLUMN(label)),
     ], recap.services.map((row) => [
-        LEVEL_LABEL[row.level], row.serviceCode ?? '', sanitizeCell(row.bagian), sanitizeCell(row.level === 'pic' ? row.label : ''), sanitizeCell(row.jobTitle),
+        row.team ? TEAM_LEVEL_LABEL : LEVEL_LABEL[row.level], row.serviceCode ?? '', sanitizeCell(row.bagian), sanitizeCell(row.level === 'pic' ? row.label : ''), sanitizeCell(row.jobTitle),
         sanitizeCell(row.serviceFunction ?? ''),
         ...locationValues(recap, row), ...recap.dimensions.map((label) => row.dimensions[label]),
     ]));

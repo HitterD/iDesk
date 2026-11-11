@@ -39,6 +39,8 @@ export interface CsiRecapRow extends CsiLocationCells {
     respondents?: number;
     /** Master PIC of a PIC row; null otherwise. */
     picId?: string | null;
+    /** PIC-level row of a custom team ("Tim · <name>", directly under its layanan). */
+    team?: boolean;
 }
 /**
  * Respondent group (division → department → bagian): total only, no location split. A total backed by fewer than 3
@@ -144,7 +146,10 @@ export interface CsiTemplateApplyReport {
     ratersUnconfirmed: number; siteAdded: string | null;
     /** Raters whose account site is not a survey site: added, but they will not see the survey. */
     ratersOutsideSites: string[];
-    picsSkippedNoRaters: string[]; picsUnmatched: string[]; ratersNoAccount: string[]; ratersAmbiguous: string[]; committed: boolean;
+    /** PICs / teams rated without any rater yet: they are still added (warning, not skipped). */
+    picsWithoutRaters: string[];
+    /** Rows left out, each "NAME (reason)" (inactive / ambiguous PIC master, inactive team). */
+    picsUnmatched: string[]; ratersNoAccount: string[]; ratersAmbiguous: string[]; committed: boolean;
     /** Why this survey cannot take the template without hiding it from current raters (null = it can). */
     blockedReason: string | null;
 }

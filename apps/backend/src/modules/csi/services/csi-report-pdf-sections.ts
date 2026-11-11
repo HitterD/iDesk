@@ -2,7 +2,7 @@ import { Cell, Column, INK, Kpi, ReportCanvas, Tone } from '../../reports/genera
 import { CSI_RANK_MIN_RATERS, CsiRateeKind } from '../csi.constants';
 import { cleanText } from './csi-format.util';
 import { CsiCommentGroup, CsiReportModel } from './csi-report-model';
-import { CsiRankRow, CsiServiceRanking } from './csi-report-ranking';
+import { CsiRankRow, CsiServiceRanking, rankRowsOf } from './csi-report-ranking';
 import { CsiScoreBand, CsiScoreBands, scoreBand } from './csi-score-bands';
 import { scoreInk } from './csi-score-ink';
 
@@ -85,22 +85,29 @@ function rankCells(row: CsiRankRow, bands: CsiScoreBands, { detailHeader, number
     ];
 }
 
+export const INSUFFICIENT_LABEL = `Belum cukup penilai (< ${CSI_RANK_MIN_RATERS})`;
+export const NO_ANSWERS_LABEL = 'Belum ada penilaian';
+
+/** An unnumbered list under its own sub-heading (skipped when empty). */
+function unrankedTable(canvas: ReportCanvas, rows: CsiRankRow[], title: string, heading: string, layout: Omit<RankLayout, 'numbered'>, bands: CsiScoreBands) {
+    if (!rows.length) return;
+    canvas.subheading(title);
+    canvas.table(rankColumns({ ...layout, numbered: false }), rows.map((row) => rankCells(row, bands, { ...layout, numbered: false })), undefined, `${heading} · ${title}`);
+}
+
 /**
- * One ranking group: ranked rows (min CSI_RANK_MIN_RATERS raters, ties share a rank), then the unranked ones; the
- * detail column (bagian / site) is left out when no row has one.
+ * One ranking group: ranked rows (min CSI_RANK_MIN_RATERS raters, ties share a rank), then the unranked ones with a
+ * score, then everyone without a score yet (value "–"); the detail column (bagian / site) is left out when no row has one.
  */
 function rankingGroup(canvas: ReportCanvas, group: CsiServiceRanking, heading: string, input: RankingInput, model: CsiReportModel) {
     const { bands, hasPrevious } = model;
-    const hasDetail = [...group.ranked, ...group.insufficient].some((row) => !!row.detail);
+    const hasDetail = rankRowsOf(group).some((row) => !!row.detail);
     const layout = { detailHeader: hasDetail ? input.detailHeader : null, hasPrevious, detail: input.detail };
     canvas.subheading(heading);
     canvas.table(rankColumns({ ...layout, numbered: true }), group.ranked.map((row) => rankCells(row, bands, { ...layout, numbered: true })),
         `Belum ada yang dinilai minimal ${CSI_RANK_MIN_RATERS} penilai.`, heading);
-    if (!group.insufficient.length) return;
-    const insufficient = `Belum cukup penilai (< ${CSI_RANK_MIN_RATERS})`;
-    canvas.subheading(insufficient);
-    canvas.table(rankColumns({ ...layout, numbered: false }), group.insufficient.map((row) => rankCells(row, bands, { ...layout, numbered: false })),
-        undefined, `${heading} · ${insufficient}`);
+    unrankedTable(canvas, group.insufficient, INSUFFICIENT_LABEL, heading, layout, bands);
+    unrankedTable(canvas, group.noAnswers, NO_ANSWERS_LABEL, heading, layout, bands);
 }
 
 /**

@@ -18,7 +18,7 @@ const template = (id: string, locationCode: string): CsiTemplate => ({
 });
 const REPORT: CsiTemplateApplyReport = {
     picsAdded: 5, teamsAdded: 1, ratersAdded: 40, pairsAdded: 120, ratersUnconfirmed: 0, ratersOutsideSites: [], siteAdded: null,
-    picsSkippedNoRaters: ['JINGGA FERDASIWI'], picsUnmatched: [], ratersNoAccount: ['ARIEF'], ratersAmbiguous: [], blockedReason: null, committed: false,
+    picsWithoutRaters: ['JINGGA FERDASIWI'], picsUnmatched: [], ratersNoAccount: ['ARIEF'], ratersAmbiguous: [], blockedReason: null, committed: false,
 };
 const fx = vi.hoisted(() => ({ templates: [] as unknown[], report: null as unknown }));
 vi.mock('../../../../../api/csiHc.api', () => ({
@@ -126,6 +126,9 @@ describe('HcSurveyWizard', () => {
         await userEvent.click(within(dialog).getByRole('button', { name: /lanjut/i }));
         expect(await within(dialog).findByText(/7 penilai belum dikonfirmasi/i)).toBeInTheDocument();
         expect(within(dialog).getByText(/Jingga Ferdasiwi/)).toBeInTheDocument();
+        // A PIC without raters is still added: a warning of its own, never counted as "Dilewati".
+        expect(within(dialog).getByText('PIC belum punya penilai (tetap dicantumkan) (1)')).toBeInTheDocument();
+        expect(within(dialog).getByText('Dilewati (1)')).toBeInTheDocument();
         expect(within(dialog).getByRole('button', { name: /lanjut/i })).toBeEnabled();
     });
 
