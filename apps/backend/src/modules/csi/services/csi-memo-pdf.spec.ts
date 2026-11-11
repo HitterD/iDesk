@@ -153,6 +153,50 @@ describe('renderMemoPdf', () => {
         for (const expected of ['Departemen', 'Sudah', 'Total', 'Finance', 'Departemen kecil (gabungan)', '67%', 'Belum']) expect(sla).toContain(expected);
     });
 
+    /** HC survey: Budi rated by 4 responses (different times and stars), Dewi by 2, the team by all 4. */
+    function hcSurveyWithAnswers(order: 'asc' | 'desc') {
+        const survey = memoSurvey(1);
+        survey.report.period.scope = 'HC';
+        const stars = [3, 5, 1, 4];
+        const answers = stars.map((star, index) => ({
+            responseId: `resp${index}`, respondentName: `Penilai ${index}`, accountName: 'akun', areaName: 'Sepanjang', departmentName: 'Keuangan',
+            submittedAt: new Date(Date.UTC(2025, 10, 3 + index)),
+            ratees: [
+                { periodRateeId: 't', kind: 'TEAM', displayName: 'Tim IT Support', jobTitle: null, comment: null, scores: [{ dimension: 'Kecepatan', type: 'STAR', score: star, answerLabel: null, answerText: null }] },
+                { periodRateeId: 'r1', kind: 'PERSON', displayName: 'Budi Hartono', jobTitle: null, comment: null,
+                    scores: [{ dimension: 'Ramah', type: 'STAR', score: star, answerLabel: null, answerText: null }, { dimension: 'Channel', type: 'CHOICE', score: null, answerLabel: `Opsi${star}`, answerText: null }] },
+                ...(index < 2 ? [{ periodRateeId: 'r2', kind: 'PERSON', displayName: 'Dewi Lestari', jobTitle: null, comment: null,
+                    scores: [{ dimension: 'Ramah', type: 'STAR', score: 2, answerLabel: null, answerText: null }, { dimension: 'Channel', type: 'CHOICE', score: null, answerLabel: `Rahasia${index}`, answerText: null }] }] : []),
+            ],
+        }));
+        survey.answers = (order === 'asc' ? answers : [...answers].reverse()) as any;
+        return survey;
+    }
+
+    it('HC memo answer rows never follow answer time: sorted by subject, then score, the same whatever the submit order', async () => {
+        const answerText = async (order: 'asc' | 'desc') => (await pagesOf(await renderMemoPdf(memoHeader(), [hcSurveyWithAnswers(order)])))
+            .filter((page) => page.includes('No.')).join(' ');
+        const asc = await answerText('asc');
+        expect(await answerText('desc')).toBe(asc);
+        // Budi's rows by score, highest first (submit order was 3, 5, 1, 4).
+        const budi = [...asc.matchAll(/Budi Hartono (\d) \d Opsi\d/g)].map((match) => Number(match[1]));
+        expect(budi).toEqual([5, 4, 3, 1]);
+    });
+
+    it('HC memo hides the answer rows of a subject with fewer than 3 raters', async () => {
+        const all = (await pagesOf(await renderMemoPdf(memoHeader(), [hcSurveyWithAnswers('asc')]))).join(' ');
+        expect(all).toContain('Dewi Lestari: jawaban disembunyikan (kurang dari 3 penilai)');
+        expect(all).not.toMatch(/Rahasia\d/);
+        expect(all).toContain('Opsi5');
+    });
+
+    it('ICT memo keeps answer rows in submit order, one row per response and subject', async () => {
+        const survey = hcSurveyWithAnswers('asc');
+        survey.report.period.scope = 'ICT';
+        const all = (await pagesOf(await renderMemoPdf(memoHeader(), [survey]))).join(' ');
+        expect([...all.matchAll(/Penilai (\d)/g)].map((match) => Number(match[1]))).toEqual([0, 1, 2, 3]);
+    });
+
     it('ICT memo still lists the respondents and reporters by name and email', async () => {
         const all = (await pagesOf(await renderMemoPdf(memoHeader(), [memoSurvey(1)]))).join(' ');
         for (const expected of ['Timestamp', 'titi yusliyanti', 'Email', 'a@sja.co.id', 'Andi']) expect(all).toContain(expected);
