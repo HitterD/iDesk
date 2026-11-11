@@ -124,12 +124,38 @@ describe('renderMemoPdf', () => {
         const survey = memoSurvey(1);
         survey.report.period.scope = 'HC';
         const pages = await pagesOf(await renderMemoPdf(memoHeader(), [survey]));
-        const answerPages = pages.filter((page) => page.includes('Timestamp'));
+        const answerPages = pages.filter((page) => page.includes('Average') && page.includes('No.'));
         expect(answerPages).toHaveLength(2);
         expect(answerPages[0]).toContain('Dinilai');
         expect(answerPages[0]).toContain('Budi Hartono');
         expect(answerPages[1]).not.toContain('Dinilai');
         expect(answerPages[1]).toContain('Kecepatan');
+    });
+
+    it('HC memo carries no rater name or email: anonymous answer rows and participation per department only', async () => {
+        const survey = memoSurvey(1);
+        survey.report.period.scope = 'HC';
+        survey.departments = [
+            { name: 'Finance', submitted: 2, total: 3, pct: 67, met: false },
+            { name: 'Departemen kecil (gabungan)', submitted: 1, total: 2, pct: 50, met: false },
+        ];
+        const pages = await pagesOf(await renderMemoPdf(memoHeader(), [survey]));
+        const all = pages.join(' ');
+        for (const identity of ['titi yusliyanti', 'Keuangan', 'SEPANJANG', 'Andi', 'Bela', 'Citra', 'a@sja.co.id', 'b@sja.co.id', 'Timestamp', 'Area Kerja']) {
+            expect(all).not.toContain(identity);
+        }
+        const answerPages = pages.filter((page) => page.includes('Kecepatan') && page.includes('Average'));
+        expect(answerPages.length).toBeGreaterThanOrEqual(1);
+        expect(answerPages[0]).toContain('No.');
+        // No reporter table (Email | Departemen | Nama); "Email" may only appear as the CHOICE answer of the fixture.
+        expect(all).not.toMatch(/Email\s+Departemen\s+Nama/);
+        const sla = pages.find((page) => page.includes('Lampiran SLA'))!;
+        for (const expected of ['Departemen', 'Sudah', 'Total', 'Finance', 'Departemen kecil (gabungan)', '67%', 'Belum']) expect(sla).toContain(expected);
+    });
+
+    it('ICT memo still lists the respondents and reporters by name and email', async () => {
+        const all = (await pagesOf(await renderMemoPdf(memoHeader(), [memoSurvey(1)]))).join(' ');
+        for (const expected of ['Timestamp', 'titi yusliyanti', 'Email', 'a@sja.co.id', 'Andi']) expect(all).toContain(expected);
     });
 
     it('ICT survey with team and people keeps the single team table', async () => {

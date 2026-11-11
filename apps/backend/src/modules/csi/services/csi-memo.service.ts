@@ -37,7 +37,10 @@ export class CsiMemoService {
         const surveys = [];
         for (const periodId of periodIds) {
             const report = await this.reports.getReport(scope, periodId);
-            surveys.push({ report, answers: await this.reports.listAnswers(scope, periodId) });
+            const answers = await this.reports.listAnswers(scope, periodId);
+            // HC memos never list raters: the SLA appendix shows participation per department instead.
+            const departments = scope === ServiceScope.HC ? await this.reports.departmentParticipation(scope, periodId, report) : undefined;
+            surveys.push({ report, answers, departments });
         }
         const buffer = await renderMemoPdf(header, surveys);
         await this.saveSettings(scope, header);

@@ -1,3 +1,4 @@
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiRespondentMode } from '../csi.constants';
 import { formatLocation } from './csi-format.util';
 import { cell, contentWidth, Doc, drawRow, drawTable, MARGIN, MemoSurvey, PORTRAIT, scaleWidths, TableColumn, TEAL_SOFT, LINE } from './csi-memo-draw';
@@ -7,6 +8,10 @@ const HEADING_SIZE = 12;
 const BODY_SIZE = 9;
 const REPORTER_HEADERS = ['Email', 'Departemen', 'Nama'];
 const REPORTER_WEIGHTS = [40, 30, 30];
+/** HC: the same anonymous table as the report's participation per department (no names, small departments merged). */
+const DEPARTMENT_HEADERS = ['Departemen', 'Sudah', 'Total', '%', 'Status'];
+const DEPARTMENT_WEIGHTS = [46, 12, 12, 12, 18];
+const DEPARTMENT_ALIGN: Array<'left' | 'right'> = ['left', 'right', 'right', 'right', 'left'];
 
 /** Summary box rows: label | value. */
 function summaryRows(survey: MemoSurvey): Array<[string, string]> {
@@ -19,7 +24,26 @@ function summaryRows(survey: MemoSurvey): Array<[string, string]> {
     ];
 }
 
-/** "Lampiran SLA" page(s): summary box and the reporter table (Email | Departemen | Nama). */
+/** Reporter rows (ICT: Email | Departemen | Nama) or, for HC, participation per department without any name. */
+function appendixTable(doc: Doc, survey: MemoSurvey): { columns: TableColumn[]; rows: string[][] } {
+    const width = contentWidth(doc);
+    if (survey.report.period.scope === ServiceScope.HC) {
+        const widths = scaleWidths(DEPARTMENT_WEIGHTS, width);
+        return {
+            columns: DEPARTMENT_HEADERS.map((header, i) => ({ header, width: widths[i], align: DEPARTMENT_ALIGN[i] })),
+            rows: (survey.departments ?? []).map((row) => [
+                cell(row.name), String(row.submitted), String(row.total), formatPercent(row.pct), row.met ? 'Tercapai' : 'Belum',
+            ]),
+        };
+    }
+    const widths = scaleWidths(REPORTER_WEIGHTS, width);
+    return {
+        columns: REPORTER_HEADERS.map((header, i) => ({ header, width: widths[i] })),
+        rows: survey.report.sla.reporters.map((reporter) => [cell(reporter.email), cell(reporter.department), cell(reporter.fullName)]),
+    };
+}
+
+/** "Lampiran SLA" page(s): summary box and the appendix table (see appendixTable). */
 export function drawSlaPages(doc: Doc, survey: MemoSurvey): void {
     const { report } = survey;
     doc.addPage(PORTRAIT);
@@ -31,9 +55,7 @@ export function drawSlaPages(doc: Doc, survey: MemoSurvey): void {
     for (const row of summaryRows(survey)) y = drawRow(doc, boxColumns, row, y, { size: BODY_SIZE, bold: false, fill: TEAL_SOFT });
     doc.lineWidth(0.5).strokeColor(LINE);
 
-    const widths = scaleWidths(REPORTER_WEIGHTS, contentWidth(doc));
-    const columns: TableColumn[] = REPORTER_HEADERS.map((header, i) => ({ header, width: widths[i] }));
-    const rows = report.sla.reporters.map((reporter) => [cell(reporter.email), cell(reporter.department), cell(reporter.fullName)]);
+    const { columns, rows } = appendixTable(doc, survey);
     drawTable(doc, columns, rows, y + 14, BODY_SIZE, () => {
         doc.addPage(PORTRAIT);
         return MARGIN;

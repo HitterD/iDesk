@@ -18,6 +18,9 @@ export function questionsOf(ratees: ReportRatee[], kind: CsiRateeKind): ExportQu
     return [...seen.values()];
 }
 
+/** Leading respondent identity columns of answerColumns / answerRows (Timestamp, Nama, Area Kerja, Departemen). */
+export const ANSWER_IDENTITY_COLUMNS = 4;
+
 /** Columns: Timestamp, Nama, Area Kerja, Departemen, [Dinilai], then answer (+ "Point n" for scored) per question, Average. */
 export function answerColumns(questions: ExportQuestion[], withRatee: boolean): ColumnSpec[] {
     let point = 0;

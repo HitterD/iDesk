@@ -1,6 +1,6 @@
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiRateeKind } from '../csi.constants';
-import { answerColumns, answerRows, questionsOf } from './csi-export.answers';
+import { ANSWER_IDENTITY_COLUMNS, answerColumns, answerRows, questionsOf } from './csi-export.answers';
 import { formatLocation } from './csi-format.util';
 import { cell, contentWidth, Doc, drawTable, MARGIN, MemoSurvey, scaleWidths, TableColumn, unquote } from './csi-memo-draw';
 import { formatAverage } from './csi-memo-page';
@@ -8,6 +8,7 @@ import { formatAverage } from './csi-memo-page';
 const ANSWER_FONT = 6.5;
 const HEADING_SIZE = 12;
 const HEADING_GAP = 8;
+const ROW_NUMBER_COLUMN = { header: 'No.', width: 6 };
 
 export const LANDSCAPE = { size: 'A4', layout: 'landscape', margin: MARGIN } as const;
 
@@ -23,6 +24,9 @@ function answerKinds(survey: MemoSurvey): CsiRateeKind[] {
     return [kinds.has(CsiRateeKind.TEAM) ? CsiRateeKind.TEAM : CsiRateeKind.PERSON];
 }
 
+/** HC memos never name a rater: answer rows are numbered instead of carrying timestamp, name, area and department. */
+const isAnonymous = (survey: MemoSurvey) => survey.report.period.scope === ServiceScope.HC;
+
 /** Landscape page(s) with the survey's answer table(s), see answerKinds. */
 export function drawAnswerPages(doc: Doc, survey: MemoSurvey): void {
     answerKinds(survey).forEach((kind) => drawAnswerTable(doc, survey, kind));
@@ -31,9 +35,12 @@ export function drawAnswerPages(doc: Doc, survey: MemoSurvey): void {
 function drawAnswerTable(doc: Doc, survey: MemoSurvey, kind: CsiRateeKind): void {
     const { report, answers } = survey;
     const questions = questionsOf(report.ratees, kind);
-    const specs = answerColumns(questions, kind === CsiRateeKind.PERSON);
+    const named = answerColumns(questions, kind === CsiRateeKind.PERSON);
+    const namedRows = answerRows(answers, kind, questions);
+    const anonymous = isAnonymous(survey);
+    const specs = anonymous ? [ROW_NUMBER_COLUMN, ...named.slice(ANSWER_IDENTITY_COLUMNS)] : named;
+    const raw = anonymous ? namedRows.map((values, index) => [index + 1, ...values.slice(ANSWER_IDENTITY_COLUMNS)]) : namedRows;
     const lastIndex = specs.length - 1;
-    const raw = answerRows(answers, kind, questions);
     const numeric = specs.map((_, i) => raw.length > 0 && raw.every((values) => values[i] === null || typeof values[i] === 'number'));
     const rows = raw
         .map((values) => values.map((value, i) => i === lastIndex && typeof value === 'number' ? formatAverage(value) : unquote(cell(value))));

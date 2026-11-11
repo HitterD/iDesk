@@ -1,8 +1,10 @@
 import { cleanText } from './csi-format.util';
 import { CsiAnswer, CsiReportService } from './csi-report.service';
+import { CsiDepartmentParticipation } from './csi-report-participation';
 
 export type MemoReport = Awaited<ReturnType<CsiReportService['getReport']>>;
-export type MemoSurvey = { report: MemoReport; answers: CsiAnswer[] };
+/** `departments`: HC only, the anonymous participation per rater department (replaces the reporter list). */
+export type MemoSurvey = { report: MemoReport; answers: CsiAnswer[]; departments?: CsiDepartmentParticipation[] };
 
 export type Doc = PDFKit.PDFDocument;
 export type Align = 'left' | 'right' | 'center';

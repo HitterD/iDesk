@@ -28,6 +28,7 @@ import { locationOfSiteCode } from '../org/csi-org.constants';
 import { CsiPendingDepartment, pendingByDepartment } from '../org/csi-service-report.calc';
 import { ratedAccountOf } from './csi-ratee-owner.util';
 import { isRaterInAudience } from './csi-rater-audience.util';
+import { CsiDepartmentParticipation, departmentParticipation } from './csi-report-participation';
 import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entity';
 import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
 import { CsiAssignmentTemplateRater } from '../entities/csi-assignment-template-rater.entity';
@@ -230,6 +231,16 @@ export class CsiReportService {
             templateRatersWithoutAccount: scope === ServiceScope.HC ? await this.templateRatersWithoutAccount(scope, sites.map((site) => site.code)) : 0,
         });
         return { ...model, hcRecap: hcRecap?.services.some((row) => row.level === 'pic' && row.serviceCode) ? hcRecap : null };
+    }
+
+    /**
+     * Participation per rater department without names (the report's Lampiran B), for the whole survey: the basis
+     * raters of the given report's SLA (`report.sla.reporters`) against the period's answers.
+     */
+    async departmentParticipation(scope: ServiceScope, periodId: string, report: { sla: { reporters: CsiSlaReporter[]; targetPct: number } }): Promise<CsiDepartmentParticipation[]> {
+        await this.findInScope(scope, periodId);
+        const responses = await this.responses.find({ where: { periodId } });
+        return departmentParticipation(await this.basisRaters(report.sla.reporters, responses), report.sla.targetPct);
     }
 
     /**
