@@ -4,7 +4,8 @@ import { CsiRespondentMode } from '../csi.constants';
 import { CsiExportService, sanitizeCell } from './csi-export.service';
 import { hcReportFixture, reportFixture } from './csi-report-model.fixture';
 
-const EXECUTIVE = ['Ringkasan', 'Peringkat', 'Partisipasi', 'Per Pertanyaan Tim', 'Per Pertanyaan Orang', 'Departemen', 'Komentar'];
+const ICT_SHEETS = ['1 Ringkasan', '2 Peringkat', '3 Partisipasi & SLA', '4 Per pertanyaan', '5 Komentar'];
+const HC_SHEETS = ['1 Ringkasan', '2 Per layanan', '3 Layanan-bagian-PIC', '4 Peringkat', '5 Partisipasi & SLA', '6 Rekap responden', '7 Per pertanyaan', '8 Komentar'];
 
 const NOW = new Date('2026-10-24T18:30:00Z'); // 2026-10-25 01:30 WIB
 
@@ -64,166 +65,187 @@ describe('CsiExportService', () => {
         expect(sanitizeCell('Budi')).toBe('Budi');
     });
 
-    it('excel has Rekap/Penilaian Tim/Penilaian Per Orang with Point columns only for scored questions', async () => {
+    const raw = async () => {
+        const { buffer, filename } = await service.buildRawWorkbook(ServiceScope.ICT, 'p1', NOW);
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(buffer as any);
+        return { workbook, filename };
+    };
+    const workbookOf = async (model: unknown) => {
+        reports.getExecutiveModel.mockImplementation(async () => model);
+        return load();
+    };
+    const headerRowOf = (sheet: ExcelJS.Worksheet, firstHeader: string) => {
+        for (let row = 1; row <= sheet.rowCount; row++) if (sheet.getRow(row).getCell(1).value === firstHeader) return row;
+        throw new Error(`header ${firstHeader} not found in ${sheet.name}`);
+    };
+    const headerOf = (sheet: ExcelJS.Worksheet, firstHeader: string) =>
+        (sheet.getRow(headerRowOf(sheet, firstHeader)).values as unknown[]).slice(1).filter((value) => value !== undefined && value !== null);
+    /** Data rows (and totals) of the table under `firstHeader`, up to the first empty row. */
+    const rowsOf = (sheet: ExcelJS.Worksheet, firstHeader: string) => {
+        const rows: unknown[][] = [];
+        for (let row = headerRowOf(sheet, firstHeader) + 1; row <= sheet.rowCount; row++) {
+            const values = (sheet.getRow(row).values as unknown[]).slice(1);
+            if (!values.some((value) => value !== null && value !== undefined)) break;
+            rows.push(values);
+        }
+        return rows;
+    };
+    const summaryCell = (workbook: ExcelJS.Workbook, label: string) => {
+        const summary = workbook.getWorksheet('1 Ringkasan')!;
+        const index = (summary.getColumn(1).values as unknown[]).indexOf(label);
+        return index < 0 ? undefined : summary.getRow(index).getCell(2);
+    };
+    const summaryValue = (workbook: ExcelJS.Workbook, label: string) => summaryCell(workbook, label)?.value;
+    const sheetText = (sheet: ExcelJS.Worksheet) => {
+        const text: string[] = [];
+        sheet.eachRow((row) => text.push(JSON.stringify(row.values)));
+        return text.join('\n');
+    };
+    const allText = (workbook: ExcelJS.Workbook) => workbook.worksheets.map(sheetText).join('\n');
+    const filterLastRow = (sheet: ExcelJS.Worksheet) => {
+        const filter = sheet.autoFilter as unknown;
+        const ref = typeof filter === 'string' ? filter : `${(filter as any).from}:${(filter as any).to}`;
+        return Number(/(\d+)$/.exec(ref)![1]);
+    };
+
+    it('ICT main workbook: numbered sheets without the HC-only ones; no raw answers read', async () => {
         const workbook = await load();
-        expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual([...EXECUTIVE, 'Rekap', 'Penilaian Tim', 'Penilaian Per Orang', 'Penilai x Subjek']);
-
-        const recap = workbook.getWorksheet('Rekap')!;
-        // "Average survei" is the executive model overall (same value as Ringkasan / PDF page 1); no % Pengisi column.
-        const overall = reportFixture({ people: 3, sites: 2 }).model.overall.average;
-        expect(recap.getRow(1).values).toEqual([undefined, 'Lokasi', 'Nama', 'Average', 'Average survei']);
-        expect(recap.getRow(2).values).toEqual([undefined, 'Semarang & Sepanjang', 'Tim IT Support', 4, overall]);
-        expect(recap.getRow(3).getCell(2).value).toBe(`'=HYPERLINK("x")`);
-
-        const team = workbook.getWorksheet('Penilaian Tim')!;
-        expect(team.getRow(1).values).toEqual([undefined, 'Timestamp', 'Nama', 'Area Kerja', 'Departemen', 'Kecepatan', 'Point 1', 'Average']);
-        expect(team.getRow(2).values).toEqual([undefined, '2025/11/03 3:14:32 PM GMT+7', 'titi yusliyanti', 'SEPANJANG', "'+Keuangan", 4, 4, 4]);
-
-        const people = workbook.getWorksheet('Penilaian Per Orang')!;
-        expect(people.getRow(1).values).toEqual([
-            undefined, 'Timestamp', 'Nama', 'Area Kerja', 'Departemen', 'Dinilai', 'Ramah', 'Point 1', 'Channel', 'Saran', 'Average',
-        ]);
-        expect(people.getRow(2).values).toEqual([
-            undefined, '2025/11/03 3:14:32 PM GMT+7', 'titi yusliyanti', 'SEPANJANG', "'+Keuangan", 'Budi', 5, 5, 'Email', "'-bagus", 5,
-        ]);
+        expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(ICT_SHEETS);
+        expect(reports.listAnswers).not.toHaveBeenCalled();
     });
 
-    it('Rekap names each custom team by its own name, falling back to the period team label', async () => {
-        const report = await reports.getReport();
-        report.ratees = [
-            { periodRateeId: 't1', kind: 'TEAM', displayName: 'Tim Payroll', average: 4, questions: [q('Kecepatan', 'STAR')] },
-            { periodRateeId: 't2', kind: 'TEAM', displayName: '', average: 3, questions: [q('Kecepatan', 'STAR')] },
-        ];
-        reports.getReport.mockResolvedValue(report);
-        const recap = (await load()).getWorksheet('Rekap')!;
-        expect(recap.getRow(2).getCell(2).value).toBe('Tim Payroll');
-        expect(recap.getRow(3).getCell(2).value).toBe('Tim IT Support');
+    it('HC main workbook: sheets 1-8 in the agreed order', async () => {
+        const workbook = await workbookOf(hcReportFixture({ respondents: 30 }).model);
+        expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(HC_SHEETS);
     });
 
-    it('omits Penilaian Tim without a TEAM ratee', async () => {
-        const report = await reports.getReport();
-        report.ratees = report.ratees.filter((ratee: any) => ratee.kind === 'PERSON');
-        reports.getReport.mockResolvedValue(report);
-        expect((await load()).worksheets.map((sheet) => sheet.name)).toEqual([...EXECUTIVE, 'Rekap', 'Penilaian Per Orang', 'Penilai x Subjek']);
+    it('main workbook carries no rater name or e-mail anywhere (HC and ICT)', async () => {
+        const hc = allText(await workbookOf(hcReportFixture({ respondents: 30 }).model));
+        const ict = allText(await workbookOf(reportFixture({ people: 3, sites: 2 }).model));
+        expect(hc).toContain('Anita Payroll');
+        expect(`${hc}\n${ict}`).not.toMatch(/Penilai Rahasia|titi yusliyanti|akun|@[a-z]/i);
     });
 
-    it('excel header style teal and wrapped', async () => {
-        const sheet = (await load()).getWorksheet('Penilaian Per Orang')!;
-        const header = sheet.getRow(1);
-        expect(header.height).toBe(60);
-        expect(header.getCell(1).font?.bold).toBe(true);
-        expect(header.getCell(1).fill).toMatchObject({ type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4BC0C8' } });
-        expect(header.getCell(1).alignment).toMatchObject({ wrapText: true, vertical: 'middle' });
-        expect(sheet.autoFilter).toBeTruthy();
-        expect(header.getCell(1).border?.top?.style).toBe('thin');
-        expect(sheet.views[0]).toMatchObject({ state: 'frozen', ySplit: 1 });
-        expect(sheet.getColumn(1).width).toBe(26);
-        expect(sheet.getColumn(3).width).toBe(16);
-        expect(sheet.getColumn(6).width).toBe(22);
-        expect(sheet.getColumn(7).width).toBe(8);
-        expect(sheet.getColumn(10).width).toBe(11);
-        const average = sheet.getRow(2).getCell(10);
-        expect(average.numFmt).toBe('0.00');
-        expect(average.fill).toMatchObject({ fgColor: { argb: 'FFDDF2F4' } });
-        expect(average.border?.left?.style).toBe('thin');
+    it('header style: navy, white bold Calibri, wrapped; zebra and hairline borders; frozen, print titles, tab colour', async () => {
+        const sheet = (await workbookOf(hcReportFixture({ respondents: 30 }).model)).getWorksheet('4 Peringkat')!;
+        const headerRow = headerRowOf(sheet, 'Layanan');
+        const header = sheet.getRow(headerRow).getCell(1);
+        expect(header.fill).toMatchObject({ type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3A5F' } });
+        expect(header.font).toMatchObject({ bold: true, name: 'Calibri', color: { argb: 'FFFFFFFF' } });
+        expect(header.alignment).toMatchObject({ wrapText: true, vertical: 'middle' });
+        expect(sheet.getRow(headerRow + 2).getCell(3).fill).toMatchObject({ fgColor: { argb: 'FFF5F7FA' } });
+        expect(sheet.getRow(headerRow + 1).getCell(3).border?.left).toMatchObject({ style: 'thin', color: { argb: 'FFD9DEE7' } });
+        expect(sheet.views[0]).toMatchObject({ state: 'frozen', ySplit: headerRow, xSplit: 1 });
+        expect(sheet.pageSetup).toMatchObject({ orientation: 'landscape', fitToWidth: 1, paperSize: 9, printTitlesRow: `${headerRow}:${headerRow}` });
+        expect(sheet.properties.tabColor).toBeTruthy();
     });
 
-    it('adds a "Penilai x Subjek" sheet: one row per respondent, average per subject, totals below', async () => {
-        const sheet = (await load()).getWorksheet('Penilai x Subjek')!;
-        expect(sheet.getRow(1).values).toEqual([undefined, 'Timestamp', 'Nama penilai', 'Area Kerja', 'Departemen', 'Tim · Tim IT Support', `'=HYPERLINK("x")`, 'Rata-rata penilai']);
-        expect(sheet.getRow(2).values).toEqual([undefined, '2025/11/03 3:14:32 PM GMT+7', 'titi yusliyanti', 'SEPANJANG', "'+Keuangan", 4, 5, 4.5]);
-        expect(sheet.getRow(3).getCell(2).value).toBe('Jumlah penilai');
-        expect(sheet.getRow(3).getCell(5).value).toBe(1);
-        expect(sheet.getRow(4).getCell(6).value).toBe(5);
-        expect(sheet.getRow(2).getCell(6).fill).toMatchObject({ fgColor: { argb: 'FFD7F0DE' } });
-        expect(sheet.views[0]).toMatchObject({ state: 'frozen', xSplit: 4, ySplit: 1 });
+    it('Ringkasan: title block, real numbers (score, percent as a fraction with 0%), hyperlinked table of contents', async () => {
+        const { model } = hcReportFixture({ respondents: 30 });
+        const workbook = await workbookOf(model);
+        const summary = workbook.getWorksheet('1 Ringkasan')!;
+        expect(summary.getCell('A1').value).toBe('Laporan Kepuasan Layanan HC');
+        expect(String(summary.getCell('A2').value)).toContain('CSI HC November');
+        const overall = summaryCell(workbook, 'Nilai keseluruhan (1-5)')!;
+        expect(overall.value).toBe(model.overall.average);
+        expect(overall.numFmt).toBe('0.00');
+        const pct = summaryCell(workbook, 'SLA % sudah mengisi')!;
+        expect(pct.value).toBe(0.75);
+        expect(pct.numFmt).toBe('0%');
+        expect(summaryValue(workbook, 'Indeks')).toBeCloseTo(model.overall.indexPct! / 100, 5);
+        HC_SHEETS.slice(1).forEach((name) => expect((summaryValue(workbook, name) as any).formula).toContain(`#'${name}'!A1`));
     });
 
-    it('custom bands colour the "Penilai x Subjek" cells by the survey bands', async () => {
-        // Bands 3.0 / 3.8: the team score 4 is green here (orange with the default 4.0 / 4.5).
-        reports.getExecutiveModel.mockImplementation(async () => ({ ...reportFixture({ people: 3, sites: 2 }).model, bands: { fairMin: 3, goodMin: 3.8 } }));
-        const sheet = (await load()).getWorksheet('Penilai x Subjek')!;
-        expect(sheet.getRow(2).getCell(5).value).toBe(4);
-        expect(sheet.getRow(2).getCell(5).fill).toMatchObject({ fgColor: { argb: 'FFD7F0DE' } });
-    });
-
-    it('default bands colour a 4 orange in "Penilai x Subjek"', async () => {
-        const sheet = (await load()).getWorksheet('Penilai x Subjek')!;
-        expect(sheet.getRow(2).getCell(5).fill).toMatchObject({ fgColor: { argb: 'FFFCEBC8' } });
+    it('Ringkasan: simulation banner only for a SIMULASI survey', async () => {
+        expect(allText(await workbookOf(hcReportFixture().model))).not.toContain('SIMULASI');
+        const simulated = await workbookOf({ ...hcReportFixture().model, simulation: true });
+        expect(String(simulated.getWorksheet('1 Ringkasan')!.getCell('A3').value)).toMatch(/^SIMULASI/);
+        expect(String(simulated.getWorksheet('8 Komentar')!.getCell('A3').value)).toMatch(/^SIMULASI/);
     });
 
     it('executive sheets carry the same parameters as the PDF: notes, departments without names', async () => {
         const { buffer } = await service.buildWorkbook(ServiceScope.ICT, 'p1', NOW, { notes: 'Tindak lanjut A' });
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(buffer as any);
-        const summary = workbook.getWorksheet('Ringkasan')!;
-        const labels = summary.getColumn(1).values as unknown[];
-        expect(labels).toEqual(expect.arrayContaining(['Nilai keseluruhan (1-5)', 'Predikat', 'Δ vs periode lalu', 'Poin utama', 'Catatan & tindak lanjut']));
-        const notesRow = labels.indexOf('Catatan & tindak lanjut');
-        expect(summary.getRow(notesRow).getCell(2).value).toBe('Tindak lanjut A');
-        expect(workbook.getWorksheet('Departemen')!.getRow(1).values).toEqual([undefined, 'Departemen', 'Sudah', 'Total', '%', 'Target']);
-        expect(workbook.getWorksheet('Departemen')!.getRow(2).values).toEqual([undefined, 'Departemen kecil (gabungan)', 0, 2, 0, 'Belum']);
-        expect(workbook.getWorksheet('Basis Partisipasi')).toBeUndefined();
+        const labels = workbook.getWorksheet('1 Ringkasan')!.getColumn(1).values as unknown[];
+        expect(labels).toEqual(expect.arrayContaining(['Nilai keseluruhan (1-5)', 'Predikat', 'Poin utama', 'Catatan & tindak lanjut']));
+        const summary = workbook.getWorksheet('1 Ringkasan')!;
+        expect(summary.getRow(labels.indexOf('Catatan & tindak lanjut') + 1).getCell(1).value).toBe('•  Tindak lanjut A');
+        const participation = workbook.getWorksheet('3 Partisipasi & SLA')!;
+        expect(headerOf(participation, 'Departemen')).toEqual(['Departemen', 'Sudah', 'Total', '%', 'Target']);
+        expect(rowsOf(participation, 'Departemen')[0]).toEqual(['Departemen kecil (gabungan)', 0, 2, 0, 'Belum']);
+        expect(rowsOf(participation, 'Departemen')[1][3]).toBe(0.2);
         expect(reports.getExecutiveModel).toHaveBeenCalledWith(ServiceScope.ICT, 'p1', expect.objectContaining({ notes: 'Tindak lanjut A' }));
     });
-    const workbookOf = async (model: unknown) => {
-        reports.getExecutiveModel.mockImplementation(async () => model);
-        return load();
-    };
-    const rowsOf = (sheet: ExcelJS.Worksheet) => Array.from({ length: sheet.rowCount - 1 }, (_, i) => (sheet.getRow(i + 2).values as unknown[]).slice(1));
-    const summaryValue = (workbook: ExcelJS.Workbook, label: string) => {
-        const summary = workbook.getWorksheet('Ringkasan')!;
-        const index = (summary.getColumn(1).values as unknown[]).indexOf(label);
-        return index < 0 ? undefined : summary.getRow(index).getCell(2).value;
-    };
 
-    it('summary sheet carries the SLA cells: sudah/basis, %, target % and orang, status with the missing answers', async () => {
+    it('summary SLA cells: sudah, basis, %, target % and orang, status; no "% Pengisi" anywhere', async () => {
         const { model } = hcReportFixture({ respondents: 30 });
         const workbook = await workbookOf(model);
-        expect(summaryValue(workbook, 'SLA sudah mengisi / basis')).toBe('30/40');
-        expect(summaryValue(workbook, 'SLA % sudah mengisi')).toBe(75);
-        expect(summaryValue(workbook, 'Target SLA (%)')).toBe(90);
+        expect(summaryValue(workbook, 'Sudah mengisi')).toBe(30);
+        expect(summaryValue(workbook, 'Basis partisipasi')).toBe(40);
+        expect(summaryValue(workbook, 'Target SLA (%)')).toBe(0.9);
         expect(summaryValue(workbook, 'Target SLA (orang)')).toBe(36);
         expect(summaryValue(workbook, 'Status SLA')).toBe('Belum memenuhi SLA — kurang 6 jawaban');
         const met = await workbookOf({ ...model, sla: { ...model.sla, submitted: 36, met: true, missing: 0 } });
         expect(summaryValue(met, 'Status SLA')).toBe('Memenuhi SLA');
-        // One status only: the older "Status target" duplicate is gone.
-        expect(summaryValue(workbook, 'Status target')).toBeUndefined();
-    });
-
-    it('HC: one overall value in Ringkasan, Partisipasi total, Rekap and PDF page 1 (per-rating recap basis)', async () => {
-        const { model } = hcReportFixture({ respondents: 30 });
-        const overall = model.hcRecap.overall.all.average;
-        expect(model.overall.average).toBe(overall);
-        const workbook = await workbookOf(model);
-        expect(summaryValue(workbook, 'Nilai keseluruhan (1-5)')).toBe(overall);
-        const participation = workbook.getWorksheet('Partisipasi')!;
-        const total = (participation.getRow(participation.rowCount).values as unknown[]).slice(1);
-        expect(total[0]).toBe('Total');
-        expect(total[total.length - 1]).toBe(overall);
-        const rekap = workbook.getWorksheet('Rekap')!;
-        expect(rowsOf(rekap).every((cells) => cells[3] === overall)).toBe(true);
-    });
-
-    it('one SLA percentage only: no "% Pengisi (SLA)" in Ringkasan, Partisipasi or Rekap', async () => {
-        const workbook = await workbookOf(hcReportFixture({ respondents: 30 }).model);
-        expect(summaryValue(workbook, '% Pengisi (SLA)')).toBeUndefined();
-        expect(summaryValue(workbook, '% Responden')).toBeUndefined();
-        expect(summaryValue(workbook, 'SLA % sudah mengisi')).toBe(75);
-        expect((workbook.getWorksheet('Partisipasi')!.getRow(1).values as unknown[]).slice(1))
-            .toEqual(['Site', 'Basis', 'Target', 'Sudah mengisi', '% Sudah mengisi', 'Status', 'Nilai']);
-        workbook.worksheets.forEach((sheet) => expect((sheet.getRow(1).values as unknown[]).join('|')).not.toContain('Pengisi'));
+        expect(allText(workbook)).not.toContain('Pengisi');
     });
 
     it('Ringkasan: template raters without an iDesk account are counted (only when there are any)', async () => {
         const { model } = hcReportFixture({ respondents: 30 });
         const label = 'Penilai template tanpa akun';
         expect(summaryValue(await workbookOf({ ...model, templateRatersWithoutAccount: 0 }), label)).toBeUndefined();
-        expect(summaryValue(await workbookOf({ ...model, templateRatersWithoutAccount: 4 }), label))
-            .toBe('4 penilai di template belum punya akun iDesk (tidak termasuk basis)');
+        const workbook = await workbookOf({ ...model, templateRatersWithoutAccount: 4 });
+        const cell = summaryCell(workbook, label)!;
+        expect(cell.value).toBe(4);
+        expect(workbook.getWorksheet('1 Ringkasan')!.getCell(Number(cell.row), 3).value).toBe('4 penilai di template belum punya akun iDesk (tidak termasuk basis)');
     });
 
-    it('one "Peringkat" sheet per layanan: competition ranks, insufficient rows unnumbered with a note, no Bintang', async () => {
+    it('HC: one overall value in Ringkasan, Partisipasi total and Per layanan total (per-rating recap basis)', async () => {
+        const { model } = hcReportFixture({ respondents: 30 });
+        const overall = model.hcRecap.overall.all.average;
+        expect(model.overall.average).toBe(overall);
+        const workbook = await workbookOf(model);
+        expect(summaryValue(workbook, 'Nilai keseluruhan (1-5)')).toBe(overall);
+        const total = rowsOf(workbook.getWorksheet('5 Partisipasi & SLA')!, 'Site').at(-1)!;
+        expect(total[0]).toBe('Total');
+        expect(total[6]).toBe(overall);
+        const services = rowsOf(workbook.getWorksheet('2 Per layanan')!, 'Layanan');
+        const header = headerOf(workbook.getWorksheet('2 Per layanan')!, 'Layanan');
+        expect(services.find((cells) => cells[0] === 'Semua layanan')![header.indexOf('Rata-rata')]).toBe(overall);
+    });
+
+    it('Partisipasi: % as a fraction with 0%, totals row bold on the total fill and outside the filter', async () => {
+        const sheet = (await workbookOf(hcReportFixture({ respondents: 30 }).model)).getWorksheet('5 Partisipasi & SLA')!;
+        expect(headerOf(sheet, 'Site')).toEqual(['Site', 'Basis', 'Target', 'Sudah mengisi', '% Sudah mengisi', 'Status', 'Nilai']);
+        const header = headerRowOf(sheet, 'Site');
+        const totalRow = header + rowsOf(sheet, 'Site').length;
+        const pct = sheet.getRow(header + 1).getCell(5);
+        expect(pct.numFmt).toBe('0%');
+        expect(typeof pct.value === 'number' && pct.value <= 1).toBe(true);
+        expect(sheet.getRow(totalRow).getCell(1).font?.bold).toBe(true);
+        expect(sheet.getRow(totalRow).getCell(1).fill).toMatchObject({ fgColor: { argb: 'FFE8EDF5' } });
+        // The one filter of the sheet is on the department table, never on the site totals.
+        expect(filterLastRow(sheet)).toBeGreaterThan(totalRow);
+    });
+
+    it('totals rows stay outside the autofilter range (Per layanan)', async () => {
+        const sheet = (await workbookOf(hcReportFixture({ respondents: 30 }).model)).getWorksheet('2 Per layanan')!;
+        const rows = rowsOf(sheet, 'Layanan');
+        expect(rows.at(-1)![0]).toBe('Semua layanan');
+        expect(filterLastRow(sheet)).toBe(headerRowOf(sheet, 'Layanan') + rows.length - 1);
+    });
+
+    it('score cells take the survey band fill', async () => {
+        const { model } = hcReportFixture({ respondents: 30 });
+        const good = (await workbookOf({ ...model, bands: { fairMin: 1, goodMin: 1.5 } })).getWorksheet('2 Per layanan')!;
+        expect(good.getRow(headerRowOf(good, 'Layanan') + 1).getCell(2).fill).toMatchObject({ fgColor: { argb: 'FFD7F2EC' } });
+        const poor = (await workbookOf({ ...model, bands: { fairMin: 4.9, goodMin: 5 } })).getWorksheet('2 Per layanan')!;
+        expect(poor.getRow(headerRowOf(poor, 'Layanan') + 1).getCell(2).fill).toMatchObject({ fgColor: { argb: 'FFFBDDD7' } });
+    });
+
+    it('"4 Peringkat" per layanan: competition ranks, unranked rows unnumbered with a note', async () => {
         const { model } = hcReportFixture({ respondents: 30 });
         const row = (name: string, raters: number, average: number) => ({ name, detail: 'PAYROLL', raters, average, word: 'Puas', previous: null, delta: null });
         const ranking = [
@@ -231,11 +253,9 @@ describe('CsiExportService', () => {
                 noAnswers: [{ ...row('F', 0, 0), average: null, word: null, rank: null }] },
             { serviceCode: 'HCC', serviceName: 'HC Compensation & Benefit', ranked: [{ ...row('E', 5, 4.2), rank: 1 }], insufficient: [], noAnswers: [] },
         ];
-        const sheet = (await workbookOf({ ...model, hasPrevious: false, rankingByService: ranking })).getWorksheet('Peringkat')!;
-        const header = (sheet.getRow(1).values as unknown[]).slice(1);
-        expect(header).toEqual(['Layanan', '#', 'Nama', 'Bagian', 'Penilai', 'Nilai', 'Predikat', 'Keterangan']);
-        expect(header.join('|')).not.toMatch(/★|Bintang|Lalu|Δ/);
-        expect(rowsOf(sheet).map((cells) => [cells[0], cells[1] ?? null, cells[2], cells[7] ?? null])).toEqual([
+        const sheet = (await workbookOf({ ...model, hasPrevious: false, rankingByService: ranking })).getWorksheet('4 Peringkat')!;
+        expect(headerOf(sheet, 'Layanan')).toEqual(['Layanan', '#', 'Nama', 'Bagian', 'Penilai', 'Nilai', 'Predikat', 'Keterangan']);
+        expect(rowsOf(sheet, 'Layanan').map((cells) => [cells[0], cells[1] ?? null, cells[2], cells[7] ?? null])).toEqual([
             ['HCD · HC Development', 1, 'A', null], ['HCD · HC Development', 1, 'B', null], ['HCD · HC Development', 3, 'C', null],
             ['HCD · HC Development', null, 'D', 'Belum cukup penilai (< 5)'], ['HCD · HC Development', null, 'F', 'Belum ada penilaian'],
             ['HCC · HC Compensation & Benefit', 1, 'E', null],
@@ -243,52 +263,118 @@ describe('CsiExportService', () => {
     });
 
     it('"Peringkat" adds Lalu / Δ only with a previous period; ICT groups are Tim and Orang with a Site column', async () => {
-        const hc = (await workbookOf(hcReportFixture({ previous: true }).model)).getWorksheet('Peringkat')!;
-        expect((hc.getRow(1).values as unknown[]).slice(1)).toEqual(['Layanan', '#', 'Nama', 'Bagian', 'Penilai', 'Nilai', 'Predikat', 'Lalu', 'Δ', 'Keterangan']);
-        const ict = (await workbookOf(reportFixture({ people: 3, sites: 2 }).model)).getWorksheet('Peringkat')!;
-        expect((ict.getRow(1).values as unknown[])[4]).toBe('Site');
-        expect(new Set(rowsOf(ict).map((cells) => cells[0]))).toEqual(new Set(['Tim', 'Orang']));
+        const hc = (await workbookOf(hcReportFixture({ previous: true }).model)).getWorksheet('4 Peringkat')!;
+        expect(headerOf(hc, 'Layanan')).toEqual(['Layanan', '#', 'Nama', 'Bagian', 'Penilai', 'Nilai', 'Predikat', 'Lalu', 'Δ', 'Keterangan']);
+        const ict = (await workbookOf(reportFixture({ people: 3, sites: 2 }).model)).getWorksheet('2 Peringkat')!;
+        expect(headerOf(ict, 'Kelompok')[3]).toBe('Site');
+        expect(new Set(rowsOf(ict, 'Kelompok').map((cells) => cells[0]))).toEqual(new Set(['Tim', 'Orang']));
     });
 
-    it('"Komentar" has no date or department columns and is ordered per layanan HCD, HCC, HCS', async () => {
+    it('"8 Komentar" has no date or department columns and is ordered per layanan HCD, HCC, HCS', async () => {
         const { model } = hcReportFixture();
-        const sheet = (await workbookOf(model)).getWorksheet('Komentar')!;
-        expect((sheet.getRow(1).values as unknown[]).slice(1)).toEqual(['Layanan', 'Dinilai', 'Jenis', 'Komentar']);
-        const rows = rowsOf(sheet);
+        const sheet = (await workbookOf(model)).getWorksheet('8 Komentar')!;
+        expect(headerOf(sheet, 'Layanan')).toEqual(['Layanan', 'Dinilai', 'Jenis', 'Komentar']);
+        const rows = rowsOf(sheet, 'Layanan');
         expect(rows.flat().join(' ')).not.toMatch(/PRODUKSI|2026/);
         const services = rows.map((cells) => String(cells[0]).slice(0, 3));
-        const firstOf = (code: string) => services.indexOf(code);
-        expect(firstOf('HCD')).toBe(0);
-        expect(firstOf('HCD') < firstOf('HCC') && firstOf('HCC') < firstOf('HCS')).toBe(true);
+        expect(services[0]).toBe('HCD');
         expect([...services]).toEqual([...services].sort((a, b) => ['HCD', 'HCC', 'HCS'].indexOf(a) - ['HCD', 'HCC', 'HCS'].indexOf(b)));
-        // Stable: the same model gives the same order.
-        expect(rowsOf((await workbookOf(model)).getWorksheet('Komentar')!)).toEqual(rows);
+        expect(rowsOf((await workbookOf(model)).getWorksheet('8 Komentar')!, 'Layanan')).toEqual(rows);
     });
 
-    it('"HC Per Divisi Responden" has no location columns: only the total and the respondent count', async () => {
-        const sheet = (await workbookOf(hcReportFixture().model)).getWorksheet('HC Per Divisi Responden')!;
-        expect((sheet.getRow(1).values as unknown[]).slice(1)).toEqual(['Tingkat', 'Divisi', 'Departemen', 'Bagian', 'Semua lokasi', 'Responden']);
+    it('"6 Rekap responden" has no location columns: only the total and the respondent count', async () => {
+        const sheet = (await workbookOf(hcReportFixture().model)).getWorksheet('6 Rekap responden')!;
+        expect(headerOf(sheet, 'Divisi / Departemen / Bagian')).toEqual(['Divisi / Departemen / Bagian', 'Tingkat', 'Rata-rata diberikan', 'Responden']);
     });
 
-    it('"HC Layanan-Bagian-PIC" location cells under 3 respondents are empty', async () => {
+    it('"3 Layanan-bagian-PIC": location cells under 3 respondents are empty; levels styled', async () => {
         const { model } = hcReportFixture();
-        const sheet = (await workbookOf(model)).getWorksheet('HC Layanan-Bagian-PIC')!;
-        const header = (sheet.getRow(1).values as unknown[]).slice(1);
+        const sheet = (await workbookOf(model)).getWorksheet('3 Layanan-bagian-PIC')!;
+        const headerRow = headerRowOf(sheet, 'Layanan / Bagian / PIC');
+        const header = headerOf(sheet, 'Layanan / Bagian / PIC');
         const masked = model.hcRecap.services.findIndex((row) => Object.values(row.byLocation).some((cell) => cell.ratings > 0 && cell.average === null));
         expect(masked).toBeGreaterThanOrEqual(0);
         const row = model.hcRecap.services[masked];
-        const cells = (sheet.getRow(masked + 2).values as unknown[]).slice(1);
+        const cells = (sheet.getRow(headerRow + 1 + masked).values as unknown[]).slice(1);
         model.hcRecap.locations.forEach((location) => {
             if (row.byLocation[location.code].average === null) expect(cells[header.indexOf(location.label)] ?? null).toBeNull();
         });
+        expect(sheet.getRow(headerRow + 1).getCell(1).font?.bold).toBe(true);
+        expect(sheet.getRow(headerRow + 1).getCell(1).fill).toMatchObject({ fgColor: { argb: 'FFDCE4EF' } });
+        const pic = model.hcRecap.services.findIndex((service) => service.level === 'pic');
+        expect(sheet.getRow(headerRow + 1 + pic).getCell(1).alignment?.indent).toBe(2);
     });
 
-    it('admin respondent-detail sheet lists each respondent\'s PICs in layanan order HCD, HCC, HCS', async () => {
-        const sheet = (await workbookOf(hcReportFixture().model)).getWorksheet('HC Jawaban Responden')!;
-        const order = ['HCD', 'HCC', 'HCS'];
-        const byRespondent = new Map<string, string[]>();
-        rowsOf(sheet).forEach((cells) => byRespondent.set(String(cells[0]), [...(byRespondent.get(String(cells[0])) ?? []), String(cells[5])]));
-        byRespondent.forEach((codes) => expect(codes).toEqual([...codes].sort((a, b) => order.indexOf(a) - order.indexOf(b))));
-        expect([...byRespondent.values()].some((codes) => new Set(codes).size > 1)).toBe(true);
+    describe('raw-data workbook', () => {
+        it('confidential filename, red banner above every table, header row 3, sheets in order', async () => {
+            const { workbook, filename } = await raw();
+            expect(filename).toBe('csi-ict-2026-10-25 - DATA MENTAH (RAHASIA).xlsx');
+            expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['Penilaian Tim', 'Penilaian Per Orang', 'Penilai x Subjek']);
+            workbook.worksheets.forEach((sheet) => {
+                expect(String(sheet.getCell('A1').value)).toMatch(/^RAHASIA/);
+                expect(sheet.getCell('A1').fill).toMatchObject({ fgColor: { argb: 'FFB42318' } });
+                expect(sheet.views[0]).toMatchObject({ state: 'frozen', ySplit: 3 });
+            });
+        });
+
+        it('answer sheets: Point columns only for scored questions, timestamps as Date (WIB)', async () => {
+            const { workbook } = await raw();
+            const team = workbook.getWorksheet('Penilaian Tim')!;
+            expect((team.getRow(3).values as unknown[]).slice(1)).toEqual(['Timestamp', 'Nama', 'Area Kerja', 'Departemen', 'Kecepatan', 'Point 1', 'Average']);
+            const first = (team.getRow(4).values as unknown[]).slice(1);
+            expect(first[0]).toBeInstanceOf(Date);
+            // 2025-11-03 08:14:32Z shows as 15:14:32 (Jakarta).
+            expect((first[0] as Date).toISOString()).toBe('2025-11-03T15:14:32.000Z');
+            expect(team.getRow(4).getCell(1).numFmt).toBe('dd mmm yyyy hh:mm');
+            expect(first.slice(1)).toEqual(['titi yusliyanti', 'SEPANJANG', "'+Keuangan", 4, 4, 4]);
+            const people = workbook.getWorksheet('Penilaian Per Orang')!;
+            expect((people.getRow(3).values as unknown[]).slice(1)).toEqual([
+                'Timestamp', 'Nama', 'Area Kerja', 'Departemen', 'Dinilai', 'Ramah', 'Point 1', 'Channel', 'Saran', 'Average',
+            ]);
+            expect((people.getRow(4).values as unknown[]).slice(2)).toEqual(['titi yusliyanti', 'SEPANJANG', "'+Keuangan", 'Budi', 5, 5, 'Email', "'-bagus", 5]);
+        });
+
+        it('omits Penilaian Tim without a TEAM ratee', async () => {
+            const report = await reports.getReport();
+            report.ratees = report.ratees.filter((ratee: any) => ratee.kind === 'PERSON');
+            reports.getReport.mockResolvedValue(report);
+            expect((await raw()).workbook.worksheets.map((sheet) => sheet.name)).toEqual(['Penilaian Per Orang', 'Penilai x Subjek']);
+        });
+
+        it('"Penilai x Subjek": one row per respondent, totals below and outside the filter, band fills', async () => {
+            const sheet = (await raw()).workbook.getWorksheet('Penilai x Subjek')!;
+            expect((sheet.getRow(3).values as unknown[]).slice(1)).toEqual(['Timestamp', 'Nama penilai', 'Area Kerja', 'Departemen', 'Tim · Tim IT Support', `'=HYPERLINK("x")`, 'Rata-rata penilai']);
+            expect((sheet.getRow(4).values as unknown[]).slice(2)).toEqual(['titi yusliyanti', 'SEPANJANG', "'+Keuangan", 4, 5, 4.5]);
+            expect(sheet.getRow(4).getCell(1).value).toBeInstanceOf(Date);
+            expect(sheet.getRow(5).getCell(2).value).toBe('Jumlah penilai');
+            expect(sheet.getRow(5).getCell(5).value).toBe(1);
+            expect(sheet.getRow(6).getCell(6).value).toBe(5);
+            expect(filterLastRow(sheet)).toBe(4);
+            expect(sheet.views[0]).toMatchObject({ state: 'frozen', xSplit: 4, ySplit: 3 });
+            // Default bands 4.0 / 4.5: 5 good, 4 fair.
+            expect(sheet.getRow(4).getCell(6).fill).toMatchObject({ fgColor: { argb: 'FFD7F2EC' } });
+            expect(sheet.getRow(4).getCell(5).fill).toMatchObject({ fgColor: { argb: 'FFFFF1CC' } });
+        });
+
+        it('custom survey bands colour the matrix', async () => {
+            reports.getExecutiveModel.mockImplementation(async () => ({ ...reportFixture({ people: 3, sites: 2 }).model, bands: { fairMin: 3, goodMin: 3.8 } }));
+            const sheet = (await raw()).workbook.getWorksheet('Penilai x Subjek')!;
+            expect(sheet.getRow(4).getCell(5).fill).toMatchObject({ fgColor: { argb: 'FFD7F2EC' } });
+        });
+
+        it('HC: respondent answers per PIC in layanan order HCD, HCC, HCS (names only in this file)', async () => {
+            reports.getExecutiveModel.mockImplementation(async () => hcReportFixture().model);
+            const sheet = (await raw()).workbook.getWorksheet('HC Jawaban Responden')!;
+            expect(sheet.getRow(3).getCell(1).value).toBe('Responden');
+            const order = ['HCD', 'HCC', 'HCS'];
+            const byRespondent = new Map<string, string[]>();
+            for (let row = 4; row <= sheet.rowCount; row++) {
+                const cells = (sheet.getRow(row).values as unknown[]).slice(1);
+                byRespondent.set(String(cells[0]), [...(byRespondent.get(String(cells[0])) ?? []), String(cells[5])]);
+            }
+            expect([...byRespondent.keys()].some((name) => name.startsWith('Penilai Rahasia'))).toBe(true);
+            byRespondent.forEach((codes) => expect(codes).toEqual([...codes].sort((a, b) => order.indexOf(a) - order.indexOf(b))));
+            expect([...byRespondent.values()].some((codes) => new Set(codes).size > 1)).toBe(true);
+        });
     });
 });

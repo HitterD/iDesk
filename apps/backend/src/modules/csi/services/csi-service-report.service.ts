@@ -1,20 +1,24 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import * as ExcelJS from 'exceljs';
 import { In, IsNull, Not, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CsiPeriodPublishStatus } from '../csi.constants';
+import { CSI_SIMULATION_BANNER, CsiPeriodPublishStatus, isSimulation } from '../csi.constants';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiHcRecap } from '../org/csi-hc-report.calc';
-import { addHcRecapSheets } from '../org/csi-hc-report.render';
+import { addHcAnswersRawSheet, addHcNestedSheet, addHcRespondentSheet, addHcServiceSheet, HcSheetContext } from '../org/csi-hc-report.render';
 import { buildServiceReport, CsiPendingDepartment, mergeSmallDepartments } from '../org/csi-service-report.calc';
-import { addStyledSheet } from './csi-export.sheet';
+import { addTable, sectionRow, startReportSheet, XlColumn } from './csi-excel-style';
+import { surveyLineOf } from './csi-export.executive';
+import { newCsiWorkbook, RAW_FILENAME_SUFFIX } from './csi-export.service';
+import { sanitizeCell } from './csi-export.sheet';
 import { CsiReportAccessService } from './csi-report-access.service';
 import { CsiHcPeriodRef, CsiReportService } from './csi-report.service';
 import { CsiScoreBands } from './csi-score-bands';
 
-const PENDING_SHEET = 'Belum menilai per departemen';
+/** Main service workbook (anonymous; numbered like the admin report) and the owner's raw-data file. */
+export const SERVICE_SHEETS = ['1 Per layanan', '2 Layanan-bagian-PIC', '3 Rekap responden', '4 Belum menilai'] as const;
+const PENDING_COLUMNS: XlColumn[] = [{ header: 'Departemen' }, { header: 'Belum menilai', kind: 'count' }, { header: 'Total penilai', kind: 'count' }];
 
 export type CsiServiceReport = CsiHcRecap & {
     period: CsiHcPeriodRef; scoreBands: CsiScoreBands; serviceCode: string; pending: CsiPendingDepartment[] | null;
@@ -74,17 +78,48 @@ export class CsiServiceReportService {
         if (!visible) throw new NotFoundException('Periode tidak ditemukan');
     }
 
+    /** Main service workbook: anonymous recap sheets (no rater names) and who has not answered per department (merged < 3). */
     async exportWorkbook(userId: string, periodId: string, serviceCode: string, scope: ServiceScope): Promise<{ filename: string; buffer: Buffer }> {
         const report = await this.get(userId, periodId, serviceCode, scope);
-        const workbook = new ExcelJS.Workbook();
-        workbook.creator = 'iDesk CSI';
-        addHcRecapSheets(workbook, report, true);
+        const context = this.sheetContext(report);
+        const workbook = newCsiWorkbook(report.period.title, new Date());
+        addHcServiceSheet(workbook, SERVICE_SHEETS[0], context);
+        addHcNestedSheet(workbook, SERVICE_SHEETS[1], context);
+        addHcRespondentSheet(workbook, SERVICE_SHEETS[2], context);
         if (report.pending) {
-            addStyledSheet(workbook, PENDING_SHEET, [
-                { header: 'Departemen', width: 36 }, { header: 'Belum menilai', width: 14 }, { header: 'Total penilai', width: 14 },
-            ], report.pending.map((row) => [row.department, row.pending, row.total]));
+            const { sheet, row } = startReportSheet(workbook, {
+                name: SERVICE_SHEETS[3], tab: 'participation', title: 'Belum menilai per departemen', subtitle: context.surveyLine,
+                simulation: context.simulation, span: PENDING_COLUMNS.length,
+            });
+            addTable(sheet, PENDING_COLUMNS, report.pending.map((pending) => [sanitizeCell(pending.department), pending.pending, pending.total]), {
+                headerRow: sectionRow(sheet, row, 'Tanpa nama; departemen dengan kurang dari 3 penilai digabung', PENDING_COLUMNS.length),
+                freeze: true, emptyText: 'Semua penilai sudah mengisi.',
+            });
         }
-        const filename = `csi-${scope.toLowerCase()}-${report.serviceCode}-${report.period.id.slice(0, 8)}.xlsx`;
-        return { filename, buffer: Buffer.from(await workbook.xlsx.writeBuffer()) };
+        return { filename: `${this.baseName(report, scope)}.xlsx`, buffer: Buffer.from(await workbook.xlsx.writeBuffer()) };
+    }
+
+    /**
+     * Raw data of the owner's own service: every rating with the rater's name, except the ratings about the owner
+     * themself, which stay "Anonim" exactly as on the screen (same report as `get`).
+     */
+    async exportRawWorkbook(userId: string, periodId: string, serviceCode: string, scope: ServiceScope): Promise<{ filename: string; buffer: Buffer }> {
+        const report = await this.get(userId, periodId, serviceCode, scope);
+        const workbook = newCsiWorkbook(`${report.period.title}${RAW_FILENAME_SUFFIX}`, new Date());
+        addHcAnswersRawSheet(workbook, report, this.sheetContext(report).surveyLine, report.scoreBands);
+        return { filename: `${this.baseName(report, scope)}${RAW_FILENAME_SUFFIX}.xlsx`, buffer: Buffer.from(await workbook.xlsx.writeBuffer()) };
+    }
+
+    private sheetContext(report: CsiServiceReport): HcSheetContext {
+        const { period } = report;
+        return {
+            recap: report, bands: report.scoreBands, hasPrevious: false,
+            surveyLine: surveyLineOf({ title: period.title, startDate: period.startDate, endDate: period.endDate, siteLabel: `Layanan ${report.serviceCode}` }),
+            simulation: isSimulation(period) ? CSI_SIMULATION_BANNER : null,
+        };
+    }
+
+    private baseName(report: CsiServiceReport, scope: ServiceScope) {
+        return `csi-${scope.toLowerCase()}-${report.serviceCode}-${report.period.id.slice(0, 8)}`;
     }
 }

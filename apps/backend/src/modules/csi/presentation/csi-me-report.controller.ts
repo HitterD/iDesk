@@ -9,6 +9,12 @@ type CsiMeRequest = { user: { userId: string } };
 const ID_PIPE = new ParseUUIDPipe({ exceptionFactory: () => new BadRequestException('ID harus berupa UUID') });
 const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
+function sendXlsx(res: Response, { filename, buffer }: { filename: string; buffer: Buffer }) {
+    res.setHeader('Content-Type', XLSX_CONTENT_TYPE);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+}
+
 /**
  * Service report for service report owners (any role) of a scope: `hc` (layanan) or `ict` (teams). The service checks
  * ownership on every call. `/csi/me/hc/...` is the path the HC page has always used.
@@ -35,9 +41,12 @@ export class CsiMeReportController {
 
     @Get('periods/:id/services/:serviceCode/export')
     async export(@Req() req: CsiMeRequest, @Param('scope') scope: string, @Param('id', ID_PIPE) id: string, @Param('serviceCode') serviceCode: string, @Res() res: Response) {
-        const { filename, buffer } = await this.reports.exportWorkbook(req.user.userId, id, serviceCode, parseCsiScope(scope));
-        res.setHeader('Content-Type', XLSX_CONTENT_TYPE);
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.send(buffer);
+        sendXlsx(res, await this.reports.exportWorkbook(req.user.userId, id, serviceCode, parseCsiScope(scope)));
+    }
+
+    /** Raw ratings of the owner's own service (rater names; ratings about the owner stay anonymous). */
+    @Get('periods/:id/services/:serviceCode/export-raw')
+    async exportRaw(@Req() req: CsiMeRequest, @Param('scope') scope: string, @Param('id', ID_PIPE) id: string, @Param('serviceCode') serviceCode: string, @Res() res: Response) {
+        sendXlsx(res, await this.reports.exportRawWorkbook(req.user.userId, id, serviceCode, parseCsiScope(scope)));
     }
 }

@@ -137,6 +137,13 @@ export function previousOf(previous: Record<string, number | null>, row: KeyRow,
     return sameNameRows === 1 ? previous[recapRowKey(row)] : undefined;
 }
 
+/** Change against the previous period: matched by master PIC, else by a name only one row of this report carries. */
+export const recapDelta = (recap: CsiHcRecap, row: CsiRecapRow): number | null => {
+    if (!recap.previous || row.all.average === null) return null;
+    const sameName = recap.services.filter((other) => recapRowKey(other) === recapRowKey(row)).length;
+    const before = previousOf(recap.previous, row, sameName);
+    return before === null || before === undefined ? null : Math.round((row.all.average - before) * 100) / 100;
+};
 /** Label of a custom team row in every HC table. */
 export const CSI_TEAM_ROW_PREFIX = 'Tim · ';
 /** Report name of a rated subject: "Tim · <name>" for a custom team, the PIC name otherwise. */

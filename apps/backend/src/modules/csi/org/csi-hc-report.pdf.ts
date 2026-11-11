@@ -3,7 +3,7 @@ import { CsiReportModel } from '../services/csi-report-model';
 import {
     choicesTable, commentsSection, dec, deltaColor, departmentsTable, DASH, rankingSection, scoreCell, shuffledTexts, signed, summary, TABLE_KEEP, text,
 } from '../services/csi-report-pdf-sections';
-import { collapseRespondentRows, CSI_NO_BAGIAN_LABEL, CsiCell, CsiHcRecap, CsiLocationCells, CsiRecapRow, CsiRespondentRow, previousOf, recapRowKey } from './csi-hc-report.calc';
+import { collapseRespondentRows, CSI_NO_BAGIAN_LABEL, CsiCell, CsiHcRecap, CsiLocationCells, CsiRecapRow, CsiRespondentRow, recapDelta } from './csi-hc-report.calc';
 import { compareServiceCodes } from '../services/csi-report-ranking';
 import { serviceName } from './csi-org.constants';
 
@@ -33,13 +33,6 @@ type HcModel = CsiReportModel & { hcRecap: CsiHcRecap };
 /** Ranking detail: bagian in title case; the "Tanpa bagian" label stays exactly as in the recap tables. */
 const bagianDetail = (value: string) => (value === CSI_NO_BAGIAN_LABEL ? value : titleCase(value));
 
-/** Change against the previous period: matched by master PIC, else by a name only one row of this report carries. */
-const delta = (recap: CsiHcRecap, row: CsiRecapRow): number | null => {
-    if (!recap.previous || row.all.average === null) return null;
-    const sameName = recap.services.filter((other) => recapRowKey(other) === recapRowKey(row)).length;
-    const before = previousOf(recap.previous, row, sameName);
-    return before === null || before === undefined ? null : Math.round((row.all.average - before) * 100) / 100;
-};
 const deltaCell = (value: number | null): Cell => ({ text: signed(value), color: deltaColor(value) });
 
 /** Columns: label, the 5 dimensions (full names), Rata-rata, Penilai and, with a previous period, Selisih. */
@@ -58,7 +51,7 @@ function dimensionCells(model: HcModel, row: CsiRecapRow, label: Cell, bold: boo
     return [
         label, ...recap.dimensions.map((dimension) => scoreCell(row.dimensions[dimension], bands, bold)),
         scoreCell(row.all.average, bands, true), { text: String(row.respondents) },
-        ...(model.hasPrevious ? [deltaCell(delta(recap, row))] : []),
+        ...(model.hasPrevious ? [deltaCell(recapDelta(recap, row))] : []),
     ];
 }
 

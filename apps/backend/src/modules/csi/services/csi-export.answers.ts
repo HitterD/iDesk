@@ -1,5 +1,6 @@
 import { CsiQuestionType, CsiRateeKind } from '../csi.constants';
 import { CsiAnswer, CsiAnswerRatee, CsiAnswerScore } from './csi-report.service';
+import { wibDate, XlValue } from './csi-excel-style';
 import { AVERAGE_COLUMN, CellValue, ColumnSpec, sanitizeCell, WIDTH } from './csi-export.sheet';
 import { formatTimestampWib } from './csi-format.util';
 import { responseAverage } from './csi-score.util';
@@ -26,10 +27,10 @@ export function answerColumns(questions: ExportQuestion[], withRatee: boolean): 
     let point = 0;
     const perQuestion = questions.flatMap((question): ColumnSpec[] => {
         const answer = { header: sanitizeCell(question.name), width: WIDTH.question };
-        return isScored(question.type) ? [answer, { header: `Point ${++point}`, width: WIDTH.point }] : [answer];
+        return isScored(question.type) ? [answer, { header: `Point ${++point}`, width: WIDTH.point, kind: 'count' }] : [answer];
     });
     return [
-        { header: 'Timestamp', width: WIDTH.timestamp }, { header: 'Nama', width: WIDTH.name },
+        { header: 'Timestamp', width: WIDTH.timestamp, kind: 'date' }, { header: 'Nama', width: WIDTH.name },
         { header: 'Area Kerja', width: WIDTH.area }, { header: 'Departemen', width: WIDTH.department },
         ...(withRatee ? [{ header: 'Dinilai', width: WIDTH.name }] : []),
         ...perQuestion, AVERAGE_COLUMN('Average'),
@@ -42,10 +43,12 @@ function answerCells(question: ExportQuestion, score: CsiAnswerScore | undefined
     return isScored(question.type) ? [shown, score?.score ?? null] : [shown];
 }
 
-function answerRow(answer: CsiAnswer, ratee: CsiAnswerRatee, questions: ExportQuestion[], withRatee: boolean): CellValue[] {
+type Stamp = (date: Date) => XlValue;
+
+function answerRow(answer: CsiAnswer, ratee: CsiAnswerRatee, questions: ExportQuestion[], withRatee: boolean, stamp: Stamp): XlValue[] {
     const byName = new Map(ratee.scores.map((score) => [score.dimension, score]));
     return [
-        formatTimestampWib(answer.submittedAt), sanitizeCell(answer.respondentName), sanitizeCell((answer.areaName ?? '').toUpperCase()),
+        stamp(answer.submittedAt), sanitizeCell(answer.respondentName), sanitizeCell((answer.areaName ?? '').toUpperCase()),
         sanitizeCell(answer.departmentName),
         ...(withRatee ? [sanitizeCell(ratee.displayName)] : []),
         ...questions.flatMap((question) => answerCells(question, byName.get(question.name))),
@@ -53,8 +56,16 @@ function answerRow(answer: CsiAnswer, ratee: CsiAnswerRatee, questions: ExportQu
     ];
 }
 
-/** One row per (response, ratee) of the given kind. */
+const rowsOf = (answers: CsiAnswer[], kind: CsiRateeKind, questions: ExportQuestion[], stamp: Stamp) =>
+    answers.flatMap((answer) => answer.ratees.filter((ratee) => ratee.kind === kind)
+        .map((ratee) => answerRow(answer, ratee, questions, kind === CsiRateeKind.PERSON, stamp)));
+
+/** One row per (response, ratee) of the given kind; the timestamp as WIB text (memo PDF tables). */
 export function answerRows(answers: CsiAnswer[], kind: CsiRateeKind, questions: ExportQuestion[]): CellValue[][] {
-    return answers.flatMap((answer) => answer.ratees.filter((ratee) => ratee.kind === kind)
-        .map((ratee) => answerRow(answer, ratee, questions, kind === CsiRateeKind.PERSON)));
+    return rowsOf(answers, kind, questions, formatTimestampWib) as CellValue[][];
+}
+
+/** answerRows for the raw-data workbook: the timestamp is a real Date (Jakarta time). */
+export function answerSheetRows(answers: CsiAnswer[], kind: CsiRateeKind, questions: ExportQuestion[]): XlValue[][] {
+    return rowsOf(answers, kind, questions, wibDate);
 }

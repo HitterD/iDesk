@@ -78,17 +78,48 @@ describe('CsiServiceReportService', () => {
         expect(reports.hcRecapInput).not.toHaveBeenCalled();
     });
 
-    it('the Excel export keeps the self rows anonymous', async () => {
-        access.assertService.mockResolvedValue({ admin: false });
-        const { buffer, filename } = await service.exportWorkbook('u-rara', 'p1', 'HCD', ServiceScope.HC);
-        expect(filename).toMatch(/HCD/);
+    const textOf = async (buffer: Buffer) => {
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(buffer as any);
         const text: string[] = [];
         workbook.eachSheet((sheet) => sheet.eachRow((row) => text.push(JSON.stringify(row.values))));
-        const raraRows = text.filter((line) => line.includes('"RARA"') && line.includes('Knowledge') === false && line.includes('Anonim'));
-        expect(raraRows.length).toBeGreaterThan(0);
+        return { workbook, text };
+    };
+
+    it('the main Excel export is anonymous: numbered recap sheets, pending per department merged, no rater names', async () => {
+        access.assertService.mockResolvedValue({ admin: true });
+        const { buffer, filename } = await service.exportWorkbook('admin', 'p1', 'HCD', ServiceScope.HC);
+        expect(filename).toBe('csi-hc-HCD-p1.xlsx');
+        const { workbook, text } = await textOf(buffer);
+        expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['1 Per layanan', '2 Layanan-bagian-PIC', '3 Rekap responden', '4 Belum menilai']);
+        expect(text.join(' | ')).not.toMatch(/ELVI CYNTHIA|BUDI RAHASIA|SECRET/);
+        expect(text.join(' | ')).toContain('Departemen kecil (gabungan)');
+        expect(text.join(' | ')).toContain('PRISCILLA');
+    });
+
+    it('the pending department name is sanitised against formula injection', async () => {
+        access.assertService.mockResolvedValue({ admin: true });
+        reports.getRespondents.mockResolvedValueOnce({ pendingByDepartment: [{ department: '=CMD()', pending: 1, total: 5 }], pending: [] } as any);
+        const { text } = await textOf((await service.exportWorkbook('admin', 'p1', 'HCD', ServiceScope.HC)).buffer);
+        expect(text.join(' | ')).toContain("'=CMD()");
+    });
+
+    it('the raw export names the raters of the service but keeps the owner own ratings anonymous', async () => {
+        access.assertService.mockResolvedValue({ admin: false });
+        const { buffer, filename } = await service.exportRawWorkbook('u-rara', 'p1', 'HCD', ServiceScope.HC);
+        expect(filename).toBe('csi-hc-HCD-p1 - DATA MENTAH (RAHASIA).xlsx');
+        const { workbook, text } = await textOf(buffer);
+        expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['HC Jawaban Responden']);
+        expect(String(workbook.worksheets[0].getCell('A1').value)).toMatch(/^RAHASIA/);
+        expect(text.some((line) => line.includes('ELVI CYNTHIA') && line.includes('"PRISCILLA"'))).toBe(true);
         expect(text.some((line) => line.includes('ELVI CYNTHIA') && line.includes('"RARA"'))).toBe(false);
+        expect(text.some((line) => line.includes('Anonim') && line.includes('"RARA"'))).toBe(true);
+    });
+
+    it('the raw export of another service is refused before any data is read', async () => {
+        access.assertService.mockRejectedValue(new ForbiddenException());
+        await expect(service.exportRawWorkbook('u-rara', 'p1', 'HCC', ServiceScope.HC)).rejects.toBeInstanceOf(ForbiddenException);
+        expect(reports.hcRecapInput).not.toHaveBeenCalled();
     });
 
     it('lists HC periods only for users with at least one service', async () => {

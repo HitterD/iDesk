@@ -1,54 +1,41 @@
 import * as ExcelJS from 'exceljs';
 import { CsiRateeKind } from '../csi.constants';
-import { addStyledSheet, AVERAGE_COLUMN, CellValue, ColumnSpec, sanitizeCell, WIDTH } from './csi-export.sheet';
-import { formatTimestampWib } from './csi-format.util';
+import { addTable, RAW_HEADER_ROW, startRawSheet, wibDate, XlColumn, XlValue } from './csi-excel-style';
+import { sanitizeCell } from './csi-export.sheet';
 import { CsiRaterMatrix } from './csi-rater-matrix.calc';
-import { CsiScoreBand, CsiScoreBands, scoreBand } from './csi-score-bands';
+import { CsiScoreBands } from './csi-score-bands';
 
 export const SHEET_MATRIX = 'Penilai x Subjek';
 const SUBJECT_WIDTH = 14;
-const FILL = { good: 'FFD7F0DE', warn: 'FFFCEBC8', bad: 'FFF8D3CF', empty: 'FFF1F1F4' } as const;
-const BAND_FILL: Record<CsiScoreBand, string> = { good: FILL.good, fair: FILL.warn, poor: FILL.bad };
+const FIXED_COLUMNS = 4;
 
 const kindPrefix = (kind: CsiRateeKind) => (kind === CsiRateeKind.TEAM ? 'Tim · ' : '');
-/** Fill of a cell under the survey bands (same green / orange / red split as the PDF). */
-const toneOf = (value: unknown, bands: CsiScoreBands) => {
-    const band = typeof value === 'number' ? scoreBand(value, bands) : null;
-    return band ? BAND_FILL[band] : FILL.empty;
-};
-const fill = (argb: string): ExcelJS.Fill => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
 
 /**
- * "Penilai x Subjek": one row per respondent, one column per subject with the average they gave (empty = not rated),
- * a total row with rater counts and averages, and cell fills by the survey score bands. Admin-only (it carries respondent names).
+ * "Penilai x Subjek" (raw workbook only, it names the respondents): one row per respondent, one column per subject with
+ * the average they gave (empty = not rated, fill by the survey bands), and below the filter range the rater count and
+ * the average per subject.
  */
-export function addMatrixSheet(workbook: ExcelJS.Workbook, matrix: CsiRaterMatrix, bands: CsiScoreBands) {
+export function addMatrixSheet(workbook: ExcelJS.Workbook, matrix: CsiRaterMatrix, bands: CsiScoreBands, surveyLine: string) {
     if (!matrix.subjects.length) return;
-    const fixed: ColumnSpec[] = [
-        { header: 'Timestamp', width: WIDTH.timestamp }, { header: 'Nama penilai', width: WIDTH.name },
-        { header: 'Area Kerja', width: WIDTH.area }, { header: 'Departemen', width: WIDTH.department },
+    const columns: XlColumn[] = [
+        { header: 'Timestamp', kind: 'date' }, { header: 'Nama penilai' }, { header: 'Area Kerja' }, { header: 'Departemen' },
+        ...matrix.subjects.map((subject): XlColumn => ({
+            header: sanitizeCell(`${kindPrefix(subject.kind)}${subject.displayName}`), kind: 'score', band: true, width: SUBJECT_WIDTH,
+        })),
+        { header: 'Rata-rata penilai', kind: 'score', band: true },
     ];
-    const subjectColumns = matrix.subjects.map((subject): ColumnSpec => ({
-        ...AVERAGE_COLUMN(sanitizeCell(`${kindPrefix(subject.kind)}${subject.displayName}`)), width: SUBJECT_WIDTH,
-    }));
-    const columns = [...fixed, ...subjectColumns, AVERAGE_COLUMN('Rata-rata penilai')];
-    const rows: CellValue[][] = matrix.rows.map((row) => [
-        formatTimestampWib(row.submittedAt), sanitizeCell(row.respondentName), sanitizeCell((row.areaName ?? '').toUpperCase()),
+    const rows: XlValue[][] = matrix.rows.map((row) => [
+        wibDate(row.submittedAt), sanitizeCell(row.respondentName), sanitizeCell((row.areaName ?? '').toUpperCase()),
         sanitizeCell(row.departmentName), ...row.scores, row.average,
     ]);
-    const sheet = addStyledSheet(workbook, SHEET_MATRIX, columns, rows);
-    const first = fixed.length + 1;
-    rows.forEach((_, index) => matrix.subjects.forEach((__, offset) => {
-        const cell = sheet.getRow(index + 2).getCell(first + offset);
-        cell.fill = fill(toneOf(cell.value, bands));
-        cell.alignment = { horizontal: 'center', vertical: 'middle' };
-    }));
-    const countRow = sheet.addRow(['', 'Jumlah penilai', '', '', ...matrix.totals.map((total) => total.raters), null]);
-    const averageRow = sheet.addRow(['', 'Rata-rata subjek', '', '', ...matrix.totals.map((total) => total.average), null]);
-    [countRow, averageRow].forEach((row) => row.eachCell({ includeEmpty: true }, (cell, column) => {
-        cell.font = { bold: true };
-        cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
-        if (column >= first && row === averageRow) cell.numFmt = '0.00';
-    }));
-    sheet.views = [{ state: 'frozen', xSplit: fixed.length, ySplit: 1 }];
+    const blank = Array<XlValue>(FIXED_COLUMNS - 2).fill(null);
+    const sheet = startRawSheet(workbook, SHEET_MATRIX, surveyLine, Math.min(columns.length, 10));
+    addTable(sheet, columns, rows, {
+        bands, headerRow: RAW_HEADER_ROW, freeze: { columns: FIXED_COLUMNS },
+        totals: [
+            { values: [null, 'Jumlah penilai', ...blank, ...matrix.totals.map((total) => total.raters), null], numberKind: 'count' },
+            [null, 'Rata-rata subjek', ...blank, ...matrix.totals.map((total) => total.average), null],
+        ],
+    });
 }

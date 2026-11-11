@@ -9,37 +9,34 @@ import * as ExcelJS from 'exceljs';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
 import { CsiRateeKind } from '../csi.constants';
-import { answerColumns, answerRows, questionsOf } from './csi-export.answers';
+import { answerColumns, answerSheetRows, questionsOf } from './csi-export.answers';
 import { addMatrixSheet } from './csi-export.matrix';
-import { addExecutiveSheets } from './csi-export.executive';
+import { addExecutiveSheets, surveyLineOf } from './csi-export.executive';
+import { addTable, RAW_HEADER_ROW, startRawSheet } from './csi-excel-style';
 import { raterMatrix } from './csi-rater-matrix.calc';
-import { addStyledSheet, AVERAGE_COLUMN, sanitizeCell, WIDTH } from './csi-export.sheet';
-import { formatLocation } from './csi-format.util';
-import { CsiReportModel } from './csi-report-model';
+import { sanitizeCell } from './csi-export.sheet';
 import { CsiReportService } from './csi-report.service';
-import { addHcRecapSheets } from '../org/csi-hc-report.render';
+import { addHcAnswersRawSheet } from '../org/csi-hc-report.render';
 
 export { sanitizeCell } from './csi-export.sheet';
 
 type Report = Awaited<ReturnType<CsiReportService['getReport']>>;
-const SHEET_RECAP = 'Rekap';
-const SHEET_TEAM = 'Penilaian Tim';
-const SHEET_PERSON = 'Penilaian Per Orang';
+export const RAW_SHEETS = { team: 'Penilaian Tim', person: 'Penilaian Per Orang' } as const;
+/** Suffix of the raw-data workbook file name (it names the raters). */
+export const RAW_FILENAME_SUFFIX = ' - DATA MENTAH (RAHASIA)';
+const IDENTITY_FREEZE = 2;
 
 /** Shown name of a ratee: a team carries its own name (HC custom teams), falling back to the period team label. */
 const rateeName = (ratee: Report['ratees'][number], report: Report): string =>
     ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || report.period.teamLabel : ratee.displayName;
 
-/**
- * Rekap: Lokasi, Nama (team or person name), Average per ratee and Average survei. The survey average is the executive
- * model's overall (HC per rating), so it is the same number as Ringkasan and PDF page 1.
- */
-function addRecap(workbook: ExcelJS.Workbook, report: Report, overall: CsiReportModel['overall']) {
-    const location = sanitizeCell(formatLocation(report.period.sites));
-    const rows = report.ratees.map((ratee) => [location, sanitizeCell(rateeName(ratee, report)), ratee.average, overall.average]);
-    addStyledSheet(workbook, SHEET_RECAP, [
-        { header: 'Lokasi', width: WIDTH.name }, { header: 'Nama', width: WIDTH.name }, AVERAGE_COLUMN('Average'), AVERAGE_COLUMN('Average survei'),
-    ], rows);
+/** Workbook shell shared by both files. */
+export function newCsiWorkbook(title: string, now: Date): ExcelJS.Workbook {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'iDesk CSI';
+    workbook.created = now;
+    workbook.title = sanitizeCell(title);
+    return workbook;
 }
 
 /** Sign-off of the report PDF: the two signers remembered from the scope's last Interoffice Memo. */
@@ -83,35 +80,47 @@ export class CsiExportService {
         return { filename: `laporan-csi-${scope.toLowerCase()}-${localDateKey(now, DEFAULT_TIMEZONE)}.pdf`, buffer };
     }
 
-    /** Executive sheets (same parameters as the PDF) followed by the raw answer sheets and the rater matrix. */
+    /** Main report workbook: the PDF's parameters in numbered sheets, anonymous (no rater names or e-mails). */
     async buildWorkbook(scope: ServiceScope, periodId: string, now: Date = new Date(), options: CsiExportOptions = {}): Promise<{ filename: string; buffer: Buffer }> {
+        const model = await this.model(scope, periodId, { notes: options.notes });
+        const workbook = newCsiWorkbook(model.title, now);
+        addExecutiveSheets(workbook, model);
+        return { filename: `${this.baseName(scope, now)}.xlsx`, buffer: Buffer.from(await workbook.xlsx.writeBuffer()) };
+    }
+
+    /**
+     * Raw-data workbook (admin only, it names the raters): every answer per team / person, the rater × subject matrix
+     * and, for HC, every respondent's stars per PIC. Each sheet opens with the confidential banner.
+     */
+    async buildRawWorkbook(scope: ServiceScope, periodId: string, now: Date = new Date()): Promise<{ filename: string; buffer: Buffer }> {
         const [report, answers, model] = await Promise.all([
             this.reports.getReport(scope, periodId),
             this.reports.listAnswers(scope, periodId),
-            this.model(scope, periodId, { notes: options.notes }),
+            this.model(scope, periodId, {}),
         ]);
-        const workbook = new ExcelJS.Workbook();
-        workbook.creator = 'iDesk CSI';
-        workbook.created = now;
-        workbook.title = sanitizeCell(report.period.title);
-
-        addExecutiveSheets(workbook, model);
-        // Admin-only workbook: the HC detail sheet names the respondents (the PDF never does).
-        if (model.hcRecap) addHcRecapSheets(workbook, model.hcRecap, true);
-        addRecap(workbook, report, model.overall);
-        const kinds: Array<[CsiRateeKind, string]> = [[CsiRateeKind.TEAM, SHEET_TEAM], [CsiRateeKind.PERSON, SHEET_PERSON]];
+        const workbook = newCsiWorkbook(`${report.period.title}${RAW_FILENAME_SUFFIX}`, now);
+        const line = surveyLineOf(model);
+        const kinds: Array<[CsiRateeKind, string]> = [[CsiRateeKind.TEAM, RAW_SHEETS.team], [CsiRateeKind.PERSON, RAW_SHEETS.person]];
         for (const [kind, sheetName] of kinds) {
             if (!report.ratees.some((ratee) => ratee.kind === kind)) continue;
             const questions = questionsOf(report.ratees, kind);
-            addStyledSheet(workbook, sheetName, answerColumns(questions, kind === CsiRateeKind.PERSON), answerRows(answers, kind, questions));
+            const columns = answerColumns(questions, kind === CsiRateeKind.PERSON);
+            const sheet = startRawSheet(workbook, sheetName, line, Math.min(columns.length, 10));
+            addTable(sheet, columns, answerSheetRows(answers, kind, questions),
+                { bands: model.bands, headerRow: RAW_HEADER_ROW, freeze: { columns: IDENTITY_FREEZE }, emptyText: 'Belum ada jawaban.' });
         }
         addMatrixSheet(workbook, raterMatrix(report.ratees.map((ratee) => ({
             periodRateeId: ratee.periodRateeId, kind: ratee.kind, siteId: ratee.siteId ?? null,
             displayName: rateeName(ratee, report),
-        })), answers), model.bands);
+        })), answers), model.bands, line);
+        if (model.hcRecap) addHcAnswersRawSheet(workbook, model.hcRecap, line, model.bands);
         return {
-            filename: `csi-${scope.toLowerCase()}-${localDateKey(now, DEFAULT_TIMEZONE)}.xlsx`,
+            filename: `${this.baseName(scope, now)}${RAW_FILENAME_SUFFIX}.xlsx`,
             buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
         };
+    }
+
+    private baseName(scope: ServiceScope, now: Date) {
+        return `csi-${scope.toLowerCase()}-${localDateKey(now, DEFAULT_TIMEZONE)}`;
     }
 }
