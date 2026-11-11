@@ -366,9 +366,9 @@ describe('CsiReportService', () => {
     it('pending lists LISTED raters without response', async () => {
         periods.rows[0].respondentMode = CsiRespondentMode.LISTED;
         periodRaters.rows.push(
-            { id: 'pr1', periodId: 'p1', userId: 'x1', user: { id: 'x1', fullName: 'Andi' } },
-            { id: 'pr3', periodId: 'p1', userId: 'x3', user: { id: 'x3', fullName: 'Yudi', siteId: 'site-a', department: { name: 'Gudang' } } },
-            { id: 'pr4', periodId: 'p1', userId: 'x4', user: { id: 'x4', fullName: 'Citra' } },
+            { id: 'pr1', periodId: 'p1', userId: 'x1', user: { id: 'x1', fullName: 'Andi', isActive: true, siteId: 'site-a' } },
+            { id: 'pr3', periodId: 'p1', userId: 'x3', user: { id: 'x3', fullName: 'Yudi', isActive: true, siteId: 'site-a', department: { name: 'Gudang' } } },
+            { id: 'pr4', periodId: 'p1', userId: 'x4', user: { id: 'x4', fullName: 'Citra', isActive: true, siteId: 'site-a' } },
         );
         const result = await service.getRespondents(ICT, 'p1');
         expect(result.mode).toBe(CsiRespondentMode.LISTED);
@@ -378,7 +378,7 @@ describe('CsiReportService', () => {
             submittedAt: new Date('2026-10-10T03:00:00Z'),
         });
         expect(result.pending).toEqual([
-            { userId: 'x4', fullName: 'Citra', department: null, siteId: null },
+            { userId: 'x4', fullName: 'Citra', department: null, siteId: 'site-a' },
             { userId: 'x3', fullName: 'Yudi', department: 'Gudang', siteId: 'site-a' },
         ]);
         expect(result.totals).toEqual({ submitted: 2, pending: 2 });
@@ -389,12 +389,25 @@ describe('CsiReportService', () => {
         ]);
     });
 
+    it('raters who cannot open the survey (account at another site or inactive) are neither pending nor in the statistic', async () => {
+        periods.rows[0].respondentMode = CsiRespondentMode.LISTED;
+        periodRaters.rows.push(
+            { id: 'pr3', periodId: 'p1', userId: 'x3', user: { id: 'x3', fullName: 'Yudi', isActive: true, siteId: 'site-a' } },
+            { id: 'pr5', periodId: 'p1', userId: 'x5', user: { id: 'x5', fullName: 'Lain Site', isActive: true, siteId: 'site-x' } },
+            { id: 'pr6', periodId: 'p1', userId: 'x6', user: { id: 'x6', fullName: 'Nonaktif', isActive: false, siteId: 'site-a' } },
+        );
+        const result = await service.getRespondents(ICT, 'p1');
+        expect(result.pending!.map((row) => row.userId)).toEqual(['x3']);
+        expect(result.totals.pending).toBe(1);
+        expect(result.pendingByDepartment).toEqual([{ department: 'Tanpa departemen', pending: 1, total: 1 }]);
+    });
+
     describe('pending in a mapped LISTED period', () => {
         beforeEach(() => {
             periods.rows[0].respondentMode = CsiRespondentMode.LISTED;
             periodRaters.rows.push(
-                { id: 'pr3', periodId: 'p1', userId: 'x3', user: { id: 'x3', fullName: 'Yudi' } },
-                { id: 'pr4', periodId: 'p1', userId: 'x4', user: { id: 'x4', fullName: 'Citra' } },
+                { id: 'pr3', periodId: 'p1', userId: 'x3', user: { id: 'x3', fullName: 'Yudi', isActive: true, siteId: 'site-a' } },
+                { id: 'pr4', periodId: 'p1', userId: 'x4', user: { id: 'x4', fullName: 'Citra', isActive: true, siteId: 'site-a' } },
             );
         });
 

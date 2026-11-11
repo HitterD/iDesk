@@ -9,12 +9,12 @@ const NOW = new Date('2026-10-30T03:00:00Z');
 
 const basePeriod = (over: Record<string, unknown> = {}) => ({
     id: 'p1', scope: ICT, title: 'CSI ICT Oktober', startDate: '2026-10-01', endDate: '2026-10-31',
-    respondentMode: CsiRespondentMode.LISTED, publishStatus: CsiPeriodPublishStatus.PUBLISHED, ...over,
+    respondentMode: CsiRespondentMode.LISTED, publishStatus: CsiPeriodPublishStatus.PUBLISHED, sites: [{ siteId: 'site-a' }], ...over,
 });
 
 describe('CsiReminderService', () => {
     let period: Record<string, unknown> | null;
-    let raters: Array<{ id: string; userId: string }>;
+    let raters: Array<{ id: string; userId: string; user: { isActive: boolean; siteId: string | null } }>;
     let paired: Set<string> | null;
     let answered: Array<{ respondentId: string }>;
     let recent: Array<{ userId: string; createdAt: Date }>;
@@ -23,7 +23,8 @@ describe('CsiReminderService', () => {
 
     beforeEach(() => {
         period = basePeriod();
-        raters = [{ id: 'pr1', userId: 'u1' }, { id: 'pr2', userId: 'u2' }, { id: 'pr3', userId: 'u3' }];
+        const user = { isActive: true, siteId: 'site-a' };
+        raters = [{ id: 'pr1', userId: 'u1', user }, { id: 'pr2', userId: 'u2', user }, { id: 'pr3', userId: 'u3', user }];
         paired = null;
         answered = [];
         recent = [];
@@ -56,6 +57,14 @@ describe('CsiReminderService', () => {
         await expect(service.send(ICT, 'p1', undefined, NOW)).resolves.toEqual({ sent: 2, skipped: 1 });
         expect(notifications.create).not.toHaveBeenCalledWith(expect.objectContaining({ userId: 'u2' }));
         await expect(service.send(ICT, 'p1', ['u2'], NOW)).resolves.toEqual({ sent: 0, skipped: 1 });
+    });
+
+    it('raters who cannot open the survey (account at another site or inactive) are skipped', async () => {
+        raters[1] = { ...raters[1], user: { isActive: true, siteId: 'site-x' } };
+        raters[2] = { ...raters[2], user: { isActive: false, siteId: 'site-a' } };
+        await expect(service.send(ICT, 'p1', undefined, NOW)).resolves.toEqual({ sent: 1, skipped: 2 });
+        expect(notifications.create).toHaveBeenCalledTimes(1);
+        expect(notifications.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u1' }));
     });
 
     it('no filtering when the period has no pairs', async () => {

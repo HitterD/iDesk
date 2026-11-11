@@ -142,7 +142,7 @@ describe('CsiDashboardService', () => {
         rows.push(period('p-late', '2026-10-01', '2026-11-30', [SPJ], { respondentMode: CsiRespondentMode.LISTED }));
         rows.push(period('p-soon', '2026-10-01', '2026-10-31', [SPJ], { respondentMode: CsiRespondentMode.LISTED }));
         rows.push(period('p-open', '2026-10-01', '2026-10-30', [SPJ]));
-        const user = (id: string) => ({ id, fullName: `User ${id}`, siteId: SPJ.id, department: { name: 'Keuangan' } });
+        const user = (id: string) => ({ id, fullName: `User ${id}`, isActive: true, siteId: SPJ.id, department: { name: 'Keuangan' } });
         raters = [
             ...Array.from({ length: 8 }, (_, i) => ({ periodId: 'p-late', userId: `l${i}`, user: user(`l${i}`) })),
             ...Array.from({ length: 4 }, (_, i) => ({ periodId: 'p-soon', userId: `s${i}`, user: user(`s${i}`) })),
@@ -155,7 +155,7 @@ describe('CsiDashboardService', () => {
     });
 
     describe('pending in mapped LISTED periods', () => {
-        const user = (id: string) => ({ id, fullName: `User ${id}`, siteId: SPJ.id, department: null });
+        const user = (id: string) => ({ id, fullName: `User ${id}`, isActive: true, siteId: SPJ.id, department: null });
         beforeEach(() => {
             rows.push(period('p-mapped', '2026-10-01', '2026-10-31', [SPJ], { respondentMode: CsiRespondentMode.LISTED }));
             rows.push(period('p-free', '2026-10-01', '2026-11-30', [SPJ], { respondentMode: CsiRespondentMode.LISTED }));
@@ -173,6 +173,15 @@ describe('CsiDashboardService', () => {
         });
 
         it('no filtering when the period has no pairs', async () => {
+            const { pending } = await service.getDashboard(ICT, NOW);
+            expect(pending.map((row) => row.userId)).toEqual(['a', 'b', 'c']);
+        });
+
+        it('raters whose account is at a site outside the period or inactive are not pending (same as the SLA basis)', async () => {
+            raters.push(
+                { id: 'pr-d', periodId: 'p-free', userId: 'd', user: { ...user('d'), siteId: KRW.id } },
+                { id: 'pr-e', periodId: 'p-free', userId: 'e', user: { ...user('e'), isActive: false } },
+            );
             const { pending } = await service.getDashboard(ICT, NOW);
             expect(pending.map((row) => row.userId)).toEqual(['a', 'b', 'c']);
         });

@@ -27,6 +27,7 @@ import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap, recapAverages } from '
 import { locationOfSiteCode } from '../org/csi-org.constants';
 import { CsiPendingDepartment, pendingByDepartment } from '../org/csi-service-report.calc';
 import { ratedAccountOf } from './csi-ratee-owner.util';
+import { isRaterInAudience } from './csi-rater-audience.util';
 import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entity';
 import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
 import { CsiAssignmentTemplateRater } from '../entities/csi-assignment-template-rater.entity';
@@ -404,7 +405,7 @@ export class CsiReportService {
     }
 
     async getRespondents(scope: ServiceScope, periodId: string) {
-        const period = await this.findInScope(scope, periodId);
+        const period = await this.findInScope(scope, periodId, { sites: true });
         const responses = await this.responses.find({ where: { periodId }, relations: { respondent: true }, order: { submittedAt: 'ASC' } });
         const submitted = responses.map((response) => ({
             responseId: response.id, userId: response.respondentId, respondentName: response.respondentName, accountName: response.respondent.fullName,
@@ -415,9 +416,11 @@ export class CsiReportService {
         if (period.respondentMode === CsiRespondentMode.LISTED) {
             const answered = new Set(responses.map((response) => response.respondentId));
             const raters = await this.periodRaters.find({ where: { periodId }, relations: { user: { department: true } } });
-            // In a mapped period a rater without pairs cannot see the survey, so they are not pending.
+            // Same audience as the SLA basis: raters who cannot open the survey (other site, inactive, no pairs in a
+            // mapped period) are not pending.
             const paired = await this.assignments.ratersWithPairs(periodId);
-            const expected = raters.filter((rater) => !paired || paired.has(rater.id));
+            const siteIds = (period.sites ?? []).map((row) => row.siteId);
+            const expected = raters.filter((rater) => isRaterInAudience(rater, siteIds, paired));
             const audience = expected.filter((rater) => !answered.has(rater.userId));
             const departmentOf = await this.directoryDepartments(expected.map((rater) => rater.user.employeeId));
             byDepartment = pendingByDepartment(expected.map((rater) => ({

@@ -13,6 +13,7 @@ import { CsiReportService, CsiSiteStats } from './csi-report.service';
 import { bandsOf, CsiScoreBands } from './csi-score-bands';
 import { round2 } from './csi-score.util';
 import { CsiSlaService } from './csi-sla.service';
+import { isRaterInAudience } from './csi-rater-audience.util';
 
 const TREND_POINTS = 5;
 const PENDING_MAX = 10;
@@ -95,8 +96,8 @@ export class CsiDashboardService {
     }
 
     /**
-     * LISTED raters without a response, earliest-ending period first (names alphabetical within a period). In a mapped
-     * period, raters without pairs are left out (they cannot see the survey).
+     * LISTED raters without a response, earliest-ending period first (names alphabetical within a period). Only raters
+     * who can open the survey count (isRaterInAudience: period site, active, paired in a mapped period).
      */
     private async pendingOf(active: CsiPeriod[]): Promise<CsiDashboardPending[]> {
         const listed = active.filter((period) => period.respondentMode === CsiRespondentMode.LISTED);
@@ -109,10 +110,8 @@ export class CsiDashboardService {
         ]);
         const answered = new Set(responses.map((row) => `${row.periodId}:${row.respondentId}`));
         const pairedBy = new Map(paired);
-        const inAudience = (rater: CsiPeriodRater) => {
-            const set = pairedBy.get(rater.periodId);
-            return !set || set.has(rater.id);
-        };
+        const sitesBy = new Map(listed.map((period) => [period.id, sitesOf(period).map((site) => site.id)]));
+        const inAudience = (rater: CsiPeriodRater) => isRaterInAudience(rater, sitesBy.get(rater.periodId) ?? [], pairedBy.get(rater.periodId) ?? null);
         const order = new Map(listed.map((period, index) => [period.id, index]));
         return raters
             .filter((rater) => inAudience(rater) && !answered.has(`${rater.periodId}:${rater.userId}`))
