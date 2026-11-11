@@ -37,8 +37,12 @@ export type CsiTemplateImportReport = CsiTemplateDiff & {
     ambiguousMasters: string[];
 };
 type Hit<T> = T | 'ambiguous' | null;
-type IdentityIndex<T> = (name: string, nik: string | null) => Hit<T>;
+export type IdentityIndex<T> = (name: string, nik: string | null) => Hit<T>;
 type Accounts = ReturnType<typeof lookupOf>;
+/** What creating a PIC master needs: the location site, the HC directory (by NIK/name) and active accounts by NIK. */
+export type CsiMasterContext = { scope: ServiceScope; site: Site | null; findPerson: IdentityIndex<CsiOrgPerson>; accounts: Accounts };
+/** The template PIC row fields a new master is built from. */
+export type CsiMasterSeed = Pick<ClassifiedPic, 'picName' | 'nik' | 'jobTitle' | 'serviceCode' | 'serviceFunction'>;
 /** Everything read before classifying; a commit reuses it inside the same transaction. */
 type ImportState = {
     scope: ServiceScope; code: string; site: Site | null; masters: CsiPic[]; directory: CsiOrgPerson[]; accounts: Accounts; teams: CsiTeam[];
@@ -61,8 +65,16 @@ export function hcDirectoryCandidates(manager: EntityManager): Promise<CsiOrgPer
         .getMany();
 }
 
+/** Master-creation context of a location: its site, the HC directory and the active accounts (for the NIK link). */
+export async function loadMasterContext(manager: EntityManager, scope: ServiceScope, locationCode: string): Promise<CsiMasterContext> {
+    const site = await manager.getRepository(Site).findOne({ where: { code: locationCode } });
+    const accounts = await manager.getRepository(User).find({ where: { isActive: true }, select: { id: true, fullName: true, employeeId: true } });
+    const directory = await hcDirectoryCandidates(manager);
+    return { scope, site, accounts: lookupOf(accounts), findPerson: identityIndex(directory, (row) => row.nik, (row) => row.fullName) };
+}
+
 /** NIK first (normalised), then the unique normalised name. */
-function identityIndex<T>(rows: readonly T[], nikOf: (row: T) => string | null, nameOf: (row: T) => string): IdentityIndex<T> {
+export function identityIndex<T>(rows: readonly T[], nikOf: (row: T) => string | null, nameOf: (row: T) => string): IdentityIndex<T> {
     const byNik = new Map<string, T | 'ambiguous'>();
     rows.forEach((row) => {
         const nik = normalizeNik(nikOf(row));
@@ -76,7 +88,7 @@ function identityIndex<T>(rows: readonly T[], nikOf: (row: T) => string | null, 
 }
 const statusOf = (hit: Hit<unknown>) => (hit === 'ambiguous' ? 'ambiguous' : hit ? 'found' : null);
 const rowOf = <T>(hit: Hit<T>): T | null => (hit && hit !== 'ambiguous' ? hit : null);
-const mastersIndex = (masters: readonly CsiPic[]) => identityIndex(masters, (row) => row.nik, (row) => row.fullName);
+export const mastersIndex = (masters: readonly CsiPic[]) => identityIndex(masters, (row) => row.nik, (row) => row.fullName);
 /** Latest saved master per PIC name of the file: rows and service functions link through it, never via a stale copy. */
 type MasterLinks = Map<string, CsiPic>;
 
@@ -84,7 +96,7 @@ type MasterLinks = Map<string, CsiPic>;
  * The master a PIC row already has: by NIK/name, or (same NIK = same person) the master owning the NIK of the row's
  * directory person, even when the master's name is spelled differently.
  */
-function existingMaster(state: ImportState, findMaster: IdentityIndex<CsiPic>, pic: ClassifiedPic): Hit<CsiPic> {
+export function existingMaster(state: Pick<CsiMasterContext, 'findPerson'>, findMaster: IdentityIndex<CsiPic>, pic: Pick<CsiMasterSeed, 'picName' | 'nik'>): Hit<CsiPic> {
     const hit = findMaster(pic.picName, pic.nik);
     if (hit) return hit;
     const person = rowOf(state.findPerson(pic.picName, pic.nik));
@@ -98,6 +110,23 @@ function ambiguousMastersOf(state: ImportState, pics: ClassifiedPic[]): string[]
     const names = pics.filter((pic) => pic.kind === 'pic' && !linked.has(pic.picName) && existingMaster(state, findMaster, pic) === 'ambiguous')
         .map((pic) => pic.picName);
     return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * A new PIC master for a template row: from its HC directory person (NIK, name, title, bagian) when there is one, else
+ * from the row itself (file NIK, else a generated TPL- NIK). Call only when no master owns the row's NIK
+ * (existingMaster checked it), so the unique scope+NIK key holds.
+ */
+export function newMasterOf(ctx: CsiMasterContext, pic: CsiMasterSeed): Partial<CsiPic> {
+    const usable = rowOf(ctx.findPerson(pic.picName, pic.nik));
+    const nik = normalizeNik(usable?.nik ?? pic.nik) ?? FALLBACK_NIK_PREFIX + randomBytes(FALLBACK_NIK_BYTES).toString('hex').toUpperCase();
+    const account = ctx.accounts.byNik.get(nik) ?? null;
+    return {
+        scope: ctx.scope, nik, fullName: usable?.fullName ?? pic.picName, jobTitle: usable?.jobTitle ?? pic.jobTitle,
+        serviceCode: pic.serviceCode, serviceFunction: normalizeServiceFunction(pic.serviceFunction),
+        bagian: usable ? normalizeBagian(usable.bagian) : null, workLocation: usable?.workLocation ?? null,
+        siteId: ctx.site?.id ?? null, userId: account?.id ?? null, photoUrl: null, isActive: true,
+    };
 }
 
 /** Only rows that will really create a master keep newMasterPic, so the report lists exactly what a commit creates. */
@@ -203,22 +232,9 @@ export class CsiTemplateImportService {
             const hit = existingMaster(state, mastersIndex(masters), pic);
             if (hit === 'ambiguous') continue;
             if (hit) links.set(pic.picName, hit.isActive ? hit : keep(hit, await repo.save({ ...hit, isActive: true })));
-            else if (pic.newMasterPic) links.set(pic.picName, keep(null, await repo.save(this.newMaster(state, pic))));
+            else if (pic.newMasterPic) links.set(pic.picName, keep(null, await repo.save(newMasterOf(state, pic))));
         }
         return links;
-    }
-
-    /** Called only when no master owns the row's NIK (existingMaster checked it), so the unique scope+NIK key holds. */
-    private newMaster(state: ImportState, pic: ClassifiedPic): Partial<CsiPic> {
-        const usable = rowOf(state.findPerson(pic.picName, pic.nik));
-        const nik = normalizeNik(usable?.nik ?? pic.nik) ?? FALLBACK_NIK_PREFIX + randomBytes(FALLBACK_NIK_BYTES).toString('hex').toUpperCase();
-        const account = state.accounts.byNik.get(nik) ?? null;
-        return {
-            scope: state.scope, nik, fullName: usable?.fullName ?? pic.picName, jobTitle: usable?.jobTitle ?? pic.jobTitle,
-            serviceCode: pic.serviceCode, serviceFunction: normalizeServiceFunction(pic.serviceFunction),
-            bagian: usable ? normalizeBagian(usable.bagian) : null, workLocation: usable?.workLocation ?? null,
-            siteId: state.site?.id ?? null, userId: account?.id ?? null, photoUrl: null, isActive: true,
-        };
     }
 
     /** Team rows link to an existing custom team of the site or a new one; sheet members are added, never removed. */

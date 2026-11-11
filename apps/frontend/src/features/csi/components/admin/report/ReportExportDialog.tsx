@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FileSpreadsheet, FileText, PenLine } from 'lucide-react';
+import { FileSpreadsheet, FileText, Lock, PenLine } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { SignoffEditor } from '@/features/reports/components/SignoffEditor';
 import type { SignoffLayout } from '@/features/reports/signoff';
 import { CsiApi } from '../../../api/csi.api';
-import { blobErrorMessage, downloadBlob } from '../../../lib/csiAdmin';
+import { blobErrorMessage, downloadBlob, RAW_EXPORT_HINT, RAW_EXPORT_LABEL } from '../../../lib/csiAdmin';
 import type { CsiScopeParam } from '../../../types';
 
 /** Same limit as the backend (CSI_REPORT_NOTES_MAX). */
@@ -42,7 +42,7 @@ function ReportExportBody({ scope, periodId, siteId }: Omit<Props, 'open' | 'onO
     const [result, setResult] = useState<Result | null>(null);
     const [editorOpen, setEditorOpen] = useState(false);
     const [draft, setDraft] = useState<SignoffLayout | null>(null);
-    const [busy, setBusy] = useState<'signoff' | 'excel' | null>(null);
+    const [busy, setBusy] = useState<'signoff' | 'excel' | 'raw' | null>(null);
     const urlRef = useRef<string | null>(null);
     const key = JSON.stringify([siteId ?? null, applied]);
     const loading = result?.key !== key;
@@ -89,10 +89,10 @@ function ReportExportBody({ scope, periodId, siteId }: Omit<Props, 'open' | 'onO
             setBusy(null);
         }
     };
-    const downloadExcel = async () => {
-        setBusy('excel');
+    const download = async (kind: 'excel' | 'raw', request: () => Promise<{ blob: Blob; filename: string }>) => {
+        setBusy(kind);
         try {
-            const { blob, filename } = await CsiApi.exportPeriod(scope, periodId, applied.notes);
+            const { blob, filename } = await request();
             downloadBlob(blob, filename);
         } catch (failure) {
             toast.error(await blobErrorMessage(failure));
@@ -100,6 +100,8 @@ function ReportExportBody({ scope, periodId, siteId }: Omit<Props, 'open' | 'onO
             setBusy(null);
         }
     };
+    const downloadExcel = () => download('excel', () => CsiApi.exportPeriod(scope, periodId, applied.notes));
+    const downloadRaw = () => download('raw', () => CsiApi.exportPeriodRaw(scope, periodId));
     const notesChanged = notes.trim() !== applied.notes;
 
     return (
@@ -127,6 +129,10 @@ function ReportExportBody({ scope, periodId, siteId }: Omit<Props, 'open' | 'onO
                     <Button variant="soft" loading={busy === 'excel'} disabled={notesChanged} onClick={downloadExcel}>
                         {busy !== 'excel' && <FileSpreadsheet aria-hidden="true" />}Unduh Excel
                     </Button>
+                    <Button variant="subtle" loading={busy === 'raw'} title={RAW_EXPORT_HINT} aria-describedby="csi-raw-export-hint" onClick={downloadRaw}>
+                        {busy !== 'raw' && <Lock aria-hidden="true" />}{RAW_EXPORT_LABEL}
+                    </Button>
+                    <p id="csi-raw-export-hint" className="text-xs text-muted-foreground">{RAW_EXPORT_HINT}</p>
                     {notesChanged && <p className="text-xs text-muted-foreground">Terapkan catatan dulu agar unduhan sama dengan pratinjau.</p>}
                 </div>
             </aside>

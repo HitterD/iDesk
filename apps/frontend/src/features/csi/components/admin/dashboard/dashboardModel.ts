@@ -58,14 +58,18 @@ function previousAverage(row: CsiDashboardActive, trend: readonly CsiDashboardTr
 
 const mean = (values: readonly number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 
+/** Weight of a site average: its score units (HC ratings, ICT responses); older payloads fall back to responses. */
+const weightOf = (row: CsiDashboardActive) => row.scoreWeight ?? row.responses;
+
 /**
- * Average = response-weighted mean of the active site averages.
+ * Average = mean of the active site averages weighted by their score units (HC: ratings, the per-rating basis of the
+ * report; ICT: responses).
  * Delta = mean change of the sites that have both this and the previous period score.
  */
 export function liveSummary(data: CsiDashboard): LiveSummary {
     const { active, trend } = data;
-    const scored = active.filter((row) => row.average !== null && row.responses > 0);
-    const weight = scored.reduce((sum, row) => sum + row.responses, 0);
+    const scored = active.filter((row) => row.average !== null && weightOf(row) > 0);
+    const weight = scored.reduce((sum, row) => sum + weightOf(row), 0);
     const deltas = active.flatMap((row) => {
         const before = previousAverage(row, trend);
         return row.average !== null && before !== null ? [row.average - before] : [];
@@ -75,7 +79,7 @@ export function liveSummary(data: CsiDashboard): LiveSummary {
         siteCodes: [...new Set(active.map((row) => row.siteCode ?? row.siteName ?? '—'))],
         responses: active.reduce((sum, row) => sum + row.responses, 0),
         basis: active.reduce((sum, row) => sum + row.basis, 0),
-        average: weight > 0 ? scored.reduce((sum, row) => sum + (row.average as number) * row.responses, 0) / weight : null,
+        average: weight > 0 ? scored.reduce((sum, row) => sum + (row.average as number) * weightOf(row), 0) / weight : null,
         delta: mean(deltas),
         behind: active.filter((row) => hasAudience(row) && !isReached(row)),
         bands: sharedBands(active),

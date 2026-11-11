@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CsiDashboard as Dashboard } from '../../../../types';
 import { CsiDashboard } from '../CsiDashboard';
+import { liveSummary } from '../dashboardModel';
 
 const fx = vi.hoisted(() => ({
     data: null as unknown as Dashboard,
@@ -18,8 +19,8 @@ vi.mock('sonner', () => ({ toast: fx.toast }));
 const END = '2099-12-31';
 const BANDS = { fairMin: 4, goodMin: 4.5 };
 const ACTIVE: Dashboard['active'] = [
-    { periodId: 'p1', title: 'CSI Q4', siteId: 's1', siteCode: 'SPJ', siteName: 'Sepanjang', responses: 6, basis: 6, target: 6, targetPct: 90, average: 4.66, endDate: END, scoreBands: BANDS },
-    { periodId: 'p1', title: 'CSI Q4', siteId: 's2', siteCode: 'KRW', siteName: 'Karawang', responses: 2, basis: 5, target: 5, targetPct: 90, average: 4.5, endDate: END, scoreBands: BANDS },
+    { periodId: 'p1', title: 'CSI Q4', siteId: 's1', siteCode: 'SPJ', siteName: 'Sepanjang', responses: 6, basis: 6, target: 6, targetPct: 90, average: 4.66, scoreWeight: 6, endDate: END, scoreBands: BANDS },
+    { periodId: 'p1', title: 'CSI Q4', siteId: 's2', siteCode: 'KRW', siteName: 'Karawang', responses: 2, basis: 5, target: 5, targetPct: 90, average: 4.5, scoreWeight: 2, endDate: END, scoreBands: BANDS },
 ];
 const DATA: Dashboard = {
     active: ACTIVE,
@@ -65,6 +66,21 @@ describe('CsiDashboard', () => {
         expect(within(cards[0]).getByText('4,30')).toHaveClass('text-[hsl(var(--ticket-green-ink))]');
         const average = screen.getByRole('group', { name: 'Skor rata-rata' });
         expect(average.innerHTML).toContain('ticket-green-ink');
+    });
+
+    it('combined average weighs each site by its score units (HC ratings), not by responses', () => {
+        // HC: SPJ 6 responses but 18 ratings at 4.0, KRW 2 responses / 2 ratings at 5.0 -> (72 + 10) / 20 = 4.1.
+        const hc = { ...DATA, active: [{ ...ACTIVE[0], average: 4, scoreWeight: 18 }, { ...ACTIVE[1], average: 5, scoreWeight: 2 }] };
+        expect(liveSummary(hc).average).toBeCloseTo(4.1, 5);
+        fx.data = hc;
+        renderDashboard();
+        expect(within(screen.getByRole('group', { name: 'Skor rata-rata' })).getByText('4,10')).toBeInTheDocument();
+    });
+
+    it('participation shows one percentage (answers ÷ basis), never a % Pengisi', () => {
+        renderDashboard();
+        expect(screen.getByText('73% dari basis')).toBeInTheDocument();
+        expect(screen.queryByText(/Pengisi/)).not.toBeInTheDocument();
     });
 
     it('trend axis starts at the survey orange band when every score is above it', async () => {

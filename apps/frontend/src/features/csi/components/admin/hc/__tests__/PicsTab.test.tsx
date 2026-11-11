@@ -38,3 +38,31 @@ describe('PicsTab service function', () => {
         expect(await screen.findByText('Talent Acquisition & Assessment')).toBeTruthy();
     });
 });
+
+describe('PicsTab PICs without bagian', () => {
+    it('warns how many active PICs have no bagian and filters to them', async () => {
+        const { CsiHcApi } = await import('../../../../api/csiHc.api');
+        vi.mocked(CsiHcApi.pics).mockResolvedValueOnce([
+            PIC,
+            { ...PIC, id: 'pic-2', fullName: 'TANPA SATU', bagian: null },
+            { ...PIC, id: 'pic-3', fullName: 'TANPA DUA', bagian: '  ' },
+            { ...PIC, id: 'pic-4', fullName: 'NONAKTIF', bagian: null, isActive: false },
+        ]);
+        renderWithQuery(<PicsTab scope="hc" />);
+        const alert = await screen.findByRole('status', { name: /pic belum punya bagian/i });
+        expect(alert.textContent).toContain('2 PIC belum punya bagian');
+        await userEvent.click(screen.getByRole('button', { name: /tampilkan pic tanpa bagian/i }));
+        expect(screen.getByText('Tanpa Satu')).toBeTruthy();
+        expect(screen.getByText('Tanpa Dua')).toBeTruthy();
+        expect(screen.queryByText('Rara Kurnia Maharani Pongdatu')).toBeNull();
+        expect(screen.getByText(/Tanpa bagian · 2/i)).toBeTruthy();
+        await userEvent.click(screen.getByRole('button', { name: /tampilkan semua pic/i }));
+        expect(screen.getByText('Rara Kurnia Maharani Pongdatu')).toBeTruthy();
+    });
+
+    it('shows no warning when every active PIC has a bagian', async () => {
+        renderWithQuery(<PicsTab scope="hc" />);
+        await screen.findByText('Rara Kurnia Maharani Pongdatu');
+        expect(screen.queryByText(/belum punya bagian/i)).toBeNull();
+    });
+});

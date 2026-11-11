@@ -1,4 +1,4 @@
-import { itemsForSite, questionStat, rateeStats } from './csi-report.calc';
+import { itemsForSite, overallStats, questionStat, rateeStats, ratingAverage } from './csi-report.calc';
 import { CsiQuestionType } from '../csi.constants';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
@@ -47,5 +47,18 @@ describe('CSI report extras', () => {
         ];
         const kept = itemsForSite(rows, new Map([['r1', 'site-a'], ['r2', 'site-b']]), new Map([['a', 'site-a'], ['b', 'site-b']]), 'site-a');
         expect(kept).toEqual([rows[0]]);
+    });
+});
+
+describe('CSI overall bases', () => {
+    const item = (responseId: string, periodRateeId: string, score: number | null) =>
+        ({ responseId, periodRateeId, periodRateeDimensionId: `${periodRateeId}-q`, score, answerLabel: null });
+    // Response a: PIC h1 5,5 and PIC h2 1 -> per response 3.67, per rating 5 and 1. Response b: h1 3,3 -> 3.
+    const items = [item('a', 'h1', 5), item('a', 'h1', 5), item('a', 'h2', 1), item('b', 'h1', 3), item('b', 'h1', 3), item('b', 'h2', null)];
+
+    it('per-rating average: every (respondent, subject) pair weighs the same, unscored pairs are left out', () => {
+        expect(ratingAverage(items)).toEqual({ average: 3, ratings: 3 });
+        expect(overallStats(items, 2).average).not.toBe(3);
+        expect(ratingAverage([])).toEqual({ average: null, ratings: 0 });
     });
 });

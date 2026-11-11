@@ -81,6 +81,15 @@ export class CsiAdminReportController {
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.send(buffer);
     }
+
+    /** Raw data (names the raters): separate file and endpoint, same admin guard as the report export. */
+    @Get('export-raw')
+    async exportRaw(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Res() res: Response) {
+        const { filename, buffer } = await this.exporter.buildRawWorkbook(req.csiScope, id, new Date());
+        res.setHeader('Content-Type', XLSX_CONTENT_TYPE);
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(buffer);
+    }
 }
 
 /** Sign-off of the CSI report PDF, one saved layout per CSI scope (none saved = the memo signers). */

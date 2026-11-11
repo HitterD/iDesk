@@ -143,6 +143,15 @@ describe('computeReadiness', () => {
         expect(open.checks.map((check) => check.key)).toEqual(['ratees', 'dimensions', 'departments']);
     });
 
+    it('HC: ratees are ready only with a PIC or a team (people picked from user accounts do not count)', () => {
+        expect(failing({ ...complete, hcSubjectCount: 0 })).toEqual(['ratees']);
+        expect(computeReadiness({ ...complete, hcSubjectCount: 0 }).ready).toBe(false);
+        expect(computeReadiness({ ...complete, hcSubjectCount: 1 }).ready).toBe(true);
+        // Only custom teams (no PERSON ratee): still ready.
+        expect(failing({ ...complete, ratees: [], hcSubjectCount: 1 })).toEqual([]);
+        expect(failing({ ...complete, ratees: [], hcSubjectCount: 0 })).toEqual(['ratees', 'dimensions']);
+    });
+
     it('readiness includes team check only when enabled and skips ratees when individual disabled', () => {
         const teamOnly = { ...complete, ratees: [], teamEnabled: true, individualEnabled: false };
         expect(computeReadiness({ ...teamOnly, teamQuestionCount: 0 }).checks).toEqual([
@@ -780,6 +789,17 @@ describe('CsiPeriodService', () => {
             expect(detail.ratees.map((ratee) => [ratee.id, ratee.kind])).toEqual([
                 ['r-team', CsiRateeKind.TEAM], ['r1', CsiRateeKind.PERSON], ['r2', CsiRateeKind.PERSON],
             ]);
+        });
+
+        it('HC readiness: user-account people are not enough, a PIC ratee is', async () => {
+            periods.rows[0] = { ...periods.rows[0], scope: HC };
+            ratees.rows.push({ id: 'r-user', periodId: 'p1', kind: CsiRateeKind.PERSON, userId: 'u1', picId: null, displayName: 'Budi', jobTitle: null, sortOrder: 0 });
+            rateeDimensions.rows.push({ id: 'rd-user', periodRateeId: 'r-user', dimensionId: 'd1', dimensionName: 'X', sortOrder: 0 });
+            const ratees1 = (await service.get(HC, 'p1')).readiness.checks.find((check) => check.key === 'ratees');
+            expect(ratees1).toMatchObject({ ok: false });
+            ratees.rows.push({ id: 'r-pic', periodId: 'p1', kind: CsiRateeKind.PERSON, userId: null, picId: 'pic-1', displayName: 'Rara', jobTitle: null, sortOrder: 1 });
+            rateeDimensions.rows.push({ id: 'rd-pic', periodRateeId: 'r-pic', dimensionId: 'd1', dimensionName: 'X', sortOrder: 0 });
+            expect((await service.get(HC, 'p1')).readiness.checks.find((check) => check.key === 'ratees')).toMatchObject({ ok: true });
         });
 
         it('readiness ignores the TEAM ratee when the team section is disabled', async () => {

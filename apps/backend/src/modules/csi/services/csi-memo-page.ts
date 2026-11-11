@@ -6,6 +6,7 @@ import {
     bottomOf, boxedText, cell, contentWidth, Doc, drawRow, fitText, LINE, MARGIN, maxRowHeight, MemoSurvey, PORTRAIT, scaleWidths, TableColumn,
 } from './csi-memo-draw';
 import { formatLocation } from './csi-format.util';
+import { slaBlock } from './csi-report-participation';
 import { bandsOf } from './csi-score-bands';
 import { scoreInk } from './csi-score-ink';
 
@@ -27,7 +28,9 @@ const LABELS: Array<[string, keyof MemoHeaderDto]> = [
     ['Kepada', 'to'], ['CC', 'cc'], ['Nomor', 'number'], ['Dari', 'from'], ['Perihal', 'subject'],
 ];
 const TABLE_WEIGHTS = [34, 34, 16, 16];
-const TABLE_HEADERS = ['Lokasi', 'Nama', 'Average', '% Pengisi (SLA)'];
+/** One SLA percentage, as the executive report: answers ÷ basis. */
+export const MEMO_SLA_LABEL = '% Sudah mengisi';
+const TABLE_HEADERS = ['Lokasi', 'Nama', 'Average', MEMO_SLA_LABEL];
 const AVERAGE_COLUMN = 2;
 const BLACK = '#000000';
 
@@ -38,6 +41,9 @@ export const formatAverage = (value: number | null | undefined): string =>
     typeof value === 'number' && Number.isFinite(value) ? averageFormat.format(value) : DASH;
 export const formatPercent = (value: number | null | undefined): string =>
     typeof value === 'number' && Number.isFinite(value) ? `${value}%` : DASH;
+/** Answers ÷ basis (capped at 100%), the report's SLA block figure; null without a basis. */
+export const memoSlaPct = ({ basis, targetPct, target, responses }: MemoSurvey['report']['sla']): number | null =>
+    (basis > 0 ? slaBlock({ basis, targetPct, target, responses }).pct : null);
 /** `2025-11-28` -> `28 November 2025`. */
 export const formatLongDate = (date: string): string => dateFormat.format(new Date(`${date}T12:00:00+07:00`));
 
@@ -102,10 +108,10 @@ function layoutBlock(doc: Doc, columns: TableColumn[], survey: MemoSurvey): Bloc
     return { names, rowHeights, location, height: rowHeights.reduce((sum, h) => sum + h, 0) };
 }
 
-/** One merged block: Lokasi, Average and % Pengisi span all name rows of the survey. */
+/** One merged block: Lokasi, Average and % Sudah mengisi span all name rows of the survey. */
 function drawBlock(doc: Doc, columns: TableColumn[], survey: MemoSurvey, layout: BlockLayout, y: number): number {
     const { average } = survey.report.overall;
-    const merged = [layout.location, '', formatAverage(average), formatPercent(survey.report.sla.pengisiPct)];
+    const merged = [layout.location, '', formatAverage(average), formatPercent(memoSlaPct(survey.report.sla))];
     // Only the Average follows the survey colour bands; everything else stays black like the 2025 memo.
     const averageInk = scoreInk(average, bandsOf(survey.report.period), BLACK);
     doc.font('Helvetica').fontSize(BODY_SIZE).lineWidth(0.5).strokeColor(LINE);

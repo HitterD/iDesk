@@ -12,6 +12,11 @@ const NOTE_AMBER = 'rounded-xl bg-[hsl(var(--ticket-amber)/.14)] px-3 py-2 text-
 
 export interface SurveyInfo { title: string; startDate: string; endDate: string }
 
+/** Template ids in the fixed location order, so the request (and the preview cache key) is stable. */
+export function selectedTemplateIds(templates: CsiTemplate[], locations: string[]) {
+    return CSI_TEMPLATE_LOCATIONS.flatMap(({ code }) => locations.includes(code) ? templates.filter((row) => row.locationCode === code).map((row) => row.id) : []);
+}
+
 const TITLE_MIN = 3;
 const TITLE_MAX = 150;
 /** Mirrors the backend title limits so the create call does not fail at the last step. */
@@ -83,12 +88,23 @@ export function NameList({ title, names }: { title: string; names: string[] }) {
     );
 }
 
+/** PICs / teams added without any rater yet: still rated (0 pairs), so a warning and never part of "Dilewati". */
+export const WITHOUT_RATERS_TITLE = 'PIC/tim belum punya penilai (tetap dicantumkan)';
+export function WithoutRatersNote({ names }: { names: string[] }) {
+    if (!names.length) return null;
+    return (
+        <details className={NOTE_AMBER} open={names.length <= 6}>
+            <summary className="cursor-pointer font-semibold">{`${WITHOUT_RATERS_TITLE} (${names.length})`}</summary>
+            <p className="mt-1">{names.map(titleCase).join(', ')}</p>
+        </details>
+    );
+}
+
 /** The per-category lists of what the apply leaves out (shared with the sync dialog). */
 export function SkippedLists({ report }: { report: CsiTemplateApplyReport }) {
     return (
         <>
-            <NameList title="PIC dilewati (belum ada penilai)" names={report.picsSkippedNoRaters} />
-            <NameList title="PIC belum cocok dengan PIC master" names={report.picsUnmatched} />
+            <NameList title="PIC tidak dimasukkan" names={report.picsUnmatched} />
             <NameList title="Penilai belum punya akun (masuk saat Sinkronkan berikutnya)" names={report.ratersNoAccount} />
             <NameList title="Penilai dengan nama ganda (perbaiki di template)" names={report.ratersAmbiguous} />
         </>
@@ -123,7 +139,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 export function PreviewStep({ report, loading, failed }: { report: CsiTemplateApplyReport | undefined; loading: boolean; failed: boolean }) {
     if (loading) return <div aria-busy="true" className="h-28 animate-pulse rounded-xl bg-[hsl(var(--muted))]" />;
     if (failed || !report) return <p role="alert" className={ALERT_RED}>Gagal memuat pratinjau.</p>;
-    const skipped = report.picsSkippedNoRaters.length + report.picsUnmatched.length + report.ratersNoAccount.length + report.ratersAmbiguous.length;
+    const skipped = report.picsUnmatched.length + report.ratersNoAccount.length + report.ratersAmbiguous.length;
     return (
         <div className="grid gap-2">
             {report.blockedReason && <p role="alert" className={ALERT_RED}>{report.blockedReason}</p>}
@@ -134,6 +150,7 @@ export function PreviewStep({ report, loading, failed }: { report: CsiTemplateAp
             </div>
             <UnconfirmedNote count={report.ratersUnconfirmed} />
             <OutsideSitesNote names={report.ratersOutsideSites} />
+            <WithoutRatersNote names={report.picsWithoutRaters} />
             {skipped > 0 && (
                 <details className="grid gap-1.5" open>
                     <summary className="cursor-pointer text-[13px] font-semibold">{`Dilewati (${skipped})`}</summary>

@@ -87,6 +87,11 @@ describe('csi-report-model', () => {
         });
         expect(model.rankingByService.map((group) => group.serviceCode)).toEqual(['HCD', 'HCC', 'HCS', null]);
         expect(model.rankingByService[0].ranked.map((row) => row.detail)).toEqual(expect.arrayContaining(['Bagian p0']));
+        // HC teams carry the same "Tim · " label as the recap and Lampiran (ICT keeps the plain team name).
+        const teamNames = model.rankingByService.flatMap((group) => [...group.ranked, ...group.insufficient, ...group.noAnswers]).filter((row) => row.name.includes('ICT'));
+        expect(teamNames.map((row) => row.name)).toEqual(['Tim · ICT Site 0']);
+        const ict = buildReportModel(input).rankingByService.find((group) => group.serviceName === 'Tim')!;
+        expect(ict.ranked.map((row) => row.name)).toEqual(['ICT Site 0']);
         expect(model.serviceHighlight).toMatchObject({ best: { code: 'HCD', average: 4.41 }, worst: { code: 'HCS', average: 4.05 } });
         const sentences = model.highlights.join(' ');
         expect(sentences).toContain('Layanan tertinggi: HCD 4,41 · terendah: HCS 4,05.');
@@ -191,5 +196,16 @@ describe('csi-report-model', () => {
         const model = buildReportModel({ ...input, report: { ...input.report, overall: { average: null, respondentCount: 0 }, previousAverage: null, ratees: [] }, comments: [] });
         expect(model.highlights).toEqual(['Belum ada jawaban yang bernilai pada survei ini.']);
         expect(model.teams).toEqual([]);
+    });
+
+    it('HC ranking detail: bagian, "Tanpa bagian" when empty (never the fungsi pelayanan); teams no detail; ICT site', () => {
+        const { input } = hcReportFixture();
+        const ratees = input.report.ratees.map((ratee: any, i: number) => (i === 0 ? { ...ratee, bagian: null, serviceFunction: 'Benefit, Payroll & HRIS' } : ratee));
+        const model = buildReportModel({ ...input, report: { ...input.report, ratees } });
+        const rows = model.rankingByService.flatMap((group) => [...group.ranked, ...group.insufficient, ...group.noAnswers]);
+        expect(rows.find((row) => row.name === 'Anita Payroll')?.detail).toBe('Tanpa bagian');
+        expect(rows.map((row) => row.detail)).not.toContain('Benefit, Payroll & HRIS');
+        expect(model.templateRatersWithoutAccount).toBe(0);
+        expect(buildReportModel({ ...input, templateRatersWithoutAccount: 3 }).templateRatersWithoutAccount).toBe(3);
     });
 });

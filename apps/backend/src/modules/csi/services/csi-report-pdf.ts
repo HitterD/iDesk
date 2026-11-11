@@ -38,22 +38,22 @@ function siteAndAspects(canvas: ReportCanvas, model: CsiReportModel, aspectsHere
 
 function participation(canvas: ReportCanvas, model: CsiReportModel) {
     canvas.section('Partisipasi per site', undefined, TABLE_KEEP);
-    canvas.note(`Basis = ${model.participation.basisLabel}; % Pengisi (SLA) = responden dibanding target ${model.targetPct}% dari basis.`);
+    canvas.note(`Basis = ${model.participation.basisLabel}; % sudah mengisi = jawaban dibanding basis; Tercapai bila mencapai target ${model.targetPct}%.`);
     const body: Cell[][] = model.sites.filter((site) => site.basis > 0 || site.responses > 0).map((site) => [
         { text: `${site.code ?? ''} ${site.name ?? ''}`.trim(), bold: true }, { text: String(site.basis) }, { text: String(site.target) },
-        { text: String(site.responses) }, { text: pct(site.respondenPct) }, { text: pct(site.pengisiPct) },
+        { text: String(site.responses) }, { text: pct(site.respondenPct) },
         { text: site.reached ? 'Tercapai' : 'Belum', color: site.reached ? INK.green : INK.red, bold: true }, { text: dec(site.average), color: scoreInk(site.average, model.bands) },
     ]);
     const total = model.participation;
     body.push([
         { text: 'Total', bold: true }, { text: String(total.basis), bold: true }, { text: String(total.target), bold: true }, { text: String(total.responses), bold: true },
-        { text: pct(total.respondenPct), bold: true }, { text: pct(total.pengisiPct), bold: true },
+        { text: pct(total.respondenPct), bold: true },
         { text: total.reached ? 'Tercapai' : 'Belum', color: total.reached ? INK.green : INK.red, bold: true }, { text: dec(model.overall.average), bold: true, color: scoreInk(model.overall.average, model.bands) },
     ]);
     canvas.table([
-        { header: 'Site', width: 20 }, { header: 'Basis', width: 9, align: 'right' }, { header: 'Target', width: 9, align: 'right' },
-        { header: 'Responden', width: 13, align: 'right' }, { header: '% Responden', width: 15, align: 'right' }, { header: '% Pengisi', width: 12, align: 'right' },
-        { header: 'Status', width: 12 }, { header: 'Nilai', width: 10, align: 'right' },
+        { header: 'Site', width: 22 }, { header: 'Basis', width: 9, align: 'right' }, { header: 'Target', width: 9, align: 'right' },
+        { header: 'Sudah mengisi', width: 17, align: 'right' }, { header: '% Sudah mengisi', width: 19, align: 'right' },
+        { header: 'Status', width: 14 }, { header: 'Nilai', width: 10, align: 'right' },
     ], body);
 }
 

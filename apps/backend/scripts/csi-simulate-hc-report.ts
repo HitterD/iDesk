@@ -70,6 +70,9 @@ const PURGE_REASON = 'Simulasi diganti oleh skrip simulasi baru';
 const DOWNLOADS = join(homedir(), 'Downloads');
 const PDF_PATH = join(DOWNLOADS, 'CSI HC 2026 - SIMULASI report.pdf');
 const XLSX_PATH = join(DOWNLOADS, 'CSI HC 2026 - SIMULASI report.xlsx');
+const RAW_XLSX_PATH = join(DOWNLOADS, 'CSI HC 2026 - SIMULASI report - DATA MENTAH (RAHASIA).xlsx');
+/** Suffix of the output name when the target file is open (locked) on Windows. */
+const LOCKED_SUFFIX = ' (baru)';
 
 const PRAISE = [
     'Pelayanan cepat dan jelas, terima kasih.', 'Sangat membantu saat ada kendala administrasi.', 'Responsif walaupun di luar jam kerja.',
@@ -175,7 +178,7 @@ async function createSimulation(s: Services, actorId: string) {
     });
     await s.periods.publish(HC, periodId);
     console.log(`Survei ${periodId}: PIC ${report.picsAdded}, tim ${report.teamsAdded}, penilai ${report.ratersAdded}, pasangan ${report.pairsAdded}`);
-    console.log(`  di luar site survei: ${report.ratersOutsideSites.length}, PIC tanpa penilai: ${report.picsSkippedNoRaters.length}`);
+    console.log(`  di luar site survei: ${report.ratersOutsideSites.length}, PIC tanpa penilai (tetap dinilai): ${report.picsWithoutRaters.length}, PIC tidak masuk: ${report.picsUnmatched.length}`);
     return periodId;
 }
 
@@ -318,12 +321,24 @@ async function simulate(s: Services) {
     return periodId;
 }
 
+/** Writes the file; when it is open in Excel (EBUSY / EPERM) writes "<name> (baru).<ext>" instead and says so. */
+function writeOutput(path: string, buffer: Buffer) {
+    try {
+        writeFileSync(path, buffer);
+        console.log(`Tertulis: ${path}`);
+    } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== 'EBUSY' && code !== 'EPERM') throw error;
+        const fallback = path.replace(/(\.[a-z]+)$/i, `${LOCKED_SUFFIX}$1`);
+        writeFileSync(fallback, buffer);
+        console.log(`File terkunci (${code}), tertulis sebagai: ${fallback}`);
+    }
+}
+
 async function exportReport(s: Services, periodId: string) {
-    const pdf = await s.exporter.buildPdf(HC, periodId);
-    writeFileSync(PDF_PATH, pdf.buffer);
-    const workbook = await s.exporter.buildWorkbook(HC, periodId);
-    writeFileSync(XLSX_PATH, workbook.buffer);
-    console.log(`Tertulis: ${PDF_PATH}\nTertulis: ${XLSX_PATH}`);
+    writeOutput(PDF_PATH, (await s.exporter.buildPdf(HC, periodId)).buffer);
+    writeOutput(XLSX_PATH, (await s.exporter.buildWorkbook(HC, periodId)).buffer);
+    writeOutput(RAW_XLSX_PATH, (await s.exporter.buildRawWorkbook(HC, periodId)).buffer);
 }
 
 async function main() {

@@ -18,10 +18,13 @@ describe('renderMemoPdf', () => {
         expect(buffer.slice(0, 4).toString()).toBe('%PDF');
         for (const expected of [
             'Interoffice Memo', 'Kepada', 'CC', 'Nomor', 'Dari', 'Perihal', 'Tanggal', '28 November 2025', 'Dengan hormat',
-            'Lokasi', 'Nama', 'Average', '% Pengisi (SLA)', 'SJA Sepanjang & SJA Sukodono', 'SJA Karawang',
-            'Budi Hartono', 'Dewi Lestari', '4,52', '100%', 'Hormat kami', 'Mengetahui', 'Budi Santoso', 'ICT Manager',
+            'Lokasi', 'Nama', 'Average', '% Sudah mengisi', 'SJA Sepanjang & SJA Sukodono', 'SJA Karawang',
+            'Budi Hartono', 'Dewi Lestari', '4,52', '67%', 'Hormat kami', 'Mengetahui', 'Budi Santoso', 'ICT Manager',
         ]) expect(text).toContain(expected);
         expect(text).toContain('Tim IT Support'); // survey 2 has no PERSON ratee: team label in Nama
+        // One SLA percentage, as the report: answers ÷ basis (2 of 3 = 67%), never answers ÷ target (100%).
+        expect(text).not.toContain('Pengisi');
+        expect(text).not.toContain('100%');
     });
 
     it('shows a dash when the average is unknown', async () => {
@@ -39,8 +42,9 @@ describe('renderMemoPdf', () => {
             'SJA Sepanjang & SJA Sukodono — CSI Operational Support 1', 'Timestamp', 'titi yusliyanti', 'SEPANJANG',
             'Lampiran SLA — SJA Karawang', 'Total pelapor iDesk', 'Target 80%', 'Total responden CSI', 'Email', 'Departemen', 'a@sja.co.id',
         ]) expect(text).toContain(expected);
-        // Spec: % Responden = responden / pelapor (2 of 3 -> 67%), next to % Pengisi (SLA) = responden / target.
-        expect(text).toMatch(/% Responden\s*67%/);
+        // One SLA percentage: % Sudah mengisi = responden / basis (2 of 3 -> 67%), the same figure as the report SLA block.
+        expect(text).toMatch(/% Sudah mengisi\s*67%/);
+        expect(text).not.toMatch(/% Responden|Pengisi/);
     });
 
     it('colours the survey average by its score bands (custom bands 3.5/4.2 vs legacy 4.0/4.5)', async () => {
@@ -96,7 +100,7 @@ describe('renderMemoPdf', () => {
         expect(pages[holder]).toContain('Budi Hartono');
         expect(pages[holder]).toContain('Dewi Lestari');
         // The memo page holding the block is the one with the recap header, not a stray overflow page.
-        expect(pages[holder]).toContain('% Pengisi (SLA)');
+        expect(pages[holder]).toContain('% Sudah mengisi');
         expect(pages[holder]).not.toContain('Timestamp');
     });
 
@@ -120,12 +124,82 @@ describe('renderMemoPdf', () => {
         const survey = memoSurvey(1);
         survey.report.period.scope = 'HC';
         const pages = await pagesOf(await renderMemoPdf(memoHeader(), [survey]));
-        const answerPages = pages.filter((page) => page.includes('Timestamp'));
+        const answerPages = pages.filter((page) => page.includes('Average') && page.includes('No.'));
         expect(answerPages).toHaveLength(2);
         expect(answerPages[0]).toContain('Dinilai');
         expect(answerPages[0]).toContain('Budi Hartono');
         expect(answerPages[1]).not.toContain('Dinilai');
         expect(answerPages[1]).toContain('Kecepatan');
+    });
+
+    it('HC memo carries no rater name or email: anonymous answer rows and participation per department only', async () => {
+        const survey = memoSurvey(1);
+        survey.report.period.scope = 'HC';
+        survey.departments = [
+            { name: 'Finance', submitted: 2, total: 3, pct: 67, met: false },
+            { name: 'Departemen kecil (gabungan)', submitted: 1, total: 2, pct: 50, met: false },
+        ];
+        const pages = await pagesOf(await renderMemoPdf(memoHeader(), [survey]));
+        const all = pages.join(' ');
+        for (const identity of ['titi yusliyanti', 'Keuangan', 'SEPANJANG', 'Andi', 'Bela', 'Citra', 'a@sja.co.id', 'b@sja.co.id', 'Timestamp', 'Area Kerja']) {
+            expect(all).not.toContain(identity);
+        }
+        const answerPages = pages.filter((page) => page.includes('Kecepatan') && page.includes('Average'));
+        expect(answerPages.length).toBeGreaterThanOrEqual(1);
+        expect(answerPages[0]).toContain('No.');
+        // No reporter table (Email | Departemen | Nama); "Email" may only appear as the CHOICE answer of the fixture.
+        expect(all).not.toMatch(/Email\s+Departemen\s+Nama/);
+        const sla = pages.find((page) => page.includes('Lampiran SLA'))!;
+        for (const expected of ['Departemen', 'Sudah', 'Total', 'Finance', 'Departemen kecil (gabungan)', '67%', 'Belum']) expect(sla).toContain(expected);
+    });
+
+    /** HC survey: Budi rated by 4 responses (different times and stars), Dewi by 2, the team by all 4. */
+    function hcSurveyWithAnswers(order: 'asc' | 'desc') {
+        const survey = memoSurvey(1);
+        survey.report.period.scope = 'HC';
+        const stars = [3, 5, 1, 4];
+        const answers = stars.map((star, index) => ({
+            responseId: `resp${index}`, respondentName: `Penilai ${index}`, accountName: 'akun', areaName: 'Sepanjang', departmentName: 'Keuangan',
+            submittedAt: new Date(Date.UTC(2025, 10, 3 + index)),
+            ratees: [
+                { periodRateeId: 't', kind: 'TEAM', displayName: 'Tim IT Support', jobTitle: null, comment: null, scores: [{ dimension: 'Kecepatan', type: 'STAR', score: star, answerLabel: null, answerText: null }] },
+                { periodRateeId: 'r1', kind: 'PERSON', displayName: 'Budi Hartono', jobTitle: null, comment: null,
+                    scores: [{ dimension: 'Ramah', type: 'STAR', score: star, answerLabel: null, answerText: null }, { dimension: 'Channel', type: 'CHOICE', score: null, answerLabel: `Opsi${star}`, answerText: null }] },
+                ...(index < 2 ? [{ periodRateeId: 'r2', kind: 'PERSON', displayName: 'Dewi Lestari', jobTitle: null, comment: null,
+                    scores: [{ dimension: 'Ramah', type: 'STAR', score: 2, answerLabel: null, answerText: null }, { dimension: 'Channel', type: 'CHOICE', score: null, answerLabel: `Rahasia${index}`, answerText: null }] }] : []),
+            ],
+        }));
+        survey.answers = (order === 'asc' ? answers : [...answers].reverse()) as any;
+        return survey;
+    }
+
+    it('HC memo answer rows never follow answer time: sorted by subject, then score, the same whatever the submit order', async () => {
+        const answerText = async (order: 'asc' | 'desc') => (await pagesOf(await renderMemoPdf(memoHeader(), [hcSurveyWithAnswers(order)])))
+            .filter((page) => page.includes('No.')).join(' ');
+        const asc = await answerText('asc');
+        expect(await answerText('desc')).toBe(asc);
+        // Budi's rows by score, highest first (submit order was 3, 5, 1, 4).
+        const budi = [...asc.matchAll(/Budi Hartono (\d) \d Opsi\d/g)].map((match) => Number(match[1]));
+        expect(budi).toEqual([5, 4, 3, 1]);
+    });
+
+    it('HC memo hides the answer rows of a subject with fewer than 3 raters', async () => {
+        const all = (await pagesOf(await renderMemoPdf(memoHeader(), [hcSurveyWithAnswers('asc')]))).join(' ');
+        expect(all).toContain('Dewi Lestari: jawaban disembunyikan (kurang dari 3 penilai)');
+        expect(all).not.toMatch(/Rahasia\d/);
+        expect(all).toContain('Opsi5');
+    });
+
+    it('ICT memo keeps answer rows in submit order, one row per response and subject', async () => {
+        const survey = hcSurveyWithAnswers('asc');
+        survey.report.period.scope = 'ICT';
+        const all = (await pagesOf(await renderMemoPdf(memoHeader(), [survey]))).join(' ');
+        expect([...all.matchAll(/Penilai (\d)/g)].map((match) => Number(match[1]))).toEqual([0, 1, 2, 3]);
+    });
+
+    it('ICT memo still lists the respondents and reporters by name and email', async () => {
+        const all = (await pagesOf(await renderMemoPdf(memoHeader(), [memoSurvey(1)]))).join(' ');
+        for (const expected of ['Timestamp', 'titi yusliyanti', 'Email', 'a@sja.co.id', 'Andi']) expect(all).toContain(expected);
     });
 
     it('ICT survey with team and people keeps the single team table', async () => {

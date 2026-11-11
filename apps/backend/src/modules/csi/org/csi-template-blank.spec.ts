@@ -31,6 +31,11 @@ describe('buildBlankTemplate', () => {
         expect(book.getWorksheet('Tim')!.getRow(1).values).toEqual([undefined, 'Nama Tim', 'Anggota', 'NIK']);
         const guide = book.getWorksheet('Petunjuk')!;
         expect(guide.rowCount).toBeLessThanOrEqual(10);
+        // New CSI style: navy title, numbered wrapped steps.
+        expect(guide.getCell('A1').value).toBe('Template penugasan HC · SMG');
+        expect(guide.getCell('A1').font).toMatchObject({ bold: true, color: { argb: 'FF1F3A5F' } });
+        expect(String(guide.getCell('A3').value)).toMatch(/^1\. /);
+        expect(guide.getCell('A3').alignment?.wrapText).toBe(true);
         const text = guide.getColumn(1).values.join('\n');
         for (const phrase of ['HC Development', 'HC Comben', 'HC Services', 'Karyawan SMG', '"Tim"', 'List PIC']) expect(text).toContain(phrase);
     });
@@ -41,6 +46,7 @@ describe('buildBlankTemplate', () => {
         expect(list.getRow(1).values).toEqual([undefined, 'Area', 'Nama Lengkap Karyawan (HC)', 'Jabatan', 'Fungsi pelayanan',
             'Nama Lengkap Penilai', 'Jabatan (akan terisi otomatis)', 'NIK Penilai']);
         expect(list.getRow(1).getCell(1).font?.bold).toBe(true);
+        expect(list.getRow(1).getCell(1).fill).toMatchObject({ fgColor: { argb: 'FF1F3A5F' } });
         expect(list.views[0]).toMatchObject({ state: 'frozen', ySplit: 1 });
     });
 

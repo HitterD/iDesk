@@ -11,6 +11,7 @@ import { CsiPeriodRaterRatee } from '../entities/csi-period-rater-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiPic } from '../entities/csi-pic.entity';
+import { addGuideSheet } from '../services/csi-excel-style';
 import { addStyledSheet, sanitizeCell } from '../services/csi-export.sheet';
 import { lockUnlockedPeriod } from '../services/csi-period-lock.util';
 import { assertPeriodInScope } from '../services/csi-scope.util';
@@ -91,14 +92,12 @@ export class CsiPairsExcelService {
         addStyledSheet(workbook, PIC_SHEET, [
             { header: 'NIK PIC', width: 14 }, { header: 'Nama PIC', width: 30 }, { header: 'Layanan', width: 10 }, { header: 'Bagian PIC', width: 30 }, { header: 'Jabatan', width: 32 },
         ], picRatees.map((ratee) => [picById.get(ratee.picId!)?.nik ?? '', sanitizeCell(ratee.displayName), ratee.serviceCode ?? '', sanitizeCell(ratee.bagian), sanitizeCell(ratee.jobTitle)]));
-        const info = workbook.addWorksheet('Cara pakai');
-        [
+        addGuideSheet(workbook, 'Cara pakai', 'Siapa menilai siapa', [
             'Satu baris = satu penilai menilai satu PIC.',
             'Yang dibaca saat impor hanya kolom "NIK Penilai" dan "NIK PIC" di sheet "Siapa menilai siapa"; kolom lain sebagai keterangan.',
             'Tambah baris untuk pasangan baru, hapus baris untuk membatalkan. NIK PIC ada di sheet "Daftar PIC".',
             'Impor MENGGANTI seluruh pasangan survei ini dan hanya bisa sebelum ada jawaban.',
-        ].forEach((line) => info.addRow([line]));
-        info.getColumn(1).width = 110;
+        ]);
         return { filename: `siapa-menilai-siapa-${period.id.slice(0, 8)}.xlsx`, buffer: Buffer.from(await workbook.xlsx.writeBuffer()) };
     }
 

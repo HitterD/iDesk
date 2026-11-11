@@ -3,7 +3,7 @@ import { CsiReportModel } from '../services/csi-report-model';
 import {
     choicesTable, commentsSection, dec, deltaColor, departmentsTable, DASH, rankingSection, scoreCell, shuffledTexts, signed, summary, TABLE_KEEP, text,
 } from '../services/csi-report-pdf-sections';
-import { collapseRespondentRows, CsiCell, CsiHcRecap, CsiLocationCells, CsiRecapRow, CsiRespondentRow, previousOf, recapRowKey } from './csi-hc-report.calc';
+import { collapseRespondentRows, CSI_NO_BAGIAN_LABEL, CsiCell, CsiHcRecap, CsiLocationCells, CsiRecapRow, CsiRespondentRow, recapDelta } from './csi-hc-report.calc';
 import { compareServiceCodes } from '../services/csi-report-ranking';
 import { serviceName } from './csi-org.constants';
 
@@ -30,14 +30,9 @@ const serviceTitle = (code: string | null) => (code ? `${code} · ${serviceName(
 const titleCase = (value: string) => value.split(' ').map((word) => (word.length <= 3 && /^[A-Z&]+$/.test(word) ? word
     : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())).join(' ');
 type HcModel = CsiReportModel & { hcRecap: CsiHcRecap };
+/** Ranking detail: bagian in title case; the "Tanpa bagian" label stays exactly as in the recap tables. */
+const bagianDetail = (value: string) => (value === CSI_NO_BAGIAN_LABEL ? value : titleCase(value));
 
-/** Change against the previous period: matched by master PIC, else by a name only one row of this report carries. */
-const delta = (recap: CsiHcRecap, row: CsiRecapRow): number | null => {
-    if (!recap.previous || row.all.average === null) return null;
-    const sameName = recap.services.filter((other) => recapRowKey(other) === recapRowKey(row)).length;
-    const before = previousOf(recap.previous, row, sameName);
-    return before === null || before === undefined ? null : Math.round((row.all.average - before) * 100) / 100;
-};
 const deltaCell = (value: number | null): Cell => ({ text: signed(value), color: deltaColor(value) });
 
 /** Columns: label, the 5 dimensions (full names), Rata-rata, Penilai and, with a previous period, Selisih. */
@@ -56,7 +51,7 @@ function dimensionCells(model: HcModel, row: CsiRecapRow, label: Cell, bold: boo
     return [
         label, ...recap.dimensions.map((dimension) => scoreCell(row.dimensions[dimension], bands, bold)),
         scoreCell(row.all.average, bands, true), { text: String(row.respondents) },
-        ...(model.hasPrevious ? [deltaCell(delta(recap, row))] : []),
+        ...(model.hasPrevious ? [deltaCell(recapDelta(recap, row))] : []),
     ];
 }
 
@@ -153,11 +148,13 @@ function appendix(canvas: ReportCanvas, model: HcModel) {
 /** Sections 1-7 of the HC report (the caller draws the header first and the sign-off after). */
 export function renderHcReportPdf(canvas: ReportCanvas, model: HcModel) {
     const services = model.hcRecap.services.filter((row) => row.level === 'service').length;
-    summary(canvas, model, { value: model.counts.people + model.counts.teams, note: `PIC di ${services} layanan · ${dec(model.hcRecap.overall.respondents, 0)} responden` }, HC_OVERALL_NOTE);
+    // "Yang dinilai" = the PIC / team rows of "Nilai per layanan, bagian & PIC" (rated or not).
+    const rated = model.hcRecap.services.filter((row) => row.level === 'pic').length;
+    summary(canvas, model, { value: rated, note: `PIC/tim di ${services} layanan · ${dec(model.hcRecap.overall.respondents, 0)} responden` }, HC_OVERALL_NOTE);
     canvas.pageBreak();
     serviceScores(canvas, model);
     nestedScores(canvas, model);
-    rankingSection(canvas, model, { title: 'Peringkat per layanan', detailHeader: 'Bagian / fungsi', heading: (group) => serviceTitle(group.serviceCode), detail: titleCase });
+    rankingSection(canvas, model, { title: 'Peringkat per layanan', detailHeader: 'Bagian', heading: (group) => serviceTitle(group.serviceCode), detail: bagianDetail });
     respondentRecap(canvas, model);
     comments(canvas, model);
     appendix(canvas, model);

@@ -1,5 +1,6 @@
 import { CsiRespondentMode } from '../csi.constants';
 import { MemoHeaderDto } from '../dto/memo.dto';
+import { CsiDepartmentParticipation } from './csi-report-participation';
 
 /** Shared fixtures for memo specs (not shipped logic). */
 export const memoHeader = (overrides: Partial<MemoHeaderDto> = {}): MemoHeaderDto => ({
@@ -52,5 +53,5 @@ export function memoSurvey(index = 1, averageValue: number | null = 4.52) {
             }] : []),
         ],
     }];
-    return { report: report as any, answers: answers as any };
+    return { report: report as any, answers: answers as any, departments: undefined as CsiDepartmentParticipation[] | undefined };
 }

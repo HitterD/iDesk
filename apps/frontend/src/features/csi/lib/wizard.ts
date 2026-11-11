@@ -77,6 +77,10 @@ export function previousStep(period: WizardSections | null, current: WizardStepK
     return steps[steps.indexOf(current) - 1] ?? null;
 }
 
+/** HC only reports PIC and team ratees: people picked from user accounts never complete the ratees step. */
+const hasHcSubject = (period: CsiPeriodDetail) =>
+    period.scope !== 'HC' || period.ratees.some((ratee) => !!ratee.picId || ratee.kind === 'TEAM');
+
 /**
  * Whether a step of an existing period counts as done (stepper tick, resume point).
  * `activeQuestionCount` = active questions in the scope (the questions step has no server check).
@@ -87,7 +91,7 @@ export function stepComplete(key: WizardStepKey, period: CsiPeriodDetail, active
     switch (key) {
         case 'questions': return activeQuestionCount > 0;
         case 'team': return checkOk('team');
-        case 'ratees': return checkOk('ratees') && checkOk('dimensions');
+        case 'ratees': return checkOk('ratees') && checkOk('dimensions') && hasHcSubject(period);
         case 'raters':
         case 'pairs': return checkOk('raters');
         case 'departments': return checkOk('departments');

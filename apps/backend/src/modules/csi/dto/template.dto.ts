@@ -129,3 +129,9 @@ export class CreatePeriodFromTemplatesDto extends CreatePeriodFromTemplateDto {
     @ArrayUnique(undefined, { message: 'Lokasi tidak boleh duplikat' }) @IsUUID('all', { each: true, message: 'ID template harus berupa UUID' })
     templateIds: string[];
 }
+
+/** "Ambil dari template" into an existing HC survey; replaceNonPic removes the people who are no PIC first. */
+export class ApplyTemplatesToPeriodDto extends PreviewPeriodFromTemplatesDto {
+    @IsOptional() @IsBoolean()
+    replaceNonPic?: boolean;
+}

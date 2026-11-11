@@ -20,7 +20,8 @@ const assignmentsPath = (scope: CsiScopeParam, id: string) => `${periodPath(scop
 /** Multipart field name expected by the subject photo upload (FileInterceptor('file')). */
 const PHOTO_FIELD = 'file';
 
-function exportFilename(disposition: unknown, scope: CsiScopeParam, extension = 'xlsx'): string {
+/** File name from Content-Disposition (no path or control characters), else `csi-<scope>.<extension>`. */
+export function exportFilename(disposition: unknown, scope: CsiScopeParam, extension = 'xlsx'): string {
     const fallback = `csi-${scope}.${extension}`;
     if (typeof disposition !== 'string') return fallback;
     const filename = /filename="([^"]+)"/i.exec(disposition)?.[1]
@@ -239,6 +240,11 @@ export const CsiApi = {
     async exportPeriod(scope: CsiScopeParam, id: string, notes?: string): Promise<{ blob: Blob; filename: string }> {
         // A blob error body hides the server message from the interceptor; the caller shows one toast instead.
         const response = await api.get<Blob>(`${periodPath(scope, id)}/export`, { params: { notes: notes || undefined }, responseType: 'blob', skipToast: true });
+        return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope) };
+    },
+    /** Raw data (names the raters): a separate, confidential file. */
+    async exportPeriodRaw(scope: CsiScopeParam, id: string): Promise<{ blob: Blob; filename: string }> {
+        const response = await api.get<Blob>(`${periodPath(scope, id)}/export-raw`, { responseType: 'blob', skipToast: true });
         return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope) };
     },
     async reportSignoff(scope: CsiScopeParam): Promise<SignoffLayout> {

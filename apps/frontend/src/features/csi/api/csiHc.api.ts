@@ -1,6 +1,7 @@
 import api from '@/lib/api';
+import { exportFilename } from './csi.api';
 import type { CsiPeriodDetail, CsiScopeParam } from '../types';
-import type { AccountSuggestion, CreateCsiPeriodFromTemplates, CsiPeriodFromTemplatesResult, CsiTemplateImportOptions } from '../hcTypes';
+import type { AccountSuggestion, ApplyCsiTemplates, CreateCsiPeriodFromTemplates, CsiTemplateApplyManyReport, CsiPeriodFromTemplatesResult, CsiTemplateImportOptions } from '../hcTypes';
 import type { CsiDirectoryImportResult, CsiHcRater, CsiHcRecap, CsiPairsImportReport, CsiPicView, CsiReportAccess, CsiReportPeriods, CsiServiceReport, CsiServiceReportOwners, CsiTemplate, CsiTemplateApplyReport, CsiTemplateImportReport, CsiTemplateList, CsiUnitOption, CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
 
 const orgPath = (scope: CsiScopeParam) => `/csi/admin/${scope}/org`;
@@ -63,6 +64,10 @@ export const CsiHcApi = {
     async applyTemplate(scope: CsiScopeParam, templateId: string, periodId: string, commit: boolean): Promise<CsiTemplateApplyReport> {
         return (await api.post<CsiTemplateApplyReport>(`${templatePath(scope)}/${encodeURIComponent(templateId)}/apply/${encodeURIComponent(periodId)}`, null, { params: { commit } })).data;
     },
+    /** Several location templates into one survey (dry run unless commit); replaceNonPic drops people who are no PIC. */
+    async applyTemplates(scope: CsiScopeParam, periodId: string, body: ApplyCsiTemplates, commit: boolean): Promise<CsiTemplateApplyManyReport> {
+        return (await api.post<CsiTemplateApplyManyReport>(`${templatePath(scope)}/apply-many/${encodeURIComponent(periodId)}`, body, { params: { commit }, skipToast: true })).data;
+    },
     async myReportAccess(scope: CsiScopeParam): Promise<CsiReportAccess> {
         return (await api.get<CsiReportAccess>(`${mePath(scope)}/report-access`, { skipToast: true })).data;
     },
@@ -72,8 +77,14 @@ export const CsiHcApi = {
     async myServiceReport(scope: CsiScopeParam, periodId: string, serviceCode: string): Promise<CsiServiceReport> {
         return (await api.get<CsiServiceReport>(`${serviceReportPath(scope, periodId, serviceCode)}/report`)).data;
     },
-    async myServiceReportExport(scope: CsiScopeParam, periodId: string, serviceCode: string): Promise<Blob> {
-        return (await api.get<Blob>(`${serviceReportPath(scope, periodId, serviceCode)}/export`, { responseType: 'blob', skipToast: true })).data;
+    async myServiceReportExport(scope: CsiScopeParam, periodId: string, serviceCode: string): Promise<{ blob: Blob; filename: string }> {
+        const response = await api.get<Blob>(`${serviceReportPath(scope, periodId, serviceCode)}/export`, { responseType: 'blob', skipToast: true });
+        return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope) };
+    },
+    /** Raw ratings of the owner's own service (rater names; ratings about the owner stay anonymous). */
+    async myServiceReportRawExport(scope: CsiScopeParam, periodId: string, serviceCode: string): Promise<{ blob: Blob; filename: string }> {
+        const response = await api.get<Blob>(`${serviceReportPath(scope, periodId, serviceCode)}/export-raw`, { responseType: 'blob', skipToast: true });
+        return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope) };
     },
     async reportOwners(scope: CsiScopeParam): Promise<CsiServiceReportOwners[]> {
         return (await api.get<CsiServiceReportOwners[]>(`/csi/admin/${scope}/report-owners`)).data;

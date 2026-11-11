@@ -72,17 +72,21 @@ type ReadinessEntry = [CsiReadinessKey, boolean];
 
 /**
  * Publish prerequisites. `team` only applies when the team section is enabled; `ratees`/`dimensions` (PERSON ratees)
- * only when the individual section is enabled; `raters` only to LISTED periods.
+ * only when the individual section is enabled; `raters` only to LISTED periods. HC passes `hcSubjectCount` (PIC ratees +
+ * TEAM ratees): there `ratees` needs at least one of those, since people picked from user accounts are never reported.
  */
 export function computeReadiness(input: {
     ratees: Array<{ dimensions: unknown[] }>; raterCount: number; respondentMode: CsiRespondentMode; activeDepartmentCount: number;
-    teamEnabled: boolean; individualEnabled: boolean; teamQuestionCount: number;
+    teamEnabled: boolean; individualEnabled: boolean; teamQuestionCount: number; hcSubjectCount?: number;
 }): CsiReadiness {
+    const hasSubjects = input.hcSubjectCount === undefined ? input.ratees.length > 0 : input.hcSubjectCount > 0;
+    // No ratee at all is not "every ratee has a dimension" (no vacuous truth); an HC survey of teams only is.
+    const anyRatee = input.ratees.length > 0 || (input.hcSubjectCount ?? 0) > 0;
     const results: ReadinessEntry[] = [
         ...(input.teamEnabled ? [['team', input.teamQuestionCount > 0] as ReadinessEntry] : []),
         ...(input.individualEnabled ? [
-            ['ratees', input.ratees.length > 0] as ReadinessEntry,
-            ['dimensions', input.ratees.length > 0 && input.ratees.every((ratee) => ratee.dimensions.length > 0)] as ReadinessEntry,
+            ['ratees', hasSubjects] as ReadinessEntry,
+            ['dimensions', anyRatee && input.ratees.every((ratee) => ratee.dimensions.length > 0)] as ReadinessEntry,
         ] : []),
         ['departments', input.activeDepartmentCount > 0],
         ...(input.respondentMode === CsiRespondentMode.LISTED ? [['raters', input.raterCount > 0] as ReadinessEntry] : []),
@@ -203,6 +207,7 @@ export class CsiPeriodService {
                 teamEnabled: period.teamEnabled, individualEnabled: period.individualEnabled,
                 // One team per site: the check passes only when every site team has at least one question.
                 teamQuestionCount: teamRatees.length ? Math.min(...teamRatees.map((ratee) => ratee.dimensions.length)) : 0,
+                ...(period.scope === ServiceScope.HC ? { hcSubjectCount: rateesWithDimensions.filter((ratee) => ratee.picId || ratee.kind === CsiRateeKind.TEAM).length } : {}),
             }),
         };
     }

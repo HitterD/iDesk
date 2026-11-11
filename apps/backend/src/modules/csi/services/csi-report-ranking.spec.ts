@@ -21,8 +21,23 @@ describe('csi-report-ranking', () => {
             scope: ServiceScope.HC, bands, subjects: [subject('Ani', 4.8, 4), subject('Budi', 4.1, 5), subject('Caca', null, 0), subject('Dedi', 4.6, 7)],
         });
         expect(group.ranked.map((row) => [row.rank, row.name])).toEqual([[1, 'Dedi'], [2, 'Budi']]);
-        expect(group.insufficient.map((row) => [row.rank, row.name, row.average])).toEqual([[null, 'Ani', 4.8], [null, 'Caca', null]]);
+        expect(group.insufficient.map((row) => [row.rank, row.name, row.average])).toEqual([[null, 'Ani', 4.8]]);
+        expect(group.noAnswers.map((row) => [row.rank, row.name, row.average])).toEqual([[null, 'Caca', null]]);
         expect(group.ranked[0]).toMatchObject({ raters: 7, word: 'Sangat puas', previous: null, delta: null });
+    });
+
+    it('no score (0 raters, or raters but no scored answer) goes to noAnswers, never dropped or ranked', () => {
+        const [group] = rankingByService({
+            scope: ServiceScope.HC, bands, subjects: [
+                subject('Zaki', null, 0), subject('Budi', 4.1, 5), subject('Ani', null, 6), subject('Dodi', 3.9, 2), subject('Eka', null, 3),
+            ],
+        });
+        expect(group.ranked.map((row) => row.name)).toEqual(['Budi']);
+        expect(group.insufficient.map((row) => row.name)).toEqual(['Dodi']);
+        expect(group.noAnswers.map((row) => [row.name, row.raters, row.word])).toEqual([['Ani', 6, null], ['Eka', 3, null], ['Zaki', 0, null]]);
+        // A service where nobody has a score yet still has its group.
+        expect(rankingByService({ scope: ServiceScope.HC, bands, subjects: [subject('Zaki', null, 0, { serviceCode: 'HCS' })] })
+            .map((row) => [row.serviceCode, row.noAnswers.length])).toEqual([['HCS', 1]]);
     });
 
     it('ranking per service (HCD, HCC, HCS, then Lainnya; teams included)', () => {

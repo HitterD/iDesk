@@ -10,13 +10,15 @@ const input = () => ({
     pics: [
         { periodRateeId: 'rara', name: 'RARA', jobTitle: 'Staff', serviceCode: 'HCD', bagian: 'HCD', serviceFunction: 'People & Organization Development' },
         { periodRateeId: 'pris', name: 'PRISCILLA', jobTitle: 'Supervisor', serviceCode: 'HCD', bagian: 'HCD', serviceFunction: null },
+        { periodRateeId: 'tim', name: 'TIM REKRUT', jobTitle: null, serviceCode: 'HCD', bagian: null, serviceFunction: null, team: true },
     ],
     ratings: [
         { responseId: 'r1', periodRateeId: 'rara', location: CsiOrgLocation.SJA4, scores: { Knowledge: 5 }, respondent: { name: 'ELVI CYNTHIA', division: 'OPS', department: 'PROD', bagian: null } },
         { responseId: 'r1', periodRateeId: 'pris', location: CsiOrgLocation.SJA4, scores: { Knowledge: 4 }, respondent: { name: 'ELVI CYNTHIA', division: 'OPS', department: 'PROD', bagian: null } },
+        { responseId: 'r2', periodRateeId: 'tim', location: CsiOrgLocation.SJA4, scores: { Knowledge: 3 }, respondent: { name: 'BUDI RAHASIA', division: 'OPS', department: 'PROD', bagian: null } },
     ],
     dimensions: ['Knowledge'],
-    userIdOf: new Map<string, string | null>([['rara', 'u-rara'], ['pris', null]]),
+    ownersOf: new Map<string, string[]>([['rara', ['u-rara']], ['pris', []], ['tim', ['u-dewi', 'u-eko']]]),
 });
 
 describe('CsiServiceReportService', () => {
@@ -44,7 +46,7 @@ describe('CsiServiceReportService', () => {
         const report = await service.get('u-rara', 'p1', 'HCD', ServiceScope.HC);
         expect(access.assertService).toHaveBeenCalledWith('u-rara', ServiceScope.HC, 'HCD');
         const names = report.respondents.flatMap((row) => row.pics.map((pic) => [row.name, pic.name]));
-        expect(names).toEqual([['ELVI CYNTHIA', 'PRISCILLA'], ['Anonim', 'RARA']]);
+        expect(names).toEqual([['BUDI RAHASIA', 'Tim · TIM REKRUT'], ['ELVI CYNTHIA', 'PRISCILLA'], ['Anonim', 'RARA']]);
         expect(report.serviceCode).toBe('HCD');
         expect(report.scoreBands).toEqual({ fairMin: 3.5, goodMin: 4.2 });
         // PROD has 2 raters (< CSI_ANON_MIN_GROUP): merged, its name is not shown to the service owner.
@@ -52,10 +54,22 @@ describe('CsiServiceReportService', () => {
         expect(JSON.stringify(report)).not.toContain('SECRET');
     });
 
+    it('a member of a rated team who owns the service sees that team like an own PIC row: masked, raters anonymous', async () => {
+        access.assertService.mockResolvedValue({ admin: false });
+        const report = await service.get('u-eko', 'p1', 'HCD', ServiceScope.HC);
+        const names = report.respondents.flatMap((row) => row.pics.map((pic) => [row.name, pic.name]));
+        expect(names).toEqual([['ELVI CYNTHIA', 'PRISCILLA'], ['ELVI CYNTHIA', 'RARA'], ['Anonim', 'Tim · TIM REKRUT']]);
+        expect(JSON.stringify(report)).not.toContain('BUDI RAHASIA');
+        const team = report.services.find((row) => row.key === 'p:tim')!;
+        // One rating (< CSI_OWN_ROW_MIN_RATINGS): count only, no score, no location split.
+        expect(team.all).toEqual({ average: null, ratings: 1 });
+        expect(Object.values(team.byLocation).every((cell) => cell.average === null && cell.ratings === 0)).toBe(true);
+    });
+
     it('admins see every rater by name', async () => {
         access.assertService.mockResolvedValue({ admin: true });
         const report = await service.get('admin', 'p1', 'HCD', ServiceScope.HC);
-        expect(report.respondents.map((row) => row.name)).toEqual(['ELVI CYNTHIA']);
+        expect(report.respondents.map((row) => row.name)).toEqual(['BUDI RAHASIA', 'ELVI CYNTHIA']);
     });
 
     it('anyone else gets 403 before any data is read', async () => {
@@ -64,17 +78,48 @@ describe('CsiServiceReportService', () => {
         expect(reports.hcRecapInput).not.toHaveBeenCalled();
     });
 
-    it('the Excel export keeps the self rows anonymous', async () => {
-        access.assertService.mockResolvedValue({ admin: false });
-        const { buffer, filename } = await service.exportWorkbook('u-rara', 'p1', 'HCD', ServiceScope.HC);
-        expect(filename).toMatch(/HCD/);
+    const textOf = async (buffer: Buffer) => {
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(buffer as any);
         const text: string[] = [];
         workbook.eachSheet((sheet) => sheet.eachRow((row) => text.push(JSON.stringify(row.values))));
-        const raraRows = text.filter((line) => line.includes('"RARA"') && line.includes('Knowledge') === false && line.includes('Anonim'));
-        expect(raraRows.length).toBeGreaterThan(0);
+        return { workbook, text };
+    };
+
+    it('the main Excel export is anonymous: numbered recap sheets, pending per department merged, no rater names', async () => {
+        access.assertService.mockResolvedValue({ admin: true });
+        const { buffer, filename } = await service.exportWorkbook('admin', 'p1', 'HCD', ServiceScope.HC);
+        expect(filename).toBe('csi-hc-HCD-p1.xlsx');
+        const { workbook, text } = await textOf(buffer);
+        expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['1 Per layanan', '2 Layanan-bagian-PIC', '3 Rekap responden', '4 Belum menilai']);
+        expect(text.join(' | ')).not.toMatch(/ELVI CYNTHIA|BUDI RAHASIA|SECRET/);
+        expect(text.join(' | ')).toContain('Departemen kecil (gabungan)');
+        expect(text.join(' | ')).toContain('PRISCILLA');
+    });
+
+    it('the pending department name is sanitised against formula injection', async () => {
+        access.assertService.mockResolvedValue({ admin: true });
+        reports.getRespondents.mockResolvedValueOnce({ pendingByDepartment: [{ department: '=CMD()', pending: 1, total: 5 }], pending: [] } as any);
+        const { text } = await textOf((await service.exportWorkbook('admin', 'p1', 'HCD', ServiceScope.HC)).buffer);
+        expect(text.join(' | ')).toContain("'=CMD()");
+    });
+
+    it('the raw export names the raters of the service but keeps the owner own ratings anonymous', async () => {
+        access.assertService.mockResolvedValue({ admin: false });
+        const { buffer, filename } = await service.exportRawWorkbook('u-rara', 'p1', 'HCD', ServiceScope.HC);
+        expect(filename).toBe('csi-hc-HCD-p1 - DATA MENTAH (RAHASIA).xlsx');
+        const { workbook, text } = await textOf(buffer);
+        expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['HC Jawaban Responden']);
+        expect(String(workbook.worksheets[0].getCell('A1').value)).toMatch(/^RAHASIA/);
+        expect(text.some((line) => line.includes('ELVI CYNTHIA') && line.includes('"PRISCILLA"'))).toBe(true);
         expect(text.some((line) => line.includes('ELVI CYNTHIA') && line.includes('"RARA"'))).toBe(false);
+        expect(text.some((line) => line.includes('Anonim') && line.includes('"RARA"'))).toBe(true);
+    });
+
+    it('the raw export of another service is refused before any data is read', async () => {
+        access.assertService.mockRejectedValue(new ForbiddenException());
+        await expect(service.exportRawWorkbook('u-rara', 'p1', 'HCC', ServiceScope.HC)).rejects.toBeInstanceOf(ForbiddenException);
+        expect(reports.hcRecapInput).not.toHaveBeenCalled();
     });
 
     it('lists HC periods only for users with at least one service', async () => {
@@ -101,7 +146,7 @@ describe('CsiServiceReportService', () => {
                 { periodRateeId: 'agus', name: 'AGUS', jobTitle: 'Oracle Dev', serviceCode: 'ORACLE', bagian: 'SPJ', serviceFunction: 'Oracle EBS' },
                 { periodRateeId: 'tono', name: 'TONO', jobTitle: 'Support', serviceCode: 'OPS', bagian: 'SPJ', serviceFunction: null },
             ],
-            ratings: [], userIdOf: new Map(),
+            ratings: [], ownersOf: new Map(),
         });
         access.assertService.mockResolvedValue({ admin: false });
         const report = await service.get('u-agus', 'p-ict', 'oracle', ServiceScope.ICT);

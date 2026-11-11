@@ -99,6 +99,20 @@ describe('stepComplete', () => {
         expect(stepComplete('ratees', period([check('ratees', true)]), QUESTIONS)).toBe(false);
         expect(stepComplete('ratees', period([check('dimensions', true)]), QUESTIONS)).toBe(false);
     });
+
+    it('HC: ratees picked from user accounts (no PIC) never complete the step; a PIC or a team does', () => {
+        const ok = [check('ratees', true), check('dimensions', true)];
+        const ratee = (over: Partial<CsiPeriodDetail['ratees'][number]>) => ({
+            id: 'r', periodId: 'p1', kind: 'PERSON' as const, userId: 'u1', displayName: 'X', jobTitle: null, sortOrder: 0, dimensions: [],
+            createdAt: '', updatedAt: '', ...over,
+        });
+        const hc = (ratees: CsiPeriodDetail['ratees']) => ({ ...period(ok), scope: 'HC' as const, ratees });
+        expect(stepComplete('ratees', hc([ratee({ picId: null })]), QUESTIONS)).toBe(false);
+        expect(stepComplete('ratees', hc([ratee({ picId: 'pic-1' })]), QUESTIONS)).toBe(true);
+        expect(stepComplete('ratees', hc([ratee({ kind: 'TEAM', userId: null })]), QUESTIONS)).toBe(true);
+        // ICT is unchanged.
+        expect(stepComplete('ratees', { ...period(ok), ratees: [ratee({ picId: null })] }, QUESTIONS)).toBe(true);
+    });
 });
 
 describe('resumeStep', () => {

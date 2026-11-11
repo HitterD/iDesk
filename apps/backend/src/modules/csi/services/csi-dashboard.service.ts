@@ -13,6 +13,7 @@ import { CsiReportService, CsiSiteStats } from './csi-report.service';
 import { bandsOf, CsiScoreBands } from './csi-score-bands';
 import { round2 } from './csi-score.util';
 import { CsiSlaService } from './csi-sla.service';
+import { isRaterInAudience } from './csi-rater-audience.util';
 
 const TREND_POINTS = 5;
 const PENDING_MAX = 10;
@@ -25,6 +26,8 @@ const SORT_LAST = '￿';
 export type CsiDashboardActive = {
     periodId: string; title: string; siteId: string; siteCode: string | null; siteName: string | null;
     responses: number; basis: number; target: number; targetPct: number; average: number | null; endDate: string;
+    /** Units behind `average` (HC: ratings, ICT: responses): the weight when the dashboard combines site averages. */
+    scoreWeight: number;
     /** Colour bands of the period the row belongs to. */
     scoreBands: CsiScoreBands;
 };
@@ -86,15 +89,15 @@ export class CsiDashboardService {
             return {
                 periodId: period.id, title: period.title, siteId: site.id, siteCode: site.code, siteName: site.name,
                 responses: siteStats.responses, basis: sla.basis, target: sla.target, targetPct: sla.targetPct,
-                average: siteStats.average, endDate: period.endDate, scoreBands: bandsOf(period),
+                average: siteStats.average, scoreWeight: siteStats.scoreWeight, endDate: period.endDate, scoreBands: bandsOf(period),
             };
         })));
         return rows.sort((a, b) => a.endDate.localeCompare(b.endDate) || byCode(a, b));
     }
 
     /**
-     * LISTED raters without a response, earliest-ending period first (names alphabetical within a period). In a mapped
-     * period, raters without pairs are left out (they cannot see the survey).
+     * LISTED raters without a response, earliest-ending period first (names alphabetical within a period). Only raters
+     * who can open the survey count (isRaterInAudience: period site, active, paired in a mapped period).
      */
     private async pendingOf(active: CsiPeriod[]): Promise<CsiDashboardPending[]> {
         const listed = active.filter((period) => period.respondentMode === CsiRespondentMode.LISTED);
@@ -107,10 +110,8 @@ export class CsiDashboardService {
         ]);
         const answered = new Set(responses.map((row) => `${row.periodId}:${row.respondentId}`));
         const pairedBy = new Map(paired);
-        const inAudience = (rater: CsiPeriodRater) => {
-            const set = pairedBy.get(rater.periodId);
-            return !set || set.has(rater.id);
-        };
+        const sitesBy = new Map(listed.map((period) => [period.id, sitesOf(period).map((site) => site.id)]));
+        const inAudience = (rater: CsiPeriodRater) => isRaterInAudience(rater, sitesBy.get(rater.periodId) ?? [], pairedBy.get(rater.periodId) ?? null);
         const order = new Map(listed.map((period, index) => [period.id, index]));
         return raters
             .filter((rater) => inAudience(rater) && !answered.has(`${rater.periodId}:${rater.userId}`))
@@ -146,7 +147,7 @@ class StatsCache {
 
     async of(period: CsiPeriod, siteId: string): Promise<CsiSiteStats> {
         if (!this.cache.has(period.id)) this.cache.set(period.id, this.load(period));
-        return (await this.cache.get(period.id)!).get(siteId) ?? { average: null, responses: 0, people: [] };
+        return (await this.cache.get(period.id)!).get(siteId) ?? { average: null, responses: 0, scoreWeight: 0, people: [] };
     }
 }
 

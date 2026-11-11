@@ -1,4 +1,4 @@
-import { buildTemplateView, resolveRater } from './csi-template-view';
+import { buildTemplateView, ratersWithoutAccount, resolveRater } from './csi-template-view';
 
 const confirmedAt = new Date('2026-11-10T00:00:00Z');
 const rater = (patch = {}) => ({ raterName: 'ELVI CYNTHIA', raterNik: null, userId: null, confirmedAt: null, ...patch });
@@ -59,5 +59,20 @@ describe('buildTemplateView', () => {
     it('exposes the custom team of a team row (null for PIC rows)', () => {
         const view = buildTemplateView(template, [pic, { ...pic, id: 'p2', picName: 'TIM A', teamId: 'team-a', sortOrder: 1 }], [], []);
         expect(view.pics.map((row) => row.teamId)).toEqual([null, 'team-a']);
+    });
+});
+
+describe('ratersWithoutAccount', () => {
+    const accounts = [{ id: 'u1', fullName: 'Elvi Cynthia', employeeId: '277' }, { id: 'u2', fullName: 'Same', employeeId: null }, { id: 'u3', fullName: 'Same', employeeId: null }];
+    it('counts distinct raters (NIK, else name) that resolve to no account or an ambiguous one; linked or matched raters do not count', () => {
+        const raters = [
+            rater(), rater({ raterName: 'Elvi  Cynthia.' }), // matched by name (twice, two PICs)
+            rater({ raterName: 'Budi' }), rater({ raterName: 'BUDI' }), // no account, same person on two PICs
+            rater({ raterName: 'Same' }), // ambiguous
+            rater({ raterName: 'Tono', raterNik: '900' }), rater({ raterName: 'Tono S', raterNik: '00900' }), // no account, one NIK
+            rater({ raterName: 'Linked', userId: 'u2', confirmedAt }), // explicit link
+        ];
+        expect(ratersWithoutAccount(raters, accounts)).toBe(3);
+        expect(ratersWithoutAccount([], accounts)).toBe(0);
     });
 });

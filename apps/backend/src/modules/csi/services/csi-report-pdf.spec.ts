@@ -48,6 +48,13 @@ describe('renderCsiReportPdf', () => {
             expect(text).not.toMatch(/Lampiran D|Bintang|3 tertinggi|Perlu perhatian/);
         });
 
+        it('one SLA percentage: participation table has "% Sudah mengisi" (÷ basis), no "% Pengisi"', async () => {
+            const headers = await tableHeaders(reportFixture({ people: 3, sites: 2 }).model);
+            expect(headers).toEqual(expect.arrayContaining(['Sudah mengisi', '% Sudah mengisi', 'Status']));
+            expect(headers.join('|')).not.toMatch(/Pengisi|% Responden/);
+            expect(await allText(reportFixture({ people: 3, sites: 2 }).model)).not.toContain('Pengisi');
+        });
+
         it('no participant names or emails in pdf', async () => {
             const { model } = reportFixture({ people: 3 });
             const text = await allText(model);
@@ -137,7 +144,7 @@ describe('renderCsiReportPdf', () => {
 
         it('headers are not truncated: full dimension names and words are passed to the canvas', async () => {
             const headers = await tableHeaders(hcReportFixture({ previous: true }).model);
-            expect(headers).toEqual(expect.arrayContaining(['Knowledge', 'Responsiveness', 'Courtesy', 'Communication', 'Tangible', 'Rata-rata', 'Penilai', 'Bagian / fungsi', 'Semua lokasi']));
+            expect(headers).toEqual(expect.arrayContaining(['Knowledge', 'Responsiveness', 'Courtesy', 'Communication', 'Tangible', 'Rata-rata', 'Penilai', 'Bagian', 'Semua lokasi']));
             headers.forEach((header) => expect(header).not.toMatch(/\.\.\.|…/));
             expect(headers).not.toContain('Jml');
         });
@@ -160,14 +167,19 @@ describe('renderCsiReportPdf', () => {
             expect(first).toContain(`terendah: ${worst.serviceCode} ${fmt(worst.all.average)}`);
         });
 
-        it('ranking tables carry their layanan heading for "(lanjutan)"; Bagian / fungsi in title case', async () => {
+        it('ranking tables carry their layanan heading for "(lanjutan)"; Bagian in title case, "Tanpa bagian" kept as is', async () => {
             const spy = jest.spyOn(ReportCanvas.prototype, 'table');
             try {
-                await renderCsiReportPdf({ model: hcReportFixture().model, signoff, now: NOW });
-                const ranking = spy.mock.calls.filter(([columns]) => columns.some((column) => column.header === 'Bagian / fungsi'));
+                const { model } = hcReportFixture();
+                const groups = model.rankingByService.map((group, i) => (i === 0 ? { ...group, ranked: group.ranked.map((row, r) => (r === 0 ? { ...row, detail: 'Tanpa bagian' } : row)) } : group));
+                await renderCsiReportPdf({ model: { ...model, rankingByService: groups }, signoff, now: NOW });
+                const ranking = spy.mock.calls.filter(([columns]) => columns.some((column) => column.header === 'Bagian'));
                 expect(ranking.map((call) => call[3])).toEqual(expect.arrayContaining(['HCD · HC Development', 'HCC · HC Compensation & Benefit', 'HCS · HC Services']));
-                const details = ranking.flatMap(([columns, rows]) => rows.map((row) => row[columns.findIndex((column) => column.header === 'Bagian / fungsi')].text));
+                const details = ranking.flatMap(([columns, rows]) => rows.map((row) => row[columns.findIndex((column) => column.header === 'Bagian')].text));
                 expect(details).toEqual(expect.arrayContaining(['Payroll & Benefit', 'GA Management']));
+                expect(details).toContain('Tanpa bagian');
+                expect(details).not.toContain('Tanpa Bagian');
+                expect(spy.mock.calls.some(([columns]) => columns.some((column) => column.header === 'Bagian / fungsi'))).toBe(false);
                 details.forEach((detail) => expect(detail).not.toMatch(/^[A-Z &]{6,}$/));
             } finally {
                 spy.mockRestore();
@@ -177,13 +189,45 @@ describe('renderCsiReportPdf', () => {
         it('a long ranking continues with "<layanan> (lanjutan)" on the next page', async () => {
             const { model } = hcReportFixture();
             const row = (i: number) => ({ rank: i + 1, name: `PIC ${i}`, detail: 'PAYROLL', raters: 9, average: 4.2, word: 'Puas' as const, previous: null, delta: null });
-            const long = { ...model, rankingByService: [{ serviceCode: 'HCC', serviceName: 'HC Compensation & Benefit', ranked: Array.from({ length: 60 }, (_, i) => row(i)), insufficient: [] }] };
+            const long = { ...model, rankingByService: [{ serviceCode: 'HCC', serviceName: 'HC Compensation & Benefit', ranked: Array.from({ length: 60 }, (_, i) => row(i)), insufficient: [], noAnswers: [] }] };
             const text = await allText(long);
             expect(text).toContain('HCC · HC Compensation & Benefit (lanjutan)');
         });
 
+        it('"Belum ada penilaian" lists the PICs without a score (bagian + "–") after "Belum cukup penilai"', async () => {
+            const { model } = hcReportFixture();
+            const none = { rank: null, name: 'Jingga Ferdasiwi', detail: 'GA MANAGEMENT', raters: 0, average: null, word: null, previous: null, delta: null };
+            const groups = model.rankingByService.map((group) => (group.serviceCode === 'HCS' ? { ...group, noAnswers: [none] } : group));
+            const spy = jest.spyOn(ReportCanvas.prototype, 'table');
+            try {
+                await renderCsiReportPdf({ model: { ...model, rankingByService: groups }, signoff, now: NOW });
+                const call = spy.mock.calls.find((args) => args[3] === 'HCS · HC Services · Belum ada penilaian');
+                expect(call).toBeDefined();
+                expect(call![1].map((row) => row.map((cell) => cell.text))).toEqual([['Jingga Ferdasiwi', 'GA Management', '0', '–', '–']]);
+            } finally {
+                spy.mockRestore();
+            }
+            const text = await allText({ ...model, rankingByService: groups });
+            const section = text.slice(text.indexOf('Peringkat per layanan'));
+            expect(section.indexOf('Belum ada penilaian')).toBeGreaterThan(section.indexOf('Belum cukup penilai (< 5)'));
+        });
+
+        it('page 1 "Yang dinilai" equals the PIC / team rows of the layanan-bagian-PIC table', async () => {
+            const { model } = hcReportFixture();
+            const rows = model.hcRecap.services.filter((row) => row.level === 'pic').length;
+            const first = (await pagesOf({ ...model, counts: { ...model.counts, people: 99 } }))[0];
+            expect(first).toMatch(new RegExp(`Yang dinilai ${rows} PIC/tim di 3 layanan`));
+        });
+
         it('ICT page 1 has no per-rating note', async () => {
             expect((await pagesOf(reportFixture({ people: 3 }).model))[0]).not.toContain('Rata-rata semua penilaian');
+        });
+
+        it('page 1 lists template raters without an iDesk account only when there are any', async () => {
+            const { model } = hcReportFixture({ respondents: 30 });
+            const line = '4 penilai di template belum punya akun iDesk (tidak termasuk basis)';
+            expect((await pagesOf({ ...model, templateRatersWithoutAccount: 4 }))[0]).toContain(line);
+            expect((await pagesOf(model))[0]).not.toContain('belum punya akun iDesk');
         });
 
         it('sla block text', async () => {

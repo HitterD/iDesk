@@ -62,7 +62,7 @@ export function SubjectPhoto({ ratee, index, total, scrollTarget }: SubjectPhoto
             <span className="absolute left-4 top-4 z-[2] rounded-full bg-[rgb(8_14_30/.45)] px-[11px] py-[5px] text-[12px] font-bold tabular-nums text-white backdrop-blur-md">
                 {index + 1} / {total}
             </span>
-            <div key={ratee.periodRateeId} className="absolute inset-x-[clamp(16px,2.4cqi,32px)] bottom-[clamp(14px,2.2cqi,30px)] z-[2] text-white">
+            <div key={`caption-${ratee.periodRateeId}`} className="absolute inset-x-[clamp(16px,2.4cqi,32px)] bottom-[clamp(14px,2.2cqi,30px)] z-[2] text-white">
                 <span style={delay(CAPTION_DELAY.kind)} className={cn('csi-cap-in mb-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[.06em] text-white',
                     toneClasses(siteTone(ratee.siteCode)).fill)}>
                     <KindIcon className="h-[13px] w-[13px]" aria-hidden="true" />{kindText(ratee)}

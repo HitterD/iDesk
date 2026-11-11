@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CsiFormRatee } from '../../../types';
 import { SubjectPhoto } from '../SubjectPhoto';
 
@@ -14,6 +14,17 @@ const classes = () => photo().className.split(/\s+/);
 afterEach(cleanup);
 
 describe('SubjectPhoto', () => {
+    it('renders without React duplicate-key warnings (photo and caption are re-keyed per subject)', () => {
+        const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        try {
+            const { rerender } = render(<SubjectPhoto ratee={RATEE} index={0} total={2} />);
+            rerender(<SubjectPhoto ratee={{ ...RATEE, periodRateeId: 'r2', displayName: 'Budi' }} index={1} total={2} />);
+            expect(error.mock.calls.filter(([message]) => String(message).includes('same key'))).toEqual([]);
+        } finally {
+            error.mockRestore();
+        }
+    });
+
     it('is a short banner on phones (first question visible), taller from sm, sticky only behind the lg + container >= 780px variants', () => {
         render(<SubjectPhoto ratee={RATEE} index={0} total={3} />);
         expect(classes()).toEqual(expect.arrayContaining(['relative', 'aspect-[16/10]', 'max-h-[34vh]', 'sm:aspect-[4/3.8]', 'sm:max-h-[64vh]']));

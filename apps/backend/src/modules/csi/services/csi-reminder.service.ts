@@ -11,6 +11,7 @@ import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiAssignmentService } from './csi-assignment.service';
 import { computeStatus } from './csi-period.service';
 import { assertPeriodInScope } from './csi-scope.util';
+import { isRaterInAudience } from './csi-rater-audience.util';
 
 /** Same window NotificationService.create uses to drop a repeat (userId + type + referenceId). */
 export const CSI_REMINDER_DEDUP_MS = 24 * 60 * 60 * 1000;
@@ -46,16 +47,17 @@ export class CsiReminderService {
     ) { }
 
     /**
-     * `userIds` empty/omitted = every rater who has not answered; given ids must be raters of the period. In a mapped
-     * period, raters without pairs cannot see the survey and are counted as skipped.
+     * `userIds` empty/omitted = every rater who has not answered; given ids must be raters of the period. Raters who
+     * cannot open the survey (isRaterInAudience: other site, inactive, no pairs in a mapped period) are counted as skipped.
      */
     async send(scope: ServiceScope, periodId: string, userIds?: string[], now: Date = new Date()): Promise<CsiReminderResult> {
-        const period = assertPeriodInScope(await this.periods.findOne({ where: { id: periodId } }), scope);
+        const period = assertPeriodInScope(await this.periods.findOne({ where: { id: periodId }, relations: { sites: true } }), scope);
         assertRemindable(period, now);
-        const raters = await this.periodRaters.find({ where: { periodId } });
+        const raters = await this.periodRaters.find({ where: { periodId }, relations: { user: true } });
         const raterIds = raters.map((rater) => rater.userId);
         const paired = await this.assignments.ratersWithPairs(periodId);
-        const unmapped = new Set(paired ? raters.filter((rater) => !paired.has(rater.id)).map((rater) => rater.userId) : []);
+        const siteIds = (period.sites ?? []).map((row) => row.siteId);
+        const outsideAudience = new Set(raters.filter((rater) => !isRaterInAudience(rater, siteIds, paired)).map((rater) => rater.userId));
         const targets = userIds?.length ? [...new Set(userIds)] : raterIds;
         if (targets.some((id) => !raterIds.includes(id))) throw new BadRequestException(NOT_RATER_MESSAGE);
         if (!targets.length) return { sent: 0, skipped: 0 };
@@ -63,7 +65,7 @@ export class CsiReminderService {
         const reminded = await this.recentlyReminded(periodId, targets, now);
         let sent = 0;
         for (const userId of targets) {
-            if (unmapped.has(userId) || answered.has(userId) || reminded.has(userId)) continue;
+            if (outsideAudience.has(userId) || answered.has(userId) || reminded.has(userId)) continue;
             if (await this.notify(period, userId, now)) sent += 1;
         }
         return { sent, skipped: targets.length - sent };

@@ -42,6 +42,13 @@ vi.mock('../../components/wizard/WizardRoute', () => ({
     ),
 }));
 
+vi.mock('../../components/admin/hc/templates/HcSurveyWizard', () => ({
+    HcSurveyWizard: ({ onOpenChange, onCreated }: { onOpenChange: (open: boolean) => void; onCreated?: (id: string) => void }) => (
+        <div><p>hc-wizard</p><button type="button" onClick={() => onCreated?.('hc-made')}>buat dari template</button>
+            <button type="button" onClick={() => onOpenChange(false)}>batal hc</button></div>
+    ),
+}));
+
 const renderAt = (path: string) => render(
     <MemoryRouter initialEntries={[path]}>
         <Routes>
@@ -122,6 +129,31 @@ describe('CsiAdminPage', () => {
         access.pageAccess = { csi_admin_ict: true };
         renderAt('/csi/admin/ict?wizard=p3&step=ratees');
         expect(screen.getByText('wizard:p3:ratees')).toBeInTheDocument();
+    });
+
+    it('?wizard=new untuk HC membuka wizard template HC, bukan wizard generik', async () => {
+        const actor = userEvent.setup();
+        renderAt('/csi/admin/hc?wizard=new&step=info');
+        expect(screen.getByText('hc-wizard')).toBeInTheDocument();
+        expect(screen.queryByText(/^wizard:/)).not.toBeInTheDocument();
+        await actor.click(screen.getByRole('button', { name: 'buat dari template' }));
+        expect(screen.getByText('wizard:hc-made:resume')).toBeInTheDocument();
+    });
+
+    it('menutup wizard template HC dari ?wizard=new menutup rute wizard', async () => {
+        renderAt('/csi/admin/hc?wizard=new');
+        await userEvent.setup().click(screen.getByRole('button', { name: 'batal hc' }));
+        expect(screen.queryByText('hc-wizard')).not.toBeInTheDocument();
+        expect(screen.getByText('dashboard:hc')).toBeInTheDocument();
+    });
+
+    it('?wizard=new untuk ICT dan salinan HC tetap memakai wizard generik', () => {
+        const { unmount } = renderAt('/csi/admin/hc?wizard=new&copy=p0');
+        expect(screen.getByText('wizard:new:resume')).toBeInTheDocument();
+        unmount();
+        access.pageAccess = { csi_admin_ict: true };
+        renderAt('/csi/admin/ict?wizard=new');
+        expect(screen.queryByText('hc-wizard')).not.toBeInTheDocument();
     });
 
     it('ADMIN selalu bisa membuka Admin HC; ICT tanpa key dialihkan ke HC', () => {

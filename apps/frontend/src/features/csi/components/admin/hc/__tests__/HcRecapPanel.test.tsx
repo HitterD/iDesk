@@ -47,6 +47,22 @@ describe('HcRecapPanel', () => {
         expect(within(overall).getByText('4,30')).toHaveClass(GREEN_INK);
     });
 
+    it('a custom team row sits directly under its layanan: visible with the layanan open, no bagian to expand', () => {
+        const base = row('pic', 'HCS', 'TIM RECEPTION', 4.1);
+        fx.recap = {
+            ...RECAP, services: [
+                { ...row('service', 'HCS', 'HCS · HC Services', 3.4), key: 's:HCS' },
+                { ...row('bagian', 'HCS', 'GA MANAGEMENT', 3.4), key: 'b:HCS:GA MANAGEMENT' },
+                { ...row('pic', 'HCS', 'CICI', 3.4), key: 'p:c', bagian: 'GA MANAGEMENT' },
+                { ...base, key: 'p:t', label: 'Tim · TIM RECEPTION', bagian: null, team: true },
+            ],
+        };
+        render(<HcRecapPanel scope="hc" periodId="p1" />);
+        expect(screen.getByText('Tim · TIM RECEPTION')).toBeInTheDocument();
+        // The bagian is closed by default, so its PIC is hidden; the team is not behind a bagian.
+        expect(screen.queryByText('Cici')).toBeNull();
+    });
+
     it('keeps the layanan order of the payload (HCD, HCC, HCS)', () => {
         fx.recap = RECAP;
         render(<HcRecapPanel scope="hc" periodId="p1" />);
