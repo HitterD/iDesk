@@ -76,7 +76,7 @@ export function TemplatePullDialog({ scope, period, open, onOpenChange }: {
                 {report && nonPic > 0 && !report.committed && (
                     <label className={NOTE_AMBER}>
                         <Checkbox checked={replace} disabled={busy} onCheckedChange={(state) => confirmReplace(state === true)} className="mt-0.5" />
-                        <span>{`Ganti ${nonPic} orang non-PIC dengan PIC dari template. Mereka dipilih dari akun user, tidak masuk report HC, dan akan dihapus beserta pasangannya.`}</span>
+                        <span>{`Ganti ${nonPic} orang non-PIC dengan PIC dari template. Mereka dipilih dari akun user, tidak masuk report HC, dan akan dihapus beserta pasangannya, termasuk penilai yang hanya menilai mereka.`}</span>
                     </label>
                 )}
                 {error && <p role="alert" className={ALERT_RED}>{error}</p>}
