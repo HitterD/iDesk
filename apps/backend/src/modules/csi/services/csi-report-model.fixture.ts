@@ -105,14 +105,14 @@ export function hcReportFixture({ respondents = 30, previous = false, title = 'C
     const recap = buildHcRecap({ pics: HC_PICS, ratings, dimensions: HC_DIMENSIONS.map(([label]) => label) });
     const sla = { ...input.report.sla, target: Math.ceil(input.report.sla.basis * 0.9) };
     const report: any = { ...input.report, period: { ...input.report.period, title, slaTargetPct: 90 }, sla, previousAverage: previous ? 4.1 : null, ratees };
+    // Only what the previous period really had: layanan HCC, Anita (master PIC) and Bambang (name); others show "–".
+    const hcRecap = previous ? { ...recap, previous: { 's:HCC': 4.0, 'pic:pic0': 3.9, 'p:HCC:bambang benefit': 4.2 }, previousOverall: 4.1 } : recap;
     const hcInput: CsiReportModelInput = {
-        ...input, report, scope: ServiceScope.HC, scopeLabel: 'HC', hasPrevious: previous,
+        ...input, report, scope: ServiceScope.HC, scopeLabel: 'HC', hasPrevious: previous, hcRecap,
         // Anita by master PIC (her name changed since), Bambang by name.
         previousBySubject: previous ? new Map([['PIC:pic0', 3.9], ['PERSON:bambang benefit:', 4.2]]) : new Map(),
         serviceAverages: recap.services.filter((row) => row.level === 'service').map((row) => ({ serviceCode: row.serviceCode, average: row.all.average })),
         comments: ratees.flatMap((ratee) => ratee.comments.map((comment) => ({ periodRateeId: ratee.periodRateeId, text: comment.text, department: comment.departmentName, date: comment.submittedAt }))),
     };
-    // Only what the previous period really had: layanan HCC, Anita (master PIC) and Bambang (name); others show "–".
-    const hcRecap = previous ? { ...recap, previous: { 's:HCC': 4.0, 'pic:pic0': 3.9, 'p:HCC:bambang benefit': 4.2 } } : recap;
     return { input: hcInput, model: { ...buildReportModel(hcInput), hcRecap }, ratings };
 }

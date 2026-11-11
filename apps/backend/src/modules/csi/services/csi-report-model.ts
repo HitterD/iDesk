@@ -1,5 +1,5 @@
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CSI_SIMULATION_TITLE_PREFIX, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { CSI_RANK_MIN_RATERS, CSI_SIMULATION_TITLE_PREFIX, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CsiRaterMatrix } from './csi-rater-matrix.calc';
 import { CsiDepartmentParticipation, CsiSlaBlock, departmentParticipation, slaBlock } from './csi-report-participation';
 import { CsiServiceHighlight, CsiServiceRanking, rankingByService, serviceHighlight } from './csi-report-ranking';
@@ -182,7 +182,9 @@ function highlightSentences(model: Pick<CsiReportModel, 'bands' | 'overall' | 't
     lines.push(`Kepuasan keseluruhan ${overall.word} (${fmt(overall.average)} dari 5)${overall.delta === null ? '.' : `, ${overall.delta >= 0 ? 'naik' : 'turun'} ${fmt(Math.abs(overall.delta))} dari periode lalu.`}`);
     const highlight = model.serviceHighlight;
     if (highlight) lines.push(`Layanan tertinggi: ${highlight.best.code} ${fmt(highlight.best.average)} · terendah: ${highlight.worst.code} ${fmt(highlight.worst.average)}.`);
-    const below = [...model.teams, ...model.people].filter((row) => row.band === 'poor').length;
+    // HC counts only PICs the ranking can number (enough raters); ICT keeps every subject.
+    const counted = (row: CsiReportRow) => scope !== ServiceScope.HC || row.raters >= CSI_RANK_MIN_RATERS;
+    const below = [...model.teams, ...model.people].filter((row) => row.band === 'poor' && counted(row)).length;
     if (below) lines.push(`${below} ${scope === ServiceScope.HC ? 'PIC' : 'tim/orang'} di bawah ${fmt(model.bands.fairMin)} (Perlu perbaikan).`);
     const scored = model.aspects.filter((aspect) => aspect.average !== null);
     if (scored.length > 1) lines.push(`Aspek terlemah: ${scored[0].label} (${fmt(scored[0].average!)}). Terkuat: ${scored[scored.length - 1].label} (${fmt(scored[scored.length - 1].average!)}).`);
@@ -217,7 +219,31 @@ export type CsiReportModelInput = {
     serviceAverages: Array<{ serviceCode: string | null; average: number | null }>;
     comments: Array<{ periodRateeId: string; text: string; department: string; date: Date }>;
     notes: string;
+    /**
+     * HC per-rating recap (with the same site filter). When set for HC, the overall score, predikat, indeks, its
+     * previous value and the aspect averages come from it, so page 1 matches the recap tables and Lampiran A.
+     */
+    hcRecap?: CsiHcRecap | null;
 };
+
+type OverallBasis = { average: number | null; previous: number | null };
+
+/** HC with a recap: every rating weighs the same (recap basis); otherwise the report's mean of response means. */
+function overallBasis(input: CsiReportModelInput): OverallBasis {
+    const recap = input.scope === ServiceScope.HC ? input.hcRecap : null;
+    if (!recap) return { average: input.report.overall.average, previous: input.report.previousAverage };
+    const previous = recap.previousOverall === undefined ? input.report.previousAverage : recap.previousOverall;
+    return { average: recap.overall.all.average, previous };
+}
+
+/** HC with a recap: the aspect average is the mean of that dimension's stars over every rating (Lampiran A). */
+function aspectsOf(input: CsiReportModelInput): CsiAspect[] {
+    const base = aspects(input.report.ratees);
+    const recap = input.scope === ServiceScope.HC ? input.hcRecap : null;
+    if (!recap) return base;
+    return base.map((aspect) => (aspect.label in recap.overall.dimensions ? { ...aspect, average: recap.overall.dimensions[aspect.label] } : aspect))
+        .sort((a, b) => (a.average ?? 99) - (b.average ?? 99));
+}
 
 /** Responses against the basis, never above 100% (more answers than the basis still reads as complete). */
 const respondenPct = (responses: number, basis: number) => (basis > 0 ? Math.min(PERCENT, Math.round((responses / basis) * PERCENT)) : null);
@@ -248,14 +274,14 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
     input.comments.forEach((comment) => byRatee.get(comment.periodRateeId)?.comments.push({ text: comment.text, department: comment.department, date: comment.date }));
     const commentGroups = [...byRatee.values()].filter((group) => group.comments.length)
         .map((group) => ({ ...group, comments: [...group.comments].sort((a, b) => b.date.getTime() - a.date.getTime()) }));
-    const overallAverage = report.overall.average;
+    const { average: overallAverage, previous: previousAverage } = overallBasis(input);
     const partial: Omit<CsiReportModel, 'highlights'> = {
         title: report.period.title, scopeLabel, startDate: report.period.startDate, endDate: report.period.endDate,
         siteLabel: report.period.sites.map((site) => site.name ?? site.code).filter(Boolean).join(', ') || 'Semua site',
         modeLabel: sla.mode === CsiRespondentMode.LISTED ? 'Hanya penilai terdaftar' : 'Semua user di site',
         targetPct, docNo: `CSI-${scopeLabel}-${report.period.id.slice(0, 8).toUpperCase()}`, bands,
         simulation: report.period.title.startsWith(CSI_SIMULATION_TITLE_PREFIX),
-        overall: { average: overallAverage, word: scoreWordFor(overallAverage, bands), band: scoreBand(overallAverage, bands), indexPct: indexPct(overallAverage), previous: report.previousAverage, delta: delta(overallAverage, report.previousAverage) },
+        overall: { average: overallAverage, word: scoreWordFor(overallAverage, bands), band: scoreBand(overallAverage, bands), indexPct: indexPct(overallAverage), previous: previousAverage, delta: delta(overallAverage, previousAverage) },
         participation: {
             basis: sla.basis, target: sla.target, responses: sla.responses, respondenPct: respondenPct(sla.responses, sla.basis),
             pengisiPct: sla.pengisiPct, reached: sla.target > 0 && sla.responses >= sla.target,
@@ -265,7 +291,7 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
         sites, teams, people,
         rankingByService: rankingByService({ scope: input.scope, bands, subjects: rankSubjects(report, [...teams, ...people], input.scope) }),
         serviceHighlight: input.scope === ServiceScope.HC ? serviceHighlight(input.serviceAverages) : null,
-        aspects: aspects(report.ratees),
+        aspects: aspectsOf(input),
         teamGrid: grid(report.ratees, CsiRateeKind.TEAM, siteCodeOf, teamLabel, teams),
         peopleGrid: grid(report.ratees, CsiRateeKind.PERSON, siteCodeOf, teamLabel, people),
         choices: choices(report.ratees),

@@ -176,6 +176,9 @@ describe('CsiReportService', () => {
         const model = await service.getExecutiveModel(HC, 'p-hc', { matrix: {} as any });
         expect(model.hasPrevious).toBe(true);
         expect(model.hcRecap?.previous).toMatchObject({ 's:HCD': 3, 'p:HCD:dewi': 3 });
+        // Page 1 (overall + Selisih) uses the same per-rating basis as the recap.
+        expect(model.hcRecap?.previousOverall).toBe(3);
+        expect(model.overall).toMatchObject({ average: 5, previous: 3, delta: 2 });
     });
 
     it('ratee average is mean of response averages', async () => {

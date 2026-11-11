@@ -9,6 +9,8 @@ import { serviceName } from './csi-org.constants';
 
 /** HC executive report pages (spec "Struktur PDF (HC)"): one table per question a reader asks, no per-person grid. */
 const ALL_LOCATIONS = 'Semua lokasi';
+/** How the HC overall (and every page-1 number) is averaged: the same per-rating basis as the recap tables. */
+export const HC_OVERALL_NOTE = 'Rata-rata semua penilaian (1 penilai × 1 PIC = 1 penilaian).';
 const OTHER_SERVICE = 'Lainnya';
 /** PDF tables trim leading spaces, so PIC rows get a bullet instead of an indent. */
 const PIC_MARK = '•  ';
@@ -151,7 +153,7 @@ function appendix(canvas: ReportCanvas, model: HcModel) {
 /** Sections 1-7 of the HC report (the caller draws the header first and the sign-off after). */
 export function renderHcReportPdf(canvas: ReportCanvas, model: HcModel) {
     const services = model.hcRecap.services.filter((row) => row.level === 'service').length;
-    summary(canvas, model, { value: model.counts.people + model.counts.teams, note: `PIC di ${services} layanan · ${dec(model.hcRecap.overall.respondents, 0)} responden` });
+    summary(canvas, model, { value: model.counts.people + model.counts.teams, note: `PIC di ${services} layanan · ${dec(model.hcRecap.overall.respondents, 0)} responden` }, HC_OVERALL_NOTE);
     canvas.pageBreak();
     serviceScores(canvas, model);
     nestedScores(canvas, model);

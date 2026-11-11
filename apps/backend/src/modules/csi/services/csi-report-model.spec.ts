@@ -1,7 +1,7 @@
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiRateeKind } from '../csi.constants';
 import { buildReportModel, indexPct, previousSubjectMap, questionLabel } from './csi-report-model';
-import { reportFixture } from './csi-report-model.fixture';
+import { hcReportFixture, reportFixture } from './csi-report-model.fixture';
 
 describe('csi-report-model', () => {
     it('legacy period keeps 4.0/4.5: predikat and colour band of every row', () => {
@@ -120,10 +120,45 @@ describe('csi-report-model', () => {
         const ict = reportFixture({ people: 4 }).model.highlights.join(' ');
         expect(ict).toMatch(/\d+ tim\/orang di bawah/);
         expect(ict).not.toMatch(/Site belum mencapai|Semua site mencapai/);
-        const { input } = reportFixture({ people: 4 });
+        // 6 responses: two people have >= CSI_RANK_MIN_RATERS raters (HC counts only those).
+        const { input } = reportFixture({ people: 4, responses: 6 });
         const hc = buildReportModel({ ...input, scope: ServiceScope.HC }).highlights.join(' ');
         expect(hc).toMatch(/\d+ PIC di bawah/);
         expect(hc).not.toContain('tim/orang');
+    });
+
+    it('HC: overall, predikat, indeks and aspects use the per-rating recap basis (same numbers as Lampiran A)', () => {
+        const { model } = hcReportFixture();
+        const recap = model.hcRecap;
+        // The fixture report overall (4.35, mean of response means) is NOT what HC prints.
+        expect(recap.overall.all.average).not.toBe(4.35);
+        expect(model.overall.average).toBe(recap.overall.all.average);
+        expect(model.overall.indexPct).toBe(indexPct(recap.overall.all.average));
+        model.aspects.forEach((aspect) => expect(aspect.average).toBe(recap.overall.dimensions[aspect.label]));
+        const weakest = model.aspects[0];
+        expect(model.highlights.join(' ')).toContain(`Aspek terlemah: ${weakest.label} (${weakest.average!.toFixed(2).replace('.', ',')})`);
+        expect(model.highlights[0]).toContain(`(${recap.overall.all.average!.toFixed(2).replace('.', ',')} dari 5)`);
+        const services = recap.services.filter((row) => row.level === 'service' && row.all.average !== null).map((row) => row.all.average!);
+        expect(model.serviceHighlight!.best.average).toBe(Math.max(...services));
+        expect(model.serviceHighlight!.worst.average).toBe(Math.min(...services));
+    });
+
+    it('HC: previous overall comes from the previous recap (same basis); ICT keeps the report overall', () => {
+        const { input } = hcReportFixture();
+        const hcRecap = { ...input.hcRecap!, previousOverall: 3.9 };
+        const model = buildReportModel({ ...input, hcRecap });
+        expect(model.overall.previous).toBe(3.9);
+        expect(model.overall.delta).toBe(Math.round((hcRecap.overall.all.average! - 3.9) * 100) / 100);
+        const ict = reportFixture().model;
+        expect(ict.overall.average).toBe(4.35);
+        expect(ict.overall.previous).toBe(4.1);
+    });
+
+    it('HC: "N PIC di bawah" counts only subjects with at least CSI_RANK_MIN_RATERS raters; ICT unchanged', () => {
+        // People raters 6, 5, 4, 3 with averages 3.0, 4.6, 4.1, 3.6; team 3.6 with 6 raters.
+        const { input } = reportFixture({ people: 4, responses: 6 });
+        expect(buildReportModel({ ...input, scope: ServiceScope.HC }).highlights.join(' ')).toContain('2 PIC di bawah 4,00');
+        expect(buildReportModel(input).highlights.join(' ')).toContain('3 tim/orang di bawah 4,00');
     });
 
     it('no previous → hasPrevious false', () => {

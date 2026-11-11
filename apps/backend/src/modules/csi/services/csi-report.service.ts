@@ -216,7 +216,7 @@ export class CsiReportService {
             report, matrix, scopeLabel: scope, scope, previousBySubject, hasPrevious: !!previous, siteBasis, comments,
             raters: await this.basisRaters(reporters, data.responses),
             serviceAverages: (hcRecap?.services ?? []).filter((row) => row.level === 'service').map((row) => ({ serviceCode: row.serviceCode, average: row.all.average })),
-            notes: input.notes ?? '',
+            notes: input.notes ?? '', hcRecap,
         });
         return { ...model, hcRecap: hcRecap?.services.some((row) => row.level === 'pic' && row.serviceCode) ? hcRecap : null };
     }
@@ -248,8 +248,8 @@ export class CsiReportService {
         const { pics, ratings, dimensions } = await this.hcRecapInput(scope, periodId, siteId);
         const recap = buildHcRecap({ pics, ratings, dimensions, scope });
         if (!previousId) return recap;
-        const before = await this.hcRecapInput(scope, previousId, siteId);
-        return { ...recap, previous: recapAverages(buildHcRecap({ ...before, scope })) };
+        const before = buildHcRecap({ ...(await this.hcRecapInput(scope, previousId, siteId)), scope });
+        return { ...recap, previous: recapAverages(before), previousOverall: before.overall.all.average };
     }
 
     /**

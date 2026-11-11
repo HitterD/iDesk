@@ -59,6 +59,8 @@ export type CsiHcRecap = {
     respondents: CsiRespondentDetail[];
     /** Executive report only: ALL SJA average of the previous period per recapRowKey (absent = no previous period). */
     previous?: Record<string, number | null>;
+    /** Executive report only: overall.all.average of the previous period (absent = no previous period). */
+    previousOverall?: number | null;
 };
 
 const round2 = (value: number) => Math.round(value * 100) / 100;

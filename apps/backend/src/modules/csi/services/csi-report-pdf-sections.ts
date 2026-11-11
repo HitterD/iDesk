@@ -32,8 +32,11 @@ export const SLA_MET = 'Memenuhi SLA';
 export const TABLE_KEEP = 110;
 export const slaStatusText = (sla: CsiReportModel['sla']) => (sla.met ? SLA_MET : `Belum memenuhi SLA — kurang ${sla.missing} jawaban`);
 
-/** Page 1: overall score + predikat, Partisipasi & SLA, highlight sentences (never a name) and the notes. */
-export function summary(canvas: ReportCanvas, model: CsiReportModel, subjects: { value: number; note: string }) {
+/**
+ * Page 1: overall score + predikat (with an optional sentence on how it is averaged), Partisipasi & SLA, highlight
+ * sentences (never a name) and the notes.
+ */
+export function summary(canvas: ReportCanvas, model: CsiReportModel, subjects: { value: number; note: string }, overallNote?: string) {
     const { overall } = model;
     const cards: Kpi[] = [{
         label: 'Nilai keseluruhan', value: `${dec(overall.average)} / 5`, tone: scoreTone(overall.average, model.bands),
@@ -47,6 +50,7 @@ export function summary(canvas: ReportCanvas, model: CsiReportModel, subjects: {
     }
     cards.push({ label: 'Yang dinilai', value: String(subjects.value), note: subjects.note });
     canvas.kpis(cards);
+    if (overallNote) canvas.note(overallNote);
     slaBlock(canvas, model);
     canvas.highlights(model.highlights);
     if (model.notes) canvas.highlights(model.notes.split(/\r?\n/).map((line) => line.trim()).filter(Boolean), 'CATATAN & TINDAK LANJUT', 'amber');

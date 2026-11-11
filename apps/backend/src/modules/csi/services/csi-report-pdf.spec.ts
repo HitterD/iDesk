@@ -142,6 +142,28 @@ describe('renderCsiReportPdf', () => {
             expect(headers).not.toContain('Jml');
         });
 
+        it('page 1 numbers equal the recap / Lampiran A numbers, with the per-rating note', async () => {
+            const { model } = hcReportFixture();
+            const recap = model.hcRecap;
+            const pages = await pagesOf(model);
+            const fmt = (value: number | null) => value!.toFixed(2).replace('.', ',');
+            const first = pages[0];
+            expect(first).toContain(`${fmt(recap.overall.all.average)} / 5`);
+            expect(first).toContain('Rata-rata semua penilaian (1 penilai × 1 PIC = 1 penilaian).');
+            const scored = recap.dimensions.map((label) => [label, recap.overall.dimensions[label]!] as const).sort((a, b) => a[1] - b[1]);
+            expect(first).toContain(`Aspek terlemah: ${scored[0][0]} (${fmt(scored[0][1])})`);
+            expect(first).toContain(`Terkuat: ${scored[scored.length - 1][0]} (${fmt(scored[scored.length - 1][1])})`);
+            const appendix = pages.join(' ').slice(pages.join(' ').indexOf('Lampiran A'));
+            recap.dimensions.forEach((label) => expect(appendix).toContain(fmt(recap.overall.dimensions[label])));
+            const services = recap.services.filter((row) => row.level === 'service');
+            const worst = services.reduce((low, row) => (row.all.average! < low.all.average! ? row : low));
+            expect(first).toContain(`terendah: ${worst.serviceCode} ${fmt(worst.all.average)}`);
+        });
+
+        it('ICT page 1 has no per-rating note', async () => {
+            expect((await pagesOf(reportFixture({ people: 3 }).model))[0]).not.toContain('Rata-rata semua penilaian');
+        });
+
         it('sla block text', async () => {
             const { model } = hcReportFixture({ respondents: 30 });
             // Basis 40, target 90% = 36, 30 answered: 6 missing.
