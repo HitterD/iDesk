@@ -1,7 +1,7 @@
 import { CSI_SMALL_GROUP_LABEL } from '../csi.constants';
 import { CsiHcPic, CsiHcRating } from './csi-hc-report.calc';
 import { CsiOrgLocation } from './csi-org.constants';
-import { ANONYMOUS_RESPONDENT, buildServiceReport, pendingByDepartment } from './csi-service-report.calc';
+import { ANONYMOUS_RESPONDENT, buildServiceReport, mergeSmallDepartments, pendingByDepartment } from './csi-service-report.calc';
 
 const DIMS = ['Knowledge'];
 const pics: CsiHcPic[] = [
@@ -84,11 +84,23 @@ describe('buildServiceReport', () => {
 });
 
 describe('pendingByDepartment', () => {
-    it('counts pending raters per department without names, busiest first', () => {
-        const rows = pendingByDepartment([
-            { department: 'PRODUCTION', answered: false }, { department: 'PRODUCTION', answered: true }, { department: 'PRODUCTION', answered: false },
-            { department: 'QC', answered: true }, { department: null, answered: false },
+    const raters = [
+        { department: 'PRODUCTION', answered: false }, { department: 'PRODUCTION', answered: true }, { department: 'PRODUCTION', answered: false },
+        { department: 'QC', answered: true }, { department: null, answered: false },
+    ];
+
+    it('service report: departments under 3 raters are merged into "Departemen kecil (gabungan)"', () => {
+        const rows = mergeSmallDepartments(pendingByDepartment(raters));
+        expect(rows).toEqual([
+            { department: 'PRODUCTION', pending: 2, total: 3 },
+            { department: CSI_SMALL_GROUP_LABEL, pending: 1, total: 2 },
         ]);
+        expect(JSON.stringify(rows)).not.toMatch(/QC|Tanpa departemen/);
+        expect(mergeSmallDepartments([{ department: 'A', pending: 1, total: 3 }])).toEqual([{ department: 'A', pending: 1, total: 3 }]);
+    });
+
+    it('counts pending raters per department without names, busiest first', () => {
+        const rows = pendingByDepartment(raters);
         expect(rows).toEqual([
             { department: 'PRODUCTION', pending: 2, total: 3 },
             { department: 'Tanpa departemen', pending: 1, total: 1 },

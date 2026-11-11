@@ -156,6 +156,8 @@ const HEADER_LINE_H = 10;
 const HEADER_MAX_LINES = 3;
 const BANNER = { y: 8, h: 18 } as const;
 const NOTE_KEEP_WITH_TABLE = 100;
+/** Appended to a heading repeated above a table continued on a new page. */
+const CONTINUED_SUFFIX = ' (lanjutan)';
 const VOWEL = /[aeiouAEIOU]/;
 const LETTER = /[a-zA-Z]/;
 /** Horizontal room a header loses to padding: right-aligned headers only need the right padding plus a little. */
@@ -531,8 +533,11 @@ export class ReportCanvas {
         this.y += 8;
     }
 
-    /** Table with a light header row that repeats on every page it spans. Column widths are relative. */
-    table(columns: Column[], rows: Cell[][], emptyText = 'Tidak ada data pada periode ini.'): void {
+    /**
+     * Table with a light header row that repeats on every page it spans. Column widths are relative. With
+     * `continuedHeading`, a continued page first repeats that heading followed by " (lanjutan)".
+     */
+    table(columns: Column[], rows: Cell[][], emptyText = 'Tidak ada data pada periode ini.', continuedHeading?: string): void {
         const { doc } = this;
         const totalW = columns.reduce((sum, c) => sum + c.width, 0);
         const cols = columns.map((c) => ({ ...c, width: (c.width * CONTENT_W) / totalW }));
@@ -574,6 +579,7 @@ export class ReportCanvas {
             if (this.y + rowH > CONTENT_BOTTOM) {
                 doc.addPage();
                 this.y = PAGE.margin;
+                if (continuedHeading) this.subheading(`${continuedHeading}${CONTINUED_SUFFIX}`);
                 drawHead();
             }
             let x = PAGE.margin;

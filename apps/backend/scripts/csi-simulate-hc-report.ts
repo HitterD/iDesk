@@ -3,7 +3,7 @@
  *
  *   npx ts-node scripts/csi-simulate-hc-report.ts
  *
- * Only runs against the local demo database (DB_DATABASE=idesk_csi_demo). It replaces any earlier simulation (HC
+ * Only runs against the local demo database (DB_DATABASE=idesk_csi_demo, DB_HOST localhost / 127.0.0.1 / ::1). It replaces any earlier simulation (HC
  * surveys whose title starts with CSI_SIMULATION_TITLE_PREFIX are cancelled and purged), then goes through the same
  * services as the app: survey from templates (draft) → publish → each answering rater submits the respondent form →
  * report PDF and Excel via CsiExportService. Answers are fictitious and deterministic (fixed PRNG seed).
@@ -43,6 +43,8 @@ import { CsiSubjectService } from '../src/modules/csi/services/csi-subject.servi
 import { CsiTemplateApplyService } from '../src/modules/csi/services/csi-template-apply.service';
 
 const DEMO_DATABASE = 'idesk_csi_demo';
+/** The simulation writes and purges surveys: only a database on this machine. */
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const HC = ServiceScope.HC;
 const LOCATIONS = ['SMG', 'SPJ'];
 const TITLE = `${CSI_SIMULATION_TITLE_PREFIX}CSI HC 2026 (SMG + SPJ)`;
@@ -326,6 +328,7 @@ async function exportReport(s: Services, periodId: string) {
 
 async function main() {
     if (process.env.DB_DATABASE !== DEMO_DATABASE) throw new Error(`Simulasi hanya boleh di database ${DEMO_DATABASE} (sekarang: ${process.env.DB_DATABASE})`);
+    if (!LOCAL_HOSTS.has(process.env.DB_HOST ?? '')) throw new Error(`Simulasi hanya boleh di database lokal (${[...LOCAL_HOSTS].join(', ')}; sekarang DB_HOST=${process.env.DB_HOST})`);
     const app = await NestFactory.createApplicationContext(SimulationModule, { logger: ['error', 'warn'] });
     try {
         const s: Services = {

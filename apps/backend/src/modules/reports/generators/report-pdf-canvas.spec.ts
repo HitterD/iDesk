@@ -136,6 +136,20 @@ describe('report PDF formatting', () => {
         header.split(' ').forEach((word) => expect(drawn).toContain(word));
     });
 
+    it('a table that continues on a new page repeats its heading with "(lanjutan)" when given one', () => {
+        const PDFDocument = require('pdfkit');
+        const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+        doc.on('data', () => undefined);
+        const spy = jest.spyOn(doc, 'text');
+        const rows = Array.from({ length: 60 }, (_, i) => [{ text: `Baris ${i}` }, { text: '4,50' }]);
+        new ReportCanvas(doc, new Logger('test')).table([{ header: 'Nama', width: 80 }, { header: 'Nilai', width: 20 }], rows, undefined, 'HCD · HC Development');
+        const pages = doc.bufferedPageRange().count;
+        doc.end();
+        const drawn = spy.mock.calls.map((call) => String(call[0]));
+        expect(pages).toBeGreaterThan(1);
+        expect(drawn.filter((t) => t === 'HCD · HC Development (lanjutan)')).toHaveLength(pages - 1);
+    });
+
         it('finish draws the banner at the top and the footer note on every page', () => {
         const PDFDocument = require('pdfkit');
         const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });

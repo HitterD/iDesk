@@ -160,6 +160,28 @@ describe('renderCsiReportPdf', () => {
             expect(first).toContain(`terendah: ${worst.serviceCode} ${fmt(worst.all.average)}`);
         });
 
+        it('ranking tables carry their layanan heading for "(lanjutan)"; Bagian / fungsi in title case', async () => {
+            const spy = jest.spyOn(ReportCanvas.prototype, 'table');
+            try {
+                await renderCsiReportPdf({ model: hcReportFixture().model, signoff, now: NOW });
+                const ranking = spy.mock.calls.filter(([columns]) => columns.some((column) => column.header === 'Bagian / fungsi'));
+                expect(ranking.map((call) => call[3])).toEqual(expect.arrayContaining(['HCD · HC Development', 'HCC · HC Compensation & Benefit', 'HCS · HC Services']));
+                const details = ranking.flatMap(([columns, rows]) => rows.map((row) => row[columns.findIndex((column) => column.header === 'Bagian / fungsi')].text));
+                expect(details).toEqual(expect.arrayContaining(['Payroll & Benefit', 'GA Management']));
+                details.forEach((detail) => expect(detail).not.toMatch(/^[A-Z &]{6,}$/));
+            } finally {
+                spy.mockRestore();
+            }
+        });
+
+        it('a long ranking continues with "<layanan> (lanjutan)" on the next page', async () => {
+            const { model } = hcReportFixture();
+            const row = (i: number) => ({ rank: i + 1, name: `PIC ${i}`, detail: 'PAYROLL', raters: 9, average: 4.2, word: 'Puas' as const, previous: null, delta: null });
+            const long = { ...model, rankingByService: [{ serviceCode: 'HCC', serviceName: 'HC Compensation & Benefit', ranked: Array.from({ length: 60 }, (_, i) => row(i)), insufficient: [] }] };
+            const text = await allText(long);
+            expect(text).toContain('HCC · HC Compensation & Benefit (lanjutan)');
+        });
+
         it('ICT page 1 has no per-rating note', async () => {
             expect((await pagesOf(reportFixture({ people: 3 }).model))[0]).not.toContain('Rata-rata semua penilaian');
         });

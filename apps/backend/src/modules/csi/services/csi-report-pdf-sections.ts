@@ -66,7 +66,7 @@ function slaBlock(canvas: ReportCanvas, model: CsiReportModel) {
     canvas.statusBlock('PARTISIPASI & SLA', lines, status);
 }
 
-type RankLayout = { detailHeader: string | null; numbered: boolean; hasPrevious: boolean };
+type RankLayout = { detailHeader: string | null; numbered: boolean; hasPrevious: boolean; detail?: (value: string) => string };
 
 function rankColumns({ detailHeader, numbered, hasPrevious }: RankLayout): Column[] {
     return [
@@ -76,9 +76,10 @@ function rankColumns({ detailHeader, numbered, hasPrevious }: RankLayout): Colum
     ];
 }
 
-function rankCells(row: CsiRankRow, bands: CsiScoreBands, { detailHeader, numbered, hasPrevious }: RankLayout): Cell[] {
+function rankCells(row: CsiRankRow, bands: CsiScoreBands, { detailHeader, numbered, hasPrevious, detail = (value) => value }: RankLayout): Cell[] {
+    const detailText = text(row.detail);
     return [
-        ...(numbered ? [{ text: String(row.rank) }] : []), { text: text(row.name), bold: true }, ...(detailHeader ? [{ text: text(row.detail) || DASH }] : []),
+        ...(numbered ? [{ text: String(row.rank) }] : []), { text: text(row.name), bold: true }, ...(detailHeader ? [{ text: detailText ? detail(detailText) : DASH }] : []),
         { text: String(row.raters) }, scoreCell(row.average, bands, true), { text: row.word ?? DASH, color: scoreInk(row.average, bands) },
         ...(hasPrevious ? [{ text: dec(row.previous) }, { text: signed(row.delta), color: deltaColor(row.delta) }] : []),
     ];
@@ -88,27 +89,35 @@ function rankCells(row: CsiRankRow, bands: CsiScoreBands, { detailHeader, number
  * One ranking group: ranked rows (min CSI_RANK_MIN_RATERS raters, ties share a rank), then the unranked ones; the
  * detail column (bagian / site) is left out when no row has one.
  */
-function rankingGroup(canvas: ReportCanvas, group: CsiServiceRanking, heading: string, detailHeader: string, model: CsiReportModel) {
+function rankingGroup(canvas: ReportCanvas, group: CsiServiceRanking, heading: string, input: RankingInput, model: CsiReportModel) {
     const { bands, hasPrevious } = model;
     const hasDetail = [...group.ranked, ...group.insufficient].some((row) => !!row.detail);
-    const layout = { detailHeader: hasDetail ? detailHeader : null, hasPrevious };
+    const layout = { detailHeader: hasDetail ? input.detailHeader : null, hasPrevious, detail: input.detail };
     canvas.subheading(heading);
     canvas.table(rankColumns({ ...layout, numbered: true }), group.ranked.map((row) => rankCells(row, bands, { ...layout, numbered: true })),
-        `Belum ada yang dinilai minimal ${CSI_RANK_MIN_RATERS} penilai.`);
+        `Belum ada yang dinilai minimal ${CSI_RANK_MIN_RATERS} penilai.`, heading);
     if (!group.insufficient.length) return;
-    canvas.subheading(`Belum cukup penilai (< ${CSI_RANK_MIN_RATERS})`);
-    canvas.table(rankColumns({ ...layout, numbered: false }), group.insufficient.map((row) => rankCells(row, bands, { ...layout, numbered: false })));
+    const insufficient = `Belum cukup penilai (< ${CSI_RANK_MIN_RATERS})`;
+    canvas.subheading(insufficient);
+    canvas.table(rankColumns({ ...layout, numbered: false }), group.insufficient.map((row) => rankCells(row, bands, { ...layout, numbered: false })),
+        undefined, `${heading} · ${insufficient}`);
 }
 
 /**
  * "Peringkat per layanan" (HC) / "Peringkat tim dan orang" (ICT): one reading sentence for the whole section, then
  * per group only its heading and table. No general cross-service ranking, no spotlight boxes.
  */
-export function rankingSection(canvas: ReportCanvas, model: CsiReportModel, input: { title: string; detailHeader: string; heading: (group: CsiServiceRanking) => string }) {
+type RankingInput = {
+    title: string; detailHeader: string; heading: (group: CsiServiceRanking) => string;
+    /** Display form of the detail column (HC: bagian in title case like the recap); as stored when omitted. */
+    detail?: (value: string) => string;
+};
+
+export function rankingSection(canvas: ReportCanvas, model: CsiReportModel, input: RankingInput) {
     canvas.section(input.title, undefined, TABLE_KEEP);
     canvas.note(`Urut dari nilai tertinggi; nilai sama = peringkat sama; nomor hanya untuk yang dinilai minimal ${CSI_RANK_MIN_RATERS} penilai${model.hasPrevious ? '; Lalu = periode sebelumnya' : ''}.`);
     if (!model.rankingByService.length) canvas.table(rankColumns({ detailHeader: input.detailHeader, numbered: true, hasPrevious: model.hasPrevious }), [], 'Belum ada yang dinilai.');
-    model.rankingByService.forEach((group) => rankingGroup(canvas, group, input.heading(group), input.detailHeader, model));
+    model.rankingByService.forEach((group) => rankingGroup(canvas, group, input.heading(group), input, model));
 }
 
 /** FNV-1a: a stable pseudo-random comment order (not by date or department, so nobody can be traced). */

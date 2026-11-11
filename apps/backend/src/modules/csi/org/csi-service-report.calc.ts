@@ -1,4 +1,5 @@
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
+import { CSI_ANON_MIN_GROUP, CSI_SMALL_GROUP_LABEL } from '../csi.constants';
 import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap, CsiRecapRow, CsiRespondentDetail, ratingValue } from './csi-hc-report.calc';
 
 /** Name shown instead of the rater on ratings the viewer may not attribute (ratings about the viewer themself). */
@@ -72,4 +73,16 @@ export function pendingByDepartment(raters: Array<{ department: string | null; a
         groups.set(department, { department, pending: row.pending + (rater.answered ? 0 : 1), total: row.total + 1 });
     });
     return [...groups.values()].sort((a, b) => b.pending - a.pending || a.department.localeCompare(b.department, 'id'));
+}
+
+/**
+ * Service-owner view of pendingByDepartment: departments with fewer than CSI_ANON_MIN_GROUP raters are summed into
+ * one CSI_SMALL_GROUP_LABEL row at the end, so a pending count never points at one or two people.
+ */
+export function mergeSmallDepartments(rows: CsiPendingDepartment[]): CsiPendingDepartment[] {
+    const small = rows.filter((row) => row.total < CSI_ANON_MIN_GROUP);
+    if (!small.length) return rows;
+    const merged = small.reduce((sum, row) => ({ ...sum, pending: sum.pending + row.pending, total: sum.total + row.total }),
+        { department: CSI_SMALL_GROUP_LABEL, pending: 0, total: 0 });
+    return [...rows.filter((row) => row.total >= CSI_ANON_MIN_GROUP), merged];
 }

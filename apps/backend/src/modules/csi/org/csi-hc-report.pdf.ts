@@ -157,7 +157,7 @@ export function renderHcReportPdf(canvas: ReportCanvas, model: HcModel) {
     canvas.pageBreak();
     serviceScores(canvas, model);
     nestedScores(canvas, model);
-    rankingSection(canvas, model, { title: 'Peringkat per layanan', detailHeader: 'Bagian / fungsi', heading: (group) => serviceTitle(group.serviceCode) });
+    rankingSection(canvas, model, { title: 'Peringkat per layanan', detailHeader: 'Bagian / fungsi', heading: (group) => serviceTitle(group.serviceCode), detail: titleCase });
     respondentRecap(canvas, model);
     comments(canvas, model);
     appendix(canvas, model);

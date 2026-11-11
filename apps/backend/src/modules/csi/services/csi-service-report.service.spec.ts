@@ -47,7 +47,8 @@ describe('CsiServiceReportService', () => {
         expect(names).toEqual([['ELVI CYNTHIA', 'PRISCILLA'], ['Anonim', 'RARA']]);
         expect(report.serviceCode).toBe('HCD');
         expect(report.scoreBands).toEqual({ fairMin: 3.5, goodMin: 4.2 });
-        expect(report.pending).toEqual([{ department: 'PROD', pending: 1, total: 2 }]);
+        // PROD has 2 raters (< CSI_ANON_MIN_GROUP): merged, its name is not shown to the service owner.
+        expect(report.pending).toEqual([{ department: 'Departemen kecil (gabungan)', pending: 1, total: 2 }]);
         expect(JSON.stringify(report)).not.toContain('SECRET');
     });
 

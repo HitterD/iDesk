@@ -42,7 +42,7 @@ function summarySheet(workbook: ExcelJS.Workbook, model: CsiReportModel) {
         ['Nilai periode lalu', overall.previous], ['Δ vs periode lalu', overall.delta],
         ['Basis partisipasi', `${participation.basis} (${participation.basisLabel})`], ['Target partisipasi', `${participation.target} (${model.targetPct}%)`],
         ['Responden', participation.responses], ['% Responden', participation.respondenPct], ['% Pengisi (SLA)', participation.pengisiPct],
-        ['Status target', participation.reached ? 'Tercapai' : 'Belum tercapai'], ...slaRows(model),
+        ...slaRows(model),
         ['Jumlah dinilai', `${counts.teams} tim · ${counts.people} orang · ${counts.sites} site`], ['Jumlah komentar', counts.comments],
         ...model.highlights.map((line, index): CellValue[] => [index ? '' : 'Poin utama', text(line)]),
         ...(model.notes ? model.notes.split(/\r?\n/).filter((line) => line.trim()) : ['-']).map((line, index): CellValue[] => [index ? '' : 'Catatan & tindak lanjut', text(line)]),

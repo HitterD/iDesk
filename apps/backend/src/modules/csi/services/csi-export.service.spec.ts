@@ -185,6 +185,8 @@ describe('CsiExportService', () => {
         expect(summaryValue(workbook, 'Status SLA')).toBe('Belum memenuhi SLA — kurang 6 jawaban');
         const met = await workbookOf({ ...model, sla: { ...model.sla, submitted: 36, met: true, missing: 0 } });
         expect(summaryValue(met, 'Status SLA')).toBe('Memenuhi SLA');
+        // One status only: the older "Status target" duplicate is gone.
+        expect(summaryValue(workbook, 'Status target')).toBeUndefined();
     });
 
     it('one "Peringkat" sheet per layanan: competition ranks, insufficient rows unnumbered with a note, no Bintang', async () => {
