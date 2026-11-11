@@ -41,10 +41,10 @@ export const formatAverage = (value: number | null | undefined): string =>
     typeof value === 'number' && Number.isFinite(value) ? averageFormat.format(value) : DASH;
 export const formatPercent = (value: number | null | undefined): string =>
     typeof value === 'number' && Number.isFinite(value) ? `${value}%` : DASH;
-/** `2025-11-28` -> `28 November 2025`. */
 /** Answers ÷ basis (capped at 100%), the report's SLA block figure; null without a basis. */
 export const memoSlaPct = ({ basis, targetPct, target, responses }: MemoSurvey['report']['sla']): number | null =>
     (basis > 0 ? slaBlock({ basis, targetPct, target, responses }).pct : null);
+/** `2025-11-28` -> `28 November 2025`. */
 export const formatLongDate = (date: string): string => dateFormat.format(new Date(`${date}T12:00:00+07:00`));
 
 function drawLogo(doc: Doc) {
