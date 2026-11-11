@@ -10,6 +10,7 @@ const LOCATION_COLUMNS = (recap: CsiHcRecap): ColumnSpec[] =>
     [...recap.locations.map((location) => AVERAGE_COLUMN(location.label)), AVERAGE_COLUMN(CSI_LOCATION_ALL_LABEL), { header: 'Jumlah penilaian', width: 12 }];
 const locationValues = (recap: CsiHcRecap, row: CsiLocationCells): CellValue[] =>
     [...recap.locations.map((location) => row.byLocation[location.code].average), row.all.average, row.all.ratings];
+const ALL_LOCATIONS = 'Semua lokasi';
 const LEVEL_LABEL: Record<string, string> = { service: 'Layanan', bagian: 'Bagian', pic: 'PIC', division: 'Divisi', department: 'Departemen' };
 
 /** Three sheets: layanan/bagian/PIC (+ dimensions), respondent unit groups, and every respondent's stars per PIC. */
@@ -22,12 +23,13 @@ export function addHcRecapSheets(workbook: ExcelJS.Workbook, recap: CsiHcRecap, 
         sanitizeCell(row.serviceFunction ?? ''),
         ...locationValues(recap, row), ...recap.dimensions.map((label) => row.dimensions[label]),
     ]));
+    // No location columns: a hidden location would be derivable from the unit total (same as the PDF).
     addStyledSheet(workbook, HC_SHEETS.respondents, [
         { header: 'Tingkat', width: 12 }, { header: 'Divisi', width: 30 }, { header: 'Departemen', width: 30 }, { header: 'Bagian', width: 30 },
-        ...LOCATION_COLUMNS(recap),
+        AVERAGE_COLUMN(ALL_LOCATIONS), { header: 'Responden', width: 12 },
     ], recap.respondentGroups.map((row) => [
         LEVEL_LABEL[row.level], sanitizeCell(row.division), sanitizeCell(row.department ?? ''), sanitizeCell(row.level === 'bagian' ? row.label : ''),
-        ...locationValues(recap, row),
+        row.all.average, row.respondents,
     ]));
     if (!withNames) return;
     const rows: CellValue[][] = recap.respondents.flatMap((respondent) => respondent.pics.map((pic) => [

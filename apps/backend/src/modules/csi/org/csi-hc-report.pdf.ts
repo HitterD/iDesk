@@ -3,7 +3,7 @@ import { CsiReportModel } from '../services/csi-report-model';
 import {
     choicesTable, commentsSection, dec, deltaColor, departmentsTable, DASH, rankingSection, scoreCell, shuffledTexts, signed, summary, TABLE_KEEP, text,
 } from '../services/csi-report-pdf-sections';
-import { collapseRespondentRows, CsiHcRecap, CsiLocationCells, CsiRecapRow, CsiRespondentRow, previousOf, recapRowKey } from './csi-hc-report.calc';
+import { collapseRespondentRows, CsiCell, CsiHcRecap, CsiLocationCells, CsiRecapRow, CsiRespondentRow, previousOf, recapRowKey } from './csi-hc-report.calc';
 import { compareServiceCodes } from '../services/csi-report-ranking';
 import { serviceName } from './csi-org.constants';
 
@@ -14,6 +14,8 @@ const OTHER_SERVICE = 'Lainnya';
 const PIC_MARK = '•  ';
 /** Share (%) of the table width taken by the location columns (+ Semua lokasi + count) of the location tables. */
 const LOCATION_SHARE = 66;
+/** Relative widths of the respondent recap (unit label, Semua lokasi, Responden). */
+const RESPONDENT_WIDTH = { label: 70, value: 15 } as const;
 /**
  * Widths (points of the 515 pt A4 content; scaled when Selisih is absent) of the dimension tables, each the measured
  * minimum: label fits "HCC · HC Compensation & Benefit" on two lines, a dimension column fits "Knowledge" whole at
@@ -68,10 +70,11 @@ function locationColumns(recap: CsiHcRecap, label: string, countHeader: string):
 }
 
 /** Every missing score ("no answers" and "hidden, under 3 respondents") is the same grey dash. */
+const maskedScore = (model: HcModel, value: CsiCell, strong: boolean): Cell =>
+    (value.ratings && value.average !== null ? scoreCell(value.average, model.bands, strong) : { text: DASH, color: INK.tertiary });
+
 function locationCells(model: HcModel, row: CsiLocationCells, count: number, bold: boolean): Cell[] {
-    const cell = (value: CsiLocationCells['all'], strong: boolean): Cell =>
-        (value.ratings && value.average !== null ? scoreCell(value.average, model.bands, strong) : { text: DASH, color: INK.tertiary });
-    return [...model.hcRecap.locations.map((location) => cell(row.byLocation[location.code], bold)), cell(row.all, true), { text: String(count) }];
+    return [...model.hcRecap.locations.map((location) => maskedScore(model, row.byLocation[location.code], bold)), maskedScore(model, row.all, true), { text: String(count) }];
 }
 
 /** 2 · Nilai per layanan: dimensions per layanan, then layanan × respondent location. */
@@ -82,7 +85,7 @@ function serviceScores(canvas: ReportCanvas, model: HcModel) {
     canvas.table(dimensionColumns(model.hcRecap, 'Layanan', model.hasPrevious),
         services.map((row) => dimensionCells(model, row, { text: text(row.label), bold: true }, false)));
     canvas.subheading('Nilai per layanan menurut lokasi responden');
-    canvas.note('Kolom lokasi = lokasi RESPONDEN yang menilai, bukan lokasi PIC; tanda – = belum ada penilaian dari lokasi itu.');
+    canvas.note('Kolom lokasi = lokasi RESPONDEN yang menilai, bukan lokasi PIC; – = kurang dari 3 responden dari lokasi itu atau belum ada penilaian.');
     canvas.table(locationColumns(model.hcRecap, 'Layanan', 'Penilai'), services.map((row) => [{ text: text(row.label), bold: true }, ...locationCells(model, row, row.respondents, false)]));
 }
 
@@ -103,12 +106,18 @@ function unitLabel(row: CsiRespondentRow): Cell {
     return { text: `${PIC_MARK}${titleCase(text(row.label))}` };
 }
 
-/** 5 · Rekap responden per divisi / departemen (small groups merged, cells under 3 respondents hidden, no repeats). */
+/**
+ * 5 · Rekap responden per divisi / departemen (small groups merged, totals under 3 respondents hidden, no repeats).
+ * No location columns: a hidden location would be derivable from the unit total minus the shown locations.
+ */
 function respondentRecap(canvas: ReportCanvas, model: HcModel) {
     canvas.section('Rekap responden per divisi & departemen', undefined, TABLE_KEEP);
     canvas.note('Rata-rata bintang dari responden unit itu ke semua PIC HC; – = kurang dari 3 responden atau tidak ada data.');
-    canvas.table(locationColumns(model.hcRecap, 'Divisi / Departemen / Bagian', 'Responden'), collapseRespondentRows(model.hcRecap.respondentGroups).map((row) => [
-        unitLabel(row), ...locationCells(model, row, row.respondents, row.level === 'division'),
+    canvas.table([
+        { header: 'Divisi / Departemen / Bagian', width: RESPONDENT_WIDTH.label }, { header: ALL_LOCATIONS, width: RESPONDENT_WIDTH.value, align: 'right' },
+        { header: 'Responden', width: RESPONDENT_WIDTH.value, align: 'right' },
+    ], collapseRespondentRows(model.hcRecap.respondentGroups).map((row) => [
+        unitLabel(row), maskedScore(model, row.all, true), { text: String(row.respondents) },
     ]));
 }
 

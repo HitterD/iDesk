@@ -216,12 +216,33 @@ describe('renderCsiReportPdf', () => {
             expect(recap).toContain('kurang dari 3 responden atau tidak ada data');
         });
 
-        it('respondent recap masks cells under 3', async () => {
-            const { model } = hcReportFixture();
-            const masked = model.hcRecap.respondentGroups.find((row) => Object.values(row.byLocation).some((cell) => cell.ratings > 0 && cell.average === null));
-            expect(masked).toBeDefined();
-            const text = await allText(model);
-            expect(text).toContain('kurang dari 3 responden atau tidak ada data');
+        it('respondent recap has no location columns: only Semua lokasi and Responden', async () => {
+            const spy = jest.spyOn(ReportCanvas.prototype, 'table');
+            try {
+                await renderCsiReportPdf({ model: hcReportFixture().model, signoff, now: NOW });
+                const recap = spy.mock.calls.find(([columns]) => columns[0].header === 'Divisi / Departemen / Bagian')!;
+                expect(recap[0].map((column) => column.header)).toEqual(['Divisi / Departemen / Bagian', 'Semua lokasi', 'Responden']);
+            } finally {
+                spy.mockRestore();
+            }
+        });
+
+        it('layanan × lokasi cells under 3 respondents print a dash', async () => {
+            const { model } = hcReportFixture({ respondents: 10 });
+            const service = model.hcRecap.services.find((row) => row.level === 'service' && Object.values(row.byLocation).some((cell) => cell.ratings > 0 && cell.average === null));
+            expect(service).toBeDefined();
+            const spy = jest.spyOn(ReportCanvas.prototype, 'table');
+            try {
+                await renderCsiReportPdf({ model, signoff, now: NOW });
+                const table = spy.mock.calls.find(([columns]) => columns[0].header === 'Layanan' && columns.some((column) => column.header === 'Semua lokasi'))!;
+                const row = table[1].find((cells) => cells[0].text === service!.label)!;
+                model.hcRecap.locations.forEach((location, index) => {
+                    const cell = service!.byLocation[location.code];
+                    if (cell.average === null) expect(row[index + 1].text).toBe('–');
+                });
+            } finally {
+                spy.mockRestore();
+            }
         });
     });
 });

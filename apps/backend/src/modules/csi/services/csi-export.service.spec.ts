@@ -227,6 +227,24 @@ describe('CsiExportService', () => {
         expect(rowsOf((await workbookOf(model)).getWorksheet('Komentar')!)).toEqual(rows);
     });
 
+    it('"HC Per Divisi Responden" has no location columns: only the total and the respondent count', async () => {
+        const sheet = (await workbookOf(hcReportFixture().model)).getWorksheet('HC Per Divisi Responden')!;
+        expect((sheet.getRow(1).values as unknown[]).slice(1)).toEqual(['Tingkat', 'Divisi', 'Departemen', 'Bagian', 'Semua lokasi', 'Responden']);
+    });
+
+    it('"HC Layanan-Bagian-PIC" location cells under 3 respondents are empty', async () => {
+        const { model } = hcReportFixture();
+        const sheet = (await workbookOf(model)).getWorksheet('HC Layanan-Bagian-PIC')!;
+        const header = (sheet.getRow(1).values as unknown[]).slice(1);
+        const masked = model.hcRecap.services.findIndex((row) => Object.values(row.byLocation).some((cell) => cell.ratings > 0 && cell.average === null));
+        expect(masked).toBeGreaterThanOrEqual(0);
+        const row = model.hcRecap.services[masked];
+        const cells = (sheet.getRow(masked + 2).values as unknown[]).slice(1);
+        model.hcRecap.locations.forEach((location) => {
+            if (row.byLocation[location.code].average === null) expect(cells[header.indexOf(location.label)] ?? null).toBeNull();
+        });
+    });
+
     it('admin respondent-detail sheet lists each respondent\'s PICs in layanan order HCD, HCC, HCS', async () => {
         const sheet = (await workbookOf(hcReportFixture().model)).getWorksheet('HC Jawaban Responden')!;
         const order = ['HCD', 'HCC', 'HCS'];
