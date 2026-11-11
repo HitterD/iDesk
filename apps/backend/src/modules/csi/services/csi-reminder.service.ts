@@ -57,7 +57,7 @@ export class CsiReminderService {
         const raterIds = raters.map((rater) => rater.userId);
         const paired = await this.assignments.ratersWithPairs(periodId);
         const siteIds = (period.sites ?? []).map((row) => row.siteId);
-        const unmapped = new Set(raters.filter((rater) => !isRaterInAudience(rater, siteIds, paired)).map((rater) => rater.userId));
+        const outsideAudience = new Set(raters.filter((rater) => !isRaterInAudience(rater, siteIds, paired)).map((rater) => rater.userId));
         const targets = userIds?.length ? [...new Set(userIds)] : raterIds;
         if (targets.some((id) => !raterIds.includes(id))) throw new BadRequestException(NOT_RATER_MESSAGE);
         if (!targets.length) return { sent: 0, skipped: 0 };
@@ -65,7 +65,7 @@ export class CsiReminderService {
         const reminded = await this.recentlyReminded(periodId, targets, now);
         let sent = 0;
         for (const userId of targets) {
-            if (unmapped.has(userId) || answered.has(userId) || reminded.has(userId)) continue;
+            if (outsideAudience.has(userId) || answered.has(userId) || reminded.has(userId)) continue;
             if (await this.notify(period, userId, now)) sent += 1;
         }
         return { sent, skipped: targets.length - sent };
