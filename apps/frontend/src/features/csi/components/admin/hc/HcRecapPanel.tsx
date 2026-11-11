@@ -138,18 +138,26 @@ function ServicesTable({ recap, expandAll }: { recap: CsiHcRecap; expandAll?: bo
     );
 }
 
+/** Respondent units: total and respondent count only (a per-location split could be worked back out from the total). */
 function RespondentTable({ recap }: { recap: CsiHcRecap }) {
     return (
         <div className="max-h-[640px] overflow-auto rounded-2xl ring-1 ring-[hsl(var(--border))]">
-            <table className="w-full min-w-[860px] border-collapse">
-                <LocationHead recap={recap} first="Divisi / Departemen / Bagian responden" />
+            <table className="w-full min-w-[560px] border-collapse">
+                <thead className="sticky top-0 z-10 bg-[hsl(var(--idesk-surface))]">
+                    <tr className="border-b border-[hsl(var(--border))]">
+                        <th className={TH}>Divisi / Departemen / Bagian responden</th>
+                        <th className={cn(TH, 'text-right text-[hsl(var(--idesk-sapphire))]')}>Semua lokasi</th>
+                        <th className={cn(TH, 'text-right')}>Responden</th>
+                    </tr>
+                </thead>
                 <tbody>
                     {recap.respondentGroups.map((row) => (
                         <tr key={row.key} className={cn('border-b border-[hsl(var(--border)/.6)]', row.level === 'division' && 'bg-[hsl(var(--idesk-sapphire)/.07)]')}>
                             <td className={cn(TD, row.level === 'department' && 'pl-7', row.level === 'bagian' && 'pl-12', row.level === 'division' && 'font-bold', row.level === 'department' && 'font-semibold')}>
                                 {titleCase(row.label)}
                             </td>
-                            <LocationCells recap={recap} row={row} strong={row.level === 'division'} />
+                            <ScoreCell value={row.all.average} ratings={row.all.ratings} strong bands={recap.scoreBands} />
+                            <td className={cn(TD, 'text-right text-[hsl(var(--idesk-text-secondary))]')}>{row.respondents ?? '–'}</td>
                         </tr>
                     ))}
                 </tbody>

@@ -28,10 +28,10 @@ const RECAP: CsiHcRecap = {
     overall: { ...cells(4.3, 12), dimensions: { Knowledge: 4.3 }, respondents: 6 },
     services: [row('service', 'HCD', 'HCD · HC Development', 4.3), row('service', 'HCC', 'HCC · HC Center', 4.1), row('service', 'HCS', 'HCS · HC Services', 3.4)],
     respondentGroups: [
-        { level: 'division', key: 'd:FIN', label: 'FINANCE · AKUNTANSI', division: 'FINANCE', department: 'AKUNTANSI', respondents: 4, ...cells(4.3, 8, { JKT: cell(null, 2) }) },
+        { level: 'division', key: 'd:FIN', label: 'FINANCE · AKUNTANSI', division: 'FINANCE', department: 'AKUNTANSI', respondents: 4, all: cell(4.3, 8) },
         {
             level: 'division', key: 'd:small', label: 'Departemen kecil (gabungan)', division: 'Departemen kecil (gabungan)', department: null, respondents: 2,
-            all: cell(null, 4), byLocation: NONE,
+            all: cell(null, 4),
         },
     ],
     respondents: [],
@@ -54,16 +54,25 @@ describe('HcRecapPanel', () => {
         expect(labels).toEqual(['HCD · HC Development', 'HCC · HC Center', 'HCS · HC Services']);
     });
 
-    it('shows masked respondent cells (fewer than 3 respondents) as "–" without a score', async () => {
+    it('respondent table has no location columns; a masked total (under 3 respondents) shows "–"', async () => {
         fx.recap = RECAP;
         render(<HcRecapPanel scope="hc" periodId="p1" />);
         await userEvent.setup().click(screen.getByRole('button', { name: 'Per divisi responden' }));
+        const headers = screen.getAllByRole('columnheader').map((header) => header.textContent);
+        expect(headers).toEqual(['Divisi / Departemen / Bagian responden', 'Semua lokasi', 'Responden']);
         const small = screen.getByRole('row', { name: /Departemen kecil \(gabungan\)/i });
         expect(within(small).queryByText(/\d,\d\d/)).toBeNull();
-        expect(within(small).getAllByText('–').length).toBeGreaterThanOrEqual(3);
+        expect(within(small).getByTitle(/disembunyikan/i)).toHaveTextContent('–');
+        expect(within(small).getByText('2')).toBeInTheDocument();
         const finance = screen.getByRole('row', { name: /FINANCE · AKUNTANSI/i });
-        const masked = within(finance).getAllByTitle(/disembunyikan/i);
-        expect(masked).toHaveLength(1);
-        expect(masked[0]).toHaveTextContent('–');
+        expect(within(finance).getByText('4,30')).toBeInTheDocument();
+        expect(within(finance).getByText('4')).toBeInTheDocument();
+    });
+
+    it('service × location cells masked by the backend show "–" with the hidden title', () => {
+        fx.recap = { ...RECAP, services: [{ ...RECAP.services[0], byLocation: { ...NONE, SJA4: cell(4.3, 4), JKT: cell(null, 1) } }] };
+        render(<HcRecapPanel scope="hc" periodId="p1" />);
+        const row = screen.getByRole('row', { name: /HCD · HC Development/ });
+        expect(within(row).getByTitle(/disembunyikan/i)).toHaveTextContent('–');
     });
 });

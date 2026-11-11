@@ -23,6 +23,7 @@ export interface SetCsiPeriodPics { picIds: string[]; dimensionIds: string[] }
 
 export type CsiLocationCode = 'SJA1' | 'SJA2' | 'SJA3' | 'SJA4' | 'JKT';
 export interface CsiRecapCell { average: number | null; ratings: number }
+/** A location cell backed by fewer than 3 respondents keeps its `ratings` count but has a null `average`. */
 export interface CsiLocationCells { all: CsiRecapCell; byLocation: Record<CsiLocationCode, CsiRecapCell> }
 export interface CsiRecapRow extends CsiLocationCells {
     level: 'service' | 'bagian' | 'pic';
@@ -40,10 +41,12 @@ export interface CsiRecapRow extends CsiLocationCells {
     picId?: string | null;
 }
 /**
- * Respondent group (division → department → bagian). A cell backed by fewer than 3 respondents is masked: it keeps its
- * `ratings` count but `average` is null. Small departments are merged into one "Departemen kecil (gabungan)" row.
+ * Respondent group (division → department → bagian): total only, no location split. A total backed by fewer than 3
+ * respondents is masked: it keeps its `ratings` count but `average` is null. Small departments are merged into one
+ * "Departemen kecil (gabungan)" row.
  */
-export interface CsiRespondentGroupRow extends CsiLocationCells {
+export interface CsiRespondentGroupRow {
+    all: CsiRecapCell;
     level: 'division' | 'department' | 'bagian';
     key: string;
     label: string;

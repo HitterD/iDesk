@@ -49,7 +49,7 @@ function ScoreBandFields({ form, set }: { form: PeriodFormState; set: SetField }
                 <BandInput label={SECTION_COPY.goodMin} value={form.scoreGoodMin} invalid={!!error} onChange={(value) => set('scoreGoodMin', value)} />
             </div>
             {error ? <p id={BANDS_ERROR_ID} role="alert" className={ERROR_TEXT}>{error}</p> : (
-                <p aria-label={SECTION_COPY.bandsPreview} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px]">
+                <div role="group" aria-label={SECTION_COPY.bandsPreview} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px]">
                     {scoreBandsPreview(scoreBandsValue(form)).map((band, index) => (
                         <span key={band.tone} className="inline-flex items-center gap-1.5">
                             {index > 0 && <span aria-hidden="true" className={MUTED_TEXT}>·</span>}
@@ -57,7 +57,7 @@ function ScoreBandFields({ form, set }: { form: PeriodFormState; set: SetField }
                             <span className={toneClasses(band.tone).ink}>{band.label}</span>
                         </span>
                     ))}
-                </p>
+                </div>
             )}
         </div>
     );
