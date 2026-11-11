@@ -12,7 +12,7 @@ const period = (id: string, startDate: string, endDate: string, sites: Array<typ
     id, scope: ICT, title: `CSI ${id}`, startDate, endDate, respondentMode: CsiRespondentMode.OPEN, slaTargetPct: 90,
     publishStatus: CsiPeriodPublishStatus.PUBLISHED, sites: sites.map((site) => ({ siteId: site.id, site })), ...over,
 });
-const stats = (average: number | null, responses = 0, people: CsiSiteStats['people'] = []): CsiSiteStats => ({ average, responses, people });
+const stats = (average: number | null, responses = 0, people: CsiSiteStats['people'] = []): CsiSiteStats => ({ average, responses, scoreWeight: responses, people });
 const person = (userId: string, average: number | null) => ({ userId, displayName: userId.toUpperCase(), photoUrl: `/${userId}.jpg`, average });
 
 describe('CsiDashboardService', () => {
@@ -65,10 +65,17 @@ describe('CsiDashboardService', () => {
         const dashboard = await service.getDashboard(ICT, NOW);
         const scoreBands = { fairMin: 3.5, goodMin: 4.2 };
         expect(dashboard.active).toEqual([
-            { periodId: 'p-now', title: 'CSI p-now', siteId: KRW.id, siteCode: 'KRW', siteName: 'Karawang', responses: 4, basis: 10, target: 9, targetPct: 90, average: 3.9, endDate: '2026-10-31', scoreBands },
-            { periodId: 'p-now', title: 'CSI p-now', siteId: SPJ.id, siteCode: 'SPJ', siteName: 'Sepanjang', responses: 12, basis: 20, target: 18, targetPct: 90, average: 4.6, endDate: '2026-10-31', scoreBands },
+            { periodId: 'p-now', title: 'CSI p-now', siteId: KRW.id, siteCode: 'KRW', siteName: 'Karawang', responses: 4, basis: 10, target: 9, targetPct: 90, average: 3.9, scoreWeight: 4, endDate: '2026-10-31', scoreBands },
+            { periodId: 'p-now', title: 'CSI p-now', siteId: SPJ.id, siteCode: 'SPJ', siteName: 'Sepanjang', responses: 12, basis: 20, target: 18, targetPct: 90, average: 4.6, scoreWeight: 12, endDate: '2026-10-31', scoreBands },
         ]);
         expect(sla.compute).toHaveBeenCalledWith(expect.objectContaining({ id: 'p-now' }), [{ id: SPJ.id }], 12);
+    });
+
+    it('HC rows carry the per-rating average and its rating count as weight (report site stats, not responses)', async () => {
+        rows.push(period('p-hc', '2026-10-01', '2026-10-31', [SPJ], { scope: ServiceScope.HC }));
+        siteStats.set('p-hc', { [SPJ.id]: { average: 4.23, responses: 6, scoreWeight: 17, people: [] } });
+        const [row] = (await service.getDashboard(ServiceScope.HC, NOW)).active;
+        expect(row).toMatchObject({ average: 4.23, responses: 6, scoreWeight: 17 });
     });
 
     it('ignores drafts, periods not started yet and other scopes', async () => {

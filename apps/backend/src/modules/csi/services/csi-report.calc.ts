@@ -102,6 +102,20 @@ export function itemsForSite<T extends Pick<CsiItemRow, 'responseId' | 'periodRa
     return items.filter((item) => rateeSite.get(item.periodRateeId) === siteId && responseSite.get(item.responseId) === siteId);
 }
 
+/**
+ * HC survey average (same basis as the per-PIC recap): one rating = one respondent's scored answers about one subject,
+ * valued at their mean; the average is the mean of those ratings, so every (respondent, subject) pair weighs the same.
+ */
+export function ratingAverage(items: CsiItemRow[]): { average: number | null; ratings: number } {
+    const byRating = new Map<string, Array<number | null>>();
+    items.forEach((item) => {
+        const key = `${item.responseId}\u0000${item.periodRateeId}`;
+        byRating.set(key, [...(byRating.get(key) ?? []), item.score]);
+    });
+    const values = [...byRating.values()].map(responseAverage).filter((value): value is number => value !== null);
+    return { average: averageOfAverages(values), ratings: values.length };
+}
+
 /** Survey average: mean over responses of the average of ALL scored items of that response. */
 export function overallStats(items: CsiItemRow[], respondentCount: number) {
     return { average: averageOfAverages(responseAverages(items)), respondentCount };

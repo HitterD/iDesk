@@ -1,4 +1,4 @@
-import { buildNameIndex } from './csi-name-match';
+import { buildNameIndex, normalizeName } from './csi-name-match';
 import { normalizeNik } from './csi-org.constants';
 
 /** Match of a template rater against active accounts. */
@@ -42,6 +42,20 @@ export function resolveRater(rater: RaterMatch, accounts: readonly CsiAccountRef
     const hit = lookup.byName(rater.raterName);
     if (hit === 'ambiguous') return { userId: null, status: 'ambiguous' };
     return hit ? { userId: hit.id, status: 'ok' } : { userId: null, status: 'no-account' };
+}
+
+/**
+ * Distinct template raters (by NIK, else by name) that cannot answer: no account, or an ambiguous name, and not linked
+ * to an active account. Report line "N penilai di template belum punya akun iDesk (tidak termasuk basis)".
+ */
+export function ratersWithoutAccount(raters: readonly RaterMatch[], accounts: readonly CsiAccountRef[]): number {
+    const lookup = lookupOf(accounts);
+    const keyOf = (rater: RaterMatch) => normalizeNik(rater.raterNik) ? `nik:${normalizeNik(rater.raterNik)}` : `name:${normalizeName(rater.raterName)}`;
+    const missing = raters.filter((rater) => {
+        const { status } = resolveRater(rater, lookup);
+        return status === 'no-account' || status === 'ambiguous';
+    });
+    return new Set(missing.map(keyOf)).size;
 }
 
 type TemplateRow = { id: string; scope: string; locationCode: string; name: string; updatedAt?: Date | null };

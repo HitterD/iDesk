@@ -25,6 +25,8 @@ const SORT_LAST = '￿';
 export type CsiDashboardActive = {
     periodId: string; title: string; siteId: string; siteCode: string | null; siteName: string | null;
     responses: number; basis: number; target: number; targetPct: number; average: number | null; endDate: string;
+    /** Units behind `average` (HC: ratings, ICT: responses): the weight when the dashboard combines site averages. */
+    scoreWeight: number;
     /** Colour bands of the period the row belongs to. */
     scoreBands: CsiScoreBands;
 };
@@ -86,7 +88,7 @@ export class CsiDashboardService {
             return {
                 periodId: period.id, title: period.title, siteId: site.id, siteCode: site.code, siteName: site.name,
                 responses: siteStats.responses, basis: sla.basis, target: sla.target, targetPct: sla.targetPct,
-                average: siteStats.average, endDate: period.endDate, scoreBands: bandsOf(period),
+                average: siteStats.average, scoreWeight: siteStats.scoreWeight, endDate: period.endDate, scoreBands: bandsOf(period),
             };
         })));
         return rows.sort((a, b) => a.endDate.localeCompare(b.endDate) || byCode(a, b));
@@ -146,7 +148,7 @@ class StatsCache {
 
     async of(period: CsiPeriod, siteId: string): Promise<CsiSiteStats> {
         if (!this.cache.has(period.id)) this.cache.set(period.id, this.load(period));
-        return (await this.cache.get(period.id)!).get(siteId) ?? { average: null, responses: 0, people: [] };
+        return (await this.cache.get(period.id)!).get(siteId) ?? { average: null, responses: 0, scoreWeight: 0, people: [] };
     }
 }
 

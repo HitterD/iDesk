@@ -4,7 +4,7 @@ import { CsiRateeKind } from '../csi.constants';
 import { serviceName } from '../org/csi-org.constants';
 import { addStyledSheet, AVERAGE_COLUMN, CellValue, ColumnSpec, PERCENT_COLUMN, sanitizeCell, WIDTH } from './csi-export.sheet';
 import { CsiQuestionGrid, CsiReportModel } from './csi-report-model';
-import { commentOrder, INSUFFICIENT_LABEL, NO_ANSWERS_LABEL, slaStatusText } from './csi-report-pdf-sections';
+import { commentOrder, INSUFFICIENT_LABEL, NO_ANSWERS_LABEL, slaStatusText, templateRatersNote } from './csi-report-pdf-sections';
 import { compareServiceCodes, CsiRankRow, CsiServiceRanking, rankRowsOf } from './csi-report-ranking';
 
 /** Sheets of the executive report, in workbook order (before the raw answer sheets). */
@@ -22,13 +22,20 @@ const COUNT = (header: string): ColumnSpec => ({ header, width: SHORT });
 const groupLabel = (code: string | null, fallback: string) => (code ? `${code} · ${serviceName(code) ?? fallback}` : fallback);
 const OTHER_SERVICE = 'Lainnya';
 const isHc = (model: CsiReportModel) => model.scopeLabel === ServiceScope.HC;
+const TEMPLATE_RATERS_LABEL = 'Penilai template tanpa akun';
 
-/** Official SLA cells, the same figures and status sentence as the PDF block. */
-function slaRows({ sla }: CsiReportModel): CellValue[][] {
+/**
+ * Official SLA cells, the same figures and status sentence as the PDF block (one percentage: answers ÷ basis), plus
+ * the template raters left out of the basis for lack of an iDesk account (only when there are any).
+ */
+function slaRows(model: CsiReportModel): CellValue[][] {
+    const { sla } = model;
+    const note = templateRatersNote(model);
     return [
         ['SLA sudah mengisi / basis', `${sla.submitted}/${sla.basis}`], ['SLA % sudah mengisi', sla.pct],
         ['Target SLA (%)', sla.targetPct], ['Target SLA (orang)', sla.targetCount],
         ['Status SLA', sla.basis > 0 ? slaStatusText(sla) : 'Belum ada basis partisipasi'],
+        ...(note ? [[TEMPLATE_RATERS_LABEL, note]] : []),
     ];
 }
 
@@ -40,7 +47,7 @@ function summarySheet(workbook: ExcelJS.Workbook, model: CsiReportModel) {
         ['Nilai keseluruhan (1-5)', overall.average], ['Predikat', overall.word ?? '-'], ['Indeks (%)', overall.indexPct],
         ['Nilai periode lalu', overall.previous], ['Δ vs periode lalu', overall.delta],
         ['Basis partisipasi', `${participation.basis} (${participation.basisLabel})`], ['Target partisipasi', `${participation.target} (${model.targetPct}%)`],
-        ['Responden', participation.responses], ['% Responden', participation.respondenPct], ['% Pengisi (SLA)', participation.pengisiPct],
+        ['Responden', participation.responses],
         ...slaRows(model),
         ['Jumlah dinilai', `${counts.teams} tim · ${counts.people} orang · ${counts.sites} site`], ['Jumlah komentar', counts.comments],
         ...model.highlights.map((line, index): CellValue[] => [index ? '' : 'Poin utama', text(line)]),
@@ -79,11 +86,11 @@ function rankingSheet(workbook: ExcelJS.Workbook, model: CsiReportModel) {
 function participationSheet(workbook: ExcelJS.Workbook, model: CsiReportModel) {
     const total = model.participation;
     addStyledSheet(workbook, EXECUTIVE_SHEETS.participation, [
-        { header: 'Site', width: WIDTH.name }, COUNT('Basis'), COUNT('Target'), COUNT('Responden'),
-        PERCENT_COLUMN('% Responden'), PERCENT_COLUMN('% Pengisi (SLA)'), { header: 'Status', width: 14 }, AVERAGE_COLUMN('Nilai'),
+        { header: 'Site', width: WIDTH.name }, COUNT('Basis'), COUNT('Target'), COUNT('Sudah mengisi'),
+        PERCENT_COLUMN('% Sudah mengisi'), { header: 'Status', width: 14 }, AVERAGE_COLUMN('Nilai'),
     ], [
-        ...model.sites.map((site): CellValue[] => [text(`${site.code ?? ''} ${site.name ?? ''}`.trim()), site.basis, site.target, site.responses, site.respondenPct, site.pengisiPct, site.reached ? 'Tercapai' : 'Belum', site.average]),
-        ['Total', total.basis, total.target, total.responses, total.respondenPct, total.pengisiPct, total.reached ? 'Tercapai' : 'Belum', model.overall.average],
+        ...model.sites.map((site): CellValue[] => [text(`${site.code ?? ''} ${site.name ?? ''}`.trim()), site.basis, site.target, site.responses, site.respondenPct, site.reached ? 'Tercapai' : 'Belum', site.average]),
+        ['Total', total.basis, total.target, total.responses, total.respondenPct, total.reached ? 'Tercapai' : 'Belum', model.overall.average],
     ]);
 }
 

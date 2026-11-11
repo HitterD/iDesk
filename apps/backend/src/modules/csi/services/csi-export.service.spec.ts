@@ -69,8 +69,10 @@ describe('CsiExportService', () => {
         expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual([...EXECUTIVE, 'Rekap', 'Penilaian Tim', 'Penilaian Per Orang', 'Penilai x Subjek']);
 
         const recap = workbook.getWorksheet('Rekap')!;
-        expect(recap.getRow(1).values).toEqual([undefined, 'Lokasi', 'Nama', 'Average', 'Average survei', '% Pengisi (SLA)']);
-        expect(recap.getRow(2).values).toEqual([undefined, 'Semarang & Sepanjang', 'Tim IT Support', 4, 4.25, 100]);
+        // "Average survei" is the executive model overall (same value as Ringkasan / PDF page 1); no % Pengisi column.
+        const overall = reportFixture({ people: 3, sites: 2 }).model.overall.average;
+        expect(recap.getRow(1).values).toEqual([undefined, 'Lokasi', 'Nama', 'Average', 'Average survei']);
+        expect(recap.getRow(2).values).toEqual([undefined, 'Semarang & Sepanjang', 'Tim IT Support', 4, overall]);
         expect(recap.getRow(3).getCell(2).value).toBe(`'=HYPERLINK("x")`);
 
         const team = workbook.getWorksheet('Penilaian Tim')!;
@@ -187,6 +189,38 @@ describe('CsiExportService', () => {
         expect(summaryValue(met, 'Status SLA')).toBe('Memenuhi SLA');
         // One status only: the older "Status target" duplicate is gone.
         expect(summaryValue(workbook, 'Status target')).toBeUndefined();
+    });
+
+    it('HC: one overall value in Ringkasan, Partisipasi total, Rekap and PDF page 1 (per-rating recap basis)', async () => {
+        const { model } = hcReportFixture({ respondents: 30 });
+        const overall = model.hcRecap.overall.all.average;
+        expect(model.overall.average).toBe(overall);
+        const workbook = await workbookOf(model);
+        expect(summaryValue(workbook, 'Nilai keseluruhan (1-5)')).toBe(overall);
+        const participation = workbook.getWorksheet('Partisipasi')!;
+        const total = (participation.getRow(participation.rowCount).values as unknown[]).slice(1);
+        expect(total[0]).toBe('Total');
+        expect(total[total.length - 1]).toBe(overall);
+        const rekap = workbook.getWorksheet('Rekap')!;
+        expect(rowsOf(rekap).every((cells) => cells[3] === overall)).toBe(true);
+    });
+
+    it('one SLA percentage only: no "% Pengisi (SLA)" in Ringkasan, Partisipasi or Rekap', async () => {
+        const workbook = await workbookOf(hcReportFixture({ respondents: 30 }).model);
+        expect(summaryValue(workbook, '% Pengisi (SLA)')).toBeUndefined();
+        expect(summaryValue(workbook, '% Responden')).toBeUndefined();
+        expect(summaryValue(workbook, 'SLA % sudah mengisi')).toBe(75);
+        expect((workbook.getWorksheet('Partisipasi')!.getRow(1).values as unknown[]).slice(1))
+            .toEqual(['Site', 'Basis', 'Target', 'Sudah mengisi', '% Sudah mengisi', 'Status', 'Nilai']);
+        workbook.worksheets.forEach((sheet) => expect((sheet.getRow(1).values as unknown[]).join('|')).not.toContain('Pengisi'));
+    });
+
+    it('Ringkasan: template raters without an iDesk account are counted (only when there are any)', async () => {
+        const { model } = hcReportFixture({ respondents: 30 });
+        const label = 'Penilai template tanpa akun';
+        expect(summaryValue(await workbookOf({ ...model, templateRatersWithoutAccount: 0 }), label)).toBeUndefined();
+        expect(summaryValue(await workbookOf({ ...model, templateRatersWithoutAccount: 4 }), label))
+            .toBe('4 penilai di template belum punya akun iDesk (tidak termasuk basis)');
     });
 
     it('one "Peringkat" sheet per layanan: competition ranks, insufficient rows unnumbered with a note, no Bintang', async () => {

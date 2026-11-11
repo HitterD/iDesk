@@ -31,6 +31,9 @@ export const SLA_MET = 'Memenuhi SLA';
 /** Room kept below a section title that opens a table: note, table header and the first rows (no orphan title). */
 export const TABLE_KEEP = 110;
 export const slaStatusText = (sla: CsiReportModel['sla']) => (sla.met ? SLA_MET : `Belum memenuhi SLA — kurang ${sla.missing} jawaban`);
+/** Page 1 / Excel Ringkasan line on template raters outside the basis (no iDesk account); null when there are none. */
+export const templateRatersNote = ({ templateRatersWithoutAccount: count }: Pick<CsiReportModel, 'templateRatersWithoutAccount'>) =>
+    (count > 0 ? `${count} penilai di template belum punya akun iDesk (tidak termasuk basis)` : null);
 
 /**
  * Page 1: overall score + predikat (with an optional sentence on how it is averaged), Partisipasi & SLA, highlight
@@ -62,6 +65,8 @@ function slaBlock(canvas: ReportCanvas, model: CsiReportModel) {
     const lines = [`${sla.submitted}/${sla.basis} sudah mengisi (${sla.pct}%)`, `Target ${sla.targetPct}% = ${sla.targetCount} orang`];
     const sites = model.sites.filter((site) => site.basis > 0);
     if (sites.length > 1) lines.push(`Per site: ${sites.map((site) => `${site.code ?? site.name} ${site.responses}/${site.basis} (${pct(site.respondenPct)})`).join('  ·  ')}`);
+    const note = templateRatersNote(model);
+    if (note) lines.push(note);
     const status = sla.basis > 0 ? { text: slaStatusText(sla), tone: (sla.met ? 'good' : 'bad') as Tone } : { text: 'Belum ada basis partisipasi', tone: 'neutral' as Tone };
     canvas.statusBlock('PARTISIPASI & SLA', lines, status);
 }

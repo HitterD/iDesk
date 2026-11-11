@@ -13,8 +13,9 @@ import { answerColumns, answerRows, questionsOf } from './csi-export.answers';
 import { addMatrixSheet } from './csi-export.matrix';
 import { addExecutiveSheets } from './csi-export.executive';
 import { raterMatrix } from './csi-rater-matrix.calc';
-import { addStyledSheet, AVERAGE_COLUMN, PERCENT_COLUMN, sanitizeCell, WIDTH } from './csi-export.sheet';
+import { addStyledSheet, AVERAGE_COLUMN, sanitizeCell, WIDTH } from './csi-export.sheet';
 import { formatLocation } from './csi-format.util';
+import { CsiReportModel } from './csi-report-model';
 import { CsiReportService } from './csi-report.service';
 import { addHcRecapSheets } from '../org/csi-hc-report.render';
 
@@ -29,17 +30,15 @@ const SHEET_PERSON = 'Penilaian Per Orang';
 const rateeName = (ratee: Report['ratees'][number], report: Report): string =>
     ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || report.period.teamLabel : ratee.displayName;
 
-/** Rekap: Lokasi, Nama (team or person name), Average per ratee, Average survei, % Pengisi (SLA). */
-function addRecap(workbook: ExcelJS.Workbook, report: Report) {
+/**
+ * Rekap: Lokasi, Nama (team or person name), Average per ratee and Average survei. The survey average is the executive
+ * model's overall (HC per rating), so it is the same number as Ringkasan and PDF page 1.
+ */
+function addRecap(workbook: ExcelJS.Workbook, report: Report, overall: CsiReportModel['overall']) {
     const location = sanitizeCell(formatLocation(report.period.sites));
-    const rows = report.ratees.map((ratee) => [
-        location,
-        sanitizeCell(rateeName(ratee, report)),
-        ratee.average, report.overall.average, report.sla.pengisiPct,
-    ]);
+    const rows = report.ratees.map((ratee) => [location, sanitizeCell(rateeName(ratee, report)), ratee.average, overall.average]);
     addStyledSheet(workbook, SHEET_RECAP, [
-        { header: 'Lokasi', width: WIDTH.name }, { header: 'Nama', width: WIDTH.name },
-        AVERAGE_COLUMN('Average'), AVERAGE_COLUMN('Average survei'), PERCENT_COLUMN('% Pengisi (SLA)'),
+        { header: 'Lokasi', width: WIDTH.name }, { header: 'Nama', width: WIDTH.name }, AVERAGE_COLUMN('Average'), AVERAGE_COLUMN('Average survei'),
     ], rows);
 }
 
@@ -99,7 +98,7 @@ export class CsiExportService {
         addExecutiveSheets(workbook, model);
         // Admin-only workbook: the HC detail sheet names the respondents (the PDF never does).
         if (model.hcRecap) addHcRecapSheets(workbook, model.hcRecap, true);
-        addRecap(workbook, report);
+        addRecap(workbook, report, model.overall);
         const kinds: Array<[CsiRateeKind, string]> = [[CsiRateeKind.TEAM, SHEET_TEAM], [CsiRateeKind.PERSON, SHEET_PERSON]];
         for (const [kind, sheetName] of kinds) {
             if (!report.ratees.some((ratee) => ratee.kind === kind)) continue;

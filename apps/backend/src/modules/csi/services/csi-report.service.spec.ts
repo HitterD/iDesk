@@ -2,7 +2,11 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 import { CsiRespondentMode } from '../csi.constants';
+import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
+import { CsiAssignmentTemplateRater } from '../entities/csi-assignment-template-rater.entity';
+import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
+import { User } from '../../users/entities/user.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
@@ -68,6 +72,7 @@ describe('CsiReportService', () => {
     let service: CsiReportService;
     let ratees: ReturnType<typeof memoryRepository>;
     let dataSource: any;
+    let dsRepos: Map<unknown, ReturnType<typeof memoryRepository>>;
 
     beforeEach(() => {
         periods = memoryRepository<any>([period(), period({ id: 'p-hc', scope: HC })]);
@@ -105,7 +110,14 @@ describe('CsiReportService', () => {
                 if (index >= 0) responses.rows.splice(index, 1);
             }),
         };
-        dataSource = { transaction: jest.fn(async (work: (m: any) => unknown) => work(manager)), query: jest.fn(async () => []) };
+        dsRepos = new Map<unknown, ReturnType<typeof memoryRepository>>([
+            [CsiAssignmentTemplate, memoryRepository<any>([])], [CsiAssignmentTemplatePic, memoryRepository<any>([])],
+            [CsiAssignmentTemplateRater, memoryRepository<any>([])], [User, memoryRepository<any>([])],
+        ]);
+        dataSource = {
+            transaction: jest.fn(async (work: (m: any) => unknown) => work(manager)), query: jest.fn(async () => []),
+            getRepository: jest.fn((target: unknown) => dsRepos.get(target)),
+        };
         sla = { compute: jest.fn(async () => ({ basis: 0, pengisiPct: null })) };
         paired = null;
         const assignments = { ratersWithPairs: jest.fn(async () => paired) };
@@ -182,6 +194,56 @@ describe('CsiReportService', () => {
         expect(siteB.serviceHighlight).toMatchObject({ best: { code: 'HCS', average: 4 }, worst: { code: 'HCD', average: 3 } });
         expect(siteB.hcRecap?.overall.respondents).toBe(1);
         expect(loads).toHaveBeenLastCalledWith(HC, 'p-hc', 'site-b');
+    });
+
+    it('HC overall (report, site stats) uses the per-rating basis of the recap; ICT keeps the mean of response averages', async () => {
+        Object.assign(periods.rows[1], { sites: [{ siteId: 'site-a', site: { code: 'SMG', name: 'Semarang' } }] });
+        ratees.rows.push(
+            { id: 'h1', periodId: 'p-hc', kind: 'PERSON', picId: 'pic1', serviceCode: 'HCD', bagian: 'TA', displayName: 'Dewi', sortOrder: 0 },
+            { id: 'h2', periodId: 'p-hc', kind: 'PERSON', picId: 'pic2', serviceCode: 'HCS', bagian: 'GA', displayName: 'Sinta', sortOrder: 1 },
+        );
+        rateeDimensions.rows.push(
+            { id: 'hk1', periodRateeId: 'h1', dimensionName: 'Knowledge', type: 'STAR', options: [], sortOrder: 0 },
+            { id: 'hc1', periodRateeId: 'h1', dimensionName: 'Courtesy', type: 'STAR', options: [], sortOrder: 1 },
+            { id: 'hk2', periodRateeId: 'h2', dimensionName: 'Knowledge', type: 'STAR', options: [], sortOrder: 0 },
+        );
+        const response = (id: string) => ({ id, periodId: 'p-hc', respondentId: `u-${id}`, departmentName: 'PROD', respondentName: id, submittedAt: new Date('2026-10-10T03:00:00Z'), respondent: { id: `u-${id}`, siteId: 'site-a' } });
+        responses.rows.push(response('ra'), response('rb'));
+        // ra: Dewi 5,5 + Sinta 1; rb: Dewi 3. Per rating (5 + 1 + 3) / 3 = 3; per response (3.67 + 3) / 2 = 3.33.
+        items.rows.push(
+            { id: 'x1', responseId: 'ra', periodRateeId: 'h1', periodRateeDimensionId: 'hk1', score: 5 },
+            { id: 'x2', responseId: 'ra', periodRateeId: 'h1', periodRateeDimensionId: 'hc1', score: 5 },
+            { id: 'x3', responseId: 'ra', periodRateeId: 'h2', periodRateeDimensionId: 'hk2', score: 1 },
+            { id: 'x4', responseId: 'rb', periodRateeId: 'h1', periodRateeDimensionId: 'hk1', score: 3 },
+        );
+        const recap = await service.getHcRecap(HC, 'p-hc');
+        expect(recap.overall.all.average).toBe(3);
+        expect((await service.getReport(HC, 'p-hc')).overall).toEqual({ average: 3, respondentCount: 2 });
+        const period = periods.rows[1] as CsiPeriod;
+        // Dashboard rows: same average, weighted by the 3 ratings (not the 2 responses) when sites are combined.
+        expect((await service.siteStats(HC, period, ['site-a'])).get('site-a')).toMatchObject({ average: 3, scoreWeight: 3, responses: 2 });
+        // Executive model (PDF page 1, Excel Ringkasan / Rekap) reads the same number.
+        sla.compute.mockResolvedValue({ basis: 0, target: 0, responses: 0, pengisiPct: null, reporters: [] });
+        expect((await service.getExecutiveModel(HC, 'p-hc', { matrix: {} as any })).overall.average).toBe(3);
+        // ICT unchanged: resp1 3.5, resp2 3 -> 3.25.
+        expect((await service.getReport(ICT, 'p1')).overall.average).toBe(3.25);
+    });
+
+    it('HC executive model counts template raters of the survey sites without an iDesk account; ICT is always 0', async () => {
+        Object.assign(periods.rows[1], { sites: [{ siteId: 'site-a', site: { code: 'SMG', name: 'Semarang' } }] });
+        sla.compute.mockResolvedValue({ basis: 0, target: 0, responses: 0, pengisiPct: null, reporters: [] });
+        dsRepos.get(CsiAssignmentTemplate)!.rows.push({ id: 'tpl-smg', scope: HC, locationCode: 'SMG' }, { id: 'tpl-krw', scope: HC, locationCode: 'KRW' });
+        dsRepos.get(CsiAssignmentTemplatePic)!.rows.push({ id: 'tp1', templateId: 'tpl-smg' }, { id: 'tp2', templateId: 'tpl-smg' }, { id: 'tp3', templateId: 'tpl-krw' });
+        dsRepos.get(User)!.rows.push({ id: 'u-elvi', fullName: 'Elvi', employeeId: null, isActive: true });
+        const rater = (id: string, templatePicId: string, raterName: string, userId: string | null = null) =>
+            ({ id, templatePicId, raterName, raterNik: null, userId, confirmedAt: userId ? new Date() : null });
+        dsRepos.get(CsiAssignmentTemplateRater)!.rows.push(
+            rater('a', 'tp1', 'ELVI'), rater('b', 'tp1', 'BUDI'), rater('c', 'tp2', 'BUDI'), rater('d', 'tp2', 'TONO'),
+            rater('e', 'tp2', 'LINKED', 'u-elvi'), rater('f', 'tp3', 'ONLY KRW'),
+        );
+        // SMG only: Budi (two PICs, one person) and Tono have no account; Elvi matches, Linked is linked, KRW is not a survey site.
+        expect((await service.getExecutiveModel(HC, 'p-hc', { matrix: {} as any })).templateRatersWithoutAccount).toBe(2);
+        expect((await service.getExecutiveModel(ICT, 'p1', { matrix: {} as any })).templateRatersWithoutAccount).toBe(0);
     });
 
     it('HC executive model carries the previous period average per layanan / PIC for the Selisih column', async () => {

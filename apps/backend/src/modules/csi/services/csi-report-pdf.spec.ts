@@ -48,6 +48,13 @@ describe('renderCsiReportPdf', () => {
             expect(text).not.toMatch(/Lampiran D|Bintang|3 tertinggi|Perlu perhatian/);
         });
 
+        it('one SLA percentage: participation table has "% Sudah mengisi" (÷ basis), no "% Pengisi"', async () => {
+            const headers = await tableHeaders(reportFixture({ people: 3, sites: 2 }).model);
+            expect(headers).toEqual(expect.arrayContaining(['Sudah mengisi', '% Sudah mengisi', 'Status']));
+            expect(headers.join('|')).not.toMatch(/Pengisi|% Responden/);
+            expect(await allText(reportFixture({ people: 3, sites: 2 }).model)).not.toContain('Pengisi');
+        });
+
         it('no participant names or emails in pdf', async () => {
             const { model } = reportFixture({ people: 3 });
             const text = await allText(model);
@@ -209,6 +216,13 @@ describe('renderCsiReportPdf', () => {
 
         it('ICT page 1 has no per-rating note', async () => {
             expect((await pagesOf(reportFixture({ people: 3 }).model))[0]).not.toContain('Rata-rata semua penilaian');
+        });
+
+        it('page 1 lists template raters without an iDesk account only when there are any', async () => {
+            const { model } = hcReportFixture({ respondents: 30 });
+            const line = '4 penilai di template belum punya akun iDesk (tidak termasuk basis)';
+            expect((await pagesOf({ ...model, templateRatersWithoutAccount: 4 }))[0]).toContain(line);
+            expect((await pagesOf(model))[0]).not.toContain('belum punya akun iDesk');
         });
 
         it('sla block text', async () => {

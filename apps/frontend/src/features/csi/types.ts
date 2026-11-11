@@ -447,6 +447,8 @@ export interface CsiReminderResult { sent: number; skipped: number }
 export interface CsiDashboardActive {
     periodId: string; title: string; siteId: string; siteCode: string | null; siteName: string | null;
     responses: number; basis: number; target: number; targetPct: number; average: number | null; endDate: string;
+    /** Units behind `average` (HC: ratings, 1 respondent × 1 PIC; ICT: responses): weight when sites are combined. */
+    scoreWeight: number;
     /** Score colour bands of the row's survey. */
     scoreBands: CsiScoreBands;
 }

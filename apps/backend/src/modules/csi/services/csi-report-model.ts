@@ -6,7 +6,7 @@ import { CsiServiceHighlight, CsiServiceRanking, rankingByService, serviceHighli
 import { CsiReportService } from './csi-report.service';
 import { bandsOf, CsiScoreBand, CsiScoreBands, CsiScoreWord, scoreBand, scoreWordFor } from './csi-score-bands';
 import { averageOfAverages } from './csi-score.util';
-import { CSI_TEAM_ROW_PREFIX, type CsiHcRecap } from '../org/csi-hc-report.calc';
+import { CSI_NO_BAGIAN_LABEL, CSI_TEAM_ROW_PREFIX, type CsiHcRecap } from '../org/csi-hc-report.calc';
 
 /**
  * Everything the executive report shows (PDF and Excel read the same model, so both always carry every parameter).
@@ -33,9 +33,10 @@ export type CsiAspect = { label: string; full: string; average: number | null; a
 export type CsiQuestionColumn = { code: string; label: string; full: string; type: CsiQuestionType };
 export type CsiQuestionGrid = { columns: CsiQuestionColumn[]; rows: Array<{ name: string; kind: CsiRateeKind; siteCode: string | null; values: Array<number | null> }> };
 export type CsiChoiceSummary = { label: string; counts: Array<{ option: string; count: number }> };
+/** Participation of one site: `respondenPct` = answers ÷ basis (the only SLA percentage), `reached` = answers ≥ target. */
 export type CsiSiteParticipation = {
     siteId: string; code: string | null; name: string | null; basis: number; target: number; responses: number;
-    respondenPct: number | null; pengisiPct: number | null; reached: boolean; average: number | null;
+    respondenPct: number | null; reached: boolean; average: number | null;
 };
 /** Comments about one subject; `serviceCode` = its layanan (HC report groups the comments per layanan). */
 export type CsiCommentGroup = { name: string; kind: CsiRateeKind; serviceCode: string | null; comments: Array<{ text: string; department: string; date: Date }> };
@@ -48,7 +49,12 @@ export type CsiReportModel = {
     /** Colour bands of the survey (period scoreFairMin / scoreGoodMin): every colour and predikat follows them. */
     bands: CsiScoreBands;
     overall: { average: number | null; word: CsiScoreWord | null; band: CsiScoreBand | null; indexPct: number | null; previous: number | null; delta: number | null };
-    participation: { basis: number; target: number; responses: number; respondenPct: number | null; pengisiPct: number | null; reached: boolean; basisLabel: string };
+    participation: { basis: number; target: number; responses: number; respondenPct: number | null; reached: boolean; basisLabel: string };
+    /**
+     * HC: distinct raters of the location templates of the survey sites that have no (unambiguous) iDesk account and
+     * are not linked to one; they cannot answer, so they are outside the basis. 0 for ICT.
+     */
+    templateRatersWithoutAccount: number;
     /** Official SLA status of the survey (answers vs ceil(basis × target%)). */
     sla: CsiSlaBlock;
     /** True when an earlier published period exists (Lalu / Δ columns only then). */
@@ -193,7 +199,7 @@ function highlightSentences(model: Pick<CsiReportModel, 'bands' | 'overall' | 't
 }
 
 /**
- * Subjects of the per-layanan ranking; detail = HC bagian (else fungsi pelayanan), ICT site code. HC teams are named
+ * Subjects of the per-layanan ranking; detail = HC bagian (else "Tanpa bagian"; teams none), ICT site code. HC teams are named
  * "Tim · <name>" as in the recap tables (ICT keeps its own Tim group).
  */
 function rankSubjects(report: CsiReportData, rows: CsiReportRow[], scope: ServiceScope) {
@@ -201,7 +207,8 @@ function rankSubjects(report: CsiReportData, rows: CsiReportRow[], scope: Servic
     return rows.map((row) => {
         const ratee = byId.get(row.periodRateeId);
         const hc = scope === ServiceScope.HC;
-        const detail = hc ? ratee?.bagian ?? ratee?.serviceFunction ?? null : row.siteCode;
+        // HC: the bagian as in the recap tables (custom teams have none), never the fungsi pelayanan.
+        const detail = hc ? (row.kind === CsiRateeKind.TEAM ? null : ratee?.bagian || CSI_NO_BAGIAN_LABEL) : row.siteCode;
         const name = hc && row.kind === CsiRateeKind.TEAM ? `${CSI_TEAM_ROW_PREFIX}${row.name}` : row.name;
         return { name, kind: row.kind, average: row.average, raters: row.raters, serviceCode: ratee?.serviceCode ?? null, detail, previous: row.previous };
     });
@@ -220,6 +227,8 @@ export type CsiReportModelInput = {
     siteBasis: Array<{ siteId: string; basis: number; responses: number; average: number | null }>;
     /** Every basis rater: department (directory, else account) and whether they answered; never a name. */
     raters: Array<{ department: string | null; answered: boolean }>;
+    /** HC: template raters of the survey sites without an iDesk account (see CsiReportModel); 0 or absent for ICT. */
+    templateRatersWithoutAccount?: number;
     /** HC: average per layanan (mean of every rating of its PICs, as the recap); empty for ICT. */
     serviceAverages: Array<{ serviceCode: string | null; average: number | null }>;
     comments: Array<{ periodRateeId: string; text: string; department: string; date: Date }>;
@@ -268,8 +277,7 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
         const target = Math.ceil((basis * targetPct) / PERCENT);
         return {
             siteId: row.siteId, code: site?.code ?? null, name: site?.name ?? null, basis, target, responses: row.responses,
-            respondenPct: respondenPct(row.responses, basis), pengisiPct: target ? Math.min(PERCENT, Math.round((row.responses / target) * PERCENT)) : null,
-            reached: target > 0 && row.responses >= target, average: row.average,
+            respondenPct: respondenPct(row.responses, basis), reached: target > 0 && row.responses >= target, average: row.average,
         };
     });
     const sla = report.sla;
@@ -289,9 +297,10 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
         overall: { average: overallAverage, word: scoreWordFor(overallAverage, bands), band: scoreBand(overallAverage, bands), indexPct: indexPct(overallAverage), previous: previousAverage, delta: delta(overallAverage, previousAverage) },
         participation: {
             basis: sla.basis, target: sla.target, responses: sla.responses, respondenPct: respondenPct(sla.responses, sla.basis),
-            pengisiPct: sla.pengisiPct, reached: sla.target > 0 && sla.responses >= sla.target,
+            reached: sla.target > 0 && sla.responses >= sla.target,
             basisLabel: sla.mode === CsiRespondentMode.LISTED ? 'penilai terdaftar' : 'pelapor iDesk 12 bulan terakhir',
         },
+        templateRatersWithoutAccount: input.templateRatersWithoutAccount ?? 0,
         sla: slaBlock({ basis: sla.basis, targetPct, target: sla.target, responses: sla.responses }), hasPrevious: input.hasPrevious,
         sites, teams, people,
         rankingByService: rankingByService({ scope: input.scope, bands, subjects: rankSubjects(report, [...teams, ...people], input.scope) }),

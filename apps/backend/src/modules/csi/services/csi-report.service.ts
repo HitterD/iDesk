@@ -14,7 +14,7 @@ import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { lockPeriodRow } from './csi-period-lock.util';
-import { CsiItemRow, itemsForSite, overallStats, rateeStats } from './csi-report.calc';
+import { CsiItemRow, itemsForSite, overallStats, rateeStats, ratingAverage } from './csi-report.calc';
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiAssignmentService } from './csi-assignment.service';
 import { raterMatrix } from './csi-rater-matrix.calc';
@@ -27,6 +27,10 @@ import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap, recapAverages } from '
 import { locationOfSiteCode } from '../org/csi-org.constants';
 import { CsiPendingDepartment, pendingByDepartment } from '../org/csi-service-report.calc';
 import { ratedAccountOf } from './csi-ratee-owner.util';
+import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entity';
+import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
+import { CsiAssignmentTemplateRater } from '../entities/csi-assignment-template-rater.entity';
+import { ratersWithoutAccount } from '../org/csi-template-view';
 
 const RESPONSE_NOT_FOUND_MESSAGE = 'Jawaban tidak ditemukan';
 const RESET_ENTITY_TYPE = 'csi_response';
@@ -65,6 +69,8 @@ type PeriodData = {
 /** Per-site stats of one period (dashboard): overall average, responses and each PERSON ratee's average. */
 export type CsiSiteStats = {
     average: number | null; responses: number;
+    /** Units behind `average` (HC: ratings, ICT: responses): weight when site averages are combined. */
+    scoreWeight: number;
     people: Array<{ userId: string; displayName: string; photoUrl: string | null; average: number | null }>;
 };
 export type CsiReportComment = { text: string; departmentName: string; submittedAt: Date };
@@ -119,7 +125,7 @@ export class CsiReportService {
         return {
             period: { ...period, sites: allSites },
             scoreBands: bandsOf(period),
-            overall: overallStats(data.items, data.responses.length),
+            overall: { average: overallScoreOf(scope, data).average, respondentCount: data.responses.length },
             previousAverage: await this.previousAverage(scope, period, siteId),
             ratees: teamFirst(data.ratees).map((ratee) => rateeStats(ratee, data.dimensions, data.items, {
                 siteId: rateeSiteOf(data, ratee), photoUrl: data.views.get(ratee.id)?.photoUrl ?? null,
@@ -155,7 +161,7 @@ export class CsiReportService {
                 userId: ratee.userId!, displayName: ratee.displayName, photoUrl: site.views.get(ratee.id)?.photoUrl ?? null,
                 average: rateeStats(ratee, site.dimensions, site.items).average,
             }));
-            return [siteId, { average: overallStats(site.items, site.responses.length).average, responses: site.responses.length, people }];
+            return [siteId, { ...overallScoreOf(scope, site), responses: site.responses.length, people }];
         }));
     }
 
@@ -163,8 +169,7 @@ export class CsiReportService {
     private async previousAverage(scope: ServiceScope, period: CsiPeriod, siteId?: string): Promise<number | null> {
         const previous = await this.previousPeriod(scope, period, siteId);
         if (!previous) return null;
-        const data = narrowToSite(await this.loadPeriodData(scope, previous), siteId);
-        return overallStats(data.items, data.responses.length).average;
+        return overallScoreOf(scope, narrowToSite(await this.loadPeriodData(scope, previous), siteId)).average;
     }
 
     private async previousPeriod(scope: ServiceScope, period: CsiPeriod, siteId?: string): Promise<CsiPeriod | null> {
@@ -221,8 +226,26 @@ export class CsiReportService {
             raters: await this.basisRaters(reporters, data.responses),
             serviceAverages: (hcRecap?.services ?? []).filter((row) => row.level === 'service').map((row) => ({ serviceCode: row.serviceCode, average: row.all.average })),
             notes: input.notes ?? '', hcRecap,
+            templateRatersWithoutAccount: scope === ServiceScope.HC ? await this.templateRatersWithoutAccount(scope, sites.map((site) => site.code)) : 0,
         });
         return { ...model, hcRecap: hcRecap?.services.some((row) => row.level === 'pic' && row.serviceCode) ? hcRecap : null };
+    }
+
+    /**
+     * Raters of the location templates of the report sites (template code = site code) without a usable iDesk account:
+     * they are outside the SLA basis, so page 1 / Ringkasan say how many.
+     */
+    private async templateRatersWithoutAccount(scope: ServiceScope, siteCodes: Array<string | null>): Promise<number> {
+        const codes = siteCodes.filter((code): code is string => !!code);
+        if (!codes.length) return 0;
+        const templates = await this.dataSource.getRepository(CsiAssignmentTemplate).find({ where: { scope, locationCode: In(codes) }, select: { id: true } });
+        if (!templates.length) return 0;
+        const pics = await this.dataSource.getRepository(CsiAssignmentTemplatePic).find({ where: { templateId: In(templates.map((row) => row.id)) }, select: { id: true } });
+        if (!pics.length) return 0;
+        const raters = await this.dataSource.getRepository(CsiAssignmentTemplateRater).find({ where: { templatePicId: In(pics.map((row) => row.id)) } });
+        if (!raters.length) return 0;
+        const accounts = await this.dataSource.getRepository(User).find({ where: { isActive: true }, select: { id: true, fullName: true, employeeId: true } });
+        return ratersWithoutAccount(raters, accounts.map((account) => ({ id: account.id, fullName: account.fullName, employeeId: account.employeeId ?? null })));
     }
 
     /**
@@ -501,6 +524,20 @@ export class CsiReportService {
             };
         });
     }
+}
+
+/** Subjects of the HC per-PIC recap: PICs (people) and custom teams rated under a layanan. */
+const isHcRecapSubject = (ratee: CsiPeriodRatee) => ratee.kind !== CsiRateeKind.TEAM || !!ratee.serviceCode;
+
+/**
+ * Overall average of a (site-narrowed) period and its weight. HC: per rating (1 respondent × 1 PIC), the same basis as
+ * the recap, PDF page 1, Excel and dashboard. ICT: mean of the response averages, weighted by responses.
+ */
+function overallScoreOf(scope: ServiceScope, data: PeriodData): { average: number | null; scoreWeight: number } {
+    if (scope !== ServiceScope.HC) return { average: overallStats(data.items, data.responses.length).average, scoreWeight: data.responses.length };
+    const ids = new Set(data.ratees.filter(isHcRecapSubject).map((ratee) => ratee.id));
+    const { average, ratings } = ratingAverage(data.items.filter((item) => ids.has(item.periodRateeId)));
+    return { average, scoreWeight: ratings };
 }
 
 const rateeSiteOf = (data: Pick<PeriodData, 'views'>, ratee: CsiPeriodRatee) => data.views.get(ratee.id)?.siteId ?? ratee.siteId ?? null;
