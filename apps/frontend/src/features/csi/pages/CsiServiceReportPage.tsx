@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart3, Download } from 'lucide-react';
+import { BarChart3, Download, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -11,7 +11,7 @@ import { CSI_CARD, FadeIn } from '../components/CsiSurveyParts';
 import { useCsiMyReportAccess, useCsiMyReportPeriods, useCsiMyServiceReport } from '../hooks/useCsiHc';
 import { serviceLabel } from '../lib/services';
 import type { CsiScopeParam } from '../types';
-import { downloadBlob } from '../lib/csiAdmin';
+import { downloadBlob, RAW_EXPORT_HINT, RAW_EXPORT_LABEL } from '../lib/csiAdmin';
 import { formatDate } from '../lib/format';
 
 const SELECT = 'h-9 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--idesk-surface))] px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -41,16 +41,18 @@ export function CsiServiceReportPage() {
     const service = serviceCode ?? access?.services[0] ?? null;
     const report = useCsiMyServiceReport(scope, period, service);
     const switchScope = (next: CsiScopeParam) => { setChosenScope(next); setPeriodId(null); setServiceCode(null); };
-    const [exporting, setExporting] = useState(false);
-    const download = async () => {
+    const [exporting, setExporting] = useState<'excel' | 'raw' | null>(null);
+    const download = async (kind: 'excel' | 'raw') => {
         if (!period || !service) return;
-        setExporting(true);
+        setExporting(kind);
         try {
-            downloadBlob(await CsiHcApi.myServiceReportExport(scope, period, service), `csi-${scope}-${service}.xlsx`);
+            const raw = kind === 'raw';
+            const blob = await (raw ? CsiHcApi.myServiceReportRawExport : CsiHcApi.myServiceReportExport)(scope, period, service);
+            downloadBlob(blob, `csi-${scope}-${service}${raw ? ' - DATA MENTAH (RAHASIA)' : ''}.xlsx`);
         } catch {
             toast.error('Gagal mengunduh Excel.');
         } finally {
-            setExporting(false);
+            setExporting(null);
         }
     };
 
@@ -80,8 +82,11 @@ export function CsiServiceReportPage() {
                             {access.services.map((code) => <option key={code} value={code}>{serviceLabel(scope, code)}</option>)}
                         </select>
                     )}
-                    <Button variant="soft" className="ml-auto" disabled={!period || exporting} onClick={download}>
-                        <Download aria-hidden="true" />{exporting ? 'Mengunduh…' : 'Unduh Excel'}
+                    <Button variant="soft" className="ml-auto" disabled={!period || !!exporting} onClick={() => void download('excel')}>
+                        <Download aria-hidden="true" />{exporting === 'excel' ? 'Mengunduh…' : 'Unduh Excel'}
+                    </Button>
+                    <Button variant="subtle" disabled={!period || !!exporting} title={RAW_EXPORT_HINT} onClick={() => void download('raw')}>
+                        <Lock aria-hidden="true" />{exporting === 'raw' ? 'Mengunduh…' : RAW_EXPORT_LABEL}
                     </Button>
                 </div>
             )}

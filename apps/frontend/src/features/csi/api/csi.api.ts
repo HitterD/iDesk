@@ -241,6 +241,11 @@ export const CsiApi = {
         const response = await api.get<Blob>(`${periodPath(scope, id)}/export`, { params: { notes: notes || undefined }, responseType: 'blob', skipToast: true });
         return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope) };
     },
+    /** Raw data (names the raters): a separate, confidential file. */
+    async exportPeriodRaw(scope: CsiScopeParam, id: string): Promise<{ blob: Blob; filename: string }> {
+        const response = await api.get<Blob>(`${periodPath(scope, id)}/export-raw`, { responseType: 'blob', skipToast: true });
+        return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope) };
+    },
     async reportSignoff(scope: CsiScopeParam): Promise<SignoffLayout> {
         return (await api.get<{ layout: SignoffLayout }>(`${adminPath(scope)}/report-signoff`)).data.layout;
     },

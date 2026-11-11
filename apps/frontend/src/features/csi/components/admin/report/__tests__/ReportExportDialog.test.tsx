@@ -5,7 +5,7 @@ import { CsiApi } from '../../../../api/csi.api';
 import { ReportExportDialog } from '../ReportExportDialog';
 
 vi.mock('../../../../api/csi.api', () => ({
-    CsiApi: { exportPdf: vi.fn(), exportPeriod: vi.fn(), reportSignoff: vi.fn(), saveReportSignoff: vi.fn(), resetReportSignoff: vi.fn() },
+    CsiApi: { exportPdf: vi.fn(), exportPeriod: vi.fn(), exportPeriodRaw: vi.fn(), reportSignoff: vi.fn(), saveReportSignoff: vi.fn(), resetReportSignoff: vi.fn() },
 }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -14,6 +14,7 @@ const LAYOUT = { columns: 2, slots: [{ title: 'Disiapkan oleh', name: 'Admin ICT
 beforeEach(() => {
     vi.mocked(CsiApi.exportPdf).mockReset().mockResolvedValue({ blob: new Blob(['%PDF-']), filename: 'laporan.pdf' });
     vi.mocked(CsiApi.exportPeriod).mockReset().mockResolvedValue({ blob: new Blob(['x']), filename: 'csi.xlsx' });
+    vi.mocked(CsiApi.exportPeriodRaw).mockReset().mockResolvedValue({ blob: new Blob(['x']), filename: 'csi - DATA MENTAH (RAHASIA).xlsx' });
     vi.mocked(CsiApi.reportSignoff).mockReset().mockResolvedValue(LAYOUT);
     vi.mocked(CsiApi.saveReportSignoff).mockReset().mockResolvedValue(LAYOUT);
     URL.createObjectURL = vi.fn(() => 'blob:preview');
@@ -41,6 +42,17 @@ describe('ReportExportDialog', () => {
         await screen.findByTitle('Pratinjau laporan CSI');
         await user.click(screen.getByRole('button', { name: /Unduh Excel/ }));
         expect(CsiApi.exportPeriod).toHaveBeenCalledWith('ict', 'p1', 'Pelatihan tim');
+    });
+
+    it('raw data is a separate, labelled download (lock icon, warning) from its own endpoint', async () => {
+        const user = userEvent.setup();
+        renderDialog();
+        await screen.findByTitle('Pratinjau laporan CSI');
+        const raw = screen.getByRole('button', { name: /Unduh data mentah \(rahasia\)/ });
+        expect(raw).toHaveAccessibleDescription(/nama penilai/);
+        await user.click(raw);
+        expect(CsiApi.exportPeriodRaw).toHaveBeenCalledWith('ict', 'p1');
+        expect(CsiApi.exportPeriod).not.toHaveBeenCalled();
     });
 
     it('the sign-off editor starts from the saved layout and re-renders the preview on apply', async () => {

@@ -179,3 +179,7 @@ export const rateesSignature = (period: CsiPeriodDetail) => JSON.stringify([
 
 /** Identity of the server-side period raters; changes only when the saved raters or lock changes. */
 export const ratersSignature = (period: CsiPeriodDetail) => JSON.stringify([period.locked, period.raters.map((rater) => rater.userId)]);
+
+/** Second download next to "Unduh Excel": the confidential raw data that names the raters. */
+export const RAW_EXPORT_LABEL = 'Unduh data mentah (rahasia)';
+export const RAW_EXPORT_HINT = 'Berisi nama penilai dan jawaban mentahnya. Jangan diteruskan; untuk dibagikan pakai "Unduh Excel" (tanpa nama).';
