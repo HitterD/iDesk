@@ -1,4 +1,5 @@
 /** HC per-PIC types (layanan HCC / HCD / HCS → bagian → PIC), mirroring the backend org module. */
+import type { CsiScoreBands } from './lib/csiTone';
 
 export interface CsiPicView {
     id: string;
@@ -33,13 +34,23 @@ export interface CsiRecapRow extends CsiLocationCells {
     /** Fungsi pelayanan (PIC rows only). */
     serviceFunction?: string | null;
     dimensions: Record<string, number | null>;
+    /** Distinct respondents behind the row. */
+    respondents?: number;
+    /** Master PIC of a PIC row; null otherwise. */
+    picId?: string | null;
 }
+/**
+ * Respondent group (division → department → bagian). A cell backed by fewer than 3 respondents is masked: it keeps its
+ * `ratings` count but `average` is null. Small departments are merged into one "Departemen kecil (gabungan)" row.
+ */
 export interface CsiRespondentGroupRow extends CsiLocationCells {
     level: 'division' | 'department' | 'bagian';
     key: string;
     label: string;
     division: string;
     department: string | null;
+    /** Distinct respondents behind the row. */
+    respondents?: number;
 }
 export interface CsiRespondentDetail {
     responseId: string;
@@ -51,8 +62,11 @@ export interface CsiRespondentDetail {
     pics: Array<{ name: string; serviceCode: string | null; bagian: string | null; scores: Record<string, number>; average: number | null }>;
     average: number | null;
 }
+/** Layanan rows come in report order (HCD, HCC, HCS, then others). */
 export interface CsiHcRecap {
     period: { id: string; title: string; startDate: string; endDate: string };
+    /** Score colour bands of the survey. */
+    scoreBands: CsiScoreBands;
     dimensions: string[];
     locations: Array<{ code: CsiLocationCode; label: string }>;
     overall: CsiLocationCells & { dimensions: Record<string, number | null>; respondents: number };

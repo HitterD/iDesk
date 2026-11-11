@@ -16,9 +16,10 @@ vi.mock('../../../../hooks/useCsi', () => ({
 vi.mock('sonner', () => ({ toast: fx.toast }));
 
 const END = '2099-12-31';
+const BANDS = { fairMin: 4, goodMin: 4.5 };
 const ACTIVE: Dashboard['active'] = [
-    { periodId: 'p1', title: 'CSI Q4', siteId: 's1', siteCode: 'SPJ', siteName: 'Sepanjang', responses: 6, basis: 6, target: 6, targetPct: 90, average: 4.66, endDate: END },
-    { periodId: 'p1', title: 'CSI Q4', siteId: 's2', siteCode: 'KRW', siteName: 'Karawang', responses: 2, basis: 5, target: 5, targetPct: 90, average: 4.5, endDate: END },
+    { periodId: 'p1', title: 'CSI Q4', siteId: 's1', siteCode: 'SPJ', siteName: 'Sepanjang', responses: 6, basis: 6, target: 6, targetPct: 90, average: 4.66, endDate: END, scoreBands: BANDS },
+    { periodId: 'p1', title: 'CSI Q4', siteId: 's2', siteCode: 'KRW', siteName: 'Karawang', responses: 2, basis: 5, target: 5, targetPct: 90, average: 4.5, endDate: END, scoreBands: BANDS },
 ];
 const DATA: Dashboard = {
     active: ACTIVE,
@@ -54,6 +55,26 @@ describe('CsiDashboard', () => {
         expect(within(cards[1]).getByText('2/5 penilai · target 90%')).toBeInTheDocument();
         expect(within(cards[1]).getByText(/^sisa \d+ hari$/)).toBeInTheDocument();
         expect(within(cards[1]).getByText('4,50')).toBeInTheDocument();
+    });
+
+    it('colours the site score and the average with the survey bands of the rows', () => {
+        const bands = { fairMin: 3.5, goodMin: 4.2 };
+        fx.data = { ...DATA, active: ACTIVE.map((row) => ({ ...row, average: 4.3, scoreBands: bands })) };
+        renderDashboard();
+        const cards = within(screen.getByRole('region', { name: 'Target per site' })).getAllByRole('group');
+        expect(within(cards[0]).getByText('4,30')).toHaveClass('text-[hsl(var(--ticket-green-ink))]');
+        const average = screen.getByRole('group', { name: 'Skor rata-rata' });
+        expect(average.innerHTML).toContain('ticket-green-ink');
+    });
+
+    it('trend axis starts at the survey orange band when every score is above it', async () => {
+        const bands = { fairMin: 3.5, goodMin: 4.2 };
+        fx.data = { ...DATA, active: ACTIVE.map((row) => ({ ...row, scoreBands: bands })) };
+        renderDashboard();
+        await userEvent.setup().click(screen.getByRole('button', { name: 'Tren' }));
+        const chart = screen.getByRole('img', { name: 'Grafik tren skor per site' });
+        expect(within(chart).getByText('3,50')).toBeInTheDocument();
+        expect(within(chart).queryByText('1,00')).not.toBeInTheDocument();
     });
 
     it('flags sites below target in the attention card', () => {

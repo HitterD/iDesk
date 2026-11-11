@@ -12,7 +12,7 @@ const cells = (average: number | null, ratings: number) => ({
     byLocation: { SJA1: cell(null, 0), SJA2: cell(null, 0), SJA3: cell(null, 0), SJA4: cell(average, ratings), JKT: cell(null, 0) },
 });
 const REPORT: CsiServiceReport = {
-    period: { id: 'p1', title: 'CSI HC 2026 – Semarang', startDate: '2026-11-01', endDate: '2026-11-30' }, serviceCode: 'HCD',
+    period: { id: 'p1', title: 'CSI HC 2026 – Semarang', startDate: '2026-11-01', endDate: '2026-11-30' }, serviceCode: 'HCD', scoreBands: { fairMin: 4, goodMin: 4.5 },
     dimensions: ['Knowledge'], locations: [{ code: 'SJA4', label: 'SJA 4' }] as CsiServiceReport['locations'],
     overall: { ...cells(4.5, 2), dimensions: { Knowledge: 4.5 }, respondents: 1 },
     services: [

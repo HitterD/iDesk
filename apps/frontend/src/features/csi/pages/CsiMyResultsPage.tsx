@@ -19,7 +19,7 @@ function DimensionBars({ result }: { result: CsiSelfResult }) {
                     <span className="h-2 overflow-hidden rounded-full bg-[hsl(var(--border))]">
                         <span className="block h-full rounded-full bg-[hsl(var(--ticket-amber))]" style={{ width: `${(row.average / MAX_SCORE) * 100}%` }} />
                     </span>
-                    <b className={cn('text-right tabular-nums', scoreToneClass(row.average))}>{formatScore(row.average)}</b>
+                    <b className={cn('text-right tabular-nums', scoreToneClass(row.average, result.scoreBands))}>{formatScore(row.average)}</b>
                 </li>
             ))}
         </ul>
@@ -48,7 +48,7 @@ function ResultCard({ result, index }: { result: CsiSelfResult; index: number })
                     <div className="grid items-center gap-4 sm:grid-cols-[150px_minmax(0,1fr)]">
                         <div className="rounded-2xl bg-[hsl(var(--ticket-amber)/.12)] p-3 text-center">
                             <p className="text-[11.5px] font-semibold uppercase text-muted-foreground">Rata-rata</p>
-                            <p className={cn('flex items-center justify-center gap-1 text-[30px] font-bold tabular-nums', scoreToneClass(result.average))}>
+                            <p className={cn('flex items-center justify-center gap-1 text-[30px] font-bold tabular-nums', scoreToneClass(result.average, result.scoreBands))}>
                                 <Star className="h-6 w-6 fill-[hsl(var(--ticket-amber))] text-[hsl(var(--ticket-amber))]" aria-hidden="true" />{formatScore(result.average)}
                             </p>
                             <p className="text-[12px] text-muted-foreground">{`dari ${result.raters} penilai`}</p>

@@ -1,3 +1,5 @@
+import { scoreTone, type CsiScoreBands } from '../../../lib/csiTone';
+
 /** Canonical HC template locations; Jakarta's template/site code is JTB, not JKT. */
 export const CSI_TEMPLATE_LOCATIONS = [
     { code: 'SMG', name: 'Semarang' }, { code: 'KRW', name: 'Karawang' },
@@ -18,14 +20,29 @@ const DASH = '–';
 export const formatScore = (value: number | null | undefined) =>
     value === null || value === undefined ? DASH : value.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-/** Same thresholds as the app's score tone (≥ 4.5 green, ≥ 4 amber, below red). */
-export const scoreToneClass = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return 'text-[hsl(var(--idesk-text-secondary))]';
-    if (value >= 4.5) return 'text-[hsl(var(--ticket-green-ink))]';
-    return value >= 4 ? 'text-[hsl(var(--ticket-amber-ink))]' : 'text-[hsl(var(--ticket-red-ink))]';
+type ScoreTone = 'green' | 'amber' | 'red';
+const INK_CLASS: Readonly<Record<ScoreTone, string>> = {
+    green: 'text-[hsl(var(--ticket-green-ink))]', amber: 'text-[hsl(var(--ticket-amber-ink))]', red: 'text-[hsl(var(--ticket-red-ink))]',
 };
-export const scoreFillClass = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return '';
-    if (value >= 4.5) return 'bg-[hsl(var(--ticket-green)/.13)]';
-    return value >= 4 ? 'bg-[hsl(var(--ticket-amber)/.15)]' : 'bg-[hsl(var(--ticket-red)/.13)]';
+const FILL_CLASS: Readonly<Record<ScoreTone, string>> = {
+    green: 'bg-[hsl(var(--ticket-green)/.13)]', amber: 'bg-[hsl(var(--ticket-amber)/.15)]', red: 'bg-[hsl(var(--ticket-red)/.13)]',
+};
+const BAR_CLASS: Readonly<Record<ScoreTone, string>> = {
+    green: 'bg-[hsl(var(--ticket-green))]', amber: 'bg-[hsl(var(--ticket-amber))]', red: 'bg-[hsl(var(--ticket-red))]',
+};
+const toneOf = (value: number | null | undefined, bands: CsiScoreBands) => scoreTone(value ?? null, bands) as ScoreTone | 'neutral';
+
+/** Score text colour with the survey's bands (same rule as scoreTone); no score = secondary text. */
+export const scoreToneClass = (value: number | null | undefined, bands: CsiScoreBands) => {
+    const tone = toneOf(value, bands);
+    return tone === 'neutral' ? 'text-[hsl(var(--idesk-text-secondary))]' : INK_CLASS[tone];
+};
+export const scoreFillClass = (value: number | null | undefined, bands: CsiScoreBands) => {
+    const tone = toneOf(value, bands);
+    return tone === 'neutral' ? '' : FILL_CLASS[tone];
+};
+/** Solid bar colour (dimension bars); no score = red, as an empty bar. */
+export const scoreBarClass = (value: number | null | undefined, bands: CsiScoreBands) => {
+    const tone = toneOf(value, bands);
+    return BAR_CLASS[tone === 'neutral' ? 'red' : tone];
 };

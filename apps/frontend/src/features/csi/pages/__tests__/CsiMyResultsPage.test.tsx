@@ -8,6 +8,7 @@ import { CsiMyResultsPage } from '../CsiMyResultsPage';
 const base: CsiSelfResult = {
     periodId: 'p1', title: 'CSI HC 2026 – Semarang', startDate: '2026-11-01', endDate: '2026-11-30', status: 'ACTIVE',
     serviceFunction: 'People & Organization Development', teamName: null, raters: 2, minRaters: 3, ready: false, average: null, dimensions: [], comments: [],
+    scoreBands: { fairMin: 4, goodMin: 4.5 },
 };
 const fx = vi.hoisted(() => ({ results: [] as unknown[] }));
 vi.mock('../../api/csi.api', () => ({ CsiApi: { myResults: vi.fn(async () => fx.results) } }));
@@ -37,6 +38,14 @@ describe('CsiMyResultsPage', () => {
         expect(screen.getByText('“Sangat membantu”')).toBeInTheDocument();
         expect(screen.getByText(/dari 4 penilai/)).toBeInTheDocument();
         expect(screen.getByText(/People & Organization Development/)).toBeInTheDocument();
+    });
+
+    it('colours the result with the survey bands of the payload', async () => {
+        fx.results = [{ ...base, raters: 4, ready: true, average: 4.3, scoreBands: { fairMin: 3.5, goodMin: 4.2 },
+            dimensions: [{ label: 'Knowledge', average: 3.4 }], comments: [] }];
+        renderPage();
+        expect((await screen.findByText('4,30')).closest('p')).toHaveClass('text-[hsl(var(--ticket-green-ink))]');
+        expect(screen.getByText('3,40')).toHaveClass('text-[hsl(var(--ticket-red-ink))]');
     });
 
     it('shows a team label alongside a personal result in the same period', async () => {

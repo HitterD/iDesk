@@ -1,4 +1,5 @@
 import type { ServiceScope } from '@/lib/constants/service-scope';
+import type { CsiScoreBands } from './lib/csiTone';
 
 export type CsiScopeParam = 'ict' | 'hc';
 export type CsiScope = ServiceScope;
@@ -83,6 +84,9 @@ export interface CsiPeriod extends CsiTimestamps {
     /** HC "who rates whom" per respondent unit (the source of raters + pairs when set). */
     unitRules?: import('./hcTypes').CsiUnitRule[];
     slaTargetPct: number;
+    /** Score colour bands of the survey: orange from scoreFairMin, green from scoreGoodMin (1–5, one decimal). */
+    scoreFairMin: number;
+    scoreGoodMin: number;
     createdById: string;
     /** "Siapa menilai siapa": null until chosen in the wizard. */
     pairMode?: CsiPairMode | null;
@@ -248,6 +252,8 @@ export interface CsiSla {
 
 export interface CsiReport {
     period: CsiPeriod;
+    /** Score colour bands of the survey (every tone and predikat of the report). */
+    scoreBands: CsiScoreBands;
     overall: { average: number | null; respondentCount: number };
     /** Overall average of the latest earlier published period (same site when filtered); null when none. */
     previousAverage: number | null;
@@ -332,6 +338,8 @@ export interface CreateCsiPeriod {
     respondentPicks?: boolean;
     targetRespondents?: number | null;
     slaTargetPct?: number;
+    scoreFairMin?: number;
+    scoreGoodMin?: number;
     copyFromPeriodId?: string;
 }
 export type UpdateCsiPeriod = Partial<Omit<CreateCsiPeriod, 'copyFromPeriodId'>>;
@@ -439,6 +447,8 @@ export interface CsiReminderResult { sent: number; skipped: number }
 export interface CsiDashboardActive {
     periodId: string; title: string; siteId: string; siteCode: string | null; siteName: string | null;
     responses: number; basis: number; target: number; targetPct: number; average: number | null; endDate: string;
+    /** Score colour bands of the row's survey. */
+    scoreBands: CsiScoreBands;
 }
 export interface CsiDashboardTrend {
     siteId: string; siteCode: string | null;
@@ -460,4 +470,6 @@ export interface CsiSelfResult {
     periodId: string; title: string; startDate: string; endDate: string; status: 'UPCOMING' | 'ACTIVE' | 'ENDED';
     serviceFunction: string | null; teamName: string | null; raters: number; minRaters: number; ready: boolean;
     average: number | null; dimensions: Array<{ label: string; average: number }>; comments: string[];
+    /** Score colour bands of the survey. */
+    scoreBands: CsiScoreBands;
 }

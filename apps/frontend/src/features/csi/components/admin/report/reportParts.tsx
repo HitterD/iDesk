@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { CSI_SCORE_GOOD, scoreTone, siteTone, starTone, toneClasses } from '../../../lib/csiTone';
+import { scoreTone, siteTone, starTone, toneClasses, type CsiScoreBands } from '../../../lib/csiTone';
 import { formatFixed2 } from '../../../lib/format';
 import type { CsiReportRatee } from '../../../types';
 import { imageUrl } from '../../respond/RateeAvatar';
@@ -13,8 +13,8 @@ export function SiteBadge({ code }: { code: string | null }) {
     return <span className={cn('shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-white', toneClasses(siteTone(code)).fill)}>{code}</span>;
 }
 
-export function ScoreBadge({ average }: { average: number | null }) {
-    const tone = toneClasses(scoreTone(average));
+export function ScoreBadge({ average, bands }: { average: number | null; bands: CsiScoreBands }) {
+    const tone = toneClasses(scoreTone(average, bands));
     return (
         <span className={cn('inline-flex items-baseline gap-1 rounded-[10px] px-2.5 py-0.5', tone.soft, tone.ink)}>
             <b className="text-[22px] font-bold tabular-nums tracking-tight">{formatFixed2(average)}</b>
@@ -36,15 +36,15 @@ export function StarDistributionBar({ counts }: { counts: readonly number[] }) {
     );
 }
 
-/** Strongest and weakest scored question of one subject (weakest only shown below the "Sangat puas" threshold). */
-export function subjectExtremes(ratee: CsiReportRatee) {
+/** Strongest and weakest scored question of one subject (weakest only shown below the survey's "Sangat puas" band). */
+export function subjectExtremes(ratee: CsiReportRatee, bands: CsiScoreBands) {
     const scored = ratee.questions.filter((question) => question.average !== null)
         .sort((a, b) => (b.average as number) - (a.average as number));
     const strongest = scored[0] ?? null;
     const weakest = scored.length > 1 ? scored[scored.length - 1] : null;
     return {
         strongest: strongest && { label: questionDisplayLabel(strongest), name: questionFullText(strongest) },
-        weakest: weakest && (weakest.average as number) < CSI_SCORE_GOOD ? { label: questionDisplayLabel(weakest), name: questionFullText(weakest) } : null,
+        weakest: weakest && (weakest.average as number) < bands.goodMin ? { label: questionDisplayLabel(weakest), name: questionFullText(weakest) } : null,
     };
 }
 

@@ -7,7 +7,7 @@ import { AdminSection, EmptyNote, MUTED_TEXT } from '../AdminParts';
 import { SiteBadge } from '../report/reportParts';
 import { LIST_ITEM } from './DashboardLists';
 import { PILL } from './DashboardLive';
-import { chartLines, hasTrendData, siteCodes, trendColumns, yDomain, type ChartLine, type TrendColumn } from './dashboardModel';
+import { chartLines, hasTrendData, sharedBands, siteCodes, trendColumns, yDomain, type ChartLine, type TrendColumn } from './dashboardModel';
 
 // SVG geometry (viewBox units), as in the approved mockup.
 const VIEW_W = 640;
@@ -49,7 +49,8 @@ function SiteLine({ line, columns, y }: { line: ChartLine; columns: readonly Tre
 function TrendChart({ data }: { data: CsiDashboard }) {
     const columns = trendColumns(data.trend);
     const lines = chartLines(data.trend, columns);
-    const { min, max, ticks } = yDomain(lines);
+    // Trend points carry no bands: the axis follows the bands the active surveys share (default otherwise).
+    const { min, max, ticks } = yDomain(lines, sharedBands(data.active));
     const y = (value: number) => PLOT_BOTTOM - ((value - min) / (max - min)) * (PLOT_BOTTOM - PLOT_TOP);
     return (
         <>

@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { questionTone, scoreTone, toneClasses } from '../../../lib/csiTone';
+import { questionTone, scoreTone, toneClasses, type CsiScoreBands } from '../../../lib/csiTone';
 import { formatFixed2, formatScore } from '../../../lib/format';
 import type { CsiReportRatee } from '../../../types';
 import { questionColumns, questionKey } from './reportModel';
@@ -8,13 +8,13 @@ import { SiteBadge, SubjectPhoto, type SiteCodeOf } from './reportParts';
 const HEAD = 'whitespace-nowrap px-1.5 py-1 text-left text-[11.5px] font-semibold text-[hsl(var(--idesk-text-secondary))]';
 const CELL = 'rounded-lg px-1 py-2 text-center text-[12px] font-semibold tabular-nums';
 
-function HeatCell({ value, digits }: { value: number | null; digits: 1 | 2 }) {
-    const tone = toneClasses(scoreTone(value));
+function HeatCell({ value, digits, bands }: { value: number | null; digits: 1 | 2; bands: CsiScoreBands }) {
+    const tone = toneClasses(scoreTone(value, bands));
     return <td className={cn(CELL, tone.soft, value !== null && tone.ink)}>{digits === 2 ? formatFixed2(value) : formatScore(value)}</td>;
 }
 
 /** "Perbandingan": subject × question averages, header = short label (full text in `title`). */
-export function ScoreHeatmap({ ratees, siteCodeOf }: { ratees: readonly CsiReportRatee[]; siteCodeOf: SiteCodeOf }) {
+export function ScoreHeatmap({ ratees, siteCodeOf, bands }: { ratees: readonly CsiReportRatee[]; siteCodeOf: SiteCodeOf; bands: CsiScoreBands }) {
     const columns = questionColumns(ratees);
     return (
         <div className="overflow-x-auto">
@@ -46,8 +46,8 @@ export function ScoreHeatmap({ ratees, siteCodeOf }: { ratees: readonly CsiRepor
                                         <SiteBadge code={siteCode} />
                                     </span>
                                 </th>
-                                {columns.map((column) => <HeatCell key={column.key} value={byKey.get(column.key) ?? null} digits={1} />)}
-                                <HeatCell value={ratee.average} digits={2} />
+                                {columns.map((column) => <HeatCell key={column.key} value={byKey.get(column.key) ?? null} digits={1} bands={bands} />)}
+                                <HeatCell value={ratee.average} digits={2} bands={bands} />
                             </tr>
                         );
                     })}

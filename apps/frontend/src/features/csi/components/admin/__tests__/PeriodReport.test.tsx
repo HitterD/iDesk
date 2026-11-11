@@ -42,6 +42,15 @@ describe('PeriodReport', () => {
         expect(screen.queryByText(/Rincian pertanyaan/)).not.toBeInTheDocument();
     });
 
+    it('uses the survey bands of the payload: with 3,5 / 4,2 a 4,40 is green and 4,2 is no longer "perlu perhatian"', () => {
+        fx.report = report({ scoreBands: { fairMin: 3.5, goodMin: 4.2 }, overall: { average: 4.3, respondentCount: 9 } });
+        renderReport();
+        expect(within(screen.getByRole('group', { name: 'Nilai keseluruhan' })).getByText('Sangat puas')).toBeInTheDocument();
+        const dimas = screen.getByRole('button', { name: 'Rincian Dimas' });
+        expect(within(dimas).getByText('4,40').parentElement).toHaveClass('text-[hsl(var(--ticket-green-ink))]');
+        expect(within(dimas).queryByText('Kecepatan respon')).not.toBeInTheDocument();
+    });
+
     it('site filter refetches with siteId', async () => {
         const user = userEvent.setup();
         renderReport();
