@@ -451,6 +451,10 @@ describe('CsiReportService', () => {
             expect((await service.getReport(ICT, 'p1')).previousAverage).toBe(4);
             // Filtered on site-a: the previous period must cover site-a and is averaged for site-a only.
             expect((await service.getReport(ICT, 'p1', 'site-a')).previousAverage).toBe(2);
+            // A later simulation sharing the site is never the previous period of a real survey.
+            // Same end date as p-prev and listed first, so without the filter it would win the (stable) sort.
+            periods.rows.unshift({ ...period({ id: 'p-sim', title: 'SIMULASI – CSI', startDate: '2026-09-01', endDate: '2026-09-30', sites: [{ siteId: 'site-b' }] as any }), publishStatus: 'PUBLISHED' });
+            expect((await service.getReport(ICT, 'p1')).previousAverage).toBe(4);
         });
     });
 });

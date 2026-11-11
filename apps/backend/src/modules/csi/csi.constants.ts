@@ -29,7 +29,9 @@ export const CSI_ANON_MIN_GROUP = 3;
 export const CSI_SMALL_GROUP_LABEL = 'Departemen kecil (gabungan)';
 /** Survey titles starting with this prefix are simulations: the report PDF carries CSI_SIMULATION_BANNER on every page. */
 export const CSI_SIMULATION_TITLE_PREFIX = 'SIMULASI – ';
-export const CSI_SIMULATION_BANNER = 'SIMULASI — data jawaban fiktif, bukan hasil survei sebenarnya';
+/** Simulation survey: kept out of real comparisons (previous period, dashboard trend and lists). */
+export const isSimulation = (period: { title?: string | null }) => (period.title ?? '').startsWith(CSI_SIMULATION_TITLE_PREFIX);
+export const CSI_SIMULATION_BANNER ='SIMULASI — data jawaban fiktif, bukan hasil survei sebenarnya';
 
 /** Question kinds; only STAR and SCALE carry a 1–5 score. */
 export enum CsiQuestionType {

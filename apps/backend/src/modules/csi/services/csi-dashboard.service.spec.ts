@@ -119,6 +119,18 @@ describe('CsiDashboardService', () => {
         ]);
     });
 
+    it('simulation surveys (title "SIMULASI – ") stay out of active rows, trend and people delta', async () => {
+        rows.push(period('p-sim', '2026-07-01', '2026-09-30', [SPJ], { title: 'SIMULASI – CSI HC 2026' }));
+        rows.push(period('p-sim-now', '2026-10-01', '2026-10-31', [SPJ], { title: 'SIMULASI – CSI baru' }));
+        rows.push(period('p-now', '2026-10-01', '2026-10-31', [SPJ]));
+        siteStats.set('p-sim', { [SPJ.id]: stats(2, 1, [person('budi', 1)]) });
+        siteStats.set('p-now', { [SPJ.id]: stats(4, 1, [person('budi', 4)]) });
+        const dashboard = await service.getDashboard(ICT, NOW);
+        expect(dashboard.active.map((row) => row.periodId)).toEqual(['p-now']);
+        expect(dashboard.trend).toEqual([{ siteId: SPJ.id, siteCode: 'SPJ', points: [{ periodId: 'p-now', label: 'Q4 26', average: 4 }] }]);
+        expect(dashboard.peopleDelta).toEqual([]);
+    });
+
     it('pending lists LISTED raters without a response, earliest-ending period first, at most 10', async () => {
         rows.push(period('p-late', '2026-10-01', '2026-11-30', [SPJ], { respondentMode: CsiRespondentMode.LISTED }));
         rows.push(period('p-soon', '2026-10-01', '2026-10-31', [SPJ], { respondentMode: CsiRespondentMode.LISTED }));

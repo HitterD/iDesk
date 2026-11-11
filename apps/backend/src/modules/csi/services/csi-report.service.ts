@@ -5,7 +5,7 @@ import { DataSource, FindOptionsRelations, In, LessThan, Repository } from 'type
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
-import { CSI_RESET_REASON_MIN, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { CSI_RESET_REASON_MIN, isSimulation, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
@@ -170,8 +170,9 @@ export class CsiReportService {
             where: { scope, publishStatus: CsiPeriodPublishStatus.PUBLISHED, endDate: LessThan(period.startDate) },
             relations: { sites: true },
         });
+        // A simulation (fictitious answers) is never the previous period of another survey.
         return candidates
-            .filter((row) => (row.sites ?? []).some((site) => wanted.includes(site.siteId)))
+            .filter((row) => !isSimulation(row) && (row.sites ?? []).some((site) => wanted.includes(site.siteId)))
             .sort((a, b) => b.endDate.localeCompare(a.endDate))[0] ?? null;
     }
 

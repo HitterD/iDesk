@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, LessThanOrEqual, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
-import { CsiPeriodPublishStatus, CsiRespondentMode } from '../csi.constants';
+import { CsiPeriodPublishStatus, CsiRespondentMode, isSimulation } from '../csi.constants';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
@@ -67,7 +67,7 @@ export class CsiDashboardService {
         const started = (await this.periods.find({
             where: { scope, publishStatus: CsiPeriodPublishStatus.PUBLISHED, startDate: LessThanOrEqual(today) },
             relations: { sites: { site: true } },
-        })).sort(byEndDate);
+        })).filter((period) => !isSimulation(period)).sort(byEndDate);
         const active = started.filter((period) => period.endDate >= today);
         const stats = new StatsCache((period) => this.reports.siteStats(scope, period, sitesOf(period).map((site) => site.id)));
         return {
