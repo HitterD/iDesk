@@ -157,6 +157,38 @@ describe('CsiExportService', () => {
         HC_SHEETS.slice(1).forEach((name) => expect((summaryValue(workbook, name) as any).formula).toContain(`#'${name}'!A1`));
     });
 
+    it('Ringkasan readability: long notes get taller rows, aspect notes do not repeat the label, TOC cells look like links', async () => {
+        const { model } = hcReportFixture({ respondents: 30 });
+        const workbook = await workbookOf(model);
+        const summary = workbook.getWorksheet('1 Ringkasan')!;
+        const aspect = model.aspects[0];
+        const row = summaryCell(workbook, aspect.label)!.row as unknown as number;
+        const note = String(summary.getCell(row, 3).value);
+        expect(note).toMatch(/^\d+ jawaban · /);
+        expect(note).not.toContain(`${aspect.label} — `);
+        const lines = Math.ceil(note.length / ((summary.getColumn(3).width ?? 10) - 2));
+        expect(summary.getRow(row).height).toBeGreaterThanOrEqual(lines * 13);
+        const longRow = summaryCell(workbook, 'Nilai keseluruhan (1-5)')!.row as unknown as number;
+        expect(summary.getRow(longRow).height).toBeGreaterThan(0);
+        const link = summaryCell(workbook, '4 Peringkat')!;
+        expect(link.font).toMatchObject({ underline: true, color: { argb: 'FF1F5FA8' } });
+    });
+
+    it('"2 Per layanan" (two stacked tables): no freeze, no filter', async () => {
+        const sheet = (await workbookOf(hcReportFixture({ respondents: 30 }).model)).getWorksheet('2 Per layanan')!;
+        expect(sheet.autoFilter).toBeFalsy();
+        expect(sheet.views[0]?.state ?? 'normal').not.toBe('frozen');
+    });
+
+    it('"3 Layanan-bagian-PIC": Jabatan and Fungsi pelayanan last and capped, names column repeats when printed', async () => {
+        const sheet = (await workbookOf(hcReportFixture({ respondents: 30 }).model)).getWorksheet('3 Layanan-bagian-PIC')!;
+        const header = headerOf(sheet, 'Layanan / Bagian / PIC');
+        expect(header.slice(-2)).toEqual(['Jabatan', 'Fungsi pelayanan']);
+        expect(sheet.getColumn(header.length - 1).width).toBeLessThanOrEqual(30);
+        expect(sheet.getColumn(header.length).width).toBeLessThanOrEqual(30);
+        expect(sheet.pageSetup).toMatchObject({ fitToWidth: 1, fitToHeight: 0, printTitlesColumn: 'A:A' });
+    });
+
     it('Ringkasan: simulation banner only for a SIMULASI survey', async () => {
         expect(allText(await workbookOf(hcReportFixture().model))).not.toContain('SIMULASI');
         const simulated = await workbookOf({ ...hcReportFixture().model, simulation: true });
@@ -230,11 +262,13 @@ describe('CsiExportService', () => {
         expect(filterLastRow(sheet)).toBeGreaterThan(totalRow);
     });
 
-    it('totals rows stay outside the autofilter range (Per layanan)', async () => {
+    it('"2 Per layanan" ends its first table with the bold "Semua layanan" totals row', async () => {
         const sheet = (await workbookOf(hcReportFixture({ respondents: 30 }).model)).getWorksheet('2 Per layanan')!;
         const rows = rowsOf(sheet, 'Layanan');
         expect(rows.at(-1)![0]).toBe('Semua layanan');
-        expect(filterLastRow(sheet)).toBe(headerRowOf(sheet, 'Layanan') + rows.length - 1);
+        const total = sheet.getRow(headerRowOf(sheet, 'Layanan') + rows.length).getCell(1);
+        expect(total.font?.bold).toBe(true);
+        expect(total.fill).toMatchObject({ fgColor: { argb: 'FFE8EDF5' } });
     });
 
     it('score cells take the survey band fill', async () => {
@@ -360,6 +394,19 @@ describe('CsiExportService', () => {
             reports.getExecutiveModel.mockImplementation(async () => ({ ...reportFixture({ people: 3, sites: 2 }).model, bands: { fairMin: 3, goodMin: 3.8 } }));
             const sheet = (await raw()).workbook.getWorksheet('Penilai x Subjek')!;
             expect(sheet.getRow(4).getCell(5).fill).toMatchObject({ fgColor: { argb: 'FFD7F2EC' } });
+        });
+
+        it('simulated survey: amber SIMULASI line under the confidential banner on every raw sheet', async () => {
+            reports.getExecutiveModel.mockImplementation(async () => ({ ...hcReportFixture().model, simulation: true }));
+            const { workbook } = await raw();
+            workbook.worksheets.forEach((sheet) => {
+                expect(String(sheet.getCell('A2').value)).toMatch(/^SIMULASI/);
+                expect(sheet.getCell('A2').fill).toMatchObject({ fgColor: { argb: 'FFFFF1CC' } });
+            });
+        });
+
+        it('ICT: no "HC Jawaban Responden" sheet', async () => {
+            expect((await raw()).workbook.getWorksheet('HC Jawaban Responden')).toBeUndefined();
         });
 
         it('HC: respondent answers per PIC in layanan order HCD, HCC, HCS (names only in this file)', async () => {

@@ -46,9 +46,9 @@ export function CsiServiceReportPage() {
         if (!period || !service) return;
         setExporting(kind);
         try {
-            const raw = kind === 'raw';
-            const blob = await (raw ? CsiHcApi.myServiceReportRawExport : CsiHcApi.myServiceReportExport)(scope, period, service);
-            downloadBlob(blob, `csi-${scope}-${service}${raw ? ' - DATA MENTAH (RAHASIA)' : ''}.xlsx`);
+            const request = kind === 'raw' ? CsiHcApi.myServiceReportRawExport : CsiHcApi.myServiceReportExport;
+            const { blob, filename } = await request(scope, period, service);
+            downloadBlob(blob, filename);
         } catch {
             toast.error('Gagal mengunduh Excel.');
         } finally {
@@ -85,9 +85,10 @@ export function CsiServiceReportPage() {
                     <Button variant="soft" className="ml-auto" disabled={!period || !!exporting} onClick={() => void download('excel')}>
                         <Download aria-hidden="true" />{exporting === 'excel' ? 'Mengunduh…' : 'Unduh Excel'}
                     </Button>
-                    <Button variant="subtle" disabled={!period || !!exporting} title={RAW_EXPORT_HINT} onClick={() => void download('raw')}>
+                    <Button variant="subtle" disabled={!period || !!exporting} title={RAW_EXPORT_HINT} aria-describedby="csi-service-raw-hint" onClick={() => void download('raw')}>
                         <Lock aria-hidden="true" />{exporting === 'raw' ? 'Mengunduh…' : RAW_EXPORT_LABEL}
                     </Button>
+                    <p id="csi-service-raw-hint" className="basis-full text-right text-xs text-muted-foreground">{RAW_EXPORT_HINT}</p>
                 </div>
             )}
             {access && access.services.length > 0 && !access.periods.length && <p className={cn(CSI_CARD, 'p-6 text-[14px] text-muted-foreground')}>Belum ada survei HC yang terbit.</p>}

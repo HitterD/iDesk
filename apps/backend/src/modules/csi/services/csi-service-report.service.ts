@@ -106,7 +106,8 @@ export class CsiServiceReportService {
     async exportRawWorkbook(userId: string, periodId: string, serviceCode: string, scope: ServiceScope): Promise<{ filename: string; buffer: Buffer }> {
         const report = await this.get(userId, periodId, serviceCode, scope);
         const workbook = newCsiWorkbook(`${report.period.title}${RAW_FILENAME_SUFFIX}`, new Date());
-        addHcAnswersRawSheet(workbook, report, this.sheetContext(report).surveyLine, report.scoreBands);
+        const { surveyLine: line, simulation } = this.sheetContext(report);
+        addHcAnswersRawSheet(workbook, report, { line, simulation }, report.scoreBands);
         return { filename: `${this.baseName(report, scope)}${RAW_FILENAME_SUFFIX}.xlsx`, buffer: Buffer.from(await workbook.xlsx.writeBuffer()) };
     }
 

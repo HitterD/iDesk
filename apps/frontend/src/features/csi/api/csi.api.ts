@@ -20,7 +20,8 @@ const assignmentsPath = (scope: CsiScopeParam, id: string) => `${periodPath(scop
 /** Multipart field name expected by the subject photo upload (FileInterceptor('file')). */
 const PHOTO_FIELD = 'file';
 
-function exportFilename(disposition: unknown, scope: CsiScopeParam, extension = 'xlsx'): string {
+/** File name from Content-Disposition (no path or control characters), else `csi-<scope>.<extension>`. */
+export function exportFilename(disposition: unknown, scope: CsiScopeParam, extension = 'xlsx'): string {
     const fallback = `csi-${scope}.${extension}`;
     if (typeof disposition !== 'string') return fallback;
     const filename = /filename="([^"]+)"/i.exec(disposition)?.[1]

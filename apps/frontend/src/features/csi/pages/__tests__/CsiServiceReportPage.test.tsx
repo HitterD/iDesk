@@ -31,8 +31,8 @@ vi.mock('../../api/csiHc.api', () => ({
         myReportAccess: vi.fn(async (scope: string) => ({ admin: false, services: fx.access[scope] ?? [] })),
         myReportPeriods: vi.fn(async (scope: string) => ({ services: fx.access[scope] ?? [], periods: [REPORT.period] })),
         myServiceReport: vi.fn(async () => REPORT),
-        myServiceReportExport: vi.fn(async () => new Blob(['x'])),
-        myServiceReportRawExport: vi.fn(async () => new Blob(['x'])),
+        myServiceReportExport: vi.fn(async () => ({ blob: new Blob(['x']), filename: 'csi-hc-HCD-p1.xlsx' })),
+        myServiceReportRawExport: vi.fn(async () => ({ blob: new Blob(['x']), filename: 'csi-hc-HCD-p1 - DATA MENTAH (RAHASIA).xlsx' })),
     },
 }));
 
@@ -86,7 +86,9 @@ describe('CsiServiceReportPage', () => {
         URL.revokeObjectURL = vi.fn();
         renderPage();
         await screen.findByText(/People & Organization Development/);
-        await userEvent.click(screen.getByRole('button', { name: /Unduh data mentah \(rahasia\)/ }));
+        const raw = screen.getByRole('button', { name: /Unduh data mentah \(rahasia\)/ });
+        expect(raw).toHaveAccessibleDescription(/nama penilai/);
+        await userEvent.click(raw);
         expect(CsiHcApi.myServiceReportRawExport).toHaveBeenCalledWith('hc', 'p1', 'HCD');
         await userEvent.click(screen.getByRole('button', { name: /^Unduh Excel/ }));
         expect(CsiHcApi.myServiceReportExport).toHaveBeenCalledWith('hc', 'p1', 'HCD');

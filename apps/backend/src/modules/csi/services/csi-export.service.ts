@@ -8,11 +8,11 @@ import { renderCsiReportPdf } from './csi-report-pdf';
 import * as ExcelJS from 'exceljs';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
-import { CsiRateeKind } from '../csi.constants';
+import { CSI_SIMULATION_BANNER, CsiRateeKind } from '../csi.constants';
 import { answerColumns, answerSheetRows, questionsOf } from './csi-export.answers';
 import { addMatrixSheet } from './csi-export.matrix';
 import { addExecutiveSheets, surveyLineOf } from './csi-export.executive';
-import { addTable, RAW_HEADER_ROW, startRawSheet } from './csi-excel-style';
+import { addTable, RAW_HEADER_ROW, RawIntro, startRawSheet } from './csi-excel-style';
 import { raterMatrix } from './csi-rater-matrix.calc';
 import { sanitizeCell } from './csi-export.sheet';
 import { CsiReportService } from './csi-report.service';
@@ -99,21 +99,22 @@ export class CsiExportService {
             this.model(scope, periodId, {}),
         ]);
         const workbook = newCsiWorkbook(`${report.period.title}${RAW_FILENAME_SUFFIX}`, now);
-        const line = surveyLineOf(model);
+        const intro: RawIntro = { line: surveyLineOf(model), simulation: model.simulation ? CSI_SIMULATION_BANNER : null };
         const kinds: Array<[CsiRateeKind, string]> = [[CsiRateeKind.TEAM, RAW_SHEETS.team], [CsiRateeKind.PERSON, RAW_SHEETS.person]];
         for (const [kind, sheetName] of kinds) {
             if (!report.ratees.some((ratee) => ratee.kind === kind)) continue;
             const questions = questionsOf(report.ratees, kind);
             const columns = answerColumns(questions, kind === CsiRateeKind.PERSON);
-            const sheet = startRawSheet(workbook, sheetName, line, Math.min(columns.length, 10));
+            const sheet = startRawSheet(workbook, sheetName, intro, Math.min(columns.length, 10));
             addTable(sheet, columns, answerSheetRows(answers, kind, questions),
                 { bands: model.bands, headerRow: RAW_HEADER_ROW, freeze: { columns: IDENTITY_FREEZE }, emptyText: 'Belum ada jawaban.' });
         }
         addMatrixSheet(workbook, raterMatrix(report.ratees.map((ratee) => ({
             periodRateeId: ratee.periodRateeId, kind: ratee.kind, siteId: ratee.siteId ?? null,
             displayName: rateeName(ratee, report),
-        })), answers), model.bands, line);
-        if (model.hcRecap) addHcAnswersRawSheet(workbook, model.hcRecap, line, model.bands);
+        })), answers), model.bands, intro);
+        // HC only: ICT has no PIC recap, so no "HC Jawaban Responden" sheet.
+        if (model.hcRecap) addHcAnswersRawSheet(workbook, model.hcRecap, intro, model.bands);
         return {
             filename: `${this.baseName(scope, now)}${RAW_FILENAME_SUFFIX}.xlsx`,
             buffer: Buffer.from(await workbook.xlsx.writeBuffer()),

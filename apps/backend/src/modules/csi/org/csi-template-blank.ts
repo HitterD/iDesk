@@ -1,4 +1,5 @@
 import * as ExcelJS from 'exceljs';
+import { addGuideSheet } from '../services/csi-excel-style';
 import { addStyledSheet, ColumnSpec, sanitizeCell } from '../services/csi-export.sheet';
 import { TEMPLATE_EMPLOYEE_HEADERS, TEMPLATE_EMPLOYEE_SHEET_PREFIX, TEMPLATE_GUIDE_SHEET, TEMPLATE_LIST_HEADERS, TEMPLATE_RATER_NIK_HEADER,
     TEMPLATE_TEAM_HEADERS, TEMPLATE_TEAM_SHEET } from './csi-template-excel';
@@ -6,7 +7,7 @@ import { CsiTemplateLocation } from './csi-template-locations';
 
 /** Same sheet name as the 2026 Semarang file, so a filled-in blank looks like the original. */
 const LIST_SHEET = 'List Penilai 2026';
-const WIDTH = { short: 18, name: 32, title: 30, nik: 16, guide: 110 } as const;
+const WIDTH = { short: 18, name: 32, title: 30, nik: 16 } as const;
 const LIST_COLUMNS: ColumnSpec[] = [
     { header: TEMPLATE_LIST_HEADERS.area, width: WIDTH.short }, { header: TEMPLATE_LIST_HEADERS.pic, width: WIDTH.name },
     { header: TEMPLATE_LIST_HEADERS.jobTitle, width: WIDTH.title }, { header: TEMPLATE_LIST_HEADERS.serviceFunction, width: WIDTH.title },
@@ -45,9 +46,7 @@ export async function buildBlankTemplate(location: CsiTemplateLocation, employee
     addStyledSheet(workbook, TEMPLATE_TEAM_SHEET, TEAM_COLUMNS, []);
     addStyledSheet(workbook, employeeSheet, TEMPLATE_EMPLOYEE_HEADERS.map((header, index) => ({ header, width: EMPLOYEE_WIDTHS[index] })),
         employees.map((employee) => [sanitizeCell(employee.fullName), sanitizeCell(employee.jobTitle), sanitizeCell(employee.employeeId)]));
-    const guide = workbook.addWorksheet(TEMPLATE_GUIDE_SHEET);
-    guide.getColumn(1).width = WIDTH.guide;
-    guideLines(employeeSheet).forEach((line) => guide.addRow([line]));
+    addGuideSheet(workbook, TEMPLATE_GUIDE_SHEET, `Template penugasan HC · ${location.code}`, guideLines(employeeSheet));
     // exceljs returns its own Buffer type; the runtime value is a Node Buffer.
     return Buffer.from(await workbook.xlsx.writeBuffer());
 }

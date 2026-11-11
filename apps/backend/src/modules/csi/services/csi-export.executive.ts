@@ -111,6 +111,12 @@ function identityItems(model: CsiReportModel): XlKv[] {
     ];
 }
 
+/** The question without its leading "<label> — " (the label is already in column A). */
+const questionText = (aspect: { label: string; full: string }) => {
+    const prefix = `${aspect.label} — `;
+    return aspect.full.startsWith(prefix) ? aspect.full.slice(prefix.length) : aspect.full;
+};
+
 /** Highlight sentences, the best / weakest layanan (HC) and the weakest aspects. */
 function insightRows(sheet: ExcelJS.Worksheet, row: number, model: CsiReportModel): number {
     let next = sectionRow(sheet, row, 'Poin utama', SUMMARY_SPAN);
@@ -126,7 +132,7 @@ function insightRows(sheet: ExcelJS.Worksheet, row: number, model: CsiReportMode
     if (model.aspects.length) {
         next = sectionRow(sheet, next + 1, 'Aspek layanan (terlemah dulu)', SUMMARY_SPAN);
         next = kvRows(sheet, next, model.aspects.map((aspect) => ({
-            label: text(aspect.label), value: aspect.average, kind: 'score' as const, band: true, note: `${aspect.answers} jawaban · ${text(aspect.full)}`,
+            label: text(aspect.label), value: aspect.average, kind: 'score' as const, band: true, note: `${aspect.answers} jawaban · ${text(questionText(aspect))}`,
         })), model.bands);
     }
     return next;

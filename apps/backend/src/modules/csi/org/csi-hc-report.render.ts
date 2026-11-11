@@ -1,6 +1,6 @@
 import * as ExcelJS from 'exceljs';
 import {
-    addTable, RAW_HEADER_ROW, sectionRow, startRawSheet, startReportSheet, XlColumn, XlRowStyle, XlTab, XlValue,
+    addTable, RAW_HEADER_ROW, RawIntro, sectionRow, startRawSheet, startReportSheet, XlColumn, XlRowStyle, XlTab, XlValue,
 } from '../services/csi-excel-style';
 import { sanitizeCell } from '../services/csi-export.sheet';
 import { CsiScoreBands } from '../services/csi-score-bands';
@@ -23,6 +23,7 @@ const TEAM_LEVEL_LABEL = 'Tim';
 const LEVEL_STYLE: Record<CsiRecapRow['level'], XlRowStyle['level']> = { service: 'group', bagian: 'subgroup', pic: 'item' };
 const UNIT_STYLE: Record<CsiRespondentRow['level'], XlRowStyle['level']> = { division: 'group', department: 'subgroup', bagian: 'item' };
 const OTHER_SERVICE = 'Lainnya';
+const DESCRIPTION_WIDTH = 28;
 const text = (value: string | null | undefined) => sanitizeCell(value ?? '');
 const score = (header: string): XlColumn => ({ header, kind: 'score', band: true });
 const count = (header: string): XlColumn => ({ header, kind: 'count' });
@@ -52,8 +53,9 @@ export function addHcServiceSheet(workbook: ExcelJS.Workbook, name: string, cont
     const { sheet, row } = sheetOf(workbook, name, 'analysis', 'Nilai per layanan', context, span);
     let next = sectionRow(sheet, row, 'Rata-rata per dimensi (1–5)', span);
     const overall = { ...recap.overall, level: 'service' as const };
+    // Two small stacked tables: no freeze or filter (either would only fit the first one).
     const first = addTable(sheet, dimensions, services.map((service) => dimensionValues(context, service, text(service.label))), {
-        bands: context.bands, freeze: { columns: 1 },
+        bands: context.bands, filter: false,
         totals: [[ 'Semua layanan', ...recap.dimensions.map((dimension) => recap.overall.dimensions[dimension] ?? null), overall.all.average, overall.respondents,
             ...(context.hasPrevious ? [null] : [])]],
         headerRow: next, emptyText: 'Belum ada layanan yang dinilai.',
@@ -68,22 +70,27 @@ export function addHcServiceSheet(workbook: ExcelJS.Workbook, name: string, cont
 export function addHcNestedSheet(workbook: ExcelJS.Workbook, name: string, context: HcSheetContext) {
     const { recap } = context;
     const columns: XlColumn[] = [
-        { header: 'Layanan / Bagian / PIC', indent: true }, { header: 'Tingkat' }, { header: 'Jabatan' }, { header: 'Fungsi pelayanan' },
+        { header: 'Layanan / Bagian / PIC', indent: true }, { header: 'Tingkat' },
         ...recap.dimensions.map(score), score(`Rata-rata (${CSI_LOCATION_ALL_LABEL})`), count('Penilai'), count('Jumlah penilaian'),
         ...recap.locations.map((location) => score(location.label)),
         ...(context.hasPrevious ? [{ header: 'Selisih', kind: 'delta' as const }] : []),
+        // Descriptive text last and capped: the scores stay next to the names, long titles wrap instead of widening the sheet.
+        { header: 'Jabatan', width: DESCRIPTION_WIDTH }, { header: 'Fungsi pelayanan', width: DESCRIPTION_WIDTH },
     ];
     const { sheet, row } = sheetOf(workbook, name, 'analysis', 'Nilai per layanan, bagian & PIC', context, Math.min(columns.length, 10));
     const note = sectionRow(sheet, row, 'Kolom lokasi = lokasi responden; kosong = kurang dari 3 responden dari lokasi itu atau belum ada penilaian', Math.min(columns.length, 10));
     addTable(sheet, columns, recap.services.map((service) => [
-        text(service.label), service.team ? TEAM_LEVEL_LABEL : LEVEL_LABEL[service.level], text(service.jobTitle), text(service.serviceFunction),
+        text(service.label), service.team ? TEAM_LEVEL_LABEL : LEVEL_LABEL[service.level],
         ...recap.dimensions.map((dimension) => service.dimensions[dimension] ?? null), service.all.average, service.respondents, service.all.ratings,
         ...recap.locations.map((location) => masked(service.byLocation[location.code])),
         ...(context.hasPrevious ? [recapDelta(recap, service)] : []),
+        text(service.jobTitle), text(service.serviceFunction),
     ]), {
         bands: context.bands, headerRow: note, freeze: { columns: 1 }, emptyText: 'Belum ada PIC.',
         rowStyle: (index) => ({ level: LEVEL_STYLE[recap.services[index].level], topRule: index > 0 && recap.services[index].level === 'service' }),
     });
+    // Wide table: printed pages continue to the right, each repeating the names column.
+    sheet.pageSetup.printTitlesColumn = 'A:A';
 }
 
 /** "Rekap responden": respondent units (small ones merged), the score they gave over all PICs; no location columns. */
@@ -114,7 +121,7 @@ export function addHcQuestionSheet(workbook: ExcelJS.Workbook, name: string, con
 }
 
 /** Raw data: every respondent's stars per PIC (names!). Raw workbook only. */
-export function addHcAnswersRawSheet(workbook: ExcelJS.Workbook, recap: CsiHcRecap, surveyLine: string, bands: CsiScoreBands) {
+export function addHcAnswersRawSheet(workbook: ExcelJS.Workbook, recap: CsiHcRecap, intro: RawIntro, bands: CsiScoreBands) {
     const columns: XlColumn[] = [
         { header: 'Responden' }, { header: 'Divisi' }, { header: 'Departemen' }, { header: 'Bagian' }, { header: 'Lokasi' },
         { header: 'Layanan' }, { header: 'Bagian PIC' }, { header: 'PIC' },
@@ -127,6 +134,6 @@ export function addHcAnswersRawSheet(workbook: ExcelJS.Workbook, recap: CsiHcRec
         pic.serviceCode ?? '', text(pic.bagian), text(pic.name),
         ...recap.dimensions.map((label) => pic.scores[label] ?? null), pic.average, respondent.average,
     ]));
-    const sheet = startRawSheet(workbook, HC_SHEETS.detail, surveyLine, columns.length);
+    const sheet = startRawSheet(workbook, HC_SHEETS.detail, intro, columns.length);
     addTable(sheet, columns, rows, { bands, headerRow: RAW_HEADER_ROW, freeze: { columns: 1 }, emptyText: 'Belum ada jawaban.' });
 }

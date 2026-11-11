@@ -208,7 +208,7 @@ function styleCell(cell: ExcelJS.Cell, column: XlColumn, value: XlValue, options
     cell.alignment = { vertical: 'middle', wrapText: kind === 'text' || kind === 'longText', horizontal: NUMERIC.has(kind) ? 'center' : 'left', indent };
     const format = numFmtOf(kind);
     if (format) cell.numFmt = format;
-    const isLink = typeof value === 'object' && value !== null && !(value instanceof Date);
+    const isLink = isFormula(value);
     cell.font = font({ bold: strong, italic: style?.muted, color: { argb: isLink ? XL_COLOR.link : style?.muted ? XL_COLOR.muted : XL_COLOR.ink }, underline: isLink });
     if (style?.level === 'group') cell.fill = fill(XL_COLOR.group);
     else if (options.zebra) cell.fill = fill(XL_COLOR.zebra);
@@ -275,6 +275,22 @@ export function addTable(sheet: ExcelJS.Worksheet, columns: XlColumn[], rows: Xl
 /** One line of a key-value block: label, a typed value (band / tone fill) and an optional note. */
 export type XlKv = { label: string; value: XlValue; kind?: XlKind; note?: string; band?: boolean; tone?: CsiScoreBand | null };
 
+const isFormula = (value: XlValue): value is XlFormula => typeof value === 'object' && value !== null && !(value instanceof Date);
+const widthOf = (sheet: ExcelJS.Worksheet, column: number) => sheet.getColumn(column).width ?? WIDTH_MIN;
+/** Wrapped lines of `text` in a column `width` characters wide (Calibri 10 fits about one character per width unit). */
+const wrappedLines = (text: string, width: number) =>
+    text.split(/\r?\n/).reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / Math.max(1, width - WIDTH_PADDING))), 0);
+
+/** A key-value row is as tall as its longest wrapped text (note in C, or a text value over B:C); merged cells never auto-fit. */
+function kvHeight(sheet: ExcelJS.Worksheet, item: XlKv, merged: boolean): number {
+    const valueText = typeof item.value === 'string' ? item.value : '';
+    const lines = Math.max(
+        wrappedLines(item.note ?? '', widthOf(sheet, 3)),
+        wrappedLines(valueText, merged ? widthOf(sheet, 2) + widthOf(sheet, 3) : widthOf(sheet, 2)),
+    );
+    return lines * LINE_HEIGHT + HEADER_PADDING;
+}
+
 /**
  * Key-value block in columns A (label), B (value), C (note), starting at `row`; a text value without a note spans B:C.
  * Returns the next free row.
@@ -291,7 +307,9 @@ export function kvRows(sheet: ExcelJS.Worksheet, row: number, items: XlKv[], ban
         value.value = item.value as ExcelJS.CellValue;
         const format = numFmtOf(kind);
         if (format) value.numFmt = format;
-        value.font = font({ bold: NUMERIC.has(kind) || item.tone !== undefined });
+        const isLink = isFormula(item.value);
+        value.font = isLink ? font({ color: { argb: XL_COLOR.link }, underline: true })
+            : font({ bold: NUMERIC.has(kind) || item.tone !== undefined });
         value.alignment = { vertical: 'middle', horizontal: NUMERIC.has(kind) ? 'center' : 'left', wrapText: !NUMERIC.has(kind) };
         const note = sheet.getCell(at, 3);
         note.value = item.note ?? null;
@@ -307,8 +325,9 @@ export function kvRows(sheet: ExcelJS.Worksheet, row: number, items: XlKv[], ban
             value.fill = fill(BAND_FILL[band]);
             value.font = font({ bold: true, color: { argb: BAND_INK[band] } });
         }
-        if (kind === 'text' && !item.note) sheet.mergeCells(at, 2, at, 3);
-        sheet.getRow(at).height = LINE_HEIGHT + HEADER_PADDING;
+        const merged = kind === 'text' && !item.note;
+        if (merged) sheet.mergeCells(at, 2, at, 3);
+        sheet.getRow(at).height = kvHeight(sheet, item, merged);
     });
     return row + items.length;
 }
@@ -320,14 +339,15 @@ export function paragraphRow(sheet: ExcelJS.Worksheet, row: number, text: string
     cell.font = font();
     cell.alignment = { vertical: 'top', wrapText: true, indent: 1 };
     mergeRow(sheet, row, span);
-    const lines = text.split(/\r?\n/).reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / Math.max(1, widthChars - 4))), 0);
-    sheet.getRow(row).height = lines * LINE_HEIGHT + 4;
+    sheet.getRow(row).height = wrappedLines(text, widthChars - WIDTH_PADDING) * LINE_HEIGHT + 4;
     return row + 1;
 }
 
 export const CONFIDENTIAL_BANNER = 'RAHASIA — berisi nama penilai. Jangan diteruskan.';
-/** Header row of every raw-data table (row 1 = confidential banner, row 2 = survey line). */
+/** Header row of every raw-data table (row 1 = confidential banner, row 2 = survey line or simulation banner). */
 export const RAW_HEADER_ROW = 3;
+/** Survey line under the confidential banner; `simulation` (banner text) turns that line into the amber banner. */
+export type RawIntro = { line: string; simulation: string | null };
 
 export type SheetIntro = { name: string; tab: XlTab; title: string; subtitle: string; simulation?: string | null; span: number };
 
@@ -337,10 +357,23 @@ export function startReportSheet(workbook: ExcelJS.Workbook, intro: SheetIntro):
     return { sheet, row: titleBlock(sheet, intro) };
 }
 
-/** Raw-data sheet: red confidential banner, the survey line, the table header at RAW_HEADER_ROW. */
-export function startRawSheet(workbook: ExcelJS.Workbook, name: string, subtitle: string, span: number): ExcelJS.Worksheet {
+const GUIDE_WIDTH = 110;
+
+/** How-to sheet of an import file: title, one-line subtitle, then numbered steps (one row each, wrapped). */
+export function addGuideSheet(workbook: ExcelJS.Workbook, name: string, title: string, steps: string[]): ExcelJS.Worksheet {
+    const sheet = addReportSheet(workbook, name, 'summary');
+    sheet.getColumn(1).width = GUIDE_WIDTH;
+    const first = titleBlock(sheet, { title, subtitle: 'Langkah pengisian', span: 1 }) - 1;
+    steps.forEach((step, index) => paragraphRow(sheet, first + index, `${index + 1}.  ${step}`, 1, GUIDE_WIDTH));
+    sheet.pageSetup.orientation = 'portrait';
+    return sheet;
+}
+
+/** Raw-data sheet: red confidential banner, the survey line (amber when simulated), the table header at RAW_HEADER_ROW. */
+export function startRawSheet(workbook: ExcelJS.Workbook, name: string, intro: RawIntro, span: number): ExcelJS.Worksheet {
     const sheet = addReportSheet(workbook, name, 'raw', true);
     bannerRow(sheet, 1, CONFIDENTIAL_BANNER, 'confidential', span);
-    noteRow(sheet, 2, subtitle, span);
+    if (intro.simulation) bannerRow(sheet, 2, `${intro.simulation} · ${intro.line}`, 'simulation', span);
+    else noteRow(sheet, 2, intro.line, span);
     return sheet;
 }
