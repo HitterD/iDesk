@@ -3,7 +3,7 @@ import { ArgumentMetadata, BadRequestException, ValidationPipe } from '@nestjs/c
 import { PATH_METADATA } from '@nestjs/common/constants';
 import { validate } from 'class-validator';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { ConfirmTemplateRatersDto, CreatePeriodFromTemplatesDto, PreviewPeriodFromTemplatesDto, SetTemplateRaterAccountsDto } from '../dto/template.dto';
+import { ApplyTemplatesToPeriodDto, ConfirmTemplateRatersDto, CreatePeriodFromTemplatesDto, PreviewPeriodFromTemplatesDto, SetTemplateRaterAccountsDto } from '../dto/template.dto';
 import { CsiAssignmentTemplateService } from '../services/csi-assignment-template.service';
 import { CsiAdminTemplateController, parseImportOptions } from './csi-admin-template.controller';
 
@@ -21,6 +21,8 @@ describe('CsiAdminTemplateController bulk contracts', () => {
         expect(path('blankTemplate')).toBe('blank/:location');
         expect(path('createPeriodFromTemplates')).toBe('create-period');
         expect(path('previewPeriod')).toBe('preview-period');
+        expect(path('applyMany')).toBe('apply-many/:periodId');
+        expect(methods.indexOf('applyMany')).toBeLessThan(methods.indexOf('get'));
         expect(methods.indexOf('createPeriodFromTemplates')).toBeLessThan(methods.indexOf('createPeriod'));
         expect(methods.indexOf('previewPeriod')).toBeLessThan(methods.indexOf('get'));
         expect(methods.indexOf('blankTemplate')).toBeLessThan(methods.indexOf('get'));
@@ -109,6 +111,23 @@ describe('CsiAdminTemplateController bulk contracts', () => {
         for (const templateIds of [[], five, [ID, ID], ['bad'], undefined]) {
             await expect(pipe.transform({ templateIds }, body(PreviewPeriodFromTemplatesDto))).rejects.toBeInstanceOf(BadRequestException);
             await expect(pipe.transform({ ...period, templateIds }, body(CreatePeriodFromTemplatesDto))).rejects.toBeInstanceOf(BadRequestException);
+        }
+    });
+
+    it('apply-many forwards template ids, commit and replaceNonPic; validates the body; ICT refused', async () => {
+        const applier = { applyManyToPeriod: jest.fn() };
+        const controller = new CsiAdminTemplateController({} as any, applier as any, {} as any);
+        controller.applyMany(request, OTHER, { templateIds: [ID], replaceNonPic: true }, 'true');
+        expect(applier.applyManyToPeriod).toHaveBeenLastCalledWith(ServiceScope.HC, [ID], OTHER, true, true);
+        controller.applyMany(request, OTHER, { templateIds: [ID, OTHER] });
+        expect(applier.applyManyToPeriod).toHaveBeenLastCalledWith(ServiceScope.HC, [ID, OTHER], OTHER, false, false);
+        expect(() => controller.applyMany({ ...request, csiScope: ServiceScope.ICT }, OTHER, { templateIds: [ID] })).toThrow(BadRequestException);
+
+        const pipe = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true });
+        const body: ArgumentMetadata = { type: 'body', metatype: ApplyTemplatesToPeriodDto };
+        await expect(pipe.transform({ templateIds: [ID], replaceNonPic: false }, body)).resolves.toBeDefined();
+        for (const value of [{ templateIds: [] }, { templateIds: [ID, ID] }, { templateIds: [ID], replaceNonPic: 'yes' }]) {
+            await expect(pipe.transform(value, body)).rejects.toBeInstanceOf(BadRequestException);
         }
     });
 });

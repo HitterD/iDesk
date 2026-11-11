@@ -5,7 +5,7 @@ import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { AddTemplatePicDto, AddTemplateRaterDto, CreatePeriodFromTemplateDto, CreatePeriodFromTemplatesDto, ConfirmTemplateRatersDto, ImportOptionsDto, PicResolutionInput,
+import { AddTemplatePicDto, AddTemplateRaterDto, ApplyTemplatesToPeriodDto, CreatePeriodFromTemplateDto, CreatePeriodFromTemplatesDto, ConfirmTemplateRatersDto, ImportOptionsDto, PicResolutionInput,
     PreviewPeriodFromTemplatesDto, SetTemplateRaterAccountsDto, SetTemplateRaterAccountDto, UpdateTemplatePicDto } from '../dto/template.dto';
 import { PicResolution } from '../org/csi-template-identity';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
@@ -57,6 +57,15 @@ export class CsiAdminTemplateController {
     @Post('preview-period')
     previewPeriod(@Req() req: CsiAdminRequest, @Body() dto: PreviewPeriodFromTemplatesDto) {
         return this.applier.previewPeriod(hc(req), dto.templateIds);
+    }
+
+    /**
+     * "Ambil dari template" in the survey wizard: 1-4 location templates synced into one existing survey in one
+     * transaction; dry run by default, `?commit=true` writes. `replaceNonPic` drops people who are no PIC first.
+     */
+    @Post('apply-many/:periodId')
+    applyMany(@Req() req: CsiAdminRequest, @Param('periodId', ID_PIPE) periodId: string, @Body() dto: ApplyTemplatesToPeriodDto, @Query('commit') commit?: string) {
+        return this.applier.applyManyToPeriod(hc(req), dto.templateIds, periodId, commit === 'true', dto.replaceNonPic ?? false);
     }
 
     /** Add-only sync into an existing survey; dry run by default, `?commit=true` writes. */

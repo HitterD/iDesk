@@ -7,6 +7,7 @@ import { CsiPeriodRaterRatee } from '../entities/csi-period-rater-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriodSite } from '../entities/csi-period-site.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
+import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiTeamMember } from '../entities/csi-team-member.entity';
 import { CsiTeam } from '../entities/csi-team.entity';
 import { CsiTemplateView } from '../org/csi-template-view';
@@ -54,6 +55,7 @@ describe('CsiTemplateApplyService', () => {
     let members: ReturnType<typeof memoryTable>;
     let periodSites: ReturnType<typeof memoryTable>;
     let users: ReturnType<typeof memoryTable>;
+    let responses: ReturnType<typeof memoryTable>;
     let dataSource: { transaction: jest.Mock };
     let service: CsiTemplateApplyService;
     const templates = { get: jest.fn(async (_scope: string, id: string) => (id === 't2' ? krwView() : view())) };
@@ -82,7 +84,7 @@ describe('CsiTemplateApplyService', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         periods = memoryTable(); ratees = memoryTable(); rateeDims = memoryTable(); raters = memoryTable(); pairs = memoryTable();
-        teams = memoryTable(); members = memoryTable(); periodSites = memoryTable(); users = memoryTable();
+        teams = memoryTable(); members = memoryTable(); periodSites = memoryTable(); users = memoryTable(); responses = memoryTable();
         users.rows.push({ id: 'u-elvi', siteId: 's-smg' }, { id: 'u-cici', siteId: 's-krw' }, { id: 'u-budi', siteId: 's-krw' }, { id: 'u-confirmed', siteId: 's-smg' });
         teams.rows.push({ id: 'team-a', scope: HC, kind: CsiTeamKind.CUSTOM, serviceCode: null, siteId: 's-krw', name: 'TIM RECEPTION', isActive: true });
         members.rows.push({ id: 'm1', teamId: 'team-a', userId: 'u-cici', name: 'CICI' }, { id: 'm2', teamId: 'team-a', userId: null, name: 'DEDE' });
@@ -90,7 +92,7 @@ describe('CsiTemplateApplyService', () => {
             cancelledAt: null, sites: [{ siteId: 's-smg', site: { code: 'SMG' } }] });
         const repositories = new Map<unknown, unknown>([
             [CsiPeriod, periods], [CsiPeriodRatee, ratees], [CsiPeriodRateeDimension, rateeDims], [CsiPeriodRater, raters], [CsiPeriodRaterRatee, pairs],
-            [CsiTeam, teams], [CsiTeamMember, members], [CsiPeriodSite, periodSites], [User, users],
+            [CsiTeam, teams], [CsiTeamMember, members], [CsiPeriodSite, periodSites], [User, users], [CsiResponse, responses],
         ]);
         const manager = {
             getRepository: (target: unknown) => repositories.get(target),
@@ -318,5 +320,69 @@ describe('CsiTemplateApplyService', () => {
         periods.rows[0] = { ...periods.rows[0], sites: [{ siteId: 's-spj', site: { code: 'SPJ' } }] };
         await service.applyToPeriod(HC, 't1', 'p1', false);
         expect(periodService.overlaps).toHaveBeenCalledWith(HC, ['s-smg'], undefined, undefined, 'p1', expect.objectContaining({ getRepository: expect.any(Function) }));
+    });
+    describe('applyManyToPeriod (Ambil dari template)', () => {
+        const nonPic = () => {
+            ratees.rows.push({ id: 'r-user', periodId: 'p1', kind: CsiRateeKind.PERSON, picId: null, userId: 'u-x', displayName: 'USER X' });
+            rateeDims.rows.push({ id: 'd-user', periodRateeId: 'r-user', dimensionId: 'd-k' });
+            raters.rows.push({ id: 'rt-x', periodId: 'p1', userId: 'u-y' });
+            pairs.rows.push({ id: 'pair-user', periodId: 'p1', periodRaterId: 'rt-x', periodRateeId: 'r-user' });
+        };
+
+        it('dry run merges the templates once (rater in two locations counted once) and adds both sites', async () => {
+            periods.rows[0] = { ...periods.rows[0], publishStatus: CsiPeriodPublishStatus.DRAFT, sites: [] };
+            const report = await service.applyManyToPeriod(HC, ['t1', 't2'], 'p1', false, false);
+            expect(report).toMatchObject({ committed: false, picsAdded: 3, teamsAdded: 1, ratersAdded: 3, nonPicRatees: 0, blockedReason: null, siteAdded: 'SMG, KRW' });
+            expect(ratees.rows).toEqual([]);
+            expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+        });
+
+        it('commit writes all templates in one transaction', async () => {
+            const report = await service.applyManyToPeriod(HC, ['t1', 't2'], 'p1', true, false);
+            expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+            expect(report).toMatchObject({ committed: true, picsAdded: 3, teamsAdded: 1, ratersAdded: 3 });
+            expect(ratees.rows.map((row) => row.displayName)).toEqual(['RARA', 'MEGA', 'ANI', 'TIM RECEPTION']);
+            expect(periodSites.rows).toEqual([expect.objectContaining({ periodId: 'p1', siteId: 's-krw' })]);
+        });
+
+        it('counts non-PIC people and, with replaceNonPic, deletes them and their pairs and dimensions before applying', async () => {
+            nonPic();
+            const dry = await service.applyManyToPeriod(HC, ['t1'], 'p1', false, true);
+            expect(dry.nonPicRatees).toBe(1);
+            expect(ratees.rows.map((row) => row.id)).toEqual(['r-user']);
+            const done = await service.applyManyToPeriod(HC, ['t1'], 'p1', true, true);
+            expect(done).toMatchObject({ committed: true, picsAdded: 2, nonPicRatees: 1 });
+            expect(ratees.rows.some((row) => row.id === 'r-user')).toBe(false);
+            expect(pairs.rows.some((row) => row.id === 'pair-user')).toBe(false);
+            expect(rateeDims.rows.some((row) => row.id === 'd-user')).toBe(false);
+            // A rater who only rated the removed people would leave an unmapped rater behind: removed too.
+            expect(raters.rows.some((row) => row.id === 'rt-x')).toBe(false);
+            expect(ratees.rows.every((row) => row.picId)).toBe(true);
+        });
+
+        it('without replaceNonPic the non-PIC people stay (add-only)', async () => {
+            nonPic();
+            await service.applyManyToPeriod(HC, ['t1'], 'p1', true, false);
+            expect(ratees.rows.some((row) => row.id === 'r-user')).toBe(true);
+        });
+
+        it('refuses replaceNonPic once the survey has answers', async () => {
+            nonPic();
+            responses.rows.push({ id: 'resp', periodId: 'p1' });
+            await expect(service.applyManyToPeriod(HC, ['t1'], 'p1', false, true)).rejects.toThrow('Survei sudah ada jawaban; ambil template hanya untuk survei tanpa jawaban');
+            await expect(service.applyManyToPeriod(HC, ['t1'], 'p1', true, true)).rejects.toBeInstanceOf(BadRequestException);
+            expect(ratees.rows.some((row) => row.id === 'r-user')).toBe(true);
+        });
+
+        it('a blocked survey is reported on dry run and refused on commit', async () => {
+            periods.rows[0] = { ...periods.rows[0], cancelledAt: new Date() };
+            expect((await service.applyManyToPeriod(HC, ['t1', 't2'], 'p1', false, false)).blockedReason).toMatch(/dibatalkan/);
+            await expect(service.applyManyToPeriod(HC, ['t1', 't2'], 'p1', true, false)).rejects.toBeInstanceOf(BadRequestException);
+            expect(ratees.rows).toEqual([]);
+        });
+
+        it('is HC only', async () => {
+            await expect(service.applyManyToPeriod(ServiceScope.ICT, ['t1'], 'p1', false, false)).rejects.toBeInstanceOf(BadRequestException);
+        });
     });
 });
