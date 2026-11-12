@@ -137,6 +137,13 @@ describe('CsiSubjectService', () => {
         expect(teams.rows.filter((row) => row.siteId === SPJ.id && row.kind === 'SITE')).toHaveLength(1);
     });
 
+    it('reactivates a deactivated site team instead of creating a twin', async () => {
+        teams.rows[0].isActive = false;
+        const view = await service.createTeam(ICT, SPJ.id);
+        expect(view.teamId).toBe(T1);
+        expect(teams.rows.filter((row) => row.siteId === SPJ.id)).toEqual([expect.objectContaining({ id: T1, isActive: true })]);
+    });
+
     it('creates a site team once with the default name', async () => {
         const created = await service.createTeam(ICT, KRW.id);
         expect(created).toMatchObject({ kind: 'TEAM', name: 'Tim Karawang', siteId: KRW.id });

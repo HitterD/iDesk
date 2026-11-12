@@ -37,6 +37,12 @@ export class CsiAdminSubjectController {
         return this.teams.update(req.csiScope, id, dto);
     }
 
+    /** Dry run of the delete below: surveys that block it, draft surveys the team leaves, finished surveys that keep it. */
+    @Get('teams/:id/delete-impact')
+    teamDeleteImpact(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string) {
+        return this.teams.deleteImpact(assertHcScope(req.csiScope), id);
+    }
+
     @Delete('teams/:id')
     @HttpCode(HttpStatus.NO_CONTENT)
     removeTeam(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string) {

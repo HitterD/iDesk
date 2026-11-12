@@ -4,8 +4,11 @@ import { Site } from '../../sites/entities/site.entity';
 import { User } from '../../users/entities/user.entity';
 import { CsiPeriodPublishStatus } from '../csi.constants';
 import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
+import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
+import { CsiPeriodRaterRatee } from '../entities/csi-period-rater-ratee.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
+import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiTeamMember } from '../entities/csi-team-member.entity';
 import { CsiTeam } from '../entities/csi-team.entity';
 import { memoryTable } from './csi-memory-table.fixture';
@@ -23,7 +26,7 @@ describe('CsiTeamService', () => {
     let service: CsiTeamService;
 
     beforeEach(() => {
-        tables = Object.fromEntries(['teams', 'members', 'sites', 'users', 'templatePics', 'ratees', 'periods'].map((name) => [name, memoryTable()]));
+        tables = Object.fromEntries(['teams', 'members', 'sites', 'users', 'templatePics', 'ratees', 'periods', 'dimensions', 'pairs', 'responses'].map((name) => [name, memoryTable()]));
         tables.sites.rows.push({ id: SITE, code: 'SMG', name: 'Semarang' });
         tables.users.rows.push(
             { id: U1, fullName: 'Hana HC', isActive: true },
@@ -32,7 +35,11 @@ describe('CsiTeamService', () => {
         const repositories = new Map<unknown, unknown>([
             [CsiTeam, tables.teams], [CsiTeamMember, tables.members], [Site, tables.sites], [User, tables.users],
             [CsiAssignmentTemplatePic, tables.templatePics], [CsiPeriodRatee, tables.ratees], [CsiPeriod, tables.periods],
+            [CsiPeriodRateeDimension, tables.dimensions], [CsiPeriodRaterRatee, tables.pairs], [CsiResponse, tables.responses],
         ]);
+        // Row lock taken before draft ratees are removed: a no-op query builder over the memory table.
+        const lockBuilder = { setLock: () => lockBuilder, where: () => lockBuilder, getOne: async () => null };
+        Object.assign(tables.periods, { createQueryBuilder: () => lockBuilder });
         const manager = { getRepository: (target: unknown) => repositories.get(target) };
         const dataSource = { manager, transaction: jest.fn(async (work: any) => work(manager)) };
         service = new CsiTeamService(dataSource as any);
@@ -84,12 +91,47 @@ describe('CsiTeamService', () => {
         await expect(service.replaceMembers(HC, team.teamId!, [{}])).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('delete refused while team used in active survey', async () => {
+    const period = (id: string, over: Record<string, unknown> = {}) =>
+        tables.periods.rows.push({ id, scope: HC, title: `Survei ${id}`, publishStatus: CsiPeriodPublishStatus.PUBLISHED, startDate: '2026-11-01', endDate: '2026-11-30', ...over });
+    const rateTeam = (teamId: string, periodId: string) => {
+        const id = `r-${periodId}`;
+        tables.ratees.rows.push({ id, periodId, kind: 'TEAM', teamId });
+        tables.dimensions.rows.push({ id: `d-${periodId}`, periodRateeId: id });
+        tables.pairs.rows.push({ id: `pr-${periodId}`, periodId, periodRaterId: 'rater', periodRateeId: id });
+        return id;
+    };
+
+    it('delete refused while team used in a running or answered survey, naming the surveys', async () => {
         const team = await custom();
-        tables.periods.rows.push({ id: 'p1', scope: HC, publishStatus: CsiPeriodPublishStatus.PUBLISHED, startDate: '2026-11-01', endDate: '2026-11-30' });
-        tables.ratees.rows.push({ id: 'r1', periodId: 'p1', teamId: team.teamId });
-        await expect(service.remove(HC, team.teamId!)).rejects.toThrow('Tim dipakai di survei yang belum selesai');
+        period('p1', { title: 'CSI HC November' });
+        period('p2', { title: 'CSI HC Desember', startDate: '2026-12-01', endDate: '2026-12-31' });
+        rateTeam(team.teamId!, 'p1');
+        rateTeam(team.teamId!, 'p2');
+        tables.responses.rows.push({ id: 'resp', periodId: 'p2' });
+        await expect(service.deleteImpact(HC, team.teamId!)).resolves.toEqual({
+            blocked: [{ periodId: 'p1', title: 'CSI HC November', reason: 'running' }, { periodId: 'p2', title: 'CSI HC Desember', reason: 'answered' }],
+            draftSurveys: [], finishedSurveys: 0,
+        });
+        await expect(service.remove(HC, team.teamId!)).rejects.toThrow('Tim dipakai di survei yang sedang berjalan: CSI HC November, CSI HC Desember');
         expect(tables.teams.rows).toHaveLength(1);
+        expect(tables.ratees.rows).toHaveLength(2);
+    });
+
+    it('removes the team ratee (pairs and dimensions too) from draft and not-yet-started surveys, then deletes the team', async () => {
+        const team = await custom();
+        period('p-draft', { publishStatus: CsiPeriodPublishStatus.DRAFT, title: 'Draft HC' });
+        period('p-soon', { startDate: '2026-12-01', endDate: '2026-12-31', title: 'Desember HC' });
+        rateTeam(team.teamId!, 'p-draft');
+        rateTeam(team.teamId!, 'p-soon');
+        tables.ratees.rows.push({ id: 'other', periodId: 'p-draft', kind: 'PERSON', teamId: null });
+        await expect(service.deleteImpact(HC, team.teamId!)).resolves.toEqual({
+            blocked: [], draftSurveys: [{ periodId: 'p-draft', title: 'Draft HC' }, { periodId: 'p-soon', title: 'Desember HC' }], finishedSurveys: 0,
+        });
+        await service.remove(HC, team.teamId!);
+        expect(tables.ratees.rows.map((row) => row.id)).toEqual(['other']);
+        expect(tables.dimensions.rows).toEqual([]);
+        expect(tables.pairs.rows).toEqual([]);
+        expect(tables.teams.rows).toEqual([]);
     });
 
     it('deletes an unused custom team with its template rows', async () => {
@@ -102,20 +144,32 @@ describe('CsiTeamService', () => {
 
     it('a team kept by ended or cancelled surveys is deactivated, not deleted (their results stay)', async () => {
         const team = await custom();
-        tables.periods.rows.push(
-            { id: 'p-ended', scope: HC, publishStatus: CsiPeriodPublishStatus.PUBLISHED, startDate: '2026-10-01', endDate: '2026-10-31' },
-            { id: 'p-cancel', scope: HC, publishStatus: CsiPeriodPublishStatus.CANCELLED, startDate: '2026-11-01', endDate: '2026-12-31' },
-        );
-        tables.ratees.rows.push({ id: 'r1', periodId: 'p-ended', teamId: team.teamId }, { id: 'r2', periodId: 'p-cancel', teamId: team.teamId });
+        period('p-ended', { startDate: '2026-10-01', endDate: '2026-10-31' });
+        period('p-cancel', { publishStatus: CsiPeriodPublishStatus.CANCELLED, startDate: '2026-11-01', endDate: '2026-12-31' });
+        period('p-draft', { publishStatus: CsiPeriodPublishStatus.DRAFT });
+        rateTeam(team.teamId!, 'p-ended');
+        rateTeam(team.teamId!, 'p-cancel');
+        rateTeam(team.teamId!, 'p-draft');
+        tables.responses.rows.push({ id: 'resp', periodId: 'p-ended' });
         tables.templatePics.rows.push({ id: 'tp1', templateId: 't', teamId: team.teamId, picId: null });
+        await expect(service.deleteImpact(HC, team.teamId!)).resolves.toMatchObject({ blocked: [], finishedSurveys: 2 });
         await service.remove(HC, team.teamId!);
         expect(tables.teams.rows).toEqual([expect.objectContaining({ id: team.teamId, isActive: false })]);
         expect(tables.templatePics.rows).toEqual([]);
+        expect(tables.ratees.rows.map((row) => row.periodId)).toEqual(['p-ended', 'p-cancel']);
     });
 
-    it('never deletes a site team', async () => {
+    it('deletes a site team by the same rules; members stay for custom teams only', async () => {
         tables.teams.rows.push({ id: 'site-team', scope: HC, siteId: SITE, kind: 'SITE', name: 'Tim Semarang', isActive: true });
-        await expect(service.remove(HC, 'site-team')).rejects.toBeInstanceOf(BadRequestException);
+        tables.templatePics.rows.push({ id: 'tp1', templateId: 't', teamId: 'site-team', picId: null });
+        period('p-draft', { publishStatus: CsiPeriodPublishStatus.DRAFT });
+        rateTeam('site-team', 'p-draft');
+        await service.remove(HC, 'site-team');
+        expect(tables.teams.rows).toEqual([]);
+        expect(tables.ratees.rows).toEqual([]);
+        expect(tables.templatePics.rows).toEqual([]);
+        tables.teams.rows.push({ id: 'site-team', scope: HC, siteId: SITE, kind: 'SITE', name: 'Tim Semarang', isActive: true });
         await expect(service.replaceMembers(HC, 'site-team', [{ name: 'A' }])).rejects.toBeInstanceOf(BadRequestException);
+        await expect(service.remove(ICT, 'site-team')).rejects.toBeInstanceOf(NotFoundException);
     });
 });

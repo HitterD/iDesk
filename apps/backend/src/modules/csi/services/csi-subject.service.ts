@@ -290,7 +290,8 @@ export class CsiSubjectService {
     /** Idempotent: returns the existing team of the site, otherwise creates `Tim <site.name>`. */
     async createTeam(scope: ServiceScope, siteId: string): Promise<CsiSubjectView> {
         const existing = await this.teams.findOne({ where: { scope, siteId, kind: CsiTeamKind.SITE } });
-        if (existing) return teamView(existing);
+        // A site team deleted while ended surveys still rate it is only deactivated (one SITE row per site): revive it.
+        if (existing) return teamView(existing.isActive === false ? await this.teams.save({ ...existing, isActive: true }) : existing);
         const site = await this.sites.findOne({ where: { id: siteId } });
         if (!site) throw new NotFoundException(SITE_NOT_FOUND_MESSAGE);
         const saved = await this.teams.save({
@@ -340,7 +341,7 @@ export class CsiSubjectService {
         const profileByUser = new Map(profiles.map((profile) => [profile.userId, profile]));
         const accounts = accountIds.length ? await this.users.find({ where: { id: In(accountIds) }, select: USER_FIELDS }) : [];
         const accountById = new Map(accounts.map((user) => [user.id, user]));
-        const teams = (await this.teams.find({ where: { scope } })).filter((team) => team.kind !== CsiTeamKind.CUSTOM || team.isActive);
+        const teams = (await this.teams.find({ where: { scope } })).filter((team) => team.isActive);
         const customIds = teams.filter((team) => team.kind === CsiTeamKind.CUSTOM).map((team) => team.id);
         const members = customIds.length ? await this.members.find({ where: { teamId: In(customIds) } }) : [];
         return sites.map((site) => {

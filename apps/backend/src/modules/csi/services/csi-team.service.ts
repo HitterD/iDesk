@@ -7,11 +7,15 @@ import { User } from '../../users/entities/user.entity';
 import { CsiPeriodPublishStatus, CsiTeamKind } from '../csi.constants';
 import { CSI_CUSTOM_TEAM_NAME_MAX } from '../dto/subject.dto';
 import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
+import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
+import { CsiPeriodRaterRatee } from '../entities/csi-period-rater-ratee.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
+import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiTeamMember } from '../entities/csi-team-member.entity';
 import { CsiTeam } from '../entities/csi-team.entity';
 import { normalizeName } from '../org/csi-name-match';
+import { lockUnlockedPeriod } from './csi-period-lock.util';
 import { computeStatus } from './csi-period.service';
 import { assertHcScope } from './csi-scope.util';
 import { CsiSubjectView, teamView } from './csi-subject.service';
@@ -20,11 +24,25 @@ const TEAM_NOT_FOUND_MESSAGE = 'Tim tidak ditemukan';
 const SITE_NOT_FOUND_MESSAGE = 'Site tidak ditemukan';
 const CUSTOM_REQUIRED_MESSAGE = 'Nama dan layanan tim wajib diisi';
 const NAME_TAKEN_MESSAGE = 'Nama tim sudah dipakai di site ini';
-const TEAM_IN_USE_MESSAGE = 'Tim dipakai di survei yang belum selesai';
+const TEAM_IN_USE_MESSAGE = 'Tim dipakai di survei yang sedang berjalan';
 
 export type CsiCreateCustomTeamInput = { siteId: string; name?: string; serviceCode?: string };
 export type CsiUpdateTeamInput = { name?: string; serviceCode?: string };
 export type CsiTeamMemberInput = { userId?: string; name?: string };
+export type CsiTeamSurveyRef = { periodId: string; title: string };
+/** `running`: published and open now; `answered`: the survey already has responses (its assignments are locked). */
+export type CsiTeamBlockReason = 'running' | 'answered';
+/**
+ * What deleting a team does to the surveys that rate it: `blocked` surveys refuse the delete; the team ratee of each
+ * `draftSurveys` entry (DRAFT, or published but not started, without answers) is removed with it; `finishedSurveys`
+ * (ended or cancelled) keep their results, so the team is deactivated instead of deleted.
+ */
+export type CsiTeamDeleteImpact = {
+    blocked: Array<CsiTeamSurveyRef & { reason: CsiTeamBlockReason }>;
+    draftSurveys: CsiTeamSurveyRef[];
+    finishedSurveys: number;
+};
+type ImpactPlan = CsiTeamDeleteImpact & { draftRateeIds: string[] };
 
 /**
  * HC CUSTOM teams of a site (name + layanan, members with or without an account) and edits of any team. The single SITE
@@ -79,22 +97,35 @@ export class CsiTeamService {
         return isCustom ? teamView(saved, await this.membersOf(manager, saved.id)) : teamView(saved);
     }
 
+    /** Dry run of `remove` (HC; SITE and CUSTOM teams alike). */
+    async deleteImpact(scope: ServiceScope, id: string): Promise<CsiTeamDeleteImpact> {
+        const manager = this.dataSource.manager;
+        const { draftRateeIds: _ids, ...impact } = await this.planDelete(manager, await this.findTeam(manager, scope, id));
+        return impact;
+    }
+
     /**
-     * Deletes a custom team and its template rows (their template raters cascade; the template_pics FK would only null
-     * teamId and leave orphan rows). Refused while a not-cancelled survey that has not ended rates the team. A team still
-     * referenced by ended or cancelled surveys is deactivated instead (csi_period_ratees.teamId has no ON DELETE, and
-     * those results must stay readable).
+     * Deletes a team (SITE or CUSTOM) with its template rows (their template raters cascade; the template_pics FK would
+     * only null teamId and leave orphan rows). Refused, naming the surveys, while a running or answered survey rates the
+     * team. Its ratee (with pairs and question snapshots) is first removed from draft / not-yet-started surveys. A team
+     * still referenced by ended or cancelled surveys is deactivated instead (csi_period_ratees.teamId has no ON DELETE,
+     * and those results must stay readable).
      */
     async remove(scope: ServiceScope, id: string): Promise<void> {
         await this.dataSource.transaction(async (manager) => {
             const team = await this.findTeam(manager, scope, id);
-            if (team.kind !== CsiTeamKind.CUSTOM) throw new BadRequestException('Hanya tim custom yang bisa dihapus');
-            const periods = await this.periodsRating(manager, team.id);
-            const now = this.clock();
-            const running = periods.some((period) => period.publishStatus !== CsiPeriodPublishStatus.CANCELLED && computeStatus(period, now) !== 'ENDED');
-            if (running) throw new BadRequestException(TEAM_IN_USE_MESSAGE);
+            const plan = await this.planDelete(manager, team);
+            if (plan.blocked.length) throw new BadRequestException(`${TEAM_IN_USE_MESSAGE}: ${plan.blocked.map((survey) => survey.title).join(', ')}`);
+            // Re-checked under the period row lock: a respondent submitting meanwhile turns the delete into a 409.
+            for (const survey of plan.draftSurveys) await lockUnlockedPeriod(manager, survey.periodId);
+            if (plan.draftRateeIds.length) {
+                const periodRateeId = In(plan.draftRateeIds);
+                await manager.getRepository(CsiPeriodRaterRatee).delete({ periodRateeId });
+                await manager.getRepository(CsiPeriodRateeDimension).delete({ periodRateeId });
+                await manager.getRepository(CsiPeriodRatee).delete({ id: periodRateeId });
+            }
             await manager.getRepository(CsiAssignmentTemplatePic).delete({ teamId: team.id });
-            if (periods.length) await manager.getRepository(CsiTeam).save({ ...team, isActive: false });
+            if (plan.finishedSurveys) await manager.getRepository(CsiTeam).save({ ...team, isActive: false });
             else await manager.getRepository(CsiTeam).delete({ id: team.id });
         });
     }
@@ -141,11 +172,29 @@ export class CsiTeamService {
         return resolved;
     }
 
-    /** Periods (any status) that rate this team. */
-    private async periodsRating(manager: EntityManager, teamId: string): Promise<CsiPeriod[]> {
-        const ratees = await manager.getRepository(CsiPeriodRatee).find({ where: { teamId }, select: { id: true, periodId: true } });
+    /** Sorts every survey rating the team into finished (ended/cancelled), blocked (answered or running) and draft. */
+    private async planDelete(manager: EntityManager, team: CsiTeam): Promise<ImpactPlan> {
+        const ratees = await manager.getRepository(CsiPeriodRatee).find({ where: { teamId: team.id }, select: { id: true, periodId: true } });
         const periodIds = [...new Set(ratees.map((ratee) => ratee.periodId))];
-        return periodIds.length ? manager.getRepository(CsiPeriod).find({ where: { id: In(periodIds) } }) : [];
+        const periods = periodIds.length ? await manager.getRepository(CsiPeriod).find({ where: { id: In(periodIds) } }) : [];
+        const answered = new Set(periodIds.length
+            ? (await manager.getRepository(CsiResponse).find({ where: { periodId: In(periodIds) }, select: { id: true, periodId: true } })).map((row) => row.periodId)
+            : []);
+        const now = this.clock();
+        const plan: ImpactPlan = { blocked: [], draftSurveys: [], finishedSurveys: 0, draftRateeIds: [] };
+        const ordered = [...periods].sort((a, b) => a.startDate.localeCompare(b.startDate) || a.title.localeCompare(b.title));
+        for (const period of ordered) {
+            const status = computeStatus(period, now);
+            const ref = { periodId: period.id, title: period.title };
+            if (period.publishStatus === CsiPeriodPublishStatus.CANCELLED || status === 'ENDED') plan.finishedSurveys += 1;
+            else if (answered.has(period.id)) plan.blocked.push({ ...ref, reason: 'answered' });
+            else if (period.publishStatus === CsiPeriodPublishStatus.PUBLISHED && status === 'ACTIVE') plan.blocked.push({ ...ref, reason: 'running' });
+            else {
+                plan.draftSurveys.push(ref);
+                plan.draftRateeIds.push(...ratees.filter((ratee) => ratee.periodId === period.id).map((ratee) => ratee.id));
+            }
+        }
+        return plan;
     }
 
     /** Checks active and deactivated custom teams alike: a name never matches two teams of a site (template import links by name). */
