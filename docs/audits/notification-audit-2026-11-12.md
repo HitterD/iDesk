@@ -49,3 +49,35 @@ staf (`/tickets/:id`, `/hardware-requests/:id`, `/eform-access/:id`, `/zoom-cale
 resolver memindahkannya ke portal pembaca (`/client`, `/manager`) dan memetakan link lama (`/vpn-access`, `/renewals/:id`,
 `/eform/requests/:id`, `/zoom`). Dipakai oleh lonceng, toast, banner kritis, action item, klik push (`?nid=`),
 `ProtectedRoute`, dan route catch-all — jadi link lama di email/notif yang sudah tersimpan juga ikut benar.
+
+## Status implementasi
+
+| PR | Branch | Isi |
+|---|---|---|
+| PR1 | `HitterD/notification-pr1-redirect` | Resolver klik tunggal (`portalEquivalent`), link sumber diperbaiki, Zoom lewat NotificationService, badge kritis + reconnect, suara kritis, kebocoran banner/push, email link absolut, migrasi kategori e-form |
+| PR2 | `HitterD/notification-pr2-recipients` | `findStaffAtSite` (site + lintas site, fail-closed), `findUsersWithPageAccess`, email e-form tunggal, renewal/VPN/hardware/SLA per penanggung jawab, batching chat (in-app grouped, push 2 menit, email digest 15 menit/1 jam), Zoom seri 1 email + pengingat 15 menit, `runOncePerPeriod` untuk cron |
+| PR3 | `HitterD/notification-pr3-preferences` | `NotificationPreferenceGate` di semua kanal, quiet hours, DTO tervalidasi, merge per tipe, push default on, SJA satu tab |
+| PR4 | `HitterD/notification-pr4-retention` | Retensi malam (read 90 hari, unread 180 hari, log 30 hari, push mati 7 hari), list/count di SQL, kode mati dihapus |
+
+PR bertumpuk (PR2 di atas PR1, dst.); merge berurutan.
+
+### Migrasi baru (jalan otomatis di production)
+
+- `1794300000000-NotificationEformCategoryFix` — tipe `EFORM_EXPIRY_REMINDER`, kategori Zoom/E-Form di enum, pindah baris e-form lama ke tab E-Form.
+- `1794310000000-ScheduledJobRuns` — tabel klaim cron.
+- `1794320000000-NotificationEmailedAt` — kolom `emailedAt` + index untuk digest email chat.
+- `1794330000000-ZoomBookingConfirmationSentAt` — `confirmationSentAt`, `reminderSentAt`.
+- `1794340000000-NotificationPushOnByDefault` — push default on, `inApp` → `in_app` di `typeSettings`.
+
+### Perubahan perilaku yang perlu diketahui pengguna
+
+- Pemohon tidak lagi menerima notif in-app "Tiket diterima"; cukup email konfirmasi.
+- Agen tidak lagi menerima "Tiket baru" untuk tiket yang langsung ter-auto-assign ke orang lain.
+- Chat: satu baris per tiket di lonceng; email chat hanya jika belum dibaca 15 menit.
+- Email update tiket hanya saat status berubah.
+- `SLA_ADMIN_EMAIL` tidak dipakai lagi (hapus dari env Coolify bila ada).
+
+### Tidak diubah
+
+- SJA Notifier (aplikasi C#) — hanya cara web mem-forward ke sana.
+- Tipe enum yang tidak pernah dikirim (`CHAT_MESSAGE_RECEIVED`, `RENEWAL_EXPIRED`, `EFORM_MANAGER1_APPROVED`, `EFORM_ICT_CONFIRMED`) dibiarkan: sudah ada di enum DB dan di daftar preferensi; menghapusnya butuh migrasi enum tanpa manfaat bagi pengguna.

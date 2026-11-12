@@ -48,6 +48,15 @@ function replyCountOf(title: string): number {
     const m = /\] (\d+) pesan baru$/.exec(title);
     return m ? Number(m[1]) : 1;
 }
+/**
+ * SQL side of internal-note visibility: a TICKET_NOTE notification counts only while its note exists and the user is
+ * still a member. The full check (ticket access) still runs on the rows that are returned; this keeps lists and
+ * counts in the database instead of loading every notification into memory.
+ */
+const VISIBLE_NOTE_SQL = `(n.type <> 'TICKET_NOTE' OR EXISTS (
+    SELECT 1 FROM ticket_note_members m JOIN ticket_notes tn ON tn.id = m."noteId"
+    WHERE m."noteId"::text = n."referenceId" AND m."userId"::text = n."userId" AND tn."deletedAt" IS NULL))`;
+
 /** Upper bound for the unread list; the unread count endpoint reports the real total. */
 const MAX_UNREAD_LIST = 100;
 
@@ -197,13 +206,10 @@ export class NotificationService {
         const page = filters?.page || 1;
         const skip = (page - 1) * limit;
 
-        if (this.noteVisibility) {
-            const visible = await this.noteVisibility.filter(userId, await query.getMany());
-            return { data: visible.slice(skip, skip + limit), total: visible.length, page, limit };
-        }
-        query.take(limit).skip(skip);
-        const [data, total] = await query.getManyAndCount();
-        return { data, total, page, limit };
+        query.andWhere(VISIBLE_NOTE_SQL).take(limit).skip(skip);
+        const [rows, total] = await query.getManyAndCount();
+        const data = this.noteVisibility ? await this.noteVisibility.filter(userId, rows) : rows;
+        return { data, total: total - (rows.length - data.length), page, limit };
     }
 
     async bulkDelete(ids: string[], userId: string): Promise<void> {
@@ -271,82 +277,46 @@ export class NotificationService {
         }
     }
 
-    private async visibleCounts(userId: string, unreadOnly: boolean): Promise<Record<NotificationCategory, number>> {
-        const rows = await this.notificationRepo.find({ where: { userId, ...(unreadOnly ? { isRead: false } : {}) } });
-        const visible = this.noteVisibility ? await this.noteVisibility.filter(userId, rows) : rows;
+    private async countByCategory(userId: string, unreadOnly: boolean): Promise<Record<NotificationCategory, number>> {
+        const query = this.notificationRepo
+            .createQueryBuilder('n')
+            .select('n.category', 'category')
+            .addSelect('COUNT(*)', 'count')
+            .where('n.userId = :userId', { userId })
+            .andWhere(VISIBLE_NOTE_SQL)
+            .groupBy('n.category');
+        if (unreadOnly) query.andWhere('n.isRead = false');
+        const results = await query.getRawMany();
         const counts = Object.fromEntries(Object.values(NotificationCategory).map(category => [category, 0])) as Record<NotificationCategory, number>;
-        for (const row of visible) counts[row.category]++;
+        for (const row of results) counts[row.category as NotificationCategory] = parseInt(row.count, 10);
         return counts;
     }
 
     async countUnreadByCategory(userId: string): Promise<Record<NotificationCategory, number>> {
-        if (this.noteVisibility) return this.visibleCounts(userId, true);
-        const results = await this.notificationRepo
-            .createQueryBuilder('n')
-            .select('n.category', 'category')
-            .addSelect('COUNT(*)', 'count')
-            .where('n.userId = :userId', { userId })
-            .andWhere('n.isRead = false')
-            .groupBy('n.category')
-            .getRawMany();
-
-        const counts: Record<NotificationCategory, number> = {
-            [NotificationCategory.CATEGORY_TICKET]: 0,
-            [NotificationCategory.CATEGORY_RENEWAL]: 0,
-            [NotificationCategory.CATEGORY_HARDWARE]: 0,
-            [NotificationCategory.CATEGORY_ZOOM]: 0,
-            [NotificationCategory.CATEGORY_EFORM]: 0,
-        };
-
-        for (const row of results) {
-            counts[row.category as NotificationCategory] = parseInt(row.count, 10);
-        }
-
-        return counts;
+        return this.countByCategory(userId, true);
     }
 
     async countTotalByCategory(userId: string): Promise<Record<NotificationCategory, number>> {
-        if (this.noteVisibility) return this.visibleCounts(userId, false);
-        const results = await this.notificationRepo
-            .createQueryBuilder('n')
-            .select('n.category', 'category')
-            .addSelect('COUNT(*)', 'count')
-            .where('n.userId = :userId', { userId })
-            .groupBy('n.category')
-            .getRawMany();
-
-        const counts: Record<NotificationCategory, number> = {
-            [NotificationCategory.CATEGORY_TICKET]: 0,
-            [NotificationCategory.CATEGORY_RENEWAL]: 0,
-            [NotificationCategory.CATEGORY_HARDWARE]: 0,
-            [NotificationCategory.CATEGORY_ZOOM]: 0,
-            [NotificationCategory.CATEGORY_EFORM]: 0,
-        };
-
-        for (const row of results) {
-            counts[row.category as NotificationCategory] = parseInt(row.count, 10);
-        }
-
-        return counts;
+        return this.countByCategory(userId, false);
     }
 
     async findUnreadForUser(userId: string): Promise<Notification[]> {
-        if (this.noteVisibility) {
-            const rows = await this.notificationRepo.find({ where: { userId, isRead: false }, order: { createdAt: 'DESC' } });
-            return (await this.noteVisibility.filter(userId, rows)).slice(0, MAX_UNREAD_LIST);
-        }
-        return this.notificationRepo.find({
-            where: { userId, isRead: false },
-            order: { createdAt: 'DESC' },
-            take: MAX_UNREAD_LIST,
-        });
+        const rows = await this.notificationRepo.createQueryBuilder('n')
+            .where('n.userId = :userId', { userId })
+            .andWhere('n.isRead = false')
+            .andWhere(VISIBLE_NOTE_SQL)
+            .orderBy('n.createdAt', 'DESC')
+            .take(MAX_UNREAD_LIST)
+            .getMany();
+        return this.noteVisibility ? this.noteVisibility.filter(userId, rows) : rows;
     }
 
     async countUnread(userId: string): Promise<number> {
-        if (this.noteVisibility) return Object.values(await this.visibleCounts(userId, true)).reduce((sum, value) => sum + value, 0);
-        return this.notificationRepo.count({
-            where: { userId, isRead: false },
-        });
+        return this.notificationRepo.createQueryBuilder('n')
+            .where('n.userId = :userId', { userId })
+            .andWhere('n.isRead = false')
+            .andWhere(VISIBLE_NOTE_SQL)
+            .getCount();
     }
 
     async markAsRead(id: string, userId: string): Promise<Notification | null> {

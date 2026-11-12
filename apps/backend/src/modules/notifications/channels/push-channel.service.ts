@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { LessThan, Repository } from 'typeorm';
 import * as webpush from 'web-push';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -335,14 +335,15 @@ export class PushChannelService implements INotificationChannel, OnApplicationBo
         return this.publicKey;
     }
 
-    // Cleanup old/inactive subscriptions (can be called via cron)
+    /** Deletes subscriptions that stopped working (gone, or failed too often) more than `olderThanDays` ago. */
     async cleanupInactiveSubscriptions(olderThanDays = 90): Promise<number> {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
 
+        // Older than the cutoff (the old code matched updatedAt exactly, so it never deleted anything).
         const result = await this.pushSubscriptionRepo.delete({
             isActive: false,
-            updatedAt: cutoffDate,
+            updatedAt: LessThan(cutoffDate),
         });
 
         const deleted = result.affected ?? 0;

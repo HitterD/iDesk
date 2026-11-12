@@ -48,7 +48,7 @@ iDesk-main/
 │   │       ├── routes/           ← AppRoutes.tsx (single file, 309 lines)
 │   │       └── styles/           ← CSS modules
 │   │
-│   └── desktop-notifier/ ← Electron tray app (belum digunakan)
+│   (desktop-notifier dihapus 2026-11-12: tidak dipakai; notifikasi desktop lewat SJA Notifier + Web Push)
 │
 ├── startup.bat          ← Dev startup (auto-detect IP, start BE+FE, open browser)
 ├── deploy_database_docker.bat ← DB deployment tool (fresh/migrate/backup/restore)
