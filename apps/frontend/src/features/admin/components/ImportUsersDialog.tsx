@@ -227,7 +227,7 @@ export const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ isOpen, on
                                     Use this template to ensure your data is formatted correctly.<br />
                                     <span className="text-slate-400 dark:text-slate-500">Columns:</span> email, fullName, role, siteCode, departmentCode, employeeId, jobTitle, phoneNumber, isActive<br />
                                     <span className="text-slate-400 dark:text-slate-500">Roles:</span> USER, AGENT, MANAGER, ADMIN<br />
-                                    <span className="text-slate-400 dark:text-slate-500">Sites:</span> SPJ, SMG, KRW, JTB
+                                    <span className="text-slate-400 dark:text-slate-500">Sites:</span> {VALID_SITES.join(', ')}
                                 </p>
                             </div>
 

@@ -15,7 +15,7 @@ export class Site {
     id: string;
 
     @Column({ unique: true, length: 10 })
-    code: string; // SPJ, SMG, KRW, JTB
+    code: string; // SPJ, KRW, SKD, SMG, JTB
 
     @Column({ length: 100 })
     name: string;

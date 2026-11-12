@@ -1,5 +1,6 @@
 import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, Validate, ValidateIf,
     ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
+import { CSI_TEMPLATE_LOCATIONS } from '../org/csi-template-locations';
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -115,17 +116,18 @@ export class CreatePeriodFromTemplateDto {
     endDate: string;
 }
 
-/** A survey spans at most the four HC locations (SMG, KRW, SPJ, JTB): one template each. */
-const MAX_TEMPLATES_PER_PERIOD = 4;
+/** A survey spans at most every HC template location (SPJ, KRW, SKD, SMG, JTB): one template each. */
+const MAX_TEMPLATES_PER_PERIOD = CSI_TEMPLATE_LOCATIONS.length;
+const MAX_TEMPLATES_MESSAGE = `Maksimal ${MAX_TEMPLATES_PER_PERIOD} lokasi`;
 
 export class PreviewPeriodFromTemplatesDto {
-    @IsArray() @ArrayMinSize(1, { message: 'Pilih minimal satu lokasi' }) @ArrayMaxSize(MAX_TEMPLATES_PER_PERIOD, { message: 'Maksimal 4 lokasi' })
+    @IsArray() @ArrayMinSize(1, { message: 'Pilih minimal satu lokasi' }) @ArrayMaxSize(MAX_TEMPLATES_PER_PERIOD, { message: MAX_TEMPLATES_MESSAGE })
     @ArrayUnique(undefined, { message: 'Lokasi tidak boleh duplikat' }) @IsUUID('all', { each: true, message: 'ID template harus berupa UUID' })
     templateIds: string[];
 }
 
 export class CreatePeriodFromTemplatesDto extends CreatePeriodFromTemplateDto {
-    @IsArray() @ArrayMinSize(1, { message: 'Pilih minimal satu lokasi' }) @ArrayMaxSize(MAX_TEMPLATES_PER_PERIOD, { message: 'Maksimal 4 lokasi' })
+    @IsArray() @ArrayMinSize(1, { message: 'Pilih minimal satu lokasi' }) @ArrayMaxSize(MAX_TEMPLATES_PER_PERIOD, { message: MAX_TEMPLATES_MESSAGE })
     @ArrayUnique(undefined, { message: 'Lokasi tidak boleh duplikat' }) @IsUUID('all', { each: true, message: 'ID template harus berupa UUID' })
     templateIds: string[];
 }

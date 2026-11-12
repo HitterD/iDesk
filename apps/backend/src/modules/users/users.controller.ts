@@ -216,7 +216,7 @@ export class UsersController {
     @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
     @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 20, max: 200)' })
     @ApiQuery({ name: 'search', required: false, description: 'Search by name or email' })
-    @ApiQuery({ name: 'siteCode', required: false, description: 'Filter by site code (SPJ, SMG, KRW, JTB)' })
+    @ApiQuery({ name: 'siteCode', required: false, description: 'Filter by site code (SPJ, KRW, SKD, SMG, JTB)' })
     @ApiQuery({ name: 'role', required: false, enum: ['ADMIN', 'AGENT', 'USER', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE', 'MANAGER'], description: 'Filter by role' })
     @ApiQuery({ name: 'sortBy', required: false, description: 'Sort field (fullName, email, createdAt, role)' })
     @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'], description: 'Sort order' })

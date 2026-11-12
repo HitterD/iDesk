@@ -16,7 +16,7 @@ export class CsiAssignmentTemplate {
     @Column({ type: 'varchar', length: 10 })
     scope: ServiceScope;
 
-    /** Site code (SMG, SPJ, KRW, JTB). */
+    /** Site code (SPJ, KRW, SKD, SMG, JTB). */
     @Column({ type: 'varchar', length: 10 })
     locationCode: string;
 

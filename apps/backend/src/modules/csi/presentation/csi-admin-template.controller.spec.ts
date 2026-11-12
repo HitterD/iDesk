@@ -107,8 +107,10 @@ describe('CsiAdminTemplateController bulk contracts', () => {
         const body = (metatype: ArgumentMetadata['metatype']): ArgumentMetadata => ({ type: 'body', metatype });
         await expect(pipe.transform({ templateIds: [ID, OTHER] }, body(PreviewPeriodFromTemplatesDto))).resolves.toBeDefined();
         await expect(pipe.transform({ ...period, templateIds: [ID] }, body(CreatePeriodFromTemplatesDto))).resolves.toBeDefined();
-        const five = ['1', '2', '3', '4', '5'].map((digit) => `${digit}2345678-1234-4234-8234-123456789012`);
-        for (const templateIds of [[], five, [ID, ID], ['bad'], undefined]) {
+        const ids = (count: number) => ['1', '2', '3', '4', '5', '6'].slice(0, count).map((digit) => `${digit}2345678-1234-4234-8234-123456789012`);
+        await expect(pipe.transform({ templateIds: ids(5) }, body(PreviewPeriodFromTemplatesDto))).resolves.toBeDefined();
+        await expect(pipe.transform({ ...period, templateIds: ids(5) }, body(CreatePeriodFromTemplatesDto))).resolves.toBeDefined();
+        for (const templateIds of [[], ids(6), [ID, ID], ['bad'], undefined]) {
             await expect(pipe.transform({ templateIds }, body(PreviewPeriodFromTemplatesDto))).rejects.toBeInstanceOf(BadRequestException);
             await expect(pipe.transform({ ...period, templateIds }, body(CreatePeriodFromTemplatesDto))).rejects.toBeInstanceOf(BadRequestException);
         }

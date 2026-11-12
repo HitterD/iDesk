@@ -91,7 +91,7 @@ export class CsiAdminTemplateController {
         return this.templates.accountSuggestions(hc(req), id, name);
     }
 
-    /** Empty workbook to fill in for a location (SMG/SPJ/KRW/JTB), with its active employees to copy names from. */
+    /** Empty workbook to fill in for a location (SPJ/KRW/SKD/SMG/JTB), with its active employees to copy names from. */
     @Get('blank/:location')
     async blankTemplate(@Req() req: CsiAdminRequest, @Param('location') location: string, @Res() res: Response) {
         const { filename, buffer } = await this.templates.blankWorkbook(hc(req), location);
