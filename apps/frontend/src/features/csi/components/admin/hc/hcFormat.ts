@@ -1,10 +1,20 @@
 import { scoreTone, type CsiScoreBands } from '../../../lib/csiTone';
 
-/** Canonical HC template locations; Jakarta's template/site code is JTB, not JKT. */
+/**
+ * Canonical HC template locations in display order, with the SJA plant name as hint (mirrors the backend
+ * CSI_TEMPLATE_LOCATIONS); Jakarta's template/site code is JTB, not JKT.
+ */
 export const CSI_TEMPLATE_LOCATIONS = [
-    { code: 'SMG', name: 'Semarang' }, { code: 'KRW', name: 'Karawang' },
-    { code: 'SPJ', name: 'Sepanjang' }, { code: 'JTB', name: 'Jakarta' },
+    { code: 'SPJ', name: 'Sepanjang', hint: 'SJA 1' },
+    { code: 'KRW', name: 'Karawang', hint: 'SJA 2' },
+    { code: 'SKD', name: 'Sukodono', hint: 'SJA 3' },
+    { code: 'SMG', name: 'Semarang', hint: 'SJA Semarang' },
+    { code: 'JTB', name: 'Jakarta', hint: 'SJA Jatibaru' },
 ] as const;
+
+/** SJA hint of a site / template location code, or null for other codes. */
+export const locationHint = (code: string | null | undefined): string | null =>
+    CSI_TEMPLATE_LOCATIONS.find((row) => row.code === code?.toUpperCase())?.hint ?? null;
 
 /** Acronyms kept upper-case after title-casing (HC, GA, PSW, HSE, SJA, ...). */
 const ACRONYMS = new Set(['HC', 'HCC', 'HCD', 'HCS', 'HCBP', 'GA', 'PSW', 'HSE', 'SJA', 'IR', 'TA', 'QC', 'QA', 'PPIC', 'ICT', 'RTD', 'BM', 'ATK', 'PPJP', 'CSV', 'HRIS', 'DAFT', 'R&D', 'S&OE', 'FGW', 'MT']);

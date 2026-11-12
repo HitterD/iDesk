@@ -350,6 +350,12 @@ export class UserCrudService implements OnModuleInit {
         return user || undefined;
     }
 
+    /** Code of a site by id (null when the site no longer exists). */
+    async findSiteCode(siteId: string): Promise<string | null> {
+        const site = await this.siteRepo.findOne({ where: { id: siteId }, select: { id: true, code: true } });
+        return site?.code ?? null;
+    }
+
     async findByEmployeeId(employeeId: string): Promise<User | undefined> {
         const user = await this.userRepo.findOne({ where: { employeeId } });
         return user || undefined;

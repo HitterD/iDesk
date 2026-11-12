@@ -66,3 +66,16 @@ describe('PicsTab PICs without bagian', () => {
         expect(screen.queryByText(/belum punya bagian/i)).toBeNull();
     });
 });
+
+describe('PicsTab rename', () => {
+    it('renames a PIC from its row', async () => {
+        fx.update.mockResolvedValue({ ...PIC, fullName: 'Rara Pongdatu' });
+        renderWithQuery(<PicsTab scope="hc" />);
+        await userEvent.click(await screen.findByRole('button', { name: 'Ubah nama Rara Kurnia Maharani Pongdatu' }));
+        const input = screen.getByRole('textbox', { name: 'Nama PIC' });
+        await userEvent.clear(input);
+        await userEvent.type(input, 'Rara Pongdatu');
+        await userEvent.click(screen.getByRole('button', { name: 'Simpan nama' }));
+        expect(fx.update).toHaveBeenCalledWith('hc', 'pic-1', { fullName: 'Rara Pongdatu' });
+    });
+});

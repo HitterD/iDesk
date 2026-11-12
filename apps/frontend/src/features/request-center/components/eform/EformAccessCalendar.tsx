@@ -62,6 +62,7 @@ export function extractSite(req: EFormRequest): string {
   if (text.includes('SMG') || text.includes('SEMARANG')) return 'SMG';
   if (text.includes('KRW') || text.includes('KARAWANG')) return 'KRW';
   if (text.includes('JTB') || text.includes('JATAKE')) return 'JTB';
+  if (text.includes('SKD') || text.includes('SUKODONO')) return 'SKD';
   return 'SPJ';
 }
 
@@ -70,6 +71,7 @@ export const SITE_BADGE_COLORS: Record<string, string> = {
   SMG: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
   KRW: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
   JTB: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
+  SKD: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
 };
 
 const KNOWN_SITES = [
@@ -78,6 +80,7 @@ const KNOWN_SITES = [
   { code: 'SMG', label: 'SMG (Semarang)' },
   { code: 'KRW', label: 'KRW (Karawang)' },
   { code: 'JTB', label: 'JTB (Jatake)' },
+  { code: 'SKD', label: 'SKD (Sukodono)' },
 ];
 
 const TYPE_THEMES: Record<string, { bg: string; border: string; text: string; badge: string; dot: string }> = {

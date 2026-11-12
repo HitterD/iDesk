@@ -7,6 +7,7 @@ import Papa from 'papaparse';
 import { read, utils } from 'xlsx';
 import api from '../../../lib/api';
 import { cn } from '@/lib/utils';
+import { VALID_ROLES, VALID_SITES, validateRow, type ParsedRow, type RowValidation } from './importUsersValidation';
 
 interface ImportUsersDialogProps {
     isOpen: boolean;
@@ -20,73 +21,9 @@ interface ImportSummary {
     errors: string[];
 }
 
-interface ParsedRow {
-    email: string;
-    fullName: string;
-    role: string;
-    siteCode: string;
-    departmentCode?: string;
-    employeeId?: string;
-    jobTitle?: string;
-    phoneNumber?: string;
-    isActive?: string;
-}
-
-interface RowValidation {
-    row: ParsedRow;
-    errors: string[];
-    warnings: string[];
-    isValid: boolean;
-}
-
 type DialogStep = 'upload' | 'preview' | 'result';
 
-const VALID_ROLES = ['USER', 'AGENT', 'MANAGER', 'ADMIN'];
-const VALID_SITES = ['SPJ', 'SMG', 'KRW', 'JTB'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// Validate a single row
-const validateRow = (row: ParsedRow, index: number): RowValidation => {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-
-    // Required field: email
-    if (!row.email || !row.email.trim()) {
-        errors.push('Email is required');
-    } else if (!EMAIL_REGEX.test(row.email.trim())) {
-        errors.push('Invalid email format');
-    }
-
-    // Required field: fullName
-    if (!row.fullName || !row.fullName.trim()) {
-        errors.push('Full name is required');
-    }
-
-    // Required field: role (with validation)
-    if (!row.role || !row.role.trim()) {
-        errors.push('Role is required');
-    } else if (!VALID_ROLES.includes(row.role.toUpperCase().trim())) {
-        errors.push(`Invalid role: ${row.role}. Must be one of: ${VALID_ROLES.join(', ')}`);
-    }
-
-    // Optional but validated: siteCode
-    if (row.siteCode && row.siteCode.trim() && !VALID_SITES.includes(row.siteCode.toUpperCase().trim())) {
-        warnings.push(`Unknown site: ${row.siteCode}`);
-    }
-
-    // Optional warnings
-    if (!row.siteCode || !row.siteCode.trim()) {
-        warnings.push('No site assigned');
-    }
-
-    return {
-        row,
-        errors,
-        warnings,
-        isValid: errors.length === 0
-    };
-};
 
 export const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ isOpen, onClose }) => {
     const queryClient = useQueryClient();
@@ -158,7 +95,7 @@ export const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ isOpen, on
                 }
 
                 setTotalRows(json.length);
-                const validatedRows = json.map((row, idx) => validateRow(row, idx));
+                const validatedRows = json.map((row) => validateRow(row));
                 setPreviewData(validatedRows);
                 setStep('preview');
                 setIsParsing(false);
@@ -290,7 +227,7 @@ export const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ isOpen, on
                                     Use this template to ensure your data is formatted correctly.<br />
                                     <span className="text-slate-400 dark:text-slate-500">Columns:</span> email, fullName, role, siteCode, departmentCode, employeeId, jobTitle, phoneNumber, isActive<br />
                                     <span className="text-slate-400 dark:text-slate-500">Roles:</span> USER, AGENT, MANAGER, ADMIN<br />
-                                    <span className="text-slate-400 dark:text-slate-500">Sites:</span> SPJ, SMG, KRW, JTB
+                                    <span className="text-slate-400 dark:text-slate-500">Sites:</span> {VALID_SITES.join(', ')}
                                 </p>
                             </div>
 

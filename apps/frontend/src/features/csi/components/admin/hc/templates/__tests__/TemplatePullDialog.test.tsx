@@ -56,9 +56,9 @@ describe('TemplatePullDialog', () => {
         expect(within(dialog).getByText('5')).toBeInTheDocument();
         expect(within(dialog).getByText(/1 penilai berada di site lain/)).toBeInTheDocument();
         expect(within(dialog).getByText(/2 penilai belum dikonfirmasi/)).toBeInTheDocument();
-        expect((await api()).applyTemplates).toHaveBeenLastCalledWith('hc', 'p1', { templateIds: ['t-smg', 't-krw'], replaceNonPic: false }, false);
+        expect((await api()).applyTemplates).toHaveBeenLastCalledWith('hc', 'p1', { templateIds: ['t-krw', 't-smg'], replaceNonPic: false }, false);
         await userEvent.click(within(dialog).getByRole('button', { name: 'Terapkan' }));
-        expect((await api()).applyTemplates).toHaveBeenLastCalledWith('hc', 'p1', { templateIds: ['t-smg', 't-krw'], replaceNonPic: false }, true);
+        expect((await api()).applyTemplates).toHaveBeenLastCalledWith('hc', 'p1', { templateIds: ['t-krw', 't-smg'], replaceNonPic: false }, true);
         expect(await within(dialog).findByText('Tersimpan.')).toBeInTheDocument();
         expect(within(dialog).getByRole('button', { name: 'Terapkan' })).toBeDisabled();
     });

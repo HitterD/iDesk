@@ -91,7 +91,7 @@ export class CsiAdminTemplateController {
         return this.templates.accountSuggestions(hc(req), id, name);
     }
 
-    /** Empty workbook to fill in for a location (SMG/SPJ/KRW/JTB), with its active employees to copy names from. */
+    /** Empty workbook to fill in for a location (SPJ/KRW/SKD/SMG/JTB), with its active employees to copy names from. */
     @Get('blank/:location')
     async blankTemplate(@Req() req: CsiAdminRequest, @Param('location') location: string, @Res() res: Response) {
         const { filename, buffer } = await this.templates.blankWorkbook(hc(req), location);
@@ -111,7 +111,7 @@ export class CsiAdminTemplateController {
     }
 
     /**
-     * Dry run by default. Multipart field `options` (JSON) carries commit / resolutions / prune; the legacy
+     * Dry run by default. Multipart field `options` (JSON) carries commit / resolutions; the legacy
      * `?commit=true` query is still honoured when `options.commit` is absent.
      */
     @Post('import/:location')
@@ -123,7 +123,6 @@ export class CsiAdminTemplateController {
         const options = await parseImportOptions(rawOptions);
         return this.importer.importExcel(scope, location, file.buffer, {
             commit: options.commit ?? commit === 'true', resolutions: toResolutions(options.resolutions),
-            prune: options.prune ?? false, pruneConfirmed: options.pruneConfirmed ?? false,
         });
     }
 

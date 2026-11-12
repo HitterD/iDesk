@@ -2,7 +2,7 @@ import { UserRole } from '../users/enums/user-role.enum';
 
 export const LOKASI_TO_SITE_CODE: Record<string, string> = {
     'SJA-1': 'SPJ',
-    'SJA-3': 'SPJ',
+    'SJA-3': 'SKD',
     'SJA-2': 'KRW',
     'SJA-SMG': 'SMG',
     'SJA-JKT': 'JTB',

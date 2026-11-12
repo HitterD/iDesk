@@ -18,6 +18,7 @@ import { CsiPeriodSite } from '../entities/csi-period-site.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiAssignmentService } from './csi-assignment.service';
 import { lockPeriodRow, lockUnlockedPeriod } from './csi-period-lock.util';
+import { CsiReadinessWarning, enableSectionsWithRatees, hiddenRateeWarnings } from './csi-period-sections.util';
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiSubjectService } from './csi-subject.service';
 import { assertBandOrder, bandsOf } from './csi-score-bands';
@@ -52,7 +53,8 @@ const RATEE_NOT_FOUND_MESSAGE = 'Subjek tidak ditemukan';
 const PG_UNIQUE_VIOLATION = '23505';
 
 export type CsiReadinessKey = 'team' | 'ratees' | 'dimensions' | 'departments' | 'raters';
-export type CsiReadiness = { ready: boolean; checks: Array<{ key: CsiReadinessKey; ok: boolean; label: string }> };
+/** `warnings` never block publishing; they flag ratees a disabled section hides from the raters. */
+export type CsiReadiness = { ready: boolean; checks: Array<{ key: CsiReadinessKey; ok: boolean; label: string }>; warnings: CsiReadinessWarning[] };
 const READINESS_LABELS: Record<CsiReadinessKey, string> = {
     team: 'Penilaian tim punya minimal 1 pertanyaan',
     ratees: 'Minimal 1 orang dinilai',
@@ -78,6 +80,8 @@ type ReadinessEntry = [CsiReadinessKey, boolean];
 export function computeReadiness(input: {
     ratees: Array<{ dimensions: unknown[] }>; raterCount: number; respondentMode: CsiRespondentMode; activeDepartmentCount: number;
     teamEnabled: boolean; individualEnabled: boolean; teamQuestionCount: number; hcSubjectCount?: number;
+    /** TEAM ratees of the period (for the "hidden by a disabled section" warning). */
+    teamRateeCount?: number;
 }): CsiReadiness {
     const hasSubjects = input.hcSubjectCount === undefined ? input.ratees.length > 0 : input.hcSubjectCount > 0;
     // No ratee at all is not "every ratee has a dimension" (no vacuous truth); an HC survey of teams only is.
@@ -92,7 +96,7 @@ export function computeReadiness(input: {
         ...(input.respondentMode === CsiRespondentMode.LISTED ? [['raters', input.raterCount > 0] as ReadinessEntry] : []),
     ];
     const checks = results.map(([key, ok]) => ({ key, ok, label: READINESS_LABELS[key] }));
-    return { ready: checks.every((check) => check.ok), checks };
+    return { ready: checks.every((check) => check.ok), checks, warnings: hiddenRateeWarnings(input) };
 }
 
 const WITH_SITES: FindOptionsRelations<CsiPeriod> = { sites: { site: true } };
@@ -207,6 +211,7 @@ export class CsiPeriodService {
                 teamEnabled: period.teamEnabled, individualEnabled: period.individualEnabled,
                 // One team per site: the check passes only when every site team has at least one question.
                 teamQuestionCount: teamRatees.length ? Math.min(...teamRatees.map((ratee) => ratee.dimensions.length)) : 0,
+                teamRateeCount: teamRatees.length,
                 ...(period.scope === ServiceScope.HC ? { hcSubjectCount: rateesWithDimensions.filter((ratee) => ratee.picId || ratee.kind === CsiRateeKind.TEAM).length } : {}),
             }),
         };
@@ -437,6 +442,7 @@ export class CsiPeriodService {
             }));
             await manager.save(CsiPeriodRateeDimension, saved.flatMap((row, index) => snapshots[index].dimensions.map((dimension, order) =>
                 dimensionRow(row.id, dimension, order))));
+            await enableSectionsWithRatees(manager, id, [CsiRateeKind.PERSON]);
         });
         return this.get(scope, id);
     }
@@ -470,6 +476,7 @@ export class CsiPeriodService {
                 siteId, teamId: team.teamId, displayName: team.name, jobTitle: null, sortOrder: TEAM_SORT_ORDER,
             });
             await manager.save(CsiPeriodRateeDimension, snapshots.map((snapshot, index) => dimensionRow(saved.id, snapshot, index)));
+            await enableSectionsWithRatees(manager, id, [CsiRateeKind.TEAM]);
         }));
         return this.get(scope, id);
     }
@@ -648,8 +655,9 @@ export class CsiPeriodService {
 
     /**
      * Lenient copy: drops users and questions that are no longer active, re-snapshotting their current definition.
-     * Each site team (when it keeps at least one question and its site is in the new period) comes first, named after
-     * its current csi_teams master. Custom teams (HC templates) keep their own team while it is active, after the people.
+     * Each site team (when it keeps at least one question, its site is in the new period and the team was not deleted,
+     * i.e. is still active) comes first, named after its current csi_teams master. Custom teams (HC templates) keep their
+     * own team while it is active, after the people.
      * Per-period overrides (photo/tagline) are not carried over.
      */
     private async copyAssignments(scope: ServiceScope, sourceId: string, siteIds: string[]) {
@@ -660,7 +668,8 @@ export class CsiPeriodService {
         const sourceRaters = await this.periodRaters.find({ where: { periodId: sourceId } });
         const teamSources = sourceRatees.filter((ratee): ratee is CsiPeriodRatee & { siteId: string } =>
             ratee.kind === CsiRateeKind.TEAM && ratee.siteId !== null && siteIds.includes(ratee.siteId));
-        const siteTeamSources = teamSources.filter(isSiteTeamRatee);
+        // A deactivated team was deleted by an admin: copying must not bring it (or a fresh site team) back.
+        const siteTeamSources = teamSources.filter((ratee) => isSiteTeamRatee(ratee) && ratee.team?.isActive !== false);
         const customSources = teamSources.filter((ratee) => !isSiteTeamRatee(ratee) && ratee.team?.isActive);
         const personRatees = sourceRatees.filter((ratee): ratee is CsiPeriodRatee & { userId: string } => ratee.kind !== CsiRateeKind.TEAM && !ratee.picId && ratee.userId !== null);
         const picRatees = sourceRatees.filter((ratee): ratee is CsiPeriodRatee & { picId: string } => ratee.kind !== CsiRateeKind.TEAM && !!ratee.picId);

@@ -52,6 +52,7 @@ export function TemplateEmptyState({ scope, location, bundled, onImport }: {
                     </Button>
                 )}
             </div>
+            {bundled && <p className={MUTED_TEXT}>Menambahkan ke template, tidak mengganti.</p>}
         </div>
     );
 }

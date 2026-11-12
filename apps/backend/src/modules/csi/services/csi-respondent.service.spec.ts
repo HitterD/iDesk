@@ -171,7 +171,7 @@ describe('CsiRespondentService', () => {
             periods as any, periodRaters as any, ratees as any, pairs as any, {} as any, profiles as any, dataSource as any,
         );
         const subjects = new CsiSubjectService(users as any, sites as any, teams as any, profiles as any,
-            memoryRepository<any>([]) as any, memoryRepository<any>([]) as any, memoryRepository<any>([]) as any, memoryRepository<any>([]) as any);
+            memoryRepository<any>([]) as any, memoryRepository<any>([]) as any, memoryRepository<any>([]) as any, memoryRepository<any>([]) as any, {} as any);
         service = new CsiRespondentService(
             periods as any, ratees as any, rateeDimensions as any, periodRaters as any, responses as any,
             departments as any, users as any, dimensions as any, dataSource as any, assignments, subjects, NO_ORG as any,

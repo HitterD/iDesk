@@ -42,7 +42,8 @@ function TemplateEditor({ scope, template, location, onImport, view, onViewChang
     const pending = update.isPending || addRater.isPending || removeRater.isPending || removePic.isPending;
     const { summary } = template;
     return (
-        <div className="grid gap-4">
+        // @container: the PIC card grid takes its column count from this width (settings sidebar already subtracted).
+        <div className="@container grid min-w-0 gap-4">
             {/* Title + summary take the full width; the controls wrap on their own row so the summary never becomes a narrow column. */}
             <div className="grid gap-3 rounded-2xl bg-[hsl(var(--muted)/.45)] p-4">
                 <div className="grid min-w-0 gap-1.5">
@@ -51,11 +52,14 @@ function TemplateEditor({ scope, template, location, onImport, view, onViewChang
                         {summaryItems(summary).map((item) => <li key={item}>{item}</li>)}
                     </ul>
                 </div>
-                <div className="flex flex-wrap items-center justify-end gap-2">
+                {/* View switch left, actions grouped right; on a 15" laptop the action group wraps as one unit. */}
+                <div className="flex flex-wrap items-center gap-2">
                     <SegmentedControl options={VIEW_OPTIONS} value={view} onValueChange={onViewChange} aria-label="Tampilan template" />
-                    <BlankTemplateButton scope={scope} location={location} variant="subtle" />
-                    <Button variant="soft" onClick={onImport}><FileSpreadsheet aria-hidden="true" />Impor Excel</Button>
-                    <Button variant="primary" onClick={() => setApplying(true)}><Play aria-hidden="true" />Gunakan template</Button>
+                    <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                        <BlankTemplateButton scope={scope} location={location} variant="subtle" />
+                        <Button variant="soft" onClick={onImport}><FileSpreadsheet aria-hidden="true" />Impor Excel</Button>
+                        <Button variant="primary" onClick={() => setApplying(true)}><Play aria-hidden="true" />Gunakan template</Button>
+                    </div>
                 </div>
             </div>
             <TemplateIssuesPanel scope={scope} template={template} />
@@ -66,7 +70,8 @@ function TemplateEditor({ scope, template, location, onImport, view, onViewChang
                 return (
                     <section key={code} className="grid gap-2">
                         <h3 className="text-[14px] font-bold">{`${code} · ${SERVICE_NAMES[code]} (${pics.length})`}</h3>
-                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {/* 2 columns from 560px, 3 only from 1180px: a third column below that squeezes the rater rows. */}
+                        <div className="grid grid-cols-1 gap-3 @min-[560px]:grid-cols-2 @min-[1180px]:grid-cols-3">
                             {pics.map((pic) => (
                                 <TemplatePicCard key={pic.id} scope={scope} templateId={template.id} pic={pic} pending={pending}
                                     onServiceFunction={(serviceFunction) => update.mutate({ id: pic.id, serviceFunction })}
@@ -85,20 +90,21 @@ function TemplateEditor({ scope, template, location, onImport, view, onViewChang
     );
 }
 
-/** Always the four template locations, in a fixed order, whether or not a template exists yet. */
+/** Always the five template locations, in a fixed order, whether or not a template exists yet. */
 function LocationTabs({ templates, selected, onSelect }: {
     /** null while loading: no badge rather than a wrong "kosong". */
     templates: CsiTemplate[] | null; selected: string; onSelect: (code: string) => void;
 }) {
     return (
         <div role="tablist" aria-label="Lokasi template" className="flex flex-wrap items-center gap-2">
-            {CSI_TEMPLATE_LOCATIONS.map(({ code, name }) => {
+            {CSI_TEMPLATE_LOCATIONS.map(({ code, name, hint }) => {
                 const template = templates?.find((row) => row.locationCode === code);
                 const active = code === selected;
                 return (
                     <button key={code} type="button" role="tab" aria-selected={active} onClick={() => onSelect(code)}
                         className={cn('idesk-btn', active ? 'is-primary' : 'is-soft')}>
                         {name}
+                        <span className={cn('text-[11.5px] font-normal', active ? 'opacity-80' : MUTED_TEXT)}>{hint}</span>
                         {templates && (
                             <span className={cn('rounded-full px-1.5 text-[11.5px] font-semibold', active ? 'bg-white/20' : 'bg-[hsl(var(--muted))]')}>
                                 {template ? `${template.summary.pics} PIC` : 'kosong'}
@@ -111,6 +117,12 @@ function LocationTabs({ templates, selected, onSelect }: {
     );
 }
 
+/** Without a requested location: the first one with a template, else one with a bundled template, else the first. */
+function defaultLocation(templates: CsiTemplate[], bundled: string[]): string {
+    const has = (check: (code: string) => boolean) => CSI_TEMPLATE_LOCATIONS.find(({ code }) => check(code))?.code;
+    return has((code) => templates.some((row) => row.locationCode === code)) ?? has((code) => bundled.includes(code)) ?? CSI_TEMPLATE_LOCATIONS[0].code;
+}
+
 /**
  * Pengaturan → Template penugasan: per-location lists of HC PICs, their service function and who rates them.
  * Edited here or imported from Excel (dry-run preview first), then used to create a survey or synced (add-only) into one.
@@ -119,10 +131,11 @@ export function TemplatesTab({ scope, initialLocation, initialView }: {
     scope: CsiScopeParam; initialLocation?: string; initialView?: TemplateView;
 }) {
     const { data, isLoading } = useCsiTemplates(scope);
-    const [selected, setSelected] = useState<string>(initialLocation ?? CSI_TEMPLATE_LOCATIONS[0].code);
+    const [picked, setSelected] = useState<string | null>(initialLocation ?? null);
     const [importing, setImporting] = useState(false);
     const [view, setView] = useState<TemplateView>(initialView ?? 'pic');
     const templates = data?.templates ?? [];
+    const selected = picked ?? defaultLocation(templates, data?.bundledAvailable ?? []);
     const location = CSI_TEMPLATE_LOCATIONS.find((row) => row.code === selected) ?? CSI_TEMPLATE_LOCATIONS[0];
     const current = templates.find((row) => row.locationCode === location.code);
     const openImport = () => setImporting(true);

@@ -16,7 +16,7 @@ const STEP_CREATE = 3;
 const NO_IDS: string[] = [];
 
 function CreateStep({ info, locations, report }: { info: SurveyInfo; locations: string[]; report: CsiTemplateApplyReport | null }) {
-    const names = CSI_TEMPLATE_LOCATIONS.filter(({ code }) => locations.includes(code)).map(({ name }) => name).join(', ');
+    const names = CSI_TEMPLATE_LOCATIONS.filter(({ code }) => locations.includes(code)).map(({ name, hint }) => `${name} (${hint})`).join(', ');
     return (
         <div className="grid gap-1.5 text-[13.5px]">
             <p className="font-semibold">{info.title}</p>

@@ -54,15 +54,15 @@ export function locationOfWorkLocation(value: string | null | undefined): CsiOrg
     return null;
 }
 
-/** Fallback when the NIK is not in the sheet: the account's site (Sepanjang hosts SJA 1 and SJA 3; SJA 1 is assumed). */
+/** Fallback when the NIK is not in the sheet: the account's site (Sepanjang = SJA 1, Sukodono = SJA 3). */
 const LOCATION_OF_SITE_CODE: Readonly<Record<string, CsiOrgLocation>> = {
-    SPJ: CsiOrgLocation.SJA1, KRW: CsiOrgLocation.SJA2, SMG: CsiOrgLocation.SJA4, JTB: CsiOrgLocation.JKT,
+    SPJ: CsiOrgLocation.SJA1, KRW: CsiOrgLocation.SJA2, SKD: CsiOrgLocation.SJA3, SMG: CsiOrgLocation.SJA4, JTB: CsiOrgLocation.JKT,
 };
 export const locationOfSiteCode = (code: string | null | undefined) => (code ? LOCATION_OF_SITE_CODE[code.toUpperCase()] ?? null : null);
 
 /** Site code of a Work Location (for PICs without an account). */
 const SITE_CODE_OF_LOCATION: Readonly<Record<CsiOrgLocation, string>> = {
-    SJA1: 'SPJ', SJA2: 'KRW', SJA3: 'SPJ', SJA4: 'SMG', JKT: 'JTB',
+    SJA1: 'SPJ', SJA2: 'KRW', SJA3: 'SKD', SJA4: 'SMG', JKT: 'JTB',
 };
 export const siteCodeOfLocation = (location: CsiOrgLocation | null) => (location ? SITE_CODE_OF_LOCATION[location] : null);
 

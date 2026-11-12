@@ -63,13 +63,13 @@ describe('CsiAdminTemplateController bulk contracts', () => {
         const controller = new CsiAdminTemplateController({} as any, {} as any, importer as any);
         const file = { buffer: Buffer.from('x') } as Express.Multer.File;
         const resolutions = { 'Erna Wati': { as: 'rename', picName: 'ERNA' }, 'TIM A': { as: 'team' } };
-        await controller.importExcel(request, 'krw', file, JSON.stringify({ commit: true, prune: true, resolutions }), 'false');
+        await controller.importExcel(request, 'krw', file, JSON.stringify({ commit: true, resolutions }), 'false');
         expect(importer.importExcel).toHaveBeenLastCalledWith(ServiceScope.HC, 'krw', file.buffer, {
-            commit: true, prune: true, pruneConfirmed: false, resolutions: { 'Erna Wati': { as: 'rename', picName: 'ERNA' }, 'TIM A': { as: 'team' } },
+            commit: true, resolutions: { 'Erna Wati': { as: 'rename', picName: 'ERNA' }, 'TIM A': { as: 'team' } },
         });
         await controller.importExcel(request, 'krw', file, undefined, 'true');
-        expect(importer.importExcel).toHaveBeenLastCalledWith(ServiceScope.HC, 'krw', file.buffer, { commit: true, prune: false, pruneConfirmed: false, resolutions: {} });
-        for (const raw of ['{bad', '[]', '{"commit":"yes"}', '{"extra":1}', '{"resolutions":{"X":{"as":"rename"}}}', '{"resolutions":{"X":{"as":"drop"}}}']) {
+        expect(importer.importExcel).toHaveBeenLastCalledWith(ServiceScope.HC, 'krw', file.buffer, { commit: true, resolutions: {} });
+        for (const raw of ['{bad', '[]', '{"commit":"yes"}', '{"extra":1}', '{"prune":true}', '{"resolutions":{"X":{"as":"rename"}}}', '{"resolutions":{"X":{"as":"drop"}}}']) {
             await expect(parseImportOptions(raw)).rejects.toThrow('Opsi impor tidak valid');
         }
         await expect(controller.importExcel(request, 'krw', {} as Express.Multer.File)).rejects.toThrow('File Excel wajib diunggah');
@@ -107,8 +107,10 @@ describe('CsiAdminTemplateController bulk contracts', () => {
         const body = (metatype: ArgumentMetadata['metatype']): ArgumentMetadata => ({ type: 'body', metatype });
         await expect(pipe.transform({ templateIds: [ID, OTHER] }, body(PreviewPeriodFromTemplatesDto))).resolves.toBeDefined();
         await expect(pipe.transform({ ...period, templateIds: [ID] }, body(CreatePeriodFromTemplatesDto))).resolves.toBeDefined();
-        const five = ['1', '2', '3', '4', '5'].map((digit) => `${digit}2345678-1234-4234-8234-123456789012`);
-        for (const templateIds of [[], five, [ID, ID], ['bad'], undefined]) {
+        const ids = (count: number) => ['1', '2', '3', '4', '5', '6'].slice(0, count).map((digit) => `${digit}2345678-1234-4234-8234-123456789012`);
+        await expect(pipe.transform({ templateIds: ids(5) }, body(PreviewPeriodFromTemplatesDto))).resolves.toBeDefined();
+        await expect(pipe.transform({ ...period, templateIds: ids(5) }, body(CreatePeriodFromTemplatesDto))).resolves.toBeDefined();
+        for (const templateIds of [[], ids(6), [ID, ID], ['bad'], undefined]) {
             await expect(pipe.transform({ templateIds }, body(PreviewPeriodFromTemplatesDto))).rejects.toBeInstanceOf(BadRequestException);
             await expect(pipe.transform({ ...period, templateIds }, body(CreatePeriodFromTemplatesDto))).rejects.toBeInstanceOf(BadRequestException);
         }

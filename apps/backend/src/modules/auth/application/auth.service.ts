@@ -20,6 +20,11 @@ import { RefreshTokenClaims } from './refresh-session.types';
 
 export type { LoginValidationResult } from './auth-validation.types';
 
+/** Site assumed when an account's site cannot be determined (main server location). */
+const DEFAULT_SITE_CODE = 'SPJ';
+/** Site codes recognised in an email address when the account has no site, checked in this order. */
+const EMAIL_SITE_HINTS = ['KRW', 'JTB', 'SMG', 'SKD'] as const;
+
 
 @Injectable()
 export class AuthService {
@@ -187,6 +192,16 @@ export class AuthService {
         return this.login(toValidatedUser(user), request, true);
     }
 
+    /**
+     * Site code for S2S callers: the account's site from the sites table (so new sites such as SKD need no code change);
+     * an unknown site id falls back to SPJ, an account without site is guessed from its email (legacy behaviour).
+     */
+    async siteCodeOf(user: { siteId?: string | null; email?: string | null }): Promise<string> {
+        if (user.siteId) return (await this.usersService.findSiteCode(user.siteId)) ?? DEFAULT_SITE_CODE;
+        const email = user.email?.toLowerCase() ?? '';
+        return EMAIL_SITE_HINTS.find((code) => email.includes(code.toLowerCase())) ?? DEFAULT_SITE_CODE;
+    }
+
     async resolveNik(nik: string): Promise<{
         userId: string;
         employeeId: string;
@@ -200,17 +215,7 @@ export class AuthService {
         const user = await this.usersService.findByEmployeeId(trimmed);
         if (!user || user.isActive === false) return null;
 
-        const SITE_ID_MAP: Record<string, string> = {
-            '9f8a5c1e-5865-4382-a8fe-8518c0862c4c': 'SPJ',
-            'fc32eaff-0c51-40ee-81a6-33d7d317e0f7': 'KRW',
-            '39b888a1-6d13-446b-b91a-89ae9de7c9d0': 'JTB',
-            'c2b3027b-5506-44f9-9846-a90592b8b8d7': 'SMG',
-        };
-        const siteCode = user.siteId
-            ? (SITE_ID_MAP[user.siteId] || 'SPJ')
-            : (user.email?.toLowerCase().includes('krw') ? 'KRW'
-               : user.email?.toLowerCase().includes('jtb') ? 'JTB'
-               : user.email?.toLowerCase().includes('smg') ? 'SMG' : 'SPJ');
+        const siteCode = await this.siteCodeOf(user);
 
         return {
             userId: user.id,

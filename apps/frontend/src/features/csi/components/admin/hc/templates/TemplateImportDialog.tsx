@@ -8,31 +8,35 @@ import type { CsiTemplateImportReport, CsiTemplatePicResolution } from '../../..
 import type { CsiScopeParam } from '../../../../types';
 import { MUTED_TEXT } from '../../AdminParts';
 import type { TemplateLocation } from './TemplateEmptyState';
-import { isChoiceComplete, TemplateImportPreview, type ImportChoices, type PruneState } from './TemplateImportPreview';
+import { isChoiceComplete, TemplateImportPreview, type ImportChoices } from './TemplateImportPreview';
 
-const NO_PRUNE: PruneState = { prune: false, pruneConfirmed: false };
 const PREVIEW_FAILED = 'Pratinjau gagal dimuat, coba lagi';
 
-/** A dry-run result together with the prune options it was computed for. */
-interface Preview { report: CsiTemplateImportReport; options: PruneState }
+type Resolutions = Record<string, CsiTemplatePicResolution>;
+type Unresolved = CsiTemplateImportReport['unresolved'];
+/** A dry-run result and the resolutions it was computed with. */
+interface Preview { report: CsiTemplateImportReport; key: string }
 
-const sameOptions = (a: PruneState, b: PruneState) => a.prune === b.prune && a.pruneConfirmed === b.pruneConfirmed;
+/** Complete decisions for the names of the file's first preview, in that order (also the cache key of a preview). */
+function resolutionsOf(unresolved: Unresolved, choices: ImportChoices): Resolutions {
+    return Object.fromEntries(unresolved.filter((item) => isChoiceComplete(choices[item.name])).map((item) => [item.name, choices[item.name]]));
+}
+const keyOf = (resolutions: Resolutions) => JSON.stringify(resolutions);
 
 /**
- * Save only commits what was previewed: the report must belong to exactly the current prune options (a failed or
- * pending re-run leaves it stale), every unknown name must be decided, and pruning is refused while rows failed to
- * parse (they would look absent).
+ * Replacing needs a preview computed with exactly the current decisions (a pending or failed re-run leaves it
+ * stale), every unknown name decided, and no problem rows (a skipped row would drop those people from the template).
  */
-function canCommit(preview: Preview | null, choices: ImportChoices, prune: PruneState) {
-    if (!preview || !sameOptions(preview.options, prune)) return false;
-    if (prune.prune && preview.report.problems.length) return false;
-    return preview.report.unresolved.every((item) => isChoiceComplete(choices[item.name]));
+function canCommit(preview: Preview | null, failed: boolean, unresolved: Unresolved, choices: ImportChoices) {
+    if (!preview || failed || preview.report.problems.length) return false;
+    if (preview.key !== keyOf(resolutionsOf(unresolved, choices))) return false;
+    return unresolved.every((item) => isChoiceComplete(choices[item.name]));
 }
 
 /**
- * Excel → template for one location: pick a file, read the dry-run diff, decide unknown names (new team, new PIC or
- * a typo of a suggestion), optionally prune what the file no longer lists, then save. Errors are toasted by the API
- * client; the dialog keeps its state so the user can retry.
+ * Excel → template for one location: pick a file, read the dry-run summary (the file replaces the template), decide
+ * unknown names (new team, new PIC or a typo of a suggestion; each complete decision re-runs the preview so the
+ * counts include it), then replace. Errors are toasted by the API client; the dialog keeps its state for a retry.
  */
 export function TemplateImportDialog({ scope, location, open, onOpenChange }: {
     scope: CsiScopeParam; location: TemplateLocation; open: boolean; onOpenChange: (open: boolean) => void;
@@ -42,18 +46,21 @@ export function TemplateImportDialog({ scope, location, open, onOpenChange }: {
     const latest = useRef(0);
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<Preview | null>(null);
+    // Names to decide come from the file's first preview: later previews resolve them, the list must stay put.
+    const [unresolved, setUnresolved] = useState<Unresolved>([]);
     const [failed, setFailed] = useState(false);
-    const report = preview?.report ?? null;
     const [choices, setChoices] = useState<ImportChoices>({});
-    const [prune, setPrune] = useState<PruneState>(NO_PRUNE);
 
-    /** Only the newest dry run may land: a slow earlier one must not overwrite the prune counts. */
-    const dryRun = async (target: File, nextPrune: PruneState) => {
+    /** Only the newest dry run may land: a slow earlier one must not overwrite the summary. */
+    const dryRun = async (target: File, resolutions: Resolutions, first: boolean) => {
         const request = ++latest.current;
         setFailed(false);
         try {
-            const result = await importer.mutateAsync({ file: target, options: { commit: false, ...nextPrune } });
-            if (request === latest.current) setPreview({ report: result, options: nextPrune });
+            const options = Object.keys(resolutions).length ? { commit: false, resolutions } : { commit: false };
+            const report = await importer.mutateAsync({ file: target, options });
+            if (request !== latest.current) return;
+            setPreview({ report, key: keyOf(resolutions) });
+            if (first) setUnresolved(report.unresolved);
         } catch {
             // The API client toasts the cause; the stale preview stays visible but cannot be saved.
             if (request === latest.current) setFailed(true);
@@ -62,37 +69,35 @@ export function TemplateImportDialog({ scope, location, open, onOpenChange }: {
     const pickFile = (picked: File) => {
         setFile(picked);
         setPreview(null);
+        setUnresolved([]);
         setChoices({});
-        setPrune(NO_PRUNE);
-        void dryRun(picked, NO_PRUNE);
+        void dryRun(picked, {}, true);
     };
-    const changePrune = (next: PruneState) => {
-        setPrune(next);
-        // Both switches change the removal counts (confirmed raters join it), so ask the backend again.
-        // Resolutions stay out of dry runs: the unresolved list must stay put while the user is deciding.
-        if (file) void dryRun(file, next);
+    const choose = (name: string, choice: CsiTemplatePicResolution) => {
+        const next = { ...choices, [name]: choice };
+        setChoices(next);
+        const resolutions = resolutionsOf(unresolved, next);
+        if (file && keyOf(resolutions) !== keyOf(resolutionsOf(unresolved, choices))) void dryRun(file, resolutions, false);
     };
     const save = async () => {
         if (!file) return;
-        // Only names still unresolved in the latest preview; choices for a previous file are dropped on pick.
-        const resolutions: Record<string, CsiTemplatePicResolution> = Object.fromEntries(
-            (report?.unresolved ?? []).map((item) => [item.name, choices[item.name]]).filter(([, choice]) => !!choice));
         try {
-            await importer.mutateAsync({ file, options: { commit: true, ...prune, resolutions } });
-            toast.success(`Template ${location.name} diperbarui`);
+            await importer.mutateAsync({ file, options: { commit: true, resolutions: resolutionsOf(unresolved, choices) } });
+            toast.success(`Template ${location.name} diganti`);
             onOpenChange(false);
         } catch {
             // Already toasted by the API client.
         }
     };
+    const report = preview?.report ?? null;
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[90dvh] max-w-xl grid-rows-[auto_minmax(0,1fr)_auto]">
                 <DialogHeader>
                     <DialogTitle>{`Impor Excel – ${location.name}`}</DialogTitle>
-                    <DialogDescription>Pratinjau dulu; template baru berubah setelah Simpan.</DialogDescription>
+                    <DialogDescription>Isi file menggantikan seluruh template lokasi ini. Pratinjau dulu; template berubah setelah Ganti template.</DialogDescription>
                 </DialogHeader>
-                {/* Only the body scrolls: a long unresolved list must not push Simpan/Batal off-screen. */}
+                {/* Only the body scrolls: a long unresolved list must not push the footer buttons off-screen. */}
                 <div className="grid max-h-[60vh] gap-4 overflow-y-auto pr-1">
                     <div className="flex flex-wrap items-center gap-2">
                         <input ref={input} type="file" accept=".xlsx" aria-label="File Excel" className="hidden" onChange={(event) => {
@@ -106,14 +111,13 @@ export function TemplateImportDialog({ scope, location, open, onOpenChange }: {
                         <span className={MUTED_TEXT}>{importer.isPending ? 'Membaca file…' : file?.name ?? 'Belum ada file'}</span>
                     </div>
                     {report && (
-                        <TemplateImportPreview report={report} choices={choices} prune={prune} onPrune={changePrune}
-                            onChoose={(name, choice) => setChoices((current) => ({ ...current, [name]: choice }))} />
+                        <TemplateImportPreview report={report} unresolved={unresolved} locationName={location.name} choices={choices} onChoose={choose} />
                     )}
                     {failed && <p role="alert" className="text-[13px] font-medium text-[hsl(var(--destructive))]">{PREVIEW_FAILED}</p>}
                 </div>
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Batal</Button>
-                    <Button variant="primary" disabled={importer.isPending || !canCommit(preview, choices, prune)} onClick={save}>Simpan</Button>
+                    <Button variant="primary" disabled={importer.isPending || !canCommit(preview, failed, unresolved, choices)} onClick={save}>Ganti template</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

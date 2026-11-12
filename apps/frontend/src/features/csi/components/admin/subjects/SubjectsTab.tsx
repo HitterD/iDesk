@@ -10,6 +10,7 @@ import { CSI_SCOPE_OF } from '../../../lib/csiAdmin';
 import { siteTone, toneClasses } from '../../../lib/csiTone';
 import type { CsiScopeParam, CsiSubjectGroup, CsiSubjectView } from '../../../types';
 import { ADMIN_PANEL, MUTED_TEXT, UserMultiPicker } from '../AdminParts';
+import { locationHint } from '../hc/hcFormat';
 import { BulkPhotoDialog } from './BulkPhotoDialog';
 import { CustomTeamSheet, type CustomTeamTarget } from './CustomTeamSheet';
 import { SubjectCard } from './SubjectCard';
@@ -106,11 +107,17 @@ function SiteHeader({ group, title, onAddTeam, adding }: { group: CsiSubjectGrou
     );
 }
 
+/** "HC Sukodono (SJA 3)": HC groups carry the SJA plant name of their site; ICT keeps the plain site name. */
+function siteTitle(scope: CsiScopeParam, group: CsiSubjectGroup): string {
+    const hint = scope === 'hc' ? locationHint(group.siteCode) : null;
+    return `${CSI_SCOPE_OF[scope]} ${group.siteName}${hint ? ` (${hint})` : ''}`;
+}
+
 function SiteSection({ scope, group, onEdit, onEditTeam }: {
     scope: CsiScopeParam; group: CsiSubjectGroup; onEdit: (target: SubjectEditTarget) => void; onEditTeam: (target: CustomTeamTarget) => void;
 }) {
     const createTeam = useCreateCsiTeam(scope);
-    const title = `${CSI_SCOPE_OF[scope]} ${group.siteName}`;
+    const title = siteTitle(scope, group);
     const subjects = subjectsOf(group);
     return (
         <section aria-label={title}>

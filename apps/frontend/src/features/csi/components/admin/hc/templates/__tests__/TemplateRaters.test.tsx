@@ -184,3 +184,34 @@ describe('Template raters', () => {
         ]);
     });
 });
+
+describe('Template card layout (narrow cards)', () => {
+    it('status badge carries a compact dot named by the status label', async () => {
+        renderWithQuery(<TemplatesTab scope="hc" />);
+        const rara = await card(/RARA KURNIA/);
+        const badge = within(rara).getByRole('button', { name: /pilih akun untuk arief noegroho/i });
+        expect(badge).toHaveAccessibleName(/Belum punya akun/);
+        expect(badge.title).toMatch(/^Belum punya akun/);
+        expect(badge.querySelector('[data-status-dot]')).toHaveAttribute('aria-hidden', 'true');
+        // Full label stays a whole word sequence (never cut mid-word): it is hidden as a unit in compact mode.
+        expect(within(badge).getByText('Belum punya akun')).toHaveClass('whitespace-nowrap');
+    });
+
+    it('rater list scrolls vertically only and names are truncated with a tooltip', async () => {
+        renderWithQuery(<TemplatesTab scope="hc" />);
+        const rara = await card(/RARA KURNIA/);
+        const list = within(rara).getAllByRole('list')[0];
+        expect(list).toHaveClass('overflow-y-auto', 'overflow-x-hidden');
+        expect(list).not.toHaveClass('overflow-auto');
+        expect(within(list).getByText('Elvi Cynthia')).toHaveAttribute('title', 'Elvi Cynthia');
+        expect(rara).toHaveClass('min-w-0');
+    });
+
+    it('PIC name is clamped to two lines with the full name as tooltip', async () => {
+        renderWithQuery(<TemplatesTab scope="hc" />);
+        const rara = await card(/RARA KURNIA/);
+        const name = within(rara).getByText('Rara Kurnia');
+        expect(name).toHaveClass('line-clamp-2');
+        expect(name).toHaveAttribute('title', 'Rara Kurnia');
+    });
+});

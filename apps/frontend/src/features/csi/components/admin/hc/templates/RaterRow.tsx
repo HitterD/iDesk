@@ -16,7 +16,13 @@ export const RATER_STATUS: Record<CsiTemplateRaterStatus, { label: string; class
     ambiguous: { label: 'Nama ganda', className: 'bg-[hsl(var(--ticket-red)/.12)] text-[hsl(var(--ticket-red))]', hint: 'Lebih dari satu akun dengan nama ini: klik untuk memilih akun yang benar' },
 };
 const MIN_SEARCH = 2;
-const ICON_BUTTON = 'rounded p-0.5 text-muted-foreground hover:bg-[hsl(var(--muted))]';
+const ICON_BUTTON = 'shrink-0 rounded p-0.5 text-muted-foreground hover:bg-[hsl(var(--muted))]';
+/**
+ * When the PIC card (an `@container`) is narrower than 280px the status badge shrinks to a coloured dot;
+ * the label stays in aria-label and title. Follows the card width, not the viewport.
+ */
+const COMPACT_LABEL = '@max-[280px]:hidden';
+const COMPACT_DOT = 'hidden @max-[280px]:inline-block';
 
 export interface RaterRowProps {
     scope: CsiScopeParam; templateId: string; rater: CsiTemplateRater; pending: boolean;
@@ -28,14 +34,15 @@ export function RaterRow({ scope, templateId, rater, pending, onConfirm, onRemov
     const status = RATER_STATUS[rater.status];
     const name = titleCase(rater.raterName);
     return (
-        <li className="flex items-center gap-2 text-[12.5px]">
-            <span className="min-w-0 flex-1 truncate" title={rater.raterJobTitle ?? undefined}>{name}</span>
+        <li className="flex min-w-0 items-center gap-2 text-[12.5px]">
+            <span className="min-w-0 flex-1 truncate" title={rater.raterJobTitle ? `${name} · ${titleCase(rater.raterJobTitle)}` : name}>{name}</span>
             <RaterAccountPicker scope={scope} templateId={templateId} raterIds={[rater.id]} initialName={rater.raterName}
                 userId={rater.userId} confirmed={rater.status === 'confirmed'} label={`Akun untuk ${name}`}
                 trigger={(
-                    <button type="button" title={status.hint} aria-label={`Pilih akun untuk ${name} (${status.label})`} disabled={pending}
-                        className={cn('shrink-0 rounded-md px-1.5 text-[11px] font-semibold hover:brightness-95', status.className)}>
-                        {status.label}
+                    <button type="button" title={`${status.label}: ${status.hint}`} aria-label={`Pilih akun untuk ${name} (${status.label})`} disabled={pending}
+                        className={cn('inline-flex shrink-0 items-center rounded-md px-1.5 text-[11px] font-semibold hover:brightness-95', status.className)}>
+                        <span className={cn('whitespace-nowrap', COMPACT_LABEL)}>{status.label}</span>
+                        <span data-status-dot aria-hidden="true" className={cn('my-1 h-2 w-2 rounded-full bg-current', COMPACT_DOT)} />
                     </button>
                 )} />
             {rater.status === 'ok' && (

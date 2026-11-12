@@ -10,7 +10,7 @@ describe('hris-mapping', () => {
     describe('resolveSiteCode', () => {
         it.each([
             ['SJA-1', 'SPJ'],
-            ['SJA-3', 'SPJ'],
+            ['SJA-3', 'SKD'],
             ['SJA-2', 'KRW'],
             ['SJA-SMG', 'SMG'],
             ['SJA-JKT', 'JTB'],

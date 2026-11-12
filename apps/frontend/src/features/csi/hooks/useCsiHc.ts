@@ -3,7 +3,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { CsiHcApi } from '../api/csiHc.api';
 import { CsiApi } from '../api/csi.api';
 import type { CreateCsiCustomTeam, CsiScopeParam, CsiTeamMemberInput, UpdateCsiCustomTeam } from '../types';
-import type { CreateCsiPeriodFromTemplates, CsiTemplateImportOptions, CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
+import type { CreateCsiPeriodFromTemplates, CsiTemplateImportOptions, CsiUnitRule, SetCsiPeriodPics, UpdateCsiPic } from '../hcTypes';
 
 const keys = queryKeys.csi;
 const picsKey = (scope: CsiScopeParam, includeInactive = false) => ['csi', scope, 'pics', includeInactive] as const;
@@ -73,8 +73,21 @@ export function useCreateCustomTeam(scope: CsiScopeParam) {
 export function useUpdateCustomTeam(scope: CsiScopeParam) {
     return useTemplateSubjectsMutation(scope, ({ id, ...body }: UpdateCsiCustomTeam & { id: string }) => CsiApi.updateCustomTeam(scope, id, body));
 }
-export function useDeleteCustomTeam(scope: CsiScopeParam) {
-    return useTemplateSubjectsMutation(scope, (id: string) => CsiApi.deleteCustomTeam(scope, id));
+/** Deletes a SITE or CUSTOM team; draft surveys lose its ratee, so the period list is refreshed too. */
+export function useDeleteTeam(scope: CsiScopeParam) {
+    const client = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => CsiApi.deleteCustomTeam(scope, id),
+        onSuccess: () => Promise.all([templatesKey(scope), keys.subjects(scope), keys.periodDetails(scope), keys.periods(scope)].map((queryKey) =>
+            client.invalidateQueries({ queryKey }))),
+    });
+}
+/** Fresh on every open: survey state changes while the admin looks at the sheet. */
+export function useTeamDeleteImpact(scope: CsiScopeParam, teamId: string | null) {
+    return useQuery({
+        queryKey: [...keys.subjects(scope), 'delete-impact', teamId], queryFn: () => CsiApi.teamDeleteImpact(scope, teamId!),
+        enabled: !!teamId, staleTime: 0, gcTime: 0,
+    });
 }
 export function useSetCustomTeamMembers(scope: CsiScopeParam) {
     return useTemplateSubjectsMutation(scope, ({ id, members }: { id: string; members: CsiTeamMemberInput[] }) => CsiApi.setCustomTeamMembers(scope, id, members));
@@ -119,8 +132,17 @@ export function useImportCsiDirectory(scope: CsiScopeParam) {
 export function useUpdateCsiPic(scope: CsiScopeParam) {
     const client = useQueryClient();
     return useMutation({
-        mutationFn: ({ id, ...patch }: { id: string; isActive?: boolean; serviceFunction?: string | null }) => CsiHcApi.updatePic(scope, id, patch),
+        mutationFn: ({ id, ...patch }: UpdateCsiPic & { id: string }) => CsiHcApi.updatePic(scope, id, patch),
         onSuccess: () => client.invalidateQueries({ queryKey: ['csi', scope, 'pics'] }),
+    });
+}
+/** One rename for the template card, "Orang & foto" and PIC HC: template rows and draft survey snapshots follow. */
+export function useRenameCsiPic(scope: CsiScopeParam) {
+    const client = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, fullName }: { id: string; fullName: string }) => CsiHcApi.updatePic(scope, id, { fullName }),
+        onSuccess: () => Promise.all([['csi', scope, 'pics'], templatesKey(scope), keys.subjects(scope), keys.periodDetails(scope)].map((queryKey) =>
+            client.invalidateQueries({ queryKey }))),
     });
 }
 export function useUploadCsiPicPhoto(scope: CsiScopeParam) {

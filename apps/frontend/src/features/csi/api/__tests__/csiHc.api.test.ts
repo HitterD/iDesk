@@ -9,7 +9,7 @@ beforeEach(() => vi.resetAllMocks());
 describe('CsiHcApi template files', () => {
     it('sends the file and JSON options as multipart fields', async () => {
         const file = new File(['workbook'], 'template.xlsx');
-        const options = { commit: false, resolutions: { Person: { as: 'pic' as const } }, prune: true, pruneConfirmed: false };
+        const options = { commit: false, resolutions: { Person: { as: 'pic' as const } } };
         const report = { committed: false };
         vi.mocked(api.post).mockResolvedValue({ data: report });
 

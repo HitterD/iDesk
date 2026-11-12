@@ -1,7 +1,8 @@
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { cn } from '@/lib/utils';
 import { useCsiTemplates } from '../../../hooks/useCsiHc';
-import { AdminSection } from '../AdminParts';
+import { AdminSection, MUTED_TEXT } from '../AdminParts';
 import { CSI_TEMPLATE_LOCATIONS } from './hcFormat';
 import { templateRaterCounts } from './templates/templateRaterCounts';
 
@@ -23,12 +24,12 @@ export function TemplateRatersSummary({ onFix }: { onFix?: (locationCode: string
                 <table className="w-full text-left text-[13px]">
                     <thead><tr>{['Lokasi', 'Penilai unik', 'Terkonfirmasi', 'Cocok otomatis', 'Nama ganda', 'Belum punya akun', 'Tindakan']
                         .map((label) => <th key={label} scope="col" className="px-3 py-2 font-semibold">{label}</th>)}</tr></thead>
-                    <tbody>{CSI_TEMPLATE_LOCATIONS.map(({ code, name }) => {
+                    <tbody>{CSI_TEMPLATE_LOCATIONS.map(({ code, name, hint }) => {
                         const matches = templates.filter((template) => template.locationCode === code);
                         const counts = matches.length ? templateRaterCounts(matches) : null;
                         const action = !counts ? 'Buat template' : counts.issues ? 'Perbaiki di template' : 'Lihat';
                         return <tr key={code} className="border-t border-[hsl(var(--idesk-border))]">
-                            <td className="px-3 py-3 font-medium">{name}</td><CountCells counts={counts} />
+                            <td className="px-3 py-3 font-medium">{name}<span className={cn(MUTED_TEXT, 'block text-[12px] font-normal')}>{hint}</span></td><CountCells counts={counts} />
                             <td className="px-3 py-3"><Button variant="soft" disabled={!onFix} onClick={() => onFix?.(code)}>{action}</Button></td>
                         </tr>;
                     })}</tbody>

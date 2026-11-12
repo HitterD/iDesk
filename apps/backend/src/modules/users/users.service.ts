@@ -83,6 +83,10 @@ export class UsersService {
         return this.userCrudService.findByEmail(email);
     }
 
+    async findSiteCode(siteId: string): Promise<string | null> {
+        return this.userCrudService.findSiteCode(siteId);
+    }
+
     async findByEmployeeId(employeeId: string): Promise<User | undefined> {
         return this.userCrudService.findByEmployeeId(employeeId);
     }

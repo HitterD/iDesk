@@ -13,6 +13,9 @@ import { MailDispatchService } from '../../shared/mail/mail-dispatch.service';
 import { Site } from '../sites/entities/site.entity';
 import { Department } from './entities/department.entity';
 
+/** Site codes offered in the import template (hint + dropdown); keep in sync with the frontend VALID_SITES. */
+const IMPORT_SITE_CODES = ['SPJ', 'KRW', 'SKD', 'SMG', 'JTB'] as const;
+
 const USER_EXPORT_FIELDS: Record<string, { label: string; getCsvValue: (u: any) => string; getXlsxValue: (u: any) => any }> = {
     email: { label: 'Email', getCsvValue: u => u.email, getXlsxValue: u => u.email },
     fullName: { label: 'Full Name', getCsvValue: u => u.fullName, getXlsxValue: u => u.fullName },
@@ -311,7 +314,7 @@ export class UserImportService {
         instSheet.addRow(['Field', 'Valid Values']);
         instSheet.getRow(1).font = { bold: true };
         instSheet.addRow(['Role', 'USER, AGENT, MANAGER, ADMIN']);
-        instSheet.addRow(['Site Code', 'SPJ, SMG, KRW, JTB']);
+        instSheet.addRow(['Site Code', IMPORT_SITE_CODES.join(', ')]);
         instSheet.addRow(['Is Active', 'true, false']);
         
         // Add Data Validation (Dropdowns) for existing rows + 100 extra rows
@@ -325,7 +328,7 @@ export class UserImportService {
             dataSheet.getCell(`D${i}`).dataValidation = {
                 type: 'list',
                 allowBlank: true,
-                formulae: ['"SPJ,SMG,KRW,JTB"']
+                formulae: [`"${IMPORT_SITE_CODES.join(',')}"`]
             };
             dataSheet.getCell(`J${i}`).dataValidation = {
                 type: 'list',

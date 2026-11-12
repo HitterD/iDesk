@@ -17,6 +17,8 @@ export interface CsiSiteSummary { id: string; code: string | null; name: string 
 export interface CsiReadiness {
     ready: boolean;
     checks: Array<{ key: 'team' | 'ratees' | 'dimensions' | 'departments' | 'raters'; ok: boolean; label: string }>;
+    /** Non-blocking: ratees a disabled section hides from the raters (absent on older payloads). */
+    warnings?: Array<{ key: 'teamHidden' | 'peopleHidden'; label: string }>;
 }
 
 interface CsiTimestamps {
@@ -403,6 +405,18 @@ export interface CreateCsiTeam { siteId: string; kind?: 'SITE' | 'CUSTOM'; name?
 export interface CreateCsiCustomTeam { siteId: string; name: string; serviceCode: string }
 export interface UpdateCsiCustomTeam { name?: string; serviceCode?: string }
 export interface CsiTeamMemberInput { userId?: string; name?: string }
+export interface CsiTeamSurveyRef { periodId: string; title: string }
+/**
+ * Dry run of deleting a team: `blocked` surveys (running or already answered) refuse the delete; the team leaves each
+ * draft / not-yet-started survey, and `teamSectionOff` drafts lose their last team (team section switched off);
+ * `finishedSurveys` (ended or cancelled) keep it, so it is deactivated instead.
+ */
+export interface CsiTeamDeleteImpact {
+    blocked: Array<CsiTeamSurveyRef & { reason: 'running' | 'answered' }>;
+    draftSurveys: CsiTeamSurveyRef[];
+    teamSectionOff: CsiTeamSurveyRef[];
+    finishedSurveys: number;
+}
 
 // ─── "Siapa menilai siapa" (respondents × subjects) ─────────────────────────
 export interface CsiRaterMatrix {

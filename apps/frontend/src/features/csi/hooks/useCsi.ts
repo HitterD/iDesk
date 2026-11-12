@@ -163,8 +163,10 @@ export function useSendCsiDashboardReminders(scope: CsiScopeParam) {
     ({ periodId }) => [keys.respondents(scope, periodId), keys.dashboard(scope)]);
 }
 
-// Subject master edits show up in every period detail of the scope.
-const subjectKeys = (scope: CsiScopeParam): QueryKey[] => [keys.subjects(scope), keys.periodDetails(scope)];
+// Subject master edits show up in every period detail of the scope; a PIC rename also in templates and PIC HC.
+const subjectKeys = (scope: CsiScopeParam): QueryKey[] => [
+    keys.subjects(scope), keys.periodDetails(scope), ['csi', scope, 'templates'], ['csi', scope, 'pics'],
+];
 export function useCsiSubjects(scope: CsiScopeParam) {
     return useQuery({ queryKey: keys.subjects(scope), queryFn: () => CsiApi.subjects(scope) });
 }

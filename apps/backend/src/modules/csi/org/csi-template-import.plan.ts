@@ -1,16 +1,7 @@
 import { normalizeName } from './csi-name-match';
 import { normalizeNik } from './csi-org.constants';
-import { normalizeServiceFunction } from './csi-org.service';
 import type { CsiTemplateDraft } from './csi-template-excel';
 import { ClassifiedPic, classifyPics, ClassifyContext, PicResolution } from './csi-template-identity';
-
-type TemplateRow = { id: string; picName: string; serviceCode: string; jobTitle: string | null; serviceFunction: string | null; picNik: string | null; teamId: string | null };
-type RaterRow = { id: string; templatePicId: string; raterName: string; confirmedAt: Date | null };
-export type CsiTemplatePrune = { picIds: string[]; raterIds: string[]; removedNames: string[] };
-export type CsiTemplateDiff = {
-    services: string[]; pics: { added: string[]; changed: string[]; removed: string[] }; raters: { added: number; removed: number };
-    teams: { added: string[] }; newMasterPics: string[];
-};
 
 /** Resolution keys arrive as typed by the admin; the classifier looks them up by normalised PIC name. */
 export function normalizeResolutions(resolutions: Readonly<Record<string, PicResolution>>): Record<string, PicResolution> {
@@ -34,53 +25,109 @@ export function classifyDraft(draft: CsiTemplateDraft, ctx: ClassifyContext) {
     return { pics: [...byName.values()], unresolved };
 }
 
-function isChanged(pic: ClassifiedPic, known: TemplateRow): boolean {
-    const serviceFunction = normalizeServiceFunction(pic.serviceFunction);
-    const nik = normalizeNik(pic.nik);
-    return pic.serviceCode !== known.serviceCode || (pic.jobTitle != null && pic.jobTitle !== known.jobTitle)
-        || (serviceFunction != null && serviceFunction !== known.serviceFunction) || (nik != null && nik !== known.picNik);
+/** Template PIC row as loaded: its owner is the linked PIC master, else the linked team, else the PIC name. */
+type TemplateRow = { id: string; picName: string; picId: string | null; teamId: string | null; picNik: string | null; jobTitle: string | null; serviceFunction: string | null };
+type RaterRow = { templatePicId: string; raterName: string; userId: string | null; confirmedAt: Date | null; confirmedById: string | null };
+/** Account pin of a template rater, with the confirmation that came with it. */
+export type CsiRaterPin = { userId: string; confirmedAt: Date | null; confirmedById: string | null };
+/** Where a file row lands: PIC master / team links, the old row it continues (if any) and each rater's carried pin. */
+export type CsiPlannedRow = {
+    pic: ClassifiedPic; picId: string | null; teamId: string | null; previous: TemplateRow | null;
+    raters: Array<{ rater: ClassifiedPic['raters'][number]; pin: CsiRaterPin | null }>;
+};
+export type CsiReplaceSummary = {
+    before: { pics: number; raters: number }; after: { pics: number; raters: number };
+    pics: { added: string[]; removed: string[] }; keptPins: number; keptConfirmations: number;
+    /** Raters of PICs/teams that stay but are no longer listed under them in the file. */
+    ratersRemoved: Array<{ picName: string; raters: string[] }>;
+};
+/** Links of a file row (known once masters/teams exist; a dry run predicts them) and the active accounts. */
+export type CsiReplaceContext = {
+    picIdOf: (pic: ClassifiedPic) => string | null; teamIdOf: (pic: ClassifiedPic) => string | null;
+    activeIds: ReadonlySet<string>; accountIdOfNik: (nik: string) => string | null;
+    /** Normalised names still waiting for a decision: their old rows are not reported as gone yet. */
+    pending?: ReadonlySet<string>;
+};
+
+const NAME_KEY = 'name:';
+const nameKey = (picName: string) => NAME_KEY + normalizeName(picName);
+function ownerKey(picId: string | null, teamId: string | null, picName: string): string {
+    if (picId) return `pic:${picId}`;
+    return teamId ? `team:${teamId}` : nameKey(picName);
 }
 
 /**
- * Prune is limited to the services present in the file. A PIC that is gone is removed with its raters, unless it is
- * a team row or has a confirmed rater: then only its unconfirmed raters go (both are kept safe unless pruneConfirmed).
+ * A pin survives only while its account is active, and only when the file's rater NIK does not name another account
+ * (the NIK wins for linking).
  */
-export function prunePlan(pics: readonly ClassifiedPic[], rows: readonly TemplateRow[], raters: readonly RaterRow[], pruneConfirmed: boolean): CsiTemplatePrune {
-    const services = new Set(pics.map((pic) => pic.serviceCode));
-    const inFile = new Map(pics.map((pic) => [pic.picName, new Set(pic.raters.map((rater) => rater.name))]));
-    const removable = (rater: RaterRow) => pruneConfirmed || rater.confirmedAt == null;
-    const prune: CsiTemplatePrune = { picIds: [], raterIds: [], removedNames: [] };
-    for (const row of rows) {
-        const fileRaters = inFile.get(row.picName);
-        if (!fileRaters && !services.has(row.serviceCode)) continue;
-        const own = raters.filter((rater) => rater.templatePicId === row.id);
-        const keepRow = !!fileRaters || (!pruneConfirmed && (row.teamId != null || own.some((rater) => rater.confirmedAt != null)));
-        const gone = keepRow ? own.filter((rater) => !fileRaters?.has(rater.raterName) && removable(rater)) : own;
-        prune.raterIds.push(...gone.map((rater) => rater.id));
-        if (!keepRow) { prune.picIds.push(row.id); prune.removedNames.push(row.picName); }
-    }
-    return prune;
+function carriedPin(pin: CsiRaterPin | undefined, nik: string | null, ctx: CsiReplaceContext): CsiRaterPin | null {
+    if (!pin || !ctx.activeIds.has(pin.userId)) return null;
+    const key = normalizeNik(nik);
+    const byNik = key ? ctx.accountIdOfNik(key) : null;
+    return byNik && byNik !== pin.userId ? null : pin;
 }
 
-/** What a commit would do; the prune part is only reported when the admin asked for it. */
-export function diffOf(pics: readonly ClassifiedPic[], rows: readonly TemplateRow[], raters: readonly RaterRow[], prune: CsiTemplatePrune | null): CsiTemplateDiff {
-    const byName = new Map(rows.map((row) => [row.picName, row]));
-    const ratersOf = (id: string) => new Set(raters.filter((rater) => rater.templatePicId === id).map((rater) => rater.raterName));
-    let added = 0;
-    for (const pic of pics) {
-        const known = byName.get(pic.picName);
-        const names = known ? ratersOf(known.id) : new Set<string>();
-        added += pic.raters.filter((rater) => !names.has(rater.name)).length;
+/**
+ * Import = replace: the file becomes the location's whole template. A file row continues the old row with the same
+ * owner (same PIC master, same team, or, for an old unlinked row, the same name); raters of that row keep their
+ * account pin and confirmation when the normalised name matches.
+ */
+export function replacePlan(pics: readonly ClassifiedPic[], rows: readonly TemplateRow[], raters: readonly RaterRow[], ctx: CsiReplaceContext) {
+    const byKey = new Map<string, TemplateRow>();
+    for (const row of rows) {
+        const key = ownerKey(row.picId, row.teamId, row.picName);
+        if (!byKey.has(key)) byKey.set(key, row);
     }
+    // An old row is continued once: a second file row with the same owner starts fresh.
+    const claimed = new Set<string>();
+    const claim = (row: TemplateRow | undefined) => (row && !claimed.has(row.id) ? (claimed.add(row.id), row) : null);
+    const pinsOf = (row: TemplateRow | null) => new Map(raters.filter((rater) => row && rater.templatePicId === row.id && rater.userId)
+        .map((rater) => [normalizeName(rater.raterName), { userId: rater.userId!, confirmedAt: rater.confirmedAt, confirmedById: rater.confirmedById }]));
+    const planned: CsiPlannedRow[] = pics.map((pic) => {
+        const isTeam = pic.kind === 'team';
+        const picId = isTeam ? null : ctx.picIdOf(pic);
+        const teamId = isTeam ? ctx.teamIdOf(pic) : null;
+        const key = ownerKey(picId, teamId, pic.picName);
+        const previous = claim(byKey.get(key)) ?? (key.startsWith(NAME_KEY) ? null : claim(byKey.get(nameKey(pic.picName))));
+        const pins = pinsOf(previous);
+        const unique = [...new Map(pic.raters.map((rater) => [normalizeName(rater.name), rater])).values()];
+        return { pic, picId, teamId, previous, raters: unique.map((rater) => ({ rater, pin: carriedPin(pins.get(normalizeName(rater.name)), rater.nik, ctx) })) };
+    });
+    return { rows: planned, summary: summaryOf(planned, rows, raters, ctx.pending ?? new Set()) };
+}
+
+/** Old raters of a continued row whose normalised name the file no longer lists under it. */
+function ratersRemovedOf(planned: readonly CsiPlannedRow[], raters: readonly RaterRow[]): CsiReplaceSummary['ratersRemoved'] {
+    return planned.flatMap(({ pic, previous, raters: fresh }) => {
+        if (!previous) return [];
+        const kept = new Set(fresh.map(({ rater }) => normalizeName(rater.name)));
+        const gone = raters.filter((rater) => rater.templatePicId === previous.id && !kept.has(normalizeName(rater.raterName)))
+            .map((rater) => rater.raterName).sort((a, b) => a.localeCompare(b));
+        return gone.length ? [{ picName: pic.picName, raters: gone }] : [];
+    });
+}
+
+function summaryOf(planned: readonly CsiPlannedRow[], rows: readonly TemplateRow[], raters: readonly RaterRow[],
+    pending: ReadonlySet<string>): CsiReplaceSummary {
+    const continued = new Set(planned.map((row) => row.previous?.id).filter(Boolean));
+    const pins = planned.flatMap((row) => row.raters.map((rater) => rater.pin).filter((pin): pin is CsiRaterPin => !!pin));
+    return {
+        before: { pics: rows.length, raters: raters.length },
+        after: { pics: planned.length, raters: planned.reduce((sum, row) => sum + row.raters.length, 0) },
+        pics: {
+            added: planned.filter((row) => !row.previous).map((row) => row.pic.picName),
+            removed: rows.filter((row) => !continued.has(row.id) && !pending.has(normalizeName(row.picName))).map((row) => row.picName),
+        },
+        keptPins: pins.length, keptConfirmations: pins.filter((pin) => pin.confirmedAt).length,
+        ratersRemoved: ratersRemovedOf(planned, raters),
+    };
+}
+
+/** Facts of the file itself: services, custom teams to create and PIC masters to create. */
+export function fileFacts(pics: readonly ClassifiedPic[]) {
     return {
         services: [...new Set(pics.map((pic) => pic.serviceCode))].sort(),
-        pics: {
-            added: pics.filter((pic) => !byName.has(pic.picName)).map((pic) => pic.picName),
-            changed: pics.filter((pic) => byName.has(pic.picName) && isChanged(pic, byName.get(pic.picName)!)).map((pic) => pic.picName),
-            removed: prune?.removedNames ?? [],
-        },
-        raters: { added, removed: prune?.raterIds.length ?? 0 },
-        teams: { added: [...new Set(pics.filter((pic) => pic.kind === 'team' && !pic.existingTeamId).map((pic) => pic.picName))] },
+        teamsAdded: [...new Set(pics.filter((pic) => pic.kind === 'team' && !pic.existingTeamId).map((pic) => pic.picName))],
         newMasterPics: pics.filter((pic) => pic.kind === 'pic' && pic.newMasterPic).map((pic) => pic.picName),
     };
 }

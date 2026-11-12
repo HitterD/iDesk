@@ -97,7 +97,8 @@ describe('HcSurveyWizard', () => {
         const dialog = await openLocations();
         expect(within(dialog).getByRole('checkbox', { name: /sepanjang/i })).toBeDisabled();
         expect(within(dialog).getByRole('checkbox', { name: /jakarta/i })).toBeDisabled();
-        expect(within(dialog).getAllByText(/belum ada template/i)).toHaveLength(2);
+        expect(within(dialog).getByRole('checkbox', { name: /sukodono\s*\(SJA 3\)/i })).toBeDisabled();
+        expect(within(dialog).getAllByText(/belum ada template/i)).toHaveLength(3);
         expect(within(dialog).getAllByText('1 PIC · 2 penilai · 1 perlu dicek')).toHaveLength(2);
         expect(within(dialog).getByRole('button', { name: /lanjut/i })).toBeDisabled();
     });
@@ -108,12 +109,12 @@ describe('HcSurveyWizard', () => {
         await userEvent.click(within(dialog).getByRole('checkbox', { name: /karawang/i }));
         await userEvent.click(within(dialog).getByRole('button', { name: /lanjut/i }));
         expect(await within(dialog).findByText('120')).toBeInTheDocument();
-        expect((await api()).previewPeriodFromTemplates).toHaveBeenLastCalledWith('hc', ['t-smg', 't-krw']);
+        expect((await api()).previewPeriodFromTemplates).toHaveBeenLastCalledWith('hc', ['t-krw', 't-smg']);
         expect(within(dialog).getByText('6')).toBeInTheDocument();
         await userEvent.click(within(dialog).getByRole('button', { name: /lanjut/i }));
         await userEvent.click(within(dialog).getByRole('button', { name: /buat survei/i }));
         expect((await api()).createPeriodFromTemplates).toHaveBeenCalledWith('hc', {
-            title: `CSI HC ${new Date().getFullYear()}`, startDate: '2026-12-01', endDate: '2026-12-31', templateIds: ['t-smg', 't-krw'],
+            title: `CSI HC ${new Date().getFullYear()}`, startDate: '2026-12-01', endDate: '2026-12-31', templateIds: ['t-krw', 't-smg'],
         });
         expect(await within(dialog).findByText(/survei dibuat/i)).toBeInTheDocument();
         expect(within(dialog).getByRole('button', { name: /buat survei/i })).toBeDisabled();

@@ -54,6 +54,7 @@ describe('CsiSubjectService', () => {
     let templatePics: ReturnType<typeof memoryRepository>;
     let members: ReturnType<typeof memoryRepository>;
     let service: CsiSubjectService;
+    let picRename: { rename: jest.Mock };
     let unlink: jest.SpyInstance;
 
     beforeEach(() => {
@@ -69,8 +70,10 @@ describe('CsiSubjectService', () => {
         templates = memoryRepository<any>([]);
         templatePics = memoryRepository<any>([]);
         members = memoryRepository<any>([]);
+        // The rename itself (template rows, draft surveys) is covered by csi-pic-rename.service.spec.
+        picRename = { rename: jest.fn(async (_scope: unknown, id: string, name: string) => { pics.rows.find((row) => row.id === id)!.fullName = name; }) };
         service = new CsiSubjectService(users as any, sites as any, teams as any, profiles as any,
-            pics as any, templates as any, templatePics as any, members as any);
+            pics as any, templates as any, templatePics as any, members as any, picRename as any);
         unlink = jest.spyOn(fs.promises, 'unlink').mockResolvedValue(undefined);
     });
 
@@ -135,6 +138,13 @@ describe('CsiSubjectService', () => {
         teams.rows.push({ id: 'c1', scope: ICT, siteId: SPJ.id, kind: 'CUSTOM', name: 'Tim Rekrutmen', isActive: true });
         expect((await service.createTeam(ICT, SPJ.id)).teamId).toBe(T1);
         expect(teams.rows.filter((row) => row.siteId === SPJ.id && row.kind === 'SITE')).toHaveLength(1);
+    });
+
+    it('reactivates a deactivated site team instead of creating a twin', async () => {
+        teams.rows[0].isActive = false;
+        const view = await service.createTeam(ICT, SPJ.id);
+        expect(view.teamId).toBe(T1);
+        expect(teams.rows.filter((row) => row.siteId === SPJ.id)).toEqual([expect.objectContaining({ id: T1, isActive: true })]);
     });
 
     it('creates a site team once with the default name', async () => {
@@ -289,8 +299,17 @@ describe('CsiSubjectService', () => {
                 expect(view).toMatchObject({ key: `pic:${P2}`, tagline: 'Rapi selalu' });
                 expect(pics.rows.find((row) => row.id === P2)!.tagline).toBe('Rapi selalu');
                 expect(profiles.rows).toEqual([]);
-                await expect(service.update(HC, `pic:${P2}`, { name: 'Lain' })).rejects.toBeInstanceOf(BadRequestException);
                 await expect(service.update(ICT, `pic:${P2}`, { tagline: 'x' })).rejects.toBeInstanceOf(NotFoundException);
+            });
+
+            it('pic key name renames the PIC master through the shared rename, tagline saved alongside', async () => {
+                const view = await service.update(HC, `pic:${P2}`, { name: 'Budi Santoso', tagline: 'Baru' });
+                expect(picRename.rename).toHaveBeenCalledWith(HC, P2, 'Budi Santoso');
+                expect(view).toMatchObject({ key: `pic:${P2}`, name: 'Budi Santoso', tagline: 'Baru' });
+                expect(pics.rows.find((row) => row.id === P2)).toMatchObject({ fullName: 'Budi Santoso', tagline: 'Baru' });
+                picRename.rename.mockClear();
+                await expect(service.update(ICT, `pic:${P2}`, { name: 'X Y' })).rejects.toBeInstanceOf(NotFoundException);
+                expect(picRename.rename).not.toHaveBeenCalled();
             });
 
             it('pic photo replaces the previous CSI upload on csi_pics', async () => {

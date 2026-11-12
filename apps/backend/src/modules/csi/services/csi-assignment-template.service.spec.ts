@@ -252,4 +252,22 @@ describe('CsiAssignmentTemplateService', () => {
         expect(csiPics.rows.find((row) => row.nik === '2002')).toMatchObject({ serviceCode: 'HCD', serviceFunction: 'Talent Acquisition & Assessment' });
         expect(pics.rows.find((row) => row.picName === 'JENNY ERINE VALENTINA')!.picId).toBe(csiPics.rows.find((row) => row.nik === '2002')!.id);
     });
+
+    it('loading the bundled template after a rename keeps the renamed PIC: one row under the current name, no new master', async () => {
+        await service.loadBundled(HC, 'SMG');
+        const before = { masters: csiPics.rows.length, rows: pics.rows.length };
+        Object.assign(csiPics.rows.find((row) => row.id === 'pic-rara')!, { fullName: 'Rara Pongdatu', aliases: ['RARA KURNIA MAHARANI PONGDATU'] });
+        pics.rows.find((row) => row.picId === 'pic-rara')!.picName = 'RARA PONGDATU';
+        await service.loadBundled(HC, 'SMG');
+        expect(csiPics.rows).toHaveLength(before.masters);
+        expect(pics.rows).toHaveLength(before.rows);
+        expect(pics.rows.filter((row) => row.picId === 'pic-rara').map((row) => row.picName)).toEqual(['RARA PONGDATU']);
+    });
+
+    it('a PIC added by its old name links to the renamed master', async () => {
+        templates.rows.push({ id: 't', scope: HC, locationCode: 'SMG', name: 'Template' });
+        Object.assign(csiPics.rows.find((row) => row.id === 'pic-mega')!, { fullName: 'Mega Nugraheni', aliases: ['MEGA DRESTI'] });
+        await service.addPic(HC, 't', { serviceCode: 'HCD', picName: 'Mega Dresti' });
+        expect(pics.rows).toEqual([expect.objectContaining({ picName: 'MEGA DRESTI', picId: 'pic-mega' })]);
+    });
 });

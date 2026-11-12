@@ -1,11 +1,9 @@
-import { Checkbox } from '@/components/ui/checkbox';
 import { TicketPill } from '@/components/ui/ticket-pill';
 import type { CsiTemplateImportReport, CsiTemplatePicResolution } from '../../../../hcTypes';
 import { MUTED_TEXT } from '../../AdminParts';
 import { titleCase } from '../hcFormat';
 
 export type ImportChoices = Readonly<Record<string, CsiTemplatePicResolution>>;
-export interface PruneState { prune: boolean; pruneConfirmed: boolean }
 
 /** Longer problem lists start collapsed so the summary stays on screen. */
 const PROBLEMS_OPEN_MAX = 5;
@@ -16,26 +14,42 @@ const FORMAT_LABELS: Record<CsiTemplateImportReport['format'], string> = {
 const FIELD = 'h-8 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--idesk-surface))] px-2 text-[12.5px] disabled:opacity-50';
 const NOTE = 'rounded-xl bg-[hsl(var(--muted)/.5)] px-3 py-2 text-[12.5px]';
 const NOTE_AMBER = 'rounded-xl bg-[hsl(var(--ticket-amber)/.14)] px-3 py-2 text-[12.5px] text-[hsl(var(--ticket-amber-ink))]';
+/** Same rule as the backend: a skipped row would silently drop those people from the template. */
+const REPLACE_BLOCKED = 'Perbaiki dulu baris bermasalah sebelum mengganti template';
 
 /** A rename only counts once a suggestion is picked; team/PIC need nothing more. */
 export const isChoiceComplete = (choice: CsiTemplatePicResolution | undefined) =>
     !!choice && (choice.as !== 'rename' || !!choice.picName);
 
-function Counts({ report, prune }: { report: CsiTemplateImportReport; prune: boolean }) {
-    const counts = [
-        [report.pics.added.length, (n: number) => `+${n} PIC baru`],
-        [report.pics.changed.length, (n: number) => `~${n} PIC berubah`],
-        [prune ? report.pics.removed.length : 0, (n: number) => `−${n} PIC dihapus`],
-        [report.raters.added, (n: number) => `+${n} penilai`],
-        [prune ? report.raters.removed : 0, (n: number) => `−${n} penilai`],
-        [report.teams.added.length, (n: number) => `+${n} tim custom`],
-    ] as const;
+/** "Template Semarang akan diganti: 2 PIC / 3 penilai lama → …", the one sentence that says what Save does. */
+export function replaceSummary(report: CsiTemplateImportReport, locationName: string): string {
+    const { before, after } = report;
+    return `Template ${locationName} akan diganti: ${before.pics} PIC / ${before.raters} penilai lama → ${after.pics} PIC / ${after.raters} penilai baru. `
+        + `${report.keptConfirmations} konfirmasi & ${report.keptPins} pilihan akun dipertahankan.`;
+}
+
+/** Names behind a count, collapsed so a long template does not push the decisions off-screen. */
+function NameList({ names, label }: { names: string[]; label: string }) {
+    if (!names.length) return null;
     return (
-        <ul className="flex flex-wrap gap-1.5" aria-label="Perubahan">
-            {counts.filter(([n]) => n > 0).map(([n, label]) => (
-                <li key={label(n)} className="rounded-full bg-[hsl(var(--muted)/.6)] px-2.5 py-0.5 text-[12.5px] font-semibold">{label(n)}</li>
-            ))}
-        </ul>
+        <details className={NOTE}>
+            <summary className="cursor-pointer font-semibold">{`${names.length} ${label}`}</summary>
+            <p className="mt-1 text-muted-foreground">{names.map(titleCase).join(', ')}</p>
+        </details>
+    );
+}
+
+/** Raters that leave PICs/teams which stay, grouped per PIC; collapsed like the other name lists. */
+function RatersRemoved({ groups }: { groups: CsiTemplateImportReport['ratersRemoved'] }) {
+    const total = groups.reduce((sum, group) => sum + group.raters.length, 0);
+    if (!total) return null;
+    return (
+        <details className={NOTE}>
+            <summary className="cursor-pointer font-semibold">{`Penilai tidak ada lagi (${total})`}</summary>
+            <ul className="mt-1 grid gap-0.5 text-muted-foreground">
+                {groups.map((group) => <li key={group.picName}>{`${titleCase(group.picName)}: ${group.raters.map(titleCase).join(', ')}`}</li>)}
+            </ul>
+        </details>
     );
 }
 
@@ -81,27 +95,13 @@ function UnresolvedRow({ item, choice, onChoose }: {
     );
 }
 
-function PruneOptions({ services, value, onChange }: { services: string[]; value: PruneState; onChange: (next: PruneState) => void }) {
-    return (
-        <div className="grid gap-1.5 text-[13px]">
-            <label className="flex items-center gap-2">
-                <Checkbox checked={value.prune} aria-label={`Hapus yang tidak ada di Excel (layanan: ${services.join(', ')})`}
-                    onCheckedChange={(checked) => onChange({ prune: checked === true, pruneConfirmed: checked === true && value.pruneConfirmed })} />
-                {`Hapus yang tidak ada di Excel (layanan: ${services.join(', ')})`}
-            </label>
-            <label className="ml-6 flex items-center gap-2">
-                <Checkbox checked={value.pruneConfirmed} disabled={!value.prune} aria-label="termasuk penilai yang sudah dikonfirmasi"
-                    onCheckedChange={(checked) => onChange({ ...value, pruneConfirmed: checked === true })} />
-                termasuk penilai yang sudah dikonfirmasi
-            </label>
-        </div>
-    );
-}
-
-/** Dry-run result: what the file is, what would change, rows skipped, names to decide, and the prune switch. */
-export function TemplateImportPreview({ report, choices, onChoose, prune, onPrune }: {
-    report: CsiTemplateImportReport; choices: ImportChoices; onChoose: (name: string, choice: CsiTemplatePicResolution) => void;
-    prune: PruneState; onPrune: (next: PruneState) => void;
+/**
+ * Dry-run result: what the file is, how the template is replaced, rows skipped and names to decide. `unresolved` is
+ * the file's decision list (first preview); `report.unresolved` is what the counts still leave out.
+ */
+export function TemplateImportPreview({ report, unresolved, locationName, choices, onChoose }: {
+    report: CsiTemplateImportReport; unresolved: CsiTemplateImportReport['unresolved']; locationName: string;
+    choices: ImportChoices; onChoose: (name: string, choice: CsiTemplatePicResolution) => void;
 }) {
     return (
         <div className="grid gap-3">
@@ -109,7 +109,14 @@ export function TemplateImportPreview({ report, choices, onChoose, prune, onPrun
                 <p className="text-[13.5px] font-semibold">{FORMAT_LABELS[report.format]}</p>
                 {report.services.map((code) => <TicketPill key={code} tone="blue">{code}</TicketPill>)}
             </div>
-            <Counts report={report} prune={prune.prune} />
+            <div className={NOTE_AMBER}>
+                <p>{replaceSummary(report, locationName)}</p>
+                {report.unresolved.length > 0 && <p className="mt-1 font-semibold">{`Angka belum termasuk ${report.unresolved.length} nama yang belum ditentukan.`}</p>}
+            </div>
+            <NameList names={report.pics.added} label="PIC baru" />
+            <NameList names={report.pics.removed} label="PIC tidak ada lagi" />
+            <RatersRemoved groups={report.ratersRemoved} />
+            <NameList names={report.teamsAdded} label="tim custom baru" />
             {report.newMasterPics.length > 0 && (
                 <details className={NOTE}>
                     <summary className="cursor-pointer font-semibold">{`${report.newMasterPics.length} PIC master baru akan dibuat`}</summary>
@@ -123,20 +130,19 @@ export function TemplateImportPreview({ report, choices, onChoose, prune, onPrun
                 </details>
             )}
             <Problems problems={report.problems} />
-            {report.unresolved.length > 0 && (
+            {unresolved.length > 0 && (
                 <section aria-label="Nama belum dikenali" className="grid gap-2">
                     <p className={MUTED_TEXT}>Nama berikut tidak ditemukan sebagai PIC maupun tim. Tentukan masing-masing:</p>
                     <ul className="grid gap-2">
-                        {report.unresolved.map((item) => (
+                        {unresolved.map((item) => (
                             <UnresolvedRow key={item.name} item={item} choice={choices[item.name]} onChoose={(choice) => onChoose(item.name, choice)} />
                         ))}
                     </ul>
                 </section>
             )}
-            <PruneOptions services={report.services} value={prune} onChange={onPrune} />
-            {prune.prune && report.problems.length > 0 && (
+            {report.problems.length > 0 && (
                 <p role="alert" className="rounded-xl bg-[hsl(var(--ticket-amber)/.14)] px-3 py-2 text-[13px] text-[hsl(var(--ticket-amber-ink))]">
-                    Perbaiki dulu baris bermasalah sebelum menghapus data
+                    {REPLACE_BLOCKED}
                 </p>
             )}
         </div>

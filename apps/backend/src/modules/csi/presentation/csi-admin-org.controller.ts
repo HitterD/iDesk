@@ -13,6 +13,7 @@ import { CsiUnitRulesService } from '../org/csi-unit-rules.service';
 import { SetRaterPicsDto, SetUnitRulesDto } from '../dto/unit-rules.dto';
 import { CsiPairsExcelService } from '../org/csi-pairs-excel.service';
 import { Response } from 'express';
+import { CsiPicRenameService } from '../services/csi-pic-rename.service';
 import { CSI_PHOTO_URL_PREFIX, CsiSubjectService } from '../services/csi-subject.service';
 
 type CsiAdminRequest = { csiScope: ServiceScope };
@@ -38,7 +39,8 @@ export const XLSX_UPLOAD = {
 @Controller('csi/admin/:scope/org')
 @UseGuards(JwtAuthGuard, CsiAdminGuard)
 export class CsiAdminOrgController {
-    constructor(private readonly org: CsiOrgService, private readonly subjects: CsiSubjectService, private readonly rules: CsiUnitRulesService, private readonly pairsExcel: CsiPairsExcelService) { }
+    constructor(private readonly org: CsiOrgService, private readonly subjects: CsiSubjectService, private readonly rules: CsiUnitRulesService, private readonly pairsExcel: CsiPairsExcelService,
+        private readonly rename: CsiPicRenameService) { }
 
     /** "Siapa menilai siapa" as Excel (one row per rater → PIC). */
     @Get('periods/:periodId/pairs.xlsx')
@@ -99,9 +101,13 @@ export class CsiAdminOrgController {
         return this.org.listPics(req.csiScope, query.includeInactive);
     }
 
+    /** A `fullName` renames the PIC everywhere it is still editable (template rows, draft surveys); see CsiPicRenameService. */
     @Patch('pics/:id')
-    updatePic(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Body() dto: UpdatePicDto) {
-        return this.org.updatePic(req.csiScope, id, dto);
+    async updatePic(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Body() dto: UpdatePicDto) {
+        const { fullName, ...rest } = dto;
+        const renamed = fullName === undefined ? null : await this.rename.rename(req.csiScope, id, fullName);
+        if (renamed && rest.isActive === undefined && rest.serviceFunction === undefined) return renamed;
+        return this.org.updatePic(req.csiScope, id, rest);
     }
 
     @Post('pics/:id/photo')
