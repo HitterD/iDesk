@@ -38,11 +38,15 @@ export type CsiPlannedRow = {
 export type CsiReplaceSummary = {
     before: { pics: number; raters: number }; after: { pics: number; raters: number };
     pics: { added: string[]; removed: string[] }; keptPins: number; keptConfirmations: number;
+    /** Raters of PICs/teams that stay but are no longer listed under them in the file. */
+    ratersRemoved: Array<{ picName: string; raters: string[] }>;
 };
 /** Links of a file row (known once masters/teams exist; a dry run predicts them) and the active accounts. */
 export type CsiReplaceContext = {
     picIdOf: (pic: ClassifiedPic) => string | null; teamIdOf: (pic: ClassifiedPic) => string | null;
     activeIds: ReadonlySet<string>; accountIdOfNik: (nik: string) => string | null;
+    /** Normalised names still waiting for a decision: their old rows are not reported as gone yet. */
+    pending?: ReadonlySet<string>;
 };
 
 const NAME_KEY = 'name:';
@@ -89,10 +93,22 @@ export function replacePlan(pics: readonly ClassifiedPic[], rows: readonly Templ
         const unique = [...new Map(pic.raters.map((rater) => [normalizeName(rater.name), rater])).values()];
         return { pic, picId, teamId, previous, raters: unique.map((rater) => ({ rater, pin: carriedPin(pins.get(normalizeName(rater.name)), rater.nik, ctx) })) };
     });
-    return { rows: planned, summary: summaryOf(planned, rows, raters) };
+    return { rows: planned, summary: summaryOf(planned, rows, raters, ctx.pending ?? new Set()) };
 }
 
-function summaryOf(planned: readonly CsiPlannedRow[], rows: readonly TemplateRow[], raters: readonly RaterRow[]): CsiReplaceSummary {
+/** Old raters of a continued row whose normalised name the file no longer lists under it. */
+function ratersRemovedOf(planned: readonly CsiPlannedRow[], raters: readonly RaterRow[]): CsiReplaceSummary['ratersRemoved'] {
+    return planned.flatMap(({ pic, previous, raters: fresh }) => {
+        if (!previous) return [];
+        const kept = new Set(fresh.map(({ rater }) => normalizeName(rater.name)));
+        const gone = raters.filter((rater) => rater.templatePicId === previous.id && !kept.has(normalizeName(rater.raterName)))
+            .map((rater) => rater.raterName).sort((a, b) => a.localeCompare(b));
+        return gone.length ? [{ picName: pic.picName, raters: gone }] : [];
+    });
+}
+
+function summaryOf(planned: readonly CsiPlannedRow[], rows: readonly TemplateRow[], raters: readonly RaterRow[],
+    pending: ReadonlySet<string>): CsiReplaceSummary {
     const continued = new Set(planned.map((row) => row.previous?.id).filter(Boolean));
     const pins = planned.flatMap((row) => row.raters.map((rater) => rater.pin).filter((pin): pin is CsiRaterPin => !!pin));
     return {
@@ -100,9 +116,10 @@ function summaryOf(planned: readonly CsiPlannedRow[], rows: readonly TemplateRow
         after: { pics: planned.length, raters: planned.reduce((sum, row) => sum + row.raters.length, 0) },
         pics: {
             added: planned.filter((row) => !row.previous).map((row) => row.pic.picName),
-            removed: rows.filter((row) => !continued.has(row.id)).map((row) => row.picName),
+            removed: rows.filter((row) => !continued.has(row.id) && !pending.has(normalizeName(row.picName))).map((row) => row.picName),
         },
         keptPins: pins.length, keptConfirmations: pins.filter((pin) => pin.confirmedAt).length,
+        ratersRemoved: ratersRemovedOf(planned, raters),
     };
 }
 

@@ -25,6 +25,7 @@ const REPORT = {
     format: 'matrix', committed: false, services: ['HCC', 'HCS'],
     before: { pics: 2, raters: 3 }, after: { pics: 3, raters: 5 },
     pics: { added: ['BUDI'], removed: ['JINGGA FERDASIWI'] }, keptPins: 2, keptConfirmations: 1,
+    ratersRemoved: [{ picName: 'RARA', raters: ['ARIEF NOEGROHO', 'AGUS SUBEKTI'] }],
     teamsAdded: ['Tim Payroll'], newMasterPics: ['BUDI'], ambiguousMasters: [] as string[],
     unresolved: [{ name: 'Tim Rekrut', suggestions: ['TIM REKRUTMEN', 'RARA'] }],
     problems: [] as Array<{ row: number; message: string }>,
@@ -36,7 +37,11 @@ vi.mock('../../../../../lib/csiAdmin', async (importOriginal) => ({ ...(await im
 vi.mock('../../../../../api/csiHc.api', () => ({
     CsiHcApi: {
         templates: vi.fn(async () => fx.list),
-        importTemplate: vi.fn(async (_scope: string, _location: string, _file: File, options: { commit?: boolean }) => ({ ...fx.report, committed: !!options.commit })),
+        // With resolutions the backend counts the decided names too: nothing left unresolved, one more PIC.
+        importTemplate: vi.fn(async (_scope: string, _location: string, _file: File, options: { commit?: boolean; resolutions?: object }) => ({
+            ...fx.report, committed: !!options.commit,
+            ...(Object.keys(options.resolutions ?? {}).length ? { unresolved: [], after: { pics: 4, raters: 6 } } : {}),
+        })),
         downloadBlankTemplate: vi.fn(async () => new Blob(['x'])),
         loadBundledTemplate: vi.fn(async () => TEMPLATE),
         updateTemplatePic: vi.fn(async () => TEMPLATE),
@@ -113,11 +118,19 @@ describe('TemplatesTab', () => {
         expect(within(dialog).getByText('Template Semarang akan diganti: 2 PIC / 3 penilai lama → 3 PIC / 5 penilai baru. 1 konfirmasi & 2 pilihan akun dipertahankan.')).toBeInTheDocument();
         expect(within(dialog).getByText('1 PIC baru').closest('details')).toHaveTextContent('Budi');
         expect(within(dialog).getByText('1 PIC tidak ada lagi').closest('details')).toHaveTextContent('Jingga Ferdasiwi');
+        expect(within(dialog).getByText('Penilai tidak ada lagi (2)').closest('details')).toHaveTextContent('Rara: Arief Noegroho, Agus Subekti');
+        expect(within(dialog).getByText('Angka belum termasuk 1 nama yang belum ditentukan.')).toBeInTheDocument();
         expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
         const save = within(dialog).getByRole('button', { name: 'Ganti template' });
         expect(save).toBeDisabled();
         await userEvent.click(within(dialog).getByRole('radio', { name: /tim baru/i }));
-        expect(save).toBeEnabled();
+        // The preview is asked again with the decision, so the counts include that name.
+        expect((await api()).importTemplate).toHaveBeenLastCalledWith('hc', 'SMG', XLSX, { commit: false, resolutions: { 'Tim Rekrut': { as: 'team' } } });
+        expect(await within(dialog).findByText(/→ 4 PIC \/ 6 penilai baru/)).toBeInTheDocument();
+        expect(within(dialog).queryByText(/angka belum termasuk/i)).not.toBeInTheDocument();
+        // The decision stays on screen and can still be changed.
+        expect(within(dialog).getByRole('radio', { name: /tim baru/i })).toBeChecked();
+        await vi.waitFor(() => expect(save).toBeEnabled());
     });
 
     it('rename requires a suggestion', async () => {
@@ -126,8 +139,10 @@ describe('TemplatesTab', () => {
         expect(pick).toBeDisabled();
         await userEvent.click(within(dialog).getByRole('radio', { name: /salah ketik/i }));
         expect(within(dialog).getByRole('button', { name: 'Ganti template' })).toBeDisabled();
+        // An incomplete rename does not re-run the preview.
+        expect((await api()).importTemplate).toHaveBeenCalledTimes(1);
         await userEvent.selectOptions(pick, 'TIM REKRUTMEN');
-        expect(within(dialog).getByRole('button', { name: 'Ganti template' })).toBeEnabled();
+        await vi.waitFor(() => expect(within(dialog).getByRole('button', { name: 'Ganti template' })).toBeEnabled());
     });
 
     it('problem rows warn and block replacing the template', async () => {
@@ -142,6 +157,7 @@ describe('TemplatesTab', () => {
         const dialog = await openPreview();
         await userEvent.click(within(dialog).getByRole('radio', { name: /salah ketik/i }));
         await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: /saran nama/i }), 'RARA');
+        await vi.waitFor(() => expect(within(dialog).getByRole('button', { name: 'Ganti template' })).toBeEnabled());
         await userEvent.click(within(dialog).getByRole('button', { name: 'Ganti template' }));
         expect((await api()).importTemplate).toHaveBeenLastCalledWith('hc', 'SMG', XLSX, {
             commit: true, resolutions: { 'Tim Rekrut': { as: 'rename', picName: 'RARA' } },
@@ -154,6 +170,7 @@ describe('TemplatesTab', () => {
     it('offers the bundled Semarang template when none exists yet', async () => {
         fx.list = { templates: [], bundledAvailable: ['SMG'] };
         renderWithQuery(<TemplatesTab scope="hc" />);
+        expect(await screen.findByText('Menambahkan ke template, tidak mengganti.')).toBeInTheDocument();
         await userEvent.click(await screen.findByRole('button', { name: /muat template bawaan/i }));
         expect((await api()).loadBundledTemplate).toHaveBeenCalledWith('hc', 'SMG');
     });

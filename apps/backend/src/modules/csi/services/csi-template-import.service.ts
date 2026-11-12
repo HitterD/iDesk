@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { randomBytes } from 'crypto';
 import { DataSource, EntityManager, In } from 'typeorm';
@@ -26,6 +26,8 @@ const SUGGESTION_POOL_MAX = 5000;
 const FALLBACK_NIK_PREFIX = 'TPL-';
 const FALLBACK_NIK_BYTES = 4;
 const REPLACE_WITH_PROBLEMS_MESSAGE = 'Perbaiki dulu baris bermasalah sebelum mengganti template';
+const CONCURRENT_IMPORT_MESSAGE = 'Template sedang diperbarui, coba lagi';
+const PG_UNIQUE_VIOLATION = '23505';
 
 export type CsiTemplateImportOptions = {
     commit: boolean; resolutions: Readonly<Record<string, PicResolution>>;
@@ -173,7 +175,17 @@ export class CsiTemplateImportService {
         const { code } = csiTemplateLocation(locationCode);
         const draft = await parseTemplateWorkbook(buffer);
         if (!options.commit) return this.run(this.dataSource.manager, scope, code, draft, options);
-        return this.dataSource.transaction((manager) => this.run(manager, scope, code, draft, options));
+        try {
+            return await this.dataSource.transaction(async (manager) => {
+                // One import per location at a time; the second waits and then replaces on top of the first.
+                await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`csi-template:${scope}:${code}`]);
+                return this.run(manager, scope, code, draft, options);
+            });
+        } catch (error) {
+            // e.g. two first imports racing to create the template or a master/team (template edits are not locked).
+            if ((error as { code?: string })?.code === PG_UNIQUE_VIOLATION) throw new ConflictException(CONCURRENT_IMPORT_MESSAGE);
+            throw error;
+        }
     }
 
     private async run(manager: EntityManager, scope: ServiceScope, code: string, draft: CsiTemplateDraft, options: CsiTemplateImportOptions) {
@@ -181,7 +193,8 @@ export class CsiTemplateImportService {
         const classified = classifyDraft(draft, this.classifyContext(state, normalizeResolutions(options.resolutions)));
         const { unresolved } = classified;
         const pics = withoutLinkedMasters(state, classified.pics);
-        const { summary } = replacePlan(pics, state.rows, state.raters, { ...predictedLinks(state), ...accountsOf(state) });
+        const pending = new Set(unresolved.map((row) => row.name));
+        const { summary } = replacePlan(pics, state.rows, state.raters, { ...predictedLinks(state), ...accountsOf(state), pending });
         const report: CsiTemplateImportReport = {
             format: draft.format, committed: options.commit, ...fileFacts(pics), ...summary,
             ambiguousMasters: ambiguousMastersOf(state, pics), unresolved, problems: draft.problems,

@@ -134,6 +134,8 @@ export interface CsiTemplateImportReport {
     /** PIC/team rows that are new, and old rows the file no longer lists. */
     pics: { added: string[]; removed: string[] };
     keptPins: number; keptConfirmations: number;
+    /** Raters of PICs/teams that stay but are no longer listed under them. */
+    ratersRemoved: Array<{ picName: string; raters: string[] }>;
     teamsAdded: string[]; newMasterPics: string[];
     /** PIC rows left unlinked because several PIC masters share the name. */
     ambiguousMasters: string[];

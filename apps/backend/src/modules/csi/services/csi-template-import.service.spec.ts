@@ -32,6 +32,7 @@ const options = (overrides: Partial<CsiTemplateImportOptions> = {}): CsiTemplate
 describe('CsiTemplateImportService', () => {
     let tables: Record<string, ReturnType<typeof memoryTable>>;
     let service: CsiTemplateImportService;
+    let lockQuery: jest.Mock;
 
     beforeEach(() => {
         tables = Object.fromEntries(['templates', 'pics', 'raters', 'masters', 'users', 'people', 'sites', 'teams', 'members']
@@ -51,7 +52,8 @@ describe('CsiTemplateImportService', () => {
             [CsiPic, tables.masters], [User, tables.users], [Site, tables.sites], [CsiOrgPerson, directory],
             [CsiTeam, tables.teams], [CsiTeamMember, tables.members],
         ]);
-        const manager = { getRepository: (target: unknown) => repositories.get(target) };
+        const manager = { getRepository: (target: unknown) => repositories.get(target), query: jest.fn(async () => []) };
+        lockQuery = manager.query;
         const dataSource = { manager, transaction: jest.fn(async (work: any) => work(manager)) };
         service = new CsiTemplateImportService(dataSource as any);
     });
@@ -89,7 +91,7 @@ describe('CsiTemplateImportService', () => {
         expect(report).toEqual({
             format: 'list', committed: false, services: ['HCD'],
             before: { pics: 2, raters: 2 }, after: { pics: 3, raters: 4 },
-            pics: { added: ['ERNA', 'TIM REKRUT'], removed: ['LAMA'] }, keptPins: 1, keptConfirmations: 1,
+            pics: { added: ['ERNA', 'TIM REKRUT'], removed: ['LAMA'] }, keptPins: 1, keptConfirmations: 1, ratersRemoved: [],
             teamsAdded: ['TIM REKRUT'], newMasterPics: ['ERNA'], ambiguousMasters: [], unresolved: [], problems: [],
         });
         for (const table of Object.values(tables)) {
@@ -129,6 +131,7 @@ describe('CsiTemplateImportService', () => {
             committed: true, before: { pics: 4, raters: 5 }, after: { pics: 1, raters: 2 },
             pics: { added: [], removed: ['LAMA', 'SERVIS', 'TIM LAMA'] },
         });
+        expect(report.ratersRemoved).toEqual([{ picName: 'RARA', raters: ['DODI'] }]);
         expect(tables.pics.rows.map((row) => [row.picName, row.picId, row.templateId])).toEqual([['RARA', 'pic-rara', 't']]);
         expect(ratersOf('RARA')).toEqual(['BUDI', 'CICI']);
         expect(tables.raters.rows).toHaveLength(2);
@@ -271,6 +274,28 @@ describe('CsiTemplateImportService', () => {
         expect(report.newMasterPics).toEqual([]);
         expect(tables.masters.rows).toHaveLength(1);
         expect(tables.pics.rows).toEqual([expect.objectContaining({ picName: 'RARA KURNIA', picId: 'pic-rara' })]);
+    });
+
+    it('dry run with pending names keeps their old rows out of "PIC tidak ada lagi"; with the resolution it counts them', async () => {
+        seedTemplate();
+        addTemplatePic('p-erna', 'ERNA WATI', 'HCS', [['BUDI', null]]);
+        pin('p-erna-BUDI', 'u-budi', CONFIRMED_AT);
+        const buffer = await workbook([['HC Development', 'RARA', null, null, 'BUDI'], ['HC Services', 'ERNA WATI', null, null, 'BUDI']]);
+        const pending = await service.importExcel(HC, 'SMG', buffer, options());
+        expect(pending).toMatchObject({ unresolved: [expect.objectContaining({ name: 'ERNA WATI' })], pics: { removed: [] }, after: { pics: 1, raters: 1 } });
+        const resolved = await service.importExcel(HC, 'SMG', buffer, options({ resolutions: { 'ERNA WATI': { as: 'pic' } } }));
+        expect(resolved).toMatchObject({ unresolved: [], pics: { added: [], removed: [] }, after: { pics: 2, raters: 2 }, keptPins: 1, keptConfirmations: 1 });
+    });
+
+    it('commit locks the location template first and maps a unique violation to 409', async () => {
+        await service.importExcel(HC, 'SMG', await workbook([['HC Development', 'RARA', null, null, 'BUDI']]), options({ commit: true }));
+        expect(lockQuery).toHaveBeenCalledWith('SELECT pg_advisory_xact_lock(hashtext($1))', ['csi-template:HC:SMG']);
+        expect(tables.templates.findOne.mock.invocationCallOrder[0]).toBeGreaterThan(lockQuery.mock.invocationCallOrder[0]);
+        tables.pics.save.mockRejectedValueOnce(Object.assign(new Error('duplicate key'), { code: '23505' }));
+        await expect(service.importExcel(HC, 'SMG', await workbook([['HC Development', 'RARA', null, null, 'BUDI']]), options({ commit: true })))
+            .rejects.toMatchObject({ status: 409, message: 'Template sedang diperbarui, coba lagi' });
+        await service.importExcel(HC, 'SMG', await workbook([['HC Development', 'RARA', null, null, 'BUDI']]), options());
+        expect(lockQuery).toHaveBeenCalledTimes(2);
     });
 
     it('commit is refused while the file has problem rows; dry run still reports them', async () => {

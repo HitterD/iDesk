@@ -39,6 +39,20 @@ function NameList({ names, label }: { names: string[]; label: string }) {
     );
 }
 
+/** Raters that leave PICs/teams which stay, grouped per PIC; collapsed like the other name lists. */
+function RatersRemoved({ groups }: { groups: CsiTemplateImportReport['ratersRemoved'] }) {
+    const total = groups.reduce((sum, group) => sum + group.raters.length, 0);
+    if (!total) return null;
+    return (
+        <details className={NOTE}>
+            <summary className="cursor-pointer font-semibold">{`Penilai tidak ada lagi (${total})`}</summary>
+            <ul className="mt-1 grid gap-0.5 text-muted-foreground">
+                {groups.map((group) => <li key={group.picName}>{`${titleCase(group.picName)}: ${group.raters.map(titleCase).join(', ')}`}</li>)}
+            </ul>
+        </details>
+    );
+}
+
 function Problems({ problems }: { problems: CsiTemplateImportReport['problems'] }) {
     if (!problems.length) return null;
     return (
@@ -81,9 +95,13 @@ function UnresolvedRow({ item, choice, onChoose }: {
     );
 }
 
-/** Dry-run result: what the file is, how the template is replaced, rows skipped and names to decide. */
-export function TemplateImportPreview({ report, locationName, choices, onChoose }: {
-    report: CsiTemplateImportReport; locationName: string; choices: ImportChoices; onChoose: (name: string, choice: CsiTemplatePicResolution) => void;
+/**
+ * Dry-run result: what the file is, how the template is replaced, rows skipped and names to decide. `unresolved` is
+ * the file's decision list (first preview); `report.unresolved` is what the counts still leave out.
+ */
+export function TemplateImportPreview({ report, unresolved, locationName, choices, onChoose }: {
+    report: CsiTemplateImportReport; unresolved: CsiTemplateImportReport['unresolved']; locationName: string;
+    choices: ImportChoices; onChoose: (name: string, choice: CsiTemplatePicResolution) => void;
 }) {
     return (
         <div className="grid gap-3">
@@ -91,9 +109,13 @@ export function TemplateImportPreview({ report, locationName, choices, onChoose 
                 <p className="text-[13.5px] font-semibold">{FORMAT_LABELS[report.format]}</p>
                 {report.services.map((code) => <TicketPill key={code} tone="blue">{code}</TicketPill>)}
             </div>
-            <p className={NOTE_AMBER}>{replaceSummary(report, locationName)}</p>
+            <div className={NOTE_AMBER}>
+                <p>{replaceSummary(report, locationName)}</p>
+                {report.unresolved.length > 0 && <p className="mt-1 font-semibold">{`Angka belum termasuk ${report.unresolved.length} nama yang belum ditentukan.`}</p>}
+            </div>
             <NameList names={report.pics.added} label="PIC baru" />
             <NameList names={report.pics.removed} label="PIC tidak ada lagi" />
+            <RatersRemoved groups={report.ratersRemoved} />
             <NameList names={report.teamsAdded} label="tim custom baru" />
             {report.newMasterPics.length > 0 && (
                 <details className={NOTE}>
@@ -108,11 +130,11 @@ export function TemplateImportPreview({ report, locationName, choices, onChoose 
                 </details>
             )}
             <Problems problems={report.problems} />
-            {report.unresolved.length > 0 && (
+            {unresolved.length > 0 && (
                 <section aria-label="Nama belum dikenali" className="grid gap-2">
                     <p className={MUTED_TEXT}>Nama berikut tidak ditemukan sebagai PIC maupun tim. Tentukan masing-masing:</p>
                     <ul className="grid gap-2">
-                        {report.unresolved.map((item) => (
+                        {unresolved.map((item) => (
                             <UnresolvedRow key={item.name} item={item} choice={choices[item.name]} onChoose={(choice) => onChoose(item.name, choice)} />
                         ))}
                     </ul>
