@@ -73,9 +73,18 @@ export const NotificationPopover: React.FC = () => {
         const handleNew = () => {
             queryClient.invalidateQueries({ queryKey: ['notifications'] });
         };
+        const handleCritical = (data: { userId?: string }) => {
+            if (data?.userId === user.id) handleNew();
+        };
+        // Critical notifications (acknowledge required) arrive on their own event; a reconnect may have
+        // missed any number of them, so refetch then too.
         socket.on(`notification:${user.id}`, handleNew);
+        socket.on('critical_notification', handleCritical);
+        socket.on('connect', handleNew);
         return () => {
             socket.off(`notification:${user.id}`, handleNew);
+            socket.off('critical_notification', handleCritical);
+            socket.off('connect', handleNew);
         };
     }, [socket, user, queryClient]);
 

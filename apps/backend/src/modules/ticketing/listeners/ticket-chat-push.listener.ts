@@ -29,7 +29,7 @@ export function chatPushBody(content: string | null | undefined, attachmentCount
 /** Where a click on the toast lands, per the recipient's portal (mirrors the frontend notificationRouter). */
 export function ticketLinkFor(role: UserRole, ticketId: string): string {
     if (role === UserRole.USER) return `/client/tickets/${ticketId}`;
-    if (role === UserRole.MANAGER) return '/manager/tickets';
+    // Managers have no detail page of their own; they open tickets in the agent workspace.
     return `/tickets/${ticketId}`;
 }
 

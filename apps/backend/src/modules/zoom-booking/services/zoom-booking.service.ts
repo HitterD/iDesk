@@ -1782,7 +1782,14 @@ export class ZoomBookingService {
 
         // Emit event for the primary booking
         this.eventEmitter.emit('zoom.booking.cancelled', {
-            bookingDetails: { id: primaryBooking.id, title: primaryBooking.title },
+            // Enough for the booker's notification and the calendar refresh of that account.
+            bookingDetails: {
+                id: primaryBooking.id,
+                title: primaryBooking.title,
+                bookingDate: primaryBooking.bookingDate,
+                bookedByUserId: primaryBooking.bookedByUserId,
+                zoomAccountId: primaryBooking.zoomAccountId,
+            },
             bookingIds: bookingsToCancel.map((b) => b.id),
             seriesId: primaryBooking.seriesId ?? null,
             cancelledBy: user,

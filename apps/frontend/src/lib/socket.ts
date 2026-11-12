@@ -15,7 +15,8 @@ const getSocket = (): Socket => {
         socketInstance = io(SOCKET_URL, {
             autoConnect: false,
             reconnection: true,
-            reconnectionAttempts: 5,
+            // Keep retrying (backing off to reconnectionDelayMax): giving up silently stopped live notifications.
+            reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
             timeout: 10000,

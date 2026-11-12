@@ -552,6 +552,7 @@ export class TicketNotificationListener {
                     title: 'Ticket Cancelled',
                     message: `Ticket #${event.ticketNumber} has been cancelled by ${event.userFullName}${event.reason ? `: ${event.reason}` : ''}`,
                     ticketId: event.ticketId,
+                    link: `/tickets/${event.ticketId}`,
                 });
 
                 const assignedAgent = await this.userRepo.findOne({ where: { id: event.ticketAssignedToId } });
@@ -578,6 +579,7 @@ export class TicketNotificationListener {
                     title: 'Ticket Cancelled',
                     message: `Your ticket #${event.ticketNumber} has been cancelled by support${event.reason ? `: ${event.reason}` : ''}`,
                     ticketId: event.ticketId,
+                    link: `/tickets/${event.ticketId}`,
                 });
 
                 const ticketOwner = await this.userRepo.findOne({ where: { id: event.ticketOwnerId } });

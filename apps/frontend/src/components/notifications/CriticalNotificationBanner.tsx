@@ -8,6 +8,12 @@ import { Button } from '@/components/ui/button';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useHasPermission } from '@/hooks/usePermissions';
+import { getNotificationRedirectPath, type UserRole } from './utils/notificationRouter';
+import type { NotificationCategory } from './types/notification.types';
+
+const CRITICAL_SOUND = '/sounds/default/critical-alert.mp3';
+/** Per user, so dismissing the banner does not hide it for the next person signing in on the same tab. */
+const dismissKey = (userId?: string) => `dismissed_critical_banner:${userId ?? ''}`;
 
 interface CriticalNotification {
     id: string;
@@ -19,7 +25,7 @@ interface CriticalNotification {
     createdAt: string;
     requiresAcknowledge: boolean;
     userId?: string;
-    category?: any;
+    category?: NotificationCategory;
     ticketId?: string;
 }
 
@@ -45,16 +51,13 @@ export const CriticalNotificationBanner: React.FC = () => {
             setNotifications(res.data);
             
             // Check if dismissed in this session
-            const dismissed = sessionStorage.getItem('dismissed_critical_banner');
-            if (dismissed === 'true') {
-                setIsDismissed(true);
-            }
+            setIsDismissed(sessionStorage.getItem(dismissKey(user?.id)) === 'true');
         } catch (error) {
             console.error('Failed to fetch critical notifications:', error);
         } finally {
             setIsLoaded(true);
         }
-    }, [hasPermission]);
+    }, [hasPermission, user?.id]);
 
     // Listen for new critical notifications
     useEffect(() => {
@@ -70,11 +73,11 @@ export const CriticalNotificationBanner: React.FC = () => {
                 
                 // If a new critical notification comes in, un-dismiss the banner
                 setIsDismissed(false);
-                sessionStorage.removeItem('dismissed_critical_banner');
+                sessionStorage.removeItem(dismissKey(user.id));
 
                 // Play alert sound
                 try {
-                    const audio = new Audio('/sounds/critical-alert.mp3');
+                    const audio = new Audio(CRITICAL_SOUND);
                     audio.volume = 0.5;
                     audio.play().catch(() => { /* Ignore autoplay errors */ });
                 } catch { /* Ignore */ }
@@ -131,33 +134,14 @@ export const CriticalNotificationBanner: React.FC = () => {
         const currentNotification = notifications[currentIndex];
         if (!currentNotification) return;
 
-        let targetPath = currentNotification.link;
-
-        if (!targetPath) {
-            try {
-                const { getNotificationRedirectPath } = await import('./utils/notificationRouter');
-                targetPath = getNotificationRedirectPath(currentNotification as any, user?.role as any);
-            } catch {
-                targetPath = '/dashboard';
-            }
-        }
-
-        // Override to direct specific tabs in Renewal Hub
-        if (currentNotification.type.includes('VPN') || currentNotification.title.includes('VPN')) {
-            const prefix = user?.role === 'MANAGER' ? '/manager' : '';
-            targetPath = `${prefix}/renewal?tab=vpn`;
-        } else if (currentNotification.type.includes('D1') || currentNotification.type.includes('D7')) {
-            const prefix = user?.role === 'MANAGER' ? '/manager' : '';
-            targetPath = `${prefix}/renewal?tab=contracts`;
-        }
-
-        navigate(targetPath || '/dashboard');
+        // Same resolver as the bell, toasts and push: old links (e.g. /vpn-access) and portal prefixes included.
+        navigate(getNotificationRedirectPath(currentNotification, user?.role as UserRole));
     };
 
     const handleDismiss = (e: React.MouseEvent) => {
         e.stopPropagation();
         setIsDismissed(true);
-        sessionStorage.setItem('dismissed_critical_banner', 'true');
+        sessionStorage.setItem(dismissKey(user?.id), 'true');
     };
 
     // Don't render if no permission, still loading, dismissed, or no notifications

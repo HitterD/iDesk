@@ -50,7 +50,7 @@ export class EFormNotificationListener {
   @OnEvent('eform.submitted')
   async handleEFormSubmitted(payload: { request: EFormRequest; managerId: string }) {
     try {
-      await this.notificationCenter.send({ userId: payload.managerId, type: NotificationType.EFORM_SUBMITTED, title: 'Permintaan Akses Baru', message: payload.request.requesterName + ' mengajukan permintaan akses ' + payload.request.formType + ' dan menunggu persetujuan Anda.', referenceId: payload.request.id });
+      await this.notificationCenter.send({ userId: payload.managerId, type: NotificationType.EFORM_SUBMITTED, title: 'Permintaan Akses Baru', message: payload.request.requesterName + ' mengajukan permintaan akses ' + payload.request.formType + ' dan menunggu persetujuan Anda.', referenceId: payload.request.id, link: '/eform-access/' + payload.request.id });
     } catch (error: any) { this.logger.error('Failed to notify manager for eform.submitted: ' + error.message); }
     try {
       const mgr: any = await this.userRepo.findOne({ where: { id: payload.managerId } as any });
@@ -71,7 +71,7 @@ export class EFormNotificationListener {
   async handleEFormGmRequested(payload: { request: EFormRequest; gmId: string }) {
     const { request, gmId } = payload;
     try {
-      await this.notificationCenter.send({ userId: gmId, type: NotificationType.EFORM_SUBMITTED, title: 'Persetujuan GM Diperlukan', message: 'Permintaan akses ' + request.formType + ' dari ' + request.requesterName + ' sudah disetujui atasan dan menunggu persetujuan Anda sebagai GM.', referenceId: request.id });
+      await this.notificationCenter.send({ userId: gmId, type: NotificationType.EFORM_SUBMITTED, title: 'Persetujuan GM Diperlukan', message: 'Permintaan akses ' + request.formType + ' dari ' + request.requesterName + ' sudah disetujui atasan dan menunggu persetujuan Anda sebagai GM.', referenceId: request.id, link: '/eform-access/' + request.id });
     } catch (error: any) { this.logger.error('Failed to notify GM for eform.gm-requested: ' + error.message); }
     try {
       const gm: any = await this.userRepo.findOne({ where: { id: gmId } as any });
@@ -94,7 +94,7 @@ export class EFormNotificationListener {
     const siteId = (payload.request as any).siteId as string | null;
     try {
       // Next step is IT's. VPN: print the form, get the GM's signature on it, upload the signed PDF. Others: provision.
-      await this.notificationCenter.sendToRoleAtSite(UserRole.AGENT_OPERATIONAL_SUPPORT, siteId, { type: NotificationType.EFORM_MANAGER2_APPROVED, title, message: 'Permintaan ' + payload.request.formType + ' dari ' + payload.request.requesterName + ' ' + what, referenceId: payload.request.id });
+      await this.notificationCenter.sendToRoleAtSite(UserRole.AGENT_OPERATIONAL_SUPPORT, siteId, { type: NotificationType.EFORM_MANAGER2_APPROVED, title, message: 'Permintaan ' + payload.request.formType + ' dari ' + payload.request.requesterName + ' ' + what, referenceId: payload.request.id, link: '/eform-access/' + payload.request.id });
     } catch (error: any) { this.logger.error('Failed to notify ICT (' + title + '): ' + error.message); }
     try {
       const siteLabel = await this.resolveSiteLabel(siteId);
@@ -109,7 +109,7 @@ export class EFormNotificationListener {
   async handleEFormDirectToIct(payload: { request: EFormRequest }) {
     const siteId = (payload.request as any).siteId as string | null;
     try {
-      await this.notificationCenter.sendToRoleAtSite(UserRole.AGENT_OPERATIONAL_SUPPORT, siteId, { type: NotificationType.EFORM_DIRECT_TO_ICT, title: 'Permintaan Akses Baru', message: 'Permintaan ' + payload.request.formType + ' dari ' + payload.request.requesterName + ' masuk langsung tanpa persetujuan atasan dan siap diproses.', referenceId: payload.request.id });
+      await this.notificationCenter.sendToRoleAtSite(UserRole.AGENT_OPERATIONAL_SUPPORT, siteId, { type: NotificationType.EFORM_DIRECT_TO_ICT, title: 'Permintaan Akses Baru', message: 'Permintaan ' + payload.request.formType + ' dari ' + payload.request.requesterName + ' masuk langsung tanpa persetujuan atasan dan siap diproses.', referenceId: payload.request.id, link: '/eform-access/' + payload.request.id });
     } catch (error: any) { this.logger.error('Failed to notify ICT for eform.direct-to-ict: ' + error.message); }
     try {
       const siteLabel = await this.resolveSiteLabel(siteId);
@@ -124,7 +124,7 @@ export class EFormNotificationListener {
   async handleEFormFulfilled(payload: { request: EFormRequest }) {
     const notes = (payload.request as any).formData?.fulfillmentNotes as string | undefined;
     try {
-      await this.notificationCenter.send({ userId: payload.request.requesterId, type: NotificationType.EFORM_FULFILLED, title: 'Akses ' + payload.request.formType + ' Aktif', message: 'Akses ' + payload.request.formType + ' Anda telah ditambahkan pada akun yang sudah ada.' + (notes ? ' Catatan ICT: ' + notes : ''), referenceId: payload.request.id });
+      await this.notificationCenter.send({ userId: payload.request.requesterId, type: NotificationType.EFORM_FULFILLED, title: 'Akses ' + payload.request.formType + ' Aktif', message: 'Akses ' + payload.request.formType + ' Anda telah ditambahkan pada akun yang sudah ada.' + (notes ? ' Catatan ICT: ' + notes : ''), referenceId: payload.request.id, link: '/eform-access/' + payload.request.id });
       this.notificationCenter.emitActionItemsRefresh(payload.request.requesterId, 'EFORM', payload.request.id);
     } catch (error: any) { this.logger.error('Failed to notify requester for eform.fulfilled: ' + error.message); }
     try {
@@ -134,7 +134,7 @@ export class EFormNotificationListener {
   @OnEvent('eform.ict-confirmed')
   async handleEFormIctConfirmed(payload: { request: EFormRequest }) {
     try {
-      await this.notificationCenter.send({ userId: payload.request.requesterId, type: NotificationType.EFORM_CREDENTIALS_READY, title: 'Akses ' + payload.request.formType + ' Aktif', message: 'Akses ' + payload.request.formType + ' Anda telah aktif. Buka halaman detail untuk melihat kredensial.', referenceId: payload.request.id });
+      await this.notificationCenter.send({ userId: payload.request.requesterId, type: NotificationType.EFORM_CREDENTIALS_READY, title: 'Akses ' + payload.request.formType + ' Aktif', message: 'Akses ' + payload.request.formType + ' Anda telah aktif. Buka halaman detail untuk melihat kredensial.', referenceId: payload.request.id, link: '/eform-access/' + payload.request.id });
       this.notificationCenter.emitActionItemsRefresh(payload.request.requesterId, 'EFORM', payload.request.id);
     } catch (error: any) { this.logger.error('Failed to notify requester for eform.ict-confirmed: ' + error.message); }
     try {
@@ -144,7 +144,7 @@ export class EFormNotificationListener {
   @OnEvent('eform.rejected')
   async handleEFormRejected(payload: { request: EFormRequest }) {
     try {
-      await this.notificationCenter.send({ userId: payload.request.requesterId, type: NotificationType.EFORM_REJECTED, title: 'Permintaan Akses Ditolak', message: 'Permintaan akses ' + payload.request.formType + ' Anda ditolak. Alasan: ' + payload.request.rejectionReason, referenceId: payload.request.id });
+      await this.notificationCenter.send({ userId: payload.request.requesterId, type: NotificationType.EFORM_REJECTED, title: 'Permintaan Akses Ditolak', message: 'Permintaan akses ' + payload.request.formType + ' Anda ditolak. Alasan: ' + payload.request.rejectionReason, referenceId: payload.request.id, link: '/eform-access/' + payload.request.id });
       this.notificationCenter.emitActionItemsRefresh(payload.request.requesterId, 'EFORM', payload.request.id);
     } catch (error: any) { this.logger.error('Failed to notify requester for eform.rejected: ' + error.message); }
     try {

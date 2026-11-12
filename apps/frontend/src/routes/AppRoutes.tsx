@@ -95,7 +95,7 @@ const PageLoader = () => (
 
 import { useAuth } from '../stores/useAuth';
 import { useSessionRestore } from '../hooks/useSessionRestore';
-import { getRoleHome } from '../lib/roleHome';
+import { getRoleHome, portalEquivalent } from '../lib/roleHome';
 
 // Smart redirect component that routes users to their role-appropriate home page
 // Prevents MANAGER/USER/dev agents from being sent to pages they cannot open
@@ -107,6 +107,21 @@ const RoleBasedRedirect = () => {
     }
 
     return <Navigate to={getRoleHome(user.role)} replace />;
+};
+
+// Unknown paths: old notification/email links (e.g. /vpn-access, /renewals/:id) and links written for another
+// portal still open the right page; anything else goes to the role's home.
+const UnknownPathRedirect = () => {
+    const { isAuthenticated, user } = useAuth();
+    const location = useLocation();
+
+    if (!isAuthenticated || !user) {
+        return <Navigate to="/login" replace />;
+    }
+
+    const here = location.pathname + location.search + location.hash;
+    const other = portalEquivalent(here, user.role);
+    return <Navigate to={other && other !== here ? other : getRoleHome(user.role)} replace />;
 };
 
 // E-Form email links use the portal-agnostic `/eform/:id`; resolve it to the
@@ -354,7 +369,7 @@ export default function AppRoutes() {
                     </Route>
 
                     {/* Fallback - role-aware redirect to correct portal */}
-                    <Route path="*" element={<RoleBasedRedirect />} />
+                    <Route path="*" element={<UnknownPathRedirect />} />
                 </Routes>
             </NotificationPermissionGate>
         </PresenceProvider>

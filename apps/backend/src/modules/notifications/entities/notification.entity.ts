@@ -69,6 +69,8 @@ export enum NotificationType {
     EFORM_CREDENTIALS_READY = 'EFORM_CREDENTIALS_READY',
     EFORM_DIRECT_TO_ICT = 'EFORM_DIRECT_TO_ICT',
     EFORM_FULFILLED = 'EFORM_FULFILLED',
+    /** Granted access ends soon (H-7/H-3) or today (H-0). */
+    EFORM_EXPIRY_REMINDER = 'EFORM_EXPIRY_REMINDER',
 }
 
 @Entity('notifications')

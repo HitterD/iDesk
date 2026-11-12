@@ -1,12 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MailTransportService } from '../../../shared/mail/mail-transport.service';
-import { getFrontendBaseUrl } from '../../../shared/mail/app-url.util';
+import { buildAppUrl, getFrontendBaseUrl } from '../../../shared/mail/app-url.util';
 import {
     INotificationChannel,
     ChannelDeliveryPayload,
     DeliveryResult,
 } from '../interfaces/notification-channel.interface';
 import { DeliveryChannel } from '../entities/notification-log.entity';
+
+/** Absolute form of an in-app link; already-absolute links (and none) are passed through. */
+export function absoluteLink(link: unknown): string | undefined {
+    if (typeof link !== 'string' || !link) return undefined;
+    return /^https?:\/\//i.test(link) ? link : buildAppUrl(link);
+}
 
 @Injectable()
 export class EmailChannelService implements INotificationChannel {
@@ -26,7 +32,8 @@ export class EmailChannelService implements INotificationChannel {
                 context: {
                     title: payload.title,
                     message: payload.body,
-                    link: payload.data?.link,
+                    // Read in a mail client: the button needs an absolute address.
+                    link: absoluteLink(payload.data?.link),
                     ticketId: payload.data?.ticketId,
                     notificationId: payload.notificationId,
                     baseUrl: getFrontendBaseUrl(),

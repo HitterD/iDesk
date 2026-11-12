@@ -111,10 +111,11 @@ export class EFormExpirationReminderCron {
           try {
             await this.notificationCenter.send({
               userId: req.requesterId,
-              type: NotificationType.SYSTEM,
+              type: NotificationType.EFORM_EXPIRY_REMINDER,
               title: reminderTitle,
               message: reminderMessageForUser,
               referenceId: req.id,
+              link: `/eform-access/${req.id}`,
             });
           } catch (err: any) {
             this.logger.warn(`Failed to send reminder to user ${req.requesterId}: ${err.message}`);
@@ -125,10 +126,11 @@ export class EFormExpirationReminderCron {
         if (ictUserIds.length > 0) {
           try {
             await this.notificationCenter.sendBulk(ictUserIds, {
-              type: NotificationType.SYSTEM,
+              type: NotificationType.EFORM_EXPIRY_REMINDER,
               title: reminderTitle,
               message: reminderMessageForIct,
               referenceId: req.id,
+              link: `/eform-access/${req.id}`,
             });
           } catch (err: any) {
             this.logger.warn(`Failed to send bulk reminder to ICT users: ${err.message}`);

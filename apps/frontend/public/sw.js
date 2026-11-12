@@ -45,7 +45,11 @@ self.addEventListener('notificationclick', (event) => {
     event.notification.close();
     const { url, notificationId } = event.notification.data || {};
     const target = new URL(url || '/', self.location.origin);
-    if (target.origin !== self.location.origin) return;
+    // External targets (a Zoom join URL) open in their own tab.
+    if (target.origin !== self.location.origin) {
+        event.waitUntil(self.clients.openWindow(target.href));
+        return;
+    }
     // The app marks this notification read when it sees ?nid= (useNotificationClickRead).
     if (notificationId) target.searchParams.set('nid', notificationId);
     event.waitUntil(openInApp(target));
@@ -53,11 +57,24 @@ self.addEventListener('notificationclick', (event) => {
 
 async function openInApp(target) {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    const tab = windows.find((client) => new URL(client.url).origin === self.location.origin);
+    const tab = pickAppTab(windows);
     if (!tab) return self.clients.openWindow(target.href);
     await tab.focus();
     // Route inside the running app (no reload); the app listens for this message.
     tab.postMessage({ type: 'notification-click', url: target.pathname + target.search + target.hash });
+}
+
+/** Kiosk and sign-in tabs cannot show a page; prefer the tab the user was last looking at. */
+const NON_APP_PATHS = /^\/(?:tv|login|feedback|devices)(?:\/|$)/;
+
+function pickAppTab(windows) {
+    const appTabs = windows.filter((client) => {
+        const url = new URL(client.url);
+        return url.origin === self.location.origin && !NON_APP_PATHS.test(url.pathname);
+    });
+    return appTabs.find((client) => client.focused)
+        || appTabs.find((client) => client.visibilityState === 'visible')
+        || appTabs[0];
 }
 
 self.addEventListener('message', (event) => {

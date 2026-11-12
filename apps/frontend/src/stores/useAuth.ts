@@ -5,7 +5,7 @@ import api from '../lib/api';
 import { queryClient } from '../lib/queryClient';
 import { coordinateSession, SessionCoordinationUnavailableError } from '../lib/sessionCoordinator';
 import { toast } from 'sonner';
-import { releasePushSubscription } from '../lib/webPush';
+import { dropLocalPushSubscription, releasePushSubscription } from '../lib/webPush';
 
 let receivingStorage = false;
 const clearSessionResources = () => {
@@ -78,6 +78,8 @@ export const useAuth = create<AuthState>()(
             logout: () => {
                 set({ user: null, isAuthenticated: false, expiresAt: null, justLoggedIn: false, generation: get().generation + 1, sessionId: null, restoreError: null });
                 disconnectSocket();
+                // Every sign-out path (expiry included), so the next person on this PC gets no toasts of this account.
+                void dropLocalPushSubscription();
                 try {
                     queryClient.cancelQueries();
                     queryClient.clear();

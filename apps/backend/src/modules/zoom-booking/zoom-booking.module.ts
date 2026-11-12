@@ -11,7 +11,6 @@ import {
     ZoomSettings,
     ZoomAuditLog,
 } from './entities';
-import { Notification } from '../notifications/entities/notification.entity';
 
 // Adapters
 import {
@@ -45,6 +44,7 @@ import { ZoomGateway } from './gateways';
 // Seeders
 import { ZoomBootstrapSeeder } from './seeders/zoom-bootstrap.seeder';
 import { AuditModule } from '../audit/audit.module';
+import { NotificationModule } from '../notifications/notification.module';
 
 @Module({
     imports: [
@@ -56,9 +56,10 @@ import { AuditModule } from '../audit/audit.module';
             ZoomParticipant,
             ZoomSettings,
             ZoomAuditLog,
-            Notification,
         ]),
         AuditModule,
+        // NotificationService: booking notifications reach the bell, toast and push like every other module.
+        NotificationModule,
     ],
     controllers: [
         ZoomBookingController,

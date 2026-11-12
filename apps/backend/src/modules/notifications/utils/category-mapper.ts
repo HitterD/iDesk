@@ -47,6 +47,9 @@ export function getCategoryFromType(type: NotificationType): NotificationCategor
         NotificationType.EFORM_ICT_CONFIRMED,
         NotificationType.EFORM_REJECTED,
         NotificationType.EFORM_CREDENTIALS_READY,
+        NotificationType.EFORM_DIRECT_TO_ICT,
+        NotificationType.EFORM_FULFILLED,
+        NotificationType.EFORM_EXPIRY_REMINDER,
     ];
 
     if (renewalTypes.includes(type)) return NotificationCategory.CATEGORY_RENEWAL;
