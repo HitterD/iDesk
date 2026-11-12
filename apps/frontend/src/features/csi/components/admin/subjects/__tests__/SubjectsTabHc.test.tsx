@@ -2,7 +2,7 @@ import { act, cleanup, render, screen, waitFor, within } from '@testing-library/
 import { strToU8, zipSync } from 'fflate';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CsiSubjectGroup, CsiSubjectView } from '../../../../types';
+import type { CsiSubjectGroup, CsiSubjectView, CsiTeamDeleteImpact } from '../../../../types';
 import { SubjectsTab } from '../SubjectsTab';
 
 const base = { userId: null, teamId: null, siteId: 's1', jobTitle: null, photoUrl: null, tagline: null, serviceFunction: null, teamKind: null, serviceCode: null, picId: null, hasAccount: true } as const;
@@ -12,13 +12,15 @@ const CUSTOM: CsiSubjectView = {
     ...base, key: 'team:t5', kind: 'TEAM', teamId: 't5', name: 'Tim Payroll', teamKind: 'CUSTOM', serviceCode: 'HCC', hasAccount: false,
     members: [{ id: 'm1', name: 'Joko', userId: null }, { id: 'm2', name: 'Andi Wijaya', userId: 'u1' }],
 };
+const SITE_TEAM: CsiSubjectView = { ...base, key: 'team:t1', kind: 'TEAM', teamId: 't1', siteId: 's2', name: 'Tim Semarang', teamKind: 'SITE', hasAccount: false };
 const GROUPS: CsiSubjectGroup[] = [
     { siteId: 's1', siteCode: 'KRW', siteName: 'Karawang', team: null, teams: [CUSTOM], people: [PIC_NO_ACCOUNT, PERSON] },
-    { siteId: 's2', siteCode: 'SMG', siteName: 'Semarang', team: null, teams: [], people: [] },
+    { siteId: 's2', siteCode: 'SMG', siteName: 'Semarang', team: SITE_TEAM, teams: [], people: [] },
 ];
+const NO_IMPACT: CsiTeamDeleteImpact = { blocked: [], draftSurveys: [], finishedSurveys: 0 };
 
 const hooks = vi.hoisted(() => ({
-    upload: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn(), setMembers: vi.fn(),
+    upload: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn(), setMembers: vi.fn(), impact: vi.fn(),
 }));
 const pending = { isPending: false };
 vi.mock('../../../../hooks/useCsi', () => ({
@@ -35,6 +37,7 @@ vi.mock('../../../../hooks/useCsiHc', () => ({
     useUpdateCustomTeam: () => ({ mutateAsync: hooks.update, ...pending }),
     useDeleteCustomTeam: () => ({ mutateAsync: hooks.remove, ...pending }),
     useSetCustomTeamMembers: () => ({ mutateAsync: hooks.setMembers, ...pending }),
+    useTeamDeleteImpact: (_scope: string, teamId: string | null) => ({ data: teamId ? hooks.impact(teamId) : undefined, isLoading: false, isError: false, refetch: vi.fn() }),
 }));
 
 const photo = (name: string) => new File(['x'], name, { type: 'image/jpeg' });
@@ -45,6 +48,7 @@ beforeEach(() => {
     hooks.update.mockResolvedValue(CUSTOM);
     hooks.setMembers.mockResolvedValue(CUSTOM);
     hooks.remove.mockResolvedValue(undefined);
+    hooks.impact.mockReturnValue(NO_IMPACT);
 });
 afterEach(cleanup);
 
@@ -111,10 +115,8 @@ describe('SubjectsTab (HC)', () => {
         expect(hooks.setMembers).toHaveBeenLastCalledWith({ id: 't9', members: [] });
     });
 
-    it('editing a custom team locks the site and shows the backend refusal on delete', async () => {
+    it('editing a custom team locks the site and saves name, layanan and members', async () => {
         const actor = userEvent.setup();
-        vi.spyOn(window, 'confirm').mockReturnValue(true);
-        hooks.remove.mockRejectedValue({ response: { status: 400, data: { message: 'Tim dipakai di survei yang belum selesai' } } });
         render(<SubjectsTab scope="hc" />);
         await actor.click(screen.getByRole('button', { name: /^Ubah Tim Payroll/ }));
         const sheet = screen.getByRole('dialog');
@@ -124,13 +126,54 @@ describe('SubjectsTab (HC)', () => {
         await actor.click(within(sheet).getByRole('button', { name: 'Simpan' }));
         await waitFor(() => expect(hooks.setMembers).toHaveBeenCalledWith({ id: 't5', members: [{ userId: 'u1' }] }));
         expect(hooks.update).toHaveBeenCalledWith({ id: 't5', name: 'Tim Payroll', serviceCode: 'HCC' });
+    });
 
+    it('deleting a custom team confirms in a dialog listing the draft surveys it leaves', async () => {
+        const actor = userEvent.setup();
+        const confirmSpy = vi.spyOn(window, 'confirm');
+        hooks.impact.mockReturnValue({ blocked: [], draftSurveys: [{ periodId: 'p1', title: 'CSI HC Desember' }], finishedSurveys: 0 });
+        render(<SubjectsTab scope="hc" />);
         await actor.click(screen.getByRole('button', { name: /^Ubah Tim Payroll/ }));
         await actor.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Hapus tim/ }));
-        expect(await screen.findByText('Tim dipakai di survei yang belum selesai')).toBeInTheDocument();
-        expect(hooks.remove).toHaveBeenCalledWith('t5');
-        expect(window.confirm).toHaveBeenLastCalledWith(
-            'Hapus tim Tim Payroll? Baris tim ini di Template penugasan beserta penilainya ikut terhapus.');
+        const dialog = screen.getByRole('dialog', { name: 'Hapus Tim Payroll?' });
+        expect(hooks.impact).toHaveBeenCalledWith('t5');
+        expect(within(dialog).getByText('Tim ini juga dikeluarkan dari 1 survei draft:')).toBeInTheDocument();
+        expect(within(within(dialog).getByRole('list', { name: 'Survei draft yang terdampak' })).getByText('CSI HC Desember')).toBeInTheDocument();
+        await actor.click(within(dialog).getByRole('button', { name: /Hapus tim/ }));
+        await waitFor(() => expect(hooks.remove).toHaveBeenCalledWith('t5'));
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        expect(confirmSpy).not.toHaveBeenCalled();
+    });
+
+    it('a team used by a running or answered survey cannot be deleted; the blocking surveys are listed', async () => {
+        const actor = userEvent.setup();
+        hooks.impact.mockReturnValue({
+            blocked: [{ periodId: 'p1', title: 'CSI HC November', reason: 'running' }, { periodId: 'p2', title: 'CSI HC Oktober', reason: 'answered' }],
+            draftSurveys: [], finishedSurveys: 0,
+        });
+        render(<SubjectsTab scope="hc" />);
+        await actor.click(screen.getByRole('button', { name: /^Ubah Tim Payroll/ }));
+        await actor.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Hapus tim/ }));
+        const dialog = screen.getByRole('dialog', { name: 'Hapus Tim Payroll?' });
+        const list = within(dialog).getByRole('list', { name: 'Survei yang menahan penghapusan' });
+        expect(within(list).getByText('CSI HC November')).toBeInTheDocument();
+        expect(within(list).getByText('sedang berjalan')).toBeInTheDocument();
+        expect(within(list).getByText('sudah ada jawaban')).toBeInTheDocument();
+        expect(within(dialog).getByRole('button', { name: /Hapus tim/ })).toBeDisabled();
+    });
+
+    it('the site team sheet can delete the team too and shows a backend refusal', async () => {
+        const actor = userEvent.setup();
+        hooks.impact.mockReturnValue({ ...NO_IMPACT, finishedSurveys: 2 });
+        hooks.remove.mockRejectedValue({ response: { status: 400, data: { message: 'Tim dipakai di survei yang sedang berjalan: CSI HC November' } } });
+        render(<SubjectsTab scope="hc" />);
+        await actor.click(screen.getByRole('button', { name: /^Ubah Tim Semarang/ }));
+        await actor.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Hapus tim/ }));
+        const dialog = screen.getByRole('dialog', { name: 'Hapus Tim Semarang?' });
+        expect(within(dialog).getByText(/Hasil 2 survei yang sudah selesai atau dibatalkan tetap tersimpan/)).toBeInTheDocument();
+        await actor.click(within(dialog).getByRole('button', { name: /Hapus tim/ }));
+        expect(await within(dialog).findByText('Tim dipakai di survei yang sedang berjalan: CSI HC November')).toBeInTheDocument();
+        expect(hooks.remove).toHaveBeenCalledWith('t1');
     });
 
     it('bulk dialog uploads matched files', async () => {

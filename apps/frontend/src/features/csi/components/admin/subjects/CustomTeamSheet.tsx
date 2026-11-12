@@ -6,7 +6,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { useDebounce } from '@/hooks/useDebounce';
 import { cn } from '@/lib/utils';
 import { useCsiUserSearch } from '../../../hooks/useCsi';
-import { useCreateCustomTeam, useDeleteCustomTeam, useSetCustomTeamMembers, useUpdateCustomTeam } from '../../../hooks/useCsiHc';
+import { useCreateCustomTeam, useSetCustomTeamMembers, useUpdateCustomTeam } from '../../../hooks/useCsiHc';
 import type { AccountSuggestion } from '../../../hcTypes';
 import { errorMessage } from '../../../lib/csiForm';
 import { toneClasses } from '../../../lib/csiTone';
@@ -14,11 +14,11 @@ import { CSI_SERVICE_NAMES } from '../../../lib/services';
 import type { CsiScopeParam, CsiSubjectGroup, CsiSubjectView, CsiTeamMemberInput, CsiUserSearchResult } from '../../../types';
 import { FIELD_LABEL, MUTED_TEXT } from '../AdminParts';
 import { ACCOUNT_SEARCH_DEBOUNCE_MS, AccountCombobox } from '../hc/templates/AccountCombobox';
+import { TeamDeleteDialog } from './TeamDeleteDialog';
 
 const FIELD = 'h-9 w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--idesk-surface))] px-3 text-[13px] disabled:opacity-60';
 const MIN_SEARCH = 2;
 const SAVE_FAILED = 'Gagal menyimpan tim. Silakan coba lagi.';
-const DELETE_FAILED = 'Gagal menghapus tim. Silakan coba lagi.';
 
 /** Create: no team yet. Edit: an existing CUSTOM team of the given site (site is then fixed). */
 export type CustomTeamTarget = { mode: 'create' } | { mode: 'edit'; team: CsiSubjectView; siteId: string };
@@ -75,7 +75,6 @@ function CustomTeamForm({ scope, groups, target, onClose, onEditPhoto }: FormPro
     const create = useCreateCustomTeam(scope);
     const update = useUpdateCustomTeam(scope);
     const setMembers = useSetCustomTeamMembers(scope);
-    const remove = useDeleteCustomTeam(scope);
     const team = target.mode === 'edit' ? target.team : null;
     const [siteId, setSiteId] = useState(target.mode === 'edit' ? target.siteId : groups[0]?.siteId ?? '');
     const [name, setName] = useState(team?.name ?? '');
@@ -83,6 +82,7 @@ function CustomTeamForm({ scope, groups, target, onClose, onEditPhoto }: FormPro
     const [members, setMembersDraft] = useState<DraftMember[]>((team?.members ?? []).map(({ userId, name: memberName }) => ({ userId, name: memberName })));
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    const [deleting, setDeleting] = useState(false);
     /** Set once a create succeeded: a retry after a failed member save must update that team, not create it again. */
     const [createdId, setCreatedId] = useState<string | null>(null);
     const teamId = team?.teamId ?? createdId;
@@ -113,11 +113,6 @@ function CustomTeamForm({ scope, groups, target, onClose, onEditPhoto }: FormPro
         }
         await setMembers.mutateAsync({ id, members: members.map(toInput) });
     }, SAVE_FAILED);
-    const destroy = () => {
-        if (!team?.teamId || !window.confirm(`Hapus tim ${team.name}? Baris tim ini di Template penugasan beserta penilainya ikut terhapus.`)) return;
-        const id = team.teamId;
-        void run(() => remove.mutateAsync(id), DELETE_FAILED);
-    };
 
     return (
         <>
@@ -152,13 +147,15 @@ function CustomTeamForm({ scope, groups, target, onClose, onEditPhoto }: FormPro
             </div>
             <div className="flex justify-end gap-2 border-t border-[hsl(var(--idesk-border)/.7)] px-6 py-4">
                 {team && (
-                    <Button variant="subtle" className="mr-auto text-[hsl(var(--ticket-red-ink))]" disabled={busy} onClick={destroy}>
+                    <Button variant="subtle" className="mr-auto text-[hsl(var(--ticket-red-ink))]" disabled={busy} onClick={() => setDeleting(true)}>
                         <Trash2 aria-hidden="true" />Hapus tim
                     </Button>
                 )}
                 <Button variant="subtle" onClick={onClose}>Batal</Button>
                 <Button variant="primary" onClick={() => void save()} loading={busy} disabled={!siteId || !name.trim() || !serviceCode}>Simpan</Button>
             </div>
+            <TeamDeleteDialog scope={scope} team={deleting && team?.teamId ? { teamId: team.teamId, name: team.name } : null}
+                onClose={() => setDeleting(false)} onDeleted={onClose} />
         </>
     );
 }

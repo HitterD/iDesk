@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react';
-import { ImageOff, Upload, UserMinus } from 'lucide-react';
+import { ImageOff, Trash2, Upload, UserMinus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -12,6 +12,7 @@ import { FlowChromeContext } from '../../respond/FlowChrome';
 import { SubjectPhoto } from '../../respond/SubjectPhoto';
 import { FIELD_LABEL, MUTED_TEXT } from '../AdminParts';
 import { SUBJECT_KIND_LABEL } from './SubjectCard';
+import { TeamDeleteDialog } from './TeamDeleteDialog';
 
 export const CSI_TAGLINE_MAX = 90;
 const MB = 1024 * 1024;
@@ -86,10 +87,13 @@ function EditForm({ scope, subject, group, onClose }: { scope: CsiScopeParam; su
     const [draft, setDraft] = useState({ name: subject.name, jobTitle: subject.jobTitle ?? '', tagline: subject.tagline ?? '', serviceFunction: subject.serviceFunction ?? '' });
     const [photo, setPhoto] = useState<PickedPhoto | null>(null);
     const [fileError, setFileError] = useState<string | null>(null);
+    const [deleting, setDeleting] = useState(false);
     useRevokeOnChange(photo);
     const file = photo?.file ?? null;
     const isTeam = subject.kind === 'TEAM';
     const hasServiceFunction = !isTeam && scope === 'ict';
+    /** Team delete is HC-only (the backend endpoint refuses ICT). */
+    const canDeleteTeam = isTeam && !!subject.teamId && scope === 'hc';
     const ids = { jobTitle: useId(), name: useId(), serviceFunction: useId() };
     const set = (field: keyof typeof draft) => (value: string) => setDraft((prev) => ({ ...prev, [field]: value }));
     const pick = (next: File) => { const error = photoError(next); setFileError(error); setPhoto(error ? null : pickPhoto(next)); };
@@ -123,12 +127,20 @@ function EditForm({ scope, subject, group, onClose }: { scope: CsiScopeParam; su
                 {isTeam && <TextField id={ids.name} label="Nama tim" value={draft.name} onChange={set('name')} />}
             </div>
             <SheetFooter onClose={onClose} onSave={save} pending={pending} disabled={isTeam && !draft.name.trim()}
-                extra={!isTeam && subject.userId && scope === 'hc' ? (
+                extra={canDeleteTeam ? (
+                    <Button variant="subtle" className="mr-auto text-[hsl(var(--ticket-red-ink))]" disabled={pending} onClick={() => setDeleting(true)}>
+                        <Trash2 aria-hidden="true" />Hapus tim
+                    </Button>
+                ) : !isTeam && subject.userId && scope === 'hc' ? (
                     <Button variant="subtle" className="mr-auto text-[hsl(var(--ticket-red-ink))]" loading={remove.isPending}
                         onClick={() => remove.mutate(subject.userId!, { onSuccess: onClose })}>
                         <UserMinus aria-hidden="true" />Keluarkan dari daftar
                     </Button>
                 ) : null} />
+            {canDeleteTeam && (
+                <TeamDeleteDialog scope={scope} team={deleting ? { teamId: subject.teamId!, name: subject.name } : null}
+                    onClose={() => setDeleting(false)} onDeleted={onClose} />
+            )}
         </>
     );
 }
