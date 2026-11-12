@@ -74,7 +74,6 @@ export class QueueModule {
                         };
                     },
                 }),
-                BullModule.registerQueue({ name: 'notifications' }),
                 BullModule.registerQueue({ name: 'emails' }),
                 BullModule.registerQueue({ name: 'file-processing' }),
                 BullModule.registerQueue({ name: 'reports' }),

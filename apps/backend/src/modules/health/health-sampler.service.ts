@@ -17,7 +17,6 @@ import {
 } from './dto/health.dto';
 
 const MONITORED_QUEUES = [
-    'notifications',
     'emails',
     'file-processing',
     'reports',

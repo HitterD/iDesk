@@ -320,3 +320,33 @@ describe('NotificationService - user settings', () => {
         expect(push.dispatch).not.toHaveBeenCalled();
     });
 });
+
+describe('NotificationService - lists and counts stay in the database', () => {
+    it('counts unread with one SQL query that already excludes internal notes the user cannot see', async () => {
+        const qb: any = { where: jest.fn(() => qb), andWhere: jest.fn(() => qb), getCount: jest.fn().mockResolvedValue(7) };
+        const repo: any = { createQueryBuilder: jest.fn(() => qb), find: jest.fn() };
+        const service = new NotificationService(repo, { server: { to: jest.fn() } } as any, {} as any, undefined, { filter: jest.fn() } as any);
+
+        expect(await service.countUnread('u-1')).toBe(7);
+        expect(repo.find).not.toHaveBeenCalled();
+        expect(qb.andWhere.mock.calls.map((c: any[]) => c[0]).join(' ')).toContain('ticket_note_members');
+    });
+
+    it('pages the list in SQL and only checks the returned page for note access', async () => {
+        const rows = [{ id: 'a', type: 'TICKET_UPDATED' }, { id: 'b', type: 'TICKET_NOTE', referenceId: 'n' }];
+        const qb: any = {
+            where: jest.fn(() => qb), andWhere: jest.fn(() => qb), orderBy: jest.fn(() => qb), take: jest.fn(() => qb), skip: jest.fn(() => qb),
+            getManyAndCount: jest.fn().mockResolvedValue([rows, 40]),
+        };
+        const repo: any = { createQueryBuilder: jest.fn(() => qb) };
+        const noteVisibility = { filter: jest.fn(async (_u: string, list: any[]) => list.filter((r) => r.type !== 'TICKET_NOTE')) };
+        const service = new NotificationService(repo, { server: { to: jest.fn() } } as any, {} as any, undefined, noteVisibility as any);
+
+        const result = await service.findAllForUser('u-1', { limit: 2, page: 3 });
+
+        expect(qb.take).toHaveBeenCalledWith(2);
+        expect(qb.skip).toHaveBeenCalledWith(4);
+        expect(result.data.map((r: any) => r.id)).toEqual(['a']);
+        expect(result.total).toBe(39);
+    });
+});

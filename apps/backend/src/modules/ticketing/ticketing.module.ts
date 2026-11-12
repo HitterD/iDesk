@@ -89,7 +89,6 @@ import { NotificationPreference } from '../notifications/entities/notification-p
 
 // Legacy/Partial refactored services (keeping for safety if used elsewhere)
 import { TicketRepository } from './repositories/ticket.repository';
-import { TicketNotificationService } from './services/ticket-notification.service';
 import { TicketStatsService } from './services/ticket-stats.service';
 import { TicketNotificationListener } from './listeners/ticket-notification.listener';
 import { TicketChatPushListener } from './listeners/ticket-chat-push.listener';
@@ -198,7 +197,6 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         EventsGateway,
         // Refactored services (Repository Pattern)
         TicketRepository,
-        TicketNotificationService,
         TicketStatsService,
         TicketNotificationListener,
         TicketChatPushListener,
@@ -220,7 +218,6 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         TimeTrackingService,
         EventsGateway,
         TicketRepository,
-        TicketNotificationService,
         TicketStatsService,
     ],
 })

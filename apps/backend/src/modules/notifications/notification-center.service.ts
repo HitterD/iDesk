@@ -201,33 +201,9 @@ export class NotificationCenterService implements OnModuleInit {
         });
     }
 
-    async sendToRole(role: string, payload: Omit<NotificationPayload, 'userId'>): Promise<void> {
-        // P1 perf: original loaded every user with the role in a single
-        // unbounded query. For a large USER/AGENT role that meant thousands
-        // of entities in memory. Now we page 200 at a time and stream.
-        const PAGE = 200;
-        let skip = 0;
-        while (true) {
-            const users = await this.userRepo.find({
-                where: { role: role as any },
-                take: PAGE,
-                skip,
-                select: ['id'],
-            });
-            if (users.length === 0) break;
-            await this.sendBulk(users.map(u => u.id), payload);
-            if (users.length < PAGE) break;
-            skip += PAGE;
-        }
-    }
-
     // =====================
     // Preferences Management
     // =====================
-
-    async getPreferences(userId: string): Promise<NotificationPreference | null> {
-        return this.preferenceRepo.findOne({ where: { userId } });
-    }
 
     async getOrCreatePreferences(userId: string): Promise<NotificationPreference> {
         let prefs = await this.preferenceRepo.findOne({ where: { userId } });
@@ -933,35 +909,6 @@ export class NotificationCenterService implements OnModuleInit {
             { userId, isRead: false },
             { isRead: true }
         );
-    }
-
-    async getNotifications(userId: string, limit = 50): Promise<Notification[]> {
-        if (this.noteVisibility) {
-            const rows = await this.notificationRepo.find({ where: { userId }, order: { createdAt: 'DESC' } });
-            return (await this.noteVisibility.filter(userId, rows)).slice(0, limit);
-        }
-        return this.notificationRepo.find({
-            where: { userId },
-            order: { createdAt: 'DESC' },
-            take: limit,
-        });
-    }
-
-    async getUnreadCount(userId: string): Promise<number> {
-        if (this.noteVisibility) {
-            const rows = await this.notificationRepo.find({ where: { userId, isRead: false } });
-            return (await this.noteVisibility.filter(userId, rows)).length;
-        }
-        return this.notificationRepo.count({
-            where: { userId, isRead: false },
-        });
-    }
-
-    async getDeliveryLogs(notificationId: string): Promise<NotificationLog[]> {
-        return this.logRepo.find({
-            where: { notificationId },
-            order: { createdAt: 'DESC' },
-        });
     }
 
     // =====================

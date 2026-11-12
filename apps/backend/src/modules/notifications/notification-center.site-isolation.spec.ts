@@ -77,13 +77,10 @@ describe('NotificationCenterService site isolation (no global fanout)', () => {
   });
 
   describe('sendToRoleAtSite', () => {
-    it('without siteId returns {sent:0} and does not call global sendToRole (no fanout)', async () => {
-      const sendToRoleSpy = jest.spyOn(service as any, 'sendToRole');
-
+    it('without siteId returns {sent:0} and queries nobody (no fanout)', async () => {
       const result = await service.sendToRoleAtSite('ADMIN', null, { type: 'TEST' as any, title: 't', message: 'm' });
 
       expect(result).toEqual({ sent: 0 });
-      expect(sendToRoleSpy).not.toHaveBeenCalled();
       // Also ensure we did not query users globally
       expect(userRepo.find).not.toHaveBeenCalled();
     });
@@ -102,14 +99,13 @@ describe('NotificationCenterService site isolation (no global fanout)', () => {
       expect(where[1].siteId).toEqual(expect.objectContaining({ _type: 'isNull' }));
     });
 
-    it('with siteId and zero matches does not fallback to global sendToRole', async () => {
+    it('with siteId and zero matches does not fall back to a global query', async () => {
       userRepo.find.mockResolvedValue([]); // no users at site
-      const sendToRoleSpy = jest.spyOn(service as any, 'sendToRole');
 
       const result = await service.sendToRoleAtSite('ADMIN', 'site-smg', { type: 'TEST' as any, title: 't', message: 'm' });
 
       expect(result).toEqual({ sent: 0 });
-      expect(sendToRoleSpy).not.toHaveBeenCalled();
+      expect(userRepo.find).toHaveBeenCalledTimes(1);
     });
   });
 
