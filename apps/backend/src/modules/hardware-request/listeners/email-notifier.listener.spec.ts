@@ -1,15 +1,16 @@
 import { Test } from '@nestjs/testing';
 import { EmailNotifierListener } from './email-notifier.listener';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
-import { PermissionsService } from '../../permissions/permissions.service';
+import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { HardwareRequestQueryService } from '../services/hardware-request-query.service';
 
 describe('EmailNotifierListener', () => {
     let listener: EmailNotifierListener;
     const mailer = { send: jest.fn().mockResolvedValue({ success: true }) };
-    const perm = { listUsersWithRole: jest.fn().mockResolvedValue([{ id: 'lead1', email: 'lead1@x.com', fullName: 'Lead 1' }]) };
+    const perm = { findStaffAtSite: jest.fn().mockResolvedValue([{ id: 'lead1', email: 'lead1@x.com', fullName: 'Lead 1' }]) };
     const q = { findById: jest.fn().mockResolvedValue({
         id: 'r1',
+        siteId: 's1',
         requestNumber: 'HR-2026-0001',
         siteName: 'HQ',
         justification: '...',
@@ -22,7 +23,7 @@ describe('EmailNotifierListener', () => {
             providers: [
                 EmailNotifierListener,
                 { provide: MailDispatchService, useValue: mailer },
-                { provide: PermissionsService, useValue: perm },
+                { provide: NotificationCenterService, useValue: perm },
                 { provide: HardwareRequestQueryService, useValue: q },
             ],
         }).compile();
@@ -32,7 +33,7 @@ describe('EmailNotifierListener', () => {
 
     it('onSubmitted sends to AGENT_OPERATIONAL_SUPPORT via mail dispatch', async () => {
         await listener.onSubmitted({ requestId: 'r1', actorId: 'u1', requesterId: 'u1', occurredAt: new Date() } as any);
-        expect(perm.listUsersWithRole).toHaveBeenCalledWith('AGENT_OPERATIONAL_SUPPORT', null);
+        expect(perm.findStaffAtSite).toHaveBeenCalledWith(['AGENT_OPERATIONAL_SUPPORT'], 's1');
         expect(mailer.send).toHaveBeenCalledWith(expect.objectContaining({
             to: 'lead1@x.com',
         }));

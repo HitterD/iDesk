@@ -251,6 +251,6 @@ export async function recordStatusTakeover(
         ticket.id, ticket.ticketNumber || ticket.id.split('-')[0],
         actor.id, actor.fullName, actor.email, actor.fullName,
         ticket.title, ticket.status, ticket.user?.email, ticket.user?.fullName,
-        actor.id,
+        actor.id, true,
     ));
 }

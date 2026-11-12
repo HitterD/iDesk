@@ -213,7 +213,6 @@ import { validateAuthEnvironment } from './config/auth.config';
         UsersModule,
         UploadsModule,
         NotificationModule,
-        ScheduleModule.forRoot(),
         HealthModule,
         SearchModule,
         RenewalModule,

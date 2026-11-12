@@ -5,27 +5,24 @@ import { UserRole } from '../../users/enums/user-role.enum';
 describe('EFormExpirationReminderCron', () => {
   let cron: EFormExpirationReminderCron;
   let mockEformRepo: any;
-  let mockUserRepo: any;
   let mockNotificationCenter: any;
+  let mockDataSource: any;
 
   beforeEach(() => {
     mockEformRepo = {
       find: jest.fn(),
     };
-    mockUserRepo = {
-      find: jest.fn().mockResolvedValue([
-        { id: 'admin-1', email: 'admin@santos.co.id', fullName: 'Admin ICT' },
-      ]),
-    };
     mockNotificationCenter = {
       send: jest.fn().mockResolvedValue({ id: 'notif-1' }),
       sendBulk: jest.fn().mockResolvedValue(undefined),
+      findStaffAtSite: jest.fn().mockResolvedValue([{ id: 'ops-1' }]),
     };
+    mockDataSource = { query: jest.fn().mockResolvedValue([{ job: 'eform-expiration-reminder' }]) };
 
     cron = new EFormExpirationReminderCron(
       mockEformRepo,
-      mockUserRepo,
       mockNotificationCenter,
+      mockDataSource,
     );
   });
 
@@ -96,13 +93,8 @@ describe('EFormExpirationReminderCron', () => {
         referenceId: 'req-vpn-7days',
       }),
     );
-    expect(mockNotificationCenter.sendBulk).toHaveBeenCalledWith(
-      ['admin-1'],
-      expect.objectContaining({
-        title: expect.stringContaining('7 Hari'),
-        referenceId: 'req-vpn-7days',
-      }),
-    );
+    // H-7 is the requester's alone; ICT hears on the last day only.
+    expect(mockNotificationCenter.sendBulk).not.toHaveBeenCalled();
   });
 
   it('triggers H-3 reminder when expiration is 3 days away', async () => {
@@ -145,6 +137,7 @@ describe('EFormExpirationReminderCron', () => {
         status: EFormStatus.CONFIRMED,
         requesterId: 'user-3',
         requesterName: 'User Three',
+        siteId: 'site-1',
         formData: {
           dariTanggal: '2026-01-01',
           sampaiTanggal: formatDate(now),
@@ -161,5 +154,17 @@ describe('EFormExpirationReminderCron', () => {
         title: expect.stringContaining('Hari Ini'),
       }),
     );
+    // ICT at the request's site (plus cross-site), never every ICT user; the requester is not asked twice.
+    expect(mockNotificationCenter.findStaffAtSite).toHaveBeenCalledWith([UserRole.AGENT_OPERATIONAL_SUPPORT], 'site-1', ['user-3']);
+    expect(mockNotificationCenter.sendBulk).toHaveBeenCalledWith(['ops-1'], expect.objectContaining({ link: '/eform-access/req-net-today' }));
+  });
+
+  it('runs once per day across replicas', async () => {
+    mockEformRepo.find.mockResolvedValue([]);
+    mockDataSource.query.mockResolvedValueOnce([]); // another instance already claimed today
+
+    await cron.runDaily();
+
+    expect(mockEformRepo.find).not.toHaveBeenCalled();
   });
 });

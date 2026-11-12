@@ -101,6 +101,14 @@ export class ZoomBooking {
     @OneToMany(() => ZoomParticipant, (participant) => participant.booking)
     participants: ZoomParticipant[];
 
+    /** When the booker's confirmation email went out; a retried meeting creation does not send it again. */
+    @Column({ type: 'timestamp', nullable: true })
+    confirmationSentAt: Date | null;
+
+    /** When the "starts in 15 minutes" reminder went out; set atomically so it is sent once. */
+    @Column({ type: 'timestamp', nullable: true })
+    reminderSentAt: Date | null;
+
     @CreateDateColumn()
     createdAt: Date;
 

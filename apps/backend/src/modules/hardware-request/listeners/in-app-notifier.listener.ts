@@ -3,7 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { NotificationService } from '../../notifications/notification.service';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { NotificationType } from '../../notifications/entities/notification.entity';
-import { PermissionsService } from '../../permissions/permissions.service';
+import { UserRole } from '../../users/enums/user-role.enum';
 import { HardwareRequestQueryService } from '../services/hardware-request-query.service';
 import {
     HR_EVT, HrSubmitted, HrApproved, HrRejected, HrCancelled,
@@ -14,12 +14,18 @@ import {
 
 const link = (id: string) => `/hardware-requests/${id}`;
 
+/** Staff who carry out hardware work (procurement, installation). AGENT_ORACLE cannot open hardware pages. */
+const HW_OPERATORS = [UserRole.AGENT, UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT_ADMIN];
+/** A new request is reviewed and approved by operators or a manager. */
+const HW_REVIEWERS = [...HW_OPERATORS, UserRole.MANAGER];
+const others = (ids: Array<string | null | undefined>, actorId?: string | null): string[] =>
+    [...new Set(ids.filter((id): id is string => Boolean(id) && id !== actorId))];
+
 @Injectable()
 export class InAppNotifierListener {
     constructor(
         private readonly notif: NotificationService,
         private readonly notificationCenterService: NotificationCenterService,
-        private readonly perm: PermissionsService,
         private readonly q: HardwareRequestQueryService,
     ) {}
 
@@ -34,13 +40,19 @@ export class InAppNotifierListener {
         await this.notif.create({ userId, ...payload });
     }
 
+    /** Active staff in `roles` at the request's site plus cross-site staff; nobody when it has no site. */
+    private async staffFor(r: { siteId?: string | null } | null | undefined, roles: string[], exclude: Array<string | null | undefined>): Promise<string[]> {
+        const users = await this.notificationCenterService.findStaffAtSite(roles, r?.siteId ?? null);
+        const skip = new Set(exclude.filter(Boolean));
+        return users.map(u => u.id).filter(id => !skip.has(id));
+    }
+
     @OnEvent(HR_EVT.SUBMITTED)
     async onSubmitted(e: HrSubmitted) {
         const r = await this.q.findById(e.requestId);
         if (!r) return;
-        const leads = await this.perm.listUsersWithRole('ICT_STAFF', (r as any).siteId ?? null);
-        const uniqueLeads = Array.from(new Map(leads.map(l => [l.id, l])).values());
-        await Promise.all(uniqueLeads.map(l => this.push(l.id, {
+        const reviewers = await this.staffFor(r as any, HW_REVIEWERS, [e.actorId, e.requesterId]);
+        await Promise.all(reviewers.map(id => this.push(id, {
             title: 'Permintaan hardware baru',
             message: `${r.requestNumber} menunggu review`,
             type: NotificationType.HARDWARE_REQUEST_SUBMITTED,
@@ -53,9 +65,7 @@ export class InAppNotifierListener {
     async onApproved(e: HrApproved) {
         const r = await this.q.findById(e.requestId);
         if (!r) return;
-        const siteId = (r as any).siteId ?? null;
-        const procs = await this.perm.listUsersWithRole('ICT_STAFF', siteId);
-        const uniqueProcs = Array.from(new Map(procs.map(p => [p.id, p])).values());
+        const procs = await this.staffFor(r as any, HW_OPERATORS, [e.actorId, e.requesterId]);
         await this.push(e.requesterId, {
             title: 'Request disetujui',
             message: `${r.requestNumber} approved, menunggu procurement`,
@@ -63,7 +73,7 @@ export class InAppNotifierListener {
             link: link(r.id),
             referenceId: `${r.id}_approved`,
         });
-        await Promise.all(uniqueProcs.map(p => this.push(p.id, {
+        await Promise.all(procs.map(id => this.push(id, {
             title: 'Procurement baru',
             message: `${r.requestNumber} siap diproses`,
             type: NotificationType.HARDWARE_REQUEST_APPROVED_PROC,
@@ -93,9 +103,9 @@ export class InAppNotifierListener {
         if (e.fromStatus !== 'UNDER_REVIEW') return;
         // Load request to get siteId for scoping
         const r = await this.q.findById(e.requestId);
-        const leads = await this.perm.listUsersWithRole('ICT_STAFF', (r as any)?.siteId ?? null);
-        const uniqueLeads = Array.from(new Map(leads.map(l => [l.id, l])).values());
-        await Promise.all(uniqueLeads.map(l => this.push(l.id, {
+        // Still under review: the reviewers had it in their queue.
+        const reviewers = await this.staffFor(r as any, HW_REVIEWERS, [e.actorId, e.requesterId]);
+        await Promise.all(reviewers.map(id => this.push(id, {
             title: 'Request dibatalkan oleh user',
             message: `Request ${e.requestId.slice(0, 8)} dicancel`,
             type: NotificationType.HARDWARE_REQUEST_CANCELLED,
@@ -108,8 +118,7 @@ export class InAppNotifierListener {
     async onProcurementDone(e: HrProcurementDone) {
         const r = await this.q.findById(e.requestId);
         if (!r) return;
-        const techs = await this.perm.listUsersWithRole('ICT_STAFF', (r as any).siteId ?? null);
-        const uniqueTechs = Array.from(new Map(techs.map(t => [t.id, t])).values());
+        const techs = await this.staffFor(r as any, HW_OPERATORS, [e.actorId, e.requesterId]);
         await this.push(e.requesterId, {
             title: 'Procurement selesai',
             message: `${r.requestNumber} siap jadwal instalasi`,
@@ -117,7 +126,7 @@ export class InAppNotifierListener {
             link: link(r.id),
             referenceId: `${r.id}_proc_done`,
         });
-        await Promise.all(uniqueTechs.map(t => this.push(t.id, {
+        await Promise.all(techs.map(id => this.push(id, {
             title: 'Siap dijadwalkan',
             message: `${r.requestNumber} menunggu instalasi`,
             type: NotificationType.HARDWARE_REQUEST_PROC_DONE_TECH,
@@ -141,7 +150,8 @@ export class InAppNotifierListener {
 
     @OnEvent(HR_EVT.SCHEDULE_CONFIRMED)
     async onScheduleConfirmed(e: HrScheduleConfirmed) {
-        await Promise.all([e.requesterId, e.technicianId].map(u => this.push(u, {
+        // The one who confirmed knows already.
+        await Promise.all(others([e.requesterId, e.technicianId], e.confirmedBy ?? e.actorId).map(u => this.push(u, {
             title: 'Jadwal instalasi terkonfirmasi',
             message: 'Siap dilaksanakan',
             type: NotificationType.HARDWARE_REQUEST_SCHEDULE_CONFIRMED,
@@ -152,7 +162,7 @@ export class InAppNotifierListener {
 
     @OnEvent(HR_EVT.SCHEDULE_RESCHEDULED)
     async onScheduleRescheduled(e: HrScheduleRescheduled) {
-        await Promise.all([e.requesterId, e.technicianId].map(u => this.push(u, {
+        await Promise.all(others([e.requesterId, e.technicianId], e.actorId).map(u => this.push(u, {
             title: 'Jadwal instalasi diubah',
             message: e.reason ?? 'Mohon cek ulang jadwal',
             type: NotificationType.HARDWARE_REQUEST_SCHEDULE_RESCHEDULED,
@@ -179,8 +189,8 @@ export class InAppNotifierListener {
     @OnEvent(HardwareEvents.ScheduleConfirmed)
     async onSlotConfirmed(e: ScheduleConfirmedPayload) {
         const r = await this.q.findById(e.requestId);
-        const recipients = [r?.requesterId, e.technicianId].filter((u): u is string => !!u);
-        await Promise.all(recipients.map(u => this.push(u, {
+        // Whoever picked the slot (usually the owner) knows already.
+        await Promise.all(others([r?.requesterId, e.technicianId], e.actorId ?? r?.requesterId).map(u => this.push(u, {
             title: 'Jadwal instalasi terkonfirmasi',
             message: 'Siap dilaksanakan',
             type: NotificationType.HARDWARE_REQUEST_SCHEDULE_CONFIRMED,
@@ -231,10 +241,9 @@ export class InAppNotifierListener {
             return;
         }
 
-        // When request is completed (COMPLETED, or default in mock tests)
-        const rawLeads = await this.perm.listUsersWithRole('ICT_STAFF', (r as any).siteId ?? null);
-        const uniqueLeads = Array.from(new Map(rawLeads.map(l => [l.id, l])).values())
-            .filter(l => l.id !== e.requesterId);
+        // When request is completed (COMPLETED, or default in mock tests): the requester, and the approver
+        // who owns the request on the ICT side - not every ICT account.
+        const leads = others([(r as any).approvedById], e.actorId).filter(id => id !== e.requesterId);
 
         await this.push(e.requesterId, {
             title: 'Request selesai',
@@ -243,7 +252,7 @@ export class InAppNotifierListener {
             link: link(r.id),
             referenceId: `${r.id}_completed`,
         });
-        await Promise.all(uniqueLeads.map(l => this.push(l.id, {
+        await Promise.all(leads.map(id => this.push(id, {
             title: 'Request selesai',
             message: r.requestNumber,
             type: NotificationType.HARDWARE_REQUEST_COMPLETED_LEAD,

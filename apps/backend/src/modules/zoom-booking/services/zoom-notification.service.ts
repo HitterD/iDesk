@@ -20,10 +20,8 @@ function formatDateIndonesian(dateInput: string | Date): string {
     });
 }
 
-/**
- * Generate iCalendar (RFC 5545) event payload for Outlook / Apple / Google Calendar
- */
-export function generateIcsCalendar(booking: ZoomBooking, joinUrl?: string, passcode?: string): string {
+/** One VEVENT (RFC 5545) for a booking. */
+function icsEvent(booking: ZoomBooking, joinUrl?: string, passcode?: string): string[] {
     const rawDate = booking.bookingDate;
     const dateStr = rawDate instanceof Date
         ? rawDate.toISOString().split('T')[0]
@@ -47,11 +45,6 @@ export function generateIcsCalendar(booking: ZoomBooking, joinUrl?: string, pass
     const cleanDesc = descParts.replace(/\r?\n/g, '\\n');
 
     return [
-        'BEGIN:VCALENDAR',
-        'VERSION:2.0',
-        'PRODID:-//iDesk//Zoom Booking Calendar//ID',
-        'CALSCALE:GREGORIAN',
-        'METHOD:REQUEST',
         'BEGIN:VEVENT',
         `UID:zoom-booking-${booking.id}@idesk.internal`,
         `DTSTAMP:${now}`,
@@ -67,6 +60,22 @@ export function generateIcsCalendar(booking: ZoomBooking, joinUrl?: string, pass
         `DESCRIPTION:Pengingat Meeting: ${cleanTitle}`,
         'END:VALARM',
         'END:VEVENT',
+    ];
+}
+
+/**
+ * Generate iCalendar (RFC 5545) payload for Outlook / Apple / Google Calendar: one event per booking, so a
+ * recurring series is a single attachment holding all its dates.
+ */
+export function generateIcsCalendar(bookings: ZoomBooking | ZoomBooking[], joinUrl?: string, passcode?: string): string {
+    const list = Array.isArray(bookings) ? bookings : [bookings];
+    return [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//iDesk//Zoom Booking Calendar//ID',
+        'CALSCALE:GREGORIAN',
+        'METHOD:REQUEST',
+        ...list.flatMap((booking) => icsEvent(booking, joinUrl ?? booking.meeting?.joinUrl, passcode ?? booking.meeting?.password)),
         'END:VCALENDAR',
     ].join('\r\n');
 }
@@ -207,9 +216,13 @@ export class ZoomNotificationService {
         meetingId?: string,
         passcode?: string,
         customNote?: string,
+        /** Every booking of a recurring series: one email listing all dates, one .ics holding them all. */
+        series: ZoomBooking[] = [booking],
     ): Promise<void> {
-        const formattedDate = formatDateIndonesian(booking.bookingDate);
-        const icsContent = generateIcsCalendar(booking, joinUrl, passcode);
+        const formattedDate = series.length > 1
+            ? series.map(b => formatDateIndonesian(b.bookingDate)).join('; ')
+            : formatDateIndonesian(booking.bookingDate);
+        const icsContent = generateIcsCalendar(series, joinUrl, passcode);
 
         try {
             await this.mailDispatch.send({
@@ -247,7 +260,9 @@ export class ZoomNotificationService {
     }
 
     /**
-     * Notify booker and all registered participants via email with calendar (.ics) invite
+     * Notify booker and all registered participants via email with calendar (.ics) invite. A recurring series is
+     * announced once (all dates in one email and one .ics), and the booker is emailed once per booking/series even
+     * when meeting creation is retried.
      */
     async notifyBookingCreatedWithInvites(
         bookingId: string,
@@ -265,9 +280,28 @@ export class ZoomNotificationService {
             return;
         }
 
+        const series = booking.seriesId
+            ? await this.bookingRepo.find({
+                where: { seriesId: booking.seriesId },
+                relations: ['participants', 'meeting'],
+                order: { bookingDate: 'ASC', startTime: 'ASC' },
+            })
+            : [booking];
+        // Claim the series' confirmation: whichever occurrence's event comes first sends it; the rest find it taken.
+        const unsent = series.filter(b => !b.confirmationSentAt);
+        if (unsent.length === 0) return;
+        const claim = await this.bookingRepo.createQueryBuilder()
+            .update(ZoomBooking)
+            .set({ confirmationSentAt: () => 'now()' })
+            .where('id IN (:...ids)', { ids: unsent.map(b => b.id) })
+            .andWhere('"confirmationSentAt" IS NULL')
+            .execute();
+        if (!claim.affected) return;
+
         const effectiveJoinUrl = joinUrl || booking.meeting?.joinUrl;
         const effectiveMeetingId = meetingId || (booking.meeting?.zoomMeetingId ? String(booking.meeting.zoomMeetingId) : undefined);
         const effectivePasscode = passcode || booking.meeting?.password;
+        const seriesNote = series.length > 1 ? ` Jadwal berulang: ${series.length} pertemuan, semua tanggal ada di file kalender.` : '';
 
         // 1. Send confirmation email + .ics to the booker
         if (booking.bookedByUser?.email) {
@@ -278,30 +312,30 @@ export class ZoomNotificationService {
                 effectiveJoinUrl,
                 effectiveMeetingId,
                 effectivePasscode,
-                'Jadwal Zoom Meeting Anda telah berhasil dibuat. File undangan kalender (.ics) terlampir untuk ditambahkan ke kalender Anda.',
+                'Jadwal Zoom Meeting Anda telah berhasil dibuat. File undangan kalender (.ics) terlampir untuk ditambahkan ke kalender Anda.' + seriesNote,
+                series,
             );
         }
 
-        // 2. Send invitation email + .ics to all registered participants
-        if (booking.participants && booking.participants.length > 0) {
-            for (const participant of booking.participants) {
-                if (participant.email && !participant.emailSent) {
-                    const recipientName = participant.name || participant.email.split('@')[0];
-                    await this.sendBookingConfirmationEmail(
-                        participant.email,
-                        recipientName,
-                        booking,
-                        effectiveJoinUrl,
-                        effectiveMeetingId,
-                        effectivePasscode,
-                        `Anda diundang ke meeting Zoom oleh ${booking.bookedByUser?.fullName || 'rekan kerja'}. File undangan kalender (.ics) terlampir untuk ditambahkan ke kalender Anda.`,
-                    );
-
-                    participant.emailSent = true;
-                    participant.emailSentAt = new Date();
-                    await this.participantRepo.save(participant);
-                }
-            }
+        // 2. One invitation (+ .ics for the whole series) per participant email, then mark every row of it.
+        const rows = series.flatMap(b => b.participants ?? []).filter(p => p.email);
+        const byEmail = new Map<string, ZoomParticipant[]>();
+        for (const p of rows) byEmail.set(p.email.toLowerCase(), [...(byEmail.get(p.email.toLowerCase()) ?? []), p]);
+        for (const participants of byEmail.values()) {
+            if (participants.every(p => p.emailSent)) continue;
+            const participant = participants[0];
+            await this.sendBookingConfirmationEmail(
+                participant.email,
+                participant.name || participant.email.split('@')[0],
+                booking,
+                effectiveJoinUrl,
+                effectiveMeetingId,
+                effectivePasscode,
+                `Anda diundang ke meeting Zoom oleh ${booking.bookedByUser?.fullName || 'rekan kerja'}. File undangan kalender (.ics) terlampir untuk ditambahkan ke kalender Anda.` + seriesNote,
+                series,
+            );
+            const sentAt = new Date();
+            await this.participantRepo.save(participants.map(p => ({ ...p, emailSent: true, emailSentAt: sentAt })));
         }
     }
 

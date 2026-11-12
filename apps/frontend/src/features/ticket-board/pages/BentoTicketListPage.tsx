@@ -109,27 +109,14 @@ export const BentoTicketListPage: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const { user } = useAuth();
     const queryClient = useQueryClient();
-    const { playNewTicketSound, playCriticalSound } = useSoundNotification();
+    const { playCriticalSound } = useSoundNotification();
 
+    // The list refreshes itself; the people who must act on a new ticket get its notification (toast + sound)
+    // from the bell. A second toast here reached every staff member on the page, also for tickets already
+    // auto-assigned to someone else. Only a CRITICAL ticket still sounds, for whoever is watching the queue.
     const handleNewTicket = useCallback((ticket: ApiTicket) => {
-        if (user?.role === 'ADMIN' || user?.role === 'AGENT') {
-            // Play notification sound
-            if (ticket.priority === 'CRITICAL') {
-                playCriticalSound();
-            } else {
-                playNewTicketSound();
-            }
-
-            toast.info('New Ticket', {
-                description: `${ticket.ticketNumber || ''}: ${ticket.subject}`,
-                action: {
-                    label: 'View',
-                    onClick: () => navigate(`/tickets/${ticket.id}`),
-                },
-                duration: 8000,
-            });
-        }
-    }, [user, navigate, playNewTicketSound, playCriticalSound]);
+        if (ticket.priority === 'CRITICAL' && user?.role !== 'USER') playCriticalSound();
+    }, [user?.role, playCriticalSound]);
 
     const { isConnected } = useTicketListSocket({ onNewTicket: handleNewTicket });
     const {

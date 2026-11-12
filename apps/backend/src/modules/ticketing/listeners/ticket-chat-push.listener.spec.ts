@@ -152,4 +152,22 @@ describe('TicketChatPushListener', () => {
         expect(participants.find).not.toHaveBeenCalled();
         expect(push.send).not.toHaveBeenCalled();
     });
+
+    it('pushes one toast per ticket per person within the throttle window, and none to mentioned people', async () => {
+        const store = new Map<string, unknown>();
+        const cache = { getAsync: jest.fn(async (k: string) => store.get(k) ?? null), setAsync: jest.fn(async (k: string, v: unknown) => { store.set(k, v); }) };
+        const gateway = { isViewingTicket: jest.fn(async () => false) };
+        const throttledListener = new TicketChatPushListener(push as any, gateway as any, participants as any, users as any, cache as any);
+
+        await throttledListener.onReplied(reply());
+        await throttledListener.onReplied(reply());
+        expect(recipients()).toEqual(['requester']);
+
+        push.send.mockClear();
+        const mention = reply();
+        (mention as any).mentionedUserIds.push('requester');
+        store.clear();
+        await throttledListener.onReplied(mention);
+        expect(push.send).not.toHaveBeenCalled();
+    });
 });

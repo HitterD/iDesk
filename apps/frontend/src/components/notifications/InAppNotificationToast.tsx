@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { forwardToDesktopNotifier } from '@/lib/desktopNotifier';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { useSoundNotification } from '@/hooks/useSoundNotification';
 import { getNotificationRedirectPath, type UserRole } from './utils/notificationRouter';
 import { NotificationCategory, type Notification } from './types/notification.types';
 
@@ -177,12 +178,22 @@ const NotificationToast: React.FC<NotificationToastProps> = ({
     );
 };
 
+/** The sound for a toast: new-ticket and assignment sounds where they fit, the message sound otherwise. */
+function soundFor(type: string): string {
+    if (type === 'TICKET_CREATED') return 'NEW_TICKET';
+    if (type === 'TICKET_ASSIGNED') return 'ASSIGNED';
+    if (type === 'TICKET_RESOLVED') return 'RESOLVED';
+    if (type === 'SLA_BREACHED' || type === 'SLA_WARNING') return 'CRITICAL';
+    return 'MESSAGE';
+}
+
 export const InAppNotificationToast: React.FC = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { socket } = useSocket();
     const { user } = useAuth();
     const [notifications, setNotifications] = useState<InAppNotification[]>([]);
+    const { playSound } = useSoundNotification();
 
     const recentNotifIdsRef = useRef<Map<string, number>>(new Map());
 
@@ -218,6 +229,9 @@ export const InAppNotificationToast: React.FC = () => {
             createdAt: new Date(),
         };
 
+        // One sound per shown toast, on every page (the notification center page no longer plays its own).
+        void playSound(soundFor(notification.type));
+
         setNotifications((prev) => {
             if (prev.some((n) => n.id === notification.id)) return prev;
             // Remove oldest if max reached
@@ -227,7 +241,7 @@ export const InAppNotificationToast: React.FC = () => {
 
         // Automatically trigger Windows SJA Desktop Notifier (Toast/Popup based on user preference)
         forwardToDesktopNotifier(data, user);
-    }, [user]);
+    }, [user, playSound]);
 
     // Remove notification
     const removeNotification = useCallback((id: string) => {

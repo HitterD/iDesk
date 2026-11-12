@@ -215,6 +215,7 @@ export class MutualSchedulingService {
         requestId,
         scheduleId,
         technicianId: sched.technicianId,
+        actorId: actor?.id ?? sched.request?.requesterId ?? null,
         scheduledStart: savedSched.scheduledStart!,
         scheduledEnd: savedSched.scheduledEnd!,
       };

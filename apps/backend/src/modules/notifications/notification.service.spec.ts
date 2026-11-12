@@ -256,6 +256,20 @@ describe('NotificationService - chat message snippets', () => {
         expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ referenceId: 'm-1', message: 'Budi: "rahasia"' }));
     });
 
+    it('groups replies per ticket while unread: the next one updates the row instead of adding one', async () => {
+        const { service, repo } = build();
+        repo.update = jest.fn();
+        // First lookup: the unread grouped row; dedup lookups inside create() are not reached.
+        repo.findOne.mockResolvedValueOnce({ id: 'n-1', userId: 'u-1', ticketId: 't-1', title: '[#GEN-1] 2 pesan baru', isRead: false });
+
+        await service.notifyTicketReply('u-1', 't-1', 'GEN-1', 'Sari', 'lagi', 'm-3');
+
+        expect(repo.create).not.toHaveBeenCalled();
+        expect(repo.update).toHaveBeenCalledWith({ id: 'n-1' }, expect.objectContaining({
+            title: '[#GEN-1] 3 pesan baru', message: 'Sari: "lagi"', referenceId: 'm-3',
+        }));
+    });
+
     it('replaces the snippet of a deleted message in stored notifications', async () => {
         const { service, qb } = build();
         await service.redactMessageSnippet({ messageId: 'm-1', ticketId: 't-1', ticketNumber: 'GEN-1', senderName: 'Budi', sentAt: new Date('2026-11-01T08:00:00Z') });

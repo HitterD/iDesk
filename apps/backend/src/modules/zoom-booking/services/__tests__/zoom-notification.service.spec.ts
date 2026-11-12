@@ -16,8 +16,14 @@ describe('ZoomNotificationService & EventListener', () => {
         create: jest.fn().mockResolvedValue({ id: 'n1' }),
     };
 
+    const claimQb = {
+        update: jest.fn().mockReturnThis(), set: jest.fn().mockReturnThis(), where: jest.fn().mockReturnThis(), andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
     const mockBookingRepo = {
         findOne: jest.fn(),
+        find: jest.fn(),
+        createQueryBuilder: jest.fn(() => claimQb),
     };
 
     const mockParticipantRepo = {
@@ -177,8 +183,37 @@ describe('ZoomNotificationService & EventListener', () => {
 
             // Verify participants emailSent flag was updated
             expect(mockParticipantRepo.save).toHaveBeenCalledTimes(2);
-            expect(mockBooking.participants[0].emailSent).toBe(true);
-            expect(mockBooking.participants[1].emailSent).toBe(true);
+            expect(mockParticipantRepo.save.mock.calls.flatMap((c: any[]) => c[0]).every((p: any) => p.emailSent)).toBe(true);
+        });
+
+        it('announces a recurring series once: one email per person with every date in one .ics', async () => {
+            const occurrence = (id: string, date: string) => ({
+                id, seriesId: 's-1', title: 'Weekly', bookingDate: date, startTime: '09:00', endTime: '10:00', durationMinutes: 60,
+                confirmationSentAt: null, meeting: { joinUrl: 'https://zoom.us/j/1' },
+                participants: [{ id: `p-${id}`, email: 'guest@x.co', name: 'Guest', emailSent: false }],
+            });
+            const series = [occurrence('b1', '2026-11-16'), occurrence('b2', '2026-11-23'), occurrence('b3', '2026-11-30')];
+            mockBookingRepo.findOne.mockResolvedValue({ ...series[0], bookedByUser: { fullName: 'Ani', email: 'ani@x.co' }, zoomAccount: { name: 'Z' } });
+            mockBookingRepo.find.mockResolvedValue(series);
+
+            await service.notifyBookingCreatedWithInvites('b1');
+
+            expect(mockMailDispatch.send.mock.calls.map((c: any[]) => c[0].to).sort()).toEqual(['ani@x.co', 'guest@x.co']);
+            const ics = mockMailDispatch.send.mock.calls[0][0].attachments[0].content;
+            expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(3);
+            // All three participant rows are marked, so later occurrence events send nothing.
+            expect(mockParticipantRepo.save.mock.calls[0][0]).toHaveLength(3);
+        });
+
+        it('sends nothing when the confirmation was already sent (retry, or another occurrence of the series)', async () => {
+            mockBookingRepo.findOne.mockResolvedValue({ id: 'b1', confirmationSentAt: new Date(), bookedByUser: { email: 'ani@x.co' }, participants: [] });
+            await service.notifyBookingCreatedWithInvites('b1');
+
+            claimQb.execute.mockResolvedValueOnce({ affected: 0 });
+            mockBookingRepo.findOne.mockResolvedValue({ id: 'b2', confirmationSentAt: null, bookedByUser: { email: 'ani@x.co' }, participants: [] });
+            await service.notifyBookingCreatedWithInvites('b2');
+
+            expect(mockMailDispatch.send).not.toHaveBeenCalled();
         });
     });
 

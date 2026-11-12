@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository } from 'typeorm';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { NotificationType } from '../../notifications/entities/notification.entity';
 import { EFormRequest, EFormStatus } from '../entities/eform-request.entity';
@@ -98,10 +98,8 @@ export class EFormNotificationListener {
     } catch (error: any) { this.logger.error('Failed to notify ICT (' + title + '): ' + error.message); }
     try {
       const siteLabel = await this.resolveSiteLabel(siteId);
-      // Fail-closed: only query operational support users for the specific site (or cross-site with null siteId).
-      const ictUsers: any[] = siteId
-        ? await this.userRepo.find({ where: [{ role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, siteId, isActive: true } as any, { role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, siteId: IsNull(), isActive: true } as any] } as any)
-        : await this.userRepo.find({ where: { role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, isActive: true } as any });
+      // Same people as the in-app notice: operational support at the request's site plus cross-site (fail-closed).
+      const ictUsers = await this.notificationCenter.findStaffAtSite([UserRole.AGENT_OPERATIONAL_SUPPORT], siteId);
       for (const u of ictUsers) if (u.email) await this.mailDispatch.send({ to: u.email, subject: siteLabel + title + ' - ' + payload.request.formType + ' dari ' + payload.request.requesterName, template: 'eform-request', context: { request: payload.request, recipientName: u.fullName || u.email, link: buildAppUrl('/eform/' + payload.request.id), siteLabel: siteLabel.trim(), year: new Date().getFullYear() } });
     } catch (e: any) { this.logger.warn('Email to ICT (' + title + ') failed: ' + e.message); }
   }
@@ -113,10 +111,8 @@ export class EFormNotificationListener {
     } catch (error: any) { this.logger.error('Failed to notify ICT for eform.direct-to-ict: ' + error.message); }
     try {
       const siteLabel = await this.resolveSiteLabel(siteId);
-      // Fail-closed: only query operational support users for the specific site (or cross-site with null siteId).
-      const ictUsers: any[] = siteId
-        ? await this.userRepo.find({ where: [{ role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, siteId, isActive: true } as any, { role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, siteId: IsNull(), isActive: true } as any] } as any)
-        : await this.userRepo.find({ where: { role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, isActive: true } as any });
+      // Same people as the in-app notice: operational support at the request's site plus cross-site (fail-closed).
+      const ictUsers = await this.notificationCenter.findStaffAtSite([UserRole.AGENT_OPERATIONAL_SUPPORT], siteId);
       for (const u of ictUsers) if (u.email) await this.mailDispatch.send({ to: u.email, subject: siteLabel + 'Provisioning Diperlukan - ' + payload.request.formType + ' dari ' + payload.request.requesterName, template: 'eform-request', context: { request: payload.request, recipientName: u.fullName || u.email, link: buildAppUrl('/eform/' + payload.request.id), siteLabel: siteLabel.trim(), year: new Date().getFullYear() } });
     } catch (e: any) { this.logger.warn('Email for eform.direct-to-ict failed: ' + e.message); }
   }

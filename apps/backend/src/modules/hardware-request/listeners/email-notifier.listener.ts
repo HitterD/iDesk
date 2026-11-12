@@ -3,7 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
 import { buildAppUrl } from '../../../shared/mail/app-url.util';
 import { HardwareRequestQueryService } from '../services/hardware-request-query.service';
-import { PermissionsService } from '../../permissions/permissions.service';
+import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import {
     HR_EVT,
@@ -22,7 +22,7 @@ export class EmailNotifierListener {
 
     constructor(
         private readonly mailDispatch: MailDispatchService,
-        private readonly perm: PermissionsService,
+        private readonly notificationCenter: NotificationCenterService,
         private readonly q: HardwareRequestQueryService,
     ) {}
 
@@ -43,8 +43,9 @@ export class EmailNotifierListener {
     async onSubmitted(e: HrSubmitted) {
         const r = await this.q.findById(e.requestId);
         if (!r) return;
-        const siteId = (r as any).siteId ?? null;
-        const opsAgents = await this.perm.listUsersWithRole(UserRole.AGENT_OPERATIONAL_SUPPORT, siteId);
+        // Operational support at the request's site plus cross-site (fail-closed), never the submitter.
+        const opsAgents = (await this.notificationCenter.findStaffAtSite([UserRole.AGENT_OPERATIONAL_SUPPORT], (r as any).siteId ?? null))
+            .filter(u => u.id !== e.actorId && u.id !== e.requesterId);
         const context = {
             requestNumber: r.requestNumber,
             title: 'Permintaan Hardware Baru',

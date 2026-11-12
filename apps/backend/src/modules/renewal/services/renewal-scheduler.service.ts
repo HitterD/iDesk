@@ -1,14 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { RenewalService } from '../renewal.service';
 import { RenewalContract } from '../entities/renewal-contract.entity';
 import { NotificationService } from '../../notifications/notification.service';
 import { EmailChannelService } from '../../notifications/channels/email-channel.service';
 import { NotificationType, NotificationCategory } from '../../notifications/entities/notification.entity';
 import { User } from '../../users/entities/user.entity';
-import { UserRole } from '../../users/enums/user-role.enum';
+import { NotificationCenterService } from '../../notifications/notification-center.service';
+import { runOncePerPeriod } from '../../../shared/core/utils/run-exclusive';
+import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
+
+/** Only the last-day warning blocks the screen until acknowledged; earlier ones are ordinary notifications. */
+const ACKNOWLEDGE_DAYS = 1;
 
 @Injectable()
 export class RenewalSchedulerService {
@@ -18,8 +22,8 @@ export class RenewalSchedulerService {
         private readonly renewalService: RenewalService,
         private readonly notificationService: NotificationService,
         private readonly emailChannelService: EmailChannelService,
-        @InjectRepository(User)
-        private readonly userRepo: Repository<User>,
+        private readonly notificationCenter: NotificationCenterService,
+        private readonly dataSource: DataSource,
     ) { }
 
     // === DAILY JOB: Check Expiring Contracts (9 AM WIB) ===
@@ -31,11 +35,16 @@ export class RenewalSchedulerService {
         this.logger.log('Running daily renewal reminder check...');
 
         try {
-            // Check D-60, D-30, D-7, D-1
-            await this.processReminders(60); // 2-month early warning
-            await this.processReminders(30);
-            await this.processReminders(7);
-            await this.processReminders(1);
+            // Once per WIB day across replicas and restarts.
+            const ran = await runOncePerPeriod(this.dataSource, 'renewal-reminder-check', localDateKey(new Date(), DEFAULT_TIMEZONE), async () => {
+                // Check D-60, D-30, D-7, D-1
+                for (const days of [60, 30, 7, 1] as const) await this.processReminders(days);
+                return true;
+            });
+            if (!ran) {
+                this.logger.log('Renewal reminders already sent today; skipped.');
+                return;
+            }
 
             // Update all statuses
             const updated = await this.renewalService.updateAllStatuses();
@@ -55,10 +64,8 @@ export class RenewalSchedulerService {
 
         this.logger.log(`Found ${contracts.length} contracts expiring in ${days} days`);
 
-        // Get all admin, manager, and agent users
-        const admins = await this.userRepo.find({
-            where: { role: In([UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT]) },
-        });
+        // Active people who work the Renewal Hub (preset page access, else role default) - not every staff account.
+        const admins = await this.notificationCenter.findUsersWithPageAccess('renewal');
 
         for (const contract of contracts) {
             await this.sendReminderNotifications(contract, days, admins);
@@ -107,8 +114,8 @@ export class RenewalSchedulerService {
         // === IN-APP NOTIFICATION ===
         const notificationType = this.getNotificationTypeForDays(daysUntilExpiry);
 
-        // CRITICAL: Renewal notifications require acknowledgment via fullscreen modal
-        const requiresAcknowledge = true;
+        // Only the last day blocks the screen until acknowledged.
+        const requiresAcknowledge = daysUntilExpiry <= ACKNOWLEDGE_DAYS;
 
         for (const admin of admins) {
             try {
@@ -120,7 +127,7 @@ export class RenewalSchedulerService {
                     message,
                     referenceId: contract.id,
                     link: '/renewal?tab=contracts',
-                    requiresAcknowledge, // Forces fullscreen blocking modal
+                    requiresAcknowledge,
                 });
             } catch (error) {
                 this.logger.error(`Failed to send in-app notification to ${admin.email}:`, error);

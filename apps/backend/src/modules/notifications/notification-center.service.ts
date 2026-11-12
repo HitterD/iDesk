@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit, forwardRef, Inject, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, LessThan, MoreThan } from 'typeorm';
+import { Repository, In, IsNull, LessThan, MoreThan } from 'typeorm';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { ActionItemSnooze } from './entities/action-item-snooze.entity';
 import { addMinutes, addHours, addDays, startOfDay, setHours } from 'date-fns';
@@ -18,6 +18,8 @@ import { InAppChannelService } from './channels/inapp-channel.service';
 import { PushChannelService } from './channels/push-channel.service';
 import { NotificationPushService } from './notification-push.service';
 import { getCategoryFromType } from './utils/category-mapper';
+import { PermissionPreset } from '../permissions/entities/permission-preset.entity';
+import { PageKey, getRoleDefaultPageAccess } from '../../shared/core/types/page-access.types';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -27,6 +29,9 @@ import { CacheService } from '../../shared/core/cache/cache.service';
 import { formatResolutionDeadline } from '../ticketing/utils/resolution-deadline.util';
 import { TicketNoteActionItemsService } from '../ticketing/notes/ticket-note-action-items.service';
 import { TicketNoteVisibilityService } from '../ticketing/notes/ticket-note-visibility.service';
+
+/** Channels used when a caller does not name any. */
+const DEFAULT_CHANNELS: DeliveryChannel[] = [DeliveryChannel.IN_APP];
 
 @Injectable()
 export class NotificationCenterService implements OnModuleInit {
@@ -148,22 +153,50 @@ export class NotificationCenterService implements OnModuleInit {
      * If no siteId provided, log and return sent:0 (no global fan-out).
      */
     async sendToRoleAtSite(role: string, siteId: string | null | undefined, payload: Omit<NotificationPayload, 'userId'>): Promise<{ sent: number }> {
+        const users = await this.findStaffAtSite([role], siteId);
+        await this.sendBulk(users.map(u => u.id), payload);
+        return { sent: users.length };
+    }
+
+    /**
+     * Active users with one of `roles` who serve `siteId`: those at that site plus cross-site staff (no site).
+     * Fail-closed: an item without a site reaches nobody, never every site.
+     */
+    async findStaffAtSite(roles: string[], siteId: string | null | undefined, excludeUserIds: string[] = []): Promise<User[]> {
         if (!siteId) {
-            this.logger.warn(`sendToRoleAtSite called without siteId for role ${role}; returning 0 (fail-closed, no global fanout)`);
-            return { sent: 0 };
+            this.logger.warn(`No site for a ${roles.join('/')} notification; nobody notified (fail-closed, no global fanout)`);
+            return [];
         }
-        const PAGE = 200;
-        let sent = 0; let skip = 0;
-        while (true) {
-            const users = await this.userRepo.find({ where: { role: role as any, siteId } as any, take: PAGE, skip, select: ['id'] });
-            if (users.length === 0) break;
-            await this.sendBulk(users.map(u => u.id), payload);
-            sent += users.length;
-            if (users.length < PAGE) break;
-            skip += PAGE;
-        }
-        // No fallback to global sendToRole if sent === 0
-        return { sent };
+        const users = await this.userRepo.find({
+            where: [
+                { role: In(roles as any), siteId, isActive: true } as any,
+                { role: In(roles as any), siteId: IsNull(), isActive: true } as any,
+            ],
+            select: ['id', 'email', 'fullName', 'role', 'siteId'],
+        });
+        return users.filter(u => !excludeUserIds.includes(u.id));
+    }
+
+    /**
+     * Active users who can open `pageKey` (their preset's page access, else their role's default), optionally only
+     * among `roles`. For notices about records without a site, such as renewal contracts and VPN accounts: those
+     * reach whoever works that page instead of every admin, manager and agent.
+     */
+    async findUsersWithPageAccess(pageKey: PageKey, roles?: string[], excludeUserIds: string[] = []): Promise<User[]> {
+        const users = await this.userRepo.find({
+            where: { isActive: true, ...(roles ? { role: In(roles as any) } : {}) } as any,
+            select: ['id', 'email', 'fullName', 'role', 'appliedPresetId'],
+        });
+        const presetIds = [...new Set(users.map(u => u.appliedPresetId).filter((id): id is string => Boolean(id)))];
+        const presets = presetIds.length
+            ? await this.entityManager.getRepository(PermissionPreset).find({ where: { id: In(presetIds) }, select: ['id', 'pageAccess'] })
+            : [];
+        const presetAccess = new Map(presets.map(p => [p.id, p.pageAccess]));
+        return users.filter(u => {
+            if (excludeUserIds.includes(u.id)) return false;
+            const access = (u.appliedPresetId && presetAccess.get(u.appliedPresetId)) || getRoleDefaultPageAccess(u.role);
+            return access[pageKey] === true;
+        });
     }
 
     async sendToRole(role: string, payload: Omit<NotificationPayload, 'userId'>): Promise<void> {
@@ -690,11 +723,9 @@ export class NotificationCenterService implements OnModuleInit {
         payload: NotificationPayload,
         preferences: NotificationPreference
     ): DeliveryChannel[] {
-        // Start with requested channels or default set
-        const requestedChannels = payload.channels || [
-            DeliveryChannel.IN_APP,
-            DeliveryChannel.EMAIL,
-        ];
+        // In-app unless the caller asks for more: modules send their own templated emails, and a generic copy
+        // on top of those reached every e-form recipient twice.
+        const requestedChannels = payload.channels || DEFAULT_CHANNELS;
 
         // Filter based on preferences
         return requestedChannels.filter(channel => {
