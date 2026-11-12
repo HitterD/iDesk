@@ -88,7 +88,7 @@ describe('NotificationService - Deduplication', () => {
         });
 
         expect(repo.save).toHaveBeenCalled();
-        expect(result.id).toBe('notif-1');
+        expect(result?.id).toBe('notif-1');
     });
 });
 
@@ -290,3 +290,33 @@ describe('NotificationService - chat message snippets', () => {
     });
 });
 
+
+describe('NotificationService - user settings', () => {
+    const build = (allows: (channel: string) => boolean) => {
+        const repo: any = {
+            findOne: jest.fn().mockResolvedValue(null),
+            create: jest.fn((x) => ({ id: 'n-1', ...x })),
+            save: jest.fn((x) => Promise.resolve({ id: 'n-1', ...x })),
+        };
+        const gateway: any = { server: { to: jest.fn().mockReturnValue({ emit: jest.fn() }) } };
+        const sja: any = { dispatchNotification: jest.fn() };
+        const push: any = { dispatch: jest.fn() };
+        const gate: any = { allows: jest.fn(async (_u: string, channel: string) => allows(channel)) };
+        return { service: new NotificationService(repo, gateway, sja, push, undefined, gate), repo, push };
+    };
+    const input = { userId: 'u-1', type: NotificationType.TICKET_UPDATED, title: 't', message: 'm', link: '/tickets/1' };
+
+    it('stores nothing when the user turned in-app off for the type', async () => {
+        const { service, repo, push } = build((c) => c !== 'in_app');
+        expect(await service.create(input)).toBeNull();
+        expect(repo.save).not.toHaveBeenCalled();
+        expect(push.dispatch).not.toHaveBeenCalled();
+    });
+
+    it('stores it but does not push when push is off or in quiet hours', async () => {
+        const { service, repo, push } = build((c) => c !== 'push');
+        await service.create(input);
+        expect(repo.save).toHaveBeenCalled();
+        expect(push.dispatch).not.toHaveBeenCalled();
+    });
+});

@@ -6,7 +6,7 @@ import { NotificationCenterService } from '../../notifications/notification-cent
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
-import { NotificationPreference } from '../../notifications/entities/notification-preference.entity';
+import { NotificationPreferenceGate } from '../../notifications/notification-preference-gate.service';
 import { TicketCreatedEvent } from '../events/ticket-created.event';
 import { TicketAssignedEvent } from '../events/ticket-assigned.event';
 import { TicketUpdatedEvent } from '../events/ticket-updated.event';
@@ -38,9 +38,7 @@ describe('TicketNotificationListener', () => {
         find: jest.fn(),
         findOne: jest.fn(),
     };
-    const prefRepo = {
-        findOne: jest.fn().mockResolvedValue(null),
-    };
+    const gate = { allows: jest.fn().mockResolvedValue(true) };
 
     beforeEach(async () => {
         const mod = await Test.createTestingModule({
@@ -50,7 +48,7 @@ describe('TicketNotificationListener', () => {
                 { provide: NotificationCenterService, useValue: notificationCenterService },
                 { provide: MailDispatchService, useValue: mailDispatch },
                 { provide: getRepositoryToken(User), useValue: userRepo },
-                { provide: getRepositoryToken(NotificationPreference), useValue: prefRepo },
+                { provide: NotificationPreferenceGate, useValue: gate },
                 { provide: getRepositoryToken(TicketParticipant), useValue: participantRepo },
             ],
         }).compile();
@@ -453,5 +451,17 @@ describe('TicketNotificationListener', () => {
             to: 'ani@example.com',
             context: expect.objectContaining({ message: expect.stringContaining('Alasan: Duplikat tiket lain') }),
         }));
+    });
+
+    it('skips the email for people who turned email off for that notification type', async () => {
+        gate.allows.mockImplementation(async (userId: string) => userId !== 'u-1');
+        const ticket: any = {
+            id: 't-6', ticketNumber: 'TK-6', title: 'VPN', status: TicketStatus.IN_PROGRESS,
+            user: { id: 'u-1', fullName: 'Client', email: 'client@example.com' }, assignedToId: 'agent-1',
+            assignedTo: { id: 'agent-1', fullName: 'Budi', email: 'budi@example.com' },
+        };
+        await listener.handleTicketUpdatedEvent(new TicketUpdatedEvent('t-6', 'TK-6', 'agent-2', ['Status changed from TODO to IN_PROGRESS'], ticket));
+        expect(mailDispatch.send.mock.calls.map((c: any[]) => c[0].to)).toEqual(['budi@example.com']);
+        gate.allows.mockResolvedValue(true);
     });
 });

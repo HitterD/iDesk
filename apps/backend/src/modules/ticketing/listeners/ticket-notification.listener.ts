@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { NotificationPreferenceGate } from '../../notifications/notification-preference-gate.service';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -17,7 +18,6 @@ import { TicketStatus } from '../entities/ticket.entity';
 import { TicketParticipant } from '../entities/ticket-participant.entity';
 import { NotificationType } from '../../notifications/entities/notification.entity';
 import { User } from '../../users/entities/user.entity';
-import { NotificationPreference } from '../../notifications/entities/notification-preference.entity';
 import {
     isMobileDevCategory,
     isWebDevCategory,
@@ -40,11 +40,16 @@ export class TicketNotificationListener {
         private readonly mailDispatch: MailDispatchService,
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
-        @InjectRepository(NotificationPreference)
-        private readonly prefRepo: Repository<NotificationPreference>,
         @InjectRepository(TicketParticipant)
         private readonly participantRepo: Repository<TicketParticipant>,
+        @Optional() private readonly gate?: NotificationPreferenceGate,
     ) { }
+
+    /** The person's email switch (global and for this notification type) and quiet hours. */
+    private emailAllowed(userId: string | null | undefined, type: NotificationType): Promise<boolean> {
+        if (!userId || !this.gate) return Promise.resolve(true);
+        return this.gate.allows(userId, 'email', type);
+    }
 
     @OnEvent('ticket.created')
     async handleTicketCreatedEvent(event: TicketCreatedEvent) {
@@ -55,7 +60,7 @@ export class TicketNotificationListener {
 
     /** Requester's receipt: the ticket number and a link, by email only. */
     private async emailRequesterConfirmation(event: TicketCreatedEvent): Promise<void> {
-        if (!event.userEmail) return;
+        if (!event.userEmail || !(await this.emailAllowed(event.userId, NotificationType.TICKET_CREATED))) return;
         try {
             await this.mailDispatch.send({
                 to: event.userEmail,
@@ -107,7 +112,9 @@ export class TicketNotificationListener {
                 year: new Date().getFullYear(),
             };
 
-            await forEachWithConcurrency(targetAgents.filter(a => !!a.email), NOTIFY_FANOUT_CONCURRENCY, a =>
+            const emailable: User[] = [];
+            for (const a of targetAgents) if (a.email && (await this.emailAllowed(a.id, NotificationType.TICKET_CREATED))) emailable.push(a);
+            await forEachWithConcurrency(emailable, NOTIFY_FANOUT_CONCURRENCY, a =>
                 this.mailDispatch.send({
                     to: a.email,
                     subject: `${subjectPrefix}: #${event.ticketNumber} - ${event.title}`,
@@ -208,14 +215,15 @@ export class TicketNotificationListener {
             }
 
             const recipients: Array<{ email: string; name: string }> = [];
+            const emailType = ticket.status === TicketStatus.RESOLVED ? NotificationType.TICKET_RESOLVED : NotificationType.TICKET_UPDATED;
 
             // If updater is NOT requester, notify requester
-            if (!isActorRequester && ticket.user?.email) {
+            if (!isActorRequester && ticket.user?.email && (await this.emailAllowed(ticket.user.id, emailType))) {
                 recipients.push({ email: ticket.user.email, name: ticket.user.fullName || 'User' });
             }
 
             // If updater is NOT assignee, notify assignee
-            if (!isActorAssignee && assignedAgent?.email) {
+            if (!isActorAssignee && assignedAgent?.email && (await this.emailAllowed(assignedAgent.id, emailType))) {
                 recipients.push({ email: assignedAgent.email, name: assignedAgent.fullName || 'Agent' });
             }
 
@@ -275,10 +283,7 @@ export class TicketNotificationListener {
         // 2. Email Notification to Assignee (respects prefs, bypass quiet/digest - actionable)
         if (event.assigneeEmail) {
             try {
-                const pref = await this.prefRepo.findOne({ where: { userId: event.assigneeId } as any });
-                const emailAllowed = !pref || (pref.emailEnabled !== false);
-                const typeAllowed = !pref?.typeSettings || (pref.typeSettings?.['TICKET_ASSIGNED']?.['email'] !== false);
-                if (!emailAllowed || !typeAllowed) {
+                if (!(await this.emailAllowed(event.assigneeId, NotificationType.TICKET_ASSIGNED))) {
                     this.logger.log(`Skipping assignment email for ${event.assigneeId} (prefs)`);
                 } else {
                     await this.mailDispatch.send({
@@ -351,7 +356,7 @@ export class TicketNotificationListener {
                     }
 
                     // Email notification
-                    if (mentionedUser.email) {
+                    if (mentionedUser.email && (await this.emailAllowed(mentionedUser.id, NotificationType.MENTION))) {
                         try {
                             await this.mailDispatch.send({
                                 to: mentionedUser.email,
@@ -439,10 +444,7 @@ export class TicketNotificationListener {
         } catch (e) { this.logger.error('Auto-assign in-app notify failed', e); }
         if (agent.email) {
             try {
-                const pref = await this.prefRepo.findOne({ where: { userId: agent.id } });
-                const emailAllowed = !pref || (pref.emailEnabled !== false);
-                const typeAllowed = !pref?.typeSettings || (pref.typeSettings?.['TICKET_ASSIGNED']?.['email'] !== false);
-                if (emailAllowed && typeAllowed) {
+                if (await this.emailAllowed(agent.id, NotificationType.TICKET_ASSIGNED)) {
                     await this.mailDispatch.send({
                         to: agent.email,
                         subject: `[Auto] Ticket Assigned: #${ticket.ticketNumber || ticket.id.slice(0, 8)}`,
@@ -496,7 +498,7 @@ export class TicketNotificationListener {
                 });
 
                 const assignedAgent = await this.userRepo.findOne({ where: { id: event.ticketAssignedToId } });
-                if (assignedAgent?.email) {
+                if (assignedAgent?.email && (await this.emailAllowed(assignedAgent.id, NotificationType.TICKET_CANCELLED))) {
                     await this.mailDispatch.send({
                         to: assignedAgent.email,
                         subject: `Ticket Cancelled: #${event.ticketNumber}`,
@@ -523,7 +525,7 @@ export class TicketNotificationListener {
                 });
 
                 const ticketOwner = await this.userRepo.findOne({ where: { id: event.ticketOwnerId } });
-                if (ticketOwner?.email) {
+                if (ticketOwner?.email && (await this.emailAllowed(ticketOwner.id, NotificationType.TICKET_CANCELLED))) {
                     await this.mailDispatch.send({
                         to: ticketOwner.email,
                         subject: `Ticket Cancelled: #${event.ticketNumber}`,

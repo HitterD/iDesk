@@ -9,6 +9,7 @@ import { getCategoryFromType } from './utils/category-mapper';
 import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
 import { SjaAdapterService } from '../sja-adapter/sja-adapter.service';
 import { NotificationPushService } from './notification-push.service';
+import { NotificationPreferenceGate } from './notification-preference-gate.service';
 import { PRIORITY_LABEL, TicketPeople, describeTicketChanges, picOf, withWho } from './utils/notification-copy.util';
 
 /** Socket event telling a user's clients that some of their notifications became read. */
@@ -59,7 +60,18 @@ export class NotificationService {
         private readonly sjaAdapter: SjaAdapterService,
         @Optional() private readonly webPush?: NotificationPushService,
         @Optional() private readonly noteVisibility?: TicketNoteVisibilityService,
+        @Optional() private readonly gate?: NotificationPreferenceGate,
     ) { }
+
+    /** The user's settings for this notification: in-app (bell, toast, SJA) and push. Critical ones always go. */
+    private async channelsFor(userId: string, type: string, critical = false): Promise<{ inApp: boolean; push: boolean }> {
+        if (!this.gate) return { inApp: true, push: true };
+        const [inApp, push] = await Promise.all([
+            this.gate.allows(userId, 'in_app', type, { critical }),
+            this.gate.allows(userId, 'push', type, { critical }),
+        ]);
+        return { inApp, push };
+    }
 
     async create(data: {
         userId: string;
@@ -71,7 +83,7 @@ export class NotificationService {
         link?: string;
         category?: NotificationCategory;
         requiresAcknowledge?: boolean;
-    } & NotificationDisplay): Promise<Notification> {
+    } & NotificationDisplay): Promise<Notification | null> {
         const { ticketNumber, senderName, ...stored } = data;
         const display: NotificationDisplay = { ...(ticketNumber ? { ticketNumber } : {}), ...(senderName ? { senderName } : {}) };
         // DEDUP 1: Check existing notification with same type + referenceId + userId within 24h
@@ -104,6 +116,10 @@ export class NotificationService {
                 return existing;
             }
         }
+
+        // Turned off by the user for this type (or in-app entirely): not stored, not shown, not pushed.
+        const allowed = await this.channelsFor(data.userId, data.type, Boolean(data.requiresAcknowledge));
+        if (!allowed.inApp) return null;
 
         // Auto-determine category from type if not provided
         const category = data.category || getCategoryFromType(data.type);
@@ -142,8 +158,8 @@ export class NotificationService {
             notification: { ...saved, ...display },
         }); } catch (e) { console.warn('Socket emit failed', e); }
 
-        // Browser notification (works without the desktop notifier app)
-        this.webPush?.dispatch(saved);
+        // Browser notification (works without the desktop notifier app), unless push is off or in quiet hours.
+        if (allowed.push) this.webPush?.dispatch(saved);
 
         // Dispatch to SJA Notification Center Outbox
         try {
@@ -504,6 +520,7 @@ export class NotificationService {
             ? `${senderName}: "${cleanSnippet}"`
             : `${senderName} membalas tiket #${ticketNumber}`;
 
+        if (!(await this.channelsFor(userId, NotificationType.TICKET_REPLY)).inApp) return null;
         // One row per ticket while it is unread: the next message updates it ("3 pesan baru") instead of
         // adding a row per message to the bell.
         const unread = await this.notificationRepo.findOne({
@@ -643,6 +660,9 @@ export class NotificationService {
         adminIds: string[],
     ) {
         if (adminIds.length === 0) return [];
+        const allowed = new Map(await Promise.all(adminIds.map(async id => [id, await this.channelsFor(id, NotificationType.TICKET_CREATED)] as const)));
+        adminIds = adminIds.filter(id => allowed.get(id)?.inApp);
+        if (adminIds.length === 0) return [];
 
         const category_ = getCategoryFromType(NotificationType.TICKET_CREATED);
         // "HARDWARE" -> "Hardware"
@@ -680,7 +700,12 @@ export class NotificationService {
                 ticketNumber,
                 ...(requesterName ? { senderName: requesterName } : {}),
             }); } catch (e) { logger.warn(`Socket emit failed: ${e instanceof Error ? e.message : 'unknown error'}`); }
-            this.webPush?.dispatch(notification);
+            // Same events as create(), so the bell, toast and lists refresh for these too.
+            try { this.eventsGateway.server.to(`user:${notification.userId}`).emit('notification:new', {
+                userId: notification.userId,
+                notification: { ...notification, ticketNumber, ...(requesterName ? { senderName: requesterName } : {}) },
+            }); } catch (e) { logger.warn(`Socket emit failed: ${e instanceof Error ? e.message : 'unknown error'}`); }
+            if (allowed.get(notification.userId)?.push) this.webPush?.dispatch(notification);
         }
 
         return savedNotifications;

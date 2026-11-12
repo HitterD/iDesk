@@ -44,4 +44,18 @@ describe('forwardToDesktopNotifier', () => {
         expect(body.metadata.from).not.toBe('iDesk System');
         expect(body.ticketNumber).not.toBe(TICKET_ID);
     });
+
+    it('forwards once across tabs, and not while the user is looking at iDesk', async () => {
+        vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+        localStorage.clear();
+        await forwardToDesktopNotifier({ id: 'n-1', title: 'A', link: `/hardware-requests/${TICKET_ID}` }, { role: 'USER' });
+        await forwardToDesktopNotifier({ id: 'n-1', title: 'A' }, { role: 'USER' });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body).url).toContain(`/client/hardware-requests/${TICKET_ID}`);
+
+        vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+        Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+        await forwardToDesktopNotifier({ id: 'n-2', title: 'B' }, { role: 'USER' });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
 });

@@ -1,5 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { CacheService } from '../../../shared/core/cache/cache.service';
+import { NotificationPreferenceGate } from '../../notifications/notification-preference-gate.service';
+import { NotificationType } from '../../notifications/entities/notification.entity';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -57,6 +59,7 @@ export class TicketChatPushListener {
         @InjectRepository(User)
         private readonly users: Repository<User>,
         @Optional() private readonly cache?: CacheService,
+        @Optional() private readonly gate?: NotificationPreferenceGate,
     ) { }
 
     @OnEvent('ticket.replied', { async: true })
@@ -91,6 +94,7 @@ export class TicketChatPushListener {
 
     private async notify(user: Pick<User, 'id' | 'role'>, event: TicketRepliedEvent, body: string): Promise<void> {
         if (await this.gateway.isViewingTicket(user.id, event.ticketId)) return;
+        if (this.gate && !(await this.gate.allows(user.id, 'push', NotificationType.TICKET_REPLY))) return;
         if (await this.throttled(user.id, event.ticketId)) return;
         const result = await this.push.send({
             notificationId: `${event.message.id}:${user.id}`,
