@@ -51,7 +51,7 @@ const stateOf = (ids: string[], selected: ReadonlySet<string>) => {
 };
 
 export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScopeParam; period: CsiPeriodDetail; onDirtyChange?: (dirty: boolean) => void }) {
-    const { data: pics = [], isLoading } = useCsiPics(scope);
+    const { data: pics = [], isLoading: picsLoading } = useCsiPics(scope);
     const { data: questions = [] } = useCsiDimensions(scope);
     const save = useSetCsiPeriodPics(scope, period.id);
     const current = useMemo(() => period.ratees.filter((ratee) => ratee.picId), [period.ratees]);
@@ -74,6 +74,8 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
     const [query, setQuery] = useState('');
     const filter = usePicLocationFilter(scope, period, pics, selected);
     const { filtered, filteredIds, selectedInFilter, outsideFilter } = filter;
+    // The list waits for the templates too, so the default location filter never makes the counter jump.
+    const isLoading = picsLoading || filter.loading;
     const locked = period.locked;
     const decided = isHcDecided(scope, period);
     const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.size && [...a].every((id) => b.has(id));
@@ -123,7 +125,7 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
                 </div>
                 {isLoading && <div className="h-32 animate-pulse rounded-2xl bg-[hsl(var(--muted))]" aria-busy="true" />}
                 {!isLoading && !pics.length && <EmptyNote>{COPY.noPics}</EmptyNote>}
-                {pics.length > 0 && (
+                {!isLoading && pics.length > 0 && (
                     <>
                         <PicLocationFilter templates={filter.templates} value={filter.locations} onChange={filter.setLocations} />
                         <div className="flex flex-wrap items-center gap-2">

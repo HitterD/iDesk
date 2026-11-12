@@ -16,11 +16,11 @@ const template = (locationCode: string, picIds: string[]): CsiTemplate => ({
 });
 
 const fx = vi.hoisted(() => ({
-    pics: [] as CsiPicView[], templates: [] as CsiTemplate[], save: vi.fn(),
+    pics: [] as CsiPicView[], templates: [] as CsiTemplate[], templatesLoading: false, save: vi.fn(),
 }));
 vi.mock('../../../../hooks/useCsiHc', () => ({
     useCsiPics: () => ({ data: fx.pics, isLoading: false }),
-    useCsiTemplates: () => ({ data: { templates: fx.templates, bundledAvailable: [] } }),
+    useCsiTemplates: () => (fx.templatesLoading ? { data: undefined, isLoading: true } : { data: { templates: fx.templates, bundledAvailable: [] }, isLoading: false }),
     useSetCsiPeriodPics: () => ({ mutate: fx.save, isPending: false }),
 }));
 vi.mock('../../../../hooks/useCsi', () => ({ useCsiDimensions: () => ({ data: [{ id: 'd1', name: 'Knowledge', shortLabel: null, type: 'STAR' }] }) }));
@@ -39,6 +39,16 @@ describe('PicAssignment location filter', () => {
     beforeEach(() => {
         fx.pics = [pic('a', 'ANI'), pic('b', 'BUDI'), pic('c', 'CICI'), pic('d', 'DEDE')];
         fx.templates = [template('KRW', ['a', 'b']), template('SMG', ['c'])];
+        fx.templatesLoading = false;
+    });
+
+    it('holds the list back until the templates are loaded (no counter jump)', () => {
+        fx.templatesLoading = true;
+        const { rerender } = render(<PicAssignment scope="hc" period={period(['SMG'])} />);
+        expect(screen.queryByText(/PIC dipilih/)).toBeNull();
+        fx.templatesLoading = false;
+        rerender(<PicAssignment scope="hc" period={period(['SMG'])} />);
+        expect(screen.getByText('0 dari 1 PIC dipilih')).toBeInTheDocument();
     });
 
     it('lists only locations with a template (fixed order, with hint) and defaults to the survey sites', () => {

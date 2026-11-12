@@ -482,6 +482,16 @@ describe('CsiTemplateApplyService', () => {
             expect(periods.rows[0]).toMatchObject({ teamEnabled: true, individualEnabled: true });
         });
 
+        it('a sync that adds no new ratee of a switched-off section leaves it off', async () => {
+            periods.rows[0] = { ...periods.rows[0], publishStatus: CsiPeriodPublishStatus.DRAFT, teamEnabled: true, individualEnabled: true };
+            await service.applyManyToPeriod(HC, ['t2'], 'p1', true, false);
+            periods.rows[0] = { ...periods.rows[0], teamEnabled: false };
+            await service.applyManyToPeriod(HC, ['t2'], 'p1', true, false);
+            expect(periods.rows[0]).toMatchObject({ teamEnabled: false });
+            await service.applyManyToPeriod(HC, ['t1'], 'p1', true, false);
+            expect(periods.rows[0]).toMatchObject({ teamEnabled: false, individualEnabled: true });
+        });
+
         it('a survey with answers keeps its sections as they are', async () => {
             periods.rows[0] = { ...periods.rows[0], teamEnabled: true, individualEnabled: false };
             responses.rows.push({ id: 'resp', periodId: 'p1' });

@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { initialState } from '../../../lib/periodForm';
 import { SECTION_COPY } from '../../wizard/wizardCopy';
+import type { CsiPeriodDetail } from '../../../types';
+import { sectionRateeCounts } from '../PeriodEditor';
 import { SectionFields } from '../SectionFields';
 
 afterEach(cleanup);
@@ -47,5 +49,11 @@ describe('SectionFields', () => {
             expect(set).toHaveBeenCalledWith('teamEnabled', true);
             expect(screen.queryByRole('alertdialog')).toBeNull();
         });
+    });
+
+    it('the confirmation counts HC PICs and teams only (user-account people are not PICs)', () => {
+        const period = { ratees: [{ kind: 'TEAM' }, { kind: 'PERSON', picId: 'p1' }, { kind: 'PERSON', picId: null }] } as unknown as CsiPeriodDetail;
+        expect(sectionRateeCounts('hc', period)).toEqual({ team: 1, people: 1, peopleNoun: 'PIC' });
+        expect(sectionRateeCounts('ict', period)).toEqual({ team: 1, people: 2, peopleNoun: 'orang' });
     });
 });

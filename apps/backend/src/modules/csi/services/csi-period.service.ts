@@ -18,7 +18,7 @@ import { CsiPeriodSite } from '../entities/csi-period-site.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiAssignmentService } from './csi-assignment.service';
 import { lockPeriodRow, lockUnlockedPeriod } from './csi-period-lock.util';
-import { enableSectionsWithRatees } from './csi-period-sections.util';
+import { CsiReadinessWarning, enableSectionsWithRatees, hiddenRateeWarnings } from './csi-period-sections.util';
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiSubjectService } from './csi-subject.service';
 import { assertBandOrder, bandsOf } from './csi-score-bands';
@@ -53,12 +53,8 @@ const RATEE_NOT_FOUND_MESSAGE = 'Subjek tidak ditemukan';
 const PG_UNIQUE_VIOLATION = '23505';
 
 export type CsiReadinessKey = 'team' | 'ratees' | 'dimensions' | 'departments' | 'raters';
-export type CsiReadinessWarningKey = 'teamHidden' | 'peopleHidden';
 /** `warnings` never block publishing; they flag ratees a disabled section hides from the raters. */
-export type CsiReadiness = {
-    ready: boolean; checks: Array<{ key: CsiReadinessKey; ok: boolean; label: string }>;
-    warnings: Array<{ key: CsiReadinessWarningKey; label: string }>;
-};
+export type CsiReadiness = { ready: boolean; checks: Array<{ key: CsiReadinessKey; ok: boolean; label: string }>; warnings: CsiReadinessWarning[] };
 const READINESS_LABELS: Record<CsiReadinessKey, string> = {
     team: 'Penilaian tim punya minimal 1 pertanyaan',
     ratees: 'Minimal 1 orang dinilai',
@@ -101,17 +97,6 @@ export function computeReadiness(input: {
     ];
     const checks = results.map(([key, ok]) => ({ key, ok, label: READINESS_LABELS[key] }));
     return { ready: checks.every((check) => check.ok), checks, warnings: hiddenRateeWarnings(input) };
-}
-
-/** Ratees of a disabled section stay in the period but never reach the raters: say how many. */
-function hiddenRateeWarnings(input: { ratees: unknown[]; teamEnabled: boolean; individualEnabled: boolean; teamRateeCount?: number; hcSubjectCount?: number }) {
-    const teams = input.teamRateeCount ?? 0;
-    const people = input.ratees.length;
-    const noun = input.hcSubjectCount === undefined ? 'orang' : 'PIC';
-    return [
-        ...(!input.teamEnabled && teams > 0 ? [{ key: 'teamHidden' as const, label: `${teams} tim tidak akan tampil karena Penilaian tim dimatikan` }] : []),
-        ...(!input.individualEnabled && people > 0 ? [{ key: 'peopleHidden' as const, label: `${people} ${noun} tidak akan tampil karena Penilaian per orang dimatikan` }] : []),
-    ];
 }
 
 const WITH_SITES: FindOptionsRelations<CsiPeriod> = { sites: { site: true } };
@@ -457,7 +442,7 @@ export class CsiPeriodService {
             }));
             await manager.save(CsiPeriodRateeDimension, saved.flatMap((row, index) => snapshots[index].dimensions.map((dimension, order) =>
                 dimensionRow(row.id, dimension, order))));
-            await enableSectionsWithRatees(manager, id);
+            await enableSectionsWithRatees(manager, id, [CsiRateeKind.PERSON]);
         });
         return this.get(scope, id);
     }
@@ -491,7 +476,7 @@ export class CsiPeriodService {
                 siteId, teamId: team.teamId, displayName: team.name, jobTitle: null, sortOrder: TEAM_SORT_ORDER,
             });
             await manager.save(CsiPeriodRateeDimension, snapshots.map((snapshot, index) => dimensionRow(saved.id, snapshot, index)));
-            await enableSectionsWithRatees(manager, id);
+            await enableSectionsWithRatees(manager, id, [CsiRateeKind.TEAM]);
         }));
         return this.get(scope, id);
     }

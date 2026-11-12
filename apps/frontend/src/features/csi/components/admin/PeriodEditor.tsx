@@ -89,10 +89,10 @@ export function PeriodEditor({ scope, period, periods = [], copyFrom, onSaved, f
     );
 }
 
-/** Saved ratees per section (HC people are PICs). */
-const sectionRateeCounts = (scope: CsiScopeParam, period: CsiPeriodDetail): SectionRateeCounts => ({
+/** Saved ratees per section. HC counts PICs only (people picked from user accounts are never reported there). */
+export const sectionRateeCounts = (scope: CsiScopeParam, period: CsiPeriodDetail): SectionRateeCounts => ({
     team: period.ratees.filter((ratee) => ratee.kind === 'TEAM').length,
-    people: period.ratees.filter((ratee) => ratee.kind !== 'TEAM').length,
+    people: period.ratees.filter((ratee) => ratee.kind !== 'TEAM' && (scope !== 'hc' || !!ratee.picId)).length,
     peopleNoun: scope === 'hc' ? 'PIC' : 'orang',
 });
 

@@ -36,17 +36,18 @@ export const picIdsOfLocations = (templates: readonly CsiTemplate[], codes: read
  * admin picks; counts only the PICs in the filter, and how many selected PICs it hides.
  */
 export function usePicLocationFilter(scope: CsiScopeParam, period: Pick<CsiPeriodDetail, 'sites'>, pics: readonly CsiPicView[], selected: ReadonlySet<string>) {
-    const { data } = useCsiTemplates(scope);
+    const { data, isLoading } = useCsiTemplates(scope);
     const templates = useMemo(() => data?.templates ?? [], [data]);
     const [chosen, setLocations] = useState<string[] | null>(null);
     const siteCodes = period.sites.map((site) => site.code ?? '').join('|');
     const defaults = useMemo(() => defaultLocationFilter(templates, siteCodes.split('|')), [templates, siteCodes]);
-    const locations = chosen ?? defaults;
+    // No default before the templates arrive (callers hold the list back while `loading`).
+    const locations = chosen ?? (isLoading ? [] : defaults);
     const inFilter = useMemo(() => picIdsOfLocations(templates, locations), [templates, locations]);
     const filtered = inFilter ? pics.filter((pic) => inFilter.has(pic.id)) : [...pics];
     const filteredIds = filtered.map((pic) => pic.id);
     const selectedInFilter = filteredIds.filter((id) => selected.has(id)).length;
-    return { templates, locations, setLocations, filtered, filteredIds, selectedInFilter, outsideFilter: selected.size - selectedInFilter };
+    return { templates, locations, setLocations, filtered, filteredIds, selectedInFilter, outsideFilter: selected.size - selectedInFilter, loading: isLoading };
 }
 
 function Chip({ pressed, disabled, onClick, children }: { pressed: boolean; disabled?: boolean; onClick: () => void; children: ReactNode }) {

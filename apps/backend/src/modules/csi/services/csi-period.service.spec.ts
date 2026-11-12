@@ -625,6 +625,24 @@ describe('CsiPeriodService', () => {
                 expect(periods.rows[0]).toMatchObject({ teamEnabled: true, individualEnabled: true });
             });
 
+            it('a section the admin switched off stays off when the other kind is saved', async () => {
+                periods.rows[0] = basePeriod({ scope: HC, teamEnabled: false, individualEnabled: true });
+                ratees.rows.push({ id: 'r-team', periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, siteId: 'site-a', teamId: 'team-site-a', displayName: 'Tim', sortOrder: -1 });
+                await service.setPics(HC, 'p1', ['pic-1'], ['d-hc']);
+                expect(periods.rows[0]).toMatchObject({ teamEnabled: false, individualEnabled: true });
+                periods.rows[0] = basePeriod({ scope: HC, teamEnabled: true, individualEnabled: false });
+                await service.setTeamQuestions(HC, 'p1', 'site-a', ['d-hc']);
+                expect(periods.rows[0]).toMatchObject({ teamEnabled: true, individualEnabled: false });
+            });
+
+            it('a survey with answers keeps its sections', async () => {
+                periods.rows[0] = basePeriod({ scope: HC, teamEnabled: true, individualEnabled: false });
+                responses.rows.push({ id: 'resp', periodId: 'p1' });
+                const { enableSectionsWithRatees } = await import('./csi-period-sections.util');
+                await enableSectionsWithRatees(manager as any, 'p1', [CsiRateeKind.PERSON]);
+                expect(periods.rows[0]).toMatchObject({ individualEnabled: false });
+            });
+
             it('clearing every PIC never switches a section off', async () => {
                 periods.rows[0] = basePeriod({ scope: HC, teamEnabled: true, individualEnabled: true });
                 await service.setPics(HC, 'p1', [], []);

@@ -419,7 +419,7 @@ export class CsiTemplateApplyService {
         // Only an empty survey switches to the template's mode; an existing mapping already is LISTED + pairs.
         if (!plan.hadRaters) await manager.update(CsiPeriod, { id: periodId }, { respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM, respondentPicks: false });
         // A ratee is only shown and reported while its section is on.
-        await enableSectionsWithRatees(manager, periodId);
+        await enableSectionsWithRatees(manager, periodId, [...new Set(plan.newSubjects.map((subject) => (subject.team ? CsiRateeKind.TEAM : CsiRateeKind.PERSON)))]);
     }
 
     private async writeRatees(repos: Repos, periodId: string, subjects: Subject[], questions: CsiDimension[]) {
