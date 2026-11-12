@@ -111,7 +111,7 @@ export class CsiAdminTemplateController {
     }
 
     /**
-     * Dry run by default. Multipart field `options` (JSON) carries commit / resolutions / prune; the legacy
+     * Dry run by default. Multipart field `options` (JSON) carries commit / resolutions; the legacy
      * `?commit=true` query is still honoured when `options.commit` is absent.
      */
     @Post('import/:location')
@@ -123,7 +123,6 @@ export class CsiAdminTemplateController {
         const options = await parseImportOptions(rawOptions);
         return this.importer.importExcel(scope, location, file.buffer, {
             commit: options.commit ?? commit === 'true', resolutions: toResolutions(options.resolutions),
-            prune: options.prune ?? false, pruneConfirmed: options.pruneConfirmed ?? false,
         });
     }
 

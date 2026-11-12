@@ -97,12 +97,6 @@ export class ImportOptionsDto {
 
     @IsOptional() @Validate(ResolutionMapConstraint)
     resolutions?: Record<string, PicResolutionInput>;
-
-    @IsOptional() @IsBoolean()
-    prune?: boolean;
-
-    @IsOptional() @IsBoolean()
-    pruneConfirmed?: boolean;
 }
 
 export class CreatePeriodFromTemplateDto {

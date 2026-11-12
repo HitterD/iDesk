@@ -124,14 +124,17 @@ export interface AccountSuggestion {
 }
 export type CsiTemplatePicResolution = { as: 'team' | 'pic' | 'rename'; picName?: string };
 export interface CsiTemplateImportOptions {
-    commit?: boolean; resolutions?: Record<string, CsiTemplatePicResolution>; prune?: boolean; pruneConfirmed?: boolean;
+    commit?: boolean; resolutions?: Record<string, CsiTemplatePicResolution>;
 }
+/** Import replaces the location's template; pins/confirmations of the same PIC/team + rater name are kept. */
 export interface CsiTemplateImportReport {
     format: 'list' | 'matrix'; committed: boolean;
     services: string[];
-    pics: { added: string[]; changed: string[]; removed: string[] };
-    raters: { added: number; removed: number };
-    teams: { added: string[] }; newMasterPics: string[];
+    before: { pics: number; raters: number }; after: { pics: number; raters: number };
+    /** PIC/team rows that are new, and old rows the file no longer lists. */
+    pics: { added: string[]; removed: string[] };
+    keptPins: number; keptConfirmations: number;
+    teamsAdded: string[]; newMasterPics: string[];
     /** PIC rows left unlinked because several PIC masters share the name. */
     ambiguousMasters: string[];
     unresolved: Array<{ name: string; suggestions: string[] }>;

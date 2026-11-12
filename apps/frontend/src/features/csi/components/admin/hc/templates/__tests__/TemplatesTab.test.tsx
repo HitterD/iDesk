@@ -23,22 +23,20 @@ const TEMPLATE: CsiTemplate = {
 };
 const REPORT = {
     format: 'matrix', committed: false, services: ['HCC', 'HCS'],
-    pics: { added: ['BUDI'], changed: ['RARA'], removed: [] as string[] }, raters: { added: 4, removed: 0 },
-    teams: { added: ['Tim Payroll'] }, newMasterPics: ['BUDI'], ambiguousMasters: [] as string[],
+    before: { pics: 2, raters: 3 }, after: { pics: 3, raters: 5 },
+    pics: { added: ['BUDI'], removed: ['JINGGA FERDASIWI'] }, keptPins: 2, keptConfirmations: 1,
+    teamsAdded: ['Tim Payroll'], newMasterPics: ['BUDI'], ambiguousMasters: [] as string[],
     unresolved: [{ name: 'Tim Rekrut', suggestions: ['TIM REKRUTMEN', 'RARA'] }],
     problems: [] as Array<{ row: number; message: string }>,
 };
 const fx = vi.hoisted(() => ({
-    list: { templates: [] as unknown[], bundledAvailable: ['SMG'] }, blocked: null as string | null, siteAdded: null as string | null, outside: [] as string[], report: null as unknown as typeof REPORT, failPrune: false,
+    list: { templates: [] as unknown[], bundledAvailable: ['SMG'] }, blocked: null as string | null, siteAdded: null as string | null, outside: [] as string[], report: null as unknown as typeof REPORT,
 }));
 vi.mock('../../../../../lib/csiAdmin', async (importOriginal) => ({ ...(await importOriginal<object>()), downloadBlob: vi.fn() }));
 vi.mock('../../../../../api/csiHc.api', () => ({
     CsiHcApi: {
         templates: vi.fn(async () => fx.list),
-        importTemplate: vi.fn(async (_scope: string, _location: string, _file: File, options: { commit?: boolean; prune?: boolean }) => {
-            if (options.prune && fx.failPrune) throw new Error('network');
-            return { ...fx.report, committed: !!options.commit, pics: { ...fx.report.pics, removed: options.prune ? ['LAMA'] : [] } };
-        }),
+        importTemplate: vi.fn(async (_scope: string, _location: string, _file: File, options: { commit?: boolean }) => ({ ...fx.report, committed: !!options.commit })),
         downloadBlankTemplate: vi.fn(async () => new Blob(['x'])),
         loadBundledTemplate: vi.fn(async () => TEMPLATE),
         updateTemplatePic: vi.fn(async () => TEMPLATE),
@@ -59,7 +57,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const api = async () => (await import('../../../../../api/csiHc.api')).CsiHcApi;
 
-beforeEach(() => { fx.list = { templates: [TEMPLATE], bundledAvailable: [] }; fx.blocked = null; fx.siteAdded = null; fx.outside = []; fx.report = REPORT; fx.failPrune = false; });
+beforeEach(() => { fx.list = { templates: [TEMPLATE], bundledAvailable: [] }; fx.blocked = null; fx.siteAdded = null; fx.outside = []; fx.report = REPORT; });
 
 const XLSX = new File(['x'], 'smg.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 /** Opens the import dialog on the Semarang template and waits for the dry run. */
@@ -109,13 +107,14 @@ describe('TemplatesTab', () => {
         expect(await screen.findByRole('dialog')).toBeInTheDocument();
     });
 
-    it('import preview disables save until unresolved resolved', async () => {
+    it('import preview shows the replace summary and disables save until unresolved resolved', async () => {
         const dialog = await openPreview();
-        expect((await api()).importTemplate).toHaveBeenLastCalledWith('hc', 'SMG', XLSX, { commit: false, prune: false, pruneConfirmed: false });
-        expect(within(dialog).getByText('+1 PIC baru')).toBeInTheDocument();
-        expect(within(dialog).getByText('~1 PIC berubah')).toBeInTheDocument();
-        expect(within(dialog).getByText('+4 penilai')).toBeInTheDocument();
-        const save = within(dialog).getByRole('button', { name: /simpan/i });
+        expect((await api()).importTemplate).toHaveBeenLastCalledWith('hc', 'SMG', XLSX, { commit: false });
+        expect(within(dialog).getByText('Template Semarang akan diganti: 2 PIC / 3 penilai lama → 3 PIC / 5 penilai baru. 1 konfirmasi & 2 pilihan akun dipertahankan.')).toBeInTheDocument();
+        expect(within(dialog).getByText('1 PIC baru').closest('details')).toHaveTextContent('Budi');
+        expect(within(dialog).getByText('1 PIC tidak ada lagi').closest('details')).toHaveTextContent('Jingga Ferdasiwi');
+        expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
+        const save = within(dialog).getByRole('button', { name: 'Ganti template' });
         expect(save).toBeDisabled();
         await userEvent.click(within(dialog).getByRole('radio', { name: /tim baru/i }));
         expect(save).toBeEnabled();
@@ -126,55 +125,29 @@ describe('TemplatesTab', () => {
         const pick = within(dialog).getByRole('combobox', { name: /saran nama untuk tim rekrut/i });
         expect(pick).toBeDisabled();
         await userEvent.click(within(dialog).getByRole('radio', { name: /salah ketik/i }));
-        expect(within(dialog).getByRole('button', { name: /simpan/i })).toBeDisabled();
+        expect(within(dialog).getByRole('button', { name: 'Ganti template' })).toBeDisabled();
         await userEvent.selectOptions(pick, 'TIM REKRUTMEN');
-        expect(within(dialog).getByRole('button', { name: /simpan/i })).toBeEnabled();
+        expect(within(dialog).getByRole('button', { name: 'Ganti template' })).toBeEnabled();
     });
 
-    it('prune checkbox lists services', async () => {
-        const dialog = await openPreview();
-        const prune = within(dialog).getByRole('checkbox', { name: 'Hapus yang tidak ada di Excel (layanan: HCC, HCS)' });
-        const confirmed = within(dialog).getByRole('checkbox', { name: /termasuk penilai yang sudah dikonfirmasi/i });
-        expect(confirmed).toBeDisabled();
-        await userEvent.click(prune);
-        expect((await api()).importTemplate).toHaveBeenLastCalledWith('hc', 'SMG', XLSX, { commit: false, prune: true, pruneConfirmed: false });
-        expect(await within(dialog).findByText('−1 PIC dihapus')).toBeInTheDocument();
-        expect(confirmed).toBeEnabled();
-    });
-
-    it('pruning with problem rows warns and blocks save', async () => {
+    it('problem rows warn and block replacing the template', async () => {
         fx.report = { ...REPORT, unresolved: [], problems: [{ row: 7, message: 'Nama PIC kosong' }] };
         const dialog = await openPreview();
         expect(within(dialog).getByText(/baris 7/i)).toBeInTheDocument();
-        expect(within(dialog).getByRole('button', { name: /simpan/i })).toBeEnabled();
-        await userEvent.click(within(dialog).getByRole('checkbox', { name: /hapus yang tidak ada/i }));
-        expect(await within(dialog).findByText(/perbaiki dulu baris bermasalah/i)).toBeInTheDocument();
-        expect(within(dialog).getByRole('button', { name: /simpan/i })).toBeDisabled();
+        expect(within(dialog).getByText('Perbaiki dulu baris bermasalah sebelum mengganti template')).toBeInTheDocument();
+        expect(within(dialog).getByRole('button', { name: 'Ganti template' })).toBeDisabled();
     });
 
-    it('a failed prune preview keeps save disabled', async () => {
-        fx.report = { ...REPORT, unresolved: [] };
-        fx.failPrune = true;
-        const dialog = await openPreview();
-        expect(within(dialog).getByRole('button', { name: /simpan/i })).toBeEnabled();
-        await userEvent.click(within(dialog).getByRole('checkbox', { name: /hapus yang tidak ada/i }));
-        expect(await within(dialog).findByText('Pratinjau gagal dimuat, coba lagi')).toBeInTheDocument();
-        expect(within(dialog).getByRole('button', { name: /simpan/i })).toBeDisabled();
-    });
-
-    it('commit sends resolutions and prune options', async () => {
+    it('commit sends the resolutions and replaces the template', async () => {
         const dialog = await openPreview();
         await userEvent.click(within(dialog).getByRole('radio', { name: /salah ketik/i }));
         await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: /saran nama/i }), 'RARA');
-        await userEvent.click(within(dialog).getByRole('checkbox', { name: /hapus yang tidak ada/i }));
-        await within(dialog).findByText('−1 PIC dihapus');
-        await userEvent.click(within(dialog).getByRole('checkbox', { name: /termasuk penilai/i }));
-        await userEvent.click(within(dialog).getByRole('button', { name: /simpan/i }));
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Ganti template' }));
         expect((await api()).importTemplate).toHaveBeenLastCalledWith('hc', 'SMG', XLSX, {
-            commit: true, prune: true, pruneConfirmed: true, resolutions: { 'Tim Rekrut': { as: 'rename', picName: 'RARA' } },
+            commit: true, resolutions: { 'Tim Rekrut': { as: 'rename', picName: 'RARA' } },
         });
         const { toast } = await import('sonner');
-        await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith('Template Semarang diperbarui'));
+        await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith('Template Semarang diganti'));
         await vi.waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     });
 

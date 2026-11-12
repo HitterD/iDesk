@@ -14,6 +14,7 @@ import { memoryTable } from './csi-memory-table.fixture';
 import { CsiTemplateImportOptions, CsiTemplateImportService } from './csi-template-import.service';
 
 const HC = ServiceScope.HC;
+const CONFIRMED_AT = new Date('2026-11-01T08:00:00Z');
 const HEADER = ['Area', 'Nama Lengkap Karyawan (HC)', 'Jabatan', 'Fungsi pelayanan', 'Nama Lengkap Penilai', 'NIK Penilai'];
 type Sheets = { team?: unknown[][]; employees?: unknown[][] };
 
@@ -25,7 +26,7 @@ async function workbook(rows: unknown[][], sheets: Sheets = {}) {
     return Buffer.from(await book.xlsx.writeBuffer());
 }
 const options = (overrides: Partial<CsiTemplateImportOptions> = {}): CsiTemplateImportOptions => ({
-    commit: false, resolutions: {}, prune: false, pruneConfirmed: false, ...overrides,
+    commit: false, resolutions: {}, ...overrides,
 });
 
 describe('CsiTemplateImportService', () => {
@@ -65,25 +66,31 @@ describe('CsiTemplateImportService', () => {
         tables.pics.rows.push({ id, templateId: 't', area: 'X', serviceCode, picName, jobTitle: null, serviceFunction: null, picId: null, picNik: null, teamId: null, sortOrder: 1 });
         raters.forEach(([raterName, confirmedAt]) => tables.raters.rows.push({ id: `${id}-${raterName}`, templatePicId: id, raterName, confirmedAt }));
     }
+    /** Account pin (and confirmation) of an existing template rater. */
+    function pin(raterId: string, userId: string, confirmedAt: Date | null, confirmedById: string | null = confirmedAt ? 'u-admin' : null) {
+        Object.assign(tables.raters.rows.find((row) => row.id === raterId)!, { userId, confirmedAt, confirmedById });
+    }
     const ratersOf = (picName: string) => {
         const pic = tables.pics.rows.find((row) => row.picName === picName)!;
         return tables.raters.rows.filter((row) => row.templatePicId === pic.id).map((row) => row.raterName).sort();
     };
 
-    it('dry run reports diff without writing', async () => {
+    it('dry run reports the replace summary without writing', async () => {
         seedTemplate();
-        addTemplatePic('p-old', 'LAMA', 'HCD', [['X', null]]);
+        pin('r-budi', 'u-budi', CONFIRMED_AT);
+        addTemplatePic('p-old', 'LAMA', 'HCS', [['X', null]]);
         const buffer = await workbook([
             ['HC Development', 'RARA', 'SUPERVISOR', null, 'BUDI'],
             ['HC Development', 'RARA', null, null, 'CICI'],
             ['HC Development', 'ERNA', 'STAFF', null, 'BUDI'],
             ['HC Development', 'TIM REKRUT', null, null, 'DODI'],
         ]);
-        const report = await service.importExcel(HC, 'smg', buffer, options({ prune: true }));
+        const report = await service.importExcel(HC, 'smg', buffer, options());
         expect(report).toEqual({
             format: 'list', committed: false, services: ['HCD'],
-            pics: { added: ['ERNA', 'TIM REKRUT'], changed: ['RARA'], removed: ['LAMA'] },
-            raters: { added: 3, removed: 1 }, teams: { added: ['TIM REKRUT'] }, newMasterPics: ['ERNA'], ambiguousMasters: [], unresolved: [], problems: [],
+            before: { pics: 2, raters: 2 }, after: { pics: 3, raters: 4 },
+            pics: { added: ['ERNA', 'TIM REKRUT'], removed: ['LAMA'] }, keptPins: 1, keptConfirmations: 1,
+            teamsAdded: ['TIM REKRUT'], newMasterPics: ['ERNA'], ambiguousMasters: [], unresolved: [], problems: [],
         });
         for (const table of Object.values(tables)) {
             expect(table.save).not.toHaveBeenCalled();
@@ -108,33 +115,80 @@ describe('CsiTemplateImportService', () => {
         expect(tables.pics.rows).toEqual([expect.objectContaining({ picName: 'ERNA', picId: erna.id })]);
     });
 
-    it('prune limited to services in file', async () => {
+    it('commit replaces the template: PICs, team rows and raters missing from the file are gone, masters and teams stay', async () => {
         seedTemplate();
-        addTemplatePic('p-old', 'LAMA', 'HCD', [['X', null]]);
+        tables.raters.rows.push({ id: 'r-dodi', templatePicId: 'p-rara', raterName: 'DODI', raterNik: null, confirmedAt: null });
+        addTemplatePic('p-old', 'LAMA', 'HCD', [['X', CONFIRMED_AT]]);
         addTemplatePic('p-hcs', 'SERVIS', 'HCS', [['Y', null]]);
-        const buffer = await workbook([['HC Development', 'RARA', null, null, 'CICI']]);
-        const report = await service.importExcel(HC, 'SMG', buffer, options({ commit: true, prune: true }));
-        expect(report).toMatchObject({ committed: true, services: ['HCD'], pics: { removed: ['LAMA'] }, raters: { added: 1, removed: 2 } });
-        expect(tables.pics.rows.map((row) => row.picName).sort()).toEqual(['RARA', 'SERVIS']);
-        expect(ratersOf('RARA')).toEqual(['CICI']);
-        expect(ratersOf('SERVIS')).toEqual(['Y']);
+        tables.teams.rows.push({ id: 'team-1', scope: HC, kind: CsiTeamKind.CUSTOM, siteId: 's-smg', serviceCode: 'HCS', name: 'TIM LAMA', isActive: true });
+        addTemplatePic('p-team', 'TIM LAMA', 'HCS', [['Z', null]]);
+        tables.pics.rows.find((row) => row.id === 'p-team')!.teamId = 'team-1';
+        const buffer = await workbook([['HC Development', 'RARA', null, null, 'CICI'], ['HC Development', 'RARA', null, null, 'BUDI']]);
+        const report = await service.importExcel(HC, 'SMG', buffer, options({ commit: true }));
+        expect(report).toMatchObject({
+            committed: true, before: { pics: 4, raters: 5 }, after: { pics: 1, raters: 2 },
+            pics: { added: [], removed: ['LAMA', 'SERVIS', 'TIM LAMA'] },
+        });
+        expect(tables.pics.rows.map((row) => [row.picName, row.picId, row.templateId])).toEqual([['RARA', 'pic-rara', 't']]);
+        expect(ratersOf('RARA')).toEqual(['BUDI', 'CICI']);
+        expect(tables.raters.rows).toHaveLength(2);
+        expect(tables.teams.rows).toEqual([expect.objectContaining({ id: 'team-1', isActive: true })]);
+        expect(tables.masters.rows).toHaveLength(1);
+        expect(tables.templates.rows).toHaveLength(1);
     });
 
-    it('prune keeps confirmed unless pruneConfirmed', async () => {
+    it('carries account pins and confirmations to the same PIC/team (by link, or by name when unlinked)', async () => {
+        tables.masters.rows[0].fullName = 'RARA K';
+        tables.people.rows.push({ nik: '00001001', fullName: 'RARA KURNIA', department: 'HCBP AREA SEMARANG', bagian: null, jobTitle: 'STAFF', workLocation: null });
         seedTemplate();
-        const confirmedAt = new Date();
-        tables.raters.rows[0].confirmedAt = confirmedAt;
-        tables.raters.rows.push({ id: 'r-dodi', templatePicId: 'p-rara', raterName: 'DODI', confirmedAt: null });
-        addTemplatePic('p-old', 'LAMA', 'HCD', [['X', confirmedAt]]);
-        const buffer = await workbook([['HC Development', 'RARA', null, null, 'CICI']]);
-        const first = await service.importExcel(HC, 'SMG', buffer, options({ commit: true, prune: true }));
-        expect(first).toMatchObject({ pics: { removed: [] }, raters: { removed: 1 } });
-        expect(ratersOf('RARA')).toEqual(['BUDI', 'CICI']);
-        expect(ratersOf('LAMA')).toEqual(['X']);
-        const second = await service.importExcel(HC, 'SMG', buffer, options({ commit: true, prune: true, pruneConfirmed: true }));
-        expect(second).toMatchObject({ pics: { removed: ['LAMA'] }, raters: { removed: 2 } });
-        expect(ratersOf('RARA')).toEqual(['CICI']);
-        expect(tables.pics.rows.map((row) => row.picName)).toEqual(['RARA']);
+        pin('r-budi', 'u-budi', CONFIRMED_AT, 'u-admin');
+        addTemplatePic('p-old', 'LAMA', 'HCD', [['ELVI CYNTHIA', CONFIRMED_AT]]);
+        pin('p-old-ELVI CYNTHIA', 'u-elvi', CONFIRMED_AT, 'u-admin');
+        tables.teams.rows.push({ id: 'team-1', scope: HC, kind: CsiTeamKind.CUSTOM, siteId: 's-smg', serviceCode: 'HCS', name: 'TIM REKRUT', isActive: true });
+        addTemplatePic('p-team', 'TIM REKRUT', 'HCS', [['AGUS', null]]);
+        tables.pics.rows.find((row) => row.id === 'p-team')!.teamId = 'team-1';
+        pin('p-team-AGUS', 'u-new', null);
+        const buffer = await workbook([
+            // Spelled differently in the file, still the same master (directory NIK) -> same owner.
+            ['HC Development', 'RARA KURNIA', null, null, 'Budi'],
+            ['HC Development', 'LAMA', null, null, 'Elvi Cynthia'],
+            ['HC Development', 'LAMA', null, null, 'CICI'],
+            ['HC Services', 'TIM REKRUT', null, null, 'AGUS'],
+        ]);
+        const resolutions = { LAMA: { as: 'pic' as const } };
+        expect(await service.importExcel(HC, 'SMG', buffer, options({ resolutions }))).toMatchObject({ keptPins: 3, keptConfirmations: 2 });
+        const report = await service.importExcel(HC, 'SMG', buffer, options({ commit: true, resolutions }));
+        expect(report).toMatchObject({ keptPins: 3, keptConfirmations: 2, pics: { added: [], removed: [] } });
+        const raterOf = (name: string) => tables.raters.rows.find((row) => row.raterName === name)!;
+        expect(raterOf('BUDI')).toMatchObject({ userId: 'u-budi', confirmedAt: CONFIRMED_AT, confirmedById: 'u-admin' });
+        expect(raterOf('ELVI CYNTHIA')).toMatchObject({ userId: 'u-elvi', confirmedAt: CONFIRMED_AT, confirmedById: 'u-admin' });
+        expect(raterOf('AGUS')).toMatchObject({ userId: 'u-new', confirmedAt: null, confirmedById: null });
+        expect(raterOf('CICI')).toMatchObject({ userId: null, confirmedAt: null, confirmedById: null });
+        expect(tables.pics.rows.find((row) => row.picName === 'RARA KURNIA')).toMatchObject({ picId: 'pic-rara' });
+        expect(tables.pics.rows.find((row) => row.picName === 'TIM REKRUT')).toMatchObject({ teamId: 'team-1' });
+    });
+
+    it('a rater with the same name under another PIC does not inherit the pin', async () => {
+        seedTemplate();
+        pin('r-budi', 'u-budi', CONFIRMED_AT);
+        const buffer = await workbook([['HC Development', 'RARA', null, null, 'CICI'], ['HC Development', 'ERNA', null, null, 'BUDI']]);
+        const report = await service.importExcel(HC, 'SMG', buffer, options({ commit: true }));
+        expect(report).toMatchObject({ keptPins: 0, keptConfirmations: 0 });
+        expect(tables.raters.rows.find((row) => row.raterName === 'BUDI')).toMatchObject({ userId: null, confirmedAt: null });
+    });
+
+    it('drops the pin when its account is inactive, or when the file NIK belongs to another account', async () => {
+        tables.users.rows.push({ id: 'u-gone', fullName: 'Cici', employeeId: null, isActive: false });
+        seedTemplate();
+        pin('r-budi', 'u-budi', CONFIRMED_AT);
+        tables.raters.rows.push({ id: 'r-cici', templatePicId: 'p-rara', raterName: 'CICI', raterNik: null, userId: 'u-gone', confirmedAt: CONFIRMED_AT, confirmedById: 'u-admin' });
+        const buffer = await workbook([['HC Development', 'RARA', null, null, 'BUDI', 777], ['HC Development', 'RARA', null, null, 'CICI']]);
+        const report = await service.importExcel(HC, 'SMG', buffer, options({ commit: true }));
+        expect(report).toMatchObject({ keptPins: 0, keptConfirmations: 0 });
+        expect(tables.raters.rows.map(({ raterName, raterNik, userId, confirmedAt, confirmedById }) => ({ raterName, raterNik, userId, confirmedAt, confirmedById }))).toEqual([
+            { raterName: 'BUDI', raterNik: '00000777', userId: null, confirmedAt: null, confirmedById: null },
+            { raterName: 'CICI', raterNik: null, userId: null, confirmedAt: null, confirmedById: null },
+        ]);
     });
 
     it('stores parsed PIC and rater NIK', async () => {
@@ -144,12 +198,11 @@ describe('CsiTemplateImportService', () => {
         expect(tables.raters.rows[0]).toMatchObject({ raterNik: '00000071' });
     });
 
-    it('refreshes rater NIK on re-import without touching confirmation', async () => {
+    it('re-import stores the new rater NIK and keeps the confirmation', async () => {
         seedTemplate();
-        const confirmedAt = new Date();
-        tables.raters.rows[0].confirmedAt = confirmedAt;
+        pin('r-budi', 'u-budi', CONFIRMED_AT);
         await service.importExcel(HC, 'SMG', await workbook([['HC Development', 'RARA', null, null, 'BUDI', 55]]), options({ commit: true }));
-        expect(tables.raters.rows).toEqual([expect.objectContaining({ raterName: 'BUDI', raterNik: '00000055', confirmedAt })]);
+        expect(tables.raters.rows).toEqual([expect.objectContaining({ raterName: 'BUDI', raterNik: '00000055', userId: 'u-budi', confirmedAt: CONFIRMED_AT })]);
     });
 
     it('creates custom team with members', async () => {
@@ -157,7 +210,7 @@ describe('CsiTemplateImportService', () => {
             team: [['Tim Rekrut', 'Elvi Cynthia', 123], [null, 'Budi Santoso', null], [null, 'Agus', null]],
         });
         const report = await service.importExcel(HC, 'SMG', buffer, options({ commit: true }));
-        expect(report.teams.added).toEqual(['TIM REKRUT']);
+        expect(report.teamsAdded).toEqual(['TIM REKRUT']);
         const team = tables.teams.rows[0];
         expect(team).toMatchObject({ scope: HC, kind: CsiTeamKind.CUSTOM, siteId: 's-smg', serviceCode: 'HCS', name: 'TIM REKRUT', isActive: true });
         expect(tables.members.rows.map(({ teamId, name, nik, userId }) => ({ teamId, name, nik, userId }))).toEqual([
@@ -168,7 +221,7 @@ describe('CsiTemplateImportService', () => {
         expect(tables.pics.rows).toEqual([expect.objectContaining({ picName: 'TIM REKRUT', teamId: team.id, picId: null })]);
         expect(tables.masters.rows).toHaveLength(1);
         const again = await service.importExcel(HC, 'SMG', buffer, options({ commit: true }));
-        expect(again.teams.added).toEqual([]);
+        expect(again.teamsAdded).toEqual([]);
         expect(tables.teams.rows).toHaveLength(1);
         expect(tables.members.rows).toHaveLength(3);
     });
@@ -177,7 +230,7 @@ describe('CsiTemplateImportService', () => {
         tables.teams.rows.push({ id: 'old-team', scope: HC, kind: CsiTeamKind.CUSTOM, siteId: 's-smg', serviceCode: 'HCD', name: 'Tim Rekrut', isActive: false });
         const buffer = await workbook([['HC Services', 'TIM REKRUT', null, 'Rekrutmen', 'BUDI']], { team: [['Tim Rekrut', 'Agus', null]] });
         const report = await service.importExcel(HC, 'SMG', buffer, options({ commit: true }));
-        expect(report.teams.added).toEqual(['TIM REKRUT']);
+        expect(report.teamsAdded).toEqual(['TIM REKRUT']);
         expect(tables.teams.rows).toEqual([expect.objectContaining({ id: 'old-team', isActive: true, serviceCode: 'HCS' })]);
         expect(tables.pics.rows).toEqual([expect.objectContaining({ picName: 'TIM REKRUT', teamId: 'old-team' })]);
         expect(tables.members.rows).toEqual([expect.objectContaining({ teamId: 'old-team', name: 'AGUS' })]);
@@ -220,16 +273,17 @@ describe('CsiTemplateImportService', () => {
         expect(tables.pics.rows).toEqual([expect.objectContaining({ picName: 'RARA KURNIA', picId: 'pic-rara' })]);
     });
 
-    it('prune commit is refused while the file has problem rows; dry run still reports removals', async () => {
+    it('commit is refused while the file has problem rows; dry run still reports them', async () => {
         seedTemplate();
         addTemplatePic('p-old', 'LAMA', 'HCD', [['X', null]]);
         const buffer = await workbook([['HC Development', 'RARA', null, null, 'BUDI'], ['Keuangan', 'SALAH AREA', null, null, 'BUDI']]);
-        const dry = await service.importExcel(HC, 'SMG', buffer, options({ prune: true }));
+        const dry = await service.importExcel(HC, 'SMG', buffer, options());
         expect(dry).toMatchObject({ pics: { removed: ['LAMA'] }, problems: [expect.objectContaining({ row: 3 })] });
-        await expect(service.importExcel(HC, 'SMG', buffer, options({ commit: true, prune: true })))
-            .rejects.toThrow('Perbaiki dulu baris bermasalah sebelum menghapus data yang tidak ada di Excel');
+        await expect(service.importExcel(HC, 'SMG', buffer, options({ commit: true })))
+            .rejects.toThrow('Perbaiki dulu baris bermasalah sebelum mengganti template');
         expect(tables.pics.rows.map((row) => row.picName)).toEqual(['RARA', 'LAMA']);
-        expect((await service.importExcel(HC, 'SMG', buffer, options({ commit: true }))).committed).toBe(true);
+        expect(tables.raters.delete).not.toHaveBeenCalled();
+        expect(tables.pics.delete).not.toHaveBeenCalled();
     });
 
     it('reports rows left without a PIC link because the PIC master name is ambiguous', async () => {
@@ -248,7 +302,7 @@ describe('CsiTemplateImportService', () => {
         const buffer = await workbook([['HC Development', 'RARA', null, null, 'BUDI']]);
         await expect(service.importExcel(HC, 'JKT', buffer, options({ commit: true }))).rejects.toThrow('Lokasi tidak dikenal');
         const report = await service.importExcel(HC, 'KRW', buffer, options({ commit: true }));
-        expect(report).toMatchObject({ committed: true, pics: { added: ['RARA'] }, raters: { added: 1 } });
+        expect(report).toMatchObject({ committed: true, pics: { added: ['RARA'], removed: [] }, before: { pics: 0, raters: 0 }, after: { pics: 1, raters: 1 } });
         expect(tables.templates.rows).toEqual([expect.objectContaining({ scope: HC, locationCode: 'KRW', name: 'CSI HC – Karawang' })]);
         expect(tables.pics.rows).toEqual([expect.objectContaining({ templateId: tables.templates.rows[0].id, picName: 'RARA', picId: 'pic-rara' })]);
     });

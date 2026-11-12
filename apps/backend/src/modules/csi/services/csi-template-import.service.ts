@@ -18,19 +18,20 @@ import { CSI_HC_SERVICES, normalizeBagian, normalizeNik } from '../org/csi-org.c
 import { normalizeServiceFunction } from '../org/csi-org.service';
 import { CsiTemplateDraft, parseTemplateWorkbook } from '../org/csi-template-excel';
 import { ClassifiedPic, ClassifyContext, PicResolution } from '../org/csi-template-identity';
-import { classifyDraft, CsiTemplateDiff, CsiTemplatePrune, diffOf, normalizeResolutions, prunePlan } from '../org/csi-template-import.plan';
+import { classifyDraft, CsiPlannedRow, CsiReplaceContext, CsiReplaceSummary, fileFacts, normalizeResolutions, replacePlan } from '../org/csi-template-import.plan';
 import { lookupOf } from '../org/csi-template-view';
 import { CSI_TEMPLATE_LOCATION_NAMES, csiTemplateLocation } from '../org/csi-template-locations';
 
 const SUGGESTION_POOL_MAX = 5000;
 const FALLBACK_NIK_PREFIX = 'TPL-';
 const FALLBACK_NIK_BYTES = 4;
-const PRUNE_WITH_PROBLEMS_MESSAGE = 'Perbaiki dulu baris bermasalah sebelum menghapus data yang tidak ada di Excel';
+const REPLACE_WITH_PROBLEMS_MESSAGE = 'Perbaiki dulu baris bermasalah sebelum mengganti template';
 
 export type CsiTemplateImportOptions = {
-    commit: boolean; resolutions: Readonly<Record<string, PicResolution>>; prune: boolean; pruneConfirmed: boolean;
+    commit: boolean; resolutions: Readonly<Record<string, PicResolution>>;
 };
-export type CsiTemplateImportReport = CsiTemplateDiff & {
+/** Replace summary (before -> after, kept pins) plus what the file creates and what still needs a decision. */
+export type CsiTemplateImportReport = CsiReplaceSummary & ReturnType<typeof fileFacts> & {
     format: CsiTemplateDraft['format']; committed: boolean;
     unresolved: Array<{ name: string; suggestions: string[] }>; problems: CsiTemplateDraft['problems'];
     /** PIC rows left without a PIC master link because several masters share the name (HC picks one in PIC HC). */
@@ -92,6 +93,28 @@ export const mastersIndex = (masters: readonly CsiPic[]) => identityIndex(master
 /** Latest saved master per PIC name of the file: rows and service functions link through it, never via a stale copy. */
 type MasterLinks = Map<string, CsiPic>;
 
+/** The PIC master an old row of the same name was linked to (by hand or by an earlier import) wins over re-matching. */
+function linkedByName(state: ImportState): ReadonlyMap<string, string> {
+    return new Map(state.rows.filter((row) => row.picId).map((row) => [row.picName, row.picId as string]));
+}
+
+/**
+ * Links a commit will write, predicted from what exists now: an existing master (a new one has no old rows to
+ * continue), an existing team or the deactivated team of that name that would be revived.
+ */
+function predictedLinks(state: ImportState): Pick<CsiReplaceContext, 'picIdOf' | 'teamIdOf'> {
+    const findMaster = mastersIndex(state.masters);
+    const byName = linkedByName(state);
+    return {
+        picIdOf: (pic) => byName.get(pic.picName) ?? rowOf(existingMaster(state, findMaster, pic))?.id ?? null,
+        teamIdOf: (pic) => pic.existingTeamId ?? state.teams.find((team) => !team.isActive && normalizeName(team.name) === pic.picName)?.id ?? null,
+    };
+}
+
+const accountsOf = (state: ImportState): Pick<CsiReplaceContext, 'activeIds' | 'accountIdOfNik'> => ({
+    activeIds: state.accounts.activeIds, accountIdOfNik: (nik) => state.accounts.byNik.get(nik)?.id ?? null,
+});
+
 /**
  * The master a PIC row already has: by NIK/name, or (same NIK = same person) the master owning the NIK of the row's
  * directory person, even when the master's name is spelled differently.
@@ -103,10 +126,10 @@ export function existingMaster(state: Pick<CsiMasterContext, 'findPerson'>, find
     return person ? findMaster('', person.nik) : null;
 }
 
-/** PIC rows whose master is ambiguous and whose template row is not linked yet (mergeRows keeps an existing link). */
+/** PIC rows whose master is ambiguous and whose old row of that name is not linked yet (the replace keeps that link). */
 function ambiguousMastersOf(state: ImportState, pics: ClassifiedPic[]): string[] {
     const findMaster = mastersIndex(state.masters);
-    const linked = new Set(state.rows.filter((row) => row.picId).map((row) => row.picName));
+    const linked = linkedByName(state);
     const names = pics.filter((pic) => pic.kind === 'pic' && !linked.has(pic.picName) && existingMaster(state, findMaster, pic) === 'ambiguous')
         .map((pic) => pic.picName);
     return [...new Set(names)].sort((a, b) => a.localeCompare(b));
@@ -136,9 +159,11 @@ function withoutLinkedMasters(state: ImportState, pics: ClassifiedPic[]): Classi
 }
 
 /**
- * Excel import into a location's assignment template: classify the PIC column (PIC / team / unresolved), report the
- * diff, and on commit write everything in one transaction (PIC masters, custom teams + members, rows, raters, prune).
- * A dry run only reads.
+ * Excel import into a location's assignment template: classify the PIC column (PIC / team / unresolved), report what
+ * the replace does, and on commit write everything in one transaction. The file replaces the location's template
+ * rows and raters; PIC masters and teams are created or revived but never deleted, and raters of the same PIC/team
+ * keep their account pin and confirmation. Surveys copied the template earlier and are not touched. A dry run only
+ * reads.
  */
 @Injectable()
 export class CsiTemplateImportService {
@@ -156,18 +181,17 @@ export class CsiTemplateImportService {
         const classified = classifyDraft(draft, this.classifyContext(state, normalizeResolutions(options.resolutions)));
         const { unresolved } = classified;
         const pics = withoutLinkedMasters(state, classified.pics);
-        const prune = options.prune ? prunePlan(pics, state.rows, state.raters, options.pruneConfirmed) : null;
+        const { summary } = replacePlan(pics, state.rows, state.raters, { ...predictedLinks(state), ...accountsOf(state) });
         const report: CsiTemplateImportReport = {
-            format: draft.format, committed: options.commit, ...diffOf(pics, state.rows, state.raters, prune),
+            format: draft.format, committed: options.commit, ...fileFacts(pics), ...summary,
             ambiguousMasters: ambiguousMastersOf(state, pics), unresolved, problems: draft.problems,
         };
         if (!options.commit) return report;
         if (unresolved.length) throw new BadRequestException('Tentukan dulu: ' + unresolved.map((row) => row.name).join(', '));
         if (!pics.length) throw new BadRequestException('Tidak ada PIC di file');
-        // A row that failed to parse looks "absent" and would be pruned; the file must be clean first.
-        if (prune && draft.problems.length) throw new BadRequestException(PRUNE_WITH_PROBLEMS_MESSAGE);
-        await this.write(manager, state, pics, draft.teams, prune);
-        return report;
+        // A row that failed to parse looks "absent": replacing would silently drop those people.
+        if (draft.problems.length) throw new BadRequestException(REPLACE_WITH_PROBLEMS_MESSAGE);
+        return { ...report, ...(await this.write(manager, state, pics, draft.teams)) };
     }
 
     private async load(manager: EntityManager, scope: ServiceScope, code: string): Promise<ImportState> {
@@ -200,17 +224,29 @@ export class CsiTemplateImportService {
         };
     }
 
-    /** Order matters: masters and teams first so the template rows can link to them; prune last. */
-    private async write(manager: EntityManager, state: ImportState, pics: ClassifiedPic[], sheetTeams: CsiTemplateDraft['teams'],
-        prune: CsiTemplatePrune | null) {
+    /**
+     * Order matters: masters and teams first so the new rows can link to them; then the old rows and raters go
+     * and the file's rows are written. The summary is recomputed from the real links of this commit.
+     */
+    private async write(manager: EntityManager, state: ImportState, pics: ClassifiedPic[], sheetTeams: CsiTemplateDraft['teams']): Promise<CsiReplaceSummary> {
         const links = await this.ensureMasters(manager, state, pics.filter((pic) => pic.kind === 'pic'));
         const teamIds = await this.ensureTeams(manager, state, pics.filter((pic) => pic.kind === 'team'), sheetTeams);
         const template = state.template ?? await manager.getRepository(CsiAssignmentTemplate)
             .save({ scope: state.scope, locationCode: state.code, name: csiTemplateName(state.scope, state.code) });
-        await this.mergeRows(manager, state, template.id, pics, links, teamIds);
+        const byName = linkedByName(state);
+        const plan = replacePlan(pics, state.rows, state.raters, {
+            picIdOf: (pic) => byName.get(pic.picName) ?? links.get(pic.picName)?.id ?? null,
+            teamIdOf: (pic) => teamIds.get(pic.picName) ?? null,
+            ...accountsOf(state),
+        });
+        if (state.rows.length) {
+            // The FK cascades raters too; deleting them explicitly keeps the replace independent of that.
+            await manager.getRepository(CsiAssignmentTemplateRater).delete({ templatePicId: In(state.rows.map((row) => row.id)) });
+            await manager.getRepository(CsiAssignmentTemplatePic).delete({ templateId: template.id });
+        }
+        await this.writeRows(manager, template.id, plan.rows);
         await this.fillMasterServiceFunctions(manager, pics, links);
-        if (prune?.raterIds.length) await manager.getRepository(CsiAssignmentTemplateRater).delete({ id: In(prune.raterIds) });
-        if (prune?.picIds.length) await manager.getRepository(CsiAssignmentTemplatePic).delete({ id: In(prune.picIds) });
+        return plan.summary;
     }
 
     /**
@@ -278,41 +314,20 @@ export class CsiTemplateImportService {
         }
     }
 
-    private async mergeRows(manager: EntityManager, state: ImportState, templateId: string, pics: ClassifiedPic[],
-        links: MasterLinks, teamIds: ReadonlyMap<string, string>) {
-        const repo = manager.getRepository(CsiAssignmentTemplatePic);
-        const byName = new Map(state.rows.filter((row) => row.templateId === templateId).map((row) => [row.picName, row]));
-        let order = byName.size;
-        for (const pic of pics) {
-            const known = byName.get(pic.picName);
-            const isTeam = pic.kind === 'team';
-            const saved = await repo.save({
-                ...(known ?? { templateId, sortOrder: order++ }),
-                // Re-matched on every import: a PIC added to the master later gets linked then.
-                picId: isTeam ? null : known?.picId ?? links.get(pic.picName)?.id ?? null,
-                teamId: isTeam ? teamIds.get(pic.picName) ?? null : null,
-                area: pic.area, serviceCode: pic.serviceCode, picName: pic.picName, picNik: normalizeNik(pic.nik) ?? known?.picNik ?? null,
-                jobTitle: pic.jobTitle ?? known?.jobTitle ?? null,
-                serviceFunction: normalizeServiceFunction(pic.serviceFunction) ?? known?.serviceFunction ?? null,
+    /** File order is the new sort order; old row fields fill only what the file leaves empty. */
+    private async writeRows(manager: EntityManager, templateId: string, rows: CsiPlannedRow[]) {
+        const raterRepo = manager.getRepository(CsiAssignmentTemplateRater);
+        for (const [sortOrder, { pic, picId, teamId, previous, raters }] of rows.entries()) {
+            const saved = await manager.getRepository(CsiAssignmentTemplatePic).save({
+                templateId, sortOrder, picId, teamId, area: pic.area, serviceCode: pic.serviceCode, picName: pic.picName,
+                picNik: normalizeNik(pic.nik) ?? previous?.picNik ?? null,
+                jobTitle: pic.jobTitle ?? previous?.jobTitle ?? null,
+                serviceFunction: normalizeServiceFunction(pic.serviceFunction) ?? previous?.serviceFunction ?? null,
             });
-            await this.mergeRaters(manager, state, saved.id, pic.raters);
-        }
-    }
-
-    /** New raters are added; a known rater only gets its NIK refreshed (confirmation is never touched here). */
-    private async mergeRaters(manager: EntityManager, state: ImportState, templatePicId: string, raters: ClassifiedPic['raters']) {
-        const repo = manager.getRepository(CsiAssignmentTemplateRater);
-        const known = new Map(state.raters.filter((row) => row.templatePicId === templatePicId).map((row) => [row.raterName, row]));
-        const fresh = raters.filter((rater) => !known.has(rater.name));
-        const refreshed = raters.flatMap((rater) => {
-            const row = known.get(rater.name);
-            const nik = normalizeNik(rater.nik);
-            return row && nik && normalizeNik(row.raterNik) !== nik ? [{ ...row, raterNik: nik }] : [];
-        });
-        if (refreshed.length) await repo.save(refreshed);
-        if (fresh.length) {
-            await repo.save(fresh.map((rater) => ({
-                templatePicId, raterName: rater.name, raterJobTitle: rater.jobTitle, raterNik: normalizeNik(rater.nik), userId: null,
+            if (!raters.length) continue;
+            await raterRepo.save(raters.map(({ rater, pin }) => ({
+                templatePicId: saved.id, raterName: rater.name, raterJobTitle: rater.jobTitle, raterNik: normalizeNik(rater.nik),
+                userId: pin?.userId ?? null, confirmedAt: pin?.confirmedAt ?? null, confirmedById: pin?.confirmedById ?? null,
             })));
         }
     }

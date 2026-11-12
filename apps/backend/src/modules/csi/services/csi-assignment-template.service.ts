@@ -36,7 +36,7 @@ type Repos = { templates: Repository<CsiAssignmentTemplate>; pics: Repository<Cs
 /**
  * Assignment templates per location ("siapa menilai siapa" by name, with each PIC's service function). Loading the
  * bundled copy merges: new PICs and raters are added, titles/service functions refreshed, nothing is removed except by
- * an explicit delete in the editor. Excel import (diff, resolutions, prune, teams) lives in CsiTemplateImportService.
+ * an explicit delete in the editor. Excel import (replace, resolutions, teams) lives in CsiTemplateImportService.
  */
 @Injectable()
 export class CsiAssignmentTemplateService {
