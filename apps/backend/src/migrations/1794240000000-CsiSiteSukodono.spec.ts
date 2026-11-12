@@ -17,9 +17,7 @@ describe('CsiSiteSukodono migration', () => {
         expect(sql).not.toMatch(/UPDATE|DELETE/);
     });
 
-    it('removes SKD on down only when nothing references it', async () => {
-        const sql = await run('down');
-        expect(sql).toContain('DELETE FROM "sites" WHERE "code" = \'SKD\'');
-        expect(sql).toContain('NOT EXISTS (SELECT 1 FROM "users" WHERE "siteId" = "sites"."id")');
+    it('keeps shared site master data on down, including references from users, teams and period sites', async () => {
+        expect(await run('down')).toBe('');
     });
 });

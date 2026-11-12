@@ -11,6 +11,7 @@ import { CsiResponse } from '../entities/csi-response.entity';
 import { normalizeName } from '../org/csi-name-match';
 import { CsiPicView, picView } from '../org/csi-org.service';
 import { CSI_TEMPLATE_LOCATION_NAMES } from '../org/csi-template-locations';
+import { lockPeriodRow } from './csi-period-lock.util';
 import { assertHcScope } from './csi-scope.util';
 import { surveyStage } from './csi-survey-stage.util';
 import { CONCURRENT_TEMPLATE_MESSAGE, lockTemplateLocation, PG_UNIQUE_VIOLATION } from './csi-template-import.service';
@@ -108,9 +109,13 @@ export class CsiPicRenameService {
     }
 
     private async renameDraftRatees(manager: EntityManager, picId: string, displayName: string) {
-        const ratees = await manager.getRepository(CsiPeriodRatee).find({ where: { picId }, select: { id: true, periodId: true } });
-        const periodIds = [...new Set(ratees.map((ratee) => ratee.periodId))];
+        const repo = manager.getRepository(CsiPeriodRatee);
+        const candidates = await repo.find({ where: { picId }, select: { id: true, periodId: true } });
+        const periodIds = [...new Set(candidates.map((ratee) => ratee.periodId))].sort();
         if (!periodIds.length) return;
+        for (const id of periodIds) await lockPeriodRow(manager, id);
+        // Publication and submissions may have committed while the locks were pending; never use their earlier snapshot.
+        const ratees = await repo.find({ where: { picId, periodId: In(periodIds) }, select: { id: true, periodId: true } });
         const periods = await manager.getRepository(CsiPeriod).find({ where: { id: In(periodIds) } });
         const answered = new Set((await manager.getRepository(CsiResponse)
             .find({ where: { periodId: In(periodIds) }, select: { id: true, periodId: true } })).map((row) => row.periodId));

@@ -15,7 +15,7 @@ import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiTeamMember } from '../entities/csi-team-member.entity';
 import { CsiTeam } from '../entities/csi-team.entity';
 import { normalizeName } from '../org/csi-name-match';
-import { lockUnlockedPeriod } from './csi-period-lock.util';
+import { lockPeriodRow } from './csi-period-lock.util';
 import { surveyStage } from './csi-survey-stage.util';
 import { assertHcScope } from './csi-scope.util';
 import { CsiSubjectView, teamView } from './csi-subject.service';
@@ -116,10 +116,11 @@ export class CsiTeamService {
     async remove(scope: ServiceScope, id: string): Promise<void> {
         await this.dataSource.transaction(async (manager) => {
             const team = await this.findTeam(manager, scope, id);
+            const candidates = await manager.getRepository(CsiPeriodRatee).find({ where: { teamId: team.id }, select: { periodId: true } });
+            // Lock by ID, not survey dates; reload the full plan only after concurrent publication/submissions finish.
+            for (const periodId of [...new Set(candidates.map((ratee) => ratee.periodId))].sort()) await lockPeriodRow(manager, periodId);
             const plan = await this.planDelete(manager, team);
             if (plan.blocked.length) throw new BadRequestException(`${TEAM_IN_USE_MESSAGE}: ${plan.blocked.map((survey) => survey.title).join(', ')}`);
-            // Re-checked under the period row lock: a respondent submitting meanwhile turns the delete into a 409.
-            for (const survey of plan.draftSurveys) await lockUnlockedPeriod(manager, survey.periodId);
             if (plan.draftRateeIds.length) {
                 const periodRateeId = In(plan.draftRateeIds);
                 await manager.getRepository(CsiPeriodRaterRatee).delete({ periodRateeId });

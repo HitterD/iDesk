@@ -24,6 +24,7 @@ const NOW = new Date('2026-11-10T10:00:00+07:00');
 describe('CsiTeamService', () => {
     let tables: Record<string, ReturnType<typeof memoryTable>>;
     let service: CsiTeamService;
+    let periodLock: { setLock: jest.Mock; where: jest.Mock; getOne: jest.Mock };
 
     beforeEach(() => {
         tables = Object.fromEntries(['teams', 'members', 'sites', 'users', 'templatePics', 'ratees', 'periods', 'dimensions', 'pairs', 'responses'].map((name) => [name, memoryTable()]));
@@ -37,9 +38,8 @@ describe('CsiTeamService', () => {
             [CsiAssignmentTemplatePic, tables.templatePics], [CsiPeriodRatee, tables.ratees], [CsiPeriod, tables.periods],
             [CsiPeriodRateeDimension, tables.dimensions], [CsiPeriodRaterRatee, tables.pairs], [CsiResponse, tables.responses],
         ]);
-        // Row lock taken before draft ratees are removed: a no-op query builder over the memory table.
-        const lockBuilder = { setLock: () => lockBuilder, where: () => lockBuilder, getOne: async () => null };
-        Object.assign(tables.periods, { createQueryBuilder: () => lockBuilder });
+        periodLock = { setLock: jest.fn().mockReturnThis(), where: jest.fn().mockReturnThis(), getOne: jest.fn(async () => null) };
+        Object.assign(tables.periods, { createQueryBuilder: () => periodLock });
         const manager = { getRepository: (target: unknown) => repositories.get(target) };
         const dataSource = { manager, transaction: jest.fn(async (work: any) => work(manager)) };
         service = new CsiTeamService(dataSource as any);
@@ -115,6 +115,58 @@ describe('CsiTeamService', () => {
         await expect(service.remove(HC, team.teamId!)).rejects.toThrow('Tim dipakai di survei yang sedang berjalan: CSI HC November, CSI HC Desember');
         expect(tables.teams.rows).toHaveLength(1);
         expect(tables.ratees.rows).toHaveLength(2);
+    });
+
+    it('locks every affected period by ID before rebuilding the deletion plan', async () => {
+        const team = await custom();
+        period('p-z', { publishStatus: CsiPeriodPublishStatus.DRAFT });
+        period('p-a', { startDate: '2026-10-01', endDate: '2026-10-31' });
+        rateTeam(team.teamId!, 'p-z');
+        rateTeam(team.teamId!, 'p-a');
+        await service.remove(HC, team.teamId!);
+        expect(periodLock.where.mock.calls.map((call) => call[1].id)).toEqual(['p-a', 'p-z']);
+        expect(periodLock.setLock.mock.calls).toEqual([['pessimistic_write'], ['pessimistic_write']]);
+        const lastLock = periodLock.getOne.mock.invocationCallOrder[1];
+        expect(lastLock).toBeLessThan(tables.ratees.find.mock.invocationCallOrder[1]);
+        expect(lastLock).toBeLessThan(tables.periods.find.mock.invocationCallOrder[0]);
+        expect(lastLock).toBeLessThan(tables.responses.find.mock.invocationCallOrder[0]);
+    });
+
+    it.each(['running', 'answered'])('refuses deletion when a draft becomes %s before its lock completes', async (state) => {
+        const team = await custom();
+        period('p-draft', { publishStatus: CsiPeriodPublishStatus.DRAFT, teamEnabled: true });
+        rateTeam(team.teamId!, 'p-draft');
+        tables.templatePics.rows.push({ id: 'tp1', teamId: team.teamId });
+        periodLock.getOne.mockImplementationOnce(async () => {
+            if (state === 'running') {
+                Object.assign(tables.periods.rows[0], { publishStatus: CsiPeriodPublishStatus.PUBLISHED });
+            } else {
+                tables.responses.rows.push({ id: 'first-response', periodId: 'p-draft' });
+            }
+            return null;
+        });
+        await expect(service.remove(HC, team.teamId!)).rejects.toThrow('Tim dipakai di survei yang sedang berjalan: Survei p-draft');
+        for (const table of ['teams', 'ratees', 'dimensions', 'pairs', 'templatePics']) expect(tables[table].delete).not.toHaveBeenCalled();
+        expect(tables.periods.update).not.toHaveBeenCalled();
+        expect(tables.teams.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('rebuilds ratee IDs and teamSectionOff from changes committed before the lock', async () => {
+        const team = await custom();
+        period('p-draft', { publishStatus: CsiPeriodPublishStatus.DRAFT, teamEnabled: true });
+        rateTeam(team.teamId!, 'p-draft');
+        periodLock.getOne.mockImplementationOnce(async () => {
+            Object.assign(tables.ratees.rows[0], { id: 'replacement' });
+            Object.assign(tables.pairs.rows[0], { periodRateeId: 'replacement' });
+            Object.assign(tables.dimensions.rows[0], { periodRateeId: 'replacement' });
+            tables.ratees.rows.push({ id: 'other-team', periodId: 'p-draft', kind: 'TEAM', teamId: 'other' });
+            return null;
+        });
+        await service.remove(HC, team.teamId!);
+        expect(tables.ratees.rows.map((row) => row.id)).toEqual(['other-team']);
+        expect(tables.pairs.rows).toEqual([]);
+        expect(tables.dimensions.rows).toEqual([]);
+        expect(tables.periods.rows[0].teamEnabled).toBe(true);
     });
 
     it('removes the team ratee (pairs and dimensions too) from draft and not-yet-started surveys, then deletes the team', async () => {

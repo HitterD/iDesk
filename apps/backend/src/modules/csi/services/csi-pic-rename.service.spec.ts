@@ -19,6 +19,7 @@ describe('CsiPicRenameService', () => {
     let service: CsiPicRenameService;
     let transaction: jest.Mock;
     let query: jest.Mock;
+    let periodLock: { setLock: jest.Mock; where: jest.Mock; getOne: jest.Mock };
 
     beforeEach(() => {
         tables = Object.fromEntries(['pics', 'templates', 'templatePics', 'ratees', 'periods', 'responses'].map((name) => [name, memoryTable()]));
@@ -46,6 +47,8 @@ describe('CsiPicRenameService', () => {
             [CsiPic, tables.pics], [CsiAssignmentTemplate, tables.templates], [CsiAssignmentTemplatePic, tables.templatePics],
             [CsiPeriodRatee, tables.ratees], [CsiPeriod, tables.periods], [CsiResponse, tables.responses],
         ]);
+        periodLock = { setLock: jest.fn().mockReturnThis(), where: jest.fn().mockReturnThis(), getOne: jest.fn(async () => null) };
+        Object.assign(tables.periods, { createQueryBuilder: () => periodLock });
         query = jest.fn(async () => []);
         const manager = { getRepository: (target: unknown) => repositories.get(target), query };
         transaction = jest.fn(async (work: any) => work(manager));
@@ -67,6 +70,43 @@ describe('CsiPicRenameService', () => {
         expect(nameOf('r-p-answered')).toBe(OLD);
         expect(nameOf('r-p-ended')).toBe(OLD);
         expect(nameOf('r-other')).toBe('ERNA');
+    });
+
+    it('locks affected periods by ID before reloading ratees, statuses and responses', async () => {
+        await service.rename(HC, 'pic-rara', 'Rara K');
+        expect(periodLock.setLock.mock.calls).toEqual(Array(5).fill(['pessimistic_write']));
+        expect(periodLock.where.mock.calls.map((call) => call[1].id)).toEqual([
+            'p-answered', 'p-draft', 'p-ended', 'p-running', 'p-soon',
+        ]);
+        const lastLock = periodLock.getOne.mock.invocationCallOrder[4];
+        expect(lastLock).toBeLessThan(tables.ratees.find.mock.invocationCallOrder[1]);
+        expect(lastLock).toBeLessThan(tables.periods.find.mock.invocationCallOrder[0]);
+        expect(lastLock).toBeLessThan(tables.responses.find.mock.invocationCallOrder[0]);
+    });
+
+    it.each(['running', 'answered'])('keeps the snapshot when a draft becomes %s before its lock completes', async (state) => {
+        periodLock.getOne.mockImplementation(async () => {
+            if (state === 'running') {
+                const period = tables.periods.rows.find((row) => row.id === 'p-draft')!;
+                Object.assign(period, { publishStatus: CsiPeriodPublishStatus.PUBLISHED });
+            } else if (!tables.responses.rows.some((row) => row.periodId === 'p-draft')) {
+                tables.responses.rows.push({ id: 'first-response', periodId: 'p-draft' });
+            }
+            return null;
+        });
+        await service.rename(HC, 'pic-rara', 'Rara K');
+        expect(nameOf('r-p-draft')).toBe(OLD);
+        expect(nameOf('r-p-soon')).toBe('Rara K');
+    });
+
+    it('reloads ratee IDs after the locks instead of updating a stale snapshot', async () => {
+        periodLock.getOne.mockImplementationOnce(async () => {
+            const index = tables.ratees.rows.findIndex((row) => row.id === 'r-p-draft');
+            tables.ratees.rows.splice(index, 1, { id: 'replacement', periodId: 'p-draft', picId: 'pic-rara', displayName: OLD });
+            return null;
+        });
+        await service.rename(HC, 'pic-rara', 'Rara K');
+        expect(nameOf('replacement')).toBe('Rara K');
     });
 
     it('refuses a name another PIC of the same template already has, changing nothing', async () => {

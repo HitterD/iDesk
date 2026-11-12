@@ -271,4 +271,3 @@ describe('CsiAssignmentTemplateService', () => {
         expect(pics.rows).toEqual([expect.objectContaining({ picName: 'MEGA DRESTI', picId: 'pic-mega' })]);
     });
 });
-
