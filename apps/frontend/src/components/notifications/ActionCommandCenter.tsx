@@ -14,6 +14,7 @@ import { useReminderEngine } from '../../features/notifications/hooks/useReminde
 import { useCategorySettings } from '../../features/notifications/hooks/useCategorySettings';
 import { useAuth } from '@/stores/useAuth';
 import api from '@/lib/api';
+import { portalEquivalent } from '@/lib/roleHome';
 import { ActionRow } from './ActionRow';
 import {
     ENTITY_CONFIG,
@@ -198,7 +199,8 @@ export const ActionCommandCenter: React.FC = () => {
 
     const handleItemClick = (link: string) => {
         setIsOpen(false);
-        navigate(link);
+        // Action item links are in staff-portal form; open the same page in this user's portal.
+        navigate(portalEquivalent(link, user?.role) ?? link);
     };
 
     // Filter items based on active category tab

@@ -24,14 +24,14 @@ export class ZoomBookingEventListener {
         // Broadcast calendar update via WebSocket to all clients
         this.notificationService.broadcastCalendarUpdate(payload.bookingDetails.zoomAccountId, 'cancelled');
         
-        // Optionally notify the user if cancelled by admin
-        if (!payload.cancelledByOwner) {
+        // Tell the booker when someone else cancelled it (never the owner about their own cancel).
+        if (!payload.cancelledByOwner && payload.bookingDetails.bookedByUserId !== payload.cancelledBy?.id) {
             this.notificationService.notifyBookingCancelled(
                 payload.bookingDetails.bookedByUserId,
                 payload.bookingDetails as any, // Cast since it's just details
                 payload.reason,
-                payload.cancelledBy?.username || 'Admin'
-            );
+                payload.cancelledBy?.fullName || payload.cancelledBy?.username || 'Admin'
+            ).catch((error: Error) => this.logger.warn(`Cancel notification for booking ${payload.bookingDetails.id} failed: ${error.message}`));
         }
     }
 

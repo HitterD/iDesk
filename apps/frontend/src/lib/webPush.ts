@@ -107,3 +107,17 @@ export async function releasePushSubscription(): Promise<void> {
         logger.error('Push unsubscribe failed:', error);
     }
 }
+
+/**
+ * Browser-only detach, for sign-outs where the session is already gone (expiry, rejected refresh) and the
+ * unsubscribe call cannot be made: the push service then answers 410 and the backend drops the endpoint.
+ */
+export async function dropLocalPushSubscription(): Promise<void> {
+    if (getNotificationSupport() !== 'granted') return;
+    try {
+        const registration = await navigator.serviceWorker.getRegistration(SERVICE_WORKER_URL);
+        await (await registration?.pushManager.getSubscription())?.unsubscribe();
+    } catch (error) {
+        logger.error('Local push unsubscribe failed:', error);
+    }
+}

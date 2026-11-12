@@ -109,7 +109,7 @@ export class VpnSchedulerService {
                 title,
                 message,
                 referenceId: vpn.id,
-                link: '/vpn-access', // Adjust link if necessary
+                link: '/renewal?tab=vpn',
                 requiresAcknowledge: true,
             });
         }

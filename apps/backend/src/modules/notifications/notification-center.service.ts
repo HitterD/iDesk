@@ -481,7 +481,7 @@ export class NotificationCenterService implements OnModuleInit {
 
         data.pendingEform?.forEach((ef: any) => items.push({
             id: `ef-${ef.id}`, entityType: ActionItemEntityType.EFORM, title: `E-Form Approval Pending`,
-            description: `${ef.formType} Request`, urgency: ActionItemUrgency.HIGH, entityId: ef.id, link: `/eform/requests/${ef.id}`, createdAt: ef.createdAt, isSnoozed: false
+            description: `${ef.formType} Request`, urgency: ActionItemUrgency.HIGH, entityId: ef.id, link: `/eform-access/${ef.id}`, createdAt: ef.createdAt, isSnoozed: false
         }));
 
         data.renewals?.forEach((r: any) => {
@@ -489,7 +489,7 @@ export class NotificationCenterService implements OnModuleInit {
             const label = r.vendorName || r.description || 'Unknown Contract';
             items.push({
                 id: `ren-${r.id}`, entityType: ActionItemEntityType.RENEWAL, title: isCritical ? `Renewal Critical` : `Renewal Expiring Soon`,
-                description: label, urgency: isCritical ? ActionItemUrgency.CRITICAL : ActionItemUrgency.HIGH, entityId: r.id, link: `/renewals/${r.id}`, createdAt: new Date(), isSnoozed: false
+                description: label, urgency: isCritical ? ActionItemUrgency.CRITICAL : ActionItemUrgency.HIGH, entityId: r.id, link: '/renewal?tab=contracts', createdAt: new Date(), isSnoozed: false
             });
         });
 
@@ -510,7 +510,7 @@ export class NotificationCenterService implements OnModuleInit {
                 description: `Pukul ${startTimePart} - ${endTimePart}`,
                 urgency: isSoonOrActive ? ActionItemUrgency.HIGH : ActionItemUrgency.NORMAL,
                 entityId: z.id,
-                link: `/zoom`,
+                link: `/zoom-calendar?booking=${encodeURIComponent(z.id)}`,
                 createdAt: z.createdAt ? new Date(z.createdAt) : new Date(),
                 isSnoozed: false,
             });

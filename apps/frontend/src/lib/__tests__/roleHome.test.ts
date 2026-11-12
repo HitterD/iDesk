@@ -50,3 +50,34 @@ describe('portalEquivalent', () => {
         expect(portalEquivalent('/dashboard', 'USER')).toBeNull();
     });
 });
+
+describe('portalEquivalent — notification and email links', () => {
+    const id = '23841455-c9a9-494c-952f-e68309dc9fca';
+
+    it('opens hardware, e-form, Zoom and CSI pages in each portal', () => {
+        expect(portalEquivalent(`/hardware-requests/${id}`, 'USER')).toBe(`/client/hardware-requests/${id}`);
+        expect(portalEquivalent(`/hardware-requests/${id}`, 'MANAGER')).toBe(`/manager/hardware-requests/${id}`);
+        expect(portalEquivalent(`/hardware-requests/${id}`, 'AGENT')).toBe(`/hardware-requests/${id}`);
+        expect(portalEquivalent(`/client/eform-access/${id}`, 'AGENT_OPERATIONAL_SUPPORT')).toBe(`/eform-access/${id}`);
+        expect(portalEquivalent('/zoom-calendar?booking=b-1', 'USER')).toBe('/client/zoom-calendar?booking=b-1');
+        expect(portalEquivalent('/csi/p1', 'MANAGER')).toBe('/manager/csi/p1');
+    });
+
+    it('maps old links that point at pages which do not exist', () => {
+        expect(portalEquivalent('/vpn-access', 'AGENT')).toBe('/renewal?tab=vpn');
+        expect(portalEquivalent('/vpn-access', 'MANAGER')).toBe('/manager/renewal?tab=vpn');
+        expect(portalEquivalent(`/renewals/${id}`, 'ADMIN')).toBe('/renewal?tab=contracts');
+        expect(portalEquivalent(`/eform/requests/${id}`, 'USER')).toBe(`/client/eform-access/${id}`);
+        expect(portalEquivalent('/zoom', 'USER')).toBe('/client/zoom-calendar');
+        expect(portalEquivalent('/zoom-booking/b-9', 'AGENT')).toBe('/zoom-calendar?booking=b-9');
+    });
+
+    it('keeps the query and hash of the link', () => {
+        expect(portalEquivalent(`/tickets/${id}?nid=n1#m2`, 'USER')).toBe(`/client/tickets/${id}?nid=n1#m2`);
+        expect(portalEquivalent('/vpn-access?nid=n1', 'AGENT')).toBe('/renewal?tab=vpn&nid=n1');
+    });
+
+    it('has no requester page for renewals', () => {
+        expect(portalEquivalent('/renewal?tab=contracts', 'USER')).toBeNull();
+    });
+});

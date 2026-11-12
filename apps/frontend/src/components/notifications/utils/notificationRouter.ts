@@ -1,4 +1,5 @@
 import { NotificationCategory, Notification } from '../types/notification.types';
+import { getRoleHome, portalEquivalent } from '@/lib/roleHome';
 
 export type UserRole = 'ADMIN' | 'AGENT' | 'USER' | 'MANAGER' | 'AGENT_OPERATIONAL_SUPPORT' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'HC_ADMIN';
 
@@ -9,74 +10,50 @@ export type UserRole = 'ADMIN' | 'AGENT' | 'USER' | 'MANAGER' | 'AGENT_OPERATION
  * @returns The path to navigate to
  */
 export function getNotificationRedirectPath(
-    notification: Notification,
+    notification: Partial<Pick<Notification, 'category' | 'ticketId' | 'referenceId' | 'link'>>,
     userRole: UserRole = 'USER'
 ): string {
-    let { category, ticketId, referenceId, link } = notification;
+    const { category, ticketId, referenceId, link } = notification;
 
-    // Sanitize legacy `/admin/` links for non-MANAGER users
-    if (link && link.startsWith('/admin/')) {
-        link = link.replace('/admin/', '/');
+    // Explicit links are written in staff-portal form; move them to the reader's portal.
+    // External links (e.g. a Zoom join URL) are not app routes: fall back to the category page.
+    if (link && link.startsWith('/') && !link.startsWith('//')) {
+        return portalEquivalent(link, userRole) ?? link;
     }
 
-    // Determine path prefix based on role
-    const prefix = userRole === 'USER' ? '/client' : userRole === 'MANAGER' ? '/manager' : '';
+    const target = categoryPath(category, ticketId, referenceId);
+    return (target && portalEquivalent(target, userRole)) ?? fallbackPath(userRole);
+}
 
-    // If link is explicitly provided, use it but check for role-specific replacements
-    if (link) {
-        if (userRole === 'USER' && link.startsWith('/tickets/')) {
-            return `/client/tickets/${link.split('/tickets/')[1]}`;
-        }
-        if (userRole === 'MANAGER' && link.startsWith('/tickets/')) {
-            return `/manager/tickets`; // Manager has single ticket page currently
-        }
-        // CSI survey routes (`csi/:id`) exist under every layout, so only the role prefix is added.
-        if (link.startsWith('/csi/')) {
-            return `${prefix}${link}`;
-        }
-        return link;
-    }
-
+/** Staff-portal path of the item a notification is about, or null when it names no item page. */
+function categoryPath(category: NotificationCategory | undefined, ticketId?: string, referenceId?: string): string | null {
+    // `referenceId` may carry a `_step` suffix (hardware steps); only the id part names the page.
+    const ref = referenceId?.split('_')[0];
     switch (category) {
-        case NotificationCategory.CATEGORY_TICKET: {
-            const basePath = userRole === 'USER' ? '/client/tickets' : '/tickets';
-            const fallback = userRole === 'USER' ? '/client/my-tickets' :
-                (userRole === 'AGENT_ORACLE' ? '/tickets/oracle-k2' :
-                userRole === 'AGENT_WEB_DEV' ? '/tickets/web-developer' :
-                userRole === 'AGENT_MOBILE_DEV' ? '/tickets/mobile-developer' :
-                '/tickets/list');
-            if (userRole === 'MANAGER') return `/manager/tickets`;
-            return ticketId ? `${basePath}/${ticketId}` : fallback;
-        }
-
-        case NotificationCategory.CATEGORY_RENEWAL: {
-            if (userRole === 'USER') return '/client/my-tickets';
-            return `${prefix}/renewal`;
-        }
-
-        case NotificationCategory.CATEGORY_HARDWARE: {
-            const basePath = userRole === 'USER' ? '/client/hardware-requests' : '/hardware-requests';
-            const fallback = userRole === 'USER' ? '/client/my-tickets' : '/hardware-requests';
-            if (userRole === 'MANAGER') return `/manager/hardware-requests`;
-            return referenceId ? `${basePath}/${referenceId}` : fallback;
-        }
-
-        case NotificationCategory.CATEGORY_ZOOM: {
-            return `${prefix}/zoom-calendar`;
-        }
-
-        case NotificationCategory.CATEGORY_EFORM: {
-            const basePath = `${prefix}/eform-access`;
-            return referenceId ? `${basePath}/${referenceId}` : basePath;
-        }
-
+        case NotificationCategory.CATEGORY_TICKET:
+            return ticketId ? `/tickets/${ticketId}` : null;
+        case NotificationCategory.CATEGORY_RENEWAL:
+            return '/renewal?tab=contracts';
+        case NotificationCategory.CATEGORY_HARDWARE:
+            return ref ? `/hardware-requests/${ref}` : '/hardware-requests';
+        case NotificationCategory.CATEGORY_ZOOM:
+            return ref ? `/zoom-calendar?booking=${encodeURIComponent(ref)}` : '/zoom-calendar';
+        case NotificationCategory.CATEGORY_EFORM:
+            return ref ? `/eform-access/${ref}` : '/eform-access';
         default:
-            if (userRole === 'USER') return '/client/my-tickets';
-            if (userRole === 'AGENT_ORACLE') return '/tickets/oracle-k2';
-            if (userRole === 'AGENT_WEB_DEV') return '/tickets/web-developer';
-            if (userRole === 'AGENT_MOBILE_DEV') return '/tickets/mobile-developer';
-            return '/dashboard';
+            return ticketId ? `/tickets/${ticketId}` : null;
     }
+}
+
+/** Where a notification without a reachable item page lands: the reader's ticket list. */
+function fallbackPath(userRole: UserRole): string {
+    if (userRole === 'USER') return '/client/my-tickets';
+    if (userRole === 'MANAGER') return '/manager/tickets';
+    if (userRole === 'HC_ADMIN') return getRoleHome(userRole);
+    if (userRole === 'AGENT_ORACLE') return '/tickets/oracle-k2';
+    if (userRole === 'AGENT_WEB_DEV') return '/tickets/web-developer';
+    if (userRole === 'AGENT_MOBILE_DEV') return '/tickets/mobile-developer';
+    return '/tickets/list';
 }
 
 /**

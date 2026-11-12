@@ -165,6 +165,7 @@ export class NotificationPreferencesController {
                 [NotificationType.EFORM_CREDENTIALS_READY]: 'E-Form VPN credentials are ready',
                 [NotificationType.EFORM_DIRECT_TO_ICT]: 'When an access request reaches IT without manager approval',
                 [NotificationType.EFORM_FULFILLED]: 'When IT grants access on an account you already have',
+                [NotificationType.EFORM_EXPIRY_REMINDER]: 'When granted access is about to end',
             },
         };
     }

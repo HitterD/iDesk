@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
-import { Notification, NotificationType, NotificationCategory } from '../../notifications/entities/notification.entity';
+import { NotificationType, NotificationCategory } from '../../notifications/entities/notification.entity';
+import { NotificationService } from '../../notifications/notification.service';
 import { ZoomGateway } from '../gateways/zoom.gateway';
 import { ZoomBooking, ZoomParticipant } from '../entities';
 
@@ -75,20 +76,36 @@ export function generateIcsCalendar(booking: ZoomBooking, joinUrl?: string, pass
  * Integrates with existing notification system, ZoomGateway for real-time updates,
  * and MailerService for email notifications.
  */
+/** Portal-agnostic booking link; the frontend opens it in the reader's own Zoom calendar. */
+export const zoomBookingLink = (bookingId: string): string => `/zoom-calendar?booking=${encodeURIComponent(bookingId)}`;
+
 @Injectable()
 export class ZoomNotificationService {
     private readonly logger = new Logger(ZoomNotificationService.name);
 
     constructor(
-        @InjectRepository(Notification)
-        private readonly notificationRepo: Repository<Notification>,
         @InjectRepository(ZoomBooking)
         private readonly bookingRepo: Repository<ZoomBooking>,
         @InjectRepository(ZoomParticipant)
         private readonly participantRepo: Repository<ZoomParticipant>,
         private readonly zoomGateway: ZoomGateway,
         private readonly mailDispatch: MailDispatchService,
+        private readonly notificationService: NotificationService,
     ) { }
+
+    /** In-app notification about a booking, through the core service so it also reaches the bell, toast and push. */
+    private async notifyBooking(userId: string, booking: ZoomBooking, type: NotificationType, title: string, message: string): Promise<void> {
+        await this.notificationService.create({
+            userId,
+            type,
+            category: NotificationCategory.CATEGORY_ZOOM,
+            title,
+            message,
+            referenceId: booking.id,
+            // The booking detail in the reader's own portal (the frontend maps it per role).
+            link: zoomBookingLink(booking.id),
+        });
+    }
 
     /**
      * Notify user that their booking was confirmed
@@ -96,20 +113,11 @@ export class ZoomNotificationService {
     async notifyBookingConfirmed(
         userId: string,
         booking: ZoomBooking,
-        meetingLink?: string,
+        _meetingLink?: string, // The join URL is on the booking page; a notification link stays inside iDesk.
     ): Promise<void> {
-        const notification = this.notificationRepo.create({
-            userId,
-            type: NotificationType.ZOOM_BOOKING_CONFIRMED,
-            category: NotificationCategory.CATEGORY_ZOOM,
-            title: '✅ Zoom Booking Confirmed',
-            message: `Your booking "${booking.title}" on ${booking.bookingDate} at ${booking.startTime} has been confirmed.`,
-            referenceId: booking.id,
-            link: meetingLink || `/zoom-calendar`,
-            isRead: false,
-        });
-
-        await this.notificationRepo.save(notification);
+        await this.notifyBooking(userId, booking, NotificationType.ZOOM_BOOKING_CONFIRMED,
+            'Booking Zoom dikonfirmasi',
+            `Booking "${booking.title}" pada ${booking.bookingDate} pukul ${booking.startTime} sudah dikonfirmasi.`);
 
         // Emit via ZoomGateway for real-time calendar update
         this.zoomGateway.emitBookingCreated(booking.zoomAccountId, {
@@ -132,18 +140,9 @@ export class ZoomNotificationService {
         reason: string,
         cancelledByName: string,
     ): Promise<void> {
-        const notification = this.notificationRepo.create({
-            userId,
-            type: NotificationType.ZOOM_BOOKING_CANCELLED,
-            category: NotificationCategory.CATEGORY_ZOOM,
-            title: '❌ Zoom Booking Cancelled',
-            message: `Your booking "${booking.title}" on ${booking.bookingDate} has been cancelled by ${cancelledByName}. Reason: ${reason}`,
-            referenceId: booking.id,
-            link: `/zoom-calendar`,
-            isRead: false,
-        });
-
-        await this.notificationRepo.save(notification);
+        await this.notifyBooking(userId, booking, NotificationType.ZOOM_BOOKING_CANCELLED,
+            'Booking Zoom dibatalkan',
+            `Booking "${booking.title}" pada ${booking.bookingDate} dibatalkan oleh ${cancelledByName}. Alasan: ${reason}`);
 
         // Emit via ZoomGateway for real-time calendar update
         this.zoomGateway.emitBookingCancelled(booking.zoomAccountId, booking.id, reason);
@@ -159,18 +158,9 @@ export class ZoomNotificationService {
         booking: ZoomBooking,
         minutesBefore: number,
     ): Promise<void> {
-        const notification = this.notificationRepo.create({
-            userId,
-            type: NotificationType.ZOOM_BOOKING_REMINDER,
-            category: NotificationCategory.CATEGORY_ZOOM,
-            title: `⏰ Meeting Starting in ${minutesBefore} minutes`,
-            message: `Your Zoom meeting "${booking.title}" starts at ${booking.startTime}.`,
-            referenceId: booking.id,
-            link: booking.meeting?.joinUrl || `/zoom-calendar`,
-            isRead: false,
-        });
-
-        await this.notificationRepo.save(notification);
+        await this.notifyBooking(userId, booking, NotificationType.ZOOM_BOOKING_REMINDER,
+            `Meeting dimulai ${minutesBefore} menit lagi`,
+            `Meeting Zoom "${booking.title}" dimulai pukul ${booking.startTime}.`);
 
         this.logger.log(`Sent ${minutesBefore}min reminder to user ${userId} for booking ${booking.id}`);
     }

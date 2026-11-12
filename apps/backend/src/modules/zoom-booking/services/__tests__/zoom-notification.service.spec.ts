@@ -3,7 +3,8 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ZoomNotificationService, generateIcsCalendar } from '../zoom-notification.service';
 import { ZoomBookingEventListener } from '../zoom-booking-event.listener';
 import { ZoomBooking, ZoomParticipant } from '../../entities';
-import { Notification } from '../../../notifications/entities/notification.entity';
+import { NotificationCategory, NotificationType } from '../../../notifications/entities/notification.entity';
+import { NotificationService } from '../../../notifications/notification.service';
 import { ZoomGateway } from '../../gateways/zoom.gateway';
 import { MailDispatchService } from '../../../../shared/mail/mail-dispatch.service';
 
@@ -11,9 +12,8 @@ describe('ZoomNotificationService & EventListener', () => {
     let service: ZoomNotificationService;
     let listener: ZoomBookingEventListener;
 
-    const mockNotificationRepo = {
-        create: jest.fn().mockImplementation((dto) => dto),
-        save: jest.fn().mockResolvedValue({ id: 'n1' }),
+    const mockNotificationService = {
+        create: jest.fn().mockResolvedValue({ id: 'n1' }),
     };
 
     const mockBookingRepo = {
@@ -44,8 +44,8 @@ describe('ZoomNotificationService & EventListener', () => {
                 ZoomNotificationService,
                 ZoomBookingEventListener,
                 {
-                    provide: getRepositoryToken(Notification),
-                    useValue: mockNotificationRepo,
+                    provide: NotificationService,
+                    useValue: mockNotificationService,
                 },
                 {
                     provide: getRepositoryToken(ZoomBooking),
@@ -194,6 +194,34 @@ describe('ZoomNotificationService & EventListener', () => {
             });
 
             expect(notifySpy).toHaveBeenCalledWith('b-xyz', 'https://zoom.us/j/888', '888', 'abc');
+        });
+    });
+
+    describe('in-app booking notifications', () => {
+        const booking = { id: 'b-1', title: 'Weekly', bookingDate: '2026-11-20', startTime: '09:00', zoomAccountId: 'acc', meeting: { joinUrl: 'https://zoom.us/j/1' } } as any;
+
+        it('goes through the core service (bell, toast, push) and links to the booking, not the join URL', async () => {
+            await service.notifyBookingReminder('u-1', booking, 15);
+
+            expect(mockNotificationService.create).toHaveBeenCalledWith(expect.objectContaining({
+                userId: 'u-1',
+                type: NotificationType.ZOOM_BOOKING_REMINDER,
+                category: NotificationCategory.CATEGORY_ZOOM,
+                referenceId: 'b-1',
+                link: '/zoom-calendar?booking=b-1',
+            }));
+        });
+
+        it('tells the booker when someone else cancels, never the booker about their own cancel', async () => {
+            const cancelSpy = jest.spyOn(service, 'notifyBookingCancelled').mockResolvedValue(undefined);
+            const details = { id: 'b-1', bookedByUserId: 'owner', zoomAccountId: 'acc' };
+
+            listener.handleBookingCancelled({ bookingDetails: details, cancelledBy: { id: 'admin', fullName: 'Admin A' }, reason: 'bentrok' });
+            listener.handleBookingCancelled({ bookingDetails: details, cancelledBy: { id: 'owner' }, reason: 'x' });
+            listener.handleBookingCancelled({ bookingDetails: details, cancelledBy: { id: 'admin' }, reason: 'x', cancelledByOwner: true });
+
+            expect(cancelSpy).toHaveBeenCalledTimes(1);
+            expect(cancelSpy).toHaveBeenCalledWith('owner', details, 'bentrok', 'Admin A');
         });
     });
 });

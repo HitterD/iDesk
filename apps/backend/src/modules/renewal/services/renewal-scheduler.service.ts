@@ -119,7 +119,7 @@ export class RenewalSchedulerService {
                     title,
                     message,
                     referenceId: contract.id,
-                    link: `/renewal`,
+                    link: '/renewal?tab=contracts',
                     requiresAcknowledge, // Forces fullscreen blocking modal
                 });
             } catch (error) {
@@ -138,7 +138,7 @@ export class RenewalSchedulerService {
                         notificationId: contract.id,
                         data: {
                             contractId: contract.id,
-                            link: `/renewal`,
+                            link: '/renewal?tab=contracts',
                         },
                     });
                 } catch (error) {

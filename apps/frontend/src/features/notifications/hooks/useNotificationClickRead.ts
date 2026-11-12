@@ -38,9 +38,11 @@ export function useNotificationClickRead(): void {
         if (!notificationId) return;
         params.delete(NOTIFICATION_ID_PARAM);
         const search = params.toString();
-        // Push links are written for agents (/tickets/:id); requesters and managers have their own pages.
-        const pathname = getNotificationRedirectPath({ link: location.pathname } as Notification, role ?? 'USER');
-        navigate({ pathname, search: search ? `?${search}` : '', hash: location.hash }, { replace: true, state: location.state });
+        // Push links are written in staff-portal form (/tickets/:id, /hardware-requests/:id); requesters and
+        // managers have their own pages, and old links (/vpn-access) are mapped to today's page.
+        const link = `${location.pathname}${search ? `?${search}` : ''}${location.hash}`;
+        const target = getNotificationRedirectPath({ link } as Notification, role ?? 'USER');
+        navigate(target, { replace: true, state: location.state });
         if (!UUID.test(notificationId)) return;
         api.patch(`/notifications/${notificationId}/read`, undefined, { skipToast: true })
             .then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] }))

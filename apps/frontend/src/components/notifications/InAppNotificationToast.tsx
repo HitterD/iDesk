@@ -31,6 +31,8 @@ interface InAppNotification {
     title: string;
     message: string;
     ticketId?: string;
+    referenceId?: string;
+    category?: NotificationCategory;
     link?: string;
     createdAt: Date;
 }
@@ -210,6 +212,8 @@ export const InAppNotificationToast: React.FC = () => {
             title: data.title || 'New Notification',
             message: data.message || '',
             ticketId: data.ticketId,
+            referenceId: data.referenceId,
+            category: data.category,
             link: data.link,
             createdAt: new Date(),
         };
@@ -239,13 +243,16 @@ export const InAppNotificationToast: React.FC = () => {
                 .catch(() => undefined);
         }
 
-        // Same routing as the bell: links are written for agents, requesters and managers have their own pages.
-        if (notification.link || notification.ticketId) {
-            navigate(getNotificationRedirectPath(
-                { link: notification.link, ticketId: notification.ticketId, category: NotificationCategory.CATEGORY_TICKET } as Notification,
-                (user?.role ?? 'USER') as UserRole,
-            ));
-        }
+        // Same routing as the bell: by link, else by the item the notification is about (e-form, hardware, ...).
+        navigate(getNotificationRedirectPath(
+            {
+                link: notification.link,
+                ticketId: notification.ticketId,
+                referenceId: notification.referenceId,
+                category: notification.category ?? (notification.ticketId ? NotificationCategory.CATEGORY_TICKET : undefined),
+            } as Notification,
+            (user?.role ?? 'USER') as UserRole,
+        ));
     }, [navigate, removeNotification, user?.role, queryClient]);
 
     // Listen for real-time notifications
