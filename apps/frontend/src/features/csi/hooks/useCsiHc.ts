@@ -74,7 +74,7 @@ export function useUpdateCustomTeam(scope: CsiScopeParam) {
     return useTemplateSubjectsMutation(scope, ({ id, ...body }: UpdateCsiCustomTeam & { id: string }) => CsiApi.updateCustomTeam(scope, id, body));
 }
 /** Deletes a SITE or CUSTOM team; draft surveys lose its ratee, so the period list is refreshed too. */
-export function useDeleteCustomTeam(scope: CsiScopeParam) {
+export function useDeleteTeam(scope: CsiScopeParam) {
     const client = useQueryClient();
     return useMutation({
         mutationFn: (id: string) => CsiApi.deleteCustomTeam(scope, id),

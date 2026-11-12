@@ -17,7 +17,7 @@ const GROUPS: CsiSubjectGroup[] = [
     { siteId: 's1', siteCode: 'KRW', siteName: 'Karawang', team: null, teams: [CUSTOM], people: [PIC_NO_ACCOUNT, PERSON] },
     { siteId: 's2', siteCode: 'SMG', siteName: 'Semarang', team: SITE_TEAM, teams: [], people: [] },
 ];
-const NO_IMPACT: CsiTeamDeleteImpact = { blocked: [], draftSurveys: [], finishedSurveys: 0 };
+const NO_IMPACT: CsiTeamDeleteImpact = { blocked: [], draftSurveys: [], teamSectionOff: [], finishedSurveys: 0 };
 
 const hooks = vi.hoisted(() => ({
     upload: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn(), setMembers: vi.fn(), impact: vi.fn(),
@@ -35,7 +35,7 @@ vi.mock('../../../../hooks/useCsi', () => ({
 vi.mock('../../../../hooks/useCsiHc', () => ({
     useCreateCustomTeam: () => ({ mutateAsync: hooks.create, ...pending }),
     useUpdateCustomTeam: () => ({ mutateAsync: hooks.update, ...pending }),
-    useDeleteCustomTeam: () => ({ mutateAsync: hooks.remove, ...pending }),
+    useDeleteTeam: () => ({ mutateAsync: hooks.remove, ...pending }),
     useSetCustomTeamMembers: () => ({ mutateAsync: hooks.setMembers, ...pending }),
     useTeamDeleteImpact: (_scope: string, teamId: string | null) => ({ data: teamId ? hooks.impact(teamId) : undefined, isLoading: false, isError: false, refetch: vi.fn() }),
 }));
@@ -131,7 +131,8 @@ describe('SubjectsTab (HC)', () => {
     it('deleting a custom team confirms in a dialog listing the draft surveys it leaves', async () => {
         const actor = userEvent.setup();
         const confirmSpy = vi.spyOn(window, 'confirm');
-        hooks.impact.mockReturnValue({ blocked: [], draftSurveys: [{ periodId: 'p1', title: 'CSI HC Desember' }], finishedSurveys: 0 });
+        const desember = { periodId: 'p1', title: 'CSI HC Desember' };
+        hooks.impact.mockReturnValue({ ...NO_IMPACT, draftSurveys: [desember], teamSectionOff: [desember] });
         render(<SubjectsTab scope="hc" />);
         await actor.click(screen.getByRole('button', { name: /^Ubah Tim Payroll/ }));
         await actor.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Hapus tim/ }));
@@ -139,6 +140,7 @@ describe('SubjectsTab (HC)', () => {
         expect(hooks.impact).toHaveBeenCalledWith('t5');
         expect(within(dialog).getByText('Tim ini juga dikeluarkan dari 1 survei draft:')).toBeInTheDocument();
         expect(within(within(dialog).getByRole('list', { name: 'Survei draft yang terdampak' })).getByText('CSI HC Desember')).toBeInTheDocument();
+        expect(within(dialog).getByText('Bagian penilaian tim di survei CSI HC Desember dimatikan.')).toBeInTheDocument();
         await actor.click(within(dialog).getByRole('button', { name: /Hapus tim/ }));
         await waitFor(() => expect(hooks.remove).toHaveBeenCalledWith('t5'));
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
@@ -149,7 +151,7 @@ describe('SubjectsTab (HC)', () => {
         const actor = userEvent.setup();
         hooks.impact.mockReturnValue({
             blocked: [{ periodId: 'p1', title: 'CSI HC November', reason: 'running' }, { periodId: 'p2', title: 'CSI HC Oktober', reason: 'answered' }],
-            draftSurveys: [], finishedSurveys: 0,
+            draftSurveys: [], teamSectionOff: [], finishedSurveys: 0,
         });
         render(<SubjectsTab scope="hc" />);
         await actor.click(screen.getByRole('button', { name: /^Ubah Tim Payroll/ }));

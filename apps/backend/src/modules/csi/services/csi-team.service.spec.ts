@@ -110,7 +110,7 @@ describe('CsiTeamService', () => {
         tables.responses.rows.push({ id: 'resp', periodId: 'p2' });
         await expect(service.deleteImpact(HC, team.teamId!)).resolves.toEqual({
             blocked: [{ periodId: 'p1', title: 'CSI HC November', reason: 'running' }, { periodId: 'p2', title: 'CSI HC Desember', reason: 'answered' }],
-            draftSurveys: [], finishedSurveys: 0,
+            draftSurveys: [], finishedSurveys: 0, teamSectionOff: [],
         });
         await expect(service.remove(HC, team.teamId!)).rejects.toThrow('Tim dipakai di survei yang sedang berjalan: CSI HC November, CSI HC Desember');
         expect(tables.teams.rows).toHaveLength(1);
@@ -125,13 +125,41 @@ describe('CsiTeamService', () => {
         rateTeam(team.teamId!, 'p-soon');
         tables.ratees.rows.push({ id: 'other', periodId: 'p-draft', kind: 'PERSON', teamId: null });
         await expect(service.deleteImpact(HC, team.teamId!)).resolves.toEqual({
-            blocked: [], draftSurveys: [{ periodId: 'p-draft', title: 'Draft HC' }, { periodId: 'p-soon', title: 'Desember HC' }], finishedSurveys: 0,
+            blocked: [], finishedSurveys: 0, teamSectionOff: [],
+            draftSurveys: [{ periodId: 'p-draft', title: 'Draft HC' }, { periodId: 'p-soon', title: 'Desember HC' }],
         });
         await service.remove(HC, team.teamId!);
         expect(tables.ratees.rows.map((row) => row.id)).toEqual(['other']);
         expect(tables.dimensions.rows).toEqual([]);
         expect(tables.pairs.rows).toEqual([]);
         expect(tables.teams.rows).toEqual([]);
+    });
+
+    it('a DRAFT survey whose dates have passed is still a draft (finished = published and ended, or cancelled)', async () => {
+        const team = await custom();
+        period('p-old-draft', { publishStatus: CsiPeriodPublishStatus.DRAFT, title: 'Draft lama', startDate: '2026-09-01', endDate: '2026-09-30' });
+        rateTeam(team.teamId!, 'p-old-draft');
+        await expect(service.deleteImpact(HC, team.teamId!)).resolves.toMatchObject({
+            draftSurveys: [{ periodId: 'p-old-draft', title: 'Draft lama' }], finishedSurveys: 0,
+        });
+        await service.remove(HC, team.teamId!);
+        expect(tables.ratees.rows).toEqual([]);
+        expect(tables.teams.rows).toEqual([]);
+    });
+
+    it('removing the last TEAM ratee of a draft survey turns its team section off', async () => {
+        const team = await custom();
+        const other = await custom({ name: 'Tim Lain' });
+        period('p-only', { publishStatus: CsiPeriodPublishStatus.DRAFT, title: 'Hanya tim ini', teamEnabled: true });
+        period('p-both', { publishStatus: CsiPeriodPublishStatus.DRAFT, title: 'Dua tim', teamEnabled: true });
+        rateTeam(team.teamId!, 'p-only');
+        rateTeam(team.teamId!, 'p-both');
+        tables.ratees.rows.push({ id: 'r-other', periodId: 'p-both', kind: 'TEAM', teamId: other.teamId });
+        await expect(service.deleteImpact(HC, team.teamId!)).resolves.toMatchObject({
+            teamSectionOff: [{ periodId: 'p-only', title: 'Hanya tim ini' }],
+        });
+        await service.remove(HC, team.teamId!);
+        expect(tables.periods.rows.map((row) => [row.id, row.teamEnabled])).toEqual([['p-only', false], ['p-both', true]]);
     });
 
     it('deletes an unused custom team with its template rows', async () => {

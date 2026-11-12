@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 let sequence = 0;
 
-/** Minimal in-memory repository: plain where (and In) filters, save with ids, delete by where. */
+/** Minimal in-memory repository: plain where (and In) filters, save with ids, update and delete by where. */
 export function memoryTable<T extends Record<string, any>>() {
     const rows: T[] = [];
     const matches = (row: any, where: any = {}) => Object.entries(where).every(([key, value]: [string, any]) =>
@@ -21,6 +21,9 @@ export function memoryTable<T extends Record<string, any>>() {
                 return row;
             });
             return Array.isArray(value) ? saved : saved[0];
+        }),
+        update: jest.fn(async (where: any, patch: any) => {
+            rows.filter((row) => matches(row, where)).forEach((row) => Object.assign(row, patch));
         }),
         delete: jest.fn(async (where: any) => {
             for (let index = rows.length - 1; index >= 0; index -= 1) if (matches(rows[index], where)) rows.splice(index, 1);

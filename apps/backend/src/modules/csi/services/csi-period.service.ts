@@ -648,8 +648,9 @@ export class CsiPeriodService {
 
     /**
      * Lenient copy: drops users and questions that are no longer active, re-snapshotting their current definition.
-     * Each site team (when it keeps at least one question and its site is in the new period) comes first, named after
-     * its current csi_teams master. Custom teams (HC templates) keep their own team while it is active, after the people.
+     * Each site team (when it keeps at least one question, its site is in the new period and the team was not deleted,
+     * i.e. is still active) comes first, named after its current csi_teams master. Custom teams (HC templates) keep their
+     * own team while it is active, after the people.
      * Per-period overrides (photo/tagline) are not carried over.
      */
     private async copyAssignments(scope: ServiceScope, sourceId: string, siteIds: string[]) {
@@ -660,7 +661,8 @@ export class CsiPeriodService {
         const sourceRaters = await this.periodRaters.find({ where: { periodId: sourceId } });
         const teamSources = sourceRatees.filter((ratee): ratee is CsiPeriodRatee & { siteId: string } =>
             ratee.kind === CsiRateeKind.TEAM && ratee.siteId !== null && siteIds.includes(ratee.siteId));
-        const siteTeamSources = teamSources.filter(isSiteTeamRatee);
+        // A deactivated team was deleted by an admin: copying must not bring it (or a fresh site team) back.
+        const siteTeamSources = teamSources.filter((ratee) => isSiteTeamRatee(ratee) && ratee.team?.isActive !== false);
         const customSources = teamSources.filter((ratee) => !isSiteTeamRatee(ratee) && ratee.team?.isActive);
         const personRatees = sourceRatees.filter((ratee): ratee is CsiPeriodRatee & { userId: string } => ratee.kind !== CsiRateeKind.TEAM && !ratee.picId && ratee.userId !== null);
         const picRatees = sourceRatees.filter((ratee): ratee is CsiPeriodRatee & { picId: string } => ratee.kind !== CsiRateeKind.TEAM && !!ratee.picId);

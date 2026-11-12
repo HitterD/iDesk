@@ -406,11 +406,13 @@ export interface CsiTeamMemberInput { userId?: string; name?: string }
 export interface CsiTeamSurveyRef { periodId: string; title: string }
 /**
  * Dry run of deleting a team: `blocked` surveys (running or already answered) refuse the delete; the team leaves each
- * draft / not-yet-started survey; `finishedSurveys` (ended or cancelled) keep it, so it is deactivated instead.
+ * draft / not-yet-started survey, and `teamSectionOff` drafts lose their last team (team section switched off);
+ * `finishedSurveys` (ended or cancelled) keep it, so it is deactivated instead.
  */
 export interface CsiTeamDeleteImpact {
     blocked: Array<CsiTeamSurveyRef & { reason: 'running' | 'answered' }>;
     draftSurveys: CsiTeamSurveyRef[];
+    teamSectionOff: CsiTeamSurveyRef[];
     finishedSurveys: number;
 }
 

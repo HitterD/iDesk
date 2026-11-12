@@ -393,6 +393,18 @@ describe('CsiPeriodService', () => {
             ]);
         });
 
+        it('copy drops a deactivated site team (a deleted team stays deleted) without reviving it', async () => {
+            periods.rows[0] = basePeriod({ scope: HC, teamEnabled: true });
+            ratees.rows.push({
+                id: 'r-site', periodId: 'p1', kind: CsiRateeKind.TEAM, userId: null, siteId: 'site-a', teamId: 'site-off', displayName: 'Tim Lama', jobTitle: null,
+                sortOrder: -1, photoUrl: null, tagline: null, team: { id: 'site-off', kind: CsiTeamKind.SITE, isActive: false, name: 'Tim Lama' },
+            });
+            rateeDimensions.rows.push({ id: 'r-site-d', periodRateeId: 'r-site', dimensionId: 'd-hc', dimensionName: 'HC', sortOrder: 0 });
+            await service.create(HC, { startDate: '2026-10-01', endDate: '2026-12-31', copyFromPeriodId: 'p1' }, 'admin');
+            expect(subjects.createTeam).not.toHaveBeenCalled();
+            expect(manager.saved.filter((entry) => entry.target === CsiPeriodRatee).flatMap((entry) => entry.value)).toEqual([]);
+        });
+
         it('HC default SLA 90', async () => {
             await service.create(HC, createDto({ startDate: '2026-11-01', endDate: '2026-11-30' }), 'admin');
             expect(savedPeriod()).toMatchObject({ slaTargetPct: 90, scoreFairMin: 4.0, scoreGoodMin: 4.5 });

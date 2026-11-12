@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { cn } from '@/lib/utils';
-import { useDeleteCustomTeam, useTeamDeleteImpact } from '../../../hooks/useCsiHc';
+import { useDeleteTeam, useTeamDeleteImpact } from '../../../hooks/useCsiHc';
 import { errorMessage } from '../../../lib/csiForm';
 import { toneClasses } from '../../../lib/csiTone';
 import type { CsiScopeParam, CsiTeamDeleteImpact } from '../../../types';
@@ -50,6 +50,9 @@ function ImpactBody({ impact }: { impact: CsiTeamDeleteImpact }) {
                     <SurveyList label="Survei draft yang terdampak" items={drafts} />
                 </>
             )}
+            {impact.teamSectionOff.map((survey) => (
+                <p key={survey.periodId} className={toneClasses('amber').ink}>{`Bagian penilaian tim di survei ${survey.title} dimatikan.`}</p>
+            ))}
             {impact.finishedSurveys > 0 && (
                 <p className={MUTED_TEXT}>{`Hasil ${impact.finishedSurveys} survei yang sudah selesai atau dibatalkan tetap tersimpan; tim dinonaktifkan, bukan dihapus.`}</p>
             )}
@@ -65,7 +68,7 @@ export function TeamDeleteDialog({ scope, team, onClose, onDeleted }: {
     scope: CsiScopeParam; team: { teamId: string; name: string } | null; onClose: () => void; onDeleted: () => void;
 }) {
     const impact = useTeamDeleteImpact(scope, team?.teamId ?? null);
-    const remove = useDeleteCustomTeam(scope);
+    const remove = useDeleteTeam(scope);
     const [error, setError] = useState<string | null>(null);
     const close = () => { if (remove.isPending) return; setError(null); onClose(); };
     const confirm = async () => {
