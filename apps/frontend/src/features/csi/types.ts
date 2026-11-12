@@ -17,6 +17,8 @@ export interface CsiSiteSummary { id: string; code: string | null; name: string 
 export interface CsiReadiness {
     ready: boolean;
     checks: Array<{ key: 'team' | 'ratees' | 'dimensions' | 'departments' | 'raters'; ok: boolean; label: string }>;
+    /** Non-blocking: ratees a disabled section hides from the raters (absent on older payloads). */
+    warnings?: Array<{ key: 'teamHidden' | 'peopleHidden'; label: string }>;
 }
 
 interface CsiTimestamps {

@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
@@ -63,10 +65,24 @@ function ScoreBandFields({ form, set }: { form: PeriodFormState; set: SetField }
     );
 }
 
-/** "Bagian penilaian" switches, the team label, the participation target and the score colour bands. Frozen fields are disabled when `locked`. */
-export function SectionFields({ form, set, locked }: { form: PeriodFormState; set: SetField; locked: boolean }) {
+/** Saved ratees per section: switching a section off with ratees asks first (they would be hidden from the raters). */
+export interface SectionRateeCounts { team: number; people: number; peopleNoun: 'PIC' | 'orang' }
+type SectionKey = 'teamEnabled' | 'individualEnabled';
+
+/**
+ * "Bagian penilaian" switches, the team label, the participation target and the score colour bands. Frozen fields are
+ * disabled when `locked`. With `rateeCounts`, turning off a section that still has ratees opens a confirmation.
+ */
+export function SectionFields({ form, set, locked, rateeCounts }: { form: PeriodFormState; set: SetField; locked: boolean; rateeCounts?: SectionRateeCounts }) {
     const none = sectionsInvalid(form);
     const slaBad = slaInvalid(form);
+    const [pendingOff, setPendingOff] = useState<SectionKey | null>(null);
+    const hiddenBy = (key: SectionKey) => (key === 'teamEnabled' ? `${rateeCounts?.team ?? 0} tim` : `${rateeCounts?.people ?? 0} ${rateeCounts?.peopleNoun ?? 'orang'}`);
+    const countOf = (key: SectionKey) => (key === 'teamEnabled' ? rateeCounts?.team : rateeCounts?.people) ?? 0;
+    const toggle = (key: SectionKey, value: boolean) => {
+        if (!value && countOf(key) > 0) setPendingOff(key);
+        else set(key, value);
+    };
     return (
         <div className="grid gap-3">
             <div className="flex flex-wrap items-center gap-3">
@@ -75,10 +91,14 @@ export function SectionFields({ form, set, locked }: { form: PeriodFormState; se
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
                 <SectionSwitch label={SECTION_COPY.team} hint={SECTION_COPY.teamHint} checked={form.teamEnabled} disabled={locked}
-                    describedBy={none ? SECTIONS_ERROR_ID : undefined} onChange={(value) => set('teamEnabled', value)} />
+                    describedBy={none ? SECTIONS_ERROR_ID : undefined} onChange={(value) => toggle('teamEnabled', value)} />
                 <SectionSwitch label={SECTION_COPY.individual} hint={SECTION_COPY.individualHint} checked={form.individualEnabled} disabled={locked}
-                    describedBy={none ? SECTIONS_ERROR_ID : undefined} onChange={(value) => set('individualEnabled', value)} />
+                    describedBy={none ? SECTIONS_ERROR_ID : undefined} onChange={(value) => toggle('individualEnabled', value)} />
             </div>
+            <ConfirmationDialog isOpen={pendingOff !== null} appearance="ticket" variant="warning"
+                title={pendingOff === 'teamEnabled' ? SECTION_COPY.teamOffTitle : SECTION_COPY.individualOffTitle}
+                description={pendingOff ? SECTION_COPY.offConfirm(hiddenBy(pendingOff)) : ''} confirmText={SECTION_COPY.offConfirmAction} cancelText="Batal"
+                onCancel={() => setPendingOff(null)} onConfirm={() => { if (pendingOff) set(pendingOff, false); setPendingOff(null); }} />
             {none && <p id={SECTIONS_ERROR_ID} role="alert" className={ERROR_TEXT}>{SECTION_COPY.noneError}</p>}
             <div className="grid gap-4 sm:grid-cols-2">
                 {form.teamEnabled && (

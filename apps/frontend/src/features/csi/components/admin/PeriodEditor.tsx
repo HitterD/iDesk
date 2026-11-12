@@ -13,7 +13,7 @@ import { WIZARD_COPY } from '../wizard/wizardCopy';
 import { FIELD_LABEL, LockedNote } from './AdminParts';
 import { CopySourceField } from './CopySourceField';
 import { OverlapNotice } from './OverlapNotice';
-import { SectionFields } from './SectionFields';
+import { SectionFields, type SectionRateeCounts } from './SectionFields';
 import { SiteChips } from './SiteChips';
 import { HcRaterModeField } from './hc/HcRaterModeField';
 
@@ -83,11 +83,18 @@ export function PeriodEditor({ scope, period, periods = [], copyFrom, onSaved, f
             <DateAndModeFields form={form} set={set} modeLocked={locked}
                 overlap={<OverlapNotice scope={scope} siteIds={form.siteIds} startDate={form.startDate} endDate={form.endDate} excludeId={period?.id}
                     onUseDates={(range) => setForm((current) => ({ ...current, ...range }))} />} />
-            <SectionFields form={form} set={set} locked={locked} />
+            <SectionFields form={form} set={set} locked={locked} rateeCounts={period ? sectionRateeCounts(scope, period) : undefined} />
             {scope === 'hc' && <HcRaterModeField form={form} set={set} locked={locked} />}
         </form>
     );
 }
+
+/** Saved ratees per section (HC people are PICs). */
+const sectionRateeCounts = (scope: CsiScopeParam, period: CsiPeriodDetail): SectionRateeCounts => ({
+    team: period.ratees.filter((ratee) => ratee.kind === 'TEAM').length,
+    people: period.ratees.filter((ratee) => ratee.kind !== 'TEAM').length,
+    peopleNoun: scope === 'hc' ? 'PIC' : 'orang',
+});
 
 type SetField = <K extends keyof PeriodFormState>(key: K, value: PeriodFormState[K]) => void;
 

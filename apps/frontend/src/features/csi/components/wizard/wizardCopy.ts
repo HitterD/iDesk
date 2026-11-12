@@ -20,6 +20,7 @@ export const WIZARD_COPY = {
     stepperLabel: 'Langkah pembuatan survei',
     stepDone: 'selesai',
     checkOk: 'terpenuhi',
+    readinessWarnings: 'Peringatan',
     checkFailed: 'belum terpenuhi',
     readinessTitle: 'Syarat terbit',
     publishedIncomplete: 'Survei terbit tetapi belum lengkap — responden tidak dapat mengisi sampai checklist terpenuhi.',
@@ -67,6 +68,10 @@ export const SECTION_COPY = {
     fairMin: 'Batas oranye (mulai)',
     goodMin: 'Batas hijau (mulai)',
     bandsPreview: 'Warna nilai',
+    teamOffTitle: 'Matikan Penilaian tim?',
+    individualOffTitle: 'Matikan Penilaian per orang?',
+    offConfirm: (hidden: string) => `${hidden} tidak akan tampil ke penilai. Lanjutkan?`,
+    offConfirmAction: 'Matikan',
 } as const;
 
 export const TEAM_COPY = {

@@ -20,6 +20,24 @@ function PublishedIncompleteNote() {
     );
 }
 
+/** Ratees hidden by a disabled section: a warning only, publishing stays possible. "Ubah" opens Info survei. */
+function HiddenRateeWarnings({ warnings, onEdit, locked }: { warnings: NonNullable<CsiReadiness['warnings']>; onEdit: (step: WizardStepKey) => void; locked?: boolean }) {
+    if (!warnings.length) return null;
+    return (
+        <ul aria-label={WIZARD_COPY.readinessWarnings} className="mt-3 grid gap-2">
+            {warnings.map((warning) => (
+                <li key={warning.key} className="flex items-center gap-3 rounded-2xl bg-[hsl(var(--ticket-amber)/.12)] px-4 py-3 text-[13px] font-medium text-[hsl(var(--ticket-amber-ink))]">
+                    <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span className="min-w-0 flex-1">{warning.label}</span>
+                    <Button variant="subtle" disabled={locked} aria-label={`${WIZARD_COPY.edit}: ${warning.label}`} onClick={() => onEdit('info')}>
+                        <Pencil aria-hidden="true" />{WIZARD_COPY.edit}
+                    </Button>
+                </li>
+            ))}
+        </ul>
+    );
+}
+
 /**
  * Publish prerequisites with ✓/✗ and an "Ubah" action that opens the owning wizard step.
  * `locked` disables "Ubah" for period-bound checks; departments are master data and stay editable.
@@ -48,6 +66,7 @@ export function ReadinessList({ readiness, onEdit, locked, published }: {
                     </li>
                 ))}
             </ul>
+            <HiddenRateeWarnings warnings={readiness.warnings ?? []} onEdit={onEdit} locked={locked} />
         </>
     );
 }

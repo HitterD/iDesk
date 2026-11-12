@@ -8,6 +8,7 @@ import type { CsiPeriodDetail, CsiScopeParam } from '../../../types';
 import type { CsiPicView } from '../../../hcTypes';
 import { AdminSection, EmptyNote, LockedNote, MUTED_TEXT } from '../AdminParts';
 import { titleCase } from './hcFormat';
+import { PIC_FILTER_COPY, PicLocationFilter, usePicLocationFilter } from './PicLocationFilter';
 import { TemplatePullButton } from './templates/TemplatePullDialog';
 import { isHcDecided } from '../../../lib/hcMode';
 
@@ -71,6 +72,8 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
     const [chosenQuestions, setChosenQuestions] = useState<Set<string> | null>(null);
     const questionIds = chosenQuestions ?? initialQuestions;
     const [query, setQuery] = useState('');
+    const filter = usePicLocationFilter(scope, period, pics, selected);
+    const { filtered, filteredIds, selectedInFilter, outsideFilter } = filter;
     const locked = period.locked;
     const decided = isHcDecided(scope, period);
     const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.size && [...a].every((id) => b.has(id));
@@ -78,7 +81,7 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
     useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
     const needle = query.trim().toLowerCase();
-    const visible = pics.filter((pic) => !needle || pic.fullName.toLowerCase().includes(needle) || (pic.jobTitle ?? '').toLowerCase().includes(needle)
+    const visible = filtered.filter((pic) => !needle || pic.fullName.toLowerCase().includes(needle) || (pic.jobTitle ?? '').toLowerCase().includes(needle)
         || (pic.bagian ?? '').toLowerCase().includes(needle));
     const setMany = (ids: string[], on: boolean) => setSelected((previous) => {
         const next = new Set(previous);
@@ -122,16 +125,18 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
                 {!isLoading && !pics.length && <EmptyNote>{COPY.noPics}</EmptyNote>}
                 {pics.length > 0 && (
                     <>
+                        <PicLocationFilter templates={filter.templates} value={filter.locations} onChange={filter.setLocations} />
                         <div className="flex flex-wrap items-center gap-2">
                             <div className="relative min-w-[220px] flex-1">
                                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 opacity-60" aria-hidden="true" />
                                 <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, jabatan atau bagian" aria-label="Cari PIC"
                                     className="h-9 w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--idesk-surface))] pl-9 pr-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" />
                             </div>
-                            <Button variant="soft" disabled={locked} onClick={() => setMany(pics.map((pic) => pic.id), true)}>{COPY.all}</Button>
-                            <Button variant="ghost" disabled={locked} onClick={() => setSelected(new Set())}>{COPY.none}</Button>
-                            <span className={MUTED_TEXT}>{`${selected.size} dari ${pics.length} PIC dipilih`}</span>
+                            <Button variant="soft" disabled={locked} onClick={() => setMany(filteredIds, true)}>{COPY.all}</Button>
+                            <Button variant="ghost" disabled={locked} onClick={() => setMany(filteredIds, false)}>{COPY.none}</Button>
+                            <span className={MUTED_TEXT}>{`${selectedInFilter} dari ${filteredIds.length} PIC dipilih`}</span>
                         </div>
+                        {outsideFilter > 0 && <p className={MUTED_TEXT}>{PIC_FILTER_COPY.outside(outsideFilter)}</p>}
                         <div className="grid gap-3 lg:grid-cols-2">
                             {groupBy(visible, (pic) => pic.serviceCode).map(([service, servicePics]) => (
                                 <ServiceColumn key={service} service={service} pics={servicePics} selected={selected} locked={locked} onSet={setMany} />
