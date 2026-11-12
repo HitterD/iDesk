@@ -24,6 +24,7 @@ const SITE_COLORS: Record<string, string> = {
     SMG: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-700',
     KRW: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-700',
     JTB: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border-purple-200 dark:border-purple-700',
+    SKD: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border-indigo-200 dark:border-indigo-700',
 };
 
 export const BulkSiteChangeDialog: React.FC<BulkSiteChangeDialogProps> = ({

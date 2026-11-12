@@ -38,7 +38,7 @@ it('HC raters tab is read-only summary with fix link', async () => {
     render(<RatersTab scope="hc" onFix={onFix} />);
     expect(screen.getByRole('heading', { name: 'Penilai dari Template penugasan' })).toBeInTheDocument();
     const smg = screen.getByRole('row', { name: /Semarang/ });
-    expect(within(smg).getAllByRole('cell').slice(0, 6).map((cell) => cell.textContent)).toEqual(['Semarang', '3', '0', '1', '1', '1']);
+    expect(within(smg).getAllByRole('cell').slice(0, 6).map((cell) => cell.textContent)).toEqual(['SemarangSJA Semarang', '3', '0', '1', '1', '1']);
     const total = screen.getByRole('row', { name: /Total/ });
     expect(within(total).getAllByRole('cell').slice(0, 6).map((cell) => cell.textContent)).toEqual(['Total', '4', '1', '1', '0', '2']);
     await userEvent.click(within(smg).getByRole('button', { name: 'Perbaiki di template' }));

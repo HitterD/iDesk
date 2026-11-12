@@ -11,7 +11,7 @@ export const CSI_SCORE_BANDS_DEFAULT: Readonly<CsiScoreBands> = Object.freeze({ 
 /** Bands are entered with one decimal, so "below goodMin" in the preview ends one step lower. */
 const BAND_STEP = 0.1;
 
-const SITE_TONES: Readonly<Record<string, CsiTone>> = { SPJ: 'teal', KRW: 'brown', SMG: 'green', JKT: 'sky' };
+const SITE_TONES: Readonly<Record<string, CsiTone>> = { SPJ: 'teal', KRW: 'brown', SKD: 'navy', SMG: 'green', JTB: 'sky' };
 const QUESTION_TONES: readonly CsiTone[] = ['sky', 'teal', 'brown', 'amber'];
 
 /** Index = star count (1–5); index 0 is the empty state. Emoji appear only in the star reaction. */

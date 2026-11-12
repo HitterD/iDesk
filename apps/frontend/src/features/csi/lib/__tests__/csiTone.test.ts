@@ -39,7 +39,9 @@ describe('siteTone', () => {
         expect(siteTone('SPJ')).toBe('teal');
         expect(siteTone('KRW')).toBe('brown');
         expect(siteTone('SMG')).toBe('green');
-        expect(siteTone('JKT')).toBe('sky');
+        expect(siteTone('JTB')).toBe('sky');
+        expect(siteTone('SKD')).toBe('navy');
+        expect(siteTone('JKT')).toBe('neutral');
         expect(siteTone('XYZ')).toBe('neutral');
         expect(siteTone(null)).toBe('neutral');
     });

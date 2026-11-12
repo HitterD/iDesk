@@ -47,6 +47,7 @@ export const SITE_COLORS: Record<string, string> = {
     SMG: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
     KRW: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
     JTB: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+    SKD: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
 };
 
 export type UserRoleKey =

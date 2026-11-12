@@ -35,6 +35,7 @@ const SITE_COLORS: Record<string, string> = {
   SMG: 'bg-ok/10 text-ok-ink border-ok/20',
   KRW: 'bg-warn/10 text-warn-ink border-warn/20',
   JTB: 'bg-brand/10 text-brand border-brand/20',
+  SKD: 'bg-aqua/10 text-aqua-ink border-aqua/20',
 };
 
 export const ModuleAssigneePicker: React.FC<ModuleAssigneePickerProps> = ({

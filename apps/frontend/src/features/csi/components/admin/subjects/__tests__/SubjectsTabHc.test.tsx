@@ -57,7 +57,8 @@ describe('SubjectsTab (HC)', () => {
         const team = screen.getByRole('button', { name: /^Ubah Tim Payroll/ });
         expect(within(team).getByText('HCC')).toBeInTheDocument();
         expect(within(team).getByText('2 anggota')).toBeInTheDocument();
-        expect(within(screen.getByRole('region', { name: 'HC Semarang' }))
+        expect(screen.getByRole('heading', { name: 'HC Karawang (SJA 2)' })).toBeInTheDocument();
+        expect(within(screen.getByRole('region', { name: 'HC Semarang (SJA Semarang)' }))
             .getByText('Belum ada orang di site ini. Impor template lokasi ini di Template penugasan.')).toBeInTheDocument();
     });
 

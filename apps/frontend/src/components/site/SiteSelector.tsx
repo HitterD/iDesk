@@ -18,7 +18,7 @@ interface SiteSelectorProps {
 }
 
 const SITE_TONES: Record<string, TicketPillTone> = {
-    SPJ: 'blue', SMG: 'green', KRW: 'amber', JTB: 'teal',
+    SPJ: 'blue', SMG: 'green', KRW: 'amber', JTB: 'teal', SKD: 'navy',
 };
 
 export const SiteSelector = ({

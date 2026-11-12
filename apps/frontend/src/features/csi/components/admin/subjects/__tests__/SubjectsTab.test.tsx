@@ -61,7 +61,7 @@ describe('SubjectsTab', () => {
 
     it('HC empty site points at the location template', () => {
         render(<SubjectsTab scope="hc" />);
-        expect(screen.getByRole('region', { name: 'HC Karawang' })).toBeInTheDocument();
+        expect(screen.getByRole('region', { name: 'HC Karawang (SJA 2)' })).toBeInTheDocument();
         expect(screen.getByText('Belum ada orang di site ini. Impor template lokasi ini di Template penugasan.')).toBeInTheDocument();
     });
 

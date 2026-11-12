@@ -77,16 +77,23 @@ describe('TemplatesTab', () => {
     it('opens the requested location in the per-rater view with issues filtered', async () => {
         fx.list.templates = [{ ...TEMPLATE, locationCode: 'KRW' }];
         renderWithQuery(<TemplatesTab scope="hc" initialLocation="KRW" initialView="rater" />);
-        expect(await screen.findByRole('tab', { name: /karawang\s*2 PIC/i })).toHaveAttribute('aria-selected', 'true');
+        expect(await screen.findByRole('tab', { name: /karawang\s*SJA 2\s*2 PIC/i })).toHaveAttribute('aria-selected', 'true');
         expect(await screen.findByRole('button', { name: 'Perlu dicek' })).toHaveAttribute('aria-pressed', 'true');
     });
 
-    it('shows four location tabs', async () => {
-        renderWithQuery(<TemplatesTab scope="hc" />);
-        await screen.findByRole('tab', { name: /semarang\s*2 PIC/i });
+    it('shows five location tabs in order, each with its SJA hint and PIC count', async () => {
+        renderWithQuery(<TemplatesTab scope="hc" initialLocation="SMG" />);
+        await screen.findByRole('tab', { name: /semarang\s*SJA Semarang\s*2 PIC/i });
         const tabs = screen.getAllByRole('tab');
-        expect(tabs.map((tab) => tab.textContent)).toEqual(['Semarang2 PIC', 'Karawangkosong', 'Sepanjangkosong', 'Jakartakosong']);
-        expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+        expect(tabs.map((tab) => tab.textContent)).toEqual([
+            'SepanjangSJA 1kosong', 'KarawangSJA 2kosong', 'SukodonoSJA 3kosong', 'SemarangSJA Semarang2 PIC', 'JakartaSJA Jatibarukosong',
+        ]);
+        expect(tabs[3]).toHaveAttribute('aria-selected', 'true');
+    });
+
+    it('opens the first location that has a template when none is requested', async () => {
+        renderWithQuery(<TemplatesTab scope="hc" />);
+        expect(await screen.findByRole('tab', { name: /semarang\s*SJA Semarang\s*2 PIC/i })).toHaveAttribute('aria-selected', 'true');
     });
 
     it('empty location offers import and blank download', async () => {

@@ -60,14 +60,16 @@ export function LocationStep({ templates, selected, onToggle }: {
 }) {
     return (
         <div role="group" aria-label="Lokasi" className="grid gap-2">
-            {CSI_TEMPLATE_LOCATIONS.map(({ code, name }) => {
+            {CSI_TEMPLATE_LOCATIONS.map(({ code, name, hint }) => {
                 const template = templates.find((row) => row.locationCode === code);
                 const counts = template ? templateRaterCounts([template]) : null;
                 const id = `hc-wizard-location-${code}`;
                 return (
                     <div key={code} className={cn('flex items-center gap-3 rounded-xl border border-[hsl(var(--border))] px-3 py-2', !template && 'opacity-60')}>
                         <Checkbox id={id} disabled={!template} checked={selected.includes(code)} onCheckedChange={(state) => onToggle(code, state === true)} />
-                        <label htmlFor={id} className="min-w-0 flex-1 text-[13.5px] font-semibold">{name}</label>
+                        <label htmlFor={id} className="min-w-0 flex-1 text-[13.5px] font-semibold">
+                            {name} <span className={cn(MUTED_TEXT, 'text-[12px] font-normal')}>{`(${hint})`}</span>
+                        </label>
                         <span className={cn(MUTED_TEXT, 'text-[12.5px]')}>
                             {template && counts ? `${template.summary.pics} PIC · ${counts.total} penilai · ${counts.issues} perlu dicek` : 'belum ada template'}
                         </span>

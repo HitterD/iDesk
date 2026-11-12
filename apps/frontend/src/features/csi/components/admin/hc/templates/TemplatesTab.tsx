@@ -85,20 +85,21 @@ function TemplateEditor({ scope, template, location, onImport, view, onViewChang
     );
 }
 
-/** Always the four template locations, in a fixed order, whether or not a template exists yet. */
+/** Always the five template locations, in a fixed order, whether or not a template exists yet. */
 function LocationTabs({ templates, selected, onSelect }: {
     /** null while loading: no badge rather than a wrong "kosong". */
     templates: CsiTemplate[] | null; selected: string; onSelect: (code: string) => void;
 }) {
     return (
         <div role="tablist" aria-label="Lokasi template" className="flex flex-wrap items-center gap-2">
-            {CSI_TEMPLATE_LOCATIONS.map(({ code, name }) => {
+            {CSI_TEMPLATE_LOCATIONS.map(({ code, name, hint }) => {
                 const template = templates?.find((row) => row.locationCode === code);
                 const active = code === selected;
                 return (
                     <button key={code} type="button" role="tab" aria-selected={active} onClick={() => onSelect(code)}
                         className={cn('idesk-btn', active ? 'is-primary' : 'is-soft')}>
                         {name}
+                        <span className={cn('text-[11.5px] font-normal', active ? 'opacity-80' : MUTED_TEXT)}>{hint}</span>
                         {templates && (
                             <span className={cn('rounded-full px-1.5 text-[11.5px] font-semibold', active ? 'bg-white/20' : 'bg-[hsl(var(--muted))]')}>
                                 {template ? `${template.summary.pics} PIC` : 'kosong'}
@@ -111,6 +112,12 @@ function LocationTabs({ templates, selected, onSelect }: {
     );
 }
 
+/** Without a requested location: the first one with a template, else one with a bundled template, else the first. */
+function defaultLocation(templates: CsiTemplate[], bundled: string[]): string {
+    const has = (check: (code: string) => boolean) => CSI_TEMPLATE_LOCATIONS.find(({ code }) => check(code))?.code;
+    return has((code) => templates.some((row) => row.locationCode === code)) ?? has((code) => bundled.includes(code)) ?? CSI_TEMPLATE_LOCATIONS[0].code;
+}
+
 /**
  * Pengaturan → Template penugasan: per-location lists of HC PICs, their service function and who rates them.
  * Edited here or imported from Excel (dry-run preview first), then used to create a survey or synced (add-only) into one.
@@ -119,10 +126,11 @@ export function TemplatesTab({ scope, initialLocation, initialView }: {
     scope: CsiScopeParam; initialLocation?: string; initialView?: TemplateView;
 }) {
     const { data, isLoading } = useCsiTemplates(scope);
-    const [selected, setSelected] = useState<string>(initialLocation ?? CSI_TEMPLATE_LOCATIONS[0].code);
+    const [picked, setSelected] = useState<string | null>(initialLocation ?? null);
     const [importing, setImporting] = useState(false);
     const [view, setView] = useState<TemplateView>(initialView ?? 'pic');
     const templates = data?.templates ?? [];
+    const selected = picked ?? defaultLocation(templates, data?.bundledAvailable ?? []);
     const location = CSI_TEMPLATE_LOCATIONS.find((row) => row.code === selected) ?? CSI_TEMPLATE_LOCATIONS[0];
     const current = templates.find((row) => row.locationCode === location.code);
     const openImport = () => setImporting(true);
