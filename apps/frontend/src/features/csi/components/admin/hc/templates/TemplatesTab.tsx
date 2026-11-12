@@ -42,7 +42,8 @@ function TemplateEditor({ scope, template, location, onImport, view, onViewChang
     const pending = update.isPending || addRater.isPending || removeRater.isPending || removePic.isPending;
     const { summary } = template;
     return (
-        <div className="grid gap-4">
+        // @container: the PIC card grid takes its column count from this width (settings sidebar already subtracted).
+        <div className="@container grid min-w-0 gap-4">
             {/* Title + summary take the full width; the controls wrap on their own row so the summary never becomes a narrow column. */}
             <div className="grid gap-3 rounded-2xl bg-[hsl(var(--muted)/.45)] p-4">
                 <div className="grid min-w-0 gap-1.5">
@@ -51,11 +52,14 @@ function TemplateEditor({ scope, template, location, onImport, view, onViewChang
                         {summaryItems(summary).map((item) => <li key={item}>{item}</li>)}
                     </ul>
                 </div>
-                <div className="flex flex-wrap items-center justify-end gap-2">
+                {/* View switch left, actions grouped right; on a 15" laptop the action group wraps as one unit. */}
+                <div className="flex flex-wrap items-center gap-2">
                     <SegmentedControl options={VIEW_OPTIONS} value={view} onValueChange={onViewChange} aria-label="Tampilan template" />
-                    <BlankTemplateButton scope={scope} location={location} variant="subtle" />
-                    <Button variant="soft" onClick={onImport}><FileSpreadsheet aria-hidden="true" />Impor Excel</Button>
-                    <Button variant="primary" onClick={() => setApplying(true)}><Play aria-hidden="true" />Gunakan template</Button>
+                    <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                        <BlankTemplateButton scope={scope} location={location} variant="subtle" />
+                        <Button variant="soft" onClick={onImport}><FileSpreadsheet aria-hidden="true" />Impor Excel</Button>
+                        <Button variant="primary" onClick={() => setApplying(true)}><Play aria-hidden="true" />Gunakan template</Button>
+                    </div>
                 </div>
             </div>
             <TemplateIssuesPanel scope={scope} template={template} />
@@ -66,7 +70,8 @@ function TemplateEditor({ scope, template, location, onImport, view, onViewChang
                 return (
                     <section key={code} className="grid gap-2">
                         <h3 className="text-[14px] font-bold">{`${code} · ${SERVICE_NAMES[code]} (${pics.length})`}</h3>
-                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {/* 2 columns from 560px, 3 only from 1180px: a third column below that squeezes the rater rows. */}
+                        <div className="grid grid-cols-1 gap-3 @min-[560px]:grid-cols-2 @min-[1180px]:grid-cols-3">
                             {pics.map((pic) => (
                                 <TemplatePicCard key={pic.id} scope={scope} templateId={template.id} pic={pic} pending={pending}
                                     onServiceFunction={(serviceFunction) => update.mutate({ id: pic.id, serviceFunction })}
