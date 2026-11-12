@@ -215,17 +215,7 @@ export class AuthController {
             };
         }
 
-        const SITE_ID_MAP: Record<string, string> = {
-            '9f8a5c1e-5865-4382-a8fe-8518c0862c4c': 'SPJ',
-            'fc32eaff-0c51-40ee-81a6-33d7d317e0f7': 'KRW',
-            '39b888a1-6d13-446b-b91a-89ae9de7c9d0': 'JTB',
-            'c2b3027b-5506-44f9-9846-a90592b8b8d7': 'SMG',
-        };
-        const siteCode = result.user.siteId
-            ? (SITE_ID_MAP[result.user.siteId] || 'SPJ')
-            : (result.user.email?.toLowerCase().includes('krw') ? 'KRW'
-               : result.user.email?.toLowerCase().includes('jtb') ? 'JTB'
-               : result.user.email?.toLowerCase().includes('smg') ? 'SMG' : 'SPJ');
+        const siteCode = await this.authService.siteCodeOf(result.user);
 
         return {
             valid: true,

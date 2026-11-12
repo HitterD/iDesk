@@ -2,7 +2,7 @@ import * as ExcelJS from 'exceljs';
 import { buildBlankTemplate } from './csi-template-blank';
 import { parseTemplateWorkbook } from './csi-template-excel';
 
-const LOCATION = { code: 'SMG', name: 'Semarang' };
+const LOCATION = { code: 'SMG', name: 'Semarang', hint: 'SJA Semarang' };
 const EMPLOYEES = [
     { fullName: 'ELVI CYNTHIA', jobTitle: 'PLANT MANAGER 1', employeeId: '00000277' },
     { fullName: 'RARA KURNIA', jobTitle: null, employeeId: null },

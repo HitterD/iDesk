@@ -1,5 +1,6 @@
 import {
     CsiHcService, CsiOrgLocation, locationOfSiteCode, locationOfWorkLocation, normalizeBagian, normalizeNik, serviceOfDepartment,
+    siteCodeOfLocation,
 } from './csi-org.constants';
 
 describe('CSI org constants', () => {
@@ -19,6 +20,15 @@ describe('CSI org constants', () => {
         expect(locationOfWorkLocation('')).toBeNull();
         expect(locationOfSiteCode('SMG')).toBe(CsiOrgLocation.SJA4);
         expect(locationOfSiteCode('XYZ')).toBeNull();
+    });
+
+    it('maps SJA 3 to Sukodono (SKD) both ways, keeping Sepanjang on SJA 1', () => {
+        expect(locationOfWorkLocation('SJA-3')).toBe(CsiOrgLocation.SJA3);
+        expect(siteCodeOfLocation(CsiOrgLocation.SJA3)).toBe('SKD');
+        expect(locationOfSiteCode('SKD')).toBe(CsiOrgLocation.SJA3);
+        expect(locationOfSiteCode('skd')).toBe(CsiOrgLocation.SJA3);
+        expect(siteCodeOfLocation(CsiOrgLocation.SJA1)).toBe('SPJ');
+        expect(locationOfSiteCode('SPJ')).toBe(CsiOrgLocation.SJA1);
     });
 
     it('merges the head-office suffixes of a bagian but keeps area bagian distinct', () => {
