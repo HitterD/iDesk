@@ -94,7 +94,7 @@ export class CsiReminderService {
             message: `Mohon isi "${period.title}" sebelum ${formatReminderDate(period.endDate)}.`,
             referenceId: reminderReferenceId(period.id, userId), link: `/csi/${period.id}`,
         });
-        return Boolean(notification) && new Date(notification.createdAt).getTime() >= startedAt.getTime() - CLOCK_SKEW_MS;
+        return notification !== null && new Date(notification.createdAt).getTime() >= startedAt.getTime() - CLOCK_SKEW_MS;
     }
 }
 

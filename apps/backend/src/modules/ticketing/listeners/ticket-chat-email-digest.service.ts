@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { NotificationPreferenceGate } from '../../notifications/notification-preference-gate.service';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -32,6 +33,7 @@ export class TicketChatEmailDigestService {
         private readonly userRepo: Repository<User>,
         private readonly mailDispatch: MailDispatchService,
         private readonly dataSource: DataSource,
+        @Optional() private readonly gate?: NotificationPreferenceGate,
     ) { }
 
     @Cron('*/5 * * * *', { timeZone: 'Asia/Jakarta', name: 'ticket-chat-email-digest' })
@@ -67,6 +69,8 @@ export class TicketChatEmailDigestService {
             // Mark first, so a slow or failing mail server never makes the next run send it again.
             await this.notificationRepo.update({ id: notification.id }, { emailedAt: now });
             if (!user?.email || user.isActive === false) continue;
+            // Email off (globally or for chat) or in quiet hours: the bell still has it.
+            if (this.gate && !(await this.gate.allows(user.id, 'email', NotificationType.TICKET_REPLY, { at: now }))) continue;
             try {
                 await this.mailDispatch.send({
                     to: user.email,

@@ -40,7 +40,7 @@ export class NotificationPreference {
     @Column({ default: true })
     emailEnabled: boolean;
 
-    @Column({ default: false })
+    @Column({ default: true })
     pushEnabled: boolean;
 
     // =====================

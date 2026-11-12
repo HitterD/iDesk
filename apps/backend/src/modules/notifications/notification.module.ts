@@ -16,6 +16,7 @@ import { User } from '../users/entities/user.entity';
 // Services
 import { NotificationService } from './notification.service';
 import { NotificationCenterService } from './notification-center.service';
+import { NotificationPreferenceGate } from './notification-preference-gate.service';
 
 // Channels
 import { EmailChannelService } from './channels/email-channel.service';
@@ -61,6 +62,7 @@ import { TicketMessagingService } from '../ticketing/services/ticket-messaging.s
         TicketNoteQueryService,
         NotificationService,
         NotificationCenterService,
+        NotificationPreferenceGate,
 
         // Channel services
         EmailChannelService,
@@ -72,6 +74,7 @@ import { TicketMessagingService } from '../ticketing/services/ticket-messaging.s
     exports: [
         NotificationService,
         NotificationCenterService,
+        NotificationPreferenceGate,
         EmailChannelService,
         InAppChannelService,
         PushChannelService,

@@ -10,32 +10,9 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/infrastructure/guards/jwt-auth.guard';
 import { NotificationCenterService } from './notification-center.service';
-import { NotificationPreference, DigestFrequency } from './entities/notification-preference.entity';
+import { NotificationPreference } from './entities/notification-preference.entity';
+import { UpdatePreferencesDto, UpdateTypePreferenceDto } from './dto/notification-preferences.dto';
 import { NotificationType } from './entities/notification.entity';
-
-// DTO for updating preferences
-class UpdatePreferencesDto {
-    inAppEnabled?: boolean;
-    emailEnabled?: boolean;
-    pushEnabled?: boolean;
-    emailAddress?: string;
-    digestEnabled?: boolean;
-    digestFrequency?: DigestFrequency;
-    digestTime?: string;
-    quietHoursEnabled?: boolean;
-    quietHoursStart?: string;
-    quietHoursEnd?: string;
-    timezone?: string;
-}
-
-class UpdateTypePreferenceDto {
-    notificationType: NotificationType;
-    channels: {
-        inApp?: boolean;
-        email?: boolean;
-        push?: boolean;
-    };
-}
 
 @ApiTags('Notification Preferences')
 @ApiBearerAuth()
@@ -52,6 +29,7 @@ export class NotificationPreferencesController {
     }
 
     @Put()
+    @Patch()
     @ApiOperation({ summary: 'Update notification preferences' })
     @ApiResponse({ status: 200, description: 'Preferences updated successfully' })
     async updatePreferences(

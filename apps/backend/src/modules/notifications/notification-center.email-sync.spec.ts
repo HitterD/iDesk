@@ -57,4 +57,23 @@ describe('NotificationCenterService account email sync', () => {
     expect(saved.emailAddress).toBe('new@company.co.id');
     expect(saved.emailEnabled).toBe(false);
   });
+
+  it('merges a per-type channel change instead of replacing the other channels of that type', async () => {
+    preferenceRepo.findOne.mockResolvedValue({ id: 'p1', userId: 'u1', emailAddress: 'new@company.co.id', typeSettings: { MENTION: { email: false } } });
+    preferenceRepo.save = jest.fn(async (x: any) => x);
+
+    const saved = await service.updateTypePreference('u1', 'MENTION' as any, { push: false });
+
+    expect(saved.typeSettings.MENTION).toEqual({ email: false, push: false });
+  });
+
+  it('ignores identity fields a client sends with its preferences', async () => {
+    preferenceRepo.findOne.mockResolvedValue({ id: 'p1', userId: 'u1', emailAddress: 'new@company.co.id' });
+    preferenceRepo.save = jest.fn(async (x: any) => x);
+
+    const saved = await service.updatePreferences('u1', { userId: 'someone-else', id: 'x', pushTokens: ['t'], pushEnabled: false } as any);
+
+    expect(saved).toEqual(expect.objectContaining({ id: 'p1', userId: 'u1', pushEnabled: false }));
+    expect((saved as any).pushTokens).toBeUndefined();
+  });
 });

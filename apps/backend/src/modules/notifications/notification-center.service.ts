@@ -19,6 +19,7 @@ import { PushChannelService } from './channels/push-channel.service';
 import { NotificationPushService } from './notification-push.service';
 import { getCategoryFromType } from './utils/category-mapper';
 import { PermissionPreset } from '../permissions/entities/permission-preset.entity';
+import { NotificationPreferenceGate } from './notification-preference-gate.service';
 import { PageKey, getRoleDefaultPageAccess } from '../../shared/core/types/page-access.types';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
@@ -62,6 +63,7 @@ export class NotificationCenterService implements OnModuleInit {
         @Optional() private readonly webPush?: NotificationPushService,
         @Optional() private readonly noteActions?: TicketNoteActionItemsService,
         @Optional() private readonly noteVisibility?: TicketNoteVisibilityService,
+        @Optional() private readonly gate?: NotificationPreferenceGate,
     ) { }
 
     onModuleInit() {
@@ -82,7 +84,7 @@ export class NotificationCenterService implements OnModuleInit {
      * Send a notification through configured channels
      * Respects user preferences and handles routing
      */
-    async send(payload: NotificationPayload): Promise<Notification> {
+    async send(payload: NotificationPayload): Promise<Notification | null> {
         if (payload.id) {
             const existing = await this.notificationRepo.findOne({ where: { id: payload.id, userId: payload.userId } });
             if (existing) return existing;
@@ -90,21 +92,21 @@ export class NotificationCenterService implements OnModuleInit {
         // Get user preferences
         const preferences = await this.getOrCreatePreferences(payload.userId);
 
-        // Check quiet hours
-        if (this.isInQuietHours(preferences)) {
-            this.logger.debug(`User ${payload.userId} is in quiet hours, buffering notification`);
-            // Still create notification but mark for later delivery
-        }
+        // Turned off in-app for this type: nothing is stored or shown.
+        if (!this.allowsChannel(DeliveryChannel.IN_APP, payload.type, preferences)) return null;
+        const quiet = this.isInQuietHours(preferences);
 
         // Create notification record
         const notification = await this.createNotification(payload);
-        if (payload.type !== NotificationType.TICKET_NOTE ||
-            (preferences.pushEnabled && preferences.typeSettings?.[NotificationType.TICKET_NOTE]?.push !== false)) {
+        // Browser push: the user's push switch (global and per type), held back during quiet hours.
+        if (!quiet && this.allowsChannel(DeliveryChannel.PUSH, payload.type, preferences)) {
             this.webPush?.dispatch(notification);
         }
 
-        // Determine channels based on payload and preferences
-        const channels = this.resolveChannels(payload, preferences);
+        // Determine channels based on payload and preferences; email waits out quiet hours (it is not re-sent later,
+        // the in-app notice is still there).
+        const channels = this.resolveChannels(payload, preferences)
+            .filter(channel => !(quiet && channel === DeliveryChannel.EMAIL));
 
         if (channels.length === 0) {
             this.logger.warn(`No channels available for user ${payload.userId}`);
@@ -241,7 +243,8 @@ export class NotificationCenterService implements OnModuleInit {
             inAppEnabled: true,
             emailEnabled: true,
             emailAddress: user?.email || undefined,
-            pushEnabled: false,
+            // Browser push only reaches devices that subscribed; on by default so subscribing is enough.
+            pushEnabled: true,
             digestEnabled: false,
             digestFrequency: DigestFrequency.REALTIME,
             quietHoursEnabled: false,
@@ -269,9 +272,12 @@ export class NotificationCenterService implements OnModuleInit {
         updates: Partial<NotificationPreference>
     ): Promise<NotificationPreference> {
         const prefs = await this.getOrCreatePreferences(userId);
-        // The address follows the account email (see syncAccountEmail); a client cannot fork it.
-        const { emailAddress: _ignored, ...allowed } = updates;
-        return this.preferenceRepo.save({ ...prefs, ...allowed });
+        // Only user-settable fields: the address follows the account email (see syncAccountEmail), and identity,
+        // tokens and per-type settings have their own paths.
+        const { emailAddress: _email, id: _id, userId: _user, pushTokens: _tokens, typeSettings: _types, categorySettings: _cats, ...allowed } = updates as any;
+        const saved = await this.preferenceRepo.save({ ...prefs, ...allowed });
+        await this.gate?.forget(userId);
+        return saved;
     }
 
     async updateTypePreference(
@@ -280,11 +286,14 @@ export class NotificationCenterService implements OnModuleInit {
         channelSettings: Record<string, boolean>
     ): Promise<NotificationPreference> {
         const prefs = await this.getOrCreatePreferences(userId);
+        // Merge: the settings page changes one channel at a time, and must not wipe the others for this type.
         prefs.typeSettings = {
             ...prefs.typeSettings,
-            [notificationType]: channelSettings,
+            [notificationType]: { ...prefs.typeSettings?.[notificationType], ...channelSettings },
         };
-        return this.preferenceRepo.save(prefs);
+        const saved = await this.preferenceRepo.save(prefs);
+        await this.gate?.forget(userId);
+        return saved;
     }
 
     // =====================
@@ -734,14 +743,7 @@ export class NotificationCenterService implements OnModuleInit {
                 return false;
             }
 
-            // Check type-specific settings
-            const typeSettings = preferences.typeSettings?.[payload.type];
-            if (typeSettings) {
-                const channelKey = channel.toLowerCase();
-                if (typeSettings[channelKey] === false) {
-                    return false;
-                }
-            }
+            if (!this.allowsChannel(channel, payload.type, preferences)) return false;
 
             // Check if recipient exists for this channel
             const recipient = this.getRecipientForChannel(channel, preferences, payload.userId);
@@ -751,6 +753,12 @@ export class NotificationCenterService implements OnModuleInit {
 
             return true;
         });
+    }
+
+    /** The global switch and the per-type switch for a channel ("in_app", "email", "push" keys). */
+    private allowsChannel(channel: DeliveryChannel, type: NotificationType, preferences: NotificationPreference): boolean {
+        if (!this.isChannelEnabled(channel, preferences)) return false;
+        return preferences.typeSettings?.[type]?.[channel.toLowerCase()] !== false;
     }
 
     private isChannelEnabled(channel: DeliveryChannel, preferences: NotificationPreference): boolean {

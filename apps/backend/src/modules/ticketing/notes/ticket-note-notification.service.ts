@@ -73,7 +73,8 @@ export class TicketNoteNotificationService {
             referenceId: note.id, link: `/tickets/${note.ticketId}?noteId=${note.id}`,
             channels: delivery.kind === 'INVITE' ? [DeliveryChannel.IN_APP, DeliveryChannel.EMAIL] : [DeliveryChannel.IN_APP],
         });
-        await this.source.manager.save(TicketNoteDelivery, { ...delivery, notificationId: notification.id,
+        // Null when the member turned these notices off; the delivery is still done.
+        await this.source.manager.save(TicketNoteDelivery, { ...delivery, notificationId: notification?.id ?? null,
             state: 'SENT', attemptCount: delivery.attemptCount });
         this.gateway?.server.to(`user:${delivery.recipientId}`).emit('ticket-note:changed', { ticketId: note.ticketId, noteId: note.id });
         this.gateway?.server.to(`user:${delivery.recipientId}`).emit(`action-items:refresh:${delivery.recipientId}`, {});

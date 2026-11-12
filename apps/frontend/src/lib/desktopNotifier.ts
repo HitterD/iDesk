@@ -1,3 +1,5 @@
+import { portalEquivalent } from './roleHome';
+
 export type DesktopDisplayMode = 'both' | 'toast' | 'popup';
 
 export interface DesktopNotifierPreference {
@@ -60,17 +62,47 @@ export const senderOf = (data: { senderName?: string | null; sender?: string | n
 /**
  * Meneruskan notifikasi WebSocket / in-app iDesk secara otomatis ke SJA Desktop Notifier di Windows
  */
+/** How long one tab's claim on a notification keeps the other tabs from forwarding it too. */
+const FORWARD_CLAIM_MS = 30_000;
+const CLAIM_PREFIX = 'sja-forwarded:';
+
+/**
+ * True for exactly one open tab per notification: every tab gets the socket event, but the desktop notifier
+ * must show it once. The first tab to write the claim wins; the others see it and skip.
+ */
+export function claimForward(id: string | undefined, now: number = Date.now()): boolean {
+    if (!id || typeof localStorage === 'undefined') return true;
+    try {
+        const key = `${CLAIM_PREFIX}${id}`;
+        const existing = Number(localStorage.getItem(key));
+        if (existing && now - existing < FORWARD_CLAIM_MS) return false;
+        localStorage.setItem(key, String(now));
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k?.startsWith(CLAIM_PREFIX) && now - Number(localStorage.getItem(k)) > FORWARD_CLAIM_MS) localStorage.removeItem(k);
+        }
+        return true;
+    } catch {
+        return true;
+    }
+}
+
+/** The user is looking at iDesk right now: the in-app toast is enough, a desktop popup on top is noise. */
+const isLookingAtApp = (): boolean =>
+    typeof document !== 'undefined' && document.visibilityState === 'visible' && document.hasFocus();
+
 export const forwardToDesktopNotifier = async (data: any, currentUser?: any): Promise<boolean> => {
     try {
         const pref = getDesktopNotifierPreference();
         if (!pref.enabled) return false;
+        if (isLookingAtApp() || !claimForward(data.id || data.notificationId)) return false;
 
         const origin = typeof window !== 'undefined' ? window.location.origin : '';
-        const targetUrl = data.link
-            ? `${origin}${data.link}`
-            : (data.ticketId
-                ? `${origin}${currentUser?.role === 'USER' ? '/client/tickets' : '/tickets'}/${data.ticketId}`
-                : origin);
+        // Same page the bell opens, in this user's portal.
+        const path = data.link
+            ? (portalEquivalent(data.link, currentUser?.role) ?? data.link)
+            : (data.ticketId ? (portalEquivalent(`/tickets/${data.ticketId}`, currentUser?.role) ?? '') : '');
+        const targetUrl = `${origin}${path}`;
 
         const category = data.category || (data.type === 'TICKET_REPLY' || data.type === 'CHAT_MESSAGE_RECEIVED' ? 'TICKET_REPLY' : 'Tiket');
         const ticketNumber = readableTicketNumber(data);

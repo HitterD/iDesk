@@ -136,40 +136,7 @@ export class NotificationController {
 
     // === PREFERENCES ENDPOINTS ===
 
-    @Get('preferences')
-    @ApiOperation({ summary: 'Get notification preferences for current user' })
-    @ApiResponse({ status: 200, description: 'Return notification preferences.' })
-    async getPreferences(@Request() req: any) {
-        return this.notificationCenterService.getOrCreatePreferences(req.user.userId);
-    }
-
-    @Put('preferences')
-    @ApiOperation({ summary: 'Update notification preferences (full replace)' })
-    @ApiResponse({ status: 200, description: 'Preferences updated.' })
-    async replacePreferences(@Request() req: any, @Body() updates: Record<string, any>) {
-        return this.notificationCenterService.updatePreferences(req.user.userId, updates);
-    }
-
-    @Patch('preferences')
-    @ApiOperation({ summary: 'Partially update notification preferences' })
-    @ApiResponse({ status: 200, description: 'Preferences updated.' })
-    async updatePreferences(@Request() req: any, @Body() updates: Record<string, any>) {
-        return this.notificationCenterService.updatePreferences(req.user.userId, updates);
-    }
-
-    @Patch('preferences/type-settings')
-    @ApiOperation({ summary: 'Update per-type channel settings' })
-    @ApiResponse({ status: 200, description: 'Type settings updated.' })
-    async updateTypeSettings(
-        @Request() req: any,
-        @Body() body: { notificationType: string; channels: Record<string, boolean> }
-    ) {
-        return this.notificationCenterService.updateTypePreference(
-            req.user.userId,
-            body.notificationType as any,
-            body.channels
-        );
-    }
+    // GET/PUT/PATCH preferences and type-settings live in NotificationPreferencesController (validated DTOs).
 
     // === CRITICAL NOTIFICATION ENDPOINTS ===
 
