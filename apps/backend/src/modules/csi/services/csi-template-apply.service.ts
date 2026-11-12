@@ -23,6 +23,7 @@ import { CsiOrgService } from '../org/csi-org.service';
 import { CsiTemplatePicView, CsiTemplateView } from '../org/csi-template-view';
 import { CsiAssignmentTemplateService } from './csi-assignment-template.service';
 import { CsiPeriodService } from './csi-period.service';
+import { enableSectionsWithRatees } from './csi-period-sections.util';
 import { assertHcScope, assertPeriodInScope } from './csi-scope.util';
 import { CsiMasterSeed, existingMaster, loadMasterContext, mastersIndex, newMasterOf } from './csi-template-import.service';
 
@@ -417,8 +418,8 @@ export class CsiTemplateApplyService {
         if (rows.length) await repos.pairs.save(rows);
         // Only an empty survey switches to the template's mode; an existing mapping already is LISTED + pairs.
         if (!plan.hadRaters) await manager.update(CsiPeriod, { id: periodId }, { respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM, respondentPicks: false });
-        // A TEAM ratee is only shown and reported while the team section is on.
-        if (plan.newSubjects.some((subject) => subject.team) && !period.teamEnabled) await manager.update(CsiPeriod, { id: periodId }, { teamEnabled: true });
+        // A ratee is only shown and reported while its section is on.
+        await enableSectionsWithRatees(manager, periodId);
     }
 
     private async writeRatees(repos: Repos, periodId: string, subjects: Subject[], questions: CsiDimension[]) {

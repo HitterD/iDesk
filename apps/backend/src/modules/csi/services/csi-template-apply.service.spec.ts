@@ -473,6 +473,22 @@ describe('CsiTemplateApplyService', () => {
             expect(ratees.rows).toEqual([]);
         });
 
+        it('commit turns on the sections of the ratees it added (per orang for PICs, tim for custom teams)', async () => {
+            periods.rows[0] = { ...periods.rows[0], teamEnabled: true, individualEnabled: false };
+            await service.applyManyToPeriod(HC, ['t1'], 'p1', true, false);
+            expect(periods.rows[0]).toMatchObject({ individualEnabled: true, teamEnabled: true });
+            periods.rows[0] = { ...periods.rows[0], teamEnabled: false };
+            await service.applyManyToPeriod(HC, ['t2'], 'p1', true, false);
+            expect(periods.rows[0]).toMatchObject({ teamEnabled: true, individualEnabled: true });
+        });
+
+        it('a survey with answers keeps its sections as they are', async () => {
+            periods.rows[0] = { ...periods.rows[0], teamEnabled: true, individualEnabled: false };
+            responses.rows.push({ id: 'resp', periodId: 'p1' });
+            await service.applyManyToPeriod(HC, ['t1'], 'p1', true, false);
+            expect(periods.rows[0]).toMatchObject({ individualEnabled: false });
+        });
+
         it('is HC only', async () => {
             await expect(service.applyManyToPeriod(ServiceScope.ICT, ['t1'], 'p1', false, false)).rejects.toBeInstanceOf(BadRequestException);
         });

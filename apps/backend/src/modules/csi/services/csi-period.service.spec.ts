@@ -128,7 +128,17 @@ describe('computeReadiness', () => {
             { key: 'dimensions', ok: true, label: 'Setiap orang punya minimal 1 dimensi' },
             { key: 'departments', ok: true, label: 'Minimal 1 departemen aktif' },
             { key: 'raters', ok: true, label: 'Minimal 1 penilai (mode terdaftar)' },
-        ] });
+        ], warnings: [] });
+    });
+
+    it('warns (without blocking) about ratees a disabled section hides from the raters', () => {
+        const teamOff = computeReadiness({ ...complete, hcSubjectCount: 3, teamRateeCount: 2 });
+        expect(teamOff.ready).toBe(true);
+        expect(teamOff.warnings).toEqual([{ key: 'teamHidden', label: '2 tim tidak akan tampil karena Penilaian tim dimatikan' }]);
+        const peopleOff = computeReadiness({ ...complete, ratees: [{ dimensions: [{}] }, { dimensions: [{}] }], individualEnabled: false, teamEnabled: true, teamQuestionCount: 1, teamRateeCount: 1, hcSubjectCount: 3 });
+        expect(peopleOff.ready).toBe(true);
+        expect(peopleOff.warnings).toEqual([{ key: 'peopleHidden', label: '2 PIC tidak akan tampil karena Penilaian per orang dimatikan' }]);
+        expect(computeReadiness({ ...complete, teamEnabled: true, teamQuestionCount: 1, teamRateeCount: 1 }).warnings).toEqual([]);
     });
 
     it('flags missing ratees, empty dimensions, no departments, no raters for LISTED only', () => {
@@ -585,6 +595,41 @@ describe('CsiPeriodService', () => {
             await service.setPics(HC, 'p1', ['pic-1'], ['d-hc']);
             const savedRatees = manager.saved.find((entry) => entry.target === CsiPeriodRatee)!.value;
             expect(savedRatees).toEqual([expect.objectContaining({ picId: 'pic-1', serviceCode: 'HCD', serviceFunction: 'People & Organization Development' })]);
+        });
+
+        describe('sections follow the picked ratees', () => {
+            const pic = { id: 'pic-1', scope: HC, nik: '1001', fullName: 'RARA', jobTitle: null, serviceCode: 'HCD', serviceFunction: null, bagian: null, siteId: 'site-a', userId: null, isActive: true };
+            /** Saved ratees land in the ratee table, so the section check sees them. */
+            const persistRatees = () => {
+                const save = manager.save;
+                manager.save = jest.fn(async (target: unknown, value: any) => {
+                    const saved = await save(target, value);
+                    if (target === CsiPeriodRatee) ratees.rows.push(...(Array.isArray(saved) ? saved : [saved]));
+                    return saved;
+                }) as any;
+            };
+            beforeEach(() => {
+                (service as any).org = { ...NO_PICS, findPics: async (_scope: string, ids: string[]) => (ids.includes(pic.id) ? [pic] : []) };
+                persistRatees();
+            });
+
+            it('setPics turns "Penilaian per orang" on when PICs are picked while it is off', async () => {
+                periods.rows[0] = basePeriod({ scope: HC, teamEnabled: true, individualEnabled: false });
+                await service.setPics(HC, 'p1', ['pic-1'], ['d-hc']);
+                expect(periods.rows[0]).toMatchObject({ individualEnabled: true, teamEnabled: true });
+            });
+
+            it('setTeamQuestions turns "Penilaian tim" on when a team is added while it is off', async () => {
+                periods.rows[0] = basePeriod({ scope: HC, teamEnabled: false, individualEnabled: true });
+                await service.setTeamQuestions(HC, 'p1', 'site-a', ['d-hc']);
+                expect(periods.rows[0]).toMatchObject({ teamEnabled: true, individualEnabled: true });
+            });
+
+            it('clearing every PIC never switches a section off', async () => {
+                periods.rows[0] = basePeriod({ scope: HC, teamEnabled: true, individualEnabled: true });
+                await service.setPics(HC, 'p1', [], []);
+                expect(periods.rows[0]).toMatchObject({ teamEnabled: true, individualEnabled: true });
+            });
         });
 
         it('ICT people get their team (from the role) and service function snapshotted; HC user people do not', async () => {
