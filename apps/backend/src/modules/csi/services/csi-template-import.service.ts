@@ -26,8 +26,13 @@ const SUGGESTION_POOL_MAX = 5000;
 const FALLBACK_NIK_PREFIX = 'TPL-';
 const FALLBACK_NIK_BYTES = 4;
 const REPLACE_WITH_PROBLEMS_MESSAGE = 'Perbaiki dulu baris bermasalah sebelum mengganti template';
-const CONCURRENT_IMPORT_MESSAGE = 'Template sedang diperbarui, coba lagi';
-const PG_UNIQUE_VIOLATION = '23505';
+export const CONCURRENT_TEMPLATE_MESSAGE = 'Template sedang diperbarui, coba lagi';
+export const PG_UNIQUE_VIOLATION = '23505';
+
+/** Serialises writers of one location template (import, PIC rename); held until the transaction ends. */
+export function lockTemplateLocation(manager: EntityManager, scope: ServiceScope, locationCode: string) {
+    return manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`csi-template:${scope}:${locationCode}`]);
+}
 
 export type CsiTemplateImportOptions = {
     commit: boolean; resolutions: Readonly<Record<string, PicResolution>>;
@@ -105,6 +110,11 @@ function aliasIndex<T>(rows: readonly T[], aliasesOf: (row: T) => readonly strin
 }
 const statusOf = (hit: Hit<unknown>) => (hit === 'ambiguous' ? 'ambiguous' : hit ? 'found' : null);
 const rowOf = <T>(hit: Hit<T>): T | null => (hit && hit !== 'ambiguous' ? hit : null);
+/** PIC masters by current name, then by a previous name kept by a rename (no NIK). */
+export const masterNameIndex = (masters: readonly CsiPic[]) => {
+    const find = mastersIndex(masters);
+    return (name: string) => find(name, null);
+};
 /** PIC masters by NIK, current name, then a previous name kept by a rename. */
 export const mastersIndex = (masters: readonly CsiPic[]) => identityIndex(masters, (row) => row.nik, (row) => row.fullName, (row) => row.aliases ?? []);
 /** Latest saved master per PIC name of the file: rows and service functions link through it, never via a stale copy. */
@@ -208,12 +218,12 @@ export class CsiTemplateImportService {
         try {
             return await this.dataSource.transaction(async (manager) => {
                 // One import per location at a time; the second waits and then replaces on top of the first.
-                await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`csi-template:${scope}:${code}`]);
+                await lockTemplateLocation(manager, scope, code);
                 return this.run(manager, scope, code, draft, options);
             });
         } catch (error) {
             // e.g. two first imports racing to create the template or a master/team (template edits are not locked).
-            if ((error as { code?: string })?.code === PG_UNIQUE_VIOLATION) throw new ConflictException(CONCURRENT_IMPORT_MESSAGE);
+            if ((error as { code?: string })?.code === PG_UNIQUE_VIOLATION) throw new ConflictException(CONCURRENT_TEMPLATE_MESSAGE);
             throw error;
         }
     }

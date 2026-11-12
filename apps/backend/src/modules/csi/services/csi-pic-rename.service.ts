@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
@@ -13,6 +13,7 @@ import { CsiPicView, picView } from '../org/csi-org.service';
 import { CSI_TEMPLATE_LOCATION_NAMES } from '../org/csi-template-locations';
 import { assertHcScope } from './csi-scope.util';
 import { surveyStage } from './csi-survey-stage.util';
+import { CONCURRENT_TEMPLATE_MESSAGE, lockTemplateLocation, PG_UNIQUE_VIOLATION } from './csi-template-import.service';
 
 export const CSI_PIC_NAME_MIN = 2;
 export const CSI_PIC_NAME_MAX = 150;
@@ -38,7 +39,8 @@ export function nextAliases(aliases: readonly string[] | null | undefined, oldNa
  * master's fullName (the old name kept as an alias so a re-import with the old name still links), every template row
  * linked to it (picName, refused when another row of that template already has the name), and the ratee snapshot of
  * draft surveys (DRAFT, or published but not started, without answers). Running, answered and finished surveys keep
- * the name they were created with.
+ * the name they were created with. Refused when another active master already has the name; the template locations
+ * it touches are locked like an import of them.
  */
 @Injectable()
 export class CsiPicRenameService {
@@ -50,17 +52,44 @@ export class CsiPicRenameService {
     async rename(scope: ServiceScope, id: string, fullName: string): Promise<CsiPicView> {
         assertHcScope(scope);
         const name = cleanPicName(fullName);
-        return this.dataSource.transaction(async (manager) => {
-            const repo = manager.getRepository(CsiPic);
-            const pic = await repo.findOne({ where: { id, scope } });
-            if (!pic) throw new NotFoundException(PIC_NOT_FOUND_MESSAGE);
-            if (pic.fullName !== name) {
-                await this.renameTemplateRows(manager, pic.id, normalizeName(name));
-                await this.renameDraftRatees(manager, pic.id, name);
-                await repo.save({ ...pic, fullName: name, aliases: nextAliases(pic.aliases, pic.fullName, name) });
-            }
-            return picView((await repo.findOne({ where: { id, scope }, relations: { user: true } }))!);
-        });
+        try {
+            return await this.dataSource.transaction((manager) => this.renameIn(manager, scope, id, name));
+        } catch (error) {
+            // e.g. a template row written with this name by a concurrent edit the lock does not cover.
+            if ((error as { code?: string })?.code === PG_UNIQUE_VIOLATION) throw new ConflictException(CONCURRENT_TEMPLATE_MESSAGE);
+            throw error;
+        }
+    }
+
+    private async renameIn(manager: EntityManager, scope: ServiceScope, id: string, name: string): Promise<CsiPicView> {
+        const repo = manager.getRepository(CsiPic);
+        const pic = await repo.findOne({ where: { id, scope } });
+        if (!pic) throw new NotFoundException(PIC_NOT_FOUND_MESSAGE);
+        if (pic.fullName !== name) {
+            await this.assertNameFree(manager, pic, name);
+            await this.lockTemplates(manager, scope, pic.id);
+            await this.renameTemplateRows(manager, pic.id, normalizeName(name));
+            await this.renameDraftRatees(manager, pic.id, name);
+            await repo.save({ ...pic, fullName: name, aliases: nextAliases(pic.aliases, pic.fullName, name) });
+        }
+        return picView((await repo.findOne({ where: { id, scope }, relations: { user: true } }))!);
+    }
+
+    /** Two active masters never share a (normalised) name: imports and the template editor link PICs by name. */
+    private async assertNameFree(manager: EntityManager, pic: CsiPic, name: string) {
+        const key = normalizeName(name);
+        const masters = await manager.getRepository(CsiPic).find({ where: { scope: pic.scope, isActive: true } });
+        const twin = masters.find((row) => row.id !== pic.id && normalizeName(row.fullName) === key);
+        if (twin) throw new BadRequestException(`Nama sudah dipakai PIC lain: ${twin.fullName}`);
+    }
+
+    /** Same advisory lock as the template import of each location whose rows this rename touches (sorted: no deadlock). */
+    private async lockTemplates(manager: EntityManager, scope: ServiceScope, picId: string) {
+        const rows = await manager.getRepository(CsiAssignmentTemplatePic).find({ where: { picId }, select: { id: true, templateId: true } });
+        const templateIds = [...new Set(rows.map((row) => row.templateId))];
+        if (!templateIds.length) return;
+        const templates = await manager.getRepository(CsiAssignmentTemplate).find({ where: { id: In(templateIds) } });
+        for (const code of [...new Set(templates.map((template) => template.locationCode))].sort()) await lockTemplateLocation(manager, scope, code);
     }
 
     private async renameTemplateRows(manager: EntityManager, picId: string, picName: string) {

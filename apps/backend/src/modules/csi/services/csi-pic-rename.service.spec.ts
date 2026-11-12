@@ -18,6 +18,7 @@ describe('CsiPicRenameService', () => {
     let tables: Record<string, ReturnType<typeof memoryTable>>;
     let service: CsiPicRenameService;
     let transaction: jest.Mock;
+    let query: jest.Mock;
 
     beforeEach(() => {
         tables = Object.fromEntries(['pics', 'templates', 'templatePics', 'ratees', 'periods', 'responses'].map((name) => [name, memoryTable()]));
@@ -45,7 +46,8 @@ describe('CsiPicRenameService', () => {
             [CsiPic, tables.pics], [CsiAssignmentTemplate, tables.templates], [CsiAssignmentTemplatePic, tables.templatePics],
             [CsiPeriodRatee, tables.ratees], [CsiPeriod, tables.periods], [CsiResponse, tables.responses],
         ]);
-        const manager = { getRepository: (target: unknown) => repositories.get(target) };
+        query = jest.fn(async () => []);
+        const manager = { getRepository: (target: unknown) => repositories.get(target), query };
         transaction = jest.fn(async (work: any) => work(manager));
         service = new CsiPicRenameService({ manager, transaction } as any);
         service.clock = () => NOW;
@@ -72,6 +74,33 @@ describe('CsiPicRenameService', () => {
         expect(tables.pics.rows[0].fullName).toBe(OLD);
         expect(tables.templatePics.rows[0].picName).toBe(OLD);
         expect(nameOf('r-p-draft')).toBe(OLD);
+    });
+
+    it("refuses another active master's current name (normalised, same scope); inactive or other-scope masters do not count", async () => {
+        tables.pics.rows.push(
+            { id: 'pic-mega', scope: HC, nik: '1002', fullName: 'Mega Dresti', aliases: [], isActive: true },
+            { id: 'pic-old', scope: HC, nik: '1003', fullName: 'LAMA SEKALI', aliases: [], isActive: false },
+            { id: 'pic-ict', scope: ServiceScope.ICT, nik: '1004', fullName: 'ICT ORANG', aliases: [], isActive: true },
+        );
+        await expect(service.rename(HC, 'pic-rara', ' mega.  dresti ')).rejects.toThrow(new BadRequestException('Nama sudah dipakai PIC lain: Mega Dresti'));
+        expect(tables.pics.rows[0].fullName).toBe(OLD);
+        expect(query).not.toHaveBeenCalled();
+        await expect(service.rename(HC, 'pic-rara', 'Lama Sekali')).resolves.toMatchObject({ fullName: 'Lama Sekali' });
+        await expect(service.rename(HC, 'pic-rara', 'ICT Orang')).resolves.toMatchObject({ fullName: 'ICT Orang' });
+    });
+
+    it('takes the import advisory lock of every template location it touches, sorted, before writing rows', async () => {
+        await service.rename(HC, 'pic-rara', 'Rara K');
+        expect(query.mock.calls).toEqual([
+            ['SELECT pg_advisory_xact_lock(hashtext($1))', ['csi-template:HC:KRW']],
+            ['SELECT pg_advisory_xact_lock(hashtext($1))', ['csi-template:HC:SMG']],
+        ]);
+        expect(query.mock.invocationCallOrder[1]).toBeLessThan(tables.templatePics.update.mock.invocationCallOrder[0]);
+    });
+
+    it('maps a unique violation to 409', async () => {
+        tables.templatePics.update.mockRejectedValueOnce(Object.assign(new Error('duplicate key'), { code: '23505' }));
+        await expect(service.rename(HC, 'pic-rara', 'Rara K')).rejects.toMatchObject({ status: 409, message: 'Template sedang diperbarui, coba lagi' });
     });
 
     it('validates the length and the PIC (scope, existence)', async () => {

@@ -16,7 +16,7 @@ import { CsiTemplateSeed, CsiTemplateSeedPic } from '../org/csi-template-excel';
 import { buildTemplateView, CsiTemplateView, lookupOf, resolveRater } from '../org/csi-template-view';
 import { suggestAccounts } from '../org/csi-account-suggest';
 import { CSI_TEMPLATE_HC_SMG_2026 } from '../org/templates/hc-smg-2026.data';
-import { hcDirectoryCandidates } from './csi-template-import.service';
+import { hcDirectoryCandidates, masterNameIndex, withCurrentNames } from './csi-template-import.service';
 import { buildBlankTemplate } from '../org/csi-template-blank';
 import { csiTemplateLocation } from '../org/csi-template-locations';
 
@@ -227,9 +227,12 @@ export class CsiAssignmentTemplateService {
     private async loadInto(manager: EntityManager, scope: ServiceScope, locationCode: string, name: string, seedPics: CsiTemplateSeedPic[]) {
         const picRepo = manager.getRepository(CsiPic);
         await this.ensurePicMaster(manager, scope, locationCode, seedPics);
-        const picIndex = buildNameIndex(await picRepo.find({ where: { scope } }), (row) => row.fullName);
-        const id = await this.merge(manager, scope, locationCode, name, seedPics, picIndex);
-        await this.fillPicServiceFunctions(picRepo, seedPics, picIndex);
+        const masters = await picRepo.find({ where: { scope } });
+        const picIndex = masterNameIndex(masters);
+        // A seed still naming a renamed PIC the old way merges into the row under its current name (no twin row).
+        const current = withCurrentNames({ format: 'list', pics: seedPics, teams: [], problems: [] }, masters).pics;
+        const id = await this.merge(manager, scope, locationCode, name, current, picIndex);
+        await this.fillPicServiceFunctions(picRepo, current, picIndex);
         return id;
     }
 
@@ -270,7 +273,7 @@ export class CsiAssignmentTemplateService {
     }
 
     private async matchPic(scope: ServiceScope, picName: string): Promise<string | null> {
-        return idOf(buildNameIndex(await this.csiPics.find({ where: { scope } }), (row) => row.fullName)(picName));
+        return idOf(masterNameIndex(await this.csiPics.find({ where: { scope } }))(picName));
     }
 
     /**
@@ -281,7 +284,7 @@ export class CsiAssignmentTemplateService {
     private async ensurePicMaster(manager: EntityManager, scope: ServiceScope, locationCode: string, seedPics: CsiTemplateSeedPic[]) {
         const picRepo = manager.getRepository(CsiPic);
         const all = await picRepo.find({ where: { scope } });
-        const index = buildNameIndex(all, (row) => row.fullName);
+        const index = masterNameIndex(all);
         const missing: CsiTemplateSeedPic[] = [];
         for (const seed of seedPics) {
             const hit = index(seed.picName);
