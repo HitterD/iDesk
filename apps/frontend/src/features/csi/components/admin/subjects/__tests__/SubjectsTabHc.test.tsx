@@ -20,7 +20,7 @@ const GROUPS: CsiSubjectGroup[] = [
 const NO_IMPACT: CsiTeamDeleteImpact = { blocked: [], draftSurveys: [], teamSectionOff: [], finishedSurveys: 0 };
 
 const hooks = vi.hoisted(() => ({
-    upload: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn(), setMembers: vi.fn(), impact: vi.fn(),
+    upload: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn(), setMembers: vi.fn(), impact: vi.fn(), updateSubject: vi.fn(),
 }));
 const pending = { isPending: false };
 vi.mock('../../../../hooks/useCsi', () => ({
@@ -28,7 +28,7 @@ vi.mock('../../../../hooks/useCsi', () => ({
     useRemoveCsiSubjectMember: () => ({ mutate: vi.fn(), ...pending }),
     useCsiUserSearch: () => ({ data: [{ id: 'hc9', fullName: 'Hana HC', email: 'h@x', jobTitle: 'HC Officer', siteId: 's1', site: { code: 'KRW', name: 'Karawang' } }], isFetching: false }),
     useCsiSubjects: () => ({ data: GROUPS, isLoading: false, isError: false, refetch: vi.fn() }),
-    useUpdateCsiSubject: () => ({ mutate: vi.fn(), ...pending }),
+    useUpdateCsiSubject: () => ({ mutate: hooks.updateSubject, ...pending }),
     useUploadCsiSubjectPhoto: () => ({ mutate: vi.fn(), mutateAsync: hooks.upload, ...pending }),
     useCreateCsiTeam: () => ({ mutate: vi.fn(), ...pending }),
 }));
@@ -126,6 +126,34 @@ describe('SubjectsTab (HC)', () => {
         await actor.click(within(sheet).getByRole('button', { name: 'Simpan' }));
         await waitFor(() => expect(hooks.setMembers).toHaveBeenCalledWith({ id: 't5', members: [{ userId: 'u1' }] }));
         expect(hooks.update).toHaveBeenCalledWith({ id: 't5', name: 'Tim Payroll', serviceCode: 'HCC' });
+    });
+
+    it('a PIC sheet edits the name; saving sends it with the subject update', async () => {
+        const actor = userEvent.setup();
+        render(<SubjectsTab scope="hc" />);
+        await actor.click(screen.getByRole('button', { name: /^Ubah Rara Kurnia/ }));
+        const sheet = screen.getByRole('dialog');
+        const name = within(sheet).getByLabelText('Nama');
+        expect(name).toHaveValue('Rara Kurnia');
+        await actor.clear(name);
+        await actor.type(name, ' R ');
+        expect(within(sheet).getByRole('button', { name: 'Simpan' })).toBeDisabled();
+        await actor.clear(name);
+        await actor.type(name, 'Rara  Kurnia Maharani');
+        await actor.click(within(sheet).getByRole('button', { name: 'Simpan' }));
+        expect(hooks.updateSubject).toHaveBeenCalledWith({ key: 'pic:p1', payload: expect.objectContaining({ name: 'Rara Kurnia Maharani' }) }, expect.anything());
+    });
+
+    it('an unchanged PIC name is not sent; a non-PIC person has no name field', async () => {
+        const actor = userEvent.setup();
+        render(<SubjectsTab scope="hc" />);
+        await actor.click(screen.getByRole('button', { name: /^Ubah Rara Kurnia/ }));
+        await actor.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Simpan' }));
+        expect(hooks.updateSubject.mock.calls[0][0].payload).not.toHaveProperty('name');
+        cleanup();
+        render(<SubjectsTab scope="hc" />);
+        await actor.click(screen.getByRole('button', { name: /^Ubah Andi Wijaya/ }));
+        expect(within(screen.getByRole('dialog')).queryByLabelText('Nama')).toBeNull();
     });
 
     it('deleting a custom team confirms in a dialog listing the draft surveys it leaves', async () => {

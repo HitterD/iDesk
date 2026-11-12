@@ -45,6 +45,7 @@ vi.mock('../../../../../api/csiHc.api', () => ({
         downloadBlankTemplate: vi.fn(async () => new Blob(['x'])),
         loadBundledTemplate: vi.fn(async () => TEMPLATE),
         updateTemplatePic: vi.fn(async () => TEMPLATE),
+        updatePic: vi.fn(async (_scope: string, id: string, patch: { fullName: string }) => ({ id, fullName: patch.fullName })),
         addTemplateRater: vi.fn(async () => TEMPLATE),
         templateAccountSuggestions: vi.fn(async () => []),
         removeTemplateRater: vi.fn(async () => TEMPLATE),
@@ -259,5 +260,25 @@ describe('TemplatesTab', () => {
         await userEvent.type(within(wizard).getByLabelText(/tanggal selesai/i), '2026-12-31');
         await userEvent.click(within(wizard).getByRole('button', { name: /lanjut/i }));
         expect(await within(wizard).findByRole('checkbox', { name: /semarang/i })).toBeChecked();
+    });
+
+    it('renames a linked PIC from its card (Enter saves, Escape cancels) and shows the new name', async () => {
+        const CsiHcApi = await api();
+        renderWithQuery(<TemplatesTab scope="hc" initialLocation="SMG" />);
+        const card = await screen.findByRole('region', { name: 'RARA KURNIA MAHARANI PONGDATU' });
+        expect(within(screen.getByRole('region', { name: 'JINGGA FERDASIWI' })).queryByRole('button', { name: /ubah nama/i })).toBeNull();
+        await userEvent.click(within(card).getByRole('button', { name: 'Ubah nama Rara Kurnia Maharani Pongdatu' }));
+        await userEvent.keyboard('{Escape}');
+        expect(within(card).queryByRole('textbox', { name: 'Nama PIC' })).toBeNull();
+        await userEvent.click(within(card).getByRole('button', { name: 'Ubah nama Rara Kurnia Maharani Pongdatu' }));
+        const input = within(card).getByRole('textbox', { name: 'Nama PIC' });
+        expect(input).toHaveValue('Rara Kurnia Maharani Pongdatu');
+        const renamed = { ...TEMPLATE, pics: [{ ...TEMPLATE.pics[0], picName: 'RARA KURNIA PONGDATU' }, TEMPLATE.pics[1]] };
+        vi.mocked(CsiHcApi.templates).mockResolvedValue({ templates: [renamed], bundledAvailable: [] });
+        await userEvent.clear(input);
+        await userEvent.type(input, 'Rara  Kurnia Pongdatu{Enter}');
+        expect(CsiHcApi.updatePic).toHaveBeenCalledWith('hc', 'pic-rara', { fullName: 'Rara Kurnia Pongdatu' });
+        expect(await screen.findByText('Rara Kurnia Pongdatu')).toBeInTheDocument();
+        expect(screen.queryByRole('textbox', { name: 'Nama PIC' })).toBeNull();
     });
 });

@@ -2,7 +2,7 @@ import api from '@/lib/api';
 import { exportFilename } from './csi.api';
 import type { CsiPeriodDetail, CsiScopeParam } from '../types';
 import type { AccountSuggestion, ApplyCsiTemplates, CreateCsiPeriodFromTemplates, CsiTemplateApplyManyReport, CsiPeriodFromTemplatesResult, CsiTemplateImportOptions } from '../hcTypes';
-import type { CsiDirectoryImportResult, CsiHcRater, CsiHcRecap, CsiPairsImportReport, CsiPicView, CsiReportAccess, CsiReportPeriods, CsiServiceReport, CsiServiceReportOwners, CsiTemplate, CsiTemplateApplyReport, CsiTemplateImportReport, CsiTemplateList, CsiUnitOption, CsiUnitRule, SetCsiPeriodPics } from '../hcTypes';
+import type { CsiDirectoryImportResult, CsiHcRater, CsiHcRecap, CsiPairsImportReport, CsiPicView, CsiReportAccess, CsiReportPeriods, CsiServiceReport, CsiServiceReportOwners, CsiTemplate, CsiTemplateApplyReport, CsiTemplateImportReport, CsiTemplateList, CsiUnitOption, CsiUnitRule, SetCsiPeriodPics, UpdateCsiPic } from '../hcTypes';
 
 const orgPath = (scope: CsiScopeParam) => `/csi/admin/${scope}/org`;
 const periodPath = (scope: CsiScopeParam, id: string) => `/csi/admin/${scope}/periods/${encodeURIComponent(id)}`;
@@ -103,7 +103,7 @@ export const CsiHcApi = {
     async pics(scope: CsiScopeParam, includeInactive = false): Promise<CsiPicView[]> {
         return (await api.get<CsiPicView[]>(`${orgPath(scope)}/pics`, { params: { includeInactive } })).data;
     },
-    async updatePic(scope: CsiScopeParam, id: string, patch: { isActive?: boolean; serviceFunction?: string | null }): Promise<CsiPicView> {
+    async updatePic(scope: CsiScopeParam, id: string, patch: UpdateCsiPic): Promise<CsiPicView> {
         return (await api.patch<CsiPicView>(`${orgPath(scope)}/pics/${encodeURIComponent(id)}`, patch)).data;
     },
     async uploadPicPhoto(scope: CsiScopeParam, id: string, file: File): Promise<CsiPicView> {

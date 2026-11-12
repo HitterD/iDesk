@@ -2,12 +2,13 @@ import { useRef, useState } from 'react';
 import { AlertTriangle, FileSpreadsheet, Pencil, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useCsiDirectory, useCsiPics, useImportCsiDirectory, useUpdateCsiPic } from '../../../hooks/useCsiHc';
+import { useCsiDirectory, useCsiPics, useImportCsiDirectory, useRenameCsiPic, useUpdateCsiPic } from '../../../hooks/useCsiHc';
 import type { CsiScopeParam } from '../../../types';
 import type { CsiPicView } from '../../../hcTypes';
 import { RateeAvatar } from '../../respond/RateeAvatar';
 import { AdminSection, EmptyNote, MUTED_TEXT } from '../AdminParts';
 import { titleCase } from './hcFormat';
+import { PicNameEditor } from './PicNameEditor';
 
 /**
  * Pengaturan → PIC HC: import "Data Hirarki Approver.xlsx" (employee directory + every HCC / HCD / HCS person as PIC)
@@ -95,15 +96,19 @@ function ServiceFunctionField({ pic, onSave }: { pic: CsiPicView; onSave: (value
     );
 }
 
-interface PicRowProps { pic: CsiPicView; onToggle: () => void; onServiceFunction: (value: string | null) => void; pending: boolean }
+interface PicRowProps {
+    pic: CsiPicView; onToggle: () => void; onServiceFunction: (value: string | null) => void; onRename: (fullName: string) => Promise<unknown>; pending: boolean;
+}
 
-function PicRow({ pic, onToggle, onServiceFunction, pending }: PicRowProps) {
+function PicRow({ pic, onToggle, onServiceFunction, onRename, pending }: PicRowProps) {
     return (
         <li className={cn('flex items-start gap-2.5 rounded-xl px-2 py-1.5', !pic.isActive && 'opacity-55')}>
             <RateeAvatar name={pic.fullName} avatarUrl={pic.photoUrl} size="sm" />
             {/* Names and titles wrap instead of being cut off. */}
             <span className="min-w-0 flex-1">
-                <span className="block break-words text-[13px] font-semibold leading-snug">{titleCase(pic.fullName)}</span>
+                <PicNameEditor display={titleCase(pic.fullName)} pending={pending} onSave={onRename}>
+                    <span className="min-w-0 break-words text-[13px] font-semibold leading-snug">{titleCase(pic.fullName)}</span>
+                </PicNameEditor>
                 <span className="block break-words text-[12px] leading-snug text-[hsl(var(--idesk-text-secondary))]">{titleCase(pic.jobTitle ?? '')}</span>
                 <ServiceFunctionField key={pic.serviceFunction ?? ''} pic={pic} onSave={onServiceFunction} />
                 <span className="mt-0.5 flex flex-wrap gap-1">
@@ -122,6 +127,7 @@ function PicRow({ pic, onToggle, onServiceFunction, pending }: PicRowProps) {
 export function PicsTab({ scope }: { scope: CsiScopeParam }) {
     const { data: pics = [], isLoading } = useCsiPics(scope, true);
     const update = useUpdateCsiPic(scope);
+    const rename = useRenameCsiPic(scope);
     const [service, setService] = useState<string | null>(null);
     const [onlyMissing, setOnlyMissing] = useState(false);
     const missing = pics.filter((pic) => pic.isActive && !hasBagian(pic)).length;
@@ -153,7 +159,8 @@ export function PicsTab({ scope }: { scope: CsiScopeParam }) {
                                     <div key={bagian} className="rounded-xl bg-[hsl(var(--idesk-surface))] p-2">
                                         <p className="mb-1 px-2 text-[11.5px] font-bold uppercase tracking-wide text-[hsl(var(--idesk-text-secondary))]">{`${titleCase(bagian)} · ${people.length}`}</p>
                                         <ul>{people.map((pic) => (
-                                            <PicRow key={pic.id} pic={pic} pending={update.isPending} onToggle={() => update.mutate({ id: pic.id, isActive: !pic.isActive })}
+                                            <PicRow key={pic.id} pic={pic} pending={update.isPending || rename.isPending} onToggle={() => update.mutate({ id: pic.id, isActive: !pic.isActive })}
+                                                onRename={(fullName) => rename.mutateAsync({ id: pic.id, fullName })}
                                                 onServiceFunction={(value) => value !== pic.serviceFunction && update.mutate({ id: pic.id, serviceFunction: value })} />
                                         ))}</ul>
                                     </div>

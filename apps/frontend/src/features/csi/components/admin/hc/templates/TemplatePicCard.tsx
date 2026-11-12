@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useConfirmRaters } from '../../../../hooks/useCsiHc';
+import { useConfirmRaters, useRenameCsiPic } from '../../../../hooks/useCsiHc';
 import type { CsiTemplatePic } from '../../../../hcTypes';
 import type { CsiScopeParam } from '../../../../types';
 import { titleCase } from '../hcFormat';
+import { PicNameEditor } from '../PicNameEditor';
 import { AddRaterField, RaterRow, type AddRaterBody } from './RaterRow';
 
 const FUNCTION_MAX = 150;
@@ -49,7 +50,8 @@ export interface TemplatePicCardProps {
 /** One PIC (or team) of a template: name, title, editable service function and the raters with their account match. */
 export function TemplatePicCard({ scope, templateId, pic, pending, onServiceFunction, onAddRater, onRemoveRater, onRemovePic }: TemplatePicCardProps) {
     const confirm = useConfirmRaters(scope);
-    const busy = pending || confirm.isPending;
+    const rename = useRenameCsiPic(scope);
+    const busy = pending || confirm.isPending || rename.isPending;
     const okIds = pic.raters.filter((rater) => rater.status === 'ok').map((rater) => rater.id);
     const confirmRows = (raterIds: string[]) => confirm.mutate({ raterIds, confirmed: true });
     const name = titleCase(pic.picName);
@@ -59,7 +61,13 @@ export function TemplatePicCard({ scope, templateId, pic, pending, onServiceFunc
             <header className="flex min-w-0 items-start gap-2">
                 <div className="min-w-0 flex-1">
                     <p className="flex min-w-0 items-start gap-1.5 text-[13.5px] font-bold">
-                        <span className="line-clamp-2 min-w-0 break-words" title={name}>{name}</span>
+                        {/* Only a linked PIC master can be renamed: the name then changes everywhere (Orang & foto, PIC HC, draft surveys). */}
+                        {pic.picId ? (
+                            <PicNameEditor display={name} pending={busy} className="flex-1"
+                                onSave={(fullName) => rename.mutateAsync({ id: pic.picId!, fullName })}>
+                                <span className="line-clamp-2 min-w-0 break-words" title={name}>{name}</span>
+                            </PicNameEditor>
+                        ) : <span className="line-clamp-2 min-w-0 break-words" title={name}>{name}</span>}
                         {pic.teamId && <span className="mt-0.5 shrink-0 rounded-full bg-[hsl(var(--idesk-sapphire)/.12)] px-1.5 text-[11px] font-semibold text-[hsl(var(--idesk-sapphire))]">Tim</span>}
                     </p>
                     <p className="break-words text-[12px] text-muted-foreground">{titleCase(pic.jobTitle ?? '')}{!pic.picId && !pic.teamId && ' · belum cocok dengan PIC master'}</p>

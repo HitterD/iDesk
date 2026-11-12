@@ -1,6 +1,11 @@
 /** HC per-PIC types (layanan HCC / HCD / HCS → bagian → PIC), mirroring the backend org module. */
 import type { CsiScoreBands } from './lib/csiTone';
 
+/** PIC master edit; `fullName` renames the PIC in its template rows and draft surveys too. */
+export interface UpdateCsiPic { isActive?: boolean; serviceFunction?: string | null; fullName?: string }
+export const CSI_PIC_NAME_MIN = 2;
+export const CSI_PIC_NAME_MAX = 150;
+
 export interface CsiPicView {
     id: string;
     nik: string;
