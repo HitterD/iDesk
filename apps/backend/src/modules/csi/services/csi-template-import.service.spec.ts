@@ -276,6 +276,27 @@ describe('CsiTemplateImportService', () => {
         expect(tables.pics.rows).toEqual([expect.objectContaining({ picName: 'RARA KURNIA', picId: 'pic-rara' })]);
     });
 
+    it('a file still using the old name of a renamed PIC links to that master under its new name (no twin master)', async () => {
+        seedTemplate();
+        pin('r-budi', 'u-budi', CONFIRMED_AT);
+        Object.assign(tables.masters.rows[0], { fullName: 'Rara Kurnia Pongdatu', aliases: ['RARA'] });
+        tables.pics.rows[0].picName = 'RARA KURNIA PONGDATU';
+        const buffer = await workbook([['HC Development', 'Rara', null, null, 'BUDI']]);
+        const dry = await service.importExcel(HC, 'SMG', buffer, options());
+        expect(dry).toMatchObject({ unresolved: [], newMasterPics: [], pics: { added: [], removed: [] }, keptConfirmations: 1 });
+        await service.importExcel(HC, 'SMG', buffer, options({ commit: true }));
+        expect(tables.masters.rows).toHaveLength(1);
+        expect(tables.pics.rows).toEqual([expect.objectContaining({ picName: 'RARA KURNIA PONGDATU', picId: 'pic-rara' })]);
+        expect(tables.raters.rows).toEqual([expect.objectContaining({ raterName: 'BUDI', userId: 'u-budi', confirmedAt: CONFIRMED_AT })]);
+    });
+
+    it("another master's current name wins over an alias", async () => {
+        Object.assign(tables.masters.rows[0], { fullName: 'RARA KURNIA', aliases: ['ERNA'] });
+        tables.masters.rows.push({ id: 'pic-erna', scope: HC, nik: '00002001', fullName: 'ERNA', aliases: [], serviceCode: 'HCS', siteId: 's-smg', serviceFunction: null, isActive: true });
+        await service.importExcel(HC, 'SMG', await workbook([['HC Services', 'ERNA', null, null, 'BUDI']]), options({ commit: true }));
+        expect(tables.pics.rows).toEqual([expect.objectContaining({ picName: 'ERNA', picId: 'pic-erna' })]);
+    });
+
     it('dry run with pending names keeps their old rows out of "PIC tidak ada lagi"; with the resolution it counts them', async () => {
         seedTemplate();
         addTemplatePic('p-erna', 'ERNA WATI', 'HCS', [['BUDI', null]]);

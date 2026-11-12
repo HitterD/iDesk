@@ -5,6 +5,8 @@ import { CsiTeamKind } from '../csi.constants';
 export const CSI_TAGLINE_MAX = 90;
 export const CSI_JOB_TITLE_MAX = 150;
 export const CSI_TEAM_NAME_MAX = 100;
+/** Longest subject name: a PIC master name (csi_pics.fullName). */
+export const CSI_SUBJECT_NAME_MAX = 150;
 
 const trimString = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
 /** Optional + nullable: validate only when a non-null value is sent (null clears the field). */
@@ -29,11 +31,11 @@ export class UpdateSubjectDto {
     @MaxLength(CSI_JOB_TITLE_MAX, { message: 'Fungsi pelayanan maksimal 150 karakter' })
     serviceFunction?: string | null;
 
-    /** Team subjects only. */
+    /** Teams (1–100, checked by the service) and HC PICs (2–150, a rename of the PIC master). */
     @ValidateIf((_object: object, value: unknown) => value !== undefined)
     @Transform(trimString)
-    @IsString({ message: 'Nama tim harus berupa teks' })
-    @Length(1, CSI_TEAM_NAME_MAX, { message: 'Nama tim harus terdiri dari 1–100 karakter' })
+    @IsString({ message: 'Nama harus berupa teks' })
+    @Length(1, CSI_SUBJECT_NAME_MAX, { message: 'Nama harus terdiri dari 1–150 karakter' })
     name?: string;
 }
 

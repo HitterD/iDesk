@@ -21,6 +21,10 @@ export class CsiPic {
     @Column({ type: 'varchar', length: 150 })
     fullName: string;
 
+    /** Previous names (normalised) after a rename: a template import naming the PIC the old way still links here. */
+    @Column({ type: 'varchar', length: 150, array: true, default: () => 'ARRAY[]::varchar[]' })
+    aliases: string[];
+
     @Column({ type: 'varchar', length: 150, nullable: true })
     jobTitle: string | null;
 

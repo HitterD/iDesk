@@ -76,22 +76,37 @@ export async function loadMasterContext(manager: EntityManager, scope: ServiceSc
     return { scope, site, accounts: lookupOf(accounts), findPerson: identityIndex(directory, (row) => row.nik, (row) => row.fullName) };
 }
 
-/** NIK first (normalised), then the unique normalised name. */
-export function identityIndex<T>(rows: readonly T[], nikOf: (row: T) => string | null, nameOf: (row: T) => string): IdentityIndex<T> {
+/**
+ * NIK first (normalised), then the unique normalised name, then (when given) the unique previous name: a current name
+ * always wins over another row's alias.
+ */
+export function identityIndex<T>(rows: readonly T[], nikOf: (row: T) => string | null, nameOf: (row: T) => string,
+    aliasesOf?: (row: T) => readonly string[]): IdentityIndex<T> {
     const byNik = new Map<string, T | 'ambiguous'>();
     rows.forEach((row) => {
         const nik = normalizeNik(nikOf(row));
         if (nik) byNik.set(nik, byNik.has(nik) ? 'ambiguous' : row);
     });
     const byName = buildNameIndex(rows, nameOf);
+    const byAlias = aliasesOf ? aliasIndex(rows, aliasesOf) : () => null;
     return (name, nik) => {
         const key = normalizeNik(nik);
-        return (key ? byNik.get(key) : undefined) ?? byName(name);
+        return (key ? byNik.get(key) : undefined) ?? byName(name) ?? byAlias(name);
     };
+}
+
+/** Alias → the single row that had it, or 'ambiguous'. */
+function aliasIndex<T>(rows: readonly T[], aliasesOf: (row: T) => readonly string[]): (name: string) => Hit<T> {
+    const index = new Map<string, T | 'ambiguous'>();
+    rows.forEach((row) => new Set((aliasesOf(row) ?? []).map(normalizeName).filter(Boolean)).forEach((key) => {
+        index.set(key, index.has(key) && index.get(key) !== row ? 'ambiguous' : row);
+    }));
+    return (name) => index.get(normalizeName(name)) ?? null;
 }
 const statusOf = (hit: Hit<unknown>) => (hit === 'ambiguous' ? 'ambiguous' : hit ? 'found' : null);
 const rowOf = <T>(hit: Hit<T>): T | null => (hit && hit !== 'ambiguous' ? hit : null);
-export const mastersIndex = (masters: readonly CsiPic[]) => identityIndex(masters, (row) => row.nik, (row) => row.fullName);
+/** PIC masters by NIK, current name, then a previous name kept by a rename. */
+export const mastersIndex = (masters: readonly CsiPic[]) => identityIndex(masters, (row) => row.nik, (row) => row.fullName, (row) => row.aliases ?? []);
 /** Latest saved master per PIC name of the file: rows and service functions link through it, never via a stale copy. */
 type MasterLinks = Map<string, CsiPic>;
 
@@ -154,6 +169,21 @@ export function newMasterOf(ctx: CsiMasterContext, pic: CsiMasterSeed): Partial<
     };
 }
 
+/**
+ * A file PIC named the way a master was called before a rename (an alias, and no master's current name) is read as
+ * that master's current name, so the template keeps one row per person under the edited name.
+ */
+export function withCurrentNames(draft: CsiTemplateDraft, masters: readonly CsiPic[]): CsiTemplateDraft {
+    const current = new Set(masters.map((row) => normalizeName(row.fullName)));
+    const byAlias = aliasIndex(masters, (row) => row.aliases ?? []);
+    const pics = draft.pics.map((pic) => {
+        const key = normalizeName(pic.picName);
+        const hit = current.has(key) ? null : rowOf(byAlias(key));
+        return hit ? { ...pic, picName: normalizeName(hit.fullName) } : pic;
+    });
+    return { ...draft, pics };
+}
+
 /** Only rows that will really create a master keep newMasterPic, so the report lists exactly what a commit creates. */
 function withoutLinkedMasters(state: ImportState, pics: ClassifiedPic[]): ClassifiedPic[] {
     const findMaster = mastersIndex(state.masters);
@@ -188,8 +218,9 @@ export class CsiTemplateImportService {
         }
     }
 
-    private async run(manager: EntityManager, scope: ServiceScope, code: string, draft: CsiTemplateDraft, options: CsiTemplateImportOptions) {
+    private async run(manager: EntityManager, scope: ServiceScope, code: string, file: CsiTemplateDraft, options: CsiTemplateImportOptions) {
         const state = await this.load(manager, scope, code);
+        const draft = withCurrentNames(file, state.masters);
         const classified = classifyDraft(draft, this.classifyContext(state, normalizeResolutions(options.resolutions)));
         const { unresolved } = classified;
         const pics = withoutLinkedMasters(state, classified.pics);

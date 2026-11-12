@@ -15,6 +15,7 @@ import { CsiPic } from '../entities/csi-pic.entity';
 import { CsiSubjectProfile } from '../entities/csi-subject-profile.entity';
 import { CsiTeamMember } from '../entities/csi-team-member.entity';
 import { CsiTeam } from '../entities/csi-team.entity';
+import { CsiPicRenameService } from './csi-pic-rename.service';
 import { parseSubjectKey, picSubjectKey, teamSubjectKey, userSubjectKey } from './csi-subject-key.util';
 
 /** Public prefix of uploaded CSI photos; only files under it are ever deleted. */
@@ -119,7 +120,11 @@ function assertLengths(dto: UpdateSubjectDto) {
     if (typeof dto.tagline === 'string' && dto.tagline.length > CSI_TAGLINE_MAX) throw new BadRequestException('Tagline maksimal 90 karakter');
     if (typeof dto.jobTitle === 'string' && dto.jobTitle.length > CSI_JOB_TITLE_MAX) throw new BadRequestException('Jabatan maksimal 150 karakter');
     if (typeof dto.serviceFunction === 'string' && dto.serviceFunction.trim().length > CSI_JOB_TITLE_MAX) throw new BadRequestException('Fungsi pelayanan maksimal 150 karakter');
-    if (dto.name !== undefined && (!dto.name || dto.name.length > CSI_TEAM_NAME_MAX)) {
+}
+
+/** Team names keep their 100-character limit; PIC names are checked by the rename (2–150). */
+function assertTeamName(name: string | undefined) {
+    if (name !== undefined && (!name || name.length > CSI_TEAM_NAME_MAX)) {
         throw new BadRequestException('Nama tim harus terdiri dari 1–100 karakter');
     }
 }
@@ -143,6 +148,7 @@ export class CsiSubjectService {
         @InjectRepository(CsiAssignmentTemplate) private readonly templates: Repository<CsiAssignmentTemplate>,
         @InjectRepository(CsiAssignmentTemplatePic) private readonly templatePics: Repository<CsiAssignmentTemplatePic>,
         @InjectRepository(CsiTeamMember) private readonly members: Repository<CsiTeamMember>,
+        private readonly picRename: CsiPicRenameService,
     ) { }
 
     /**
@@ -246,6 +252,7 @@ export class CsiSubjectService {
         if (ref.kind === 'pic') return this.updatePic(scope, ref.id, dto, fields);
         if (ref.kind === 'team') {
             if (dto.serviceFunction !== undefined) throw new BadRequestException('Fungsi pelayanan hanya untuk orang');
+            assertTeamName(dto.name);
             const team = await this.findTeam(scope, ref.id);
             return teamView(await this.teams.save({ ...team, ...fields, ...(dto.name !== undefined ? { name: dto.name } : {}) }));
         }
@@ -376,11 +383,15 @@ export class CsiSubjectService {
         }));
     }
 
-    /** Tagline / jabatan of an HC PIC live on csi_pics (no account needed); name and fungsi come from the PIC master. */
+    /**
+     * Tagline / jabatan of an HC PIC live on csi_pics (no account needed); fungsi comes from the PIC master. A name is
+     * the same rename as PIC HC (master, template rows, draft surveys).
+     */
     private async updatePic(scope: ServiceScope, picId: string, dto: UpdateSubjectDto,
         fields: Partial<{ tagline: string | null; jobTitle: string | null }>): Promise<CsiSubjectView> {
-        if (dto.name !== undefined) throw new BadRequestException('Nama hanya bisa diubah untuk tim');
         if (dto.serviceFunction !== undefined) throw new BadRequestException('Fungsi pelayanan PIC diatur di master PIC HC');
+        await this.findPic(scope, picId);
+        if (dto.name !== undefined) await this.picRename.rename(scope, picId, dto.name);
         const pic = await this.findPic(scope, picId);
         return this.picSubject(await this.pics.save({ ...pic, ...fields }));
     }

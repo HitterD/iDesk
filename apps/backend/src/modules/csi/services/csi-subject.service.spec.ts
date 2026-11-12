@@ -54,6 +54,7 @@ describe('CsiSubjectService', () => {
     let templatePics: ReturnType<typeof memoryRepository>;
     let members: ReturnType<typeof memoryRepository>;
     let service: CsiSubjectService;
+    let picRename: { rename: jest.Mock };
     let unlink: jest.SpyInstance;
 
     beforeEach(() => {
@@ -69,8 +70,10 @@ describe('CsiSubjectService', () => {
         templates = memoryRepository<any>([]);
         templatePics = memoryRepository<any>([]);
         members = memoryRepository<any>([]);
+        // The rename itself (template rows, draft surveys) is covered by csi-pic-rename.service.spec.
+        picRename = { rename: jest.fn(async (_scope: unknown, id: string, name: string) => { pics.rows.find((row) => row.id === id)!.fullName = name; }) };
         service = new CsiSubjectService(users as any, sites as any, teams as any, profiles as any,
-            pics as any, templates as any, templatePics as any, members as any);
+            pics as any, templates as any, templatePics as any, members as any, picRename as any);
         unlink = jest.spyOn(fs.promises, 'unlink').mockResolvedValue(undefined);
     });
 
@@ -296,8 +299,17 @@ describe('CsiSubjectService', () => {
                 expect(view).toMatchObject({ key: `pic:${P2}`, tagline: 'Rapi selalu' });
                 expect(pics.rows.find((row) => row.id === P2)!.tagline).toBe('Rapi selalu');
                 expect(profiles.rows).toEqual([]);
-                await expect(service.update(HC, `pic:${P2}`, { name: 'Lain' })).rejects.toBeInstanceOf(BadRequestException);
                 await expect(service.update(ICT, `pic:${P2}`, { tagline: 'x' })).rejects.toBeInstanceOf(NotFoundException);
+            });
+
+            it('pic key name renames the PIC master through the shared rename, tagline saved alongside', async () => {
+                const view = await service.update(HC, `pic:${P2}`, { name: 'Budi Santoso', tagline: 'Baru' });
+                expect(picRename.rename).toHaveBeenCalledWith(HC, P2, 'Budi Santoso');
+                expect(view).toMatchObject({ key: `pic:${P2}`, name: 'Budi Santoso', tagline: 'Baru' });
+                expect(pics.rows.find((row) => row.id === P2)).toMatchObject({ fullName: 'Budi Santoso', tagline: 'Baru' });
+                picRename.rename.mockClear();
+                await expect(service.update(ICT, `pic:${P2}`, { name: 'X Y' })).rejects.toBeInstanceOf(NotFoundException);
+                expect(picRename.rename).not.toHaveBeenCalled();
             });
 
             it('pic photo replaces the previous CSI upload on csi_pics', async () => {

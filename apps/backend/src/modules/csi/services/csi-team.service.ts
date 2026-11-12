@@ -4,7 +4,7 @@ import { DataSource, EntityManager, In } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { Site } from '../../sites/entities/site.entity';
 import { User } from '../../users/entities/user.entity';
-import { CsiPeriodPublishStatus, CsiRateeKind, CsiTeamKind } from '../csi.constants';
+import { CsiRateeKind, CsiTeamKind } from '../csi.constants';
 import { CSI_CUSTOM_TEAM_NAME_MAX } from '../dto/subject.dto';
 import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
@@ -16,7 +16,7 @@ import { CsiTeamMember } from '../entities/csi-team-member.entity';
 import { CsiTeam } from '../entities/csi-team.entity';
 import { normalizeName } from '../org/csi-name-match';
 import { lockUnlockedPeriod } from './csi-period-lock.util';
-import { computeStatus } from './csi-period.service';
+import { surveyStage } from './csi-survey-stage.util';
 import { assertHcScope } from './csi-scope.util';
 import { CsiSubjectView, teamView } from './csi-subject.service';
 
@@ -189,12 +189,10 @@ export class CsiTeamService {
         const plan: ImpactPlan = { blocked: [], draftSurveys: [], teamSectionOff: [], finishedSurveys: 0, draftRateeIds: [] };
         const ordered = [...periods].sort((a, b) => a.startDate.localeCompare(b.startDate) || a.title.localeCompare(b.title));
         for (const period of ordered) {
-            const status = computeStatus(period, now);
+            const stage = surveyStage(period, answered.has(period.id), now);
             const ref = { periodId: period.id, title: period.title };
-            const isDraft = period.publishStatus === CsiPeriodPublishStatus.DRAFT;
-            if (period.publishStatus === CsiPeriodPublishStatus.CANCELLED || (!isDraft && status === 'ENDED')) plan.finishedSurveys += 1;
-            else if (answered.has(period.id)) plan.blocked.push({ ...ref, reason: 'answered' });
-            else if (!isDraft && status === 'ACTIVE') plan.blocked.push({ ...ref, reason: 'running' });
+            if (stage === 'finished') plan.finishedSurveys += 1;
+            else if (stage !== 'draft') plan.blocked.push({ ...ref, reason: stage });
             else {
                 plan.draftSurveys.push(ref);
                 plan.draftRateeIds.push(...ratees.filter((ratee) => ratee.periodId === period.id).map((ratee) => ratee.id));
