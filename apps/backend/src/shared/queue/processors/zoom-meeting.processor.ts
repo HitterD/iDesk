@@ -80,7 +80,9 @@ export class ZoomMeetingProcessor {
         this.logger.log(`Processing reminder job for booking ${bookingId} (${minutesBefore}min before)`);
 
         try {
-            this.logger.log(`Scheduled reminder reached: booking ${bookingId}, ${minutesBefore} minutes before meeting.`);
+            // Reminders are sent by ZoomReminderService (a per-minute check that works without Redis); a queued
+            // job only records that its time came, so the reminder is never sent twice.
+            this.logger.log(`Scheduled reminder reached: booking ${bookingId}, ${minutesBefore} minutes before meeting (sent by ZoomReminderService).`);
             return { success: true, bookingId, minutesBefore };
         } catch (error) {
             this.logger.error(`Failed to send reminder for booking ${bookingId}: ${error.message}`);

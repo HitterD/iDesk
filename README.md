@@ -324,7 +324,6 @@ Below is the complete reference of environment variables read by the backend, th
 | `PAGE_ACCESS_CACHE_TTL`, `PAGE_ACCESS_MAX_DENIALS`, `PAGE_ACCESS_LOCKOUT_MINUTES` | Optional | Page access security lockout thresholds. Falls back to 300s cache / 10 denials / 15 min lockout. |
 | `REDIS_ENABLED`, `REDIS_HOST`, `REDIS_PORT`, `CACHE_TTL` | Optional | Falls back to in-memory cache and synchronous execution instead of Bull Redis queue. Cache TTL defaults to `300`s. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_SECURE` | Optional | Email notifications cannot be delivered. Initial values seed database email settings on first boot. |
-| `SLA_ADMIN_EMAIL` | Optional | SLA breach escalation alerts fall back to `admin@idesk.com`. |
 | `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET` | Optional | Server-to-Server OAuth Zoom meeting generation fails with unconfigured adapter warning. |
 | `ZOOM_WEBHOOK_SECRET` | Optional | Incoming Zoom webhook events fail HMAC SHA256 signature verification. |
 | `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_ID`, `OUTLOOK_CLIENT_ID` | Optional | Google Calendar / Outlook synchronization for Zoom bookings is disabled. |

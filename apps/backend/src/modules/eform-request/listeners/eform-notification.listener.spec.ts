@@ -12,6 +12,7 @@ describe('EFormNotificationListener', () => {
     const notificationCenter = {
         send: jest.fn().mockResolvedValue({ id: 'n1' }),
         sendToRoleAtSite: jest.fn().mockResolvedValue({ sent: 1 }),
+        findStaffAtSite: jest.fn().mockResolvedValue([]),
         emitActionItemsRefresh: jest.fn(),
     };
     const mailDispatch = { send: jest.fn().mockResolvedValue({ success: true }) };
@@ -39,7 +40,7 @@ describe('EFormNotificationListener', () => {
     });
 
     const managerApproved = async (formType: string, status: string) => {
-        userRepo.find.mockResolvedValue([
+        notificationCenter.findStaffAtSite.mockResolvedValue([
             { id: 'ops1', fullName: 'Ops Agent 1', email: 'ops1@example.com', role: UserRole.AGENT_OPERATIONAL_SUPPORT },
         ]);
         await listener.handleEFormManagerApproved({
@@ -103,5 +104,21 @@ describe('EFormNotificationListener', () => {
         expect(notificationCenter.sendToRoleAtSite).toHaveBeenCalledWith(
             UserRole.AGENT_OPERATIONAL_SUPPORT, 'site-1', expect.objectContaining({ title: 'Provisioning Diperlukan' }),
         );
+    });
+
+    it('sends each e-form event in-app once and the templated email once - no generic second email', async () => {
+        await listener.handleEFormRejected({
+            request: { id: 'ef-1', formType: 'VPN', requesterId: 'u-1', requesterEmail: 'u@example.com', requesterName: 'Budi', rejectionReason: 'x' } as any,
+        });
+        // The center is not asked for its EMAIL channel; the e-form template email is the only one.
+        expect(notificationCenter.send).toHaveBeenCalledWith(expect.not.objectContaining({ channels: expect.anything() }));
+        expect(notificationCenter.send).toHaveBeenCalledWith(expect.objectContaining({ link: '/eform-access/ef-1' }));
+        expect(mailDispatch.send).toHaveBeenCalledTimes(1);
+    });
+
+    it('emails ICT from the same site-scoped list as the in-app notice', async () => {
+        await managerApproved('WEBSITE', 'PENDING_ICT');
+        expect(notificationCenter.findStaffAtSite).toHaveBeenCalledWith([UserRole.AGENT_OPERATIONAL_SUPPORT], 'site-1');
+        expect(userRepo.find).not.toHaveBeenCalled();
     });
 });

@@ -1,7 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
-import { ScheduleModule } from '@nestjs/schedule';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 import { HealthGateway } from './health.gateway';
@@ -11,7 +10,7 @@ import { TraceCollectorService } from './services/trace-collector.service';
 @Module({
     imports: [
         ConfigModule,
-        ScheduleModule.forRoot(),
+        // ScheduleModule.forRoot() is registered once, in AppModule; a second copy risks running every cron twice.
     ],
     controllers: [HealthController],
     providers: [

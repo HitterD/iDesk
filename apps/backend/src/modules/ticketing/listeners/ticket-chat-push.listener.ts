@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { CacheService } from '../../../shared/core/cache/cache.service';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -35,6 +36,8 @@ export function ticketLinkFor(role: UserRole, ticketId: string): string {
 
 /** How many recipients of one reply are pushed at the same time; a busy ticket no longer opens them all at once. */
 export const CHAT_PUSH_CONCURRENCY = 5;
+/** One chat toast per ticket per person in this window; later messages wait for the in-app bell (grouped). */
+export const CHAT_PUSH_THROTTLE_SECONDS = 120;
 
 /**
  * Web Push (OS toast) for every chat message, iPop-style: one toast per ticket that
@@ -53,6 +56,7 @@ export class TicketChatPushListener {
         private readonly participants: Repository<TicketParticipant>,
         @InjectRepository(User)
         private readonly users: Repository<User>,
+        @Optional() private readonly cache?: CacheService,
     ) { }
 
     @OnEvent('ticket.replied', { async: true })
@@ -71,12 +75,14 @@ export class TicketChatPushListener {
 
     private async resolveRecipients(event: TicketRepliedEvent): Promise<Pick<User, 'id' | 'role'>[]> {
         const participantRows = await this.participants.find({ where: { ticketId: event.ticketId }, select: ['userId'] });
+        // Mentioned people get the "Anda disebut" toast for this message instead.
+        const mentioned = new Set(event.mentionedUserIds ?? []);
         const candidates = new Set<string>([
             event.ticketOwnerId,
             event.ticketCreatorId,
             event.ticketAssignedToId,
             ...participantRows.map((row) => row.userId),
-        ].filter((id): id is string => Boolean(id) && id !== event.senderId));
+        ].filter((id): id is string => Boolean(id) && id !== event.senderId && !mentioned.has(id as string)));
         if (candidates.size === 0) return [];
 
         const users = await this.users.find({ where: { id: In([...candidates]) }, select: ['id', 'role'] });
@@ -85,6 +91,7 @@ export class TicketChatPushListener {
 
     private async notify(user: Pick<User, 'id' | 'role'>, event: TicketRepliedEvent, body: string): Promise<void> {
         if (await this.gateway.isViewingTicket(user.id, event.ticketId)) return;
+        if (await this.throttled(user.id, event.ticketId)) return;
         const result = await this.push.send({
             notificationId: `${event.message.id}:${user.id}`,
             recipient: user.id,
@@ -99,5 +106,14 @@ export class TicketChatPushListener {
             },
         });
         if (!result.success) this.logger.debug(`Chat push to ${user.id} not delivered: ${result.error}`);
+    }
+
+    /** True when this person already got a chat toast for this ticket within the throttle window. */
+    private async throttled(userId: string, ticketId: string): Promise<boolean> {
+        if (!this.cache) return false;
+        const key = `push:chat:${userId}:${ticketId}`;
+        if (await this.cache.getAsync<number>(key)) return true;
+        await this.cache.setAsync(key, 1, CHAT_PUSH_THROTTLE_SECONDS);
+        return false;
     }
 }

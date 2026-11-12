@@ -57,6 +57,25 @@ describe('NotificationCenterService site isolation (no global fanout)', () => {
     (service as any).onModuleInit?.();
   });
 
+  describe('findUsersWithPageAccess', () => {
+    it('keeps active users whose preset, or role default, opens the page', async () => {
+      userRepo.find.mockResolvedValue([
+        { id: 'agent', role: UserRole.AGENT, appliedPresetId: null },
+        { id: 'dev', role: UserRole.AGENT_ORACLE, appliedPresetId: null },
+        { id: 'preset-off', role: UserRole.AGENT, appliedPresetId: 'p-off' },
+        { id: 'user-preset-on', role: UserRole.USER, appliedPresetId: 'p-on' },
+      ]);
+      entityManager.getRepository = jest.fn(() => ({
+        find: jest.fn().mockResolvedValue([{ id: 'p-off', pageAccess: { renewal: false } }, { id: 'p-on', pageAccess: { renewal: true } }]),
+      }));
+
+      const users = await service.findUsersWithPageAccess('renewal');
+
+      expect(users.map(u => u.id)).toEqual(['agent', 'user-preset-on']);
+      expect(userRepo.find.mock.calls[0][0].where).toEqual(expect.objectContaining({ isActive: true }));
+    });
+  });
+
   describe('sendToRoleAtSite', () => {
     it('without siteId returns {sent:0} and does not call global sendToRole (no fanout)', async () => {
       const sendToRoleSpy = jest.spyOn(service as any, 'sendToRole');
@@ -75,12 +94,12 @@ describe('NotificationCenterService site isolation (no global fanout)', () => {
       const result = await service.sendToRoleAtSite('ADMIN', 'site-spj', { type: 'TEST' as any, title: 't', message: 'm' });
 
       expect(result.sent).toBeGreaterThan(0);
-      // First call must be filtered by site
-      expect(userRepo.find).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ siteId: 'site-spj' }),
-        }),
-      );
+      // Active users at that site, plus active cross-site staff (no site) - never other sites.
+      const where = userRepo.find.mock.calls[0][0].where;
+      expect(where).toHaveLength(2);
+      expect(where[0]).toEqual(expect.objectContaining({ siteId: 'site-spj', isActive: true }));
+      expect(where[1]).toEqual(expect.objectContaining({ isActive: true }));
+      expect(where[1].siteId).toEqual(expect.objectContaining({ _type: 'isNull' }));
     });
 
     it('with siteId and zero matches does not fallback to global sendToRole', async () => {

@@ -14,5 +14,18 @@ export class TicketCreatedEvent {
         public readonly createdAt: Date,
         public readonly siteId?: string | null,
         public readonly ticketType?: string | null,
+        /** Staff who filed it on the requester's behalf; they already know about it. */
+        public readonly createdById?: string | null,
     ) { }
+}
+
+/**
+ * Internal: emitted after `ticket.created` once auto-assign has run. The notification listener tells the
+ * team about the new ticket only when nobody has it yet. Integrations keep listening to `ticket.created`.
+ */
+export const TICKET_ROUTED_EVENT = 'ticket.created.routed';
+
+export interface TicketRoutedPayload {
+    created: TicketCreatedEvent;
+    assignedToId: string | null;
 }

@@ -42,6 +42,11 @@ const MAX_CRITICAL_BANNER = 50;
 /** Older reply notifications (no referenceId) are matched to a deleted message within this window of its send time. */
 const REDACT_MATCH_WINDOW_MS = 2 * 60 * 1000;
 const escapeLike = (value: string): string => value.replace(/[\\%_]/g, '\\$&');
+/** Messages a grouped reply notification stands for: "[#N] 3 pesan baru" -> 3, a single "Pesan Baru dari X" -> 1. */
+function replyCountOf(title: string): number {
+    const m = /\] (\d+) pesan baru$/.exec(title);
+    return m ? Number(m[1]) : 1;
+}
 /** Upper bound for the unread list; the unread count endpoint reports the real total. */
 const MAX_UNREAD_LIST = 100;
 
@@ -499,6 +504,22 @@ export class NotificationService {
             ? `${senderName}: "${cleanSnippet}"`
             : `${senderName} membalas tiket #${ticketNumber}`;
 
+        // One row per ticket while it is unread: the next message updates it ("3 pesan baru") instead of
+        // adding a row per message to the bell.
+        const unread = await this.notificationRepo.findOne({
+            where: { userId, ticketId, type: NotificationType.TICKET_REPLY, isRead: false },
+            order: { createdAt: 'DESC' },
+        });
+        if (unread) {
+            const count = replyCountOf(unread.title) + 1;
+            return this.refreshGrouped(unread, {
+                title: `[#${ticketNumber}] ${count} pesan baru`,
+                message,
+                // The latest message, so deleting it still takes its snippet back.
+                ...(messageId ? { referenceId: messageId } : {}),
+            }, { ticketNumber, senderName });
+        }
+
         return this.create({
             userId,
             type: NotificationType.TICKET_REPLY,
@@ -508,7 +529,33 @@ export class NotificationService {
             // Unique per message, so the 24h referenceId dedup never merges two replies.
             ...(messageId ? { referenceId: messageId } : {}),
             link: `/tickets/${ticketId}`,
+            ticketNumber,
+            senderName,
         });
+    }
+
+    /**
+     * Updates a grouped unread notification with the latest event and moves it to the top, then tells the
+     * user's clients (bell, toast, SJA) the same way a new one does.
+     */
+    private async refreshGrouped(
+        existing: Notification,
+        changes: Pick<Notification, 'title' | 'message'> & { referenceId?: string },
+        display: NotificationDisplay,
+    ): Promise<Notification> {
+        // createdAt is a CreateDateColumn, which save() leaves alone; update() moves the row to the top.
+        const createdAt = new Date();
+        await this.notificationRepo.update({ id: existing.id }, { ...changes, createdAt });
+        const saved = { ...existing, ...changes, createdAt } as Notification;
+        const payload = { ...saved, userId: saved.userId, ...display };
+        try {
+            this.eventsGateway.server.to(`user:${saved.userId}`).emit(`notification:${saved.userId}`, payload);
+            this.eventsGateway.server.to(`user:${saved.userId}`).emit('notification:new', { userId: saved.userId, notification: payload });
+        } catch (e) { logger.warn(`Socket emit failed: ${e instanceof Error ? e.message : 'unknown error'}`); }
+        try {
+            await this.sjaAdapter.dispatchNotification(payload);
+        } catch (e) { logger.warn(`SJA dispatch failed: ${e instanceof Error ? e.message : 'unknown error'}`); }
+        return saved;
     }
 
     /**

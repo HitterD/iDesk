@@ -31,6 +31,7 @@ import { TicketMessageReactionService } from './services/ticket-message-reaction
 import { TicketMentionService } from './services/ticket-mention.service';
 import { TicketMessagesController } from './presentation/ticket-messages.controller';
 import { TicketMentionsController } from './presentation/ticket-mentions.controller';
+import { Notification } from '../notifications/entities/notification.entity';
 import { TicketParticipant } from './entities/ticket-participant.entity';
 import { TicketTemplate } from './entities/ticket-template.entity';
 import { TicketModule as TicketModuleEntity } from './entities/ticket-module.entity';
@@ -92,6 +93,7 @@ import { TicketNotificationService } from './services/ticket-notification.servic
 import { TicketStatsService } from './services/ticket-stats.service';
 import { TicketNotificationListener } from './listeners/ticket-notification.listener';
 import { TicketChatPushListener } from './listeners/ticket-chat-push.listener';
+import { TicketChatEmailDigestService } from './listeners/ticket-chat-email-digest.service';
 
 import { TicketReminder } from './entities/ticket-reminder.entity';
 import { TicketReminderService } from './services/ticket-reminder.service';
@@ -125,6 +127,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
             TicketAttribute,
             TimeEntry,
             NotificationPreference,
+            Notification,
             SlaAdjustment,
             TicketReminder,
             TicketAssignment,
@@ -199,6 +202,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         TicketStatsService,
         TicketNotificationListener,
         TicketChatPushListener,
+        TicketChatEmailDigestService,
     ],
     exports: [
         TicketLinkedRequestService,

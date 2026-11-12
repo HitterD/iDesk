@@ -10,7 +10,7 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { CacheService, CacheInvalidationService } from '../../../shared/core/cache';
-import { TicketCreatedEvent } from '../events/ticket-created.event';
+import { TICKET_ROUTED_EVENT, TicketCreatedEvent, TicketRoutedPayload } from '../events/ticket-created.event';
 import { WorkloadService } from '../../workload/workload.service';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
@@ -173,23 +173,22 @@ export class TicketCreateService {
 
             // Domain events + audit fire AFTER commit: listeners must only react
             // to a ticket that actually persisted (no phantom notifications on rollback).
-            this.eventEmitter.emit(
-                'ticket.created',
-                new TicketCreatedEvent(
-                    finalTicket.id,
-                    finalTicket.ticketNumber,
-                    finalTicket.title,
-                    finalTicket.priority,
-                    finalTicket.category,
-                    finalTicket.status,
-                    user.id,
-                    user.fullName,
-                    user.email,
-                    finalTicket.createdAt,
-                    finalTicket.siteId,
-                    finalTicket.ticketType,
-                ),
+            const createdEvent = new TicketCreatedEvent(
+                finalTicket.id,
+                finalTicket.ticketNumber,
+                finalTicket.title,
+                finalTicket.priority,
+                finalTicket.category,
+                finalTicket.status,
+                user.id,
+                user.fullName,
+                user.email,
+                finalTicket.createdAt,
+                finalTicket.siteId,
+                finalTicket.ticketType,
+                finalTicket.createdById ?? null,
             );
+            this.eventEmitter.emit('ticket.created', createdEvent);
 
             // Audit log for ticket creation
             this.auditService.logAsync({
@@ -247,6 +246,13 @@ export class TicketCreateService {
                     );
                 }
             }
+
+            // Team notice once routing is known: an auto-assigned ticket already has its PIC ("Ditugaskan"),
+            // so the team is told only about tickets still waiting for someone.
+            this.eventEmitter.emit(TICKET_ROUTED_EVENT, {
+                created: createdEvent,
+                assignedToId: finalTicket.assignedToId ?? null,
+            } satisfies TicketRoutedPayload);
 
             return finalTicket;
         } catch (error) {

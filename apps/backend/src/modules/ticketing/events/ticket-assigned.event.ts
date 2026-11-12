@@ -14,5 +14,7 @@ export class TicketAssignedEvent {
         public readonly ticketOwnerName?: string,
         /** Who made the assignment; equal to assigneeId on self-assign (takeover/auto-assign by status). */
         public readonly assignerId?: string,
+        /** Assigned by a status change (takeover); that change already emailed the requester. */
+        public readonly viaStatusChange?: boolean,
     ) { }
 }

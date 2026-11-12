@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
-import { TicketCreatedEvent } from '../events/ticket-created.event';
+import { In, Repository } from 'typeorm';
+import { TICKET_ROUTED_EVENT, TicketCreatedEvent, TicketRoutedPayload } from '../events/ticket-created.event';
 import { TicketUpdatedEvent } from '../events/ticket-updated.event';
 import { TicketAssignedEvent } from '../events/ticket-assigned.event';
 import { TicketRepliedEvent } from '../events/ticket-replied.event';
@@ -14,6 +14,7 @@ import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service'
 import { buildAppUrl } from '../../../shared/mail/app-url.util';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { TicketStatus } from '../entities/ticket.entity';
+import { TicketParticipant } from '../entities/ticket-participant.entity';
 import { NotificationType } from '../../notifications/entities/notification.entity';
 import { User } from '../../users/entities/user.entity';
 import { NotificationPreference } from '../../notifications/entities/notification-preference.entity';
@@ -23,6 +24,7 @@ import {
     isOracleDevCategory,
 } from '../utils/oracle-ticket-access.util';
 import { formatResolutionDeadline } from '../utils/resolution-deadline.util';
+import { statusChangeOf } from '../../notifications/utils/notification-copy.util';
 import { forEachWithConcurrency } from '../../../shared/core/utils/concurrency.util';
 
 /** How many agents of a pool are emailed at the same time when a ticket is created. */
@@ -40,70 +42,49 @@ export class TicketNotificationListener {
         private readonly userRepo: Repository<User>,
         @InjectRepository(NotificationPreference)
         private readonly prefRepo: Repository<NotificationPreference>,
+        @InjectRepository(TicketParticipant)
+        private readonly participantRepo: Repository<TicketParticipant>,
     ) { }
 
     @OnEvent('ticket.created')
     async handleTicketCreatedEvent(event: TicketCreatedEvent) {
         this.logger.log(`Handling ticket.created event for ticket ${event.ticketId}`);
+        // The requester made it, so no in-app notice about their own action; an email keeps the number on record.
+        await this.emailRequesterConfirmation(event);
+    }
 
-        // 1. Notify Requester (In-App)
+    /** Requester's receipt: the ticket number and a link, by email only. */
+    private async emailRequesterConfirmation(event: TicketCreatedEvent): Promise<void> {
+        if (!event.userEmail) return;
         try {
-            await this.notificationService.notifyTicketCreated(
-                event.userId,
-                event.ticketId,
-                event.ticketNumber,
-                event.title,
-            );
+            await this.mailDispatch.send({
+                to: event.userEmail,
+                subject: `Tiket #${event.ticketNumber} diterima - ${event.title}`,
+                template: 'notification',
+                context: {
+                    title: 'Tiket Diterima',
+                    message: `Tiket Anda #${event.ticketNumber} (${event.title}) sudah diterima tim IT. Kami akan memberi kabar saat tiket mulai ditangani.`,
+                    ticketId: event.ticketNumber,
+                    link: buildAppUrl(`/client/tickets/${event.ticketId}`),
+                    year: new Date().getFullYear(),
+                },
+            });
         } catch (error) {
-            this.logger.error('Failed to send ticket created notification to requester', error);
+            this.logger.error(`Failed to send ticket confirmation email to ${event.userEmail}`, error);
         }
+    }
 
-        // 2. Notify Agents (In-App & Email) precisely based on ticket category / team
+    /**
+     * The team hears about a new ticket once auto-assign has run, and only when nobody has it yet:
+     * an auto-assigned ticket reaches its PIC as "Ditugaskan" instead.
+     */
+    @OnEvent(TICKET_ROUTED_EVENT)
+    async handleTicketRoutedEvent({ created: event, assignedToId }: TicketRoutedPayload) {
+        if (assignedToId) return;
         try {
-            let targetAgents: User[] = [];
-            let emailSubjectPrefix = 'Tiket Baru';
-            let teamName = 'Operational Support';
-
-            if (isMobileDevCategory(event.category, event.ticketType)) {
-                // Mobile Dev Request: Notify AGENT_MOBILE_DEV only
-                targetAgents = await this.userRepo.find({
-                    where: { role: UserRole.AGENT_MOBILE_DEV as any, isActive: true },
-                });
-                emailSubjectPrefix = 'Permintaan Mobile Dev Baru';
-                teamName = 'Mobile Developer';
-            } else if (isWebDevCategory(event.category, event.ticketType)) {
-                // Web Dev Request: Notify AGENT_ORACLE
-                targetAgents = await this.userRepo.find({
-                    where: { role: UserRole.AGENT_ORACLE as any, isActive: true },
-                });
-                emailSubjectPrefix = 'Permintaan Web Dev Baru';
-                teamName = 'Web Developer';
-            } else if (isOracleDevCategory(event.category, event.ticketType)) {
-                // Oracle / K2 Request: Notify AGENT_ORACLE and AGENT_MOBILE_DEV
-                targetAgents = await this.userRepo.find({
-                    where: [
-                        { role: UserRole.AGENT_ORACLE as any, isActive: true },
-                        { role: UserRole.AGENT_MOBILE_DEV as any, isActive: true },
-                    ] as any,
-                });
-                emailSubjectPrefix = 'Permintaan Oracle/K2 Baru';
-                teamName = 'Oracle & Mobile Developer';
-            } else {
-                // General / IT Support: Notify AGENT_OPERATIONAL_SUPPORT (scoped to ticket siteId or cross-site)
-                targetAgents = event.siteId
-                    ? await this.userRepo.find({
-                        where: [
-                            { role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, siteId: event.siteId, isActive: true },
-                            { role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, siteId: IsNull(), isActive: true },
-                        ] as any,
-                    })
-                    : await this.userRepo.find({
-                        where: { role: UserRole.AGENT_OPERATIONAL_SUPPORT as any, isActive: true },
-                    });
-                emailSubjectPrefix = 'Tiket Baru';
-                teamName = 'Operational Support';
-            }
-
+            const { agents, subjectPrefix, teamName } = await this.resolveTeam(event);
+            // Whoever filed it (requester or staff on their behalf) already knows.
+            const targetAgents = agents.filter(a => a.id !== event.userId && a.id !== event.createdById);
             const agentIds = targetAgents.map(a => a.id);
 
             if (agentIds.length > 0) {
@@ -119,7 +100,7 @@ export class TicketNotificationListener {
             }
 
             const emailContext = {
-                title: emailSubjectPrefix,
+                title: subjectPrefix,
                 message: `Tiket baru #${event.ticketNumber} (${event.title}) diajukan oleh ${event.userFullName} dan menunggu penanganan tim ${teamName}.`,
                 ticketId: event.ticketNumber,
                 link: buildAppUrl(`/tickets/${event.ticketId}`),
@@ -129,13 +110,30 @@ export class TicketNotificationListener {
             await forEachWithConcurrency(targetAgents.filter(a => !!a.email), NOTIFY_FANOUT_CONCURRENCY, a =>
                 this.mailDispatch.send({
                     to: a.email,
-                    subject: `${emailSubjectPrefix}: #${event.ticketNumber} - ${event.title}`,
+                    subject: `${subjectPrefix}: #${event.ticketNumber} - ${event.title}`,
                     template: 'notification',
                     context: emailContext,
                 }).then(() => undefined, err => this.logger.error(`Failed to send new ticket email to ${a.email}: ${err.message}`)));
         } catch (error) {
             this.logger.error('Failed to notify agents about new ticket', error);
         }
+    }
+
+    /** The team that handles a new ticket. Developer teams serve every site; operational support is per site. */
+    private async resolveTeam(event: TicketCreatedEvent): Promise<{ agents: User[]; subjectPrefix: string; teamName: string }> {
+        const activeWithRoles = (roles: UserRole[]) => this.userRepo.find({ where: roles.map(role => ({ role: role as any, isActive: true })) as any });
+        if (isMobileDevCategory(event.category, event.ticketType)) {
+            return { agents: await activeWithRoles([UserRole.AGENT_MOBILE_DEV]), subjectPrefix: 'Permintaan Mobile Dev Baru', teamName: 'Mobile Developer' };
+        }
+        if (isWebDevCategory(event.category, event.ticketType)) {
+            return { agents: await activeWithRoles([UserRole.AGENT_ORACLE]), subjectPrefix: 'Permintaan Web Dev Baru', teamName: 'Web Developer' };
+        }
+        if (isOracleDevCategory(event.category, event.ticketType)) {
+            return { agents: await activeWithRoles([UserRole.AGENT_ORACLE, UserRole.AGENT_MOBILE_DEV]), subjectPrefix: 'Permintaan Oracle/K2 Baru', teamName: 'Oracle & Mobile Developer' };
+        }
+        // General / IT support: the ticket's site plus cross-site agents; a ticket without a site reaches nobody.
+        const agents = await this.notificationCenterService.findStaffAtSite([UserRole.AGENT_OPERATIONAL_SUPPORT], event.siteId);
+        return { agents, subjectPrefix: 'Tiket Baru', teamName: 'Operational Support' };
     }
 
     @OnEvent('ticket.updated')
@@ -198,7 +196,8 @@ export class TicketNotificationListener {
             }
         }
 
-        // 2. Email Notification (Exclusive to parties inside the ticket room: Requester & Assigned Agent)
+        // 2. Email (requester & PIC) only when the status changed; priority/category/SLA edits stay in-app.
+        if (!statusChangeOf(changes)) return;
         try {
             const isActorRequester = event.userId === ticket.user?.id;
             const isActorAssignee = event.userId === ticket.assignedToId || (ticket.assignedTo && event.userId === ticket.assignedTo.id);
@@ -255,7 +254,8 @@ export class TicketNotificationListener {
         // Self-assign (takeover / start by status, manual self-assign): no "assigned to you" notices.
         const isSelfAssign = Boolean(event.assignerId) && event.assignerId === event.assigneeId;
         if (!isSelfAssign) await this.notifyAssignee(event);
-        await this.notifyRequesterOfAssignment(event);
+        // A takeover by status already emailed the requester about that status change: one email, not two.
+        if (!event.viaStatusChange) await this.notifyRequesterOfAssignment(event);
     }
 
     private async notifyAssignee(event: TicketAssignedEvent): Promise<void> {
@@ -374,48 +374,16 @@ export class TicketNotificationListener {
             }
         }
 
-        // 2. In-App & SJA Desktop Toast Notification for Ticket Conversation Reply
+        // 2. In-app (+ SJA) "new message" for everyone in the conversation except the sender. Mentioned people
+        //    already got "Anda disebut" for this message. Rows are grouped per ticket while unread, and email
+        //    follows only if they stay unread (TicketChatEmailDigestService) - no email per message.
         try {
-            const isInternalNote = event.message?.isInternal === true;
+            const mentioned = new Set(event.mentionedUserIds ?? []);
+            const recipients = (await this.replyRecipients(event)).filter(id => !mentioned.has(id));
             const contentSnippet = event.message?.content || '';
-
-            // Rule A: Notify ticket requester/owner ONLY IF:
-            // - It is NOT an internal note (!isInternalNote)
-            // - The sender is NOT the ticket owner themself
-            if (!isInternalNote && event.ticketOwnerId && event.senderId !== event.ticketOwnerId) {
+            for (const userId of recipients) {
                 await this.notificationService.notifyTicketReply(
-                    event.ticketOwnerId,
-                    event.ticketId,
-                    event.ticketNumber,
-                    event.senderName,
-                    contentSnippet,
-                    event.message?.id,
-                );
-            }
-
-            // Rule A2: the staff member who filed it on the requester's behalf, same terms.
-            if (
-                !isInternalNote &&
-                event.ticketCreatorId &&
-                event.ticketCreatorId !== event.senderId &&
-                event.ticketCreatorId !== event.ticketOwnerId
-            ) {
-                await this.notificationService.notifyTicketReply(
-                    event.ticketCreatorId,
-                    event.ticketId,
-                    event.ticketNumber,
-                    event.senderName,
-                    contentSnippet,
-                    event.message?.id,
-                );
-            }
-
-            // Rule B: Notify assigned agent ONLY IF:
-            // - The ticket HAS an assigned agent (event.ticketAssignedToId)
-            // - The sender is NOT that assigned agent themself
-            if (event.ticketAssignedToId && event.senderId !== event.ticketAssignedToId) {
-                await this.notificationService.notifyTicketReply(
-                    event.ticketAssignedToId,
+                    userId,
                     event.ticketId,
                     event.ticketNumber,
                     event.senderName,
@@ -438,50 +406,22 @@ export class TicketNotificationListener {
         } catch (error) {
             this.logger.error('Failed to send reply notification', error);
         }
+    }
 
-        // 3. Email Notification (Bidirectional: Agent -> Requester, Requester -> Assignee)
-        try {
-            if (event.senderRole === UserRole.AGENT || event.senderRole === UserRole.ADMIN) {
-                if (event.ticketOwnerEmail && (!event.mentionedUserIds || !event.mentionedUserIds.includes(event.ticketOwnerId))) {
-                    await this.mailDispatch.send({
-                        to: event.ticketOwnerEmail,
-                        subject: `New Reply on Ticket #${event.ticketNumber}`,
-                        template: 'ticket-update',
-                        context: {
-                            name: event.ticketOwnerName,
-                            ticketId: event.ticketId,
-                            ticketNumber: event.ticketNumber,
-                            status: event.ticketStatus,
-                            title: event.ticketTitle,
-                            link: buildAppUrl(`/tickets/${event.ticketId}`),
-                            year: new Date().getFullYear(),
-                        },
-                    });
-                }
-            } else if (event.senderRole === UserRole.USER && event.ticketAssignedToId && event.ticketAssignedToId !== event.senderId) {
-                if (!event.mentionedUserIds || !event.mentionedUserIds.includes(event.ticketAssignedToId)) {
-                    const assignedAgent = await this.userRepo.findOne({ where: { id: event.ticketAssignedToId } });
-                    if (assignedAgent?.email) {
-                        await this.mailDispatch.send({
-                            to: assignedAgent.email,
-                            subject: `New Reply on Ticket #${event.ticketNumber}`,
-                            template: 'ticket-update',
-                            context: {
-                                name: assignedAgent.fullName,
-                                ticketId: event.ticketId,
-                                ticketNumber: event.ticketNumber,
-                                status: event.ticketStatus,
-                                title: event.ticketTitle,
-                                link: buildAppUrl(`/tickets/${event.ticketId}`),
-                                year: new Date().getFullYear(),
-                            },
-                        });
-                    }
-                }
-            }
-        } catch (error) {
-            this.logger.error(`Failed to send reply email: ${error.message}`, error);
-        }
+    /**
+     * People in a ticket conversation other than the sender: requester, the staff who filed it for them, the PIC
+     * and invited participants. Internal notes reach staff only.
+     */
+    private async replyRecipients(event: TicketRepliedEvent): Promise<string[]> {
+        if (event.message?.isSystemMessage) return [];
+        const isInternalNote = event.message?.isInternal === true;
+        const participantRows = await this.participantRepo.find({ where: { ticketId: event.ticketId }, select: ['userId'] });
+        const staffSide = [event.ticketAssignedToId, ...participantRows.map(row => row.userId)];
+        const requesterSide = isInternalNote ? [] : [event.ticketOwnerId, event.ticketCreatorId];
+        const ids = [...new Set([...requesterSide, ...staffSide].filter((id): id is string => Boolean(id) && id !== event.senderId))];
+        if (!isInternalNote || ids.length === 0) return ids;
+        const users = await this.userRepo.find({ where: { id: In(ids) }, select: ['id', 'role'] });
+        return users.filter(u => u.role !== UserRole.USER).map(u => u.id);
     }
 
     @OnEvent('ticket.auto-assigned')

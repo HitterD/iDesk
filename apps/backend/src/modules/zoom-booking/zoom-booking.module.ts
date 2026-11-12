@@ -30,6 +30,8 @@ import {
     ZoomBookingEventListener,
     ZoomSyncService,
 } from './services';
+import { ZoomReminderService } from './services/zoom-reminder.service';
+import { User } from '../users/entities/user.entity';
 
 // Controllers
 import {
@@ -56,6 +58,7 @@ import { NotificationModule } from '../notifications/notification.module';
             ZoomParticipant,
             ZoomSettings,
             ZoomAuditLog,
+            User,
         ]),
         AuditModule,
         // NotificationService: booking notifications reach the bell, toast and push like every other module.
@@ -80,6 +83,7 @@ import { NotificationModule } from '../notifications/notification.module';
         ZoomQueueService,
         ZoomBookingEventListener,
         ZoomSyncService,
+        ZoomReminderService,
         // Gateway
         ZoomGateway,
         // Seeder

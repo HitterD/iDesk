@@ -129,7 +129,8 @@ describe('Ticket Creation Oracle Guard', () => {
         } as any);
 
         // Ticket save + message save inside the transaction; emit + audit only AFTER commit
-        expect(order).toEqual(['tx:save', 'tx:save', 'emit:ticket.created', 'audit', 'emit:tv-board.ticket-changed']);
+        // The team notice (ticket.created.routed) waits for auto-assign, so it comes last.
+        expect(order).toEqual(['tx:save', 'tx:save', 'emit:ticket.created', 'audit', 'emit:tv-board.ticket-changed', 'emit:ticket.created.routed']);
         const event = eventEmitter.emit.mock.calls.find(([name]) => name === 'ticket.created')![1];
         expect(event.ticketId).toBe('t-created');
         expect(event.siteId).toBe('site-1');

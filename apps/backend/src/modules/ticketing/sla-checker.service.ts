@@ -1,13 +1,26 @@
-import { Injectable, Logger, Inject, Optional, forwardRef } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, IsNull, In } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from './entities/ticket.entity';
 import { MailDispatchService } from '../../shared/mail/mail-dispatch.service';
+import { buildAppUrl } from '../../shared/mail/app-url.util';
+import { NotificationService } from '../notifications/notification.service';
+import { NotificationCenterService } from '../notifications/notification-center.service';
+import { UserRole } from '../users/enums/user-role.enum';
+import { User } from '../users/entities/user.entity';
+import { NotificationType } from '../notifications/entities/notification.entity';
 
-import { SlaConfigService } from './sla-config.service';
+type BreachKind = 'resolution' | 'first_response';
 
+/** Managers of the ticket's site hear about a breach, so someone can step in. */
+const SLA_ESCALATION_ROLES = [UserRole.MANAGER];
+
+/**
+ * Marks tickets whose SLA ran out and tells the people who can act: the PIC (in-app + email) and the site's
+ * managers. Unassigned tickets go to the managers only. Each breach is claimed atomically
+ * (UPDATE ... RETURNING), so several instances never notify the same breach twice.
+ */
 @Injectable()
 export class SlaCheckerService {
     private readonly logger = new Logger(SlaCheckerService.name);
@@ -16,165 +29,96 @@ export class SlaCheckerService {
         @InjectRepository(Ticket)
         private ticketRepo: Repository<Ticket>,
         private readonly mailDispatch: MailDispatchService,
-        private readonly slaConfigService: SlaConfigService,
-        private readonly configService: ConfigService,
+        private readonly notificationService: NotificationService,
+        private readonly notificationCenter: NotificationCenterService,
     ) { }
 
     @Cron(CronExpression.EVERY_10_MINUTES)
     async checkSla() {
         this.logger.log('Running SLA Checker (Resolution + First Response)...');
-
-        // === Check Resolution Time SLA ===
         await this.checkResolutionSla();
-
-        // === Check First Response SLA ===
-
         await this.checkFirstResponseSla();
-
         this.logger.log('SLA Checker completed.');
     }
 
-    /**
-     * Check Resolution Time SLA
-     * Only checks tickets where SLA has started (slaStartedAt is set)
-     * 
-     * OPTIMIZED: Uses batch UPDATE instead of individual saves
-     * Before: N queries for N overdue tickets
-     * After: 2 queries (1 batch UPDATE + 1 SELECT for notifications)
-     */
+    /** Resolution SLA: only tickets whose SLA clock started; a vendor wait pauses it. */
     private async checkResolutionSla(): Promise<void> {
-        const now = new Date();
-
-        // Step 1: Find tickets that are now overdue (in DB, not in app)
-        const overdueTickets = await this.ticketRepo
-            .createQueryBuilder('ticket')
-            .leftJoinAndSelect('ticket.user', 'user')
-            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
-            .where('ticket.status IN (:...statuses)', {
-                statuses: [TicketStatus.IN_PROGRESS, TicketStatus.TODO]
-            })
-            .andWhere('ticket."isOverdue" = false')
-            .andWhere('ticket."slaTarget" IS NOT NULL')
-            .andWhere('ticket."slaStartedAt" IS NOT NULL')
-            .andWhere('ticket."slaTarget" < :now', { now })
-            .andWhere('ticket.status != :waitingVendor', { waitingVendor: TicketStatus.WAITING_VENDOR })
-            .getMany();
-
-        if (overdueTickets.length === 0) {
-            return;
-        }
-
-        // Step 2: Batch UPDATE all overdue tickets in a single query
-        const overdueIds = overdueTickets.map(t => t.id);
-        await this.ticketRepo
-            .createQueryBuilder()
-            .update(Ticket)
-            .set({ isOverdue: true })
-            .where('id IN (:...ids)', { ids: overdueIds })
-            .execute();
-
-        this.logger.warn(`Marked ${overdueTickets.length} tickets as OVERDUE (batch update)`);
-
-        // Step 3: Send notifications (async, non-blocking)
-        for (const ticket of overdueTickets) {
-            this.logger.warn(`Ticket #${ticket.ticketNumber || ticket.id} is OVERDUE!`);
-            // Send notification without awaiting to avoid blocking
-            this.sendOverdueNotifications(ticket, 'resolution').catch(err => {
-                this.logger.error(`Failed to send overdue notification for ticket ${ticket.id}: ${err.message}`);
-            });
-        }
+        const ids = await this.claim(
+            `UPDATE "tickets" SET "isOverdue" = true
+             WHERE "status" IN ($1, $2) AND "isOverdue" = false
+               AND "slaTarget" IS NOT NULL AND "slaStartedAt" IS NOT NULL AND "slaTarget" < $3
+             RETURNING "id"`,
+            [TicketStatus.IN_PROGRESS, TicketStatus.TODO, new Date()],
+        );
+        await this.notifyAll(ids, 'resolution');
     }
 
-    /**
-     * Check First Response Time SLA
-     * Checks tickets that haven't received first response yet
-     * 
-     * OPTIMIZED: Uses batch UPDATE instead of individual saves
-     * Before: N queries for N breached tickets
-     * After: 2 queries (1 batch UPDATE + 1 SELECT for notifications)
-     */
+    /** First response SLA: tickets nobody has answered yet. */
     private async checkFirstResponseSla(): Promise<void> {
-        const now = new Date();
+        const excluded = [...TICKET_INACTIVE_STATUSES, TicketStatus.WAITING_VENDOR];
+        const ids = await this.claim(
+            `UPDATE "tickets" SET "isFirstResponseBreached" = true
+             WHERE "firstResponseAt" IS NULL AND "firstResponseTarget" IS NOT NULL
+               AND "isFirstResponseBreached" = false AND "firstResponseTarget" < $1
+               AND "status" <> ALL($2::text[])
+             RETURNING "id"`,
+            [new Date(), excluded],
+        );
+        await this.notifyAll(ids, 'first_response');
+    }
 
-        // Step 1: Find tickets with breached first response SLA (in DB, not in app)
-        const breachedTickets = await this.ticketRepo
-            .createQueryBuilder('ticket')
-            .leftJoinAndSelect('ticket.user', 'user')
-            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
-            .where('ticket."firstResponseAt" IS NULL')
-            .andWhere('ticket."firstResponseTarget" IS NOT NULL')
-            .andWhere('ticket."isFirstResponseBreached" = false')
-            .andWhere('ticket.status NOT IN (:...excludedStatuses)', {
-                excludedStatuses: [...TICKET_INACTIVE_STATUSES, TicketStatus.WAITING_VENDOR]
-            })
-            .andWhere('ticket."firstResponseTarget" < :now', { now })
-            .getMany();
+    /** Runs the marking UPDATE and returns the ids this instance claimed. */
+    private async claim(sql: string, params: unknown[]): Promise<string[]> {
+        const result = await this.ticketRepo.query(sql, params);
+        // pg returns [rows, count] for UPDATE ... RETURNING through TypeORM; tolerate a plain row list too.
+        const rows: Array<{ id: string }> = Array.isArray(result?.[0]) ? result[0] : result ?? [];
+        return rows.map(r => r.id);
+    }
 
-        if (breachedTickets.length === 0) {
-            return;
-        }
-
-        // Step 2: Batch UPDATE all breached tickets in a single query
-        const breachedIds = breachedTickets.map(t => t.id);
-        await this.ticketRepo
-            .createQueryBuilder()
-            .update(Ticket)
-            .set({ isFirstResponseBreached: true })
-            .where('id IN (:...ids)', { ids: breachedIds })
-            .execute();
-
-        this.logger.warn(`Marked ${breachedTickets.length} tickets as First Response SLA Breached (batch update)`);
-
-        // Step 3: Send notifications (async, non-blocking)
-        for (const ticket of breachedTickets) {
-            this.logger.warn(`First Response SLA Breached for ticket #${ticket.ticketNumber || ticket.id}`);
-            this.sendOverdueNotifications(ticket, 'first_response').catch(err => {
-                this.logger.error(`Failed to send first response breach notification for ticket ${ticket.id}: ${err.message}`);
-            });
+    private async notifyAll(ids: string[], kind: BreachKind): Promise<void> {
+        if (ids.length === 0) return;
+        this.logger.warn(`${ids.length} ticket(s) breached ${kind} SLA`);
+        const tickets = await this.ticketRepo.find({ where: ids.map(id => ({ id })), relations: ['assignedTo'] });
+        for (const ticket of tickets) {
+            await this.sendOverdueNotifications(ticket, kind).catch(err =>
+                this.logger.error(`Failed to send SLA notification for ticket ${ticket.id}: ${err.message}`));
         }
     }
 
-    /**
-     * Send SLA breach notifications
-     */
-    private async sendOverdueNotifications(ticket: Ticket, type: 'resolution' | 'first_response'): Promise<void> {
+    private async sendOverdueNotifications(ticket: Ticket, kind: BreachKind): Promise<void> {
         const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
-        const subject = type === 'resolution'
-            ? `⚠️ SLA BREACH: Ticket #${ticketNumber} Overdue!`
-            : `⚠️ FIRST RESPONSE SLA BREACH: Ticket #${ticketNumber}`;
+        const managers = await this.notificationCenter.findStaffAtSite(SLA_ESCALATION_ROLES, ticket.siteId, ticket.assignedToId ? [ticket.assignedToId] : []);
+        const recipients: User[] = [...(ticket.assignedTo ? [ticket.assignedTo] : []), ...managers];
+        const what = kind === 'resolution' ? 'melewati target waktu penyelesaian (SLA)' : 'belum mendapat respons pertama dalam target SLA';
+        const message = `Tiket #${ticketNumber} (${ticket.title}) ${what}. PIC: ${ticket.assignedTo?.fullName ?? 'belum ada'}.`;
 
-        const message = type === 'resolution'
-            ? `Ticket #${ticketNumber} has exceeded its resolution time SLA.`
-            : `Ticket #${ticketNumber} has not received first response within SLA.`;
-
-        // 1. Email to Admin (externalized configuration)
-        const adminEmail = this.configService.get<string>('SLA_ADMIN_EMAIL', 'admin@idesk.com');
-        try {
-            await this.mailDispatch.send({
-                to: adminEmail,
-                subject,
-                html: `
-                    <h1>${type === 'resolution' ? 'SLA Breach Alert' : 'First Response SLA Alert'}</h1>
-                    <p>${message}</p>
-                    <ul>
-                        <li><strong>Ticket:</strong> #${ticketNumber}</li>
-                        <li><strong>Title:</strong> ${ticket.title}</li>
-                        <li><strong>Priority:</strong> ${ticket.priority}</li>
-                        <li><strong>Status:</strong> ${ticket.status}</li>
-                        <li><strong>Assigned To:</strong> ${ticket.assignedTo?.fullName || 'Unassigned'}</li>
-                        <li><strong>Created:</strong> ${ticket.createdAt}</li>
-                        ${ticket.slaStartedAt ? `<li><strong>SLA Started:</strong> ${ticket.slaStartedAt}</li>` : ''}
-                        ${ticket.slaTarget ? `<li><strong>SLA Target:</strong> ${ticket.slaTarget}</li>` : ''}
-                    </ul>
-                    <p style="color: red; font-weight: bold;">Please take immediate action.</p>
-                `,
+        for (const user of recipients) {
+            await this.notificationService.create({
+                userId: user.id,
+                type: NotificationType.SLA_BREACHED,
+                title: kind === 'resolution' ? 'SLA terlewati' : 'Respons pertama terlambat',
+                message,
+                ticketId: ticket.id,
+                // One per ticket and breach kind, even if the check runs again.
+                referenceId: `${ticket.id}_sla_${kind}`,
+                link: `/tickets/${ticket.id}`,
+                ticketNumber,
             });
-            this.logger.log(`SLA breach email sent to ${adminEmail}`);
-        } catch (e) {
-            this.logger.error(`Failed to send SLA email: ${e.message}`);
+            if (!user.email) continue;
+            // Template email: every value is HTML-escaped by Handlebars, never pasted into raw HTML.
+            await this.mailDispatch.send({
+                to: user.email,
+                subject: `SLA: Tiket #${ticketNumber} ${kind === 'resolution' ? 'melewati target' : 'belum direspons'}`,
+                template: 'notification',
+                context: {
+                    title: kind === 'resolution' ? 'SLA Terlewati' : 'Respons Pertama Terlambat',
+                    message,
+                    ticketId: ticketNumber,
+                    link: buildAppUrl(`/tickets/${ticket.id}`),
+                    year: new Date().getFullYear(),
+                },
+            }).catch(err => this.logger.error(`SLA email to ${user.email} failed: ${err.message}`));
         }
-
-        // 2. Log for monitoring
-        this.logger.log(`[SLA BREACH] Type: ${type}, Ticket: #${ticketNumber}, Priority: ${ticket.priority}`);
+        this.logger.log(`[SLA BREACH] ${kind}, ticket #${ticketNumber}, ${recipients.length} recipient(s)`);
     }
 }

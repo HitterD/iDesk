@@ -71,6 +71,8 @@ export interface ScheduleConfirmedPayload {
   requestId: string;
   scheduleId: string;
   technicianId: string;
+  /** Who picked the slot: the owner, or staff on their behalf. */
+  actorId?: string | null;
   scheduledStart: Date;
   scheduledEnd: Date;
 }

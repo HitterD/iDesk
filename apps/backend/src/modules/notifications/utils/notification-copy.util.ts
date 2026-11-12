@@ -69,3 +69,15 @@ export function withWho(sentence: string, who: string | null | undefined): strin
 export function picOf(sentence: string, assigneeName: string | null | undefined): string | null {
     return assigneeName && !sentence.includes('PIC kini') ? `PIC ${assigneeName}` : null;
 }
+
+/**
+ * The new status when the change list moved the ticket to another status, else null. Emails about a ticket go out
+ * only for these; priority, category and SLA edits stay in-app.
+ */
+export function statusChangeOf(changes: string[]): string | null {
+    for (const entry of changes.flatMap((change) => change.split(CHANGE_SEPARATOR))) {
+        const m = entry.trim().match(STATUS);
+        if (m && m[1].toUpperCase() !== m[2].toUpperCase()) return m[2].toUpperCase();
+    }
+    return null;
+}

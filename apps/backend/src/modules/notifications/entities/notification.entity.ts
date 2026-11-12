@@ -142,4 +142,8 @@ export class Notification {
 
     @CreateDateColumn()
     createdAt: Date;
+
+    /** When a follow-up email about this (still unread) notification went out; chat replies use it. */
+    @Column({ type: 'timestamp', nullable: true })
+    emailedAt?: Date | null;
 }

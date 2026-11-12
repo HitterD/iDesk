@@ -1,12 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { EFormRequest, EFormStatus } from '../entities';
-import { User } from '../../users/entities/user.entity';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { NotificationType } from '../../notifications/entities/notification.entity';
-import { ICT_ROLES } from '../eform-roles.constants';
+import { runOncePerPeriod } from '../../../shared/core/utils/run-exclusive';
+import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
+import { UserRole } from '../../users/enums/user-role.enum';
 
 @Injectable()
 export class EFormExpirationReminderCron {
@@ -15,17 +16,21 @@ export class EFormExpirationReminderCron {
   constructor(
     @InjectRepository(EFormRequest)
     private readonly eformRepo: Repository<EFormRequest>,
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
     private readonly notificationCenter: NotificationCenterService,
+    private readonly dataSource: DataSource,
   ) {}
 
   @Cron('30 7 * * *', { timeZone: 'Asia/Jakarta', name: 'eform-expiration-reminder' })
   async runDaily() {
     this.logger.log('Starting daily E-Form expiration reminder scan...');
     try {
-      const scannedCount = await this.scanAndNotify();
-      this.logger.log(`E-Form expiration reminder scan completed. Processed ${scannedCount} confirmed requests.`);
+      // Once per WIB day across replicas and restarts.
+      const scannedCount = await runOncePerPeriod(this.dataSource, 'eform-expiration-reminder', localDateKey(new Date(), DEFAULT_TIMEZONE), () => this.scanAndNotify());
+      if (scannedCount === undefined) {
+        this.logger.log('E-Form expiration reminders already sent today; skipped.');
+        return;
+      }
+      this.logger.log(`E-Form expiration reminder scan completed. Sent ${scannedCount} reminders.`);
     } catch (error: any) {
       this.logger.error(`Error during E-Form expiration reminder scan: ${error.message}`, error.stack);
     }
@@ -59,16 +64,6 @@ export class EFormExpirationReminderCron {
 
     const now = new Date();
     now.setHours(0, 0, 0, 0);
-
-    // Fetch active ICT admins/agents to notify in bulk
-    const ictUsers = await this.userRepo.find({
-      where: {
-        role: In(ICT_ROLES as any),
-        isActive: true,
-      },
-      select: ['id', 'email', 'fullName'],
-    });
-    const ictUserIds = ictUsers.map(u => u.id);
 
     let reminderCount = 0;
 
@@ -122,10 +117,14 @@ export class EFormExpirationReminderCron {
           }
         }
 
-        // 2. Notify ICT agent/admins in bulk
-        if (ictUserIds.length > 0) {
+        // 2. ICT only on the last day, to verify the access is closed: operational support at the request's
+        //    site plus cross-site staff (fail-closed when the request has no site). H-7/H-3 are the requester's.
+        if (diffDays === 0) {
           try {
-            await this.notificationCenter.sendBulk(ictUserIds, {
+            const ictUsers = await this.notificationCenter.findStaffAtSite(
+              [UserRole.AGENT_OPERATIONAL_SUPPORT], req.siteId, req.requesterId ? [req.requesterId] : [],
+            );
+            await this.notificationCenter.sendBulk(ictUsers.map(u => u.id), {
               type: NotificationType.EFORM_EXPIRY_REMINDER,
               title: reminderTitle,
               message: reminderMessageForIct,
@@ -133,7 +132,7 @@ export class EFormExpirationReminderCron {
               link: `/eform-access/${req.id}`,
             });
           } catch (err: any) {
-            this.logger.warn(`Failed to send bulk reminder to ICT users: ${err.message}`);
+            this.logger.warn(`Failed to send expiry reminder to ICT for ${req.id}: ${err.message}`);
           }
         }
       }

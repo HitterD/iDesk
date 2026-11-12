@@ -18,7 +18,7 @@ export const useNotificationCenter = () => {
     const queryClient = useQueryClient();
     const { user } = useAuth();
     const { socket, isConnected } = useSocket();
-    const { playSound, enabled: soundEnabled, toggleSound } = useSoundNotification();
+    const { enabled: soundEnabled, toggleSound } = useSoundNotification();
     const userRole = (user?.role || 'ADMIN') as UserRole;
 
     const [activeTab, setActiveTab] = useState<TabValue>('all');
@@ -89,13 +89,9 @@ export const useNotificationCenter = () => {
     useEffect(() => {
         if (!socket || !user) return;
 
-        const handleNewNotification = (data: any) => {
-            // Play sound for new notification if enabled
-            if (data.requiresAcknowledge) {
-                playSound('CRITICAL');
-            } else {
-                playSound('MESSAGE');
-            }
+        // The sound plays with the toast (InAppNotificationToast, on every page); here only the list refreshes.
+        const handleNewNotification = () => {
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
         };
 
         const handleAcknowledged = () => {
@@ -109,7 +105,7 @@ export const useNotificationCenter = () => {
             socket.off(`notification:${user.id}`, handleNewNotification);
             socket.off(`notification:acknowledged:${user.id}`, handleAcknowledged);
         };
-    }, [socket, user, playSound, queryClient]);
+    }, [socket, user, queryClient]);
 
     const filteredNotifications = useMemo(() => {
         if (!searchQuery.trim()) return notifications;

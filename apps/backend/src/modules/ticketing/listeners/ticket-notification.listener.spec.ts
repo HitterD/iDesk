@@ -13,6 +13,7 @@ import { TicketUpdatedEvent } from '../events/ticket-updated.event';
 import { TicketRepliedEvent } from '../events/ticket-replied.event';
 import { TicketCancelledEvent } from '../events/ticket-cancelled.event';
 import { TicketStatus } from '../entities/ticket.entity';
+import { TicketParticipant } from '../entities/ticket-participant.entity';
 
 describe('TicketNotificationListener', () => {
     let listener: TicketNotificationListener;
@@ -27,7 +28,9 @@ describe('TicketNotificationListener', () => {
     };
     const notificationCenterService = {
         emitActionItemsRefresh: jest.fn(),
+        findStaffAtSite: jest.fn().mockResolvedValue([]),
     };
+    const participantRepo = { find: jest.fn().mockResolvedValue([]) };
     const mailDispatch = {
         send: jest.fn().mockResolvedValue({ success: true }),
     };
@@ -48,15 +51,19 @@ describe('TicketNotificationListener', () => {
                 { provide: MailDispatchService, useValue: mailDispatch },
                 { provide: getRepositoryToken(User), useValue: userRepo },
                 { provide: getRepositoryToken(NotificationPreference), useValue: prefRepo },
+                { provide: getRepositoryToken(TicketParticipant), useValue: participantRepo },
             ],
         }).compile();
 
         listener = mod.get(TicketNotificationListener);
         jest.clearAllMocks();
+        userRepo.findOne.mockReset();
+        participantRepo.find.mockResolvedValue([]);
+        notificationCenterService.findStaffAtSite.mockResolvedValue([]);
     });
 
-    it('handleTicketCreatedEvent sends email to AGENT_OPERATIONAL_SUPPORT for general ticket', async () => {
-        userRepo.find.mockResolvedValue([
+    it('a new general ticket reaches operational support at its site (plus cross-site)', async () => {
+        notificationCenterService.findStaffAtSite.mockResolvedValue([
             { id: 'ops-1', fullName: 'Ops Agent', email: 'ops@example.com', role: UserRole.AGENT_OPERATIONAL_SUPPORT },
         ]);
 
@@ -75,9 +82,9 @@ describe('TicketNotificationListener', () => {
             'SERVICE',
         );
 
-        await listener.handleTicketCreatedEvent(event);
+        await listener.handleTicketRoutedEvent({ created: event, assignedToId: null });
 
-        expect(notificationService.notifyTicketCreated).toHaveBeenCalledWith('u-1', 't-1', 'TK-2026-0001', 'Printer Rusak');
+        expect(notificationCenterService.findStaffAtSite).toHaveBeenCalledWith([UserRole.AGENT_OPERATIONAL_SUPPORT], 'site-spj');
         expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({
             to: 'ops@example.com',
             subject: expect.stringContaining('Tiket Baru: #TK-2026-0001'),
@@ -85,7 +92,7 @@ describe('TicketNotificationListener', () => {
     });
 
     it('handleTicketCreatedEvent emails a large agent pool a few at a time, not all at once', async () => {
-        userRepo.find.mockResolvedValue(Array.from({ length: 30 }, (_, i) => (
+        notificationCenterService.findStaffAtSite.mockResolvedValue(Array.from({ length: 30 }, (_, i) => (
             { id: `ops-${i}`, fullName: `Ops ${i}`, email: `ops${i}@example.com`, role: UserRole.AGENT_OPERATIONAL_SUPPORT })));
         let running = 0;
         let peak = 0;
@@ -97,10 +104,10 @@ describe('TicketNotificationListener', () => {
             return { success: true };
         });
 
-        await listener.handleTicketCreatedEvent(new TicketCreatedEvent(
+        await listener.handleTicketRoutedEvent({ created: new TicketCreatedEvent(
             't-1', 'TK-2026-0001', 'Printer Rusak', 'HIGH', 'HARDWARE', 'OPEN',
             'u-1', 'User Requester', 'user@example.com', new Date(), 'site-spj', 'SERVICE',
-        ));
+        ), assignedToId: null });
 
         expect(mailDispatch.send).toHaveBeenCalledTimes(30);
         expect(peak).toBeLessThanOrEqual(NOTIFY_FANOUT_CONCURRENCY);
@@ -128,7 +135,7 @@ describe('TicketNotificationListener', () => {
             'ORACLE_REQUEST',
         );
 
-        await listener.handleTicketCreatedEvent(event);
+        await listener.handleTicketRoutedEvent({ created: event, assignedToId: null });
 
         expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({
             to: 'oracle@example.com',
@@ -160,7 +167,7 @@ describe('TicketNotificationListener', () => {
             'WEB_DEV_REQUEST',
         );
 
-        await listener.handleTicketCreatedEvent(event);
+        await listener.handleTicketRoutedEvent({ created: event, assignedToId: null });
 
         expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({
             to: 'oracle@example.com',
@@ -188,7 +195,7 @@ describe('TicketNotificationListener', () => {
             'MOBILE_DEV_REQUEST',
         );
 
-        await listener.handleTicketCreatedEvent(event);
+        await listener.handleTicketRoutedEvent({ created: event, assignedToId: null });
 
         expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({
             to: 'mobile@example.com',
@@ -270,12 +277,12 @@ describe('TicketNotificationListener', () => {
             assignedToId: 'agent-1',
         };
 
-        const event = new TicketUpdatedEvent('t-6', 'TK-2026-0006', 'agent-1', ['status'], ticket);
+        const event = new TicketUpdatedEvent('t-6', 'TK-2026-0006', 'agent-1', ['Status changed from TODO to IN_PROGRESS'], ticket);
 
         await listener.handleTicketUpdatedEvent(event);
 
         // Requester gets an in-app notice titled with the problem and signed by the PIC
-        expect(notificationService.notifyTicketUpdated).toHaveBeenCalledWith('u-1', 't-6', 'TK-2026-0006', 'status', {
+        expect(notificationService.notifyTicketUpdated).toHaveBeenCalledWith('u-1', 't-6', 'TK-2026-0006', 'Status changed from TODO to IN_PROGRESS', {
             title: 'VPN Issue', assigneeName: 'Agent Budi',
         });
         // Requester gets email
@@ -300,7 +307,7 @@ describe('TicketNotificationListener', () => {
             assignedToId: 'agent-1',
         };
 
-        const event = new TicketUpdatedEvent('t-7', 'TK-2026-0007', 'u-1', ['status'], ticket);
+        const event = new TicketUpdatedEvent('t-7', 'TK-2026-0007', 'u-1', ['Status changed from IN_PROGRESS to RESOLVED'], ticket);
 
         await listener.handleTicketUpdatedEvent(event);
 
@@ -315,38 +322,69 @@ describe('TicketNotificationListener', () => {
         }));
     });
 
-    it('handleTicketRepliedEvent sends email to Assigned Agent when Requester replies', async () => {
-        userRepo.findOne.mockResolvedValueOnce({
-            id: 'agent-1',
-            fullName: 'Agent Budi',
-            email: 'budi@example.com',
-        });
-
+    it('a reply sends no email per message - unread chat is emailed later by the digest', async () => {
         const event = new TicketRepliedEvent(
-            't-8',
-            'TK-2026-0008',
-            'Laptop Setup',
-            'IN_PROGRESS',
-            'u-1',
-            'ani@example.com',
-            'Ani User',
-            'agent-1',
-            { id: 'm-1', content: 'Terima kasih atas infonya' } as any,
-            'u-1',
-            'Ani User',
-            UserRole.USER,
-            [],
+            't-8', 'TK-2026-0008', 'Laptop Setup', 'IN_PROGRESS', 'u-1', 'ani@example.com', 'Ani User', 'agent-1',
+            { id: 'm-1', content: 'Terima kasih atas infonya' } as any, 'u-1', 'Ani User', UserRole.USER, [],
         );
 
         await listener.handleTicketRepliedEvent(event);
 
-        expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({
-            to: 'budi@example.com',
-            subject: expect.stringContaining('New Reply on Ticket #TK-2026-0008'),
-        }));
-        expect(mailDispatch.send).not.toHaveBeenCalledWith(expect.objectContaining({
-            to: 'ani@example.com',
-        }));
+        expect(mailDispatch.send).not.toHaveBeenCalled();
+        expect(notificationService.notifyTicketReply).toHaveBeenCalledWith('agent-1', 't-8', 'TK-2026-0008', 'Ani User', 'Terima kasih atas infonya', 'm-1');
+        expect(notificationService.notifyTicketReply).not.toHaveBeenCalledWith('u-1', expect.anything(), expect.anything(), expect.anything(), expect.anything(), expect.anything());
+    });
+
+    it('participants get the reply in-app; internal notes reach staff only; mentioned people get only the mention', async () => {
+        participantRepo.find.mockResolvedValue([{ userId: 'staff-p' }, { userId: 'user-p' }]);
+        userRepo.find.mockResolvedValue([{ id: 'agent-1', role: UserRole.AGENT }, { id: 'staff-p', role: UserRole.AGENT }, { id: 'user-p', role: UserRole.USER }]);
+        userRepo.findOne.mockResolvedValue({ id: 'staff-p', email: 'p@example.com', fullName: 'P', role: UserRole.AGENT });
+
+        await listener.handleTicketRepliedEvent(new TicketRepliedEvent(
+            't-8', 'TK-2026-0008', 'Laptop', 'IN_PROGRESS', 'u-1', 'ani@example.com', 'Ani', 'agent-1',
+            { id: 'm-2', content: 'internal', isInternal: true } as any, 'agent-2', 'Budi', UserRole.AGENT, ['staff-p'],
+        ));
+
+        const recipients = notificationService.notifyTicketReply.mock.calls.map((c: any[]) => c[0]);
+        expect(recipients).toEqual(['agent-1']);
+    });
+
+    it('takeover by status sends the requester one email (the status one), not a second "assigned" email', async () => {
+        await listener.handleTicketAssignedEvent(new TicketAssignedEvent(
+            't-7', 'TK-2026-0007', 'agent-1', 'Budi', 'budi@example.com', 'Budi',
+            'Network', 'IN_PROGRESS', 'requester@example.com', 'Ani', 'agent-1', true,
+        ));
+        expect(mailDispatch.send).not.toHaveBeenCalled();
+    });
+
+    it('priority-only changes stay in-app, no email', async () => {
+        const ticket: any = {
+            id: 't-6', ticketNumber: 'TK-2026-0006', title: 'VPN', status: TicketStatus.IN_PROGRESS,
+            user: { id: 'u-1', fullName: 'Client', email: 'client@example.com' }, assignedToId: 'agent-1',
+            assignedTo: { id: 'agent-1', fullName: 'Budi', email: 'budi@example.com' },
+        };
+        await listener.handleTicketUpdatedEvent(new TicketUpdatedEvent('t-6', 'TK-2026-0006', 'agent-1', ['Priority changed from LOW to HIGH'], ticket));
+        expect(notificationService.notifyTicketUpdated).toHaveBeenCalled();
+        expect(mailDispatch.send).not.toHaveBeenCalled();
+    });
+
+    it('a new ticket: the requester gets an email receipt only; an auto-assigned ticket is not broadcast to the team', async () => {
+        const created = new TicketCreatedEvent(
+            't-1', 'TK-2026-0001', 'Printer', 'HIGH', 'HARDWARE', 'OPEN', 'u-1', 'Ani', 'ani@example.com', new Date(), 'site-spj', 'SERVICE', 'agent-9',
+        );
+        await listener.handleTicketCreatedEvent(created);
+        expect(notificationService.notifyTicketCreated).not.toHaveBeenCalled();
+        expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'ani@example.com' }));
+
+        mailDispatch.send.mockClear();
+        await listener.handleTicketRoutedEvent({ created, assignedToId: 'agent-3' });
+        expect(notificationCenterService.findStaffAtSite).not.toHaveBeenCalled();
+        expect(mailDispatch.send).not.toHaveBeenCalled();
+
+        notificationCenterService.findStaffAtSite.mockResolvedValue([{ id: 'agent-9', email: 'a9@x.co' }, { id: 'ops-2', email: 'o2@x.co' }]);
+        await listener.handleTicketRoutedEvent({ created, assignedToId: null });
+        // Staff who filed it for the requester is left out.
+        expect(mailDispatch.send.mock.calls.map((c: any[]) => c[0].to)).toEqual(['o2@x.co']);
     });
 
     it('handleTicketRepliedEvent ties each reply notification to its message, so a delete can take the snippet back', async () => {

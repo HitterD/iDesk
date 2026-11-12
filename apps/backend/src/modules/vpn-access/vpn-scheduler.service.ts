@@ -1,12 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { DataSource, Repository, In } from 'typeorm';
 import { VpnAccess, VpnStatusCreate } from './entities/vpn-access.entity';
 import { NotificationService } from '../notifications/notification.service';
 import { NotificationType, NotificationCategory } from '../notifications/entities/notification.entity';
 import { User } from '../users/entities/user.entity';
-import { UserRole } from '../users/enums/user-role.enum';
+import { NotificationCenterService } from '../notifications/notification-center.service';
+import { runOncePerPeriod } from '../../shared/core/utils/run-exclusive';
+import { DEFAULT_TIMEZONE, localDateKey } from '../sla-config/business-hours.calc';
 
 @Injectable()
 export class VpnSchedulerService {
@@ -15,9 +17,9 @@ export class VpnSchedulerService {
     constructor(
         @InjectRepository(VpnAccess)
         private readonly vpnRepo: Repository<VpnAccess>,
-        @InjectRepository(User)
-        private readonly userRepo: Repository<User>,
         private readonly notificationService: NotificationService,
+        private readonly notificationCenter: NotificationCenterService,
+        private readonly dataSource: DataSource,
     ) { }
 
     @Cron('0 8 * * *', { name: 'vpn-reminder-check', timeZone: 'Asia/Jakarta' })
@@ -25,7 +27,12 @@ export class VpnSchedulerService {
         this.logger.log('Checking VPN expirations (H-1 User / H+1 ICT)...');
 
         try {
-            await this.processExpirations();
+            // Once per WIB day across replicas and restarts.
+            const ran = await runOncePerPeriod(this.dataSource, 'vpn-reminder-check', localDateKey(new Date(), DEFAULT_TIMEZONE), async () => {
+                await this.processExpirations();
+                return true;
+            });
+            if (!ran) this.logger.log('VPN reminders already checked today; skipped.');
         } catch (error) {
             this.logger.error('Failed to check VPN expirations:', error);
         }
@@ -40,9 +47,8 @@ export class VpnSchedulerService {
             where: { statusCreateVpn: In([VpnStatusCreate.SELESAI, VpnStatusCreate.PROSES]) },
         });
 
-        const admins = await this.userRepo.find({
-            where: { role: In([UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT]) },
-        });
+        // Active people who work the VPN tab of the Renewal Hub - not every staff account.
+        const admins = await this.notificationCenter.findUsersWithPageAccess('renewal');
 
         for (const vpn of activeVpns) {
             const expiry = new Date(vpn.tanggalNonAktif);
@@ -56,34 +62,36 @@ export class VpnSchedulerService {
 
             // 1. Check for H-1 (Tomorrow is expiry) or already passed but never sent
             if (daysUntilExpiry <= 1 && !vpn.statusUserH1) {
-                // Sent to User (Logically email is sent here, physically tracking in DB)
-                vpn.statusUserH1 = `Email Sent ${dateStr}`;
+                // Marks the H-1 step as done (no email is sent from here).
+                vpn.statusUserH1 = `Notified ${dateStr}`;
                 needsSave = true;
                 this.logger.log(`[H-1] Sending expiry warning to User: ${vpn.namaUser}`);
 
-                // Backup existing in-app notification logic just to managers/admins for visibility
-                this.sendInAppNotification(
+                await this.sendInAppNotification(
                     admins,
                     vpn,
                     NotificationType.VPN_EXPIRY_D1,
-                    `⚠️ VPN Access Expiring SOON: ${vpn.namaUser}`,
-                    `VPN access for ${vpn.namaUser} will expire at ${expiry.toLocaleDateString('id-ID')}. H-1 notification marked.`
+                    `Akses VPN segera berakhir: ${vpn.namaUser}`,
+                    `Akses VPN ${vpn.namaUser} berakhir pada ${expiry.toLocaleDateString('id-ID')}.`,
+                    true,
                 );
             }
 
             // 2. Check for H+1 (Yesterday was expiry, meaning it is currently expired for 1 day)
             // daysUntilExpiry < 0 means it has expired. daysUntilExpiry <= -1 means H+1
             if (daysUntilExpiry <= -1 && !vpn.statusIctH1) {
-                vpn.statusIctH1 = `Email Sent ${dateStr}`;
+                vpn.statusIctH1 = `Notified ${dateStr}`;
                 needsSave = true;
                 this.logger.log(`[H+1] Sending expired info to ICT: ${vpn.namaUser}`);
 
-                this.sendInAppNotification(
+                // Expired: ICT must close the account.
+                await this.sendInAppNotification(
                     admins,
                     vpn,
                     NotificationType.VPN_EXPIRY_D1, // Using closest valid enum
-                    `🚨 VPN Access EXPIRED: ${vpn.namaUser}`,
-                    `VPN access for ${vpn.namaUser} has EXPIRED. System marked H+1 for ICT action.`
+                    `Akses VPN sudah berakhir: ${vpn.namaUser}`,
+                    `Akses VPN ${vpn.namaUser} sudah berakhir. Nonaktifkan akunnya.`,
+                    true,
                 );
             }
 
@@ -100,7 +108,7 @@ export class VpnSchedulerService {
         }
     }
 
-    private async sendInAppNotification(admins: User[], vpn: VpnAccess, type: NotificationType, title: string, message: string) {
+    private async sendInAppNotification(admins: User[], vpn: VpnAccess, type: NotificationType, title: string, message: string, requiresAcknowledge: boolean) {
         for (const admin of admins) {
             await this.notificationService.create({
                 userId: admin.id,
@@ -110,7 +118,7 @@ export class VpnSchedulerService {
                 message,
                 referenceId: vpn.id,
                 link: '/renewal?tab=vpn',
-                requiresAcknowledge: true,
+                requiresAcknowledge,
             });
         }
     }
