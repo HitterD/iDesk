@@ -118,6 +118,12 @@ export class ZoomBookingService {
         @Optional() private readonly queueService?: ZoomQueueService,
     ) { }
 
+    /** Convert "HH:mm" or "HH:mm:ss" time string to seconds since midnight for safe comparison. */
+    private timeToSeconds(time: string): number {
+        const [hours = 0, minutes = 0, seconds = 0] = time.split(':').map(Number);
+        return hours * 3600 + minutes * 60 + seconds;
+    }
+
     /** Format Date ke YYYY-MM-DD string (local, bukan UTC) */
     private formatLocalDate(date: Date): string {
         const y = date.getFullYear();
@@ -1899,6 +1905,7 @@ export class ZoomBookingService {
 
         const newDuration = dto.durationMinutes || primaryBooking.durationMinutes;
         const [hours, minutes] = dto.startTime.split(':').map(Number);
+        const normalizedStartTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
         const endMinutes = hours * 60 + minutes + newDuration;
         if (endMinutes > 24 * 60) {
             throw new BadRequestException('Meeting must end on the same day (before 24:00). Please select an earlier start time.');
@@ -1906,6 +1913,8 @@ export class ZoomBookingService {
         const endHours = Math.floor(endMinutes / 60);
         const endMins = endMinutes % 60;
         const newEndTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+        const newStartSec = this.timeToSeconds(normalizedStartTime);
+        const newEndSec = this.timeToSeconds(newEndTime);
 
         // Check for conflicts for ALL affected bookings
         for (const booking of bookingsToUpdate) {
@@ -1922,13 +1931,13 @@ export class ZoomBookingService {
             for (const existingBooking of conflictingBookings) {
                 if (bookingsToUpdate.some(b => b.id === existingBooking.id)) continue;
 
-                const existingStart = existingBooking.startTime;
-                const existingEnd = existingBooking.endTime;
+                const existingStartSec = this.timeToSeconds(existingBooking.startTime);
+                const existingEndSec = this.timeToSeconds(existingBooking.endTime);
 
-                if (dto.startTime < existingEnd && existingStart < newEndTime) {
+                if (newStartSec < existingEndSec && existingStartSec < newEndSec) {
                     throw new ConflictException(
                         `Waktu bertabrakan dengan booking "${existingBooking.title}" pada ${targetDate} ` +
-                        `(${existingStart} - ${existingEnd}). Silakan pilih waktu lain.`
+                        `(${existingBooking.startTime.substring(0, 5)} - ${existingBooking.endTime.substring(0, 5)}). Silakan pilih waktu lain.`
                     );
                 }
             }
@@ -1939,7 +1948,7 @@ export class ZoomBookingService {
             if (booking.meeting?.zoomMeetingId) {
                 const targetDateStr = booking.id === bookingId || dto.scope === 'this' ? dto.bookingDate : this.formatLocalDate(booking.bookingDate);
                 try {
-                    const formattedStartTime = `${targetDateStr}T${dto.startTime}:00`;
+                    const formattedStartTime = `${targetDateStr}T${normalizedStartTime}:00`;
                     const occurrenceId = booking.meeting.occurrenceId || booking.meeting.meetingSettings?.occurrence_id;
                     await this.zoomApi.updateMeeting(
                         booking.meeting.zoomMeetingId,
@@ -1972,7 +1981,7 @@ export class ZoomBookingService {
 
                 await queryRunner.manager.update(ZoomBooking, booking.id, {
                     bookingDate: targetDate,
-                    startTime: dto.startTime,
+                    startTime: normalizedStartTime,
                     endTime: newEndTime,
                     durationMinutes: newDuration,
                 });
@@ -1990,7 +1999,7 @@ export class ZoomBookingService {
                     },
                     newValues: {
                         bookingDate: targetDate,
-                        startTime: dto.startTime,
+                        startTime: normalizedStartTime,
                         endTime: newEndTime,
                         durationMinutes: newDuration,
                     },

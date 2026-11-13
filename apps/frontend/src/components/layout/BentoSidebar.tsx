@@ -40,6 +40,7 @@ import { usePendingApprovals } from '@/features/request-center/api/eform-request
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useCsiActive } from '@/features/csi/hooks/useCsi';
+import { useCsiOwnerReportAccess } from '@/features/csi/hooks/useCsiHc';
 import { CSI_PATHS } from '@/features/csi/lib/useCsiBasePath';
 import { csiAdminPath, CSI_ADMIN_PAGE_KEYS } from '@/features/csi/lib/csiAdmin';
 import { canAdminCsi } from '@/features/csi/lib/useCsiAdminAccess';
@@ -152,6 +153,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
     // Survey entry exists only while an active survey targets this user (hidden while loading or on error).
     const { data: activeSurveys } = useCsiActive();
     const hasActiveSurvey = (activeSurveys?.length ?? 0) > 0;
+    const hasOwnerReport = useCsiOwnerReportAccess();
 
     // Badge resolution helper for navigation items
     const getItemBadge = (key: string): BadgeInfo | null => {
@@ -455,6 +457,8 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
         if (hasActiveSurvey) {
             // No pageKey: eligibility is decided by the backend's active-survey list.
             nav.push({ key: 'csi', icon: Star, tone: 'teal', label: 'Survei Kepuasan', path: isManager ? CSI_PATHS.manager : CSI_PATHS.staff });
+        } else if (hasOwnerReport) {
+            nav.push({ key: 'csi_report', icon: BarChart3, tone: 'teal', label: 'Report CSI', path: `${isManager ? CSI_PATHS.manager : CSI_PATHS.staff}/report` });
         }
 
         return nav;
