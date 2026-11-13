@@ -68,7 +68,7 @@ export class CsiOrgService {
 
     /**
      * Imports the approver hierarchy workbook: upserts every employee into the directory (nobody is deleted: people who
-     * left stay for past answers) and then adds/updates the HC PICs from it. Returns the counts.
+     * left stay for past answers), syncs active users' siteId from Work Location, and adds/updates HC PICs.
      */
     async importWorkbook(scope: ServiceScope, buffer: Buffer) {
         let parsed: { rows: CsiOrgRow[]; skipped: number };
@@ -79,8 +79,39 @@ export class CsiOrgService {
         }
         if (!parsed.rows.length) throw new BadRequestException('Tidak ada data karyawan di file');
         await this.upsertPeople(parsed.rows);
+        const usersSitesUpdated = await this.syncUsersSiteFromDirectory(parsed.rows);
         const pics = scope === ServiceScope.HC ? await this.syncPicsFromDirectory(scope) : { added: 0, updated: 0 };
-        return { people: parsed.rows.length, skipped: parsed.skipped, picsAdded: pics.added, picsUpdated: pics.updated };
+        return { people: parsed.rows.length, skipped: parsed.skipped, picsAdded: pics.added, picsUpdated: pics.updated, usersSitesUpdated };
+    }
+
+    /** Updates active user accounts whose normalized employeeId matches a directory row with a mapped Work Location. */
+    async syncUsersSiteFromDirectory(rows: ReadonlyArray<Pick<CsiOrgRow, 'nik' | 'workLocation'>>): Promise<number> {
+        if (!rows.length) return 0;
+        const siteIdOf = await this.siteIdsByCode();
+        const targetByNik = new Map<string, string>();
+        for (const row of rows) {
+            const nik = normalizeNik(row.nik);
+            const code = siteCodeOfLocation(locationOfWorkLocation(row.workLocation));
+            const siteId = code ? siteIdOf.get(code) : undefined;
+            if (nik && siteId) targetByNik.set(nik, siteId);
+        }
+        if (!targetByNik.size) return 0;
+        const users = await this.users.find({ where: { isActive: true }, select: { id: true, employeeId: true, siteId: true } });
+        const bySite = new Map<string, string[]>();
+        let updated = 0;
+        for (const user of users) {
+            const nik = normalizeNik(user.employeeId);
+            const target = nik ? targetByNik.get(nik) : undefined;
+            if (!target || user.siteId === target) continue;
+            bySite.set(target, [...(bySite.get(target) ?? []), user.id]);
+            updated += 1;
+        }
+        for (const [siteId, ids] of bySite) {
+            for (let start = 0; start < ids.length; start += UPSERT_CHUNK) {
+                await this.users.update({ id: In(ids.slice(start, start + UPSERT_CHUNK)) }, { siteId });
+            }
+        }
+        return updated;
     }
 
     async upsertPeople(rows: CsiOrgRow[]) {
@@ -103,8 +134,12 @@ export class CsiOrgService {
         const staff = await this.people.find({ where: { department: In(departments) } });
         const existing = await this.pics.find({ where: { scope } });
         const byNik = new Map(existing.map((pic) => [pic.nik, pic]));
-        const accounts = staff.length ? await this.users.find({ where: { employeeId: In(staff.map((row) => row.nik)) }, select: { id: true, employeeId: true } }) : [];
-        const userOf = new Map(accounts.map((user) => [user.employeeId, user.id]));
+        const accounts = staff.length ? await this.users.find({ select: { id: true, employeeId: true } }) : [];
+        const userOf = new Map<string, string>();
+        for (const user of accounts) {
+            const nik = normalizeNik(user.employeeId);
+            if (nik && !userOf.has(nik)) userOf.set(nik, user.id);
+        }
         const siteIdOf = await this.siteIdsByCode();
         let added = 0;
         let updated = 0;

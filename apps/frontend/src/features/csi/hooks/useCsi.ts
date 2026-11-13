@@ -3,7 +3,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { CsiApi } from '../api/csi.api';
 import type {
     ConfirmCsiPeriodAction, CsiPairMode,
-    CsiMemoHeader, CsiMemoRequest, CsiPair, CsiScopeParam, CsiUserIds, CreateCsiDepartment, CreateCsiDimension,
+    CsiMemoHeader, CsiMemoRequest, CsiPair, CsiScopeParam, CsiTicketRaterFilter, CsiUserIds, CreateCsiDepartment, CreateCsiDimension,
     CreateCsiPeriod, CreateCsiTeam, CsiRaterGroupFilter, ResetCsiResponse, SaveCsiQuestionSet, SendCsiReminders, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
     UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject,
 } from '../types';
@@ -212,7 +212,19 @@ export function useImportCsiRaters(scope: CsiScopeParam) {
         ({ commit }) => (commit ? [keys.raters(scope), ['csi', scope, 'rater-group']] : []));
 }
 export function useRemoveCsiRaters(scope: CsiScopeParam) {
-    return useCsiMutation((ids: string[]) => CsiApi.removeRaters(scope, ids), () => [keys.raters(scope), ['csi', scope, 'rater-group']]);
+    return useCsiMutation((ids: string[]) => CsiApi.removeRaters(scope, ids), () => [keys.raters(scope), ['csi', scope, 'rater-group'], ['csi', scope, 'rater-tickets']]);
+}
+export function useCsiTicketRaterPreview(scope: CsiScopeParam, filter: CsiTicketRaterFilter, enabled = true) {
+    const validDates = !filter.startDate || !filter.endDate || filter.endDate >= filter.startDate;
+    return useQuery({
+        queryKey: keys.raterTickets(scope, JSON.stringify(filter)),
+        queryFn: () => CsiApi.raterTicketPreview(scope, filter),
+        enabled: scope === 'ict' && enabled && validDates,
+    });
+}
+export function useAddCsiTicketRaters(scope: CsiScopeParam) {
+    return useCsiMutation((filter: CsiTicketRaterFilter) => CsiApi.addRaterTickets(scope, filter),
+        () => [keys.raters(scope), ['csi', scope, 'rater-group'], ['csi', scope, 'rater-tickets']]);
 }
 export function useCsiQuestionSets(scope: CsiScopeParam) {
     return useQuery({ queryKey: keys.questionSets(scope), queryFn: () => CsiApi.questionSets(scope) });

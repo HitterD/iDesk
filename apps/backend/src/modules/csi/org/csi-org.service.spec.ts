@@ -79,4 +79,37 @@ describe('CsiOrgService.syncPicsFromDirectory', () => {
         await service.syncPicsFromDirectory(ServiceScope.HC);
         expect(pics.update).toHaveBeenCalledWith({ id: expect.objectContaining({ _value: ['pic-gone'] }) }, { isActive: false });
     });
+
+    it('matches accounts whose employeeId lacks leading zeros to the normalized directory NIK', async () => {
+        const people = { find: jest.fn(async () => [{ nik: '00001234', fullName: 'DEWI', department: 'HC DEVELOPMENT', bagian: 'TA', jobTitle: 'Staff', workLocation: 'SJA-3' }]) };
+        const pics = { find: jest.fn(async () => []), save: jest.fn(async (rows: any) => rows), update: jest.fn(), query: jest.fn(async () => []) };
+        const users = { find: jest.fn(async () => [{ id: 'u-dewi', employeeId: '1234' }]) };
+        const sites = { find: jest.fn(async () => [{ id: 'site-skd', code: 'SKD' }]) };
+        const service = new CsiOrgService(people as any, pics as any, users as any, sites as any);
+        await service.syncPicsFromDirectory(ServiceScope.HC);
+        expect(pics.save).toHaveBeenCalledWith([expect.objectContaining({ nik: '00001234', siteId: 'site-skd', userId: 'u-dewi' })]);
+    });
+});
+
+describe('CsiOrgService.syncUsersSiteFromDirectory', () => {
+    it('moves active users with matching normalized NIK to the site of their directory workLocation', async () => {
+        const sites = { find: jest.fn(async () => [{ id: 's-spj', code: 'SPJ' }, { id: 's-skd', code: 'SKD' }]) };
+        const users = {
+            find: jest.fn(async () => [
+                { id: 'u-1', employeeId: '1001', siteId: 's-spj' },
+                { id: 'u-2', employeeId: '00001002', siteId: 's-skd' },
+                { id: 'u-3', employeeId: '1003', siteId: 's-spj' },
+            ]),
+            update: jest.fn(async () => ({})),
+        };
+        const service = new CsiOrgService({} as any, {} as any, users as any, sites as any);
+        const updated = await service.syncUsersSiteFromDirectory([
+            { nik: '00001001', workLocation: 'SJA-3' },
+            { nik: '00001002', workLocation: 'SJA 3' },
+            { nik: '00001003', workLocation: 'UNKNOWN' },
+        ]);
+        expect(updated).toBe(1);
+        expect(users.update).toHaveBeenCalledTimes(1);
+        expect(users.update).toHaveBeenCalledWith({ id: expect.objectContaining({ _value: ['u-1'] }) }, { siteId: 's-skd' });
+    });
 });

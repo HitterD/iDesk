@@ -1,5 +1,5 @@
 import { CalendarClock, Info, Lock, Users } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchablePicker } from '@/components/ui/searchable-picker';
 import { cn } from '@/lib/utils';
 import { countDimensions } from '../../lib/csiForm';
 import { formatDate } from '../../lib/format';
@@ -38,19 +38,23 @@ function LockedValue({ id, label, value }: { id: string; label: string; value: s
 }
 
 function DepartmentField({ departments, value, onChange }: { departments: CsiOpenForm['departments']; value: string; onChange: (id: string) => void }) {
+    const options = departments.map((department) => ({ value: department.id, label: department.name }));
     return (
         <div className="space-y-1.5">
             <label id="csi-department-label" htmlFor="csi-department" className={LABEL}>{RESPOND_COPY.department}</label>
-            <Select value={value || undefined} onValueChange={onChange}>
-                <SelectTrigger id="csi-department" aria-labelledby="csi-department-label" className="h-11 bg-card dark:bg-card">
-                    <SelectValue placeholder={RESPOND_COPY.departmentPlaceholder} />
-                </SelectTrigger>
-                <SelectContent>
-                    {departments.map((department) => (
-                        <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
+            <SearchablePicker
+                id="csi-department"
+                label={RESPOND_COPY.department}
+                value={value}
+                options={options}
+                onValueChange={onChange}
+                placeholder={RESPOND_COPY.departmentPlaceholder}
+                searchPlaceholder={RESPOND_COPY.departmentSearchPlaceholder}
+                triggerClassName={cn(
+                    'h-11 w-full rounded-xl border border-input bg-card px-3.5 text-[15px] font-medium text-foreground hover:bg-muted/30 dark:bg-card',
+                    !value && 'font-normal text-muted-foreground',
+                )}
+            />
             <p className="text-[12.5px] text-muted-foreground">{RESPOND_COPY.departmentOnce}</p>
         </div>
     );

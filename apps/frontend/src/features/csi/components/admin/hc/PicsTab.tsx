@@ -35,7 +35,7 @@ function ImportCard({ scope }: { scope: CsiScopeParam }) {
                 <p className="text-[14px] font-semibold">Data Hirarki Approver</p>
                 <p className={MUTED_TEXT}>
                     {result
-                        ? `Terimpor ${result.people.toLocaleString('id-ID')} karyawan · PIC baru ${result.picsAdded}, diperbarui ${result.picsUpdated}.`
+                        ? `Terimpor ${result.people.toLocaleString('id-ID')} karyawan · PIC baru ${result.picsAdded}, diperbarui ${result.picsUpdated}${result.usersSitesUpdated ? ` · ${result.usersSitesUpdated} akun dipindah site` : ''}.`
                         : `${(directory?.people ?? 0).toLocaleString('id-ID')} karyawan di direktori. Sheet "4. ALL DATA_SJA": divisi, departemen, bagian dan lokasi responden + PIC HCC/HCD/HCS.`}
                 </p>
             </div>

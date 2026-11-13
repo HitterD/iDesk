@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
-import { RaterGroupDto, RaterIdsDto, RaterImportDto } from '../dto/master.dto';
+import { RaterGroupDto, RaterIdsDto, RaterImportDto, TicketRaterFilterDto } from '../dto/master.dto';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiRaterBulkService } from '../services/csi-rater-bulk.service';
 
@@ -38,5 +38,15 @@ export class CsiAdminRaterBulkController {
     @HttpCode(HttpStatus.OK)
     removeMany(@Req() req: CsiAdminRequest, @Body() dto: RaterIdsDto) {
         return this.bulk.removeMany(req.csiScope, dto.ids);
+    }
+
+    @Get('ticket-preview')
+    previewTickets(@Req() req: CsiAdminRequest, @Query() query: TicketRaterFilterDto) {
+        return this.bulk.previewTicketRaters(req.csiScope, query);
+    }
+
+    @Post('ticket-add')
+    addTickets(@Req() req: CsiAdminRequest, @Body() dto: TicketRaterFilterDto) {
+        return this.bulk.addTicketRaters(req.csiScope, dto);
     }
 }

@@ -42,7 +42,7 @@ export const choose = (user: User, group: string, option: string) =>
     user.click(within(screen.getByRole('radiogroup', { name: group })).getByRole('radio', { name: option }));
 
 export async function startFilling(user: User, department = 'Produksi') {
-    await user.click(await screen.findByRole('combobox', { name: 'Departemen' }));
+    await user.click(await screen.findByRole('button', { name: 'Departemen' }));
     await user.click(await screen.findByRole('option', { name: department }));
     await user.click(button('Mulai mengisi'));
     // First time a department is chosen it is confirmed (it locks for later surveys).

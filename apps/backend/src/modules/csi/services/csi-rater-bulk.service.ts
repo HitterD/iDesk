@@ -2,25 +2,34 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Raw, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
+import { wibEndOfDate, wibStartOfDate } from '../../../shared/core/utils/wib-date.util';
+import { HandlingTeam, Ticket, TicketType } from '../../ticketing/entities/ticket.entity';
 import { User } from '../../users/entities/user.entity';
+import { UserRole } from '../../users/enums/user-role.enum';
 import { CsiRater } from '../entities/csi-rater.entity';
 import { CsiMasterService } from './csi-master.service';
 
 /** Upper bounds keep one click from registering a whole company by accident. */
 export const CSI_RATER_GROUP_MAX = 2000;
 export const CSI_RATER_IMPORT_MAX = 2000;
+export const CSI_RATER_TICKET_MAX = 5000;
 const SAMPLE_SIZE = 8;
 const KEY_MAX = 200;
+const DEV_TICKET_TYPES = [TicketType.ORACLE_REQUEST, TicketType.WEB_DEV_REQUEST, TicketType.MOBILE_DEV_REQUEST];
 
 export type CsiRaterGroupFilter = { siteId?: string; departmentId?: string };
+export type CsiTicketRaterFilter = { siteId?: string; startDate?: string; endDate?: string; includeAllRoles?: boolean };
+export type CsiTicketRaterSiteSummary = { code: string; name: string; total: number; toAdd: number };
 type Candidate = Pick<User, 'id' | 'fullName'>;
+type TicketCandidate = Candidate & { siteCode: string | null; siteName: string | null };
 
-/** Bulk ways to register raters: a whole group (site and/or HR department) or a pasted/imported list of emails or NIKs. */
+/** Bulk ways to register raters: a whole group (site / HR department), pasted/imported list, or IT Support ticket requesters. */
 @Injectable()
 export class CsiRaterBulkService {
     constructor(
         @InjectRepository(User) private readonly users: Repository<User>,
         @InjectRepository(CsiRater) private readonly raters: Repository<CsiRater>,
+        @InjectRepository(Ticket) private readonly tickets: Repository<Ticket>,
         private readonly master: CsiMasterService,
     ) { }
 
@@ -91,6 +100,81 @@ export class CsiRaterBulkService {
         return this.master.listRaters(scope);
     }
 
+    /** Previews active, logged-in users who have ever filed an IT Support (OPS_SUPPORT, non-dev) ticket. */
+    async previewTicketRaters(scope: ServiceScope, filter: CsiTicketRaterFilter) {
+        const { candidates, fresh, already, registered } = await this.ticketCandidates(scope, filter);
+        const bySite = summarizeBySite(candidates, registered);
+        return {
+            total: candidates.length,
+            alreadyRegistered: already,
+            toAdd: fresh.length,
+            sample: fresh.slice(0, SAMPLE_SIZE).map((user) => user.fullName),
+            bySite,
+        };
+    }
+
+    /** Registers eligible IT Support ticket requesters not yet in the scope's rater list (additive). */
+    async addTicketRaters(scope: ServiceScope, filter: CsiTicketRaterFilter) {
+        const { fresh } = await this.ticketCandidates(scope, filter);
+        if (fresh.length > CSI_RATER_TICKET_MAX) {
+            throw new BadRequestException(`Kelompok terlalu besar (maks. ${CSI_RATER_TICKET_MAX} orang). Persempit dengan filter site atau tanggal.`);
+        }
+        const raters = await this.master.addRaters(scope, fresh.map((user) => user.id));
+        return { added: fresh.length, raters };
+    }
+
+    private async ticketCandidates(scope: ServiceScope, filter: CsiTicketRaterFilter) {
+        if (scope !== ServiceScope.ICT) {
+            throw new BadRequestException('Template penilai tiket IT Support hanya tersedia untuk CSI ICT');
+        }
+        if (filter.startDate && filter.endDate && filter.endDate < filter.startDate) {
+            throw new BadRequestException('Tanggal selesai tidak boleh sebelum tanggal mulai');
+        }
+        const qb = this.tickets.createQueryBuilder('ticket')
+            .innerJoin('ticket.user', 'user')
+            .leftJoin('user.site', 'site')
+            .select('user.id', 'id')
+            .addSelect('user.fullName', 'fullName')
+            .addSelect('site.code', 'siteCode')
+            .addSelect('site.name', 'siteName')
+            .where('user.isActive = true')
+            .andWhere('user.siteId IS NOT NULL')
+            .andWhere('user.lastActiveAt IS NOT NULL')
+            .andWhere('(ticket."handlingTeam" = :opsTeam OR ticket."handlingTeam" IS NULL)', { opsTeam: HandlingTeam.OPS_SUPPORT })
+            .andWhere('(ticket.ticketType NOT IN (:...devTypes) OR ticket.ticketType IS NULL)', { devTypes: DEV_TICKET_TYPES });
+
+        if (!filter.includeAllRoles) {
+            qb.andWhere('user.role = :requesterRole', { requesterRole: UserRole.USER });
+        }
+        if (filter.siteId) {
+            qb.andWhere('user.siteId = :siteId', { siteId: filter.siteId });
+        }
+        if (filter.startDate) {
+            qb.andWhere('ticket.createdAt >= :startAt', { startAt: wibStartOfDate(filter.startDate) });
+        }
+        if (filter.endDate) {
+            qb.andWhere('ticket.createdAt <= :endAt', { endAt: wibEndOfDate(filter.endDate) });
+        }
+
+        const rows: Array<{ id: string; fullName: string; siteCode: string | null; siteName: string | null }> = await qb
+            .groupBy('user.id')
+            .addGroupBy('user.fullName')
+            .addGroupBy('site.code')
+            .addGroupBy('site.name')
+            .orderBy('user.fullName', 'ASC')
+            .getRawMany();
+
+        const candidates: TicketCandidate[] = rows.map((row) => ({
+            id: row.id,
+            fullName: row.fullName,
+            siteCode: row.siteCode ?? null,
+            siteName: row.siteName ?? null,
+        }));
+        const registered = await this.registeredIds(scope, candidates.map((user) => user.id));
+        const fresh = candidates.filter((user) => !registered.has(user.id));
+        return { candidates, fresh, already: registered.size, registered };
+    }
+
     private async groupCandidates(scope: ServiceScope, filter: CsiRaterGroupFilter) {
         if (!filter.siteId && !filter.departmentId) throw new BadRequestException('Pilih site atau departemen');
         const users = await this.users.find({
@@ -106,4 +190,16 @@ export class CsiRaterBulkService {
         const rows = await this.raters.find({ where: { scope, userId: In(userIds) }, select: { userId: true } });
         return new Set(rows.map((row) => row.userId));
     }
+}
+
+function summarizeBySite(candidates: TicketCandidate[], registered: ReadonlySet<string>): CsiTicketRaterSiteSummary[] {
+    const groups = new Map<string, CsiTicketRaterSiteSummary>();
+    for (const candidate of candidates) {
+        const code = candidate.siteCode ?? '-';
+        const entry = groups.get(code) ?? { code, name: candidate.siteName ?? code, total: 0, toAdd: 0 };
+        entry.total += 1;
+        if (!registered.has(candidate.id)) entry.toAdd += 1;
+        groups.set(code, entry);
+    }
+    return [...groups.values()].sort((a, b) => a.code.localeCompare(b.code));
 }

@@ -9,6 +9,7 @@ export const RESPOND_COPY = {
     name: 'Nama',
     department: 'Departemen',
     departmentPlaceholder: 'Pilih departemen',
+    departmentSearchPlaceholder: 'Cari departemen…',
     departmentOnce: 'Pastikan benar: departemen tidak bisa diubah setelah dipilih.',
     identity: 'Identitas Anda',
     identityLocked: 'Identitas mengikuti akun Anda. Setiap akun hanya dapat mengisi survei ini satu kali.',

@@ -1,6 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import {
-    ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Length, MaxLength, Min, ValidateIf, ValidateNested,
+    ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, Min, ValidateIf, ValidateNested,
     ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface, Validate,
 } from 'class-validator';
 import { CSI_OPTION_LABEL_MAX, CsiQuestionType } from '../csi.constants';
@@ -13,6 +13,9 @@ export const SHORT_LABEL_MAX_LENGTH = 40;
 export const DEFAULT_USER_SEARCH_LIMIT = 20;
 export const MAX_USER_SEARCH_LIMIT = 50;
 const trimString = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
+const emptyToUndefined = ({ value }: { value: unknown }) => value === '' ? undefined : value;
+const toOptionalBoolean = ({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value);
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const isProvided = (_object: unknown, value: unknown) => value !== undefined;
 
 /**
@@ -199,4 +202,29 @@ export class RaterIdsDto {
     @IsArray({ message: 'Daftar penilai harus berupa array' })
     @IsUUID('all', { each: true, message: 'ID penilai harus berupa UUID' })
     ids: string[];
+}
+
+/** ICT ticket-rater template filter: active, logged-in users with an IT Support (OPS_SUPPORT) ticket. */
+export class TicketRaterFilterDto {
+    @Transform(emptyToUndefined)
+    @IsOptional()
+    @IsUUID('all', { message: 'Site harus berupa UUID' })
+    siteId?: string;
+
+    @Transform(emptyToUndefined)
+    @IsOptional()
+    @IsDateString({ strict: true }, { message: 'Tanggal mulai tidak valid' })
+    @Matches(DATE_ONLY, { message: 'Tanggal mulai harus berformat YYYY-MM-DD' })
+    startDate?: string;
+
+    @Transform(emptyToUndefined)
+    @IsOptional()
+    @IsDateString({ strict: true }, { message: 'Tanggal selesai tidak valid' })
+    @Matches(DATE_ONLY, { message: 'Tanggal selesai harus berformat YYYY-MM-DD' })
+    endDate?: string;
+
+    @Transform(toOptionalBoolean)
+    @IsOptional()
+    @IsBoolean({ message: 'includeAllRoles harus berupa boolean' })
+    includeAllRoles?: boolean;
 }

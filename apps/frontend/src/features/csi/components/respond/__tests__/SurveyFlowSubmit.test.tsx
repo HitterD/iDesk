@@ -51,7 +51,7 @@ describe('SurveyFlow review and submit', () => {
         await answerAll(user);
         expect(screen.queryByRole('button', { name: 'Ubah nama' })).not.toBeInTheDocument();
         await user.click(button('Ubah departemen'));
-        expect(screen.getByRole('combobox', { name: 'Departemen' })).toHaveTextContent('Produksi');
+        expect(screen.getByRole('button', { name: 'Departemen' })).toHaveTextContent('Produksi');
     });
 
     it('review with a locked department offers no identity edit at all', async () => {

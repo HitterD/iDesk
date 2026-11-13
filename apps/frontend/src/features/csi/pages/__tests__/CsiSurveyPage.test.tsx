@@ -60,7 +60,7 @@ const rate = async (user: User, group: string, stars: number) =>
 
 /** Intro → Andi → Budi → review, then press "Kirim". */
 const fillAndSubmit = async (user: User, comment?: string) => {
-    await user.click(await screen.findByRole('combobox', { name: 'Departemen' }));
+    await user.click(await screen.findByRole('button', { name: 'Departemen' }));
     await user.click(await screen.findByRole('option', { name: 'Produksi' }));
     await user.click(screen.getByRole('button', { name: 'Mulai mengisi' }));
     await user.click(await screen.findByRole('button', { name: 'Ya, sudah benar' }));
