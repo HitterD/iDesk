@@ -42,24 +42,32 @@ function ctaLabel(userId: string, surveyId: string, single: boolean): string {
 function SurveyOptionRow({ survey, userId, single, onOpen }: {
     survey: CsiActivePeriod; userId: string; single: boolean; onOpen: () => void;
 }) {
+    const intro = survey.intro?.trim();
     return (
-        <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/35 p-3.5">
-            <div className="min-w-0 flex-1 space-y-1">
-                <div className="flex flex-wrap items-center gap-1.5">
-                    <TicketPill tone={survey.scope === 'HC' ? 'teal' : 'blue'}>{survey.scope}</TicketPill>
-                    {survey.endDate && (
-                        <span className="inline-flex items-center gap-1 text-[11.5px] text-muted-foreground">
-                            <Calendar className="h-3 w-3 shrink-0" aria-hidden="true" />
-                            s.d. {formatDate(survey.endDate)}
-                        </span>
-                    )}
+        <div className="space-y-2.5 rounded-xl border border-border/70 bg-muted/35 p-3.5">
+            <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        <TicketPill tone={survey.scope === 'HC' ? 'teal' : 'blue'}>{survey.scope}</TicketPill>
+                        {survey.endDate && (
+                            <span className="inline-flex items-center gap-1 text-[11.5px] text-muted-foreground">
+                                <Calendar className="h-3 w-3 shrink-0" aria-hidden="true" />
+                                s.d. {formatDate(survey.endDate)}
+                            </span>
+                        )}
+                    </div>
+                    <p className="line-clamp-2 text-[14px] font-semibold leading-snug text-foreground">{survey.title}</p>
                 </div>
-                <p className="line-clamp-2 text-[14px] font-semibold leading-snug text-foreground">{survey.title}</p>
+                <Button type="button" variant="primary" size={single ? 'default' : 'sm'} className="shrink-0" onClick={onOpen}>
+                    {ctaLabel(userId, survey.id, single)}
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Button>
             </div>
-            <Button type="button" variant="primary" size={single ? 'default' : 'sm'} className="shrink-0" onClick={onOpen}>
-                {ctaLabel(userId, survey.id, single)}
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
+            {intro && (
+                <p className="whitespace-pre-line border-t border-border/50 pt-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
+                    {intro}
+                </p>
+            )}
         </div>
     );
 }
@@ -105,7 +113,7 @@ export function CsiStartupPopup() {
     const single = pending.length === 1;
     return (
         <Dialog open onOpenChange={(isOpen) => { if (!isOpen) handleDismiss(); }}>
-            <DialogContent className="w-[92vw] max-w-[480px] gap-4 p-6">
+            <DialogContent className="w-[92vw] max-w-[540px] gap-4 p-6">
                 <div className="flex items-start gap-3.5 pr-6">
                     <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-amber-400/15 text-amber-500">
                         <Star className="h-5 w-5 fill-current" />
@@ -120,7 +128,7 @@ export function CsiStartupPopup() {
                     </div>
                 </div>
 
-                <div className="grid max-h-[50vh] gap-2.5 overflow-y-auto">
+                <div className="grid max-h-[55vh] gap-2.5 overflow-y-auto">
                     {pending.map((survey) => (
                         <SurveyOptionRow
                             key={survey.id}

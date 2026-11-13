@@ -30,12 +30,16 @@ describe('CsiStartupPopup', () => {
 
     it('opens when user has an unfilled active survey and closes with X for this session', async () => {
         const user = userEvent.setup();
-        activeState.data = [{ id: 'p1', scope: 'ICT', title: 'Survei Layanan ICT Q4', endDate: '2026-12-01', submitted: false }];
+        activeState.data = [{
+            id: 'p1', scope: 'ICT', title: 'Survei Layanan ICT Q4',
+            intro: 'Halo Rekan-Rekan sekalian,\nMohon isi survei ini.', endDate: '2026-12-01', submitted: false,
+        }];
         const { unmount } = renderPopup();
 
         expect(await screen.findByRole('dialog')).toBeInTheDocument();
         expect(screen.getByText('Ada Survei CSI untuk Anda')).toBeInTheDocument();
         expect(screen.getByText('Survei Layanan ICT Q4')).toBeInTheDocument();
+        expect(screen.getByText(/Halo Rekan-Rekan sekalian/)).toBeInTheDocument();
 
         await user.click(screen.getByRole('button', { name: 'Tutup' }));
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

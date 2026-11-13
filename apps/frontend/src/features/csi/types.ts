@@ -153,6 +153,8 @@ export interface CsiActivePeriod {
     id: string;
     scope: CsiScope;
     title: string;
+    /** Opening message configured on the period; absent on older payloads. */
+    intro?: string;
     /** Last day (YYYY-MM-DD); absent on older payloads. */
     endDate?: string;
     submitted: boolean;
