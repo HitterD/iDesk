@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CsiPeriodOverlap, CsiRater } from '../../../types';
+import type { CsiPeriodOverlap, CsiRater, CsiTicketRaterPreview } from '../../../types';
 import { nextFreeRange, OverlapNotice } from '../OverlapNotice';
 import { RatersTab } from '../RatersTab';
 import { parseRaterKeys } from '../raters/raterImport';
@@ -10,7 +10,8 @@ const fx = vi.hoisted(() => ({
     overlaps: [] as CsiPeriodOverlap[],
     raters: [] as CsiRater[],
     preview: null as null | { total: number; alreadyRegistered: number; toAdd: number; sample: string[] },
-    addGroup: vi.fn(), importRaters: vi.fn(), removeRaters: vi.fn(),
+    ticketPreview: null as null | CsiTicketRaterPreview,
+    addGroup: vi.fn(), addTickets: vi.fn(), importRaters: vi.fn(), removeRaters: vi.fn(),
 }));
 vi.mock('@/hooks/useDebounce', () => ({ useDebounce: (value: unknown) => value }));
 vi.mock('@/components/site/useActiveSites', () => ({ useActiveSites: () => ({ data: [{ id: 's1', code: 'SPJ', name: 'Sepanjang' }] }) }));
@@ -22,6 +23,8 @@ vi.mock('../../../hooks/useCsi', () => ({
     useCsiRaterDepartments: () => ({ data: [{ id: 'd1', name: 'HC SERVICES', userCount: 4 }] }),
     useCsiRaterGroupPreview: () => ({ data: fx.preview, isFetching: false }),
     useAddCsiRaterGroup: () => ({ mutate: fx.addGroup, isPending: false }),
+    useCsiTicketRaterPreview: () => ({ data: fx.ticketPreview, isFetching: false }),
+    useAddCsiTicketRaters: () => ({ mutate: fx.addTickets, isPending: false }),
     useImportCsiRaters: () => ({ mutate: fx.importRaters, isPending: false }),
     useAddCsiRaters: () => ({ mutate: vi.fn(), isPending: false }),
     useCsiUserSearch: () => ({ data: [], isFetching: false }),
@@ -33,8 +36,8 @@ const rater = (id: string, name: string, site: string | null): CsiRater => ({
 });
 
 beforeEach(() => {
-    fx.overlaps = []; fx.raters = []; fx.preview = null;
-    fx.addGroup.mockReset(); fx.importRaters.mockReset(); fx.removeRaters.mockReset();
+    fx.overlaps = []; fx.raters = []; fx.preview = null; fx.ticketPreview = null;
+    fx.addGroup.mockReset(); fx.addTickets.mockReset(); fx.importRaters.mockReset(); fx.removeRaters.mockReset();
 });
 afterEach(cleanup);
 
@@ -106,5 +109,19 @@ describe('RatersTab', () => {
         await actor.type(screen.getByRole('textbox', { name: /Tempel email atau NIK/ }), 'andi@x.id{enter}tidak@x.id');
         await actor.click(screen.getByRole('button', { name: 'Cek 2 baris' }));
         expect(fx.importRaters).toHaveBeenCalledWith({ keys: ['andi@x.id', 'tidak@x.id'], commit: false }, expect.anything());
+    });
+
+    it('adds ICT raters from IT Support ticket requesters after previewing', async () => {
+        fx.ticketPreview = {
+            total: 15, alreadyRegistered: 3, toAdd: 12, sample: ['Andi', 'Budi'],
+            bySite: [{ code: 'SPJ', name: 'Sepanjang', total: 15, toAdd: 12 }],
+        };
+        const actor = userEvent.setup();
+        render(<RatersTab scope="ict" />);
+        await actor.click(screen.getByRole('button', { name: 'Dari tiket IT Support' }));
+        expect(screen.getByText('15 user memenuhi syarat')).toBeInTheDocument();
+        expect(screen.getByText('SPJ: 12 baru (15 total)')).toBeInTheDocument();
+        await actor.click(screen.getByRole('button', { name: 'Tambahkan 12 penilai' }));
+        expect(fx.addTickets).toHaveBeenCalledWith({ siteId: undefined, startDate: undefined, endDate: undefined, includeAllRoles: false }, expect.anything());
     });
 });

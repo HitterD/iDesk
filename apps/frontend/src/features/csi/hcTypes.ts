@@ -24,7 +24,9 @@ export interface CsiPicView {
     isActive: boolean;
 }
 
-export interface CsiDirectoryImportResult { people: number; skipped: number; picsAdded: number; picsUpdated: number }
+export interface CsiDirectoryImportResult {
+    people: number; skipped: number; picsAdded: number; picsUpdated: number; usersSitesUpdated?: number;
+}
 export interface SetCsiPeriodPics { picIds: string[]; dimensionIds: string[] }
 
 export type CsiLocationCode = 'SJA1' | 'SJA2' | 'SJA3' | 'SJA4' | 'JKT';

@@ -38,7 +38,10 @@ describe('SurveyFlow intro', () => {
         renderFlow();
         expect(screen.getByText('Pastikan benar: departemen tidak bisa diubah setelah dipilih.')).toBeInTheDocument();
         expect(button('Mulai mengisi')).toBeDisabled();
-        await user.click(screen.getByRole('combobox', { name: 'Departemen' }));
+        await user.click(screen.getByRole('button', { name: 'Departemen' }));
+        const search = await screen.findByRole('combobox', { name: 'Cari departemen…' });
+        await user.type(search, 'Prod');
+        expect(screen.queryByRole('option', { name: 'Finance' })).not.toBeInTheDocument();
         await user.click(await screen.findByRole('option', { name: 'Produksi' }));
         expect(button('Mulai mengisi')).toBeEnabled();
     });
@@ -46,12 +49,12 @@ describe('SurveyFlow intro', () => {
     it('a first-time department is confirmed before it locks; "Ubah" goes back to the picker', async () => {
         const user = userEvent.setup();
         renderFlow();
-        await user.click(screen.getByRole('combobox', { name: 'Departemen' }));
+        await user.click(screen.getByRole('button', { name: 'Departemen' }));
         await user.click(await screen.findByRole('option', { name: 'Produksi' }));
         await user.click(button('Mulai mengisi'));
         expect(await screen.findByText(/Departemen Anda: Produksi\. Pilihan ini tidak bisa diubah lagi/)).toBeInTheDocument();
         await user.click(screen.getByRole('button', { name: 'Ubah' }));
-        expect(screen.getByRole('combobox', { name: 'Departemen' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Departemen' })).toBeInTheDocument();
         await user.click(button('Mulai mengisi'));
         await user.click(await screen.findByRole('button', { name: 'Ya, sudah benar' }));
         expect(screen.getByText('Penilaian 1 dari 3')).toBeInTheDocument();
@@ -59,7 +62,7 @@ describe('SurveyFlow intro', () => {
 
     it('a department known for the account is locked: no picker, start is ready', () => {
         renderFlow({ form: { ...FORM, respondent: { fullName: 'Rina Pemohon', departmentId: 'd2' } } });
-        expect(screen.queryByRole('combobox', { name: 'Departemen' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Departemen' })).not.toBeInTheDocument();
         expect(screen.getByRole('textbox', { name: 'Departemen' })).toHaveTextContent('Produksi');
         expect(button('Mulai mengisi')).toBeEnabled();
     });

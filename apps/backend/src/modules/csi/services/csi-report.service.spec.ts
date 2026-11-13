@@ -173,8 +173,8 @@ describe('CsiReportService', () => {
         const sites = [{ siteId: 'site-a', site: { code: 'SMG', name: 'Semarang' } }, { siteId: 'site-b', site: { code: 'SPJ', name: 'Sepanjang' } }];
         Object.assign(periods.rows[1], { sites });
         ratees.rows.push(
-            { id: 'h1', periodId: 'p-hc', kind: 'PERSON', picId: 'pic1', serviceCode: 'HCD', bagian: 'TA', displayName: 'Dewi', sortOrder: 0 },
-            { id: 'h2', periodId: 'p-hc', kind: 'PERSON', picId: 'pic2', serviceCode: 'HCS', bagian: 'GA', displayName: 'Sinta', sortOrder: 1 },
+            { id: 'h1', periodId: 'p-hc', kind: 'PERSON', picId: 'pic1', siteId: 'site-a', serviceCode: 'HCD', bagian: 'TA', displayName: 'Dewi', sortOrder: 0 },
+            { id: 'h2', periodId: 'p-hc', kind: 'PERSON', picId: 'pic2', siteId: 'site-a', serviceCode: 'HCS', bagian: 'GA', displayName: 'Sinta', sortOrder: 1 },
         );
         rateeDimensions.rows.push(
             { id: 'hd1', periodRateeId: 'h1', dimensionName: 'Knowledge', type: 'STAR', options: [], sortOrder: 0 },
@@ -199,8 +199,8 @@ describe('CsiReportService', () => {
     it('HC overall (report, site stats) uses the per-rating basis of the recap; ICT keeps the mean of response averages', async () => {
         Object.assign(periods.rows[1], { sites: [{ siteId: 'site-a', site: { code: 'SMG', name: 'Semarang' } }] });
         ratees.rows.push(
-            { id: 'h1', periodId: 'p-hc', kind: 'PERSON', picId: 'pic1', serviceCode: 'HCD', bagian: 'TA', displayName: 'Dewi', sortOrder: 0 },
-            { id: 'h2', periodId: 'p-hc', kind: 'PERSON', picId: 'pic2', serviceCode: 'HCS', bagian: 'GA', displayName: 'Sinta', sortOrder: 1 },
+            { id: 'h1', periodId: 'p-hc', kind: 'PERSON', picId: 'pic1', siteId: 'site-a', serviceCode: 'HCD', bagian: 'TA', displayName: 'Dewi', sortOrder: 0 },
+            { id: 'h2', periodId: 'p-hc', kind: 'PERSON', picId: 'pic2', siteId: 'site-a', serviceCode: 'HCS', bagian: 'GA', displayName: 'Sinta', sortOrder: 1 },
         );
         rateeDimensions.rows.push(
             { id: 'hk1', periodRateeId: 'h1', dimensionName: 'Knowledge', type: 'STAR', options: [], sortOrder: 0 },
@@ -400,6 +400,39 @@ describe('CsiReportService', () => {
         expect(result.pending!.map((row) => row.userId)).toEqual(['x3']);
         expect(result.totals.pending).toBe(1);
         expect(result.pendingByDepartment).toEqual([{ department: 'Tanpa departemen', pending: 1, total: 1 }]);
+    });
+
+    it('getRespondents normalizes employeeId to 8 digits when matching csi_org_people departments', async () => {
+        periods.rows[0].respondentMode = CsiRespondentMode.LISTED;
+        periodRaters.rows.push({ id: 'pr3', periodId: 'p1', userId: 'x3', user: { id: 'x3', fullName: 'Yudi', employeeId: '1234', isActive: true, siteId: 'site-a' } });
+        dataSource.query.mockResolvedValueOnce([{ nik: '00001234', department: 'QUALITY CONTROL' }]);
+        const result = await service.getRespondents(ICT, 'p1');
+        expect(dataSource.query).toHaveBeenCalledWith(expect.stringContaining('csi_org_people'), [['00001234']]);
+        expect(result.pending).toEqual([{ userId: 'x3', fullName: 'Yudi', department: 'QUALITY CONTROL', siteId: 'site-a' }]);
+        expect(result.pendingByDepartment).toEqual([{ department: 'QUALITY CONTROL', pending: 1, total: 1 }]);
+    });
+
+    it('HC report site filter keeps only subjects and responses of the filtered site', async () => {
+        Object.assign(periods.rows[1], { sites: [{ siteId: 'site-a', site: { code: 'SMG', name: 'Semarang' } }, { siteId: 'site-b', site: { code: 'SKD', name: 'Sukodono' } }] });
+        ratees.rows.push(
+            { id: 'h1', periodId: 'p-hc', kind: 'PERSON', picId: 'pic1', siteId: 'site-a', serviceCode: 'HCD', bagian: 'TA', displayName: 'Dewi', sortOrder: 0 },
+            { id: 'h2', periodId: 'p-hc', kind: 'PERSON', picId: 'pic2', siteId: 'site-b', serviceCode: 'HCS', bagian: 'GA', displayName: 'Sigit', sortOrder: 1 },
+        );
+        rateeDimensions.rows.push(
+            { id: 'hd1', periodRateeId: 'h1', dimensionName: 'Knowledge', type: 'STAR', options: [], sortOrder: 0 },
+            { id: 'hd2', periodRateeId: 'h2', dimensionName: 'Knowledge', type: 'STAR', options: [], sortOrder: 0 },
+        );
+        responses.rows.push(
+            { id: 'ra', periodId: 'p-hc', respondentId: 'u-a', departmentName: 'PROD', respondentName: 'a', submittedAt: new Date('2026-10-10T03:00:00Z'), respondent: { id: 'u-a', siteId: 'site-a' } },
+            { id: 'rb', periodId: 'p-hc', respondentId: 'u-b', departmentName: 'PROD', respondentName: 'b', submittedAt: new Date('2026-10-10T03:00:00Z'), respondent: { id: 'u-b', siteId: 'site-b' } },
+        );
+        items.rows.push(
+            { id: 'i1', responseId: 'ra', periodRateeId: 'h1', periodRateeDimensionId: 'hd1', score: 5 },
+            { id: 'i2', responseId: 'rb', periodRateeId: 'h2', periodRateeDimensionId: 'hd2', score: 4 },
+        );
+        const siteB = await service.getReport(HC, 'p-hc', 'site-b');
+        expect(siteB.ratees.map((row) => row.displayName)).toEqual(['Sigit']);
+        expect(siteB.overall).toEqual({ average: 4, respondentCount: 1 });
     });
 
     describe('pending in a mapped LISTED period', () => {

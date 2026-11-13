@@ -24,7 +24,7 @@ import { buildReportModel, CsiReportModel, previousSubjectMap } from './csi-repo
 import { bandsOf, CsiScoreBands } from './csi-score-bands';
 import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
 import { buildHcRecap, CsiHcPic, CsiHcRating, CsiHcRecap, recapAverages } from '../org/csi-hc-report.calc';
-import { locationOfSiteCode } from '../org/csi-org.constants';
+import { locationOfSiteCode, normalizeNik } from '../org/csi-org.constants';
 import { CsiPendingDepartment, pendingByDepartment } from '../org/csi-service-report.calc';
 import { ratedAccountOf } from './csi-ratee-owner.util';
 import { isRaterInAudience } from './csi-rater-audience.util';
@@ -275,7 +275,8 @@ export class CsiReportService {
         const departmentOf = await this.directoryDepartments(users.map((user) => user.employeeId));
         return unique.map((reporter) => {
             const user = userOf.get(reporter.email.toLowerCase());
-            return { department: departmentOf.get(user?.employeeId ?? '') ?? reporter.department, answered: !!user && answered.has(user.id) };
+            const nik = normalizeNik(user?.employeeId);
+            return { department: (nik ? departmentOf.get(nik) : undefined) ?? reporter.department, answered: !!user && answered.has(user.id) };
         });
     }
 
@@ -306,7 +307,7 @@ export class CsiReportService {
      */
     async hcRecapInput(scope: ServiceScope, periodId: string, siteId?: string): Promise<CsiHcRecapInput> {
         const period = await this.findInScope(scope, periodId, { sites: { site: true } });
-        const data = narrowToSite(await this.loadPeriodData(scope, period), siteId);
+        const data = narrowResponsesToSite(await this.loadPeriodData(scope, period), siteId);
         const people = data.ratees.filter((ratee) => ratee.kind !== CsiRateeKind.TEAM);
         // HC custom teams are rated under a layanan like a PIC; ICT site teams keep their own report.
         const teams = scope === ServiceScope.HC ? data.ratees.filter((ratee) => ratee.kind === CsiRateeKind.TEAM && ratee.serviceCode) : [];
@@ -434,13 +435,17 @@ export class CsiReportService {
             const expected = raters.filter((rater) => isRaterInAudience(rater, siteIds, paired));
             const audience = expected.filter((rater) => !answered.has(rater.userId));
             const departmentOf = await this.directoryDepartments(expected.map((rater) => rater.user.employeeId));
+            const deptOf = (rater: CsiPeriodRater) => {
+                const nik = normalizeNik(rater.user.employeeId);
+                return (nik ? departmentOf.get(nik) : undefined) ?? rater.user.department?.name ?? null;
+            };
             byDepartment = pendingByDepartment(expected.map((rater) => ({
-                department: departmentOf.get(rater.user.employeeId ?? '') ?? rater.user.department?.name ?? null, answered: answered.has(rater.userId),
+                department: deptOf(rater), answered: answered.has(rater.userId),
             })));
             pending = sortBy(audience, (rater) => rater.user.fullName)
                 .map((rater) => ({
                     userId: rater.userId, fullName: rater.user.fullName,
-                    department: rater.user.department?.name ?? null, siteId: rater.user.siteId ?? null,
+                    department: deptOf(rater), siteId: rater.user.siteId ?? null,
                 }));
         }
         return {
@@ -449,9 +454,9 @@ export class CsiReportService {
         };
     }
 
-    /** Directory department (csi_org_people) per NIK; accounts without a directory row fall back to their own department. */
+    /** Directory department (csi_org_people) per normalized NIK; accounts without a directory row fall back to their own department. */
     private async directoryDepartments(niks: Array<string | null | undefined>) {
-        const unique = [...new Set(niks.filter((nik): nik is string => !!nik))];
+        const unique = [...new Set(niks.map((nik) => normalizeNik(nik)).filter((nik): nik is string => !!nik))];
         if (!unique.length) return new Map<string, string>();
         const rows: Array<{ nik: string; department: string | null }> = await this.dataSource.query(
             'SELECT "nik", "department" FROM "csi_org_people" WHERE "nik" = ANY($1)', [unique]);
@@ -559,16 +564,22 @@ const rateeSiteOf = (data: Pick<PeriodData, 'views'>, ratee: CsiPeriodRatee) => 
 /** Site filter: ratees of the site, and only responses (and their items) of respondents whose user site is the site. */
 function narrowToSite(data: PeriodData, siteId?: string): PeriodData {
     if (!siteId) return data;
-    // HC PICs serve every site from head office: only the respondent's site decides (they stay in every site view).
-    const siteOfRatee = (ratee: CsiPeriodRatee) => (ratee.picId ? siteId : rateeSiteOf(data, ratee));
-    const ratees = data.ratees.filter((ratee) => siteOfRatee(ratee) === siteId);
+    const ratees = data.ratees.filter((ratee) => rateeSiteOf(data, ratee) === siteId);
     const responseSite = new Map(data.responses.map((response) => [response.id, response.respondent?.siteId ?? null]));
-    const rateeSite = new Map(ratees.map((ratee) => [ratee.id, siteOfRatee(ratee)]));
+    const rateeSite = new Map(ratees.map((ratee) => [ratee.id, rateeSiteOf(data, ratee)]));
     return {
         ...data, ratees,
         items: itemsForSite(data.items, rateeSite, responseSite, siteId),
         responses: data.responses.filter((response) => responseSite.get(response.id) === siteId),
     };
+}
+
+/** HC recap site filter: keeps every ratee rated by that site's respondents, narrowing answers by respondent site. */
+function narrowResponsesToSite(data: PeriodData, siteId?: string): PeriodData {
+    if (!siteId) return data;
+    const responses = data.responses.filter((response) => response.respondent?.siteId === siteId);
+    const responseIds = new Set(responses.map((response) => response.id));
+    return { ...data, responses, items: data.items.filter((item) => responseIds.has(item.responseId)) };
 }
 
 /** Older answers carry only "DIVISION / DEPARTMENT". */

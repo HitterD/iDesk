@@ -4,7 +4,7 @@ import type {
     ConfirmCsiPeriodAction, CsiPairMode,
     CsiActivePeriod, CsiAssignments, CsiDashboard, CsiDepartment, CsiDimension, CsiForm, CsiPeriod, CsiPeriodDetail,
     CsiPeriodListItem, CsiRater, CsiReminderResult, CsiRemovedRater, CsiReport, CsiResetResult, CsiRespondents,
-    CsiPeriodOverlap, CsiQuestionSet, CsiRaterDepartmentOption, CsiRaterGroupFilter, CsiRaterGroupPreview, CsiRaterImportResult, CsiRaterMatrix, CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, SaveCsiQuestionSet, CsiSubjectView, CsiSubmitResult, CsiUserIds, CsiUserSearchResult,
+    CsiPeriodOverlap, CsiQuestionSet, CsiRaterDepartmentOption, CsiRaterGroupFilter, CsiRaterGroupPreview, CsiRaterImportResult, CsiRaterMatrix, CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, SaveCsiQuestionSet, CsiSubjectView, CsiSubmitResult, CsiTicketRaterFilter, CsiTicketRaterPreview, CsiUserIds, CsiUserSearchResult,
     CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, CreateCsiTeam, CreateCsiCustomTeam, UpdateCsiCustomTeam, CsiTeamMemberInput, CsiTeamDeleteImpact, CsiMemoHeader, CsiMemoRequest, CsiReorder,
     ResetCsiResponse, SendCsiReminders, SetCsiAssignments, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
     UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject, CsiSelfResult,
@@ -186,6 +186,12 @@ export const CsiApi = {
     },
     async removeRaters(scope: CsiScopeParam, ids: string[]): Promise<CsiRater[]> {
         return (await api.post<CsiRater[]>(`${adminPath(scope)}/raters/remove`, { ids })).data;
+    },
+    async raterTicketPreview(scope: CsiScopeParam, filter: CsiTicketRaterFilter): Promise<CsiTicketRaterPreview> {
+        return (await api.get<CsiTicketRaterPreview>(`${adminPath(scope)}/raters/ticket-preview`, { params: filter })).data;
+    },
+    async addRaterTickets(scope: CsiScopeParam, filter: CsiTicketRaterFilter): Promise<{ added: number }> {
+        return (await api.post<{ added: number }>(`${adminPath(scope)}/raters/ticket-add`, filter)).data;
     },
     async questionSets(scope: CsiScopeParam): Promise<CsiQuestionSet[]> {
         return (await api.get<CsiQuestionSet[]>(`${adminPath(scope)}/question-sets`)).data;

@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { Lightbulb, Upload, UserPlus } from 'lucide-react';
+import { Lightbulb, Ticket, Upload, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Textarea } from '@/components/ui/textarea';
 import { useActiveSites } from '@/components/site/useActiveSites';
 import { cn } from '@/lib/utils';
 import {
-    useAddCsiRaterGroup, useAddCsiRaters, useCsiRaterDepartments, useCsiRaterGroupPreview, useImportCsiRaters,
+    useAddCsiRaterGroup, useAddCsiRaters, useAddCsiTicketRaters, useCsiRaterDepartments, useCsiRaterGroupPreview, useCsiTicketRaterPreview, useImportCsiRaters,
 } from '../../../hooks/useCsi';
 import type { DraftUser } from '../../../lib/csiAdmin';
 import { toneClasses } from '../../../lib/csiTone';
@@ -16,9 +18,15 @@ import type { CsiRaterImportResult, CsiScopeParam } from '../../../types';
 import { FIELD_LABEL, MUTED_TEXT, UserMultiPicker } from '../AdminParts';
 import { parseRaterKeys, readRaterFile } from './raterImport';
 
-type AddMode = 'group' | 'import' | 'search';
-const MODES = [
+type AddMode = 'group' | 'ticket' | 'import' | 'search';
+const BASE_MODES = [
     { value: 'group', label: 'Per kelompok' },
+    { value: 'import', label: 'Impor daftar' },
+    { value: 'search', label: 'Cari satu-satu' },
+] as const;
+const ICT_MODES = [
+    { value: 'group', label: 'Per kelompok' },
+    { value: 'ticket', label: 'Dari tiket IT Support' },
     { value: 'import', label: 'Impor daftar' },
     { value: 'search', label: 'Cari satu-satu' },
 ] as const;
@@ -166,17 +174,92 @@ function SearchAdd({ scope, registered }: { scope: CsiScopeParam; registered: Re
     );
 }
 
-/** Three ways to register raters, the fastest first. */
+/** Active, logged-in users who have ever filed an IT Support (OPS_SUPPORT) ticket. */
+function TicketRatersAdd({ scope }: { scope: CsiScopeParam }) {
+    const { data: sites = [] } = useActiveSites();
+    const [siteId, setSiteId] = useState<string>(ALL);
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [includeAllRoles, setIncludeAllRoles] = useState(false);
+    const invalidDates = !!(startDate && endDate && endDate < startDate);
+    const filter = {
+        siteId: siteId === ALL ? undefined : siteId,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        includeAllRoles,
+    };
+    const { data: preview, isFetching } = useCsiTicketRaterPreview(scope, filter);
+    const add = useAddCsiTicketRaters(scope);
+    const run = () => add.mutate(filter, { onSuccess: (result) => toast.success(`${result.added} penilai dari tiket IT Support ditambahkan`) });
+
+    return (
+        <div className="grid gap-3">
+            <p className={cn(MUTED_TEXT, 'text-[12.5px]')}>
+                Menarik user aktif yang sudah pernah login dan pernah membuat tiket IT Support (OPS Support). User yang belum pernah login atau belum pernah buat tiket tidak masuk daftar.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-3">
+                <label className="grid gap-1.5">
+                    <span className={FIELD_LABEL}>Site</span>
+                    <Select value={siteId} onValueChange={setSiteId}>
+                        <SelectTrigger aria-label="Site penilai tiket"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ALL}>Semua site</SelectItem>
+                            {sites.map((row) => <SelectItem key={row.id} value={row.id}>{`${row.code} — ${row.name}`}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </label>
+                <label className="grid gap-1.5">
+                    <span className={FIELD_LABEL}>Dari tanggal tiket (opsional)</span>
+                    <Input type="date" aria-label="Dari tanggal tiket" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+                </label>
+                <label className="grid gap-1.5">
+                    <span className={FIELD_LABEL}>Sampai tanggal tiket (opsional)</span>
+                    <Input type="date" aria-label="Sampai tanggal tiket" min={startDate || undefined} value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+                </label>
+            </div>
+            <label className="inline-flex w-fit cursor-pointer items-center gap-2 text-[13px]">
+                <Checkbox checked={includeAllRoles} onCheckedChange={(state) => setIncludeAllRoles(state === true)} />
+                <span>Sertakan role selain USER (Agent / Manager / Admin)</span>
+            </label>
+            {invalidDates && (
+                <p role="alert" className={cn('text-[12.5px]', toneClasses('red').ink)}>Tanggal selesai tidak boleh sebelum tanggal mulai.</p>
+            )}
+            {!invalidDates && preview && (
+                <div className={PREVIEW_BOX} aria-busy={isFetching || undefined}>
+                    <b>{`${preview.total} user memenuhi syarat`}</b>
+                    {preview.alreadyRegistered > 0 && <span className={MUTED_TEXT}>{` · ${preview.alreadyRegistered} sudah terdaftar akan dilewati`}</span>}
+                    {preview.bySite.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                            {preview.bySite.map((site) => (
+                                <span key={site.code} className="rounded-md bg-card px-2 py-0.5 text-[11.5px] font-medium border border-[hsl(var(--idesk-border))]">
+                                    {`${site.code}: ${site.toAdd} baru (${site.total} total)`}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                    <Sample names={preview.sample} more={preview.toAdd - preview.sample.length} />
+                </div>
+            )}
+            <Button variant="primary" className="w-fit" onClick={run} loading={add.isPending} disabled={invalidDates || !preview?.toAdd}>
+                <Ticket aria-hidden="true" />{preview?.toAdd ? `Tambahkan ${preview.toAdd} penilai` : 'Tambahkan'}
+            </Button>
+        </div>
+    );
+}
+
+/** Three ways to register raters (four for ICT with IT Support ticket history), the fastest first. */
 export function AddRatersPanel({ scope, registered }: { scope: CsiScopeParam; registered: ReadonlySet<string> }) {
     const [mode, setMode] = useState<AddMode>('group');
+    const modes = scope === 'ict' ? ICT_MODES : BASE_MODES;
     return (
         <div className="grid gap-3">
             <p className={cn('flex items-start gap-2 rounded-xl px-3.5 py-2.5 text-[12.5px]', toneClasses('sky').soft, toneClasses('sky').ink)}>
                 <Lightbulb className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                Paling cepat: tambahkan satu kelompok sekaligus (per site atau departemen), lalu hapus yang tidak perlu dari daftar di bawah.
+                Paling cepat: tambahkan satu kelompok sekaligus (per site, departemen, atau pembuat tiket IT Support), lalu hapus yang tidak perlu dari daftar di bawah.
             </p>
-            <SegmentedControl aria-label="Cara menambah penilai" className="dash-seg w-fit" options={MODES} value={mode} onValueChange={setMode} />
+            <SegmentedControl aria-label="Cara menambah penilai" className="dash-seg w-fit" options={modes} value={mode} onValueChange={setMode} />
             {mode === 'group' && <GroupAdd scope={scope} />}
+            {mode === 'ticket' && scope === 'ict' && <TicketRatersAdd scope={scope} />}
             {mode === 'import' && <ImportAdd scope={scope} />}
             {mode === 'search' && <SearchAdd scope={scope} registered={registered} />}
         </div>

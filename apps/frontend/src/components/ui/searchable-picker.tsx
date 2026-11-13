@@ -19,6 +19,7 @@ const filterByKeywords = (_value: string, search: string, keywords?: string[]) =
     defaultFilter((keywords ?? []).join(' '), search);
 
 export interface SearchablePickerProps {
+    id?: string;
     value: string;
     options: SearchablePickerOption[];
     onValueChange: (value: string) => void;
@@ -52,7 +53,7 @@ function PickerOptions({ value, options, onValueChange }: Pick<SearchablePickerP
     </CommandList>;
 }
 
-export function SearchablePicker({ value, options, onValueChange, label, placeholder = 'Pilih nilai',
+export function SearchablePicker({ id, value, options, onValueChange, label, placeholder = 'Pilih nilai',
     searchPlaceholder, disabled, triggerClassName, triggerIcon, displayValue, triggerContent }: SearchablePickerProps) {
     const [open, setOpen] = useState(false);
     const selected = options.find(option => option.value === value);
@@ -60,7 +61,7 @@ export function SearchablePicker({ value, options, onValueChange, label, placeho
     const select = (next: string) => { if (next !== value) onValueChange(next); setOpen(false); };
     return <Popover open={open && !disabled} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-            <button type="button" aria-label={label} disabled={disabled}
+            <button id={id} type="button" aria-label={label} disabled={disabled}
                 className={cn('ticket-pill ticket-tone-neutral picker-trigger', triggerClassName)}
                 onKeyDown={event => {
                     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {

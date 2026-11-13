@@ -12,12 +12,33 @@ const USERS = [
 describe('CsiRaterBulkService', () => {
     let users: any;
     let raters: any;
+    let tickets: any;
+    let qb: any;
+    let ticketRows: Array<{ id: string; fullName: string; siteCode: string | null; siteName: string | null }>;
     let master: { addRaters: jest.Mock; listRaters: jest.Mock };
     let service: CsiRaterBulkService;
     let registered: string[];
 
     beforeEach(() => {
         registered = ['u2'];
+        ticketRows = [
+            { id: 'u1', fullName: 'Andi', siteCode: 'SPJ', siteName: 'Sepanjang' },
+            { id: 'u2', fullName: 'Budi', siteCode: 'SPJ', siteName: 'Sepanjang' },
+            { id: 'u3', fullName: 'Citra', siteCode: 'KRW', siteName: 'Karawang' },
+        ];
+        qb = {
+            innerJoin: jest.fn().mockReturnThis(),
+            leftJoin: jest.fn().mockReturnThis(),
+            select: jest.fn().mockReturnThis(),
+            addSelect: jest.fn().mockReturnThis(),
+            where: jest.fn().mockReturnThis(),
+            andWhere: jest.fn().mockReturnThis(),
+            groupBy: jest.fn().mockReturnThis(),
+            addGroupBy: jest.fn().mockReturnThis(),
+            orderBy: jest.fn().mockReturnThis(),
+            getRawMany: jest.fn(async () => ticketRows),
+        };
+        tickets = { createQueryBuilder: jest.fn(() => qb) };
         users = {
             find: jest.fn(async (options: any) => {
                 if (Array.isArray(options.where)) {
@@ -35,7 +56,7 @@ describe('CsiRaterBulkService', () => {
             delete: jest.fn(async () => ({ affected: 1 })),
         };
         master = { addRaters: jest.fn(async () => []), listRaters: jest.fn(async () => []) };
-        service = new CsiRaterBulkService(users, raters, master as any);
+        service = new CsiRaterBulkService(users, raters, tickets, master as any);
     });
 
     it('group preview counts the site, skips already registered users and samples the rest (nothing written)', async () => {
@@ -65,5 +86,54 @@ describe('CsiRaterBulkService', () => {
     it('removes several raters of the scope at once', async () => {
         await service.removeMany(ICT, ['r1', 'r2', 'r1']);
         expect(raters.delete).toHaveBeenCalledWith({ scope: ICT, id: expect.objectContaining({ _value: ['r1', 'r2'] }) });
+    });
+
+    describe('IT Support ticket raters', () => {
+        it('previews active logged-in OPS_SUPPORT requesters with site breakdown without writing', async () => {
+            const result = await service.previewTicketRaters(ICT, {});
+            expect(result).toEqual({
+                total: 3,
+                alreadyRegistered: 1,
+                toAdd: 2,
+                sample: ['Andi', 'Citra'],
+                bySite: [
+                    { code: 'KRW', name: 'Karawang', total: 1, toAdd: 1 },
+                    { code: 'SPJ', name: 'Sepanjang', total: 2, toAdd: 1 },
+                ],
+            });
+            expect(qb.andWhere).toHaveBeenCalledWith('user.lastActiveAt IS NOT NULL');
+            expect(qb.andWhere).toHaveBeenCalledWith('user.siteId IS NOT NULL');
+            expect(qb.andWhere).toHaveBeenCalledWith(
+                '(ticket."handlingTeam" = :opsTeam OR ticket."handlingTeam" IS NULL)',
+                { opsTeam: 'OPS_SUPPORT' },
+            );
+            expect(qb.andWhere).toHaveBeenCalledWith(
+                '(ticket.ticketType NOT IN (:...devTypes) OR ticket.ticketType IS NULL)',
+                { devTypes: ['ORACLE_REQUEST', 'WEB_DEV_REQUEST', 'MOBILE_DEV_REQUEST'] },
+            );
+            expect(qb.andWhere).toHaveBeenCalledWith('user.role = :requesterRole', { requesterRole: 'USER' });
+            expect(master.addRaters).not.toHaveBeenCalled();
+        });
+
+        it('adds only unregistered ticket raters and supports optional site/date/role filters', async () => {
+            const done = await service.addTicketRaters(ICT, {
+                siteId: 's1',
+                startDate: '2026-01-01',
+                endDate: '2026-12-31',
+                includeAllRoles: true,
+            });
+            expect(done.added).toBe(2);
+            expect(master.addRaters).toHaveBeenCalledWith(ICT, ['u1', 'u3']);
+            expect(qb.andWhere).toHaveBeenCalledWith('user.siteId = :siteId', { siteId: 's1' });
+            expect(qb.andWhere).toHaveBeenCalledWith('ticket.createdAt >= :startAt', { startAt: expect.any(Date) });
+            expect(qb.andWhere).toHaveBeenCalledWith('ticket.createdAt <= :endAt', { endAt: expect.any(Date) });
+            expect(qb.andWhere).not.toHaveBeenCalledWith('user.role = :requesterRole', expect.anything());
+        });
+
+        it('rejects HC scope and inverted date ranges', async () => {
+            await expect(service.previewTicketRaters(ServiceScope.HC, {})).rejects.toBeInstanceOf(BadRequestException);
+            await expect(service.previewTicketRaters(ICT, { startDate: '2026-12-31', endDate: '2026-01-01' }))
+                .rejects.toBeInstanceOf(BadRequestException);
+        });
     });
 });

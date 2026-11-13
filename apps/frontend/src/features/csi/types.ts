@@ -439,6 +439,9 @@ export interface CsiPeriodOverlap { id: string; title: string; startDate: string
 // ─── Bulk rater registration ─────────────────────────────────────────────────
 export interface CsiRaterGroupFilter { siteId?: string; departmentId?: string }
 export interface CsiRaterGroupPreview { total: number; alreadyRegistered: number; toAdd: number; sample: string[] }
+export interface CsiTicketRaterFilter { siteId?: string; startDate?: string; endDate?: string; includeAllRoles?: boolean }
+export interface CsiTicketRaterSiteSummary { code: string; name: string; total: number; toAdd: number }
+export interface CsiTicketRaterPreview extends CsiRaterGroupPreview { bySite: CsiTicketRaterSiteSummary[] }
 export interface CsiRaterDepartmentOption { id: string; name: string; userCount: number }
 export interface CsiRaterImportResult {
     matched: number; alreadyRegistered: number; toAdd: number; added: number; notFound: string[]; sample: string[];
