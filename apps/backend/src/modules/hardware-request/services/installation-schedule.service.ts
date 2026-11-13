@@ -44,7 +44,7 @@ export class InstallationScheduleService {
         if (req.status !== RequestStatus.INSTALLATION) throw new ConflictException('invalid state: must be INSTALLATION');
 
         // Site isolation: if actor carries site context, enforce it
-        if (actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
+        if (req.requesterId !== actor.id && actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
             const siteActor: SiteActor = { role: actor.userRole, siteId: actor.siteId };
             assertSiteAccess(siteActor, req.siteId);
         }
@@ -91,7 +91,7 @@ export class InstallationScheduleService {
         if (!req) throw new NotFoundException('request');
 
         // Site isolation
-        if (actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
+        if (req.requesterId !== actor.id && actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
             const siteActor: SiteActor = { role: actor.userRole, siteId: actor.siteId };
             assertSiteAccess(siteActor, req.siteId);
         }
@@ -133,7 +133,7 @@ export class InstallationScheduleService {
         if (!req || req.status !== RequestStatus.INSTALLATION) throw new ConflictException('invalid state');
 
         // Site isolation
-        if (actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
+        if (req.requesterId !== actor.id && actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
             const siteActor: SiteActor = { role: actor.userRole, siteId: actor.siteId };
             assertSiteAccess(siteActor, req.siteId);
         }

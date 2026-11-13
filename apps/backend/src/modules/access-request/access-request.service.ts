@@ -13,6 +13,7 @@ import { CredentialCipherService } from '../../shared/core/encryption/credential
 import { SiteActor, assertSiteAccess, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
 import { computeResolutionDeadline } from '../ticketing/utils/resolution-deadline.util';
 import { BusinessHoursService } from '../sla-config/business-hours.service';
+import { HandlingSiteService } from '../sites/handling-site.service';
 
 @Injectable()
 export class AccessRequestService {
@@ -30,6 +31,7 @@ export class AccessRequestService {
         private readonly cipher: CredentialCipherService,
         @InjectDataSource()
         private readonly dataSource: DataSource,
+        private readonly handlingSite: HandlingSiteService,
         @Optional()
         private readonly businessHoursService?: BusinessHoursService,
     ) { }
@@ -50,7 +52,8 @@ export class AccessRequestService {
             priority: TicketPriority.MEDIUM,
             category: 'ACCESS_REQUEST',
             userId: userId,
-            siteId: user.siteId,
+            // Handled where the requester's site sends its ICT requests (Sukodono → Sepanjang).
+            siteId: await this.handlingSite.handlingSiteId(user.siteId),
         } as Partial<Ticket>);
 
         const savedTicket = await this.ticketRepo.save(ticket);
@@ -170,9 +173,10 @@ export class AccessRequestService {
         return this.accessRequestRepo.save(accessRequest);
     }
 
-    async uploadSignedForm(id: string, filePath: string, actor: SiteActor): Promise<AccessRequest> {
+    async uploadSignedForm(id: string, filePath: string, actor: SiteActor & { userId?: string }): Promise<AccessRequest> {
         const accessRequest = await this.loadAccessRequestWithTicket(id);
-        assertSiteAccess(actor, accessRequest.ticket?.siteId);
+        const isRequester = Boolean(actor.userId && accessRequest.ticket?.user?.id === actor.userId);
+        if (!isRequester) assertSiteAccess(actor, accessRequest.ticket?.siteId);
 
         if (accessRequest.status !== AccessRequestStatus.FORM_DOWNLOADED) {
             throw new BadRequestException('Please download the form first');

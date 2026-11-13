@@ -12,6 +12,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
+import { HandlingSiteService } from '../sites/handling-site.service';
 import { SiteActor, assertSiteAccess, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
 import {
   ICT_ROLES,
@@ -45,6 +46,7 @@ export class EFormRequestService {
     private readonly eventEmitter: EventEmitter2,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    private readonly handlingSites: HandlingSiteService,
   ) {}
 
   async getVpnTerms() {
@@ -69,7 +71,7 @@ export class EFormRequestService {
 
   async createRequest(userId: string, userFullName: string, dto: CreateEFormRequestDto) {
     const requester = await this.userRepo.findOne({ where: { id: userId } as any });
-    const requesterSiteId = (requester as any)?.siteId ?? null;
+    const requesterSiteId = await this.handlingSites.handlingSiteId(requester?.siteId ?? null);
     const requesterName = dto.requesterName?.trim() || userFullName;
 
     // Synology goes straight to IT: no manager gate, so no approver to assign.
@@ -287,12 +289,11 @@ export class EFormRequestService {
     const request = await this.eformRequestRepository.findOne({ where: { id: requestId } });
     if (!request) throw new NotFoundException('Request not found');
 
-    // Enforce site isolation before any credential access
-    assertSiteAccess(actor, request.siteId);
-
     const isICT = CREDENTIAL_READER_ROLES.includes(userRole);
     const isRequester = request.requesterId === userId;
     if (!isICT && !isRequester) throw new ForbiddenException('Access denied');
+    // The requester keeps access when another site's ICT handles the request; staff stay site-scoped.
+    if (!isRequester) assertSiteAccess(actor, request.siteId);
 
     const credential = await this.eformCredentialRepository.findOne({ where: { eformRequestId: requestId } });
     if (!credential) throw new NotFoundException('Credentials not ready');
@@ -404,14 +405,11 @@ export class EFormRequestService {
     const request = await this.eformRequestRepository.findOne({ where: { id: requestId } });
     if (!request) throw new NotFoundException('Request not found');
 
-    // Site first: the old approver-only check happened to keep rejections
-    // within a site, and role-based rejection would otherwise drop that.
-    assertSiteAccess(actor, request.siteId);
-
-    // Authorization: the assigned approver, or IT while the request sits with them.
+    // A designated approver retains access when another site's ICT handles the request.
     const isApprover = request.currentApproverId === userId;
     const isICT = ICT_ROLES.includes(userRole);
     if (!isApprover && !isICT) throw new ForbiddenException('Not authorized to reject this request');
+    if (!isApprover) assertSiteAccess(actor, request.siteId);
 
     // Done requests stay done; an unsigned proposal from a ticket is withdrawn there, not rejected.
     const closed = [EFormStatus.CONFIRMED, EFormStatus.REJECTED, EFormStatus.DRAFT, EFormStatus.CANCELLED];

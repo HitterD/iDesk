@@ -38,6 +38,10 @@ export class Site {
     @Column({ default: false })
     isServerHost: boolean; // TRUE for SPJ (main server)
 
+    /** Requests from this site are handled by that site's ICT (SKD → SPJ); null = handled here. */
+    @Column({ type: 'uuid', nullable: true })
+    handledBySiteId: string | null;
+
     @Column({ type: 'varchar', nullable: true, unique: true })
     tvToken: string | null;
 

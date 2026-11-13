@@ -77,6 +77,7 @@ describe('EFormRequestService - Synology direct-to-IT flow', () => {
       { getSetting: jest.fn(), setSetting: jest.fn() } as any,
       eventEmitter as any,
       userRepo as any,
+        { handlingSiteId: jest.fn(async (siteId: string) => siteId === 'site-skd' ? SITE_SPJ : siteId) } as any,
     );
   });
 
@@ -95,6 +96,11 @@ describe('EFormRequestService - Synology direct-to-IT flow', () => {
     } as any);
 
   describe('createRequest routing', () => {
+    it('routes an SKD requester to SPJ while preserving requester identity', async () => {
+      userRepo.findOne.mockResolvedValue({ id: 'u-requester', siteId: 'site-skd' });
+      await createSynology();
+      expect(eformRepo.save).toHaveBeenCalledWith(expect.objectContaining({ requesterId: 'u-requester', siteId: SITE_SPJ }));
+    });
     it('sends Synology straight to IT with no approver assigned', async () => {
       await createSynology();
 

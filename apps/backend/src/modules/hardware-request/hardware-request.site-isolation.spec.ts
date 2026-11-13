@@ -9,7 +9,6 @@ const SITE_SMG = 'site-smg';
 
 // Site-locked roles (non-cross-site). These must be pinned to their own site.
 const SITE_LOCKED_ROLES: Array<{ hardware: HardwareRole; user: UserRole }> = [
-  { hardware: HardwareRole.USER, user: UserRole.USER },
   { hardware: HardwareRole.ICT_STAFF, user: UserRole.AGENT },
   { hardware: HardwareRole.ICT_STAFF, user: UserRole.AGENT_ADMIN },
   { hardware: HardwareRole.ICT_STAFF, user: UserRole.AGENT_OPERATIONAL_SUPPORT },
@@ -46,6 +45,13 @@ describe('HardwareRequest site isolation', () => {
   });
 
   describe('list', () => {
+    it.each(['site-skd', null])('requester lists only their own requests, even when handled elsewhere (%s)', async (siteId) => {
+      await service.list(makeActor(HardwareRole.USER, UserRole.USER, siteId), { siteId: SITE_SMG });
+      expect(repo.andWhere).toHaveBeenCalledWith('r.requesterId = :uid', { uid: 'u' });
+      const clauses = repo.andWhere.mock.calls.map((call: any[]) => call[0]);
+      expect(clauses).not.toContain('r.siteId = :siteId');
+      expect(clauses).not.toContain('1 = 0');
+    });
     it.each(SITE_LOCKED_ROLES)('pins %s (userRole) to their own site (ignores dto.siteId)', async ({ hardware, user }) => {
       await service.list(makeActor(hardware, user, SITE_SPJ), { siteId: SITE_SMG });
 
@@ -78,6 +84,13 @@ describe('HardwareRequest site isolation', () => {
   });
 
   describe('getById', () => {
+    it('SKD requester can view their own SPJ request but another requester cannot', async () => {
+      repo.findOne.mockResolvedValue({ id: 'r1', requesterId: 'u', siteId: SITE_SPJ });
+      await expect(service.getById(makeActor(HardwareRole.USER, UserRole.USER, 'site-skd'), 'r1'))
+        .resolves.toEqual(expect.objectContaining({ id: 'r1' }));
+      await expect(service.getById({ ...makeActor(HardwareRole.USER, UserRole.USER, 'site-skd'), id: 'other' }, 'r1'))
+        .rejects.toBeInstanceOf(ForbiddenException);
+    });
     it('site-locked cannot read other site (403)', async () => {
       repo.findOne.mockResolvedValue({ id: 'r1', siteId: SITE_SMG });
 

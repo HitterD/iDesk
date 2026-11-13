@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificationModule } from '../notifications/notification.module';
 import { SettingsModule } from '../settings/settings.module';
 import { User } from '../users/entities/user.entity';
+import { SiteHandlingModule } from '../sites/handling-site.module';
 import { Site } from '../sites/entities/site.entity';
 import { EFormRequest, EFormApproval, EFormSignature, EFormCredential } from './entities';
 import { EFormRequestService } from './eform-request.service';
@@ -41,6 +42,7 @@ import { TicketEFormSyncListener } from './ticket-link/ticket-eform-sync.listene
     SettingsModule,
     AuditModule,
     ConfigModule,
+    SiteHandlingModule,
     SynologyModule,
     forwardRef(() => TicketingModule),
   ],

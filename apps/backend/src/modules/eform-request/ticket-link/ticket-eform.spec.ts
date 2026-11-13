@@ -152,6 +152,7 @@ describe('EFormRequestService.createRequest completing a proposal', () => {
         service = new EFormRequestService(
             { logAsync: jest.fn() } as any, repo, { save: jest.fn() } as any, { save: jest.fn() } as any, {} as any,
             {} as any, {} as any, {} as any, { emit: jest.fn() } as any, { findOne: jest.fn(async () => ({ siteId: 'site-1' })) } as any,
+            { handlingSiteId: jest.fn(async (siteId: string) => siteId) } as any,
         );
     });
 

@@ -139,6 +139,17 @@ describe('MutualSchedulingService', () => {
   });
 
   describe('selectSlot', () => {
+    it('allows the SKD requester to select an SPJ installation slot, not unrelated site staff', async () => {
+      mockDataSource._schedRepo.findOne.mockResolvedValue({
+        id: 'sch-1', requestId: 'r1', status: InstallStatus.PROPOSED_AWAITING_USER,
+        proposedSlots: [futureSlot(2)], technicianId: 't1',
+        request: { id: 'r1', requesterId: 'u1', siteId: 'site-spj', status: RequestStatus.INSTALLATION },
+      });
+      await expect(service.selectSlot('r1', 'sch-1', { slotIndex: 0 },
+        { id: 'u1', siteId: 'site-skd', userRole: 'USER' as any })).resolves.toBeDefined();
+      await expect(service.selectSlot('r1', 'sch-1', { slotIndex: 0 },
+        { id: 'agent-krw', siteId: 'site-krw', userRole: 'AGENT_OPERATIONAL_SUPPORT' as any })).rejects.toThrow();
+    });
     it('confirms schedule, sets scheduled_start/end from chosen slot, emits event', async () => {
       const slots = [futureSlot(2), futureSlot(24)];
       mockDataSource._schedRepo.findOne.mockResolvedValue({

@@ -565,7 +565,9 @@ export class TicketUpdateService {
             throw new ForbiddenException('You can only cancel your own tickets');
         }
 
-        validateTicketSiteAccess(user.role as UserRole, (user as any).siteId ?? null, (ticket as any).siteId ?? null);
+        if (ticket.user.id !== userId) {
+            validateTicketSiteAccess(user.role as UserRole, (user as any).siteId ?? null, (ticket as any).siteId ?? null);
+        }
 
         // Cannot cancel already resolved, closed or cancelled tickets
         if (TICKET_INACTIVE_STATUSES.includes(ticket.status)) {

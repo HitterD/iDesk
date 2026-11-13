@@ -47,6 +47,7 @@ import { TicketHardwareRequestController } from './presentation/ticket-hardware-
 import { Ticket } from '../ticketing/entities/ticket.entity';
 import { TicketMessage } from '../ticketing/entities/ticket-message.entity';
 import { User } from '../users/entities/user.entity';
+import { SiteHandlingModule } from '../sites/handling-site.module';
 import { WorkloadModule } from '../workload/workload.module';
 import { TicketingModule } from '../ticketing/ticketing.module';
 
@@ -72,6 +73,7 @@ import { TicketingModule } from '../ticketing/ticketing.module';
         forwardRef(() => PermissionsModule),
         forwardRef(() => TicketingModule),
         WorkloadModule,
+        SiteHandlingModule,
     ],
     controllers: [
         InstallationController,

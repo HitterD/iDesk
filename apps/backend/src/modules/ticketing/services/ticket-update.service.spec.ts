@@ -5,6 +5,7 @@ import { Ticket, TicketStatus, TicketPriority, TicketType, HandlingTeam } from '
 import { createTestSlaClock } from './sla-clock.testing';
 import { REASSIGN_CONFIRMATION_REQUIRED } from './status-takeover';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
+import { TicketCancelReasonCode } from '../ticket-cancel.constants';
 
 describe('TicketUpdateService.assignTicket — Oracle/K2 enforcement', () => {
     let service: any;
@@ -258,6 +259,19 @@ describe('TicketUpdateService.bulkAssign', () => {
                 describeModule: jest.fn().mockResolvedValue('modul ini'),
                 toAssignable: jest.fn((t: any) => t),
             } as any, createTestSlaClock(), { resolveVisit: () => new Date(Date.now() + 86_400_000), schedule: jest.fn(), clear: jest.fn(), note: () => '' } as any);
+    });
+
+    it('lets an SKD requester cancel their own SPJ ticket without opening staff cross-site access', async () => {
+        const ticket = buildTicket('own');
+        ticket.siteId = 'site-spj';
+        mockTicketRepo.findOne.mockResolvedValue(ticket);
+        mockUserRepo.findOne.mockResolvedValue(buildUser('user-creator', UserRole.USER, 'site-skd'));
+        mockEventsGateway.notifyStatusChange = jest.fn();
+        await expect(service.cancelTicket('own', 'user-creator', UserRole.USER, TicketCancelReasonCode.NOT_NEEDED))
+            .resolves.toEqual(expect.objectContaining({ status: TicketStatus.CANCELLED }));
+        mockUserRepo.findOne.mockResolvedValue(buildUser('agent-krw', UserRole.AGENT_OPERATIONAL_SUPPORT, 'site-krw'));
+        await expect(service.cancelTicket('own', 'agent-krw', UserRole.AGENT_OPERATIONAL_SUPPORT, TicketCancelReasonCode.NOT_NEEDED))
+            .rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('assigns multiple tickets successfully and returns counts', async () => {

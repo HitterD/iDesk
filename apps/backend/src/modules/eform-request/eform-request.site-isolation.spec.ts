@@ -69,6 +69,7 @@ describe('EFormRequestService site isolation (P0 credential protection)', () => 
       { getSetting: jest.fn(), setSetting: jest.fn() } as any,
       { emit: jest.fn() } as any,
       {} as any,                        // userRepo
+        { handlingSiteId: jest.fn(async (siteId: string) => siteId) } as any,
     );
   });
 
@@ -210,6 +211,15 @@ describe('EFormRequestService site isolation (P0 credential protection)', () => 
       ).rejects.toBeInstanceOf(ForbiddenException);
 
       expect(credentialService.decrypt).not.toHaveBeenCalled();
+    });
+
+    it('lets the requester read credentials handled by another site', async () => {
+      eformRepo.findOne.mockResolvedValue(makeEform({ siteId: SITE_SPJ, requesterId: 'requester-skd' }));
+      credRepo.findOne.mockResolvedValue({ encryptedUsername: 'u', encryptedPassword: 'p' });
+      const result = await service.getCredentials(
+        { role: UserRole.USER, siteId: 'site-skd' }, 'eform-1', 'requester-skd', UserRole.USER,
+      );
+      expect(result.username).toBe('decrypted-u');
     });
 
     it('ICT on own site can read credentials', async () => {

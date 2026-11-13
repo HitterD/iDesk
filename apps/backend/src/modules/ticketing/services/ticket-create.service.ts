@@ -18,6 +18,7 @@ import { CreateTicketDto } from '../dto/create-ticket.dto';
 import { resolveInitialHandlingTeam } from '../utils/oracle-ticket-access.util';
 import { departmentDivision, generateNextTicketNumber, withTicketNumberRetry } from '../utils/ticket-number-generator';
 import { SlaClockService } from './sla-clock.service';
+import { HandlingSiteService } from '../../sites/handling-site.service';
 
 /** An external system that filed the ticket; (source, ref) is unique, so retries are idempotent. */
 export interface ExternalTicketRef {
@@ -49,6 +50,7 @@ export class TicketCreateService {
         private readonly workloadService: WorkloadService,
         private readonly auditService: AuditService,
         private readonly slaClock: SlaClockService,
+        private readonly handlingSite: HandlingSiteService,
     ) { }
 
     /** The requester: the caller, or (staff only) the active user they file for. */
@@ -105,7 +107,9 @@ export class TicketCreateService {
                 user,
                 createdById: external?.filedById && external.filedById !== user.id ? external.filedById : creator.id === user.id ? null : creator.id,
                 status: TicketStatus.TODO,
-                siteId: user.siteId, // Auto-assign the requester's site
+                // The site that handles the requester's site (Sukodono → Sepanjang); routing, auto-assign
+                // and notifications all follow it. The requester keeps access as the ticket's owner.
+                siteId: await this.handlingSite.handlingSiteId(user.siteId),
                 criticalReason: createTicketDto.criticalReason || null,
                 externalSource: external?.source ?? null,
                 externalRef: external?.ref ?? null,

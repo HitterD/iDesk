@@ -26,6 +26,7 @@ import { HardwareAssetService } from './hardware-asset.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ActingUser } from './installation-schedule.service';
 import { UserRole } from '../../users/enums/user-role.enum';
+import { HandlingSiteService } from '../../sites/handling-site.service';
 import { SiteActor, resolveSiteScope, isCrossSiteRole, assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
 
 @Injectable()
@@ -44,6 +45,7 @@ export class HardwareRequestCommandService {
         private readonly scheduleRepo: Repository<InstallationSchedule>,
         private readonly assetSvc: HardwareAssetService,
         private readonly emitter: EventEmitter2,
+        private readonly handlingSites: HandlingSiteService,
     ) {}
 
     /**
@@ -97,7 +99,7 @@ export class HardwareRequestCommandService {
                 recipientId: dto.recipientId ?? null,
                 recipientName: dto.recipientName ?? null,
                 division: dto.division ?? null,
-                siteId: effectiveSiteId,
+                siteId: (await this.handlingSites.handlingSiteId(effectiveSiteId))!,
                 justification: dto.justification,
                 status: RequestStatus.DRAFT,
                 items: itemsWithSnapshot as any,
@@ -149,7 +151,7 @@ export class HardwareRequestCommandService {
             const scope = resolveSiteScope(actor);
             if (dto.siteId !== undefined) {
                 if (scope.mode === 'all') {
-                    existing.siteId = dto.siteId;
+                    existing.siteId = (await this.handlingSites.handlingSiteId(dto.siteId))!;
                 }
                 // else: ignore dto.siteId for non-cross-site (keep existing.siteId)
             }
