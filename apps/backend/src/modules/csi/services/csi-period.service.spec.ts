@@ -1048,15 +1048,18 @@ describe('CsiPeriodService', () => {
             expect(detail.publishStatus).toBe(CsiPeriodPublishStatus.PUBLISHED);
         });
 
-        it('publish refuses a draft whose dates clash with a published survey of the same site (409 naming it)', async () => {
+        it('publish allows overlapping dates when title differs, and refuses matching normalized title (409 naming it)', async () => {
             periods.rows.push(draft());
             withAssignment();
-            periods.rows.push(basePeriod({ id: 'live', title: 'CSI ICT', startDate: '2026-09-01', endDate: '2026-09-10' }));
+            periods.rows.push(basePeriod({ id: 'other-title', title: 'CSI ICT Lain', startDate: '2026-09-01', endDate: '2026-09-10' }));
+            const allowed = await service.publish(ICT, 'p1');
+            expect(allowed.publishStatus).toBe(CsiPeriodPublishStatus.PUBLISHED);
+            periods.rows[0] = draft();
+            periods.rows.push(basePeriod({ id: 'live', title: ' q3 ', startDate: '2026-09-01', endDate: '2026-09-10' }));
             const error = await service.publish(ICT, 'p1').catch((caught) => caught);
             expect(error).toBeInstanceOf(ConflictException);
-            expect(error.getResponse()).toMatchObject({ code: 'CSI_PERIOD_OVERLAP', overlap: { id: 'live', title: 'CSI ICT' } });
-            expect(error.message).toMatch(/"CSI ICT"/);
-            expect(periods.update).not.toHaveBeenCalled();
+            expect(error.getResponse()).toMatchObject({ code: 'CSI_PERIOD_OVERLAP', overlap: { id: 'live', title: ' q3 ' } });
+            expect(error.message).toMatch(/" q3 "/);
         });
 
         it('publishing an already published period is a no-op', async () => {
@@ -1113,11 +1116,15 @@ describe('CsiPeriodService', () => {
             expect(manager.query).toHaveBeenCalledWith('SELECT pg_advisory_xact_lock(hashtext($1))', ['csi-schedule:ICT']);
         });
 
-        it('restore refuses an ended survey and one that would clash with another published survey', async () => {
+        it('restore refuses an ended survey and same-title overlap, while allowing different-title overlap', async () => {
             periods.rows[0] = basePeriod({ endDate: '2026-01-31', publishStatus: CsiPeriodPublishStatus.CANCELLED });
             await expect(service.restore(ICT, 'p1')).rejects.toThrow('melewati tanggal selesai');
             periods.rows[0] = basePeriod({ endDate: '2099-12-31', publishStatus: CsiPeriodPublishStatus.CANCELLED });
             periods.rows.push(basePeriod({ id: 'other', title: 'Lain', startDate: '2026-08-01', endDate: '2026-08-31' }));
+            await service.restore(ICT, 'p1');
+            expect(periods.rows[0].publishStatus).toBe(CsiPeriodPublishStatus.PUBLISHED);
+            periods.rows[0] = basePeriod({ endDate: '2099-12-31', publishStatus: CsiPeriodPublishStatus.CANCELLED });
+            periods.rows.push(basePeriod({ id: 'same', title: ' q3 ', startDate: '2026-08-01', endDate: '2026-08-31' }));
             await expect(service.restore(ICT, 'p1')).rejects.toBeInstanceOf(ConflictException);
         });
 

@@ -29,6 +29,19 @@ export function CsiPendingCard({ className }: { className?: string }) {
                 <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-medium text-muted-foreground">Ada survei menunggu</p>
                     <p className="truncate text-[15px] font-semibold text-foreground">{title}</p>
+                    {pending.length > 1 && (
+                        <ul className="mt-1.5 flex flex-wrap gap-1.5" aria-label="Daftar survei aktif">
+                            {pending.map((survey) => (
+                                <li key={survey.id}>
+                                    <Link to={`${basePath}/${encodeURIComponent(survey.id)}`}
+                                        className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--idesk-surface))] px-2.5 py-0.5 text-[12px] font-medium text-foreground transition-colors hover:border-[hsl(var(--idesk-sapphire))] hover:text-[hsl(var(--idesk-sapphire))]">
+                                        <span className="font-bold text-[hsl(var(--idesk-sapphire))]">{survey.scope}</span>
+                                        <span className="max-w-[220px] truncate">{survey.title}</span>
+                                    </Link>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                 </div>
                 <Link to={target} className="idesk-btn is-primary is-lg shrink-0 justify-center">
                     {user && pending.some((survey) => hasDraft(user.id, survey.id)) ? 'Lanjutkan' : 'Isi Survei'}<ArrowRight aria-hidden="true" />

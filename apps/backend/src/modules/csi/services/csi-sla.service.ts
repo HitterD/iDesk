@@ -61,7 +61,7 @@ export class CsiSlaService {
         };
     }
 
-    /** Distinct ticket creators in the sites during the 12 months before the survey (deactivated users still count). */
+    /** Distinct ticket creators whose own site is in `siteIds` during the 12 months before the survey (so SKD reporters stay on SKD even when tickets route to SPJ). */
     private async ticketReporters(startDate: string, siteIds: string[]): Promise<ReporterRow[]> {
         const { from, to } = slaWindow(startDate);
         return this.tickets.createQueryBuilder('ticket')
@@ -70,7 +70,7 @@ export class CsiSlaService {
             .select('user.id', 'id').addSelect('user.email', 'email')
             .addSelect('department.name', 'department').addSelect('user.fullName', 'fullName')
             .where('ticket.userId IS NOT NULL')
-            .andWhere('ticket.siteId IN (:...siteIds)', { siteIds })
+            .andWhere('user.siteId IN (:...siteIds)', { siteIds })
             .andWhere('ticket.createdAt >= :from AND ticket.createdAt < :to', { from, to })
             .groupBy('user.id').addGroupBy('user.email').addGroupBy('department.name').addGroupBy('user.fullName')
             .getRawMany<ReporterRow>();

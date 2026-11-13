@@ -22,10 +22,9 @@ const openDescription = (hcTarget: boolean) => (hcTarget
 const reminderToast = ({ sent, skipped }: CsiReminderResult) =>
     `Pengingat terkirim ke ${sent} orang${skipped > 0 ? `, ${skipped} dilewati` : ''}`;
 
-/** LISTED only: per-site progress of the registered raters against the period target. */
+/** LISTED only: per-site progress of every period site against the period target. */
 function siteProgress(rows: readonly PersonRow[], sites: readonly CsiSiteSummary[], targetPct: number): SiteProgress[] {
-    // Sites without any assigned rater are not part of the survey audience: no "0/0" cards.
-    return sites.filter((site) => rows.some((row) => row.siteId === site.id)).map((site) => {
+    return sites.map((site) => {
         const own = rows.filter((row) => row.siteId === site.id);
         return { siteId: site.id, code: site.code, name: site.name, progress: progressOf(own.filter((row) => row.done).length, own.length, targetPct) };
     });

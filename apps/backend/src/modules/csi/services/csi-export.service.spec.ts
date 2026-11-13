@@ -339,6 +339,23 @@ describe('CsiExportService', () => {
         expect(sheet.getRow(headerRow + 1 + pic).getCell(1).alignment?.indent).toBe(2);
     });
 
+    it('HC workbook summary counts only rated PICs (ratings > 0) and omits unrated PIC rows', async () => {
+        const { model } = hcReportFixture({ respondents: 30 });
+        const unratedPic = {
+            ...model.hcRecap.services.find((row) => row.level === 'pic')!,
+            key: 'pic:unrated', label: 'PIC Belum Dinilai',
+            all: { average: null, ratings: 0 },
+        };
+        const ratedCount = model.hcRecap.services.filter((row) => row.level === 'pic' && row.all.ratings > 0).length;
+        const workbook = await workbookOf({
+            ...model,
+            hcRecap: { ...model.hcRecap, services: [...model.hcRecap.services, unratedPic] },
+        });
+        expect(summaryValue(workbook, 'Yang dinilai')).toBe(ratedCount);
+        const nestedNames = workbook.getWorksheet('3 Layanan-bagian-PIC')!.getColumn(1).values;
+        expect(nestedNames).not.toContain('PIC Belum Dinilai');
+    });
+
     describe('raw-data workbook', () => {
         it('confidential filename, red banner above every table, header row 3, sheets in order', async () => {
             const { workbook, filename } = await raw();

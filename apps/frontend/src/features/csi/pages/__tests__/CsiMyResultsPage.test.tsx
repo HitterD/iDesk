@@ -55,6 +55,13 @@ describe('CsiMyResultsPage', () => {
         expect(screen.getAllByRole('heading', { name: base.title })).toHaveLength(2);
     });
 
+    it('shows empty team message when minRaters <= 1 and no raters yet', async () => {
+        fx.results = [{ ...base, teamName: 'Payroll', raters: 0, minRaters: 1, ready: false }];
+        renderPage();
+        expect(await screen.findByText('Tim Payroll')).toBeInTheDocument();
+        expect(screen.getByText('Belum ada penilaian.')).toBeInTheDocument();
+    });
+
     it('explains when nobody rated the account', async () => {
         fx.results = [];
         renderPage();

@@ -332,5 +332,25 @@ describe('renderCsiReportPdf', () => {
                 spy.mockRestore();
             }
         });
+
+        it('HC PDF counts only rated PICs in Yang dinilai and keeps 0/0 sites in Per site', async () => {
+            const { model } = hcReportFixture();
+            const unratedPic = {
+                ...model.hcRecap.services.find((row) => row.level === 'pic')!,
+                key: 'pic:unrated', label: 'Belum Dinilai',
+                all: { average: null, ratings: 0 },
+            };
+            const baseSiteCount = model.sites.length;
+            const modelWithExtras = {
+                ...model,
+                sites: [...model.sites, { siteId: 'site-skd', code: 'SKD', name: 'Sukodono', basis: 0, target: 0, responses: 0, respondenPct: null, reached: false, average: null }],
+                hcRecap: { ...model.hcRecap, services: [...model.hcRecap.services, unratedPic] },
+            };
+            const ratedPicsCount = model.hcRecap.services.filter((row) => row.level === 'pic' && row.all.ratings > 0).length;
+            const text = await allText(modelWithExtras);
+            expect(text).toContain(String(ratedPicsCount));
+            expect(text).not.toContain('Belum Dinilai');
+            if (baseSiteCount >= 1) expect(text).toContain('SKD 0/0');
+        });
     });
 });

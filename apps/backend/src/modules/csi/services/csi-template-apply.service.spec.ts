@@ -46,7 +46,7 @@ const krwView = (): CsiTemplateView => ({
             raters: [rater('h', 'BUDI', 'u-budi', 'confirmed'), rater('i', 'CICI', 'u-cici'), rater('j', 'ELVI CYNTHIA', 'u-elvi')] },
     ],
 });
-const allSites = [{ id: 's-smg', code: 'SMG' }, { id: 's-krw', code: 'KRW' }, { id: 's-spj', code: 'SPJ' }];
+const allSites = [{ id: 's-smg', code: 'SMG' }, { id: 's-krw', code: 'KRW' }, { id: 's-skd', code: 'SKD' }, { id: 's-spj', code: 'SPJ' }];
 const INPUT = { title: 'CSI HC 2026', startDate: '2026-12-01', endDate: '2026-12-31' };
 
 describe('CsiTemplateApplyService', () => {
@@ -101,7 +101,7 @@ describe('CsiTemplateApplyService', () => {
         users.rows.push({ id: 'u-elvi', siteId: 's-smg' }, { id: 'u-cici', siteId: 's-krw' }, { id: 'u-budi', siteId: 's-krw' }, { id: 'u-confirmed', siteId: 's-smg' });
         teams.rows.push({ id: 'team-a', scope: HC, kind: CsiTeamKind.CUSTOM, serviceCode: null, siteId: 's-krw', name: 'TIM RECEPTION', isActive: true });
         members.rows.push({ id: 'm1', teamId: 'team-a', userId: 'u-cici', name: 'CICI' }, { id: 'm2', teamId: 'team-a', userId: null, name: 'DEDE' });
-        periods.rows.push({ id: 'p1', scope: HC, respondentMode: CsiRespondentMode.LISTED, pairMode: null, unitRules: [], publishStatus: CsiPeriodPublishStatus.PUBLISHED,
+        periods.rows.push({ id: 'p1', scope: HC, title: 'CSI HC 2026', respondentMode: CsiRespondentMode.LISTED, pairMode: null, unitRules: [], publishStatus: CsiPeriodPublishStatus.PUBLISHED,
             cancelledAt: null, sites: [{ siteId: 's-smg', site: { code: 'SMG' } }] });
         const repositories = new Map<unknown, unknown>([
             [CsiPeriod, periods], [CsiPeriodRatee, ratees], [CsiPeriodRateeDimension, rateeDims], [CsiPeriodRater, raters], [CsiPeriodRaterRatee, pairs],
@@ -297,12 +297,26 @@ describe('CsiTemplateApplyService', () => {
         expect((await service.applyToPeriod(HC, 't1', 'p1', false)).siteAdded).toBeNull();
     });
 
-    it('sync refuses to add a site when the published survey would clash with another published survey there', async () => {
-        periods.rows[0] = { ...periods.rows[0], sites: [{ siteId: 's-spj', site: { code: 'SPJ' } }] };
-        periodService.overlaps.mockResolvedValueOnce([{ title: 'CSI HC Semarang' }]).mockResolvedValueOnce([{ title: 'CSI HC Semarang' }]);
-        expect((await service.applyToPeriod(HC, 't1', 'p1', false)).blockedReason).toMatch(/SMG.*CSI HC Semarang/);
+    it('sync allows adding a site with a different-titled overlapping survey and refuses only when titles match', async () => {
+        periods.rows[0] = { ...periods.rows[0], title: 'CSI HC 2026', sites: [{ siteId: 's-spj', site: { code: 'SPJ' } }] };
+        periodService.overlaps.mockResolvedValueOnce([{ title: 'CSI HC Semarang' }]);
+        expect((await service.applyToPeriod(HC, 't1', 'p1', false)).blockedReason).toBeNull();
+        periodService.overlaps.mockResolvedValueOnce([{ title: ' csi hc 2026 ' }]).mockResolvedValueOnce([{ title: ' csi hc 2026 ' }]);
+        expect((await service.applyToPeriod(HC, 't1', 'p1', false)).blockedReason).toMatch(/SMG.*csi hc 2026/);
         await expect(service.applyToPeriod(HC, 't1', 'p1', true)).rejects.toBeInstanceOf(BadRequestException);
         expect(periodSites.rows).toEqual([]);
+    });
+
+    it('uses the template location site on ratees even when the PIC master holds another site (e.g. SKD PICs based in SMG)', async () => {
+        const skdTemplate: CsiTemplateView = {
+            id: 't-skd', scope: 'HC', locationCode: 'SKD', name: 'CSI HC – Sukodono', updatedAt: null,
+            summary: { pics: 1, picsUnmatched: 0, picsWithoutRaters: 0, raters: 1, ratersConfirmed: 1, ratersOk: 0, ratersNoAccount: 0, ratersAmbiguous: 0 },
+            pics: [{ id: 'tp-skd', area: 'HC Services', serviceCode: 'HCS', picName: 'RARA', jobTitle: 'Staff', serviceFunction: 'Admin', picId: 'pic-rara', teamId: null, raterCount: 1,
+                raters: [rater('skd-r', 'ELVI CYNTHIA', 'u-elvi', 'confirmed')] }],
+        };
+        templates.get.mockResolvedValueOnce(skdTemplate);
+        await service.applyToPeriod(HC, 't-skd', 'p1', true);
+        expect(ratees.rows.find((row) => row.picId === 'pic-rara')?.siteId).toBe('s-skd');
     });
 
     it('report counts unconfirmed', async () => {

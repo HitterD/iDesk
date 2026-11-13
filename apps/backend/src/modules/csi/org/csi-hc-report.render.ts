@@ -4,7 +4,7 @@ import {
 } from '../services/csi-excel-style';
 import { sanitizeCell } from '../services/csi-export.sheet';
 import { CsiScoreBands } from '../services/csi-score-bands';
-import { collapseRespondentRows, CsiCell, CsiHcRecap, CsiRecapRow, CsiRespondentRow, recapDelta } from './csi-hc-report.calc';
+import { collapseRespondentRows, CsiCell, CsiHcRecap, CsiRecapRow, CsiRespondentRow, ratedHcServices, recapDelta } from './csi-hc-report.calc';
 import { CSI_LOCATION_ALL_LABEL } from './csi-org.constants';
 
 /** Excel sheets of the HC per-PIC recap (the PDF pages live in csi-hc-report.pdf.ts). */
@@ -46,7 +46,7 @@ const dimensionValues = (context: HcSheetContext, row: CsiRecapRow, label: strin
 /** "Per layanan": dimension averages per layanan, then layanan × respondent location (+ all locations). */
 export function addHcServiceSheet(workbook: ExcelJS.Workbook, name: string, context: HcSheetContext) {
     const { recap } = context;
-    const services = recap.services.filter((row) => row.level === 'service');
+    const services = ratedHcServices(recap).filter((row) => row.level === 'service');
     const dimensions = dimensionColumns(context, 'Layanan');
     const locations: XlColumn[] = [{ header: 'Layanan' }, ...recap.locations.map((location) => score(location.label)), score(CSI_LOCATION_ALL_LABEL), count('Penilai')];
     const span = Math.max(dimensions.length, locations.length);
@@ -69,6 +69,7 @@ export function addHcServiceSheet(workbook: ExcelJS.Workbook, name: string, cont
 /** "Layanan-bagian-PIC": one nested table (layanan bold on a tint, bagian bold, PIC / Tim indented). */
 export function addHcNestedSheet(workbook: ExcelJS.Workbook, name: string, context: HcSheetContext) {
     const { recap } = context;
+    const ratedRows = ratedHcServices(recap);
     const columns: XlColumn[] = [
         { header: 'Layanan / Bagian / PIC', indent: true }, { header: 'Tingkat' },
         ...recap.dimensions.map(score), score(`Rata-rata (${CSI_LOCATION_ALL_LABEL})`), count('Penilai'), count('Jumlah penilaian'),
@@ -79,7 +80,7 @@ export function addHcNestedSheet(workbook: ExcelJS.Workbook, name: string, conte
     ];
     const { sheet, row } = sheetOf(workbook, name, 'analysis', 'Nilai per layanan, bagian & PIC', context, Math.min(columns.length, 10));
     const note = sectionRow(sheet, row, 'Kolom lokasi = lokasi responden; kosong = kurang dari 3 responden dari lokasi itu atau belum ada penilaian', Math.min(columns.length, 10));
-    addTable(sheet, columns, recap.services.map((service) => [
+    addTable(sheet, columns, ratedRows.map((service) => [
         text(service.label), service.team ? TEAM_LEVEL_LABEL : LEVEL_LABEL[service.level],
         ...recap.dimensions.map((dimension) => service.dimensions[dimension] ?? null), service.all.average, service.respondents, service.all.ratings,
         ...recap.locations.map((location) => masked(service.byLocation[location.code])),
@@ -87,7 +88,7 @@ export function addHcNestedSheet(workbook: ExcelJS.Workbook, name: string, conte
         text(service.jobTitle), text(service.serviceFunction),
     ]), {
         bands: context.bands, headerRow: note, freeze: { columns: 1 }, emptyText: 'Belum ada PIC.',
-        rowStyle: (index) => ({ level: LEVEL_STYLE[recap.services[index].level], topRule: index > 0 && recap.services[index].level === 'service' }),
+        rowStyle: (index) => ({ level: LEVEL_STYLE[ratedRows[index].level], topRule: index > 0 && ratedRows[index].level === 'service' }),
     });
     // Wide table: printed pages continue to the right, each repeating the names column.
     sheet.pageSetup.printTitlesColumn = 'A:A';
@@ -110,7 +111,7 @@ export function addHcRespondentSheet(workbook: ExcelJS.Workbook, name: string, c
 /** "Per pertanyaan" (HC): score per question (full text) per layanan, never per person. */
 export function addHcQuestionSheet(workbook: ExcelJS.Workbook, name: string, context: HcSheetContext, fullOf: Map<string, string>) {
     const { recap } = context;
-    const services = recap.services.filter((row) => row.level === 'service');
+    const services = ratedHcServices(recap).filter((row) => row.level === 'service');
     const columns: XlColumn[] = [{ header: 'Pertanyaan', width: 60 }, ...services.map((service) => score(service.serviceCode ?? OTHER_SERVICE)), score('Semua layanan')];
     const { sheet, row } = sheetOf(workbook, name, 'analysis', 'Nilai per pertanyaan per layanan', context, columns.length);
     const note = sectionRow(sheet, row, 'Teks pertanyaan seperti di formulir; angka = rata-rata bintang (1–5)', columns.length);

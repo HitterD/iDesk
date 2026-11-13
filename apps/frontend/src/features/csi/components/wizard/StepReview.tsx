@@ -79,7 +79,7 @@ export function StepReview({ scope, period, onEditStep, onPublished }: StepRevie
                 {publishError && (
                     <div role="alert" className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-[hsl(var(--ticket-red)/.1)] px-3.5 py-3 text-[13px] font-medium text-[hsl(var(--ticket-red-ink))]">
                         <span className="min-w-0 flex-1">{publishError}</span>
-                        <Button variant="soft" size="sm" onClick={() => onEditStep('info')}>Ubah tanggal / site</Button>
+                        <Button variant="soft" size="sm" onClick={() => onEditStep('info')}>Ubah judul / tanggal / site</Button>
                     </div>
                 )}
             </AdminSection>

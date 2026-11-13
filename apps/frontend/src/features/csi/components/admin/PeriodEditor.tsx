@@ -81,7 +81,7 @@ export function PeriodEditor({ scope, period, periods = [], copyFrom, onSaved, f
                 <Textarea value={form.thankYou} maxLength={CSI_TEXT_MAX} rows={2} onChange={(event) => set('thankYou', event.target.value)} />
             </label>
             <DateAndModeFields form={form} set={set} modeLocked={locked}
-                overlap={<OverlapNotice scope={scope} siteIds={form.siteIds} startDate={form.startDate} endDate={form.endDate} excludeId={period?.id}
+                overlap={<OverlapNotice scope={scope} title={form.title} siteIds={form.siteIds} startDate={form.startDate} endDate={form.endDate} excludeId={period?.id}
                     onUseDates={(range) => setForm((current) => ({ ...current, ...range }))} />} />
             <SectionFields form={form} set={set} locked={locked} rateeCounts={period ? sectionRateeCounts(scope, period) : undefined} />
             {scope === 'hc' && <HcRaterModeField form={form} set={set} locked={locked} />}

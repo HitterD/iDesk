@@ -63,7 +63,7 @@ export function summary(canvas: ReportCanvas, model: CsiReportModel, subjects: {
 function slaBlock(canvas: ReportCanvas, model: CsiReportModel) {
     const { sla } = model;
     const lines = [`${sla.submitted}/${sla.basis} sudah mengisi (${sla.pct}%)`, `Target ${sla.targetPct}% = ${sla.targetCount} orang`];
-    const sites = model.sites.filter((site) => site.basis > 0);
+    const sites = model.sites;
     if (sites.length > 1) lines.push(`Per site: ${sites.map((site) => `${site.code ?? site.name} ${site.responses}/${site.basis} (${pct(site.respondenPct)})`).join('  ·  ')}`);
     const note = templateRatersNote(model);
     if (note) lines.push(note);

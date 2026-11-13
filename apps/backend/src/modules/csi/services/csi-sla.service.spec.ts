@@ -33,6 +33,7 @@ describe('CsiSlaService', () => {
             { email: 'b@x.id', department: null, fullName: 'Budi' },
         ]);
         const params = Object.assign({}, ...tickets.builder.calls.where.concat(tickets.builder.calls.andWhere).map((call: any[]) => call[1] ?? {}));
+        expect(tickets.builder.calls.andWhere.some((call: any[]) => String(call[0]).includes('user.siteId'))).toBe(true);
         expect(params.siteIds).toEqual(['site-a', 'site-b']);
         // [startDate - 12 months, startDate) in WIB
         expect(params.from).toEqual(new Date('2025-09-30T17:00:00Z'));

@@ -163,4 +163,12 @@ describe('CsiDashboard', () => {
         await user.click(card);
         expect(onOpenReport).toHaveBeenCalledWith(expect.any(String), expect.any(String));
     });
+
+    it('keeps 0/0 period sites (such as SKD) visible in Target per site and Belum capai target', () => {
+        const skdRow = { periodId: 'p1', title: 'CSI Q4', siteId: 's3', siteCode: 'SKD', siteName: 'Sukodono', responses: 0, basis: 0, target: 0, targetPct: 90, average: null, scoreWeight: 0, endDate: END, scoreBands: BANDS };
+        fx.data = { ...DATA, active: [...ACTIVE, skdRow] };
+        renderDashboard();
+        expect(screen.getByRole('region', { name: 'Target per site' })).toHaveTextContent('Sukodono');
+        expect(screen.getByRole('group', { name: 'Belum capai target' })).toHaveTextContent('Sukodono');
+    });
 });
