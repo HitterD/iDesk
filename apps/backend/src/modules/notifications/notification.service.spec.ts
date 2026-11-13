@@ -329,7 +329,10 @@ describe('NotificationService - lists and counts stay in the database', () => {
 
         expect(await service.countUnread('u-1')).toBe(7);
         expect(repo.find).not.toHaveBeenCalled();
-        expect(qb.andWhere.mock.calls.map((c: any[]) => c[0]).join(' ')).toContain('ticket_note_members');
+        const sql = qb.andWhere.mock.calls.map((c: any[]) => c[0]).join(' ');
+        expect(sql).toContain('ticket_note_members');
+        expect(sql).toContain('n."userId"::text');
+        expect(sql).toContain('n."referenceId"::text');
     });
 
     it('pages the list in SQL and only checks the returned page for note access', async () => {

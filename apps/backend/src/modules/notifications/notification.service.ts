@@ -53,9 +53,9 @@ function replyCountOf(title: string): number {
  * still a member. The full check (ticket access) still runs on the rows that are returned; this keeps lists and
  * counts in the database instead of loading every notification into memory.
  */
-const VISIBLE_NOTE_SQL = `(n.type <> 'TICKET_NOTE' OR EXISTS (
+export const VISIBLE_NOTE_SQL = `(n.type::text <> 'TICKET_NOTE' OR EXISTS (
     SELECT 1 FROM ticket_note_members m JOIN ticket_notes tn ON tn.id = m."noteId"
-    WHERE m."noteId"::text = n."referenceId" AND m."userId"::text = n."userId" AND tn."deletedAt" IS NULL))`;
+    WHERE m."noteId"::text = n."referenceId"::text AND m."userId"::text = n."userId"::text AND tn."deletedAt" IS NULL))`;
 
 /** Upper bound for the unread list; the unread count endpoint reports the real total. */
 const MAX_UNREAD_LIST = 100;
