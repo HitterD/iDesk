@@ -103,6 +103,11 @@ export const CsiHcApi = {
     async pics(scope: CsiScopeParam, includeInactive = false): Promise<CsiPicView[]> {
         return (await api.get<CsiPicView[]>(`${orgPath(scope)}/pics`, { params: { includeInactive } })).data;
     },
+    async picAccountSuggestions(scope: CsiScopeParam, search: string, siteId?: string | null): Promise<AccountSuggestion[]> {
+        return (await api.get<AccountSuggestion[]>(`${orgPath(scope)}/pics/account-suggestions`, {
+            params: { search, ...(siteId ? { siteId } : {}) },
+        })).data;
+    },
     async updatePic(scope: CsiScopeParam, id: string, patch: UpdateCsiPic): Promise<CsiPicView> {
         return (await api.patch<CsiPicView>(`${orgPath(scope)}/pics/${encodeURIComponent(id)}`, patch)).data;
     },

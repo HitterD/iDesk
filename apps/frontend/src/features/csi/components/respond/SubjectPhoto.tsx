@@ -1,10 +1,13 @@
 import { useState, type CSSProperties, type RefObject } from 'react';
-import { BriefcaseBusiness, User, Users } from 'lucide-react';
+import { BriefcaseBusiness, ChevronDown, User, Users } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { siteTone, toneClasses } from '../../lib/csiTone';
 import type { CsiFormRatee } from '../../types';
 import { ScreenHeading } from './FlowChrome';
 import { imageUrl } from './RateeAvatar';
+import { SubjectJumpBody, type SubjectJumpItem } from './SubjectRail';
+import { RESPOND_COPY } from './respondCopy';
 
 const KIND_TEXT = { TEAM: 'Penilaian tim', PERSON: 'Penilaian individu' } as const;
 /** Caption lines fade in one after another (ms). */
@@ -17,6 +20,8 @@ interface SubjectPhotoProps {
     total: number;
     /** Element scrolled into view when the respondent moves to this subject. */
     scrollTarget?: RefObject<HTMLElement | null>;
+    /** When provided, turns the "X / N" badge into a quick-jump dropdown of all subjects. */
+    jump?: { subjects: SubjectJumpItem[]; onSelect: (index: number) => void };
 }
 
 export const kindText = (ratee: Pick<CsiFormRatee, 'kind' | 'siteCode'>) =>
@@ -52,16 +57,38 @@ export const PHOTO_STACKED = 'relative aspect-[16/10] max-h-[34vh] w-full sm:asp
 export const PHOTO_STICKY = cn('lg:@min-[780px]:sticky lg:@min-[780px]:top-[var(--csi-stick,64px)] lg:@min-[780px]:aspect-auto lg:@min-[780px]:max-h-[640px] lg:@min-[780px]:min-h-[420px]',
     'lg:@min-[780px]:h-[calc(100dvh-var(--csi-chrome,0px)-var(--csi-stick,64px)-16px)] lg:@min-[780px]:rounded-l-[22px]');
 
+function IndexBadge({ index, total, jump }: Pick<SubjectPhotoProps, 'index' | 'total' | 'jump'>) {
+    const [open, setOpen] = useState(false);
+    const pillClass = 'inline-flex items-center gap-1 rounded-full bg-[rgb(8_14_30/.5)] px-[11px] py-[5px] text-[12px] font-bold tabular-nums text-white backdrop-blur-md';
+    if (!jump) return <span className={cn('absolute left-4 top-4 z-[2]', pillClass)}>{index + 1} / {total}</span>;
+    const finished = jump.subjects.filter((subject) => subject.done).length;
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <button type="button" aria-label={`Pilih subjek penilaian (${index + 1} dari ${total}, ${finished} selesai)`}
+                    className={cn('absolute left-4 top-4 z-[2] cursor-pointer transition-colors hover:bg-[rgb(8_14_30/.7)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white', pillClass)}>
+                    <span>{index + 1} / {total}</span>
+                    {finished > 0 && <span className="text-[11px] font-medium text-white/80">· {finished} selesai</span>}
+                    <ChevronDown className="h-3.5 w-3.5 opacity-80" aria-hidden="true" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" aria-label={RESPOND_COPY.allSubjects}
+                className="max-h-[420px] w-[min(520px,calc(100vw-24px))] overflow-auto rounded-2xl p-3">
+                <SubjectJumpBody subjects={jump.subjects} current={index} onClose={() => setOpen(false)}
+                    onSelect={(target) => { setOpen(false); jump.onSelect(target); }} />
+            </PopoverContent>
+        </Popover>
+    );
+}
+
 /** Left column of the respondent screen (see PHOTO_STACKED / PHOTO_STICKY). */
-export function SubjectPhoto({ ratee, index, total, scrollTarget }: SubjectPhotoProps) {
+export function SubjectPhoto({ ratee, index, total, scrollTarget, jump }: SubjectPhotoProps) {
     const KindIcon = ratee.kind === 'TEAM' ? Users : User;
     return (
         <div data-testid="csi-subject-photo" className={cn('overflow-hidden bg-[hsl(var(--idesk-chrome))]', PHOTO_STACKED, PHOTO_STICKY)}>
             <Picture key={ratee.periodRateeId} ratee={ratee} />
             <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgb(8_14_30/.25)_0,transparent_22%,transparent_46%,rgb(8_14_30/.9)_100%)]" />
-            <span className="absolute left-4 top-4 z-[2] rounded-full bg-[rgb(8_14_30/.45)] px-[11px] py-[5px] text-[12px] font-bold tabular-nums text-white backdrop-blur-md">
-                {index + 1} / {total}
-            </span>
+            <IndexBadge index={index} total={total} jump={jump} />
             <div key={`caption-${ratee.periodRateeId}`} className="absolute inset-x-[clamp(16px,2.4cqi,32px)] bottom-[clamp(14px,2.2cqi,30px)] z-[2] text-white">
                 <span style={delay(CAPTION_DELAY.kind)} className={cn('csi-cap-in mb-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[.06em] text-white',
                     toneClasses(siteTone(ratee.siteCode)).fill)}>

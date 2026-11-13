@@ -26,6 +26,45 @@ describe('CsiOrgService.updatePic', () => {
         await service.updatePic(ServiceScope.HC, 'pic-1', { isActive: false });
         expect(pics.save).toHaveBeenCalledWith(expect.objectContaining({ isActive: false, serviceFunction: null }));
     });
+
+    it('links and unlinks an iDesk account and rejects inactive or duplicate accounts', async () => {
+        const picRow = { ...base };
+        const pics = {
+            findOne: jest.fn(async ({ where }: any) => (where?.userId === 'u-taken' ? { ...base, id: 'pic-2', fullName: 'LAIN' } : where?.userId ? null : { ...picRow })),
+            save: jest.fn(async (value: any) => value),
+        };
+        const account = { id: 'u-1', fullName: 'Rara Akun', email: 'rara@santos.co.id', isActive: true };
+        const users = {
+            findOne: jest.fn(async ({ where }: any) => (where?.id === 'u-1' || where?.id === 'u-taken' ? { ...account, id: where.id } : null)),
+        };
+        const service = new CsiOrgService({} as any, pics as any, users as any, {} as any);
+
+        const linked = await service.updatePic(ServiceScope.HC, 'pic-1', { userId: 'u-1' });
+        expect(linked.userId).toBe('u-1');
+        expect(linked.user).toEqual({ id: 'u-1', fullName: 'Rara Akun', email: 'rara@santos.co.id' });
+
+        await expect(service.updatePic(ServiceScope.HC, 'pic-1', { userId: 'u-missing' })).rejects.toBeInstanceOf(BadRequestException);
+        await expect(service.updatePic(ServiceScope.HC, 'pic-1', { userId: 'u-taken' })).rejects.toThrow('LAIN');
+
+        const unlinked = await service.updatePic(ServiceScope.HC, 'pic-1', { userId: null });
+        expect(unlinked.userId).toBeNull();
+        expect(unlinked.user).toBeNull();
+    });
+});
+
+describe('CsiOrgService.accountSuggestions', () => {
+    it('matches active iDesk users by name, email, or NIK', async () => {
+        const users = {
+            find: jest.fn(async () => [
+                { id: 'u-1', fullName: 'Wahyu Purwo Anom', email: 'wahyu.anom@santos.co.id', employeeId: '00001234', siteId: 's1', site: { code: 'SPJ' }, department: { name: 'HC' } },
+                { id: 'u-2', fullName: 'Agus Sulistyono', email: 'agus@santos.co.id', employeeId: '00009999', siteId: 's1', site: { code: 'SPJ' }, department: { name: 'GA' } },
+            ]),
+        };
+        const service = new CsiOrgService({} as any, {} as any, users as any, {} as any);
+        expect((await service.accountSuggestions('00001234')).map((u) => u.id)).toEqual(['u-1']);
+        expect((await service.accountSuggestions('agus@')).map((u) => u.id)).toEqual(['u-2']);
+        expect((await service.accountSuggestions('Wahyu')).map((u) => u.id)).toEqual(['u-1']);
+    });
 });
 
 describe('CsiOrgService.syncPicsFromDirectory', () => {

@@ -59,7 +59,7 @@ describe('bintang dan kata skor', () => {
         expect(STAR_EMOJI[5]).toBe('🤩');
         expect(STAR_EMOJI[1]).toBe('😞');
         expect(STAR_LABELS[1]).toBe('Sangat kurang');
-        expect(STAR_LABELS[5]).toBe('Luar biasa!');
+        expect(STAR_LABELS[5]).toBe('Sangat memuaskan');
     });
     it('scoreWord mengikuti batas scoreTone', () => {
         expect(scoreWord(4.5)).toBe('Sangat puas');

@@ -101,12 +101,18 @@ export class CsiAdminOrgController {
         return this.org.listPics(req.csiScope, query.includeInactive);
     }
 
+    @Get('pics/account-suggestions')
+    picAccountSuggestions(@Query('search') search: string, @Query('siteId') siteId?: string) {
+        return this.org.accountSuggestions(search, siteId);
+    }
+
     /** A `fullName` renames the PIC everywhere it is still editable (template rows, draft surveys); see CsiPicRenameService. */
     @Patch('pics/:id')
     async updatePic(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Body() dto: UpdatePicDto) {
         const { fullName, ...rest } = dto;
         const renamed = fullName === undefined ? null : await this.rename.rename(req.csiScope, id, fullName);
-        if (renamed && rest.isActive === undefined && rest.serviceFunction === undefined) return renamed;
+        const hasOrgPatch = rest.isActive !== undefined || rest.serviceFunction !== undefined || rest.userId !== undefined;
+        if (renamed && !hasOrgPatch) return renamed;
         return this.org.updatePic(req.csiScope, id, rest);
     }
 

@@ -1,30 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CsiOpenForm } from '../../types';
-import { isAnswered, missingRequired, type CsiAnswer, type CsiAnswers } from '../../lib/csiForm';
+import { isAnswered, isCommentFilled, missingRequired, type CsiAnswer, type CsiAnswers, type CsiComments } from '../../lib/csiForm';
 import { draftKey, loadDraft, saveDraft, type SurveyDraft } from '../../lib/surveyDraft';
 
 const SAVE_DEBOUNCE_MS = 300;
 
 type Ratee = CsiOpenForm['ratees'][number];
 
-/** Index of the first ratee with an unanswered required question, or -1 when all are answered. */
-export const firstIncomplete = (form: CsiOpenForm, answers: CsiAnswers) =>
-    form.ratees.findIndex((ratee) => missingRequired(ratee, answers).length > 0);
+/** Index of the first ratee with an unanswered required question or missing comment, or -1 when all are complete. */
+export const firstIncomplete = (form: CsiOpenForm, answers: CsiAnswers, comments: CsiComments = {}) =>
+    form.ratees.findIndex((ratee) => missingRequired(ratee, answers).length > 0 || !isCommentFilled(comments[ratee.periodRateeId]));
 
-/** Chip tick: the screen was visited and every required question on it is answered. */
-export const isRateeComplete = (ratee: Ratee, answers: CsiAnswers, visited: boolean) =>
-    visited && missingRequired(ratee, answers).length === 0;
+/** Chip tick: the screen was visited and every required question + comment on it is filled. */
+export const isRateeComplete = (ratee: Ratee, answers: CsiAnswers, visited: boolean, comment?: string) =>
+    visited && missingRequired(ratee, answers).length === 0 && isCommentFilled(comment);
 
-/** Screens a restored draft already answered something on count as visited. */
-export const answeredScreens = (form: CsiOpenForm, answers: CsiAnswers): number[] =>
-    form.ratees.flatMap((ratee, index) => (ratee.dimensions.some((dimension) => isAnswered(dimension, answers)) ? [index] : []));
+/** Screens a restored draft already answered or commented on count as visited. */
+export const answeredScreens = (form: CsiOpenForm, answers: CsiAnswers, comments: CsiComments = {}): number[] =>
+    form.ratees.flatMap((ratee, index) => (
+        ratee.dimensions.some((dimension) => isAnswered(dimension, answers)) || isCommentFilled(comments[ratee.periodRateeId]) ? [index] : []
+    ));
 
 /** A restored draft must not land past a screen whose prerequisites are gone (department removed, new questions). */
 function resumePosition(form: CsiOpenForm, draft: SurveyDraft): number {
     if (!draft.departmentId) return 0;
     const reviewPosition = form.ratees.length + 1;
     if (draft.position < reviewPosition) return draft.position;
-    const pending = firstIncomplete(form, draft.answers);
+    const pending = firstIncomplete(form, draft.answers, draft.comments);
     return pending === -1 ? reviewPosition : pending + 1;
 }
 

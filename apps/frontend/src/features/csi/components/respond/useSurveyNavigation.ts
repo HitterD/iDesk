@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { scrollWithin } from '../../lib/scrollWithin';
-import { buildSubmitPayload, missingRequired } from '../../lib/csiForm';
+import { buildSubmitPayload, isCommentFilled, missingRequired } from '../../lib/csiForm';
 import type { CsiOpenForm, SubmitCsiResponse } from '../../types';
 import { answeredScreens, firstIncomplete, type SurveyAnswers } from './useSurveyAnswers';
 
@@ -11,7 +11,7 @@ const NO_MISSING: ReadonlySet<string> = new Set();
 const missingIn = (ratee: Ratee, answers: SurveyAnswers['draft']['answers']) =>
     new Set(missingRequired(ratee, answers).map((dimension) => dimension.periodRateeDimensionId));
 
-/** Scrolls the first highlighted (missing) star row into view once it has rendered. */
+/** Scrolls the first highlighted (missing) question or comment field into view once it has rendered. */
 function useScrollToMissing(attempt: number) {
     const reduce = useReducedMotion();
     useEffect(() => {
@@ -28,8 +28,9 @@ interface NavigationOptions {
 }
 
 /**
- * Screen position (0 = intro, 1..n = ratees, n + 1 = review) and the guards around it:
- * missing required answers block "Lanjut", and leaving the last ratee or sending returns to anyone skipped via the chips.
+ * Screen position (0 = intro, 1..n = ratees, n + 1 = review) with non-sequential navigation:
+ * respondents can move forward or jump to any ratee in any order; completeness (required questions + comment) is
+ * enforced on submit, jumping to the first incomplete ratee and highlighting what is missing.
  */
 export function useSurveyNavigation({ form, answers, preview, onSubmit }: NavigationOptions) {
     const { draft } = answers;
@@ -41,7 +42,7 @@ export function useSurveyNavigation({ form, answers, preview, onSubmit }: Naviga
     const reviewPosition = form.ratees.length + 1;
     const position = Math.min(draft.position, reviewPosition);
     // Ratee indexes (0-based) the respondent has opened; a restored draft counts screens it already answered on.
-    const [visited, setVisited] = useState<ReadonlySet<number>>(() => new Set([...answeredScreens(form, draft.answers), position - 1]));
+    const [visited, setVisited] = useState<ReadonlySet<number>>(() => new Set([...answeredScreens(form, draft.answers, draft.comments), position - 1]));
     const ratee = position >= 1 && position < reviewPosition ? form.ratees[position - 1] : null;
 
     const goTo = (target: number) => {
@@ -55,16 +56,14 @@ export function useSurveyNavigation({ form, answers, preview, onSubmit }: Naviga
         setAttempt((count) => count + 1);
     };
     const guardComplete = () => {
-        const pending = firstIncomplete(form, draft.answers);
+        const pending = firstIncomplete(form, draft.answers, draft.comments);
         if (pending === -1) return true;
         if (pending + 1 !== position) goTo(pending + 1);
         flag();
         return false;
     };
     const next = (): void => {
-        if (ratee && missingIn(ratee, draft.answers).size > 0) return flag();
-        if (position === reviewPosition - 1 && !guardComplete()) return;
-        goTo(position + 1);
+        goTo(Math.min(position + 1, reviewPosition));
     };
     const submit = (): void => {
         if (preview) return;
@@ -74,5 +73,6 @@ export function useSurveyNavigation({ form, answers, preview, onSubmit }: Naviga
         onSubmit?.(buildSubmitPayload(form, { name: form.respondent.fullName, departmentId: draft.departmentId, answers: draft.answers, comments: draft.comments }));
     };
     const missing = ratee && flagged ? missingIn(ratee, draft.answers) : NO_MISSING;
-    return { position, reviewPosition, ratee, missing, visited, navigated: motion.navigated, direction: motion.direction, goTo, next, submit };
+    const commentMissing = Boolean(ratee && flagged && !isCommentFilled(draft.comments[ratee.periodRateeId]));
+    return { position, reviewPosition, ratee, missing, commentMissing, visited, navigated: motion.navigated, direction: motion.direction, goTo, next, submit };
 }

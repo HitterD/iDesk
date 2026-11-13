@@ -2,7 +2,7 @@
 import type { CsiScoreBands } from './lib/csiTone';
 
 /** PIC master edit; `fullName` renames the PIC in its template rows and draft surveys too. */
-export interface UpdateCsiPic { isActive?: boolean; serviceFunction?: string | null; fullName?: string }
+export interface UpdateCsiPic { isActive?: boolean; serviceFunction?: string | null; fullName?: string; userId?: string | null }
 export const CSI_PIC_NAME_MIN = 2;
 export const CSI_PIC_NAME_MAX = 150;
 
@@ -19,6 +19,7 @@ export interface CsiPicView {
     workLocation: string | null;
     siteId: string | null;
     userId: string | null;
+    user?: { id: string; fullName: string; email: string } | null;
     photoUrl: string | null;
     isActive: boolean;
 }
