@@ -94,7 +94,7 @@ function memoryDb() {
         delete: jest.fn(async (entity: unknown, where: any) => remove(entity, where)),
         save: jest.fn(async (entity: unknown, value: any) => save(entity, value)),
     };
-    const dataSource = { transaction: jest.fn(async (work: (m: typeof manager) => unknown) => work(manager)) };
+    const dataSource = { getRepository: (entity: unknown) => repo(entity), transaction: jest.fn(async (work: (m: typeof manager) => unknown) => work(manager)) };
     return { table, repo, manager, dataSource };
 }
 
@@ -187,6 +187,21 @@ describe('CsiAssignmentService', () => {
             'pr-spj1>re-spj2', 'pr-spj1>re-team-spj',
             'pr-spj2>re-spj1', 'pr-spj2>re-team-spj',
         ]);
+    });
+
+    it('autoSameSite and get() merge delegated ICT site (SKD -> SPJ via handledBySiteId)', async () => {
+        const SKD = 'site-skd';
+        db.table(Site).push(
+            { id: SPJ, code: 'SPJ', name: 'Sepanjang', handledBySiteId: null, isActive: true },
+            { id: SKD, code: 'SKD', name: 'Sukodono', handledBySiteId: SPJ, isActive: true },
+        );
+        db.table(CsiPeriodRater).push(rater('pr-skd', 'p1', 'u-skd', SKD));
+        const view = await service.autoSameSite(ICT, 'p1');
+        expect(view.siteHandlers).toEqual({ [SKD]: SPJ });
+        expect(pairKeys()).toContain('pr-skd>re-team-spj');
+        expect(pairKeys()).toContain('pr-skd>re-spj1');
+        expect(pairKeys()).toContain('pr-skd>re-spj2');
+        expect(pairKeys()).not.toContain('pr-skd>re-team-krw');
     });
 
     it('pairsFor returns null when the period has no pairs', async () => {

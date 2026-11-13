@@ -9,11 +9,14 @@ type Ratee = CsiAssignments['ratees'][number] & {
     userId: string | null;
 };
 /** The assignments view joined with each ratee's user id (the assignments endpoint does not return it). */
-export interface MatrixData { raters: Rater[]; ratees: Ratee[]; pairs: CsiPair[] }
+export interface MatrixData { raters: Rater[]; ratees: Ratee[]; pairs: CsiPair[]; siteHandlers?: Record<string, string> }
 
 export interface MatrixStats { raters: number; subjects: number; teams: number; people: number; pairs: number; cross: number }
 
 const SEPARATOR = '|';
+
+export const effectiveSiteId = (siteId: string | null | undefined, siteHandlers?: Record<string, string>): string | null =>
+    (siteId ? siteHandlers?.[siteId] ?? siteId : null);
 
 export const pairKey = (periodRaterId: string, periodRateeId: string): PairKey => `${periodRaterId}${SEPARATOR}${periodRateeId}`;
 
@@ -29,7 +32,8 @@ export function withRateeUsers(view: CsiAssignments, periodRatees: ReadonlyArray
 }
 
 export const isSelf = (rater: Pick<Rater, 'userId'>, ratee: Pick<Ratee, 'userId'>) => ratee.userId !== null && ratee.userId === rater.userId;
-export const isCross = (rater: Pick<Rater, 'siteId'>, ratee: Pick<Ratee, 'siteId'>) => rater.siteId !== ratee.siteId;
+export const isCross = (rater: Pick<Rater, 'siteId'>, ratee: Pick<Ratee, 'siteId'>, siteHandlers?: Record<string, string>) =>
+    effectiveSiteId(rater.siteId, siteHandlers) !== effectiveSiteId(ratee.siteId, siteHandlers);
 
 export function toPairSet(pairs: readonly CsiPair[]): Set<PairKey> {
     return new Set(pairs.map((pair) => pairKey(pair.periodRaterId, pair.periodRateeId)));
@@ -55,9 +59,13 @@ export function colCells(a: MatrixData, rateeId: string): PairKey[] {
     return cellsOf(a.raters, a.ratees.filter((ratee) => ratee.periodRateeId === rateeId));
 }
 
-/** Raters of the site × subjects of the same site ("✓ Penilai <site>"). */
+/** Raters of the effective site × subjects of the same effective site ("✓ Penilai <site>", merges SKD -> SPJ). */
 export function siteCells(a: MatrixData, siteId: string): PairKey[] {
-    return cellsOf(a.raters.filter((rater) => rater.siteId === siteId), a.ratees.filter((ratee) => ratee.siteId === siteId));
+    const target = effectiveSiteId(siteId, a.siteHandlers);
+    return cellsOf(
+        a.raters.filter((rater) => effectiveSiteId(rater.siteId, a.siteHandlers) === target),
+        a.ratees.filter((ratee) => effectiveSiteId(ratee.siteId, a.siteHandlers) === target),
+    );
 }
 
 /** Pairs to send: known members only, never a self pair (the server rejects those). */
@@ -79,7 +87,7 @@ export function stats(a: MatrixData, pairs: ReadonlySet<PairKey>): MatrixStats {
     const cross = valid.filter((pair) => {
         const rater = raters.get(pair.periodRaterId);
         const ratee = ratees.get(pair.periodRateeId);
-        return rater && ratee && isCross(rater, ratee);
+        return rater && ratee && isCross(rater, ratee, a.siteHandlers);
     }).length;
     return { raters: a.raters.length, subjects: a.ratees.length, teams, people: a.ratees.length - teams, pairs: valid.length, cross };
 }
@@ -100,9 +108,12 @@ export function samePairs(a: ReadonlySet<PairKey>, b: ReadonlySet<PairKey>): boo
     return a.size === b.size && [...a].every((key) => b.has(key));
 }
 
-/** "Isi otomatis: sama site": every rater × every subject of the rater's own site (site-less raters/subjects skipped). */
+/** "Isi otomatis: sama site": every rater × every subject of their effective site (delegated sites like SKD -> SPJ merged). */
 export function sameSiteCells(a: MatrixData): Set<PairKey> {
-    const sites = new Set(a.raters.flatMap((rater) => (rater.siteId ? [rater.siteId] : [])));
+    const sites = new Set(a.raters.flatMap((rater) => {
+        const site = effectiveSiteId(rater.siteId, a.siteHandlers);
+        return site ? [site] : [];
+    }));
     return new Set([...sites].flatMap((siteId) => siteCells(a, siteId)));
 }
 

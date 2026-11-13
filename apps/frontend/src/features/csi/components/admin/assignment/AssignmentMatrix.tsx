@@ -6,6 +6,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { cn } from '@/lib/utils';
 import { useApplyCsiAssignmentTemplate, useCsiAssignments, useSaveCsiAssignments, useSaveCsiTemplate } from '../../../hooks/useCsi';
 import { CSI_SCOPE_OF } from '../../../lib/csiAdmin';
+import { siteHandlerMapOf } from '../../../lib/siteHandlers';
 import { toneClasses } from '../../../lib/csiTone';
 import { useServerDraft } from '../../../lib/useServerDraft';
 import type { CsiPeriodDetail, CsiScopeParam } from '../../../types';
@@ -119,7 +120,12 @@ interface AssignmentMatrixProps {
 export function AssignmentMatrix({ scope, period, onDirtyChange }: AssignmentMatrixProps) {
     const { data: view, isLoading, isError, refetch } = useCsiAssignments(scope, period.id);
     const save = useSaveCsiAssignments(scope, period.id);
-    const data = useMemo(() => (view ? withRateeUsers(view, period.ratees) : null), [view, period.ratees]);
+    const data = useMemo(() => {
+        if (!view) return null;
+        const merged = { ...siteHandlerMapOf(scope, period.sites), ...(view.siteHandlers ?? {}) };
+        const joined = withRateeUsers(view, period.ratees);
+        return Object.keys(merged).length ? { ...joined, siteHandlers: merged } : joined;
+    }, [view, period.ratees, period.sites, scope]);
     const { pairs, setPairs, dirty } = useMatrixDraft(data);
     const [search, setSearch] = useState('');
     const [site, setSite] = useState<string>(ALL_SITES);
@@ -155,7 +161,7 @@ export function AssignmentMatrix({ scope, period, onDirtyChange }: AssignmentMat
                 {!readOnly && <MatrixActions scope={scope} periodId={period.id} data={data} dirty={dirty} onReplace={setPairs} onSave={submit} saving={save.isPending} />}
                 {!readOnly && <p className={cn(MUTED_TEXT, 'text-[12px]')}>Klik nama penilai = satu baris · klik foto subjek = satu kolom · tombol di header site = semua penilai site itu</p>}
                 <MatrixTable scopeLabel={CSI_SCOPE_OF[scope]} rateeGroups={groupBySite(data.ratees, order)} raterGroups={groupBySite(raters, order)} pairs={pairs}
-                    siteOf={siteOf} readOnly={readOnly} overrides={overrides} onToggle={onToggle} onEditSubject={setEditing} />
+                    siteHandlers={data.siteHandlers} siteOf={siteOf} readOnly={readOnly} overrides={overrides} onToggle={onToggle} onEditSubject={setEditing} />
             </section>
             <SubjectEditSheet mode="period" periodId={period.id} scope={scope} scopeLabel={CSI_SCOPE_OF[scope]}
                 target={editing ? periodTarget(period, data, editing, siteOf) : null} onClose={() => setEditing(null)} />

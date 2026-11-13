@@ -1155,9 +1155,30 @@ describe('CsiPeriodService', () => {
             expect(assignments.applyTemplate).not.toHaveBeenCalled();
         });
 
+        it('new ICT period defaults pairMode to CUSTOM while HC stays null', async () => {
+            const dates = { startDate: '2026-11-01', endDate: '2026-11-30' };
+            await service.create(ICT, createDto(dates), 'admin');
+            await service.create(HC, createDto(dates), 'admin');
+            const pairModes = manager.saved.filter((entry) => entry.target === CsiPeriod).map((entry) => entry.value.pairMode);
+            expect(pairModes).toEqual([CsiPairMode.CUSTOM, null]);
+        });
+
         it('an unchosen mode still gets the template once members exist', async () => {
             await service.setRaters(ICT, 'p1', ['u1']);
             expect(assignments.applyTemplate).toHaveBeenCalledWith(ICT, 'p1');
+        });
+
+        it('CUSTOM ICT period falls back to autoSameSite when template yields no pairs and syncs newly added raters', async () => {
+            periods.rows[0].pairMode = CsiPairMode.CUSTOM;
+            (assignments as any).autoSameSite = jest.fn().mockResolvedValue(undefined);
+            (assignments as any).syncNewMembersSameSite = jest.fn().mockResolvedValue(undefined);
+            await service.setRaters(ICT, 'p1', ['u1']);
+            expect(assignments.applyTemplate).toHaveBeenCalledWith(ICT, 'p1');
+            expect((assignments as any).autoSameSite).toHaveBeenCalledWith(ICT, 'p1');
+
+            assignments.hasPairs.mockResolvedValueOnce(true);
+            await service.setRaters(ICT, 'p1', ['u1']);
+            expect((assignments as any).syncNewMembersSameSite).toHaveBeenCalledWith(ICT, 'p1', { raterUserIds: expect.any(Set) });
         });
     });
 });

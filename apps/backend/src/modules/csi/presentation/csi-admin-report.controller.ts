@@ -76,7 +76,7 @@ export class CsiAdminReportController {
 
     @Get('export')
     async export(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Query() query: ReportExportQueryDto, @Res() res: Response) {
-        const { filename, buffer } = await this.exporter.buildWorkbook(req.csiScope, id, new Date(), { notes: query.notes });
+        const { filename, buffer } = await this.exporter.buildWorkbook(req.csiScope, id, new Date(), { siteId: query.siteId, notes: query.notes });
         res.setHeader('Content-Type', XLSX_CONTENT_TYPE);
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.send(buffer);

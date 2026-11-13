@@ -115,6 +115,12 @@ describe('CsiExportService', () => {
         expect(reports.listAnswers).not.toHaveBeenCalled();
     });
 
+    it('ICT main workbook forwards siteId filter alongside notes to the report model', async () => {
+        await service.buildWorkbook(ServiceScope.ICT, 'p1', NOW, { siteId: 'site-skd', notes: 'Catatan' });
+        expect(reports.getRaterMatrix).toHaveBeenCalledWith(ServiceScope.ICT, 'p1', 'site-skd');
+        expect(reports.getExecutiveModel).toHaveBeenCalledWith(ServiceScope.ICT, 'p1', expect.objectContaining({ siteId: 'site-skd', notes: 'Catatan' }));
+    });
+
     it('HC main workbook: sheets 1-8 in the agreed order', async () => {
         const workbook = await workbookOf(hcReportFixture({ respondents: 30 }).model);
         expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(HC_SHEETS);

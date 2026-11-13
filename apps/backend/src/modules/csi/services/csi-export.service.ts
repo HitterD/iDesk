@@ -82,7 +82,7 @@ export class CsiExportService {
 
     /** Main report workbook: the PDF's parameters in numbered sheets, anonymous (no rater names or e-mails). */
     async buildWorkbook(scope: ServiceScope, periodId: string, now: Date = new Date(), options: CsiExportOptions = {}): Promise<{ filename: string; buffer: Buffer }> {
-        const model = await this.model(scope, periodId, { notes: options.notes });
+        const model = await this.model(scope, periodId, { siteId: options.siteId, notes: options.notes });
         const workbook = newCsiWorkbook(model.title, now);
         addExecutiveSheets(workbook, model);
         return { filename: `${this.baseName(scope, now)}.xlsx`, buffer: Buffer.from(await workbook.xlsx.writeBuffer()) };

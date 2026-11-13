@@ -41,7 +41,7 @@ describe('ReportExportDialog', () => {
         await waitFor(() => expect(CsiApi.exportPdf).toHaveBeenLastCalledWith('ict', 'p1', { siteId: 's2', notes: 'Pelatihan tim', signoff: null }));
         await screen.findByTitle('Pratinjau laporan CSI');
         await user.click(screen.getByRole('button', { name: /Unduh Excel/ }));
-        expect(CsiApi.exportPeriod).toHaveBeenCalledWith('ict', 'p1', 'Pelatihan tim');
+        expect(CsiApi.exportPeriod).toHaveBeenCalledWith('ict', 'p1', 'Pelatihan tim', 's2');
     });
 
     it('raw data is a separate, labelled download (lock icon, warning) from its own endpoint', async () => {

@@ -53,17 +53,21 @@ export class CsiMasterService {
      */
     async createTemplateDimensions(scope: ServiceScope) {
         const template: ReadonlyArray<CsiTemplateQuestion> = scope === ServiceScope.HC ? CSI_TEMPLATE_HC : CSI_TEMPLATE_2025;
-        const existing = scope === ServiceScope.HC
-            ? new Set((await this.dimensions.find({ where: { scope }, select: { id: true, name: true } })).map((row) => templateKey(row.name)))
-            : new Set<string>();
-        const missing = template.filter((question) => !existing.has(templateKey(question.name)));
-        if (!missing.length) return [];
-        const start = await this.nextSortOrder(this.dimensions, scope);
-        return this.dimensions.save(missing.map((question, index) => this.dimensions.create({
+        const rows = await this.dimensions.find({ where: { scope }, select: { id: true, name: true, isActive: true } });
+        const byKey = new Map(rows.map((row) => [templateKey(row.name), row]));
+        const reactivate = template
+            .map((question) => byKey.get(templateKey(question.name)))
+            .filter((row): row is CsiDimension => row !== undefined && row.isActive === false)
+            .map((row) => ({ ...row, isActive: true }));
+        const missing = template.filter((question) => !byKey.has(templateKey(question.name)));
+        if (!reactivate.length && !missing.length) return [];
+        const start = missing.length ? await this.nextSortOrder(this.dimensions, scope) : 0;
+        const created = missing.map((question, index) => this.dimensions.create({
             scope, name: question.name, shortLabel: question.shortLabel ?? null,
             description: question.description ?? null, type: question.type, required: true,
             options: question.options.map((option) => ({ ...option })), sortOrder: start + index,
-        })));
+        }));
+        return this.dimensions.save([...reactivate, ...created]);
     }
 
     reorderDimensions(scope: ServiceScope, ids: string[]) {
@@ -143,7 +147,7 @@ export class CsiMasterService {
     listRaters(scope: ServiceScope) {
         return this.raters.find({ where: { scope }, relations: { user: { site: true } },
             select: { id: true, scope: true, userId: true, createdAt: true, updatedAt: true,
-                user: { id: true, fullName: true, email: true, jobTitle: true, site: { name: true, code: true } } },
+                user: { id: true, fullName: true, email: true, jobTitle: true, siteId: true, site: { id: true, name: true, code: true } } },
             order: { user: { fullName: 'ASC' } },
         });
     }

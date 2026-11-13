@@ -95,11 +95,21 @@ export function rateeStats(ratee: CsiPeriodRatee, dimensions: CsiPeriodRateeDime
     };
 }
 
-/** Site filter: items of ratees in the site, answered by respondents of that site. */
+/** Site filter: items of ratees in the site(s), answered by respondents of those site(s). */
 export function itemsForSite<T extends Pick<CsiItemRow, 'responseId' | 'periodRateeId'>>(
-    items: T[], rateeSite: Map<string, string | null>, responseSite: Map<string, string | null>, siteId: string,
+    items: T[],
+    rateeSite: Map<string, string | null>,
+    responseSite: Map<string, string | null>,
+    rateeSites: string | ReadonlySet<string>,
+    responseSites: string | ReadonlySet<string> = rateeSites,
 ): T[] {
-    return items.filter((item) => rateeSite.get(item.periodRateeId) === siteId && responseSite.get(item.responseId) === siteId);
+    const hasRatee = typeof rateeSites === 'string'
+        ? (id: string | null | undefined) => id === rateeSites
+        : (id: string | null | undefined) => !!id && rateeSites.has(id);
+    const hasResponse = typeof responseSites === 'string'
+        ? (id: string | null | undefined) => id === responseSites
+        : (id: string | null | undefined) => !!id && responseSites.has(id);
+    return items.filter((item) => hasRatee(rateeSite.get(item.periodRateeId)) && hasResponse(responseSite.get(item.responseId)));
 }
 
 /**

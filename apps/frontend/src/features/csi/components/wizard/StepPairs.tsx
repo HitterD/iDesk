@@ -53,6 +53,9 @@ export function PairsPanel({ scope, period, onDirtyChange }: {
     const [chosen, setChosen] = useState<CsiPairMode | null>(null);
     const [confirming, setConfirming] = useState(false);
     const mode: CsiPairMode = chosen ?? period.pairMode ?? (pairs > 0 ? 'CUSTOM' : 'ALL');
+    const customHint = scope === 'ict'
+        ? 'Default: setiap penilai menilai Tim & IT Support di site masing-masing (Sukodono gabung ke Sepanjang). Bisa disesuaikan di tabel.'
+        : PAIRS_COPY.customHint;
     const locked = period.locked;
     if (period.respondentMode === 'OPEN') {
         return <AdminSection title={PAIRS_COPY.title}><p className={MUTED_TEXT}>{PAIRS_COPY.openMode}</p></AdminSection>;
@@ -71,7 +74,7 @@ export function PairsPanel({ scope, period, onDirtyChange }: {
                 <div role="radiogroup" aria-label={PAIRS_COPY.title} className="grid gap-3 md:grid-cols-2">
                     <ModeCard active={mode === 'ALL'} icon={Users} title={PAIRS_COPY.allTitle} hint={PAIRS_COPY.allHint}
                         disabled={locked || setMode.isPending} onSelect={pickAll} />
-                    <ModeCard active={mode === 'CUSTOM'} icon={Grid3x3} title={PAIRS_COPY.customTitle} hint={PAIRS_COPY.customHint}
+                    <ModeCard active={mode === 'CUSTOM'} icon={Grid3x3} title={PAIRS_COPY.customTitle} hint={customHint}
                         disabled={locked || setMode.isPending} onSelect={() => mode !== 'CUSTOM' && save('CUSTOM')} />
                 </div>
             </AdminSection>

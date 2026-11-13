@@ -25,6 +25,16 @@ describe('CSI report export endpoints', () => {
         expect(res.send).toHaveBeenCalledWith(file.buffer);
     });
 
+    it('admin Excel export forwards both siteId filter and notes to buildWorkbook', async () => {
+        const xlsx = { filename: 'csi-ict.xlsx', buffer: Buffer.from('xlsx') };
+        const exporter = { buildWorkbook: jest.fn(async () => xlsx) };
+        const controller = new CsiAdminReportController({} as any, exporter as any, {} as any);
+        const res = response();
+        await controller.export({ csiScope: ServiceScope.ICT, user: { userId: 'u' } } as any, ID, { siteId: 'site-skd', notes: 'Catatan' }, res as any);
+        expect(exporter.buildWorkbook).toHaveBeenCalledWith(ServiceScope.ICT, ID, expect.any(Date), { siteId: 'site-skd', notes: 'Catatan' });
+        expect(res.send).toHaveBeenCalledWith(xlsx.buffer);
+    });
+
     it('service-owner raw export goes through the owner-checked service with the caller id', async () => {
         expect(path(CsiMeReportController.prototype, 'exportRaw')).toBe('periods/:id/services/:serviceCode/export-raw');
         const reports = { exportRawWorkbook: jest.fn(async () => file) };

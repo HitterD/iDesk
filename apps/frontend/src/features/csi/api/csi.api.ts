@@ -247,9 +247,9 @@ export const CsiApi = {
     async resetResponse(scope: CsiScopeParam, id: string, responseId: string, payload: ResetCsiResponse): Promise<CsiResetResult> {
         return (await api.delete<CsiResetResult>(`${periodPath(scope, id)}/responses/${encodeURIComponent(responseId)}`, { data: payload })).data;
     },
-    async exportPeriod(scope: CsiScopeParam, id: string, notes?: string): Promise<{ blob: Blob; filename: string }> {
+    async exportPeriod(scope: CsiScopeParam, id: string, notes?: string, siteId?: string): Promise<{ blob: Blob; filename: string }> {
         // A blob error body hides the server message from the interceptor; the caller shows one toast instead.
-        const response = await api.get<Blob>(`${periodPath(scope, id)}/export`, { params: { notes: notes || undefined }, responseType: 'blob', skipToast: true });
+        const response = await api.get<Blob>(`${periodPath(scope, id)}/export`, { params: { notes: notes || undefined, siteId }, responseType: 'blob', skipToast: true });
         return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope) };
     },
     /** Raw data (names the raters): a separate, confidential file. */

@@ -100,7 +100,7 @@ function ReportExportBody({ scope, periodId, siteId }: Omit<Props, 'open' | 'onO
             setBusy(null);
         }
     };
-    const downloadExcel = () => download('excel', () => CsiApi.exportPeriod(scope, periodId, applied.notes));
+    const downloadExcel = () => download('excel', () => CsiApi.exportPeriod(scope, periodId, applied.notes, siteId));
     const downloadRaw = () => download('raw', () => CsiApi.exportPeriodRaw(scope, periodId));
     const notesChanged = notes.trim() !== applied.notes;
 

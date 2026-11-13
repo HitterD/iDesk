@@ -19,6 +19,7 @@ vi.mock('../../../hooks/useCsi', () => ({
     useSetCsiRatees: () => ({ mutate: hooks.mutate, isPending: false }),
     useCsiSubjects: () => ({ data: hooks.subjects, isLoading: false }),
     useCsiQuestionSets: () => ({ data: hooks.sets }),
+    useApplyCsiTemplate: () => ({ mutateAsync: vi.fn().mockResolvedValue([]), isPending: false }),
     useCreateCsiQuestionSet: () => ({ mutate: hooks.createSet, isPending: false }),
     useDeleteCsiQuestionSet: () => ({ mutate: vi.fn(), isPending: false }),
 }));
@@ -244,5 +245,19 @@ describe('RateeAssignment', () => {
         render(<RateeAssignment scope="ict" period={period(false)} />);
         expect(screen.getByRole('checkbox', { name: /Kecepatan respon/ })).toBeInTheDocument();
         expect(screen.getByRole('checkbox', { name: /Kerapian pekerjaan/ })).toBeInTheDocument();
+    });
+
+    it('Template CSI 2025 button selects matching template questions in canonical order', async () => {
+        hooks.dimensions = [
+            dimension('d-last', 'Bagaimana penilaian anda terhadap kualitas pelayanan tim IT Support secara keseluruhan?', 2),
+            dimension('d-comm', 'Bagaimana Anda menilai kemampuan komunikasi IT Support?', 1),
+        ];
+        // Stub missing questions? When any template question is missing, applyTemplate seeds all canonical questions.
+        const actor = userEvent.setup();
+        render(<RateeAssignment scope="ict" period={period(false)} />);
+        expect(screen.getByRole('button', { name: 'Template CSI 2025' })).toBeInTheDocument();
+        await actor.click(screen.getByRole('button', { name: 'Template CSI 2025' }));
+        expect(screen.getByRole('checkbox', { name: /komunikasi IT Support/ })).toBeChecked();
+        expect(screen.getByRole('checkbox', { name: /kualitas pelayanan tim IT Support/ })).toBeChecked();
     });
 });
