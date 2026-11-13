@@ -10,6 +10,7 @@ import { sameIds } from '../../../lib/csiAdmin';
 import type { CsiDimension, CsiScopeParam } from '../../../types';
 import { MUTED_TEXT } from '../AdminParts';
 import { QuestionTypeChip } from '../questions/QuestionTypeChip';
+import { TemplateApplyButton } from '../questions/TemplateApplyButton';
 import { questionDisplayLabel } from '../report/reportModel';
 import { QUESTION_PICKER_COPY as COPY } from './rateeCopy';
 
@@ -68,6 +69,7 @@ export function QuestionPicker({ scope, questions, value, onChange, disabled }: 
             <div className="grid gap-1.5">
                 <span className={cn(MUTED_TEXT, 'text-[12px]')}>{COPY.setsHint}</span>
                 <div className="flex flex-wrap items-center gap-1.5">
+                    <TemplateApplyButton scope={scope} questions={questions} value={value} disabled={disabled} onApply={onChange} />
                     {usable.map((set) => {
                         const on = sameIds(set.dimensionIds, value);
                         return (

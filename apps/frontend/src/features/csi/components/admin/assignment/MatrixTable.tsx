@@ -21,6 +21,7 @@ export interface MatrixTableProps {
     rateeGroups: SiteGroup<Ratee>[];
     raterGroups: SiteGroup<Rater>[];
     pairs: ReadonlySet<PairKey>;
+    siteHandlers?: Record<string, string>;
     siteOf: (siteId: string | null) => SiteInfo;
     readOnly: boolean;
     overrides: ReadonlySet<string>;
@@ -71,11 +72,11 @@ function SubjectHeader({ ratee, site, first, readOnly, override, onCol, onEdit }
     );
 }
 
-function MatrixCell({ rater, ratee, on, readOnly, onToggle }: { rater: Rater; ratee: Ratee; on: boolean; readOnly: boolean; onToggle: () => void }) {
+function MatrixCell({ rater, ratee, on, cross, readOnly, onToggle }: { rater: Rater; ratee: Ratee; on: boolean; cross: boolean; readOnly: boolean; onToggle: () => void }) {
     if (isSelf(rater, ratee)) {
         return <div title={SELF_TITLE} className={cn(CELL_BASE, 'cursor-not-allowed', toneClasses('neutral').soft, MUTED_TEXT)}>–</div>;
     }
-    const tone = isCross(rater, ratee) ? 'amber' : 'green';
+    const tone = cross ? 'amber' : 'green';
     return (
         <button type="button" role="checkbox" aria-checked={on} aria-label={`${rater.fullName} menilai ${ratee.name}`} disabled={readOnly} onClick={onToggle}
             className={cn(CELL_BASE, on ? cn(toneClasses(tone).fill, 'text-white') : 'shadow-[0_0_0_1.5px_hsl(var(--idesk-border))]',
@@ -85,8 +86,8 @@ function MatrixCell({ rater, ratee, on, readOnly, onToggle }: { rater: Rater; ra
     );
 }
 
-function RaterRow({ rater, columns, pairs, readOnly, onToggle }: {
-    rater: Rater; columns: Array<{ ratee: Ratee; first: boolean }>; pairs: ReadonlySet<PairKey>; readOnly: boolean;
+function RaterRow({ rater, columns, pairs, siteHandlers, readOnly, onToggle }: {
+    rater: Rater; columns: Array<{ ratee: Ratee; first: boolean }>; pairs: ReadonlySet<PairKey>; siteHandlers?: Record<string, string>; readOnly: boolean;
     onToggle: MatrixTableProps['onToggle'];
 }) {
     const count = columns.filter(({ ratee }) => pairs.has(pairKey(rater.periodRaterId, ratee.periodRateeId))).length;
@@ -101,10 +102,11 @@ function RaterRow({ rater, columns, pairs, readOnly, onToggle }: {
             </th>
             {columns.map(({ ratee, first }) => {
                 const key = pairKey(rater.periodRaterId, ratee.periodRateeId);
+                const cross = isCross(rater, ratee, siteHandlers);
                 return (
                     <td key={ratee.periodRateeId} className={cn('border-b border-[hsl(var(--idesk-border)/.6)] px-2 py-2 group-hover:bg-[hsl(var(--muted))]',
-                        first && GROUP_START, isCross(rater, ratee) && toneClasses('amber').soft)}>
-                        <MatrixCell rater={rater} ratee={ratee} on={pairs.has(key)} readOnly={readOnly} onToggle={() => onToggle('cell', key)} />
+                        first && GROUP_START, cross && toneClasses('amber').soft)}>
+                        <MatrixCell rater={rater} ratee={ratee} on={pairs.has(key)} cross={cross} readOnly={readOnly} onToggle={() => onToggle('cell', key)} />
                     </td>
                 );
             })}
@@ -114,7 +116,7 @@ function RaterRow({ rater, columns, pairs, readOnly, onToggle }: {
 }
 
 /** Rater × subject grid: columns grouped per ICT site, rows per rater site; header and name column sticky. */
-export function MatrixTable({ scopeLabel, rateeGroups, raterGroups, pairs, siteOf, readOnly, overrides, onToggle, onEditSubject }: MatrixTableProps) {
+export function MatrixTable({ scopeLabel, rateeGroups, raterGroups, pairs, siteHandlers, siteOf, readOnly, overrides, onToggle, onEditSubject }: MatrixTableProps) {
     const columns = rateeGroups.flatMap((group) => group.items.map((ratee, index) => ({ ratee, first: index === 0 })));
     const span = columns.length + 2;
     return (
@@ -149,7 +151,7 @@ export function MatrixTable({ scopeLabel, rateeGroups, raterGroups, pairs, siteO
                                 </td>
                             </tr>,
                             ...group.items.map((rater) => (
-                                <RaterRow key={rater.periodRaterId} rater={rater} columns={columns} pairs={pairs} readOnly={readOnly} onToggle={onToggle} />
+                                <RaterRow key={rater.periodRaterId} rater={rater} columns={columns} pairs={pairs} siteHandlers={siteHandlers} readOnly={readOnly} onToggle={onToggle} />
                             )),
                         ];
                     }) : (

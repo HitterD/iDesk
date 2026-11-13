@@ -20,6 +20,7 @@ import { CsiAssignmentService } from './csi-assignment.service';
 import { raterMatrix } from './csi-rater-matrix.calc';
 import { CsiSlaReporter, CsiSlaService } from './csi-sla.service';
 import { User } from '../../users/entities/user.entity';
+import { Site } from '../../sites/entities/site.entity';
 import { buildReportModel, CsiReportModel, previousSubjectMap } from './csi-report-model';
 import { bandsOf, CsiScoreBands } from './csi-score-bands';
 import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
@@ -87,6 +88,42 @@ const siteSummaries = (period: CsiPeriod) =>
     (period.sites ?? []).map((row) => ({ id: row.siteId, code: row.site?.code ?? null, name: row.site?.name ?? null }))
         .sort((a, b) => (a.code ?? SORT_LAST).localeCompare(b.code ?? SORT_LAST));
 
+type SiteScopeFilter = { rateeSites: Set<string>; respondentSites: Set<string>; slaSiteIds: Set<string> };
+
+/**
+ * Resolves effective site filters for report queries:
+ * - HC stays strictly isolated (`rateeSite === siteId && responseSite === siteId`).
+ * - For ICT, sites can delegate to a handler site (`SKD -> SPJ`):
+ *   - Filtering by a handler site (e.g. SPJ) includes delegated sites' respondents & SLA in combined report mode.
+ *   - Filtering by a delegated site (e.g. SKD) without its own ratees evaluates the handler site's subjects
+ *     scored strictly by SKD respondents.
+ */
+function resolveSiteFilter(
+    scope: ServiceScope,
+    handlers: ReadonlyMap<string, string>,
+    data: Pick<PeriodData, 'ratees' | 'views'>,
+    siteId: string,
+    includeDelegatedInHandler: boolean,
+): SiteScopeFilter {
+    if (scope !== ServiceScope.ICT) {
+        return { rateeSites: new Set([siteId]), respondentSites: new Set([siteId]), slaSiteIds: new Set([siteId]) };
+    }
+    const handledBy = handlers.get(siteId);
+    const hasOwnRatees = data.ratees.some((ratee) => rateeSiteOf(data, ratee) === siteId);
+    if (handledBy && !hasOwnRatees) {
+        return {
+            rateeSites: new Set([siteId, handledBy]),
+            respondentSites: new Set([siteId]),
+            slaSiteIds: new Set([siteId]),
+        };
+    }
+    const delegated = includeDelegatedInHandler
+        ? [...handlers.entries()].filter(([, handler]) => handler === siteId).map(([child]) => child)
+        : [];
+    const combined = new Set([siteId, ...delegated]);
+    return { rateeSites: combined, respondentSites: combined, slaSiteIds: combined };
+}
+
 /** A disabled section keeps its rows (re-enabling restores them) but never appears in reports, exports or the memo. */
 const inEnabledSection = (period: CsiPeriod) => (ratee: CsiPeriodRatee) =>
     ratee.kind === CsiRateeKind.TEAM ? period.teamEnabled === true : period.individualEnabled !== false;
@@ -116,19 +153,22 @@ export class CsiReportService {
         return { items: this.items, comments: this.comments };
     }
 
-    /** `siteId` narrows ratees to that site and counts only answers of respondents whose user site is that site. */
+    /** `siteId` narrows ratees and respondent answers (with ICT delegated-site fallback like SKD -> SPJ). */
     async getReport(scope: ServiceScope, periodId: string, siteId?: string) {
         const period = await this.findInScope(scope, periodId, { sites: { site: true } });
         const allSites = siteSummaries(period);
         if (siteId && !allSites.some((site) => site.id === siteId)) throw new BadRequestException(SITE_NOT_IN_PERIOD_MESSAGE);
-        const data = narrowToSite(await this.loadPeriodData(scope, period), siteId);
-        const sites = siteId ? allSites.filter((site) => site.id === siteId) : allSites;
+        const raw = await this.loadPeriodData(scope, period);
+        const handlers = await this.siteHandlerMap(scope, period);
+        const filter = siteId ? resolveSiteFilter(scope, handlers, raw, siteId, true) : null;
+        const data = filter ? narrowToSites(raw, filter) : raw;
+        const sites = filter ? allSites.filter((site) => filter.slaSiteIds.has(site.id)) : allSites;
         const comments = await this.rateeComments(data);
         return {
             period: { ...period, sites: allSites },
             scoreBands: bandsOf(period),
             overall: { average: overallScoreOf(scope, data).average, respondentCount: data.responses.length },
-            previousAverage: await this.previousAverage(scope, period, siteId),
+            previousAverage: await this.previousAverage(scope, period, siteId, handlers),
             ratees: teamFirst(data.ratees).map((ratee) => rateeStats(ratee, data.dimensions, data.items, {
                 siteId: rateeSiteOf(data, ratee), photoUrl: data.views.get(ratee.id)?.photoUrl ?? null,
             })).map((row) => ({ ...row, comments: comments.get(row.periodRateeId) ?? [] })),
@@ -154,11 +194,11 @@ export class CsiReportService {
         return result;
     }
 
-    /** One load per period, then per-site stats in memory (same site rules as the filtered report). */
+    /** One load per period, then per-site stats in memory (each site keeps only its own respondents so counts sum to total). */
     async siteStats(scope: ServiceScope, period: CsiPeriod, siteIds: string[]): Promise<Map<string, CsiSiteStats>> {
-        const data = await this.loadPeriodData(scope, period);
+        const [data, handlers] = await Promise.all([this.loadPeriodData(scope, period), this.siteHandlerMap(scope, period)]);
         return new Map(siteIds.map((siteId) => {
-            const site = narrowToSite(data, siteId);
+            const site = narrowToSites(data, resolveSiteFilter(scope, handlers, data, siteId, false));
             const people = site.ratees.filter((ratee) => ratee.kind !== CsiRateeKind.TEAM && ratee.userId).map((ratee) => ({
                 userId: ratee.userId!, displayName: ratee.displayName, photoUrl: site.views.get(ratee.id)?.photoUrl ?? null,
                 average: rateeStats(ratee, site.dimensions, site.items).average,
@@ -168,14 +208,29 @@ export class CsiReportService {
     }
 
     /** Overall average of the latest earlier PUBLISHED period of the scope sharing a site (that site when filtered). */
-    private async previousAverage(scope: ServiceScope, period: CsiPeriod, siteId?: string): Promise<number | null> {
-        const previous = await this.previousPeriod(scope, period, siteId);
+    private async previousAverage(
+        scope: ServiceScope,
+        period: CsiPeriod,
+        siteId?: string,
+        handlers: ReadonlyMap<string, string> = new Map(),
+    ): Promise<number | null> {
+        const previous = await this.previousPeriod(scope, period, siteId, handlers);
         if (!previous) return null;
-        return overallScoreOf(scope, narrowToSite(await this.loadPeriodData(scope, previous), siteId)).average;
+        const data = await this.loadPeriodData(scope, previous);
+        if (!siteId) return overallScoreOf(scope, data).average;
+        const filter = resolveSiteFilter(scope, handlers, data, siteId, true);
+        return overallScoreOf(scope, narrowToSites(data, filter)).average;
     }
 
-    private async previousPeriod(scope: ServiceScope, period: CsiPeriod, siteId?: string): Promise<CsiPeriod | null> {
-        const wanted = siteId ? [siteId] : (period.sites ?? []).map((row) => row.siteId);
+    private async previousPeriod(
+        scope: ServiceScope,
+        period: CsiPeriod,
+        siteId?: string,
+        handlers: ReadonlyMap<string, string> = new Map(),
+    ): Promise<CsiPeriod | null> {
+        const wanted = siteId
+            ? [siteId, ...(scope === ServiceScope.ICT ? [...handlers.entries()].filter(([, handler]) => handler === siteId).map(([child]) => child) : [])]
+            : (period.sites ?? []).map((row) => row.siteId);
         const candidates = await this.periods.find({
             where: { scope, publishStatus: CsiPeriodPublishStatus.PUBLISHED, endDate: LessThan(period.startDate) },
             relations: { sites: true },
@@ -195,13 +250,17 @@ export class CsiReportService {
         const { siteId, matrix } = input;
         const report = await this.getReport(scope, periodId, siteId);
         const period = await this.findInScope(scope, periodId, { sites: { site: true } });
-        const sites = siteId ? report.period.sites.filter((site) => site.id === siteId) : report.period.sites;
-        const data = narrowToSite(await this.loadPeriodData(scope, period), siteId);
+        const raw = await this.loadPeriodData(scope, period);
+        const handlers = await this.siteHandlerMap(scope, period);
+        const filter = siteId ? resolveSiteFilter(scope, handlers, raw, siteId, true) : null;
+        const sites = filter ? report.period.sites.filter((site) => filter.slaSiteIds.has(site.id)) : report.period.sites;
+        const data = filter ? narrowToSites(raw, filter) : raw;
         // Previous period, per subject (master PIC, else people by name and teams by name + site).
-        const previous = await this.previousPeriod(scope, period, siteId);
+        const previous = await this.previousPeriod(scope, period, siteId, handlers);
         let previousBySubject = new Map<string, number | null>();
         if (previous) {
-            const before = narrowToSite(await this.loadPeriodData(scope, previous), siteId);
+            const rawBefore = await this.loadPeriodData(scope, previous);
+            const before = siteId ? narrowToSites(rawBefore, resolveSiteFilter(scope, handlers, rawBefore, siteId, true)) : rawBefore;
             previousBySubject = previousSubjectMap(before.ratees.map((ratee) => ({
                 kind: ratee.kind, siteId: rateeSiteOf(before, ratee), picId: ratee.picId ?? null,
                 name: ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || previous.teamLabel : ratee.displayName,
@@ -398,6 +457,18 @@ export class CsiReportService {
         return { ratees, views, dimensions, items, responses };
     }
 
+    private async siteHandlerMap(scope: ServiceScope, period: CsiPeriod): Promise<Map<string, string>> {
+        if (scope !== ServiceScope.ICT) return new Map();
+        const map = new Map<string, string>();
+        (period.sites ?? []).forEach((row) => { if (row.site?.handledBySiteId) map.set(row.siteId, row.site.handledBySiteId); });
+        const repo = this.dataSource.getRepository?.(Site);
+        if (repo) {
+            const rows = await repo.find({ where: { isActive: true }, select: { id: true, handledBySiteId: true } });
+            rows.forEach((row) => { if (row.handledBySiteId) map.set(row.id, row.handledBySiteId); });
+        }
+        return map;
+    }
+
     /**
      * "Siapa menilai siapa": every response × every subject of the (site-narrowed) report with the average given.
      * Respondent names are shown to scope admins only (this endpoint sits behind CsiAdminGuard); the PDF never uses it.
@@ -405,13 +476,18 @@ export class CsiReportService {
     async getRaterMatrix(scope: ServiceScope, periodId: string, siteId?: string) {
         const report = await this.getReport(scope, periodId, siteId);
         const answers = await this.listAnswers(scope, periodId);
+        const period = await this.findInScope(scope, periodId, { sites: { site: true } });
+        const handlers = await this.siteHandlerMap(scope, period);
+        const respondentSites = siteId
+            ? resolveSiteFilter(scope, handlers, { ratees: report.ratees.map((ratee) => ({ id: ratee.periodRateeId, siteId: ratee.siteId }) as CsiPeriodRatee), views: new Map() }, siteId, true)
+            : null;
         const subjects = report.ratees.map((ratee) => ({
             periodRateeId: ratee.periodRateeId, kind: ratee.kind, siteId: ratee.siteId,
             displayName: ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || report.period.teamLabel : ratee.displayName,
         }));
         const subjectIds = new Set(subjects.map((subject) => subject.periodRateeId));
-        // Same site rule as the report: with a site filter, only respondents of that site count (see narrowToSite).
-        const relevant = answers.filter((answer) => (!siteId || answer.siteId === siteId)
+        // Same site rule as the report: only respondents whose effective site filter matches count.
+        const relevant = answers.filter((answer) => (!respondentSites || (answer.siteId ? respondentSites.respondentSites.has(answer.siteId) : false))
             && answer.ratees.some((ratee) => subjectIds.has(ratee.periodRateeId)));
         return raterMatrix(subjects, relevant);
     }
@@ -561,16 +637,21 @@ function overallScoreOf(scope: ServiceScope, data: PeriodData): { average: numbe
 
 const rateeSiteOf = (data: Pick<PeriodData, 'views'>, ratee: CsiPeriodRatee) => data.views.get(ratee.id)?.siteId ?? ratee.siteId ?? null;
 
-/** Site filter: ratees of the site, and only responses (and their items) of respondents whose user site is the site. */
-function narrowToSite(data: PeriodData, siteId?: string): PeriodData {
-    if (!siteId) return data;
-    const ratees = data.ratees.filter((ratee) => rateeSiteOf(data, ratee) === siteId);
+/** Site filter: ratees matching `filter.rateeSites` and responses (with items) matching `filter.respondentSites`. */
+function narrowToSites(data: PeriodData, filter: SiteScopeFilter): PeriodData {
+    const ratees = data.ratees.filter((ratee) => {
+        const site = rateeSiteOf(data, ratee);
+        return !!site && filter.rateeSites.has(site);
+    });
     const responseSite = new Map(data.responses.map((response) => [response.id, response.respondent?.siteId ?? null]));
     const rateeSite = new Map(ratees.map((ratee) => [ratee.id, rateeSiteOf(data, ratee)]));
     return {
         ...data, ratees,
-        items: itemsForSite(data.items, rateeSite, responseSite, siteId),
-        responses: data.responses.filter((response) => responseSite.get(response.id) === siteId),
+        items: itemsForSite(data.items, rateeSite, responseSite, filter.rateeSites, filter.respondentSites),
+        responses: data.responses.filter((response) => {
+            const site = responseSite.get(response.id);
+            return !!site && filter.respondentSites.has(site);
+        }),
     };
 }
 

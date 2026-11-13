@@ -61,4 +61,22 @@ describe('matrixModel helpers', () => {
         const items = [{ id: 'a', siteId: 's9' }, { id: 'b', siteId: null }, { id: 'c', siteId: 's2' }, { id: 'd', siteId: 's1' }];
         expect(groupBySite(items, ['s1', 's2', 's3']).map((group) => group.siteId)).toEqual(['s1', 's2', 's9', null]);
     });
+
+    it('sameSiteCells, siteCells and stats treat delegated sites (SKD -> SPJ) as one effective site', () => {
+        const delegatedView: CsiAssignments = {
+            raters: [
+                ...VIEW.raters,
+                { periodRaterId: 'r4', userId: 'u4', fullName: 'Dina (SKD)', department: 'QA', siteId: 'skd' },
+            ],
+            ratees: VIEW.ratees,
+            pairs: [],
+            siteHandlers: { skd: 's1' },
+        };
+        const delegated = withRateeUsers(delegatedView, [{ id: 't1', userId: null }, { id: 'e1', userId: 'u1' }, { id: 'e3', userId: 'u9' }]);
+        expect(siteCells(delegated, 's1')).toContain(pairKey('r4', 't1'));
+        expect(siteCells(delegated, 's1')).toContain(pairKey('r4', 'e1'));
+        expect(sameSiteCells(delegated).has(pairKey('r4', 't1'))).toBe(true);
+        const s = stats(delegated, new Set<PairKey>([pairKey('r4', 't1')]));
+        expect(s.cross).toBe(0);
+    });
 });

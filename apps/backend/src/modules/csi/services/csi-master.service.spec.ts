@@ -98,7 +98,7 @@ describe('CSI master scope boundaries', () => {
         expect(raters.find).toHaveBeenCalledWith({
             where: { scope }, relations: { user: { site: true } },
             select: { id: true, scope: true, userId: true, createdAt: true, updatedAt: true,
-                user: { id: true, fullName: true, email: true, jobTitle: true, site: { name: true, code: true } } },
+                user: { id: true, fullName: true, email: true, jobTitle: true, siteId: true, site: { id: true, name: true, code: true } } },
             order: { user: { fullName: 'ASC' } },
         });
     });
@@ -242,6 +242,18 @@ describe('CSI master scope boundaries', () => {
         expect(created.map((row: any) => row.shortLabel)).toEqual(['Knowledge', 'Responsiveness', 'Courtesy', 'Communication', 'Tangible']);
         expect(created[0].name).toBe('Knowledge — Pengetahuan/pemahaman PIC terkait jasa atau pelayanan');
         expect(created.map((row: any) => row.name).join(' ')).not.toMatch(/IT Support/);
+    });
+
+    it('ICT template is idempotent and reactivates inactive matches without duplicating', async () => {
+        dimensions.find.mockResolvedValue([
+            { id: 'q1', name: 'Bagaimana Anda menilai kemampuan komunikasi IT Support?', isActive: true },
+            { id: 'q2', name: 'Bagaimana penilaian anda terhadap kualitas pelayanan tim IT Support secara keseluruhan?', isActive: false },
+        ]);
+        dimensions.maximum.mockResolvedValue(2);
+        const saved = await service.createTemplateDimensions(scope);
+        expect(saved).toHaveLength(8);
+        expect(saved[0]).toEqual({ id: 'q2', name: 'Bagaimana penilaian anda terhadap kualitas pelayanan tim IT Support secara keseluruhan?', isActive: true });
+        expect(saved.slice(1)).toHaveLength(7);
     });
 
     it('HC template is idempotent: questions already present (by name) are not added again', async () => {

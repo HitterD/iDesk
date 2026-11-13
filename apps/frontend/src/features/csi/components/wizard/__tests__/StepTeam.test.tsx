@@ -4,10 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CsiDimension, CsiPeriodDetail } from '../../../types';
 import { StepTeam } from '../StepTeam';
 
-const hooks = vi.hoisted(() => ({ mutate: vi.fn(), questions: [] as CsiDimension[] }));
+const hooks = vi.hoisted(() => ({ mutate: vi.fn(), mutateAsync: vi.fn(), applyTemplate: vi.fn(), questions: [] as CsiDimension[], sets: [] as any[] }));
 vi.mock('../../../hooks/useCsi', () => ({
     useCsiDimensions: () => ({ data: hooks.questions, isLoading: false }),
-    useSetCsiTeamQuestions: () => ({ mutate: hooks.mutate, isPending: false }),
+    useCsiQuestionSets: () => ({ data: hooks.sets }),
+    useApplyCsiTemplate: () => ({ mutateAsync: hooks.applyTemplate, isPending: false }),
+    useSetCsiTeamQuestions: () => ({ mutate: hooks.mutate, mutateAsync: hooks.mutateAsync, isPending: false }),
 }));
 
 const STAMP = { createdAt: '', updatedAt: '' };
@@ -97,5 +99,25 @@ describe('StepTeam', () => {
         await actor.click(within(krw).getByRole('button', { name: 'Simpan' }));
         expect(hooks.mutate).toHaveBeenCalledWith({ siteId: KRW.id, questionIds: ['q3'] });
         expect(within(spj).getByRole('button', { name: 'Simpan' })).toBeDisabled();
+    });
+
+    it('merges delegated site (SKD -> SPJ) into handler team card and supports Template CSI 2025 + Terapkan ke semua tim', async () => {
+        const SKD = { id: 's-skd', code: 'SKD', name: 'Sukodono', handledBySiteId: SPJ.id };
+        const tplName = 'Bagaimana Anda menilai kemampuan komunikasi IT Support?';
+        const missingName = 'Bagaimana penilaian anda terhadap kualitas pelayanan tim IT Support secara keseluruhan?';
+        hooks.questions = [question('q1', tplName), question('q2', 'Lainnya')];
+        hooks.applyTemplate.mockResolvedValueOnce([question('q-new', missingName)]);
+        hooks.mutateAsync.mockResolvedValue({});
+        const actor = userEvent.setup();
+        render(<StepTeam scope="ict" period={period([], false, { sites: [SPJ, SKD, KRW], ratees: [] })} />);
+        expect(screen.queryByRole('region', { name: 'Tim Sukodono' })).not.toBeInTheDocument();
+        const spj = screen.getByRole('region', { name: 'Tim Sepanjang' });
+        expect(within(spj).getByText('Juga melayani Sukodono (SKD)')).toBeInTheDocument();
+
+        await actor.click(within(spj).getByRole('button', { name: 'Template CSI 2025' }));
+        expect(hooks.applyTemplate).toHaveBeenCalledTimes(1);
+        await actor.click(within(spj).getByRole('button', { name: 'Terapkan ke semua tim (2)' }));
+        expect(hooks.mutateAsync).toHaveBeenCalledWith({ siteId: SPJ.id, questionIds: ['q1', 'q-new'] });
+        expect(hooks.mutateAsync).toHaveBeenCalledWith({ siteId: KRW.id, questionIds: ['q1', 'q-new'] });
     });
 });

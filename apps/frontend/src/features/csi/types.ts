@@ -12,7 +12,7 @@ export type CsiRateeKind = 'PERSON' | 'TEAM';
 
 /** `points` is 1-5 for SCALE options and null for CHOICE options. */
 export interface CsiOption { label: string; points: number | null }
-export interface CsiSiteSummary { id: string; code: string | null; name: string | null }
+export interface CsiSiteSummary { id: string; code: string | null; name: string | null; handledBySiteId?: string | null }
 
 export interface CsiReadiness {
     ready: boolean;
@@ -59,7 +59,7 @@ export interface CsiRater extends CsiTimestamps {
     id: string;
     scope: CsiScope;
     userId: string;
-    user: CsiUser & { site: { code: string; name: string } | null };
+    user: CsiUser & { siteId?: string | null; site: { id?: string; code: string; name: string } | null };
 }
 
 // DELETE returns the entity without the user relation loaded.
@@ -457,6 +457,7 @@ export interface CsiAssignments {
     raters: Array<{ periodRaterId: string; userId: string; fullName: string; department: string | null; siteId: string | null }>;
     ratees: Array<{ periodRateeId: string; kind: CsiRateeKind; name: string; siteId: string | null; photoUrl: string | null }>;
     pairs: CsiPair[];
+    siteHandlers?: Record<string, string>;
 }
 export interface SetCsiAssignments { pairs: CsiPair[] }
 

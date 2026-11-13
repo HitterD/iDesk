@@ -108,7 +108,12 @@ const bySiteCode = (a: { code: string | null }, b: { code: string | null }) => (
 const withSites = (period: CsiPeriod) => ({
     ...period,
     sites: (period.sites ?? [])
-        .map((row) => ({ id: row.siteId, code: row.site?.code ?? null, name: row.site?.name ?? null }))
+        .map((row) => ({
+            id: row.siteId,
+            code: row.site?.code ?? null,
+            name: row.site?.name ?? null,
+            ...(row.site?.handledBySiteId ? { handledBySiteId: row.site.handledBySiteId } : {}),
+        }))
         .sort(bySiteCode),
 });
 /** TEAM first, then people by sortOrder (a legacy row without `kind` is a PERSON). */
@@ -332,7 +337,7 @@ export class CsiPeriodService {
                 thankYou: dto.thankYou ?? source?.thankYou ?? '',
                 startDate: dto.startDate, endDate: dto.endDate,
                 respondentMode: dto.respondentMode ?? source?.respondentMode ?? DEFAULT_RESPONDENT_MODE[scope],
-                pairMode: source?.pairMode ?? null,
+                pairMode: source ? (source.pairMode ?? null) : (scope === ServiceScope.ICT ? CsiPairMode.CUSTOM : null),
                 unitRules: source?.unitRules ?? [],
                 publishStatus: CsiPeriodPublishStatus.DRAFT,
                 // New surveys promise rated people their anonymous results; surveys from before the feature never do.
@@ -396,12 +401,15 @@ export class CsiPeriodService {
         await this.findInScope(scope, id);
         const ratees = await this.resolveRatees(scope, assignments);
         const unmapped = !(await this.assignments.hasPairs(id));
+        const beforeRatees = !unmapped
+            ? new Set((await this.ratees.find({ where: { periodId: id }, select: { id: true } })).map((row) => row.id))
+            : undefined;
         await this.dataSource.transaction(async (manager) => {
             await lockUnlockedPeriod(manager, id);
             // Only people are diffed here; TEAM ratees are managed by setTeamQuestions.
             await this.syncPeople(manager, id, ratees);
         });
-        await this.applyTemplateWhileUnmapped(scope, id, unmapped);
+        await this.applyTemplateWhileUnmapped(scope, id, unmapped, { rateeIds: beforeRatees });
         return this.get(scope, id);
     }
 
@@ -462,6 +470,10 @@ export class CsiPeriodService {
         if (questions.size !== questionIds.length) throw new BadRequestException(QUESTION_NOT_FOUND_MESSAGE);
         const snapshots = questionIds.map((questionId) => questionSnapshot(questions.get(questionId)!));
         const team = snapshots.length ? await this.subjects.createTeam(scope, siteId) : null;
+        const unmapped = !(await this.assignments.hasPairs(id));
+        const beforeRatees = !unmapped
+            ? new Set((await this.ratees.find({ where: { periodId: id }, select: { id: true } })).map((row) => row.id))
+            : undefined;
         await rethrowTeamConflict(this.dataSource.transaction(async (manager) => {
             await lockUnlockedPeriod(manager, id);
             const siteTeams = (await manager.getRepository(CsiPeriodRatee).find({ where: { periodId: id, kind: CsiRateeKind.TEAM, siteId }, relations: TEAM_RELATION }))
@@ -480,6 +492,7 @@ export class CsiPeriodService {
             await manager.save(CsiPeriodRateeDimension, snapshots.map((snapshot, index) => dimensionRow(saved.id, snapshot, index)));
             await enableSectionsWithRatees(manager, id, [CsiRateeKind.TEAM]);
         }));
+        await this.applyTemplateWhileUnmapped(scope, id, unmapped, { rateeIds: beforeRatees });
         return this.get(scope, id);
     }
 
@@ -518,6 +531,9 @@ export class CsiPeriodService {
         const active = await this.activeUsers(ids);
         if (active.size !== ids.length) throw new BadRequestException(INACTIVE_USER_MESSAGE);
         const unmapped = !(await this.assignments.hasPairs(id));
+        const beforeRaters = !unmapped
+            ? new Set((await this.periodRaters.find({ where: { periodId: id }, select: { userId: true } })).map((row) => row.userId))
+            : undefined;
         await this.dataSource.transaction(async (manager) => {
             await lockUnlockedPeriod(manager, id);
             // Diff by userId: rows (and their pairs) of raters who stay are kept.
@@ -527,21 +543,36 @@ export class CsiPeriodService {
             const kept = new Set(existing.map((row) => row.userId));
             await this.writeRaters(manager, id, ids.filter((userId) => !kept.has(userId)));
         });
-        await this.applyTemplateWhileUnmapped(scope, id, unmapped);
+        await this.applyTemplateWhileUnmapped(scope, id, unmapped, { raterUserIds: beforeRaters });
         return this.get(scope, id);
     }
 
     /**
      * "Periode baru: pemetaan disalin dari template master". Applied only when the period had no pairs before the edit
      * (checked before writing, because replacing people/raters cascades their pairs away): admin mappings and pairs
-     * copied from a source period are never overwritten.
+     * copied from a source period are never overwritten. For fresh ICT CUSTOM periods without a scope template yet,
+     * autoSameSite pairs members per effective site (including delegated sites like SKD -> SPJ), and subsequent
+     * additions sync only the new members.
      */
-    private async applyTemplateWhileUnmapped(scope: ServiceScope, id: string, unmapped: boolean) {
-        if (!unmapped) return;
+    private async applyTemplateWhileUnmapped(
+        scope: ServiceScope,
+        id: string,
+        unmapped: boolean,
+        before?: { raterUserIds?: ReadonlySet<string>; rateeIds?: ReadonlySet<string> },
+    ) {
         const period = await this.periods.findOne({ where: { id }, select: { id: true, pairMode: true } });
         // "Semua menilai semua" chosen explicitly must stay that way.
         if (period?.pairMode === CsiPairMode.ALL) return;
+        if (!unmapped) {
+            if (scope === ServiceScope.ICT && period?.pairMode === CsiPairMode.CUSTOM && before) {
+                await this.assignments.syncNewMembersSameSite?.(scope, id, before);
+            }
+            return;
+        }
         await this.assignments.applyTemplate(scope, id);
+        if (scope === ServiceScope.ICT && period?.pairMode === CsiPairMode.CUSTOM && !(await this.assignments.hasPairs(id))) {
+            await this.assignments.autoSameSite?.(scope, id);
+        }
     }
 
     private countOne(periodId: string) {

@@ -3,6 +3,7 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiRateeKind } from '../csi.constants';
+import { Site } from '../../sites/entities/site.entity';
 import { AssignmentPairDto } from '../dto/assignment.dto';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRaterRatee } from '../entities/csi-period-rater-ratee.entity';
@@ -22,9 +23,11 @@ export type CsiAssignmentView = {
     raters: Array<{ periodRaterId: string; userId: string; fullName: string; department: string | null; siteId: string | null }>;
     ratees: Array<{ periodRateeId: string; kind: CsiRateeKind; name: string; siteId: string | null; photoUrl: string | null }>;
     pairs: CsiAssignmentPair[];
+    siteHandlers?: Record<string, string>;
 };
 
 const pairKey = (pair: CsiAssignmentPair) => `${pair.periodRaterId}>${pair.periodRateeId}`;
+const effectiveSite = (siteId: string | null | undefined, handlers: Record<string, string>) => (siteId ? handlers[siteId] ?? siteId : null);
 const isTeam = (ratee: CsiPeriodRatee) => ratee.kind === CsiRateeKind.TEAM;
 /** TEAM rows first, then people by sortOrder (same order as the period detail). */
 const teamFirst = (a: CsiPeriodRatee, b: CsiPeriodRatee) => Number(isTeam(b)) - Number(isTeam(a)) || a.sortOrder - b.sortOrder;
@@ -55,6 +58,7 @@ export class CsiAssignmentService {
         const { raters, ratees } = await this.loadMembers(periodId);
         const pairs = await this.pairs.find({ where: { periodId } });
         const photos = await this.profilePhotos(scope, ratees);
+        const siteHandlers = await this.loadSiteHandlers(scope);
         return {
             raters: raters.map((rater) => ({
                 periodRaterId: rater.id, userId: rater.userId, fullName: rater.user?.fullName ?? '',
@@ -65,6 +69,7 @@ export class CsiAssignmentService {
                 photoUrl: ratee.photoUrl ?? (isTeam(ratee) ? ratee.team?.photoUrl ?? null : photos.get(ratee.userId ?? '') ?? ratee.user?.avatarUrl ?? null),
             })),
             pairs: pairs.map(({ periodRaterId, periodRateeId }) => ({ periodRaterId, periodRateeId })),
+            ...(Object.keys(siteHandlers).length ? { siteHandlers } : {}),
         };
     }
 
@@ -85,15 +90,54 @@ export class CsiAssignmentService {
         return this.get(scope, periodId);
     }
 
-    /** Pairs every listed rater with every ratee of the rater's own site (never themselves; site-less ratees are skipped). */
+    /** Pairs every listed rater with every ratee of the rater's effective site (delegated sites like SKD -> SPJ merged; skips self/site-less). */
     async autoSameSite(scope: ServiceScope, periodId: string) {
         await this.findInScope(scope, periodId);
+        const handlers = await this.loadSiteHandlers(scope);
         const { raters, ratees } = await this.loadMembers(periodId);
-        const pairs = raters.flatMap((rater) => ratees
-            .filter((ratee) => ratee.siteId !== null && ratee.siteId === rater.user?.siteId && ratee.userId !== rater.userId)
-            .map((ratee) => ({ periodRaterId: rater.id, periodRateeId: ratee.id })));
+        const pairs = raters.flatMap((rater) => {
+            const raterSite = effectiveSite(rater.user?.siteId, handlers);
+            if (!raterSite) return [];
+            return ratees
+                .filter((ratee) => effectiveSite(ratee.siteId, handlers) === raterSite && ratee.userId !== rater.userId)
+                .map((ratee) => ({ periodRaterId: rater.id, periodRateeId: ratee.id }));
+        });
         await this.replacePairs(periodId, pairs);
         return this.get(scope, periodId);
+    }
+
+    /**
+     * Adds effective-site pairs ONLY for newly added raters or ratees in an already-mapped ICT period,
+     * leaving existing custom pairs untouched.
+     */
+    async syncNewMembersSameSite(
+        scope: ServiceScope,
+        periodId: string,
+        before: { raterUserIds?: ReadonlySet<string>; rateeIds?: ReadonlySet<string> },
+    ) {
+        if (scope !== ServiceScope.ICT) return;
+        const { raters, ratees } = await this.loadMembers(periodId);
+        const existing = await this.pairs.find({ where: { periodId } });
+        if (!existing.length) return;
+        const handlers = await this.loadSiteHandlers(scope);
+        const seen = new Set(existing.map(pairKey));
+        const newRaters = before.raterUserIds ? raters.filter((rater) => !before.raterUserIds!.has(rater.userId)) : [];
+        const newRatees = before.rateeIds ? ratees.filter((ratee) => !before.rateeIds!.has(ratee.id)) : [];
+        const added: CsiAssignmentPair[] = [];
+        const addIfMatch = (rater: typeof raters[number], ratee: typeof ratees[number]) => {
+            const raterSite = effectiveSite(rater.user?.siteId, handlers);
+            if (!raterSite || effectiveSite(ratee.siteId, handlers) !== raterSite || ratee.userId === rater.userId) return;
+            const pair = { periodRaterId: rater.id, periodRateeId: ratee.id };
+            const key = pairKey(pair);
+            if (!seen.has(key)) { seen.add(key); added.push(pair); }
+        };
+        newRaters.forEach((rater) => ratees.forEach((ratee) => addIfMatch(rater, ratee)));
+        newRatees.forEach((ratee) => raters.forEach((rater) => addIfMatch(rater, ratee)));
+        if (!added.length) return;
+        await this.dataSource.transaction(async (manager: EntityManager) => {
+            await lockUnlockedPeriod(manager, periodId);
+            await manager.save(CsiPeriodRaterRatee, added.map((pair) => ({ periodId, ...pair })));
+        });
     }
 
     /** Rewrites the scope's template (csi_rater_assignments) from the period's pairs. */
@@ -185,6 +229,16 @@ export class CsiAssignmentService {
         if (!rater) return new Set();
         const rows = await this.pairs.find({ where: { periodId, periodRaterId: rater.id } });
         return new Set(rows.map((row) => row.periodRateeId));
+    }
+
+    private async loadSiteHandlers(scope: ServiceScope): Promise<Record<string, string>> {
+        if (scope !== ServiceScope.ICT) return {};
+        const repo = this.dataSource.getRepository?.(Site);
+        if (!repo) return {};
+        const rows = await repo.find({ where: { isActive: true }, select: { id: true, handledBySiteId: true } });
+        const map: Record<string, string> = {};
+        rows.forEach((row) => { if (row.handledBySiteId) map[row.id] = row.handledBySiteId; });
+        return map;
     }
 
     private async findInScope(scope: ServiceScope, periodId: string) {

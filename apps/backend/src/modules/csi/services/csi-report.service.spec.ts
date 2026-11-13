@@ -595,5 +595,36 @@ describe('CsiReportService', () => {
             periods.rows.unshift({ ...period({ id: 'p-sim', title: 'SIMULASI – CSI', startDate: '2026-09-01', endDate: '2026-09-30', sites: [{ siteId: 'site-b' }] as any }), publishStatus: 'PUBLISHED' });
             expect((await service.getReport(ICT, 'p1')).previousAverage).toBe(4);
         });
+
+        it('ICT delegated site (SKD -> SPJ) evaluates SPJ subjects for SKD respondents without double-counting in siteStats', async () => {
+            periods.rows[0] = {
+                ...periods.rows[0],
+                sites: [
+                    { siteId: 'site-a', site: { code: 'SPJ', name: 'Sepanjang', handledBySiteId: null } },
+                    { siteId: 'site-c', site: { code: 'SKD', name: 'Sukodono', handledBySiteId: 'site-a' } },
+                ] as CsiPeriod['sites'],
+            };
+            // resp3 is from Sukodono (site-c) rating Budi (r1, site-a SPJ) with score 4.
+            responses.rows.push({
+                id: 'resp3', periodId: 'p1', respondentId: 'x3', departmentName: 'QA',
+                submittedAt: new Date('2026-10-13T03:00:00Z'), respondentName: 'Dina Nama',
+                respondent: { id: 'x3', fullName: 'Dina', siteId: 'site-c' },
+            });
+            items.rows.push({ id: 'i-skd', responseId: 'resp3', periodRateeId: 'r1', periodRateeDimensionId: 'd1', score: 4 });
+
+            const skdReport = await service.getReport(ICT, 'p1', 'site-c');
+            expect(skdReport.ratees.map((r) => r.displayName)).toEqual(['Budi']);
+            expect(skdReport.ratees[0]).toMatchObject({ average: 4, respondentCount: 1 });
+            expect(skdReport.overall).toEqual({ average: 4, respondentCount: 1 });
+
+            const spjReport = await service.getReport(ICT, 'p1', 'site-a');
+            expect(spjReport.overall).toEqual({ average: 3.75, respondentCount: 2 });
+
+            const stats = await service.siteStats(ICT, periods.rows[0] as CsiPeriod, ['site-a', 'site-c']);
+            expect(stats.get('site-a')?.responses).toBe(1);
+            expect(stats.get('site-c')?.responses).toBe(1);
+            expect(stats.get('site-c')?.average).toBe(4);
+            expect(stats.get('site-c')?.people).toEqual([{ userId: 'u1', displayName: 'Budi', photoUrl: '/uploads/csi/budi.jpg', average: 4 }]);
+        });
     });
 });
