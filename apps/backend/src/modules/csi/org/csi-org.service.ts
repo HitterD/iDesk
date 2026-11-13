@@ -1,11 +1,17 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { Site } from '../../sites/entities/site.entity';
 import { User } from '../../users/entities/user.entity';
 import { CsiOrgPerson } from '../entities/csi-org-person.entity';
+import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
+import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiPic } from '../entities/csi-pic.entity';
+import { CsiResponse } from '../entities/csi-response.entity';
+import { lockPeriodRow } from '../services/csi-period-lock.util';
+import { surveyStage } from '../services/csi-survey-stage.util';
+import { suggestAccounts } from './csi-account-suggest';
 import { CsiOrgRow, readOrgWorkbook } from './csi-org-import';
 import {
     CSI_HC_SERVICES, CsiOrgLocation, locationOfSiteCode, locationOfWorkLocation, normalizeBagian, normalizeNik,
@@ -14,6 +20,10 @@ import {
 
 const UPSERT_CHUNK = 500;
 const PIC_NOT_FOUND_MESSAGE = 'PIC tidak ditemukan';
+const SUGGESTION_QUERY_MIN = 2;
+const SUGGESTION_QUERY_MAX = 150;
+const SUGGESTION_LIMIT = 8;
+const DIRECT_MATCH_SCORE = 1.5;
 export const CSI_SERVICE_FUNCTION_MAX = 150;
 
 /** Trimmed service function; blank clears it. */
@@ -30,15 +40,18 @@ export type CsiRespondentOrg = {
     fromDirectory: boolean;
 };
 
+export type CsiPicUserSummary = { id: string; fullName: string; email: string };
 export type CsiPicView = {
     id: string; nik: string; fullName: string; jobTitle: string | null; serviceCode: string; serviceName: string | null; serviceFunction: string | null;
-    bagian: string | null; workLocation: string | null; siteId: string | null; userId: string | null; photoUrl: string | null; isActive: boolean;
+    bagian: string | null; workLocation: string | null; siteId: string | null; userId: string | null; user: CsiPicUserSummary | null;
+    photoUrl: string | null; isActive: boolean;
 };
 
 export const picView = (pic: CsiPic): CsiPicView => ({
     id: pic.id, nik: pic.nik, fullName: pic.fullName, jobTitle: pic.jobTitle, serviceCode: pic.serviceCode,
     serviceName: CSI_HC_SERVICES.find((service) => service.code === pic.serviceCode)?.name ?? null, serviceFunction: pic.serviceFunction ?? null,
     bagian: pic.bagian, workLocation: pic.workLocation, siteId: pic.siteId, userId: pic.userId,
+    user: pic.user ? { id: pic.user.id, fullName: pic.user.fullName, email: pic.user.email } : null,
     photoUrl: pic.photoUrl ?? pic.user?.avatarUrl ?? null, isActive: pic.isActive,
 });
 
@@ -50,6 +63,7 @@ export class CsiOrgService {
         @InjectRepository(CsiPic) private readonly pics: Repository<CsiPic>,
         @InjectRepository(User) private readonly users: Repository<User>,
         @InjectRepository(Site) private readonly sites: Repository<Site>,
+        @Optional() @InjectDataSource() private readonly dataSource?: DataSource,
     ) { }
 
     /**
@@ -102,7 +116,7 @@ export class CsiOrgService {
                 ...(previous ?? { scope, nik: person.nik, photoUrl: null, isActive: true }),
                 fullName: person.fullName, jobTitle: person.jobTitle, serviceCode: serviceOfDepartment(person.department)!,
                 bagian: normalizeBagian(person.bagian), workLocation: person.workLocation,
-                siteId: siteIdOf.get(siteCodeOfLocation(location) ?? '') ?? null, userId: userOf.get(person.nik) ?? previous?.userId ?? null,
+                siteId: siteIdOf.get(siteCodeOfLocation(location) ?? '') ?? null, userId: previous?.userId ?? userOf.get(person.nik) ?? null,
             };
         });
         if (rows.length) await this.pics.save(rows);
@@ -123,15 +137,78 @@ export class CsiOrgService {
         return rows.map(picView);
     }
 
-    /** Updates the active flag and/or the service function; omitted fields stay as they are. */
-    async updatePic(scope: ServiceScope, id: string, input: { isActive?: boolean; serviceFunction?: string | null }): Promise<CsiPicView> {
+    /** Searches active iDesk accounts by name similarity, email, or NIK for manual PIC linking. */
+    async accountSuggestions(search: string, siteId?: string | null) {
+        const trimmed = typeof search === 'string' ? search.trim() : '';
+        if (trimmed.length < SUGGESTION_QUERY_MIN) throw new BadRequestException(`Kata kunci minimal ${SUGGESTION_QUERY_MIN} karakter`);
+        if (trimmed.length > SUGGESTION_QUERY_MAX) throw new BadRequestException('Kata kunci terlalu panjang');
+        const accounts = await this.users.find({
+            where: { isActive: true }, relations: { site: true, department: true }, relationLoadStrategy: 'join',
+            select: { id: true, fullName: true, email: true, employeeId: true, siteId: true, site: { code: true }, department: { name: true } },
+        });
+        const candidates = accounts.map((account) => ({
+            id: account.id, fullName: account.fullName, email: account.email, employeeId: account.employeeId ?? null,
+            siteId: account.siteId ?? null, siteCode: account.site?.code ?? null, department: account.department?.name ?? null,
+        }));
+        const byName = suggestAccounts(trimmed, candidates, { siteId: siteId ?? null, limit: candidates.length });
+        const scored = new Map(byName.map((row) => [row.id, row]));
+        const needle = trimmed.toLowerCase();
+        for (const candidate of candidates) {
+            const direct = candidate.email.toLowerCase().includes(needle) || (candidate.employeeId ?? '').toLowerCase().includes(needle);
+            if (direct && !scored.has(candidate.id)) scored.set(candidate.id, { ...candidate, score: DIRECT_MATCH_SCORE });
+        }
+        return [...scored.values()].sort((a, b) => b.score - a.score || a.fullName.localeCompare(b.fullName)).slice(0, SUGGESTION_LIMIT);
+    }
+
+    /** Updates active flag, service function, and/or linked iDesk account (syncing draft surveys on account change). */
+    async updatePic(scope: ServiceScope, id: string, input: { isActive?: boolean; serviceFunction?: string | null; userId?: string | null }): Promise<CsiPicView> {
         const pic = await this.pics.findOne({ where: { id, scope }, relations: { user: true } });
         if (!pic) throw new NotFoundException(PIC_NOT_FOUND_MESSAGE);
+        let nextUser = pic.user;
+        if (input.userId !== undefined) {
+            if (input.userId === null) {
+                nextUser = null;
+            } else {
+                const account = await this.users.findOne({ where: { id: input.userId } });
+                if (!account || !account.isActive) throw new BadRequestException('Akun iDesk tidak ditemukan atau tidak aktif');
+                const clash = await this.pics.findOne({ where: { scope, userId: input.userId } });
+                if (clash && clash.id !== pic.id) throw new BadRequestException(`Akun iDesk sudah tertaut ke PIC lain (${clash.fullName})`);
+                nextUser = account;
+            }
+        }
         const patch = {
             ...(input.isActive === undefined ? {} : { isActive: input.isActive }),
             ...(input.serviceFunction === undefined ? {} : { serviceFunction: normalizeServiceFunction(input.serviceFunction) }),
+            ...(input.userId === undefined ? {} : { userId: input.userId, user: nextUser }),
         };
-        return picView(await this.pics.save({ ...pic, ...patch }));
+        const userChanged = input.userId !== undefined && input.userId !== pic.userId;
+        if (userChanged && this.dataSource) {
+            const saved = await this.dataSource.transaction(async (manager) => {
+                const updated = await manager.getRepository(CsiPic).save({ ...pic, ...patch });
+                await this.syncDraftRateeUser(manager, pic.id, input.userId ?? null);
+                return updated;
+            });
+            return picView({ ...saved, user: nextUser });
+        }
+        const saved = await this.pics.save({ ...pic, ...patch });
+        return picView({ ...saved, user: nextUser });
+    }
+
+    /** Keeps draft survey ratee snapshots aligned when a PIC is manually linked or unlinked from an iDesk account. */
+    private async syncDraftRateeUser(manager: EntityManager, picId: string, userId: string | null) {
+        const repo = manager.getRepository(CsiPeriodRatee);
+        const candidates = await repo.find({ where: { picId }, select: { id: true, periodId: true } });
+        const periodIds = [...new Set(candidates.map((ratee) => ratee.periodId))].sort();
+        if (!periodIds.length) return;
+        for (const id of periodIds) await lockPeriodRow(manager, id);
+        const ratees = await repo.find({ where: { picId, periodId: In(periodIds) }, select: { id: true, periodId: true } });
+        const periods = await manager.getRepository(CsiPeriod).find({ where: { id: In(periodIds) } });
+        const answered = new Set((await manager.getRepository(CsiResponse)
+            .find({ where: { periodId: In(periodIds) }, select: { id: true, periodId: true } })).map((row) => row.periodId));
+        const now = new Date();
+        const drafts = new Set(periods.filter((period) => surveyStage(period, answered.has(period.id), now) === 'draft').map((period) => period.id));
+        const ids = ratees.filter((ratee) => drafts.has(ratee.periodId)).map((ratee) => ratee.id);
+        if (ids.length) await repo.update({ id: In(ids) }, { userId });
     }
 
     async setPicPhoto(scope: ServiceScope, id: string, photoUrl: string): Promise<{ view: CsiPicView; previous: string | null }> {

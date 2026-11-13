@@ -1,19 +1,21 @@
 import { AlertCircle, Lock, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { otherAnswerCount, rateeAverage, type CsiAnswers } from '../../lib/csiForm';
+import { isCommentFilled, missingRequired, otherAnswerCount, rateeAverage, type CsiAnswers, type CsiComments } from '../../lib/csiForm';
+import { toneClasses } from '../../lib/csiTone';
 import { formatAverage } from '../../lib/format';
 import type { CsiOpenForm } from '../../types';
 import { CSI_CARD } from '../CsiSurveyParts';
 import { FlowFooter, ScreenHeading } from './FlowChrome';
 import { RateeAvatar } from './RateeAvatar';
-import { averageLabel, otherAnswersText, RESPOND_COPY } from './respondCopy';
+import { averageLabel, otherAnswersText, RESPOND_COPY, reviewIncompleteHint } from './respondCopy';
 
 interface ReviewScreenProps {
     form: CsiOpenForm;
     name: string;
     departmentName: string | null;
     answers: CsiAnswers;
+    comments?: CsiComments;
     preview: boolean;
     submitting: boolean;
     failure: string | null;
@@ -27,10 +29,13 @@ interface ReviewScreenProps {
 const ROW = 'flex items-center gap-3.5 px-4 py-3 sm:px-5';
 const EDIT_BUTTON = 'shrink-0 px-3';
 
-function RateeRow({ ratee, label, answers, onEdit }: { ratee: CsiOpenForm['ratees'][number]; label: string; answers: CsiAnswers; onEdit: () => void }) {
+function RateeRow({ ratee, label, answers, incomplete, onEdit }: {
+    ratee: CsiOpenForm['ratees'][number]; label: string; answers: CsiAnswers; incomplete: boolean; onEdit: () => void;
+}) {
     const value = rateeAverage(ratee, answers);
     const average = value === null ? RESPOND_COPY.noScore : formatAverage(value);
     const others = otherAnswerCount(ratee, answers);
+    const amber = toneClasses('amber');
     return (
         <li aria-label={label} className={ROW}>
             <RateeAvatar name={label} avatarUrl={ratee.avatarUrl} size="sm" />
@@ -38,6 +43,11 @@ function RateeRow({ ratee, label, answers, onEdit }: { ratee: CsiOpenForm['ratee
                 <span className="block break-words text-[15px] font-medium text-foreground">{label}</span>
                 {others > 0 && <span className="block text-[13px] text-muted-foreground">{otherAnswersText(others)}</span>}
             </span>
+            {incomplete && (
+                <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[11.5px] font-semibold', amber.soft, amber.ink)}>
+                    {RESPOND_COPY.incompleteBadge}
+                </span>
+            )}
             <span className="inline-flex shrink-0 items-center gap-1.5 text-[15px] font-semibold tabular-nums text-foreground"
                 title={value === null ? undefined : averageLabel(average)}>
                 {value !== null && <Star className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden="true" />}{average}
@@ -63,13 +73,22 @@ function IdentityRow({ label, value, onEdit }: { label: string; value: string; o
 }
 
 export function ReviewScreen(props: ReviewScreenProps) {
-    const { form, name, departmentName, answers, preview, submitting, failure, onEditIdentity, onEditRatee, onBack, onSubmit } = props;
+    const { form, name, departmentName, answers, comments = {}, preview, submitting, failure, onEditIdentity, onEditRatee, onBack, onSubmit } = props;
+    const incompleteFlags = form.ratees.map((ratee) => missingRequired(ratee, answers).length > 0 || !isCommentFilled(comments[ratee.periodRateeId]));
+    const incompleteCount = incompleteFlags.filter(Boolean).length;
+    const amber = toneClasses('amber');
     return (
         <div className="space-y-5">
             <header className="space-y-1.5">
                 <ScreenHeading className="text-2xl font-bold tracking-tight">{RESPOND_COPY.reviewTitle}</ScreenHeading>
                 <p className="text-[14px] text-muted-foreground">{RESPOND_COPY.reviewHint}</p>
             </header>
+
+            {incompleteCount > 0 && (
+                <p role="status" className={cn('flex items-center gap-2 rounded-xl px-4 py-3 text-[13px] font-medium', amber.soft, amber.ink)}>
+                    <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />{reviewIncompleteHint(incompleteCount)}
+                </p>
+            )}
 
             <div className={cn(CSI_CARD, 'divide-y divide-border/60 overflow-hidden')}>
                 <IdentityRow label={RESPOND_COPY.name} value={name} onEdit={null} />
@@ -78,7 +97,8 @@ export function ReviewScreen(props: ReviewScreenProps) {
 
             <ul className={cn(CSI_CARD, 'divide-y divide-border/60 overflow-hidden')}>
                 {form.ratees.map((ratee, index) => (
-                    <RateeRow key={ratee.periodRateeId} ratee={ratee} answers={answers} onEdit={() => onEditRatee(index)} label={ratee.displayName} />
+                    <RateeRow key={ratee.periodRateeId} ratee={ratee} answers={answers} incomplete={incompleteFlags[index]}
+                        onEdit={() => onEditRatee(index)} label={ratee.displayName} />
                 ))}
             </ul>
 

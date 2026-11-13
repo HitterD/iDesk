@@ -24,13 +24,13 @@ describe('StarReaction', () => {
         expect(group().getByRole('radio', { name: '1 bintang' })).toHaveAttribute('tabindex', '0');
     });
 
-    it('clicking the 5th star calls onChange(5) and shows 🤩 and "Luar biasa!"', async () => {
+    it('clicking the 5th star calls onChange(5) and shows 🤩 and "Sangat memuaskan"', async () => {
         const onChange = vi.fn();
         render(<Harness onChange={onChange} />);
         await userEvent.setup().click(group().getByRole('radio', { name: '5 bintang' }));
         expect(onChange).toHaveBeenCalledWith(5);
         expect(screen.getByText('🤩')).toBeInTheDocument();
-        expect(screen.getByText('Luar biasa!')).toBeInTheDocument();
+        expect(screen.getByText('Sangat memuaskan')).toBeInTheDocument();
         expect(group().getByRole('radio', { name: '5 bintang' })).toHaveAttribute('aria-checked', 'true');
     });
 
@@ -62,11 +62,11 @@ describe('StarReaction', () => {
         const user = userEvent.setup();
         render(<Harness initial={4} onChange={onChange} />);
         await user.hover(group().getByRole('radio', { name: '5 bintang' }));
-        expect(screen.getByText('Luar biasa!')).toBeInTheDocument();
+        expect(screen.getByText('Sangat memuaskan')).toBeInTheDocument();
         fireEvent.keyDown(group().getByRole('radio', { name: '4 bintang' }), { key: 'ArrowLeft' });
         expect(onChange).toHaveBeenLastCalledWith(3);
         expect(screen.getByText('Cukup')).toBeInTheDocument();
         expect(screen.getByText('😐')).not.toHaveAttribute('data-preview');
-        expect(screen.queryByText('Luar biasa!')).not.toBeInTheDocument();
+        expect(screen.queryByText('Sangat memuaskan')).not.toBeInTheDocument();
     });
 });

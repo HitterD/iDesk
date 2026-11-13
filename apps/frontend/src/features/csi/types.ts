@@ -229,6 +229,9 @@ export interface CsiReportRatee {
     kind: CsiRateeKind;
     displayName: string;
     jobTitle: string | null;
+    serviceCode?: string | null;
+    bagian?: string | null;
+    serviceFunction?: string | null;
     siteId: string | null;
     photoUrl: string | null;
     respondentCount: number;

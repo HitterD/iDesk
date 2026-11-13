@@ -8,6 +8,7 @@ import type { CsiPicView } from '../../../hcTypes';
 import { RateeAvatar } from '../../respond/RateeAvatar';
 import { AdminSection, EmptyNote, MUTED_TEXT } from '../AdminParts';
 import { titleCase } from './hcFormat';
+import { PicAccountPicker } from './PicAccountPicker';
 import { PicNameEditor } from './PicNameEditor';
 
 /**
@@ -97,10 +98,16 @@ function ServiceFunctionField({ pic, onSave }: { pic: CsiPicView; onSave: (value
 }
 
 interface PicRowProps {
-    pic: CsiPicView; onToggle: () => void; onServiceFunction: (value: string | null) => void; onRename: (fullName: string) => Promise<unknown>; pending: boolean;
+    scope: CsiScopeParam;
+    pic: CsiPicView;
+    onToggle: () => void;
+    onServiceFunction: (value: string | null) => void;
+    onRename: (fullName: string) => Promise<unknown>;
+    onPickAccount: (userId: string | null) => void;
+    pending: boolean;
 }
 
-function PicRow({ pic, onToggle, onServiceFunction, onRename, pending }: PicRowProps) {
+function PicRow({ scope, pic, onToggle, onServiceFunction, onRename, onPickAccount, pending }: PicRowProps) {
     return (
         <li className={cn('flex items-start gap-2.5 rounded-xl px-2 py-1.5', !pic.isActive && 'opacity-55')}>
             <RateeAvatar name={pic.fullName} avatarUrl={pic.photoUrl} size="sm" />
@@ -111,9 +118,9 @@ function PicRow({ pic, onToggle, onServiceFunction, onRename, pending }: PicRowP
                 </PicNameEditor>
                 <span className="block break-words text-[12px] leading-snug text-[hsl(var(--idesk-text-secondary))]">{titleCase(pic.jobTitle ?? '')}</span>
                 <ServiceFunctionField key={pic.serviceFunction ?? ''} pic={pic} onSave={onServiceFunction} />
-                <span className="mt-0.5 flex flex-wrap gap-1">
-                    {pic.workLocation && <span className="rounded-md bg-[hsl(var(--muted))] px-1.5 text-[11px] font-medium">{pic.workLocation}</span>}
-                    {pic.userId && <span className="rounded-md bg-[hsl(var(--ticket-green)/.13)] px-1.5 text-[11px] font-medium text-[hsl(var(--ticket-green-ink))]">akun iDesk</span>}
+                <span className="mt-1 flex flex-wrap items-center gap-1">
+                    {pic.workLocation && <span className="rounded-md bg-[hsl(var(--muted))] px-1.5 py-0.5 text-[11px] font-medium">{pic.workLocation}</span>}
+                    <PicAccountPicker scope={scope} pic={pic} pending={pending} onPick={onPickAccount} />
                 </span>
             </span>
             <button type="button" role="switch" aria-checked={pic.isActive} aria-label={`${pic.fullName} aktif`} disabled={pending} onClick={onToggle}
@@ -130,8 +137,13 @@ export function PicsTab({ scope }: { scope: CsiScopeParam }) {
     const rename = useRenameCsiPic(scope);
     const [service, setService] = useState<string | null>(null);
     const [onlyMissing, setOnlyMissing] = useState(false);
+    const [onlyUnlinked, setOnlyUnlinked] = useState(false);
     const missing = pics.filter((pic) => pic.isActive && !hasBagian(pic)).length;
-    const listed = onlyMissing && missing ? pics.filter((pic) => pic.isActive && !hasBagian(pic)) : pics;
+    const unlinked = pics.filter((pic) => pic.isActive && !pic.userId).length;
+    const listed = pics.filter((pic) =>
+        (!onlyMissing || !missing || (pic.isActive && !hasBagian(pic)))
+        && (!onlyUnlinked || !unlinked || (pic.isActive && !pic.userId)),
+    );
     const services = groupBy(listed, (pic) => pic.serviceCode);
     const shown = services.filter(([code]) => !service || code === service);
     return (
@@ -141,13 +153,20 @@ export function PicsTab({ scope }: { scope: CsiScopeParam }) {
                 {isLoading && <div className="h-40 animate-pulse rounded-2xl bg-[hsl(var(--muted))]" aria-busy="true" />}
                 {!isLoading && !pics.length && <EmptyNote>Belum ada PIC. Impor file Excel di atas.</EmptyNote>}
                 {missing > 0 && <MissingBagianNotice count={missing} filtered={onlyMissing} onToggle={() => setOnlyMissing((value) => !value)} />}
-                {services.length > 0 && (
-                    <div className="flex flex-wrap gap-2" role="group" aria-label="Filter layanan">
+                {(services.length > 0 || unlinked > 0) && pics.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter layanan">
                         {[['', `Semua · ${listed.length}`] as const, ...services.map(([code, rows]) => [code, `${code} · ${rows.length}`] as const)].map(([code, label]) => (
                             <button key={code || 'all'} type="button" aria-pressed={(service ?? '') === code} onClick={() => setService(code || null)}
                                 className={cn('rounded-full px-3 py-1.5 text-[12.5px] font-semibold',
                                     (service ?? '') === code ? 'bg-[hsl(var(--idesk-sapphire))] text-white' : 'bg-[hsl(var(--muted))]')}>{label}</button>
                         ))}
+                        {unlinked > 0 && (
+                            <button type="button" aria-pressed={onlyUnlinked} onClick={() => setOnlyUnlinked((value) => !value)}
+                                className={cn('ml-auto rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition-colors',
+                                    onlyUnlinked ? 'bg-[hsl(var(--ticket-amber))] text-[hsl(var(--ticket-amber-ink))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--idesk-text-secondary))] hover:text-foreground')}>
+                                {`Belum punya akun · ${unlinked}`}
+                            </button>
+                        )}
                     </div>
                 )}
                 <div className={cn('grid gap-3', shown.length > 1 && 'lg:grid-cols-2')}>
@@ -159,8 +178,9 @@ export function PicsTab({ scope }: { scope: CsiScopeParam }) {
                                     <div key={bagian} className="rounded-xl bg-[hsl(var(--idesk-surface))] p-2">
                                         <p className="mb-1 px-2 text-[11.5px] font-bold uppercase tracking-wide text-[hsl(var(--idesk-text-secondary))]">{`${titleCase(bagian)} · ${people.length}`}</p>
                                         <ul>{people.map((pic) => (
-                                            <PicRow key={pic.id} pic={pic} pending={update.isPending || rename.isPending} onToggle={() => update.mutate({ id: pic.id, isActive: !pic.isActive })}
+                                            <PicRow key={pic.id} scope={scope} pic={pic} pending={update.isPending || rename.isPending} onToggle={() => update.mutate({ id: pic.id, isActive: !pic.isActive })}
                                                 onRename={(fullName) => rename.mutateAsync({ id: pic.id, fullName })}
+                                                onPickAccount={(userId) => update.mutate({ id: pic.id, userId })}
                                                 onServiceFunction={(value) => value !== pic.serviceFunction && update.mutate({ id: pic.id, serviceFunction: value })} />
                                         ))}</ul>
                                     </div>

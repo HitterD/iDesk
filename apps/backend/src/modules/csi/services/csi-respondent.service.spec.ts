@@ -180,7 +180,8 @@ describe('CsiRespondentService', () => {
 
     const me = { id: 'me' };
     const fullItems = (score = 4) => ['rd1a', 'rd1b', 'rd2a'].map((periodRateeDimensionId) => ({ periodRateeDimensionId, score }));
-    const dto = (over: Record<string, any> = {}) => ({ respondentName: 'Andi', departmentId: 'dep1', items: fullItems(), comments: [], ...over });
+    const fullComments = () => ['r1', 'r2'].map((periodRateeId) => ({ periodRateeId, comment: 'Saran' }));
+    const dto = (over: Record<string, any> = {}) => ({ respondentName: 'Andi', departmentId: 'dep1', items: fullItems(), comments: fullComments(), ...over });
     const savedOf = (target: unknown) => saved.find((entry) => entry.target === target)?.value;
 
     describe('visibility', () => {
@@ -366,8 +367,8 @@ describe('CsiRespondentService', () => {
             addTeam();
             const form: any = await service.getForm(me, 'p1', NOW);
             expect(form.ratees.map((ratee: any) => ratee.periodRateeId)).toEqual(['r-team']);
-            await expect(service.submit(me, 'p1', dto({ items: fullItems() }), NOW)).rejects.toBeInstanceOf(BadRequestException);
-            await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd-team', score: 4 }] }), NOW)).resolves.toMatchObject({ submitted: true });
+            await expect(service.submit(me, 'p1', dto({ items: fullItems(), comments: [{ periodRateeId: 'r-team', comment: 'Saran' }] }), NOW)).rejects.toBeInstanceOf(BadRequestException);
+            await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd-team', score: 4 }], comments: [{ periodRateeId: 'r-team', comment: 'Saran' }] }), NOW)).resolves.toMatchObject({ submitted: true });
         });
 
         it('period whose only enabled section has no visible ratees is not eligible', async () => {
@@ -411,8 +412,8 @@ describe('CsiRespondentService', () => {
             pairs.rows.push({ id: 'pp1', periodId: 'p1', periodRaterId: 'pr-me', periodRateeId: 'r2' });
             const form: any = await service.getForm(me, 'p1', NOW);
             expect(form.ratees.map((ratee: any) => ratee.periodRateeId)).toEqual(['r2']);
-            await expect(service.submit(me, 'p1', dto({ items: fullItems() }), NOW)).rejects.toBeInstanceOf(BadRequestException);
-            await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd2a', score: 4 }] }), NOW))
+            await expect(service.submit(me, 'p1', dto({ items: fullItems(), comments: [{ periodRateeId: 'r2', comment: 'Saran' }] }), NOW)).rejects.toBeInstanceOf(BadRequestException);
+            await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd2a', score: 4 }], comments: [{ periodRateeId: 'r2', comment: 'Saran' }] }), NOW))
                 .resolves.toMatchObject({ submitted: true });
         });
 
@@ -475,10 +476,14 @@ describe('CsiRespondentService', () => {
             // r1 picked but only half answered: its remaining required question is still enforced.
             await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd1a', score: 4 }] }), NOW)).rejects.toBeInstanceOf(BadRequestException);
             // Comment on a PIC that was not picked is rejected.
-            await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd2a', score: 5 }], comments: [{ periodRateeId: 'r1', comment: 'x' }] }), NOW))
+            await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd2a', score: 5 }], comments: [{ periodRateeId: 'r1', comment: 'x' }, { periodRateeId: 'r2', comment: 'ok' }] }), NOW))
                 .rejects.toBeInstanceOf(BadRequestException);
+            // Picked PIC without comment is rejected.
+            await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd2a', score: 5 }], comments: [] }), NOW))
+                .rejects.toThrow('Saran untuk setiap tim/orang yang dinilai wajib diisi');
             expect(manager.save).not.toHaveBeenCalled();
-            await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd2a', score: 5 }] }), NOW)).resolves.toMatchObject({ submitted: true });
+            await expect(service.submit(me, 'p1', dto({ items: [{ periodRateeDimensionId: 'rd2a', score: 5 }], comments: [{ periodRateeId: 'r2', comment: 'Bagus' }] }), NOW))
+                .resolves.toMatchObject({ submitted: true });
         });
 
         it('submit rejects score 0 or 6 (400)', async () => {
@@ -689,10 +694,18 @@ describe('CsiRespondentService', () => {
             expect(manager.save).not.toHaveBeenCalled();
         });
 
-        it('submit snapshots departmentName and stores items + non-empty trimmed comments only', async () => {
+        it('submit rejects missing or whitespace-only comments for rated ratees (400)', async () => {
+            await expect(service.submit(me, 'p1', dto({ comments: [] }), NOW))
+                .rejects.toThrow('Saran untuk setiap tim/orang yang dinilai wajib diisi');
+            await expect(service.submit(me, 'p1', dto({ comments: [{ periodRateeId: 'r1', comment: 'Mantap' }, { periodRateeId: 'r2', comment: '   ' }] }), NOW))
+                .rejects.toThrow('Saran untuk setiap tim/orang yang dinilai wajib diisi');
+            expect(manager.save).not.toHaveBeenCalled();
+        });
+
+        it('submit snapshots departmentName and stores items + trimmed comments for every rated ratee', async () => {
             const result = await service.submit(me, 'p1', dto({
                 items: [{ periodRateeDimensionId: 'rd2a', score: 5 }, { periodRateeDimensionId: 'rd1a', score: 1 }, { periodRateeDimensionId: 'rd1b', score: 3 }],
-                comments: [{ periodRateeId: 'r1', comment: '  Mantap  ' }, { periodRateeId: 'r2', comment: '   ' }],
+                comments: [{ periodRateeId: 'r1', comment: '  Mantap  ' }, { periodRateeId: 'r2', comment: '  Oke  ' }],
             }), NOW);
             expect(result).toEqual({ submitted: true, thankYou: 'Terima kasih!' });
             expect(savedOf(CsiResponse)).toEqual(expect.objectContaining({
@@ -703,7 +716,10 @@ describe('CsiRespondentService', () => {
                 expect.objectContaining({ responseId: 'resp-new', periodRateeId: 'r1', periodRateeDimensionId: 'rd1a', score: 1 }),
                 expect.objectContaining({ responseId: 'resp-new', periodRateeId: 'r1', periodRateeDimensionId: 'rd1b', score: 3 }),
             ]);
-            expect(savedOf(CsiResponseComment)).toEqual([expect.objectContaining({ responseId: 'resp-new', periodRateeId: 'r1', comment: 'Mantap' })]);
+            expect(savedOf(CsiResponseComment)).toEqual([
+                expect.objectContaining({ responseId: 'resp-new', periodRateeId: 'r1', comment: 'Mantap' }),
+                expect.objectContaining({ responseId: 'resp-new', periodRateeId: 'r2', comment: 'Oke' }),
+            ]);
             expect(saved.map((entry) => entry.target)).toEqual([CsiResponse, CsiResponseItem, CsiResponseComment]);
         });
 

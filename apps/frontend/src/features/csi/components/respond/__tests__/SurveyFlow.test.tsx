@@ -97,47 +97,47 @@ describe('SurveyFlow screens', () => {
         expect(screen.queryByText('Tersimpan otomatis')).not.toBeInTheDocument();
     });
 
-    it('required blocks Lanjut with a count and highlight; optional can be skipped', async () => {
+    it('Lanjut skips freely; Kirim jumps back to incomplete ratee and flags missing question & comment', async () => {
         const user = userEvent.setup();
         const scrollSpy = vi.mocked(scrollWithin);
         scrollSpy.mockClear();
         renderFlow();
         await startFilling(user);
         await user.click(button(NEXT));
-        expect(screen.getByRole('status')).toHaveTextContent('1 pertanyaan wajib belum dijawab');
-        expect(document.querySelectorAll('[data-missing]')).toHaveLength(1);
-        expect(scrollSpy).toHaveBeenCalled();
-        await choose(user, 'Kualitas layanan untuk Tim IT Support', 'Sangat baik');
-        // The optional CHOICE question stays unanswered.
-        await user.click(button(NEXT));
         expect(screen.getByRole('heading', { name: 'Andi' })).toBeInTheDocument();
         await user.click(button(NEXT));
-        expect(screen.getByRole('status')).toHaveTextContent('2 pertanyaan wajib belum dijawab');
+        await user.click(button('Tinjau jawaban'));
+        expect(screen.getAllByText('Belum lengkap').length).toBeGreaterThan(0);
+        await user.click(button('Kirim'));
+        expect(screen.getByRole('heading', { name: 'Tim IT Support' })).toBeInTheDocument();
+        expect(screen.getByRole('status')).toHaveTextContent('1 pertanyaan wajib dan saran belum diisi');
+        expect(document.querySelectorAll('[data-missing]')).toHaveLength(2);
+        expect(scrollSpy).toHaveBeenCalled();
         scrollSpy.mockReset();
     });
 
-    it('rail ticks only after the screen was visited and its required questions are answered', async () => {
+    it('rail ticks only after required questions and comment are filled', async () => {
         const user = userEvent.setup();
         renderFlow();
         await startFilling(user);
         expect(chips().queryByRole('button', { name: /selesai/ })).not.toBeInTheDocument();
         await choose(user, 'Kualitas layanan untuk Tim IT Support', 'Cukup');
+        expect(chips().queryByRole('button', { name: /Tim IT Support, selesai/ })).not.toBeInTheDocument();
+        await user.type(screen.getByLabelText(/Saran untuk Tim IT Support/), 'Mantap');
         expect(chips().getByRole('button', { name: /Tim IT Support, selesai/ })).toBeInTheDocument();
         await user.click(chips().getByRole('button', { name: new RegExp(LONG_NAME) }));
         expect(screen.getByRole('heading', { name: LONG_NAME })).toBeInTheDocument();
         expect(chips().getByRole('button', { name: /Andi/ })).not.toHaveAccessibleName(/selesai/);
     });
 
-    it('Tinjau jawaban returns to a screen skipped via the rail', async () => {
+    it('clicking the index badge on SubjectPhoto opens subject jump popover', async () => {
         const user = userEvent.setup();
         renderFlow();
         await startFilling(user);
-        await choose(user, 'Kualitas layanan untuk Tim IT Support', 'Cukup');
-        await user.click(chips().getByRole('button', { name: new RegExp(LONG_NAME) }));
-        await rate(user, `Kecepatan untuk ${LONG_NAME}`, 3);
-        await user.click(button('Tinjau jawaban'));
-        expect(screen.getByRole('heading', { name: 'Andi' })).toBeInTheDocument();
-        expect(screen.getByRole('status')).toHaveTextContent('2 pertanyaan wajib belum dijawab');
+        await user.click(screen.getByRole('button', { name: /Pilih subjek penilaian \(1 dari 3/ }));
+        const dialog = await screen.findByRole('dialog');
+        await user.click(within(dialog).getByRole('button', { name: new RegExp(LONG_NAME) }));
+        expect(screen.getByRole('heading', { name: LONG_NAME })).toBeInTheDocument();
     });
 
     it('avatar falls back to the initial when the photo fails', async () => {

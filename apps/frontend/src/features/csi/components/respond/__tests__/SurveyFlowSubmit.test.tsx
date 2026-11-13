@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { scrollWithin } from '../../../lib/scrollWithin';
 import { SurveyFlow } from '../SurveyFlow';
 import { draftKey } from '../../../lib/surveyDraft';
-import { answerAll, button, choose, EXPECTED_ITEMS, FORM, NEXT, startFilling } from './surveyFlowFixture';
+import { answerAll, button, choose, EXPECTED_COMMENTS, EXPECTED_ITEMS, FORM, NEXT, startFilling } from './surveyFlowFixture';
 
 vi.mock('../../../lib/scrollWithin', () => ({ scrollWithin: vi.fn() }));
 
@@ -41,6 +41,7 @@ describe('SurveyFlow review and submit', () => {
         expect(onSubmit).toHaveBeenCalledWith({
             respondentName: 'Rina Pemohon', departmentId: 'd2',
             items: [...EXPECTED_ITEMS.slice(0, 3), { periodRateeDimensionId: 'x3', text: 'Responsif' }, EXPECTED_ITEMS[3]],
+            comments: EXPECTED_COMMENTS,
         });
     });
 

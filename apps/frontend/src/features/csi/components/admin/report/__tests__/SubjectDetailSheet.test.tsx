@@ -17,4 +17,24 @@ describe('SubjectDetailSheet', () => {
         render(<SubjectDetailSheet ratee={subject} siteName="Sepanjang" siteCode="SPJ" bands={BANDS} onClose={vi.fn()} />);
         expect(screen.getByText('Finance · 30 Okt 2026')).toBeInTheDocument();
     });
+
+    it('renders service code, service function, bagian, and score word badge', () => {
+        const subject = ratee({
+            periodRateeId: 'r2',
+            displayName: 'Arifin',
+            kind: 'TEAM',
+            serviceCode: 'HCS',
+            bagian: 'Transportasi',
+            serviceFunction: 'Perawatan kendaraan',
+            mean: 4.5,
+            index: 90,
+            raterCount: 3,
+        });
+        render(<SubjectDetailSheet ratee={subject} siteName="Sepanjang" siteCode="SPJ" bands={BANDS} onClose={vi.fn()} />);
+        expect(screen.getByText('HCS')).toBeInTheDocument();
+        expect(screen.getByText('Perawatan kendaraan')).toBeInTheDocument();
+        expect(screen.getByText(/Transportasi/)).toBeInTheDocument();
+        expect(screen.getByText('indeks 90,0%')).toBeInTheDocument();
+        expect(screen.getByText('Sangat puas')).toBeInTheDocument();
+    });
 });

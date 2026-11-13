@@ -48,6 +48,8 @@ export function normalizeAnswer(dimension: CsiFormDimension, raw: unknown): CsiA
 export const isAnswered = (dimension: CsiFormDimension, answers: CsiAnswers) =>
     normalizeAnswer(dimension, answers[dimension.periodRateeDimensionId]) !== null;
 
+export const isCommentFilled = (comment: string | undefined | null) => Boolean(comment?.trim());
+
 /** Required questions of a ratee that still lack an answer. */
 export const missingRequired = (ratee: CsiFormRatee, answers: CsiAnswers) =>
     ratee.dimensions.filter((dimension) => dimension.required && !isAnswered(dimension, answers));

@@ -117,6 +117,14 @@ export function useSetCsiReportOwners(scope: CsiScopeParam) {
 export function useCsiPics(scope: CsiScopeParam, includeInactive = false) {
     return useQuery({ queryKey: picsKey(scope, includeInactive), queryFn: () => CsiHcApi.pics(scope, includeInactive) });
 }
+export function usePicAccountSuggestions(scope: CsiScopeParam, search: string, siteId?: string | null, enabled = true) {
+    const trimmed = search.trim();
+    return useQuery({
+        queryKey: ['csi', scope, 'pics', 'account-suggestions', trimmed, siteId ?? null],
+        queryFn: () => CsiHcApi.picAccountSuggestions(scope, trimmed, siteId),
+        enabled: enabled && trimmed.length >= 2,
+    });
+}
 export function useCsiDirectory(scope: CsiScopeParam) {
     return useQuery({ queryKey: directoryKey(scope), queryFn: () => CsiHcApi.directory(scope) });
 }
@@ -133,7 +141,11 @@ export function useUpdateCsiPic(scope: CsiScopeParam) {
     const client = useQueryClient();
     return useMutation({
         mutationFn: ({ id, ...patch }: UpdateCsiPic & { id: string }) => CsiHcApi.updatePic(scope, id, patch),
-        onSuccess: () => client.invalidateQueries({ queryKey: ['csi', scope, 'pics'] }),
+        onSuccess: () => Promise.all([
+            client.invalidateQueries({ queryKey: ['csi', scope, 'pics'] }),
+            client.invalidateQueries({ queryKey: keys.subjects(scope) }),
+            client.invalidateQueries({ queryKey: keys.periodDetails(scope) }),
+        ]),
     });
 }
 /** One rename for the template card, "Orang & foto" and PIC HC: template rows and draft survey snapshots follow. */

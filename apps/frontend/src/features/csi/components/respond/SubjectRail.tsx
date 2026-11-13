@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type RefObject } from 'react';
-import { Check, ChevronLeft, ChevronRight, CloudCheck, LayoutGrid, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, CloudCheck, LayoutGrid, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { siteTone, toneClasses, toneColor } from '../../lib/csiTone';
 import type { CsiFormRatee } from '../../types';
@@ -18,7 +18,23 @@ export interface SubjectRailProps {
     saved?: boolean;
 }
 
-interface SubjectState { ratee: CsiFormRatee; index: number; answered: number; questions: number; done: boolean }
+export interface SubjectJumpItem { ratee: CsiFormRatee; index: number; answered: number; questions: number; done: boolean }
+type SubjectState = SubjectJumpItem;
+
+const SEARCH_THRESHOLD = 8;
+
+export function buildSubjectStates(
+    ratees: CsiFormRatee[],
+    answeredCount: (index: number) => number,
+    questionCount: (index: number) => number,
+    done?: (index: number) => boolean,
+): SubjectJumpItem[] {
+    return ratees.map((ratee, index) => {
+        const answered = answeredCount(index);
+        const questions = questionCount(index);
+        return { ratee, index, answered, questions, done: done ? done(index) : questions > 0 && answered >= questions };
+    });
+}
 
 /** Overflow fades the rail edges so a cut-off item reads as "more this way". */
 const EDGE_FADE = '[mask-image:linear-gradient(90deg,transparent,#000_24px,#000_calc(100%-24px),transparent)]';
@@ -164,13 +180,17 @@ function StatusPill({ subject }: { subject: SubjectState }) {
     return <span className={cn(base, 'bg-muted text-muted-foreground')}>{RESPOND_COPY.railPending}</span>;
 }
 
-function SubjectPopover({ id, subjects, current, onSelect, onClose }: {
-    id: string; subjects: SubjectState[]; current: number; onSelect: (index: number) => void; onClose: () => void;
+export function SubjectJumpBody({ subjects, current, onSelect, onClose }: {
+    subjects: SubjectState[]; current: number; onSelect: (index: number) => void; onClose: () => void;
 }) {
+    const [query, setQuery] = useState('');
     const finished = subjects.filter((subject) => subject.done).length;
+    const needle = query.trim().toLowerCase();
+    const visible = needle
+        ? subjects.filter((subject) => subject.ratee.displayName.toLowerCase().includes(needle) || String(subject.index + 1) === needle)
+        : subjects;
     return (
-        <div id={id} role="dialog" aria-label={RESPOND_COPY.allSubjects}
-            className="csi-pop-in absolute right-0 top-[calc(100%+6px)] z-40 max-h-[420px] w-[min(560px,100%)] max-w-[calc(100vw-24px)] origin-top-right overflow-auto rounded-2xl bg-card p-3 text-card-foreground shadow-[0_14px_38px_-12px_rgb(15_23_42/.28),0_0_0_.5px_rgb(0_0_0/.07)]">
+        <>
             <div className="flex items-center gap-2">
                 <b className="text-[14px] font-bold">{RESPOND_COPY.allSubjects}</b>
                 <span className="text-[12.5px] text-muted-foreground">{popoverDoneText(finished, subjects.length)}</span>
@@ -179,8 +199,15 @@ function SubjectPopover({ id, subjects, current, onSelect, onClose }: {
                     <X className="h-4 w-4" aria-hidden="true" />
                 </button>
             </div>
+            {subjects.length > SEARCH_THRESHOLD && (
+                <div className="relative mt-2">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                    <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama atau nomor…" aria-label="Cari subjek"
+                        className="h-8 w-full rounded-lg border border-border bg-background pl-8 pr-2.5 text-[12.5px] outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--idesk-sapphire))]" />
+                </div>
+            )}
             <div className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(min(220px,100%),1fr))] gap-1.5">
-                {subjects.map((subject) => (
+                {visible.map((subject) => (
                     <button key={subject.ratee.periodRateeId} type="button" onClick={() => onSelect(subject.index)}
                         aria-current={subject.index === current ? 'step' : undefined}
                         className={cn('flex items-center gap-2.5 rounded-xl p-2 text-left transition-colors duration-150', FOCUS_RING,
@@ -193,7 +220,19 @@ function SubjectPopover({ id, subjects, current, onSelect, onClose }: {
                         <StatusPill subject={subject} />
                     </button>
                 ))}
+                {!visible.length && <p className="col-span-full py-4 text-center text-[12.5px] text-muted-foreground">Tidak ada yang cocok.</p>}
             </div>
+        </>
+    );
+}
+
+function SubjectPopover({ id, subjects, current, onSelect, onClose }: {
+    id: string; subjects: SubjectState[]; current: number; onSelect: (index: number) => void; onClose: () => void;
+}) {
+    return (
+        <div id={id} role="dialog" aria-label={RESPOND_COPY.allSubjects}
+            className="csi-pop-in absolute right-0 top-[calc(100%+6px)] z-40 max-h-[420px] w-[min(560px,100%)] max-w-[calc(100vw-24px)] origin-top-right overflow-auto rounded-2xl bg-card p-3 text-card-foreground shadow-[0_14px_38px_-12px_rgb(15_23_42/.28),0_0_0_.5px_rgb(0_0_0/.07)]">
+            <SubjectJumpBody subjects={subjects} current={current} onSelect={onSelect} onClose={onClose} />
         </div>
     );
 }
@@ -232,11 +271,7 @@ export function SubjectRail({ ratees, current, answeredCount, questionCount, onS
     useCentreActive(rail, current);
     useDismiss(open, area, trigger, close);
 
-    const subjects: SubjectState[] = ratees.map((ratee, index) => {
-        const answered = answeredCount(index);
-        const questions = questionCount(index);
-        return { ratee, index, answered, questions, done: done ? done(index) : questions > 0 && answered >= questions };
-    });
+    const subjects = buildSubjectStates(ratees, answeredCount, questionCount, done);
     const scrollBy = (direction: 1 | -1) => {
         rail.current?.scrollBy?.({ left: direction * rail.current.clientWidth * SCROLL_STEP });
     };

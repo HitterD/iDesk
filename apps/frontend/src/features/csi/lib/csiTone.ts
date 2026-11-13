@@ -16,7 +16,7 @@ const QUESTION_TONES: readonly CsiTone[] = ['sky', 'teal', 'brown', 'amber'];
 
 /** Index = star count (1–5); index 0 is the empty state. Emoji appear only in the star reaction. */
 export const STAR_EMOJI = ['', '😞', '😕', '😐', '😊', '🤩'] as const;
-export const STAR_LABELS = ['', 'Sangat kurang', 'Kurang', 'Cukup', 'Puas', 'Luar biasa!'] as const;
+export const STAR_LABELS = ['', 'Sangat kurang', 'Kurang', 'Cukup', 'Puas', 'Sangat memuaskan'] as const;
 
 export type CsiScoreWord = 'Sangat puas' | 'Puas' | 'Perlu perbaikan';
 

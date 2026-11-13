@@ -16,6 +16,9 @@ vi.mock('../../../../api/csiHc.api', () => ({
         pics: vi.fn(async () => [PIC]),
         directory: vi.fn(async () => ({ people: 0 })),
         updatePic: fx.update,
+        picAccountSuggestions: vi.fn(async () => [
+            { id: 'u-1', fullName: 'Budi Santoso', email: 'budi@santos.co.id', score: 0.9, reason: 'Nama mirip' },
+        ]),
     },
 }));
 
@@ -77,5 +80,43 @@ describe('PicsTab rename', () => {
         await userEvent.type(input, 'Rara Pongdatu');
         await userEvent.click(screen.getByRole('button', { name: 'Simpan nama' }));
         expect(fx.update).toHaveBeenCalledWith('hc', 'pic-1', { fullName: 'Rara Pongdatu' });
+    });
+});
+
+describe('PicsTab account picker & filter', () => {
+    it('picks and unlinks an iDesk account on a PIC row', async () => {
+        fx.update.mockClear();
+        const { CsiHcApi } = await import('../../../../api/csiHc.api');
+        vi.mocked(CsiHcApi.pics).mockResolvedValueOnce([
+            { ...PIC, userId: null, user: null },
+        ]);
+        fx.update.mockResolvedValue({ ...PIC, userId: 'u-1', user: { id: 'u-1', fullName: 'Budi Santoso', email: 'budi@santos.co.id' } });
+        renderWithQuery(<PicsTab scope="hc" />);
+        await userEvent.click(await screen.findByRole('button', { name: 'Pilih akun iDesk Rara Kurnia Maharani Pongdatu' }));
+        await userEvent.click(await screen.findByRole('option', { name: /Budi Santoso/ }));
+        expect(fx.update).toHaveBeenCalledWith('hc', 'pic-1', { userId: 'u-1' });
+
+        vi.mocked(CsiHcApi.pics).mockResolvedValueOnce([
+            { ...PIC, userId: 'u-1', user: { id: 'u-1', fullName: 'Budi Santoso', email: 'budi@santos.co.id' } },
+        ]);
+        cleanup();
+        renderWithQuery(<PicsTab scope="hc" />);
+        await userEvent.click(await screen.findByRole('button', { name: 'Ubah akun iDesk Rara Kurnia Maharani Pongdatu' }));
+        await userEvent.click(await screen.findByRole('button', { name: 'Lepas akun' }));
+        expect(fx.update).toHaveBeenCalledWith('hc', 'pic-1', { userId: null });
+    });
+
+    it('filters active PICs without an iDesk account', async () => {
+        const { CsiHcApi } = await import('../../../../api/csiHc.api');
+        vi.mocked(CsiHcApi.pics).mockResolvedValueOnce([
+            { ...PIC, userId: 'u-1', user: { id: 'u-1', fullName: 'Rara', email: 'rara@santos.co.id' } },
+            { ...PIC, id: 'pic-2', fullName: 'TANPA AKUN', userId: null, user: null },
+        ]);
+        renderWithQuery(<PicsTab scope="hc" />);
+        const btn = await screen.findByRole('button', { name: /belum punya akun/i });
+        expect(btn.textContent).toContain('Belum punya akun · 1');
+        await userEvent.click(btn);
+        expect(screen.getByText('Tanpa Akun')).toBeTruthy();
+        expect(screen.queryByText('Rara Kurnia Maharani Pongdatu')).toBeNull();
     });
 });
