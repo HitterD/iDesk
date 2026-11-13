@@ -232,7 +232,7 @@ describe('CsiRespondentService', () => {
 
         it('listActive returns eligible periods with submitted flag', async () => {
             periods.rows.push(period({ id: 'p-b', sites: [{ siteId: 'site-b' }] as CsiPeriod['sites'] }));
-            const base = { id: 'p1', scope: ICT, title: 'CSI ICT Oktober', endDate: '2026-10-31' };
+            const base = { id: 'p1', scope: ICT, title: 'CSI ICT Oktober', intro: 'Mohon diisi', endDate: '2026-10-31' };
             expect(await service.listActive(me, NOW)).toEqual([{ ...base, submitted: false, submittedAt: null }]);
             const at = new Date('2026-10-10T08:00:00Z');
             responses.rows.push({ id: 'resp', periodId: 'p1', respondentId: 'me', respondentName: 'Andi', submittedAt: at });

@@ -101,11 +101,11 @@ export class CsiRespondentService {
         const candidates = matching.length ? await this.periods.find({
             where: { id: In(matching.map((row) => row.id)) }, relations: { sites: true }, order: { startDate: 'DESC' },
         }) : [];
-        const result: Array<{ id: string; scope: CsiPeriod['scope']; title: string; endDate: string; submitted: boolean; submittedAt: Date | null }> = [];
+        const result: Array<{ id: string; scope: CsiPeriod['scope']; title: string; intro: string; endDate: string; submitted: boolean; submittedAt: Date | null }> = [];
         for (const period of candidates) {
             if (computeStatus(period, now) !== 'ACTIVE' || !(await this.audienceFor(this.readers, respondent, period))) continue;
             const submittedAt = await this.submittedAt(period.id, respondent.id);
-            result.push({ id: period.id, scope: period.scope, title: period.title, endDate: period.endDate, submitted: submittedAt !== null, submittedAt });
+            result.push({ id: period.id, scope: period.scope, title: period.title, intro: period.intro, endDate: period.endDate, submitted: submittedAt !== null, submittedAt });
         }
         return result;
     }
