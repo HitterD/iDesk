@@ -112,23 +112,26 @@ describe('BentoSidebar', () => {
         expect(screen.getByText('Bagas Developer')).toBeInTheDocument();
     });
 
-    it('hides Survei Kepuasan when no survey is active', async () => {
+    it('hides Survei CSI when no survey is active', async () => {
         renderSidebar('/dashboard');
         await waitFor(() => expect(screen.getByText('Dashboard Tim')).toBeInTheDocument());
-        expect(screen.queryByRole('link', { name: 'Survei Kepuasan' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: /Survei CSI/ })).not.toBeInTheDocument();
     });
 
-    it('shows Survei Kepuasan at /csi when an active survey exists', async () => {
+    it('shows Survei CSI with pending badge at /csi when an unfilled active survey exists', async () => {
         csiActive.current = [{ id: 'p1', scope: 'ICT', title: 'Survei ICT', submitted: false }];
         renderSidebar('/dashboard');
-        expect(await screen.findByRole('link', { name: 'Survei Kepuasan' })).toHaveAttribute('href', '/csi');
+        const link = await screen.findByRole('link', { name: /Survei CSI/ });
+        expect(link).toHaveAttribute('href', '/csi');
+        expect(link).toHaveTextContent('1');
     });
 
-    it('points Survei Kepuasan to the manager layout for managers', async () => {
+    it('points Survei CSI to the manager layout for managers without badge once submitted', async () => {
         csiActive.current = [{ id: 'p1', scope: 'ICT', title: 'Survei ICT', submitted: true }];
         authUser.current = { id: 'mgr-1', fullName: 'Manager', role: 'MANAGER' };
         renderSidebar('/manager/dashboard');
-        expect(await screen.findByRole('link', { name: 'Survei Kepuasan' })).toHaveAttribute('href', '/manager/csi');
+        const link = await screen.findByRole('link', { name: 'Survei CSI' });
+        expect(link).toHaveAttribute('href', '/manager/csi');
     });
 
     it('shows Report CSI for non-admin report owners when no survey is active, but skips extra entry for admin', async () => {

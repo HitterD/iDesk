@@ -153,10 +153,14 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
     // Survey entry exists only while an active survey targets this user (hidden while loading or on error).
     const { data: activeSurveys } = useCsiActive();
     const hasActiveSurvey = (activeSurveys?.length ?? 0) > 0;
+    const pendingSurveyCount = activeSurveys?.filter((survey) => !survey.submitted).length ?? 0;
     const hasOwnerReport = useCsiOwnerReportAccess();
 
     // Badge resolution helper for navigation items
     const getItemBadge = (key: string): BadgeInfo | null => {
+        if (key === 'csi' && pendingSurveyCount > 0) {
+            return { count: pendingSurveyCount, variant: 'destructive' };
+        }
         if (key === 'eform_access' && pendingCount > 0) {
             return { count: pendingCount, variant: 'destructive' };
         }
@@ -456,7 +460,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
 
         if (hasActiveSurvey) {
             // No pageKey: eligibility is decided by the backend's active-survey list.
-            nav.push({ key: 'csi', icon: Star, tone: 'teal', label: 'Survei Kepuasan', path: isManager ? CSI_PATHS.manager : CSI_PATHS.staff });
+            nav.push({ key: 'csi', icon: Star, tone: 'teal', label: 'Survei CSI', path: isManager ? CSI_PATHS.manager : CSI_PATHS.staff });
         } else if (hasOwnerReport) {
             nav.push({ key: 'csi_report', icon: BarChart3, tone: 'teal', label: 'Report CSI', path: `${isManager ? CSI_PATHS.manager : CSI_PATHS.staff}/report` });
         }

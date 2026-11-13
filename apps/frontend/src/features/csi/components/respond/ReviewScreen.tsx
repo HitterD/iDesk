@@ -1,7 +1,7 @@
 import { AlertCircle, Lock, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { isCommentFilled, missingRequired, otherAnswerCount, rateeAverage, type CsiAnswers, type CsiComments } from '../../lib/csiForm';
+import { missingRequired, otherAnswerCount, rateeAverage, type CsiAnswers } from '../../lib/csiForm';
 import { toneClasses } from '../../lib/csiTone';
 import { formatAverage } from '../../lib/format';
 import type { CsiOpenForm } from '../../types';
@@ -15,7 +15,6 @@ interface ReviewScreenProps {
     name: string;
     departmentName: string | null;
     answers: CsiAnswers;
-    comments?: CsiComments;
     preview: boolean;
     submitting: boolean;
     failure: string | null;
@@ -73,8 +72,8 @@ function IdentityRow({ label, value, onEdit }: { label: string; value: string; o
 }
 
 export function ReviewScreen(props: ReviewScreenProps) {
-    const { form, name, departmentName, answers, comments = {}, preview, submitting, failure, onEditIdentity, onEditRatee, onBack, onSubmit } = props;
-    const incompleteFlags = form.ratees.map((ratee) => missingRequired(ratee, answers).length > 0 || !isCommentFilled(comments[ratee.periodRateeId]));
+    const { form, name, departmentName, answers, preview, submitting, failure, onEditIdentity, onEditRatee, onBack, onSubmit } = props;
+    const incompleteFlags = form.ratees.map((ratee) => missingRequired(ratee, answers).length > 0);
     const incompleteCount = incompleteFlags.filter(Boolean).length;
     const amber = toneClasses('amber');
     return (

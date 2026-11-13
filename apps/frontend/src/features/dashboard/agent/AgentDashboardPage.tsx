@@ -9,6 +9,7 @@ import { SERVICE_SCOPE_LABELS } from '@/lib/constants/service-scope';
 import { getRoleLabel } from '@/features/admin/components/agent-management/agent-types';
 import { DashboardSkeleton } from '../components/DashboardSkeleton';
 import { MyRatingCard } from '../components/MyRatingCard';
+import { CsiPendingCard } from '@/features/csi/components/CsiPendingCard';
 import { DashSeg } from '../components/DashboardParts';
 import { useAgentDashboard } from './useAgentDashboard';
 import { firstName, formatWibStamp, wibGreeting } from './agentDashboard.format';
@@ -100,6 +101,8 @@ const AgentDashboardView: React.FC = () => {
                     </Button>
                 </div>
             </header>
+
+            {isSelf && <CsiPendingCard className="mb-4" />}
 
             <SummaryTiles stats={stats} ticketsHref={isSelf ? MY_TICKETS_HREF : undefined} />
 

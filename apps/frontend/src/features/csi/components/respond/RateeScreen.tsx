@@ -3,13 +3,12 @@ import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { CSI_COMMENT_MAX, isAnswered, isCommentFilled, type CsiAnswer, type CsiAnswers } from '../../lib/csiForm';
-import { toneClasses } from '../../lib/csiTone';
+import { CSI_COMMENT_MAX, isAnswered, type CsiAnswer, type CsiAnswers } from '../../lib/csiForm';
 import type { CsiOpenForm } from '../../types';
 import { CSI_CARD } from '../CsiSurveyParts';
 import { FlowFooter } from './FlowChrome';
 import { QuestionField } from './QuestionField';
-import { commentLabel, missingSummary, RESPOND_COPY } from './respondCopy';
+import { commentLabel, missingText, RESPOND_COPY } from './respondCopy';
 import { SubjectPhoto } from './SubjectPhoto';
 import { buildSubjectStates, SubjectRail } from './SubjectRail';
 
@@ -30,8 +29,6 @@ interface RateeScreenProps {
     comment: string;
     /** Question ids flagged after "Kirim" with a missing required answer; empty until then. */
     missing: ReadonlySet<string>;
-    /** True when flagged and the required comment is empty. */
-    commentMissing?: boolean;
     isComplete: (ratee: Ratee, index: number) => boolean;
     onAnswer: (dimensionId: string, answer: CsiAnswer) => void;
     onComment: (text: string) => void;
@@ -57,21 +54,12 @@ function NextButton({ next, onNext, step }: { next: Ratee | undefined; onNext: (
     );
 }
 
-function CommentField({ ratee, comment, missing, onComment }: { ratee: Ratee; comment: string; missing: boolean; onComment: (text: string) => void }) {
+function CommentField({ ratee, comment, onComment }: { ratee: Ratee; comment: string; onComment: (text: string) => void }) {
     const commentId = `csi-comment-${ratee.periodRateeId}`;
-    const filled = isCommentFilled(comment);
     return (
-        <div data-missing={missing || undefined}
-            className={cn('scroll-mt-24 space-y-2 rounded-[14px] p-3.5 ring-1 ring-border/60 transition-[background-color,box-shadow] duration-300',
-                filled ? toneClasses('green').soft : 'bg-muted/40', missing && 'ring-2 ring-[hsl(var(--ticket-red))]')}>
-            <label htmlFor={commentId} className={cn('block text-[14px] font-semibold leading-snug', missing ? 'text-[hsl(var(--ticket-red-ink))]' : 'text-foreground')}>
-                {commentLabel(ratee.displayName)}
-                <span aria-hidden="true" className="ml-1 text-[hsl(var(--ticket-red-ink))]">*</span>
-                <span className="sr-only">{RESPOND_COPY.required}</span>
-                {missing && <span className="sr-only">{RESPOND_COPY.missingComment}</span>}
-            </label>
-            <Textarea id={commentId} value={comment} maxLength={CSI_COMMENT_MAX} rows={3} required
-                aria-invalid={missing || undefined}
+        <div className="space-y-2">
+            <label htmlFor={commentId} className="text-[13px] font-medium text-muted-foreground">{commentLabel(ratee.displayName)}</label>
+            <Textarea id={commentId} value={comment} maxLength={CSI_COMMENT_MAX} rows={3}
                 onChange={(event) => onComment(event.target.value)}
                 placeholder={RESPOND_COPY.commentPlaceholder} className="rounded-xl bg-card resize-y" />
         </div>
@@ -80,14 +68,14 @@ function CommentField({ ratee, comment, missing, onComment }: { ratee: Ratee; co
 
 /** One subject: sticky photo on the left (about 40% wide, so the form leads), questions on the right. The page is the only scroller. */
 export function RateeScreen(props: RateeScreenProps) {
-    const { ratees, index, saved, answers, comment, missing, commentMissing = false, isComplete, onAnswer, onComment, onSelect, onBack, onNext } = props;
+    const { ratees, index, saved, answers, comment, missing, isComplete, onAnswer, onComment, onSelect, onBack, onNext } = props;
     const card = useRef<HTMLElement>(null);
     const ratee = ratees[index];
     const answeredCount = (at: number) => ratees[at].dimensions.filter((dimension) => isAnswered(dimension, answers)).length;
     const questionCount = (at: number) => ratees[at].dimensions.length;
     const done = (at: number) => isComplete(ratees[at], at);
     const subjects = buildSubjectStates(ratees, answeredCount, questionCount, done);
-    const footerNote = missingSummary(missing.size, commentMissing);
+    const footerNote = missing.size > 0 ? missingText(missing.size) : '';
     return (
         <div className={cn('space-y-4', STICKY_VARS)}>
             <SubjectRail ratees={ratees} current={index} saved={saved} onSelect={onSelect}
@@ -103,7 +91,7 @@ export function RateeScreen(props: RateeScreenProps) {
                                 answer={answers[dimension.periodRateeDimensionId]} missing={missing.has(dimension.periodRateeDimensionId)}
                                 onChange={(answer) => onAnswer(dimension.periodRateeDimensionId, answer)} />
                         ))}
-                        <CommentField ratee={ratee} comment={comment} missing={commentMissing} onComment={onComment} />
+                        <CommentField ratee={ratee} comment={comment} onComment={onComment} />
                         <FlowFooter note={(
                             <p role="status" className="text-center text-[13px] font-medium text-[hsl(var(--ticket-amber-ink))] text-balance sm:text-right [&:not(:empty)]:mb-2.5">
                                 {footerNote}

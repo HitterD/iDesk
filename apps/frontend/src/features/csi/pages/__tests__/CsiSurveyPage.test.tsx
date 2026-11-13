@@ -59,17 +59,16 @@ const rate = async (user: User, group: string, stars: number) =>
     user.click(within(screen.getByRole('radiogroup', { name: group })).getByRole('radio', { name: `${stars} bintang` }));
 
 /** Intro → Andi → Budi → review, then press "Kirim". */
-const fillAndSubmit = async (user: User, comment = 'Bagus') => {
+const fillAndSubmit = async (user: User, comment?: string) => {
     await user.click(await screen.findByRole('combobox', { name: 'Departemen' }));
     await user.click(await screen.findByRole('option', { name: 'Produksi' }));
     await user.click(screen.getByRole('button', { name: 'Mulai mengisi' }));
     await user.click(await screen.findByRole('button', { name: 'Ya, sudah benar' }));
     await rate(user, 'Kecepatan untuk Andi', 5);
     await rate(user, 'Keramahan untuk Andi', 4);
-    await user.type(screen.getByLabelText(/Saran untuk Andi/), comment);
+    if (comment) await user.type(screen.getByLabelText('Saran untuk Andi (opsional)'), comment);
     await user.click(screen.getByRole('button', { name: /^Lanjut/ }));
     await rate(user, 'Kecepatan untuk Budi', 3);
-    await user.type(screen.getByLabelText(/Saran untuk Budi/), 'Mantap');
     await user.click(screen.getByRole('button', { name: 'Tinjau jawaban' }));
     await user.click(screen.getByRole('button', { name: 'Kirim' }));
 };
@@ -114,10 +113,7 @@ describe('CsiSurveyPage', () => {
                 { periodRateeDimensionId: 'x2', score: 4 },
                 { periodRateeDimensionId: 'y1', score: 3 },
             ],
-            comments: [
-                { periodRateeId: 'r1', comment: 'Pertahankan' },
-                { periodRateeId: 'r2', comment: 'Mantap' },
-            ],
+            comments: [{ periodRateeId: 'r1', comment: 'Pertahankan' }],
         });
         expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
     });

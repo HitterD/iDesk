@@ -37,7 +37,6 @@ const DEPARTMENT_LOCKED_MESSAGE = 'Departemen Anda sudah terkunci dan tidak dapa
 const WRONG_TYPE_MESSAGE = 'Jawaban tidak sesuai jenis pertanyaan ini';
 const OPTION_POINTS_MESSAGE = 'Pilihan tidak memiliki nilai yang valid';
 const REQUIRED_MESSAGE = 'Semua pertanyaan wajib harus dijawab';
-const COMMENT_REQUIRED_MESSAGE = 'Saran untuk setiap tim/orang yang dinilai wajib diisi';
 const PICK_ONE_MESSAGE = 'Pilih dan nilai minimal satu PIC';
 const PG_UNIQUE_VIOLATION = '23505';
 
@@ -402,20 +401,17 @@ function validateItems(items: SubmitResponseDto['items'], dimensions: CsiPeriodR
     return resolved;
 }
 
-/** Trims comments, rejects unknown or duplicate ratees and over-long text, and requires a non-empty comment for every rated ratee. */
+/** Trims comments, drops empty ones, and rejects unknown or duplicate ratees and over-long text. */
 function validateComments(comments: NonNullable<SubmitResponseDto['comments']>, ratees: CsiPeriodRatee[]): CommentRow[] {
     const visible = new Set(ratees.map((ratee) => ratee.id));
     const seen = new Set<string>();
-    const rows = comments.flatMap(({ periodRateeId, comment }) => {
+    return comments.flatMap(({ periodRateeId, comment }) => {
         if (!visible.has(periodRateeId) || seen.has(periodRateeId)) throw new BadRequestException('Komentar berisi orang yang tidak valid atau duplikat');
         seen.add(periodRateeId);
         const text = typeof comment === 'string' ? comment.trim() : '';
         if (text.length > CSI_COMMENT_MAX) throw new BadRequestException(`Komentar maksimal ${CSI_COMMENT_MAX} karakter`);
         return text ? [{ periodRateeId, comment: text }] : [];
     });
-    const commented = new Set(rows.map((row) => row.periodRateeId));
-    if (ratees.some((ratee) => !commented.has(ratee.id))) throw new BadRequestException(COMMENT_REQUIRED_MESSAGE);
-    return rows;
 }
 
 type OrgSnapshot = {

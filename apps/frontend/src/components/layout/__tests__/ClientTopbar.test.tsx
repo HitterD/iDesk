@@ -48,6 +48,9 @@ vi.mock('../../notifications/InAppNotificationToast', () => ({
 vi.mock('@/features/client/components/UserGuidebookModal', () => ({
     UserGuidebookModal: () => null,
 }));
+vi.mock('@/features/csi/components/CsiStartupPopup', () => ({
+    CsiStartupPopup: () => null,
+}));
 
 const renderPortal = (path = '/client/my-tickets') =>
     render(
@@ -86,20 +89,20 @@ describe('ClientLayout requester shell', () => {
 
     it('hides the survey tab while the active-survey list is loading or empty', () => {
         renderPortal();
-        expect(within(portalNav()).queryByRole('link', { name: 'Survei' })).not.toBeInTheDocument();
+        expect(within(portalNav()).queryByRole('link', { name: /Survei CSI/ })).not.toBeInTheDocument();
         csiActive.current = [];
         cleanup();
         renderPortal();
-        expect(within(portalNav()).queryByRole('link', { name: 'Survei' })).not.toBeInTheDocument();
+        expect(within(portalNav()).queryByRole('link', { name: /Survei CSI/ })).not.toBeInTheDocument();
     });
 
-    it('adds the survey tab before Profile when an active survey exists', () => {
+    it('adds the Survei CSI tab with pending count badge before Profile when an active survey exists', () => {
         csiActive.current = [{ id: 'p1', scope: 'ICT', title: 'Survei ICT', submitted: false }];
         renderPortal();
         const labels = within(portalNav()).getAllByRole('link').map((link) => link.textContent?.trim());
-        expect(labels).toEqual(['Tiket Saya', 'E-Form', 'Bantuan', 'Survei']);
-        expect(within(portalNav()).getByRole('link', { name: 'Survei' })).toHaveAttribute('href', '/client/csi');
-        expect(within(portalNav()).getByRole('link', { name: 'Survei' })).toHaveAttribute('data-tone', 'teal');
+        expect(labels).toEqual(['Tiket Saya', 'E-Form', 'Bantuan', 'Survei CSI1']);
+        expect(within(portalNav()).getByRole('link', { name: /Survei CSI/ })).toHaveAttribute('href', '/client/csi');
+        expect(within(portalNav()).getByRole('link', { name: /Survei CSI/ })).toHaveAttribute('data-tone', 'teal');
     });
 
     it('shows Report CSI tab for report owners when no active survey exists, and avoids duplicate when active', () => {
@@ -107,12 +110,12 @@ describe('ClientLayout requester shell', () => {
         csiOwnerReport.current = true;
         renderPortal();
         expect(within(portalNav()).getByRole('link', { name: 'Report CSI' })).toHaveAttribute('href', '/client/csi/report');
-        expect(within(portalNav()).queryByRole('link', { name: 'Survei' })).not.toBeInTheDocument();
+        expect(within(portalNav()).queryByRole('link', { name: /Survei CSI/ })).not.toBeInTheDocument();
 
         cleanup();
-        csiActive.current = [{ id: 'p1', scope: 'HC', title: 'Survei HC', submitted: false }];
+        csiActive.current = [{ id: 'p1', scope: 'HC', title: 'Survei HC', submitted: true }];
         renderPortal();
-        expect(within(portalNav()).getByRole('link', { name: 'Survei' })).toHaveAttribute('href', '/client/csi');
+        expect(within(portalNav()).getByRole('link', { name: 'Survei CSI' })).toHaveAttribute('href', '/client/csi');
         expect(within(portalNav()).queryByRole('link', { name: 'Report CSI' })).not.toBeInTheDocument();
     });
 
@@ -202,9 +205,9 @@ describe('ClientLayout requester shell', () => {
         csiActive.current = [{ id: 'p1', scope: 'ICT', title: 'Survei ICT', submitted: false }];
         renderPortal();
         const bottomLabels = within(bottomNav()).getAllByRole('link').map((link) => link.textContent?.trim());
-        expect(bottomLabels).toEqual(['Survei', 'Tiket Saya', 'Tiket Baru', 'E-Form', 'Akun']);
+        expect(bottomLabels).toEqual(['Survei CSI', 'Tiket Saya', 'Tiket Baru', 'E-Form', 'Akun']);
         const topLabels = within(portalNav()).getAllByRole('link').map((link) => link.textContent?.trim());
-        expect(topLabels).toEqual(['Tiket Saya', 'E-Form', 'Bantuan', 'Survei']);
+        expect(topLabels).toEqual(['Tiket Saya', 'E-Form', 'Bantuan', 'Survei CSI1']);
     });
 
     it('keeps the survey after the sections in the bottom nav once every survey is submitted', () => {

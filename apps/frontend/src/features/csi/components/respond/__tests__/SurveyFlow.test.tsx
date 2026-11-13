@@ -97,7 +97,7 @@ describe('SurveyFlow screens', () => {
         expect(screen.queryByText('Tersimpan otomatis')).not.toBeInTheDocument();
     });
 
-    it('Lanjut skips freely; Kirim jumps back to incomplete ratee and flags missing question & comment', async () => {
+    it('Lanjut skips freely; Kirim jumps back to incomplete ratee and flags missing question', async () => {
         const user = userEvent.setup();
         const scrollSpy = vi.mocked(scrollWithin);
         scrollSpy.mockClear();
@@ -110,20 +110,18 @@ describe('SurveyFlow screens', () => {
         expect(screen.getAllByText('Belum lengkap').length).toBeGreaterThan(0);
         await user.click(button('Kirim'));
         expect(screen.getByRole('heading', { name: 'Tim IT Support' })).toBeInTheDocument();
-        expect(screen.getByRole('status')).toHaveTextContent('1 pertanyaan wajib dan saran belum diisi');
-        expect(document.querySelectorAll('[data-missing]')).toHaveLength(2);
+        expect(screen.getByRole('status')).toHaveTextContent('1 pertanyaan wajib belum dijawab');
+        expect(document.querySelectorAll('[data-missing]')).toHaveLength(1);
         expect(scrollSpy).toHaveBeenCalled();
         scrollSpy.mockReset();
     });
 
-    it('rail ticks only after required questions and comment are filled', async () => {
+    it('rail ticks as soon as required questions are answered', async () => {
         const user = userEvent.setup();
         renderFlow();
         await startFilling(user);
         expect(chips().queryByRole('button', { name: /selesai/ })).not.toBeInTheDocument();
         await choose(user, 'Kualitas layanan untuk Tim IT Support', 'Cukup');
-        expect(chips().queryByRole('button', { name: /Tim IT Support, selesai/ })).not.toBeInTheDocument();
-        await user.type(screen.getByLabelText(/Saran untuk Tim IT Support/), 'Mantap');
         expect(chips().getByRole('button', { name: /Tim IT Support, selesai/ })).toBeInTheDocument();
         await user.click(chips().getByRole('button', { name: new RegExp(LONG_NAME) }));
         expect(screen.getByRole('heading', { name: LONG_NAME })).toBeInTheDocument();

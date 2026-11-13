@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import type { Ticket as TicketType } from '@/types/ticket.types';
 import { DashboardSkeleton } from '../components/DashboardSkeleton';
 import { MyRatingCard } from '../components/MyRatingCard';
+import { CsiPendingCard } from '@/features/csi/components/CsiPendingCard';
 import {
     cssVars, DASH_COLORS, DashChartSkeleton, DashDonut, DashEmpty, DashLive, DashMore, DashPanel, DashSeg, DashStat, type DonutItem,
 } from '../components/DashboardParts';
@@ -220,6 +221,8 @@ export const BentoDashboardPage = () => {
                     <Button variant="soft" onClick={handleRefresh} loading={reloading}>{!reloading && <RefreshCw aria-hidden="true" />}Muat ulang</Button>
                 </div>
             </header>
+
+            <CsiPendingCard className="mb-4" />
 
             <section className="dash-stats is-five" aria-label="Ringkasan tiket">
                 <DashStat icon={Layers} tone="neutral" label="Total tiket" value={live.total} zero={live.total === 0} to={`${links.tickets}${listQuery(team, siteId)}`}
