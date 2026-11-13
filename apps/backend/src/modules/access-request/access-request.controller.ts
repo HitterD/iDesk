@@ -98,7 +98,7 @@ export class AccessRequestController {
         @UploadedFile() file: Express.Multer.File,
         @Request() req: any,
     ) {
-        const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
+        const actor = { role: req.user.role, siteId: req.user.siteId ?? null, userId: req.user.userId };
         const filePath = `/uploads/access-forms/${file.filename}`;
         return this.accessRequestService.uploadSignedForm(id, filePath, actor);
     }

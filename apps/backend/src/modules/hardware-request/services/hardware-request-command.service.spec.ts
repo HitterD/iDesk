@@ -15,6 +15,7 @@ import { InstallationSchedule } from '../domain/entities/installation-schedule.e
 import { HardwareAssetService } from './hardware-asset.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InstallStatus } from '../domain/enums/install-status.enum';
+import { HandlingSiteService } from '../../sites/handling-site.service';
 describe('HardwareRequestCommandService', () => {
     let service: HardwareRequestCommandService;
     let reqRepo: any;
@@ -72,6 +73,7 @@ describe('HardwareRequestCommandService', () => {
                 { provide: getRepositoryToken(InstallationSchedule), useValue: scheduleRepo },
                 { provide: HardwareAssetService, useValue: assetSvc },
                 { provide: EventEmitter2, useValue: emitter },
+                { provide: HandlingSiteService, useValue: { handlingSiteId: jest.fn(async (id: string) => id === 'site-skd' ? 'site-spj' : id) } },
             ],
         }).compile();
         service = moduleRef.get(HardwareRequestCommandService);
@@ -110,6 +112,14 @@ describe('HardwareRequestCommandService', () => {
             toStatus: RequestStatus.DRAFT,
         }));
         expect(result.id).toBe('req-1');
+    });
+
+    it('routes an SKD hardware request to SPJ without changing its requester', async () => {
+        const result = await service.createDraft('user-skd', 'site-skd', 'USER' as any, {
+            justification: 'New laptop for Sukodono employee',
+            items: [{ catalogId: 'cat-1', quantity: 1 }],
+        });
+        expect(result).toEqual(expect.objectContaining({ requesterId: 'user-skd', siteId: 'site-spj' }));
     });
 
     it('createDraft rejects inactive catalog item', async () => {

@@ -67,7 +67,21 @@ describe('AccessRequestService site isolation (P0 credential protection)', () =>
       { emit: jest.fn() } as any,                // eventEmitter
       cipher as any,
       { transaction: jest.fn() } as any,         // dataSource
+      { handlingSiteId: jest.fn(async (siteId: string | null) => siteId) } as any, // handlingSite
     );
+  });
+
+  it('allows an SKD owner to upload their SPJ signed form but rejects an unrelated cross-site user', async () => {
+    accessRequestRepo.findOne.mockResolvedValue(makeAccessRequest({
+      status: AccessRequestStatus.FORM_DOWNLOADED,
+      ticket: { id: 't1', siteId: SITE_SPJ, user: { id: 'owner-skd' } } as Ticket,
+    }));
+    await expect(service.uploadSignedForm('ar-1', '/signed.pdf',
+      { role: UserRole.USER, siteId: 'site-skd', userId: 'owner-skd' }))
+      .resolves.toEqual(expect.objectContaining({ status: AccessRequestStatus.FORM_UPLOADED }));
+    await expect(service.uploadSignedForm('ar-1', '/signed.pdf',
+      { role: UserRole.USER, siteId: 'site-skd', userId: 'another-user' }))
+      .rejects.toBeInstanceOf(ForbiddenException);
   });
 
   describe('findAll — list', () => {

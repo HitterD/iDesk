@@ -54,9 +54,9 @@ export class HardwareRequestQueryService {
             siteId: user.siteId ?? null,
         };
         const scope = resolveSiteScope(actor);
-        if (scope.mode === 'site') {
+        if (scope.mode === 'site' && user.role !== HardwareRole.USER && dto.scope !== 'my') {
             qb.andWhere('r.siteId = :siteId', { siteId: scope.siteId });
-        } else if (scope.mode === 'none') {
+        } else if (scope.mode === 'none' && user.role !== HardwareRole.USER && dto.scope !== 'my') {
             qb.andWhere('1 = 0');
         }
         if (scope.mode === 'all' && dto.siteId) {
@@ -100,7 +100,7 @@ export class HardwareRequestQueryService {
         if (!found) throw new HardwareRequestNotFoundError(id);
 
         // Site isolation: if actor carries site context, enforce it (fail-closed for non-cross)
-        if (user.siteId !== undefined && user.siteId !== null) {
+        if (found.requesterId !== user.id && user.siteId !== undefined && user.siteId !== null) {
             const actorRole = (user.userRole as UserRole) ?? (user.role as any as UserRole);
             const actor: SiteActor = { role: actorRole, siteId: user.siteId };
             assertSiteAccess(actor, found.siteId);

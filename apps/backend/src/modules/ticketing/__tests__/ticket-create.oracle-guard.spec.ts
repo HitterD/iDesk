@@ -54,6 +54,7 @@ describe('Ticket Creation Oracle Guard', () => {
             eventEmitter as any,
             { recalculateAgentWorkload: jest.fn() } as any,
             auditService as any, createTestSlaClock(),
+            { handlingSiteId: jest.fn(async (siteId: string | null) => siteId ?? null) } as any,
         );
     });
 

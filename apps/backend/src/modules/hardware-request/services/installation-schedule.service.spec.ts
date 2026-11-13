@@ -42,6 +42,14 @@ describe('InstallationScheduleService', () => {
     });
 
     describe('propose', () => {
+        it('lets the SKD requester propose a schedule handled by SPJ', async () => {
+            requestRepo.findOne.mockResolvedValue({ id: 'r1', siteId: 'site-spj', status: RequestStatus.INSTALLATION, requesterId: 'u1' });
+            scheduleRepo.findOne.mockResolvedValue(null);
+            await expect(svc.propose('r1', {
+                technicianId: 'tech-spj', scheduledStart: '2026-05-01T09:00:00Z', scheduledEnd: '2026-05-01T11:00:00Z',
+            }, { id: 'u1', role: 'USER', siteId: 'site-skd', userRole: 'USER' as any }))
+                .resolves.toEqual(expect.objectContaining({ requestId: 'r1' }));
+        });
         it('creates PROPOSED when none exists, request in INSTALLATION', async () => {
             requestRepo.findOne.mockResolvedValue({
                 id: 'r1', status: RequestStatus.INSTALLATION, requesterId: 'u1',

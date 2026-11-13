@@ -12,6 +12,13 @@ const ORACLE_DTO = {
     ticketType: TicketType.ORACLE_REQUEST,
 };
 
+/** Sukodono's ICT requests are handled by Sepanjang; every other site handles its own. */
+const SITE_SKD = 'site-skd';
+const SITE_SPJ = 'site-spj';
+const handlingSite = {
+    handlingSiteId: jest.fn(async (siteId: string | null) => (siteId === SITE_SKD ? SITE_SPJ : siteId)),
+};
+
 const buildService = (users: Record<string, unknown>) => {
     const userRepo = {
         findOne: jest.fn(({ where: { id } }) => Promise.resolve(users[id] ?? null)),
@@ -25,6 +32,7 @@ const buildService = (users: Record<string, unknown>) => {
         },
     };
     const messageRepo = { create: jest.fn((data) => ({ ...data })) };
+    const workloadService = { autoAssignTicket: jest.fn().mockRejectedValue(new Error('dev queue')) };
     const service = new TicketCreateService(
         ticketRepo as never,
         messageRepo as never,
@@ -34,11 +42,12 @@ const buildService = (users: Record<string, unknown>) => {
         {} as never,
         {} as never,
         { emit: jest.fn() } as never,
-        { autoAssignTicket: jest.fn().mockRejectedValue(new Error('dev queue')) } as never,
+        workloadService as never,
         { logAsync: jest.fn() } as never,
         createTestSlaClock(),
+        handlingSite as never,
     );
-    return { service, ticketRepo, messageRepo };
+    return { service, ticketRepo, messageRepo, workloadService };
 };
 
 describe('TicketCreateService', () => {
@@ -113,5 +122,49 @@ describe('TicketCreateService', () => {
             .rejects.toBeInstanceOf(BadRequestException);
         await expect(service.createTicket('agent-1', { ...ORACLE_DTO, requesterId: 'missing' }))
             .rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    describe('site handling (Sukodono handled by Sepanjang)', () => {
+        const SUPPORT_DTO = { title: 'Printer error', description: 'Tidak bisa print', priority: TicketPriority.MEDIUM, category: 'HARDWARE' };
+        const skdUser = { id: 'u-skd', role: UserRole.USER, siteId: SITE_SKD, isActive: true };
+
+        it("files a Sukodono requester's ticket under Sepanjang and auto-assigns it there", async () => {
+            const { service, ticketRepo, workloadService } = buildService({ 'u-skd': skdUser });
+            ticketRepo.manager.transaction.mockResolvedValue({ id: 't-1', ticketNumber: 'GEN-1', siteId: SITE_SPJ, createdAt: new Date() });
+
+            await service.createTicket('u-skd', SUPPORT_DTO);
+
+            expect(ticketRepo.create).toHaveBeenCalledWith(expect.objectContaining({ user: skdUser, siteId: SITE_SPJ }));
+            expect(workloadService.autoAssignTicket).toHaveBeenCalledWith('t-1');
+        });
+
+        it("uses the requester's handling site when an agent files on behalf of a Sukodono user", async () => {
+            const { service, ticketRepo } = buildService({
+                'agent-spj': { id: 'agent-spj', role: UserRole.AGENT, siteId: SITE_SPJ, isActive: true },
+                'u-skd': skdUser,
+            });
+
+            await service.createTicket('agent-spj', { ...SUPPORT_DTO, requesterId: 'u-skd' });
+
+            expect(ticketRepo.create).toHaveBeenCalledWith(expect.objectContaining({ user: skdUser, createdById: 'agent-spj', siteId: SITE_SPJ }));
+        });
+
+        it('routes an external (iPop) ticket for a Sukodono requester to Sepanjang', async () => {
+            const { service, ticketRepo } = buildService({ 'u-skd': skdUser });
+
+            await service.createTicket('u-skd', SUPPORT_DTO, [], [], { source: 'IPOP', ref: 'ext-1' });
+
+            expect(ticketRepo.create).toHaveBeenCalledWith(expect.objectContaining({ siteId: SITE_SPJ, externalSource: 'IPOP' }));
+        });
+
+        it('keeps a site without a handling site on its own site', async () => {
+            const { service, ticketRepo } = buildService({
+                'u-krw': { id: 'u-krw', role: UserRole.USER, siteId: 'site-krw', isActive: true },
+            });
+
+            await service.createTicket('u-krw', SUPPORT_DTO);
+
+            expect(ticketRepo.create).toHaveBeenCalledWith(expect.objectContaining({ siteId: 'site-krw' }));
+        });
     });
 });

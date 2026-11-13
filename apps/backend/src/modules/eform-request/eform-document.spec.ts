@@ -43,6 +43,7 @@ describe('EFormRequestService.approveByManager', () => {
         const service = new EFormRequestService(
             {} as any, repo as any, approvals as any, { save: jest.fn() } as any, {} as any,
             {} as any, {} as any, {} as any, { emit } as any, {} as any,
+            { handlingSiteId: jest.fn(async (siteId: string) => siteId) } as any,
         );
         const saved = await service.approveByManager(ID, 'mgr-1', 'Manajer', { action: 'APPROVE', signatureData: 'data:image/png;base64,AA' });
         return { saved, emit, approvals };

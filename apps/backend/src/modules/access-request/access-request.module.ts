@@ -9,6 +9,7 @@ import { User } from '../users/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { AuditModule } from '../audit/audit.module';
 import { SlaConfigModule } from '../sla-config/sla-config.module';
+import { SiteHandlingModule } from '../sites/handling-site.module';
 
 @Module({
     imports: [
@@ -16,6 +17,7 @@ import { SlaConfigModule } from '../sla-config/sla-config.module';
         AuthModule,
         AuditModule,
         SlaConfigModule, // BusinessHoursService for the resolution confirmation deadline
+        SiteHandlingModule,
     ],
     controllers: [AccessRequestController],
     providers: [AccessRequestService],

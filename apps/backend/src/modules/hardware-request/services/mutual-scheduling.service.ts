@@ -65,7 +65,7 @@ export class MutualSchedulingService {
       if (!req) throw new NotFoundException('request not found');
 
       // Site isolation
-      if (actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
+      if (req.requesterId !== actor.id && actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
         const siteActor: SiteActor = { role: actor.userRole, siteId: actor.siteId };
         assertSiteAccess(siteActor, req.siteId);
       }
@@ -184,7 +184,7 @@ export class MutualSchedulingService {
       if (sched.requestId !== requestId) throw new BadRequestException('schedule not in request');
 
       // Site isolation (derive from request)
-      if (actor && actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
+      if (actor && sched.request?.requesterId !== actor.id && actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
         const siteActor: SiteActor = { role: actor.userRole, siteId: actor.siteId };
         assertSiteAccess(siteActor, sched.request?.siteId ?? (sched as any).request?.siteId);
       }
@@ -238,7 +238,7 @@ export class MutualSchedulingService {
       if (sched.requestId !== requestId) throw new BadRequestException('schedule not in request');
 
       // Site isolation (derive from request)
-      if (actor && actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
+      if (actor && sched.request?.requesterId !== actor.id && actor.siteId !== undefined && actor.siteId !== null && actor.userRole) {
         const siteActor: SiteActor = { role: actor.userRole, siteId: actor.siteId };
         assertSiteAccess(siteActor, sched.request?.siteId ?? (sched as any).request?.siteId);
       }
