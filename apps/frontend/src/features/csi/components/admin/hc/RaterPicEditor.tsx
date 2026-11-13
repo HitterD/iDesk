@@ -14,20 +14,24 @@ import { titleCase } from './hcFormat';
  * raters created by unit rules or an Excel import.
  */
 type PicRatee = CsiPeriodDetail['ratees'][number];
+const TEAM_GROUP = 'Tim layanan';
+const subjectLabel = (subject: PicRatee) => (subject.kind === 'TEAM' ? `${subject.displayName ?? ''} (Tim)` : titleCase(subject.displayName ?? ''));
+const subjectGroup = (subject: PicRatee) =>
+    subject.kind === 'TEAM' ? TEAM_GROUP : (subject.serviceCode || subject.bagian ? `${subject.serviceCode ?? '-'} · ${titleCase(subject.bagian ?? '-')}` : 'Subjek lain');
 
 function PicChecklist({ pics, selected, onToggle, onToggleMany }: {
     pics: PicRatee[]; selected: ReadonlySet<string>; onToggle: (id: string) => void; onToggleMany: (ids: string[], on: boolean) => void;
 }) {
     const [query, setQuery] = useState('');
     const needle = query.trim().toLowerCase();
-    const visible = pics.filter((pic) => !needle || pic.displayName.toLowerCase().includes(needle) || (pic.bagian ?? '').toLowerCase().includes(needle));
+    const visible = pics.filter((pic) => !needle || (pic.displayName ?? '').toLowerCase().includes(needle) || (pic.bagian ?? '').toLowerCase().includes(needle) || (pic.kind === 'TEAM' && 'tim layanan'.includes(needle)));
     const groups = useMemo(() => {
         const map = new Map<string, PicRatee[]>();
         visible.forEach((pic) => {
-            const key = `${pic.serviceCode ?? '-'} · ${titleCase(pic.bagian ?? '-')}`;
+            const key = subjectGroup(pic);
             map.set(key, [...(map.get(key) ?? []), pic]);
         });
-        return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+        return [...map.entries()].sort(([a], [b]) => (a === TEAM_GROUP ? -1 : b === TEAM_GROUP ? 1 : a.localeCompare(b)));
     }, [visible]);
     return (
         <div className="grid gap-2">
@@ -48,7 +52,7 @@ function PicChecklist({ pics, selected, onToggle, onToggleMany }: {
                             {rows.map((pic) => (
                                 <label key={pic.id} className="flex cursor-pointer items-start gap-2 rounded-lg px-1.5 py-1 hover:bg-[hsl(var(--muted)/.6)]">
                                     <input type="checkbox" className="mt-0.5" checked={selected.has(pic.id)} onChange={() => onToggle(pic.id)} />
-                                    <span className="min-w-0 text-[13px] leading-snug">{titleCase(pic.displayName)}</span>
+                                    <span className="min-w-0 text-[13px] leading-snug">{subjectLabel(pic)}</span>
                                 </label>
                             ))}
                         </div>
@@ -59,7 +63,7 @@ function PicChecklist({ pics, selected, onToggle, onToggleMany }: {
     );
 }
 
-export function RaterPicEditor({ scope, period, pics }: { scope: CsiScopeParam; period: CsiPeriodDetail; pics: PicRatee[] }) {
+export function RaterPicEditor({ scope, period, pics, ratees = pics }: { scope: CsiScopeParam; period: CsiPeriodDetail; pics: PicRatee[]; ratees?: PicRatee[] }) {
     const { data: raters = [], isLoading } = useCsiHcRaters(scope, period.id);
     const save = useSetCsiHcRater(scope, period.id);
     const [people, setPeople] = useState<DraftUser[]>([]);
@@ -67,7 +71,9 @@ export function RaterPicEditor({ scope, period, pics }: { scope: CsiScopeParam; 
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const [query, setQuery] = useState('');
     const locked = period.locked;
-    const picName = new Map(pics.map((pic) => [pic.id, titleCase(pic.displayName)]));
+    const subjects = ratees;
+    const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
+    const subjectName = new Map(subjects.map((subject) => [subject.id, subjectLabel(subject)]));
     const open = (userIds: string[], label: string, current: string[] = []) => { setEditing({ userIds, label }); setSelected(new Set(current)); };
     const toggle = (id: string) => setSelected((previous) => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next; });
     const toggleMany = (ids: string[], on: boolean) => setSelected((previous) => { const next = new Set(previous); ids.forEach((id) => (on ? next.add(id) : next.delete(id))); return next; });
@@ -92,7 +98,7 @@ export function RaterPicEditor({ scope, period, pics }: { scope: CsiScopeParam; 
             {editing && (
                 <div className="grid gap-3 rounded-2xl border border-[hsl(var(--idesk-sapphire)/.4)] p-3">
                     <p className="text-[13px] font-semibold">{`PIC yang dinilai oleh ${editing.label}`}</p>
-                    <PicChecklist pics={pics} selected={selected} onToggle={toggle} onToggleMany={toggleMany} />
+                    <PicChecklist pics={subjects} selected={selected} onToggle={toggle} onToggleMany={toggleMany} />
                     <div className="flex items-center gap-2">
                         <span className={MUTED_TEXT}>{`${selected.size} PIC dipilih`}</span>
                         <span className="flex-1" />
@@ -117,7 +123,7 @@ export function RaterPicEditor({ scope, period, pics }: { scope: CsiScopeParam; 
                                 <span className="block text-[11.5px] text-[hsl(var(--idesk-text-secondary))]">{[rater.nik, titleCase(rater.division ?? ''), titleCase(rater.department ?? ''), rater.siteCode].filter(Boolean).join(' · ')}</span>
                             </span>
                             <span className="min-w-0 text-[12px] leading-snug text-[hsl(var(--idesk-text-secondary))]">
-                                {`${rater.periodRateeIds.length} PIC: `}{rater.periodRateeIds.map((id) => picName.get(id) ?? '?').join(', ')}
+                                {`${rater.periodRateeIds.length} ${rater.periodRateeIds.some((id) => subjectById.get(id)?.kind === 'TEAM') ? 'subjek' : 'PIC'}: `}{rater.periodRateeIds.map((id) => subjectName.get(id) ?? '?').join(', ')}
                             </span>
                             {!locked && (
                                 <span className="flex gap-1">

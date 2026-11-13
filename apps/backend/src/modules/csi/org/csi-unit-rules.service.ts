@@ -96,9 +96,9 @@ export class CsiUnitRulesService {
         const user = await this.users.findOne({ where: { id: userId, isActive: true }, select: { id: true } });
         if (!user) throw new BadRequestException('Pengguna tidak ditemukan atau tidak aktif');
         const ids = [...new Set(periodRateeIds)];
-        const valid = ids.length ? await this.ratees.find({ where: { periodId: period.id, id: In(ids), picId: Not(IsNull()) } }) : [];
-        if (valid.length !== ids.length) throw new BadRequestException('PIC tidak termasuk survei ini');
-        if (valid.some((ratee) => ratee.userId === userId)) throw new BadRequestException('PIC tidak boleh menilai dirinya sendiri');
+        const valid = ids.length ? await this.ratees.find({ where: { periodId: period.id, id: In(ids) } }) : [];
+        if (valid.length !== ids.length) throw new BadRequestException('Subjek tidak termasuk survei ini');
+        if (valid.some((ratee) => ratee.userId === userId)) throw new BadRequestException('Penilai tidak boleh menilai dirinya sendiri');
         await this.dataSource.transaction(async (manager) => {
             await lockUnlockedPeriod(manager, period.id);
             const existing = await manager.getRepository(CsiPeriodRater).findOne({ where: { periodId: period.id, userId } });

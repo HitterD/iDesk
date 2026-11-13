@@ -6,6 +6,10 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { BentoSidebar } from '../BentoSidebar';
 
 const csiActive = vi.hoisted(() => ({ current: [] as Array<{ id: string; scope: string; title: string; submitted: boolean }> }));
+const csiReportAccess = vi.hoisted(() => ({
+    hc: { admin: false, services: [] as string[] },
+    ict: { admin: false, services: [] as string[] },
+}));
 const ticketModules = vi.hoisted(() => ({ current: [] as Array<{ slug: string; name: string; icon?: string }> }));
 vi.mock('@/lib/api', () => ({
     default: {
@@ -13,6 +17,8 @@ vi.mock('@/lib/api', () => ({
             if (url.startsWith('/notifications/count')) return Promise.resolve({ data: { count: 5 } });
             if (url.startsWith('/ticket-modules')) return Promise.resolve({ data: ticketModules.current });
             if (url.startsWith('/csi/me/active')) return Promise.resolve({ data: csiActive.current });
+            if (url.startsWith('/csi/me/hc/report-access')) return Promise.resolve({ data: csiReportAccess.hc });
+            if (url.startsWith('/csi/me/ict/report-access')) return Promise.resolve({ data: csiReportAccess.ict });
             return Promise.resolve({ data: {} });
         }),
     },
@@ -77,6 +83,8 @@ describe('BentoSidebar', () => {
         pageAccess.current = null;
         ticketModules.current = [];
         csiActive.current = [];
+        csiReportAccess.hc = { admin: false, services: [] };
+        csiReportAccess.ict = { admin: false, services: [] };
         authUser.current = { id: 'admin-1', fullName: 'Bagas Developer', role: 'ADMIN' };
     });
 
@@ -121,6 +129,21 @@ describe('BentoSidebar', () => {
         authUser.current = { id: 'mgr-1', fullName: 'Manager', role: 'MANAGER' };
         renderSidebar('/manager/dashboard');
         expect(await screen.findByRole('link', { name: 'Survei Kepuasan' })).toHaveAttribute('href', '/manager/csi');
+    });
+
+    it('shows Report CSI for non-admin report owners when no survey is active, but skips extra entry for admin', async () => {
+        authUser.current = { id: 'agent-1', fullName: 'Agent Owner', role: 'AGENT' };
+        csiReportAccess.hc = { admin: false, services: ['HCC'] };
+        const { unmount } = renderSidebar('/dashboard');
+        expect(await screen.findByRole('link', { name: 'Report CSI' })).toHaveAttribute('href', '/csi/report');
+        unmount();
+        queryClient.clear();
+
+        authUser.current = { id: 'hc-1', fullName: 'Admin HC', role: 'HC_ADMIN' };
+        csiReportAccess.hc = { admin: true, services: ['HCC', 'HCD', 'HCS'] };
+        renderSidebar('/csi/admin/hc');
+        await waitFor(() => expect(screen.getByRole('link', { name: 'Admin CSI HC' })).toBeInTheDocument());
+        expect(screen.queryByRole('link', { name: 'Report CSI' })).not.toBeInTheDocument();
     });
 
     it('ADMIN always sees Admin CSI HC (Human Capital group); Admin CSI ICT still needs its key', () => {
