@@ -43,6 +43,8 @@ const DEFAULT_SLA_TARGET: Record<ServiceScope, number> = {
 };
 const INACTIVE_USER_MESSAGE = 'Pengguna tidak ditemukan atau tidak aktif';
 const INCOMPLETE_MESSAGE = 'Survei belum lengkap';
+const normalizeTitle = (title: string | null | undefined) => (title ?? '').trim().toLowerCase();
+export const samePeriodTitle = (left: string | null | undefined, right: string | null | undefined) => normalizeTitle(left) === normalizeTitle(right);
 const NO_SECTION_MESSAGE = 'Aktifkan minimal satu bagian penilaian';
 const SITE_NOT_FOUND_MESSAGE = 'Site tidak ditemukan';
 const NO_SITE_MESSAGE = 'Pilih minimal satu site';
@@ -229,7 +231,7 @@ export class CsiPeriodService {
         if (!detail.readiness.ready) throw new BadRequestException(INCOMPLETE_MESSAGE);
         await this.dataSource.transaction(async (manager) => {
             await lockScopeSchedule(manager, scope);
-            await this.assertNoOverlap(scope, detail.sites.map((site) => site.id), detail.startDate, detail.endDate, id, manager);
+            await this.assertNoOverlap(scope, detail.sites.map((site) => site.id), detail.startDate, detail.endDate, detail.title, id, manager);
             await manager.getRepository(CsiPeriod).update({ id, scope }, { publishStatus: CsiPeriodPublishStatus.PUBLISHED });
         });
         return this.get(scope, id);
@@ -256,7 +258,7 @@ export class CsiPeriodService {
         if (computeStatus(period, now) === 'ENDED') throw new BadRequestException('Survei sudah melewati tanggal selesai. Buat survei baru atau ubah tanggalnya dulu.');
         await this.dataSource.transaction(async (manager) => {
             await lockScopeSchedule(manager, scope);
-            await this.assertNoOverlap(scope, siteIdsOf(period), period.startDate, period.endDate, id, manager);
+            await this.assertNoOverlap(scope, siteIdsOf(period), period.startDate, period.endDate, period.title, id, manager);
             await manager.getRepository(CsiPeriod).update({ id, scope }, {
                 publishStatus: CsiPeriodPublishStatus.PUBLISHED, cancelledAt: null, cancelledById: null, cancelReason: null,
             });
@@ -357,7 +359,7 @@ export class CsiPeriodService {
         assertBandOrder(bandsOf(next));
         const currentSiteIds = (sites ?? []).map((row) => row.siteId);
         const siteIds = requestedSiteIds ? await this.resolveSiteIds(requestedSiteIds) : currentSiteIds;
-        if (period.publishStatus === CsiPeriodPublishStatus.PUBLISHED) await this.assertNoOverlap(scope, siteIds, next.startDate, next.endDate, id);
+        if (period.publishStatus === CsiPeriodPublishStatus.PUBLISHED) await this.assertNoOverlap(scope, siteIds, next.startDate, next.endDate, next.title, id);
         // A published period's dates/sites can only move inside the clash rules; others ignore them (see overlaps()).
         const sitesChanged = !sameIds(siteIds, currentSiteIds);
         if (sitesChanged || changesLockedField(period, dto)) {
@@ -595,14 +597,15 @@ export class CsiPeriodService {
         });
     }
 
-    /** One published survey per scope, site and day: 409 naming the clashing survey (structured for the form). */
-    private async assertNoOverlap(scope: ServiceScope, siteIds: string[], startDate: string, endDate: string, excludeId?: string, manager?: EntityManager) {
-        const [clash] = await this.overlaps(scope, siteIds, startDate, endDate, excludeId, manager);
+    /** One published survey per scope, site, day and title: 409 only when an overlapping survey shares the same title. */
+    private async assertNoOverlap(scope: ServiceScope, siteIds: string[], startDate: string, endDate: string, title: string, excludeId?: string, manager?: EntityManager) {
+        const clashes = await this.overlaps(scope, siteIds, startDate, endDate, excludeId, manager);
+        const clash = clashes.find((item) => samePeriodTitle(item.title, title));
         if (!clash) return;
         const where = clash.sites.map((site) => site.code ?? site.name).filter(Boolean).join(', ');
         throw new ConflictException({
             statusCode: 409, code: 'CSI_PERIOD_OVERLAP', overlap: clash,
-            message: `Tanggal bertabrakan dengan survei "${clash.title}" (${where}, ${clash.startDate} s.d. ${clash.endDate}) yang sudah terbit`,
+            message: `Sudah ada survei terbit dengan judul yang sama di tanggal dan site tersebut: "${clash.title}" (${where}, ${clash.startDate} s.d. ${clash.endDate})`,
         });
     }
 

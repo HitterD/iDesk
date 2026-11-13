@@ -81,7 +81,7 @@ export function liveSummary(data: CsiDashboard): LiveSummary {
         basis: active.reduce((sum, row) => sum + row.basis, 0),
         average: weight > 0 ? scored.reduce((sum, row) => sum + (row.average as number) * weightOf(row), 0) / weight : null,
         delta: mean(deltas),
-        behind: active.filter((row) => hasAudience(row) && !isReached(row)),
+        behind: active.filter((row) => !isReached(row)),
         bands: sharedBands(active),
     };
 }

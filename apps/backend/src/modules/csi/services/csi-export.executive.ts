@@ -4,7 +4,7 @@ import { CSI_SIMULATION_BANNER, CsiRateeKind } from '../csi.constants';
 import {
     addHcNestedSheet, addHcQuestionSheet, addHcRespondentSheet, addHcServiceSheet, HC_SHEETS, HcSheetContext,
 } from '../org/csi-hc-report.render';
-import { CsiHcRecap } from '../org/csi-hc-report.calc';
+import { CsiHcRecap, ratedHcServices } from '../org/csi-hc-report.calc';
 import { serviceName } from '../org/csi-org.constants';
 import { HC_OVERALL_NOTE } from '../org/csi-hc-report.pdf';
 import {
@@ -72,8 +72,9 @@ const start = (workbook: ExcelJS.Workbook, ctx: Ctx, key: SheetPlan['key'], titl
 
 function scoreItems(model: CsiReportModel): XlKv[] {
     const { overall, counts } = model;
-    const rated = model.hcRecap ? model.hcRecap.services.filter((row) => row.level === 'pic').length : counts.teams + counts.people;
-    const ratedNote = model.hcRecap ? `PIC / tim di ${model.hcRecap.services.filter((row) => row.level === 'service').length} layanan`
+    const ratedHc = model.hcRecap ? ratedHcServices(model.hcRecap) : null;
+    const rated = ratedHc ? ratedHc.filter((row) => row.level === 'pic').length : counts.teams + counts.people;
+    const ratedNote = ratedHc ? `PIC / tim di ${ratedHc.filter((row) => row.level === 'service').length} layanan`
         : `${counts.teams} tim · ${counts.people} orang · ${counts.sites} site`;
     return [
         { label: 'Nilai keseluruhan (1-5)', value: overall.average, kind: 'score', band: true, note: isHc(model) ? HC_OVERALL_NOTE : 'Rata-rata semua respons' },

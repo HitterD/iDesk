@@ -92,7 +92,8 @@ const questionKey = (question: { name: string; description?: string | null }) =>
 type RowContext = { siteCodeOf: (id: string | null) => string | null; previous: Map<string, number | null>; teamLabel: string; bands: CsiScoreBands };
 
 function rows(ratees: Ratee[], kind: CsiRateeKind, { siteCodeOf, previous, teamLabel, bands }: RowContext): CsiReportRow[] {
-    const own = ratees.filter((ratee) => ratee.kind === kind);
+    // Only ratees that actually received answers appear in the executive summary and ranking.
+    const own = ratees.filter((ratee) => ratee.kind === kind && ratee.respondentCount > 0);
     const nameOf = (ratee: Ratee) => (kind === CsiRateeKind.TEAM ? ratee.displayName || teamLabel : ratee.displayName);
     const sameName = (key: string) => own.filter((other) => subjectKeyOf(other, nameOf(other)) === key).length;
     return own
@@ -133,7 +134,7 @@ export function previousSubjectMap(subjects: PreviousSubject[]): Map<string, num
 
 /** Questions across all subjects of one kind, in first-seen order, coded P1..Pn (team and people grids separately). */
 function grid(ratees: Ratee[], kind: CsiRateeKind, siteCodeOf: (id: string | null) => string | null, teamLabel: string, ordered: CsiReportRow[]): CsiQuestionGrid {
-    const own = ratees.filter((ratee) => ratee.kind === kind);
+    const own = ratees.filter((ratee) => ratee.kind === kind && ratee.respondentCount > 0);
     const columns: Array<CsiQuestionColumn & { key: string }> = [];
     own.forEach((ratee) => ratee.questions.forEach((question) => {
         if (!SCORED.has(question.type)) return;

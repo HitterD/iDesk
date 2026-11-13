@@ -10,7 +10,7 @@ import { SiteBadge } from '../report/reportParts';
 import { ratioPct } from '../report/reportModel';
 import { StatCard } from '../StatCard';
 import { CommentsPanel, PendingPanel } from './DashboardLists';
-import { fillPct, hasAudience, isReached, liveSummary, remainingLabel, type LiveSummary } from './dashboardModel';
+import { fillPct, isReached, liveSummary, remainingLabel, type LiveSummary } from './dashboardModel';
 
 export const PILL = 'inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[12px] font-semibold';
 const STAT_SPAN = 'col-span-12 sm:col-span-6 xl:col-span-3';
@@ -94,7 +94,7 @@ export function DashboardLive({ scope, data, today, onOpenReport }: { scope: Csi
             <LiveStats summary={liveSummary(data)} />
             <AdminSection title="Target per site" description={onOpenReport ? 'Klik kartu untuk melihat siapa menilai siapa dan nilai per subjek.' : undefined} className="col-span-12">
                 <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(250px,100%),1fr))]">
-                    {data.active.filter(hasAudience).map((row) => <SiteTargetCard key={`${row.periodId}:${row.siteId}`} row={row} today={today} onOpen={onOpenReport} />)}
+                    {data.active.map((row) => <SiteTargetCard key={`${row.periodId}:${row.siteId}`} row={row} today={today} onOpen={onOpenReport} />)}
                 </div>
             </AdminSection>
             <PendingPanel scope={scope} data={data} className="col-span-12 lg:col-span-6" />

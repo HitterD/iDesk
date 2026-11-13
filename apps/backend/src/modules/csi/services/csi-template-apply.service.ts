@@ -22,7 +22,7 @@ import { normalizeName } from '../org/csi-name-match';
 import { CsiOrgService } from '../org/csi-org.service';
 import { CsiTemplatePicView, CsiTemplateView } from '../org/csi-template-view';
 import { CsiAssignmentTemplateService } from './csi-assignment-template.service';
-import { CsiPeriodService } from './csi-period.service';
+import { CsiPeriodService, samePeriodTitle } from './csi-period.service';
 import { enableSectionsWithRatees } from './csi-period-sections.util';
 import { assertHcScope, assertPeriodInScope } from './csi-scope.util';
 import { CsiMasterSeed, existingMaster, loadMasterContext, mastersIndex, newMasterOf } from './csi-template-import.service';
@@ -99,6 +99,8 @@ const mergeNames = (into: Map<string, string>, from: Map<string, string>) =>
 
 type Plan = {
     tally: Tally; newSubjects: Subject[]; pairs: Array<{ key: string; userId: string }>;
+    /** Template location's Site id (overrides pic.siteId so cross-site HC staff are grouped under the template location). */
+    siteId: string | null;
     /** Every applied rater account (new or already in the survey) -> its template name. */
     raterNames: Map<string, string>;
     /** The survey already had raters before the sync (its mode is then left alone). */
@@ -305,7 +307,10 @@ export class CsiTemplateApplyService {
     }
 
     private async plan(scope: ServiceScope, template: CsiTemplateView, repos: Repos, state: PeriodState, commit: boolean): Promise<Plan> {
-        const resolved = await this.resolveMasters(scope, template, repos, commit);
+        const [[site], resolved] = await Promise.all([
+            this.sites.find({ where: { code: In([template.locationCode]) } }),
+            this.resolveMasters(scope, template, repos, commit),
+        ]);
         const { view } = resolved;
         const { subjects, reasons } = await this.subjectsOf(scope, resolved, repos);
         const existingRatee = new Map(state.ratees.map((row) => [rateeKey(row), row] as const).filter(([key]) => key !== null));
@@ -333,7 +338,7 @@ export class CsiTemplateApplyService {
         subjects.filter((subject) => !rated.has(subject.key)).forEach((subject) => tally.withoutRaters.add(subject.row.picName));
         const raterNames = new Map<string, string>();
         applied.forEach((pair) => { if (!raterNames.has(pair.userId)) raterNames.set(pair.userId, pair.name); });
-        return { tally, newSubjects, pairs: fresh, raterNames, hadRaters: state.raters.length > 0 };
+        return { tally, newSubjects, pairs: fresh, siteId: site?.id ?? null, raterNames, hadRaters: state.raters.length > 0 };
     }
 
     private tallyOf(view: CsiTemplateView, subjects: Subject[], newSubjects: Subject[], reasons: ReadonlyMap<string, string>): Tally {
@@ -406,7 +411,7 @@ export class CsiTemplateApplyService {
 
     private async write(manager: EntityManager, repos: Repos, period: CsiPeriod, plan: Plan, questions: CsiDimension[]) {
         const periodId = period.id;
-        await this.writeRatees(repos, periodId, plan.newSubjects, questions);
+        await this.writeRatees(repos, periodId, plan.newSubjects, questions, plan.siteId);
         const rateeOf = new Map((await repos.ratees.find({ where: { periodId } })).map((row) => [rateeKey(row), row.id] as const).filter(([key]) => key !== null));
         const raterOfUser = new Map((await repos.raters.find({ where: { periodId } })).map((row) => [row.userId, row.id]));
         const newUsers = [...new Set(plan.pairs.map((pair) => pair.userId))].filter((userId) => !raterOfUser.has(userId));
@@ -422,11 +427,11 @@ export class CsiTemplateApplyService {
         await enableSectionsWithRatees(manager, periodId, [...new Set(plan.newSubjects.map((subject) => (subject.team ? CsiRateeKind.TEAM : CsiRateeKind.PERSON)))]);
     }
 
-    private async writeRatees(repos: Repos, periodId: string, subjects: Subject[], questions: CsiDimension[]) {
+    private async writeRatees(repos: Repos, periodId: string, subjects: Subject[], questions: CsiDimension[], templateSiteId: string | null) {
         if (!subjects.length) return;
         const offset = await repos.ratees.count({ where: { periodId } });
         const saved = await repos.ratees.save(subjects.map((subject, index) => ({
-            periodId, photoUrl: null, tagline: null, sortOrder: offset + index, ...rateeFields(subject),
+            periodId, photoUrl: null, tagline: null, sortOrder: offset + index, ...rateeFields(subject, templateSiteId),
         })));
         await repos.rateeDims.save(saved.flatMap((ratee) => questions.map((question, order) => ({
             periodRateeId: ratee.id, dimensionId: question.id, dimensionName: question.name, shortLabel: question.shortLabel ?? null,
@@ -443,7 +448,8 @@ export class CsiTemplateApplyService {
         const [site] = await this.sites.find({ where: { code: In([locationCode]) } });
         if (!site) return { site: null, blockedReason: siteMissingMessage(locationCode) };
         if (period.publishStatus !== CsiPeriodPublishStatus.PUBLISHED) return { site, blockedReason: null };
-        const [clash] = await this.periodService.overlaps(period.scope, [site.id], period.startDate, period.endDate, period.id, manager);
+        const clashes = await this.periodService.overlaps(period.scope, [site.id], period.startDate, period.endDate, period.id, manager);
+        const clash = clashes.find((item) => samePeriodTitle(item.title, period.title));
         return { site, blockedReason: clash ? overlapMessage(locationCode, clash.title) : null };
     }
 
@@ -507,16 +513,16 @@ export class CsiTemplateApplyService {
 }
 
 /** Ratee snapshot of a subject: PIC fields from the master (template function as fallback), a team by its master name. */
-function rateeFields(subject: Subject) {
+function rateeFields(subject: Subject, templateSiteId: string | null) {
     const { row, pic, team } = subject;
     if (team) {
         return {
-            kind: CsiRateeKind.TEAM, userId: null, picId: null, teamId: team.id, siteId: team.siteId, displayName: team.name, jobTitle: null,
+            kind: CsiRateeKind.TEAM, userId: null, picId: null, teamId: team.id, siteId: templateSiteId ?? team.siteId, displayName: team.name, jobTitle: null,
             serviceCode: team.serviceCode ?? row.serviceCode, bagian: null, serviceFunction: row.serviceFunction,
         };
     }
     return {
-        kind: CsiRateeKind.PERSON, userId: pic!.userId, picId: pic!.id, teamId: null, siteId: pic!.siteId, displayName: pic!.fullName, jobTitle: pic!.jobTitle,
+        kind: CsiRateeKind.PERSON, userId: pic!.userId, picId: pic!.id, teamId: null, siteId: templateSiteId ?? pic!.siteId, displayName: pic!.fullName, jobTitle: pic!.jobTitle,
         serviceCode: pic!.serviceCode, bagian: pic!.bagian, serviceFunction: pic!.serviceFunction ?? row.serviceFunction ?? null,
     };
 }

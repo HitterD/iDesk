@@ -3,7 +3,7 @@ import { CsiReportModel } from '../services/csi-report-model';
 import {
     choicesTable, commentsSection, dec, deltaColor, departmentsTable, DASH, rankingSection, scoreCell, shuffledTexts, signed, summary, TABLE_KEEP, text,
 } from '../services/csi-report-pdf-sections';
-import { collapseRespondentRows, CSI_NO_BAGIAN_LABEL, CsiCell, CsiHcRecap, CsiLocationCells, CsiRecapRow, CsiRespondentRow, recapDelta } from './csi-hc-report.calc';
+import { collapseRespondentRows, CSI_NO_BAGIAN_LABEL, CsiCell, CsiHcRecap, CsiLocationCells, CsiRecapRow, CsiRespondentRow, ratedHcServices, recapDelta } from './csi-hc-report.calc';
 import { compareServiceCodes } from '../services/csi-report-ranking';
 import { serviceName } from './csi-org.constants';
 
@@ -76,7 +76,7 @@ function locationCells(model: HcModel, row: CsiLocationCells, count: number, bol
 
 /** 2 · Nilai per layanan: dimensions per layanan, then layanan × respondent location. */
 function serviceScores(canvas: ReportCanvas, model: HcModel) {
-    const services = model.hcRecap.services.filter((row) => row.level === 'service');
+    const services = ratedHcServices(model.hcRecap).filter((row) => row.level === 'service');
     canvas.section('Nilai per layanan', undefined, TABLE_KEEP);
     canvas.note(`Rata-rata bintang (1-5) per dimensi; Penilai = jumlah responden yang menilai layanan itu.${model.hasPrevious ? ' Selisih = dibanding periode lalu.' : ''}`);
     canvas.table(dimensionColumns(model.hcRecap, 'Layanan', model.hasPrevious),
@@ -90,7 +90,7 @@ function serviceScores(canvas: ReportCanvas, model: HcModel) {
 function nestedScores(canvas: ReportCanvas, model: HcModel) {
     canvas.section('Nilai per layanan, bagian & PIC', undefined, TABLE_KEEP);
     canvas.note('Baris tebal = layanan dan bagian, baris bertitik = PIC; angka = rata-rata bintang (1-5) dari semua penilainya.');
-    canvas.table(dimensionColumns(model.hcRecap, 'Layanan / Bagian / PIC', model.hasPrevious), model.hcRecap.services.map((row) => {
+    canvas.table(dimensionColumns(model.hcRecap, 'Layanan / Bagian / PIC', model.hasPrevious), ratedHcServices(model.hcRecap).map((row) => {
         const label: Cell = { text: `${row.level === 'pic' ? PIC_MARK : ''}${text(row.label)}`, bold: row.level !== 'pic', color: row.level === 'service' ? INK.brand : undefined };
         return dimensionCells(model, row, label, row.level !== 'pic');
     }));
@@ -128,7 +128,7 @@ function comments(canvas: ReportCanvas, model: HcModel) {
 
 /** 7 · Lampiran: score per question per layanan (never per person), choices, participation per department. */
 function appendix(canvas: ReportCanvas, model: HcModel) {
-    const services = model.hcRecap.services.filter((row) => row.level === 'service');
+    const services = ratedHcServices(model.hcRecap).filter((row) => row.level === 'service');
     const fullOf = new Map(model.peopleGrid.columns.map((column) => [column.label, column.full]));
     canvas.pageBreak();
     canvas.section('Lampiran A · Nilai per pertanyaan per layanan', undefined, TABLE_KEEP);
@@ -147,9 +147,10 @@ function appendix(canvas: ReportCanvas, model: HcModel) {
 
 /** Sections 1-7 of the HC report (the caller draws the header first and the sign-off after). */
 export function renderHcReportPdf(canvas: ReportCanvas, model: HcModel) {
-    const services = model.hcRecap.services.filter((row) => row.level === 'service').length;
-    // "Yang dinilai" = the PIC / team rows of "Nilai per layanan, bagian & PIC" (rated or not).
-    const rated = model.hcRecap.services.filter((row) => row.level === 'pic').length;
+    const ratedRows = ratedHcServices(model.hcRecap);
+    const services = ratedRows.filter((row) => row.level === 'service').length;
+    // "Yang dinilai" = only the PIC / team rows that actually received at least one rating.
+    const rated = ratedRows.filter((row) => row.level === 'pic').length;
     summary(canvas, model, { value: rated, note: `PIC/tim di ${services} layanan · ${dec(model.hcRecap.overall.respondents, 0)} responden` }, HC_OVERALL_NOTE);
     canvas.pageBreak();
     serviceScores(canvas, model);

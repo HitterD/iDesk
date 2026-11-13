@@ -208,4 +208,17 @@ describe('csi-report-model', () => {
         expect(model.templateRatersWithoutAccount).toBe(0);
         expect(buildReportModel({ ...input, templateRatersWithoutAccount: 3 }).templateRatersWithoutAccount).toBe(3);
     });
+
+    it('excludes unrated subjects (respondentCount = 0) from tables, grids and ranking', () => {
+        const { input } = hcReportFixture();
+        const unrated = {
+            ...input.report.ratees[0], periodRateeId: 'ratee-unrated', displayName: 'Belum Dinilai',
+            respondentCount: 0, overallAverage: null,
+            questions: input.report.ratees[0].questions.map((question: any) => ({ ...question, count: 0, average: null })),
+        };
+        const model = buildReportModel({ ...input, report: { ...input.report, ratees: [...input.report.ratees, unrated] } });
+        expect(model.people.some((row) => row.periodRateeId === 'ratee-unrated')).toBe(false);
+        expect(model.peopleGrid.rows.some((row) => row.name === 'Belum Dinilai')).toBe(false);
+        expect(model.rankingByService.flatMap((group) => [...group.ranked, ...group.insufficient, ...group.noAnswers]).some((row) => row.name === 'Belum Dinilai')).toBe(false);
+    });
 });

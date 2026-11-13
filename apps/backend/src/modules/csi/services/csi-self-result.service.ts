@@ -15,6 +15,7 @@ import { bandsOf, CsiScoreBands } from './csi-score-bands';
 
 /** Results stay hidden until this many people rated the person, so no single rater can be singled out. */
 export const CSI_SELF_RESULT_MIN_RATERS = 3;
+export const CSI_TEAM_SELF_RESULT_MIN_RATERS = 1;
 export const CSI_RANDOM = Symbol('CSI_RANDOM');
 const NOT_SCORED = new Set<string>([CsiQuestionType.CHOICE, CsiQuestionType.TEXT]);
 
@@ -75,7 +76,8 @@ export class CsiSelfResultService {
             .filter((row) => row.kind === CsiRateeKind.TEAM
                 ? row.team?.kind === CsiTeamKind.CUSTOM && teamIds.includes(row.teamId!)
                 : ratedAccountOf(row, new Map(row.picId && picIds.includes(row.picId) ? [[row.picId, userId]] : [])) === userId)
-            .filter((row) => row.period && !row.period.cancelledAt && row.period.individualEnabled !== false);
+            .filter((row) => row.period && !row.period.cancelledAt
+                && (row.kind === CsiRateeKind.TEAM ? row.period.teamEnabled === true : row.period.individualEnabled !== false));
         // Stable partition: preserve personal order, then show custom teams within the same period.
         const ordered = [...rows.filter((row) => row.kind !== CsiRateeKind.TEAM), ...rows.filter((row) => row.kind === CsiRateeKind.TEAM)];
         const results = await Promise.all(ordered.map((row) => this.resultOf(row, now)));
@@ -93,13 +95,14 @@ export class CsiSelfResultService {
         const byResponse = new Map<string, number[]>();
         scored.forEach((item) => byResponse.set(item.responseId, [...(byResponse.get(item.responseId) ?? []), item.score!]));
         const raters = byResponse.size;
-        const ready = raters >= CSI_SELF_RESULT_MIN_RATERS;
+        const minRaters = ratee.kind === CsiRateeKind.TEAM ? CSI_TEAM_SELF_RESULT_MIN_RATERS : CSI_SELF_RESULT_MIN_RATERS;
+        const ready = raters >= minRaters;
         const { period } = ratee;
         const base = {
             periodId: period.id, title: period.title, startDate: period.startDate, endDate: period.endDate, status: computeStatus(period, now),
             serviceFunction: ratee.serviceFunction ?? null,
             teamName: ratee.kind === CsiRateeKind.TEAM ? ratee.team?.name ?? ratee.displayName : null,
-            raters, minRaters: CSI_SELF_RESULT_MIN_RATERS, ready, scoreBands: bandsOf(period),
+            raters, minRaters, ready, scoreBands: bandsOf(period),
         };
         if (!ready) return { ...base, average: null, dimensions: [], comments: [] };
         const dimensions = questions.flatMap((question) => {

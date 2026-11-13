@@ -40,7 +40,9 @@ function ResultCard({ result, index }: { result: CsiSelfResult; index: number })
             {!result.ready && (
                 <p className="flex items-center gap-2 rounded-xl bg-[hsl(var(--muted)/.6)] px-3 py-3 text-[13.5px]">
                     <Hourglass className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    {`Hasil tampil setelah minimal ${result.minRaters} penilai mengisi (saat ini ${result.raters}).`}
+                    {result.minRaters <= 1
+                        ? 'Belum ada penilaian.'
+                        : `Hasil tampil setelah minimal ${result.minRaters} penilai mengisi (saat ini ${result.raters}).`}
                 </p>
             )}
             {result.ready && (

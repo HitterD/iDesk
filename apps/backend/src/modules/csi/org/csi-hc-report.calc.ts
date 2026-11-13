@@ -283,3 +283,8 @@ export function buildHcRecap(input: { pics: CsiHcPic[]; ratings: CsiHcRating[]; 
         respondents: respondentDetails(pics, ratings),
     };
 }
+
+/** Keeps only services, bagian, and PIC/team rows that actually received at least one rating. */
+export function ratedHcServices(recap: CsiHcRecap): CsiRecapRow[] {
+    return recap.services.filter((row) => row.all.ratings > 0);
+}

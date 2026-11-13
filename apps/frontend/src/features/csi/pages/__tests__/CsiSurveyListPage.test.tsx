@@ -130,4 +130,14 @@ describe('CsiPendingCard', () => {
         renderAt('/csi', <CsiSurveyListPage />);
         expect(await screen.findByRole('link', { name: /hasil penilaian saya/i })).toHaveAttribute('href', '/csi/hasil-saya');
     });
+
+    it('CsiPendingCard distinguishes multiple active surveys by scope and title', async () => {
+        vi.mocked(CsiApi.active).mockResolvedValue([
+            SURVEYS[0],
+            { id: 'p3', scope: 'HC', title: 'Survei HC Khusus', endDate: '2099-12-31', submitted: false, submittedAt: null },
+        ]);
+        renderAt('/client/my-tickets', <CsiPendingCard />);
+        expect(await screen.findByText('Survei ICT Q4')).toBeInTheDocument();
+        expect(screen.getByText('Survei HC Khusus')).toBeInTheDocument();
+    });
 });

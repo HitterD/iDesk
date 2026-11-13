@@ -24,8 +24,8 @@ const ASPECTS_ON_PAGE_ONE = 12;
 const logger = new Logger('CsiReportPdf');
 
 function siteAndAspects(canvas: ReportCanvas, model: CsiReportModel, aspectsHere: boolean) {
-    // Sites without any basis or answer (e.g. not part of the rater list) are left out instead of showing 0/0.
-    const siteRows = model.sites.filter((site) => site.basis > 0 || site.responses > 0).map((site) => ({
+    // Keep every period site (even 0/0) so selected branches such as Sukodono stay visible.
+    const siteRows = model.sites.map((site) => ({
         label: `${site.code ?? ''} ${site.name ?? ''}`.trim(), value: site.respondenPct, color: site.reached ? INK.green : INK.amber,
         text: `${dec(site.average)} · ${site.responses}/${site.basis} (${pct(site.respondenPct)})`,
     }));
@@ -39,7 +39,7 @@ function siteAndAspects(canvas: ReportCanvas, model: CsiReportModel, aspectsHere
 function participation(canvas: ReportCanvas, model: CsiReportModel) {
     canvas.section('Partisipasi per site', undefined, TABLE_KEEP);
     canvas.note(`Basis = ${model.participation.basisLabel}; % sudah mengisi = jawaban dibanding basis; Tercapai bila mencapai target ${model.targetPct}%.`);
-    const body: Cell[][] = model.sites.filter((site) => site.basis > 0 || site.responses > 0).map((site) => [
+    const body: Cell[][] = model.sites.map((site) => [
         { text: `${site.code ?? ''} ${site.name ?? ''}`.trim(), bold: true }, { text: String(site.basis) }, { text: String(site.target) },
         { text: String(site.responses) }, { text: pct(site.respondenPct) },
         { text: site.reached ? 'Tercapai' : 'Belum', color: site.reached ? INK.green : INK.red, bold: true }, { text: dec(site.average), color: scoreInk(site.average, model.bands) },

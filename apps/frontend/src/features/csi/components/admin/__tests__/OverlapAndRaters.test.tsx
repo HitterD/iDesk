@@ -57,6 +57,17 @@ describe('OverlapNotice', () => {
         expect(onUseDates).toHaveBeenCalledWith({ startDate: '2026-11-07', endDate: '2026-11-09' });
     });
 
+    it('shows informational notice when title differs and blocking warning when title matches', () => {
+        fx.overlaps = [clash];
+        render(<OverlapNotice scope="ict" siteIds={['s1']} startDate="2026-11-04" endDate="2026-11-06" title="CSI Lain" onUseDates={vi.fn()} />);
+        const info = screen.getByRole('status');
+        expect(info).toHaveTextContent('Tetap bisa dibuat & diterbitkan karena judulnya berbeda');
+        cleanup();
+        render(<OverlapNotice scope="ict" siteIds={['s1']} startDate="2026-11-04" endDate="2026-11-06" title=" csi ict " onUseDates={vi.fn()} />);
+        const warn = screen.getByRole('alert');
+        expect(warn).toHaveTextContent('Judul dan tanggal bertabrakan dengan "CSI ICT"');
+    });
+
     it('stays silent without a clash', () => {
         render(<OverlapNotice scope="ict" siteIds={['s1']} startDate="2026-12-01" endDate="2026-12-03" onUseDates={vi.fn()} />);
         expect(screen.queryByRole('alert')).not.toBeInTheDocument();
