@@ -3,6 +3,7 @@ import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode, CsiTeamKind } from '../csi.constants';
 import { Site } from '../../sites/entities/site.entity';
 import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
+import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entity';
 import { CsiOrgPerson } from '../entities/csi-org-person.entity';
 import { CsiPic } from '../entities/csi-pic.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
@@ -61,6 +62,7 @@ describe('CsiTemplateApplyService', () => {
     let users: ReturnType<typeof memoryTable>;
     let responses: ReturnType<typeof memoryTable>;
     let masters: ReturnType<typeof memoryTable>;
+    let templateRows: ReturnType<typeof memoryTable>;
     let templatePics: ReturnType<typeof memoryTable>;
     let directory: ReturnType<typeof memoryTable>;
     let siteRows: ReturnType<typeof memoryTable>;
@@ -94,9 +96,13 @@ describe('CsiTemplateApplyService', () => {
         jest.clearAllMocks();
         periods = memoryTable(); ratees = memoryTable(); rateeDims = memoryTable(); raters = memoryTable(); pairs = memoryTable();
         teams = memoryTable(); members = memoryTable(); periodSites = memoryTable(); users = memoryTable(); responses = memoryTable();
-        masters = memoryTable(); templatePics = memoryTable(); directory = memoryTable(); siteRows = memoryTable();
+        masters = memoryTable(); templateRows = memoryTable(); templatePics = memoryTable(); directory = memoryTable(); siteRows = memoryTable();
         masters.rows.push(...pics.map((pic) => ({ ...pic, scope: HC, nik: `nik-${pic.id}` })));
-        templatePics.rows.push(...[...view().pics, ...krwView().pics].map((row) => ({ id: row.id, picName: row.picName, picId: row.picId, teamId: row.teamId, picNik: null })));
+        templateRows.rows.push({ id: 't1', scope: HC, locationCode: 'SMG' }, { id: 't2', scope: HC, locationCode: 'KRW' });
+        templatePics.rows.push(
+            ...view().pics.map((row) => ({ id: row.id, templateId: 't1', picName: row.picName, picId: row.picId, teamId: row.teamId, picNik: null })),
+            ...krwView().pics.map((row) => ({ id: row.id, templateId: 't2', picName: row.picName, picId: row.picId, teamId: row.teamId, picNik: null })),
+        );
         siteRows.rows.push(...allSites);
         users.rows.push({ id: 'u-elvi', siteId: 's-smg' }, { id: 'u-cici', siteId: 's-krw' }, { id: 'u-budi', siteId: 's-krw' }, { id: 'u-confirmed', siteId: 's-smg' });
         teams.rows.push({ id: 'team-a', scope: HC, kind: CsiTeamKind.CUSTOM, serviceCode: null, siteId: 's-krw', name: 'TIM RECEPTION', isActive: true });
@@ -106,7 +112,7 @@ describe('CsiTemplateApplyService', () => {
         const repositories = new Map<unknown, unknown>([
             [CsiPeriod, periods], [CsiPeriodRatee, ratees], [CsiPeriodRateeDimension, rateeDims], [CsiPeriodRater, raters], [CsiPeriodRaterRatee, pairs],
             [CsiTeam, teams], [CsiTeamMember, members], [CsiPeriodSite, periodSites], [User, users], [CsiResponse, responses],
-            [CsiPic, masters], [CsiAssignmentTemplatePic, templatePics], [Site, siteRows],
+            [CsiPic, masters], [CsiAssignmentTemplate, templateRows], [CsiAssignmentTemplatePic, templatePics], [Site, siteRows],
             // The directory query filters on department in SQL; here every directory row is a candidate.
             [CsiOrgPerson, { ...directory, createQueryBuilder: () => ({ where: () => ({ getMany: async () => directory.rows }) }) }],
         ]);
@@ -515,6 +521,23 @@ describe('CsiTemplateApplyService', () => {
 
         it('is HC only', async () => {
             await expect(service.applyManyToPeriod(ServiceScope.ICT, ['t1'], 'p1', false, false)).rejects.toBeInstanceOf(BadRequestException);
+        });
+
+        it('sync updates stale siteId on existing ratees unless another template still assigns them there', async () => {
+            // pic-ani is only in KRW template (t2) but carries stale s-smg; pic-rara is in both SMG (t1) and KRW (t2).
+            ratees.rows.push(
+                { id: 'r-ani', periodId: 'p1', kind: CsiRateeKind.PERSON, picId: 'pic-ani', teamId: null, siteId: 's-smg', sortOrder: 0 },
+                { id: 'r-rara', periodId: 'p1', kind: CsiRateeKind.PERSON, picId: 'pic-rara', teamId: null, siteId: 's-smg', sortOrder: 1 },
+            );
+            templatePics.rows.push({ id: 'tp-rara-krw', templateId: 't2', picName: 'RARA', picId: 'pic-rara', teamId: null, picNik: null });
+            const t2WithRara: CsiTemplateView = {
+                ...krwView(),
+                pics: [...krwView().pics, { ...view().pics[0], id: 'tp-rara-krw', raters: [] }],
+            };
+            templates.get.mockImplementationOnce(async () => t2WithRara);
+            await service.applyToPeriod(HC, 't2', 'p1', true);
+            expect(ratees.rows.find((row) => row.id === 'r-ani')!.siteId).toBe('s-krw');
+            expect(ratees.rows.find((row) => row.id === 'r-rara')!.siteId).toBe('s-smg');
         });
     });
 });

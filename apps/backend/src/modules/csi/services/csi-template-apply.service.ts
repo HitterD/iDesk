@@ -15,6 +15,7 @@ import { CsiPeriodSite } from '../entities/csi-period-site.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
+import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entity';
 import { CsiPic } from '../entities/csi-pic.entity';
 import { CsiTeamMember } from '../entities/csi-team-member.entity';
 import { CsiTeam } from '../entities/csi-team.entity';
@@ -99,6 +100,8 @@ const mergeNames = (into: Map<string, string>, from: Map<string, string>) =>
 
 type Plan = {
     tally: Tally; newSubjects: Subject[]; pairs: Array<{ key: string; userId: string }>;
+    /** Existing ratees in this survey whose `siteId` is null or stale relative to the subject's template location(s). */
+    siteUpdates: Array<{ id: string; siteId: string }>;
     /** Template location's Site id (overrides pic.siteId so cross-site HC staff are grouped under the template location). */
     siteId: string | null;
     /** Every applied rater account (new or already in the survey) -> its template name. */
@@ -338,7 +341,47 @@ export class CsiTemplateApplyService {
         subjects.filter((subject) => !rated.has(subject.key)).forEach((subject) => tally.withoutRaters.add(subject.row.picName));
         const raterNames = new Map<string, string>();
         applied.forEach((pair) => { if (!raterNames.has(pair.userId)) raterNames.set(pair.userId, pair.name); });
-        return { tally, newSubjects, pairs: fresh, siteId: site?.id ?? null, raterNames, hadRaters: state.raters.length > 0 };
+        const siteUpdates = commit && site?.id ? await this.staleSiteUpdates(scope, site.id, subjects, existingRatee, repos.manager) : [];
+        return { tally, newSubjects, pairs: fresh, siteUpdates, siteId: site?.id ?? null, raterNames, hadRaters: state.raters.length > 0 };
+    }
+
+    /** Existing ratees matched by this template whose stored `siteId` is null or no longer in any template for that subject. */
+    private async staleSiteUpdates(scope: ServiceScope, templateSiteId: string, subjects: Subject[],
+        existingRatee: ReadonlyMap<string | null, CsiPeriodRatee>, manager: EntityManager): Promise<Array<{ id: string; siteId: string }>> {
+        const subjectSites = await this.subjectSiteIds(scope, manager);
+        const updates = new Map<string, string>();
+        for (const subject of subjects) {
+            const existing = existingRatee.get(subject.key);
+            if (!existing || existing.siteId === templateSiteId) continue;
+            const allowed = subjectSites.get(subject.key);
+            if (!existing.siteId || !allowed || !allowed.has(existing.siteId)) updates.set(existing.id, templateSiteId);
+        }
+        return [...updates].map(([id, siteId]) => ({ id, siteId }));
+    }
+
+    private async subjectSiteIds(scope: ServiceScope, manager: EntityManager): Promise<Map<string, Set<string>>> {
+        const tplRepo = manager.getRepository(CsiAssignmentTemplate);
+        if (!tplRepo) return new Map();
+        const templates = await tplRepo.find({ where: { scope } });
+        if (!templates.length) return new Map();
+        const rows = await manager.getRepository(CsiAssignmentTemplatePic).find({ where: { templateId: In(templates.map((row) => row.id)) } });
+        const codes = [...new Set(templates.map((row) => row.locationCode))];
+        const sites = codes.length ? await this.sites.find({ where: { code: In(codes) } }) : [];
+        const siteByCode = new Map(sites.map((site) => [site.code, site.id]));
+        const siteOfTemplate = new Map(templates.flatMap((row) => {
+            const siteId = siteByCode.get(row.locationCode);
+            return siteId ? [[row.id, siteId] as const] : [];
+        }));
+        const map = new Map<string, Set<string>>();
+        for (const row of rows) {
+            const siteId = siteOfTemplate.get(row.templateId);
+            const key = row.teamId ? teamKey(row.teamId) : (row.picId ? picKey(row.picId) : null);
+            if (!siteId || !key) continue;
+            const set = map.get(key) ?? new Set<string>();
+            set.add(siteId);
+            map.set(key, set);
+        }
+        return map;
     }
 
     private tallyOf(view: CsiTemplateView, subjects: Subject[], newSubjects: Subject[], reasons: ReadonlyMap<string, string>): Tally {
@@ -412,6 +455,7 @@ export class CsiTemplateApplyService {
     private async write(manager: EntityManager, repos: Repos, period: CsiPeriod, plan: Plan, questions: CsiDimension[]) {
         const periodId = period.id;
         await this.writeRatees(repos, periodId, plan.newSubjects, questions, plan.siteId);
+        for (const update of plan.siteUpdates) await manager.update(CsiPeriodRatee, { id: update.id }, { siteId: update.siteId });
         const rateeOf = new Map((await repos.ratees.find({ where: { periodId } })).map((row) => [rateeKey(row), row.id] as const).filter(([key]) => key !== null));
         const raterOfUser = new Map((await repos.raters.find({ where: { periodId } })).map((row) => [row.userId, row.id]));
         const newUsers = [...new Set(plan.pairs.map((pair) => pair.userId))].filter((userId) => !raterOfUser.has(userId));

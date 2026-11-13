@@ -180,16 +180,27 @@ export class CsiSubjectService {
      * resolved on read and never copied into the period row.
      */
     async viewsFor(scope: ServiceScope, ratees: CsiPeriodRatee[]): Promise<Map<string, CsiRateeView>> {
-        const masters = await this.mastersOf(scope, ratees);
+        const [masters, templateSites] = await Promise.all([
+            this.mastersOf(scope, ratees),
+            scope === ServiceScope.HC ? this.templateSitesByPic(ratees) : Promise.resolve(new Map<string, string[]>()),
+        ]);
+        const siteOf = (ratee: CsiPeriodRatee): string | null => {
+            const stored = ratee.siteId ?? masters.get(ratee.id)!.siteId;
+            if (ratee.kind === CsiRateeKind.TEAM || !ratee.picId) return stored;
+            const allowed = templateSites.get(ratee.picId) ?? [];
+            if (!allowed.length) return stored;
+            // Already-running surveys may carry a stale siteId (e.g. PIC moved from SMG to SKD); keep stored only if a template still lists them there.
+            return stored && allowed.includes(stored) ? stored : allowed[0];
+        };
         const siteIds = unique(ratees.flatMap((ratee) => {
-            const siteId = ratee.siteId ?? masters.get(ratee.id)!.siteId;
+            const siteId = siteOf(ratee);
             return siteId ? [siteId] : [];
         }));
         const sites = siteIds.length ? await this.sites.find({ where: { id: In(siteIds) } }) : [];
         const codeOf = new Map(sites.map((site) => [site.id, site.code]));
         return new Map(ratees.map((ratee) => {
             const master = masters.get(ratee.id)!;
-            const siteId = ratee.siteId ?? master.siteId;
+            const siteId = siteOf(ratee);
             return [ratee.id, {
                 siteId, siteCode: siteId ? codeOf.get(siteId) ?? null : null,
                 photoUrl: ratee.photoUrl ?? master.photoUrl,
@@ -380,6 +391,29 @@ export class CsiSubjectService {
             const templateIds = new Set(templates.filter((template) => template.locationCode === site.code).map((template) => template.id));
             const ids = unique(rows.flatMap((row) => (templateIds.has(row.templateId) && row.picId ? [row.picId] : [])));
             return [site.id, ids.flatMap((id) => { const pic = picById.get(id); return pic ? [pic] : []; })];
+        }));
+    }
+
+    /** Sorted template site ids (`picId -> siteId[]`) so running surveys follow template moves when `ratee.siteId` is stale. */
+    private async templateSitesByPic(ratees: CsiPeriodRatee[]): Promise<Map<string, string[]>> {
+        const picIds = unique(ratees.flatMap((ratee) => (ratee.kind !== CsiRateeKind.TEAM && ratee.picId ? [ratee.picId] : [])));
+        if (!picIds.length) return new Map();
+        const rows = await this.templatePics.find({ where: { picId: In(picIds) } });
+        const templateIds = unique(rows.map((row) => row.templateId));
+        if (!templateIds.length) return new Map();
+        const templates = await this.templates.find({ where: { scope: ServiceScope.HC, id: In(templateIds) } });
+        const codes = unique(templates.map((template) => template.locationCode));
+        const sites = codes.length ? await this.sites.find({ where: { code: In(codes) } }) : [];
+        const siteByCode = new Map(sites.map((site) => [site.code, site.id]));
+        const entryOf = new Map(templates.flatMap((template) => {
+            const siteId = siteByCode.get(template.locationCode);
+            return siteId ? [[template.id, { siteId, code: template.locationCode }] as const] : [];
+        }));
+        return new Map(picIds.map((picId) => {
+            const entries = rows.filter((row) => row.picId === picId)
+                .flatMap((row) => { const entry = entryOf.get(row.templateId); return entry ? [entry] : []; })
+                .sort((a, b) => a.code.localeCompare(b.code));
+            return [picId, unique(entries.map((entry) => entry.siteId))];
         }));
     }
 

@@ -331,6 +331,18 @@ describe('CsiSubjectService', () => {
                 expect(await service.viewFor(HC, ratee({ picId: P1, userId: HCU, tagline: 'Periode' })))
                     .toMatchObject({ photoUrl: '/uploads/avatars/hana.jpg', tagline: 'Periode' });
             });
+
+            it('viewsFor overrides stale ratee siteId with the template location when the PIC moved templates', async () => {
+                const ratee = (id: string, picId: string, siteId: string) => ({
+                    id, periodId: 'p1', kind: 'PERSON', userId: null, picId, siteId, teamId: null, photoUrl: null, tagline: null,
+                    displayName: 'X', jobTitle: null, sortOrder: 0,
+                }) as any;
+                // P1 is also added to KRW (dual-site); P3 is only in KRW but the ratee row still carries stale SPJ.
+                templatePics.rows.push({ id: 'r5', templateId: 'tpl-krw', picId: P1, teamId: null });
+                const views = await service.viewsFor(HC, [ratee('r-moved', P3, SPJ.id), ratee('r-dual', P1, KRW.id)]);
+                expect(views.get('r-moved')).toMatchObject({ siteId: KRW.id, siteCode: 'KRW' });
+                expect(views.get('r-dual')).toMatchObject({ siteId: KRW.id, siteCode: 'KRW' });
+            });
         });
     });
 });
