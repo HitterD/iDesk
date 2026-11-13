@@ -1,4 +1,7 @@
+import { BadRequestException } from '@nestjs/common';
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiOrgLocation } from './csi-org.constants';
+import { CsiUnitRulesService } from './csi-unit-rules.service';
 import { expandRules, personMatches, targetPics } from './csi-unit-rules';
 
 const people = [
@@ -35,5 +38,57 @@ describe('CSI unit rules', () => {
         expect([...result.keys()].sort()).toEqual(['1', '2']);
         expect([...result.get('1')!].sort()).toEqual(['r-ga', 'r-pay']);
         expect([...result.get('2')!]).toEqual(['r-pay']);
+    });
+});
+
+describe('CsiUnitRulesService.setRater', () => {
+    function buildService(ratees: Array<{ id: string; userId: string | null; picId: string | null }>) {
+        const savedPairs: any[] = [];
+        const manager: any = {
+            getRepository: jest.fn(() => ({
+                findOne: jest.fn().mockResolvedValue({ id: 'pr-1', periodId: 'p-1', userId: 'u-1' }),
+                count: jest.fn().mockResolvedValue(0),
+                createQueryBuilder: jest.fn(() => ({
+                    setLock: jest.fn().mockReturnThis(), where: jest.fn().mockReturnThis(),
+                    getOne: jest.fn().mockResolvedValue({ id: 'p-1', scope: ServiceScope.HC }),
+                })),
+            })),
+            delete: jest.fn(),
+            save: jest.fn(async (_entity: any, rows: any) => { if (Array.isArray(rows)) savedPairs.push(...rows); return rows; }),
+            update: jest.fn(),
+            findOne: jest.fn().mockResolvedValue({ id: 'p-1', scope: ServiceScope.HC }),
+            createQueryBuilder: jest.fn(() => ({
+                setLock: jest.fn().mockReturnThis(), where: jest.fn().mockReturnThis(),
+                getOne: jest.fn().mockResolvedValue({ id: 'p-1', scope: ServiceScope.HC }),
+            })),
+        };
+        const periods = { findOne: jest.fn().mockResolvedValue({ id: 'p-1', scope: ServiceScope.HC }) };
+        const users = { findOne: jest.fn().mockResolvedValue({ id: 'u-1', isActive: true }) };
+        const rateeRepo = { find: jest.fn().mockResolvedValue(ratees) };
+        const emptyRepo = { find: jest.fn().mockResolvedValue([]) };
+        const dataSource: any = {
+            transaction: jest.fn((fn: any) => fn(manager)),
+            getRepository: jest.fn(() => emptyRepo),
+        };
+        const service = new CsiUnitRulesService(periods as any, emptyRepo as any, users as any, rateeRepo as any, dataSource);
+        jest.spyOn(service, 'raterList').mockResolvedValue([]);
+        return { service, rateeRepo, savedPairs };
+    }
+
+    it('allows non-PIC subjects (e.g. custom teams) without rejecting with PIC-only error', async () => {
+        const { service, rateeRepo, savedPairs } = buildService([
+            { id: 'r-team', userId: null, picId: null },
+            { id: 'r-pic', userId: 'u-other', picId: 'pic-1' },
+        ]);
+        await service.setRater(ServiceScope.HC, 'p-1', 'u-1', ['r-team', 'r-pic']);
+        expect(rateeRepo.find).toHaveBeenCalledWith(expect.objectContaining({
+            where: expect.not.objectContaining({ picId: expect.anything() }),
+        }));
+        expect(savedPairs.map((pair) => pair.periodRateeId)).toEqual(['r-team', 'r-pic']);
+    });
+
+    it('rejects self-rating when a selected subject belongs to the rater', async () => {
+        const { service } = buildService([{ id: 'r-self', userId: 'u-1', picId: 'pic-1' }]);
+        await expect(service.setRater(ServiceScope.HC, 'p-1', 'u-1', ['r-self'])).rejects.toThrow(BadRequestException);
     });
 });

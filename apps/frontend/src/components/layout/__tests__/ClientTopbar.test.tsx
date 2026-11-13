@@ -24,8 +24,12 @@ vi.mock('@/hooks/usePermissions', () => ({
 }));
 
 const csiActive = vi.hoisted(() => ({ current: undefined as Array<{ id: string; scope: string; title: string; submitted: boolean }> | undefined }));
+const csiOwnerReport = vi.hoisted(() => ({ current: false }));
 vi.mock('@/features/csi/hooks/useCsi', () => ({
     useCsiActive: () => ({ data: csiActive.current }),
+}));
+vi.mock('@/features/csi/hooks/useCsiHc', () => ({
+    useCsiOwnerReportAccess: () => csiOwnerReport.current,
 }));
 
 // Real implementations are untouched by this task; stub them to isolate the shell.
@@ -67,6 +71,7 @@ describe('ClientLayout requester shell', () => {
         performLogout.mockClear();
         permissions.current = { pageAccess: { hardware_requests: false, eform_access: true, zoom_calendar: false, knowledge_base: true } };
         csiActive.current = undefined;
+        csiOwnerReport.current = false;
     });
 
     it('keeps the preset-limited navigation in the portal segment', () => {
@@ -95,6 +100,20 @@ describe('ClientLayout requester shell', () => {
         expect(labels).toEqual(['Tiket Saya', 'E-Form', 'Bantuan', 'Survei']);
         expect(within(portalNav()).getByRole('link', { name: 'Survei' })).toHaveAttribute('href', '/client/csi');
         expect(within(portalNav()).getByRole('link', { name: 'Survei' })).toHaveAttribute('data-tone', 'teal');
+    });
+
+    it('shows Report CSI tab for report owners when no active survey exists, and avoids duplicate when active', () => {
+        csiActive.current = [];
+        csiOwnerReport.current = true;
+        renderPortal();
+        expect(within(portalNav()).getByRole('link', { name: 'Report CSI' })).toHaveAttribute('href', '/client/csi/report');
+        expect(within(portalNav()).queryByRole('link', { name: 'Survei' })).not.toBeInTheDocument();
+
+        cleanup();
+        csiActive.current = [{ id: 'p1', scope: 'HC', title: 'Survei HC', submitted: false }];
+        renderPortal();
+        expect(within(portalNav()).getByRole('link', { name: 'Survei' })).toHaveAttribute('href', '/client/csi');
+        expect(within(portalNav()).queryByRole('link', { name: 'Report CSI' })).not.toBeInTheDocument();
     });
 
     it('shows every item while the preset is still loading', () => {

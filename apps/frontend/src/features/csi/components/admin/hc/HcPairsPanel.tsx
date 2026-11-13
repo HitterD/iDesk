@@ -80,7 +80,8 @@ function ExcelRoundTrip({ scope, period }: { scope: CsiScopeParam; period: CsiPe
 
 export function HcPairsPanel({ scope, period }: { scope: CsiScopeParam; period: CsiPeriodDetail }) {
     const [tab, setTab] = useState<Tab>(period.unitRules?.length ? 'unit' : 'person');
-    const pics = useMemo(() => period.ratees.filter((ratee) => ratee.picId).sort((a, b) => a.sortOrder - b.sortOrder), [period.ratees]);
+    const allRatees = useMemo(() => [...period.ratees].sort((a, b) => Number(a.kind !== 'TEAM') - Number(b.kind !== 'TEAM') || a.sortOrder - b.sortOrder), [period.ratees]);
+    const pics = useMemo(() => allRatees.filter((ratee) => ratee.picId), [allRatees]);
     const picBagians = useMemo(() => {
         const map: Record<string, string[]> = {};
         pics.forEach((pic) => { if (pic.serviceCode && pic.bagian) map[pic.serviceCode] = [...new Set([...(map[pic.serviceCode] ?? []), pic.bagian])].sort(); });
@@ -98,7 +99,7 @@ export function HcPairsPanel({ scope, period }: { scope: CsiScopeParam; period: 
                 <div className="grid gap-4">
                     <SegmentedControl aria-label="Cara menentukan penilai" className="dash-seg w-fit" options={TABS} value={tab} onValueChange={setTab} />
                     {tab === 'unit' && <UnitRulesEditor scope={scope} period={period} picBagians={picBagians} />}
-                    {tab === 'person' && <RaterPicEditor scope={scope} period={period} pics={pics} />}
+                    {tab === 'person' && <RaterPicEditor scope={scope} period={period} pics={pics} ratees={allRatees} />}
                     {tab === 'excel' && <ExcelRoundTrip scope={scope} period={period} />}
                 </div>
             )}

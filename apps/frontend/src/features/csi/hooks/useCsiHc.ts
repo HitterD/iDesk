@@ -95,6 +95,11 @@ export function useSetCustomTeamMembers(scope: CsiScopeParam) {
 export function useCsiMyReportAccess(scope: CsiScopeParam) {
     return useQuery({ queryKey: ['csi', 'me', scope, 'report-access'], queryFn: () => CsiHcApi.myReportAccess(scope), staleTime: 5 * 60_000 });
 }
+export function useCsiOwnerReportAccess(): boolean {
+    const hc = useCsiMyReportAccess('hc');
+    const ict = useCsiMyReportAccess('ict');
+    return (!hc.data?.admin && (hc.data?.services?.length ?? 0) > 0) || (!ict.data?.admin && (ict.data?.services?.length ?? 0) > 0);
+}
 export function useCsiMyReportPeriods(scope: CsiScopeParam, enabled = true) {
     return useQuery({ queryKey: ['csi', 'me', scope, 'periods'], queryFn: () => CsiHcApi.myReportPeriods(scope), enabled });
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Ticket, BookOpen, Settings, Video, MonitorSmartphone, FileText, Star } from 'lucide-react';
+import { Ticket, BookOpen, Settings, Video, MonitorSmartphone, FileText, Star, BarChart3 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth, performLogout } from '../../stores/useAuth';
 import { FeatureErrorBoundary } from '../ui/FeatureErrorBoundary';
@@ -11,6 +11,7 @@ import { ClientBottomNav } from './ClientBottomNav';
 import { CLIENT_ROUTES } from '@/config/routes';
 import { InAppNotificationToast } from '@/components/notifications/InAppNotificationToast';
 import { useCsiActive } from '@/features/csi/hooks/useCsi';
+import { useCsiOwnerReportAccess } from '@/features/csi/hooks/useCsiHc';
 import { CSI_PATHS } from '@/features/csi/lib/useCsiBasePath';
 
 const CLIENT_HOME_PATH = CLIENT_ROUTES.MY_TICKETS;
@@ -27,6 +28,7 @@ const ALL_NAV_ITEMS: ClientNavItem[] = [
 ];
 /** Shown only while the requester has at least one active survey (hidden while loading or on error). */
 const CSI_NAV_ITEM: ClientNavItem = { path: CSI_PATHS.client, label: 'Survei Kepuasan', shortLabel: 'Survei', icon: Star, tone: 'teal' };
+const CSI_REPORT_NAV_ITEM: ClientNavItem = { path: `${CSI_PATHS.client}/report`, label: 'Report CSI Layanan', shortLabel: 'Report CSI', icon: BarChart3, tone: 'teal' };
 
 const ENTRANCE_EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -36,6 +38,7 @@ export const ClientLayout: React.FC = () => {
     const { user, justLoggedIn, setJustLoggedIn } = useAuth();
     const { data: myPermissions } = useMyPermissions();
     const { data: activeSurveys } = useCsiActive();
+    const hasOwnerReport = useCsiOwnerReportAccess();
 
     useEffect(() => {
         if (justLoggedIn) {
@@ -67,8 +70,9 @@ export const ClientLayout: React.FC = () => {
         return myPermissions.pageAccess[item.pageKey] === true;
     });
     // The survey tab sits before Profile so the bottom nav keeps Profile as its last tab.
-    const navItems = activeSurveys?.length
-        ? [...permittedItems.filter(item => item.path !== CLIENT_PROFILE_PATH), CSI_NAV_ITEM,
+    const csiNavItem = activeSurveys?.length ? CSI_NAV_ITEM : hasOwnerReport ? CSI_REPORT_NAV_ITEM : null;
+    const navItems = csiNavItem
+        ? [...permittedItems.filter(item => item.path !== CLIENT_PROFILE_PATH), csiNavItem,
             ...permittedItems.filter(item => item.path === CLIENT_PROFILE_PATH)]
         : permittedItems;
     // The bottom nav only fits a few sections, so a pending survey leads there; the topbar order is unchanged.
