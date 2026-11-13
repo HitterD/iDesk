@@ -274,10 +274,10 @@ export default function AppRoutes() {
                         <Route path="zoom-settings" element={<LazyRoute component={ZoomSettingsPage} featureName="Zoom Settings" allowedRoles={['ADMIN']} />} />
 
                         {/* CSI survey (respondent) */}
-                        <Route path="csi" element={<LazyRoute component={CsiSurveyListPage} featureName="Survei Kepuasan" />} />
+                        <Route path="csi" element={<LazyRoute component={CsiSurveyListPage} featureName="Survei CSI" />} />
                         <Route path="csi/report" element={<LazyRoute component={CsiServiceReportPage} featureName="Report CSI layanan" />} />
                         <Route path="csi/hasil-saya" element={<LazyRoute component={CsiMyResultsPage} featureName="Hasil penilaian saya" />} />
-                        <Route path="csi/:id" element={<LazyRoute component={CsiSurveyPage} featureName="Survei Kepuasan" />} />
+                        <Route path="csi/:id" element={<LazyRoute component={CsiSurveyPage} featureName="Survei CSI" />} />
                         <Route path="csi/admin/:scope" element={<LazyRoute component={CsiAdminPage} featureName="Admin CSI" allowedRoles={['ADMIN', 'MANAGER', 'HC_ADMIN']} />} />
                     </Route>
 
@@ -317,10 +317,10 @@ export default function AppRoutes() {
 
                         <Route path="zoom-calendar" element={<LazyRoute component={ZoomCalendarPage} featureName="Zoom Calendar" requiredPageAccess="zoom_calendar" />} />
                         <Route path="renewal" element={<LazyRoute component={RenewalHubPage} featureName="Renewal Hub" requiredPageAccess="renewal" />} />
-                        <Route path="csi" element={<LazyRoute component={CsiSurveyListPage} featureName="Survei Kepuasan" />} />
+                        <Route path="csi" element={<LazyRoute component={CsiSurveyListPage} featureName="Survei CSI" />} />
                         <Route path="csi/report" element={<LazyRoute component={CsiServiceReportPage} featureName="Report CSI layanan" />} />
                         <Route path="csi/hasil-saya" element={<LazyRoute component={CsiMyResultsPage} featureName="Hasil penilaian saya" />} />
-                        <Route path="csi/:id" element={<LazyRoute component={CsiSurveyPage} featureName="Survei Kepuasan" />} />
+                        <Route path="csi/:id" element={<LazyRoute component={CsiSurveyPage} featureName="Survei CSI" />} />
                         <Route path="csi/admin/:scope" element={<LazyRoute component={CsiAdminPage} featureName="Admin CSI" allowedRoles={['ADMIN', 'MANAGER']} />} />
                     </Route>
 
@@ -361,10 +361,10 @@ export default function AppRoutes() {
                         <Route path="eform-access/:id/credentials" element={<LazyRoute component={EformCredentialPage} featureName="E-Form Credentials" requiredPageAccess="eform_access" />} />
 
                         <Route path="profile" element={<LazyRoute component={ClientProfilePage} featureName="Profile" />} />
-                        <Route path="csi" element={<LazyRoute component={CsiSurveyListPage} featureName="Survei Kepuasan" />} />
+                        <Route path="csi" element={<LazyRoute component={CsiSurveyListPage} featureName="Survei CSI" />} />
                         <Route path="csi/report" element={<LazyRoute component={CsiServiceReportPage} featureName="Report CSI layanan" />} />
                         <Route path="csi/hasil-saya" element={<LazyRoute component={CsiMyResultsPage} featureName="Hasil penilaian saya" />} />
-                        <Route path="csi/:id" element={<LazyRoute component={CsiSurveyPage} featureName="Survei Kepuasan" />} />
+                        <Route path="csi/:id" element={<LazyRoute component={CsiSurveyPage} featureName="Survei CSI" />} />
                         <Route index element={<Navigate to="/client/my-tickets" replace />} />
                     </Route>
 

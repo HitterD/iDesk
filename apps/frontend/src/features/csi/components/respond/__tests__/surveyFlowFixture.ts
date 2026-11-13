@@ -49,17 +49,15 @@ export async function startFilling(user: User, department = 'Produksi') {
     await user.click(await screen.findByRole('button', { name: 'Ya, sudah benar' }));
 }
 
-/** Team → Andi → Budi with every required answer and required comment, ending on the review screen. */
-export async function answerAll(user: User, comment = 'Baik') {
+/** Team → Andi → Budi with every required answer, plus an optional comment on Andi, ending on the review screen. */
+export async function answerAll(user: User, comment?: string) {
     await choose(user, 'Kualitas layanan untuk Tim IT Support', 'Cukup');
-    await user.type(screen.getByLabelText(/Saran untuk Tim IT Support/), 'Mantap');
     await user.click(button(NEXT));
     await rate(user, 'Kecepatan untuk Andi', 5);
     await rate(user, 'Keramahan untuk Andi', 4);
-    await user.type(screen.getByLabelText(/Saran untuk Andi/), comment);
+    if (comment) await user.type(screen.getByLabelText('Saran untuk Andi (opsional)'), comment);
     await user.click(button(NEXT));
     await rate(user, `Kecepatan untuk ${LONG_NAME}`, 3);
-    await user.type(screen.getByLabelText(new RegExp(`Saran untuk ${LONG_NAME}`)), 'Cepat');
     await user.click(button('Tinjau jawaban'));
 }
 
@@ -68,9 +66,4 @@ export const EXPECTED_ITEMS = [
     { periodRateeDimensionId: 'x1', score: 5 },
     { periodRateeDimensionId: 'x2', score: 4 },
     { periodRateeDimensionId: 'y1', score: 3 },
-];
-export const EXPECTED_COMMENTS = [
-    { periodRateeId: 'rt', comment: 'Mantap' },
-    { periodRateeId: 'r1', comment: 'Baik' },
-    { periodRateeId: 'r2', comment: 'Cepat' },
 ];

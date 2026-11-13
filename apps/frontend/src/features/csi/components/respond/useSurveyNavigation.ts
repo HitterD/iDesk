@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { scrollWithin } from '../../lib/scrollWithin';
-import { buildSubmitPayload, isCommentFilled, missingRequired } from '../../lib/csiForm';
+import { buildSubmitPayload, missingRequired } from '../../lib/csiForm';
 import type { CsiOpenForm, SubmitCsiResponse } from '../../types';
 import { answeredScreens, firstIncomplete, type SurveyAnswers } from './useSurveyAnswers';
 
@@ -56,7 +56,7 @@ export function useSurveyNavigation({ form, answers, preview, onSubmit }: Naviga
         setAttempt((count) => count + 1);
     };
     const guardComplete = () => {
-        const pending = firstIncomplete(form, draft.answers, draft.comments);
+        const pending = firstIncomplete(form, draft.answers);
         if (pending === -1) return true;
         if (pending + 1 !== position) goTo(pending + 1);
         flag();
@@ -73,6 +73,5 @@ export function useSurveyNavigation({ form, answers, preview, onSubmit }: Naviga
         onSubmit?.(buildSubmitPayload(form, { name: form.respondent.fullName, departmentId: draft.departmentId, answers: draft.answers, comments: draft.comments }));
     };
     const missing = ratee && flagged ? missingIn(ratee, draft.answers) : NO_MISSING;
-    const commentMissing = Boolean(ratee && flagged && !isCommentFilled(draft.comments[ratee.periodRateeId]));
-    return { position, reviewPosition, ratee, missing, commentMissing, visited, navigated: motion.navigated, direction: motion.direction, goTo, next, submit };
+    return { position, reviewPosition, ratee, missing, visited, navigated: motion.navigated, direction: motion.direction, goTo, next, submit };
 }

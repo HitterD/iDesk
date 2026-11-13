@@ -63,14 +63,14 @@ export function SurveyFlow({ form: source, userId, mode = 'live', onSubmit, subm
                 )}
                 {ratee && (
                     <RateeScreen ratees={form.ratees} index={position - 1} saved={!preview} answers={draft.answers}
-                        comment={draft.comments[ratee.periodRateeId] ?? ''} missing={nav.missing} commentMissing={nav.commentMissing}
-                        isComplete={(item, index) => isRateeComplete(item, draft.answers, nav.visited.has(index), draft.comments[item.periodRateeId])}
+                        comment={draft.comments[ratee.periodRateeId] ?? ''} missing={nav.missing}
+                        isComplete={(item, index) => isRateeComplete(item, draft.answers, nav.visited.has(index))}
                         onAnswer={answers.setAnswer} onComment={(text) => answers.setComment(ratee.periodRateeId, text)}
                         onSelect={(index) => goTo(index + 1)} onBack={() => goTo(position - 1)} onNext={nav.next} />
                 )}
                 {position === nav.reviewPosition && (
                     <ReviewScreen form={form} name={form.respondent.fullName} departmentName={departmentName} answers={draft.answers}
-                        comments={draft.comments} preview={preview} submitting={submitting} failure={failure} onEditIdentity={lockedDepartment ? null : () => goTo(0)}
+                        preview={preview} submitting={submitting} failure={failure} onEditIdentity={lockedDepartment ? null : () => goTo(0)}
                         onEditRatee={(index) => goTo(index + 1)} onBack={() => goTo(position - 1)} onSubmit={nav.submit} />
                 )}
             </ScreenTransition>

@@ -11,6 +11,7 @@ import { useKeyboardShortcuts, KeyboardShortcutsHelp } from '@/hooks/useKeyboard
 import { CommandPalette, useCommandPalette } from '@/components/ui/CommandPalette';
 import { InAppNotificationToast } from '@/components/notifications/InAppNotificationToast';
 import { CriticalNotificationBanner } from '@/components/notifications/CriticalNotificationBanner';
+import { CsiStartupPopup } from '@/features/csi/components/CsiStartupPopup';
 import { useAuth } from '@/stores/useAuth';
 
 /** One-off entrance right after login; route changes use the CSS `.idesk-page-enter` (token-timed). */
@@ -202,6 +203,9 @@ export const BentoLayout = () => {
                 <div className="print:hidden">
                     <CriticalNotificationBanner />
                 </div>
+
+                {/* Initial CSI Survey prompt while an active survey is still unfilled */}
+                <CsiStartupPopup />
             </div>
         </>
     );

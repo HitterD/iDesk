@@ -7,13 +7,13 @@ const SAVE_DEBOUNCE_MS = 300;
 
 type Ratee = CsiOpenForm['ratees'][number];
 
-/** Index of the first ratee with an unanswered required question or missing comment, or -1 when all are complete. */
-export const firstIncomplete = (form: CsiOpenForm, answers: CsiAnswers, comments: CsiComments = {}) =>
-    form.ratees.findIndex((ratee) => missingRequired(ratee, answers).length > 0 || !isCommentFilled(comments[ratee.periodRateeId]));
+/** Index of the first ratee with an unanswered required question, or -1 when all are complete. */
+export const firstIncomplete = (form: CsiOpenForm, answers: CsiAnswers) =>
+    form.ratees.findIndex((ratee) => missingRequired(ratee, answers).length > 0);
 
-/** Chip tick: the screen was visited and every required question + comment on it is filled. */
-export const isRateeComplete = (ratee: Ratee, answers: CsiAnswers, visited: boolean, comment?: string) =>
-    visited && missingRequired(ratee, answers).length === 0 && isCommentFilled(comment);
+/** Chip tick: the screen was visited and every required question on it is answered. */
+export const isRateeComplete = (ratee: Ratee, answers: CsiAnswers, visited: boolean) =>
+    visited && missingRequired(ratee, answers).length === 0;
 
 /** Screens a restored draft already answered or commented on count as visited. */
 export const answeredScreens = (form: CsiOpenForm, answers: CsiAnswers, comments: CsiComments = {}): number[] =>
@@ -26,7 +26,7 @@ function resumePosition(form: CsiOpenForm, draft: SurveyDraft): number {
     if (!draft.departmentId) return 0;
     const reviewPosition = form.ratees.length + 1;
     if (draft.position < reviewPosition) return draft.position;
-    const pending = firstIncomplete(form, draft.answers, draft.comments);
+    const pending = firstIncomplete(form, draft.answers);
     return pending === -1 ? reviewPosition : pending + 1;
 }
 

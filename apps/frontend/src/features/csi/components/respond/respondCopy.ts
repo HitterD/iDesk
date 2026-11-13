@@ -24,9 +24,8 @@ export const RESPOND_COPY = {
     scrollLeft: 'Geser kiri',
     scrollRight: 'Geser kanan',
     missingAnswer: 'Belum dijawab',
-    missingComment: 'Saran wajib diisi',
-    incompleteBadge: 'Belum lengkap',
     required: 'wajib',
+    incompleteBadge: 'Belum lengkap',
     commentPlaceholder: 'Tulis saran atau apresiasi…',
     reviewTitle: 'Tinjau jawaban',
     reviewHint: 'Periksa kembali sebelum mengirim. Survei hanya bisa dikirim satu kali untuk setiap akun.',
@@ -56,13 +55,8 @@ export const thankYouName = (name: string) => `Terima kasih, ${name}!`;
 export const thankYouSummary = (count: number) => `Penilaian Anda untuk ${count} tim/orang sudah terkirim.`;
 export const confirmDepartmentText = (name: string) => `Departemen Anda: ${name}. Pilihan ini tidak bisa diubah lagi untuk survei berikutnya. Sudah benar?`;
 export const missingText = (count: number) => `${count} pertanyaan wajib belum dijawab`;
-export const missingSummary = (questionCount: number, commentMissing: boolean) => {
-    if (questionCount > 0 && commentMissing) return `${questionCount} pertanyaan wajib dan saran belum diisi`;
-    if (questionCount > 0) return missingText(questionCount);
-    return commentMissing ? RESPOND_COPY.missingComment : '';
-};
-export const reviewIncompleteHint = (count: number) => `Masih ada ${count} tim/orang yang belum lengkap penilaian atau sarannya.`;
-export const commentLabel = (name: string) => `Saran untuk ${name}`;
+export const reviewIncompleteHint = (count: number) => `Masih ada ${count} tim/orang yang belum lengkap penilaiannya.`;
+export const commentLabel = (name: string) => `Saran untuk ${name} (opsional)`;
 export const ratingLabel = (question: string, name: string) => `${question} untuk ${name}`;
 export const averageLabel = (value: string) => `Rata-rata ${value} dari 5`;
 export const otherAnswersText = (count: number) => `${count} jawaban lain`;

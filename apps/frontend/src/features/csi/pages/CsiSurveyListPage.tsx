@@ -12,7 +12,7 @@ import { formatDate } from '../lib/format';
 import { CSI_CARD, FadeIn } from '../components/CsiSurveyParts';
 
 const SKELETON_ROWS = 2;
-export const CSI_SURVEY_PAGE_TITLE = 'Survei Kepuasan';
+export const CSI_SURVEY_PAGE_TITLE = 'Survei CSI';
 
 export function CsiSurveyListPage() {
     const basePath = useCsiBasePath();

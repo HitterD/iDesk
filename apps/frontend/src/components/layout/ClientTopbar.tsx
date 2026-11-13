@@ -28,6 +28,8 @@ export interface ClientNavItem {
     tone: NavTone;
     pageKey?: string;
     exact?: boolean;
+    /** Optional pending count pill (used for unfilled CSI surveys). */
+    badge?: number;
 }
 
 export interface ClientAccount {
@@ -82,6 +84,11 @@ export const ClientTopbar: React.FC<ClientTopbarProps> = ({
                         >
                             <span className="nav-tile portal-tab-tile" data-tone={item.tone}><Icon aria-hidden="true" /></span>
                             <span>{item.shortLabel ?? item.label}</span>
+                            {item.badge != null && item.badge > 0 && (
+                                <span className="ml-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-400 px-1.5 text-[10.5px] font-bold leading-none text-slate-950 tabular-nums">
+                                    {item.badge}
+                                </span>
+                            )}
                         </Link>
                     );
                 })}
@@ -123,7 +130,12 @@ export const ClientTopbar: React.FC<ClientTopbarProps> = ({
                                 <DropdownMenuItem key={item.path} asChild>
                                     <Link to={item.path} aria-current={isActive(item) ? 'page' : undefined}>
                                         <Icon aria-hidden="true" />
-                                        {item.label}
+                                        <span className="flex-1">{item.label}</span>
+                                        {item.badge != null && item.badge > 0 && (
+                                            <span className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-400 px-1.5 text-[10.5px] font-bold leading-none text-slate-950 tabular-nums">
+                                                {item.badge}
+                                            </span>
+                                        )}
                                     </Link>
                                 </DropdownMenuItem>
                             );
