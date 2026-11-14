@@ -103,6 +103,7 @@ function SurveyForm({ form, basePath, userId }: { form: CsiOpenForm; basePath: s
             <FadeIn className="mb-4 pt-1"><BackLink to={basePath} /></FadeIn>
             <RespondentFlow form={form} userId={userId}
                 onSaveDraft={handleSaveDraft}
+                onSaveDraftKeepalive={(payload) => CsiApi.saveDraftKeepalive?.(form.id, payload)}
                 onSubmit={(payload) => { setLastPayload(payload); submit.mutate(payload); }}
                 submitting={submit.isPending} error={submit.error} />
         </div>
@@ -114,7 +115,7 @@ export function CsiSurveyPage() {
     const basePath = useCsiBasePath();
     const userId = useAuth((state) => state.user?.id ?? '');
     const { data: form, error, isLoading, refetch } = useCsiForm(id);
-    useClearDraftWhen(errorStatus(error) === CSI_HTTP_GONE, userId, id);
+    useClearDraftWhen(errorStatus(error) === CSI_HTTP_GONE || Boolean(form && hasAnswered(form)), userId, id);
 
     if (isLoading) return <SurveySkeleton />;
     if (error || !form) {

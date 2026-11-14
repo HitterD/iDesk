@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft } from 'lucide-react';
-import { draftKey, loadDraft, pickKey, toServerDraft } from '../../lib/surveyDraft';
+import { draftKey, fromServerDraft, loadDraft, pickKey, toServerDraft } from '../../lib/surveyDraft';
 import type { CsiOpenForm, SubmitCsiResponse } from '../../types';
 import { PicPicker } from './PicPicker';
 import { SurveyFlow, type SurveyFlowProps } from './SurveyFlow';
@@ -45,12 +45,25 @@ function initialPicks(form: CsiOpenForm, userId: string, live: boolean, key: str
     return { selected: local, fromServer: false };
 }
 
+function buildPicksDraftPayload(userId: string, form: CsiOpenForm, selected: ReadonlySet<string>) {
+    const local = loadDraft(draftKey(userId, form.id), form);
+    const server = form.draft ? fromServerDraft(form.draft, form) : null;
+    const base = local ?? server ?? {
+        respondentName: form.respondent.fullName,
+        departmentId: form.respondent.departmentId ?? '',
+        answers: {},
+        comments: {},
+        position: 0,
+    };
+    return toServerDraft(base, form, selected.size ? [...selected] : null);
+}
+
 /**
  * HC per PIC ("respondentPicks"): step 0 picks the PICs, then the normal flow (identity → one screen per picked PIC
  * → review) runs on a form narrowed to them. ICT and periods without picking use SurveyFlow unchanged.
  */
 export function PicSurveyFlow(props: SurveyFlowProps) {
-    const { form, userId, mode = 'live', onSubmit, onSaveDraft } = props;
+    const { form, userId, mode = 'live', onSubmit, onSaveDraft, onSaveDraftKeepalive } = props;
     const live = mode === 'live';
     const key = live && userId ? pickKey(userId, form.id) : null;
     const valid = useMemo(() => new Set(form.ratees.map((ratee) => ratee.periodRateeId)), [form.ratees]);
@@ -58,42 +71,38 @@ export function PicSurveyFlow(props: SurveyFlowProps) {
     const [selected, setSelected] = useState<Set<string>>(initialSelected);
     const [rating, setRating] = useState(() => initialSelected.size > 0);
     const pendingSync = useRef(false);
-    const latest = useRef({ form, userId, selected, rating, onSaveDraft, live });
-    latest.current = { form, userId, selected, rating, onSaveDraft, live };
+    const latest = useRef({ form, userId, selected, rating, onSaveDraft, onSaveDraftKeepalive, live });
+    latest.current = { form, userId, selected, rating, onSaveDraft, onSaveDraftKeepalive, live };
 
     useEffect(() => {
         if (fromServer && key) savePicks(key, initialSelected);
     }, [fromServer, key, initialSelected]);
 
-    const syncPicks = useRef(() => {
+    const syncPicks = useRef((preferKeepalive = false) => {
         const cur = latest.current;
-        if (!cur.live || !cur.userId || !cur.onSaveDraft || !pendingSync.current || cur.rating) return;
+        if (!cur.live || !cur.userId || !pendingSync.current || cur.rating) return;
+        const persist = preferKeepalive && cur.onSaveDraftKeepalive ? cur.onSaveDraftKeepalive : cur.onSaveDraft;
+        if (!persist) return;
         pendingSync.current = false;
-        const stored = loadDraft(draftKey(cur.userId, cur.form.id), cur.form) ?? {
-            respondentName: cur.form.respondent.fullName,
-            departmentId: cur.form.respondent.departmentId ?? '',
-            answers: {},
-            comments: {},
-            position: 0,
-        };
-        void Promise.resolve(cur.onSaveDraft(toServerDraft(stored, cur.form, [...cur.selected]))).catch(() => undefined);
+        void Promise.resolve(persist(buildPicksDraftPayload(cur.userId, cur.form, cur.selected))).catch(() => undefined);
     });
 
     useEffect(() => {
         if (!pendingSync.current || rating) return undefined;
-        const timer = window.setTimeout(syncPicks.current, 500);
+        const timer = window.setTimeout(() => syncPicks.current(false), 500);
         return () => window.clearTimeout(timer);
     }, [selected, rating]);
 
     useEffect(() => {
-        const flush = () => syncPicks.current();
+        const flush = () => syncPicks.current(false);
+        const flushUnload = () => syncPicks.current(true);
         const onVis = () => { if (document.visibilityState === 'hidden') flush(); };
-        window.addEventListener('pagehide', flush);
-        window.addEventListener('beforeunload', flush);
+        window.addEventListener('pagehide', flushUnload);
+        window.addEventListener('beforeunload', flushUnload);
         document.addEventListener('visibilitychange', onVis);
         return () => {
-            window.removeEventListener('pagehide', flush);
-            window.removeEventListener('beforeunload', flush);
+            window.removeEventListener('pagehide', flushUnload);
+            window.removeEventListener('beforeunload', flushUnload);
             document.removeEventListener('visibilitychange', onVis);
             flush();
         };
@@ -103,19 +112,12 @@ export function PicSurveyFlow(props: SurveyFlowProps) {
     const choose = (ids: Set<string>) => {
         setSelected(ids);
         savePicks(key, ids);
-        if (live && onSaveDraft) pendingSync.current = true;
+        if (live && (onSaveDraft || onSaveDraftKeepalive)) pendingSync.current = true;
     };
     const startRating = () => {
         pendingSync.current = false;
         if (live && onSaveDraft && selected.size) {
-            const stored = loadDraft(draftKey(userId, form.id), form) ?? {
-                respondentName: form.respondent.fullName,
-                departmentId: form.respondent.departmentId ?? '',
-                answers: {},
-                comments: {},
-                position: 0,
-            };
-            void Promise.resolve(onSaveDraft(toServerDraft(stored, form, [...selected]))).catch(() => undefined);
+            void Promise.resolve(onSaveDraft(buildPicksDraftPayload(userId, form, selected))).catch(() => undefined);
         }
         setRating(true);
     };
@@ -128,8 +130,8 @@ export function PicSurveyFlow(props: SurveyFlowProps) {
                 className="mb-3 inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1.5 text-[13px] font-medium text-foreground hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />{`Ubah pilihan PIC (${selected.size})`}
             </button>
-            {/* Remount when the picks change so the stepper starts from the picked list. */}
-            <SurveyFlow key={[...selected].sort().join(',')} {...props} form={narrowed}
+            {/* Remount when the picks change so the stepper adjusts to the current picked list while storageForm retains unselected answers. */}
+            <SurveyFlow key={[...selected].sort().join(',')} {...props} form={narrowed} storageForm={form}
                 onSubmit={(payload: SubmitCsiResponse) => onSubmit?.(payload)} />
         </div>
     );

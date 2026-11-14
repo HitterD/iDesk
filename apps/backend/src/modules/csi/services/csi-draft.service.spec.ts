@@ -11,6 +11,7 @@ describe('CsiDraftService', () => {
     const DIM_STAR = '55555555-5555-4555-8555-555555555555';
     const DIM_TEXT = '66666666-6666-4666-8666-666666666666';
     const DIM_CHOICE = '77777777-7777-4777-8777-777777777777';
+    const DIM_SCALE = '88888888-8888-4888-8888-888888888888';
 
     const makeHarness = (overrides?: { submittedAt?: Date | null; respondentPicks?: boolean }) => {
         const draftsRepo = {
@@ -28,6 +29,7 @@ describe('CsiDraftService', () => {
                     { id: DIM_STAR, periodRateeId: RATEE_ID, type: CsiQuestionType.STAR, options: null },
                     { id: DIM_TEXT, periodRateeId: RATEE_ID, type: CsiQuestionType.TEXT, options: null },
                     { id: DIM_CHOICE, periodRateeId: RATEE_ID, type: CsiQuestionType.CHOICE, options: [{ label: 'A', points: 1 }, { label: 'B', points: 2 }] },
+                    { id: DIM_SCALE, periodRateeId: RATEE_ID, type: CsiQuestionType.SCALE, options: [{ label: 'Sangat baik', points: 5 }, { label: 'Cukup', points: 3 }] },
                 ],
                 departmentIds: new Set([DEPT_ID]),
                 submittedAt: overrides?.submittedAt ?? null,
@@ -66,12 +68,13 @@ describe('CsiDraftService', () => {
             PERIOD_ID,
             {
                 departmentId: DEPT_ID,
-                position: 5, // clamped to ratees.length (1)
+                position: 5, // clamped to reviewPosition (ratees.length + 1 = 2)
                 answers: {
                     [RATEE_ID]: {
                         [DIM_STAR]: 4,
                         [DIM_TEXT]: '  Respons cepat  ',
                         [DIM_CHOICE]: 1,
+                        [DIM_SCALE]: 0,
                         'unknown-dim': 5,
                     },
                     'unknown-ratee': { [DIM_STAR]: 5 },
@@ -90,12 +93,13 @@ describe('CsiDraftService', () => {
                 periodId: PERIOD_ID,
                 respondentId: USER_ID,
                 departmentId: DEPT_ID,
-                position: 1,
+                position: 2,
                 answers: {
                     [RATEE_ID]: {
                         [DIM_STAR]: 4,
                         [DIM_TEXT]: 'Respons cepat',
                         [DIM_CHOICE]: 1,
+                        [DIM_SCALE]: 0,
                     },
                 },
                 comments: { [RATEE_ID]: 'Bagus' },
@@ -106,8 +110,8 @@ describe('CsiDraftService', () => {
         );
         expect(res.draft).toEqual({
             departmentId: DEPT_ID,
-            position: 1,
-            answers: { [RATEE_ID]: { [DIM_STAR]: 4, [DIM_TEXT]: 'Respons cepat', [DIM_CHOICE]: 1 } },
+            position: 2,
+            answers: { [RATEE_ID]: { [DIM_STAR]: 4, [DIM_TEXT]: 'Respons cepat', [DIM_CHOICE]: 1, [DIM_SCALE]: 0 } },
             comments: { [RATEE_ID]: 'Bagus' },
             picks: [RATEE_ID],
             updatedAt: '2026-11-14T10:00:00.000Z',

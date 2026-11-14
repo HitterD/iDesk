@@ -48,6 +48,9 @@ export const BentoLayout = () => {
     useLayoutEffect(() => {
         window.scrollTo?.({ top: 0, left: 0, behavior: 'instant' });
         if (shellRef.current) shellRef.current.scrollTop = 0;
+    }, [location.pathname, location.search]);
+
+    useLayoutEffect(() => {
         mainRef.current?.scrollTo?.({ top: 0, behavior: 'instant' });
     }, [location.pathname]);
 

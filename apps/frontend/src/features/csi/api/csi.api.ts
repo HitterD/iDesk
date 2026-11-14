@@ -48,6 +48,24 @@ export const CsiApi = {
         // Silent background persistence: transient errors stay in localStorage without interrupting the respondent.
         return (await api.put<{ draft: CsiServerDraft | null }>(`/csi/me/periods/${encodeURIComponent(id)}/draft`, payload, { skipToast: true })).data;
     },
+    saveDraftKeepalive(id: string, payload: SaveCsiDraft): void {
+        // Keepalive survives tab/browser close during pagehide/beforeunload where standard XHR/axios is aborted.
+        try {
+            const csrf = document.cookie.split(';').map((c) => c.trim()).find((c) => c.startsWith('csrf-token='))?.slice('csrf-token='.length);
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (csrf) headers['X-CSRF-TOKEN'] = decodeURIComponent(csrf);
+            const baseUrl = import.meta.env.VITE_API_URL || '';
+            void fetch(`${baseUrl}/v1/csi/me/periods/${encodeURIComponent(id)}/draft`, {
+                method: 'PUT',
+                credentials: 'include',
+                keepalive: true,
+                headers,
+                body: JSON.stringify(payload),
+            }).catch(() => undefined);
+        } catch {
+            // Silent fallback: localStorage already holds the draft on this device.
+        }
+    },
     async submit(id: string, payload: SubmitCsiResponse): Promise<CsiSubmitResult> {
         return (await api.post<CsiSubmitResult>(`/csi/me/periods/${encodeURIComponent(id)}/responses`, payload, { skipToast: true })).data;
     },

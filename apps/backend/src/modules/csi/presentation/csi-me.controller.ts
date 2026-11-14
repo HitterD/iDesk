@@ -49,7 +49,8 @@ export class CsiMeController {
     @Post('periods/:id/responses')
     async submit(@Req() req: CsiMeRequest, @Param('id', CSI_ID_PIPE) id: string, @Body() dto: SubmitResponseDto) {
         const result = await this.respondent.submit(toRespondent(req), id, dto);
-        await this.drafts.clear(req.user.userId, id);
+        // Best-effort cleanup after commit; getForm/save already ignore drafts once submittedAt exists.
+        await this.drafts.clear(req.user.userId, id).catch(() => undefined);
         return result;
     }
 }

@@ -1,3 +1,6 @@
+/** Live draft synchronization status shown in the survey rail header. */
+export type DraftSyncStatus = 'idle' | 'saving' | 'saved' | 'local';
+
 /** UI copy for the respondent survey flow (exact approved wording). */
 export const RESPOND_COPY = {
     start: 'Mulai mengisi',
@@ -19,6 +22,9 @@ export const RESPOND_COPY = {
     railDoneSuffix: 'selesai',
     railPending: 'Belum',
     autosaved: 'Tersimpan otomatis',
+    autosaving: 'Menyimpan...',
+    autosavedServer: 'Draft tersimpan',
+    autosavedLocal: 'Tersimpan di perangkat',
     allButton: 'Semua',
     allSubjects: 'Semua yang Anda nilai',
     close: 'Tutup',
