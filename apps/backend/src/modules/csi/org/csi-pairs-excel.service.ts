@@ -78,8 +78,8 @@ export class CsiPairsExcelService {
             const org = orgByNik.get(nik);
             const pic = picById.get(ratee.picId!);
             return [[
-                nik, sanitizeCell(rater.user?.fullName), sanitizeCell(org?.division), sanitizeCell(org?.department), sanitizeCell(normalizeBagian(org?.bagian)),
-                locationLabel(locationOfWorkLocation(org?.workLocation)) ?? '', ratee.serviceCode ?? '', sanitizeCell(ratee.bagian), pic?.nik ?? '', sanitizeCell(ratee.displayName),
+                sanitizeCell(nik), sanitizeCell(rater.user?.fullName), sanitizeCell(org?.division), sanitizeCell(org?.department), sanitizeCell(normalizeBagian(org?.bagian)),
+                sanitizeCell(locationLabel(locationOfWorkLocation(org?.workLocation))), sanitizeCell(ratee.serviceCode), sanitizeCell(ratee.bagian), sanitizeCell(pic?.nik), sanitizeCell(ratee.displayName),
             ]];
         }).sort((a, b) => String(a[2]).localeCompare(String(b[2])) || String(a[1]).localeCompare(String(b[1])) || String(a[9]).localeCompare(String(b[9])));
         const workbook = new ExcelJS.Workbook();
@@ -91,7 +91,7 @@ export class CsiPairsExcelService {
         ], rows);
         addStyledSheet(workbook, PIC_SHEET, [
             { header: 'NIK PIC', width: 14 }, { header: 'Nama PIC', width: 30 }, { header: 'Layanan', width: 10 }, { header: 'Bagian PIC', width: 30 }, { header: 'Jabatan', width: 32 },
-        ], picRatees.map((ratee) => [picById.get(ratee.picId!)?.nik ?? '', sanitizeCell(ratee.displayName), ratee.serviceCode ?? '', sanitizeCell(ratee.bagian), sanitizeCell(ratee.jobTitle)]));
+        ], picRatees.map((ratee) => [sanitizeCell(picById.get(ratee.picId!)?.nik), sanitizeCell(ratee.displayName), sanitizeCell(ratee.serviceCode), sanitizeCell(ratee.bagian), sanitizeCell(ratee.jobTitle)]));
         addGuideSheet(workbook, 'Cara pakai', 'Siapa menilai siapa', [
             'Satu baris = satu penilai menilai satu PIC.',
             'Yang dibaca saat impor hanya kolom "NIK Penilai" dan "NIK PIC" di sheet "Siapa menilai siapa"; kolom lain sebagai keterangan.',
@@ -107,14 +107,31 @@ export class CsiPairsExcelService {
         const sheetRows = await this.readRows(buffer);
         const picRatees = await this.picRatees(period.id);
         const pics = picRatees.length ? await this.pics.find({ where: { id: In(picRatees.map((ratee) => ratee.picId!)) } }) : [];
-        const rateeByNik = new Map(pics.map((pic) => [pic.nik, picRatees.find((ratee) => ratee.picId === pic.id)!]));
+        const rateeByNik = new Map(pics.map((pic) => [normalizeNik(pic.nik) ?? pic.nik, picRatees.find((ratee) => ratee.picId === pic.id)!]));
         const raterNiks = [...new Set(sheetRows.map((row) => row.raterNik).filter((nik): nik is string => !!nik))];
-        const accounts = raterNiks.length ? await this.users.find({ where: { employeeId: In(raterNiks), isActive: true }, select: { id: true, employeeId: true } }) : [];
-        const userByNik = new Map(accounts.map((user) => [user.employeeId, user.id]));
+        const accounts = raterNiks.length
+            ? await this.users.find({ where: { isActive: true, employeeId: Not(IsNull()) }, select: { id: true, employeeId: true } })
+            : [];
+        const userByNik = new Map<string, string>();
+        const ambiguousNiks = new Set<string>();
+        for (const user of accounts) {
+            const nik = normalizeNik(user.employeeId);
+            if (!nik) continue;
+            const existing = userByNik.get(nik);
+            if (existing && existing !== user.id) {
+                ambiguousNiks.add(nik);
+                userByNik.delete(nik);
+            } else if (!ambiguousNiks.has(nik)) {
+                userByNik.set(nik, user.id);
+            }
+        }
         const problems: CsiPairsImportReport['problems'] = [];
         const pairs = new Map<string, { userId: string; periodRateeId: string }>();
         sheetRows.forEach(({ row, raterNik, picNik }) => {
             if (!raterNik && !picNik) return;
+            if (raterNik && ambiguousNiks.has(raterNik)) {
+                return void problems.push({ row, message: `NIK penilai ${raterNik} dimiliki lebih dari satu akun aktif` });
+            }
             const userId = raterNik ? userByNik.get(raterNik) : undefined;
             const ratee = picNik ? rateeByNik.get(picNik) : undefined;
             if (!userId) return void problems.push({ row, message: `NIK penilai ${raterNik || '(kosong)'} tidak punya akun iDesk aktif` });

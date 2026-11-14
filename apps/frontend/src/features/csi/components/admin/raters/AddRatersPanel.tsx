@@ -117,13 +117,14 @@ function ImportAdd({ scope }: { scope: CsiScopeParam }) {
     const [fileError, setFileError] = useState<string | null>(null);
     const run = useImportCsiRaters(scope);
     const keys = parseRaterKeys(text);
-    const check = (list = keys) => run.mutate({ keys: list, commit: false }, { onSuccess: setResult });
+    const check = (list = keys) => { setResult(null); run.mutate({ keys: list, commit: false }, { onSuccess: setResult }); };
     const commit = () => run.mutate({ keys, commit: true }, {
         onSuccess: (done) => { toast.success(`${done.added} penilai ditambahkan`); setResult(null); setText(''); },
     });
     const upload = async (file: File | undefined) => {
         if (!file) return;
         setFileError(null);
+        setResult(null);
         try {
             const list = await readRaterFile(file);
             setText(list.join('\n'));

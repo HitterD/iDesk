@@ -137,6 +137,8 @@ describe('CSI master scope boundaries', () => {
         expect(query.select).toEqual({ id: true, fullName: true, email: true, jobTitle: true, siteId: true, site: { code: true, name: true } });
         await service.searchUsers('');
         expect(users.find.mock.calls[1][0]).toMatchObject({ where: { isActive: true }, take: 20, order: { fullName: 'ASC' } });
+        await service.searchUsers('50%_test\\x');
+        expect(users.find.mock.calls[2][0].where[0].fullName.value).toBe('%50\\%\\_test\\\\x%');
     });
 
     it('assertPeriodInScope rejects period of other scope or missing period', () => {

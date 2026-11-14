@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import * as fs from 'fs';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { UserRole } from '../../users/enums/user-role.enum';
+import { CsiTeamKind } from '../csi.constants';
 import { CsiSubjectService } from './csi-subject.service';
 
 const ICT = ServiceScope.ICT;
@@ -121,6 +122,8 @@ describe('CsiSubjectService', () => {
 
     it('updates a team name and rejects an unknown or malformed key', async () => {
         await expect(service.update(ICT, `team:${T1}`, { name: 'Tim SPJ' })).resolves.toMatchObject({ name: 'Tim SPJ' });
+        teams.rows.push({ id: 't-dup', scope: ICT, siteId: SPJ.id, kind: CsiTeamKind.SITE, name: 'Tim Kembar', isActive: true });
+        await expect(service.update(ICT, `team:${T1}`, { name: 'Tim Kembar' })).rejects.toThrow('Nama tim sudah dipakai');
         await expect(service.update(ICT, `team:${U1}`, { tagline: 'a' })).rejects.toBeInstanceOf(NotFoundException);
         await expect(service.update(ICT, 'nope', { tagline: 'a' })).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -341,7 +344,8 @@ describe('CsiSubjectService', () => {
                 templatePics.rows.push({ id: 'r5', templateId: 'tpl-krw', picId: P1, teamId: null });
                 const views = await service.viewsFor(HC, [ratee('r-moved', P3, SPJ.id), ratee('r-dual', P1, KRW.id)]);
                 expect(views.get('r-moved')).toMatchObject({ siteId: KRW.id, siteCode: 'KRW' });
-                expect(views.get('r-dual')).toMatchObject({ siteId: KRW.id, siteCode: 'KRW' });
+                expect(views.get('r-dual')).toMatchObject({ siteId: KRW.id, siteCode: 'KRW', siteIds: expect.arrayContaining([SPJ.id, KRW.id]) });
+                expect(views.get('r-dual')?.siteIds).toHaveLength(2);
             });
         });
     });

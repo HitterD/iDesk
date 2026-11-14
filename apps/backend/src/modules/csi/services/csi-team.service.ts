@@ -44,7 +44,7 @@ export type CsiTeamDeleteImpact = {
     teamSectionOff: CsiTeamSurveyRef[];
     finishedSurveys: number;
 };
-type ImpactPlan = CsiTeamDeleteImpact & { draftRateeIds: string[] };
+type ImpactPlan = CsiTeamDeleteImpact & { draftRateeIds: string[]; blockedTeamOnly: CsiTeamSurveyRef[] };
 
 /**
  * HC CUSTOM teams of a site (name + layanan, members with or without an account) and edits of any team. The single SITE
@@ -102,7 +102,7 @@ export class CsiTeamService {
     /** Dry run of `remove` (HC; SITE and CUSTOM teams alike). */
     async deleteImpact(scope: ServiceScope, id: string): Promise<CsiTeamDeleteImpact> {
         const manager = this.dataSource.manager;
-        const { draftRateeIds: _ids, ...impact } = await this.planDelete(manager, await this.findTeam(manager, scope, id));
+        const { draftRateeIds: _ids, blockedTeamOnly: _teamOnly, ...impact } = await this.planDelete(manager, await this.findTeam(manager, scope, id));
         return impact;
     }
 
@@ -121,6 +121,9 @@ export class CsiTeamService {
             for (const periodId of [...new Set(candidates.map((ratee) => ratee.periodId))].sort()) await lockPeriodRow(manager, periodId);
             const plan = await this.planDelete(manager, team);
             if (plan.blocked.length) throw new BadRequestException(`${TEAM_IN_USE_MESSAGE}: ${plan.blocked.map((survey) => survey.title).join(', ')}`);
+            if (plan.blockedTeamOnly.length) {
+                throw new BadRequestException(`Tim adalah satu-satunya bagian penilaian aktif di survei: ${plan.blockedTeamOnly.map((survey) => survey.title).join(', ')}`);
+            }
             if (plan.draftRateeIds.length) {
                 const periodRateeId = In(plan.draftRateeIds);
                 await manager.getRepository(CsiPeriodRaterRatee).delete({ periodRateeId });
@@ -187,7 +190,7 @@ export class CsiTeamService {
             ? (await manager.getRepository(CsiResponse).find({ where: { periodId: In(periodIds) }, select: { id: true, periodId: true } })).map((row) => row.periodId)
             : []);
         const now = this.clock();
-        const plan: ImpactPlan = { blocked: [], draftSurveys: [], teamSectionOff: [], finishedSurveys: 0, draftRateeIds: [] };
+        const plan: ImpactPlan = { blocked: [], draftSurveys: [], teamSectionOff: [], finishedSurveys: 0, draftRateeIds: [], blockedTeamOnly: [] };
         const ordered = [...periods].sort((a, b) => a.startDate.localeCompare(b.startDate) || a.title.localeCompare(b.title));
         for (const period of ordered) {
             const stage = surveyStage(period, answered.has(period.id), now);
@@ -199,21 +202,31 @@ export class CsiTeamService {
                 plan.draftRateeIds.push(...ratees.filter((ratee) => ratee.periodId === period.id).map((ratee) => ratee.id));
             }
         }
-        plan.teamSectionOff = await this.draftsLosingLastTeam(manager, plan, periods);
+        const { teamSectionOff, blockedTeamOnly } = await this.draftsLosingLastTeam(manager, plan, periods);
+        plan.teamSectionOff = teamSectionOff;
+        plan.blockedTeamOnly = blockedTeamOnly;
         return plan;
     }
 
     /** Drafts with the team section on whose only TEAM ratees are the ones being removed. */
-    private async draftsLosingLastTeam(manager: EntityManager, plan: ImpactPlan, periods: CsiPeriod[]): Promise<CsiTeamSurveyRef[]> {
+    private async draftsLosingLastTeam(
+        manager: EntityManager,
+        plan: ImpactPlan,
+        periods: CsiPeriod[],
+    ): Promise<{ teamSectionOff: CsiTeamSurveyRef[]; blockedTeamOnly: CsiTeamSurveyRef[] }> {
         const draftIds = plan.draftSurveys.map((survey) => survey.periodId);
-        if (!draftIds.length) return [];
+        if (!draftIds.length) return { teamSectionOff: [], blockedTeamOnly: [] };
         const removed = new Set(plan.draftRateeIds);
         const teamRatees = await manager.getRepository(CsiPeriodRatee).find({
             where: { periodId: In(draftIds), kind: CsiRateeKind.TEAM }, select: { id: true, periodId: true },
         });
         const keepsTeam = new Set(teamRatees.filter((ratee) => !removed.has(ratee.id)).map((ratee) => ratee.periodId));
-        const enabled = new Set(periods.filter((period) => period.teamEnabled).map((period) => period.id));
-        return plan.draftSurveys.filter((survey) => enabled.has(survey.periodId) && !keepsTeam.has(survey.periodId));
+        const byId = new Map(periods.map((period) => [period.id, period]));
+        const losing = plan.draftSurveys.filter((survey) => byId.get(survey.periodId)?.teamEnabled && !keepsTeam.has(survey.periodId));
+        return {
+            teamSectionOff: losing.filter((survey) => byId.get(survey.periodId)?.individualEnabled !== false),
+            blockedTeamOnly: losing.filter((survey) => byId.get(survey.periodId)?.individualEnabled === false),
+        };
     }
 
     /** Checks active and deactivated custom teams alike: a name never matches two teams of a site (template import links by name). */

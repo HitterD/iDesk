@@ -1,8 +1,11 @@
-import { ArrayMaxSize, IsArray, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { MAX_SIGNOFF_COLUMNS, MAX_SIGNOFF_SLOTS } from '../../reports/generators/report-signoff';
 
 const RESET_REASON_MAX = 500;
 export const CSI_REPORT_NOTES_MAX = 2000;
 const SIGNOFF_PARAM_MAX = 8000;
+const SIGNOFF_TEXT_MAX = 200;
 export const CSI_REMINDER_USERS_MAX = 1000;
 
 /** Minimum length is checked in CsiReportService after trimming (CSI_RESET_REASON_MIN). */
@@ -38,4 +41,43 @@ export class SendRemindersDto {
     @ArrayMaxSize(CSI_REMINDER_USERS_MAX, { message: `Maksimal ${CSI_REMINDER_USERS_MAX} pengguna sekali kirim` })
     @IsUUID('all', { each: true, message: 'ID pengguna harus berupa UUID' })
     userIds?: string[];
+}
+
+export class SignoffSlotDto {
+    @IsOptional()
+    @IsString({ message: 'Judul slot harus berupa teks' })
+    @MaxLength(SIGNOFF_TEXT_MAX)
+    title?: string;
+
+    @IsOptional()
+    @IsString({ message: 'Nama penandatangan harus berupa teks' })
+    @MaxLength(SIGNOFF_TEXT_MAX)
+    name?: string;
+
+    @IsOptional()
+    @IsString({ message: 'Jabatan penandatangan harus berupa teks' })
+    @MaxLength(SIGNOFF_TEXT_MAX)
+    role?: string;
+
+    @IsOptional()
+    @IsIn(['left', 'center', 'right'], { message: 'Perataan harus left, center, atau right' })
+    align?: 'left' | 'center' | 'right';
+
+    @IsOptional()
+    @IsBoolean({ message: 'showDate harus berupa boolean' })
+    showDate?: boolean;
+}
+
+export class SaveSignoffDto {
+    @IsOptional()
+    @IsInt({ message: 'Jumlah kolom harus berupa bilangan bulat' })
+    @Min(1)
+    @Max(MAX_SIGNOFF_COLUMNS)
+    columns?: number;
+
+    @IsArray({ message: 'Daftar slot tanda tangan harus berupa array' })
+    @ArrayMaxSize(MAX_SIGNOFF_SLOTS, { message: `Maksimal ${MAX_SIGNOFF_SLOTS} slot tanda tangan` })
+    @ValidateNested({ each: true })
+    @Type(() => SignoffSlotDto)
+    slots: SignoffSlotDto[];
 }

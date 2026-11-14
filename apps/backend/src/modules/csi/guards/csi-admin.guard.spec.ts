@@ -132,8 +132,13 @@ describe('CsiAdminGuard', () => {
         await expect(guard.canActivate(context('hc').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
         expect(cache.getOrSet).toHaveBeenLastCalledWith(`pageAccess:${USER_ID}`, expect.any(Function), 123);
         expect(userRepo.findOne).toHaveBeenCalledWith({
-            where: { id: USER_ID }, select: ['id', 'role', 'appliedPresetId'],
+            where: { id: USER_ID }, select: ['id', 'role', 'appliedPresetId', 'isActive'],
         });
+    });
+
+    it('denies a deactivated user even if their role/preset would otherwise allow', async () => {
+        userRepo.findOne.mockResolvedValue({ id: USER_ID, role: UserRole.ADMIN, isActive: false });
+        await expect(guard.canActivate(context('hc').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('propagates lookup failures without granting access', async () => {

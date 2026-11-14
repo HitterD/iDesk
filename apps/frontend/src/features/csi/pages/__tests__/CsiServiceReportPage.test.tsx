@@ -93,4 +93,12 @@ describe('CsiServiceReportPage', () => {
         await userEvent.click(screen.getByRole('button', { name: /^Unduh Excel/ }));
         expect(CsiHcApi.myServiceReportExport).toHaveBeenCalledWith('hc', 'p1', 'HCD');
     });
+
+    it('shows scope-specific empty message when ICT has no published periods', async () => {
+        const { CsiHcApi } = await import('../../api/csiHc.api');
+        fx.access = { hc: [], ict: ['ORACLE'] };
+        vi.mocked(CsiHcApi.myReportPeriods).mockResolvedValueOnce({ services: ['ORACLE'], periods: [] });
+        renderPage();
+        expect(await screen.findByText('Belum ada survei ICT yang terbit.')).toBeInTheDocument();
+    });
 });

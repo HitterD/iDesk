@@ -11,10 +11,11 @@ import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
+import { CsiResponseDraft } from '../entities/csi-response-draft.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { lockPeriodRow } from './csi-period-lock.util';
-import { CsiItemRow, itemsForSite, overallStats, rateeStats, ratingAverage } from './csi-report.calc';
+import { CsiItemRow, overallStats, rateeStats, ratingAverage } from './csi-report.calc';
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiAssignmentService } from './csi-assignment.service';
 import { raterMatrix } from './csi-rater-matrix.calc';
@@ -109,7 +110,7 @@ function resolveSiteFilter(
         return { rateeSites: new Set([siteId]), respondentSites: new Set([siteId]), slaSiteIds: new Set([siteId]) };
     }
     const handledBy = handlers.get(siteId);
-    const hasOwnRatees = data.ratees.some((ratee) => rateeSiteOf(data, ratee) === siteId);
+    const hasOwnRatees = data.ratees.some((ratee) => rateeSitesOf(data, ratee).includes(siteId));
     if (handledBy && !hasOwnRatees) {
         return {
             rateeSites: new Set([siteId, handledBy]),
@@ -161,7 +162,7 @@ export class CsiReportService {
         const raw = await this.loadPeriodData(scope, period);
         const handlers = await this.siteHandlerMap(scope, period);
         const filter = siteId ? resolveSiteFilter(scope, handlers, raw, siteId, true) : null;
-        const data = filter ? narrowToSites(raw, filter) : raw;
+        const data = filter ? narrowToSites(raw, filter, scope) : raw;
         const sites = filter ? allSites.filter((site) => filter.slaSiteIds.has(site.id)) : allSites;
         const comments = await this.rateeComments(data);
         return {
@@ -198,7 +199,7 @@ export class CsiReportService {
     async siteStats(scope: ServiceScope, period: CsiPeriod, siteIds: string[]): Promise<Map<string, CsiSiteStats>> {
         const [data, handlers] = await Promise.all([this.loadPeriodData(scope, period), this.siteHandlerMap(scope, period)]);
         return new Map(siteIds.map((siteId) => {
-            const site = narrowToSites(data, resolveSiteFilter(scope, handlers, data, siteId, false));
+            const site = narrowToSites(data, resolveSiteFilter(scope, handlers, data, siteId, false), scope);
             const people = site.ratees.filter((ratee) => ratee.kind !== CsiRateeKind.TEAM && ratee.userId).map((ratee) => ({
                 userId: ratee.userId!, displayName: ratee.displayName, photoUrl: site.views.get(ratee.id)?.photoUrl ?? null,
                 average: rateeStats(ratee, site.dimensions, site.items).average,
@@ -219,7 +220,7 @@ export class CsiReportService {
         const data = await this.loadPeriodData(scope, previous);
         if (!siteId) return overallScoreOf(scope, data).average;
         const filter = resolveSiteFilter(scope, handlers, data, siteId, true);
-        return overallScoreOf(scope, narrowToSites(data, filter)).average;
+        return overallScoreOf(scope, narrowToSites(data, filter, scope)).average;
     }
 
     private async previousPeriod(
@@ -254,13 +255,13 @@ export class CsiReportService {
         const handlers = await this.siteHandlerMap(scope, period);
         const filter = siteId ? resolveSiteFilter(scope, handlers, raw, siteId, true) : null;
         const sites = filter ? report.period.sites.filter((site) => filter.slaSiteIds.has(site.id)) : report.period.sites;
-        const data = filter ? narrowToSites(raw, filter) : raw;
+        const data = filter ? narrowToSites(raw, filter, scope) : raw;
         // Previous period, per subject (master PIC, else people by name and teams by name + site).
         const previous = await this.previousPeriod(scope, period, siteId, handlers);
         let previousBySubject = new Map<string, number | null>();
         if (previous) {
             const rawBefore = await this.loadPeriodData(scope, previous);
-            const before = siteId ? narrowToSites(rawBefore, resolveSiteFilter(scope, handlers, rawBefore, siteId, true)) : rawBefore;
+            const before = siteId ? narrowToSites(rawBefore, resolveSiteFilter(scope, handlers, rawBefore, siteId, true), scope) : rawBefore;
             previousBySubject = previousSubjectMap(before.ratees.map((ratee) => ({
                 kind: ratee.kind, siteId: rateeSiteOf(before, ratee), picId: ratee.picId ?? null,
                 name: ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || previous.teamLabel : ratee.displayName,
@@ -578,6 +579,7 @@ export class CsiReportService {
             const readers = { items: manager.getRepository(CsiResponseItem), comments: manager.getRepository(CsiResponseComment) };
             const [answer] = await this.buildAnswers(readers, [response]);
             await manager.delete(CsiResponse, { id: responseId });
+            await manager.delete(CsiResponseDraft, { periodId, respondentId: response.respondentId });
             return { response, answer };
         });
         const { response, answer } = snapshot;
@@ -646,22 +648,33 @@ function overallScoreOf(scope: ServiceScope, data: PeriodData): { average: numbe
 }
 
 const rateeSiteOf = (data: Pick<PeriodData, 'views'>, ratee: CsiPeriodRatee) => data.views.get(ratee.id)?.siteId ?? ratee.siteId ?? null;
+const rateeSitesOf = (data: Pick<PeriodData, 'views'>, ratee: CsiPeriodRatee): string[] => {
+    const view = data.views.get(ratee.id);
+    if (view?.siteIds?.length) return view.siteIds;
+    const primary = rateeSiteOf(data, ratee);
+    return primary ? [primary] : [];
+};
 
-/** Site filter: ratees matching `filter.rateeSites` and responses (with items) matching `filter.respondentSites`. */
-function narrowToSites(data: PeriodData, filter: SiteScopeFilter): PeriodData {
-    const ratees = data.ratees.filter((ratee) => {
-        const site = rateeSiteOf(data, ratee);
-        return !!site && filter.rateeSites.has(site);
+/**
+ * Site filter: ratees matching `filter.rateeSites` (or rated by `filter.respondentSites` in HC cross-site reports)
+ * and responses (with items) matching `filter.respondentSites`.
+ */
+function narrowToSites(data: PeriodData, filter: SiteScopeFilter, scope: ServiceScope): PeriodData {
+    const responses = data.responses.filter((response) => {
+        const site = response.respondent?.siteId ?? null;
+        return !!site && filter.respondentSites.has(site);
     });
-    const responseSite = new Map(data.responses.map((response) => [response.id, response.respondent?.siteId ?? null]));
-    const rateeSite = new Map(ratees.map((ratee) => [ratee.id, rateeSiteOf(data, ratee)]));
+    const allowedResponseIds = new Set(responses.map((response) => response.id));
+    const ratedBySite = scope === ServiceScope.HC
+        ? new Set(data.items.filter((item) => allowedResponseIds.has(item.responseId)).map((item) => item.periodRateeId))
+        : new Set<string>();
+    const ratees = data.ratees.filter((ratee) =>
+        rateeSitesOf(data, ratee).some((site) => filter.rateeSites.has(site)) || ratedBySite.has(ratee.id));
+    const allowedRateeIds = new Set(ratees.map((ratee) => ratee.id));
     return {
         ...data, ratees,
-        items: itemsForSite(data.items, rateeSite, responseSite, filter.rateeSites, filter.respondentSites),
-        responses: data.responses.filter((response) => {
-            const site = responseSite.get(response.id);
-            return !!site && filter.respondentSites.has(site);
-        }),
+        items: data.items.filter((item) => allowedRateeIds.has(item.periodRateeId) && allowedResponseIds.has(item.responseId)),
+        responses,
     };
 }
 

@@ -5,7 +5,7 @@ import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.
 import { User } from '../../users/entities/user.entity';
 import {
     CSI_ANSWER_TEXT_MAX, CSI_COMMENT_MAX, CSI_OPTION_LABEL_MAX, CSI_RESPONDENT_NAME_MAX, CSI_SCORE_MAX, CSI_SCORE_MIN,
-    CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode,
+    CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode,
 } from '../csi.constants';
 import { CSI_DEPARTMENT_SEPARATOR } from '../csi-departments.data';
 import { SubmitResponseDto } from '../dto/submit.dto';
@@ -18,6 +18,7 @@ import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriodSite } from '../entities/csi-period-site.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
+import { CsiResponseDraft } from '../entities/csi-response-draft.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiAssignmentService } from './csi-assignment.service';
@@ -151,6 +152,8 @@ export class CsiRespondentService {
         const respondentName = accountName(audience.respondent.fullName);
         try {
             await this.dataSource.transaction(async (manager) => {
+                // Advisory lock serialises draft save vs submit; FOR SHARE holds off admin edits on the period row.
+                await manager.query?.('SELECT pg_advisory_xact_lock(hashtext($1))', [`csi-draft:${period.id}:${respondentId}`]);
                 // FOR SHARE: submits for one period don't queue behind each other, while admin edits
                 // (FOR UPDATE on the same row) cannot change what we validate against until we commit.
                 const locked = await lockPeriodRow(manager, period.id, 'pessimistic_read');
@@ -177,9 +180,11 @@ export class CsiRespondentService {
                 const dimensions = rated ? current.dimensions.filter((row) => rated.has(row.periodRateeId)) : current.dimensions;
                 const ratees = rated ? current.ratees.filter((ratee) => rated.has(ratee.id)) : current.ratees;
                 const items = validateItems(dto.items ?? [], dimensions);
+                if (rated && !items.length) throw new BadRequestException(PICK_ONE_MESSAGE);
                 const comments = validateComments(dto.comments ?? [], ratees);
                 const org = orgSnapshot(await this.org.respondentOrg(respondentId), department.name, audience.respondent.profileDepartment);
                 await this.writeResponse(manager, { periodId: period.id, respondentId, respondentName, department, items, comments, now, org });
+                await manager.delete?.(CsiResponseDraft, { periodId: period.id, respondentId });
             });
         } catch (error) {
             if (error instanceof QueryFailedError && (error.driverError as { code?: string })?.code === PG_UNIQUE_VIOLATION) {
@@ -260,7 +265,7 @@ export class CsiRespondentService {
         }
         const rows = await readers.ratees.find({ where: { periodId: period.id }, order: { sortOrder: 'ASC' } });
         // The rater mapping applies to LISTED periods only; OPEN keeps the old "every visible ratee" behaviour.
-        const pairs = period.respondentMode === CsiRespondentMode.LISTED ? await this.pairsWithin(readers, period.id, respondent.id) : null;
+        const pairs = period.respondentMode === CsiRespondentMode.LISTED ? await this.pairsWithin(readers, period, respondent.id) : null;
         const visible = rows.filter((ratee) => isRateeVisible(ratee, period, respondent.id) && (!pairs || pairs.has(ratee.id)));
         if (!visible.length) return null;
         const dimensions = await this.dimensionsOf(readers, visible);
@@ -276,15 +281,17 @@ export class CsiRespondentService {
     }
 
     /**
-     * Mapping of the rater (null = the period has no mapping at all). Inside the submit transaction the read goes through
-     * the transaction's connection; otherwise CsiAssignmentService.pairsFor is the single implementation.
+     * Mapping of the rater (null = no filtering for ALL or legacy periods without pairs). Inside the submit transaction
+     * the read goes through the transaction's connection; otherwise CsiAssignmentService.pairsFor is the single implementation.
      */
-    private async pairsWithin(readers: AssignmentReaders, periodId: string, raterUserId: string): Promise<Set<string> | null> {
-        if (!readers.pairs) return this.assignments.pairsFor(periodId, raterUserId);
-        if (!(await readers.pairs.count({ where: { periodId } }))) return null;
-        const rater = await readers.periodRaters.findOne({ where: { periodId, userId: raterUserId } });
+    private async pairsWithin(readers: AssignmentReaders, period: Pick<CsiPeriod, 'id' | 'pairMode'>, raterUserId: string): Promise<Set<string> | null> {
+        if (!readers.pairs) return this.assignments.pairsFor(period.id, raterUserId);
+        if (period.pairMode === CsiPairMode.ALL) return null;
+        const total = await readers.pairs.count({ where: { periodId: period.id } });
+        if (!total) return period.pairMode === CsiPairMode.CUSTOM ? new Set() : null;
+        const rater = await readers.periodRaters.findOne({ where: { periodId: period.id, userId: raterUserId } });
         if (!rater) return new Set();
-        const rows = await readers.pairs.find({ where: { periodId, periodRaterId: rater.id } });
+        const rows = await readers.pairs.find({ where: { periodId: period.id, periodRaterId: rater.id } });
         return new Set(rows.map((row) => row.periodRateeId));
     }
 
@@ -453,11 +460,13 @@ function orgSnapshot(org: CsiRespondentOrg, chosenDepartment: string, profileDep
     };
 }
 
-/** Ratees that received at least one answer (the PICs a respondent picked). Unknown ids are rejected later. */
+/** Ratees that received at least one non-empty answer (the PICs a respondent picked). Unknown ids are rejected later. */
 function pickedRatees(items: SubmitResponseDto['items'], dimensions: CsiPeriodRateeDimension[]): Set<string> {
-    const rateeOf = new Map(dimensions.map((dimension) => [dimension.id, dimension.periodRateeId]));
+    const dimensionOf = new Map(dimensions.map((dimension) => [dimension.id, dimension]));
     return new Set(items.flatMap((item) => {
-        const rateeId = rateeOf.get(item.periodRateeDimensionId);
-        return rateeId ? [rateeId] : [];
+        const dimension = dimensionOf.get(item.periodRateeDimensionId);
+        if (!dimension) return [];
+        if (dimension.type === CsiQuestionType.TEXT && (typeof item.text !== 'string' || !item.text.trim())) return [];
+        return [dimension.periodRateeId];
     }));
 }

@@ -164,4 +164,23 @@ describe('report PDF formatting', () => {
         expect(drawn.filter((t) => t === 'BANNER X')).toHaveLength(3);
         expect(drawn.filter((t) => t === 'CATATAN Y')).toHaveLength(3);
     });
+
+    it('scoreBars paginates long lists across pages instead of overflowing the bottom margin', () => {
+        const PDFDocument = require('pdfkit');
+        const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+        doc.on('data', () => undefined);
+        const spy = jest.spyOn(doc, 'text');
+        const canvas = new ReportCanvas(doc, new Logger('test'));
+        const rows = Array.from({ length: 45 }, (_, i) => ({ label: `PIC ${i}`, value: 4.2, text: '4,20', color: '#1E7D46' }));
+        canvas.scoreBars([{ title: 'Nilai per PIC', max: 5, rows }]);
+        const pages = doc.bufferedPageRange().count;
+        doc.end();
+        expect(pages).toBeGreaterThan(1);
+        const drawn = spy.mock.calls.map((call) => String(call[0]));
+        expect(drawn).toContain('PIC 0');
+        expect(drawn).toContain('PIC 44');
+        expect(drawn).toContain('Nilai per PIC (lanjutan)');
+        const maxTextY = Math.max(...spy.mock.calls.map((call) => Number(call[2])));
+        expect(maxTextY).toBeLessThan(800);
+    });
 });

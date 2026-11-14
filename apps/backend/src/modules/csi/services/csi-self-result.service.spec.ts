@@ -147,6 +147,16 @@ describe('CsiSelfResultService', () => {
         expect(await service.list('u-nobody', NOW)).toEqual([]);
     });
 
+    it('hides results from the previous account once a PIC is unlinked or reassigned', async () => {
+        ratees.rows[0] = { ...ratees.rows[0], userId: 'u-rara', picId: 'pic-rara' };
+        pics.rows.push({ id: 'pic-rara', userId: null });
+        expect(await service.list('u-rara', NOW)).toEqual([]);
+
+        pics.rows[0].userId = 'u-new';
+        expect(await service.list('u-rara', NOW)).toEqual([]);
+        expect((await service.list('u-new', NOW)).map((row) => row.periodId)).toEqual(['p1']);
+    });
+
     it('ICT agents see results of ICT surveys created with self results on, never of older ICT surveys', async () => {
         // The flag, not a date: an old ICT survey created minutes before the release must stay hidden whatever the timezones.
         const ict = (id: string, selfResults: boolean) => ({ id: `r-${id}`, periodId: id, userId: 'u-agent', kind: 'PERSON', serviceFunction: 'Oracle EBS',

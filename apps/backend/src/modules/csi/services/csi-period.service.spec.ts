@@ -23,7 +23,11 @@ function matches(row: Record<string, any>, where: Record<string, any> = {}): boo
         if (value && typeof value === 'object' && '_type' in value) {
             if (value._type === 'in') return value._value.includes(row[key]);
             if (value._type === 'isNull') return row[key] === null || row[key] === undefined;
-            if (value._type === 'not') return row[key] !== value._value;
+            if (value._type === 'not') {
+                return value._value && typeof value._value === 'object' && '_type' in value._value
+                    ? !matches(row, { [key]: value._value })
+                    : row[key] !== value._value;
+            }
             if (value._type === 'lessThanOrEqual') return row[key] <= value._value;
             if (value._type === 'moreThanOrEqual') return row[key] >= value._value;
             throw new Error(`Unsupported operator ${value._type}`);
@@ -304,7 +308,7 @@ describe('CsiPeriodService', () => {
             expect(assignments.applyTemplate).not.toHaveBeenCalled();
             manager.saved.length = 0;
             await service.create(ICT, { startDate: '2026-12-01', endDate: '2026-12-31', copyFromPeriodId: 'p1' }, 'admin');
-            expect(assignments.copyPairs).toHaveBeenCalledWith(ICT, 'p1', savedPeriod().id);
+            expect(assignments.copyPairs).toHaveBeenCalledWith(ICT, 'p1', savedPeriod().id, manager);
             expect(assignments.applyTemplate).not.toHaveBeenCalled();
         });
 
@@ -947,10 +951,17 @@ describe('CsiPeriodService', () => {
             expect(periods.save).not.toHaveBeenCalled();
         });
 
-        it('update without a mode change keeps saving outside a transaction', async () => {
+        it('update without a locked-field change locks the row in transaction without blocking on responses', async () => {
+            const txPeriods = memoryRepository<any>(periods.rows);
+            const txResponses = memoryRepository<any>([]);
+            manager.repositories.set(CsiPeriod, txPeriods);
+            manager.repositories.set(CsiResponse, txResponses);
             await service.update(ICT, 'p1', { title: 'Baru', respondentMode: CsiRespondentMode.OPEN });
-            expect(periods.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', title: 'Baru' }));
-            expect(periods.createQueryBuilder).not.toHaveBeenCalled();
+            const builder = txPeriods.createQueryBuilder.mock.results.at(-1)!.value;
+            expect(builder.setLock).toHaveBeenCalledWith('pessimistic_write');
+            expect(txResponses.count).not.toHaveBeenCalled();
+            expect(txPeriods.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', title: 'Baru' }));
+            expect(periods.save).not.toHaveBeenCalled();
         });
 
         it('remove deletes an unlocked period within scope only', async () => {
@@ -1149,7 +1160,7 @@ describe('CsiPeriodService', () => {
         it('ALL clears existing pairs and is never overwritten by the scope template', async () => {
             assignments.hasPairs.mockResolvedValueOnce(true);
             await service.setPairMode(ICT, 'p1', CsiPairMode.ALL);
-            expect((assignments as any).setPairs).toHaveBeenCalledWith(ICT, 'p1', []);
+            expect((assignments as any).setPairs).toHaveBeenCalledWith(ICT, 'p1', [], manager);
             expect(periods.rows[0].pairMode).toBe(CsiPairMode.ALL);
             await service.setRaters(ICT, 'p1', ['u1']);
             expect(assignments.applyTemplate).not.toHaveBeenCalled();
@@ -1179,6 +1190,24 @@ describe('CsiPeriodService', () => {
             assignments.hasPairs.mockResolvedValueOnce(true);
             await service.setRaters(ICT, 'p1', ['u1']);
             expect((assignments as any).syncNewMembersSameSite).toHaveBeenCalledWith(ICT, 'p1', { raterUserIds: expect.any(Set) });
+        });
+
+        it('setPics and setRatees reject userId collisions between PIC and manual user ratees', async () => {
+            periods.rows.push(basePeriod({ id: 'p-hc', scope: HC, publishStatus: CsiPeriodPublishStatus.DRAFT }));
+            ratees.rows.push({ id: 'r-manual', periodId: 'p-hc', kind: CsiRateeKind.PERSON, picId: null, userId: 'u1' });
+            const hcService = new CsiPeriodService(
+                periods as any, ratees as any, rateeDimensions as any, periodRaters as any, responses as any,
+                dimensions as any, users as any, sites as any, departments as any, { transaction: jest.fn(async (work: any) => work(manager)) } as any,
+                assignments as any, subjects as any,
+                { findPics: jest.fn(async () => [{ id: 'pic-1', isActive: true, serviceCode: 'HCC', fullName: 'Pic U1', jobTitle: 'HR', siteId: 'site-a', userId: 'u1', bagian: null, serviceFunction: null }]) } as any,
+            );
+            await expect(hcService.setPics(HC, 'p-hc', ['pic-1'], ['d-hc']))
+                .rejects.toThrow(BadRequestException);
+
+            ratees.rows.length = 0;
+            ratees.rows.push({ id: 'r-pic', periodId: 'p1', kind: CsiRateeKind.PERSON, picId: 'pic-1', userId: 'u1' });
+            await expect(service.setRatees(ICT, 'p1', [{ userId: 'u1', dimensionIds: ['d1'] }]))
+                .rejects.toThrow(BadRequestException);
         });
     });
 });

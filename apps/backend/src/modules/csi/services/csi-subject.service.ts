@@ -1,7 +1,7 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import * as fs from 'fs';
-import { In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, QueryFailedError, Repository } from 'typeorm';
 import { ROLE_SCOPE, ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { Site } from '../../sites/entities/site.entity';
 import { User } from '../../users/entities/user.entity';
@@ -15,6 +15,7 @@ import { CsiPic } from '../entities/csi-pic.entity';
 import { CsiSubjectProfile } from '../entities/csi-subject-profile.entity';
 import { CsiTeamMember } from '../entities/csi-team-member.entity';
 import { CsiTeam } from '../entities/csi-team.entity';
+import { normalizeName } from '../org/csi-name-match';
 import { CsiPicRenameService } from './csi-pic-rename.service';
 import { parseSubjectKey, picSubjectKey, teamSubjectKey, userSubjectKey } from './csi-subject-key.util';
 
@@ -95,7 +96,9 @@ const byServiceThenName = (a: CsiSubjectView, b: CsiSubjectView) =>
     (a.serviceCode ?? NO_SERVICE_SORT_KEY).localeCompare(b.serviceCode ?? NO_SERVICE_SORT_KEY) || a.name.localeCompare(b.name);
 
 /** Resolved display profile of one period ratee. */
-export type CsiRateeView = { siteId: string | null; siteCode: string | null; photoUrl: string | null; tagline: string | null; jobTitle: string | null };
+export type CsiRateeView = {
+    siteId: string | null; siteIds?: string[]; siteCode: string | null; photoUrl: string | null; tagline: string | null; jobTitle: string | null;
+};
 type RateeMaster = { siteId: string | null; photoUrl: string | null; tagline: string | null; jobTitle: string | null };
 
 const unique = (ids: string[]) => [...new Set(ids)];
@@ -149,6 +152,7 @@ export class CsiSubjectService {
         @InjectRepository(CsiAssignmentTemplatePic) private readonly templatePics: Repository<CsiAssignmentTemplatePic>,
         @InjectRepository(CsiTeamMember) private readonly members: Repository<CsiTeamMember>,
         private readonly picRename: CsiPicRenameService,
+        @Optional() @InjectDataSource() private readonly dataSource?: DataSource,
     ) { }
 
     /**
@@ -201,8 +205,9 @@ export class CsiSubjectService {
         return new Map(ratees.map((ratee) => {
             const master = masters.get(ratee.id)!;
             const siteId = siteOf(ratee);
+            const allowed = ratee.kind !== CsiRateeKind.TEAM && ratee.picId ? templateSites.get(ratee.picId) ?? [] : [];
             return [ratee.id, {
-                siteId, siteCode: siteId ? codeOf.get(siteId) ?? null : null,
+                siteId, ...(allowed.length > 1 ? { siteIds: allowed } : {}), siteCode: siteId ? codeOf.get(siteId) ?? null : null,
                 photoUrl: ratee.photoUrl ?? master.photoUrl,
                 tagline: ratee.tagline ?? master.tagline,
                 jobTitle: master.jobTitle ?? ratee.jobTitle ?? null,
@@ -265,7 +270,14 @@ export class CsiSubjectService {
             if (dto.serviceFunction !== undefined) throw new BadRequestException('Fungsi pelayanan hanya untuk orang');
             assertTeamName(dto.name);
             const team = await this.findTeam(scope, ref.id);
-            return teamView(await this.teams.save({ ...team, ...fields, ...(dto.name !== undefined ? { name: dto.name } : {}) }));
+            const trimmedName = dto.name?.trim();
+            if (trimmedName !== undefined && normalizeName(trimmedName) !== normalizeName(team.name)) {
+                const siblings = await this.teams.find({ where: { scope, siteId: team.siteId, kind: team.kind } });
+                if (siblings.some((row) => row.id !== team.id && normalizeName(row.name) === normalizeName(trimmedName))) {
+                    throw new BadRequestException('Nama tim sudah dipakai di site ini');
+                }
+            }
+            return teamView(await this.teams.save({ ...team, ...fields, ...(trimmedName !== undefined ? { name: trimmedName } : {}) }));
         }
         if (dto.name !== undefined) throw new BadRequestException('Nama hanya bisa diubah untuk tim');
         const serviceFunction = dto.serviceFunction === undefined ? {} : { serviceFunction: nullable(dto.serviceFunction?.trim()) ?? null };
@@ -312,11 +324,19 @@ export class CsiSubjectService {
         if (existing) return teamView(existing.isActive === false ? await this.teams.save({ ...existing, isActive: true }) : existing);
         const site = await this.sites.findOne({ where: { id: siteId } });
         if (!site) throw new NotFoundException(SITE_NOT_FOUND_MESSAGE);
-        const saved = await this.teams.save({
-            scope, siteId, kind: CsiTeamKind.SITE, name: `${TEAM_NAME_PREFIX}${site.name}`.slice(0, CSI_TEAM_NAME_MAX),
-            photoUrl: null, tagline: null, jobTitle: null, isActive: true,
-        });
-        return teamView(saved as CsiTeam);
+        try {
+            const saved = await this.teams.save({
+                scope, siteId, kind: CsiTeamKind.SITE, name: `${TEAM_NAME_PREFIX}${site.name}`.slice(0, CSI_TEAM_NAME_MAX),
+                photoUrl: null, tagline: null, jobTitle: null, isActive: true,
+            });
+            return teamView(saved as CsiTeam);
+        } catch (error) {
+            if (error instanceof QueryFailedError && (error.driverError as { code?: string })?.code === '23505') {
+                const winner = await this.teams.findOne({ where: { scope, siteId, kind: CsiTeamKind.SITE } });
+                if (winner) return teamView(winner.isActive === false ? await this.teams.save({ ...winner, isActive: true }) : winner);
+            }
+            throw error;
+        }
     }
 
     /**
@@ -425,6 +445,16 @@ export class CsiSubjectService {
         fields: Partial<{ tagline: string | null; jobTitle: string | null }>): Promise<CsiSubjectView> {
         if (dto.serviceFunction !== undefined) throw new BadRequestException('Fungsi pelayanan PIC diatur di master PIC HC');
         await this.findPic(scope, picId);
+        if (this.dataSource && dto.name !== undefined && Object.keys(fields).length > 0) {
+            const saved = await this.dataSource.transaction(async (manager) => {
+                await this.picRename.rename(scope, picId, dto.name!, manager);
+                const picRepo = manager.getRepository(CsiPic);
+                const current = await picRepo.findOne({ where: { id: picId, scope } });
+                if (!current) throw new NotFoundException(SUBJECT_NOT_FOUND_MESSAGE);
+                return picRepo.save({ ...current, ...fields });
+            });
+            return this.picSubject(saved);
+        }
         if (dto.name !== undefined) await this.picRename.rename(scope, picId, dto.name);
         const pic = await this.findPic(scope, picId);
         return this.picSubject(await this.pics.save({ ...pic, ...fields }));

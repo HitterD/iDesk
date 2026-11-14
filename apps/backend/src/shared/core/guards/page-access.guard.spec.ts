@@ -57,8 +57,13 @@ describe('PageAccessGuard shared resolution regression', () => {
         await expect(guard.canActivate(context())).resolves.toBe(true);
         expect(cache.getOrSet).toHaveBeenCalledWith(`pageAccess:${USER_ID}`, expect.any(Function), 300);
         expect(userRepo.findOne).toHaveBeenCalledWith({
-            where: { id: USER_ID }, select: ['id', 'role', 'appliedPresetId'],
+            where: { id: USER_ID }, select: ['id', 'role', 'appliedPresetId', 'isActive'],
         });
+    });
+
+    it('denies deactivated users', async () => {
+        userRepo.findOne.mockResolvedValue({ id: USER_ID, role: UserRole.ADMIN, isActive: false });
+        await expect(guard.canActivate(context())).rejects.toThrow('User not found');
     });
 
     it('does not merge defaults into an empty preset and retains denial auditing', async () => {

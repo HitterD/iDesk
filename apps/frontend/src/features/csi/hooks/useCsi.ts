@@ -46,7 +46,10 @@ export function useCsiForm(id: string) {
 export function useSubmitCsi(id: string) {
     const form = keys.form(id);
     const others = (scope: CsiScopeParam) => periodKeys(scope, id).filter((key) => JSON.stringify(key) !== JSON.stringify(form));
-    return useCsiMutation((payload: SubmitCsiResponse) => CsiApi.submit(id, payload), () => [...others('ict'), ...others('hc')]);
+    return useCsiMutation((payload: SubmitCsiResponse) => CsiApi.submit(id, payload), () => [
+        ...others('ict'), ...others('hc'), ['csi', 'hc', 'hc-recap', id], ['csi', 'me', 'results'],
+        ['csi', 'me', 'hc', 'report'], ['csi', 'me', 'ict', 'report'],
+    ]);
 }
 
 export function useCsiDimensions(scope: CsiScopeParam, includeInactive = false) {
@@ -134,7 +137,7 @@ export function useSetCsiRatees(scope: CsiScopeParam, id: string) {
     return useCsiMutation((payload: SetCsiRatees) => CsiApi.setRatees(scope, id, payload), () => memberKeys(scope, id));
 }
 export function useSetCsiTeamQuestions(scope: CsiScopeParam, id: string) {
-    return useCsiMutation((payload: SetCsiTeamQuestions) => CsiApi.setTeamQuestions(scope, id, payload), () => periodKeys(scope, id));
+    return useCsiMutation((payload: SetCsiTeamQuestions) => CsiApi.setTeamQuestions(scope, id, payload), () => memberKeys(scope, id));
 }
 export function useSetCsiRaters(scope: CsiScopeParam, id: string) {
     return useCsiMutation((payload: CsiUserIds) => CsiApi.setRaters(scope, id, payload), () => memberKeys(scope, id));

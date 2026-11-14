@@ -1,6 +1,8 @@
 import { ConflictException, ValidationPipe } from '@nestjs/common';
 import { CsiQuestionType } from '../csi.constants';
 import { SaveDraftDto } from '../dto/draft.dto';
+import { CsiResponseDraft } from '../entities/csi-response-draft.entity';
+import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiDraftService } from './csi-draft.service';
 
 describe('CsiDraftService', () => {
@@ -156,5 +158,25 @@ describe('CsiDraftService', () => {
             comments: payload.comments,
             picks: payload.picks,
         }));
+    });
+
+    it('uses advisory lock and rejects inside transaction if a response was submitted concurrently', async () => {
+        const { draftsRepo, respondent } = makeHarness({ submittedAt: null });
+        const txDrafts = { upsert: jest.fn().mockResolvedValue(undefined), delete: jest.fn().mockResolvedValue(undefined) };
+        const txResponses = { count: jest.fn().mockResolvedValue(1) };
+        const txManager = {
+            query: jest.fn().mockResolvedValue([]),
+            getRepository: jest.fn((target: unknown) => {
+                if (target === CsiResponseDraft) return txDrafts;
+                if (target === CsiResponse) return txResponses;
+                throw new Error('unexpected');
+            }),
+        };
+        const dataSource = { transaction: jest.fn(async (work: any) => work(txManager)) };
+        const service = new CsiDraftService(draftsRepo as any, respondent as any, dataSource as any);
+
+        await expect(service.save({ id: USER_ID }, PERIOD_ID, { departmentId: DEPT_ID })).rejects.toThrow(ConflictException);
+        expect(txManager.query).toHaveBeenCalledWith('SELECT pg_advisory_xact_lock(hashtext($1))', [`csi-draft:${PERIOD_ID}:${USER_ID}`]);
+        expect(txDrafts.upsert).not.toHaveBeenCalled();
     });
 });

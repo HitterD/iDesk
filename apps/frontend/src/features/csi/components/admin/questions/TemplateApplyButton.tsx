@@ -29,13 +29,17 @@ export function TemplateApplyButton({ scope, questions, value, disabled, onApply
             onApply(matched.ids);
             return;
         }
-        const created = await apply.mutateAsync(undefined);
-        const byId = new Map<string, CsiDimension>();
-        questions.forEach((question) => byId.set(question.id, question));
-        created.forEach((question) => byId.set(question.id, question));
-        const next = matchTemplateDimensions(scope, [...byId.values()]);
-        if (created.length) toast.success(`${created.length} pertanyaan ${label} ditambahkan & dipilih`);
-        if (next.ids.length) onApply(next.ids);
+        try {
+            const created = await apply.mutateAsync(undefined);
+            const byId = new Map<string, CsiDimension>();
+            questions.forEach((question) => byId.set(question.id, question));
+            created.forEach((question) => byId.set(question.id, question));
+            const next = matchTemplateDimensions(scope, [...byId.values()]);
+            if (created.length) toast.success(`${created.length} pertanyaan ${label} ditambahkan & dipilih`);
+            if (next.ids.length) onApply(next.ids);
+        } catch {
+            // Axios interceptor handles the error toast.
+        }
     };
 
     return (

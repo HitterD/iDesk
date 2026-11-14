@@ -44,6 +44,7 @@ function ExcelRoundTrip({ scope, period }: { scope: CsiScopeParam; period: CsiPe
     };
     const check = (picked: File) => {
         setFile(picked);
+        setReport(null);
         importer.mutate({ file: picked, commit: false }, { onSuccess: setReport });
     };
     const commit = () => file && importer.mutate({ file, commit: true }, {

@@ -79,10 +79,14 @@ export function RaterPicEditor({ scope, period, pics, ratees = pics }: { scope: 
     const toggleMany = (ids: string[], on: boolean) => setSelected((previous) => { const next = new Set(previous); ids.forEach((id) => (on ? next.add(id) : next.delete(id))); return next; });
     const commit = async () => {
         if (!editing) return;
-        for (const userId of editing.userIds) await save.mutateAsync({ userId, periodRateeIds: [...selected] });
-        toast.success(`${editing.userIds.length} penilai disimpan`);
-        setEditing(null);
-        setPeople([]);
+        try {
+            for (const userId of editing.userIds) await save.mutateAsync({ userId, periodRateeIds: [...selected] });
+            toast.success(`${editing.userIds.length} penilai disimpan`);
+            setEditing(null);
+            setPeople([]);
+        } catch {
+            // Axios interceptor displays the server error toast; keep the editor open so selections are not lost.
+        }
     };
     const needle = query.trim().toLowerCase();
     const shown = raters.filter((rater) => !needle || [rater.fullName, rater.nik, rater.division, rater.department, rater.bagian].some((value) => (value ?? '').toLowerCase().includes(needle)));
@@ -127,8 +131,8 @@ export function RaterPicEditor({ scope, period, pics, ratees = pics }: { scope: 
                             </span>
                             {!locked && (
                                 <span className="flex gap-1">
-                                    <Button variant="subtle" size="icon" aria-label={`Ubah PIC untuk ${rater.fullName}`} onClick={() => open([rater.userId], rater.fullName, rater.periodRateeIds)}><Pencil aria-hidden="true" /></Button>
-                                    <Button variant="subtle" size="icon" aria-label={`Hapus ${rater.fullName}`} onClick={() => save.mutate({ userId: rater.userId, periodRateeIds: [] })}><Trash2 aria-hidden="true" /></Button>
+                                    <Button variant="subtle" size="icon" disabled={save.isPending} aria-label={`Ubah PIC untuk ${rater.fullName}`} onClick={() => open([rater.userId], rater.fullName, rater.periodRateeIds)}><Pencil aria-hidden="true" /></Button>
+                                    <Button variant="subtle" size="icon" disabled={save.isPending} aria-label={`Hapus ${rater.fullName}`} onClick={() => save.mutate({ userId: rater.userId, periodRateeIds: [] })}><Trash2 aria-hidden="true" /></Button>
                                 </span>
                             )}
                         </li>

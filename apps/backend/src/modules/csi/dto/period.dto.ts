@@ -10,6 +10,7 @@ const SITES_MAX = 20;
 const PICS_MAX = 500;
 const TARGET_RESPONDENTS_MAX = 100000;
 const QUESTIONS_MAX = 50;
+const RATERS_MAX = 5000;
 const SLA_TARGET_MIN = 1;
 const SLA_TARGET_MAX = 100;
 const SCORE_BAND_DECIMALS = 1;
@@ -133,12 +134,14 @@ export class RateeAssignmentDto {
 
     @IsArray({ message: 'Daftar dimensi harus berupa array' })
     @ArrayMinSize(1, { message: 'Setiap orang yang dinilai wajib memiliki minimal satu dimensi' })
+    @ArrayMaxSize(QUESTIONS_MAX, { message: 'Maksimal 50 dimensi' })
     @IsUUID('all', { each: true, message: 'ID dimensi harus berupa UUID' })
     dimensionIds: string[];
 }
 
 export class SetRateesDto {
     @IsArray({ message: 'Daftar orang yang dinilai harus berupa array' })
+    @ArrayMaxSize(PICS_MAX, { message: 'Maksimal 500 orang yang dinilai' })
     @ValidateNested({ each: true })
     @Type(() => RateeAssignmentDto)
     ratees: RateeAssignmentDto[];
@@ -162,6 +165,7 @@ export class SetTeamQuestionsDto {
     siteId: string;
 
     @IsArray({ message: 'Daftar pertanyaan harus berupa array' })
+    @ArrayMaxSize(QUESTIONS_MAX, { message: 'Maksimal 50 pertanyaan' })
     @IsUUID('all', { each: true, message: 'ID pertanyaan harus berupa UUID' })
     questionIds: string[];
 }
@@ -186,6 +190,7 @@ export class UpdatePeriodRateeDto {
 
 export class SetPeriodRatersDto {
     @IsArray({ message: 'Daftar pengguna harus berupa array' })
+    @ArrayMaxSize(RATERS_MAX, { message: 'Maksimal 5000 penilai' })
     @IsUUID('all', { each: true, message: 'ID pengguna harus berupa UUID' })
     userIds: string[];
 }
@@ -203,12 +208,16 @@ const toList = ({ value }: { value: unknown }) => (Array.isArray(value) ? value 
 export class PeriodOverlapQueryDto {
     @Transform(toList)
     @IsArray({ message: 'Site harus berupa daftar' })
+    @ArrayMinSize(1, { message: 'Pilih minimal satu site' })
+    @ArrayMaxSize(SITES_MAX, { message: 'Maksimal 20 site' })
     @IsUUID('all', { each: true, message: 'Site harus berupa UUID' })
     siteIds: string[];
 
+    @IsDateString({ strict: true }, { message: 'Tanggal mulai tidak valid' })
     @Matches(DATE_ONLY_PATTERN, { message: 'Tanggal mulai harus berformat YYYY-MM-DD' })
     startDate: string;
 
+    @IsDateString({ strict: true }, { message: 'Tanggal selesai tidak valid' })
     @Matches(DATE_ONLY_PATTERN, { message: 'Tanggal selesai harus berformat YYYY-MM-DD' })
     endDate: string;
 

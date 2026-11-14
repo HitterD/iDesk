@@ -1,6 +1,6 @@
-import { ConflictException, Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { ConflictException, Injectable, Optional } from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import {
     CSI_ANSWER_TEXT_MAX,
     CSI_COMMENT_MAX,
@@ -15,6 +15,7 @@ import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiResponseDraft, DraftAnswers, DraftAnswerValue, DraftComments } from '../entities/csi-response-draft.entity';
+import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiRespondentRef, CsiRespondentService } from './csi-respondent.service';
 
 export interface SerializedCsiDraft {
@@ -41,6 +42,8 @@ export class CsiDraftService {
         @InjectRepository(CsiResponseDraft)
         private readonly drafts: Repository<CsiResponseDraft>,
         private readonly respondent: CsiRespondentService,
+        @Optional() @InjectDataSource()
+        private readonly dataSource?: DataSource,
     ) { }
 
     /** Marks unsubmitted active periods with `hasDraft: true` when a saved server draft exists. */
@@ -78,31 +81,42 @@ export class CsiDraftService {
         if (ctx.submittedAt) throw new ConflictException(ALREADY_SUBMITTED_MESSAGE);
 
         const clean = sanitizeDraft(dto, ctx);
-        if (isDraftEmpty(clean)) {
-            await this.drafts.delete({ periodId: ctx.period.id, respondentId: ctx.respondentId });
-            return { draft: null };
-        }
-
-        await this.drafts.upsert(
-            {
-                periodId: ctx.period.id,
-                respondentId: ctx.respondentId,
-                departmentId: clean.departmentId,
-                position: clean.position,
-                answers: clean.answers,
-                comments: clean.comments,
-                picks: clean.picks,
-                updatedAt: now,
-            },
-            ['periodId', 'respondentId'],
-        );
-
-        return {
-            draft: {
-                ...clean,
-                updatedAt: now.toISOString(),
-            },
+        const persist = async (draftRepo: Repository<CsiResponseDraft>, responseRepo?: Repository<CsiResponse>) => {
+            if (responseRepo && (await responseRepo.count({ where: { periodId: ctx.period.id, respondentId: ctx.respondentId } }))) {
+                throw new ConflictException(ALREADY_SUBMITTED_MESSAGE);
+            }
+            if (isDraftEmpty(clean)) {
+                await draftRepo.delete({ periodId: ctx.period.id, respondentId: ctx.respondentId });
+                return { draft: null };
+            }
+            await draftRepo.upsert(
+                {
+                    periodId: ctx.period.id,
+                    respondentId: ctx.respondentId,
+                    departmentId: clean.departmentId,
+                    position: clean.position,
+                    answers: clean.answers,
+                    comments: clean.comments,
+                    picks: clean.picks,
+                    updatedAt: now,
+                },
+                ['periodId', 'respondentId'],
+            );
+            return {
+                draft: {
+                    ...clean,
+                    updatedAt: now.toISOString(),
+                },
+            };
         };
+
+        if (this.dataSource) {
+            return this.dataSource.transaction(async (manager) => {
+                await manager.query?.('SELECT pg_advisory_xact_lock(hashtext($1))', [`csi-draft:${ctx.period.id}:${ctx.respondentId}`]);
+                return persist(manager.getRepository(CsiResponseDraft), manager.getRepository(CsiResponse));
+            });
+        }
+        return persist(this.drafts);
     }
 
     async clear(respondentId: string, periodId: string): Promise<void> {

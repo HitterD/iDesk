@@ -68,14 +68,20 @@ export class CsiSelfResultService {
         const teamIds = (await this.members.find({ where: { userId, team: { kind: CsiTeamKind.CUSTOM } }, select: { teamId: true } }))
             .map((member) => member.teamId);
         const teams = teamIds.length ? [{ ...hc, kind: CsiRateeKind.TEAM, teamId: In(teamIds), team: { kind: CsiTeamKind.CUSTOM } }] : [];
-        const rows = (await this.ratees.find({
+        const rawRows = (await this.ratees.find({
             where: [{ ...hc, userId }, { ...ict, userId }, ...(picIds.length ? [{ ...hc, picId: In(picIds) }] : []), ...teams],
             relations: { period: true, team: true },
         }))
-            .filter((row) => row.period?.scope === ServiceScope.HC || (row.period?.scope === ServiceScope.ICT && row.period.selfResults === true)).filter((row, index, all) => all.findIndex((other) => other.id === row.id) === index)
+            .filter((row) => row.period?.scope === ServiceScope.HC || (row.period?.scope === ServiceScope.ICT && row.period.selfResults === true))
+            .filter((row, index, all) => all.findIndex((other) => other.id === row.id) === index);
+        // Resolve the current PIC owner for every matched PIC ratee so unlinked or reassigned PICs never fall back to a stale ratee.userId snapshot.
+        const rowPicIds = [...new Set(rawRows.map((row) => row.picId).filter((id): id is string => !!id))];
+        const rowPics = rowPicIds.length ? await this.pics.find({ where: { id: In(rowPicIds) }, select: { id: true, userId: true } }) : [];
+        const linkedByPic = new Map(rowPics.map((pic) => [pic.id, pic.userId ?? null]));
+        const rows = rawRows
             .filter((row) => row.kind === CsiRateeKind.TEAM
                 ? row.team?.kind === CsiTeamKind.CUSTOM && teamIds.includes(row.teamId!)
-                : ratedAccountOf(row, new Map(row.picId && picIds.includes(row.picId) ? [[row.picId, userId]] : [])) === userId)
+                : ratedAccountOf(row, linkedByPic) === userId)
             .filter((row) => row.period && !row.period.cancelledAt
                 && (row.kind === CsiRateeKind.TEAM ? row.period.teamEnabled === true : row.period.individualEnabled !== false));
         // Stable partition: preserve personal order, then show custom teams within the same period.

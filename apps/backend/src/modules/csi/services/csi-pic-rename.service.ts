@@ -50,10 +50,11 @@ export class CsiPicRenameService {
 
     constructor(@InjectDataSource() private readonly dataSource: DataSource) { }
 
-    async rename(scope: ServiceScope, id: string, fullName: string): Promise<CsiPicView> {
+    async rename(scope: ServiceScope, id: string, fullName: string, externalManager?: EntityManager): Promise<CsiPicView> {
         assertHcScope(scope);
         const name = cleanPicName(fullName);
         try {
+            if (externalManager) return await this.renameIn(externalManager, scope, id, name);
             return await this.dataSource.transaction((manager) => this.renameIn(manager, scope, id, name));
         } catch (error) {
             // e.g. a template row written with this name by a concurrent edit the lock does not cover.

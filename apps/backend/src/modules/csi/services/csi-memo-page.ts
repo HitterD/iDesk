@@ -138,11 +138,39 @@ function drawBlock(doc: Doc, columns: TableColumn[], survey: MemoSurvey, layout:
     return y + layout.height;
 }
 
+function chunkBlock(doc: Doc, columns: TableColumn[], layout: BlockLayout, firstAvail: number, pageAvail: number): BlockLayout[] {
+    if (layout.height <= Math.max(firstAvail, pageAvail) || layout.names.length <= 1) return [layout];
+    const chunks: BlockLayout[] = [];
+    let index = 0;
+    while (index < layout.names.length) {
+        const limit = Math.max(NAME_ROW_HEIGHT, chunks.length === 0 ? firstAvail : pageAvail);
+        let end = index;
+        let used = 0;
+        while (end < layout.names.length) {
+            const nextH = layout.rowHeights[end];
+            if (end > index && used + nextH > limit) break;
+            used += nextH;
+            end += 1;
+        }
+        const names = layout.names.slice(index, end);
+        const location = fitText(doc, layout.location, columns[0].width - CELL_PAD * 2, maxRowHeight(doc));
+        const locationHeight = doc.heightOfString(location, { width: columns[0].width - CELL_PAD * 2 }) + CELL_PAD * 2;
+        const base = layout.rowHeights.slice(index, end);
+        const extra = Math.max(0, locationHeight - base.reduce((sum, h) => sum + h, 0)) / names.length;
+        const rowHeights = base.map((h) => h + extra);
+        chunks.push({ names, rowHeights, location, height: rowHeights.reduce((sum, h) => sum + h, 0) });
+        index = end;
+    }
+    return chunks;
+}
+
 function drawSummaryTable(doc: Doc, surveys: MemoSurvey[], startY: number): number {
     const widths = scaleWidths(TABLE_WEIGHTS, contentWidth(doc));
     const columns: TableColumn[] = TABLE_HEADERS.map((header, i) => ({ header, width: widths[i], align: i >= 2 ? 'center' : 'left' }));
     const headerRow = (top: number) => drawRow(doc, columns, TABLE_HEADERS, top, { size: BODY_SIZE, bold: true, fill: '#E6E6E6' });
     let y = headerRow(startY);
+    const freshTableTop = headerRowHeightEstimate(doc, columns);
+    const pageAvail = bottomOf(doc) - MARGIN - freshTableTop;
     let blocksOnPage = 0;
     for (const survey of surveys) {
         const layout = layoutBlock(doc, columns, survey);
@@ -151,10 +179,22 @@ function drawSummaryTable(doc: Doc, surveys: MemoSurvey[], startY: number): numb
             y = headerRow(MARGIN);
             blocksOnPage = 0;
         }
-        y = drawBlock(doc, columns, survey, layout, y);
-        blocksOnPage += 1;
+        const chunks = chunkBlock(doc, columns, layout, bottomOf(doc) - y, pageAvail);
+        chunks.forEach((chunk, ci) => {
+            if (ci > 0) {
+                doc.addPage(PORTRAIT);
+                y = headerRow(MARGIN);
+            }
+            y = drawBlock(doc, columns, survey, chunk, y);
+            blocksOnPage += 1;
+        });
     }
     return y + 14;
+}
+
+function headerRowHeightEstimate(doc: Doc, columns: TableColumn[]): number {
+    doc.font('Helvetica-Bold').fontSize(BODY_SIZE);
+    return Math.max(NAME_ROW_HEIGHT, ...TABLE_HEADERS.map((h, i) => doc.heightOfString(h, { width: columns[i].width - CELL_PAD * 2 }) + CELL_PAD * 2));
 }
 
 function drawSignature(doc: Doc, label: string, signer: { name: string; title: string }, x: number, y: number, width: number) {

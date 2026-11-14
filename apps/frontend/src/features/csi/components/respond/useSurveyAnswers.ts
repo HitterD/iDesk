@@ -117,7 +117,8 @@ function useDraftAutosave(
                 if (mounted.current && !serverPending.current) setSyncStatus('saved');
             })
             .catch(() => {
-                if (mounted.current && !serverPending.current) setSyncStatus('local');
+                serverPending.current = true;
+                if (mounted.current) setSyncStatus('local');
             });
     });
 
@@ -164,10 +165,10 @@ function useDraftAutosave(
     }, [draft]);
 
     useEffect(() => {
-        if (!serverPending.current || !onSaveDraft) return undefined;
+        if (!serverPending.current || !latest.current.onSaveDraft) return undefined;
         const timer = window.setTimeout(() => flushServer.current(false), SERVER_SAVE_DEBOUNCE_MS);
         return () => window.clearTimeout(timer);
-    }, [draft, onSaveDraft]);
+    }, [draft]);
 
     return {
         syncStatus,
