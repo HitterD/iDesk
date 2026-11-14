@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { queryKeys } from '@/lib/queryKeys';
 import { useAuth } from '@/stores/useAuth';
+import { CsiApi } from '../api/csi.api';
 import { useCsiForm, useSubmitCsi } from '../hooks/useCsi';
 import { useCsiBasePath } from '../lib/useCsiBasePath';
 import { CSI_HTTP_GONE, CSI_HTTP_NOT_FOUND, CSI_MESSAGES, errorStatus, hasAnswered } from '../lib/csiForm';
@@ -13,7 +16,7 @@ import { ThankYouScreen } from '../components/respond/ThankYouScreen';
 import { clearPicks, RespondentFlow } from '../components/respond/PicSurveyFlow';
 import { NextSurveyCard } from '../components/respond/NextSurveyCard';
 import { answeredOnText, RESPOND_COPY } from '../components/respond/respondCopy';
-import type { CsiOpenForm, SubmitCsiResponse } from '../types';
+import type { CsiActivePeriod, CsiForm, CsiOpenForm, SaveCsiDraft, SubmitCsiResponse } from '../types';
 
 const SKELETON_CARDS = 3;
 /** The app's wide content width (dashboard / resources / hardware request use 1480 px) so the photo layout has room. */
@@ -64,11 +67,24 @@ function AlreadyAnswered({ form, basePath }: { form: CsiOpenForm; basePath: stri
 }
 
 function SurveyForm({ form, basePath, userId }: { form: CsiOpenForm; basePath: string; userId: string }) {
+    const queryClient = useQueryClient();
     const submit = useSubmitCsi(form.id);
     // The last payload sent: the thank-you screen shows per-subject averages from it.
     const [lastPayload, setLastPayload] = useState<SubmitCsiResponse | null>(null);
     const status = errorStatus(submit.error);
     useClearDraftWhen(submit.isSuccess || status === CSI_HTTP_GONE, userId, form.id);
+
+    const handleSaveDraft = (payload: SaveCsiDraft) =>
+        CsiApi.saveDraft?.(form.id, payload)?.then((result) => {
+            if (!result) return result;
+            queryClient.setQueryData<CsiForm>(queryKeys.csi.form(form.id), (previous) =>
+                (previous ? { ...previous, draft: result.draft } : previous),
+            );
+            queryClient.setQueryData<CsiActivePeriod[]>(queryKeys.csi.active(), (previous) =>
+                previous?.map((item) => (item.id === form.id ? { ...item, hasDraft: result.draft !== null } : item)),
+            );
+            return result;
+        });
 
     if (submit.isSuccess) {
         return (
@@ -86,6 +102,7 @@ function SurveyForm({ form, basePath, userId }: { form: CsiOpenForm; basePath: s
         <div className={PAGE_WIDTH}>
             <FadeIn className="mb-4 pt-1"><BackLink to={basePath} /></FadeIn>
             <RespondentFlow form={form} userId={userId}
+                onSaveDraft={handleSaveDraft}
                 onSubmit={(payload) => { setLastPayload(payload); submit.mutate(payload); }}
                 submitting={submit.isPending} error={submit.error} />
         </div>

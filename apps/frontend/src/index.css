@@ -300,18 +300,27 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
 /* ---------- PR2 sapphire agent shell (BentoLayout / BentoSidebar / BentoTopbar) ----------
    One continuous chrome field behind sidebar + topbar; content sits on a rounded sheet.
    Light mode keeps the chrome sapphire-dark; .dark swaps to the dark --idesk-chrome token. */
-.idesk-shell {
-  --shell-sheet: var(--idesk-canvas);
-  --shell-tab-radius: 14px;
-  --shell-line: 0 0% 100% / .10;
-  --shell-fill: 0 0% 100% / .10;
-  background:
-    radial-gradient(1200px 500px at 85% -10%, hsl(0 0% 100% / .07), transparent 60%),
-    linear-gradient(180deg, hsl(var(--idesk-chrome-raised)), hsl(var(--idesk-chrome)));
-  /* Text colour stays --foreground here: overlays (palette, toasts, panels) render outside the sheet.
-     Only .idesk-sidebar / .idesk-topbar / .idesk-shell-chrome opt into chrome text. */
-  color: hsl(var(--foreground));
-}
+  .idesk-shell {
+    --shell-sheet: var(--idesk-canvas);
+    --shell-tab-radius: 14px;
+    --shell-line: 0 0% 100% / .10;
+    --shell-fill: 0 0% 100% / .10;
+    background:
+      radial-gradient(1200px 500px at 85% -10%, hsl(0 0% 100% / .07), transparent 60%),
+      linear-gradient(180deg, hsl(var(--idesk-chrome-raised)), hsl(var(--idesk-chrome)));
+    /* Text colour stays --foreground here: overlays (palette, toasts, panels) render outside the sheet.
+       Only .idesk-sidebar / .idesk-topbar / .idesk-shell-chrome opt into chrome text. */
+    color: hsl(var(--foreground));
+  }
+  /* Lock viewport scrolling while an app shell is mounted so focus/portals/datepickers cannot shift the shell and reveal body grid underneath. */
+  @media screen {
+    html:has(.idesk-shell),
+    html:has(.idesk-shell) body,
+    html:has(.idesk-shell) #root {
+      height: 100%;
+      overflow: clip;
+    }
+  }
 .idesk-shell-chrome { color: hsl(var(--idesk-chrome-foreground)); }
 /* Batik kopi: an interlocking kawung lattice of gold coffee beans, used as an accent only where the reference (iPop) uses its motif:
    the page-context band left of the topbar search, the foot of the sidebar and the TV board header. Everything else stays plain. */
@@ -1888,8 +1897,11 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   #root,
   .premium-bg-container,
   .h-screen,
+  .h-dvh,
   .flex.h-screen,
+  .flex.h-dvh,
   div[class*="h-screen"],
+  div[class*="h-dvh"],
   main,
   #main-content {
     height: auto !important;

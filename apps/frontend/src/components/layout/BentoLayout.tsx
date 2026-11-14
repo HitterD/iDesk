@@ -43,8 +43,11 @@ export const BentoLayout = () => {
     }, [location.pathname]);
 
     // The scroll container outlives routes: start every page at the top, instantly (not scroll-smooth).
+    const shellRef = useRef<HTMLDivElement>(null);
     const mainRef = useRef<HTMLElement>(null);
     useLayoutEffect(() => {
+        window.scrollTo?.({ top: 0, left: 0, behavior: 'instant' });
+        if (shellRef.current) shellRef.current.scrollTop = 0;
         mainRef.current?.scrollTo?.({ top: 0, behavior: 'instant' });
     }, [location.pathname]);
 
@@ -73,7 +76,7 @@ export const BentoLayout = () => {
                 Skip to main content
             </a>
 
-            <div className="idesk-shell flex h-screen font-sans overflow-hidden selection:bg-primary/30 transition-colors duration-300 print:h-auto print:overflow-visible print:block">
+            <div ref={shellRef} className="idesk-shell flex h-dvh font-sans overflow-clip selection:bg-primary/30 transition-colors duration-300 print:h-auto print:overflow-visible print:block">
                 {/* Mobile Overlay */}
                 {isMobileMenuOpen && (
                     <div
@@ -108,7 +111,7 @@ export const BentoLayout = () => {
                     </button>
                 </motion.aside>
 
-                <div className="flex-1 flex flex-col min-w-0 print:block print:w-full">
+                <div className="flex-1 flex flex-col min-w-0 min-h-0 print:block print:w-full">
                     {/* Mobile header */}
                     <div className="idesk-shell-chrome lg:hidden flex items-center justify-between px-3 py-2.5 print:hidden">
                         <button
@@ -133,7 +136,7 @@ export const BentoLayout = () => {
                     </motion.div>
 
                     {/* Main content area on the rounded sheet - conditionally remove padding and scroll for full-screen pages */}
-                    <div className="idesk-sheet flex-1 flex flex-col min-h-0 overflow-hidden print:block print:overflow-visible">
+                    <div className="idesk-sheet flex-1 flex flex-col min-h-0 overflow-clip print:block print:overflow-visible">
                     {(() => {
                         const isKanban = location.pathname === '/kanban';
                         const isZoomCalendar = location.pathname === '/zoom-calendar' || location.pathname === '/manager/zoom-calendar';

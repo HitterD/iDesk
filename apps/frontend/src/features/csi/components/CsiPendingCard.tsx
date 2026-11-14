@@ -44,7 +44,7 @@ export function CsiPendingCard({ className }: { className?: string }) {
                     )}
                 </div>
                 <Link to={target} className="idesk-btn is-primary is-lg shrink-0 justify-center">
-                    {user && pending.some((survey) => hasDraft(user.id, survey.id)) ? 'Lanjutkan' : 'Isi Survei'}<ArrowRight aria-hidden="true" />
+                    {pending.some((survey) => survey.hasDraft || (user && hasDraft(user.id, survey.id))) ? 'Lanjutkan' : 'Isi Survei'}<ArrowRight aria-hidden="true" />
                 </Link>
             </section>
         </FadeIn>

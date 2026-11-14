@@ -166,3 +166,43 @@ describe('SurveyFlow mobile footer spacing', () => {
         expect(screen.getByTestId('csi-flow-content').className).not.toMatch(/pb-/);
     });
 });
+
+describe('SurveyFlow server draft persistence', () => {
+    it('resumes answers and position from form.draft when localStorage is empty and mirrors locally', () => {
+        renderFlow({
+            form: {
+                ...FORM,
+                draft: {
+                    departmentId: 'd2',
+                    position: 2,
+                    answers: { r1: { x1: 5 } },
+                    comments: { r1: 'Cepat' },
+                    picks: null,
+                    updatedAt: '2026-11-14T10:00:00.000Z',
+                },
+            },
+        });
+        expect(screen.getByRole('heading', { name: 'Andi' })).toBeInTheDocument();
+        expect(screen.getByText('Melanjutkan isian sebelumnya')).toBeInTheDocument();
+        expect(within(screen.getByRole('radiogroup', { name: 'Kecepatan untuk Andi' })).getByRole('radio', { name: '5 bintang' })).toBeChecked();
+        expect(localStorage.getItem('csi-draft:v2:u1:p1')).toContain('"departmentId":"d2"');
+    });
+
+    it('flushes pending draft edits to onSaveDraft when the tab becomes hidden', async () => {
+        const user = userEvent.setup();
+        const onSaveDraft = vi.fn().mockResolvedValue({ draft: null });
+        renderFlow({ onSaveDraft });
+        await startFilling(user);
+        await choose(user, 'Kualitas layanan untuk Tim IT Support', 'Cukup');
+
+        Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+        Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+
+        expect(onSaveDraft).toHaveBeenCalledWith(expect.objectContaining({
+            departmentId: 'd2',
+            position: 1,
+            answers: { rt: { t1: 1 } },
+        }));
+    });
+});
